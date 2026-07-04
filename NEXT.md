@@ -1,18 +1,26 @@
 # NEXT — top of the stack
 
-## Current: M0 — Toolchain
-Environment confirmed: WSL2 Ubuntu 24.04.4, RTX 4070 available, 24 cores / 30 GB RAM.
-Python 3.12.3, git 2.43. Nothing else installed yet.
+## Current: M1 — Camera pipeline
+Goal: launch `gz_x500_mono_cam` (airframe 4010), pull camera frames into Python via
+gz-transport, save them to disk. Gate: script captures N frames at the expected
+resolution, exits 0.
 
 Steps:
-- [x] git init, scaffolding (.gitignore, PROGRESS.md, NEXT.md, docs/decisions.md)
-- [ ] Clone PX4-Autopilot (latest stable tag) to `~/PX4-Autopilot`, run `Tools/setup/ubuntu.sh`
-- [ ] Build px4_sitl; verify headless `make px4_sitl gz_x500` boots ("Ready for takeoff!")
-- [ ] Python venv `.venv` with mavsdk, pytest, opencv-python, numpy
-- [ ] `scripts/m0_takeoff.py` (MAVSDK: arm → takeoff 2 m → land) + `scripts/check_m0.sh` gate
-- [ ] verifier runs gate → commit "M0: toolchain"
+- [ ] `sudo apt install python3-gz-transport13` (Harmonic pairs with transport13; confirmed available)
+- [ ] Launch sim with camera airframe: `HEADLESS=1 make px4_sitl gz_x500_mono_cam` (or `PX4_SIM_MODEL=gz_x500_mono_cam`) — confirm camera topic with `gz topic -l`
+- [ ] Determine camera resolution/intrinsics from the model SDF (`~/PX4-Autopilot/Tools/simulation/gz/models/mono_cam/`)
+- [ ] `scripts/m1_capture.py`: subscribe to the image topic, convert to numpy, save N frames as PNG to logs/
+- [ ] `scripts/check_m1.sh` gate + verifier + commit
+
+## Done
+- **M0 (2026-07-04):** toolchain up — PX4 v1.17.0 built, Gazebo Harmonic 8.14, venv
+  (mavsdk 3.15.3, pytest, numpy, opencv-headless). Gate passed & verifier-confirmed.
 
 Key facts for a fresh session:
-- PX4 lives OUTSIDE this repo at `~/PX4-Autopilot` (see ADR-0001)
-- MAVSDK connects on `udpin://0.0.0.0:14540`; headless launch via `HEADLESS=1 make px4_sitl gz_x500`
-- Launch/shutdown details: `.claude/skills/px4-gazebo/SKILL.md`
+- PX4 at `~/PX4-Autopilot` (v1.17.0, built). MAVSDK on `udpin://0.0.0.0:14540`.
+- Boot-complete grep line: "Startup script returned successfully" — NEVER wait on
+  "Ready for takeoff!" before MAVSDK connects (NAV_DLL_ACT=2 deadlock; see ADR-0004
+  and .claude/skills/px4-gazebo/SKILL.md).
+- AprilTag library = pupil-apriltags (ADR-0003, unanimous council).
+- Minor: m0_takeoff.py duplicates its final CSV row — cosmetic; tidy if reused as
+  the logging template for M2+.

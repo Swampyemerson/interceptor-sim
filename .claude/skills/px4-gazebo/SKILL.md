@@ -14,8 +14,12 @@ From the PX4-Autopilot directory:
 - Pick a world with `PX4_GZ_WORLD=<world>` (empty world is fine early on).
 
 ## Verify it is up
-- PX4 prints "Ready for takeoff!" once it can arm.
-- MAVSDK connects on `udpin://0.0.0.0:14540`.
+- Boot-complete line to grep for: `Startup script returned successfully`.
+- CAUTION: "Ready for takeoff!" only prints AFTER a GCS/MAVSDK link connects —
+  the gz_x500 airframes set `NAV_DLL_ACT=2`, so "No connection to the GCS" is a
+  blocking preflight failure until then. Never gate a launch-wait on that string
+  (chicken-and-egg deadlock; hit this in M0, 2026-07-04).
+- MAVSDK connects on `udpin://0.0.0.0:14540`; once connected, arming becomes possible.
 - `gz topic -l` lists topics - confirm the camera topic exists before bridging frames.
 
 ## Shut down cleanly

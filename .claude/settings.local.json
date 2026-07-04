@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git init *)"
+      "Bash(git init *)",
+      "Bash(kill -TERM 23545 23565 23575 23616 23617 23619 23620 23621 23818)",
+      "Bash(kill -KILL 23621 23818)"
     ]
   }
 }
