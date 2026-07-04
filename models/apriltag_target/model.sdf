@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  M2 AprilTag target board. See GOALS.md milestone M2 and
+  scripts/make_tag_texture.py for how tag36h11_00000.png was built.
+
+  GEOMETRY (traced numbers -- Fable reviews this):
+  The full textured plane below is 0.625 m/side. The source tag image is a
+  10x10-cell grid: 6x6 data bits + 1-cell black border each side + 1-cell
+  white border each side. The BLACK SQUARE -- the outer edge of the black
+  border, which is what pupil-apriltags' `tag_size` parameter measures for
+  pose estimation -- is 8/10 of the full textured square:
+      tag_size = 0.625 m * (8/10) = 0.5 m
+  scripts/m2_detect.py must be called with tag_size=0.5 to match this model.
+
+  ORIENTATION: this model is built so its own -X axis is the "outward face"
+  direction (the textured side an observer sees). The base_visual's local
+  pitch of -1.5708 rad (-pi/2) rotates the plane's default +Z normal onto
+  the model's local -X: Ry(-pi/2) applied to (0,0,1) = (-1,0,0). When this
+  model is included in a world with NO extra rotation (see worlds/apriltag.sdf),
+  the tag's textured face therefore points toward world -X -- i.e. back
+  toward a camera approaching from smaller X, as required by GOALS.md's
+  camera-forward-+X convention. Verified visually against a captured camera
+  frame during M2 (see logs/), not just by this derivation.
+-->
+<sdf version='1.9'>
+  <model name='apriltag_target'>
+    <static>true</static>
+    <link name='base'>
+      <visual name='base_visual'>
+        <pose>0 0 0 0 -1.5708 0</pose>
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>0.625 0.625</size>
+          </plane>
+        </geometry>
+        <material>
+          <!-- Lighting reality check (measured during M2, see docs/decisions.md):
+               this board faces world -X, but the world's inherited sun
+               direction (kept exactly per GOALS.md -- do not edit) is
+               ~(0, 0.625, -0.78), i.e. nearly straight down. A -X-facing
+               vertical surface gets a grazing/near-zero dot product with
+               that light, so ordinary lit shading (even with <lighting>
+               false</lighting>, which pbr/metal does not honor in this
+               gz-sim/ogre2 build) rendered "white" at only ~100/255 --
+               plenty of contrast up close, but the 6x6 data-bit cells
+               (already small on screen at range) lost enough contrast
+               under GPU mip-minification that pupil-apriltags failed to
+               decode beyond ~2 m (verified: detects at 1.2/1.5/2.0 m,
+               fails at 2.5/3.0 m with plain albedo_map).
+               Fix: emissive_map with the SAME texture. Emissive is
+               additive self-illumination independent of scene lighting;
+               because it is a *map* (not the earlier flat
+               <emissive>1 1 1 1</emissive>, which washed the whole plane
+               out to solid white), it reproduces the black/white pattern
+               at full contrast regardless of viewing/light angle. -->
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://apriltag_target/tag36h11_00000.png</albedo_map>
+              <emissive_map>model://apriltag_target/tag36h11_00000.png</emissive_map>
+              <roughness>1.0</roughness>
+              <metalness>0.0</metalness>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

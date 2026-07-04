@@ -1,0 +1,10 @@
+# Direct dependencies only (trimmed from `pip freeze`, which also lists
+# system-site-packages leaking in via .venv/.../gz_system.pth — see NEXT.md).
+# gz.transport13 / gz.msgs10 are NOT pip-installable; they come from apt
+# (python3-gz-transport13, python3-gz-msgs10) and reach this venv via that
+# .pth file. Install with: .venv/bin/pip install -r requirements.txt
+mavsdk==3.15.3
+numpy==2.5.1
+opencv-python-headless==5.0.0.93
+pytest==9.1.1
+pupil-apriltags==1.0.4.post11
