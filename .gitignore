@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Simulation logs & artifacts (regenerable; analyze from logs/ locally)
+logs/
+*.ulg
+
+# Gazebo / PX4 caches that can leak into the workspace
+.gz/
+build/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
