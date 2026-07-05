@@ -85,10 +85,16 @@ the current Pk push + S3/S4, so we don't destabilize a passing S2.
       launch → climb → dash → handoff → terminal → CPA, with sim-time stamps per
       phase. The headline "reaction + intercept time" figure.
 
-**Perception design (PROMOTED to active — builder redirect 2026-07-05: design the
-perception half BEFORE finalizing the interception math, since the real track's
+**Perception design (ACTIVE — builder redirect 2026-07-05: design the perception
+half BEFORE finalizing the interception math, since the real track's
 rate/accuracy/latency/dropout become new data constraints on guidance).**
-3-member Opus council running now; synthesis -> a perception design ADR + doc.
+DESIGN DONE: 3 Opus councils -> **ADR-0015** + `docs/perception_design.md` (readable).
+Headlines: onboard Pi5 + Hailo NPU (real ML, no ROS2 — overturns ADR-0012's
+Pi-CPU call; Jetson to the ground); detect-then-track; ground global-frame
+GPS-timestamped track fused with onboard bearing (RTK + PPS time-sync the
+enablers); EO day-proof, thermal staged. BUILDING NOW: sim-realism upgrade
+(guidance_lab.py Pk sensitivity under real track quality — Opus worker running),
+then the Gazebo port (s2_cue_mock.py + m4_intercept.py per the ADR-0015 table).
 Empirical hook: baseline S2 Pk is gated by TERMINAL PERCEPTION (all 20/20 flights
 fail by camera dropout at CPA — ADR-0014 addendum), so better perception directly
 raises Pk. Builder's core hypothesis to design around: **ground stereo gives RANGE,
