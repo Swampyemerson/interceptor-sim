@@ -8,3 +8,4 @@ numpy==2.5.1
 opencv-python-headless==5.0.0.93
 pytest==9.1.1
 pupil-apriltags==1.0.4.post11
+matplotlib==3.11.0
