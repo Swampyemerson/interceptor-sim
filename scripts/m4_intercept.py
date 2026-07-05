@@ -223,6 +223,79 @@ CLIMB_S = 1.5  # breakoff climb duration
 CLIMB_V = 1.0  # m/s up during breakoff climb
 POST_BREAKOFF_LOG_S = 2.0  # total time spent (logging) in the BREAKOFF phase
 
+# --- FPV profile (M4.5 sub-step S1, ADR-0010). Activated by --fpv; the
+# module defaults above stay exactly at the M4-validated values so
+# check_m4.sh is untouched. This profile OVERRIDES a bundle of constants
+# for the higher-speed regime and is applied once in apply_fpv_profile()
+# before the guidance loop runs. Design (ADR-0010 decision #2): DECOUPLE a
+# fast run-in closing speed (to catch a ~6 m/s target) from a throttled
+# terminal closing speed (to keep the terminal LOS-rate math at ~M4's
+# validated ~3-4 m/s difficulty), and rescale every terminal RANGE so its
+# TIME semantics survive the faster terminal speed. Numbers are the
+# council's starting proposals -- validated/retuned by S1 dev runs, logged
+# in ADR-0010 as they settle.
+FPV = {
+    # Two-speed closing law (see compute_v_close): fast run-in above the
+    # throttle range, throttled terminal speed below it.
+    "V_CLOSE_RUNIN": 9.0,      # m/s, closing speed while still far (catch the mover)
+    "V_CLOSE_TERMINAL": 5.5,   # m/s, throttled closing speed in the terminal band
+    "THROTTLE_RANGE_M": 5.0,   # r_hat at/below which closing throttles toward terminal
+    # Lateral / total clamps scaled up for the faster regime.
+    "V_PERP_MAX": 8.0,         # m/s, lateral (pro-nav) velocity clamp (S1 dev: 6 saturated, starving the Y-lead)
+    "V_TOTAL_MAX": 13.0,       # m/s, horizontal command safety clamp
+    # Terminal ranges rescaled ~1.7x (terminal speed 3.0 -> 5.5 m/s) so coast
+    # DURATION and dropout-hold DURATION match M4's proven time semantics.
+    "TERMINAL_RANGE_M": 5.0,
+    "TERMINAL_FREEZE_RANGE_M": 3.5,
+    "BREAKOFF_ARM_RANGE_M": 4.0,
+    "VC_FLOOR_M_S": 4.5,       # range-rate floor (S1 dev: Vc pinned at 3.0 under-powered a=N*Vc*lam_dot; true closing ~4.5)
+    # Range-rate filter must track a faster-swinging Rdot (the ADR-0009
+    # lambda-lag pathology, now on the range channel per council seat A).
+    "BETA_GAIN_RANGE": 0.45,
+    # PX4 params set via MAVSDK before arming (ADR-0010 decision #3).
+    "PX4_PARAMS": {
+        "MPC_XY_VEL_MAX": 20.0,
+        "MPC_ACC_HOR_MAX": 12.0,
+        "MPC_TILTMAX_AIR": 60.0,
+        "MPC_JERK_MAX": 30.0,
+    },
+}
+
+
+def apply_fpv_profile():
+    """Overwrite the module-level guidance constants with the FPV bundle
+    (S1, ADR-0010). Called once from main() when --fpv is set, BEFORE the
+    guidance loop reads any of them. Leaves the PX4 params for main() to
+    push over MAVSDK (they aren't module constants)."""
+    global V_PERP_MAX, V_TOTAL_MAX, TERMINAL_RANGE_M, TERMINAL_FREEZE_RANGE_M
+    global BREAKOFF_ARM_RANGE_M, BETA_GAIN_RANGE
+    V_PERP_MAX = FPV["V_PERP_MAX"]
+    V_TOTAL_MAX = FPV["V_TOTAL_MAX"]
+    TERMINAL_RANGE_M = FPV["TERMINAL_RANGE_M"]
+    TERMINAL_FREEZE_RANGE_M = FPV["TERMINAL_FREEZE_RANGE_M"]
+    BREAKOFF_ARM_RANGE_M = FPV["BREAKOFF_ARM_RANGE_M"]
+    BETA_GAIN_RANGE = FPV["BETA_GAIN_RANGE"]
+
+
+def compute_v_close(r_hat, fpv_on):
+    """Commanded along-LOS closing speed. M4 default: constant V_CLOSE_MAX.
+    FPV (S1): fast run-in far out, linearly throttled to V_CLOSE_TERMINAL as
+    r_hat falls through THROTTLE_RANGE_M down to TERMINAL_FREEZE_RANGE_M --
+    catch the fast target, then slow the terminal geometry so lambda_dot
+    doesn't blow up (ADR-0010 decision #2, seat A's detection-window warning)."""
+    if not fpv_on:
+        return V_CLOSE_MAX
+    runin = FPV["V_CLOSE_RUNIN"]
+    term = FPV["V_CLOSE_TERMINAL"]
+    hi = FPV["THROTTLE_RANGE_M"]
+    lo = FPV["TERMINAL_FREEZE_RANGE_M"]
+    if r_hat is None or r_hat >= hi:
+        return runin
+    if r_hat <= lo:
+        return term
+    frac = (r_hat - lo) / (hi - lo)  # 1 at hi -> 0 at lo
+    return term + frac * (runin - term)
+
 # --- MAVSDK / takeoff constants (mirrors scripts/m3_static_intercept.py's
 # own constants -- not reused via import, since M3 doesn't export these as
 # module-level names meant for reuse; they're the same numbers by design). ---
@@ -435,6 +508,11 @@ def parse_args():
         "--mover-duration", type=float, default=12.0,
         help="how long the target mover streams motion for, in seconds",
     )
+    parser.add_argument(
+        "--fpv", action="store_true",
+        help="FPV profile (S1, ADR-0010): bump PX4 params, two-speed closing "
+             "law, rescaled terminal ranges for a faster (~6 m/s) target",
+    )
     return parser.parse_args()
 
 
@@ -520,7 +598,7 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
         # from engage onward, so true closing speed is never near zero once
         # engaged. Measured -Rdot_hat takes over the
         # moment it exceeds the floor.
-        VC_FLOOR_M_S = 1.5
+        VC_FLOOR_M_S = FPV["VC_FLOOR_M_S"] if args.fpv else 1.5
         vc = max(VC_FLOOR_M_S, -rdot_hat) if rdot_hat is not None else VC_FLOOR_M_S
         a_cmd = (
             N_PRONAV * vc * lambda_dot_hat
@@ -587,7 +665,7 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
                 if not in_terminal_coast:
                     u = (math.cos(lambda_hat), math.sin(lambda_hat))
                     p = (-math.sin(lambda_hat), math.cos(lambda_hat))
-                    v_close = V_CLOSE_MAX  # constant-speed intercept (see constants)
+                    v_close = compute_v_close(r_hat, args.fpv)  # two-speed under --fpv
 
                     if args.law == "pronav":
                         v_perp = _clamp(v_perp + a_cmd * dt, -V_PERP_MAX, V_PERP_MAX)
@@ -828,6 +906,15 @@ async def main():
     started = time.monotonic()
     args = parse_args()
 
+    if args.fpv:
+        apply_fpv_profile()
+        print(
+            "[m4] FPV profile ON (S1, ADR-0010): two-speed closing "
+            f"(run-in {FPV['V_CLOSE_RUNIN']}, terminal {FPV['V_CLOSE_TERMINAL']} m/s), "
+            f"terminal-freeze {TERMINAL_FREEZE_RANGE_M} m, V_PERP_MAX {V_PERP_MAX}, "
+            f"BETA_GAIN_RANGE {BETA_GAIN_RANGE}"
+        )
+
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = "bench" if args.bench else args.law
@@ -914,6 +1001,21 @@ async def main():
         )
         await wait_for_health(drone, HEALTH_TIMEOUT_S)
         print("[m4] Health OK.")
+
+        if args.fpv:
+            # Push the FPV envelope params BEFORE arming (ADR-0010 decision #3):
+            # runtime MAVSDK param API, never an airframe-file edit. Read back
+            # each one so a stale value can't silently contaminate a run (and
+            # so the run's own log records exactly what flew).
+            print("[m4] FPV: setting PX4 params (read back for the log header)...")
+            for name, value in FPV["PX4_PARAMS"].items():
+                await drone.param.set_param_float(name, value)
+                got = await drone.param.get_param_float(name)
+                print(f"[m4]   {name} = {got} (requested {value})")
+                if abs(got - value) > 1e-3:
+                    raise RuntimeError(
+                        f"PX4 param {name} did not take (got {got}, wanted {value})"
+                    )
 
         print(f"[m4] Setting takeoff altitude to {ALT_REF_M} m...")
         await drone.action.set_takeoff_altitude(ALT_REF_M)
