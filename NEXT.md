@@ -1,32 +1,39 @@
 # NEXT — top of the stack
 
-## Current: M3 — static intercept
-Goal: fly the interceptor toward the static AprilTag using MAVSDK offboard control,
-using the tag's detected relative position (camera + pupil-apriltags, from M2) as
-the only position feedback, and hold a 2 m standoff. Gate: final standoff error
-< 0.5 m, logged.
+## Current: M4 — moving-target intercept, pursuit vs pro-nav
+Goal: intercept a moving tag (straight-line, ≥ 2 m/s). Gate: < 1 m closest
+approach, AND pursuit vs pro-nav miss distances compared on the same target
+paths (this comparison is the resume line — see GOALS.md guidance arc).
 
 Likely steps (refine before building):
-- [ ] Offboard velocity-setpoint control loop over MAVSDK (arm, switch to OFFBOARD,
-      stream setpoints) — see MAVSDK docs for the offboard "must stream before
-      switching modes" requirement.
-- [ ] Wire M2's detection + ground-truth-frame math (scripts/m2_detect.py) into a
-      live relative-position feedback signal (tag position in camera optical frame
-      -> body/NED offset -> velocity command), holding a standoff distance instead
-      of closing all the way to the tag.
-- [ ] Convert camera-optical-frame tag position -> body FRD -> NED/ENU setpoint
-      frame (GOALS.md coordinate-frame conventions) — reuse the same rotation
-      utilities as m2_detect.py (quat_to_matrix, compose) rather than re-deriving.
-  - Note: M2's world is static (drone parked on the ground) and never armed/flew,
-    so this is the first milestone that actually needs MAVSDK OFFBOARD + the
-    detection loop running concurrently — a genuinely new integration surface.
-- [ ] `scripts/m3_static_intercept.py` + `scripts/check_m3.sh` gate + verifier + commit.
-- [ ] Consider: does the M2 tag placement (5 m, facing -X) still make sense as the
-      M3 approach target, or does the drone need a longer straight-line approach
-      corridor? The apriltag world/model already supports moving the tag's pose
-      live via `gz service -s /world/apriltag/set_pose` for quick iteration.
+- [ ] Decide how to move the target: `gz service -s /world/apriltag/set_pose`
+      streamed from Python (already known to work for repositioning) vs a scripted
+      actor/plugin in the world. Reproducible straight-line paths at set speeds.
+- [ ] **Council (per CLAUDE.md): pro-nav mechanization + gain N.** How to get LOS
+      rate from camera bearings (finite-difference + filter?), how to command
+      lateral accel over MAVSDK (integrate accel into velocity setpoints vs
+      attitude setpoints), N in the 3–5 range, and how closing speed Vc is
+      estimated camera-only. ADR it.
+- [ ] Pursuit runner first (M3's controller chases the moving tag — expect it to
+      lag and trail), then pro-nav, on identical paths; log closest approach for
+      both. `scripts/m4_*.py` + `scripts/check_m4.sh` + verifier + commit.
+- [ ] Watch for: tag leaving the FoV during high LOS-rate moments (that IS the
+      pursuit failure mode — log it, don't paper over it); detection latency vs
+      20 Hz control; PX4 velocity-setpoint lag when the command changes fast.
+- [ ] Miss distance definition: min 3D camera→tag (or body→tag?) distance over the
+      run from ground truth — decide and keep it identical across both laws.
 
 ## Done
+- **M3 (2026-07-05):** static intercept — camera-only P-control (body-frame
+  velocity + yawspeed, ADR-0008) closed 4.9 m → 2 m standoff in ~10 s, held.
+  Final standoff error 0.018/0.035 m across two verifier runs (bar <0.5 m),
+  detection coverage 1.000, zero overshoot. Gate `scripts/check_m3.sh`;
+  guidance script `scripts/m3_static_intercept.py` (reuses m2_detect + m0_takeoff
+  by import). Verifier numerically proved commands trace to measured range, not
+  ground truth. Key integration facts: offboard needs a setpoint streamed BEFORE
+  `offboard.start()` and ≥2 Hz after; detection runs on its own thread (latest-
+  frame-wins, no queue) at full 20 Hz control coverage; `sleep 5` after boot
+  before MAVSDK connect (check_m3.sh) since M3 arms right after health-OK.
 - **M0 (2026-07-04):** toolchain — PX4 v1.17.0 built, Gazebo Harmonic 8.14, venv up.
 - **M1 (2026-07-04):** camera pipeline — 10/10 frames @ 1280×960 via gz-transport13.
 - **M2 (2026-07-04):** AprilTag detection — custom `worlds/apriltag.sdf` +
