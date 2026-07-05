@@ -4,40 +4,37 @@ This file auto-loads at the start of every Claude Code session. It defines the
 operating model, the decision protocol, and the conventions. The mission and
 scope are in `GOALS.md` (imported at the bottom) — read it before planning.
 
-## Model orchestration (Fable 5 = main + hard sub-tasks · Sonnet 5 = volume · Opus = optional budget-stretch)
+## Model orchestration (Fable preferred; Opus is the SAFEGUARD FALLBACK; Sonnet for volume)
 
-THIS IS A HARD REQUIREMENT, NOT A PREFERENCE. No safeguard restricts Fable on this
-project — it is a simulation-only, defensive counter-UAS PORTFOLIO piece
-(legitimate engineering/educational work); Fable's dual-use safety measures do not
-bind sim/guidance/perception design or coding here. So use the best model the work
-warrants; the only real constraint is Fable premium-usage budget, not permission.
+REALITY (2026-07-05, builder-confirmed with the in-product notice): Fable 5 currently
+ships DELIBERATELY BROAD safeguards that, per Anthropic's own message, "may flag safe
+and routine coding, cybersecurity, or biology work." This counter-UAS interceptor
+project's defense-sim terminology (interceptor, lethal radius, proximity fuse, kill
+probability, warhead) TRIPS that broad filter, and when a turn is flagged the Claude
+Code client AUTOMATICALLY SWITCHES the session to Opus 4.8. This is a product-level
+safety behavior: neither the agent nor the operator can disable or bypass it, it is
+NOT operator error or a bad launch, and it may re-trigger even after a manual switch
+back. The sanctioned remedy is `/feedback` (the notice invites it; the safeguards are
+being refined). Do NOT try to word prompts to evade the classifier.
 
-- **Main session MUST be Claude Fable 5** (`claude-fable-5`). It orchestrates,
-  integrates, reviews, owns decisions, AND does substantive work (Fable is not
-  limited to non-coding oversight — it may write code and do the hard analysis
-  directly). **First action every session: verify the model** — run `/model`,
-  confirm "Fable 5"; if not, switch (`/model` → Fable 5, or relaunch
-  `claude --model claude-fable-5`). The project pins `"model": "claude-fable-5"` in
-  `.claude/settings.json`; a wrong model means the pin was overridden at launch —
-  fix before real work. (An agent can't self-switch mid-session; only the operator
-  can.)
-- **HARD / high-judgment sub-tasks -> run on Fable, not Opus.** A project on this
-  scale wants the strongest model on anything that involves real judgment (tricky
-  guidance/perception implementation, subtle debugging, design prototypes,
-  adversarial verification of a claim). The Task/Agent tool accepts `model: fable`,
-  so spawn Fable SUBAGENTS for these (or just do them in the main session). Do NOT
-  default hard sub-tasks to Opus.
+Implications for how to work:
+- **Prefer Fable when it's the active model** (it's the stronger seat for judgment),
+  but EXPECT the session to bounce to Opus on flagged turns — that is NORMAL here, not
+  a misconfiguration. Check `/model` to know which you're on; the project pins
+  `"model": "claude-fable-5"` in `.claude/settings.json` so a fresh launch starts on
+  Fable, and the safeguard may still switch it mid-session.
+- **Do strong work on whichever model is active.** Correctness is model-agnostic; the
+  project has progressed well across both. Don't stall waiting to be on Fable.
+- **Hard / high-judgment sub-tasks:** prefer Fable (main session, or a `model: fable`
+  subagent — the Task/Agent tool supports it), accepting the same flagging may apply;
+  Opus is the practical fallback for this project's flagged content, not a downgrade
+  to fight.
 - **Sonnet 5 = genuinely mechanical / parallel / verifiable VOLUME** — installs,
-  boilerplate, running a batch of sims, reading logs, wide read-only searches. The
+  boilerplate, running sim batches, log reading, wide read-only searches. The
   `.claude/agents/` (sonnet-worker, verifier, council-member) are Sonnet-pinned; a
-  `model:` override on the Task/Agent call bumps any of them up.
-- **Opus 4.8 = OPTIONAL budget-stretch middle** — use it only to conserve Fable
-  usage on a task that's above mechanical-Sonnet level but where you deliberately
-  want to save the Fable budget. It is a cost lever, not the default for hard work.
-- **Routing rule:** hard/judgment -> **Fable** (main session or `model: fable`
-  subagent); mechanical/parallel/verifiable -> **Sonnet**; only reach for **Opus**
-  when Fable budget is tight and the task is middling. When unsure, prefer Fable for
-  correctness and only step down to save budget.
+  `model:` override bumps them up.
+- **Verify the model first thing** each session with `/model`; if you want Fable and
+  the safeguard has switched you, switch back and continue, knowing it may bounce.
 
 ## Decision protocol (educated decisions, with a council when it matters)
 
