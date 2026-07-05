@@ -125,6 +125,7 @@ fi
 
 declare -A MISS
 declare -A CLEAN
+declare -A ENGAGED
 declare -A EXITCODE
 
 for LAW in pursuit pronav; do
@@ -219,7 +220,8 @@ for LAW in pursuit pronav; do
     else
         MISS[$LAW]="$(echo "$RESULT_LINE" | grep -oP '(?<=miss=)[^ ]+')"
         CLEAN[$LAW]="$(echo "$RESULT_LINE" | grep -oP '(?<=clean=)[^ ]+')"
-        echo "[check_m4] Parsed: law=$LAW miss=${MISS[$LAW]} clean=${CLEAN[$LAW]} (exit $PY_EXIT)"
+        ENGAGED[$LAW]="$(echo "$RESULT_LINE" | grep -oP '(?<=engaged=)[^ ]+')"
+        echo "[check_m4] Parsed: law=$LAW miss=${MISS[$LAW]} clean=${CLEAN[$LAW]} engaged=${ENGAGED[$LAW]} (exit $PY_EXIT)"
     fi
 
     teardown_sim
@@ -232,12 +234,18 @@ echo "[check_m4] pronav : miss=${MISS[pronav]:-<missing>} m  clean=${CLEAN[prona
 
 PASS=1
 
+# Criteria are asymmetric BY DESIGN: pro-nav is the law under test (must be
+# clean AND under the miss gate); pursuit is the baseline whose FAILURE TO
+# CLOSE is the expected, demonstrated result -- it only has to have genuinely
+# flown the same engagement (reached ENGAGE, mover ran, valid miss recorded).
+# Requiring pursuit to be "clean" (min range < 2.5 m) contradicted the
+# experiment -- caught on the first official gate run (2026-07-05).
 for LAW in pursuit pronav; do
     if [[ "${EXITCODE[$LAW]:-1}" -eq 124 ]]; then
         PASS=0
     fi
-    if [[ "${CLEAN[$LAW]:-}" != "1" ]]; then
-        echo "[check_m4] FAIL reason: $LAW flight not clean (clean=${CLEAN[$LAW]:-<missing>})."
+    if [[ "${ENGAGED[$LAW]:-}" != "1" ]]; then
+        echo "[check_m4] FAIL reason: $LAW never reached ENGAGE (engaged=${ENGAGED[$LAW]:-<missing>})."
         PASS=0
     fi
     if ! is_number "${MISS[$LAW]:-}"; then
@@ -245,6 +253,10 @@ for LAW in pursuit pronav; do
         PASS=0
     fi
 done
+if [[ "${CLEAN[pronav]:-}" != "1" ]]; then
+    echo "[check_m4] FAIL reason: pronav flight not clean (clean=${CLEAN[pronav]:-<missing>})."
+    PASS=0
+fi
 
 if [[ "$PASS" -eq 1 ]] && ! awk -v m="${MISS[pronav]}" -v g="$PRONAV_MISS_GATE_M" 'BEGIN{exit !(m < g)}'; then
     echo "[check_m4] FAIL reason: pro-nav miss ${MISS[pronav]} m >= ${PRONAV_MISS_GATE_M} m gate."

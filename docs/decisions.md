@@ -88,3 +88,44 @@ at cap = undiagnostic geometry — NOT to soften pursuit's expected failure).
 --bench PASSED (mean |λ̇| 1.24°/s under ±20°/s spin). Best pro-nav dev run:
 miss 0.945 m, clean, coverage 0.764 (logs/m4_intercept_pronav_20260705T013540Z.csv).
 Official check_m4.sh gate + verifier still pending — see NEXT.md.
+
+## ADR-0009 second addendum (2026-07-05) — the RTF discovery and the final M4 mechanization
+- **Root cause of the stalemate chases (3 dev runs + 2 failed gates):** under full
+  mission load this sim's real-time factor sags to ~0.5, and the target mover
+  scheduled its path in WALL time — making a "2.0 m/s" target move ~4 m/s in SIM
+  terms, faster than the interceptor's 4.0 m/s ceiling. Every engagement
+  degenerated into a matched-speed tail chase by construction. The tell: PX4's own
+  ulog showed near-perfect setpoint tracking (cmd (3.90,-0.89) → achieved
+  (4.02,-0.88)) over a "fast phase" of 8.8 SIM seconds that our wall-clock CSV
+  recorded as 18.6 s — exactly the RTF ratio. **Fix:** the mover schedules on sim
+  time from a /clock-subscribing CHILD process (the mover itself must stay
+  subscription-free per the service-response quirk); --duration is now sim-seconds.
+- **Command path switched to `set_velocity_ned` + absolute yaw setpoint** (was
+  body-frame + yawspeed; supersedes ADR-0008's frame choice for M4 only): guidance
+  already computes a world-frame vector, body-frame velocity tracking measurably
+  degrades at speed, and yaw-angle setpoints eliminate the entire LOS-rate
+  feedforward/rate-lag problem (PX4's attitude loop does the pointing). Camera
+  remains the only target sensor; ψ was already required for the strapdown λ.
+- **Terminal coast:** at r_hat < 2.0 m the full commanded velocity vector freezes
+  and the vehicle flies the established collision course through CPA (λ̇ is
+  singular as R→0; at 1.5 m the estimate had already blown to -53°/s vs -13°/s at
+  2.0 m, whipping the commanded direction and un-flying the intercept).
+- **Constant closing speed 3.0 m/s during ENGAGE** (was 0.8·R, an M3 standoff
+  habit): a proportional-to-range speed law let the target outrun the interceptor
+  inside 2.5 m — CPA offset was 1.01 m *along the target's velocity* with only
+  0.10 m cross-track. Intercept ≠ rendezvous.
+- **Detector quad_decimate=2 for M4 only** (M3 keeps full-res; its gate numbers
+  were validated without decimation). ~4× cheaper quad search, corner refinement
+  still full-res; ENGAGE coverage rose ~0.5 → 0.75-0.85.
+- **Gate criteria made asymmetric by design:** pro-nav must be clean AND < 1.0 m;
+  pursuit must only have genuinely flown the same engagement (engaged=1, valid
+  miss) — its failure to close IS the demonstrated result, and requiring it to be
+  "clean" contradicted the experiment.
+- **Verification (official gate, 3 independent runs — mine + 2 by verifier):**
+  pro-nav miss 0.402 / 0.277 / 0.443 m (gate < 1.0); pursuit 2.544 / 2.109 /
+  2.048 m on identical paths (4.6-7.6× worse). Verifier confirmed target motion
+  at 2.000 m/s sim through CPA (mover sim_t CSV + gt_tag_y cross-check),
+  recomputed all misses from raw gt_range, and numerically confirmed r_hat tracks
+  meas_range (camera) not gt_range where they diverge (no-cheat, per council
+  requirement). Logs: m4_intercept_{pursuit,pronav}_20260705T{0322xx,0324xx,0331xx}Z.csv.
+- **Date:** 2026-07-05.

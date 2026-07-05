@@ -46,7 +46,7 @@ instead of going to zero or undefined the instant a frame is missed.
 PURSUIT VS PRO-NAV -- SHARED EVERYTHING BUT THE LATERAL TERM: both laws use
 the exact same closing-speed control, the exact same yaw-centering
 sensor-pointing loop, the exact same altitude loop, the exact same filters,
-and the exact same body-frame rotation. The ONLY difference is the lateral
+and the exact same NED command path. The ONLY difference is the lateral
 ("perpendicular to LOS") velocity term: pursuit always holds it at zero
 (aim straight up the LOS -- lag against a mover, by design, is the point of
 running this baseline); pro-nav integrates `a_cmd = N * Vc * lambda_dot_hat`
@@ -62,6 +62,14 @@ ADR-0006 transform chain) is sampled every tick purely to SCORE the run
 (the miss-distance number in the gate) -- never read by the control law.
 grep for "gt_" and you will only find it downstream of a command that was
 already sent.
+
+WHY NED VELOCITY + ABSOLUTE YAW SETPOINTS (changed from body-frame +
+yawspeed mid-M4; ADR-0009 second addendum): the guidance law already
+produces a world-frame velocity vector, PX4's body-frame velocity
+tracking measurably degrades at speed, and commanding yaw as an ABSOLUTE
+angle (psi + beta, the tag's azimuth) hands the pointing problem to
+PX4's attitude loop -- no LOS-rate feedforward or yaw-rate tuning needed.
+The camera is still the only target sensor.
 
 TERMINAL-PHASE RULES, AND WHY: as range R -> 0, lambda_dot is mathematically
 singular (a fixed absolute angular wobble corresponds to an ever-larger
@@ -108,7 +116,7 @@ from gz.msgs10.pose_v_pb2 import Pose_V
 
 from mavsdk import System
 from mavsdk.action import ActionError
-from mavsdk.offboard import OffboardError, VelocityBodyYawspeed
+from mavsdk.offboard import OffboardError, VelocityBodyYawspeed, VelocityNedYaw
 from mavsdk.telemetry import LandedState
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -157,9 +165,14 @@ ALPHA = 0.5  # alpha-beta filter position gain (both lambda and range channels)
 # (Vc doesn't need to be fast, it needs to be smooth).
 BETA_GAIN_LAMBDA = 0.30  # alpha-beta rate gain, lambda (LOS) channel
 BETA_GAIN_RANGE = 0.15  # alpha-beta rate gain, range channel
-KP_CLOSE = 0.8  # 1/s, closing-speed P-gain on R_hat (both laws)
-V_CLOSE_MIN = 0.5  # m/s
-V_CLOSE_MAX = 3.0  # m/s
+# Closing speed is CONSTANT during ENGAGE (changed after the first official
+# gate run, m4_intercept_pronav_...T025458Z: the original v_close =
+# 0.8*R_hat law -- inherited from M3's gentle standoff approach -- throttled
+# the interceptor to ~1.1 m/s inside 1.5 m while the target cruised at
+# 2.0 m/s, so the target simply outran it at CPA and the terminal LOS rate
+# blew up as the symptom. An interceptor does not slow down at the target;
+# rendezvous-style braking is a standoff behavior, not an intercept one.)
+V_CLOSE_MAX = 3.0  # m/s, commanded along-LOS speed for the whole ENGAGE phase
 # V_PERP_MAX raised 2.0 -> 3.0 after dev run ...T011913Z: the lead demand at
 # the council geometry saturated a 2.0 m/s cap for the whole engagement,
 # capping how fast pro-nav could null the LOS rate.
@@ -191,7 +204,17 @@ ACQUIRE_TIMEOUT_S = 20.0
 ENGAGE_TIMEOUT_S = 30.0
 TERMINAL_RANGE_M = 3.0  # inside this: a dropout holds the last command instead of hovering
 TERMINAL_HOLD_MAX_S = 1.0  # max time to hold-last-command through a terminal dropout
-TERMINAL_FREEZE_RANGE_M = 1.5  # inside this: freeze v_perp integration (lambda_dot singular as R->0)
+# Terminal coast (raised 1.5 -> 2.0 and extended from freezing just v_perp to
+# freezing the WHOLE commanded velocity vector, after official gate run
+# ...T030007Z): as R->0 lambda_dot is singular -- by 1.5 m the estimate had
+# already blown up to -53 deg/s (vs -13 at 2.0 m), whipping the commanded
+# velocity DIRECTION and the yaw feedforward so fast that PX4's actual
+# velocity collapsed to ~1.75 m/s sideways and the 2.0 m/s target pulled
+# 1.0 m ahead by CPA (a pure tail-chase miss; cross-track was 0.10 m). A
+# real interceptor's terminal phase does the same thing this fix does:
+# stop chasing the singular LOS rate and fly the established collision
+# course straight through the intercept.
+TERMINAL_FREEZE_RANGE_M = 2.0  # inside this: coast -- hold the frozen velocity vector
 BREAKOFF_ARM_RANGE_M = 2.5  # past-CPA breakoff logic arms only after R_hat dips below this
 BREAKOFF_RANGE_INCREASES = 3  # consecutive FRESH detections w/ increasing range -> breakoff
 BREAKOFF_HARD_FLOOR_M = 0.5  # measured range below this -> immediate breakoff
@@ -228,7 +251,7 @@ CSV_HEADER = [
     "meas_x", "meas_y", "meas_z", "meas_range", "bearing_rad",
     "psi_deg", "lambda_deg", "lambda_dot_deg_s",
     "r_hat_m", "rdot_hat_m_s", "vc_m_s", "a_cmd_m_s2", "v_perp_m_s",
-    "cmd_vf", "cmd_vr", "cmd_vd", "cmd_yawrate_deg_s",
+    "cmd_vn", "cmd_ve", "cmd_vd", "cmd_yaw_deg",
     "alt_m",
     "gt_cam_x", "gt_cam_y", "gt_cam_z",
     "gt_tag_x", "gt_tag_y", "gt_tag_z", "gt_range",
@@ -304,21 +327,22 @@ async def track_attitude(drone, state: "M4TelemetryState") -> None:
         state.yaw_deg = euler.yaw_deg
 
 
-def acquire_command(detected: bool, meas: "Optional[Measurement]", alt_m):
-    """ACQUIRE-phase command: hover + yaw-centering only, NO closing (the
-    tag is still stationary at this point -- see check_m4.sh, which
-    pre-places it before this script even starts)."""
-    if not detected:
-        return 0.0, 0.0, 0.0, 0.0
+def acquire_command(detected: bool, meas: "Optional[Measurement]", alt_m, psi_deg):
+    """ACQUIRE-phase command: hover + point the nose at the tag, NO closing
+    (the tag is still stationary at this point -- see check_m4.sh, which
+    pre-places it before this script even starts). Commands are NED velocity
+    + ABSOLUTE yaw angle (see the "why NED" note in the module docstring):
+    when the tag is visible, yaw setpoint = psi + beta (the tag's absolute
+    azimuth); when it isn't, hold the current heading."""
     v_down = (
         _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
         if alt_m is not None else 0.0
     )
-    yawspeed_deg_s = _clamp(
-        KYAW_DEG_PER_DEG * math.degrees(meas.bearing_rad),
-        -YAWSPEED_MAX_DEG_S, YAWSPEED_MAX_DEG_S,
-    )
-    return 0.0, 0.0, v_down, yawspeed_deg_s
+    psi = psi_deg if psi_deg is not None else 0.0
+    if not detected:
+        return 0.0, 0.0, v_down, psi
+    yaw_deg = psi + math.degrees(meas.bearing_rad)
+    return 0.0, 0.0, v_down, yaw_deg
 
 
 def write_row_m4(
@@ -435,6 +459,8 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
     last_meas_t_mono = None
 
     v_perp = 0.0
+    vh0 = vh1 = 0.0
+    frozen_vworld = None
     last_cmd = (0.0, 0.0, 0.0, 0.0)
     mover_proc = None
     engage_t0 = None
@@ -490,9 +516,9 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
         # coverage), so a 0.3 m/s floor let a_cmd = N*Vc*lambda_dot build the
         # lead at one-fifth strength for the first ~3 s -- the target's LOS
         # walked out of the FOV before the lead caught up. 1.5 m/s is a
-        # defensible prior: the closing law commands >= V_CLOSE_MIN and
-        # typically ~V_CLOSE_MAX from engage onward, so true closing speed is
-        # never near zero once engaged. Measured -Rdot_hat takes over the
+        # defensible prior: the closing law commands a constant V_CLOSE_MAX
+        # from engage onward, so true closing speed is never near zero once
+        # engaged. Measured -Rdot_hat takes over the
         # moment it exceeds the floor.
         VC_FLOOR_M_S = 1.5
         vc = max(VC_FLOOR_M_S, -rdot_hat) if rdot_hat is not None else VC_FLOOR_M_S
@@ -505,7 +531,7 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
             breakoff_armed = True
 
         if phase == "ACQUIRE":
-            cmd = acquire_command(detected, meas, alt_m)
+            cmd = acquire_command(detected, meas, alt_m, psi_deg)
             # Streak counts consecutive DETECTIONS in the detection stream:
             # a tick with no new detector result leaves it untouched (see
             # new_meas comment above); only a new result WITHOUT a tag
@@ -554,42 +580,49 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
             engage_elapsed = tick_start - engage_t0
 
             if detected:
-                u = (math.cos(lambda_hat), math.sin(lambda_hat))
-                p = (-math.sin(lambda_hat), math.cos(lambda_hat))
-                v_close = _clamp(KP_CLOSE * r_hat, V_CLOSE_MIN, V_CLOSE_MAX)
+                in_terminal_coast = (
+                    frozen_vworld is not None
+                    or (r_hat is not None and r_hat < TERMINAL_FREEZE_RANGE_M)
+                )
+                if not in_terminal_coast:
+                    u = (math.cos(lambda_hat), math.sin(lambda_hat))
+                    p = (-math.sin(lambda_hat), math.cos(lambda_hat))
+                    v_close = V_CLOSE_MAX  # constant-speed intercept (see constants)
 
-                if args.law == "pronav":
-                    if r_hat >= TERMINAL_FREEZE_RANGE_M:
+                    if args.law == "pronav":
                         v_perp = _clamp(v_perp + a_cmd * dt, -V_PERP_MAX, V_PERP_MAX)
-                    # else: R too small, lambda_dot is singular -- freeze
-                    # v_perp at whatever it already was.
+                    else:
+                        v_perp = 0.0  # pursuit: no lateral term, ever.
+
+                    vh0 = v_close * u[0] + v_perp * p[0]
+                    vh1 = v_close * u[1] + v_perp * p[1]
+                    norm = math.hypot(vh0, vh1)
+                    if norm > V_TOTAL_MAX:
+                        scale = V_TOTAL_MAX / norm
+                        vh0 *= scale
+                        vh1 *= scale
                 else:
-                    v_perp = 0.0  # pursuit: no lateral term, ever.
+                    # TERMINAL COAST (see TERMINAL_FREEZE_RANGE_M comment):
+                    # lock the collision-course velocity vector on entry and
+                    # fly it straight through CPA -- lambda_dot is singular
+                    # here and chasing it un-flies the intercept.
+                    if frozen_vworld is None:
+                        frozen_vworld = (vh0, vh1)
+                        print(
+                            f"[m4] Terminal coast: velocity vector frozen at "
+                            f"r_hat={r_hat:.2f} m (({vh0:.2f}, {vh1:.2f}) world)"
+                        )
+                    vh0, vh1 = frozen_vworld
 
-                vh0 = v_close * u[0] + v_perp * p[0]
-                vh1 = v_close * u[1] + v_perp * p[1]
-                norm = math.hypot(vh0, vh1)
-                if norm > V_TOTAL_MAX:
-                    scale = V_TOTAL_MAX / norm
-                    vh0 *= scale
-                    vh1 *= scale
-
-                vF = math.cos(psi_rad) * vh0 + math.sin(psi_rad) * vh1
-                vR = -math.sin(psi_rad) * vh0 + math.cos(psi_rad) * vh1
                 v_down = (
                     _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
                     if alt_m is not None else 0.0
                 )
-                # P on bearing + LOS-rate feedforward (see KYAW comment at
-                # top of file). lambda_dot_hat is deg-converted here once.
-                ff_deg_s = (
-                    math.degrees(lambda_dot_hat) if lambda_dot_hat is not None else 0.0
-                )
-                yawspeed = _clamp(
-                    ff_deg_s + KYAW_DEG_PER_DEG * math.degrees(meas.bearing_rad),
-                    -YAWSPEED_MAX_DEG_S, YAWSPEED_MAX_DEG_S,
-                )
-                cmd = (vF, vR, v_down, yawspeed)
+                # Absolute yaw setpoint at the tag's azimuth (psi + beta) --
+                # PX4's attitude controller does the slewing; no rate loop or
+                # LOS-rate feedforward needed with yaw-angle setpoints.
+                yaw_deg = psi_deg + math.degrees(meas.bearing_rad) if psi_deg is not None else 0.0
+                cmd = (vh0, vh1, v_down, yaw_deg)
                 last_cmd = cmd
                 dropout_start_mono = None
                 lost_since_mono = None
@@ -629,7 +662,7 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
                             f"terminal range ({TERMINAL_RANGE_M} m)"
                         )
                 else:
-                    cmd = (0.0, 0.0, 0.0, 0.0)
+                    cmd = (0.0, 0.0, 0.0, psi_deg if psi_deg is not None else 0.0)
                     last_cmd = cmd
                     if lost_since_mono is None:
                         lost_since_mono = tick_start
@@ -649,16 +682,17 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
 
         else:  # phase == "BREAKOFF"
             breakoff_elapsed = tick_start - breakoff_entry_mono
+            hold_yaw = last_cmd[3]
             if breakoff_elapsed < CLIMB_S:
-                cmd = (0.0, 0.0, -CLIMB_V, 0.0)
+                cmd = (0.0, 0.0, -CLIMB_V, hold_yaw)
             else:
-                cmd = (0.0, 0.0, 0.0, 0.0)
+                cmd = (0.0, 0.0, 0.0, hold_yaw)
 
         try:
-            await drone.offboard.set_velocity_body(VelocityBodyYawspeed(*cmd))
+            await drone.offboard.set_velocity_ned(VelocityNedYaw(*cmd))
         except OffboardError as error:
             aborted = True
-            abort_reason = f"set_velocity_body failed: {error}"
+            abort_reason = f"set_velocity_ned failed: {error}"
 
         gt_cam, gt_tag, gt_range = ground_truth_world_points(tracker)
         if gt_range is not None and (min_gt_range_running is None or gt_range < min_gt_range_running):
@@ -842,6 +876,7 @@ async def main():
     detector_thread = threading.Thread(
         target=detection_loop,
         args=(frame_holder, meas_holder, fx, fy, cx, cy, stop_event),
+        kwargs={"detector_kwargs": {"quad_decimate": 2.0}},
         daemon=True,
     )
     detector_thread.start()
@@ -926,7 +961,11 @@ async def main():
         print("[m4] Entering OFFBOARD (streaming a zero setpoint first)...")
         offboard_ok = True
         try:
-            await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+            if args.bench:
+                await drone.offboard.set_velocity_body(VelocityBodyYawspeed(0.0, 0.0, 0.0, 0.0))
+            else:
+                yaw0 = state.yaw_deg if state.yaw_deg is not None else 0.0
+                await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, yaw0))
             await drone.offboard.start()
         except OffboardError as error:
             print(f"[m4] FAILED: offboard start failed: {error}")
@@ -978,14 +1017,18 @@ async def main():
                     f"breakoff_reason={result['breakoff_reason'] or 'n/a'} "
                     f"aborted={result['aborted']} log={log_path}"
                 )
-                print(f"M4_RESULT law={args.law} miss={miss_distance:.3f} clean={int(clean)}")
+                engaged = mover_proc is not None
+                print(
+                    f"M4_RESULT law={args.law} miss={miss_distance:.3f} "
+                    f"clean={int(clean)} engaged={int(engaged)}"
+                )
 
                 exit_ok = clean
                 if exit_ok and args.require_miss is not None:
                     exit_ok = miss_distance < args.require_miss
                 result_code = 0 if exit_ok else 1
         else:
-            print(f"M4_RESULT law={args.law} miss=nan clean=0")
+            print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
             result_code = 1
 
         if mover_proc is not None and mover_proc.poll() is None:
@@ -1028,22 +1071,22 @@ async def main():
     except asyncio.TimeoutError as exc:
         print(f"[m4] FAILED: timed out waiting for a stage: {exc}")
         if not args.bench:
-            print(f"M4_RESULT law={args.law} miss=nan clean=0")
+            print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
         return 1
     except ActionError as exc:
         print(f"[m4] FAILED: MAVSDK action error: {exc}")
         if not args.bench:
-            print(f"M4_RESULT law={args.law} miss=nan clean=0")
+            print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
         return 1
     except RuntimeError as exc:
         print(f"[m4] FAILED: {exc}")
         if not args.bench:
-            print(f"M4_RESULT law={args.law} miss=nan clean=0")
+            print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
         return 1
     except Exception as exc:  # noqa: BLE001 - top-level gate script, log and exit
         print(f"[m4] FAILED: unexpected error: {exc!r}")
         if not args.bench:
-            print(f"M4_RESULT law={args.law} miss=nan clean=0")
+            print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
         return 1
     finally:
         if mover_proc is not None and mover_proc.poll() is None:

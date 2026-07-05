@@ -17,12 +17,21 @@ it lives in this small, separate, subscription-free script instead of
 being folded into m4_intercept.py's asyncio loop.
 
 WHAT: parses a start position and a constant 2D velocity, then streams
-`set_pose` requests at a fixed rate for a fixed duration. Positions are
-computed from ELAPSED WALL-CLOCK TIME since the stream started (position =
-start + velocity * t), not accumulated tick-by-tick -- so a slow tick (GC
-pause, scheduler jitter) shifts WHEN a position is sent, never WHAT
-position is sent for a given elapsed time. That keeps the path itself
-exact even if the loop can't hit its target rate perfectly.
+`set_pose` requests at a fixed wall rate for a fixed duration. Positions
+are computed from ELAPSED **SIM TIME** (position = start + velocity *
+sim_elapsed), not wall time and not accumulated tick-by-tick.
+
+WHY SIM TIME (found 2026-07-05, the hard way): under full mission load
+(camera rendering + detection + PX4 + guidance) this sim's real-time
+factor sags to ~0.5. PX4 flies in SIM time, so a target scheduled on WALL
+time moves ~2x its nominal speed relative to the vehicle's physics -- our
+"2.0 m/s" target was effectively a 4.3 m/s target, faster than the
+interceptor's own 4.0 m/s ceiling, and every engagement degenerated into
+a matched-speed tail chase (PX4's ulog vs our wall-clock CSV disagreed on
+the duration of the fast phase by exactly the RTF ratio; that was the
+tell). Sim time comes from a tiny CHILD process subscribing to /clock and
+piping it here -- this process itself must stay subscription-free (see
+the service-response quirk above), and --duration is in SIM seconds.
 
 Every commanded position is logged to logs/m4_mover_<UTC timestamp>.csv
 (t, x, y, z) so the guidance side's ground truth can be cross-checked
@@ -42,7 +51,9 @@ import argparse
 import csv
 import os
 import signal
+import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -68,7 +79,45 @@ CSV_FLUSH_EVERY = 25
 DEFAULT_START = "6.5,-4,0.5"
 DEFAULT_VEL = "0,2.0"
 DEFAULT_RATE_HZ = 50.0
-DEFAULT_DURATION_S = 12.0
+DEFAULT_DURATION_S = 12.0  # SIM seconds (see module docstring)
+SIM_CLOCK_TIMEOUT_S = 10.0  # wall seconds to wait for the first /clock sample
+
+# Child process source: subscribes to /clock (gz.msgs Clock, sim field) and
+# prints sim-time seconds, one per line. Runs in its OWN process because a
+# subscription in THIS process would kill set_pose service responses.
+CLOCK_HELPER_SRC = r"""
+import sys, time
+from gz.transport13 import Node
+from gz.msgs10.clock_pb2 import Clock
+last = [0.0]
+def cb(m):
+    t = m.sim.sec + m.sim.nsec * 1e-9
+    if t - last[0] >= 0.02:  # throttle to ~50 Hz
+        last[0] = t
+        print(f"{t:.4f}", flush=True)
+n = Node()
+if not n.subscribe(Clock, "/clock", cb):
+    sys.exit(2)
+while True:
+    time.sleep(1.0)
+"""
+
+
+class SimClock:
+    """Latest sim time, fed by the clock-helper child's stdout on a reader
+    thread (same atomic-attribute pattern as the flight scripts)."""
+
+    def __init__(self, proc):
+        self.t = None
+        self._thread = threading.Thread(target=self._read, args=(proc,), daemon=True)
+        self._thread.start()
+
+    def _read(self, proc):
+        for line in proc.stdout:
+            try:
+                self.t = float(line)
+            except ValueError:
+                pass
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGS_DIR = os.path.join(REPO_ROOT, "logs")
@@ -160,6 +209,19 @@ def main() -> int:
         )
         return 2
 
+    clock_proc = subprocess.Popen(
+        [sys.executable, "-c", CLOCK_HELPER_SRC],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+    )
+    sim_clock = SimClock(clock_proc)
+    deadline = time.monotonic() + SIM_CLOCK_TIMEOUT_S
+    while sim_clock.t is None and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if sim_clock.t is None:
+        print(f"[m4-mover] FAILED: no /clock data within {SIM_CLOCK_TIMEOUT_S}s")
+        clock_proc.kill()
+        return 2
+
     log_file = open(log_path, "w", newline="")
     writer = csv.writer(log_file)
     writer.writerow(["t", "x", "y", "z"])
@@ -177,18 +239,21 @@ def main() -> int:
     final_y = y0
     dt = 1.0 / args.rate
     stream_start = time.monotonic()
+    sim_t0 = sim_clock.t
     exit_code = 0
 
     try:
         while not stop["flag"]:
-            elapsed = time.monotonic() - stream_start
-            if elapsed >= args.duration:
+            sim_elapsed = (sim_clock.t or sim_t0) - sim_t0
+            if sim_elapsed >= args.duration:
                 break
 
-            # Position from ELAPSED TIME, not accumulated per-tick -- see
-            # the module docstring for why this matters.
-            x = x0 + vx * elapsed
-            y = y0 + vy * elapsed
+            # Position from elapsed SIM time (see module docstring: the
+            # target must move in the same clock the vehicle's physics
+            # uses, or a sagging real-time factor silently scales its
+            # speed).
+            x = x0 + vx * sim_elapsed
+            y = y0 + vy * sim_elapsed
             z = z0
 
             ok = send_pose(node, x, y, z, STREAM_TIMEOUT_MS)
@@ -208,7 +273,7 @@ def main() -> int:
                     exit_code = 2
                     break
 
-            writer.writerow([f"{elapsed:.4f}", f"{x:.4f}", f"{y:.4f}", f"{z:.4f}"])
+            writer.writerow([f"{sim_elapsed:.4f}", f"{x:.4f}", f"{y:.4f}", f"{z:.4f}"])
             if n_requests % CSV_FLUSH_EVERY == 0:
                 log_file.flush()
 
@@ -222,6 +287,7 @@ def main() -> int:
     finally:
         log_file.flush()
         log_file.close()
+        clock_proc.kill()
 
     # A SIGTERM/SIGINT is a normal, expected shutdown request from
     # m4_intercept.py (which owns the overall run lifecycle) -- always

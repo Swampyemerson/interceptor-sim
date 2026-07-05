@@ -230,12 +230,19 @@ class MeasurementHolder:
         )
 
 
-def detection_loop(frame_holder, meas_holder, fx, fy, cx, cy, stop_event):
+def detection_loop(frame_holder, meas_holder, fx, fy, cx, cy, stop_event,
+                   detector_kwargs=None):
     """Runs on a background thread for the whole flight: whenever a new
     camera frame seq shows up, decode it and run pupil-apriltags on it,
     publishing a fresh Measurement. The asyncio control loop never blocks
     on this -- it just reads whatever MeasurementHolder.latest is."""
-    detector = Detector(families=TAG_FAMILY)
+    # detector_kwargs lets callers trade accuracy for CPU (e.g. M4 passes
+    # quad_decimate=2: PX4 SITL runs WITHOUT lockstep against gz, so a
+    # CPU-saturating detector measurably degrades PX4's own control-loop
+    # tracking -- observed 2026-07-05: 4 m/s commanded, 3.68 achieved
+    # unloaded vs 1.83 under detector load. M3 keeps the default (its gate
+    # numbers were validated without decimation and its speeds are low).
+    detector = Detector(families=TAG_FAMILY, **(detector_kwargs or {}))
     last_seq = -1
     warned_resolution = False
     while not stop_event.is_set():

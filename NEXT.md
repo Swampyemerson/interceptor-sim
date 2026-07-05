@@ -1,60 +1,40 @@
 # NEXT — top of the stack
 
-## Current: M4 — moving-target intercept, pursuit vs pro-nav (BUILT, GATE NOT YET RUN)
+## Current: M5 — Monte-Carlo, plots, README (final milestone)
+Gate (GOALS.md): Monte-Carlo batch over target speeds/paths, matplotlib
+trajectory + miss-distance plots, README with architecture diagram + results +
+one GUI demo GIF.
 
-**State (2026-07-05, session ended on usage limit): pro-nav WORKS.** Last dev run:
-miss 0.945 m (< 1 m gate), clean=1, coverage 0.764, breakoff="lost detection
-inside terminal range" (expected endgame), `logs/m4_intercept_pronav_20260705T013540Z.csv`.
-Design was council-decided (ADR-0009); mechanization + all tuning below is
-run-validated through 5 dev iterations. `--bench` sign test PASSED (mean |λ̇|
-1.24°/s while spinning at ±20°/s — the λ=ψ+β strapdown compensation is right).
-
-**Remaining to close M4 (in order):**
-- [ ] (Optional, cheap insight) one pursuit dev run: `scripts/sim_gui.sh 6.5 -4 0.5`
-      then `.venv/bin/python scripts/m4_intercept.py --law pursuit` — expect
-      trailing/tail-chase and a larger miss.
-- [ ] Official gate: `scripts/check_m4.sh` (boots fresh headless sim per law,
-      runs pursuit then pronav, prints comparison; exit 0 iff both clean AND
-      pronav < 1.0 m). ~8 min wall.
-- [ ] `verifier` subagent on the gate (it must repeat M3's numeric no-cheat
-      divergence check on λ̇/Vc inputs — ADR-0009 council requirement).
-- [ ] Append run-validated verification numbers to ADR-0009; PROGRESS.md M4 row;
-      commit "M4: ... (gate passing)". Then M5 (Monte-Carlo + plots + README).
-
-**Dev-run debugging trail (why the tuning is what it is — full details in git
-diff of scripts/m4_intercept.py comments):**
-1. Acquire never completed: 10-consecutive-fresh-per-TICK impossible — detection
-   produces ~14 Hz vs 20 Hz loop. Fix: streak counts the DETECTION stream.
-2. Engaged mid-yaw-slew (β ok for 1 tick but ψ̇≈+16°/s) → started in a hole →
-   FOV loss. Fix: ACQUIRE_CENTERED_STREAK=6 (~0.4 s settled) before engage.
-3. λ̇ filter lagged (est -3 vs true -16°/s) making yaw feedforward useless →
-   FOV loss at 2.5 m/s target. Fixes: yawspeed = λ̇_ff + 3.0·β (was pure P 1.5);
-   BETA_GAIN_LAMBDA 0.15→0.30; Vc floor 0.3→1.5 (lead built at 1/5 strength from
-   hover); V_PERP_MAX 2→3; target 2.5→2.0 m/s (still ≥2 gate; council member A's
-   criterion: yaw pinned at cap = undiagnostic geometry, so open it).
-4. Estimator skew note: β content is ~0.1-0.2 s older than ψ → phantom λ̇ during
-   hard yaw accel (est -34 vs true -21°/s once). Benign at 2.0 m/s geometry;
-   candidate M5 refinement: timestamp-matched ψ or bound |ff|.
-5. Sim infra: after several rapid GUI reboots the gz renderer can wedge (camera
-   topic silent, GPU idle, PX4 fine) — sim_gui.sh now hard-fails on a 10 s
-   camera-topic liveness probe. ALWAYS fresh sim per dev flight (drone lands
-   displaced/rotated; reusing the instance breaks the geometry).
-
-Key facts for a fresh session:
-- Fly anything: `scripts/sim_gui.sh [x y z]` (GUI, kills stale sims, verifies
-  camera, optionally pre-places tag). NEVER inline `pkill -f "gz sim"` etc. —
-  it self-matches your own shell (exit 144, three times); use scripts/sim_kill.sh.
-- gz-transport Python quirk: a process with ANY subscription never receives
-  service RESPONSES (requests still apply). Hence m4_target_mover.py is its own
-  subscription-free process (50 Hz set_pose streaming, ~1 ms median).
-- Frames (PX4 gz): NED north = gz +Y, east = gz +X; ψ (attitude_euler yaw_deg,
-  CW+) ⇒ vehicle facing gz +X reads ψ≈+90°; λ=ψ+β validated by --bench.
-- Emerson wants to WATCH milestone flights in the GUI (standing request) —
-  demo the pursuit-vs-pronav pair in sim_gui.sh when M4 closes.
-- Sonnet agents may use max thinking (user OK'd): council=max, verifier=xhigh
-  set in .claude/agents/. sonnet-worker default; bump per-task if hard.
+Likely steps (refine before building):
+- [ ] Batch runner: N runs × {law × target speed (2.0/2.5/3.0) × path variant
+      (crossing y-offsets, maybe a receding case)} reusing check_m4.sh's
+      boot-per-flight pattern (or one boot + re-place tag + re-takeoff per run if
+      state contamination is manageable — drone lands displaced; probably NOT, see
+      the fresh-sim-per-flight lesson). Runs are ~3 min each wall — budget hours,
+      run in background, aggregate CSVs.
+- [ ] Stats + plots: trajectory overlays (pursuit vs pro-nav, same path), miss
+      histogram/CDF per law, maybe miss vs target speed. matplotlib, saved to
+      docs/ or plots/. Numbers traced to run stamps (GOALS.md).
+- [ ] README: mission, architecture diagram (camera → detector → filters →
+      guidance → PX4; mover + ground-truth split), results tables, reproduce
+      instructions (check_m0..m4 + batch), demo GIF (GUI + gz camera view?).
+- [ ] Demo GIF: screen-record a GUI pursuit-vs-pronav pair (Emerson's standing
+      request to watch is also the demo content). Tools: peek/ffmpeg x11grab?
+- [ ] Consider small robustness items first: pro-nav miss variance across runs
+      was 0.28-0.44 m (fine vs 1.0 gate); RTF-load sensitivity documented.
 
 ## Done
+- **M4 (2026-07-05):** moving-target intercept, pursuit vs pro-nav — GATE
+  PASSING, verifier-confirmed (3 independent gate runs): pro-nav miss
+  0.402/0.277/0.443 m (bar <1 m) vs pursuit 2.544/2.109/2.048 m, identical
+  2.0 m/s crossing paths, camera-only + no-cheat numerically verified.
+  Mechanization: strapdown λ=ψ+β, alpha-beta filters (λ rate gain 0.30),
+  a=N·Vc·λ̇ (N=4) integrated into a world-frame lateral velocity, NED velocity
+  + absolute-yaw setpoints, constant 3.0 m/s closing, terminal coast at 2.0 m,
+  camera-only breakoff. THE debugging saga (5 dev runs + 2 failed gates → root
+  cause: RTF ~0.5 under load + wall-clock mover = target effectively 2× speed;
+  fixed by sim-time scheduling) is in ADR-0009 + two addenda — read before
+  touching anything timing-related. quad_decimate=2 for M4 detector only.
 - **M3 (2026-07-05):** static intercept — camera-only P-control (body-frame
   velocity + yawspeed, ADR-0008) closed 4.9 m → 2 m standoff in ~10 s, held.
   Final standoff error 0.018/0.035 m across two verifier runs (bar <0.5 m),
