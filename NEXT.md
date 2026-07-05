@@ -58,6 +58,53 @@ Likely steps (refine before building):
 - [ ] Consider small robustness items first: pro-nav miss variance across runs
       was 0.28-0.44 m (fine vs 1.0 gate); RTF-load sensitivity documented.
 
+## Real-world deployment roadmap (movement + perception realism) — added 2026-07-05 per builder
+These items track the "accuracy AND movement" goals toward the real deployable
+concept (ground-standby → launch-on-detect → max-speed intercept). NONE are
+built yet; they extend the MOVEMENT model. Accuracy is the ADR-0014 Pk work
+already in flight. Design each as its own ADR before building. Sequence AFTER
+the current Pk push + S3/S4, so we don't destabilize a passing S2.
+
+**Movement / engagement-profile realism (new phases before CUE_WAIT):**
+- [ ] **M-1 Ground standby (cold start).** Model the interceptor armed on a pad
+      (charger), motors off, not the current hover-start. Adds an arm→spin-up→
+      liftoff sequence and a reaction-latency budget (detect→launch decision→
+      motors) — a real, measurable number for the resume ("X s from cue to
+      airborne").
+- [ ] **M-2 Launch-on-detect trigger.** The ground sensor (the S2 cue) firing a
+      threat detection is what LAUNCHES the interceptor — today the cue only
+      steers an already-flying drone. Wire the cue's first valid track to the
+      arm/takeoff trigger; log cue-detect→liftoff latency.
+- [ ] **M-3 Max-speed climb-out + dash.** Vertical/oblique boost to altitude then
+      full-speed run-in until terminal (the dash already commands max toward a
+      predicted intercept point — extend it to start from the pad and include the
+      climb). Tie closing-speed envelope to ADR-0010 #2 (dash vs terminal decouple)
+      and the FPV param bundle. This is the "launches up and is max speed until
+      interception" behavior.
+- [ ] **M-4 Standby→intercept end-to-end timeline.** One logged run: cue-detect →
+      launch → climb → dash → handoff → terminal → CPA, with sim-time stamps per
+      phase. The headline "reaction + intercept time" figure.
+
+**Perception realism (the honest gap — see the answer logged below):**
+- [ ] **P-1 Document the tag↔real-seeker gap explicitly in the README.** The
+      AprilTag is a STAND-IN for "a reliable target lock exists" (GOALS.md's one
+      honest simplification); a real hostile FPV drone carries no fiducial. What
+      transfers is the GUIDANCE loop (bearing/LOS-rate → pro-nav → PX4), which is
+      agnostic to how the bearing is produced. Pro-nav is bearing-only-friendly
+      (it needs LOS *rate*, an angle) — a genuine plus for a monocular terminal
+      seeker that gets angle reliably but range poorly.
+- [ ] **P-2 (stretch, likely parent-project) Real terminal seeker:** classical CV
+      (motion/blob detection + a correlation tracker like KCF/CSRT + an
+      alpha-beta/Kalman track) or a tiny CNN detector — the actual hard, unsolved
+      part. ADR-0012 called detection cadence + motion blur at FPV speed the
+      EXISTENTIAL risk. GOALS.md forbids ML perception IN THIS SIM, so this is a
+      hardware/parent-project line, not a sim milestone; note it, don't build here.
+- [ ] **P-3 (stretch) Real ground-camera cue:** the S2 cue is a MOCK (degraded
+      sim ground-truth). A real cue = stereo triangulation across 2+ ground
+      cameras → EKF track → the same handoff interface. The handoff ARCHITECTURE
+      is already built + validated; only the detector/triangulation is mocked
+      (GOALS.md IS-NOT: "ground stereo rig … mocked away here").
+
 ## Done
 - **M4.5-S2 (2026-07-05):** two-stage external-cue handoff — built, dev-validated,
   gated (`scripts/check_s2.sh`, tiered 2.5 m @ 6 m/s, both laws + honesty audits).
