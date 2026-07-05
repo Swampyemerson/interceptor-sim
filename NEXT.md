@@ -85,25 +85,56 @@ the current Pk push + S3/S4, so we don't destabilize a passing S2.
       launch → climb → dash → handoff → terminal → CPA, with sim-time stamps per
       phase. The headline "reaction + intercept time" figure.
 
-**Perception realism (the honest gap — see the answer logged below):**
-- [ ] **P-1 Document the tag↔real-seeker gap explicitly in the README.** The
-      AprilTag is a STAND-IN for "a reliable target lock exists" (GOALS.md's one
-      honest simplification); a real hostile FPV drone carries no fiducial. What
-      transfers is the GUIDANCE loop (bearing/LOS-rate → pro-nav → PX4), which is
-      agnostic to how the bearing is produced. Pro-nav is bearing-only-friendly
-      (it needs LOS *rate*, an angle) — a genuine plus for a monocular terminal
-      seeker that gets angle reliably but range poorly.
-- [ ] **P-2 (stretch, likely parent-project) Real terminal seeker:** classical CV
-      (motion/blob detection + a correlation tracker like KCF/CSRT + an
-      alpha-beta/Kalman track) or a tiny CNN detector — the actual hard, unsolved
-      part. ADR-0012 called detection cadence + motion blur at FPV speed the
-      EXISTENTIAL risk. GOALS.md forbids ML perception IN THIS SIM, so this is a
-      hardware/parent-project line, not a sim milestone; note it, don't build here.
-- [ ] **P-3 (stretch) Real ground-camera cue:** the S2 cue is a MOCK (degraded
-      sim ground-truth). A real cue = stereo triangulation across 2+ ground
-      cameras → EKF track → the same handoff interface. The handoff ARCHITECTURE
-      is already built + validated; only the detector/triangulation is mocked
-      (GOALS.md IS-NOT: "ground stereo rig … mocked away here").
+**Perception design (PROMOTED to active — builder redirect 2026-07-05: design the
+perception half BEFORE finalizing the interception math, since the real track's
+rate/accuracy/latency/dropout become new data constraints on guidance).**
+3-member Opus council running now; synthesis -> a perception design ADR + doc.
+Empirical hook: baseline S2 Pk is gated by TERMINAL PERCEPTION (all 20/20 flights
+fail by camera dropout at CPA — ADR-0014 addendum), so better perception directly
+raises Pk. Builder's core hypothesis to design around: **ground stereo gives RANGE,
+onboard cam gives BEARING, fuse mid-course for a better intercept track; terminal
+stays comms-denied (onboard-only).** Bearing-only is range-ambiguous; ground range
+resolves the intercept triangle — this is the right architecture.
+- [ ] **P-1 Ground sensor modality:** visual vs IR/thermal vs both/fused — detect a
+      small fast FPV drone vs birds/clutter, day+night; detection range, false-alarm
+      rate, cost. When is thermal mandatory vs luxury? Radar/acoustic as a cue layer?
+- [ ] **P-2 Ground stereo geometry:** camera baseline (separation) vs usable range
+      vs 3D triangulation accuracy vs cost/affordability — the "optimal distance to
+      cover good range while remaining accurate and affordable" question. Concrete
+      numbers: baseline/focal/resolution/#cameras for the accuracy the intercept
+      needs. Where's the cost/accuracy knee?
+- [ ] **P-3 Compute split (ground vs drone vs hybrid):** where detection, tracking,
+      and triangulation run — per-camera edge, central ground box, onboard, or
+      hybrid. Latency + cost of each split.
+- [ ] **P-4 Ground↔drone comms link:** method/band/protocol to send a compact TARGET
+      TRACK (position+velocity, not video) mid-course; bandwidth, INPUT LAG/latency,
+      range, jam-resistance. Coexists with the comms-denied terminal (mid-course aid,
+      never the terminal seeker).
+- [ ] **P-5 Onboard ML chip:** what actually runs real-time small-drone ML detection
+      at useful frame rate+latency on an FPV airframe — Jetson Orin Nano/NX vs
+      Pi5+Hailo-8/8L vs Pi5+Coral vs other 2026 NPUs. Power/weight/thermal/$.
+      REVISIT ADR-0012 (chose Pi5 CPU, rejected Jetson on no-ROS-2 — but that was for
+      a FIDUCIAL; real ML may force an NPU/GPU and reopen that call).
+- [ ] **P-6 Sensor-fusion mechanization:** onboard bearing + ground range — frames
+      (ENU/NED/FRD/camera), time-sync, EKF, latency compensation (reuse the built
+      cue-latency-comp idea). Resulting track quality; graceful degradation if the
+      link drops or ground loses the target before onboard acquires.
+- [ ] **P-7 End-to-end latency budget:** detection→triangulation→comms→onboard
+      fusion→guidance; tie to the Pk/detection-quality coupling (ADR-0014 addendum).
+- [ ] **P-8 Data constraints BACK to the guidance math (builder's central point):**
+      the real fused track's update rate, position/velocity sigma, latency mean+jitter,
+      and dropout model — the params to upgrade s2_cue_mock.py / the detector model
+      with, and re-validate guidance against, BEFORE finalizing the intercept tuning.
+- [ ] **P-9 (stretch, parent-project) real terminal seeker + real ground rig:** the
+      actual detectors behind P-1..P-6 (classical CV / tiny CNN onboard; stereo+EKF
+      on the ground). GOALS.md forbids ML perception IN THE SIM — these are the
+      hardware/parent-project build lines; the sim models their OUTPUT (track quality)
+      via P-8's upgraded mock, it does not run the detectors.
+- [ ] **P-0 README honesty note:** the AprilTag is a STAND-IN for "a reliable target
+      lock exists"; a real hostile FPV carries no fiducial. What transfers is the
+      GUIDANCE loop (bearing/LOS-rate→pro-nav→PX4), agnostic to how bearing is
+      produced. Pro-nav is bearing-only-friendly (needs LOS *rate* = an angle) — the
+      structural reason the two-sensor split works.
 
 ## Done
 - **M4.5-S2 (2026-07-05):** two-stage external-cue handoff — built, dev-validated,

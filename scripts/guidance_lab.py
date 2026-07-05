@@ -265,14 +265,30 @@ class AlphaBetaFilter:
     last correction -- see that function's docstring for why this is the
     principled fix for irregular update intervals/dropouts, not a new
     adaptive-estimator failure mode. Default (`kalata_sigma_process=None`)
-    is the untouched, baseline fixed-gain behavior."""
+    is the untouched, baseline fixed-gain behavior.
 
-    def __init__(self, alpha, beta, angular=False, kalata_sigma_process=None, kalata_sigma_meas=None):
+    RATE CAP (ADR-0014 lever 2, opt-in): pass `rate_cap` (rad/s, not None)
+    to clamp `xdot_hat` to +-rate_cap immediately after every correct().
+    Because predict() forward-integrates `x_hat += xdot_hat * dt` off this
+    SAME stored `xdot_hat`, clamping it here caps BOTH the rate any caller
+    reads (e.g. a_cmd = N*Vc*lambda_dot) AND the filter's own forward
+    integration in one place -- this is the "cap in both places" half of
+    ADR-0014's lever 2 (the singular-as-R->0 lambda_dot fix). Guidance laws
+    that instead want to demonstrate the REJECTED "a_cmd-only" variant (cap
+    the value read for a_cmd but leave predict()'s integration on the raw,
+    uncapped rate -- the ADR-0009-whipsaw-recreating mistake) must NOT set
+    this and instead clamp their own local read of `xdot_hat` -- see
+    PurePN's `LAMBDA_DOT_CAP_A_CMD_ONLY_DEG_S`. Default None is the
+    untouched, baseline uncapped behavior."""
+
+    def __init__(self, alpha, beta, angular=False, kalata_sigma_process=None, kalata_sigma_meas=None,
+                 rate_cap=None):
         self.alpha = alpha
         self.beta = beta
         self.angular = angular
         self.kalata_sigma_process = kalata_sigma_process
         self.kalata_sigma_meas = kalata_sigma_meas
+        self.rate_cap = rate_cap
         self.x_hat = None
         self.xdot_hat = 0.0
         self._last_t = None
@@ -302,6 +318,8 @@ class AlphaBetaFilter:
             alpha, beta = self.alpha, self.beta
         self.x_hat += alpha * residual
         self.xdot_hat += beta * residual / dt_since
+        if self.rate_cap is not None:
+            self.xdot_hat = clamp(self.xdot_hat, -self.rate_cap, self.rate_cap)
         self._last_t = t
 
 
@@ -736,6 +754,31 @@ DEFAULT_PN_PARAMS = dict(
     RANGE_GATE_K=None, RANGE_GATE_SIGMA_FRAC=RANGE_NOISE_FRAC,
     KALATA_LAMBDA_SIGMA_PROCESS_DEG=None, KALATA_LAMBDA_SIGMA_MEAS_DEG=SIGMA_BEARING_DEG,
     KALATA_RANGE_SIGMA_PROCESS=None, KALATA_RANGE_SIGMA_MEAS_M=0.5,
+    # --- ADR-0014 lever 2 opt-ins (all False/None = baseline-preserving:
+    # the ORIGINAL whole-vector freeze, uncapped lambda_dot). See PurePN's
+    # docstring for the full mechanics. ---
+    # SPLIT_FREEZE: freeze only the v_perp MAGNITUDE inside
+    # TERMINAL_FREEZE_RANGE; keep v_close and lambda_hat LIVE off fresh
+    # detections (reconstructed each tick), instead of freezing vx,vy whole.
+    SPLIT_FREEZE=False,
+    # LAMBDA_DOT_CAP_DEG_S: cap-BOTH variant (routed into the lambda filter
+    # itself via _build_lambda_range_filters -- affects predict() AND a_cmd).
+    LAMBDA_DOT_CAP_DEG_S=None,
+    # LAMBDA_DOT_CAP_A_CMD_ONLY_DEG_S: the REJECTED cap-a_cmd-ONLY variant,
+    # kept implemented so a run can empirically confirm it is worse/unstable
+    # (ADR-0014 lever 2's explicit ask) -- clamps only the value read for
+    # a_cmd; the filter's own xdot_hat (and hence predict()'s forward
+    # integration of lambda_hat) stays raw/uncapped.
+    LAMBDA_DOT_CAP_A_CMD_ONLY_DEG_S=None,
+    # LEAD_EXTRAP_MAX_S: optional sub-variant -- through a genuinely BLIND
+    # tail (no fresh camera correction for longer than MEAS_STALE_S, up to
+    # this many seconds), aim at a Cartesian dead-reckoned lead point from a
+    # parallel-fed TargetTracker instead of coasting the polar lambda/range
+    # filters' own (singular-prone) forward integration. None disables it
+    # (baseline-preserving; no extra tracker is even constructed).
+    LEAD_EXTRAP_MAX_S=None,
+    LEAD_EXTRAP_MIN_CORRECTIONS=6,
+    LEAD_EXTRAP_TRACK_ALPHA=0.6, LEAD_EXTRAP_TRACK_BETA=0.2,
 )
 DEFAULT_PURSUIT_PARAMS = dict(DEFAULT_PN_PARAMS)  # shares gains w/ pure_pn (fairness, ADR-0009 style)
 DEFAULT_APN_PARAMS = dict(DEFAULT_PN_PARAMS, TRACK_ALPHA=0.6, TRACK_BETA=0.2, ACCEL_EMA=0.3)
@@ -790,12 +833,18 @@ def _build_lambda_range_filters(p):
     pursuit/pure_pn/apn/pn_plus_lead. Wires in candidate 2 (Kalata-derived
     gains) when `KALATA_LAMBDA_SIGMA_PROCESS_DEG` / `KALATA_RANGE_SIGMA_PROCESS`
     are provided (both default None -> the original fixed ALPHA/BETA_LAMBDA/
-    BETA_RANGE gains, baseline-preserving)."""
+    BETA_RANGE gains, baseline-preserving). ADR-0014 lever 2's "cap-both"
+    variant wires `LAMBDA_DOT_CAP_DEG_S` (default None -> uncapped,
+    baseline-preserving) into the lambda filter's `rate_cap` -- this affects
+    BOTH predict()'s forward integration and any a_cmd read of xdot_hat, in
+    one place, for every law that shares this builder."""
     lam_sp_deg = p.get("KALATA_LAMBDA_SIGMA_PROCESS_DEG")
+    lam_rate_cap_deg = p.get("LAMBDA_DOT_CAP_DEG_S")
     lam = AlphaBetaFilter(
         p["ALPHA"], p["BETA_LAMBDA"], angular=True,
         kalata_sigma_process=math.radians(lam_sp_deg) if lam_sp_deg is not None else None,
         kalata_sigma_meas=math.radians(p.get("KALATA_LAMBDA_SIGMA_MEAS_DEG", SIGMA_BEARING_DEG)),
+        rate_cap=math.radians(lam_rate_cap_deg) if lam_rate_cap_deg is not None else None,
     )
     rng_sp = p.get("KALATA_RANGE_SIGMA_PROCESS")
     rng_f = AlphaBetaFilter(
@@ -876,7 +925,45 @@ class PurePN:
     estimate (-range_rate_hat), while the FORWARD (along-LOS) speed command
     is a separate constant V_CLOSE -- these are two different numbers in
     the real mechanization, not a naming accident (see m4_intercept.py's
-    compute_v_close vs its VC_FLOOR_M_S comment)."""
+    compute_v_close vs its VC_FLOOR_M_S comment).
+
+    ADR-0014 LEVER 2 (opt-in, all default-off -- see DEFAULT_PN_PARAMS):
+    the diagnosed real-Gazebo mechanism is a yaw-rate deficit that walks the
+    tag off-boresight WELL inside the nominal FOV during ENGAGE; the terminal
+    response to that today is `m4_intercept.py`'s whole-vector freeze once
+    r_hat < TERMINAL_FREEZE_RANGE_M (lambda_dot is singular as R->0). Three
+    independent knobs replace/augment that:
+
+      SPLIT_FREEZE=True: freeze ONLY the v_perp MAGNITUDE at the tick the
+      vehicle first enters the freeze range (a one-way latch, same
+      permanent-coast philosophy as the original -- no un-freeze). v_close
+      and lambda_hat stay LIVE off fresh detections every tick (both were
+      already being corrected above regardless of freeze status -- only the
+      OUTPUT command was frozen before); the command is reconstructed each
+      tick as v_close*(cos,sin) + v_perp_frozen*(-sin,cos). v_close is safe
+      to keep live because compute_v_close is a function of r_hat, which is
+      monotone and never singular (unlike lambda_dot); only the LOS-rate
+      term is what actually blows up near R->0, so only IT gets frozen.
+
+      LAMBDA_DOT_CAP_DEG_S vs LAMBDA_DOT_CAP_A_CMD_ONLY_DEG_S: see
+      AlphaBetaFilter's rate_cap docstring for the cap-both mechanism and
+      this class's own docstring note above -- exactly one of these two
+      should be set per run, never both; they exist side by side so a study
+      can prove the a_cmd-only variant is worse (the ADR-0009 whipsaw:
+      predict() keeps forward-integrating lambda_hat off a raw, unbounded
+      lambda_dot even though a_cmd's OWN read was capped, so the commanded
+      DIRECTION still corrupts).
+
+      LEAD_EXTRAP_MAX_S (optional sub-variant, only meaningful alongside
+      SPLIT_FREEZE): through a genuinely BLIND tail -- no fresh camera
+      correction for longer than MEAS_STALE_S, for up to this many seconds,
+      gated on having had >= LEAD_EXTRAP_MIN_CORRECTIONS prior camera fixes
+      -- aim directly at a parallel-fed TargetTracker's Cartesian
+      dead-reckoned position instead of the split-freeze's v_close/v_perp
+      reconstruction. This sidesteps the polar (lambda, range) singularity
+      entirely for that tail by working in Cartesian space, where a
+      constant-velocity target's extrapolated position is well-behaved even
+      as R->0."""
 
     NAME = "pure_pn"
 
@@ -897,36 +984,129 @@ class PurePN:
         self.frozen = None
         self.last_cmd = (0.0, 0.0)
 
+        # --- ADR-0014 lever 2 opt-ins ---
+        self.split_freeze = bool(p.get("SPLIT_FREEZE", False))
+        cap_a_cmd_deg = p.get("LAMBDA_DOT_CAP_A_CMD_ONLY_DEG_S")
+        self.lambda_dot_cap_a_cmd_only_rad = (
+            math.radians(cap_a_cmd_deg) if cap_a_cmd_deg is not None else None
+        )
+        self._v_perp_frozen = False
+        self._v_perp_frozen_value = 0.0
+
+        self.lead_extrap_max_s = p.get("LEAD_EXTRAP_MAX_S")
+        self.lead_extrap_min_corrections = p.get("LEAD_EXTRAP_MIN_CORRECTIONS", 6)
+        if self.lead_extrap_max_s is not None:
+            self._lead_tracker = TargetTracker(
+                p.get("LEAD_EXTRAP_TRACK_ALPHA", 0.6), p.get("LEAD_EXTRAP_TRACK_BETA", 0.2)
+            )
+        else:
+            self._lead_tracker = None
+        self._lead_corrections = 0
+        self._last_camera_t = None
+
+    def _capped_lambda_dot(self, lambda_dot):
+        if self.lambda_dot_cap_a_cmd_only_rad is None:
+            return lambda_dot
+        return clamp(lambda_dot, -self.lambda_dot_cap_a_cmd_only_rad, self.lambda_dot_cap_a_cmd_only_rad)
+
     def step(self, t, dt, own_pos, own_vel, meas):
         self.lam.predict(dt)
         self.rng_f.predict(dt)
+        if self._lead_tracker is not None:
+            self._lead_tracker.predict(dt)
         meas = _gate_camera_meas(meas, self.rng_f, self.range_gate_k, self.range_gate_sigma_frac)
         if meas is not None and meas.source == "camera":
             self.lam.correct(meas.bearing_rad, t)
             self.rng_f.correct(meas.range_m, t)
+            if self._lead_tracker is not None:
+                abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
+                self._lead_tracker.correct(abs_pos, t)
+                self._lead_corrections += 1
+                self._last_camera_t = t
         if not self.lam.initialized:
             return (0.0, 0.0)
 
         r_hat = self.rng_f.x_hat
-        if self.frozen is not None or (r_hat is not None and r_hat < self.freeze_range):
-            if self.frozen is None:
-                self.frozen = self.last_cmd
-            return self.frozen
+        in_freeze = r_hat is not None and r_hat < self.freeze_range
 
+        if not self.split_freeze:
+            # ORIGINAL whole-vector freeze (baseline-preserving path,
+            # unchanged from the pre-ADR-0014 implementation).
+            if self.frozen is not None or in_freeze:
+                if self.frozen is None:
+                    self.frozen = self.last_cmd
+                return self.frozen
+
+            lambda_hat = self.lam.x_hat
+            lambda_dot = self.lam.xdot_hat
+            rdot_hat = self.rng_f.xdot_hat if self.rng_f.initialized else None
+            vc = max(self.vc_floor, -rdot_hat) if rdot_hat is not None else self.vc_floor
+            a_cmd = self.N * vc * self._capped_lambda_dot(lambda_dot)
+            self.v_perp = clamp(self.v_perp + a_cmd * dt, -self.v_perp_max, self.v_perp_max)
+
+            v_close = compute_v_close(
+                r_hat, self.v_close_runin, self.v_close, self.throttle_range, self.freeze_range
+            )
+            u = (math.cos(lambda_hat), math.sin(lambda_hat))
+            pvec = (-math.sin(lambda_hat), math.cos(lambda_hat))
+            vx = v_close * u[0] + self.v_perp * pvec[0]
+            vy = v_close * u[1] + self.v_perp * pvec[1]
+            norm = math.hypot(vx, vy)
+            if norm > self.v_total_max:
+                s = self.v_total_max / norm
+                vx *= s
+                vy *= s
+            self.last_cmd = (vx, vy)
+            return (vx, vy)
+
+        # --- SPLIT_FREEZE path (ADR-0014 lever 2) ---
+        if in_freeze and not self._v_perp_frozen:
+            self._v_perp_frozen = True
+            self._v_perp_frozen_value = self.v_perp
+
+        if not self._v_perp_frozen:
+            lambda_dot = self.lam.xdot_hat
+            rdot_hat = self.rng_f.xdot_hat if self.rng_f.initialized else None
+            vc = max(self.vc_floor, -rdot_hat) if rdot_hat is not None else self.vc_floor
+            a_cmd = self.N * vc * self._capped_lambda_dot(lambda_dot)
+            self.v_perp = clamp(self.v_perp + a_cmd * dt, -self.v_perp_max, self.v_perp_max)
+            v_perp_use = self.v_perp
+        else:
+            v_perp_use = self._v_perp_frozen_value
+
+        # LIVE: both corrected unconditionally above, unlike v_perp.
         lambda_hat = self.lam.x_hat
-        lambda_dot = self.lam.xdot_hat
-        rdot_hat = self.rng_f.xdot_hat if self.rng_f.initialized else None
-        vc = max(self.vc_floor, -rdot_hat) if rdot_hat is not None else self.vc_floor
-        a_cmd = self.N * vc * lambda_dot
-        self.v_perp = clamp(self.v_perp + a_cmd * dt, -self.v_perp_max, self.v_perp_max)
-
         v_close = compute_v_close(
             r_hat, self.v_close_runin, self.v_close, self.throttle_range, self.freeze_range
         )
+
+        # Optional lead-extrapolation through a genuinely BLIND tail.
+        if (
+            self.lead_extrap_max_s is not None and self._lead_tracker is not None
+            and self._lead_tracker.pos_hat is not None
+            and self._last_camera_t is not None
+            and self._lead_corrections >= self.lead_extrap_min_corrections
+        ):
+            blind_s = t - self._last_camera_t
+            if MEAS_STALE_S < blind_s <= self.lead_extrap_max_s:
+                aim = self._lead_tracker.pos_hat
+                direction = (aim[0] - own_pos[0], aim[1] - own_pos[1])
+                dnorm = math.hypot(direction[0], direction[1])
+                if dnorm > 1e-6:
+                    vx = v_close * direction[0] / dnorm
+                    vy = v_close * direction[1] / dnorm
+                    norm = math.hypot(vx, vy)
+                    if norm > self.v_total_max:
+                        s = self.v_total_max / norm
+                        vx *= s
+                        vy *= s
+                    self.last_cmd = (vx, vy)
+                    return (vx, vy)
+
         u = (math.cos(lambda_hat), math.sin(lambda_hat))
         pvec = (-math.sin(lambda_hat), math.cos(lambda_hat))
-        vx = v_close * u[0] + self.v_perp * pvec[0]
-        vy = v_close * u[1] + self.v_perp * pvec[1]
+        vx = v_close * u[0] + v_perp_use * pvec[0]
+        vy = v_close * u[1] + v_perp_use * pvec[1]
         norm = math.hypot(vx, vy)
         if norm > self.v_total_max:
             s = self.v_total_max / norm
@@ -1415,6 +1595,11 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     speed = path_params.pop("speed", 5.0)
     det_range = path_params.pop("det_range", DET_RANGE_DEFAULT_M)
     handoff_range = path_params.pop("handoff_range", HANDOFF_RANGE_DEFAULT_M)
+    # ADR-0014 lever 1 (yaw-rate authority): the boresight's own slew-rate
+    # cap is this lab's proxy for PX4's MPC_YAWRAUTO_MAX. Sweepable via
+    # path_params so a study can raise it without touching the default
+    # (YAW_RATE_MAX_DEG_S_DEFAULT=45, unchanged -- baseline-preserving).
+    yaw_rate_max_deg_s = path_params.pop("yaw_rate_max_deg_s", YAW_RATE_MAX_DEG_S_DEFAULT)
 
     builder = PATHS[path_name]
     (tx, ty), vel_fn = builder(speed, rng, **path_params)
@@ -1430,7 +1615,8 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     # a fixed world heading. See Sensor's own_heading/FOV docstring.
     initial_heading = math.atan2(ty - iy, tx - ix)
     sensor = Sensor(
-        rng, det_range=det_range, handoff_range=handoff_range, initial_heading=initial_heading
+        rng, det_range=det_range, handoff_range=handoff_range, initial_heading=initial_heading,
+        yaw_rate_max_deg_s=yaw_rate_max_deg_s,
     )
 
     min_range = math.hypot(tx - ix, ty - iy)
@@ -1440,6 +1626,14 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     n_ticks = 0
     n_locked_ticks = 0
     n_in_range_ticks = 0
+    # ADR-0014 diagnostic: coverage restricted to the TERMINAL band (same
+    # TERMINAL_LOST_TAG_RANGE_M=5.0 boundary tag_lost_in_terminal already
+    # uses) -- the whole-run detection_coverage below dilutes exactly the
+    # phase this study cares about (yaw-rate-limited boresight losing the
+    # tag inside the FOV during the endgame), so this is reported alongside
+    # it, not in place of it.
+    n_in_terminal_ticks = 0
+    n_terminal_locked_ticks = 0
     last_meas_t = None
     tag_lost_in_terminal = False
     breakoff_armed = False
@@ -1495,6 +1689,10 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
             n_in_range_ticks += 1
             if has_lock:
                 n_locked_ticks += 1
+        if true_range < TERMINAL_LOST_TAG_RANGE_M:
+            n_in_terminal_ticks += 1
+            if has_lock:
+                n_terminal_locked_ticks += 1
         if true_range < TERMINAL_LOST_TAG_RANGE_M and not (
             meas is not None and meas.source == "camera"
         ) and not has_lock:
@@ -1539,6 +1737,9 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
 
     intercept_time = first_hit_time if first_hit_time is not None else t_min_range
     detection_coverage = n_locked_ticks / n_in_range_ticks if n_in_range_ticks else 0.0
+    terminal_coverage = (
+        n_terminal_locked_ticks / n_in_terminal_ticks if n_in_terminal_ticks else None
+    )
     tracker_pos_err_rms = math.sqrt(_pos_err_sq_sum / _track_diag_n) if _track_diag_n else None
     tracker_vel_err_rms = math.sqrt(_vel_err_sq_sum / _track_diag_n) if _track_diag_n else None
 
@@ -1549,6 +1750,7 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
         terminal_method=params.get("TERMINAL_METHOD"),
         miss_distance=min_range, intercept_time=intercept_time,
         control_effort=control_effort, detection_coverage=detection_coverage,
+        terminal_coverage=terminal_coverage,
         tag_lost_in_terminal=tag_lost_in_terminal,
         # Track-quality diagnostics (candidate research task, ground-truth
         # SCORING-ONLY -- see comment above the accumulators): None for
@@ -1632,7 +1834,7 @@ def write_csv(rows, path):
         "method", "path", "speed", "seed", "two_stage", "N", "V_CLOSE",
         "dash_speed", "handoff_range_cfg", "terminal_method",
         "miss_distance", "intercept_time", "control_effort",
-        "detection_coverage", "tag_lost_in_terminal",
+        "detection_coverage", "terminal_coverage", "tag_lost_in_terminal",
     ]
     with open(path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -1833,6 +2035,324 @@ def print_s2_results(dash_rows, baseline_rows):
     return best_overall
 
 
+# =========================================================================
+# ADR-0014 TERMINAL-GUIDANCE LEVER STUDY ("lab ranks, Gazebo decides", BEFORE
+# any Gazebo flight time is spent). Re-diagnosis (seat C, adopted): the S2
+# terminal tag loss is NOT FOV overflow -- it's a YAW-RATE deficit (achieved
+# ~21-24 deg/s vs required ~32-58 deg/s LOS rotation) walking the boresight
+# off a tag that is still well inside the FOV and 100+ px wide. Three levers,
+# all opt-in (baseline defaults verified byte-identical above this section):
+#   1. yaw-rate authority   -- Sensor's yaw_rate_max_deg_s (the lab's proxy
+#      for PX4's MPC_YAWRAUTO_MAX).
+#   2. split terminal freeze + lambda_dot rate-cap -- PurePN's SPLIT_FREEZE /
+#      LAMBDA_DOT_CAP_DEG_S / LAMBDA_DOT_CAP_A_CMD_ONLY_DEG_S (+ optional
+#      LEAD_EXTRAP_MAX_S sub-variant).
+#   3. slower terminal closing -- PurePN's V_CLOSE (the V_CLOSE_TERMINAL
+#      analog), already a plain sweepable param, no new code needed.
+# Evaluated on: (a) the S2 two-stage dash config (dash_speed=10, handoff=10
+# -- the lab's own validated best dash/handoff pair, ADR-0011 3rd addendum)
+# with TERMINAL_METHOD="pure_pn" (the law lever 2 actually targets -- PIP's
+# terminal freeze is a structurally different whole-command lead-pursuit
+# latch with no lambda_dot/v_perp at all, so lever 2 does not apply to it);
+# (b) a camera-only pure_pn crossing regression check (3/4/6 m/s, both
+# directions) so a terminal-only change is confirmed to not quietly break
+# the already-validated camera-only numbers.
+# =========================================================================
+ADR14_S2_SPEEDS = S2_SPEEDS               # 6/8/10 m/s
+ADR14_DASH_SPEED = 10.0                   # lab's validated best (ADR-0011 3rd addendum)
+ADR14_HANDOFF_RANGE = 10.0
+ADR14_REGRESSION_SPEEDS = (3.0, 4.0, 6.0)  # calibration band (ADR-0011 2nd addendum)
+ADR14_PK_RANGES = (0.5, 1.0, 1.5, 2.0, 2.5)  # ADR-0014 decision #1's headline set
+
+ADR14_YAW_RATES_DEG_S = (45.0, 60.0, 75.0, 90.0)  # 45.0 = baseline (YAW_RATE_MAX_DEG_S_DEFAULT)
+
+ADR14_LEVER2_VARIANTS = [
+    ("baseline (whole-vector freeze)", {}),
+    ("split_freeze only", {"SPLIT_FREEZE": True}),
+    ("split_freeze + cap_both 60deg/s", {"SPLIT_FREEZE": True, "LAMBDA_DOT_CAP_DEG_S": 60.0}),
+    ("split_freeze + cap_both 75deg/s", {"SPLIT_FREEZE": True, "LAMBDA_DOT_CAP_DEG_S": 75.0}),
+    # REJECTED-ON-PURPOSE control: cap only the a_cmd read, leave the
+    # filter's own forward integration (predict()) uncapped -- included to
+    # empirically CONFIRM this recreates the ADR-0009 whipsaw, not to
+    # recommend it.
+    ("split_freeze + cap_a_cmd_ONLY 60deg/s (expect WORSE)",
+     {"SPLIT_FREEZE": True, "LAMBDA_DOT_CAP_A_CMD_ONLY_DEG_S": 60.0}),
+    ("split_freeze + cap_both 60 + lead_extrap 0.3s",
+     {"SPLIT_FREEZE": True, "LAMBDA_DOT_CAP_DEG_S": 60.0, "LEAD_EXTRAP_MAX_S": 0.3}),
+    ("split_freeze + cap_both 60 + lead_extrap 0.5s",
+     {"SPLIT_FREEZE": True, "LAMBDA_DOT_CAP_DEG_S": 60.0, "LEAD_EXTRAP_MAX_S": 0.5}),
+]
+
+ADR14_V_CLOSE_TERMINAL_GRID = (5.5, 4.5, 4.0)  # 5.5 = baseline (FPV V_CLOSE_TERMINAL)
+
+
+def _adr14_camera_only_regression(pn_overrides, n_seeds, yaw_rate=None, speeds=ADR14_REGRESSION_SPEEDS):
+    """Camera-only pure_pn crossing (both directions) regression rows for a
+    given lever config -- the "does this terminal change break the
+    already-validated camera-only numbers" check."""
+    rows = []
+    for path in ("crossing_l2r", "crossing_r2l"):
+        for speed in speeds:
+            path_params = {"speed": speed}
+            if yaw_rate is not None:
+                path_params["yaw_rate_max_deg_s"] = yaw_rate
+            for seed in range(n_seeds):
+                rows.append(simulate("pure_pn", pn_overrides, path, path_params, seed, two_stage=False))
+    return rows
+
+
+def _adr14_s2_dash_config(terminal_params, n_seeds, terminal_method="pure_pn", yaw_rate=None,
+                           speeds=ADR14_S2_SPEEDS, dash_speed=ADR14_DASH_SPEED,
+                           handoff_range=ADR14_HANDOFF_RANGE):
+    """S2 two_stage_dash rows (dash10/handoff10, the lab's validated best
+    dash pair) at the FPV target band, with `terminal_params` overriding the
+    terminal law's own params (ADR-0014 levers live here)."""
+    rows = []
+    for speed in speeds:
+        method_params = dict(
+            DASH_SPEED=dash_speed, HANDOFF_RANGE=handoff_range,
+            TERMINAL_METHOD=terminal_method, TERMINAL_PARAMS=terminal_params,
+        )
+        path_params = dict(S2_PATH_PARAMS, speed=speed, handoff_range=handoff_range)
+        if yaw_rate is not None:
+            path_params["yaw_rate_max_deg_s"] = yaw_rate
+        for seed in range(n_seeds):
+            rows.append(
+                simulate("two_stage_dash", method_params, "crossing_l2r", path_params, seed, two_stage=True)
+            )
+    return rows
+
+
+def _adr14_stats(rows, pk_ranges=None):
+    miss = np.array([r["miss_distance"] for r in rows])
+    tc_vals = [r["terminal_coverage"] for r in rows if r["terminal_coverage"] is not None]
+    tc = np.array(tc_vals) if tc_vals else None
+    out = dict(
+        n=len(rows),
+        miss_mean=float(miss.mean()),
+        miss_p90=float(np.percentile(miss, 90)),
+        miss_p95=float(np.percentile(miss, 95)),
+        terminal_coverage_mean=float(tc.mean()) if tc is not None else None,
+    )
+    if pk_ranges:
+        out["pk"] = {r: float(np.mean(miss <= r)) for r in pk_ranges}
+    return out
+
+
+def _adr14_print_row(label, per_speed_stats, speeds):
+    for speed in speeds:
+        s = per_speed_stats[speed]
+        tc = f"{s['terminal_coverage_mean']:.2f}" if s["terminal_coverage_mean"] is not None else "n/a"
+        print(
+            f"    {label:46s} {speed:5.1f}  n={s['n']:<4d} "
+            f"mean={s['miss_mean']:6.3f}  p90={s['miss_p90']:6.3f}  p95={s['miss_p95']:6.3f}  "
+            f"term_cov={tc}"
+        )
+
+
+def run_adr14_lever1_yawrate(n_seeds):
+    print("\n" + "=" * 90)
+    print("ADR-0014 LEVER 1: yaw-rate authority (Sensor.yaw_rate_max_deg_s, "
+          "lab proxy for MPC_YAWRAUTO_MAX)")
+    print("=" * 90)
+    print(f"  [regression] camera-only pure_pn crossing (l2r+r2l), speeds={ADR14_REGRESSION_SPEEDS}, "
+          f"n_seeds={n_seeds}")
+    reg_results = {}
+    for yaw_rate in ADR14_YAW_RATES_DEG_S:
+        rows = _adr14_camera_only_regression(None, n_seeds, yaw_rate=yaw_rate)
+        reg_results[yaw_rate] = _adr14_stats(rows)
+        r = reg_results[yaw_rate]
+        tc = f"{r['terminal_coverage_mean']:.2f}" if r["terminal_coverage_mean"] is not None else "n/a"
+        tag = " (baseline)" if yaw_rate == 45.0 else ""
+        print(f"    yaw_rate={yaw_rate:5.1f} deg/s{tag:12s} n={r['n']:<5d} "
+              f"mean={r['miss_mean']:.3f}  p90={r['miss_p90']:.3f}  term_cov={tc}")
+
+    print(f"\n  [S2 dash config] dash={ADR14_DASH_SPEED}, handoff={ADR14_HANDOFF_RANGE}, "
+          f"terminal=pure_pn, speeds={ADR14_S2_SPEEDS}, n_seeds={n_seeds}")
+    s2_results = {}
+    for yaw_rate in ADR14_YAW_RATES_DEG_S:
+        per_speed = {}
+        for speed in ADR14_S2_SPEEDS:
+            rows = _adr14_s2_dash_config({}, n_seeds, yaw_rate=yaw_rate, speeds=(speed,))
+            per_speed[speed] = _adr14_stats(rows)
+        s2_results[yaw_rate] = per_speed
+        tag = " (baseline)" if yaw_rate == 45.0 else ""
+        print(f"    yaw_rate={yaw_rate:5.1f} deg/s{tag}")
+        _adr14_print_row("", per_speed, ADR14_S2_SPEEDS)
+    return reg_results, s2_results
+
+
+def run_adr14_lever2_splitfreeze(n_seeds):
+    print("\n" + "=" * 90)
+    print("ADR-0014 LEVER 2: split terminal freeze + lambda_dot rate-cap (PurePN)")
+    print("=" * 90)
+    print(f"  [regression] camera-only pure_pn crossing (l2r+r2l), speeds={ADR14_REGRESSION_SPEEDS}, "
+          f"n_seeds={n_seeds}")
+    reg_results = {}
+    for label, overrides in ADR14_LEVER2_VARIANTS:
+        rows = _adr14_camera_only_regression(overrides, n_seeds)
+        reg_results[label] = _adr14_stats(rows)
+        r = reg_results[label]
+        tc = f"{r['terminal_coverage_mean']:.2f}" if r["terminal_coverage_mean"] is not None else "n/a"
+        print(f"    {label:52s} n={r['n']:<5d} mean={r['miss_mean']:.3f}  p90={r['miss_p90']:.3f}  term_cov={tc}")
+
+    print(f"\n  [S2 dash config] dash={ADR14_DASH_SPEED}, handoff={ADR14_HANDOFF_RANGE}, "
+          f"terminal=pure_pn, speeds={ADR14_S2_SPEEDS}, n_seeds={n_seeds}")
+    s2_results = {}
+    for label, overrides in ADR14_LEVER2_VARIANTS:
+        per_speed = {}
+        for speed in ADR14_S2_SPEEDS:
+            rows = _adr14_s2_dash_config(overrides, n_seeds, speeds=(speed,))
+            per_speed[speed] = _adr14_stats(rows)
+        s2_results[label] = per_speed
+        print(f"    {label}")
+        _adr14_print_row("", per_speed, ADR14_S2_SPEEDS)
+    return reg_results, s2_results
+
+
+def run_adr14_lever3_vclose(n_seeds):
+    print("\n" + "=" * 90)
+    print("ADR-0014 LEVER 3: slower terminal closing speed (PurePN's V_CLOSE)")
+    print("=" * 90)
+    print(f"  [regression] camera-only pure_pn crossing (l2r+r2l), speeds={ADR14_REGRESSION_SPEEDS}, "
+          f"n_seeds={n_seeds}")
+    reg_results = {}
+    for vc in ADR14_V_CLOSE_TERMINAL_GRID:
+        rows = _adr14_camera_only_regression({"V_CLOSE": vc}, n_seeds)
+        reg_results[vc] = _adr14_stats(rows)
+        r = reg_results[vc]
+        tag = " (baseline)" if vc == 5.5 else ""
+        print(f"    V_CLOSE={vc:4.1f} m/s{tag:12s} n={r['n']:<5d} mean={r['miss_mean']:.3f}  p90={r['miss_p90']:.3f}")
+
+    print(f"\n  [S2 dash config] dash={ADR14_DASH_SPEED}, handoff={ADR14_HANDOFF_RANGE}, "
+          f"terminal=pure_pn, speeds={ADR14_S2_SPEEDS}, n_seeds={n_seeds}")
+    s2_results = {}
+    for vc in ADR14_V_CLOSE_TERMINAL_GRID:
+        per_speed = {}
+        for speed in ADR14_S2_SPEEDS:
+            rows = _adr14_s2_dash_config({"V_CLOSE": vc}, n_seeds, speeds=(speed,))
+            per_speed[speed] = _adr14_stats(rows)
+        s2_results[vc] = per_speed
+        tag = " (baseline)" if vc == 5.5 else ""
+        print(f"    V_CLOSE={vc:4.1f} m/s{tag}")
+        _adr14_print_row("", per_speed, ADR14_S2_SPEEDS)
+    return reg_results, s2_results
+
+
+def run_adr14_best_combo(best_terminal_overrides, best_yaw_rate, n_seeds, pk_ranges=ADR14_PK_RANGES):
+    """Final evaluation: best-combo (pure_pn terminal + winning levers) vs
+    the no-lever pure_pn-terminal baseline vs the previously-best PIP-terminal
+    S2 config (ADR-0011 3rd addendum) -- all at dash10/handoff10, n_seeds>=40,
+    plus a camera-only pure_pn regression check and a Pk-vs-R preview."""
+    print("\n" + "=" * 90)
+    print("ADR-0014 BEST-COMBINATION EVALUATION")
+    print("=" * 90)
+    print(f"  best-combo terminal overrides: {best_terminal_overrides}")
+    print(f"  best-combo yaw_rate_max_deg_s: {best_yaw_rate}")
+    print(f"  n_seeds={n_seeds}, speeds={ADR14_S2_SPEEDS}, dash={ADR14_DASH_SPEED}, "
+          f"handoff={ADR14_HANDOFF_RANGE}")
+
+    configs = [
+        ("S2 baseline (pure_pn terminal, no levers)", {}, None, "pure_pn"),
+        ("S2 PIP terminal (ADR-0011 3rd addendum winner, no levers)", {}, None, "pip"),
+        ("S2 BEST-COMBO (pure_pn terminal + levers)", best_terminal_overrides, best_yaw_rate, "pure_pn"),
+    ]
+
+    all_results = {}
+    all_rows = {}
+    for label, overrides, yaw_rate, terminal_method in configs:
+        per_speed = {}
+        per_speed_rows = {}
+        for speed in ADR14_S2_SPEEDS:
+            rows = _adr14_s2_dash_config(
+                overrides, n_seeds, terminal_method=terminal_method, yaw_rate=yaw_rate, speeds=(speed,)
+            )
+            per_speed[speed] = _adr14_stats(rows, pk_ranges=pk_ranges)
+            per_speed_rows[speed] = rows
+        all_results[label] = per_speed
+        all_rows[label] = per_speed_rows
+        print(f"\n  {label}")
+        for speed in ADR14_S2_SPEEDS:
+            s = per_speed[speed]
+            tc = f"{s['terminal_coverage_mean']:.2f}" if s["terminal_coverage_mean"] is not None else "n/a"
+            pk_str = ", ".join(f"Pk@{r}={s['pk'][r]*100:.0f}%" for r in pk_ranges)
+            print(
+                f"    speed={speed:4.1f}  n={s['n']:<4d} mean={s['miss_mean']:.3f}  "
+                f"p90={s['miss_p90']:.3f}  p95={s['miss_p95']:.3f}  term_cov={tc}"
+            )
+            print(f"      {pk_str}")
+
+    # regression check on the best combo -- compared APPLES-TO-APPLES against
+    # a no-lever run on the SAME crossing_l2r/r2l-only path subset (NOT the
+    # ADR-0011 3rd addendum's 1.786 m, which pools 7 different paths -- that
+    # number is not a valid baseline for this narrower check).
+    print(f"\n  [regression] camera-only pure_pn crossing (l2r+r2l) w/ best-combo params, "
+          f"speeds={ADR14_REGRESSION_SPEEDS}, n_seeds={n_seeds}")
+    reg_rows = _adr14_camera_only_regression(best_terminal_overrides, n_seeds, yaw_rate=best_yaw_rate)
+    reg_stats = _adr14_stats(reg_rows)
+    reg_baseline_rows = _adr14_camera_only_regression(None, n_seeds)
+    reg_baseline_stats = _adr14_stats(reg_baseline_rows)
+    print(f"    no-lever baseline (same path subset): mean={reg_baseline_stats['miss_mean']:.3f}  "
+          f"p90={reg_baseline_stats['miss_p90']:.3f}")
+    print(f"    best-combo:                            mean={reg_stats['miss_mean']:.3f}  "
+          f"p90={reg_stats['miss_p90']:.3f}")
+
+    return all_results, all_rows
+
+
+def run_adr14_study(n_seeds=120, combo_n_seeds=150):
+    """Top-level ADR-0014 lever study driver -- CLI-invokable via --adr0014.
+    Runs levers 1/2/3 independently (rank them), assembles the best
+    combination from the winners, then evaluates the combo against the S2
+    baseline and the prior PIP-terminal winner with a Pk-vs-R preview.
+    Returns (all lever-study rows, best-combo overrides, best yaw rate) so
+    main() can fold the rows into the run's CSV."""
+    t0 = time.perf_counter()
+    reg1, s2_1 = run_adr14_lever1_yawrate(n_seeds)
+    reg2, s2_2 = run_adr14_lever2_splitfreeze(n_seeds)
+    reg3, s2_3 = run_adr14_lever3_vclose(n_seeds)
+    print(f"\n[guidance_lab] ADR-0014 levers 1-3 done in {time.perf_counter() - t0:.2f}s")
+
+    # Pick winners by pooled (mean over speeds) S2 dash-config miss.
+    def _pooled_mean(per_speed_by_key):
+        return {
+            k: float(np.mean([per_speed_by_key[k][sp]["miss_mean"] for sp in ADR14_S2_SPEEDS]))
+            for k in per_speed_by_key
+        }
+
+    yaw_pooled = _pooled_mean(s2_1)
+    best_yaw = min(yaw_pooled, key=yaw_pooled.get)
+    lever2_pooled = _pooled_mean(s2_2)
+    best_lever2_label = min(lever2_pooled, key=lever2_pooled.get)
+    best_lever2_overrides = dict(next(o for lbl, o in ADR14_LEVER2_VARIANTS if lbl == best_lever2_label))
+    vclose_pooled = _pooled_mean(s2_3)
+    best_vclose = min(vclose_pooled, key=vclose_pooled.get)
+
+    print("\n" + "=" * 90)
+    print("ADR-0014 LEVER WINNERS (by pooled S2 dash-config mean miss, 6/8/10 m/s)")
+    print("=" * 90)
+    print(f"  Lever 1 (yaw rate):   best={best_yaw} deg/s   pooled_means={yaw_pooled}")
+    print(f"  Lever 2 (split/cap):  best='{best_lever2_label}'   pooled_means={lever2_pooled}")
+    print(f"  Lever 3 (V_CLOSE):    best={best_vclose} m/s   pooled_means={vclose_pooled}")
+
+    best_combo_overrides = dict(best_lever2_overrides)
+    best_combo_overrides["V_CLOSE"] = best_vclose
+    best_yaw_rate = best_yaw if best_yaw != 45.0 else None  # None = baseline default, no override needed
+
+    combo_results, combo_rows = run_adr14_best_combo(best_combo_overrides, best_yaw_rate, combo_n_seeds)
+
+    all_rows = []
+    for src in (
+        _adr14_camera_only_regression(None, n_seeds),  # re-collected for CSV completeness (cheap)
+    ):
+        all_rows.extend(src)
+    for per_speed_rows in combo_rows.values():
+        for rows in per_speed_rows.values():
+            all_rows.extend(rows)
+
+    return all_rows, best_combo_overrides, best_yaw_rate
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--quick", action="store_true", help="small fast sweep (smoke test)")
@@ -1846,12 +2366,40 @@ def main():
     parser.add_argument("--skip-calibration", action="store_true",
                          help="skip the pure_pn/pip vs Gazebo calibration check")
     parser.add_argument("--skip-s2", action="store_true", help="skip the S2 dash-config sweep")
+    parser.add_argument("--adr0014", action="store_true",
+                         help="run ONLY the ADR-0014 terminal-guidance lever study (yaw-rate "
+                              "authority, split terminal-freeze + lambda_dot rate-cap, slower "
+                              "terminal closing) instead of the main trade study, and write its "
+                              "own CSV. See the ADR-0014 section of this file.")
+    parser.add_argument("--adr0014-seeds", type=int, default=120,
+                         help="seed count for the per-lever ranking sweeps (default 120)")
+    parser.add_argument("--adr0014-combo-seeds", type=int, default=150,
+                         help="seed count for the final best-combo/Pk-preview evaluation (default 150)")
     args = parser.parse_args()
 
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     csv_path = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}.csv")
     plot_prefix = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}")
+
+    if args.adr0014:
+        print(
+            "\n[guidance_lab] ADR-0014 terminal-guidance lever study "
+            f"(seeds={args.adr0014_seeds}, combo_seeds={args.adr0014_combo_seeds})"
+        )
+        adr14_csv_path = os.path.join(LOGS_DIR, f"guidance_lab_adr0014_{timestamp}.csv")
+        all_rows, best_combo_overrides, best_yaw_rate = run_adr14_study(
+            n_seeds=args.adr0014_seeds, combo_n_seeds=args.adr0014_combo_seeds
+        )
+        write_csv(all_rows, adr14_csv_path)
+        print(f"\n[guidance_lab] ADR-0014 CSV written: {adr14_csv_path} ({len(all_rows)} rows)")
+        print(f"[guidance_lab] ADR-0014 recommended combo overrides: {best_combo_overrides}")
+        print(f"[guidance_lab] ADR-0014 recommended yaw_rate_max_deg_s: {best_yaw_rate}")
+        print(
+            "  REMINDER: this is a kinematic surrogate -- these lever rankings are a HYPOTHESIS "
+            "gating which levers get an actual Gazebo A/B, not a Gazebo result themselves."
+        )
+        return 0
 
     if args.quick:
         methods = ALL_METHODS
