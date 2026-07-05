@@ -253,6 +253,7 @@ FPV = {
     # lambda-lag pathology, now on the range channel per council seat A).
     "BETA_GAIN_RANGE": 0.45,
     # PX4 params set via MAVSDK before arming (ADR-0010 decision #3).
+    "N_PRONAV": 5.0,          # lab trade study: N=5 minimized pure-PN miss (ADR-0011)
     "PX4_PARAMS": {
         "MPC_XY_VEL_MAX": 20.0,
         "MPC_ACC_HOR_MAX": 12.0,
@@ -268,13 +269,14 @@ def apply_fpv_profile():
     guidance loop reads any of them. Leaves the PX4 params for main() to
     push over MAVSDK (they aren't module constants)."""
     global V_PERP_MAX, V_TOTAL_MAX, TERMINAL_RANGE_M, TERMINAL_FREEZE_RANGE_M
-    global BREAKOFF_ARM_RANGE_M, BETA_GAIN_RANGE
+    global BREAKOFF_ARM_RANGE_M, BETA_GAIN_RANGE, N_PRONAV
     V_PERP_MAX = FPV["V_PERP_MAX"]
     V_TOTAL_MAX = FPV["V_TOTAL_MAX"]
     TERMINAL_RANGE_M = FPV["TERMINAL_RANGE_M"]
     TERMINAL_FREEZE_RANGE_M = FPV["TERMINAL_FREEZE_RANGE_M"]
     BREAKOFF_ARM_RANGE_M = FPV["BREAKOFF_ARM_RANGE_M"]
     BETA_GAIN_RANGE = FPV["BETA_GAIN_RANGE"]
+    N_PRONAV = FPV["N_PRONAV"]
 
 
 def compute_v_close(r_hat, fpv_on):
@@ -386,18 +388,100 @@ class AlphaBetaFilter:
         self._last_correction_t = t
 
 
+# --- Predicted Intercept Point (PIP) machinery (ADR-0011). Ported from the
+# guidance_lab.py trade study, where PIP roughly halved the miss vs pure PN
+# by aiming where the target WILL be, not where it is. Reuses AlphaBetaFilter
+# on the target's ABSOLUTE north/east position (from own-EKF-position + the
+# camera-measured relative vector -- target info still camera-only). ---
+class TargetTracker:
+    """Alpha-beta filters on the target's absolute (north, east) position,
+    yielding a position+velocity estimate from a stream of possibly-noisy,
+    intermittent absolute-position measurements. The velocity estimate is
+    what PIP needs to solve the intercept triangle and lead the target."""
+
+    def __init__(self, alpha=0.6, beta=0.2):
+        self.fn = AlphaBetaFilter(alpha, beta)
+        self.fe = AlphaBetaFilter(alpha, beta)
+
+    def predict(self, dt):
+        self.fn.predict(dt)
+        self.fe.predict(dt)
+
+    def correct(self, abs_ne, t):
+        self.fn.correct(abs_ne[0], t)
+        self.fe.correct(abs_ne[1], t)
+
+    @property
+    def initialized(self):
+        return self.fn.x_hat is not None
+
+    @property
+    def pos_hat(self):
+        if self.fn.x_hat is None:
+            return None
+        return (self.fn.x_hat, self.fe.x_hat)
+
+    @property
+    def vel_hat(self):
+        if self.fn.x_hat is None:
+            return None
+        return (self.fn.xdot_hat, self.fe.xdot_hat)
+
+
+def solve_intercept_time(rel, vt, v_close, max_lead_s):
+    """Classic lead-pursuit / PIP intercept-triangle solve: smallest positive
+    t such that |rel + vt*t| = v_close*t (target at `rel` relative to us,
+    moving at constant `vt`; we close at constant speed `v_close`). Returns 0
+    (aim at the target's current estimated position -- plain pursuit) when the
+    target outruns v_close and diverges, or the quadratic degenerates.
+    Ported verbatim from guidance_lab.py (ADR-0011)."""
+    a = vt[0] * vt[0] + vt[1] * vt[1] - v_close * v_close
+    b = 2.0 * (rel[0] * vt[0] + rel[1] * vt[1])
+    c = rel[0] * rel[0] + rel[1] * rel[1]
+    t_go = 0.0
+    if abs(a) < 1e-9:
+        if abs(b) > 1e-9:
+            t = -c / b
+            if t > 0:
+                t_go = t
+    else:
+        disc = b * b - 4 * a * c
+        if disc >= 0:
+            sq = math.sqrt(disc)
+            candidates = [tt for tt in ((-b + sq) / (2 * a), (-b - sq) / (2 * a)) if tt > 0]
+            if candidates:
+                t_go = min(candidates)
+    return min(max(t_go, 0.0), max_lead_s)
+
+
+# PIP tuning (ADR-0011 / guidance_lab.py winner: V_CLOSE=6 minimized miss).
+PIP_TRACK_ALPHA = 0.6
+PIP_TRACK_BETA = 0.2
+PIP_MAX_LEAD_S = 3.0
+
+
 class M4TelemetryState(TelemetryState):
-    """TelemetryState plus the vehicle's own yaw -- needed to reconstruct
-    the inertial LOS azimuth lambda = psi + beta (see module docstring)."""
+    """TelemetryState plus the vehicle's own yaw (to reconstruct the inertial
+    LOS azimuth lambda = psi + beta) and its own north/east position (for
+    PIP's absolute target track). Both are OWN state (PX4 EKF), not target
+    info -- the camera stays the only target sensor."""
 
     def __init__(self):
         super().__init__()
         self.yaw_deg: Optional[float] = None
+        self.pos_n: Optional[float] = None
+        self.pos_e: Optional[float] = None
 
 
 async def track_attitude(drone, state: "M4TelemetryState") -> None:
     async for euler in drone.telemetry.attitude_euler():
         state.yaw_deg = euler.yaw_deg
+
+
+async def track_local_position(drone, state: "M4TelemetryState") -> None:
+    async for pv in drone.telemetry.position_velocity_ned():
+        state.pos_n = pv.position.north_m
+        state.pos_e = pv.position.east_m
 
 
 def acquire_command(detected: bool, meas: "Optional[Measurement]", alt_m, psi_deg):
@@ -485,8 +569,8 @@ def recompute_min_gt_range_from_csv(log_path: str) -> float:
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--law", choices=["pursuit", "pronav"], required=True,
-        help="guidance law to run",
+        "--law", choices=["pursuit", "pronav", "pip"], required=True,
+        help="guidance law to run (pip = predicted intercept point, ADR-0011)",
     )
     parser.add_argument(
         "--target-start", default="6.5,-4,0.5",
@@ -529,6 +613,10 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
 
     lambda_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_LAMBDA, angular=True)
     range_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_RANGE, angular=False)
+    # PIP (ADR-0011): absolute target position+velocity track for the lead
+    # solve. Only used when args.law == "pip"; predicts every tick, corrects
+    # on fresh detections with own_ned + camera relative vector.
+    target_tracker = TargetTracker(PIP_TRACK_ALPHA, PIP_TRACK_BETA)
 
     phase = "ACQUIRE"
     acquire_start_mono = time.monotonic()
@@ -580,10 +668,22 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
         # --- filters: predict every tick, correct only on FRESH ticks ---
         lambda_filter.predict(dt)
         range_filter.predict(dt)
+        target_tracker.predict(dt)
         if fresh:
             lambda_meas = psi_rad + meas.bearing_rad
             lambda_filter.correct(lambda_meas, tick_start)
             range_filter.correct(meas.range_m, tick_start)
+            # PIP absolute target track (ADR-0011): own NED position (EKF,
+            # own-state) + the camera relative vector in NED. The relative
+            # vector uses the SAME bench-validated LOS azimuth psi+beta the
+            # pronav command frame uses: north = range*cos(lambda),
+            # east = range*sin(lambda). Target info stays camera-only.
+            if state.pos_n is not None and state.pos_e is not None:
+                rel_n = meas.range_m * math.cos(lambda_meas)
+                rel_e = meas.range_m * math.sin(lambda_meas)
+                target_tracker.correct(
+                    (state.pos_n + rel_n, state.pos_e + rel_e), tick_start
+                )
 
         lambda_hat = lambda_filter.x_hat
         lambda_dot_hat = lambda_filter.xdot_hat if lambda_filter.initialized else None
@@ -663,17 +763,45 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
                     or (r_hat is not None and r_hat < TERMINAL_FREEZE_RANGE_M)
                 )
                 if not in_terminal_coast:
-                    u = (math.cos(lambda_hat), math.sin(lambda_hat))
-                    p = (-math.sin(lambda_hat), math.cos(lambda_hat))
                     v_close = compute_v_close(r_hat, args.fpv)  # two-speed under --fpv
 
-                    if args.law == "pronav":
-                        v_perp = _clamp(v_perp + a_cmd * dt, -V_PERP_MAX, V_PERP_MAX)
+                    if args.law == "pip":
+                        # Predicted Intercept Point (ADR-0011): aim the whole
+                        # closing velocity at the LEAD point where we and the
+                        # target's estimated constant-velocity track would
+                        # meet -- the direct cure for arriving where the target
+                        # WAS. Falls back to aiming at the current estimate
+                        # (pursuit) when the tracker isn't ready or the target
+                        # outruns v_close (solve_intercept_time -> 0).
+                        tpos = target_tracker.pos_hat
+                        if tpos is not None and state.pos_n is not None:
+                            own = (state.pos_n, state.pos_e)
+                            rel = (tpos[0] - own[0], tpos[1] - own[1])
+                            vt = target_tracker.vel_hat or (0.0, 0.0)
+                            t_go = solve_intercept_time(rel, vt, v_close, PIP_MAX_LEAD_S)
+                            aim = (tpos[0] + vt[0] * t_go, tpos[1] + vt[1] * t_go)
+                            dirn = (aim[0] - own[0], aim[1] - own[1])
+                            dn = math.hypot(dirn[0], dirn[1])
+                            if dn > 1e-6:
+                                vh0 = v_close * dirn[0] / dn
+                                vh1 = v_close * dirn[1] / dn
+                            else:
+                                vh0, vh1 = last_cmd[0], last_cmd[1]
+                        else:
+                            # Tracker not ready -> aim up the LOS at v_close.
+                            vh0 = v_close * math.cos(lambda_hat)
+                            vh1 = v_close * math.sin(lambda_hat)
+                        v_perp = 0.0  # not used by PIP; kept for the CSV column
                     else:
-                        v_perp = 0.0  # pursuit: no lateral term, ever.
+                        u = (math.cos(lambda_hat), math.sin(lambda_hat))
+                        p = (-math.sin(lambda_hat), math.cos(lambda_hat))
+                        if args.law == "pronav":
+                            v_perp = _clamp(v_perp + a_cmd * dt, -V_PERP_MAX, V_PERP_MAX)
+                        else:
+                            v_perp = 0.0  # pursuit: no lateral term, ever.
+                        vh0 = v_close * u[0] + v_perp * p[0]
+                        vh1 = v_close * u[1] + v_perp * p[1]
 
-                    vh0 = v_close * u[0] + v_perp * p[0]
-                    vh1 = v_close * u[1] + v_perp * p[1]
                     norm = math.hypot(vh0, vh1)
                     if norm > V_TOTAL_MAX:
                         scale = V_TOTAL_MAX / norm
@@ -993,6 +1121,7 @@ async def main():
             asyncio.create_task(track_armed(drone, state)),
             asyncio.create_task(track_landed_state(drone, state)),
             asyncio.create_task(track_attitude(drone, state)),
+            asyncio.create_task(track_local_position(drone, state)),
         ]
 
         print(

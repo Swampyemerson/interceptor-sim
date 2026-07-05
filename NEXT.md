@@ -1,6 +1,31 @@
 # NEXT — top of the stack
 
-## Current: M5 — Monte-Carlo, plots, README (final milestone)
+## Current: M4.5 realism upgrade (ADR-0010 sequencing) — S1 done-ish, S2 is the enabler
+
+### Where S1 (FPV speed) landed (2026-07-05)
+- FPV profile built behind `--fpv` (PX4 param bump via MAVSDK pre-arm, two-speed
+  closing law, rescaled terminal ranges, N=5). M4 gate untouched (opt-in flag).
+- **Pure pro-nav (N=5) intercepts a 3 m/s crosser at 0.94 m** (clean, <1 m) from a
+  hover start. 4 m/s ~1.6 m; 6 m/s uncatchable from hover.
+- **PIP (predicted intercept point) was ported and validated in Gazebo — it does
+  NOT transfer** (3.0 m at 4 m/s vs pure-PN 1.6 m). Noisy/intermittent monocular
+  track gives PIP a bad velocity estimate; pure PN (LOS-rate only) is more robust.
+  Kept as `--law pip` for the writeup as a documented negative result. See
+  ADR-0011 + addendum.
+- **KEY FINDING: hover-start is kinematically speed-limited.** The full FPV target
+  band (6-10 m/s) needs S2's external-cue DASH (running start). S1 and S2 are
+  coupled (council seats B/C called this). Do NOT keep grinding S1 vs faster
+  targets from hover — build the dash.
+
+### Next: S2 — two-stage sensor handoff (the enabler)
+External-cue mock (subscription-free process, degraded GT: sigma~0.5 m, ~100 ms
+latency, 10 Hz) → interceptor DASHES on the cue (12 m/s) to a running start →
+HANDOFF to camera-only terminal (throttled ~5-6 m/s) once the tag is acquired
+within ~8 m. This gives the interceptor the closing speed to catch a fast
+crosser AND is the comms-denied headline. Then S3 (maneuver paths), S4 (proof),
+M5. Full plan: ADR-0010. Gate scripts: check_s1.sh exists; extend for S2.
+
+### M5 (still the finish line — protect it, ADR-0010)
 Gate (GOALS.md): Monte-Carlo batch over target speeds/paths, matplotlib
 trajectory + miss-distance plots, README with architecture diagram + results +
 one GUI demo GIF.
