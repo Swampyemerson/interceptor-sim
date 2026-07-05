@@ -187,6 +187,65 @@ def wrap_pi(angle):
 
 
 # =========================================================================
+# TRACKING-REFINEMENT candidates (research task, see docs/decisions.md ADR
+# addendum for citations). Every helper/param introduced below is OPT-IN --
+# the baseline (all-defaults) numeric behavior is unchanged; see the
+# baseline-reproduction check in this task's report. Do NOT resurrect
+# ADR-0010's rejected APN / in-flight-adaptive-N as "tracking" changes -- the
+# additions here are FILTER gain/gating/latency mechanics, not guidance-law
+# augmentations, and are scoped to the target TRACK, not the pro-nav law.
+# =========================================================================
+def kalata_alpha_beta(sigma_process, sigma_meas, dt):
+    """Kalata's tracking-index-derived steady-state alpha-beta gains (T.P.
+    Kalata, 1984, "The Tracking Index: A Generalized Parameter for
+    alpha-beta and alpha-beta-gamma Target Trackers", IEEE Trans. Aerosp.
+    Electron. Syst. AES-20(2):174-182 -- see also the "Alpha beta filter"
+    Wikipedia summary of the closed-form relation, which independently
+    matches the same formulas). Given an assumed target-maneuver-noise std
+    `sigma_process` (units = the tracked quantity's 2nd derivative, e.g.
+    rad/s^2 for an angle channel or m/s^2 for a range/position channel), a
+    measurement-noise std `sigma_meas` (units = the tracked quantity itself),
+    and the ACTUAL sample interval `dt` since the last correction (this is
+    the point: recompute the gains at the REAL interval, which is why this
+    filter needs no separate "dropout handling" -- a longer gap after a
+    dropout produces a larger tracking index and hence LARGER alpha/beta,
+    correctly trusting the next real measurement more because the
+    prediction has had longer to drift; a principled, non-estimated
+    fading-memory response, not a new adaptive-estimator failure mode),
+    returns the (alpha, beta) pair a steady-state Kalman filter for a
+    constant-velocity model would converge to.
+
+    lambda_idx = sigma_process * dt^2 / sigma_meas
+    r          = (4 + lambda_idx - sqrt(8*lambda_idx + lambda_idx^2)) / 4
+    alpha      = 1 - r^2
+    beta       = 2*(2 - alpha) - 4*sqrt(1 - alpha)
+    """
+    dt = max(dt, 1e-3)
+    sigma_meas = max(sigma_meas, 1e-9)
+    lambda_idx = sigma_process * dt * dt / sigma_meas
+    r = (4.0 + lambda_idx - math.sqrt(8.0 * lambda_idx + lambda_idx * lambda_idx)) / 4.0
+    alpha = clamp(1.0 - r * r, 0.0, 0.999)
+    beta = 2.0 * (2.0 - alpha) - 4.0 * math.sqrt(max(0.0, 1.0 - alpha))
+    return alpha, beta
+
+
+def range_gate_ok(predicted_range, meas_range, k, sigma_frac=RANGE_NOISE_FRAC, sigma_floor_m=0.3):
+    """Candidate-4 camera range-outlier gate: is `meas_range` within `k`
+    standard deviations of `predicted_range`? Sigma is modeled as scaling
+    with the current range estimate (`sigma_frac * predicted_range`,
+    floored at `sigma_floor_m` so it doesn't collapse to ~0 near closest
+    approach) -- the same range-noise model the sensor itself uses
+    (RANGE_NOISE_FRAC), so this is "know your own sensor spec", not reading
+    ground truth. Returns True (pass) whenever there is nothing to gate
+    against yet (`predicted_range is None`) or gating is disabled (`k is
+    None`) -- both are baseline-preserving no-ops."""
+    if k is None or predicted_range is None:
+        return True
+    sigma = max(sigma_floor_m, sigma_frac * predicted_range)
+    return abs(meas_range - predicted_range) <= k * sigma
+
+
+# =========================================================================
 # Alpha-beta (g-h) filter -- same mechanization as m4_intercept.py's
 # AlphaBetaFilter. Copied (not imported) so this lab has ZERO dependency on
 # gz-transport/MAVSDK-importing modules -- see the module docstring's "pure
@@ -197,12 +256,23 @@ class AlphaBetaFilter:
     tick; correct() only on ticks with a genuinely fresh measurement.
     angular=True wraps the residual (not x_hat itself) to [-pi, pi] -- lets
     lambda accumulate continuously while still comparing correctly to a
-    measurement that only makes sense mod 2*pi."""
+    measurement that only makes sense mod 2*pi.
 
-    def __init__(self, alpha, beta, angular=False):
+    KALATA MODE (candidate 2, opt-in): pass `kalata_sigma_process` (not
+    None) to IGNORE the fixed `alpha`/`beta` and instead recompute them at
+    every correct() from `kalata_alpha_beta(kalata_sigma_process,
+    kalata_sigma_meas, dt_since)` using the ACTUAL elapsed time since the
+    last correction -- see that function's docstring for why this is the
+    principled fix for irregular update intervals/dropouts, not a new
+    adaptive-estimator failure mode. Default (`kalata_sigma_process=None`)
+    is the untouched, baseline fixed-gain behavior."""
+
+    def __init__(self, alpha, beta, angular=False, kalata_sigma_process=None, kalata_sigma_meas=None):
         self.alpha = alpha
         self.beta = beta
         self.angular = angular
+        self.kalata_sigma_process = kalata_sigma_process
+        self.kalata_sigma_meas = kalata_sigma_meas
         self.x_hat = None
         self.xdot_hat = 0.0
         self._last_t = None
@@ -226,8 +296,12 @@ class AlphaBetaFilter:
         if self.angular:
             residual = wrap_pi(residual)
         dt_since = max(1e-3, t - self._last_t)
-        self.x_hat += self.alpha * residual
-        self.xdot_hat += self.beta * residual / dt_since
+        if self.kalata_sigma_process is not None:
+            alpha, beta = kalata_alpha_beta(self.kalata_sigma_process, self.kalata_sigma_meas, dt_since)
+        else:
+            alpha, beta = self.alpha, self.beta
+        self.x_hat += alpha * residual
+        self.xdot_hat += beta * residual / dt_since
         self._last_t = t
 
 
@@ -242,9 +316,19 @@ class TargetTracker:
     deltas" piece described in the task brief.
     """
 
-    def __init__(self, alpha=0.6, beta=0.2, accel_ema=0.3, accel_warmup_corrections=6):
-        self.fx = AlphaBetaFilter(alpha, beta)
-        self.fy = AlphaBetaFilter(alpha, beta)
+    def __init__(self, alpha=0.6, beta=0.2, accel_ema=0.3, accel_warmup_corrections=6,
+                 kalata_sigma_process=None, kalata_sigma_meas=None,
+                 range_gate_k=None, range_gate_sigma_frac=RANGE_NOISE_FRAC):
+        self.fx = AlphaBetaFilter(alpha, beta, kalata_sigma_process=kalata_sigma_process,
+                                   kalata_sigma_meas=kalata_sigma_meas)
+        self.fy = AlphaBetaFilter(alpha, beta, kalata_sigma_process=kalata_sigma_process,
+                                   kalata_sigma_meas=kalata_sigma_meas)
+        # Candidate 4 (opt-in, range_gate_k=None -> disabled): reject a
+        # camera measurement whose implied range differs too much from this
+        # tracker's own current range estimate before letting it correct
+        # fx/fy at all -- see range_gate_ok().
+        self.range_gate_k = range_gate_k
+        self.range_gate_sigma_frac = range_gate_sigma_frac
         self.accel_ema_gain = accel_ema
         # WARMUP GUARD (found empirically, see guidance_lab.py's own dev
         # trace): the velocity estimate itself is still RAMPING from 0 up
@@ -282,6 +366,34 @@ class TargetTracker:
         self._prev_vel = vel
         self._prev_t = t
 
+    def correct_full(self, meas, own_pos, t, latency_compensate=False):
+        """Unified entry point used by PIP/APN/PNPlusLead/TwoStageDash so
+        the caller does not need to branch on tracker kind (TargetTracker
+        vs KalmanTracker share this call signature). With
+        latency_compensate=False and no range gate configured (both
+        defaults), this reduces to EXACTLY the original inline
+        'abs_pos = own_pos + meas.rel_xy; tracker.correct(abs_pos, t)' --
+        baseline-preserving by construction.
+
+        latency_compensate=True (candidate 3): a cue measurement is
+        delivered `meas.age_s` seconds after it was actually sampled (fixed,
+        known latency -- see Measurement.age_s). Advance its implied
+        absolute position forward along the CURRENT velocity estimate by
+        that known latency before correcting -- the standard fix for a
+        measurement with known, bounded out-of-sequence delay when you are
+        not maintaining a full state history buffer for exact retrodiction.
+        """
+        if meas.source == "camera" and self.range_gate_k is not None and self.pos_hat is not None:
+            predicted_range = math.hypot(self.pos_hat[0] - own_pos[0], self.pos_hat[1] - own_pos[1])
+            if not range_gate_ok(predicted_range, meas.range_m, self.range_gate_k, self.range_gate_sigma_frac):
+                return  # reject outlier -- treat this tick as if no detection arrived
+        abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
+        if latency_compensate and meas.source == "cue" and meas.age_s > 0.0:
+            vel = self.vel_hat
+            if vel is not None:
+                abs_pos = (abs_pos[0] + vel[0] * meas.age_s, abs_pos[1] + vel[1] * meas.age_s)
+        self.correct(abs_pos, t)
+
     @property
     def pos_hat(self):
         if self.fx.x_hat is None:
@@ -293,6 +405,130 @@ class TargetTracker:
         if self.fx.x_hat is None:
             return None
         return (self.fx.xdot_hat, self.fy.xdot_hat)
+
+
+# Standard chi-square critical values for a 2-DoF innovation gate (position
+# innovation is 2D: x,y). From any chi-square table, P(chi2_2 <= v) = p:
+#   p=0.95 -> 5.991, p=0.99 -> 9.210, p=0.997 -> 11.83 (~3-sigma equivalent).
+# Default gate uses the 99% value (Bar-Shalom, Li & Kirubarajan, "Estimation
+# with Applications to Tracking and Navigation", Ch. 6 -- validation
+# gating/NIS test); see also the "gating" note in this task's research pass.
+CHI2_99_DOF2 = 9.210
+
+
+class KalmanTracker:
+    """Candidate 1: hand-rolled 4-state (x, y, vx, vy) constant-velocity
+    Kalman filter on the target's ABSOLUTE position, with:
+      (a) RANGE-SCALED measurement noise for camera detections -- bearing
+          noise (a fixed ANGLE std) becomes a CROSS-RANGE POSITION std that
+          scales with range (sigma_cross = range * sigma_bearing_rad), while
+          range noise stays a along-LOS position std (sigma_range = range *
+          range_noise_frac); both are rotated from the (range, cross-range)
+          frame into world (x, y) by the measured bearing angle to build a
+          proper (non-isotropic, non-constant) 2x2 measurement covariance R
+          -- the "converted measurement" approach standard in bearing-only/
+          range-bearing tracking (Lerro & Bar-Shalom-style conversion; see
+          this task's research notes). Cue measurements get an isotropic R
+          (the mocked ground cue's noise IS isotropic by construction, ADR-
+          0010 decision #4).
+      (b) a chi-square (NIS) innovation gate (candidate 4's principled
+          multivariate generalization): reject any measurement whose
+          Mahalanobis distance from the predicted position exceeds
+          `chi2_gate` (default the 2-DoF 99% critical value) -- this
+          SUPERSEDES a separate scalar range gate for Kalman-tracked laws
+          (a bad pose solve corrupts range AND bearing jointly; the 2D
+          Mahalanobis test catches both at once, not just range).
+    Uses ONLY numpy (already a dependency) -- no scipy.
+
+    Interface-compatible with TargetTracker's predict()/pos_hat/vel_hat/
+    correct_full() so callers (PIP, TwoStageDash) do not need to branch on
+    tracker kind.
+    """
+
+    H = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+
+    def __init__(self, q_accel_sigma=2.0, sigma_bearing_rad=math.radians(SIGMA_BEARING_DEG),
+                 range_noise_frac=RANGE_NOISE_FRAC, cue_sigma_m=CUE_SIGMA_M,
+                 chi2_gate=CHI2_99_DOF2, range_sigma_floor_m=0.3, cross_sigma_floor_m=0.1,
+                 init_vel_var=25.0):
+        self.q_accel_var = q_accel_sigma * q_accel_sigma
+        self.sigma_bearing_rad = sigma_bearing_rad
+        self.range_noise_frac = range_noise_frac
+        self.cue_sigma_m = cue_sigma_m
+        self.chi2_gate = chi2_gate
+        self.range_sigma_floor_m = range_sigma_floor_m
+        self.cross_sigma_floor_m = cross_sigma_floor_m
+        self.init_vel_var = init_vel_var
+        self.x = None       # np.array shape (4,): [x, y, vx, vy]
+        self.P = None        # np.array shape (4, 4)
+
+    @property
+    def initialized(self):
+        return self.x is not None
+
+    def predict(self, dt):
+        if self.x is None:
+            return
+        F = np.array([
+            [1.0, 0.0, dt, 0.0],
+            [0.0, 1.0, 0.0, dt],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        # Discrete white-noise-acceleration process model (Bar-Shalom et
+        # al., "Estimation with Applications to Tracking and Navigation",
+        # Eq. 6.3.2-2), one q per axis, axes uncorrelated.
+        q = self.q_accel_var
+        Qb = q * np.array([[dt ** 4 / 4.0, dt ** 3 / 2.0], [dt ** 3 / 2.0, dt ** 2]])
+        Q = np.zeros((4, 4))
+        Q[np.ix_([0, 2], [0, 2])] = Qb
+        Q[np.ix_([1, 3], [1, 3])] = Qb
+        self.x = F @ self.x
+        self.P = F @ self.P @ F.T + Q
+
+    def _measurement_R_and_z(self, meas, own_pos):
+        z = np.array([own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1]])
+        if meas.source == "camera":
+            r = max(meas.range_m, 1e-3)
+            sigma_r = max(self.range_sigma_floor_m, self.range_noise_frac * r)
+            sigma_c = max(self.cross_sigma_floor_m, r * self.sigma_bearing_rad)
+            R_local = np.diag([sigma_r ** 2, sigma_c ** 2])
+            b = meas.bearing_rad
+            c, s = math.cos(b), math.sin(b)
+            Rot = np.array([[c, -s], [s, c]])
+            R = Rot @ R_local @ Rot.T
+        else:  # "cue" -- isotropic mocked-ground-sensor noise (ADR-0010 #4)
+            R = np.diag([self.cue_sigma_m ** 2, self.cue_sigma_m ** 2])
+        return z, R
+
+    def correct_full(self, meas, own_pos, t, latency_compensate=False):
+        """See TargetTracker.correct_full's docstring for the shared
+        latency_compensate semantics (candidate 3)."""
+        z, R = self._measurement_R_and_z(meas, own_pos)
+        if latency_compensate and meas.source == "cue" and meas.age_s > 0.0 and self.x is not None:
+            z = z + self.x[2:4] * meas.age_s
+
+        if self.x is None:
+            self.x = np.array([z[0], z[1], 0.0, 0.0])
+            self.P = np.diag([R[0, 0], R[1, 1], self.init_vel_var, self.init_vel_var])
+            return
+
+        y = z - self.H @ self.x
+        S = self.H @ self.P @ self.H.T + R
+        d2 = float(y @ np.linalg.solve(S, y))
+        if self.chi2_gate is not None and d2 > self.chi2_gate:
+            return  # reject outlier (candidate 4, multivariate form)
+        K = self.P @ self.H.T @ np.linalg.inv(S)
+        self.x = self.x + K @ y
+        self.P = (np.eye(4) - K @ self.H) @ self.P
+
+    @property
+    def pos_hat(self):
+        return None if self.x is None else (float(self.x[0]), float(self.x[1]))
+
+    @property
+    def vel_hat(self):
+        return None if self.x is None else (float(self.x[2]), float(self.x[3]))
 
 
 # =========================================================================
@@ -324,14 +560,21 @@ def step_vehicle(vx, vy, vcx, vcy, dt=DT, tau=TAU_S, v_max=V_MAX_M_S, a_max=A_MA
 # Sensor model
 # =========================================================================
 class Measurement:
-    __slots__ = ("t", "rel_xy", "range_m", "bearing_rad", "source")
+    __slots__ = ("t", "rel_xy", "range_m", "bearing_rad", "source", "age_s")
 
-    def __init__(self, t, rel_xy, range_m, bearing_rad, source):
+    def __init__(self, t, rel_xy, range_m, bearing_rad, source, age_s=0.0):
         self.t = t
         self.rel_xy = rel_xy
         self.range_m = range_m
         self.bearing_rad = bearing_rad
         self.source = source  # "camera" | "cue"
+        # age_s: KNOWN elapsed time between when this measurement was
+        # SAMPLED and when it was delivered (candidate-3 latency
+        # compensation input). 0.0 for the camera (no modeled latency);
+        # cue_latency_s for the cue (fixed, known by construction -- see
+        # Sensor.tick). NOT an estimate -- this is the same "known sensor
+        # spec" honesty boundary as range_gate_ok's sigma_frac.
+        self.age_s = age_s
 
 
 class Sensor:
@@ -445,7 +688,7 @@ class Sensor:
                 rel_n = (nx - own_pos[0], ny - own_pos[1])
                 r = math.hypot(*rel_n)
                 b = math.atan2(rel_n[1], rel_n[0])
-                cue_meas = Measurement(t, rel_n, r, b, "cue")
+                cue_meas = Measurement(t, rel_n, r, b, "cue", age_s=self.cue_latency)
 
         # Camera takes priority in the (rare, boundary-tick) case both fire
         # this tick -- guidance uses the cue only in the CUE phase and the
@@ -487,6 +730,12 @@ DEFAULT_PN_PARAMS = dict(
     VC_FLOOR=4.5, V_PERP_MAX=8.0, V_TOTAL_MAX=13.0,
     ALPHA=0.5, BETA_LAMBDA=0.30, BETA_RANGE=0.45,
     TERMINAL_FREEZE_RANGE=TERMINAL_FREEZE_RANGE_M,
+    # --- tracking-refinement opt-ins (all None = baseline-preserving; see
+    # module's tracking-candidates block and _build_lambda_range_filters/
+    # _gate_camera_meas) ---
+    RANGE_GATE_K=None, RANGE_GATE_SIGMA_FRAC=RANGE_NOISE_FRAC,
+    KALATA_LAMBDA_SIGMA_PROCESS_DEG=None, KALATA_LAMBDA_SIGMA_MEAS_DEG=SIGMA_BEARING_DEG,
+    KALATA_RANGE_SIGMA_PROCESS=None, KALATA_RANGE_SIGMA_MEAS_M=0.5,
 )
 DEFAULT_PURSUIT_PARAMS = dict(DEFAULT_PN_PARAMS)  # shares gains w/ pure_pn (fairness, ADR-0009 style)
 DEFAULT_APN_PARAMS = dict(DEFAULT_PN_PARAMS, TRACK_ALPHA=0.6, TRACK_BETA=0.2, ACCEL_EMA=0.3)
@@ -496,7 +745,80 @@ DEFAULT_PIP_PARAMS = dict(
     MAX_LEAD_S=3.0,  # FPV PIP_MAX_LEAD_S (m4_intercept.py) -- was 6.0
     TERMINAL_FREEZE_RANGE=TERMINAL_FREEZE_RANGE_M,  # shares the FPV freeze range w/ pure_pn (was hardcoded 0.5)
     TRACK_ALPHA=0.6, TRACK_BETA=0.2,
+    # --- tracking-refinement opt-ins (all None/False/"alphabeta" =
+    # baseline-preserving defaults; see module's tracking-candidates block) ---
+    TRACKER_KIND="alphabeta",       # "alphabeta" (baseline TargetTracker) | "kalman" (candidate 1)
+    LATENCY_COMPENSATE=False,       # candidate 3 (only affects cue-sourced meas, i.e. two_stage)
+    RANGE_GATE_K=None,               # candidate 4, only used when TRACKER_KIND="alphabeta"
+    RANGE_GATE_SIGMA_FRAC=RANGE_NOISE_FRAC,
+    KALMAN_Q_ACCEL=2.0, KALMAN_CHI2_GATE=CHI2_99_DOF2,
+    KALMAN_SIGMA_BEARING_DEG=SIGMA_BEARING_DEG, KALMAN_RANGE_NOISE_FRAC=RANGE_NOISE_FRAC,
+    KALMAN_CUE_SIGMA_M=CUE_SIGMA_M,
+    # candidate 2 for the TargetTracker's own x/y channels (only used when
+    # TRACKER_KIND="alphabeta"; None -> fixed TRACK_ALPHA/TRACK_BETA, baseline)
+    KALATA_POS_SIGMA_PROCESS=None, KALATA_POS_SIGMA_MEAS_M=1.0,
 )
+
+
+def _build_target_tracker(p):
+    """Shared TargetTracker/KalmanTracker construction for PIP/TwoStageDash
+    (candidate 1's TRACKER_KIND switch). `p["TRACKER_KIND"]` default
+    "alphabeta" reproduces the exact original TargetTracker(TRACK_ALPHA,
+    TRACK_BETA) construction -- baseline-preserving."""
+    kind = p.get("TRACKER_KIND", "alphabeta")
+    if kind == "kalman":
+        return KalmanTracker(
+            q_accel_sigma=p.get("KALMAN_Q_ACCEL", 2.0),
+            sigma_bearing_rad=math.radians(p.get("KALMAN_SIGMA_BEARING_DEG", SIGMA_BEARING_DEG)),
+            range_noise_frac=p.get("KALMAN_RANGE_NOISE_FRAC", RANGE_NOISE_FRAC),
+            cue_sigma_m=p.get("KALMAN_CUE_SIGMA_M", CUE_SIGMA_M),
+            chi2_gate=p.get("KALMAN_CHI2_GATE", CHI2_99_DOF2),
+        )
+    if kind != "alphabeta":
+        raise ValueError(f"unknown TRACKER_KIND {kind!r}")
+    return TargetTracker(
+        p.get("TRACK_ALPHA", 0.6), p.get("TRACK_BETA", 0.2),
+        kalata_sigma_process=p.get("KALATA_POS_SIGMA_PROCESS"),
+        kalata_sigma_meas=p.get("KALATA_POS_SIGMA_MEAS_M", 1.0),
+        range_gate_k=p.get("RANGE_GATE_K"),
+        range_gate_sigma_frac=p.get("RANGE_GATE_SIGMA_FRAC", RANGE_NOISE_FRAC),
+    )
+
+
+def _build_lambda_range_filters(p):
+    """Shared lambda/range alpha-beta filter construction for
+    pursuit/pure_pn/apn/pn_plus_lead. Wires in candidate 2 (Kalata-derived
+    gains) when `KALATA_LAMBDA_SIGMA_PROCESS_DEG` / `KALATA_RANGE_SIGMA_PROCESS`
+    are provided (both default None -> the original fixed ALPHA/BETA_LAMBDA/
+    BETA_RANGE gains, baseline-preserving)."""
+    lam_sp_deg = p.get("KALATA_LAMBDA_SIGMA_PROCESS_DEG")
+    lam = AlphaBetaFilter(
+        p["ALPHA"], p["BETA_LAMBDA"], angular=True,
+        kalata_sigma_process=math.radians(lam_sp_deg) if lam_sp_deg is not None else None,
+        kalata_sigma_meas=math.radians(p.get("KALATA_LAMBDA_SIGMA_MEAS_DEG", SIGMA_BEARING_DEG)),
+    )
+    rng_sp = p.get("KALATA_RANGE_SIGMA_PROCESS")
+    rng_f = AlphaBetaFilter(
+        p["ALPHA"], p["BETA_RANGE"],
+        kalata_sigma_process=rng_sp,
+        kalata_sigma_meas=p.get("KALATA_RANGE_SIGMA_MEAS_M", 0.5),
+    )
+    return lam, rng_f
+
+
+def _gate_camera_meas(meas, rng_f, range_gate_k, range_gate_sigma_frac):
+    """Candidate 4 for the scalar (non-Kalman) lambda/range filter path:
+    reject (treat as no detection this tick) a fresh camera measurement
+    whose range differs from `rng_f`'s current estimate by more than
+    `range_gate_k` standard deviations. No-op (returns `meas` unchanged)
+    when gating is disabled (`range_gate_k is None`, the default) or there
+    is no prior estimate yet to gate against."""
+    if (meas is None or meas.source != "camera" or range_gate_k is None
+            or not rng_f.initialized):
+        return meas
+    if range_gate_ok(rng_f.x_hat, meas.range_m, range_gate_k, range_gate_sigma_frac):
+        return meas
+    return None
 
 
 class Pursuit:
@@ -515,14 +837,16 @@ class Pursuit:
         self.v_close_runin = p.get("V_CLOSE_RUNIN", self.v_close)
         self.throttle_range = p.get("THROTTLE_RANGE", p["TERMINAL_FREEZE_RANGE"])
         self.freeze_range = p["TERMINAL_FREEZE_RANGE"]
-        self.lam = AlphaBetaFilter(p["ALPHA"], p["BETA_LAMBDA"], angular=True)
-        self.rng_f = AlphaBetaFilter(p["ALPHA"], p["BETA_RANGE"])
+        self.lam, self.rng_f = _build_lambda_range_filters(p)
+        self.range_gate_k = p.get("RANGE_GATE_K")
+        self.range_gate_sigma_frac = p.get("RANGE_GATE_SIGMA_FRAC", RANGE_NOISE_FRAC)
         self.frozen = None
         self.last_cmd = (0.0, 0.0)
 
     def step(self, t, dt, own_pos, own_vel, meas):
         self.lam.predict(dt)
         self.rng_f.predict(dt)
+        meas = _gate_camera_meas(meas, self.rng_f, self.range_gate_k, self.range_gate_sigma_frac)
         if meas is not None and meas.source == "camera":
             self.lam.correct(meas.bearing_rad, t)
             self.rng_f.correct(meas.range_m, t)
@@ -566,8 +890,9 @@ class PurePN:
         self.v_perp_max = p["V_PERP_MAX"]
         self.v_total_max = p["V_TOTAL_MAX"]
         self.freeze_range = p["TERMINAL_FREEZE_RANGE"]
-        self.lam = AlphaBetaFilter(p["ALPHA"], p["BETA_LAMBDA"], angular=True)
-        self.rng_f = AlphaBetaFilter(p["ALPHA"], p["BETA_RANGE"])
+        self.lam, self.rng_f = _build_lambda_range_filters(p)
+        self.range_gate_k = p.get("RANGE_GATE_K")
+        self.range_gate_sigma_frac = p.get("RANGE_GATE_SIGMA_FRAC", RANGE_NOISE_FRAC)
         self.v_perp = 0.0
         self.frozen = None
         self.last_cmd = (0.0, 0.0)
@@ -575,6 +900,7 @@ class PurePN:
     def step(self, t, dt, own_pos, own_vel, meas):
         self.lam.predict(dt)
         self.rng_f.predict(dt)
+        meas = _gate_camera_meas(meas, self.rng_f, self.range_gate_k, self.range_gate_sigma_frac)
         if meas is not None and meas.source == "camera":
             self.lam.correct(meas.bearing_rad, t)
             self.rng_f.correct(meas.range_m, t)
@@ -635,8 +961,9 @@ class APN:
         self.v_perp_max = p["V_PERP_MAX"]
         self.v_total_max = p["V_TOTAL_MAX"]
         self.freeze_range = p["TERMINAL_FREEZE_RANGE"]
-        self.lam = AlphaBetaFilter(p["ALPHA"], p["BETA_LAMBDA"], angular=True)
-        self.rng_f = AlphaBetaFilter(p["ALPHA"], p["BETA_RANGE"])
+        self.lam, self.rng_f = _build_lambda_range_filters(p)
+        self.range_gate_k = p.get("RANGE_GATE_K")
+        self.range_gate_sigma_frac = p.get("RANGE_GATE_SIGMA_FRAC", RANGE_NOISE_FRAC)
         self.tracker = TargetTracker(p["TRACK_ALPHA"], p["TRACK_BETA"], p["ACCEL_EMA"])
         self.v_perp = 0.0
         self.frozen = None
@@ -646,6 +973,7 @@ class APN:
         self.lam.predict(dt)
         self.rng_f.predict(dt)
         self.tracker.predict(dt)
+        meas = _gate_camera_meas(meas, self.rng_f, self.range_gate_k, self.range_gate_sigma_frac)
         if meas is not None:
             abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
             self.tracker.correct(abs_pos, t)
@@ -730,7 +1058,8 @@ class PIP:
         self.throttle_range = p.get("THROTTLE_RANGE", p["TERMINAL_FREEZE_RANGE"])
         self.max_lead_s = p["MAX_LEAD_S"]
         self.freeze_range = p["TERMINAL_FREEZE_RANGE"]
-        self.tracker = TargetTracker(p["TRACK_ALPHA"], p["TRACK_BETA"])
+        self.tracker = _build_target_tracker(p)
+        self.latency_compensate = p.get("LATENCY_COMPENSATE", False)
         self.frozen = None
         self.last_cmd = (0.0, 0.0)
         self._have_meas = False
@@ -738,8 +1067,7 @@ class PIP:
     def step(self, t, dt, own_pos, own_vel, meas):
         self.tracker.predict(dt)
         if meas is not None:
-            abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
-            self.tracker.correct(abs_pos, t)
+            self.tracker.correct_full(meas, own_pos, t, latency_compensate=self.latency_compensate)
             self._have_meas = True
         if not self._have_meas:
             return (0.0, 0.0)
@@ -788,8 +1116,9 @@ class PNPlusLead:
         self.v_perp_max = p["V_PERP_MAX"]
         self.v_total_max = p["V_TOTAL_MAX"]
         self.freeze_range = p["TERMINAL_FREEZE_RANGE"]
-        self.lam = AlphaBetaFilter(p["ALPHA"], p["BETA_LAMBDA"], angular=True)
-        self.rng_f = AlphaBetaFilter(p["ALPHA"], p["BETA_RANGE"])
+        self.lam, self.rng_f = _build_lambda_range_filters(p)
+        self.range_gate_k = p.get("RANGE_GATE_K")
+        self.range_gate_sigma_frac = p.get("RANGE_GATE_SIGMA_FRAC", RANGE_NOISE_FRAC)
         self.tracker = TargetTracker(p["TRACK_ALPHA"], p["TRACK_BETA"])
         self.v_perp = 0.0
         self.frozen = None
@@ -799,6 +1128,7 @@ class PNPlusLead:
         self.lam.predict(dt)
         self.rng_f.predict(dt)
         self.tracker.predict(dt)
+        meas = _gate_camera_meas(meas, self.rng_f, self.range_gate_k, self.range_gate_sigma_frac)
         if meas is not None:
             abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
             self.tracker.correct(abs_pos, t)
@@ -848,6 +1178,15 @@ DEFAULT_DASH_PARAMS = dict(
     TRACK_ALPHA=0.6, TRACK_BETA=0.2,
     TERMINAL_METHOD="pure_pn",   # which METHODS entry flies the terminal (camera-only) phase
     TERMINAL_PARAMS=None,        # optional override dict for the terminal law's own params/gains
+    # --- tracking-refinement opt-ins for the DASH-PHASE tracker (baseline-
+    # preserving defaults; the terminal law's own tracker is configured
+    # separately via TERMINAL_PARAMS, e.g. {"TRACKER_KIND": "kalman"}) ---
+    TRACKER_KIND="alphabeta", LATENCY_COMPENSATE=False,
+    RANGE_GATE_K=None, RANGE_GATE_SIGMA_FRAC=RANGE_NOISE_FRAC,
+    KALMAN_Q_ACCEL=2.0, KALMAN_CHI2_GATE=CHI2_99_DOF2,
+    KALMAN_SIGMA_BEARING_DEG=SIGMA_BEARING_DEG, KALMAN_RANGE_NOISE_FRAC=RANGE_NOISE_FRAC,
+    KALMAN_CUE_SIGMA_M=CUE_SIGMA_M,
+    KALATA_POS_SIGMA_PROCESS=None, KALATA_POS_SIGMA_MEAS_M=1.0,
 )
 
 
@@ -882,15 +1221,20 @@ class TwoStageDash:
         cls, defaults = METHODS[terminal_name]
         terminal_params = {**defaults, **(p.get("TERMINAL_PARAMS") or {})}
         self.terminal = cls(terminal_params)
-        self.tracker = TargetTracker(p["TRACK_ALPHA"], p["TRACK_BETA"])
+        self.tracker = _build_target_tracker(p)
+        self.latency_compensate = p.get("LATENCY_COMPENSATE", False)
         self.last_camera_t = None
         self.last_cmd = (0.0, 0.0)
+        # Publicly observable (self-derived, NOT ground truth) dash->terminal
+        # state -- lets simulate()'s track-quality diagnostic snapshot the
+        # tracker's error at the exact tick handoff occurs, without the
+        # diagnostic needing to reimplement this law's own handoff logic.
+        self.in_terminal = False
 
     def step(self, t, dt, own_pos, own_vel, meas):
         self.tracker.predict(dt)
         if meas is not None:
-            abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
-            self.tracker.correct(abs_pos, t)
+            self.tracker.correct_full(meas, own_pos, t, latency_compensate=self.latency_compensate)
             if meas.source == "camera":
                 self.last_camera_t = t
 
@@ -908,6 +1252,7 @@ class TwoStageDash:
             r_hat = math.hypot(pos_hat[0] - own_pos[0], pos_hat[1] - own_pos[1])
 
         in_terminal = camera_has_tag and r_hat is not None and r_hat <= self.handoff_range
+        self.in_terminal = in_terminal
         if in_terminal:
             self.last_cmd = terminal_cmd
             return terminal_cmd
@@ -1101,6 +1446,22 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     breakoff_increase_streak = 0
     last_true_range = None
 
+    # --- track-quality diagnostics (SCORING-ONLY, same honesty boundary as
+    # min_range/breakoff/tag_lost_in_terminal above -- reads tx,ty/vel_fn(t)
+    # ground truth ONLY to grade the tracker's OWN internal pos_hat/vel_hat
+    # estimate; never fed back into law.step() or any guidance decision).
+    # Lets a tracking-candidate comparison show WHY a winner wins (e.g. a
+    # lower tracker_vel_err_rms for PIP's TargetTracker/KalmanTracker),
+    # for methods that expose a `.tracker` (pip/apn/pn_plus_lead/
+    # two_stage_dash); None for methods that don't (pursuit/pure_pn, which
+    # track lambda/range directly, not an absolute-position track).
+    _pos_err_sq_sum = 0.0
+    _vel_err_sq_sum = 0.0
+    _track_diag_n = 0
+    _handoff_pos_err = None
+    _handoff_vel_err = None
+    _prev_in_terminal = False
+
     n_steps = int(round(t_max / dt))
     t = 0.0
     for i in range(n_steps):
@@ -1141,6 +1502,24 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
 
         vcx, vcy = law.step(t, dt, (ix, iy), (ivx, ivy), meas)
 
+        tracker = getattr(law, "tracker", None)
+        if tracker is not None and tracker.pos_hat is not None:
+            true_vt_now = vel_fn(t)
+            pos_err = math.hypot(tracker.pos_hat[0] - tx, tracker.pos_hat[1] - ty)
+            _pos_err_sq_sum += pos_err * pos_err
+            vel_hat_now = tracker.vel_hat
+            vel_err = None
+            if vel_hat_now is not None:
+                vel_err = math.hypot(vel_hat_now[0] - true_vt_now[0], vel_hat_now[1] - true_vt_now[1])
+                _vel_err_sq_sum += vel_err * vel_err
+            _track_diag_n += 1
+            in_terminal_now = getattr(law, "in_terminal", None)
+            if in_terminal_now and not _prev_in_terminal:
+                _handoff_pos_err = pos_err
+                _handoff_vel_err = vel_err
+            if in_terminal_now is not None:
+                _prev_in_terminal = in_terminal_now
+
         nvx, nvy = step_vehicle(ivx, ivy, vcx, vcy, dt)
         control_effort += math.hypot(nvx - ivx, nvy - ivy)
         ivx, ivy = nvx, nvy
@@ -1160,6 +1539,8 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
 
     intercept_time = first_hit_time if first_hit_time is not None else t_min_range
     detection_coverage = n_locked_ticks / n_in_range_ticks if n_in_range_ticks else 0.0
+    tracker_pos_err_rms = math.sqrt(_pos_err_sq_sum / _track_diag_n) if _track_diag_n else None
+    tracker_vel_err_rms = math.sqrt(_vel_err_sq_sum / _track_diag_n) if _track_diag_n else None
 
     return dict(
         method=method_name, path=path_name, speed=speed, seed=seed, two_stage=two_stage,
@@ -1169,6 +1550,11 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
         miss_distance=min_range, intercept_time=intercept_time,
         control_effort=control_effort, detection_coverage=detection_coverage,
         tag_lost_in_terminal=tag_lost_in_terminal,
+        # Track-quality diagnostics (candidate research task, ground-truth
+        # SCORING-ONLY -- see comment above the accumulators): None for
+        # methods without a `.tracker` (pursuit/pure_pn).
+        tracker_pos_err_rms=tracker_pos_err_rms, tracker_vel_err_rms=tracker_vel_err_rms,
+        handoff_pos_err=_handoff_pos_err, handoff_vel_err=_handoff_vel_err,
     )
 
 

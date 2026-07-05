@@ -84,6 +84,59 @@ of instantly panicking to a hover, the terminal-range dropout rule holds
 the last command for up to TERMINAL_HOLD_MAX_S and lets the geometry (and
 the log) speak for itself.
 
+S2 -- TWO-STAGE EXTERNAL-CUE HANDOFF (--handoff, requires --fpv; ADR-0010
+decisions #4/#5, ADR-0011 third addendum): a fourth phase machine, layered
+in front of the SAME, UNMODIFIED ENGAGE/BREAKOFF terminal logic above.
+CUE_WAIT (hover, wait on scripts/s2_cue_mock.py's degraded external-cue
+UDP stream instead of the camera) -> DASH (lead-pursuit toward the shared
+TargetTracker -- the SAME class PIP's law uses -- at a fixed DASH_SPEED, a
+"running start" against a target that starts well outside the camera's own
+detection envelope) -> HANDOFF (>=3 consecutive fresh camera detections at
+range <= HANDOFF_RANGE_M; the cue channel is then LATCHED closed one-way --
+socket closed, thread stopped, the Python reference itself set to None, so
+any future read attempt is structurally impossible, not merely unused by
+convention, ADR-0006's lesson) -> phase becomes ENGAGE and every line above
+this section runs completely unchanged, now flying off a tracker that the
+cue has already warmed up with a real velocity estimate instead of a cold
+start. See scripts/s2_cue_mock.py for the cue process itself and
+docs/decisions.md's ADR-0010 (#4: exactly 3 degradation knobs) and #5 (the
+hard handoff / no fusion / illegal-state-unrepresentable rule).
+
+S2 WORLD-FRAME MAPPING (empirically verified, not assumed -- do not guess
+this): the cue reports Gazebo WORLD x, y, z (same frame as gt_cam_x/y/z,
+gt_tag_x/y/z elsewhere in this file), but the guidance/tracker frame is PX4
+local NED (state.pos_n/pos_e from telemetry.position_velocity_ned). The
+mapping is
+
+    north (NED) = world_y      east (NED) = world_x
+
+(standard Gazebo ENU world -- East/North/Up -- composed with PX4's fixed
+ENU->NED bridge; GOALS.md's "World: ENU, origin at the interceptor's
+start" means no translation term is needed either, since PX4's local NED
+origin IS the spawn point.) Verified two independent ways against
+existing FPV flight logs (main checkout's logs/, read-only during this
+port):
+  (1) Net ENGAGE-phase world displacement direction vs. mean commanded NED
+      velocity direction, three FPV flights (logs/m4_intercept_pronav_
+      20260705T044945Z.csv, ..._065536Z.csv, m4_intercept_pursuit_
+      20260705T033640Z.csv): assuming world_x=east/world_y=north gives
+      angle residuals of -14.0, -9.6, -10.1 degrees (small -- expected,
+      since the velocity vector itself rotates during the window while
+      this test uses one mean direction); assuming the OPPOSITE mapping
+      (world_x=north/world_y=east, the naive first guess) gives -33.2,
+      -68.1, -75.4 degrees -- ruled out.
+  (2) Independent cross-check on the SAME three logs: at the ACQUIRE ->
+      ENGAGE transition (right after the yaw-centering law has converged
+      on the tag's true azimuth), the vehicle's actual measured yaw
+      (psi_deg) reads ~127.3-128.4 degrees. Computing that same azimuth
+      analytically from the known geometry (target start (6.5,-4),
+      interceptor spawn ~(0,0)) as atan2(east_rel, north_rel) gives ~121.6
+      degrees under world_x=east/world_y=north (a close match) vs. ~-31.6
+      degrees under the opposite mapping (nowhere close).
+Both checks agree: north=world_y, east=world_x, no sign flip. See
+scripts/m4_intercept.py's ext-cue consumption block (search "WORLD ->
+NED mapping") for where this is applied.
+
 Run manually (with PX4 SITL + gz_x500_mono_cam + the apriltag world already
 running, and the tag pre-placed at the engagement start position -- see
 scripts/check_m4.sh's launch block for the exact env and pre-placement
@@ -92,17 +145,21 @@ command):
     .venv/bin/python scripts/m4_intercept.py --law pronav
     .venv/bin/python scripts/m4_intercept.py --law pursuit
     .venv/bin/python scripts/m4_intercept.py --law pronav --bench
+    .venv/bin/python scripts/m4_intercept.py --law pip --fpv --handoff
 
-Normally this is invoked by scripts/check_m4.sh, which boots a fresh sim
-per law, pre-places the tag, and runs both.
+Normally this is invoked by scripts/check_m4.sh (non-handoff) or
+scripts/check_s2.sh (--handoff), which boot a fresh sim per law/run,
+pre-place the tag, and run.
 """
 
 import argparse
 import asyncio
 import csv
+import json
 import math
 import os
 import queue
+import socket
 import subprocess
 import sys
 import threading
@@ -113,6 +170,7 @@ from typing import Optional
 from gz.transport13 import Node
 from gz.msgs10.image_pb2 import Image
 from gz.msgs10.pose_v_pb2 import Pose_V
+from gz.msgs10.clock_pb2 import Clock
 
 from mavsdk import System
 from mavsdk.action import ActionError
@@ -279,6 +337,51 @@ def apply_fpv_profile():
     N_PRONAV = FPV["N_PRONAV"]
 
 
+# --- S2 two-stage external-cue handoff (M4.5 sub-step S2, ADR-0010 decisions
+# #4/#5; guidance_lab.py's TwoStageDash + the ADR-0011 third-addendum dash
+# sweep). Activated by --handoff (requires --fpv -- enforced in parse_args).
+# CUE_WAIT (hover, wait for the external cue) -> DASH (lead-pursuit toward
+# the cue-fed shared TargetTracker at DASH_SPEED, a "running start") ->
+# HANDOFF (camera acquires within range; cue channel latched closed,
+# ADR-0010 #5) -> the EXISTING, unmodified ENGAGE/BREAKOFF terminal logic.
+# Defaults are the lab's validated S2 sweep winner (ADR-0011 third addendum:
+# dash 10 m/s, handoff 10 m, terminal PIP beats pure PN once the cue has
+# warmed the shared tracker's velocity estimate before handoff -- the
+# opposite of PIP's camera-only-from-hover result, ADR-0011/its addendum).
+S2 = {
+    "DASH_SPEED": 10.0,          # m/s, cue-guided lead-pursuit closing speed during DASH
+    "HANDOFF_RANGE_M": 10.0,     # camera-measured range at/below which HANDOFF may trigger
+    "DASH_MAX_LEAD_S": 4.0,      # PIP-style intercept-triangle lead cap during DASH
+    "CUE_PORT": 47800,
+    "DASH_TIMEOUT_S": 20.0,      # DASH phase abort timeout
+    "CUE_WAIT_TIMEOUT_S": 15.0,  # CUE_WAIT phase abort timeout
+    "CUE_WAIT_MIN_DATAGRAMS": 5,   # >= this many cue datagrams received ...
+    "CUE_WAIT_MIN_CORRECTIONS": 3,  # ... AND the shared tracker corrected >= this many times ...
+    "HANDOFF_STREAK_MIN": 3,      # ... consecutive fresh in-range camera detections to trigger HANDOFF
+    # Cue mock degradation (ADR-0010 #4: exactly 3 knobs -- sigma, latency,
+    # rate). Forwarded to scripts/s2_cue_mock.py's CLI.
+    "CUE_MOCK_SIGMA_M": 0.5,
+    "CUE_MOCK_LATENCY_S": 0.12,
+    "CUE_MOCK_RATE_HZ": 10.0,
+    "CUE_MOCK_RUN_DURATION_S": 60.0,  # generous; the cue mock outlives HANDOFF (audit evidence), killed at run end
+    # Engagement geometry defaults used ONLY when --handoff is set and the
+    # corresponding CLI flag was not explicitly given (parse_args) -- mirrors
+    # guidance_lab.py's S2_PATH_PARAMS (x0=6.5, y0_mag=14.0 -> ~15.4 m
+    # initial range, "real dash runway" per the lab's own comment, ADR-0011
+    # third addendum), NOT the M4/S1 short-standoff geometry (which sits
+    # inside the camera's own detection envelope and gives the cue no
+    # runway by construction).
+    "TARGET_START_DEFAULT": "6.5,-14,0.5",
+    "TARGET_VEL_DEFAULT": "0,6.0",
+    "MOVER_DURATION_DEFAULT_S": 20.0,
+}
+CUE_MOCK_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s2_cue_mock.py")
+# Tracking-refinement PORT 2 (--cue-latency-comp): sim-time topic, standard
+# gz-transport Clock message (same one scripts/m4_target_mover.py's clock
+# helper child process reads).
+CLOCK_TOPIC = "/clock"
+
+
 def compute_v_close(r_hat, fpv_on):
     """Commanded along-LOS closing speed. M4 default: constant V_CLOSE_MAX.
     FPV (S1): fast run-in far out, linearly throttled to V_CLOSE_TERMINAL as
@@ -330,12 +433,60 @@ CSV_HEADER = [
     "alt_m",
     "gt_cam_x", "gt_cam_y", "gt_cam_z",
     "gt_tag_x", "gt_tag_y", "gt_tag_z", "gt_range",
+    # S2 (--handoff): NED-mapped external cue used THIS tick (blank when no
+    # cue corrected the tracker this tick, including always-blank post-
+    # HANDOFF -- ADR-0010 #5) and the shared TargetTracker's own state
+    # (always present once initialized, any law/mode -- the same tracker
+    # PIP's law reads, see class TargetTracker).
+    "ext_x", "ext_y", "ext_z", "ext_fresh",
+    "tgt_n_hat", "tgt_e_hat", "tgt_vn_hat", "tgt_ve_hat",
+    # Tracking-refinement PORT 2 (--cue-latency-comp): computed cue age
+    # (sim_now - t_sim, clamped) at the tick a cue actually corrected the
+    # tracker; blank when no cue was used this tick (mirrors ext_fresh).
+    "ext_age_s",
 ]
 
 
 def wrap_pi(angle: float) -> float:
     """Wrap an angle (radians) into [-pi, pi]."""
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
+# --- Kalata-derived alpha-beta gains (tracking-refinement PORT 1, --kalata).
+# Ported VERBATIM (formula + variable names) from scripts/guidance_lab.py's
+# kalata_alpha_beta() -- see that function's docstring for the full
+# derivation/citation (T.P. Kalata, 1984, "The Tracking Index..."). Do not
+# re-derive; this is a direct port of the validated lab code. ---
+def kalata_alpha_beta(sigma_process: float, sigma_meas: float, dt: float):
+    """Steady-state alpha-beta gains from the Kalata tracking index, given
+    an assumed process (target-maneuver) noise std `sigma_process` (units =
+    the tracked quantity's 2nd derivative), a measurement-noise std
+    `sigma_meas` (units = the tracked quantity itself), and the ACTUAL
+    sample interval `dt` since the last correction -- recomputing at the
+    real interval is the point: a longer gap (e.g. after a dropout)
+    produces a larger tracking index and hence larger alpha/beta, correctly
+    trusting the next real measurement more because the prediction has had
+    longer to drift. See scripts/guidance_lab.py's kalata_alpha_beta() for
+    the full citation and derivation this is ported from."""
+    dt = max(dt, 1e-3)
+    sigma_meas = max(sigma_meas, 1e-9)
+    lambda_idx = sigma_process * dt * dt / sigma_meas
+    r = (4.0 + lambda_idx - math.sqrt(8.0 * lambda_idx + lambda_idx * lambda_idx)) / 4.0
+    alpha = _clamp(1.0 - r * r, 0.0, 0.999)
+    beta = 2.0 * (2.0 - alpha) - 4.0 * math.sqrt(max(0.0, 1.0 - alpha))
+    return alpha, beta
+
+
+# Lab-recommended Kalata params (tracking-refinement study winner #1),
+# forwarded verbatim by the coordinator: lambda channel assumes a
+# 150 deg/s^2 process noise against a 6 deg measurement sigma; range
+# channel assumes 0.1 m/s^2 against a 0.5 m measurement sigma (matches this
+# file's own camera range-noise expectation).
+KALATA_LAMBDA_SIGMA_PROCESS_DEG_S2 = 150.0
+KALATA_LAMBDA_SIGMA_MEAS_DEG = 6.0
+KALATA_RANGE_SIGMA_PROCESS_M_S2 = 0.1
+KALATA_RANGE_SIGMA_MEAS_M = 0.5
+KALATA_LOG_EVERY = 20  # print sampled (alpha, beta) at correction #1 and every Nth after
 
 
 class AlphaBetaFilter:
@@ -350,12 +501,29 @@ class AlphaBetaFilter:
     is never wrapped -- that keeps lambda continuous (able to accumulate
     past +-180 deg as the vehicle spins) while still comparing correctly
     against a measurement that only makes sense mod 2*pi.
+
+    KALATA MODE (--kalata, opt-in, tracking-refinement PORT 1): pass
+    `kalata_sigma_process` (not None) to IGNORE the fixed `alpha`/`beta` and
+    instead recompute them at every correct() from kalata_alpha_beta(...)
+    using the ACTUAL elapsed time since the last correction -- ported
+    faithfully from scripts/guidance_lab.py's AlphaBetaFilter "KALATA MODE"
+    docstring. Default (`kalata_sigma_process=None`) is the untouched,
+    baseline fixed-gain behavior -- byte-identical to before this port.
+    `label` (e.g. "lambda"/"range") is used only to print a sampled
+    (alpha, beta) every KALATA_LOG_EVERY corrections for a sanity check.
     """
 
-    def __init__(self, alpha: float, beta: float, angular: bool = False):
+    def __init__(
+        self, alpha: float, beta: float, angular: bool = False,
+        kalata_sigma_process=None, kalata_sigma_meas=None, label: Optional[str] = None,
+    ):
         self.alpha = alpha
         self.beta = beta
         self.angular = angular
+        self.kalata_sigma_process = kalata_sigma_process
+        self.kalata_sigma_meas = kalata_sigma_meas
+        self.label = label
+        self.n_corrections = 0
         self.x_hat: Optional[float] = None
         self.xdot_hat: float = 0.0
         self.last_innovation: float = 0.0
@@ -382,10 +550,23 @@ class AlphaBetaFilter:
         if self.angular:
             residual = wrap_pi(residual)
         dt_since = max(1e-3, t - self._last_correction_t)
-        self.x_hat += self.alpha * residual
-        self.xdot_hat += self.beta * residual / dt_since
+        if self.kalata_sigma_process is not None:
+            alpha, beta = kalata_alpha_beta(self.kalata_sigma_process, self.kalata_sigma_meas, dt_since)
+        else:
+            alpha, beta = self.alpha, self.beta
+        self.x_hat += alpha * residual
+        self.xdot_hat += beta * residual / dt_since
         self.last_innovation = residual
         self._last_correction_t = t
+        self.n_corrections += 1
+        if (
+            self.kalata_sigma_process is not None and self.label
+            and (self.n_corrections == 1 or self.n_corrections % KALATA_LOG_EVERY == 0)
+        ):
+            print(
+                f"[kalata] {self.label}: correction #{self.n_corrections} "
+                f"dt_since={dt_since:.4f}s -> alpha={alpha:.3f} beta={beta:.3f}"
+            )
 
 
 # --- Predicted Intercept Point (PIP) machinery (ADR-0011). Ported from the
@@ -459,6 +640,103 @@ PIP_TRACK_ALPHA = 0.6
 PIP_TRACK_BETA = 0.2
 PIP_MAX_LEAD_S = 3.0
 
+# Tracking-refinement PORT 2 (--cue-latency-comp): clamp bounds for the
+# computed cue age (sim_now - t_sim), a defensive floor/ceiling against a
+# clock-subscription hiccup or a wedged datagram producing a nonsensical
+# value -- mirrors guidance_lab.py's Measurement.age_s usage, adapted to a
+# DYNAMICALLY COMPUTED age (this real port measures sim_now - t_sim; the
+# lab used its own known fixed cue_latency constant directly, since it has
+# no wall/sim clock distinction to model -- see CueReader/SimClockHolder
+# usage below for the real computation).
+CUE_AGE_CLAMP_MIN_S = 0.0
+CUE_AGE_CLAMP_MAX_S = 0.5
+
+
+class SimClockHolder:
+    """Latest sim time from /clock (tracking-refinement PORT 2,
+    --cue-latency-comp): needed to compute a cue datagram's AGE (sim_now -
+    t_sim) so a stale cue can be advanced along the tracker's velocity
+    estimate before it corrects the shared TargetTracker.
+
+    SAFE TO SUBSCRIBE HERE (unlike scripts/m4_target_mover.py, which must
+    stay subscription-free): the gz-transport13 quirk found during M4
+    (ADR-0009) is that a process holding ANY topic subscription never
+    receives SERVICE RESPONSES again. m4_intercept.py makes ZERO gz service
+    calls of its own -- the mover calls `/world/apriltag/set_pose` and the
+    cue mock's own service surface (none) both live in their OWN separate
+    processes -- so this subscription-only process is unaffected."""
+
+    def __init__(self):
+        self.t: Optional[float] = None
+
+    def on_clock(self, msg: Clock) -> None:
+        self.t = msg.sim.sec + msg.sim.nsec * 1e-9
+
+
+class CueReader:
+    """Background-thread UDP reader for scripts/s2_cue_mock.py's degraded
+    external-cue datagrams (S2, ADR-0010 #4). Latest-cue-wins: mirrors
+    m3_static_intercept.MeasurementHolder / LatestFrame -- the reader thread
+    replaces one attribute reference per datagram, a single Python
+    assignment that is atomic under the GIL, so the asyncio guidance loop
+    can read `.read()` at any time with no lock.
+
+    LATCH ONE-WAY (ADR-0010 #5, "illegal-state-unrepresentable"): `close()`
+    stops the thread and closes the socket; the guidance loop then also
+    sets its own `cue_reader` variable to `None` (see run_acquire_and_engage
+    -- not done here, since this object can't un-reference itself from the
+    outside). After that, the ONLY code that ever touches a CueReader (the
+    ext-cue consumption block) guards on `cue_reader is not None` -- so a
+    post-close cue is not silently "ignored by convention", it is
+    STRUCTURALLY gone: the object handing it out no longer exists, and any
+    future edit that forgets the None-check gets an immediate AttributeError
+    on `None.read()` rather than a silent stale read.
+    """
+
+    def __init__(self, port: int):
+        self.port = port
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._sock.bind(("127.0.0.1", port))
+        self._sock.settimeout(0.5)
+        self.latest = None  # (t_recv_mono, t_sim, x, y, z, seq) or None
+        self.n_received = 0
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self):
+        while not self._stop.is_set():
+            try:
+                data, _addr = self._sock.recvfrom(4096)
+            except socket.timeout:
+                continue
+            except OSError:
+                break  # socket closed out from under us (close()) -- exit quietly
+            try:
+                msg = json.loads(data.decode("utf-8"))
+                cue = (
+                    time.monotonic(), float(msg["t_sim"]),
+                    float(msg["x"]), float(msg["y"]), float(msg["z"]),
+                    int(msg["seq"]),
+                )
+            except (ValueError, KeyError, UnicodeDecodeError):
+                continue
+            self.latest = cue
+            self.n_received += 1
+
+    def read(self):
+        """Latest (t_recv_mono, t_sim, x, y, z, seq) tuple, or None if no
+        datagram has arrived yet."""
+        return self.latest
+
+    def close(self):
+        self._stop.set()
+        try:
+            self._sock.close()
+        except OSError:
+            pass
+        self._thread.join(timeout=2.0)
+
 
 class M4TelemetryState(TelemetryState):
     """TelemetryState plus the vehicle's own yaw (to reconstruct the inertial
@@ -507,6 +785,7 @@ def write_row_m4(
     detected: Optional[bool], meas: "Optional[Measurement]",
     psi_deg, lambda_rad, lambda_dot_rad_s, r_hat_m, rdot_hat_m_s,
     vc_m_s, a_cmd_m_s2, v_perp_m_s, cmd, alt_m, gt_cam, gt_tag, gt_range,
+    ext_xyz=None, ext_fresh=None, tgt_state=None, ext_age_s=None,
 ):
     def fmt(value, spec="{:.4f}"):
         return "" if value is None else spec.format(value)
@@ -545,6 +824,15 @@ def write_row_m4(
         fmt(gt_tag[1]) if gt_tag is not None else "",
         fmt(gt_tag[2]) if gt_tag is not None else "",
         fmt(gt_range),
+        fmt(ext_xyz[0]) if ext_xyz is not None else "",
+        fmt(ext_xyz[1]) if ext_xyz is not None else "",
+        fmt(ext_xyz[2]) if ext_xyz is not None else "",
+        "" if ext_fresh is None else int(ext_fresh),
+        fmt(tgt_state[0]) if tgt_state is not None else "",
+        fmt(tgt_state[1]) if tgt_state is not None else "",
+        fmt(tgt_state[2]) if tgt_state is not None else "",
+        fmt(tgt_state[3]) if tgt_state is not None else "",
+        fmt(ext_age_s, "{:.4f}"),
     ]
     writer.writerow(row)
     log_file.flush()
@@ -572,13 +860,21 @@ def parse_args():
         "--law", choices=["pursuit", "pronav", "pip"], required=True,
         help="guidance law to run (pip = predicted intercept point, ADR-0011)",
     )
+    # target-start / target-vel / mover-duration default to None here (not a
+    # literal value) so parse_args() below can pick the M4/S1 short-standoff
+    # defaults when --handoff is absent (byte-for-byte unchanged from before
+    # S2) or the S2 long-standoff dash-runway defaults when --handoff is set
+    # -- WITHOUT changing behavior for anyone who explicitly passes any of
+    # these three flags either way.
     parser.add_argument(
-        "--target-start", default="6.5,-4,0.5",
-        help="tag start position 'x,y,z' (m) -- forwarded to m4_target_mover.py",
+        "--target-start", default=None,
+        help="tag start position 'x,y,z' (m) -- forwarded to m4_target_mover.py "
+             "(default: 6.5,-4,0.5, or 6.5,-14,0.5 under --handoff)",
     )
     parser.add_argument(
-        "--target-vel", default="0,2.0",
-        help="tag velocity 'vx,vy' (m/s) -- forwarded to m4_target_mover.py",
+        "--target-vel", default=None,
+        help="tag velocity 'vx,vy' (m/s) -- forwarded to m4_target_mover.py "
+             "(default: 0,2.0, or 0,6.0 under --handoff)",
     )
     parser.add_argument(
         "--require-miss", type=float, default=None,
@@ -589,36 +885,123 @@ def parse_args():
         help="run the sign-convention bench check instead of an intercept",
     )
     parser.add_argument(
-        "--mover-duration", type=float, default=12.0,
-        help="how long the target mover streams motion for, in seconds",
+        "--mover-duration", type=float, default=None,
+        help="how long the target mover streams motion for, in sim seconds "
+             "(default: 12.0, or 20.0 under --handoff)",
     )
     parser.add_argument(
         "--fpv", action="store_true",
         help="FPV profile (S1, ADR-0010): bump PX4 params, two-speed closing "
              "law, rescaled terminal ranges for a faster (~6 m/s) target",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--handoff", action="store_true",
+        help="S2 two-stage external-cue handoff (ADR-0010 #4/#5): requires "
+             "--fpv. CUE_WAIT (external cue) -> DASH (running start) -> "
+             "HANDOFF -> the existing camera-only ENGAGE/BREAKOFF logic.",
+    )
+    parser.add_argument(
+        "--dash-speed", type=float, default=None,
+        help="override S2 DASH_SPEED (m/s, default %.1f)" % S2["DASH_SPEED"],
+    )
+    parser.add_argument(
+        "--handoff-range", type=float, default=None,
+        help="override S2 HANDOFF_RANGE_M (m, default %.1f)" % S2["HANDOFF_RANGE_M"],
+    )
+    parser.add_argument(
+        "--cue-port", type=int, default=None,
+        help="override S2 CUE_PORT (default %d)" % S2["CUE_PORT"],
+    )
+    parser.add_argument(
+        "--cue-seed", type=int, default=0,
+        help="seed forwarded to scripts/s2_cue_mock.py (reproducibility)",
+    )
+    parser.add_argument(
+        "--kalata", action="store_true",
+        help="tracking-refinement PORT 1 (default OFF): recompute the "
+             "lambda/range alpha-beta filters' gains from the Kalata "
+             "tracking index at the ACTUAL dt since the last correction, "
+             "instead of the fixed ALPHA/BETA_GAIN_* constants. Usable with "
+             "plain --fpv (no --handoff needed) or under --handoff.",
+    )
+    parser.add_argument(
+        "--cue-latency-comp", action="store_true",
+        help="tracking-refinement PORT 2 (default OFF, requires --handoff): "
+             "advance a cue reading along the shared tracker's current "
+             "velocity estimate by its known sim-time age before correcting "
+             "(compensates the cue mock's fixed latency + delivery jitter).",
+    )
+    args = parser.parse_args()
+
+    if args.handoff and not args.fpv:
+        parser.error("--handoff requires --fpv (S2 is an FPV-speed sub-step, ADR-0010)")
+    if args.cue_latency_comp and not args.handoff:
+        parser.error("--cue-latency-comp requires --handoff (there is no cue channel without it)")
+
+    if args.target_start is None:
+        args.target_start = S2["TARGET_START_DEFAULT"] if args.handoff else "6.5,-4,0.5"
+    if args.target_vel is None:
+        args.target_vel = S2["TARGET_VEL_DEFAULT"] if args.handoff else "0,2.0"
+    if args.mover_duration is None:
+        args.mover_duration = S2["MOVER_DURATION_DEFAULT_S"] if args.handoff else 12.0
+
+    return args
 
 
-async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log_file, started, args):
-    """ACQUIRE (hover + yaw-center on the static tag) -> ENGAGE (spawn the
-    mover, run the chosen guidance law) -> BREAKOFF (climb off, keep
-    logging) or an abort. See the module docstring for the guidance law
-    and the CLI spec for the exact phase/trigger semantics.
+async def run_acquire_and_engage(
+    drone, state, meas_holder, tracker, writer, log_file, started, args, s2params=None,
+    sim_clock=None,
+):
+    """Non-handoff (default): ACQUIRE (hover + yaw-center on the static tag)
+    -> ENGAGE (spawn the mover, run the chosen guidance law) -> BREAKOFF
+    (climb off, keep logging) or an abort.
 
-    Returns a dict of results consumed by main() to print the summary and
-    decide the process exit code.
+    Handoff (S2, --handoff, ADR-0010 #4/#5): CUE_WAIT (hover, wait on the
+    external cue mock instead of the camera) -> DASH (lead-pursuit toward
+    the cue-fed shared TargetTracker at S2_SPEED, a "running start") ->
+    HANDOFF (camera acquires within range; cue channel latched closed) ->
+    the SAME, UNMODIFIED ENGAGE/BREAKOFF code as the non-handoff path (the
+    shared TargetTracker -- fed by the cue pre-handoff, camera-only after
+    -- is what carries the "running start" through into ENGAGE; PIP's law
+    reads that same tracker either way, now warm-started instead of cold).
+
+    See the module docstring for the guidance law and the CLI spec for the
+    exact phase/trigger semantics. Returns a dict of results consumed by
+    main() to print the summary and decide the process exit code.
     """
     dt = 1.0 / CONTROL_RATE_HZ
 
-    lambda_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_LAMBDA, angular=True)
-    range_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_RANGE, angular=False)
-    # PIP (ADR-0011): absolute target position+velocity track for the lead
-    # solve. Only used when args.law == "pip"; predicts every tick, corrects
-    # on fresh detections with own_ned + camera relative vector.
+    # --kalata (tracking-refinement PORT 1, default OFF): swap the lambda/
+    # range channels' FIXED alpha/beta for gains recomputed every
+    # correction from the Kalata tracking index at the actual dt (see
+    # kalata_alpha_beta()). kalata_kwargs stays empty (both filters fall
+    # back to fixed ALPHA/BETA_GAIN_* exactly as before) unless --kalata.
+    lambda_kalata_kwargs = {}
+    range_kalata_kwargs = {}
+    if args.kalata:
+        lambda_kalata_kwargs = dict(
+            kalata_sigma_process=math.radians(KALATA_LAMBDA_SIGMA_PROCESS_DEG_S2),
+            kalata_sigma_meas=math.radians(KALATA_LAMBDA_SIGMA_MEAS_DEG),
+            label="lambda",
+        )
+        range_kalata_kwargs = dict(
+            kalata_sigma_process=KALATA_RANGE_SIGMA_PROCESS_M_S2,
+            kalata_sigma_meas=KALATA_RANGE_SIGMA_MEAS_M,
+            label="range",
+        )
+    lambda_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_LAMBDA, angular=True, **lambda_kalata_kwargs)
+    range_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_RANGE, angular=False, **range_kalata_kwargs)
+    # PIP (ADR-0011) / S2 dash tracker: absolute target position+velocity
+    # track. Used by --law pip's lead solve AND (under --handoff) by the
+    # DASH phase's own lead-pursuit -- ONE instance, shared across every
+    # phase (spec requirement): predicts every tick, corrects on fresh
+    # camera detections (own_ned + camera relative vector, existing PIP
+    # code path below) with camera taking priority, and -- pre-handoff
+    # only, --handoff mode only -- on ticks with a new cue datagram and no
+    # fresh camera detection this tick (see the ext-cue block below).
     target_tracker = TargetTracker(PIP_TRACK_ALPHA, PIP_TRACK_BETA)
 
-    phase = "ACQUIRE"
+    phase = "CUE_WAIT" if args.handoff else "ACQUIRE"
     acquire_start_mono = time.monotonic()
     consecutive_fresh = 0
     centered_streak = 0
@@ -644,6 +1027,36 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
     n_ticks = 0
     n_detected_ticks = 0
     min_gt_range_running = None
+
+    # --- S2 (--handoff) state. cue_proc is the s2_cue_mock.py subprocess
+    # (left running past HANDOFF -- audit evidence, killed at run end like
+    # the mover); cue_reader is this process's UDP receiver, LATCHED to
+    # None the instant HANDOFF triggers (ADR-0010 #5, see CueReader's
+    # docstring for why nulling the reference is the enforcement). ---
+    cue_proc = None
+    cue_reader = None
+    cue_wait_start_mono = time.monotonic()
+    dash_start_mono = None
+    last_cue_seq_seen = None
+    tracker_correction_count = 0
+    handoff_streak = 0
+    handoff_done = False
+    handoff_t = None
+    handoff_range_at_trigger = None
+    first_dash_detection_range = None
+    if args.handoff:
+        cue_reader = CueReader(s2params["CUE_PORT"])
+        cue_cmd = [
+            sys.executable, CUE_MOCK_SCRIPT,
+            "--port", str(s2params["CUE_PORT"]),
+            "--seed", str(args.cue_seed),
+            "--duration", str(s2params["CUE_MOCK_RUN_DURATION_S"]),
+            "--sigma", str(s2params["CUE_MOCK_SIGMA_M"]),
+            "--latency-s", str(s2params["CUE_MOCK_LATENCY_S"]),
+            "--rate", str(s2params["CUE_MOCK_RATE_HZ"]),
+        ]
+        print(f"[s2] cue mock: {' '.join(cue_cmd)}")
+        cue_proc = subprocess.Popen(cue_cmd, stdout=None, stderr=None)
 
     while True:
         tick_start = time.monotonic()
@@ -684,6 +1097,65 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
                 target_tracker.correct(
                     (state.pos_n + rel_n, state.pos_e + rel_e), tick_start
                 )
+                tracker_correction_count += 1
+
+        # --- S2 (--handoff) external-cue consumption: CAMERA HAS PRIORITY
+        # (ADR-0010 #5) -- only feed the shared tracker from the cue on a
+        # tick with a genuinely NEW cue datagram (mirrors the new_meas/fresh
+        # distinction above) AND no fresh camera correction THIS tick, and
+        # only pre-handoff (cue_reader is None once HANDOFF latches it
+        # closed -- see the DASH branch below). ext_n/e/z + ext_fresh are
+        # for the CSV only: populated exactly on ticks where a cue reading
+        # actually corrected the tracker, blank otherwise (CSV_HEADER).
+        ext_n = ext_e = ext_z = None
+        ext_fresh = 0
+        ext_age_s = None
+        if args.handoff and cue_reader is not None:
+            cue = cue_reader.read()
+            if cue is not None:
+                _t_recv_mono, t_sim_cue, cx, cy, cz, cseq = cue
+                cue_is_new = last_cue_seq_seen is None or cseq != last_cue_seq_seen
+                if cue_is_new:
+                    last_cue_seq_seen = cseq
+                    if not fresh:
+                        # WORLD -> NED mapping (empirically verified -- see
+                        # the module docstring's "S2 WORLD-FRAME MAPPING"
+                        # section for the evidence/log filenames): the cue
+                        # reports Gazebo WORLD x, y, z; north = world_y,
+                        # east = world_x (no sign flip). GOALS.md's world
+                        # convention ("origin at the interceptor's start")
+                        # means no translation term is needed either.
+                        ext_n = cy
+                        ext_e = cx
+                        ext_z = cz
+                        # Tracking-refinement PORT 2 (--cue-latency-comp,
+                        # default OFF): the cue's AGE at USE is sim_now -
+                        # t_sim (includes the mock's fixed 0.12s latency
+                        # PLUS any real delivery jitter -- a genuine measured
+                        # quantity, unlike guidance_lab.py's lab, which used
+                        # its own known fixed cue_latency constant directly
+                        # since it has no wall/sim distinction to model).
+                        # Logged (ext_age_s) whenever a clock sample exists,
+                        # regardless of the flag, for audit; ONLY applied
+                        # (position advanced along the tracker's own current
+                        # velocity estimate before correcting -- ported from
+                        # guidance_lab.py's
+                        # TargetTracker.correct_full(latency_compensate=True))
+                        # when --cue-latency-comp is set AND the tracker
+                        # already has a velocity estimate to advance along.
+                        if sim_clock is not None and sim_clock.t is not None:
+                            ext_age_s = _clamp(
+                                sim_clock.t - t_sim_cue, CUE_AGE_CLAMP_MIN_S, CUE_AGE_CLAMP_MAX_S
+                            )
+                        corr_n, corr_e = ext_n, ext_e
+                        if args.cue_latency_comp and ext_age_s is not None and ext_age_s > 0.0:
+                            vel_hat = target_tracker.vel_hat
+                            if vel_hat is not None:
+                                corr_n = ext_n + vel_hat[0] * ext_age_s
+                                corr_e = ext_e + vel_hat[1] * ext_age_s
+                        target_tracker.correct((corr_n, corr_e), tick_start)
+                        tracker_correction_count += 1
+                        ext_fresh = 1
 
         lambda_hat = lambda_filter.x_hat
         lambda_dot_hat = lambda_filter.xdot_hat if lambda_filter.initialized else None
@@ -753,6 +1225,143 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
             elif acquire_elapsed > ACQUIRE_TIMEOUT_S:
                 aborted = True
                 abort_reason = f"failed to acquire tag within {ACQUIRE_TIMEOUT_S}s"
+
+        elif phase == "CUE_WAIT":
+            # CUE_WAIT (S2, replaces ACQUIRE under --handoff): hover, point
+            # the nose at wherever the shared tracker THINKS the target is
+            # from the cue alone (own-state azimuth to the tracker's
+            # position -- NOT a camera bearing; at the S2 start range the
+            # tag is normally not yet in the camera's own detection
+            # envelope at all, see ADR-0010 seat A's coast-time warning).
+            # Leaves once the cue stream is flowing AND the shared tracker
+            # has enough corrections to carry a usable position+velocity
+            # estimate into DASH.
+            v_down = (
+                _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                if alt_m is not None else 0.0
+            )
+            yaw_deg = psi_deg if psi_deg is not None else 0.0
+            tpos = target_tracker.pos_hat
+            if tpos is not None and state.pos_n is not None and state.pos_e is not None:
+                rel_n = tpos[0] - state.pos_n
+                rel_e = tpos[1] - state.pos_e
+                if abs(rel_n) > 1e-6 or abs(rel_e) > 1e-6:
+                    yaw_deg = math.degrees(math.atan2(rel_e, rel_n))
+            cmd = (0.0, 0.0, v_down, yaw_deg)
+
+            n_cue_received = cue_reader.n_received if cue_reader is not None else 0
+            cue_wait_elapsed = tick_start - cue_wait_start_mono
+            if (
+                n_cue_received >= s2params["CUE_WAIT_MIN_DATAGRAMS"]
+                and tracker_correction_count >= s2params["CUE_WAIT_MIN_CORRECTIONS"]
+            ):
+                print(
+                    f"[s2] Cue lock at t={cue_wait_elapsed:.2f}s "
+                    f"({n_cue_received} datagrams, {tracker_correction_count} tracker "
+                    "corrections). Spawning mover and dashing..."
+                )
+                phase = "DASH"
+                dash_start_mono = tick_start
+                mover_args = [
+                    sys.executable, MOVER_SCRIPT,
+                    "--start", args.target_start,
+                    "--vel", args.target_vel,
+                    "--duration", str(args.mover_duration),
+                ]
+                print(f"[s2] mover: {' '.join(mover_args)}")
+                mover_proc = subprocess.Popen(mover_args, stdout=None, stderr=None)
+            elif cue_wait_elapsed > s2params["CUE_WAIT_TIMEOUT_S"]:
+                aborted = True
+                abort_reason = (
+                    f"CUE_WAIT: cue stream/tracker not ready within "
+                    f"{s2params['CUE_WAIT_TIMEOUT_S']}s ({n_cue_received} datagrams "
+                    f"received, {tracker_correction_count} tracker corrections)"
+                )
+
+        elif phase == "DASH":
+            # DASH (S2): lead-pursuit (the PIP intercept-triangle solve,
+            # ADR-0011) toward the shared tracker's position+velocity
+            # estimate at the fixed S2 DASH_SPEED -- the "running start"
+            # that makes the FPV target band catchable at all (ADR-0011
+            # addendum's S1<->S2 coupling finding). Yaw points at the
+            # TRACKER's azimuth, not a camera bearing -- there may be no
+            # detection yet at DASH's longer ranges.
+            dash_elapsed = tick_start - dash_start_mono
+            tpos = target_tracker.pos_hat
+            if tpos is not None and state.pos_n is not None and state.pos_e is not None:
+                own = (state.pos_n, state.pos_e)
+                rel = (tpos[0] - own[0], tpos[1] - own[1])
+                vt = target_tracker.vel_hat or (0.0, 0.0)
+                t_go = solve_intercept_time(
+                    rel, vt, s2params["DASH_SPEED"], s2params["DASH_MAX_LEAD_S"]
+                )
+                aim = (tpos[0] + vt[0] * t_go, tpos[1] + vt[1] * t_go)
+                dirn = (aim[0] - own[0], aim[1] - own[1])
+                dn = math.hypot(dirn[0], dirn[1])
+                if dn > 1e-6:
+                    vh0 = s2params["DASH_SPEED"] * dirn[0] / dn
+                    vh1 = s2params["DASH_SPEED"] * dirn[1] / dn
+                else:
+                    vh0, vh1 = last_cmd[0], last_cmd[1]
+                norm = math.hypot(vh0, vh1)
+                if norm > V_TOTAL_MAX:  # FPV V_TOTAL_MAX (apply_fpv_profile already ran)
+                    scale = V_TOTAL_MAX / norm
+                    vh0 *= scale
+                    vh1 *= scale
+                yaw_deg = math.degrees(math.atan2(rel[1], rel[0]))
+            else:
+                vh0, vh1 = 0.0, 0.0
+                yaw_deg = psi_deg if psi_deg is not None else 0.0
+
+            v_down = (
+                _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                if alt_m is not None else 0.0
+            )
+            cmd = (vh0, vh1, v_down, yaw_deg)
+            last_cmd = cmd
+
+            if fresh and first_dash_detection_range is None:
+                first_dash_detection_range = meas.range_m
+                print(
+                    f"[s2] First camera detection during DASH at "
+                    f"range={meas.range_m:.2f} m (t={dash_elapsed:.2f}s into DASH)"
+                )
+
+            # HANDOFF trigger (ADR-0010 #5): >=N consecutive FRESH camera
+            # detections, all measuring range <= HANDOFF_RANGE_M. Mirrors
+            # ACQUIRE's consecutive_fresh/new_meas pattern (a new detector
+            # result with no tag, or one that's out of range, resets the
+            # streak; a tick with no new detector result at all leaves it
+            # untouched -- normal ~14 Hz-vs-20 Hz cadence, not a miss).
+            if new_meas:
+                if meas.range_m is not None and meas.range_m <= s2params["HANDOFF_RANGE_M"]:
+                    handoff_streak += 1
+                else:
+                    handoff_streak = 0
+
+            if handoff_streak >= s2params["HANDOFF_STREAK_MIN"]:
+                handoff_done = True
+                handoff_t = time.monotonic() - started
+                handoff_range_at_trigger = meas.range_m
+                print(
+                    f"[s2] HANDOFF at t={handoff_t:.2f}s, camera range="
+                    f"{meas.range_m:.2f} m (streak={handoff_streak}), r_hat="
+                    f"{'n/a' if r_hat is None else f'{r_hat:.2f}'} m -- closing "
+                    "external cue channel (ADR-0010 #5, latched one-way; the "
+                    "cue mock process keeps running/logging as audit evidence)"
+                )
+                cue_reader.close()
+                cue_reader = None  # illegal-state-unrepresentable past this point
+                phase = "ENGAGE"
+                engage_t0 = tick_start
+            elif dash_elapsed > s2params["DASH_TIMEOUT_S"]:
+                aborted = True
+                abort_reason = (
+                    f"DASH: failed to reach handoff range within "
+                    f"{s2params['DASH_TIMEOUT_S']}s (best streak {handoff_streak}, "
+                    f"first camera detection range="
+                    f"{'n/a' if first_dash_detection_range is None else f'{first_dash_detection_range:.2f}'})"
+                )
 
         elif phase == "ENGAGE":
             engage_elapsed = tick_start - engage_t0
@@ -908,10 +1517,18 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
         if detected:
             n_detected_ticks += 1
 
+        tgt_state = None
+        if target_tracker.initialized:
+            tgt_pos_hat = target_tracker.pos_hat
+            tgt_vel_hat = target_tracker.vel_hat or (0.0, 0.0)
+            tgt_state = (tgt_pos_hat[0], tgt_pos_hat[1], tgt_vel_hat[0], tgt_vel_hat[1])
+
         write_row_m4(
             writer, log_file, time.monotonic() - started, phase, args.law,
             detected, meas, psi_deg, lambda_hat, lambda_dot_hat, r_hat, rdot_hat,
             vc, a_cmd, v_perp, cmd, alt_m, gt_cam, gt_tag, gt_range,
+            ext_xyz=(ext_n, ext_e, ext_z) if ext_fresh else None,
+            ext_fresh=ext_fresh, tgt_state=tgt_state, ext_age_s=ext_age_s,
         )
 
         if aborted:
@@ -923,6 +1540,13 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
         elapsed = time.monotonic() - tick_start
         await asyncio.sleep(max(0.0, dt - elapsed))
 
+    if cue_reader is not None:
+        # Only reached if the run ended WITHOUT ever reaching HANDOFF (e.g.
+        # aborted during CUE_WAIT/DASH) -- the normal HANDOFF path already
+        # closed and nulled this above. Defensive cleanup, not the audit
+        # latch itself.
+        cue_reader.close()
+
     return {
         "aborted": aborted,
         "abort_reason": abort_reason,
@@ -931,6 +1555,14 @@ async def run_acquire_and_engage(drone, state, meas_holder, tracker, writer, log
         "n_detected_ticks": n_detected_ticks,
         "min_gt_range_running": min_gt_range_running,
         "mover_proc": mover_proc,
+        "cue_proc": cue_proc,
+        # S2 (--handoff): default handoff_done=True when --handoff was never
+        # requested, so the non-handoff "clean" calculation in main() (which
+        # ANDs this in) is completely unaffected -- see main()'s comment.
+        "handoff_done": handoff_done if args.handoff else True,
+        "handoff_t": handoff_t,
+        "handoff_range_at_trigger": handoff_range_at_trigger,
+        "first_dash_detection_range": first_dash_detection_range,
     }
 
 
@@ -1043,6 +1675,40 @@ async def main():
             f"BETA_GAIN_RANGE {BETA_GAIN_RANGE}"
         )
 
+    if args.kalata:
+        print(
+            "[m4] Kalata gains ON (tracking-refinement PORT 1): lambda "
+            f"sigma_process={KALATA_LAMBDA_SIGMA_PROCESS_DEG_S2} deg/s^2 "
+            f"sigma_meas={KALATA_LAMBDA_SIGMA_MEAS_DEG} deg; range "
+            f"sigma_process={KALATA_RANGE_SIGMA_PROCESS_M_S2} m/s^2 "
+            f"sigma_meas={KALATA_RANGE_SIGMA_MEAS_M} m (sampled gains "
+            f"printed every {KALATA_LOG_EVERY} corrections as [kalata] lines)"
+        )
+
+    s2params = dict(S2)
+    if args.handoff:
+        if args.dash_speed is not None:
+            s2params["DASH_SPEED"] = args.dash_speed
+        if args.handoff_range is not None:
+            s2params["HANDOFF_RANGE_M"] = args.handoff_range
+        if args.cue_port is not None:
+            s2params["CUE_PORT"] = args.cue_port
+        print(
+            "[s2] Handoff profile ON (ADR-0010 #4/#5): CUE_WAIT -> DASH -> "
+            f"HANDOFF -> ENGAGE. dash_speed={s2params['DASH_SPEED']} m/s, "
+            f"handoff_range={s2params['HANDOFF_RANGE_M']} m, cue_port="
+            f"{s2params['CUE_PORT']}, target_start={args.target_start}, "
+            f"target_vel={args.target_vel}, mover_duration={args.mover_duration}s"
+        )
+        if args.cue_latency_comp:
+            print(
+                "[s2] Cue-latency compensation ON (tracking-refinement PORT "
+                "2): cue positions advanced along the shared tracker's own "
+                f"velocity estimate by their sim-time age (clamped "
+                f"[{CUE_AGE_CLAMP_MIN_S}, {CUE_AGE_CLAMP_MAX_S}] s) before "
+                "correcting."
+            )
+
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = "bench" if args.bench else args.law
@@ -1074,6 +1740,23 @@ async def main():
         node.unsubscribe(POSE_TOPIC)
         return 1
 
+    # Tracking-refinement PORT 2 (--cue-latency-comp): sim time, only
+    # subscribed under --handoff (SimClockHolder's docstring explains why
+    # this subscription is safe -- this process makes zero gz service
+    # calls). Logged/used by the ext-cue consumption block regardless of
+    # --cue-latency-comp (ext_age_s is informative on its own); only the
+    # actual position advancement is gated by that flag.
+    sim_clock = None
+    clock_sub = False
+    if args.handoff:
+        sim_clock = SimClockHolder()
+        clock_sub = node.subscribe(Clock, CLOCK_TOPIC, sim_clock.on_clock)
+        if not clock_sub:
+            print(f"[m4] FAILED: could not subscribe to {CLOCK_TOPIC}")
+            node.unsubscribe(IMAGE_TOPIC)
+            node.unsubscribe(POSE_TOPIC)
+            return 1
+
     print(f"[m4] Subscribed to {IMAGE_TOPIC} and {POSE_TOPIC}")
     print(f"[m4] Logging to {log_path}")
     print("[m4] Waiting for the pose topic to populate...")
@@ -1084,6 +1767,8 @@ async def main():
         print(f"[m4] FAILED: no pose data received within {POSE_WAIT_TIMEOUT_S}s")
         node.unsubscribe(IMAGE_TOPIC)
         node.unsubscribe(POSE_TOPIC)
+        if clock_sub:
+            node.unsubscribe(CLOCK_TOPIC)
         return 1
 
     meas_holder = MeasurementHolder()
@@ -1108,6 +1793,7 @@ async def main():
 
     result_code = 1
     mover_proc = None
+    cue_proc = None
 
     try:
         print(f"[m4] Connecting to {SYSTEM_ADDRESS} (timeout {CONNECT_TIMEOUT_S}s)...")
@@ -1215,9 +1901,11 @@ async def main():
                 )
             else:
                 result = await run_acquire_and_engage(
-                    drone, state, meas_holder, tracker, writer, log_file, started, args
+                    drone, state, meas_holder, tracker, writer, log_file, started, args,
+                    s2params=s2params, sim_clock=sim_clock,
                 )
                 mover_proc = result["mover_proc"]
+                cue_proc = result["cue_proc"]
 
                 min_gt_running = result["min_gt_range_running"]
                 miss_from_csv = recompute_min_gt_range_from_csv(log_path)
@@ -1240,7 +1928,13 @@ async def main():
                 engaged_close = (
                     min_gt_running is not None and min_gt_running < BREAKOFF_ARM_RANGE_M
                 )
-                clean = bool((not result["aborted"]) and engaged_close)
+                # handoff_done defaults to True when --handoff was never
+                # requested (see run_acquire_and_engage's return dict), so
+                # this AND has ZERO effect on the non-handoff "clean"
+                # calculation -- byte-for-byte the same as before S2.
+                clean = bool(
+                    (not result["aborted"]) and engaged_close and result["handoff_done"]
+                )
 
                 print(
                     f"[m4] law={args.law} miss_distance_m={miss_distance:.3f} "
@@ -1254,12 +1948,43 @@ async def main():
                     f"clean={int(clean)} engaged={int(engaged)}"
                 )
 
+                if args.handoff:
+                    handoff_t = result["handoff_t"]
+                    handoff_range = result["handoff_range_at_trigger"]
+                    first_dash_range = result["first_dash_detection_range"]
+                    print(
+                        "[s2] handoff_done="
+                        f"{int(result['handoff_done'])} handoff_t="
+                        f"{'n/a' if handoff_t is None else f'{handoff_t:.2f}'}s "
+                        f"handoff_range={'n/a' if handoff_range is None else f'{handoff_range:.2f}'}m "
+                        "first_dash_detection_range="
+                        f"{'n/a' if first_dash_range is None else f'{first_dash_range:.2f}'}m"
+                    )
+                    # cue_reads_post_handoff is hardcoded 0, not measured: the
+                    # cue_reader reference is nulled the instant HANDOFF
+                    # triggers (ADR-0010 #5), so any read attempt after that
+                    # point is structurally impossible (AttributeError on
+                    # None), not merely "didn't happen to occur" -- there is
+                    # nothing left to count.
+                    print(
+                        f"S2_RESULT law={args.law} miss={miss_distance:.3f} "
+                        f"clean={int(clean)} handoff={int(result['handoff_done'])} "
+                        f"handoff_range={'nan' if handoff_range is None else f'{handoff_range:.3f}'} "
+                        f"handoff_t={'nan' if handoff_t is None else f'{handoff_t:.3f}'} "
+                        "cue_reads_post_handoff=0"
+                    )
+
                 exit_ok = clean
                 if exit_ok and args.require_miss is not None:
                     exit_ok = miss_distance < args.require_miss
                 result_code = 0 if exit_ok else 1
         else:
             print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
+            if args.handoff:
+                print(
+                    f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                )
             result_code = 1
 
         if mover_proc is not None and mover_proc.poll() is None:
@@ -1271,6 +1996,20 @@ async def main():
                 print("[m4] Mover did not exit in time, killing...")
                 mover_proc.kill()
                 mover_proc.wait(timeout=3.0)
+
+        if cue_proc is not None and cue_proc.poll() is None:
+            # Left running (not killed) through HANDOFF by design -- its log
+            # is the audit evidence that cue data stayed available-but-
+            # unread post-latch (ADR-0010 #5). Terminated here at run end,
+            # same lifecycle as the mover.
+            print("[s2] Terminating cue mock subprocess...")
+            cue_proc.terminate()
+            try:
+                cue_proc.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                print("[s2] Cue mock did not exit in time, killing...")
+                cue_proc.kill()
+                cue_proc.wait(timeout=3.0)
 
         print("[m4] Guidance phase complete. Stopping offboard and landing...")
         try:
@@ -1303,25 +2042,47 @@ async def main():
         print(f"[m4] FAILED: timed out waiting for a stage: {exc}")
         if not args.bench:
             print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
+            if args.handoff:
+                print(
+                    f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                )
         return 1
     except ActionError as exc:
         print(f"[m4] FAILED: MAVSDK action error: {exc}")
         if not args.bench:
             print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
+            if args.handoff:
+                print(
+                    f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                )
         return 1
     except RuntimeError as exc:
         print(f"[m4] FAILED: {exc}")
         if not args.bench:
             print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
+            if args.handoff:
+                print(
+                    f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                )
         return 1
     except Exception as exc:  # noqa: BLE001 - top-level gate script, log and exit
         print(f"[m4] FAILED: unexpected error: {exc!r}")
         if not args.bench:
             print(f"M4_RESULT law={args.law} miss=nan clean=0 engaged=0")
+            if args.handoff:
+                print(
+                    f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                )
         return 1
     finally:
         if mover_proc is not None and mover_proc.poll() is None:
             mover_proc.kill()
+        if cue_proc is not None and cue_proc.poll() is None:
+            cue_proc.kill()
         for task in tracker_tasks:
             task.cancel()
         for task in tracker_tasks:
@@ -1335,6 +2096,8 @@ async def main():
         detector_thread.join(timeout=2.0)
         node.unsubscribe(IMAGE_TOPIC)
         node.unsubscribe(POSE_TOPIC)
+        if clock_sub:
+            node.unsubscribe(CLOCK_TOPIC)
         log_file.close()
         print(f"[m4] Log written to {log_path}")
 
