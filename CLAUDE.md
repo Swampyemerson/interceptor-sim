@@ -4,19 +4,38 @@ This file auto-loads at the start of every Claude Code session. It defines the
 operating model, the decision protocol, and the conventions. The mission and
 scope are in `GOALS.md` (imported at the bottom) — read it before planning.
 
-## Model orchestration (Fable 5 + Sonnet 5)
+## Model orchestration (Fable 5 oversight · Opus middleground · Sonnet 5 volume)
 
-- **Main session = Claude Fable 5.** It orchestrates, integrates, reviews, and owns
-  decisions. Confirm with `/model` (pick "Fable 5"); the intended launch command is
-  `claude --model claude-fable-5`.
-- **Do the volume work with Sonnet 5 subagents** to conserve Fable usage. Delegate
-  via the Task tool to the agents in `.claude/agents/` (all pinned to `model: sonnet`):
+THIS IS A HARD REQUIREMENT, NOT A PREFERENCE. Three tiers:
+
+- **Main session MUST be Claude Fable 5** (`claude-fable-5`). It orchestrates,
+  integrates, reviews, and owns decisions — Fable's judgment is the point of the
+  main seat; Opus is NOT an acceptable substitute for it. **First action every
+  session: verify the model.** Run `/model` and confirm "Fable 5"; if it shows
+  anything else (Opus, Sonnet, …), STOP and switch — either `/model` → Fable 5,
+  or relaunch `claude --model claude-fable-5`. The project pins
+  `"model": "claude-fable-5"` in `.claude/settings.json` so launches default
+  correctly; a wrong model means that pin was overridden at launch — fix it before
+  doing real work. (An agent cannot change its own running model mid-session; only
+  the operator can, via `/model` or relaunch.)
+- **Opus 4.8 (`claude-opus-4-8`) for MIDDLEGROUND tasks** — work that needs strong
+  reasoning but not the main seat's oversight, and where Sonnet may be insufficient:
+  a tricky implementation, a hard debugging root-cause, a subtle analysis, a
+  design prototype. Delegate via the Task tool with an explicit `model: opus`
+  override. Use this tier deliberately when a task is above mechanical-Sonnet
+  difficulty but you don't want to spend the Fable main seat on it.
+- **Sonnet 5 for VOLUME/mechanical/parallel/verifiable work** — conserve the higher
+  tiers. The agents in `.claude/agents/` are pinned to `model: sonnet`:
   - `sonnet-worker` — installs, boilerplate, coding a module, running sims, reading logs, writing tests.
   - `verifier` — runs a milestone's check script and adversarially confirms pass/fail.
   - `council-member` — one independent voice in a decision council (see below).
-- **Keep on Fable:** architecture, cross-module integration, final decisions, and
-  reviewing subagent output. **Push to Sonnet:** anything mechanical, parallel, or
-  verifiable. When in doubt, draft with Sonnet, review with Fable.
+  (To run one of these at the middleground tier, pass a `model: opus` override on
+  the Task call.)
+- **Routing rule:** Keep on **Fable** — architecture, cross-module integration,
+  final decisions, reviewing subagent output. Push to **Opus** — hard-but-scoped
+  tasks Sonnet might botch. Push to **Sonnet** — anything mechanical, parallel, or
+  verifiable. When in doubt: draft with Sonnet, escalate to Opus if it's hard,
+  review with Fable.
 
 ## Decision protocol (educated decisions, with a council when it matters)
 
