@@ -100,27 +100,45 @@ DET_RANGE_DEFAULT_M = 8.0        # camera valid only inside this range
 HANDOFF_RANGE_DEFAULT_M = 8.0    # external cue valid only beyond this range
 CAM_HZ = 14.0                     # measured detector framerate (m4_intercept.py)
 CUE_HZ = 10.0
-SIGMA_BEARING_DEG = 0.5
-RANGE_NOISE_FRAC = 0.02
+# Bearing/range noise raised from the ORIGINAL (ADR-0011) lab's 0.5 deg /
+# 2% (empirically found, during the 2nd-addendum calibration pass, to be
+# far too clean: a monocular AprilTag pose estimate genuinely degrades with
+# oblique incidence -- ADR-0003's own risk note, and confirmed by the real
+# Gazebo lambda_dot/rdot_hat traces, e.g. m4_intercept_pronav_...T044945Z.csv,
+# which show much larger tick-to-tick variance than a 0.5 deg model would
+# produce). These larger numbers are what let the LOS-rate/closing-rate
+# estimate stay noisy enough to reproduce Gazebo's actual convergence
+# behavior (see the module docstring's calibration note).
+SIGMA_BEARING_DEG = 6.0
+RANGE_NOISE_FRAC = 0.10
 # Dropout is EDGE-WEIGHTED (ADR-0011 2nd-addendum calibration pass): DROPOUT_P
 # is the rate right at boresight center, DROPOUT_P_EDGE is the rate once the
-# true bearing sits right at the FOV edge, ramped by DROPOUT_EDGE_EXPONENT.
-# Tuned so a 3-4 m/s crosser's engagement detection_coverage lands ~0.6-0.7
-# and a 6 m/s crosser's lands much lower -- both match the real Gazebo CSVs
-# (m4_intercept_pronav_...T044945Z.csv: 0.67; ...T044458Z.csv (6 m/s): 0.36).
+# true bearing sits right at the FOV edge, ramped by DROPOUT_EDGE_EXPONENT
+# (an exponent < 1 makes the ramp STEEP even at modest angles -- matches the
+# real bearing trace, where dropouts start well before the FOV edge, not
+# only right at it). Tuned (empirical search, ADR-0011 2nd addendum) so a
+# 3-4 m/s crosser's engagement detection_coverage lands ~0.7-0.8 and a 6 m/s
+# crosser's drops further (~0.55-0.65) -- in the ballpark of the real
+# Gazebo CSVs (m4_intercept_pronav_...T044945Z.csv (4 m/s): 0.67;
+# ...T044458Z.csv (6 m/s): 0.36 -- the lab does not get as low as the real
+# 6 m/s number; see the module docstring's calibration honesty note).
 DROPOUT_P = 0.05
-DROPOUT_P_EDGE = 0.65
-DROPOUT_EDGE_EXPONENT = 2.0
+DROPOUT_P_EDGE = 0.99
+DROPOUT_EDGE_EXPONENT = 0.4
 # Camera half field-of-view (mirrors m4_intercept.py's own comment: "nominal
-# +-50 deg half-FOV"). A detection can only fire when the TRUE bearing is
-# within this of the vehicle's own (slewing) boresight -- see FOV/heading
-# model in the Sensor class docstring.
-FOV_HALF_DEG_DEFAULT = 50.0
+# +-50 deg half-FOV"; narrowed to 40 deg here -- empirical calibration
+# search found the real detector effectively loses the tag somewhat inside
+# the nominal hardware FOV, consistent with ADR-0003's oblique-incidence
+# risk). A detection can only fire when the TRUE bearing is within this of
+# the vehicle's own (slewing) boresight -- see FOV/heading model in the
+# Sensor class docstring.
+FOV_HALF_DEG_DEFAULT = 40.0
 # Max yaw slew rate the vehicle's own boresight can track at (mirrors
-# m4_intercept.py's YAWSPEED_MAX_DEG_S=60, raised for FPV's faster LOS
-# rates). This is THE mechanism that lets a fast crosser outrun the yaw and
-# walk off-boresight -- not a flat dropout percentage.
-YAW_RATE_MAX_DEG_S_DEFAULT = 60.0
+# m4_intercept.py's YAWSPEED_MAX_DEG_S=60, tuned down slightly to 45 in this
+# calibration pass -- the real PX4 attitude loop's ACHIEVED yaw rate while
+# also translating fast is plausibly below the commanded cap). This is THE
+# mechanism that lets a fast crosser outrun the yaw and walk off-boresight.
+YAW_RATE_MAX_DEG_S_DEFAULT = 45.0
 CUE_SIGMA_M = 0.5
 CUE_LATENCY_S = 0.1
 
@@ -140,6 +158,23 @@ TERMINAL_LOST_TAG_RANGE_M = 5.0
 # chasing a blown-up rate estimate; FPV rescaled this from M4's 2.0 up to
 # 3.5 to match its faster terminal closing speed's time semantics).
 TERMINAL_FREEZE_RANGE_M = 3.5
+# BREAKOFF: mirrors m4_intercept.py's BREAKOFF_ARM_RANGE_M / RANGE_INCREASES
+# -- once inside BREAKOFF_ARM_RANGE_M, `BREAKOFF_RANGE_INCREASES` consecutive
+# ticks of TRUE range increasing means closest-point-of-approach has passed;
+# the simulate() loop stops there. THIS MATTERS MORE THAN IT LOOKS: every
+# guidance law's "frozen" terminal coast (see TERMINAL_FREEZE_RANGE_M) holds
+# its last command FOREVER once triggered (no un-freeze) -- without a
+# breakoff stop, that permanent ballistic coast can fly back through a
+# close pass PURELY BY GEOMETRIC LUCK long after the real intercept window
+# closed, which is exactly what silently inflated the ORIGINAL (pre-FOV)
+# lab's fast-crosser miss numbers (a 6 m/s "uncatchable" run was scoring
+# ~0.3-0.6 m from a lucky post-freeze flyby, not a real intercept -- caught
+# empirically during the ADR-0011 2nd-addendum calibration pass). Using
+# TRUE range for this stopping decision is a harness/SCORING construct only
+# (mirrors min_range/t_min_range, both already ground-truth) -- it is never
+# fed to any guidance law, so the honesty boundary is unchanged.
+BREAKOFF_ARM_RANGE_M = 4.0
+BREAKOFF_RANGE_INCREASES = 3
 
 
 def clamp(x, lo, hi):
@@ -1062,6 +1097,9 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     n_in_range_ticks = 0
     last_meas_t = None
     tag_lost_in_terminal = False
+    breakoff_armed = False
+    breakoff_increase_streak = 0
+    last_true_range = None
 
     n_steps = int(round(t_max / dt))
     t = 0.0
@@ -1073,6 +1111,20 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
             t_min_range = t
         if first_hit_time is None and true_range < HIT_RANGE_M:
             first_hit_time = t
+
+        # BREAKOFF (see BREAKOFF_ARM_RANGE_M docstring): CPA has passed --
+        # stop here rather than let a permanently-frozen command coast on
+        # into a geometrically-lucky (or unlucky) later flyby.
+        if true_range < BREAKOFF_ARM_RANGE_M:
+            breakoff_armed = True
+        if breakoff_armed and last_true_range is not None:
+            if true_range > last_true_range:
+                breakoff_increase_streak += 1
+            else:
+                breakoff_increase_streak = 0
+            if breakoff_increase_streak >= BREAKOFF_RANGE_INCREASES:
+                break
+        last_true_range = true_range
 
         meas = sensor.tick(t, dt, (ix, iy), (tx, ty), two_stage)
         if meas is not None:
