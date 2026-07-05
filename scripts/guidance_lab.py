@@ -304,18 +304,41 @@ class Sensor:
     honesty boundary (GOALS.md / ADR-0008 lineage): guidance never sees
     ground truth, only these measurements.
 
-    Camera: valid inside det_range, ~cam_hz update rate, Gaussian
-    bearing/range noise, random per-attempt dropout.
+    Camera: valid inside det_range AND inside the FOV (see the own_heading
+    model below), ~cam_hz update rate, Gaussian bearing/range noise, and an
+    EDGE-WEIGHTED dropout probability that rises toward the FOV edge.
     External cue (optional, --two-stage): valid beyond handoff_range,
     ~cue_hz, Gaussian ABSOLUTE-position noise, fixed latency (delivered
-    `cue_latency_s` after the sample was taken).
+    `cue_latency_s` after the sample was taken), and -- unlike the camera --
+    NO field-of-view limit at all (it is an external/ground sensor watching
+    the engagement from outside, not the interceptor's own onboard camera).
+
+    OWN-HEADING / FOV MODEL (ADR-0011 2nd-addendum calibration pass -- THE
+    piece the original lab lacked): own_heading is a simple proxy for where
+    the interceptor's camera boresight points. It slews toward
+    `desired_heading` at up to `yaw_rate_max` (mirrors m4_intercept.py's
+    YAWSPEED_MAX_DEG_S rate-limited yaw-centering law). `desired_heading`
+    itself is only updated on a FRESH camera detection -- set to that
+    detection's (noisy) world-frame bearing, mirroring the real controller's
+    absolute-yaw-setpoint law "yaw_deg = psi + beta" (own yaw + measured
+    bearing IS the tag's world-frame bearing, up to sensor noise). Between
+    detections the boresight just keeps flying toward the LAST thing it
+    saw -- it does not clairvoyantly re-aim at the target's current true
+    position. This is exactly what lets a fast crosser's true LOS run away
+    from the boresight faster than `yaw_rate_max` can chase it, walking the
+    tag out past `fov_half` -- the real dropout mechanism confirmed in
+    m4_intercept_pronav_...T044945Z.csv's bearing trace (bearing climbs
+    from ~0 to ~-40 deg over ~10 detections as coverage collapses, right as
+    the FOV edge is approached).
     """
 
     def __init__(
         self, rng, det_range=DET_RANGE_DEFAULT_M, handoff_range=HANDOFF_RANGE_DEFAULT_M,
         cam_hz=CAM_HZ, cue_hz=CUE_HZ, sigma_bearing_deg=SIGMA_BEARING_DEG,
         range_noise_frac=RANGE_NOISE_FRAC, dropout_p=DROPOUT_P,
-        cue_sigma_m=CUE_SIGMA_M, cue_latency_s=CUE_LATENCY_S,
+        dropout_p_edge=DROPOUT_P_EDGE, dropout_edge_exponent=DROPOUT_EDGE_EXPONENT,
+        fov_half_deg=FOV_HALF_DEG_DEFAULT, yaw_rate_max_deg_s=YAW_RATE_MAX_DEG_S_DEFAULT,
+        cue_sigma_m=CUE_SIGMA_M, cue_latency_s=CUE_LATENCY_S, initial_heading=0.0,
     ):
         self.rng = rng
         self.det_range = det_range
@@ -325,26 +348,53 @@ class Sensor:
         self.sigma_bearing = math.radians(sigma_bearing_deg)
         self.range_noise_frac = range_noise_frac
         self.dropout_p = dropout_p
+        self.dropout_p_edge = dropout_p_edge
+        self.dropout_edge_exponent = dropout_edge_exponent
+        self.fov_half = math.radians(fov_half_deg)
+        self.yaw_rate_max = math.radians(yaw_rate_max_deg_s)
         self.cue_sigma = cue_sigma_m
         self.cue_latency = cue_latency_s
         self._cam_timer = 0.0
         self._cue_timer = 0.0
         self._cue_pending = []  # list of (deliver_t, x, y)
+        # own_heading/desired_heading start centered on the target -- mirrors
+        # the real engagement's ACQUIRE phase (hover + yaw-center on the
+        # tag) already having completed BEFORE the ENGAGE clock this lab
+        # simulates starts ticking (see simulate()'s initial_heading calc).
+        self.own_heading = initial_heading
+        self.desired_heading = initial_heading
 
     def tick(self, t, dt, own_pos, target_pos, two_stage):
         rel = (target_pos[0] - own_pos[0], target_pos[1] - own_pos[1])
         true_range = math.hypot(rel[0], rel[1])
+        true_bearing = math.atan2(rel[1], rel[0])
+
+        # Slew the boresight toward the last commanded heading at the yaw
+        # rate limit -- see class docstring.
+        max_step = self.yaw_rate_max * dt
+        dh = clamp(wrap_pi(self.desired_heading - self.own_heading), -max_step, max_step)
+        self.own_heading = wrap_pi(self.own_heading + dh)
+        boresight_err = wrap_pi(true_bearing - self.own_heading)
 
         self._cam_timer += dt
         cam_meas = None
         if self._cam_timer >= self.cam_period:
             self._cam_timer -= self.cam_period
-            if true_range < self.det_range and self.rng.random() >= self.dropout_p:
-                true_bearing = math.atan2(rel[1], rel[0])
-                range_n = true_range * (1.0 + self.rng.normal(0.0, self.range_noise_frac))
-                bearing_n = true_bearing + self.rng.normal(0.0, self.sigma_bearing)
-                rel_n = (range_n * math.cos(bearing_n), range_n * math.sin(bearing_n))
-                cam_meas = Measurement(t, rel_n, range_n, bearing_n, "camera")
+            in_fov = abs(boresight_err) < self.fov_half
+            if true_range < self.det_range and in_fov:
+                edge_frac = clamp(abs(boresight_err) / self.fov_half, 0.0, 1.0)
+                p_drop = self.dropout_p + (self.dropout_p_edge - self.dropout_p) * (
+                    edge_frac ** self.dropout_edge_exponent
+                )
+                if self.rng.random() >= p_drop:
+                    range_n = true_range * (1.0 + self.rng.normal(0.0, self.range_noise_frac))
+                    bearing_n = true_bearing + self.rng.normal(0.0, self.sigma_bearing)
+                    rel_n = (range_n * math.cos(bearing_n), range_n * math.sin(bearing_n))
+                    cam_meas = Measurement(t, rel_n, range_n, bearing_n, "camera")
+                    # Commanded absolute yaw = psi + measured beta, which IS
+                    # (up to sensor noise) the tag's world-frame bearing --
+                    # only updates here, on a fresh detection (see docstring).
+                    self.desired_heading = bearing_n
 
         cue_meas = None
         if two_stage:
@@ -372,16 +422,44 @@ class Sensor:
 # =========================================================================
 # Guidance law library
 # =========================================================================
+def compute_v_close(r_hat, v_close_runin, v_close_term, throttle_range, freeze_range):
+    """Two-speed along-LOS closing law: fast run-in (`v_close_runin`) while
+    still far, linearly throttled down to `v_close_term` as r_hat falls
+    through `throttle_range` to `freeze_range`, held at `v_close_term`
+    inside that. Mirrors m4_intercept.py's compute_v_close() under --fpv
+    EXACTLY (same two numbers, same throttle band) -- this is one of the
+    two changes (the other being the FOV/dropout sensor model) needed for
+    this lab to reproduce the FPV-profile Gazebo miss numbers (ADR-0011 2nd
+    addendum): the original (ADR-0011) lab used one flat V_CLOSE, which
+    under-modeled both the aggressive run-in AND the tamed terminal phase
+    that the real gain search actually validated in Gazebo."""
+    if r_hat is None or r_hat >= throttle_range:
+        return v_close_runin
+    if r_hat <= freeze_range:
+        return v_close_term
+    frac = (r_hat - freeze_range) / (throttle_range - freeze_range)
+    return v_close_term + frac * (v_close_runin - v_close_term)
+
+
+# FPV-profile-calibrated defaults (ADR-0011 2nd addendum / m4_intercept.py's
+# FPV dict): N=5 (N_PRONAV), two-speed closing (9.0 run-in / 5.5 terminal,
+# throttled from r_hat=5.0 down to the 3.5 m freeze range), VC_FLOOR=4.5,
+# V_PERP_MAX=8, V_TOTAL_MAX=13, BETA_RANGE=0.45 -- these are the SAME
+# numbers that were actually flown and validated in Gazebo, not the
+# original lab's generic guesses.
 DEFAULT_PN_PARAMS = dict(
-    N=4.0, V_CLOSE=8.0, VC_FLOOR=1.5, V_PERP_MAX=6.0, V_TOTAL_MAX=14.0,
-    ALPHA=0.5, BETA_LAMBDA=0.30, BETA_RANGE=0.15,
+    N=5.0, V_CLOSE=5.5, V_CLOSE_RUNIN=9.0, THROTTLE_RANGE=5.0,
+    VC_FLOOR=4.5, V_PERP_MAX=8.0, V_TOTAL_MAX=13.0,
+    ALPHA=0.5, BETA_LAMBDA=0.30, BETA_RANGE=0.45,
     TERMINAL_FREEZE_RANGE=TERMINAL_FREEZE_RANGE_M,
 )
 DEFAULT_PURSUIT_PARAMS = dict(DEFAULT_PN_PARAMS)  # shares gains w/ pure_pn (fairness, ADR-0009 style)
 DEFAULT_APN_PARAMS = dict(DEFAULT_PN_PARAMS, TRACK_ALPHA=0.6, TRACK_BETA=0.2, ACCEL_EMA=0.3)
 DEFAULT_PN_PLUS_LEAD_PARAMS = dict(DEFAULT_PN_PARAMS, TRACK_ALPHA=0.6, TRACK_BETA=0.2)
 DEFAULT_PIP_PARAMS = dict(
-    V_CLOSE=8.0, MAX_LEAD_S=6.0, TERMINAL_FREEZE_RANGE=0.5,
+    V_CLOSE=5.5, V_CLOSE_RUNIN=9.0, THROTTLE_RANGE=5.0,
+    MAX_LEAD_S=3.0,  # FPV PIP_MAX_LEAD_S (m4_intercept.py) -- was 6.0
+    TERMINAL_FREEZE_RANGE=TERMINAL_FREEZE_RANGE_M,  # shares the FPV freeze range w/ pure_pn (was hardcoded 0.5)
     TRACK_ALPHA=0.6, TRACK_BETA=0.2,
 )
 
@@ -399,6 +477,8 @@ class Pursuit:
     def __init__(self, params):
         p = {**DEFAULT_PURSUIT_PARAMS, **(params or {})}
         self.v_close = p["V_CLOSE"]
+        self.v_close_runin = p.get("V_CLOSE_RUNIN", self.v_close)
+        self.throttle_range = p.get("THROTTLE_RANGE", p["TERMINAL_FREEZE_RANGE"])
         self.freeze_range = p["TERMINAL_FREEZE_RANGE"]
         self.lam = AlphaBetaFilter(p["ALPHA"], p["BETA_LAMBDA"], angular=True)
         self.rng_f = AlphaBetaFilter(p["ALPHA"], p["BETA_RANGE"])
@@ -421,8 +501,11 @@ class Pursuit:
             return self.frozen
 
         lambda_hat = self.lam.x_hat
-        vx = self.v_close * math.cos(lambda_hat)
-        vy = self.v_close * math.sin(lambda_hat)
+        v_close = compute_v_close(
+            r_hat, self.v_close_runin, self.v_close, self.throttle_range, self.freeze_range
+        )
+        vx = v_close * math.cos(lambda_hat)
+        vy = v_close * math.sin(lambda_hat)
         self.last_cmd = (vx, vy)
         return (vx, vy)
 
@@ -442,6 +525,8 @@ class PurePN:
         p = {**DEFAULT_PN_PARAMS, **(params or {})}
         self.N = p["N"]
         self.v_close = p["V_CLOSE"]
+        self.v_close_runin = p.get("V_CLOSE_RUNIN", self.v_close)
+        self.throttle_range = p.get("THROTTLE_RANGE", p["TERMINAL_FREEZE_RANGE"])
         self.vc_floor = p["VC_FLOOR"]
         self.v_perp_max = p["V_PERP_MAX"]
         self.v_total_max = p["V_TOTAL_MAX"]
@@ -474,10 +559,13 @@ class PurePN:
         a_cmd = self.N * vc * lambda_dot
         self.v_perp = clamp(self.v_perp + a_cmd * dt, -self.v_perp_max, self.v_perp_max)
 
+        v_close = compute_v_close(
+            r_hat, self.v_close_runin, self.v_close, self.throttle_range, self.freeze_range
+        )
         u = (math.cos(lambda_hat), math.sin(lambda_hat))
         pvec = (-math.sin(lambda_hat), math.cos(lambda_hat))
-        vx = self.v_close * u[0] + self.v_perp * pvec[0]
-        vy = self.v_close * u[1] + self.v_perp * pvec[1]
+        vx = v_close * u[0] + self.v_perp * pvec[0]
+        vy = v_close * u[1] + self.v_perp * pvec[1]
         norm = math.hypot(vx, vy)
         if norm > self.v_total_max:
             s = self.v_total_max / norm
@@ -506,6 +594,8 @@ class APN:
         p = {**DEFAULT_APN_PARAMS, **(params or {})}
         self.N = p["N"]
         self.v_close = p["V_CLOSE"]
+        self.v_close_runin = p.get("V_CLOSE_RUNIN", self.v_close)
+        self.throttle_range = p.get("THROTTLE_RANGE", p["TERMINAL_FREEZE_RANGE"])
         self.vc_floor = p["VC_FLOOR"]
         self.v_perp_max = p["V_PERP_MAX"]
         self.v_total_max = p["V_TOTAL_MAX"]
@@ -547,9 +637,12 @@ class APN:
         a_cmd = self.N * vc * lambda_dot + 0.5 * self.N * a_target_perp
         self.v_perp = clamp(self.v_perp + a_cmd * dt, -self.v_perp_max, self.v_perp_max)
 
+        v_close = compute_v_close(
+            r_hat, self.v_close_runin, self.v_close, self.throttle_range, self.freeze_range
+        )
         u = (math.cos(lambda_hat), math.sin(lambda_hat))
-        vx = self.v_close * u[0] + self.v_perp * pvec[0]
-        vy = self.v_close * u[1] + self.v_perp * pvec[1]
+        vx = v_close * u[0] + self.v_perp * pvec[0]
+        vy = v_close * u[1] + self.v_perp * pvec[1]
         norm = math.hypot(vx, vy)
         if norm > self.v_total_max:
             s = self.v_total_max / norm
@@ -598,6 +691,8 @@ class PIP:
     def __init__(self, params):
         p = {**DEFAULT_PIP_PARAMS, **(params or {})}
         self.v_close = p["V_CLOSE"]
+        self.v_close_runin = p.get("V_CLOSE_RUNIN", self.v_close)
+        self.throttle_range = p.get("THROTTLE_RANGE", p["TERMINAL_FREEZE_RANGE"])
         self.max_lead_s = p["MAX_LEAD_S"]
         self.freeze_range = p["TERMINAL_FREEZE_RANGE"]
         self.tracker = TargetTracker(p["TRACK_ALPHA"], p["TRACK_BETA"])
@@ -622,16 +717,19 @@ class PIP:
                 self.frozen = self.last_cmd
             return self.frozen
 
+        v_close = compute_v_close(
+            r_hat, self.v_close_runin, self.v_close, self.throttle_range, self.freeze_range
+        )
         vt = self.tracker.vel_hat or (0.0, 0.0)
-        t_go = solve_intercept_time(rel, vt, self.v_close, self.max_lead_s)
+        t_go = solve_intercept_time(rel, vt, v_close, self.max_lead_s)
         aim = (target_pos[0] + vt[0] * t_go, target_pos[1] + vt[1] * t_go)
         direction = (aim[0] - own_pos[0], aim[1] - own_pos[1])
         dnorm = math.hypot(direction[0], direction[1])
         if dnorm < 1e-6:
             vx, vy = self.last_cmd
         else:
-            vx = self.v_close * direction[0] / dnorm
-            vy = self.v_close * direction[1] / dnorm
+            vx = v_close * direction[0] / dnorm
+            vy = v_close * direction[1] / dnorm
         self.last_cmd = (vx, vy)
         return (vx, vy)
 
@@ -649,6 +747,8 @@ class PNPlusLead:
         p = {**DEFAULT_PN_PLUS_LEAD_PARAMS, **(params or {})}
         self.N = p["N"]
         self.v_close = p["V_CLOSE"]
+        self.v_close_runin = p.get("V_CLOSE_RUNIN", self.v_close)
+        self.throttle_range = p.get("THROTTLE_RANGE", p["TERMINAL_FREEZE_RANGE"])
         self.vc_floor = p["VC_FLOOR"]
         self.v_perp_max = p["V_PERP_MAX"]
         self.v_total_max = p["V_TOTAL_MAX"]
@@ -686,10 +786,13 @@ class PNPlusLead:
         a_cmd = self.N * vc * lambda_dot
         self.v_perp = clamp(self.v_perp + a_cmd * dt, -self.v_perp_max, self.v_perp_max)
 
+        v_close = compute_v_close(
+            r_hat, self.v_close_runin, self.v_close, self.throttle_range, self.freeze_range
+        )
         u = (math.cos(lambda_hat), math.sin(lambda_hat))
         pvec = (-math.sin(lambda_hat), math.cos(lambda_hat))
-        vx = self.v_close * u[0] + self.v_perp * pvec[0]
-        vy = self.v_close * u[1] + self.v_perp * pvec[1]
+        vx = v_close * u[0] + self.v_perp * pvec[0]
+        vy = v_close * u[1] + self.v_perp * pvec[1]
         vt = self.tracker.vel_hat
         if vt is not None:
             vx += vt[0]
@@ -703,25 +806,120 @@ class PNPlusLead:
         return (vx, vy)
 
 
+DEFAULT_DASH_PARAMS = dict(
+    DASH_SPEED=12.0,       # m/s, external-cue-guided closing speed during CUE phase (S2 "running start")
+    DASH_MAX_LEAD_S=4.0,
+    HANDOFF_RANGE=HANDOFF_RANGE_DEFAULT_M,
+    TRACK_ALPHA=0.6, TRACK_BETA=0.2,
+    TERMINAL_METHOD="pure_pn",   # which METHODS entry flies the terminal (camera-only) phase
+    TERMINAL_PARAMS=None,        # optional override dict for the terminal law's own params/gains
+)
+
+
+class TwoStageDash:
+    """S2 design (ADR-0011 2nd addendum's S1<->S2 coupling finding): DASH
+    toward the external cue's tracked target position+velocity at up to
+    `DASH_SPEED` (~12 m/s) while beyond `HANDOFF_RANGE` / before the camera
+    has a fresh lock, then HAND OFF to a normal camera-only terminal law
+    (default pure_pn -- the Gazebo-validated robust choice) once inside
+    `HANDOFF_RANGE` WITH a fresh camera detection. This gives the
+    interceptor a running start into the terminal phase instead of
+    building closing speed from hover, which is what the hover-start
+    (camera_only) config's ~4.7 m 'uncatchable' 6 m/s result says it
+    structurally cannot do on its own.
+
+    The dash itself reuses the PIP lead-pursuit solve (solve_intercept_time)
+    against the SAME TargetTracker fed by either sensor channel -- the cue's
+    10 Hz/0.5 m-sigma/100 ms-latency track is clean enough that a lead
+    solve is worth it even at long range; the terminal law gets its own
+    independent camera-only lambda/range filters (fed continuously, even
+    during the dash, so they are warm -- not cold-started -- the instant
+    handoff happens)."""
+
+    NAME = "two_stage_dash"
+
+    def __init__(self, params):
+        p = {**DEFAULT_DASH_PARAMS, **(params or {})}
+        self.dash_speed = p["DASH_SPEED"]
+        self.dash_max_lead_s = p["DASH_MAX_LEAD_S"]
+        self.handoff_range = p["HANDOFF_RANGE"]
+        terminal_name = p["TERMINAL_METHOD"]
+        cls, defaults = METHODS[terminal_name]
+        terminal_params = {**defaults, **(p.get("TERMINAL_PARAMS") or {})}
+        self.terminal = cls(terminal_params)
+        self.tracker = TargetTracker(p["TRACK_ALPHA"], p["TRACK_BETA"])
+        self.last_camera_t = None
+        self.last_cmd = (0.0, 0.0)
+
+    def step(self, t, dt, own_pos, own_vel, meas):
+        self.tracker.predict(dt)
+        if meas is not None:
+            abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
+            self.tracker.correct(abs_pos, t)
+            if meas.source == "camera":
+                self.last_camera_t = t
+
+        # Always step the terminal law (fed the same `meas`) so ITS filters
+        # stay warm through the dash phase -- avoids a cold-start filter the
+        # instant handoff happens.
+        terminal_cmd = self.terminal.step(t, dt, own_pos, own_vel, meas)
+
+        camera_has_tag = (
+            self.last_camera_t is not None and (t - self.last_camera_t) <= MEAS_STALE_S
+        )
+        pos_hat = self.tracker.pos_hat
+        r_hat = None
+        if pos_hat is not None:
+            r_hat = math.hypot(pos_hat[0] - own_pos[0], pos_hat[1] - own_pos[1])
+
+        in_terminal = camera_has_tag and r_hat is not None and r_hat <= self.handoff_range
+        if in_terminal:
+            self.last_cmd = terminal_cmd
+            return terminal_cmd
+
+        if pos_hat is None:
+            return (0.0, 0.0)  # no track yet at all (before the cue's first sample)
+
+        vt = self.tracker.vel_hat or (0.0, 0.0)
+        rel = (pos_hat[0] - own_pos[0], pos_hat[1] - own_pos[1])
+        t_go = solve_intercept_time(rel, vt, self.dash_speed, self.dash_max_lead_s)
+        aim = (pos_hat[0] + vt[0] * t_go, pos_hat[1] + vt[1] * t_go)
+        direction = (aim[0] - own_pos[0], aim[1] - own_pos[1])
+        dnorm = math.hypot(direction[0], direction[1])
+        if dnorm < 1e-6:
+            vx, vy = self.last_cmd
+        else:
+            vx = self.dash_speed * direction[0] / dnorm
+            vy = self.dash_speed * direction[1] / dnorm
+        self.last_cmd = (vx, vy)
+        return (vx, vy)
+
+
 METHODS = {
     "pursuit": (Pursuit, DEFAULT_PURSUIT_PARAMS),
     "pure_pn": (PurePN, DEFAULT_PN_PARAMS),
     "apn": (APN, DEFAULT_APN_PARAMS),
     "pip": (PIP, DEFAULT_PIP_PARAMS),
     "pn_plus_lead": (PNPlusLead, DEFAULT_PN_PLUS_LEAD_PARAMS),
+    "two_stage_dash": (TwoStageDash, DEFAULT_DASH_PARAMS),  # only meaningful with two_stage=True (needs the cue)
 }
+# Methods that only make sense/exist to be run under the cue channel
+# (two_stage=True); excluded from the default camera_only trade study.
+TWO_STAGE_ONLY_METHODS = {"two_stage_dash"}
 
 
 # =========================================================================
 # Target path library -- each builder returns (start_pos, vel_fn(t)) and is
 # deterministic given the shared per-run RNG (small geometry jitter is
 # drawn from it so a Monte-Carlo sweep varies genuine geometry, not just
-# sensor noise). Speeds parameterizable ~2-10 m/s. Geometry mirrors
-# m4_intercept.py's own engagement setup (target start ~6.5 m downrange,
-# crossing at a lateral offset) so initial range sits just outside the
-# default 8 m detection envelope -- by design, matching ADR-0009's choice.
+# sensor noise). Speeds parameterizable ~2-10 m/s. crossing_l2r/r2l's
+# geometry now matches m4_intercept.py's/check_s1.sh's ACTUAL FPV
+# engagement setup EXACTLY (target start (6.5, -4), tag pre-centered by the
+# ACQUIRE phase before this lab's t=0 -- ADR-0011 2nd addendum calibration
+# pass), not just "mirrors" it approximately as the original (ADR-0011)
+# version did with y0_mag=6.0.
 # =========================================================================
-def build_crossing(speed, rng, direction=1.0, x0=6.5, y0_mag=6.0, jitter=0.5):
+def build_crossing(speed, rng, direction=1.0, x0=6.5, y0_mag=4.0, jitter=0.5):
     """direction=+1: L->R (starts at y=-y0_mag, moves toward +y, crossing
     through the interceptor's vicinity near y=0). direction=-1: R->L,
     mirrored (starts at y=+y0_mag, moves toward -y). The start Y sign MUST
@@ -845,9 +1043,16 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     params = {**defaults, **(method_params or {})}
     law = cls(params)
 
-    sensor = Sensor(rng, det_range=det_range, handoff_range=handoff_range)
-
     ix = iy = ivx = ivy = 0.0
+    # ACQUIRE already happened before this lab's clock starts (m4_intercept.py:
+    # hover + yaw-center on the tag BEFORE spawning the mover/engaging) -- so
+    # the boresight starts centered on the target's initial position, not at
+    # a fixed world heading. See Sensor's own_heading/FOV docstring.
+    initial_heading = math.atan2(ty - iy, tx - ix)
+    sensor = Sensor(
+        rng, det_range=det_range, handoff_range=handoff_range, initial_heading=initial_heading
+    )
+
     min_range = math.hypot(tx - ix, ty - iy)
     t_min_range = 0.0
     first_hit_time = None
@@ -907,6 +1112,8 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     return dict(
         method=method_name, path=path_name, speed=speed, seed=seed, two_stage=two_stage,
         N=params.get("N"), V_CLOSE=params.get("V_CLOSE"),
+        dash_speed=params.get("DASH_SPEED"), handoff_range_cfg=params.get("HANDOFF_RANGE"),
+        terminal_method=params.get("TERMINAL_METHOD"),
         miss_distance=min_range, intercept_time=intercept_time,
         control_effort=control_effort, detection_coverage=detection_coverage,
         tag_lost_in_terminal=tag_lost_in_terminal,
@@ -916,9 +1123,13 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
 # =========================================================================
 # Trade-study driver
 # =========================================================================
-ALL_METHODS = list(METHODS.keys())
+# camera_only methods -- excludes two_stage_dash (only meaningful with the
+# cue channel enabled; see TWO_STAGE_ONLY_METHODS).
+ALL_METHODS = [m for m in METHODS.keys() if m not in TWO_STAGE_ONLY_METHODS]
 ALL_PATHS = list(PATHS.keys())
-DEFAULT_SPEEDS = (3.0, 5.0, 7.0)
+# Calibration band (ADR-0011 2nd addendum): 3/4/6 m/s are the exact speeds
+# validated in Gazebo (0.94 m / 1.6 m / uncatchable-from-hover).
+DEFAULT_SPEEDS = (3.0, 4.0, 6.0)
 DEFAULT_SEEDS = 20
 
 
@@ -981,6 +1192,7 @@ def print_table(rows, headers, keyfmt):
 def write_csv(rows, path):
     fieldnames = [
         "method", "path", "speed", "seed", "two_stage", "N", "V_CLOSE",
+        "dash_speed", "handoff_range_cfg", "terminal_method",
         "miss_distance", "intercept_time", "control_effort",
         "detection_coverage", "tag_lost_in_terminal",
     ]
@@ -1051,13 +1263,151 @@ def run_gain_sweep(top_methods, paths, n_seeds, two_stage=False):
     return rows
 
 
+# =========================================================================
+# Calibration check (ADR-0011 2nd addendum): does the upgraded lab
+# reproduce the 5 real Gazebo data points at the EXACT validated engagement
+# geometry (crossing_l2r, x0=6.5/y0=-4, FPV profile)? This is a direct
+# head-to-head against numbers that were actually flown, not a hypothesis.
+# =========================================================================
+CALIBRATION_TARGETS = [
+    # (method, speed, gazebo target description)
+    ("pure_pn", 3.0, "0.94 m (clean intercept)"),
+    ("pure_pn", 4.0, "~1.6 m"),
+    ("pure_pn", 6.0, "uncatchable from hover, min range ~4.7 m"),
+    ("pip", 4.0, "~3.0 m (WORSE than pure_pn)"),
+]
+
+
+def run_calibration(n_seeds):
+    rows = []
+    for method in ("pure_pn", "pip"):
+        for speed in (3.0, 4.0, 6.0):
+            for seed in range(n_seeds):
+                rows.append(
+                    simulate(method, None, "crossing_l2r", {"speed": speed}, seed, two_stage=False)
+                )
+    return rows
+
+
+def print_calibration(cal_rows):
+    agg = {(a["method"], a["speed"]): a for a in aggregate_by(cal_rows, ("method", "speed"))}
+    print("\n" + "=" * 78)
+    print("CALIBRATION vs Gazebo ground truth (ADR-0011 2nd addendum) -- camera_only, hover start")
+    print("=" * 78)
+    print(f"{'method':10s} {'speed':>6s} {'lab mean':>9s} {'lab median':>11s} {'lab p90':>8s} "
+          f"{'coverage':>9s}   gazebo target")
+    for method, speed, target in CALIBRATION_TARGETS:
+        a = agg.get((method, speed))
+        if a is None:
+            print(f"{method:10s} {speed:6.1f}   <no data>")
+            continue
+        print(
+            f"{method:10s} {speed:6.1f} {a['miss_mean']:9.3f} {a['miss_median']:11.3f} "
+            f"{a['miss_p90']:8.3f} {a['coverage_mean']:9.2f}   {target}"
+        )
+    print(
+        "(Gazebo coverage during real FPV engagements ranged ~0.36 (6 m/s) to "
+        "~0.70 (3-4 m/s); see m4_intercept_pronav/pip_*.csv.)"
+    )
+
+
+# =========================================================================
+# S2 dash-config sweep (ADR-0011 2nd addendum's S1<->S2 coupling finding):
+# sweep dash_speed x handoff_range x terminal_method at the FPV target band
+# (6/8/10 m/s) on a LONGER-standoff geometry so the external cue has real
+# dash room before handoff (the calibration geometry's ~7.6 m start range
+# is already inside the camera's own det_range -- there is no cue runway
+# there by construction). Answers: what speeds become catchable, and what's
+# the best S2 config.
+# =========================================================================
+S2_SPEEDS = (6.0, 8.0, 10.0)
+S2_DASH_SPEED_GRID = (10.0, 12.0, 14.0)
+S2_HANDOFF_RANGE_GRID = (6.0, 8.0, 10.0)
+S2_TERMINAL_METHODS = ("pure_pn", "pip")
+S2_PATH_PARAMS = dict(x0=6.5, y0_mag=14.0)  # ~15.4 m initial range -- real dash runway
+
+
+def run_s2_dash_sweep(n_seeds):
+    rows = []
+    for speed in S2_SPEEDS:
+        for dash_speed in S2_DASH_SPEED_GRID:
+            for handoff_range in S2_HANDOFF_RANGE_GRID:
+                for terminal_method in S2_TERMINAL_METHODS:
+                    method_params = dict(
+                        DASH_SPEED=dash_speed, HANDOFF_RANGE=handoff_range,
+                        TERMINAL_METHOD=terminal_method,
+                    )
+                    path_params = dict(S2_PATH_PARAMS, speed=speed, handoff_range=handoff_range)
+                    for seed in range(n_seeds):
+                        rows.append(
+                            simulate(
+                                "two_stage_dash", method_params, "crossing_l2r", path_params,
+                                seed, two_stage=True,
+                            )
+                        )
+    return rows
+
+
+def run_s2_baseline(n_seeds):
+    """Camera-only, hover-start pure_pn at the SAME long-standoff geometry
+    and the S2 target speeds -- the "no dash" comparison point."""
+    rows = []
+    for speed in S2_SPEEDS:
+        for seed in range(n_seeds):
+            path_params = dict(S2_PATH_PARAMS, speed=speed)
+            rows.append(
+                simulate("pure_pn", None, "crossing_l2r", path_params, seed, two_stage=False)
+            )
+    return rows
+
+
+def print_s2_results(dash_rows, baseline_rows):
+    print("\n" + "=" * 78)
+    print("S2 DASH STUDY: two_stage_dash vs camera_only (hover start), long-standoff geometry")
+    print("=" * 78)
+    base_agg = {a["speed"]: a for a in aggregate_by(baseline_rows, ("speed",))}
+    dash_agg = aggregate_by(
+        dash_rows, ("speed", "dash_speed", "handoff_range_cfg", "terminal_method")
+    )
+    best_overall = []
+    for speed in S2_SPEEDS:
+        cands = [r for r in dash_agg if r["speed"] == speed]
+        cands.sort(key=lambda r: r["miss_mean"])
+        best = cands[0]
+        base = base_agg.get(speed)
+        base_miss = base["miss_mean"] if base else float("nan")
+        print(
+            f"  speed={speed:4.1f} m/s  camera_only(hover) miss={base_miss:6.3f} m   "
+            f"BEST two_stage_dash miss={best['miss_mean']:.3f} m  "
+            f"(dash_speed={best['dash_speed']}, handoff_range={best['handoff_range_cfg']}, "
+            f"terminal={best['terminal_method']}, coverage={best['coverage_mean']:.2f})"
+        )
+        print("    top 3 configs:")
+        print_table(
+            cands[:3],
+            ["dash_speed", "handoff_range_cfg", "terminal_method", "n", "miss_mean", "coverage"],
+            lambda r: (
+                str(r["dash_speed"]), str(r["handoff_range_cfg"]), r["terminal_method"],
+                str(r["n"]), f"{r['miss_mean']:.3f}", f"{r['coverage_mean']:.2f}",
+            ),
+        )
+        best_overall.append(best)
+    return best_overall
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--quick", action="store_true", help="small fast sweep (smoke test)")
     parser.add_argument("--two-stage", action="store_true",
-                         help="enable the external-cue CUE phase (default: camera-only)")
+                         help="enable the external-cue CUE phase for the MAIN trade study "
+                              "(default: camera-only). The calibration and S2 dash sections "
+                              "always run regardless of this flag (camera_only / two_stage "
+                              "respectively, per ADR-0011 2nd addendum's 'run both configs' ask).")
     parser.add_argument("--no-plots", action="store_true", help="skip matplotlib plots")
-    parser.add_argument("--seeds", type=int, default=None, help="override seed count")
+    parser.add_argument("--seeds", type=int, default=None, help="override seed count (main sweep)")
+    parser.add_argument("--skip-calibration", action="store_true",
+                         help="skip the pure_pn/pip vs Gazebo calibration check")
+    parser.add_argument("--skip-s2", action="store_true", help="skip the S2 dash-config sweep")
     args = parser.parse_args()
 
     os.makedirs(LOGS_DIR, exist_ok=True)
@@ -1070,15 +1420,32 @@ def main():
         paths = ["crossing_l2r", "jink"]
         speeds = [5.0]
         n_seeds = args.seeds or 5
+        cal_seeds = 30
+        s2_seeds = 5
     else:
         methods = ALL_METHODS
         paths = ALL_PATHS
         speeds = list(DEFAULT_SPEEDS)
         n_seeds = args.seeds or DEFAULT_SEEDS
+        cal_seeds = 300
+        s2_seeds = 40
+
+    extra_rows = []
+
+    # --- (a) CALIBRATION: does the lab reproduce the 5 Gazebo data points? --
+    if not args.skip_calibration:
+        print(f"\n[guidance_lab] calibration: 2 methods x 3 speeds x {cal_seeds} seeds "
+              f"on the exact Gazebo-validated crossing_l2r geometry...")
+        t0 = time.perf_counter()
+        cal_rows = run_calibration(cal_seeds)
+        print(f"[guidance_lab] calibration done: {len(cal_rows)} runs in "
+              f"{time.perf_counter() - t0:.2f}s")
+        print_calibration(cal_rows)
+        extra_rows += cal_rows
 
     n_runs = len(methods) * len(paths) * len(speeds) * n_seeds
     print(
-        f"[guidance_lab] sweep: {len(methods)} methods x {len(paths)} paths x "
+        f"\n[guidance_lab] sweep: {len(methods)} methods x {len(paths)} paths x "
         f"{len(speeds)} speeds x {n_seeds} seeds = {n_runs} runs "
         f"(two_stage={args.two_stage})"
     )
@@ -1177,8 +1544,30 @@ def main():
             ),
         )
 
+    # --- (c) S2 DASH STUDY: does an external-cue running start make ---------
+    # 6/8/10 m/s catchable, and what's the best dash config? -----------------
+    s2_best = None
+    if not args.skip_s2:
+        n_s2_runs = (
+            len(S2_SPEEDS) * len(S2_DASH_SPEED_GRID) * len(S2_HANDOFF_RANGE_GRID)
+            * len(S2_TERMINAL_METHODS) * s2_seeds
+        )
+        print(
+            f"\n[guidance_lab] S2 dash sweep: {len(S2_SPEEDS)} speeds x "
+            f"{len(S2_DASH_SPEED_GRID)} dash speeds x {len(S2_HANDOFF_RANGE_GRID)} "
+            f"handoff ranges x {len(S2_TERMINAL_METHODS)} terminal methods x "
+            f"{s2_seeds} seeds = {n_s2_runs} runs, plus a camera_only baseline..."
+        )
+        t0 = time.perf_counter()
+        s2_dash_rows = run_s2_dash_sweep(s2_seeds)
+        s2_baseline_rows = run_s2_baseline(s2_seeds)
+        print(f"[guidance_lab] S2 sweep done: {len(s2_dash_rows) + len(s2_baseline_rows)} "
+              f"runs in {time.perf_counter() - t0:.2f}s")
+        s2_best = print_s2_results(s2_dash_rows, s2_baseline_rows)
+        extra_rows += s2_dash_rows + s2_baseline_rows
+
     # --- CSV + plots -------------------------------------------------------
-    all_rows = rows + gain_rows
+    all_rows = rows + gain_rows + extra_rows
     write_csv(all_rows, csv_path)
     print(f"\n[guidance_lab] CSV written: {csv_path} ({len(all_rows)} rows)")
 
@@ -1210,6 +1599,14 @@ def main():
         f"{p}->{r['method']}" for p in paths_seen
         for r in [min([x for x in by_mp if x['path'] == p], key=lambda x: x['miss_mean'])]
     ))
+    if s2_best:
+        print("  S2 dash recommendation (per target speed):")
+        for best in s2_best:
+            print(
+                f"    {best['speed']:.0f} m/s -> dash_speed={best['dash_speed']}, "
+                f"handoff_range={best['handoff_range_cfg']}, terminal={best['terminal_method']} "
+                f"-> miss_mean={best['miss_mean']:.3f} m"
+            )
     print(f"  CSV: {csv_path}")
     print(
         "  REMINDER: this is a kinematic surrogate (see module docstring's "

@@ -37,7 +37,14 @@ import numpy as np
 @dataclass
 class Intrinsics:
     """Pinhole camera intrinsics (OpenCV convention) + the resolution they
-    were calibrated at. fx/fy in pixels; cx/cy the principal point."""
+    were calibrated at. fx/fy in pixels; cx/cy the principal point;
+    dist_coeffs the radial/tangential lens distortion (k1,k2,p1,p2[,k3]).
+
+    The sim renders an IDEAL pinhole (dist_coeffs all ~0), so pupil-apriltags
+    can pose-estimate straight off (fx,fy,cx,cy). A REAL lens distorts, and
+    pupil-apriltags has no distortion model -- so on hardware the frame must
+    be undistorted first (OpenCVFrameSource does this when dist_coeffs are
+    non-negligible), which makes the pinhole (fx,fy,cx,cy) valid again."""
 
     fx: float
     fy: float
@@ -45,21 +52,34 @@ class Intrinsics:
     cy: float
     width: int
     height: int
+    dist_coeffs: Optional[Tuple[float, ...]] = None
 
     @property
     def params(self) -> Tuple[float, float, float, float]:
-        """(fx, fy, cx, cy) -- the tuple pupil-apriltags' detect() wants."""
+        """(fx, fy, cx, cy) -- the tuple pupil-apriltags' detect() wants.
+        Valid for pose estimation only on an undistorted (or ideal-pinhole)
+        image; see the class docstring."""
         return (self.fx, self.fy, self.cx, self.cy)
+
+    @property
+    def has_distortion(self) -> bool:
+        """True if the calibrated distortion is large enough to matter (a
+        real lens); False for the sim's ideal pinhole (all ~0)."""
+        return self.dist_coeffs is not None and any(
+            abs(c) > 1e-4 for c in self.dist_coeffs
+        )
 
     @classmethod
     def from_json(cls, path: str) -> "Intrinsics":
         with open(path) as f:
             d = json.load(f)
         res = d.get("resolution", {})
+        dc = d.get("dist_coeffs")
         return cls(
             fx=float(d["fx"]), fy=float(d["fy"]),
             cx=float(d["cx"]), cy=float(d["cy"]),
             width=int(res.get("width", 0)), height=int(res.get("height", 0)),
+            dist_coeffs=tuple(float(x) for x in dc) if dc else None,
         )
 
 
@@ -97,11 +117,24 @@ class OpenCVFrameSource(FrameSource):
 
     def __init__(self, device, intrinsics_path: str, *,
                  width: Optional[int] = None, height: Optional[int] = None,
-                 fourcc: Optional[str] = None):
+                 fourcc: Optional[str] = None, undistort: bool = True):
         import cv2  # local import: hardware-only dep, keeps sim import light
 
         self._cv2 = cv2
         self._intrinsics = Intrinsics.from_json(intrinsics_path)
+        # Precompute an undistortion remap once (cheap per-frame cv2.remap
+        # thereafter) when the lens has real distortion. Keeps the same
+        # (fx,fy,cx,cy) valid for pupil-apriltags' distortion-free pose solve.
+        self._remap = None
+        if undistort and self._intrinsics.has_distortion:
+            K = np.array([[self._intrinsics.fx, 0, self._intrinsics.cx],
+                          [0, self._intrinsics.fy, self._intrinsics.cy],
+                          [0, 0, 1]], dtype=np.float64)
+            D = np.array(self._intrinsics.dist_coeffs, dtype=np.float64)
+            size = (self._intrinsics.width, self._intrinsics.height)
+            m1, m2 = cv2.initUndistortRectifyMap(K, D, None, K, size, cv2.CV_16SC2)
+            self._remap = (m1, m2)
+            print("[frame_source] real lens distortion -> undistorting frames")
         # `device` may be an int index (0), a /dev/videoN path, or a full
         # GStreamer pipeline string (CSI/libcamera) -- VideoCapture accepts
         # all three; we don't guess, we pass it through.
@@ -144,6 +177,9 @@ class OpenCVFrameSource(FrameSource):
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             else:
                 gray = frame
+            if self._remap is not None:
+                gray = cv2.remap(gray, self._remap[0], self._remap[1],
+                                 cv2.INTER_LINEAR)
             with self._lock:
                 self._latest = (gray, t)
 
