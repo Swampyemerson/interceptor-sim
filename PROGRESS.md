@@ -7,6 +7,7 @@
 | M2 AprilTag | Tag detected live; bearing/rel-position vs ground truth | detection rate + pose error logged | ✅ 2026-07-04 — exit 0; detection_rate 1.000, mean err_norm 0.0861 m (bar: ≤0.25 m), max 0.0866 m, mean range 4.888 m (`logs/m2_detect_20260704T233941Z.csv`) |
 | M3 Static intercept | Close on static tag, hold 2 m standoff | final standoff error < 0.5 m | ✅ 2026-07-05 — exit 0; final standoff err 0.018 m / 0.035 m across two verifier runs (bar: <0.5 m), detection coverage 1.000, settle ~10 s, no overshoot; verifier-confirmed (`logs/m3_intercept_20260705T000619Z.csv`, `...000818Z.csv`) |
 | M4 Moving target | Pursuit vs pro-nav on moving tag | < 1 m closest approach @ ≥ 2 m/s | ✅ 2026-07-05 — exit 0; pro-nav miss 0.402/0.277/0.443 m across three gate runs (bar <1 m) vs pursuit 2.544/2.109/2.048 m on identical 2.0 m/s crossing paths — pro-nav 4.6-7.6× tighter; camera-only guidance verifier-confirmed incl. no-cheat numeric check (`logs/m4_intercept_*_20260705T03*.csv`) |
-| M5 Polish | Monte-Carlo, plots, README, demo GIF | plots + README complete | ⬜ pending |
+| M4.5 Realism (S1–S4, ADR-0010) | FPV speeds + two-stage sensor handoff + maneuvering targets | per-sub-step scripts (`check_s1.sh`, `check_s2.sh`, …) | 🟨 in progress — S1 ✅ (`--fpv`, 0.94 m vs 3 m/s from hover; hover capped ~3 m/s); S2 ✅ 2026-07-05 (external-cue dash→camera-only handoff; 6 m/s crosser — uncatchable from hover — now ~1.1-2.3 m; honesty audits pass; tracking A/B: Kalata rejected in Gazebo, ADR-0013); S3 (path suite) next; S4 pending |
+| M5 Polish | Monte-Carlo, plots, README, demo GIF | plots + README complete | ⬜ pending — PROTECTED: if S3/S4 eat its budget, M5 wins (ADR-0010) |
 
 Details per milestone live in `NEXT.md` (current work) and `docs/decisions.md` (choices).

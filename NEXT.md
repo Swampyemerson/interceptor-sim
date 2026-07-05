@@ -1,29 +1,39 @@
 # NEXT — top of the stack
 
-## Current: M4.5 realism upgrade (ADR-0010 sequencing) — S1 done-ish, S2 is the enabler
+## Current: M4.5 realism upgrade (ADR-0010 sequencing) — S1 ✅, S2 ✅ (built + gated), S3 next
 
-### Where S1 (FPV speed) landed (2026-07-05)
-- FPV profile built behind `--fpv` (PX4 param bump via MAVSDK pre-arm, two-speed
-  closing law, rescaled terminal ranges, N=5). M4 gate untouched (opt-in flag).
-- **Pure pro-nav (N=5) intercepts a 3 m/s crosser at 0.94 m** (clean, <1 m) from a
-  hover start. 4 m/s ~1.6 m; 6 m/s uncatchable from hover.
-- **PIP (predicted intercept point) was ported and validated in Gazebo — it does
-  NOT transfer** (3.0 m at 4 m/s vs pure-PN 1.6 m). Noisy/intermittent monocular
-  track gives PIP a bad velocity estimate; pure PN (LOS-rate only) is more robust.
-  Kept as `--law pip` for the writeup as a documented negative result. See
-  ADR-0011 + addendum.
-- **KEY FINDING: hover-start is kinematically speed-limited.** The full FPV target
-  band (6-10 m/s) needs S2's external-cue DASH (running start). S1 and S2 are
-  coupled (council seats B/C called this). Do NOT keep grinding S1 vs faster
-  targets from hover — build the dash.
+### Where S2 (two-stage handoff) landed (2026-07-05, ADR-0013)
+- **The comms-denied headline works in Gazebo:** cue mock (`scripts/s2_cue_mock.py`,
+  sigma 0.5 m / 120 ms latency / 10 Hz, all sim-time) → `m4_intercept.py --handoff`
+  DASHES at 10 m/s on the cue's PIP lead → camera first sees the tag ~8.8-9.3 m
+  mid-dash → HANDOFF latches ~7.2-8.8 m (one-way: cue socket CLOSED, holder
+  nulled — structurally unreadable, ADR-0010 #5) → untouched camera-only terminal.
+- **6 m/s crosser (uncatchable from hover, ~4.7 m floor) now misses ~1.1-2.3 m.**
+  Gate `scripts/check_s2.sh`: both laws, fresh boot each, tiered 2.5 m bar
+  (ADR-0010 #7), audits: zero cue reads post-handoff / dash-before-engage /
+  law-aware cmd-vs-camera-LOS no-cheat. Run-to-run variance ~1 m (terminal
+  dropout timing) — single-flight deltas below ~1 m are noise in this regime.
+- **Tracking study (builder-requested): lab winners must re-earn it in Gazebo,
+  and Kalata DIDN'T.** Kalata-index filter gains (−24-28% in the lab!) made real
+  flights WORSE (bimodal correction cadence → degenerate gains; range channel
+  goes deaf → Vc starved). Kept as `--kalata`, default OFF, documented negative
+  result. Cue-latency compensation: lab-validated, Gazebo-inconclusive at n=1 —
+  kept as `--cue-latency-comp`, default OFF; M5's Monte-Carlo settles it. Lab
+  Kalman tracker + range gate: lab-negative, unported. THREE lab-vs-Gazebo data
+  points now (PIP, calibration, Kalata): the lab RANKS, Gazebo DECIDES.
+- **World→NED mapping (empirical, ADR-0013): north=world_y, east=world_x** — the
+  opposite of the naive guess; evidence in m4_intercept.py's docstring.
+- S1 recap: `--fpv` profile; pure PN (N=5) 0.94 m vs 3 m/s from hover; PIP
+  camera-only doesn't transfer (`--law pip` kept as negative result, ADR-0011).
 
-### Next: S2 — two-stage sensor handoff (the enabler)
-External-cue mock (subscription-free process, degraded GT: sigma~0.5 m, ~100 ms
-latency, 10 Hz) → interceptor DASHES on the cue (12 m/s) to a running start →
-HANDOFF to camera-only terminal (throttled ~5-6 m/s) once the tag is acquired
-within ~8 m. This gives the interceptor the closing speed to catch a fast
-crosser AND is the comms-denied headline. Then S3 (maneuver paths), S4 (proof),
-M5. Full plan: ADR-0010. Gate scripts: check_s1.sh exists; extend for S2.
+### Next: S3 — path suite (does it adapt to maneuvers?)
+Multi-segment / variable-speed / jink mover (sim-time scheduled — verify sim-time
+scheduling composes with DISCONTINUOUS velocity changes). Gate on ~4 paths
+{crossing L→R, R→L, S-weave, jink} through the S2 dash+handoff pipeline. Then S4
+(all-up adaptation proof: miss-vs-intensity curve, pursuit-vs-pronav per path),
+then M5. Full plan: ADR-0010. Note for S3: the board face is rigidly world −X
+(ADR-0010 #6) — maneuvers are velocity-schedule changes only; keep target X >
+interceptor X during the camera phase.
 
 ### M5 (still the finish line — protect it, ADR-0010)
 Gate (GOALS.md): Monte-Carlo batch over target speeds/paths, matplotlib
@@ -49,6 +59,13 @@ Likely steps (refine before building):
       was 0.28-0.44 m (fine vs 1.0 gate); RTF-load sensitivity documented.
 
 ## Done
+- **M4.5-S2 (2026-07-05):** two-stage external-cue handoff — built, dev-validated,
+  gated (`scripts/check_s2.sh`, tiered 2.5 m @ 6 m/s, both laws + honesty audits).
+  Kalata gains + cue-latency-comp ported behind flags, A/B'd in Gazebo: Kalata
+  rejected (negative result), latency-comp inconclusive; both default OFF.
+  ADR-0013 has the full story.
+- **M4.5-S1 (2026-07-05):** FPV profile behind `--fpv`; 0.94 m vs 3 m/s crosser
+  from hover; hover-start capped at ~3 m/s (the S2 coupling finding). ADR-0010/0011.
 - **M4 (2026-07-05):** moving-target intercept, pursuit vs pro-nav — GATE
   PASSING, verifier-confirmed (3 independent gate runs): pro-nav miss
   0.402/0.277/0.443 m (bar <1 m) vs pursuit 2.544/2.109/2.048 m, identical
@@ -107,4 +124,12 @@ Key facts for a fresh session:
 - Boot-complete grep: "Startup script returned successfully" (ADR-0004 — never wait
   on "Ready for takeoff!" pre-MAVSDK).
 - MAVSDK: `udpin://0.0.0.0:14540`. AprilTag lib: pupil-apriltags (ADR-0003).
+- S2 runtime facts: cue mock streams UDP JSON on 127.0.0.1:47800 (sim-time
+  scheduled); `--handoff` requires `--fpv`; S2 geometry default = target start
+  (6.5,-14,0.5), vel (0,6); `check_s2.sh [pip|pronav]` runs a single law for dev.
+  m4_intercept.py now holds a /clock subscription (SimClockHolder) — safe because
+  it makes no gz service calls (only the mover does, in its own process).
+- S2 A/B hygiene: miss variance across identical flights is ~1 m (terminal
+  dropout timing). Never conclude from a single flight; use the mechanism
+  evidence (logged filter gains, coverage) plus >=2-3 flights per config.
 - Minor: m0_takeoff.py duplicates its final CSV row — tidy if reused as template.
