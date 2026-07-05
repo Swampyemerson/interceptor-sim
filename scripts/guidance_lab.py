@@ -24,18 +24,39 @@ MODELING ASSUMPTIONS (the honesty boundary of this tool):
   - The "camera" sensor yields a relative-position measurement (target minus
     interceptor) only inside DET_RANGE, at ~14 Hz (matching the detector's
     measured framerate in m4_intercept.py), with Gaussian bearing/range
-    noise and a random dropout probability -- it does NOT do the strapdown
-    lambda=psi+beta reconstruction from m4_intercept.py's module docstring;
-    here the bearing IS the inertial LOS angle directly (own vehicle yaw is
-    not separately modeled). That reconstruction is validated in Gazebo
-    (ADR-0009); this lab's job is comparing LATERAL GUIDANCE LAWS, not
-    re-deriving the strapdown-frame math.
+    noise and an EDGE-WEIGHTED dropout probability -- it does NOT do the
+    strapdown lambda=psi+beta reconstruction from m4_intercept.py's module
+    docstring; here the returned bearing IS the inertial LOS angle directly
+    (own vehicle yaw is not separately exposed to the guidance laws). That
+    reconstruction is validated in Gazebo (ADR-0009); this lab's job is
+    comparing LATERAL GUIDANCE LAWS, not re-deriving the strapdown-frame
+    math.
+      A SEPARATE, internal-to-the-sensor own-heading model (own_heading)
+    DOES exist now (ADR-0011 2nd addendum calibration pass): the boresight
+    slews toward the last commanded absolute yaw (== the last fresh
+    detection's world-frame bearing, mirroring m4_intercept.py's
+    "yaw_deg = psi + beta" absolute-yaw-setpoint law) at a limited rate
+    (YAW_RATE_MAX_DEG_S_DEFAULT, mirrors m4_intercept.py's
+    YAWSPEED_MAX_DEG_S). A detection only fires when the TRUE bearing is
+    within FOV_HALF_DEG_DEFAULT of that boresight AND inside DET_RANGE, and
+    the dropout probability itself rises toward the FOV edge. This is what
+    lets a fast crosser's LOS rate outrun the vehicle's yaw and walk the
+    tag out of frame -- the real Gazebo dropout/coverage mechanism (see the
+    bearing trace in m4_intercept_pronav_...T044945Z.csv) that the
+    ORIGINAL (ADR-0011) version of this lab did not model at all.
   - An optional "external cue" (degraded ground-truth position, ADR-0010's
     mocked ground-sensor handoff) is available only beyond HANDOFF_RANGE, at
-    10 Hz, with its own position noise and fixed latency. It is a toggle
-    (--two-stage): the main trade study defaults to CAMERA-ONLY, since that
-    is this project's headline capability (GOALS.md: "when the datalink is
-    denied, the interceptor's own camera locks the target").
+    10 Hz, with its own position noise and fixed latency, and NO field-of-
+    view limit (it is an external/ground sensor watching from outside, not
+    the interceptor's own onboard camera). It is a toggle (--two-stage): the
+    main trade study defaults to CAMERA-ONLY, since that is this project's
+    headline capability (GOALS.md: "when the datalink is denied, the
+    interceptor's own camera locks the target"). A new `two_stage_dash`
+    guidance method (S2 design, ADR-0011 2nd addendum) uses the cue to DASH
+    at up to DASH_SPEED while beyond HANDOFF_RANGE, then hands off to a
+    normal camera-only terminal law (default pure_pn) once inside
+    HANDOFF_RANGE with a fresh camera lock -- the "running start" the
+    addendum's S1<->S2 coupling finding calls for.
 
 WHY THIS EXISTS: to answer "which guidance law (and gain) should we port
 into the real Gazebo sim" cheaply, before spending Gazebo wall-clock time.
@@ -81,7 +102,25 @@ CAM_HZ = 14.0                     # measured detector framerate (m4_intercept.py
 CUE_HZ = 10.0
 SIGMA_BEARING_DEG = 0.5
 RANGE_NOISE_FRAC = 0.02
+# Dropout is EDGE-WEIGHTED (ADR-0011 2nd-addendum calibration pass): DROPOUT_P
+# is the rate right at boresight center, DROPOUT_P_EDGE is the rate once the
+# true bearing sits right at the FOV edge, ramped by DROPOUT_EDGE_EXPONENT.
+# Tuned so a 3-4 m/s crosser's engagement detection_coverage lands ~0.6-0.7
+# and a 6 m/s crosser's lands much lower -- both match the real Gazebo CSVs
+# (m4_intercept_pronav_...T044945Z.csv: 0.67; ...T044458Z.csv (6 m/s): 0.36).
 DROPOUT_P = 0.05
+DROPOUT_P_EDGE = 0.65
+DROPOUT_EDGE_EXPONENT = 2.0
+# Camera half field-of-view (mirrors m4_intercept.py's own comment: "nominal
+# +-50 deg half-FOV"). A detection can only fire when the TRUE bearing is
+# within this of the vehicle's own (slewing) boresight -- see FOV/heading
+# model in the Sensor class docstring.
+FOV_HALF_DEG_DEFAULT = 50.0
+# Max yaw slew rate the vehicle's own boresight can track at (mirrors
+# m4_intercept.py's YAWSPEED_MAX_DEG_S=60, raised for FPV's faster LOS
+# rates). This is THE mechanism that lets a fast crosser outrun the yaw and
+# walk off-boresight -- not a flat dropout percentage.
+YAW_RATE_MAX_DEG_S_DEFAULT = 60.0
 CUE_SIGMA_M = 0.5
 CUE_LATENCY_S = 0.1
 
@@ -91,13 +130,16 @@ CUE_LATENCY_S = 0.1
 # sensor, so "no new frame this tick" is normal cadence, not a loss).
 MEAS_STALE_S = 0.3
 # Range inside which a genuine camera dropout counts as "tag lost in
-# terminal" (mirrors m4_intercept.py's TERMINAL_RANGE_M).
-TERMINAL_LOST_TAG_RANGE_M = 3.0
+# terminal" (mirrors m4_intercept.py's FPV TERMINAL_RANGE_M=5.0 -- the FPV
+# profile's rescaled value, since this lab is now calibrated to the FPV
+# engagement, not M4's original 2 m/s baseline).
+TERMINAL_LOST_TAG_RANGE_M = 5.0
 # Default terminal-freeze radius for LOS-rate-driven laws (mirrors
-# m4_intercept.py's TERMINAL_FREEZE_RANGE_M: lambda_dot is singular as
-# R->0, so guidance coasts on the last computed command instead of chasing
-# a blown-up rate estimate).
-TERMINAL_FREEZE_RANGE_M = 1.0
+# m4_intercept.py's FPV TERMINAL_FREEZE_RANGE_M=3.5: lambda_dot is singular
+# as R->0, so guidance coasts on the last computed command instead of
+# chasing a blown-up rate estimate; FPV rescaled this from M4's 2.0 up to
+# 3.5 to match its faster terminal closing speed's time semantics).
+TERMINAL_FREEZE_RANGE_M = 3.5
 
 
 def clamp(x, lo, hi):
