@@ -115,7 +115,7 @@ from datetime import datetime, timezone
 
 import cv2
 import numpy as np
-from pupil_apriltags import Detector
+from apriltag_detector import Detector  # portable: pupil-apriltags (x86) / pyapriltags (aarch64), ADR-0012
 
 from gz.transport13 import Node
 from gz.msgs10.image_pb2 import Image, RGB_INT8
