@@ -440,6 +440,19 @@ EARLY_HANDOFF_STREAK_MIN = 2
 SPLIT_FREEZE_RANGE_M = 1.5
 SPLIT_FREEZE_LAMBDA_DOT_CAP_DEG_S = 60.0
 
+# --- ADR-0028 Gazebo-confirm flag (--accel-boost; default OFF, requires
+# --fpv): the lab's SEPARATE "airframe agility" lever (as opposed to the
+# "running start" engagement-geometry lever, which needs no code change --
+# mc_batch.sh's existing --y0-mag/--x0 + m4_intercept.py's existing
+# --dash-speed already cover it). Overrides two of the four FPV["PX4_PARAMS"]
+# runtime-set values ~2x: MPC_ACC_HOR_MAX 12 -> 20 m/s^2, MPC_TILTMAX_AIR
+# 60 -> 70 deg. ADR-0028's lab caveat: the x500 airframe may be tilt/
+# thrust-limited well below a commanded 20 m/s^2 -- that is an expected,
+# reportable outcome (compare ACHIEVED accel from the flight's own velocity
+# trace against the commanded ceiling), not a bug.
+ACCEL_BOOST_MPC_ACC_HOR_MAX = 20.0
+ACCEL_BOOST_MPC_TILTMAX_AIR = 70.0
+
 # ADR-0015 --coast-search (link-loss-before-lock dead-reckon + bounded seeker
 # search; docs/decisions.md ADR-0015 "Handoff continuity"). All sim-time.
 COAST_STALE_S = 1.0           # cue silent longer than this (sim) => stale/link-loss
@@ -1237,6 +1250,18 @@ def parse_args():
              % (SPLIT_FREEZE_LAMBDA_DOT_CAP_DEG_S,
                 FPV["TERMINAL_FREEZE_RANGE_M"], SPLIT_FREEZE_RANGE_M),
     )
+    parser.add_argument(
+        "--accel-boost", action="store_true",
+        help="ADR-0028 Gazebo-confirm (default OFF, requires --fpv): ~2x "
+             "the FPV PX4 param bundle's MPC_ACC_HOR_MAX (%.1f -> %.1f m/s^2) "
+             "and MPC_TILTMAX_AIR (%.1f -> %.1f deg) -- the 'airframe "
+             "agility' lever, separate from the running-start engagement-"
+             "geometry lever (--dash-speed + mc_batch.sh --y0-mag/--x0). "
+             "The x500 may be tilt/thrust-limited below the commanded "
+             "ceiling; report ACHIEVED accel from telemetry, not the setpoint."
+             % (FPV["PX4_PARAMS"]["MPC_ACC_HOR_MAX"], ACCEL_BOOST_MPC_ACC_HOR_MAX,
+                FPV["PX4_PARAMS"]["MPC_TILTMAX_AIR"], ACCEL_BOOST_MPC_TILTMAX_AIR),
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
@@ -1258,6 +1283,8 @@ def parse_args():
     if args.split_freeze and args.law != "pronav":
         parser.error("--split-freeze requires --law pronav (it freezes the pro-nav v_perp "
                      "term specifically; the lab A/B was pure_pn-only)")
+    if args.accel_boost and not args.fpv:
+        parser.error("--accel-boost requires --fpv (it retunes the FPV PX4 param bundle)")
 
     if args.target_start is None:
         args.target_start = S2["TARGET_START_DEFAULT"] if args.handoff else "6.5,-4,0.5"
@@ -2250,6 +2277,20 @@ async def main():
     # freeze_range between both uses). Flag OFF => dict untouched.
     if args.split_freeze:
         FPV["TERMINAL_FREEZE_RANGE_M"] = SPLIT_FREEZE_RANGE_M
+
+    # ADR-0028 Gazebo-confirm (--accel-boost): patch the PX4-param bundle
+    # BEFORE it's read (both by the log line below and by the actual
+    # MAVSDK param.set_param_float loop near arming). Flag OFF => dict
+    # untouched, byte-identical to every prior FPV run.
+    if args.accel_boost:
+        FPV["PX4_PARAMS"]["MPC_ACC_HOR_MAX"] = ACCEL_BOOST_MPC_ACC_HOR_MAX
+        FPV["PX4_PARAMS"]["MPC_TILTMAX_AIR"] = ACCEL_BOOST_MPC_TILTMAX_AIR
+        print(
+            "[m4] Accel-boost ON (ADR-0028 Gazebo-confirm): MPC_ACC_HOR_MAX "
+            f"-> {ACCEL_BOOST_MPC_ACC_HOR_MAX} m/s^2, MPC_TILTMAX_AIR -> "
+            f"{ACCEL_BOOST_MPC_TILTMAX_AIR} deg (x500 may be tilt/thrust-"
+            "limited below this -- report ACHIEVED accel from telemetry)"
+        )
 
     if args.fpv:
         apply_fpv_profile()
