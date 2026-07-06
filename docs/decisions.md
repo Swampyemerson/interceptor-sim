@@ -320,3 +320,49 @@ The built S2 latch assumes the cue is ALIVE until the camera locks; in reality a
 - Capability seat: handoff must be a WARM lock-transfer; event camera is the high-payoff terminal-blur hedge; single-frame YOLO is insufficient.
 - Integration seat: cross-platform datum+clock skew dominate cue error (not stereo precision) — set the sim cue sigma from THAT budget, never a flat 0.5 m; the acquisition-vs-terminal-FOV trade is the systemic bite; refuse LOCAL-frame cues (the ADR-0006 "same number, wrong parent" bug across two vehicles).
 - **Date:** 2026-07-05. (Council: 3x council-member @ Opus/middleground per the model-orchestration policy; independent briefs + web research; synthesis by Fable main session. Pk-dialing stays parked pending step 1-3.)
+
+## ADR-0015 addendum (2026-07-05) — realism cost study in the lab: velocity emission is the #1 lever; naive realism is catastrophic
+- **What was built:** all 10 data-constraint rows of ADR-0015's table implemented in `guidance_lab.py` as opt-in perception variants behind a `PERCEPTION_DEFAULTS` dict threaded `simulate(perception=...)` → `Sensor`/trackers. Every new RNG draw is guarded by its feature, so `perception=None` reproduces the pre-ADR-0015 sensor exactly. **Baseline byte-identical (verifier-confirmed — full-stdout 0-line diff vs the pre-worker committed script, not just matching headline numbers):** default sweep pooled camera-only pure_pn 1.786 / apn 1.798 / pip 1.804 / pursuit 1.934 / pn_plus_lead 2.283; S2 dash10/handoff10/pip 0.709 / 1.268 / 2.132; and `--adr0014` produces identical stdout to the old code at every seed count tested. New driver `--adr0015` (default 60 seeds/cell; the study tables below were run at `--adr0015-seeds 80`, writes `logs/guidance_lab_adr0015_*.csv`).
+- **Constraint→knob map:** (1) `CUE_SIGMA_BASE_M`+`CUE_SIGMA_QUAD` (σ_R∝R²) + per-run `CUE_DATUM_BIAS_MAG_M`; (2) `CUE_EMIT_VELOCITY`+`CUE_VEL_SIGMA_M_S` (Measurement gains `vel_xy`; trackers ingest it vs the baseline differentiate path); (3) `CUE_LATENCY_JITTER_S`; (4) `CUE_DROPOUT_MARKOV` (2-state chain from p_out, burst_s); (5) `CUE_LINK_CUTOFF_RANGE_M/TIME_S` + dead-reckon diagnostics; (6) `TERM_LOS_RATE_DROPOUT` (dropout ∝ true |λ̇|); (7) `TERM_BEARING_SIGMA_DEG`/`TERM_RANGE_NOISE_FRAC`.
+
+### Sensitivity ranking (each constraint ALONE, PIP terminal, pooled 6/8/10 m/s vs idealized baseline: mean 1.42 m, Pk@1 36%, Pk@2 72%)
+| constraint | mean (Δm) | Pk@1 (Δ) | Pk@2 (Δ) |
+|---|---|---|---|
+| c5 link cutoff 11.5 m | 2.19 (+0.78) | 20% (−16) | 46% (**−26**) |
+| c1a cue σ_R(R) | 2.11 (+0.69) | 23% (−13) | 50% (**−22**) |
+| c1 σ_R + datum | 2.13 (+0.72) | 25% (−12) | 51% (−21) |
+| c4 bursty dropout | 1.58 (+0.17) | 27% (−10) | 70% (−2) |
+| c1b datum bias 2.5 m | 1.63 (+0.21) | 38% (+1) | 66% (−6) |
+| c3 latency jitter | 1.48 (+0.06) | 38% (+1) | 68% (−4) |
+| c7 ML terminal noise | 1.34 (−0.07) | 40% (+3) | 73% (+1) |
+| c6 LOS-rate term dropout | 1.39 (−0.03) | 36% (0) | 75% (+3) |
+
+- **The single biggest lever is NOT in that table — it's constraint #2 (velocity HANDLING).** Whether the cue EMITS a filtered velocity or the drone DIFFERENTIATES a noisy position stream swings mean miss **3.16 → 1.01 m at 6 m/s** — a 2.1 m swing that dwarfs the worst single degradation (link cutoff, +0.78 m). This is the headline design requirement: **the ground station must transmit a filtered target velocity, not just position** (a few extra bytes in the same track message).
+- **Decisive top-3 for the perception design:** (1) cue EMITS filtered velocity (dominates everything); (2) cue range accuracy σ_R∝R² + jammer link-cutoff timing (each ~−22 to −26% Pk@2; set by ground-rig stereo baseline/RTK and the jam model); (3) terminal seeker detection through CPA (lab-scored ~neutral but that is the lab's known blind spot — Gazebo says it is *the* real failure mode; treat high-priority regardless).
+
+### Honest Pk-vs-R under COMBINED realism (PIP terminal, per speed, mean m / Pk@1 / Pk@2)
+| config | 6 m/s | 8 m/s | 10 m/s |
+|---|---|---|---|
+| Idealized baseline | 0.70 / 74 / 96 | 1.35 / 31 / 86 | 2.19 / 4 / 34 |
+| Realistic, DIFFERENTIATE (naive) | 3.16 / 21 / 48 | 3.56 / 19 / 36 | 3.78 / 4 / 28 |
+| Realistic, EMIT velocity (honest headline) | 1.01 / 70 / 78 | 1.22 / 57 / 79 | 1.49 / 41 / 72 |
+| Realistic + mitigations (RTK 0.5 m + emit + no-jam) | 0.54 / 80 / 98 | 0.77 / 69 / 95 | 1.10 / 51 / 88 |
+
+- **Key result:** naive realism is catastrophic (mean ~3.2–3.8 m), but emit-velocity recovers most of it, and with the full designed mitigations the realistic curve actually **beats** the idealized baseline at 8–10 m/s — because an emitted σ_v=0.5 velocity is cleaner than differentiating even a perfect 0.5 m position cue at the handoff instant. Emit-velocity also makes the dead-reckon coast through a jammer link-cut viable.
+- **PN-vs-PIP under realistic velocity (ADR-0011/0015 confirmation):** with EMITTED velocity, PIP beats pure_pn at every speed (Pk@1 70/57/41 vs 57/42/30). Forced to DIFFERENTIATE, both collapse to ~3.1–3.8 m and PIP's lead advantage EVAPORATES (essentially tied) — its lead point is built on garbage velocity. **PIP only wins if the cue emits a clean velocity.**
+
+### Recommended "realistic" defaults ported to Gazebo (s2_cue_mock.py / m4_intercept.py)
+cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+PPS design target) / 2.5 m (standard GPS); **EMIT velocity, σ_v=0.5 m/s (highest-leverage recommendation)**; latency 0.12 s mean + 0.05 s jitter with OOSM comp; bursty dropout p_out 0.12 / burst 1.5 s; link cutoff satisfying R_acquire ≥ R_cutoff + coast_margin; terminal LOS-rate dropout ref 90°/s; ML terminal bearing σ 1.5°, range σ 22%.
+
+### Caveats (what the lab still cannot see — trust RELATIVE ranking, not absolute Pk)
+- **The lab UNDER-prices terminal constraints (6,7).** They score ~neutral because the point-mass frozen-coast flies a good established collision course even after losing the terminal camera — no ADR-0009 whipsaw, motion blur, or attitude coupling. In Gazebo these caused 20/20 terminal-dropout-at-CPA misses (ADR-0014). Real ranking puts terminal detection well above where the lab places it.
+- **Lab-over-optimism persists (4th data point):** idealized lab Pk@1 at 6 m/s = 74% vs Gazebo mc_batch 5% (ADR-0014). The Gazebo port + mc_batch re-run is what turns these rankings into results.
+- ML bearing 1.5° is *cleaner* than the AprilTag-calibrated 6°, so c7 partly improves angle in-lab; Gaussian-per-frame noise misses temporal blur streaks. Link-cutoff cost is highly sensitive to the chosen 11.5 m cutoff (earlier cuts are worse). Datum-bias wash-out assumes the seeker itself has no mount/boresight bias.
+- **Date:** 2026-07-05. (Study: Opus sim-realism worker per the model policy's middleground tier; baseline reproduction verifier-confirmed; synthesis by Fable main session. Next: Gazebo port of the same knobs, then mc_batch re-run under realistic params — "lab ranks, Gazebo decides.")
+
+## ADR-0015 addendum (2026-07-05) — lab realism study: VELOCITY EMISSION is the perception lever; realistic Pk is recoverable with the designed mitigations
+- **Implementation (guidance_lab.py, Opus worker):** all 7 ADR-0015 data-constraints as opt-in variants behind a `PERCEPTION_DEFAULTS` dict threaded through `simulate(perception=...)`; every new RNG draw feature-guarded so the default path is **byte-identical** (pooled camera-only `pure_pn 1.786 / apn 1.798 / pip 1.804 / pursuit 1.934`, S2 `dash10/handoff10/pip 0.709/1.268/2.132`, `--adr0014` lever pooled `1.77815280...` — all reproduce ADR-0011/0014 exactly; independent verifier rerun to confirm). New driver `--adr0015` (80 seeds/cell, 3,600 runs, 1.77 s; `logs/guidance_lab_adr0015_*.csv`).
+- **Sensitivity ranking** (each constraint ALONE, PIP terminal, pooled 6/8/10 m/s, vs idealized baseline mean 1.42 m / Pk@1 36% / Pk@2 72%): link-cutoff@11.5 m (+0.78 m, **−26** Pk@2) ≥ σ_R∝R² (+0.69 m, −22) ≈ σ_R+datum (+0.72 m, −21) ≫ bursty dropout (+0.17 m, −10 Pk@1) > datum-bias-2.5 m alone (+0.21 m, −6) > latency jitter (+0.06 m, ~0) > ML-terminal-noise / LOS-rate-dropout (~0 — but see caveat 1).
+- **The dominant lever isn't in that table — it's constraint #2 (velocity channel).** Cue EMITS a filtered velocity (σ_v=0.5 m/s) vs drone DIFFERENTIATES the noisy cue: mean miss **3.16 → 1.01 m at 6 m/s** — a 2.1 m swing, ~3× the worst single degradation. Cheap to implement (extra bytes in the same track message).
+- **Honest Pk-vs-R under combined realism (PIP, 6/8/10 m/s):** differentiate = catastrophic (mean 3.16/3.56/3.78 m); **emit-velocity = 1.01/1.22/1.49 m, Pk@1 70/57/41%**; + ADR-0015 mitigations (shared-RTK 0.5 m datum + emit + link alive to lock) = **0.54/0.77/1.10 m, Pk@1 80/69/51%** — which BEATS the idealized flat-σ baseline at 8–10 m/s, because an emitted σ_v=0.5 velocity is cleaner at the handoff instant than differentiating even a perfect 0.5 m cue.
+- **PN-vs-PIP verdict under realistic velocity (the ADR-0011 question, clos

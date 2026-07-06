@@ -92,15 +92,26 @@ DESIGN DONE: 3 Opus councils -> **ADR-0015** + `docs/perception_design.md` (read
 Headlines: onboard Pi5 + Hailo NPU (real ML, no ROS2 — overturns ADR-0012's
 Pi-CPU call; Jetson to the ground); detect-then-track; ground global-frame
 GPS-timestamped track fused with onboard bearing (RTK + PPS time-sync the
-enablers); EO day-proof, thermal staged. BUILDING NOW: sim-realism upgrade
-(guidance_lab.py Pk sensitivity under real track quality — Opus worker running),
-then the Gazebo port (s2_cue_mock.py + m4_intercept.py per the ADR-0015 table).
+enablers); EO day-proof, thermal staged.
+LAB REALISM STUDY DONE (ADR-0015 addendum, 2026-07-05): all 10 data-constraints
+implemented in `guidance_lab.py` behind flags (`--adr0015`), baseline byte-identical
+(verifier-confirmed). **The #1 lever is the ground station EMITTING a filtered
+velocity, not just position** — differentiate→emit swings mean miss 3.16→1.01 m at
+6 m/s, dwarfing every other constraint. Then cue range σ_R∝R² + jammer link-cutoff
+timing (~−22 to −26% Pk@2 each). Naive realism is catastrophic (~3.2-3.8 m mean),
+emit-velocity recovers most, +mitigations (RTK 0.5 m, emit, no-jam) BEATS the
+idealized baseline at 8-10 m/s. PIP only beats pure PN if the cue emits clean
+velocity (else they tie). PORTING NOW: the same knobs into s2_cue_mock.py +
+m4_intercept.py (Opus worker), then re-run mc_batch.sh under realistic params
+("lab ranks, Gazebo decides").
 Empirical hook: baseline S2 Pk is gated by TERMINAL PERCEPTION (all 20/20 flights
 fail by camera dropout at CPA — ADR-0014 addendum), so better perception directly
 raises Pk. Builder's core hypothesis to design around: **ground stereo gives RANGE,
 onboard cam gives BEARING, fuse mid-course for a better intercept track; terminal
 stays comms-denied (onboard-only).** Bearing-only is range-ambiguous; ground range
-resolves the intercept triangle — this is the right architecture.
+resolves the intercept triangle — this is the right architecture. Now empirically
+sharpened: the ground link must carry VELOCITY too, or the fused track is no better
+than differentiating noise.
 - [ ] **P-1 Ground sensor modality:** visual vs IR/thermal vs both/fused — detect a
       small fast FPV drone vs birds/clutter, day+night; detection range, false-alarm
       rate, cost. When is thermal mandatory vs luxury? Radar/acoustic as a cue layer?

@@ -407,10 +407,23 @@ class TargetTracker:
                 return  # reject outlier -- treat this tick as if no detection arrived
         abs_pos = (own_pos[0] + meas.rel_xy[0], own_pos[1] + meas.rel_xy[1])
         if latency_compensate and meas.source == "cue" and meas.age_s > 0.0:
-            vel = self.vel_hat
+            # Prefer the EMITTED velocity for the OOSM advance when present
+            # (it is a cleaner, un-differentiated velocity); else fall back
+            # to the filter's own velocity estimate (the original behavior).
+            vel = meas.vel_xy if meas.vel_xy is not None else self.vel_hat
             if vel is not None:
                 abs_pos = (abs_pos[0] + vel[0] * meas.age_s, abs_pos[1] + vel[1] * meas.age_s)
         self.correct(abs_pos, t)
+        # ADR-0015 constraint #2: a cue that EMITS a filtered velocity feeds
+        # the velocity channel DIRECTLY (baseline-preserving: meas.vel_xy is
+        # None unless CUE_EMIT_VELOCITY is on, so this block never fires in
+        # the baseline differentiate-the-position path). This is the whole
+        # point of the constraint-2 test -- PIP's lead solve gets a clean
+        # velocity instead of one differentiated from a noisy/biased cue
+        # position (which the ADR-0015 table calls a ~7 m/s-noise PIP-killer).
+        if meas.vel_xy is not None:
+            self.fx.xdot_hat = meas.vel_xy[0]
+            self.fy.xdot_hat = meas.vel_xy[1]
 
     @property
     def pos_hat(self):
@@ -465,10 +478,12 @@ class KalmanTracker:
 
     H = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
 
+    H_VEL = np.array([[0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]])
+
     def __init__(self, q_accel_sigma=2.0, sigma_bearing_rad=math.radians(SIGMA_BEARING_DEG),
                  range_noise_frac=RANGE_NOISE_FRAC, cue_sigma_m=CUE_SIGMA_M,
                  chi2_gate=CHI2_99_DOF2, range_sigma_floor_m=0.3, cross_sigma_floor_m=0.1,
-                 init_vel_var=25.0):
+                 init_vel_var=25.0, cue_vel_sigma_m_s=0.5):
         self.q_accel_var = q_accel_sigma * q_accel_sigma
         self.sigma_bearing_rad = sigma_bearing_rad
         self.range_noise_frac = range_noise_frac
@@ -477,6 +492,9 @@ class KalmanTracker:
         self.range_sigma_floor_m = range_sigma_floor_m
         self.cross_sigma_floor_m = cross_sigma_floor_m
         self.init_vel_var = init_vel_var
+        # ADR-0015 constraint #2: measurement std for a cue-EMITTED velocity
+        # (only used when meas.vel_xy is present, i.e. CUE_EMIT_VELOCITY on).
+        self.cue_vel_sigma_m_s = cue_vel_sigma_m_s
         self.x = None       # np.array shape (4,): [x, y, vx, vy]
         self.P = None        # np.array shape (4, 4)
 
@@ -527,8 +545,10 @@ class KalmanTracker:
             z = z + self.x[2:4] * meas.age_s
 
         if self.x is None:
-            self.x = np.array([z[0], z[1], 0.0, 0.0])
-            self.P = np.diag([R[0, 0], R[1, 1], self.init_vel_var, self.init_vel_var])
+            v0 = meas.vel_xy if meas.vel_xy is not None else (0.0, 0.0)
+            vvar = (self.cue_vel_sigma_m_s ** 2) if meas.vel_xy is not None else self.init_vel_var
+            self.x = np.array([z[0], z[1], v0[0], v0[1]])
+            self.P = np.diag([R[0, 0], R[1, 1], vvar, vvar])
             return
 
         y = z - self.H @ self.x
@@ -539,6 +559,18 @@ class KalmanTracker:
         K = self.P @ self.H.T @ np.linalg.inv(S)
         self.x = self.x + K @ y
         self.P = (np.eye(4) - K @ self.H) @ self.P
+
+        # ADR-0015 constraint #2: fold in the cue's EMITTED velocity as a
+        # direct velocity measurement (H_VEL picks out vx,vy). Baseline-
+        # preserving: meas.vel_xy is None unless CUE_EMIT_VELOCITY is on.
+        if meas.vel_xy is not None:
+            zv = np.array([meas.vel_xy[0], meas.vel_xy[1]])
+            Rv = np.diag([self.cue_vel_sigma_m_s ** 2, self.cue_vel_sigma_m_s ** 2])
+            yv = zv - self.H_VEL @ self.x
+            Sv = self.H_VEL @ self.P @ self.H_VEL.T + Rv
+            Kv = self.P @ self.H_VEL.T @ np.linalg.inv(Sv)
+            self.x = self.x + Kv @ yv
+            self.P = (np.eye(4) - Kv @ self.H_VEL) @ self.P
 
     @property
     def pos_hat(self):
@@ -578,9 +610,9 @@ def step_vehicle(vx, vy, vcx, vcy, dt=DT, tau=TAU_S, v_max=V_MAX_M_S, a_max=A_MA
 # Sensor model
 # =========================================================================
 class Measurement:
-    __slots__ = ("t", "rel_xy", "range_m", "bearing_rad", "source", "age_s")
+    __slots__ = ("t", "rel_xy", "range_m", "bearing_rad", "source", "age_s", "vel_xy")
 
-    def __init__(self, t, rel_xy, range_m, bearing_rad, source, age_s=0.0):
+    def __init__(self, t, rel_xy, range_m, bearing_rad, source, age_s=0.0, vel_xy=None):
         self.t = t
         self.rel_xy = rel_xy
         self.range_m = range_m
@@ -593,6 +625,99 @@ class Measurement:
         # Sensor.tick). NOT an estimate -- this is the same "known sensor
         # spec" honesty boundary as range_gate_ok's sigma_frac.
         self.age_s = age_s
+        # vel_xy: an EMITTED absolute-velocity estimate carried alongside the
+        # position (ADR-0015 data-constraint #2, opt-in). None on the camera
+        # (onboard bearing-only, no velocity channel) and on a baseline cue
+        # (which sends position only, forcing the drone to DIFFERENTIATE).
+        # When the cue emits a filtered velocity (CUE_EMIT_VELOCITY), the
+        # target tracker ingests it DIRECTLY instead of differentiating a
+        # noisy position -- the ADR-0015 "does PIP survive without an emitted
+        # velocity" test.
+        self.vel_xy = vel_xy
+
+
+# =========================================================================
+# ADR-0015 PERCEPTION DATA-CONSTRAINTS (docs/decisions.md ADR-0015's
+# "DATA CONSTRAINTS BACK TO THE GUIDANCE MATH" table). Every knob below is
+# OPT-IN: PERCEPTION_DEFAULTS is the byte-identical baseline (a perception
+# config == None, or all these values, reproduces the pre-ADR-0015 sensor
+# EXACTLY -- no extra RNG draw fires unless its feature is switched on).
+# These model how a REAL cue (cross-platform ground track) and a REAL
+# terminal seeker (ML box on a small FPV drone) degrade vs the sim's clean
+# AprilTag + flat-0.5 m-cue stand-ins, so the guidance re-tuning sees the
+# real track quality BEFORE any hardware dollar is spent ("lab ranks, Gazebo
+# decides", ADR-0015 build-plan step 3).
+# =========================================================================
+PERCEPTION_DEFAULTS = dict(
+    # --- constraint 1: range-dependent cue position sigma + per-run datum bias ---
+    # sigma_R(R) = CUE_SIGMA_BASE_M + CUE_SIGMA_QUAD * R^2 (ground-stereo range
+    # error grows ~R^2). None -> the flat CUE_SIGMA_M baseline (0.5 m).
+    CUE_SIGMA_BASE_M=None,
+    CUE_SIGMA_QUAD=0.0,
+    # per-run CONSTANT common-mode offset vector magnitude (RTK-vs-standard-GPS
+    # datum bias, ADR-0015 table rows 1 & 5). Drawn once per run: fixed
+    # magnitude, random direction. 0.0 -> no bias (baseline).
+    CUE_DATUM_BIAS_MAG_M=0.0,
+    # --- constraint 2: cue velocity channel ---
+    # False -> cue sends POSITION ONLY (drone must DIFFERENTIATE it: baseline).
+    # True  -> cue EMITS a filtered velocity (true target vel + N(0,sigma_v)),
+    #          ingested directly by the tracker (see TargetTracker.correct_full).
+    CUE_EMIT_VELOCITY=False,
+    CUE_VEL_SIGMA_M_S=0.5,
+    # --- constraint 3: latency mean (Sensor.cue_latency) + JITTER ---
+    # extra +-uniform jitter on each delivery, ON TOP of the fixed mean. The
+    # delivered age_s stays the NOMINAL mean (what a timestamp-at-source system
+    # "knows"), so the jitter is the UNCOMPENSATED residual. 0.0 -> baseline.
+    CUE_LATENCY_JITTER_S=0.0,
+    # --- constraint 4: bursty Markov cue dropout ---
+    # a 2-state (up/down) chain on cue delivery: mean outage burst
+    # CUE_DROPOUT_BURST_S long, steady-state outage fraction CUE_DROPOUT_P_OUT.
+    CUE_DROPOUT_MARKOV=False,
+    CUE_DROPOUT_P_OUT=0.10,
+    CUE_DROPOUT_BURST_S=1.5,
+    # --- constraint 5: jammer link cutoff BEFORE lock (+ dead-reckon coast) ---
+    # the cue link dies PERMANENTLY once the true range falls to <= this (a
+    # jammer engaging in the terminal approach), or once t >= the time cutoff.
+    # After cutoff the two-stage law flies the last cued intercept solution
+    # ballistically (the tracker predict()s forward on its frozen velocity)
+    # and relies on the camera acquiring before CPA -- else a miss. None ->
+    # cue alive until handoff (baseline).
+    CUE_LINK_CUTOFF_RANGE_M=None,
+    CUE_LINK_CUTOFF_TIME_S=None,
+    # --- constraint 6: LOS-rate-dependent terminal camera dropout ---
+    # the terminal detector's dropout probability rises with the TRUE |lambda
+    # dot| (models the ADR-0014 yaw-rate-deficit / motion-blur CPA loss that
+    # caused 20/20 terminal dropouts), ADDED on top of the edge-weighted term.
+    # Ramps linearly to TERM_LOS_RATE_DROPOUT_MAX as |lambda_dot| reaches
+    # TERM_LOS_RATE_REF_DEG_S. False -> baseline (edge-weighted dropout only).
+    TERM_LOS_RATE_DROPOUT=False,
+    TERM_LOS_RATE_REF_DEG_S=90.0,
+    TERM_LOS_RATE_DROPOUT_MAX=0.7,
+    # --- constraint 7: ML-grade terminal (camera) sensor noise ---
+    # override the camera's bearing/range noise with ML-detector-grade values
+    # (box centroid ~1-2 deg bearing; box-size-to-range 15-30%). None -> the
+    # AprilTag-calibrated SIGMA_BEARING_DEG (6.0) / RANGE_NOISE_FRAC (0.10).
+    TERM_BEARING_SIGMA_DEG=None,
+    TERM_RANGE_NOISE_FRAC=None,
+)
+
+
+def resolve_perception(perception):
+    """Merge a partial perception override onto PERCEPTION_DEFAULTS. None ->
+    the baseline dict (every feature off)."""
+    if perception is None:
+        return dict(PERCEPTION_DEFAULTS)
+    return {**PERCEPTION_DEFAULTS, **perception}
+
+
+def draw_datum_bias(rng, mag_m):
+    """One per-run constant common-mode offset vector: fixed magnitude,
+    random direction (RTK-vs-standard-GPS datum bias). Returns (0,0) with NO
+    rng draw when mag<=0 so the baseline RNG sequence is untouched."""
+    if mag_m is None or mag_m <= 0.0:
+        return (0.0, 0.0)
+    theta = rng.uniform(0.0, 2.0 * math.pi)
+    return (mag_m * math.cos(theta), mag_m * math.sin(theta))
 
 
 class Sensor:
@@ -635,12 +760,20 @@ class Sensor:
         dropout_p_edge=DROPOUT_P_EDGE, dropout_edge_exponent=DROPOUT_EDGE_EXPONENT,
         fov_half_deg=FOV_HALF_DEG_DEFAULT, yaw_rate_max_deg_s=YAW_RATE_MAX_DEG_S_DEFAULT,
         cue_sigma_m=CUE_SIGMA_M, cue_latency_s=CUE_LATENCY_S, initial_heading=0.0,
+        perception=None, datum_bias=(0.0, 0.0),
     ):
         self.rng = rng
         self.det_range = det_range
         self.handoff_range = handoff_range
         self.cam_period = 1.0 / cam_hz
         self.cue_period = 1.0 / cue_hz
+        # ADR-0015 constraint #7: ML-grade terminal (camera) noise overrides.
+        p = resolve_perception(perception)
+        self.perc = p
+        if p["TERM_BEARING_SIGMA_DEG"] is not None:
+            sigma_bearing_deg = p["TERM_BEARING_SIGMA_DEG"]
+        if p["TERM_RANGE_NOISE_FRAC"] is not None:
+            range_noise_frac = p["TERM_RANGE_NOISE_FRAC"]
         self.sigma_bearing = math.radians(sigma_bearing_deg)
         self.range_noise_frac = range_noise_frac
         self.dropout_p = dropout_p
@@ -652,7 +785,7 @@ class Sensor:
         self.cue_latency = cue_latency_s
         self._cam_timer = 0.0
         self._cue_timer = 0.0
-        self._cue_pending = []  # list of (deliver_t, x, y)
+        self._cue_pending = []  # list of (deliver_t, x, y, vel_xy)
         # own_heading/desired_heading start centered on the target -- mirrors
         # the real engagement's ACQUIRE phase (hover + yaw-center on the
         # tag) already having completed BEFORE the ENGAGE clock this lab
@@ -660,10 +793,62 @@ class Sensor:
         self.own_heading = initial_heading
         self.desired_heading = initial_heading
 
-    def tick(self, t, dt, own_pos, target_pos, two_stage):
+        # --- ADR-0015 derived perception state (all inert at baseline) ---
+        self.datum_bias = datum_bias
+        # constraint 1: range-dependent cue sigma
+        self._cue_sigma_base = p["CUE_SIGMA_BASE_M"]
+        self._cue_sigma_quad = p["CUE_SIGMA_QUAD"]
+        # constraint 2: velocity emission
+        self._cue_emit_velocity = bool(p["CUE_EMIT_VELOCITY"])
+        self._cue_vel_sigma = p["CUE_VEL_SIGMA_M_S"]
+        # constraint 3: latency jitter
+        self._cue_latency_jitter = p["CUE_LATENCY_JITTER_S"]
+        # constraint 4: bursty Markov cue dropout -- precompute per-sample
+        # transition probabilities from (p_out, mean burst length).
+        self._cue_markov = bool(p["CUE_DROPOUT_MARKOV"])
+        self._cue_link_up = True  # Markov up/down state (True = delivering)
+        p_out = clamp(p["CUE_DROPOUT_P_OUT"], 0.0, 0.999)
+        burst_s = max(1e-3, p["CUE_DROPOUT_BURST_S"])
+        # P(down->up) per cue sample; P(up->down) from steady-state p_out.
+        self._p_down_to_up = clamp(self.cue_period / burst_s, 0.0, 1.0)
+        self._p_up_to_down = clamp(
+            self._p_down_to_up * p_out / max(1e-6, 1.0 - p_out), 0.0, 1.0
+        )
+        # constraint 5: jammer link cutoff (permanent latch once tripped)
+        self._cue_cutoff_range = p["CUE_LINK_CUTOFF_RANGE_M"]
+        self._cue_cutoff_time = p["CUE_LINK_CUTOFF_TIME_S"]
+        self._cue_link_cut = False
+        # constraint 6: LOS-rate-dependent terminal camera dropout
+        self._term_los_rate_dropout = bool(p["TERM_LOS_RATE_DROPOUT"])
+        self._term_los_rate_ref = math.radians(p["TERM_LOS_RATE_REF_DEG_S"])
+        self._term_los_rate_dropout_max = p["TERM_LOS_RATE_DROPOUT_MAX"]
+        self._prev_true_bearing = None
+        self._prev_bearing_t = None
+
+    def _cue_sigma_at(self, true_range):
+        """Range-dependent cue position sigma (constraint 1): base + quad*R^2,
+        falling back to the flat baseline cue_sigma when not configured."""
+        if self._cue_sigma_base is None:
+            return self.cue_sigma
+        return self._cue_sigma_base + self._cue_sigma_quad * true_range * true_range
+
+    def tick(self, t, dt, own_pos, target_pos, two_stage, target_vel=None):
         rel = (target_pos[0] - own_pos[0], target_pos[1] - own_pos[1])
         true_range = math.hypot(rel[0], rel[1])
         true_bearing = math.atan2(rel[1], rel[0])
+
+        # TRUE LOS rate (constraint 6 input; also purely deterministic -- no
+        # rng, so tracking it every tick is baseline-preserving). This reads
+        # ground truth to decide a SENSOR dropout (a physical blur/tracking
+        # effect), never fed to guidance -- same honesty boundary as the
+        # boresight/FOV geometry the sensor already uses.
+        los_rate = 0.0
+        if self._prev_true_bearing is not None and self._prev_bearing_t is not None:
+            los_rate = wrap_pi(true_bearing - self._prev_true_bearing) / max(
+                1e-6, t - self._prev_bearing_t
+            )
+        self._prev_true_bearing = true_bearing
+        self._prev_bearing_t = t
 
         # Slew the boresight toward the last commanded heading at the yaw
         # rate limit -- see class docstring.
@@ -682,6 +867,15 @@ class Sensor:
                 p_drop = self.dropout_p + (self.dropout_p_edge - self.dropout_p) * (
                     edge_frac ** self.dropout_edge_exponent
                 )
+                # constraint 6: extra dropout that rises with the TRUE LOS
+                # rate (yaw-rate-deficit / motion-blur CPA loss). Added to
+                # p_drop BEFORE the single rng.random() draw -- so the baseline
+                # (feature off) draw count and p_drop are byte-identical.
+                if self._term_los_rate_dropout:
+                    extra = self._term_los_rate_dropout_max * clamp(
+                        abs(los_rate) / max(1e-6, self._term_los_rate_ref), 0.0, 1.0
+                    )
+                    p_drop = clamp(p_drop + extra, 0.0, 0.999)
                 if self.rng.random() >= p_drop:
                     range_n = true_range * (1.0 + self.rng.normal(0.0, self.range_noise_frac))
                     bearing_n = true_bearing + self.rng.normal(0.0, self.sigma_bearing)
@@ -694,19 +888,60 @@ class Sensor:
 
         cue_meas = None
         if two_stage:
+            # constraint 5: permanent jammer link cutoff (latch + flush the
+            # in-flight buffer so the dead-reckon coast starts immediately).
+            if not self._cue_link_cut and (
+                (self._cue_cutoff_range is not None and true_range <= self._cue_cutoff_range)
+                or (self._cue_cutoff_time is not None and t >= self._cue_cutoff_time)
+            ):
+                self._cue_link_cut = True
+                self._cue_pending = []
+
             self._cue_timer += dt
             if self._cue_timer >= self.cue_period:
                 self._cue_timer -= self.cue_period
-                if true_range > self.handoff_range:
-                    nx = target_pos[0] + self.rng.normal(0.0, self.cue_sigma)
-                    ny = target_pos[1] + self.rng.normal(0.0, self.cue_sigma)
-                    self._cue_pending.append((t + self.cue_latency, nx, ny))
+                # constraint 4: bursty Markov up/down transition (one draw per
+                # cue sample, only when the feature is on).
+                if self._cue_markov:
+                    r = self.rng.random()
+                    if self._cue_link_up:
+                        if r < self._p_up_to_down:
+                            self._cue_link_up = False
+                    else:
+                        if r < self._p_down_to_up:
+                            self._cue_link_up = True
+                deliver_ok = (
+                    not self._cue_link_cut
+                    and (self._cue_link_up or not self._cue_markov)
+                    and true_range > self.handoff_range
+                )
+                if deliver_ok:
+                    sigma = self._cue_sigma_at(true_range)
+                    nx = target_pos[0] + self.datum_bias[0] + self.rng.normal(0.0, sigma)
+                    ny = target_pos[1] + self.datum_bias[1] + self.rng.normal(0.0, sigma)
+                    vel = None
+                    if self._cue_emit_velocity and target_vel is not None:
+                        # constraint 2: cue emits a FILTERED velocity (true +
+                        # noise, NO datum bias -- a constant offset does not
+                        # corrupt a derivative, which is exactly why emitting
+                        # velocity sidesteps the biased-position PIP-killer).
+                        vel = (
+                            target_vel[0] + self.rng.normal(0.0, self._cue_vel_sigma),
+                            target_vel[1] + self.rng.normal(0.0, self._cue_vel_sigma),
+                        )
+                    # constraint 3: mean latency + uncompensated jitter. The
+                    # delivered age_s stays the NOMINAL mean (source timestamp
+                    # is known); the jitter is the residual staleness.
+                    delay = self.cue_latency
+                    if self._cue_latency_jitter > 0.0:
+                        delay += self.rng.uniform(-self._cue_latency_jitter, self._cue_latency_jitter)
+                    self._cue_pending.append((t + delay, nx, ny, vel))
             while self._cue_pending and self._cue_pending[0][0] <= t:
-                _, nx, ny = self._cue_pending.pop(0)
+                _, nx, ny, vel = self._cue_pending.pop(0)
                 rel_n = (nx - own_pos[0], ny - own_pos[1])
                 r = math.hypot(*rel_n)
                 b = math.atan2(rel_n[1], rel_n[0])
-                cue_meas = Measurement(t, rel_n, r, b, "cue", age_s=self.cue_latency)
+                cue_meas = Measurement(t, rel_n, r, b, "cue", age_s=self.cue_latency, vel_xy=vel)
 
         # Camera takes priority in the (rare, boundary-tick) case both fire
         # this tick -- guidance uses the cue only in the CUE phase and the
@@ -1577,8 +1812,14 @@ PATHS = {
 # Single-run simulator
 # =========================================================================
 def simulate(method_name, method_params, path_name, path_params, seed, two_stage=False,
-             t_max=T_MAX_S, dt=DT):
+             t_max=T_MAX_S, dt=DT, perception=None):
     """Run one deterministic (given `seed`) intercept and score it.
+
+    `perception` (ADR-0015, default None -> byte-identical pre-ADR-0015
+    baseline) is a partial override of PERCEPTION_DEFAULTS applying the
+    real-world cue/seeker data-constraints (range-dependent + datum-biased
+    cue, emitted velocity, latency jitter, bursty dropout, jammer link
+    cutoff, LOS-rate-driven + ML-grade terminal noise). See that dict.
 
     Returns a dict: miss_distance (min interceptor-target range over the
     run), intercept_time (time of that min, or first time range<0.5 m if
@@ -1608,6 +1849,12 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     params = {**defaults, **(method_params or {})}
     law = cls(params)
 
+    # ADR-0015: draw the per-run constant cue datum bias AFTER the path
+    # builder (so its rng draw never perturbs geometry) and ONLY when
+    # configured (guarded in draw_datum_bias -> zero draws at baseline).
+    perc = resolve_perception(perception)
+    datum_bias = draw_datum_bias(rng, perc["CUE_DATUM_BIAS_MAG_M"])
+
     ix = iy = ivx = ivy = 0.0
     # ACQUIRE already happened before this lab's clock starts (m4_intercept.py:
     # hover + yaw-center on the tag BEFORE spawning the mover/engaging) -- so
@@ -1616,7 +1863,7 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     initial_heading = math.atan2(ty - iy, tx - ix)
     sensor = Sensor(
         rng, det_range=det_range, handoff_range=handoff_range, initial_heading=initial_heading,
-        yaw_rate_max_deg_s=yaw_rate_max_deg_s,
+        yaw_rate_max_deg_s=yaw_rate_max_deg_s, perception=perception, datum_bias=datum_bias,
     )
 
     min_range = math.hypot(tx - ix, ty - iy)
@@ -1639,6 +1886,11 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     breakoff_armed = False
     breakoff_increase_streak = 0
     last_true_range = None
+    # ADR-0015 constraint-5 diagnostics (scoring-only): did the onboard camera
+    # ever get a lock, and when. Combined post-loop with the sensor's own
+    # link-cut latch to flag "link cut before the seeker acquired".
+    _any_camera_meas = False
+    _first_camera_lock_t = None
 
     # --- track-quality diagnostics (SCORING-ONLY, same honesty boundary as
     # min_range/breakoff/tag_lost_in_terminal above -- reads tx,ty/vel_fn(t)
@@ -1681,9 +1933,13 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
                 break
         last_true_range = true_range
 
-        meas = sensor.tick(t, dt, (ix, iy), (tx, ty), two_stage)
+        meas = sensor.tick(t, dt, (ix, iy), (tx, ty), two_stage, target_vel=vel_fn(t))
         if meas is not None:
             last_meas_t = t
+        if meas is not None and meas.source == "camera":
+            _any_camera_meas = True
+            if _first_camera_lock_t is None:
+                _first_camera_lock_t = t
         has_lock = last_meas_t is not None and (t - last_meas_t) <= MEAS_STALE_S
         if true_range < det_range:
             n_in_range_ticks += 1
@@ -1757,6 +2013,13 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
         # methods without a `.tracker` (pursuit/pure_pn).
         tracker_pos_err_rms=tracker_pos_err_rms, tracker_vel_err_rms=tracker_vel_err_rms,
         handoff_pos_err=_handoff_pos_err, handoff_vel_err=_handoff_vel_err,
+        # ADR-0015 constraint-5 diagnostics (scoring-only).
+        link_cut=bool(getattr(sensor, "_cue_link_cut", False)),
+        camera_locked=_any_camera_meas,
+        first_camera_lock_t=_first_camera_lock_t,
+        # link cut by the jammer AND the seeker never acquired -> a
+        # dead-reckon-coast miss (the ADR-0015 link-loss-before-lock gap).
+        link_cut_no_acquire=bool(getattr(sensor, "_cue_link_cut", False)) and not _any_camera_meas,
     )
 
 
@@ -2353,6 +2616,223 @@ def run_adr14_study(n_seeds=120, combo_n_seeds=150):
     return all_rows, best_combo_overrides, best_yaw_rate
 
 
+# =========================================================================
+# ADR-0015 PERCEPTION-CONSTRAINT COST STUDY ("lab ranks, Gazebo decides",
+# ADR-0015 build-plan step 3). Measures how much each real-world cue/seeker
+# data-constraint (docs/decisions.md ADR-0015's data-constraints table) costs
+# intercept success (Pk), on the S2 two-stage dash config (dash10/handoff10,
+# the ADR-0011-3rd-addendum validated best) at the FPV target band 6/8/10 m/s.
+# Sections:
+#   (A) idealized baseline (perception off) -- terminal PIP (S2 default) + pure_pn.
+#   (B) EACH constraint toggled ON ALONE -> a SENSITIVITY RANKING of what
+#       hurts Pk most (tells the hardware where to spend effort).
+#   (C) the COMBINED "realistic" preset -- how far realism drops the honest
+#       Pk-vs-R curve vs the idealized baseline.
+#   (D) PN-vs-PIP under realistic velocity quality (constraint #2): does PIP
+#       still win when the cue EMITS a filtered velocity, and does it collapse
+#       when the drone must DIFFERENTIATE the noisy/biased cue position?
+# baseline defaults verified byte-identical above this section (perception
+# defaults to None everywhere the main/S2/ADR-0014 studies call simulate()).
+# =========================================================================
+ADR15_SPEEDS = (6.0, 8.0, 10.0)
+ADR15_DASH_SPEED = 10.0
+ADR15_HANDOFF_RANGE = 10.0
+ADR15_PATH = "crossing_l2r"
+ADR15_PK_RANGES = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0)
+
+# The COMBINED "realistic" cue/seeker model (un-mitigated cue: standard-GPS
+# datum bias, no shared RTK). CUE_EMIT_VELOCITY is toggled per-variant by the
+# driver (the honest headline uses emit=True -- a real ground node runs a
+# tracker anyway; emit=False is the "cue sends position only" degradation).
+# Magnitudes chosen from the ADR-0015 table, scaled to this lab's compressed
+# ~15 m standoff (see the report's "recommended default realistic values").
+ADR15_REALISTIC = dict(
+    CUE_SIGMA_BASE_M=0.4, CUE_SIGMA_QUAD=0.008,   # sigma_R ~0.9 m @8m, ~2.2 m @15m
+    CUE_DATUM_BIAS_MAG_M=2.5,                       # standard-GPS common-mode (2-3 m)
+    CUE_VEL_SIGMA_M_S=0.5,                          # emitted-velocity noise (used iff emit on)
+    CUE_LATENCY_JITTER_S=0.05,                      # on top of the 0.12 s mean
+    CUE_DROPOUT_MARKOV=True, CUE_DROPOUT_P_OUT=0.12, CUE_DROPOUT_BURST_S=1.5,
+    CUE_LINK_CUTOFF_RANGE_M=11.5,                   # jammer cuts mid-dash, before camera lock
+    TERM_LOS_RATE_DROPOUT=True, TERM_LOS_RATE_REF_DEG_S=90.0, TERM_LOS_RATE_DROPOUT_MAX=0.7,
+    TERM_BEARING_SIGMA_DEG=1.5, TERM_RANGE_NOISE_FRAC=0.22,   # ML box vs AprilTag
+)
+
+# The ADR-0015-DESIGN "realistic + mitigations" model: the recommended
+# perception architecture actually gets built (shared RTK base + PPS ->
+# ~0.5 m datum bias, ground node EMITS filtered velocity, OOSM latency comp).
+# Terminal seeker physics (constraints 6,7) and link jamming (4,5) are NOT
+# fixable by ground infra, so they stay. Shows how much of the realism hit
+# the ADR-0015 design recovers.
+ADR15_REALISTIC_MITIGATED = dict(
+    ADR15_REALISTIC,
+    CUE_DATUM_BIAS_MAG_M=0.5,      # shared RTK base
+    CUE_EMIT_VELOCITY=True,        # ground node emits velocity
+    CUE_LINK_CUTOFF_RANGE_M=None,  # assume NOT jammed in this variant
+)
+
+# Each single constraint at its honest un-mitigated realistic magnitude,
+# toggled onto the idealized baseline (constraint 2 is a MITIGATION, analyzed
+# in section D, not a standalone degradation).
+ADR15_SINGLE = [
+    ("c1a cue sigma_R(R)",        dict(CUE_SIGMA_BASE_M=0.4, CUE_SIGMA_QUAD=0.008)),
+    ("c1b datum bias 2.5 m",      dict(CUE_DATUM_BIAS_MAG_M=2.5)),
+    ("c1  sigma_R + datum bias",  dict(CUE_SIGMA_BASE_M=0.4, CUE_SIGMA_QUAD=0.008, CUE_DATUM_BIAS_MAG_M=2.5)),
+    ("c3  latency jitter 0.05 s", dict(CUE_LATENCY_JITTER_S=0.05)),
+    ("c4  bursty dropout",        dict(CUE_DROPOUT_MARKOV=True, CUE_DROPOUT_P_OUT=0.12, CUE_DROPOUT_BURST_S=1.5)),
+    ("c5  link cutoff 11.5 m",    dict(CUE_LINK_CUTOFF_RANGE_M=11.5)),
+    ("c6  LOS-rate term dropout", dict(TERM_LOS_RATE_DROPOUT=True)),
+    ("c7  ML terminal noise",     dict(TERM_BEARING_SIGMA_DEG=1.5, TERM_RANGE_NOISE_FRAC=0.22)),
+]
+
+
+def _adr15_rows(perception, terminal_method, speed, n_seeds, emit_velocity=None):
+    """n_seeds two_stage_dash runs at one speed on the S2 dash config
+    (dash10/handoff10), with the given perception override + terminal law."""
+    perc = None if perception is None else dict(perception)
+    if emit_velocity is not None:
+        perc = dict(perc or {})
+        perc["CUE_EMIT_VELOCITY"] = emit_velocity
+    method_params = dict(
+        DASH_SPEED=ADR15_DASH_SPEED, HANDOFF_RANGE=ADR15_HANDOFF_RANGE,
+        TERMINAL_METHOD=terminal_method,
+    )
+    path_params = dict(S2_PATH_PARAMS, speed=speed, handoff_range=ADR15_HANDOFF_RANGE)
+    rows = []
+    for seed in range(n_seeds):
+        rows.append(
+            simulate("two_stage_dash", method_params, ADR15_PATH, path_params, seed,
+                     two_stage=True, perception=perc)
+        )
+    return rows
+
+
+def _adr15_all_speeds(perception, terminal_method, n_seeds, emit_velocity=None, speeds=ADR15_SPEEDS):
+    out = {}
+    for sp in speeds:
+        out[sp] = _adr15_rows(perception, terminal_method, sp, n_seeds, emit_velocity=emit_velocity)
+    return out
+
+
+def _adr15_pk(rows, pk_ranges=ADR15_PK_RANGES):
+    miss = np.array([r["miss_distance"] for r in rows])
+    tc = [r["terminal_coverage"] for r in rows if r["terminal_coverage"] is not None]
+    return dict(
+        n=len(rows), mean=float(miss.mean()), p90=float(np.percentile(miss, 90)),
+        pk={R: float(np.mean(miss <= R)) for R in pk_ranges},
+        term_cov=float(np.mean(tc)) if tc else None,
+        link_cut_no_acq=float(np.mean([r["link_cut_no_acquire"] for r in rows])),
+    )
+
+
+def _adr15_print_speed_block(label, per_speed):
+    print(f"\n  {label}")
+    for sp in ADR15_SPEEDS:
+        s = _adr15_pk(per_speed[sp])
+        tc = f"{s['term_cov']:.2f}" if s["term_cov"] is not None else "n/a"
+        print(
+            f"    speed={sp:4.1f}  n={s['n']:<3d}  mean={s['mean']:5.2f}  p90={s['p90']:5.2f}  "
+            f"Pk@1={s['pk'][1.0]*100:3.0f}%  Pk@2={s['pk'][2.0]*100:3.0f}%  "
+            f"term_cov={tc}  cut_no_acq={s['link_cut_no_acq']*100:.0f}%"
+        )
+
+
+def _adr15_pk_curve_line(per_speed):
+    """One Pk-vs-R row per speed, all R in ADR15_PK_RANGES."""
+    for sp in ADR15_SPEEDS:
+        s = _adr15_pk(per_speed[sp])
+        pk = "  ".join(f"R{R:>3.1f}={s['pk'][R]*100:3.0f}%" for R in ADR15_PK_RANGES)
+        print(f"    speed={sp:4.1f}  mean={s['mean']:5.2f}  p90={s['p90']:5.2f}   {pk}")
+
+
+def run_adr0015_study(n_seeds=60):
+    all_rows = []
+    t0 = time.perf_counter()
+
+    # --- (A) idealized baseline -------------------------------------------
+    print("\n" + "=" * 92)
+    print("ADR-0015 (A) IDEALIZED BASELINE (perception OFF) -- S2 dash10/handoff10, Pk-vs-R")
+    print("=" * 92)
+    base = {}
+    for term in ("pip", "pure_pn"):
+        base[term] = _adr15_all_speeds(None, term, n_seeds)
+        for ps in base[term].values():
+            all_rows.extend(ps)
+        print(f"\n  terminal={term}")
+        _adr15_pk_curve_line(base[term])
+    base_pip = base["pip"]
+
+    # --- (B) single-constraint sensitivity (PIP terminal = S2 default) -----
+    print("\n" + "=" * 92)
+    print("ADR-0015 (B) SENSITIVITY: each constraint toggled ON ALONE (PIP terminal)")
+    print("=" * 92)
+    single = {}
+    for label, perc in ADR15_SINGLE:
+        single[label] = _adr15_all_speeds(perc, "pip", n_seeds)
+        for ps in single[label].values():
+            all_rows.extend(ps)
+        _adr15_print_speed_block(label, single[label])
+
+    # sensitivity ranking: pooled-over-speed Pk drop vs idealized baseline
+    def pooled(per_speed):
+        return _adr15_pk([r for sp in ADR15_SPEEDS for r in per_speed[sp]])
+    base_pooled = pooled(base_pip)
+    print("\n" + "-" * 92)
+    print("  SENSITIVITY RANKING (pooled 6/8/10 m/s, PIP terminal) -- Pk drop vs idealized baseline")
+    print(f"    baseline pooled: mean={base_pooled['mean']:.2f}  "
+          f"Pk@1={base_pooled['pk'][1.0]*100:.0f}%  Pk@2={base_pooled['pk'][2.0]*100:.0f}%")
+    print("-" * 92)
+    ranking = []
+    for label, _ in ADR15_SINGLE:
+        s = pooled(single[label])
+        d1 = base_pooled["pk"][1.0] - s["pk"][1.0]
+        d2 = base_pooled["pk"][2.0] - s["pk"][2.0]
+        dmean = s["mean"] - base_pooled["mean"]
+        ranking.append((label, s, d1, d2, dmean))
+    ranking.sort(key=lambda x: (x[3], x[2]), reverse=True)  # worst Pk@2 damage first
+    print(f"    {'constraint':28s} {'mean':>6s} {'dMean':>7s} {'Pk@1':>6s} {'dPk@1':>7s} "
+          f"{'Pk@2':>6s} {'dPk@2':>7s}")
+    for label, s, d1, d2, dmean in ranking:
+        print(f"    {label:28s} {s['mean']:6.2f} {dmean:+7.2f} "
+              f"{s['pk'][1.0]*100:5.0f}% {-d1*100:+6.0f}% {s['pk'][2.0]*100:5.0f}% {-d2*100:+6.0f}%")
+
+    # --- (C) combined realistic (emit=True headline + differentiate) -------
+    print("\n" + "=" * 92)
+    print("ADR-0015 (C) COMBINED REALISTIC vs idealized baseline -- Pk-vs-R, both terminals")
+    print("=" * 92)
+    combined = {}
+    for term in ("pip", "pure_pn"):
+        for emit in (True, False):
+            key = (term, "emit" if emit else "differentiate")
+            combined[key] = _adr15_all_speeds(ADR15_REALISTIC, term, n_seeds, emit_velocity=emit)
+            for ps in combined[key].values():
+                all_rows.extend(ps)
+    # mitigated design variant (shared RTK + emit + no jam), PIP terminal
+    mitig_pip = _adr15_all_speeds(ADR15_REALISTIC_MITIGATED, "pip", n_seeds)
+    for ps in mitig_pip.values():
+        all_rows.extend(ps)
+
+    print("\n  --- idealized baseline (PIP terminal) ---")
+    _adr15_pk_curve_line(base_pip)
+    print("\n  --- COMBINED REALISTIC, PIP terminal, cue EMITS velocity (honest headline) ---")
+    _adr15_pk_curve_line(combined[("pip", "emit")])
+    print("\n  --- COMBINED REALISTIC, PIP terminal, drone DIFFERENTIATES cue ---")
+    _adr15_pk_curve_line(combined[("pip", "differentiate")])
+    print("\n  --- REALISTIC + ADR-0015 MITIGATIONS (RTK 0.5 m + emit vel + no jam), PIP terminal ---")
+    _adr15_pk_curve_line(mitig_pip)
+
+    # --- (D) PN vs PIP under realistic velocity quality --------------------
+    print("\n" + "=" * 92)
+    print("ADR-0015 (D) PN-vs-PIP under REALISTIC velocity quality (constraint #2)")
+    print("=" * 92)
+    for term in ("pip", "pure_pn"):
+        _adr15_print_speed_block(f"terminal={term}, cue EMITS velocity", combined[(term, "emit")])
+        _adr15_print_speed_block(f"terminal={term}, drone DIFFERENTIATES", combined[(term, "differentiate")])
+
+    print(f"\n[guidance_lab] ADR-0015 study done in {time.perf_counter() - t0:.2f}s "
+          f"({len(all_rows)} runs)")
+    return all_rows
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--quick", action="store_true", help="small fast sweep (smoke test)")
@@ -2375,12 +2855,34 @@ def main():
                          help="seed count for the per-lever ranking sweeps (default 120)")
     parser.add_argument("--adr0014-combo-seeds", type=int, default=150,
                          help="seed count for the final best-combo/Pk-preview evaluation (default 150)")
+    parser.add_argument("--adr0015", action="store_true",
+                         help="run ONLY the ADR-0015 perception-constraint COST study (how much "
+                              "each real-world cue/seeker data-constraint costs Pk; sensitivity "
+                              "ranking + combined-realistic Pk-vs-R + PN-vs-PIP under realistic "
+                              "velocity) instead of the main trade study, writing its own CSV. "
+                              "See the ADR-0015 section of this file.")
+    parser.add_argument("--adr0015-seeds", type=int, default=60,
+                         help="seed count per cell for the ADR-0015 study (default 60, >=40 asked)")
     args = parser.parse_args()
 
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     csv_path = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}.csv")
     plot_prefix = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}")
+
+    if args.adr0015:
+        print(f"\n[guidance_lab] ADR-0015 perception-constraint cost study "
+              f"(seeds={args.adr0015_seeds}/cell)")
+        adr15_csv_path = os.path.join(LOGS_DIR, f"guidance_lab_adr0015_{timestamp}.csv")
+        all_rows = run_adr0015_study(n_seeds=args.adr0015_seeds)
+        write_csv(all_rows, adr15_csv_path)
+        print(f"\n[guidance_lab] ADR-0015 CSV written: {adr15_csv_path} ({len(all_rows)} rows)")
+        print(
+            "  REMINDER: kinematic surrogate -- these perception-cost numbers RANK which "
+            "data-constraints the hardware/perception design must get right; the winning "
+            "config still has to re-earn its Pk in a Gazebo/mc_batch run before it is a result."
+        )
+        return 0
 
     if args.adr0014:
         print(
