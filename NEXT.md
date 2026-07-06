@@ -61,6 +61,25 @@ perception doesn't; lethal-radius = narrative assumption; lab-vs-Gazebo 5×;
 worse-than-ideal 3-tier), guidance arc, perception-half pointers, reproduce
 instructions, repo map. TODO slots: M5 Monte-Carlo final numbers + demo GIF.
 
+## ✅ DONE — terminal-solutions research (5 lanes, builder "get solutions that pan out")
+Root cause FOUND + verified (ADR-0023): the miss is KINEMATIC, 96% locked at
+handoff (ZEM r²=0.99), NOT terminal perception — corrects ADR-0014. Consolidated
+plan: `docs/terminal_solutions_plan.md`. Lanes: ADR-0020 jam envelope (maneuver
+sets margin), ADR-0021 kill mechanism (ram/net, can't buy out perception),
+ADR-0022 real-world guidance (PROPOSED, proximity metric council-worthy),
+ADR-0023 diagnosis (linchpin), ADR-0024 seeker (narrower acquisition lens,
+reverses wide-FOV). **The working plan, cheapest-first:**
+- [ ] **T1 (free software, do first):** earlier handoff (start terminal at first
+  detection ~7.6 m not latch ~6.2 m) + split-freeze/later-freeze + warm-settled
+  filters (reclaims ~0.3-0.45 m) + keep cue-velocity. Lab A/B → Gazebo mc_batch,
+  near-R=0 regression so M4 gate holds.
+- [ ] **T2 (~$15-35, reopens M1/M2):** narrower/longer acquisition lens → earlier
+  lock → bigger t_go (capacity ∝ t_go²). Narrow SDF hfov, raise HANDOFF_RANGE,
+  re-baseline M1/M2 + disclose, re-run mc_batch.
+- [ ] **T3 (BUILDER/COUNCIL call):** adopt proximity Pk-vs-radius metric (ram
+  ~0.5 m wins slow regime; net ~1.5 m fast regime) — one-way door on the resume
+  line, do NOT flip unilaterally.
+
 ## Remaining before M5 finish line
 - [ ] **P-8 adopt corrected sim knobs then re-tune:** stereo σ_R split
   (c=4.45e-05 + --datum-bias-m, ADR-0017) into s2_cue_mock defaults; 0.20 s
