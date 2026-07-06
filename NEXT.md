@@ -37,11 +37,40 @@ to a bench-measurable quantity; batches only at idle machine load.**
   precedes camera acquisition → fusion window never opens (coast-search is the
   mitigation there).
 
-## ⏳ IN FLIGHT — Gazebo fusion A/B (3 paired arms, idle machine, seed 42)
-`mc_batch` ×3, N=8, pronav 6 m/s, realistic cue: BASE (--cue-velocity, clean-
-machine baseline rerun per the matched-load rule) / FUSE (+--fuse-midcourse) /
-FUSEWARM (+--warm-handoff). Primary metric: terminal coverage + dropout-at-CPA
-rate (lab predicts fusion cuts it); then miss/Pk. → ADR-0018 addendum.
+## ✅ DONE — Gazebo fusion A/B (ADR-0018 addendum)
+3 paired arms N=8, seed 42, realistic cue. FUSE −0.088 m / FUSEWARM −0.074 m
+mean vs BASE (within ~1 m noise, n=8). **Lab's coverage win did NOT transfer:**
+Gazebo coverage flat 0.131/0.131/0.135, 8/8 dropout-at-CPA in every arm —
+fusion is pre-latch, dropout is post-latch (camera-only by design), so it
+can't touch the real failure mode. Verdict: keep --fuse-midcourse (small,
+non-harmful handoff-geometry gain), warm-handoff adds nothing in Gazebo, both
+default OFF. 5th lab-vs-Gazebo divergence. Reinforces: intercept is gated by
+TERMINAL perception, which no mid-course aid reaches.
+
+## ✅ DONE — P-1 ground sensor modality (ADR-0019, docs/ground_modality.md)
+Staged-thermal HOLDS with 2 corrections: bird-rejection is radar/motion/ML not
+thermal (birds are warm); "thermal=all-conditions" oversold (crossover-blind,
+fog-degraded); Boson 640 = $3,558 (doubles the EO rig). RF-defeat-by-fiber-FPV
+confirmed (NATO 2025). Honest EO-only envelope: ~60-160 m daytime, blind at
+night. Cheapest night path = 1 mono LWIR core, not thermal stereo.
+
+## ✅ DONE — README.md draft (M5 skeleton, P-0 honesty section)
+Mission, headline results table (all traced), Mermaid architecture + ASCII
+fallback, the P-0 honesty section (AprilTag stand-in; guidance transfers,
+perception doesn't; lethal-radius = narrative assumption; lab-vs-Gazebo 5×;
+worse-than-ideal 3-tier), guidance arc, perception-half pointers, reproduce
+instructions, repo map. TODO slots: M5 Monte-Carlo final numbers + demo GIF.
+
+## Remaining before M5 finish line
+- [ ] **P-8 adopt corrected sim knobs then re-tune:** stereo σ_R split
+  (c=4.45e-05 + --datum-bias-m, ADR-0017) into s2_cue_mock defaults; 0.20 s
+  WORST latency stress tier (ADR-0016). These change the cue model → re-run S2
+  gate + a Monte-Carlo to confirm before trusting new numbers.
+- [ ] **M5 Monte-Carlo:** the real batch (laws × speeds 6/8/10 × paths), Pk-vs-
+  radius curves under the corrected+realistic cue, fill README TODO slots.
+- [ ] **Demo GIF:** GUI pursuit-vs-pronav side-by-side (Emerson's standing ask).
+- [ ] Optional: Gazebo confirm of the jam link-cutoff envelope (lab study in
+  flight) once its cliff-edge numbers land.
 <!-- ============================================================= -->
 
 ## Current: M4.5 realism upgrade (ADR-0010 sequencing) — S1 ✅, S2 ✅ (built + gated), S3 next

@@ -523,3 +523,76 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date:** 2026-07-05. (Fable worker; default-path byte-identity re-verified by the
   main session — `--quick` numeric output matches HEAD exactly; S2 gate re-run before
   commit.)
+
+### ADR-0018 addendum (2026-07-05) — Gazebo A/B: the lab's coverage win did NOT transfer; fusion is a small, non-harmful handoff-geometry gain (5th lab-vs-Gazebo divergence)
+- **Setup:** three paired `mc_batch` arms, N=8 each, pronav 6 m/s, master-seed 42,
+  identical realistic cue (`--sigma-range --datum-bias-m 0.5 --emit-velocity
+  --vel-sigma 0.5 --latency-jitter-s 0.05 --dropout-markov`), idle machine.
+  BASE = `--cue-velocity`; FUSE = `+--fuse-midcourse`; FUSEWARM = `+--warm-handoff`.
+  CSVs `logs/mc_p6_{BASE,FUSE,FUSEWARM}_2026070*.csv`.
+- **Result — miss (paired vs BASE):** BASE mean 1.249 / median 1.066; FUSE 1.161 /
+  1.026 (**Δ −0.088 m mean, −0.081 median**, better on 5/8 seeds); FUSEWARM 1.175 /
+  0.991 (Δ −0.074 m, better on 4/8). Direction is right and consistent but the delta
+  (~0.08 m) is **well inside the ~1 m run-to-run terminal-dropout noise** (σ_Δ 0.18-0.21) —
+  not significant at n=8. Pk@1 4/8 and Pk@2 7/8 in ALL three arms.
+- **The lab's predicted mechanism did NOT reproduce.** Lab said fusion's win is
+  terminal coverage-at-CPA (0.65/0.35/0.08 → ~0.96). In Gazebo mean terminal
+  coverage is **flat: 0.131 / 0.131 / 0.135** across BASE/FUSE/FUSEWARM, and **all
+  8/8 flights in every arm still break off by terminal camera dropout at CPA**
+  (36/36 → now 60/60 across all realistic-cue batches). Fusion did not move the
+  dropout at all.
+- **Why (the honest read):** fusion is PRE-latch only (the ADR-0010 #5 one-way
+  latch is intact and correct). The Gazebo terminal-dropout is a REAL perception
+  failure — the camera physically loses the AprilTag at close range / high LOS rate,
+  AFTER the latch — exactly where fusion is structurally absent by design. So fusion
+  can only improve the dash/handoff geometry (the small, real −0.08 m it delivers),
+  and cannot touch the terminal dropout that dominates the miss. The lab's "coverage"
+  was a frozen-coast abstraction (ADR-0014/0015 documented blind spot); it measured
+  track liveness, not the physical camera hold — the two diverge precisely here.
+- **Verdict:** KEEP `--fuse-midcourse` (default off) — a small, consistent,
+  never-harmful handoff-geometry improvement, honestly reported as sub-noise at
+  n=8; a larger Monte-Carlo (M5) could firm the sign. `--warm-handoff` adds nothing
+  measurable on top in Gazebo — keep opt-in, do not enable by default. **The decisive
+  takeaway reinforces the whole perception pivot:** the intercept is gated by TERMINAL
+  perception (camera hold through CPA), which is POST-latch and comms-denied by
+  design — no mid-course aid, fusion included, can fix it. Only a better real terminal
+  seeker (detect-then-track, ADR-0015) or a terminal-guidance change that reduces the
+  LOS-rate demand (ADR-0014 yaw-rate lever) moves this number. This is the 5th
+  documented case of the lab ranking optimistically vs Gazebo (after PIP,
+  calibration, Kalata, absolute-Pk); the rule holds — lab ranks, Gazebo decides.
+- **Date:** 2026-07-05. (Batches on an idle machine per the matched-load rule; analysis
+  `scripts/mc_analyze.py` + paired per-seed comparison traced to the three CSVs above.)
+
+## ADR-0019 — Ground sensor modality (P-1): staged-thermal HOLDS, but bird-rejection re-attributes to radar/motion, not thermal
+- **Context:** P-1 pressure-tested ADR-0015's asserted-not-sourced claims ("thermal
+  mandatory for night AND bird-rejection", "RF defeated by fiber-optic FPV") against
+  2025-2026 counter-UAS sources. Full study + verdict table + citations:
+  `docs/ground_modality.md`. Pessimistic tier taken where sources conflict.
+- **Decision — the staged plan holds:** EO stereo (ADR-0017) is the daytime proof-rig
+  primary tracker; add ONE **mono uncooled LWIR core** (not a thermal STEREO pair —
+  that doubles the priciest part for night range you can't reliably get) co-boresighted
+  with the EO stereo for any night claim. Radar (micro-Doppler) is the all-weather +
+  true-bird-rejection upgrade, budget-gated ($50k+ fielded; a ~$300 TI mmWave module
+  only *demonstrates* the principle to ~150 m). Acoustic = ≤200 m close-in night cue
+  only. RF/SDR stays a cheap cue, never primary.
+- **Corrections to ADR-0015 (sourced):** (A) **bird-rejection is owned by micro-Doppler
+  radar + motion-signature/ML, NOT thermal** — birds are warm-blooded, so LWIR gives a
+  hot blob, not an ID; the council mis-credited thermal for the #1 fielded C-UAS
+  failure. Keep thermal for NIGHT; credit radar/motion/ML for BIRDS. (B) "thermal =
+  all-conditions" is OVERSOLD — thermal is a night enabler but is blind at dawn/dusk
+  thermal crossover (ΔT≈0, twice daily), ΔT-starved on hot days (5-15 °C), and loses
+  20-70% range in fog/humidity. (C) **Boson 640 module = $3,558** (GroupGets), at/above
+  ADR-0015's thermal top end — a night channel roughly DOUBLES the ~$1.44k EO ground-rig
+  budget; budget the real number.
+- **Confirmed from ADR-0015:** RF-silent fiber-optic FPV defeats RF/EW detection (NATO
+  2025: "EW counter-UAS systems ineffective against [fiber-optic FPV]"; the threat is
+  supply-limited but ramping) — which is the strongest argument FOR the whole EO/IR +
+  onboard-seeker thesis. EO-only is genuinely day-only.
+- **Honest EO-only engagement envelope (reconciled with ADR-0017's 59-160 m + fielded
+  data):** ~120-160 m for a CLASSIFIED, bird-rejected track on a 0.3 m FPV in good
+  daylight (EXPECTED); ~250-440 m bare detection at BEST (a speck, narrower lens); ~59 m
+  WORST (small/side-on, overcast/dusk), against the operational reality of ~40% detection
+  at 95% confidence + hundreds of false alarms/day. The proof rig is an honest daytime
+  ~60-160 m demonstration, blind at night/crossover — disclosed in the README.
+- **Date:** 2026-07-05. (Opus research worker, WebSearch/WebFetch; main-session review
+  adopted the proposed block; sources in ground_modality.md.)
