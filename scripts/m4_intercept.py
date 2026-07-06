@@ -371,7 +371,10 @@ def apply_fpv_profile():
 # opposite of PIP's camera-only-from-hover result, ADR-0011/its addendum).
 S2 = {
     "DASH_SPEED": 10.0,          # m/s, cue-guided lead-pursuit closing speed during DASH
-    "HANDOFF_RANGE_M": 10.0,     # camera-measured range at/below which HANDOFF may trigger
+    "HANDOFF_RANGE_M": 12.0,     # camera-measured range at/below which HANDOFF may trigger
+                                 # (Tier-2, ADR-0024 addendum: 10->12 with the 60deg lens;
+                                 #  modest bump for streak-completion margin, NOT 1:1 to the
+                                 #  ~14 m envelope -- that reproduces the rejected early-handoff)
     "DASH_MAX_LEAD_S": 4.0,      # PIP-style intercept-triangle lead cap during DASH
     "CUE_PORT": 47800,
     "DASH_TIMEOUT_S": 20.0,      # DASH phase abort timeout

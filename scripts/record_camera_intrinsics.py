@@ -41,7 +41,7 @@ CAMERA_INFO_TOPIC = (
 # Declared in ~/PX4-Autopilot/Tools/simulation/gz/models/mono_cam/model.sdf
 # -- used only as a cross-check against the K matrix actually measured, not
 # as the source of truth (see docstring above).
-DECLARED_HFOV_RAD = 1.74
+DECLARED_HFOV_RAD = 1.0472  # Tier-2 (ADR-0024 addendum): 60deg lens (was 1.74 / 99.7deg)
 DECLARED_WIDTH = 1280
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
