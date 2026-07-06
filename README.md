@@ -178,20 +178,21 @@ is the part of this project that ports to a real interceptor close to as-is.
   exactly 5.000 with r²=1.000 in *both* directions — it is not a sign bug;
   ADR-0024 addendum, audit ADR-0026 item B).
 
-### The camera FOV was narrowed partway through (disclosed, re-baselined)
+### A camera-FOV narrowing was tried and rejected (a documented negative result)
 
-The camera's field of view was changed from 99.7° to **60°** (ADR-0024
-addendum, the Tier-2 acquisition-range work). This is a hardware-analog change
-— a longer/narrower acquisition lens, the exact tradeoff a real seeker design
-makes — **not** an inflation of the target's apparent size (that boundary is
-ADR-0010): the tag's physical dimensions are unchanged. It reopens and re-earns
-the affected gates rather than assuming them: M1 is unaffected (same resolution
-and rate); M2's accuracy gate was re-run and re-passed (pose error actually
-*improved*, 0.086 m → 0.026 m, from more pixels on target); and M2's detection
-*envelope* was **measured, not assumed** — reliable to ~14 m with the 60° lens
-(`scripts/check_m2_envelope.py`), versus the old ad-hoc ~6 m figure. All
-Monte-Carlo / Pk numbers dated before this change used the wide-FOV camera;
-numbers after use the narrow one — the commit boundary is in `docs/decisions.md`.
+Tier-2 tested narrowing the lens from 99.7° to 60° to acquire the tag at longer
+range (the analytic model and the offline lab both predicted a win). Gazebo
+overruled it: the narrower field detects farther (~15 m) but cannot *hold* a fast
+crosser, and the 9 m/s handoff-latch rate collapsed from 42% to 0% (ADR-0024 3rd
+addendum). The change was **not adopted** — the sim keeps the validated wide lens.
+The real fast-regime acquisition fix turned out to be a looser lock requirement
+(2 detections instead of 3, `--early-handoff`), which ~doubled the 9 m/s latch
+rate — though the *miss* stayed kinematically limited either way (reconfirming the
+[root-cause diagnosis](docs/terminal_diagnosis.md)). One keeper from the exercise:
+`scripts/check_m2_envelope.py` now **measures** the detection envelope instead of
+assuming it. This whole arc — a lab-endorsed idea empirically overturned, the
+right fix found, the fundamental limit reconfirmed — is the "the data decides"
+methodology the project is built on.
 
 ### The lethal radius is a narrative assumption, not a modeled collision
 

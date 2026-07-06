@@ -3,12 +3,12 @@
     "width": 1280,
     "height": 960
   },
-  "fx": 1108.509292602539,
-  "fy": 1108.509407043457,
+  "fx": 539.9363327026367,
+  "fy": 539.9363708496094,
   "cx": 640.0,
   "cy": 480.0,
   "fx_cross_check_from_declared_hfov": 539.9363680245298,
   "declared_hfov_rad": 1.74,
   "source_topic": "/world/apriltag/model/x500_mono_cam_0/link/camera_link/sensor/imager/camera_info",
-  "recorded_utc": "2026-07-06T20:05:29Z"
+  "recorded_utc": "2026-07-04T23:29:58Z"
 }
