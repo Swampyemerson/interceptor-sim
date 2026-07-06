@@ -867,3 +867,59 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   the regression gates, and the analysis. Batches on an idle machine, matched-load rule;
   note: two batch-orchestration incidents (concurrent-chain sim collision + a self-killing
   pkill) were caught and recovered — the reported arms are the clean re-runs.)
+
+## ADR-0026 — Fable 5 adversarial audit (2026-07-06): core claims HOLD; corrections applied, no reversals
+- **Context:** Builder asked for a full audit of the project as it stands. Six parallel
+  adversarial sub-audits (verifier/sonnet subagents, refute-not-confirm) ran the brief in
+  `docs/audit_targets.md` across the highest-stakes claims. This entry records the verdicts
+  so the corrections above are traceable and future sessions don't relitigate settled points.
+- **Tier-1 (correctness the project rests on) — all HOLD:**
+  - **A. Handoff honesty boundary — CONFIRMED by source trace.** Every cue/`ext_*` read is
+    inside the `args.handoff` guarded pre-latch block; the single latch (`m4_intercept.py`
+    ~1795) closes the socket and nulls the holder; no `gt_*` feeds any command; SimClockHolder
+    is side-effect-free. Gap found: the SCRIPTED audits (check_s2.sh) don't cover
+    non-detected-tick commands or a hypothetical `gt_*` leak, and the correlation audit (c)
+    can't distinguish a partial blended leak. → hardened this session (static AST test +
+    audit (a) extension + residual audit (d); see the audit-hardening commit).
+  - **B. Frame/sign conventions — CONFIRMED.** `north=world_y, east=world_x` is the textbook
+    ENU→NED swap (world declares ENU in apriltag.sdf:115), "counterintuitive" only vs the
+    wrong world_x=north assumption — a naming matter, not a bug. Pro-nav sign nulls LOS rate;
+    `--bench` passes bidirectionally. CAVEAT: a real, significant ~0.6 m L2R-vs-R2L miss
+    asymmetry exists in the worktree mc_batch (p≈0.01, n=10/dir) — most consistent with the
+    fixed-tag-aspect perception effect (first-detection range differs 12.1 vs 8.0 m), NOT a
+    sign flip, but it is undocumented and single-batch. The east/world_x axis is never mirror-
+    tested (target start_x never flipped). → tracked as an M5 check item.
+  - **C. ADR-0023 kinematic diagnosis (the linchpin) — HOLDS-WITH-CAVEATS.** Every headline
+    number reproduced independently from raw logs (ZEM@handoff 1.688 vs 1.69; r² 0.957/0.990;
+    capacity 0.720 m; a 8.68 vs 8.7). ZEM is provably RTF-invariant; r² robust to differencing
+    window. The crux (t_go endogeneity) resolves in the diagnosis's favor: the freeze latch is
+    RANGE-triggered (3.5 m, fires while detected in 34/41 flights), so terminal-hold perception
+    can't grow t_go — the bound is not circular w.r.t. the claim. Caveats: r²=0.990 at freeze is
+    near-tautological (don't cite it as the proof — the capacity bound is); "70% kinematic" is
+    contingent on the current ~7.6 m acquisition range; ALL 41 flights are one speed (6 m/s).
+- **Tier-2/3 — solid, discipline strong, small corrections applied above:**
+  - **D. Lab byte-identity — REFUTED only additively:** the `--adr0014` commit added a
+    `terminal_coverage` CSV column; all prior values/RNG bit-identical. Other 4 study flags
+    fully byte-identical. AlphaBetaFilter `gain_scale=1.0` is IEEE-exact. One lab-number-as-
+    conclusion violation (net Pk) tagged.
+  - **E. Stats — Wilson CI implementation correct (hand-reproduced); verdicts HONEST except
+    the ADR-0023-addendum BC "HURTS"** (borderline, uncorrected) — softened above. One unnoted
+    cross-batch load comparison flagged (low stakes).
+  - **F. Cue-mock σ_R gap CONFIRMED:** s2_cue_mock still ships the steep 0.4+0.008·R²; the
+    ADR-0017 correction is unadopted (P-8). Disclosure was thin → added to ADR-0018 + the
+    build queue; the fusion-lever size may be understated (terminal-kinematics argument
+    unaffected — it's post-latch/camera-only).
+  - **G. Sourced numbers:** stereo σ_R formula + calibration term correct; two compute_setup
+    citations misattributed (INT8 fps, Seeed URL) — struck/corrected. b≈2.24 m is a 2-term
+    shortcut (true 4-term optimum ~2.95 m).
+  - **H/meta:** M0–M4 gate thresholds verified UNCHANGED since creation (metric change didn't
+    soften any gate); mc_analyze reports raw miss AND Pk-curve; radii physics-derived; no
+    secrets; ADR numbering clean; one stale citation (−26% jam point) back-propagated; ADR-0023
+    forensics preserved into `scripts/forensics/`.
+- **Decision:** core thesis (comms-denied camera-only intercept; pro-nav beats pursuit; miss is
+  kinematic at FPV speed; proximity metric) stands — nothing reversed. All corrections are
+  scope/qualifier edits applied in-place. Open items rolled into the build queue (NEXT.md):
+  harden honesty audits (done), the L2R/R2L asymmetry check + a second-speed forensic batch as
+  the cheapest thing that would upgrade C to HOLDS, adopt P-8 corrected cue constants, then the
+  M5 Monte-Carlo re-derives every lab-tagged Pk in Gazebo.
+- **Date:** 2026-07-06. (6 parallel adversarial sub-audits + this synthesis; main session Fable.)

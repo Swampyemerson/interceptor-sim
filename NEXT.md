@@ -24,6 +24,16 @@ appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
    c=4.45e-05 (not 0.008·R²) + separate `--datum-bias-m` — into s2_cue_mock
    defaults, plus the 0.20 s WORST latency stress tier (ADR-0016). Changes the cue
    model → re-run S2 gate + a confirmation batch before trusting new numbers.
+2b. **Audit follow-ups (ADR-0026 — cheap, do alongside Tier-2).**
+   - **Second-speed forensic batch:** one mc_batch at 3 m/s + one at 9 m/s, re-run the
+     ZEM forensics (`scripts/forensics/`). The kinematic model predicts miss ∝
+     ZEM@handoff at every speed — the single cheapest thing that upgrades ADR-0023
+     from HOLDS-WITH-CAVEATS to HOLDS (all 41 current flights are 6 m/s only).
+   - **L2R vs R2L asymmetry:** a real ~0.6 m mirror asymmetry (p≈0.01, single batch)
+     is most likely the fixed-tag-aspect perception effect, not a sign bug — confirm
+     with a second paired batch + write it up, or find the guidance/acquisition term
+     if it isn't the tag aspect. The east/world_x axis has NEVER been mirror-tested
+     (target start_x never flipped) — add a west-approach geometry to the M5 suite.
 3. **S3/S4 folded into M5's Monte-Carlo (proposal, logged here 2026-07-06).**
    ADR-0010's S3 (path suite) and S4 (adaptation proof) merge into the M5 batch:
    mc_batch over {pursuit, pronav} × speeds {6, 8, 10} × paths {crossing L→R, R→L,
