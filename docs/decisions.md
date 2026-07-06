@@ -637,3 +637,34 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date:** 2026-07-05. (Fable worker; `--jam-envelope`, 80 seeds/cell, 17.6k runs;
   byte-identity vs HEAD confirmed. Gazebo confirmation queued: paired {no-cut, cut≈15 m,
   cut≈25 m} × coast off/on, primary metric camera-locked-at-CPA rate + link-lost-no-acq.)
+
+## ADR-0021 — Kill mechanism + honest Pk-radius reframe (part of the "solutions that pan out" push): you cannot buy out the perception gap with a bigger warhead
+- **Context:** the terminal miss floors at ~1-2 m at FPV speed and won't null. The
+  real-missile answer is a lethal radius, not a zero-miss hit. Which cheap kill mechanism,
+  what HONEST radius, and does it make the current system "enough"? Research-only (no sim,
+  no code). Full study + citations: `docs/kill_mechanism.md`. Radii from physics (drone
+  span / net span / grenade data), NOT reverse-engineered to a Pk — ADR-0014 boundary held.
+- **Decision:** headline the **kinetic ram (hit-to-kill, $0 payload, 0 g)** — what ~70% of
+  cheap real interceptor kills (Ukraine FPV interceptors) already do, matches our 2.5-7 in
+  airframe, no fuze. Honest lethal radius **0.5 m BEST / 0.30 m EXPECTED / 0.15 m WORST**
+  (prop-disc overlap of two small quads = ADR-0014's "0.5 m aggressive kinetic point").
+  Recommend a **small net (R≈1.5 m, ~370 g, ~$100-200, 7 in-class airframe)** as the
+  cost-optimal non-explosive FORGIVENESS upgrade for the fast regime, salvo-stacked 3-5×
+  for a defensible Pk. **Reject fragmentation** — inappropriate to build for a portfolio,
+  and its forgiving radius is gated by a proximity fuze anyway.
+- **Reframe result (overlaid on our real miss numbers):** split verdict. **At 2-3 m/s the
+  intercept is ALREADY a kill** — M4 pro-nav miss ~0.37 m is inside even the WORST ram
+  radius → Pk ~95-100% at R=0.5 m, no reframe needed; the "sub-meter miss problem" there
+  was partly judging against a hit-to-kill bar only the ram requires. **At 6 m/s it is
+  NOT** — mean 2.19 m gives Pk ~5% at R=0.5 m; a ram can't rescue it, a net lifts
+  realistic-cue (~1.4-1.8 m) to ~40-75% and needs the salvo to be defensible.
+- **THE load-bearing insight (reinforces the whole perception pivot):** you cannot buy out
+  the terminal perception problem with a bigger lethal radius. Sensor-free mechanisms
+  (ram, net) forgive only ~0.5-2 m; the ONE mechanism that would forgive the 6 m/s miss
+  (a proximity-fuzed charge, R~2-2.5 m) must DETECT the target at that same 2-3 m radius —
+  which is exactly the terminal detection ADR-0014 found us losing inside 1 m of CPA
+  (20/20). The reframe moves the perception gap from the guidance loop to the fuze; it
+  does not close it. Fixing terminal detection (ADR-0015 redirect) stays the real lever.
+- **Date:** 2026-07-05. (Opus research worker, WebSearch/WebFetch, every external number
+  URL-cited; main-session review adopted the block; part of the 4-lane terminal-solutions
+  research — diagnosis / real-world guidance / seeker upgrades still in flight.)
