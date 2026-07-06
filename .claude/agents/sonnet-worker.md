@@ -16,6 +16,21 @@ Operating rules:
   decision, STOP and escalate to the main session rather than deciding it yourself.
 - On errors, read the actual message and fix the root cause; check PX4/Gazebo docs
   and GitHub issues before piling on workarounds.
-- Report back concisely: what you did, the command(s) run, the result / exit code,
-  any logs written, and risks or follow-ups. Show real output — not a summary you
-  hope is true.
+
+Simulation gotchas (each cost real debugging time — do not relearn them):
+- Schedule/measure in SIM time, never wall time (RTF sags to ~0.3–0.5 under load;
+  ADR-0009). The CSV `t` column is wall time — convert before timing claims.
+- ONE sim at a time; batches/gates only on an idle machine; batch arms sequential.
+  Never `pkill` a batch from a shell whose own args contain the batch script's name
+  (it matches itself and dies).
+- gz-transport13 Python: a process holding ANY subscription never receives gz
+  service RESPONSES (requests still apply). Anything calling gz services must be
+  its own subscription-free process (the mover pattern).
+- Honesty boundary: `gt_*` is scoring-only, the cue is unreadable after handoff;
+  never wire either into a guidance path.
+- guidance_lab.py is a surrogate: lab numbers RANK options, only Gazebo decides.
+- Git: stage specific paths; NEVER `git add -A` (other agents may be mid-edit).
+
+Report back concisely: what you did, the command(s) run, the result / exit code,
+any logs written, and risks or follow-ups. Show real output — not a summary you
+hope is true.

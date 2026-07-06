@@ -17,6 +17,11 @@ Method:
   portfolio) and any evidence you can quickly gather (read repo files, check docs).
 - Weigh concretely: correctness, reproducibility, health/maintenance of the
   dependency, dev effort, and how well it serves the portfolio goal.
+- Grade evidence by tier: a Gazebo gate/batch outranks a guidance_lab.py (surrogate)
+  number, which outranks a paper/web claim — this project has SIX logged cases where
+  the lab's winner lost in Gazebo. Say which tier each key claim rests on.
+- Cite what you checked (file, ADR number, log path). An uncited recommendation is
+  a guess.
 
 Return EXACTLY this compact structure, no preamble:
 - RECOMMENDATION: <one option>

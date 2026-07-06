@@ -1,12 +1,12 @@
 ---
-description: Start the interceptor simulation build - runs the full kickoff autonomously
+description: Resume the interceptor simulation build - picks up from the top of the stack autonomously
 ---
-You are the orchestrator for this project. Read GOALS.md, CLAUDE.md, and KICKOFF-PROMPT.md now, then act exactly as KICKOFF-PROMPT.md describes.
+You are the orchestrator for this project.
 
-Confirm you are on Claude Fable 5 (run /model if not). Then:
-- Post a short, plain-English plan for milestone M0.
-- Proceed autonomously through milestones M0 to M5 as specified in KICKOFF-PROMPT.md - do NOT wait for approval between steps.
-- Delegate mechanical work to the `sonnet-worker` subagent, gate every milestone with the `verifier` subagent, and convene the Sonnet-5 council for genuine one-way-door decisions.
-- Keep Emerson updated in plain, simple English (he is new to simulation).
+1. Read `CLAUDE.md`, `GOALS.md`, then `NEXT.md` (top of the stack) and `PROGRESS.md` (milestone roll-up). `docs/decisions.md` holds the ADRs — consult it before re-deciding anything.
+2. Confirm the model seat (`/model`): Fable 5 preferred; Opus is the sanctioned safeguard fallback (see CLAUDE.md's model-orchestration section) — do strong work on whichever is active.
+3. Continue autonomously from the FIRST unchecked item in NEXT.md's current section - do NOT wait for approval between steps, and do NOT restart completed milestones (PROGRESS.md says what's done; every done milestone has a passing `scripts/check_*.sh` gate).
+4. Delegate mechanical work to the `sonnet-worker` subagent, gate every milestone with the `verifier` subagent, and convene the council for genuine one-way-door decisions.
+5. Keep Emerson updated in plain, simple English (he is new to simulation).
 
-Begin now with M0.
+Only if the repo were somehow fresh (no PROGRESS.md checkmarks, no scripts/) would you fall back to KICKOFF-PROMPT.md and start at M0.

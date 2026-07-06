@@ -79,6 +79,32 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
 - **Fix root cause.** On breakage, read the actual error, check PX4/Gazebo docs and
   GitHub issues, and fix the cause — don't stack workarounds.
 
+## Standing methodology rules (hard-won — each traces to a logged incident)
+
+- **Sim time, never wall time.** RTF sags to ~0.3–0.5 under load; anything scheduled
+  or measured in wall time silently distorts (cost M4 five dev runs + two failed
+  gates, ADR-0009). Movers, holds, durations, latencies: sim-clock only.
+- **Batch hygiene.** Gates and Monte-Carlo batches run at IDLE machine load only
+  (load confound documented, ADR-0015 2nd addendum). ONE sim at a time; batch arms
+  run sequentially. Never `pkill` a batch from a shell whose args contain the batch
+  script's name (self-kill).
+- **Statistics before verdicts.** Run-to-run terminal-dropout noise is ~1 m; a
+  single-flight delta below that is noise. A/B claims need paired seeds (n≥8) plus
+  mechanism evidence, and honest "not significant at this n" language.
+- **Lab ranks, Gazebo decides.** guidance_lab.py is a design-time surrogate with six
+  documented divergences from Gazebo (PIP, Kalata, fusion coverage, …). Its numbers
+  rank options; only a Gazebo gate/batch turns a ranking into a conclusion.
+- **Simulate worse than ideal.** Three tiers — BEST / EXPECTED / WORST-credible;
+  decisions must survive WORST; every realism knob maps to a bench-measurable
+  quantity (builder mandate, 2026-07-05).
+- **Honesty boundary.** `gt_*` (ground truth) is scoring/logging ONLY; the cue is
+  structurally unreadable after handoff; guidance sees camera + own-state EKF only.
+  Every new guidance path re-earns the numeric no-cheat audit.
+- **Git with background workers.** Stage specific paths — never `git add -A` while
+  any background agent may be mid-edit (swept partial work into commits once,
+  ADR-0011 3rd addendum). Worktree jobs: symlink the main `.venv`; no remote exists,
+  so merge = local `git merge --ff-only` from the main checkout.
+
 ## Environment note
 
 You run in **WSL2 (Ubuntu 24.04)** on Emerson's Windows PC, with an **NVIDIA RTX 4070 GPU available** (`nvidia-smi` works; libs under `/usr/lib/wsl/lib`). Gazebo can render **GPU-accelerated**, and WSLg gives a display for the GUI. Still prefer **headless** (`HEADLESS=1`) for automated/batch runs (faster + reproducible); use the GPU for camera rendering and the final demo. PX4 and MAVSDK both run here, so connect over local UDP (`udpin://0.0.0.0:14540`).

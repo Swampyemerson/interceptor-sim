@@ -11,8 +11,10 @@ We instrumented every fast-target flight and found the miss is **not** a camera
 problem. It is decided *before* the camera-only endgame begins:
 
 - The final miss tracks the geometry the interceptor is already on at handoff almost
-  perfectly (r² = 0.99). **96% of the miss is locked in before the terminal phase
-  starts** (ADR-0023, re-verified independently).
+  perfectly (r² = 0.957 at the handoff latch, 0.990 at the freeze latch — n=41).
+  **~96% of the miss variance is locked in before the terminal phase starts**
+  (ADR-0023, re-verified independently). *(Audit correction 2026-07-06: an earlier
+  draft cited the freeze-latch r²=0.99 as the handoff number.)*
 - The camera keeps seeing the tag down to ~1.7 m, ~0.07 s before closest approach.
   The "lost detection at CPA" is the drone flying *past* the target, not losing it
   early.
