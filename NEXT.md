@@ -1,5 +1,19 @@
 # NEXT — top of the stack
 
+<!-- ============================================================= -->
+<!-- RESUME-HERE (2026-07-06, autonomous ADR-0015 perception build) -->
+<!-- If a fresh session / restart lands here: the state below is on -->
+<!-- disk, not just in chat context. A detached mc_batch may still  -->
+<!-- be running (survives a CLI restart -- it was nohup'd).         -->
+<!-- ============================================================= -->
+## ⏳ IN FLIGHT — Gazebo emit-vs-differentiate A/B (ADR-0015 headline validation)
+- **Committed already:** `47f18d7` (lab realism study + ADR-0015 addendum, verifier-confirmed byte-identical baseline); `445ec8e` (Gazebo port: cue realism flags + m4 `--cue-velocity`/`--coast-search`; clean S2 gate PASSED pip 2.053 / pronav 1.929 m).
+- **EMIT arm DONE** (`logs/mc_realistic_EMIT_*.csv`, N=8 pronav 6 m/s, master-seed 42, realistic cue + m4 `--cue-velocity`): **mean miss 1.394 m** (median 1.125, all 8 clean+handoff). Confirms the lab's #1 finding IN GAZEBO.
+- **DIFF arm RUNNING** (`logs/mc_realistic_DIFF_*.csv`, paired: SAME master-seed 42, realistic cue, m4 differentiates — `--extra-args ""`). Single prior differentiate point = 3.10 m (matches lab 3.16).
+- **Realistic cue config (both arms):** `S2_CUE_MOCK_EXTRA="--sigma-range --datum-bias-m 0.5 --emit-velocity --vel-sigma 0.5 --latency-jitter-s 0.05 --dropout-markov"`.
+- **TO RESUME:** (1) confirm DIFF arm finished (8 rows in its CSV, no px4/gz procs); (2) `.venv/bin/python scripts/mc_analyze.py <each CSV>`; (3) log ADR-0015 2nd addendum with the paired A/B verdict (emit mean ~1.4 vs differentiate ~3.1 → the ground link MUST carry velocity); (4) update this block + PROGRESS.md; (5) commit specific paths (no remote, branch worktree-s2-handoff). Lab-vs-Gazebo pattern holds: Gazebo ~40% worse than lab, same ranking.
+<!-- ============================================================= -->
+
 ## Current: M4.5 realism upgrade (ADR-0010 sequencing) — S1 ✅, S2 ✅ (built + gated), S3 next
 
 ### Where S2 (two-stage handoff) landed (2026-07-05, ADR-0013)
