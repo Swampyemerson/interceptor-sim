@@ -442,3 +442,40 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date:** 2026-07-05. (No council — synthesis over ADR-0012/0015 + 2026 web sourcing by
   an Opus worker, reviewed by the main session; reversible; every number maps to the
   bench measurement in compute_setup.md §6.)
+
+## ADR-0017 — Ground stereo rig design point (P-2) + correction to the cue mock's noise split
+- **Context:** ADR-0015 said "2× global-shutter cams on a ~2 m baseline, sub-meter to
+  ~100 m" on faith. This ADR grounds it in physics: `scripts/stereo_model.py` (full
+  derivation in docstring; importable by s2_cue_mock) + `docs/stereo_design.md` +
+  three plots in `plots/stereo_*.png`. Three tiers per the worse-than-ideal mandate.
+- **Decision — design point:** onsemi AR0234 global-shutter (1920×1200, 3.0 µm) ×2 +
+  16 mm C-mount (f_px≈5333, HFOV≈20°), **2.0 m baseline**, **hardware GPIO trigger**
+  (mandatory — software sync ~1 ms would add ~0.75 m at 100 m vs a fast crosser; with
+  the trigger, sync is 0.1% of variance), rigid shaded bar, daily recalibration,
+  shared RTK+PPS datum. USB3-with-trigger cameras, NOT MIPI-CSI (a ribbon can't span
+  2 m); GMSL2 is the upgrade path. EO proof-rig ≈ **$1,440** (above ADR-0015's
+  $0.8-1.3k guess — the rigid mount + RTK + cabling are real money).
+- **Why 2 m (the knee):** σ_R from noise scales 1/b, but the calibration-drift term is
+  R²·δθ/b with FOCAL CANCELLING — no lens fixes it, only baseline or rigidity. 1→2 m
+  nearly halves σ_R (0.85→0.45 m at 100 m EXPECTED); 2→4 m only reaches 0.26 m for a
+  much harder mount, and in the WORST tier a floppier long bar makes accuracy WORSE
+  (optimum b≈2.24 m). Matching noise dominates the EXPECTED budget (71%).
+- **Envelope (EXPECTED):** σ_R ≤ 1 m to ~150 m, ≈0.45 m at 100 m; detection floor
+  ~160 m (accuracy binds, not detection — a balanced rig). Cross-range ≈ 1 cm at
+  100 m. WORST: σ_R ≤ 1 m only to ~66 m and detection binds at ~59 m — the honest
+  small-target/bad-light number to plan engagements around.
+- **CORRECTION to the sim (adopt at the next cue-model change):** the mock's hand-set
+  σ_R = 0.4 + 0.008·R² is ~180× too steep as STEREO NOISE (extrapolates to an absurd
+  80 m at R=100 m; physics says ~0.45 m). The 2-4 m handoff-range cue error it models
+  is REAL but is the GPS DATUM/CLOCK offset — a per-run constant that belongs in
+  `--datum-bias-m`, not in c. Adopt: σ_R(R) = a + c·R² with (a,c) = (0.000, 1.08e-05)
+  BEST / **(0.000, 4.45e-05) EXPECTED** / (0.214, 1.94e-04) WORST, plus datum-bias
+  0.3 / 0.5 / 2.5 m respectively. Consistency check: c·(b·f_px) ⇒ σ_d ≈ 0.48 px
+  EXPECTED, matching the assumed sub-pixel matching tier. Past realistic-cue batches
+  (ADR-0015 addenda) used the steeper hand-set curve — HARSHER than physics, so their
+  Pk is conservative, but the error was mis-attributed (noise vs datum); re-runs under
+  the corrected split supersede them.
+- **Date:** 2026-07-05. (Opus worker study, main-session review; every number traces to
+  `stereo_model.py` output or a cited source — Teledyne stereo-error note, Johnson's
+  criteria detection floor, stereo-DIC drift papers, Arducam/ArduSimple/NVIDIA prices,
+  pessimistic value taken where sources conflict.)
