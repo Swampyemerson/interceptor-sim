@@ -668,3 +668,41 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date:** 2026-07-05. (Opus research worker, WebSearch/WebFetch, every external number
   URL-cited; main-session review adopted the block; part of the 4-lane terminal-solutions
   research — diagnosis / real-world guidance / seeker upgrades still in flight.)
+
+## ADR-0022 (PROPOSED, not ratified) — Real-world terminal guidance: what missiles do, and the cheap levers we've never tried
+- **Status: PROPOSAL / research brief.** Records the real-world guidance research
+  (`docs/terminal_guidance_realworld.md`). The metric change in it (hit-to-kill →
+  proximity Pk) touches GOALS.md's resume-line success definition = a one-way door;
+  ratify only with the builder and/or a guidance council. Logged here so the options
+  and sourcing are on record.
+- **Context:** every FPV-speed crosser loses the terminal tag at CPA, misses ~1-2 m
+  (60/60, ADR-0014/0018). Builder asked what real missiles do and what is cheap to add.
+- **What real homing does (Q1/Q6, sourced):** hit-to-kill (sub-cm precision, hypersonic)
+  is a $M-class technique (PAC-3/THAAD, and even PAC-3 carries a proximity backstop).
+  EVERY cheap-to-midrange fielded kinetic C-UAS kills within a few-meter lethal/catch
+  radius: Coyote (blast-frag), Ukrainian ZIRKA/Sting FPV interceptors (~2 kg frag),
+  APKWS, Fortem DroneHunter (net). Converges with ADR-0021: proximity/net, not hit-to-kill.
+- **The technique we have NEVER tried (Q4) — the headline:** a **look-angle /
+  FOV-constrained (strapdown) guidance law** (OLAGL-style). The missile literature's
+  named problem "narrow-FOV strapdown seeker cannot maintain lock against a high-speed
+  target under conventional PN" matches our failure signature; the field's answer is a
+  law that BOUNDS the terminal look-angle demand to keep the target in the boresight,
+  rather than a wider lens. FREE (software A/B). **CONTINGENCY:** this is the right fix
+  ONLY IF the failure is FOV/look-angle escape (target leaves the boresight cone). The
+  diagnosis lane (ADR-0023, in flight) is settling from logs whether the tag is lost
+  OUTSIDE the FOV (→ look-angle law) or INSIDE it while undetected (→ a detection-cadence/
+  blur fix instead). Do not build the look-angle law before that verdict lands.
+- **The free software levers, in order (Q2/Q3/Q5):** (1) memory-tracking inertial
+  terminal COAST — the missile-standard seeker-blink answer, = ADR-0014 lever #2 done in
+  full (split-freeze v_close/yaw/λ̂ live + cap |λ̇| in both command AND filter-predict +
+  ≤0.5 s capped lead-extrapolation off the existing tracker); PX4 IMU/EKF already onboard,
+  cost ≈ $0. (2) the look-angle-constrained law A/B + free yaw-rate-authority param
+  (`MPC_YAWRAUTO_MAX`) + a lead-collision dash geometry. Rejected as costly/ineffective:
+  mechanical gimbal, IR seeker, APN (already tested-and-lost, ADR-0011), further terminal
+  slowdown. DEFER the 2nd wide-FOV camera (~$60-75) until the free levers are spent.
+- **Caveat (ADR-0014):** the residual miss floor is partly KINEMATIC at FPV crossing
+  speed, so coverage/lock-retention fixes may hold the lock without moving miss much —
+  every lever stays "lab ranks, Gazebo decides," gated by a near-R=0 regression before any
+  flight.
+- **Date:** 2026-07-05. (Opus research worker, WebSearch/WebFetch, URL-cited, vendor claims
+  flagged; PROPOSAL pending diagnosis + builder/council ratification of the metric change.)
