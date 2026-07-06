@@ -788,3 +788,26 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   complementary contribution to the t_go fix.
 - **Date:** 2026-07-06. (Opus research worker, re-run against the diagnosis via steering;
   main-session review; part of the 5-lane terminal-solutions push, now complete.)
+
+## ADR-0025 — RATIFIED: proximity/lethal-radius Pk is the headline success metric (builder decision, ADR-0022 proposal accepted)
+- **Context:** ADR-0022 flagged the hit-to-kill → proximity metric change as council-worthy
+  (it redefines GOALS.md's resume line). Presented to the builder with the full evidence
+  (ADR-0021 kill mechanisms, ADR-0023 kinematic floor ~0.9-1.0 m even with perfect sensing
+  at 6 m/s). **Builder ratified the proximity-radius metric on 2026-07-06.**
+- **Decision:** the headline success metric is the **Pk-vs-lethal-radius CURVE** (already
+  the ADR-0014 plan), with the radius set by a chosen cheap kill mechanism's PHYSICS, never
+  reverse-engineered to a threshold: **kinetic ram ≈ 0.5 m** (headline; already scores
+  Pk ~95-100% at 2-3 m/s where miss ~0.37 m) and **net ≈ 1.5 m** (the forgiveness upgrade
+  for the fast/FPV regime, salvo-stackable). The no-collision-volume disclosure (ADR-0014)
+  stays: the sim target is a flat board, so every radius is a disclosed narrative
+  assumption. This is consistent with GOALS.md's resume line ("validated via Monte-Carlo
+  miss-distance analysis" — proximity Pk-vs-radius IS that); no GOALS.md rewrite needed.
+- **What this does NOT change:** the M0-M4 gates stand as-is (M4's <1 m bar already passed
+  at 2 m/s). It reframes M5's HEADLINE from "sub-meter miss at all speeds" to "Pk-vs-radius
+  across the speed band under the chosen kill mechanism." The guidance-improvement work
+  (ADR-0023 Tier-1/2) still matters — it moves the whole curve left — but the bar is now
+  honest and mechanism-anchored, not an unforgiving hit-to-kill standard only a warhead-less
+  ram requires.
+- **Date:** 2026-07-06. (Builder decision via the main session; supersedes ADR-0022's
+  "PROPOSED, not ratified" status for the metric specifically. Next build per builder:
+  ADR-0023 Tier-1 free guidance reclaim.)

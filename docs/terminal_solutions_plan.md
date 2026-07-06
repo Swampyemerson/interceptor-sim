@@ -72,15 +72,12 @@ a near-R=0 regression so we don't break the M4 gate. "Lab ranks, Gazebo decides.
 **Test:** narrow the SDF `<horizontal_fov>`, raise `HANDOFF_RANGE`, re-run M1/M2 gates +
 `mc_batch`.
 
-### Tier 3 — the metric decision (YOUR call, council-worthy)
-5. **Adopt a proximity/lethal-radius Pk metric instead of hit-to-kill.** This is what
-   makes the current system defensible and matches real interceptors — but it redefines
-   the project's headline success criterion (the resume line), so it is a one-way door
-   and is **not** something to flip unilaterally. Recommendation: report the full
-   Pk-vs-radius curve (already the ADR-0014 plan) and headline the radius a chosen cheap
-   kill mechanism actually delivers — ram ~0.5 m (wins the slow regime outright), net
-   ~1.5 m (lifts the fast regime, salvo-stacked). Radius set by the mechanism's physics,
-   never reverse-engineered to a threshold.
+### Tier 3 — the metric decision (RATIFIED by the builder, 2026-07-06, ADR-0025)
+5. **Proximity/lethal-radius Pk is now the headline metric.** Report the full Pk-vs-radius
+   curve (the ADR-0014 plan) and headline the radius a chosen cheap kill mechanism actually
+   delivers — ram ~0.5 m (wins the slow regime outright, already Pk ~95-100% at 2-3 m/s),
+   net ~1.5 m (lifts the fast regime, salvo-stacked). Radius set by the mechanism's physics,
+   never reverse-engineered to a threshold. M0-M4 gates stand; this reframes M5's headline.
 
 ## What we are explicitly NOT doing (and why)
 The data says these barely touch the miss — rejected with reasons in the ADRs:
