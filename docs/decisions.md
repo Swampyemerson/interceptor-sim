@@ -405,3 +405,40 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date:** 2026-07-05 (UTC stamps 2026-07-06T01:50/02:27). Batches run on an
   otherwise-idle machine; analysis `scripts/mc_analyze.py`, paired comparison in
   this addendum traces to the two CSVs above.
+
+## ADR-0016 — Compute setup: hybrid split, track-message link, sourced latency budget (P-3/P-5/P-7)
+- **Context:** make ADR-0015's compute split concrete — pipeline map, rates, track-message
+  spec, and a sourced three-tier (BEST/EXPECTED/WORST-CREDIBLE) end-to-end latency budget
+  the sim can adopt and a bench can later replace 1:1. Full doc: `docs/compute_setup.md`.
+- **Options:** all-onboard / central-ground / per-camera-edge / hybrid.
+- **Decision: HYBRID.** Ground Jetson Orin NX runs a two-stream small-object detector
+  (YOLOv8n/8s-class, TensorRT — ~50-65 fps datasheet, **~15-20 fps/stream honest** after
+  small-object input-resolution and two-stream deratings) → stereo triangulation → Kalman
+  track emitting **filtered position AND velocity** at ≥10 Hz (the Gazebo-confirmed #1
+  lever, ADR-0015 2nd addendum). Air Pi 5 + **Hailo-8 (26 TOPS, $110 — the 8L has no
+  headroom for a possible second wide-FOV terminal cam)** runs terminal detect (~105 fps
+  NPU-kernel BEST, **~35 fps / 29 ms end-to-end EXPECTED**) + correlation tracker + EKF
+  fusion + 20 Hz guidance → MAVSDK/TELEM2 → PX4. Link carries a **~90-byte track message**
+  (timestamp, id, global pos, filtered vel, covariance diag, quality): 7.2 kbps @10 Hz =
+  ~22% of a $50 SiK radio's 32 kbps — while video (2-4 Mbps) is 60-125× over that link's
+  entire capacity. Track-not-video is the architecture, now with the arithmetic.
+- **Why hybrid:** heavy compute where power/weight are free; the jam-critical terminal is
+  onboard = jam-immune; only hybrid degrades gracefully under jamming (dead-reckon +
+  bounded seeker search; the lab prices a link-cut at −26% Pk@2 — worst single constraint
+  but recoverable). Central-ground = total loss under jam; all-onboard = no mid-course cue
+  (back to the ~3 m/s hover-start cap, ADR-0011).
+- **Latency verdict (P-7):** cue-delivery chain (ground exposure → drone fusion) BEST ~20 /
+  EXPECTED **~90** / WORST ~210 ms (SiK; MANET ~70 ms EXPECTED). **The sim's 0.12 s ± 0.05 s
+  cue model SURVIVES — realistic-to-mildly-pessimistic**, so sim Pk is not flattered.
+  Adopt: keep 0.12 s EXPECTED; **add a 0.20 s WORST stress tier** the sim never runs today;
+  keep bursty Markov dropout (tail shape > wider Gaussian); OOSM comp worth re-testing at
+  M5 Monte-Carlo power. Onboard control chain adds ~48 ms EXPECTED (modeled separately by
+  the 20 Hz loop + PX4).
+- **BOM staleness flags vs. ADR-0015:** Orin NX 16GB is **~$899 integrated / ~$989 bare**
+  post-"Super" refresh (the $400-600 band now only buys the 8GB J4011 ~$599); "SiK/MANET
+  $20-100" conflates radios — **SiK ~$50, jam-resistant MANET $1,500-3,000+** — budget as
+  separate lines. Hailo $70-110 and RTK/PPS ~$200/end confirmed current. **Ground node
+  ~$1,600 EO-only day-proof** (or ~$1,300 with 8GB + budget cams).
+- **Date:** 2026-07-05. (No council — synthesis over ADR-0012/0015 + 2026 web sourcing by
+  an Opus worker, reviewed by the main session; reversible; every number maps to the
+  bench measurement in compute_setup.md §6.)
