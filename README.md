@@ -38,8 +38,9 @@ does and doesn't mean for the numbers that follow.
 | **M4** — pro-nav vs. pursuit, 2.0 m/s crossing target, camera-only | pro-nav miss **0.402 / 0.277 / 0.443 m** vs. pursuit **2.544 / 2.109 / 2.048 m** (3 independent gate runs, identical paths) — pro-nav 4.6-7.6x tighter | pro-nav < 1.0 m | `scripts/check_m4.sh`; ADR-0009 + 2nd addendum; `logs/m4_intercept_{pursuit,pronav}_20260705T{0322,0324,0331}xxZ.csv` |
 | **S2** — two-stage handoff, 6 m/s crosser (uncatchable from a hover start, ADR-0011 addendum) | miss **1.1-2.3 m** across dev/gate/verifier flights (gate runs: pip 2.291 m & 2.270 m, pronav 1.992 m & 2.342 m), both laws pass, handoff latches, all honesty audits pass | tiered < 2.5 m (this gate proves the *architecture* — a running start + honest handoff — not sub-meter precision at 3x M4's speed) | `scripts/check_s2.sh`; ADR-0010 #7, ADR-0013; `logs/m4_intercept_{pip,pronav}_20260705T21*Z.csv` |
 | Ground-link A/B: cue **emits** filtered velocity vs. drone **differentiates** noisy position, Gazebo, 6 m/s, paired n=8 | EMIT mean **1.394 m** / Pk\@2 **75%** vs. DIFF mean **1.808 m** / Pk\@2 **50%** — DIFF worse on 6/8 paired seeds, direction confirms the lab's #1 lever, but the delta (+0.41 m) is **not yet statistically significant at n=8** | — (design finding, not a gate) | ADR-0015 2nd addendum; `logs/mc_realistic_EMIT_20260706T015033Z.csv`, `logs/mc_realistic_DIFF_20260706T022749Z.csv` |
-| Preliminary Pk-vs-radius batch, pronav, 6 m/s, N=20 (**pre-realism-upgrade — superseded by M5**) | mean miss 2.189 m; Pk(R=1.0 m) 5% [95% CI 0.9-24%]; Pk(R=2.0 m) 35%; Pk(R=2.5 m) 70%; Pk(R=3.0 m) 95% [76-99%]. Universal failure mode: all 20/20 flights lost the tag for >1 s right at closest approach — perception, not guidance math, is the limiter. | — | ADR-0014 addendum; `logs/mc_batch_20260705T225008Z.csv` |
-| **M5** — final Monte-Carlo Pk-vs-radius curves, all speeds/paths | <!-- TODO: M5 Monte-Carlo final numbers --> | plots + README complete | pending |
+| Preliminary Pk-vs-radius batch, pronav, 6 m/s, N=20 (**pre-realism-upgrade — superseded by M5**) | mean miss 2.189 m; Pk(R=1.0 m) 5% [95% CI 0.9-24%]; Pk(R=2.0 m) 35%; Pk(R=2.5 m) 70%; Pk(R=3.0 m) 95% [76-99%]. Every flight lost the tag for >1 s right at closest approach — but see the root-cause note below: that dropout is a *symptom*, not the cause. | — | ADR-0014 addendum; `logs/mc_batch_20260705T225008Z.csv` |
+| **Root-cause diagnosis** — why fast-crosser flights miss ~1.4 m (41-flight forensics) | The miss is **kinematic, not perceptual**: 96% determined at handoff (r²=0.99 between zero-effort-miss@handoff and final miss); the terminal window (~0.4 s) is physically too short to fix the delivered geometry (½·a·t_go² = 0.72 m « 1.69 m). A *perfect* terminal camera cuts miss only 25%. Fix = acquire earlier + better handoff geometry, **not** a better seeker. | — (corrects the earlier "perception-limited" reading) | **ADR-0023**; `docs/terminal_diagnosis.md` |
+| **M5** — final Monte-Carlo Pk-vs-radius curves, all speeds/paths, proximity metric | <!-- TODO: M5 Monte-Carlo final numbers under the ratified proximity-radius metric (ADR-0025): headline ram R≈0.5 m + net R≈1.5 m --> | plots + README complete | pending |
 
 Preliminary plots from that pre-realism batch (kept for the writeup, **not**
 the final M5 numbers):
@@ -168,11 +169,19 @@ is the part of this project that ports to a real interceptor close to as-is.
 
 There is no collision volume in this sim — the target is a flat board with no
 airframe body. Every "Pk at R_lethal" number is closest-approach distance
-compared against a *chosen* radius, not a simulated hit/miss. ADR-0014 fixed
-R=1.0 m as the headline (GOALS.md's own pre-existing "<1 m" precision bar,
-not a number picked after seeing results) and shows the whole curve rather
-than one point, specifically so a reader can apply their own bar instead of
-trusting ours.
+compared against a *chosen* radius, not a simulated hit/miss. The headline
+metric (ADR-0025) is the **full Pk-vs-radius curve**, with the radius set by a
+real kill mechanism's physics — **kinetic ram ≈ 0.5 m** (what cheap FPV
+interceptors actually do; already scores near-100% at 2-3 m/s) and **net ≈ 1.5 m**
+for the fast regime — never a radius reverse-engineered to clear a threshold.
+This matches real interceptors: hit-to-kill is a $M-class technique, while every
+cheap fielded kinetic counter-UAS kills within a few-meter radius. Why this is
+honest rather than a dodge: the [root-cause diagnosis](docs/terminal_diagnosis.md)
+shows the miss is kinematically floored at ~0.9-1.0 m at 6 m/s *even with perfect
+sensing* — so a lethal-radius kill isn't a way to hide a bad miss, it's the
+physically required design (you cannot null the last meter in the time available).
+See `docs/terminal_solutions_plan.md` for the full reasoning and the cheapest path
+to move the curve left.
 
 ### Lab ranks, Gazebo decides
 
