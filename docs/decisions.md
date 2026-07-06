@@ -758,3 +758,33 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   reclaimable mechanization loss is the one place better terminal handling still pays.
 - **Date:** 2026-07-06. (Fable diagnostic worker, log forensics only; ZEM correlation +
   smoking-gun flights + yaw-cap re-verified independently by the main session; no sim boot.)
+
+## ADR-0024 — Onboard seeker upgrades (P-5 cost/benefit, post-diagnosis): the only seeker lever is a cheaper NARROWER acquisition lens; reverses ADR-0015's wide-FOV plan
+- **Context:** P-5 seeker-hardware cost/benefit, re-scoped after ADR-0023 showed the miss
+  is kinematic (locked at handoff), not terminal perception. Full study + 29 cited
+  part/price URLs: `docs/seeker_upgrades.md`. Every recommendation ranked by $/Pk-point.
+- **Decision — cheapest-effective seeker stack:** keep ADR-0012's fixed-forward
+  global-shutter mono camera; **swap to a NARROWER/longer acquisition lens (~40-60° HFOV,
+  ~$15-35)** so the tag is detectable at longer range (more pixels-on-target at distance →
+  earlier lock → bigger t_go, and correction capacity scales t_go²: acquire at 12 m vs
+  6.5 m raises capacity 0.72 → ~4.3 m). Detect-then-track + IMU-aid ride free for
+  robustness. **Total seeker delta over ADR-0012: ~$15-35**, minus a possible **−$40** by
+  dropping Hailo-8→8L (the 2nd stream it was bought for is now rejected).
+- **Rejected with cited cost (all target the ~0-2% CPA-hold channel → ≈0 Pk at positive
+  cost):** wider-FOV 2nd camera, mechanical/digital gimbal, higher frame rate,
+  motion-deblur, event/DVS camera, terminal range sensor. IMU-aid buys ≈0 terminal Pk
+  under the corrected diagnosis (blind window = −0.03 m) so it no longer sets a $/Pk bar —
+  but it's ~free, keep it.
+- **Reversal of ADR-0015 (#287 acquisition-vs-terminal-FOV coupling):** resolved the
+  OPPOSITE way — terminal FOV-hold is worthless, so pick the long/narrow lens and WITHDRAW
+  the proposed 2nd wide-FOV terminal camera. Lower bound on "how narrow" is the ADR-0017
+  handoff basket (RTK → ±2.4° @12 m; standard GPS → ±11.8°), not the terminal endgame.
+- **Honesty boundary (ADR-0010):** narrowing the sim camera FOV REOPENS a validated sensor
+  parameter (the anti-tag-inflation door) → must re-earn M1/M2 and disclose; every Pk
+  delta here is a pre-Gazebo estimate (the sim has no blur, so sim Pk is an upper bound).
+  Gazebo-testable directly: narrow the SDF `<horizontal_fov>`, raise `HANDOFF_RANGE`,
+  re-run mc_batch. NOTE: most recoverable Pk (~70% kinematic ZEM + ~20-25% mechanization)
+  lives in the GUIDANCE/mid-course lane, not seeker hardware — the lens is the seeker's
+  complementary contribution to the t_go fix.
+- **Date:** 2026-07-06. (Opus research worker, re-run against the diagnosis via steering;
+  main-session review; part of the 5-lane terminal-solutions push, now complete.)
