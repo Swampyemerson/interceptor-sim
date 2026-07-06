@@ -13,22 +13,35 @@ matched (idle) machine load; kill stale sessions before any batch. All 16/16
 flights still end in terminal dropout at CPA → terminal perception stays THE
 limiter. Verdict logged: ground link carries filtered VELOCITY (Gazebo-backed).
 
-## ⏳ IN FLIGHT — stereo/onboard integration + compute setup (builder directive 2026-07-05)
-Builder: usage unconstrained; use Opus/Fable/Sonnet subagents; get headway on
-the full stereo-camera/drone-camera integration and compute setup. **Methodology
-mandate: simulate WORSE-than-ideal heavily; every sim knob maps to a bench-
-measurable quantity (three tiers BEST/EXPECTED/WORST-CREDIBLE; design decisions
-must survive WORST).** Three agents launched:
-- **P-2 stereo rig (Opus):** `scripts/stereo_model.py` + `docs/stereo_design.md`
-  — σ_R(R)/σ_cross(R) from baseline/focal/σ_disparity, detection floor,
-  cost/accuracy knee, calibrated (a,c) quadratic constants for s2_cue_mock.
-- **P-3/5/7 compute setup (Opus):** `docs/compute_setup.md` — ground Orin NX /
-  air Pi5+Hailo pipeline map, track-message spec (position+VELOCITY+cov+GPS
-  timestamp), sourced 3-tier end-to-end latency budget vs the sim's 0.12±0.05 s.
-- **P-6 fusion (Fable):** guidance_lab fusion+warm-handoff variants (3-tier A/B,
-  ≥80 seeds/cell) + code-only Gazebo port (`m4_intercept.py --fuse-midcourse
-  --warm-handoff`, `s2_cue_mock.py --stereo-config`), defaults byte-identical.
-Then: synthesis ADR + Gazebo A/B of fusion once the sim is free.
+## ✅ DONE — stereo/onboard integration + compute setup (builder directive 2026-07-05)
+Builder: usage unconstrained; Opus/Fable/Sonnet subagents. **Methodology mandate
+(now a standing rule): simulate WORSE-than-ideal heavily; three tiers
+BEST/EXPECTED/WORST-CREDIBLE; decisions must survive WORST; every sim knob maps
+to a bench-measurable quantity; batches only at idle machine load.**
+- **ADR-0016 compute setup (P-3/5/7):** `docs/compute_setup.md` — hybrid split,
+  ~90-byte track message (7.2 kbps vs 32 kbps SiK; video impossible), 12-row
+  3-tier latency budget. Sim's 0.12±0.05 s cue latency SURVIVES (EXPECTED
+  ~90 ms, WORST ~210 ms) — add a 0.20 s stress tier. BOM: Orin NX 16GB ~$899,
+  MANET $1.5-3k+ ≠ $50 SiK. Ground node ~$1.6k EO-only.
+- **ADR-0017 stereo rig (P-2):** `scripts/stereo_model.py` + `docs/stereo_design.md`
+  + plots. AR0234 ×2 + 16 mm, 2.0 m baseline (knee: calibration term R²·δθ/b,
+  focal cancels; WORST optimum b≈2.24 m), hardware trigger MANDATORY. EXPECTED
+  σ_R≤1 m to 150 m. **Sim correction: mock's c=0.008 is ~180× too steep as
+  stereo noise — real split c=4.45e-05 + datum in --datum-bias-m (adopt at next
+  cue change).**
+- **ADR-0018 fusion (P-6):** FusedTrack bearing-weighted polar fusion + warm
+  handoff, lab + Gazebo port, all default-OFF (byte-identical verified; S2 gate
+  re-run PASS 1.963 m post-merge). Lab: mean-miss neutral BUT terminal coverage
+  through CPA 0.65/0.35/0.08 → 0.94/0.96/0.96 (6/8/10 m/s, EXPECTED) — the
+  exact Gazebo failure mode. No datum poisoning. WORST: link cut at 11.5 m
+  precedes camera acquisition → fusion window never opens (coast-search is the
+  mitigation there).
+
+## ⏳ IN FLIGHT — Gazebo fusion A/B (3 paired arms, idle machine, seed 42)
+`mc_batch` ×3, N=8, pronav 6 m/s, realistic cue: BASE (--cue-velocity, clean-
+machine baseline rerun per the matched-load rule) / FUSE (+--fuse-midcourse) /
+FUSEWARM (+--warm-handoff). Primary metric: terminal coverage + dropout-at-CPA
+rate (lab predicts fusion cuts it); then miss/Pk. → ADR-0018 addendum.
 <!-- ============================================================= -->
 
 ## Current: M4.5 realism upgrade (ADR-0010 sequencing) — S1 ✅, S2 ✅ (built + gated), S3 next

@@ -479,3 +479,47 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   `stereo_model.py` output or a cited source — Teledyne stereo-error note, Johnson's
   criteria detection floor, stereo-DIC drift papers, Arducam/ArduSimple/NVIDIA prices,
   pessimistic value taken where sources conflict.)
+
+## ADR-0018 — Mid-course fusion + warm handoff (P-6): built lab+Gazebo, lab says the win is terminal COVERAGE
+- **Context:** ADR-0015 #3 decided the mechanization (ground global-frame track fused
+  with own camera bearing on the drone); until now the sim's handoff was binary —
+  cue steers the dash, then the camera-only terminal starts nearly cold. Built by a
+  Fable worker, lab-first per "lab ranks, Gazebo decides."
+- **Mechanization (both lab and Gazebo port):** `FusedTrack` — bearing-weighted polar
+  fusion. The CAMERA owns the LOS angle (angle-strong sensor, and pro-nav consumes
+  λ̇); the CUE's range folds into the range channel inverse-variance-weighted (weights
+  from known specs, not fitted); cue's emitted velocity used when fresh; handoff rates
+  are geometric (ṙ=(v_t−v_o)·û, λ̇=cross/R), not the still-converging alpha-beta
+  rates. Warm handoff seeds the terminal filters (λ, λ̇, R, Ṙ, v_perp) + PIP track
+  from the fused state at the latch. Honesty boundary intact: fusion is PRE-latch
+  only; the one-way latch (ADR-0010 #5) and camera-only terminal are unchanged.
+- **Flags (all default OFF, defaults verified byte-identical):** lab
+  `FUSE_MIDCOURSE`/`WARM_HANDOFF` + `--p6-fusion` driver; Gazebo
+  `m4_intercept.py --fuse-midcourse --warm-handoff` (require `--handoff`);
+  `s2_cue_mock.py --stereo-config B,F_PX,SIGMA_D` (σ_R from stereo geometry —
+  placeholder constants until ADR-0017's calibrated values are adopted). Also fixed a
+  lab modeling gap: the legacy lab killed the cue at handoff_range; it now stays
+  deliverable until a real streak≥3 latch, matching m4_intercept.py.
+- **Lab verdict (80 seeds/cell, 2×2 × 3 tiers × 6/8/10 m/s, both terminals,
+  `logs/guidance_lab_p6fusion_20260706T030057Z.csv`):** on MEAN MISS fusion is inside
+  the ~15% noise floor at every tier (strictly: neutral). But under EXPECTED realism
+  it adds a consistent +5 pts Pk@2 (92→97%, both terminals) and — the real signal —
+  **terminal detection coverage through CPA recovers from 0.65/0.35/0.08 (6/8/10 m/s)
+  to 0.94/0.96/0.96.** Coverage-at-CPA is exactly the lab's documented blind spot
+  (frozen-coast still scores well) AND the actual Gazebo failure mode (ADR-0014's
+  20/20, now 36/36) — so the lab likely UNDER-states fusion's Gazebo value.
+  Non-fragile per the worse-than-ideal mandate: wins at EXPECTED, inert at WORST,
+  sub-noise cost at BEST. Datum-poisoning probe: a 2.5 m-datum cue did NOT poison the
+  camera's clean bearing (bearing-weighted design working as intended; 1.31→1.25 m,
+  coverage 0.44→0.94). Warm handoff alone: sub-noise (slightly positive for pure_pn),
+  rank below fusion, keep opt-in.
+- **Honest limit:** at WORST the jammer cuts the link at 11.5 m — BEFORE camera
+  acquisition (~8 m) — so the fusion window never opens and all variants tie. That is
+  the ADR-0015 `R_acquire ≥ R_cutoff + coast_margin` constraint biting; the mitigation
+  there is the dead-reckon `--coast-search` branch, not fusion.
+- **Next:** Gazebo A/B on an idle machine (matched-load rule), paired seed 42, arms
+  {baseline+cue-velocity, +fuse, +fuse+warm}, primary metric terminal coverage +
+  dropout-at-CPA rate. Addendum will carry the verdict.
+- **Date:** 2026-07-05. (Fable worker; default-path byte-identity re-verified by the
+  main session — `--quick` numeric output matches HEAD exactly; S2 gate re-run before
+  commit.)

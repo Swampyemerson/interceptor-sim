@@ -58,6 +58,21 @@ MODELING ASSUMPTIONS (the honesty boundary of this tool):
     HANDOFF_RANGE with a fresh camera lock -- the "running start" the
     addendum's S1<->S2 coupling finding calls for.
 
+  - P-6 MID-COURSE FUSION + WARM HANDOFF (ADR-0015 fusion mechanization;
+    opt-in via TwoStageDash params FUSE_MIDCOURSE / WARM_HANDOFF /
+    FUSE_GAZEBO_LATCH, all default-off = byte-identical baseline): during
+    the window where BOTH sources exist (camera detecting AND cue alive,
+    i.e. first detection -> the handoff latch), a FusedTrack blends the
+    camera bearing (angle-strong; the cue NEVER touches the angle) with the
+    cue's range/velocity (range-holding); the cue stays deliverable until
+    the one-way LATCH exactly like the real m4_intercept.py --handoff
+    pipeline (the legacy lab model killed the cue at handoff_range -- a
+    modeling gap); and the latch can WARM-initialize the terminal law's
+    filter/rate states from the fused track instead of letting them
+    converge from cold. Evaluated by the --p6-fusion driver (fusion x warm
+    A/B across perception tiers). See FusedTrack's docstring for the
+    mechanization rationale.
+
 WHY THIS EXISTS: to answer "which guidance law (and gain) should we port
 into the real Gazebo sim" cheaply, before spending Gazebo wall-clock time.
 THE WINNER HERE IS A HYPOTHESIS, NOT A RESULT. It still has to be validated
@@ -302,7 +317,13 @@ class AlphaBetaFilter:
             return
         self.x_hat += self.xdot_hat * dt
 
-    def correct(self, meas, t):
+    def correct(self, meas, t, gain_scale=1.0):
+        """`gain_scale` (P-6 fusion, default 1.0 = byte-identical baseline --
+        x*1.0 is IEEE-exact) scales BOTH gains for this one correction: how
+        FusedTrack folds a LOWER-confidence source (the cue's range) into a
+        filter whose nominal gains are tuned for the camera, without
+        touching the filter's stored gains. The weight is inverse-variance,
+        computed by the caller from KNOWN sensor specs (FusedTrack.update)."""
         if self.x_hat is None:
             self.x_hat = meas
             self.xdot_hat = 0.0
@@ -316,8 +337,8 @@ class AlphaBetaFilter:
             alpha, beta = kalata_alpha_beta(self.kalata_sigma_process, self.kalata_sigma_meas, dt_since)
         else:
             alpha, beta = self.alpha, self.beta
-        self.x_hat += alpha * residual
-        self.xdot_hat += beta * residual / dt_since
+        self.x_hat += alpha * gain_scale * residual
+        self.xdot_hat += beta * gain_scale * residual / dt_since
         if self.rate_cap is not None:
             self.xdot_hat = clamp(self.xdot_hat, -self.rate_cap, self.rate_cap)
         self._last_t = t
@@ -665,6 +686,11 @@ PERCEPTION_DEFAULTS = dict(
     CUE_EMIT_VELOCITY=False,
     CUE_VEL_SIGMA_M_S=0.5,
     # --- constraint 3: latency mean (Sensor.cue_latency) + JITTER ---
+    # CUE_LATENCY_MEAN_S: override the fixed delivery-latency MEAN (None ->
+    # the CUE_LATENCY_S=0.1 baseline). ADR-0015's recommended realistic mean
+    # is 0.12 s (matches the Gazebo mock's --latency-s default); added for
+    # the P-6 tier presets. Purely a schedule constant -- no RNG involved.
+    CUE_LATENCY_MEAN_S=None,
     # extra +-uniform jitter on each delivery, ON TOP of the fixed mean. The
     # delivered age_s stays the NOMINAL mean (what a timestamp-at-source system
     # "knows"), so the jitter is the UNCOMPENSATED residual. 0.0 -> baseline.
@@ -760,7 +786,7 @@ class Sensor:
         dropout_p_edge=DROPOUT_P_EDGE, dropout_edge_exponent=DROPOUT_EDGE_EXPONENT,
         fov_half_deg=FOV_HALF_DEG_DEFAULT, yaw_rate_max_deg_s=YAW_RATE_MAX_DEG_S_DEFAULT,
         cue_sigma_m=CUE_SIGMA_M, cue_latency_s=CUE_LATENCY_S, initial_heading=0.0,
-        perception=None, datum_bias=(0.0, 0.0),
+        perception=None, datum_bias=(0.0, 0.0), cue_until_latch=False,
     ):
         self.rng = rng
         self.det_range = det_range
@@ -774,6 +800,10 @@ class Sensor:
             sigma_bearing_deg = p["TERM_BEARING_SIGMA_DEG"]
         if p["TERM_RANGE_NOISE_FRAC"] is not None:
             range_noise_frac = p["TERM_RANGE_NOISE_FRAC"]
+        # ADR-0015 constraint #3 mean (P-6 tiers): pure schedule constant,
+        # no RNG; None -> the CUE_LATENCY_S baseline passed in above.
+        if p["CUE_LATENCY_MEAN_S"] is not None:
+            cue_latency_s = p["CUE_LATENCY_MEAN_S"]
         self.sigma_bearing = math.radians(sigma_bearing_deg)
         self.range_noise_frac = range_noise_frac
         self.dropout_p = dropout_p
@@ -795,6 +825,14 @@ class Sensor:
 
         # --- ADR-0015 derived perception state (all inert at baseline) ---
         self.datum_bias = datum_bias
+        # P-6 (FUSE_MIDCOURSE): when True, cue delivery is gated by the
+        # LAW's one-way handoff latch (simulate() calls close_cue() the tick
+        # the latch fires) instead of by the handoff_range geometry -- the
+        # real m4_intercept.py semantics, where the cue socket stays open
+        # until HANDOFF closes it. False (default) -> the legacy geometric
+        # gate, byte-identical.
+        self.cue_until_latch = bool(cue_until_latch)
+        self.cue_gate_closed = False
         # constraint 1: range-dependent cue sigma
         self._cue_sigma_base = p["CUE_SIGMA_BASE_M"]
         self._cue_sigma_quad = p["CUE_SIGMA_QUAD"]
@@ -831,6 +869,14 @@ class Sensor:
         if self._cue_sigma_base is None:
             return self.cue_sigma
         return self._cue_sigma_base + self._cue_sigma_quad * true_range * true_range
+
+    def close_cue(self):
+        """P-6 one-way cue-gate close (mirrors m4_intercept.py's HANDOFF
+        closing the UDP socket): no further deliveries, and the in-flight
+        (pending) datagrams are lost with the socket. Only ever called by
+        simulate() when the law's latch fires under cue_until_latch."""
+        self.cue_gate_closed = True
+        self._cue_pending = []
 
     def tick(self, t, dt, own_pos, target_pos, two_stage, target_vel=None):
         rel = (target_pos[0] - own_pos[0], target_pos[1] - own_pos[1])
@@ -910,10 +956,19 @@ class Sensor:
                     else:
                         if r < self._p_down_to_up:
                             self._cue_link_up = True
+                # P-6 (FUSE_MIDCOURSE): under cue_until_latch the delivery
+                # window is "until the law's latch closes the gate" (any
+                # range) instead of "beyond handoff_range". The default path
+                # (cue_until_latch=False) evaluates the exact original
+                # geometric condition.
+                if self.cue_until_latch:
+                    in_cue_window = not self.cue_gate_closed
+                else:
+                    in_cue_window = true_range > self.handoff_range
                 deliver_ok = (
                     not self._cue_link_cut
                     and (self._cue_link_up or not self._cue_markov)
-                    and true_range > self.handoff_range
+                    and in_cue_window
                 )
                 if deliver_ok:
                     sigma = self._cue_sigma_at(true_range)
@@ -1586,6 +1641,123 @@ class PNPlusLead:
         return (vx, vy)
 
 
+# Floor for the assumed camera range sigma in the fused-range weight (same
+# floor range_gate_ok uses -- "know your own sensor spec").
+FUSE_RANGE_SIGMA_FLOOR_M = 0.3
+
+
+class FusedTrack:
+    """P-6 mid-course fusion (ADR-0015 fusion mechanization, lab prototype;
+    ported to m4_intercept.py's --fuse-midcourse -- keep the two in sync): a
+    POLAR fused target estimate maintained through the window where BOTH
+    sources exist (camera detecting AND cue still alive, i.e. from first
+    camera detection until the handoff latch).
+
+    Mechanization -- BEARING-WEIGHTED BY DESIGN:
+      - lambda channel: alpha-beta on the CAMERA bearing ONLY. The cue never
+        touches the angle. ADR-0015 #3's own ruling is that bearing-only
+        suffices for pro-nav (it consumes the LOS *rate*, an angle), so
+        fusion must HELP the lambda_dot estimate, not fight it -- and a
+        datum-biased cue position at 8 m range is ~18 deg of bearing error
+        (2.5 m standard-GPS bias), which would poison the seeker's clean
+        few-degree angle. Camera wins the angle, always. (The alternative --
+        cue corrects the angle too -- is exactly what the Cartesian dash
+        tracker already does, so the A/B against the off/off baseline
+        covers it.)
+      - range channel: alpha-beta corrected by BOTH the camera's monocular
+        range (full gain) AND the cue-implied range |cue_pos - own_pos|
+        (gain-scaled), the scale being an inverse-variance weight from KNOWN
+        sensor specs (the same "know your own sensor spec" boundary as
+        range_gate_ok): camera sigma = cam_range_frac * R_hat (own seeker
+        bench spec); cue sigma = the assumed transmitted-covariance model
+        sigma_R(R) = base + quad*R^2 (ADR-0015 #3: the real track message
+        carries covariance) RSS'd with a FIXED datum-bias budget -- the
+        cross-platform datum offset is unknowable on the drone, so it is
+        budgeted at the shared-RTK design value; an off-spec day (the WORST
+        tier's 2.5 m) tests exactly the fragility question.
+      - velocity: the cue's EMITTED velocity when fresh (ADR-0015's #1
+        lever), else the caller's fallback (the Cartesian dash tracker's
+        estimate).
+    Everything here is per-tick scalar math -- trivially implementable on
+    the real Pi (it is LESS work than the KalmanTracker this lab already
+    carries as candidate 1)."""
+
+    def __init__(self, alpha, beta_lambda, beta_range, cam_range_frac,
+                 cue_sigma_base, cue_sigma_quad, datum_budget_m, vel_stale_s):
+        self.lam = AlphaBetaFilter(alpha, beta_lambda, angular=True)
+        self.rng_f = AlphaBetaFilter(alpha, beta_range)
+        self.cam_range_frac = cam_range_frac
+        self.cue_sigma_base = cue_sigma_base
+        self.cue_sigma_quad = cue_sigma_quad
+        self.datum_budget = datum_budget_m
+        self.vel_stale_s = vel_stale_s
+        self.vel = None        # latest cue-EMITTED velocity (None if never sent)
+        self.vel_t = None
+        self.last_camera_t = None
+
+    def predict(self, dt):
+        self.lam.predict(dt)
+        self.rng_f.predict(dt)
+
+    def update(self, meas, t):
+        if meas.source == "camera":
+            self.lam.correct(meas.bearing_rad, t)
+            self.rng_f.correct(meas.range_m, t)
+            self.last_camera_t = t
+            return
+        # cue
+        if meas.vel_xy is not None:
+            self.vel = meas.vel_xy
+            self.vel_t = t
+        # Range-only fusion, and only once the camera side exists: the
+        # fusion window starts at first detection. Before that the cue
+        # already steers the dash through the Cartesian tracker; it must not
+        # pre-seed the CAMERA-anchored polar track (a biased cue defining
+        # the initial state would be exactly the angle-poisoning this
+        # mechanization exists to prevent).
+        if not (self.rng_f.initialized and self.lam.initialized):
+            return
+        r_hat = max(self.rng_f.x_hat, 1e-3)
+        sigma_cam = max(FUSE_RANGE_SIGMA_FLOOR_M, self.cam_range_frac * r_hat)
+        cue_r = meas.range_m
+        sigma_cue_stat = self.cue_sigma_base + self.cue_sigma_quad * cue_r * cue_r
+        sigma_cue = math.sqrt(sigma_cue_stat * sigma_cue_stat + self.datum_budget * self.datum_budget)
+        w = min(1.0, (sigma_cam * sigma_cam) / max(1e-6, sigma_cue * sigma_cue))
+        self.rng_f.correct(cue_r, t, gain_scale=w)
+
+    def camera_fresh(self, t):
+        return self.last_camera_t is not None and (t - self.last_camera_t) <= MEAS_STALE_S
+
+    def target_vel(self, t, fallback):
+        if (self.vel is not None and self.vel_t is not None
+                and (t - self.vel_t) <= self.vel_stale_s):
+            return self.vel
+        return fallback
+
+    def state(self, t, own_pos, own_vel, fallback_vel):
+        """Fused snapshot dict (pos, vel, lam, R, rdot, lamdot), or None if
+        the camera side hasn't initialized the polar track yet. The rates
+        are GEOMETRIC -- derived from the fused target velocity (cue-emitted
+        when fresh, ADR-0015's #1 lever) minus own velocity, projected
+        along/across the LOS:
+            rdot   = (vt - vo) . u
+            lamdot = cross(u, vt - vo) / R
+        rather than the alpha-beta's own still-converging rate states; the
+        whole point of the warm handoff is that ~1-2 s of noisy camera
+        corrections cannot match a transmitted filtered velocity."""
+        if not (self.lam.initialized and self.rng_f.initialized):
+            return None
+        lam = self.lam.x_hat
+        R = max(self.rng_f.x_hat, 1e-3)
+        u = (math.cos(lam), math.sin(lam))
+        vt = self.target_vel(t, fallback_vel) or (0.0, 0.0)
+        vrel = (vt[0] - own_vel[0], vt[1] - own_vel[1])
+        rdot = vrel[0] * u[0] + vrel[1] * u[1]
+        lamdot = (u[0] * vrel[1] - u[1] * vrel[0]) / R
+        pos = (own_pos[0] + R * u[0], own_pos[1] + R * u[1])
+        return dict(pos=pos, vel=vt, lam=lam, R=R, rdot=rdot, lamdot=lamdot)
+
+
 DEFAULT_DASH_PARAMS = dict(
     DASH_SPEED=12.0,       # m/s, external-cue-guided closing speed during CUE phase (S2 "running start")
     DASH_MAX_LEAD_S=4.0,
@@ -1602,6 +1774,36 @@ DEFAULT_DASH_PARAMS = dict(
     KALMAN_SIGMA_BEARING_DEG=SIGMA_BEARING_DEG, KALMAN_RANGE_NOISE_FRAC=RANGE_NOISE_FRAC,
     KALMAN_CUE_SIGMA_M=CUE_SIGMA_M,
     KALATA_POS_SIGMA_PROCESS=None, KALATA_POS_SIGMA_MEAS_M=1.0,
+    # --- P-6 mid-course fusion + warm handoff (ADR-0015 fusion decision;
+    # all default-off = byte-identical baseline; see FusedTrack + the
+    # --p6-fusion study driver) ---
+    # FUSE_MIDCOURSE: maintain a FusedTrack (camera bearing + weighted cue
+    # range + cue velocity) through the both-sources window, steer the dash
+    # off it while the camera is fresh, and keep the cue DELIVERABLE until
+    # the one-way latch (real-pipeline semantics) instead of killing it at
+    # handoff_range.
+    FUSE_MIDCOURSE=False,
+    # WARM_HANDOFF: at the latch tick, initialize the terminal law's
+    # filter/rate states (lambda_dot, R, Rdot, v_perp, target pos/vel) from
+    # the fused track (or, without FUSE_MIDCOURSE, from the dash tracker)
+    # instead of their cold/ramping values. See _warm_init_terminal.
+    WARM_HANDOFF=False,
+    # FUSE_GAZEBO_LATCH: attribution control -- ONLY the Gazebo-faithful
+    # one-way latch (streak >= FUSE_LATCH_STREAK), no fusion, no warm init.
+    # Lets the A/B separate "the latch semantics changed" from "fusion/warm
+    # helped". Implied True whenever either flag above is on.
+    FUSE_GAZEBO_LATCH=False,
+    FUSE_LATCH_STREAK=3,       # mirrors m4_intercept.py's S2 HANDOFF_STREAK_MIN
+    # Drone-side spec constants for the fused-range weight (FusedTrack):
+    # assumed cue sigma model (the ADR-0015 recommended realistic
+    # sigma_R(R)) + a FIXED datum-bias budget at the shared-RTK design
+    # value. Deliberately NOT read from the per-run perception config: a
+    # fielded fusion is tuned to its design spec, and the WORST tier tests
+    # exactly what happens when reality runs off-spec.
+    FUSE_CUE_SIGMA_BASE_M=0.4,
+    FUSE_CUE_SIGMA_QUAD=0.008,
+    FUSE_DATUM_BUDGET_M=0.5,
+    FUSE_VEL_STALE_S=0.6,      # emitted-velocity freshness horizon (~6 cue periods)
 )
 
 
@@ -1646,7 +1848,39 @@ class TwoStageDash:
         # diagnostic needing to reimplement this law's own handoff logic.
         self.in_terminal = False
 
+        # --- P-6 fusion opt-ins (all default-off; see DEFAULT_DASH_PARAMS
+        # and _step_fused's docstring). gazebo_latch is implied by either
+        # feature flag: fusion extends the cue window and warm init must
+        # fire exactly once -- both need the real one-way latch to stay
+        # honest.
+        self.fuse_midcourse = bool(p.get("FUSE_MIDCOURSE", False))
+        self.warm_handoff = bool(p.get("WARM_HANDOFF", False))
+        self.gazebo_latch = (
+            bool(p.get("FUSE_GAZEBO_LATCH", False))
+            or self.fuse_midcourse or self.warm_handoff
+        )
+        self.latch_streak = int(p.get("FUSE_LATCH_STREAK", 3))
+        self.latched = False
+        self._cam_streak = 0
+        self._warm_done = False
+        if self.fuse_midcourse:
+            self.fused = FusedTrack(
+                DEFAULT_PN_PARAMS["ALPHA"], DEFAULT_PN_PARAMS["BETA_LAMBDA"],
+                DEFAULT_PN_PARAMS["BETA_RANGE"],
+                cam_range_frac=RANGE_NOISE_FRAC,
+                cue_sigma_base=p.get("FUSE_CUE_SIGMA_BASE_M", 0.4),
+                cue_sigma_quad=p.get("FUSE_CUE_SIGMA_QUAD", 0.008),
+                datum_budget_m=p.get("FUSE_DATUM_BUDGET_M", 0.5),
+                vel_stale_s=p.get("FUSE_VEL_STALE_S", 0.6),
+            )
+        else:
+            self.fused = None
+
     def step(self, t, dt, own_pos, own_vel, meas):
+        if self.gazebo_latch:
+            # P-6 path (any fusion-family flag on). The all-defaults
+            # baseline never enters here -- the body below is untouched.
+            return self._step_fused(t, dt, own_pos, own_vel, meas)
         self.tracker.predict(dt)
         if meas is not None:
             self.tracker.correct_full(meas, own_pos, t, latency_compensate=self.latency_compensate)
@@ -1688,6 +1922,200 @@ class TwoStageDash:
             vy = self.dash_speed * direction[1] / dnorm
         self.last_cmd = (vx, vy)
         return (vx, vy)
+
+    def _step_fused(self, t, dt, own_pos, own_vel, meas):
+        """P-6 path (any of FUSE_MIDCOURSE / WARM_HANDOFF / FUSE_GAZEBO_LATCH
+        on; the all-defaults baseline never enters here). Differences vs
+        step(), each mirroring the REAL S2 pipeline (m4_intercept.py
+        --handoff) rather than the legacy lab approximation:
+          1. ONE-WAY LATCH (ADR-0010 #5): handoff = >= FUSE_LATCH_STREAK
+             consecutive fresh camera detections with the range estimate
+             <= handoff_range, latched forever. The legacy lab handoff (a
+             single fresh frame, re-evaluated every tick, able to drop back
+             to DASH) both under-modeled the real latch and would -- with
+             the fusion window's extended cue -- let a post-CPA camera loss
+             resume cue reads inside the terminal, an honesty violation the
+             one-way latch makes structurally impossible (post-latch cue
+             measurements are nulled at the top of this method, the lab
+             mirror of m4_intercept.py's cue_reader=None).
+          2. FUSE_MIDCOURSE: the cue keeps DELIVERING below handoff_range
+             until the latch (the real pipeline's semantics -- the socket
+             stays open until HANDOFF closes it; the legacy lab killed the
+             cue at handoff_range, a modeling gap), and through the window
+             where both sources exist the DASH aims off the FusedTrack's
+             camera-bearing + fused-range polar state instead of the
+             Cartesian tracker (removes the cue's cross-LOS noise/datum
+             error from the final dash stretch).
+          3. WARM_HANDOFF: at the latch tick, the terminal law's filter and
+             rate states are initialized from the fused (or, without
+             fusion, the dash tracker's) track -- see _warm_init_terminal.
+        """
+        # One-way honesty latch: post-latch cue data is structurally dropped
+        # BEFORE it can touch any tracker/filter.
+        if self.latched and meas is not None and meas.source == "cue":
+            meas = None
+
+        self.tracker.predict(dt)
+        if self.fused is not None:
+            self.fused.predict(dt)
+        if meas is not None:
+            self.tracker.correct_full(meas, own_pos, t, latency_compensate=self.latency_compensate)
+            if self.fused is not None:
+                self.fused.update(meas, t)
+            if meas.source == "camera":
+                # Consecutive-detection streak; a gap longer than the lock
+                # staleness resets it (mirrors m4_intercept.py's
+                # HANDOFF_STREAK_MIN new_meas/reset semantics).
+                if self.last_camera_t is not None and (t - self.last_camera_t) <= MEAS_STALE_S:
+                    self._cam_streak += 1
+                else:
+                    self._cam_streak = 1
+                self.last_camera_t = t
+
+        camera_has_tag = (
+            self.last_camera_t is not None and (t - self.last_camera_t) <= MEAS_STALE_S
+        )
+
+        # Latch decision BEFORE stepping the terminal law, so a warm init is
+        # in place for the very first terminal-owned command.
+        if not self.latched and camera_has_tag and self._cam_streak >= self.latch_streak:
+            if self.fused is not None and self.fused.rng_f.initialized:
+                r_est = self.fused.rng_f.x_hat
+            else:
+                pos_hat = self.tracker.pos_hat
+                r_est = (
+                    math.hypot(pos_hat[0] - own_pos[0], pos_hat[1] - own_pos[1])
+                    if pos_hat is not None else None
+                )
+            if r_est is not None and r_est <= self.handoff_range:
+                self.latched = True
+                if self.warm_handoff and not self._warm_done:
+                    self._warm_init_terminal(t, own_pos, own_vel)
+                    self._warm_done = True
+
+        # Terminal law stepped every tick (same warm-keeping as step()).
+        terminal_cmd = self.terminal.step(t, dt, own_pos, own_vel, meas)
+        self.in_terminal = self.latched
+        if self.latched:
+            self.last_cmd = terminal_cmd
+            return terminal_cmd
+
+        # --- DASH (mirrors step()'s dash block; aim source may be fused) ---
+        aim_pos = None
+        aim_vel = None
+        if self.fuse_midcourse and self.fused is not None and self.fused.camera_fresh(t):
+            st = self.fused.state(t, own_pos, own_vel, self.tracker.vel_hat)
+            if st is not None:
+                aim_pos = st["pos"]
+                aim_vel = st["vel"]
+        if aim_pos is None:
+            aim_pos = self.tracker.pos_hat
+            aim_vel = self.tracker.vel_hat
+        if aim_pos is None:
+            return (0.0, 0.0)  # no track yet at all (before the cue's first sample)
+
+        vt = aim_vel or (0.0, 0.0)
+        rel = (aim_pos[0] - own_pos[0], aim_pos[1] - own_pos[1])
+        t_go = solve_intercept_time(rel, vt, self.dash_speed, self.dash_max_lead_s)
+        aim = (aim_pos[0] + vt[0] * t_go, aim_pos[1] + vt[1] * t_go)
+        direction = (aim[0] - own_pos[0], aim[1] - own_pos[1])
+        dnorm = math.hypot(direction[0], direction[1])
+        if dnorm < 1e-6:
+            vx, vy = self.last_cmd
+        else:
+            vx = self.dash_speed * direction[0] / dnorm
+            vy = self.dash_speed * direction[1] / dnorm
+        self.last_cmd = (vx, vy)
+        return (vx, vy)
+
+    def _warm_init_terminal(self, t, own_pos, own_vel):
+        """WARM_HANDOFF (ADR-0015 "handoff should be a WARM lock-TRANSFER,
+        never a cold acquisition"): initialize the terminal law's estimator
+        state from the best track available at the latch instant, instead of
+        letting the terminal fly its first seconds on still-converging rate
+        states -- the terminal's own alpha-beta rates ramp from 0 through
+        exactly the window where the ADR-0009 pathology showed a starved Vc
+        gutting a_cmd = N*Vc*lambda_dot.
+
+        Angle states stay CAMERA-owned where they already exist (the
+        camera's angle is the best angle in the system -- ADR-0015); what
+        gets initialized is the RATE/velocity state, derived geometrically
+        from the fused target velocity (cue-emitted when available -- the
+        ADR-0015 #1 lever -- else the dash tracker's estimate) and own
+        velocity:  Rdot = (vt - vo).u,  lamdot = cross(u, vt - vo)/R."""
+        st = None
+        if self.fused is not None:
+            st = self.fused.state(t, own_pos, own_vel, self.tracker.vel_hat)
+        if st is None:
+            pos_hat = self.tracker.pos_hat
+            if pos_hat is None:
+                return  # nothing to warm from (cue never arrived) -- no-op
+            rel = (pos_hat[0] - own_pos[0], pos_hat[1] - own_pos[1])
+            R = max(math.hypot(rel[0], rel[1]), 1e-3)
+            lam = math.atan2(rel[1], rel[0])
+            u = (rel[0] / R, rel[1] / R)
+            vt = self.tracker.vel_hat or (0.0, 0.0)
+            vrel = (vt[0] - own_vel[0], vt[1] - own_vel[1])
+            st = dict(
+                pos=pos_hat, vel=vt, lam=lam, R=R,
+                rdot=vrel[0] * u[0] + vrel[1] * u[1],
+                lamdot=(u[0] * vrel[1] - u[1] * vrel[0]) / R,
+            )
+
+        term = self.terminal
+        lam_f = getattr(term, "lam", None)
+        rng_f = getattr(term, "rng_f", None)
+        if lam_f is not None and rng_f is not None:
+            # PurePN / Pursuit / APN / PNPlusLead: polar lambda/range filters.
+            # lambda position stays camera-owned when already initialized
+            # (it is, by the latch's own >=3-detection requirement -- the
+            # branch below is defensive).
+            if not lam_f.initialized:
+                lam_f.x_hat = st["lam"]
+            lam_f.xdot_hat = st["lamdot"]
+            rng_f.x_hat = st["R"]
+            rng_f.xdot_hat = st["rdot"]
+            if lam_f._last_t is None:
+                lam_f._last_t = t
+            if rng_f._last_t is None:
+                rng_f._last_t = t
+            # v_perp: start the lateral integrator at the vehicle's ACTUAL
+            # cross-LOS velocity instead of whatever it happened to
+            # integrate off dash-phase detections -- the terminal's first
+            # commands then continue the established dash course rather
+            # than jumping.
+            if hasattr(term, "v_perp"):
+                u = (math.cos(st["lam"]), math.sin(st["lam"]))
+                pvec = (-u[1], u[0])
+                v_perp0 = own_vel[0] * pvec[0] + own_vel[1] * pvec[1]
+                cap = getattr(term, "v_perp_max", None)
+                term.v_perp = clamp(v_perp0, -cap, cap) if cap else v_perp0
+
+        tracker = getattr(term, "tracker", None)
+        if tracker is not None:
+            # PIP (and APN/PNPlusLead's velocity feedforward): re-anchor the
+            # Cartesian track to the fused polar state -- position on the
+            # camera LOS, velocity from the fused (cue-emitted when fresh)
+            # estimate. Removes any residual cue datum bias from the lead
+            # solve at the moment the terminal takes over.
+            if isinstance(tracker, TargetTracker):
+                for f, pos_c, vel_c in (
+                    (tracker.fx, st["pos"][0], st["vel"][0]),
+                    (tracker.fy, st["pos"][1], st["vel"][1]),
+                ):
+                    f.x_hat = pos_c
+                    f.xdot_hat = vel_c
+                    if f._last_t is None:
+                        f._last_t = t
+                tracker._prev_vel = (st["vel"][0], st["vel"][1])
+                tracker._prev_t = t
+            elif isinstance(tracker, KalmanTracker) and tracker.x is not None:
+                tracker.x[0] = st["pos"][0]
+                tracker.x[1] = st["pos"][1]
+                tracker.x[2] = st["vel"][0]
+                tracker.x[3] = st["vel"][1]
+        if hasattr(term, "_have_meas"):
+            term._have_meas = True
 
 
 METHODS = {
@@ -1849,6 +2277,13 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     params = {**defaults, **(method_params or {})}
     law = cls(params)
 
+    # P-6 (FUSE_MIDCOURSE): under fusion the cue channel stays deliverable
+    # below handoff_range until the law's one-way latch fires (the real
+    # m4_intercept.py semantics -- the cue socket is closed BY the HANDOFF
+    # latch, not by a range gate). False for every non-fused config, leaving
+    # the baseline Sensor delivery condition byte-identical.
+    cue_until_latch = bool(getattr(law, "fuse_midcourse", False))
+
     # ADR-0015: draw the per-run constant cue datum bias AFTER the path
     # builder (so its rng draw never perturbs geometry) and ONLY when
     # configured (guarded in draw_datum_bias -> zero draws at baseline).
@@ -1864,6 +2299,7 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     sensor = Sensor(
         rng, det_range=det_range, handoff_range=handoff_range, initial_heading=initial_heading,
         yaw_rate_max_deg_s=yaw_rate_max_deg_s, perception=perception, datum_bias=datum_bias,
+        cue_until_latch=cue_until_latch,
     )
 
     min_range = math.hypot(tx - ix, ty - iy)
@@ -1955,6 +2391,15 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
             tag_lost_in_terminal = True
 
         vcx, vcy = law.step(t, dt, (ix, iy), (ivx, ivy), meas)
+
+        # P-6: the tick the fused law's one-way latch fires, close the cue
+        # gate (no further deliveries; in-flight datagrams lost) -- the lab
+        # mirror of m4_intercept.py closing the UDP socket at HANDOFF. The
+        # law ALSO structurally drops any post-latch cue measurement at the
+        # top of _step_fused (belt and suspenders, matching the real
+        # pipeline's socket-close + reader-nulling pair).
+        if cue_until_latch and not sensor.cue_gate_closed and getattr(law, "latched", False):
+            sensor.close_cue()
 
         tracker = getattr(law, "tracker", None)
         if tracker is not None and tracker.pos_hat is not None:
@@ -2833,6 +3278,255 @@ def run_adr0015_study(n_seeds=60):
     return all_rows
 
 
+# =========================================================================
+# P-6 MID-COURSE FUSION + WARM HANDOFF STUDY (ADR-0015 fusion decision;
+# NEXT.md P-6). "lab ranks, Gazebo decides" -- this ranks the four
+# fusion x warm variants; the winner still owes a Gazebo A/B (do NOT put a
+# lab number in an ADR as a result). Builder methodology mandate (NEXT.md):
+# evaluate under THREE perception tiers and treat any variant that only wins
+# under BEST as FRAGILE.
+#
+# 2x2 variant grid (fusion off/on x warm off/on). All four share the SAME
+# Gazebo-faithful one-way latch (FUSE_GAZEBO_LATCH), so the off/off cell is
+# NOT the legacy TwoStageDash -- it is "real latch, no fusion, no warm",
+# which is the honest baseline for isolating fusion's/warm's effect (the
+# legacy-latch S2 numbers live in the ADR-0011/0014/0015 sections). Run on
+# the S2 dash config (dash10/handoff10) at the FPV band 6/8/10 m/s.
+# =========================================================================
+P6_SPEEDS = (6.0, 8.0, 10.0)
+P6_DASH_SPEED = 10.0
+P6_HANDOFF_RANGE = 10.0
+P6_PATH = "crossing_l2r"
+P6_PK_RANGES = (1.0, 2.0)
+
+# Terminal laws for the P-6 A/B, evaluated separately:
+#   pip     -- the ADR-0011-3rd-addendum / ADR-0015 two-stage winner (its lead
+#              solve is exactly what a warm-initialized clean velocity feeds),
+#              and the S2 default terminal. NB: PIP uses NO lambda_dot, so warm
+#              handoff's rate init mostly re-anchors its Cartesian track.
+#   pure_pn -- where warm handoff's lambda_dot/Rdot init actually bites: its
+#              a_cmd = N*Vc*lambda_dot rides camera-only lambda/range filters
+#              that start cold at the latch, exactly the ADR-0009 starved-Vc
+#              window the warm init targets.
+P6_TERMINALS = ("pip", "pure_pn")
+
+# Three perception tiers (NEXT.md worse-than-ideal mandate). Magnitudes are
+# the ADR-0015 recommended realistic defaults, scaled to this lab's
+# compressed ~15 m standoff (same basis as ADR15_REALISTIC).
+P6_TIERS = {
+    # BEST: idealized -- perception off entirely (the ADR-0015 (A) baseline).
+    "BEST": None,
+    # EXPECTED: ADR-0015's recommended realistic + designed-mitigations cue
+    # (shared-RTK 0.5 m datum, EMIT velocity sigma_v=0.5, latency 0.12+0.05
+    # jitter, bursty Markov dropout p 0.12/burst 1.5 s) + realistic terminal
+    # seeker (LOS-rate dropout + ML-grade noise). Link NOT jammed (a designed
+    # comms link that stays up to lock).
+    "EXPECTED": dict(
+        CUE_SIGMA_BASE_M=0.4, CUE_SIGMA_QUAD=0.008,
+        CUE_DATUM_BIAS_MAG_M=0.5,
+        CUE_EMIT_VELOCITY=True, CUE_VEL_SIGMA_M_S=0.5,
+        CUE_LATENCY_MEAN_S=0.12, CUE_LATENCY_JITTER_S=0.05,
+        CUE_DROPOUT_MARKOV=True, CUE_DROPOUT_P_OUT=0.12, CUE_DROPOUT_BURST_S=1.5,
+        TERM_LOS_RATE_DROPOUT=True, TERM_LOS_RATE_REF_DEG_S=90.0, TERM_LOS_RATE_DROPOUT_MAX=0.7,
+        TERM_BEARING_SIGMA_DEG=1.5, TERM_RANGE_NOISE_FRAC=0.22,
+    ),
+    # WORST-CREDIBLE: standard-GPS 2.5 m datum (poisons a naive cue-angle
+    # fusion -- the fragility test), sigma_v=1.0, latency jitter 0.08,
+    # dropout p 0.20 / burst 3 s, jammer link cutoff ~11.5 m (before lock),
+    # terminal LOS-rate dropout ON, ML terminal noise ON.
+    "WORST": dict(
+        CUE_SIGMA_BASE_M=0.4, CUE_SIGMA_QUAD=0.008,
+        CUE_DATUM_BIAS_MAG_M=2.5,
+        CUE_EMIT_VELOCITY=True, CUE_VEL_SIGMA_M_S=1.0,
+        CUE_LATENCY_MEAN_S=0.12, CUE_LATENCY_JITTER_S=0.08,
+        CUE_DROPOUT_MARKOV=True, CUE_DROPOUT_P_OUT=0.20, CUE_DROPOUT_BURST_S=3.0,
+        CUE_LINK_CUTOFF_RANGE_M=11.5,
+        TERM_LOS_RATE_DROPOUT=True, TERM_LOS_RATE_REF_DEG_S=90.0, TERM_LOS_RATE_DROPOUT_MAX=0.7,
+        TERM_BEARING_SIGMA_DEG=1.5, TERM_RANGE_NOISE_FRAC=0.22,
+    ),
+}
+P6_TIER_ORDER = ("BEST", "EXPECTED", "WORST")
+
+# fusion off/on x warm off/on -- all four carry the Gazebo-faithful latch.
+P6_VARIANTS = [
+    ("fuse=off warm=off", dict(FUSE_GAZEBO_LATCH=True)),
+    ("fuse=on  warm=off", dict(FUSE_MIDCOURSE=True)),
+    ("fuse=off warm=on ", dict(WARM_HANDOFF=True)),
+    ("fuse=on  warm=on ", dict(FUSE_MIDCOURSE=True, WARM_HANDOFF=True)),
+]
+# Bearing-weighted-fusion is the mechanization FusedTrack already implements
+# (the cue never touches the angle). The WORST tier's 2.5 m datum is the
+# direct test of the ADR-0015 warning that a biased cue can poison a clean
+# camera bearing -- if fusion still holds up at WORST, that IS the answer to
+# "does bearing-weighting fix the poisoning". Reported in the verdict.
+
+
+def _p6_rows(perception, variant_overrides, speed, n_seeds, terminal):
+    """n_seeds two_stage_dash runs at one speed on the S2 dash config with a
+    fusion variant + a perception tier + a terminal law."""
+    method_params = dict(
+        DASH_SPEED=P6_DASH_SPEED, HANDOFF_RANGE=P6_HANDOFF_RANGE,
+        TERMINAL_METHOD=terminal, **variant_overrides,
+    )
+    path_params = dict(S2_PATH_PARAMS, speed=speed, handoff_range=P6_HANDOFF_RANGE)
+    perc = None if perception is None else dict(perception)
+    rows = []
+    for seed in range(n_seeds):
+        rows.append(
+            simulate("two_stage_dash", method_params, P6_PATH, path_params, seed,
+                     two_stage=True, perception=perc)
+        )
+    return rows
+
+
+def _p6_stats(rows, pk_ranges=P6_PK_RANGES):
+    miss = np.array([r["miss_distance"] for r in rows])
+    tc = [r["terminal_coverage"] for r in rows if r["terminal_coverage"] is not None]
+    return dict(
+        n=len(rows), mean=float(miss.mean()), median=float(np.median(miss)),
+        p90=float(np.percentile(miss, 90)),
+        pk={R: float(np.mean(miss <= R)) for R in pk_ranges},
+        term_cov=float(np.mean(tc)) if tc else None,
+    )
+
+
+# Datum-poisoning probe: the WORST tier with the JAMMER LINK CUTOFF REMOVED
+# (so the 2.5 m standard-GPS datum-biased cue survives INTO the fusion window,
+# where the camera is also tracking) -- WORST's own 11.5 m cutoff otherwise
+# kills the cue before the camera acquires (~8 m), leaving no both-sources
+# window and masking exactly the datum-poisoning question the task asks. If
+# fuse=on still doesn't LOSE here vs fuse=off, that IS the evidence that the
+# bearing-weighted mechanization (camera owns the angle; cue range folded in
+# only inverse-variance-weighted) prevents a biased cue from poisoning the
+# clean seeker bearing.
+P6_POISON_PROBE = {k: v for k, v in P6_TIERS["WORST"].items() if k != "CUE_LINK_CUTOFF_RANGE_M"}
+
+
+def _p6_tier_block(results, terminal, n_seeds, all_rows):
+    """Run + print all tiers x variants x speeds for one terminal, filling
+    results[tier][label][speed] and extending all_rows."""
+    print("\n" + "#" * 100)
+    print(f"#  TERMINAL = {terminal}")
+    print("#" * 100)
+    for tier in P6_TIER_ORDER:
+        perception = P6_TIERS[tier]
+        results[tier] = {}
+        print("\n" + "-" * 100)
+        print(f"  TIER: {tier}"
+              + ("  (idealized -- perception OFF)" if perception is None else ""))
+        print("-" * 100)
+        print(f"    {'variant':18s} {'speed':>5s}  {'n':>3s}  {'mean':>5s} "
+              f"{'p90':>5s}  {'Pk@1':>5s} {'Pk@2':>5s}  {'term_cov':>8s}")
+        for label, overrides in P6_VARIANTS:
+            results[tier][label] = {}
+            for sp in P6_SPEEDS:
+                rows = _p6_rows(perception, overrides, sp, n_seeds, terminal)
+                all_rows.extend(rows)
+                s = _p6_stats(rows)
+                results[tier][label][sp] = s
+                tc = f"{s['term_cov']:.2f}" if s["term_cov"] is not None else "n/a"
+                print(f"    {label:18s} {sp:5.1f}  {s['n']:>3d}  {s['mean']:5.2f} "
+                      f"{s['p90']:5.2f}  {s['pk'][1.0]*100:4.0f}% {s['pk'][2.0]*100:4.0f}%  "
+                      f"{tc:>8s}")
+
+
+def _p6_verdict_block(results, terminal):
+    """Pooled-over-speed verdict + fragility summary for one terminal.
+    Returns the pooled verdict dict for the caller's cross-terminal summary."""
+    print("\n" + "=" * 100)
+    print(f"P-6 VERDICT (terminal={terminal}): pooled-over-speed mean miss + Pk@2 "
+          "per (tier x variant), delta vs fuse=off/warm=off baseline of the SAME tier")
+    print("=" * 100)
+    print(f"    {'tier':9s} {'variant':18s} {'mean':>6s} {'dMean':>7s}  "
+          f"{'Pk@1':>5s} {'Pk@2':>5s} {'dPk@2':>7s}")
+    verdict = {}
+    for tier in P6_TIER_ORDER:
+        base_label = P6_VARIANTS[0][0]
+        base_mean = float(np.mean([results[tier][base_label][sp]["mean"] for sp in P6_SPEEDS]))
+        base_pk2 = float(np.mean([results[tier][base_label][sp]["pk"][2.0] for sp in P6_SPEEDS]))
+        verdict[tier] = {}
+        for label, _ in P6_VARIANTS:
+            mean = float(np.mean([results[tier][label][sp]["mean"] for sp in P6_SPEEDS]))
+            pk1 = float(np.mean([results[tier][label][sp]["pk"][1.0] for sp in P6_SPEEDS]))
+            pk2 = float(np.mean([results[tier][label][sp]["pk"][2.0] for sp in P6_SPEEDS]))
+            verdict[tier][label] = dict(mean=mean, pk1=pk1, pk2=pk2)
+            print(f"    {tier:9s} {label:18s} {mean:6.2f} {mean - base_mean:+7.2f}  "
+                  f"{pk1*100:4.0f}% {pk2*100:4.0f}% {(pk2 - base_pk2)*100:+6.0f}%")
+        print()
+    print("-" * 100)
+    print(f"  FRAGILITY (terminal={terminal}; a variant winning ONLY under BEST "
+          "is fragile; a WORST-tier loss vs baseline is a real negative result):")
+    for label, _ in P6_VARIANTS[1:]:
+        parts = []
+        for tier in P6_TIER_ORDER:
+            base = verdict[tier][P6_VARIANTS[0][0]]["mean"]
+            m = verdict[tier][label]["mean"]
+            rel = (base - m) / base * 100.0 if base > 1e-6 else 0.0
+            parts.append(f"{tier} {rel:+5.1f}%")
+        print(f"    {label}:  " + "   ".join(parts)
+              + "   (mean-miss improvement vs same-tier baseline; >~15% real, <15% noise)")
+    return verdict
+
+
+def run_p6_study(n_seeds=80):
+    """P-6 fusion + warm-handoff A/B across three perception tiers, for BOTH
+    the pip and pure_pn terminals, plus a datum-poisoning probe. Returns all
+    rows (for the CSV) so main() can write them."""
+    all_rows = []
+    t0 = time.perf_counter()
+    print("\n" + "=" * 100)
+    print("P-6 MID-COURSE FUSION + WARM HANDOFF (ADR-0015 fusion decision) -- "
+          f"S2 dash{P6_DASH_SPEED:.0f}/handoff{P6_HANDOFF_RANGE:.0f}, "
+          f"terminals={P6_TERMINALS}, {n_seeds} seeds/cell")
+    print("=" * 100)
+    print("  All four variants carry the SAME Gazebo-faithful one-way latch "
+          "(streak>=3, cue nulled post-latch);")
+    print("  the fuse=off/warm=off cell is the honest baseline for isolating "
+          "fusion's/warm's effect,")
+    print("  NOT the legacy TwoStageDash (whose numbers are in the "
+          "ADR-0011/0014/0015 sections).")
+
+    verdicts = {}
+    for terminal in P6_TERMINALS:
+        results = {}
+        _p6_tier_block(results, terminal, n_seeds, all_rows)
+        verdicts[terminal] = _p6_verdict_block(results, terminal)
+
+    # --- datum-poisoning probe (pip terminal, WORST minus link cutoff): does a
+    # LIVE 2.5 m-datum cue poison the fused bearing? fuse=off vs fuse=on. ---
+    print("\n" + "=" * 100)
+    print("P-6 DATUM-POISONING PROBE (terminal=pip, WORST tier MINUS the 11.5 m "
+          "link cutoff, so the 2.5 m-datum cue is ALIVE through the fusion window)")
+    print("=" * 100)
+    print("  Answers ADR-0015's fragility warning directly: if fuse=on does NOT lose "
+          "vs fuse=off here,")
+    print("  the bearing-weighted mechanization (camera owns the angle) is what "
+          "prevents datum poisoning.")
+    print(f"    {'variant':18s} {'speed':>5s}  {'n':>3s}  {'mean':>5s} {'p90':>5s}  "
+          f"{'Pk@1':>5s} {'Pk@2':>5s}  {'term_cov':>8s}")
+    probe = {}
+    for label, overrides in (P6_VARIANTS[0], P6_VARIANTS[1]):  # fuse=off/off, fuse=on/off
+        probe[label] = {}
+        for sp in P6_SPEEDS:
+            rows = _p6_rows(P6_POISON_PROBE, overrides, sp, n_seeds, "pip")
+            all_rows.extend(rows)
+            s = _p6_stats(rows)
+            probe[label][sp] = s
+            tc = f"{s['term_cov']:.2f}" if s["term_cov"] is not None else "n/a"
+            print(f"    {label:18s} {sp:5.1f}  {s['n']:>3d}  {s['mean']:5.2f} "
+                  f"{s['p90']:5.2f}  {s['pk'][1.0]*100:4.0f}% {s['pk'][2.0]*100:4.0f}%  {tc:>8s}")
+    off_mean = float(np.mean([probe[P6_VARIANTS[0][0]][sp]["mean"] for sp in P6_SPEEDS]))
+    on_mean = float(np.mean([probe[P6_VARIANTS[1][0]][sp]["mean"] for sp in P6_SPEEDS]))
+    rel = (off_mean - on_mean) / off_mean * 100.0 if off_mean > 1e-6 else 0.0
+    print(f"  POISON-PROBE POOLED: fuse=off mean={off_mean:.2f} m, fuse=on mean={on_mean:.2f} m "
+          f"-> fusion {rel:+.1f}% (positive = fusion HELPS even with a live 2.5 m datum; "
+          "negative = the datum poisons -> a real negative result)")
+
+    print(f"\n[guidance_lab] P-6 study done in {time.perf_counter() - t0:.2f}s "
+          f"({len(all_rows)} runs)")
+    return all_rows
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--quick", action="store_true", help="small fast sweep (smoke test)")
@@ -2863,12 +3557,34 @@ def main():
                               "See the ADR-0015 section of this file.")
     parser.add_argument("--adr0015-seeds", type=int, default=60,
                          help="seed count per cell for the ADR-0015 study (default 60, >=40 asked)")
+    parser.add_argument("--p6-fusion", action="store_true",
+                         help="run ONLY the P-6 mid-course-fusion + warm-handoff study "
+                              "(ADR-0015 fusion decision; fusion off/on x warm off/on across "
+                              "BEST/EXPECTED/WORST perception tiers) instead of the main trade "
+                              "study, writing its own CSV. See the P-6 section of this file.")
+    parser.add_argument("--p6-seeds", type=int, default=80,
+                         help="seed count per cell for the P-6 fusion study (default 80, >=80 asked)")
     args = parser.parse_args()
 
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     csv_path = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}.csv")
     plot_prefix = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}")
+
+    if args.p6_fusion:
+        print(f"\n[guidance_lab] P-6 mid-course-fusion + warm-handoff study "
+              f"(seeds={args.p6_seeds}/cell)")
+        p6_csv_path = os.path.join(LOGS_DIR, f"guidance_lab_p6fusion_{timestamp}.csv")
+        all_rows = run_p6_study(n_seeds=args.p6_seeds)
+        write_csv(all_rows, p6_csv_path)
+        print(f"\n[guidance_lab] P-6 CSV written: {p6_csv_path} ({len(all_rows)} rows)")
+        print(
+            "  REMINDER: kinematic surrogate -- the P-6 ranking is a HYPOTHESIS gating "
+            "the Gazebo A/B of --fuse-midcourse/--warm-handoff; a lab win < ~15% is noise, "
+            "and the lab UNDER-prices terminal perception (ADR-0015 caveat), so trust the "
+            "RELATIVE ranking across tiers, not the absolute Pk."
+        )
+        return 0
 
     if args.adr0015:
         print(f"\n[guidance_lab] ADR-0015 perception-constraint cost study "

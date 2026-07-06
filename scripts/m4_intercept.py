@@ -102,6 +102,26 @@ start. See scripts/s2_cue_mock.py for the cue process itself and
 docs/decisions.md's ADR-0010 (#4: exactly 3 degradation knobs) and #5 (the
 hard handoff / no fusion / illegal-state-unrepresentable rule).
 
+P-6 -- MID-COURSE FUSION + WARM HANDOFF (--fuse-midcourse / --warm-handoff,
+both default OFF, both require --handoff; ADR-0015 fusion decision, ported
+from guidance_lab.py's FusedTrack): an OPT-IN mid-course aid layered on the
+DASH phase. --fuse-midcourse maintains a bearing-weighted polar FusedTrack
+(the camera owns the LOS angle; the cue's range is folded in
+inverse-variance-weighted; the cue's emitted velocity is used when present)
+and aims the dash off it through the window where BOTH sources exist (first
+camera detection -> the HANDOFF latch). --warm-handoff, at the latch,
+seeds the camera-only terminal filters (lambda, lambda_dot, R, Rdot, v_perp)
++ the shared PIP track from that fused (or dash) track instead of letting
+them converge from cold. This does NOT weaken ADR-0010 #5: fusion is a
+PRE-latch mid-course aid using legal pre-latch cue reads; POST-latch the cue
+socket stays closed one-way and the terminal is camera-only, unchanged. Lab
+ranking (guidance_lab.py --p6-fusion, ADR-0015 fusion study): fusion helps
+TRACK CONTINUITY through the terminal under EXPECTED realism (Pk@2 and
+terminal detection coverage rise) but is neutral/sub-noise on mean miss and
+inert under an early jammer link-cutoff; warm handoff is a small sub-noise
+positive for a pronav terminal -- so a Gazebo A/B is what decides (NEXT.md
+P-6, "lab ranks, Gazebo decides").
+
 S2 WORLD-FRAME MAPPING (empirically verified, not assumed -- do not guess
 this): the cue reports Gazebo WORLD x, y, z (same frame as gt_cam_x/y/z,
 gt_tag_x/y/z elsewhere in this file), but the guidance/tracker frame is PX4
@@ -559,7 +579,14 @@ class AlphaBetaFilter:
             return
         self.x_hat += self.xdot_hat * dt
 
-    def correct(self, meas: float, t: float) -> None:
+    def correct(self, meas: float, t: float, gain_scale: float = 1.0) -> None:
+        """`gain_scale` (P-6 --fuse-midcourse, default 1.0 = byte-identical
+        baseline -- x*1.0 is IEEE-exact) scales BOTH gains for this one
+        correction: how FusedTrack folds a LOWER-confidence source (the cue
+        range) into a filter whose nominal gains are tuned for the camera,
+        without touching the stored gains. The weight is inverse-variance,
+        computed by the caller from KNOWN sensor specs (FusedTrack.update_cue)
+        -- ported from guidance_lab.py's AlphaBetaFilter.correct."""
         if self.x_hat is None:
             # First measurement: initialize position, zero rate (spec).
             self.x_hat = meas
@@ -575,8 +602,8 @@ class AlphaBetaFilter:
             alpha, beta = kalata_alpha_beta(self.kalata_sigma_process, self.kalata_sigma_meas, dt_since)
         else:
             alpha, beta = self.alpha, self.beta
-        self.x_hat += alpha * residual
-        self.xdot_hat += beta * residual / dt_since
+        self.x_hat += alpha * gain_scale * residual
+        self.xdot_hat += beta * gain_scale * residual / dt_since
         self.last_innovation = residual
         self._last_correction_t = t
         self.n_corrections += 1
@@ -671,6 +698,119 @@ def solve_intercept_time(rel, vt, v_close, max_lead_s):
 PIP_TRACK_ALPHA = 0.6
 PIP_TRACK_BETA = 0.2
 PIP_MAX_LEAD_S = 3.0
+
+# --- P-6 mid-course fusion / warm handoff (ADR-0015 fusion decision;
+# NEXT.md P-6; ported from guidance_lab.py's FusedTrack -- keep the two in
+# sync). All behind --fuse-midcourse / --warm-handoff (both default OFF, both
+# require --handoff), so the S2 gate default path is byte-identical. Fusion
+# is a PRE-LATCH mid-course aid only; POST-latch the cue socket stays closed
+# one-way (ADR-0010 #5) and the terminal is camera-only, UNCHANGED. ---
+# Drone-side assumed cue sigma model for the fused-range inverse-variance
+# weight (the ADR-0015 recommended realistic sigma_R(R) = base + quad*R^2)
+# RSS'd with a FIXED datum-bias budget at the shared-RTK design value. NOT
+# read from the live cue: a fielded fusion is tuned to its design spec.
+FUSE_CUE_SIGMA_BASE_M = 0.4
+FUSE_CUE_SIGMA_QUAD = 0.008
+FUSE_DATUM_BUDGET_M = 0.5
+# Assumed onboard-seeker (AprilTag) range sigma fraction for the same weight
+# ("know your own sensor spec"; ADR-0015 puts the AprilTag range at ~5-8%,
+# 0.10 is a conservative match to guidance_lab.py's RANGE_NOISE_FRAC).
+FUSE_CAM_RANGE_FRAC = 0.10
+FUSE_RANGE_SIGMA_FLOOR_M = 0.3
+FUSE_VEL_STALE_S = 0.6        # emitted-velocity freshness horizon (sim-time)
+
+
+class FusedTrack:
+    """P-6 mid-course fusion (ADR-0015 fusion mechanization; ported from
+    guidance_lab.py's FusedTrack -- keep in sync). A POLAR fused target
+    estimate maintained through the window where BOTH sources exist (camera
+    detecting AND cue alive, i.e. first camera detection until the HANDOFF
+    latch closes the cue). BEARING-WEIGHTED BY DESIGN:
+
+      - lambda (inertial LOS azimuth psi+beta) channel: alpha-beta on the
+        CAMERA only. The cue NEVER touches the angle. ADR-0015's own ruling
+        is that bearing-only suffices for pro-nav (it consumes the LOS
+        *rate*, an angle), so fusion must HELP the lambda_dot estimate, not
+        fight it -- and a 2.5 m standard-GPS datum at 8 m range is ~18 deg
+        of bearing error that would poison the seeker's clean few-degree
+        angle. Camera wins the angle, always.
+      - range channel: alpha-beta corrected by BOTH the camera monocular
+        range (full gain) AND the cue-implied range |cue_ned - own_ned|
+        (gain-scaled by an inverse-variance weight from KNOWN specs: camera
+        sigma = FUSE_CAM_RANGE_FRAC*R_hat; cue sigma = the assumed
+        sigma_R(R) RSS'd with the datum budget).
+      - velocity: the cue's EMITTED NED velocity when fresh (ADR-0015's #1
+        lever), else the caller's fallback (the shared dash TargetTracker's
+        estimate).
+
+    Per-tick scalar math -- trivially Pi-implementable. Note the lambda
+    channel here is a SEPARATE filter from the guidance loop's own
+    lambda_filter; at a warm handoff its state (+ the fused range/velocity)
+    is what re-anchors the terminal filters."""
+
+    def __init__(self):
+        self.lam = AlphaBetaFilter(ALPHA, BETA_GAIN_LAMBDA, angular=True)
+        self.rng_f = AlphaBetaFilter(ALPHA, BETA_GAIN_RANGE)
+        self.vel_ned = None      # latest cue-EMITTED NED velocity (or None)
+        self.vel_t = None
+        self.last_camera_t = None
+
+    def predict(self, dt):
+        self.lam.predict(dt)
+        self.rng_f.predict(dt)
+
+    def update_camera(self, lambda_meas, range_m, t):
+        """Camera correction: owns the angle, full-gain range."""
+        self.lam.correct(lambda_meas, t)
+        self.rng_f.correct(range_m, t)
+        self.last_camera_t = t
+
+    def update_cue(self, cue_range_m, cue_vel_ned, t):
+        """Cue correction: velocity capture always; range folded in ONLY once
+        the camera side exists (fusion window starts at first detection -- a
+        biased cue must never define the CAMERA-anchored track's initial
+        state, the angle-poisoning this mechanization exists to prevent)."""
+        if cue_vel_ned is not None:
+            self.vel_ned = cue_vel_ned
+            self.vel_t = t
+        if not (self.rng_f.initialized and self.lam.initialized):
+            return
+        r_hat = max(self.rng_f.x_hat, 1e-3)
+        sigma_cam = max(FUSE_RANGE_SIGMA_FLOOR_M, FUSE_CAM_RANGE_FRAC * r_hat)
+        sigma_cue_stat = FUSE_CUE_SIGMA_BASE_M + FUSE_CUE_SIGMA_QUAD * cue_range_m * cue_range_m
+        sigma_cue = math.sqrt(sigma_cue_stat * sigma_cue_stat + FUSE_DATUM_BUDGET_M * FUSE_DATUM_BUDGET_M)
+        w = min(1.0, (sigma_cam * sigma_cam) / max(1e-6, sigma_cue * sigma_cue))
+        self.rng_f.correct(cue_range_m, t, gain_scale=w)
+
+    def camera_fresh(self, t):
+        return self.last_camera_t is not None and (t - self.last_camera_t) <= MEAS_STALE_S
+
+    def target_vel(self, t, fallback):
+        if (self.vel_ned is not None and self.vel_t is not None
+                and (t - self.vel_t) <= FUSE_VEL_STALE_S):
+            return self.vel_ned
+        return fallback
+
+    def state(self, t, own_ned, own_vel_ned, fallback_vel):
+        """Fused snapshot (pos_ned, vel_ned, lam, R, rdot, lamdot) or None if
+        the camera side hasn't initialized the polar track. Rates are
+        GEOMETRIC from the fused target velocity (cue-emitted when fresh)
+        minus own velocity:  rdot = (vt-vo).u,  lamdot = cross(u, vt-vo)/R
+        -- not the alpha-beta's own still-converging rate states (the whole
+        point of the warm handoff is that ~1-2 s of noisy camera corrections
+        cannot match a transmitted filtered velocity)."""
+        if not (self.lam.initialized and self.rng_f.initialized):
+            return None
+        lam = self.lam.x_hat
+        R = max(self.rng_f.x_hat, 1e-3)
+        u = (math.cos(lam), math.sin(lam))
+        vt = self.target_vel(t, fallback_vel) or (0.0, 0.0)
+        vo = own_vel_ned or (0.0, 0.0)
+        vrel = (vt[0] - vo[0], vt[1] - vo[1])
+        rdot = vrel[0] * u[0] + vrel[1] * u[1]
+        lamdot = (u[0] * vrel[1] - u[1] * vrel[0]) / R
+        pos = (own_ned[0] + R * u[0], own_ned[1] + R * u[1])
+        return dict(pos=pos, vel=vt, lam=lam, R=R, rdot=rdot, lamdot=lamdot)
 
 # Tracking-refinement PORT 2 (--cue-latency-comp): clamp bounds for the
 # computed cue age (sim_now - t_sim), a defensive floor/ceiling against a
@@ -792,6 +932,10 @@ class M4TelemetryState(TelemetryState):
         self.yaw_deg: Optional[float] = None
         self.pos_n: Optional[float] = None
         self.pos_e: Optional[float] = None
+        # Own NED velocity (P-6 fused/warm-handoff geometric rate init needs
+        # it; own-state = legal). Same position_velocity_ned() stream as pos.
+        self.vel_n: Optional[float] = None
+        self.vel_e: Optional[float] = None
 
 
 async def track_attitude(drone, state: "M4TelemetryState") -> None:
@@ -803,6 +947,8 @@ async def track_local_position(drone, state: "M4TelemetryState") -> None:
     async for pv in drone.telemetry.position_velocity_ned():
         state.pos_n = pv.position.north_m
         state.pos_e = pv.position.east_m
+        state.vel_n = pv.velocity.north_m_s
+        state.vel_e = pv.velocity.east_m_s
 
 
 def acquire_command(detected: bool, meas: "Optional[Measurement]", alt_m, psi_deg):
@@ -993,6 +1139,29 @@ def parse_args():
              "a bounded yaw-sweep seeker search; if no camera acquisition "
              "within the sim-time budget, BREAKOFF (outcome=link_lost_no_acq).",
     )
+    parser.add_argument(
+        "--fuse-midcourse", action="store_true",
+        help="P-6 (default OFF, requires --handoff): mid-course sensor fusion "
+             "(ADR-0015). Through the window where BOTH sources exist (camera "
+             "detecting + cue alive, pre-latch), aim the DASH off a "
+             "bearing-weighted fused track (camera owns the LOS angle; the cue "
+             "range is folded in inverse-variance-weighted; cue velocity used "
+             "when emitted) instead of the raw cue Cartesian track. POST-latch "
+             "the cue stays closed one-way and the terminal is camera-only "
+             "(unchanged). Lab: helps track continuity under EXPECTED realism, "
+             "neutral/sub-noise on mean miss, inert under an early jammer "
+             "cutoff -- Gazebo A/B decides (NEXT.md P-6).",
+    )
+    parser.add_argument(
+        "--warm-handoff", action="store_true",
+        help="P-6 (default OFF, requires --handoff): at the HANDOFF latch, "
+             "warm-initialize the terminal filters (lambda, lambda_dot, R, "
+             "Rdot, v_perp) and the shared target track from the fused (or, "
+             "without --fuse-midcourse, the dash) track -- a WARM lock-transfer "
+             "(ADR-0015) instead of letting the camera-only terminal filters "
+             "converge from cold. Rates are set geometrically from the "
+             "(cue-emitted when fresh) target velocity.",
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
@@ -1003,6 +1172,10 @@ def parse_args():
         parser.error("--cue-velocity requires --handoff (there is no cue channel without it)")
     if args.coast_search and not args.handoff:
         parser.error("--coast-search requires --handoff (there is no cue link to lose without it)")
+    if args.fuse_midcourse and not args.handoff:
+        parser.error("--fuse-midcourse requires --handoff (P-6 fuses the mid-course cue)")
+    if args.warm_handoff and not args.handoff:
+        parser.error("--warm-handoff requires --handoff (P-6 warm-transfers at the cue handoff)")
 
     if args.target_start is None:
         args.target_start = S2["TARGET_START_DEFAULT"] if args.handoff else "6.5,-4,0.5"
@@ -1066,6 +1239,13 @@ async def run_acquire_and_engage(
     # only, --handoff mode only -- on ticks with a new cue datagram and no
     # fresh camera detection this tick (see the ext-cue block below).
     target_tracker = TargetTracker(PIP_TRACK_ALPHA, PIP_TRACK_BETA)
+
+    # P-6 (--fuse-midcourse / --warm-handoff): a bearing-weighted polar fused
+    # track maintained through the both-sources mid-course window. None (and
+    # every branch below no-ops) unless a P-6 flag is set -> default path
+    # byte-identical. Fed camera (angle+range) in the fresh block and cue
+    # (range+velocity) in the ext-cue block, PRE-latch only.
+    fused = FusedTrack() if (args.fuse_midcourse or args.warm_handoff) else None
 
     phase = "CUE_WAIT" if args.handoff else "ACQUIRE"
     acquire_start_mono = time.monotonic()
@@ -1162,6 +1342,8 @@ async def run_acquire_and_engage(
         lambda_filter.predict(dt)
         range_filter.predict(dt)
         target_tracker.predict(dt)
+        if fused is not None:
+            fused.predict(dt)
         if fresh:
             lambda_meas = psi_rad + meas.bearing_rad
             lambda_filter.correct(lambda_meas, tick_start)
@@ -1178,6 +1360,10 @@ async def run_acquire_and_engage(
                     (state.pos_n + rel_n, state.pos_e + rel_e), tick_start
                 )
                 tracker_correction_count += 1
+            # P-6: camera owns the fused angle + full-gain range (lambda_meas
+            # is the inertial LOS psi+beta, exactly as the guidance filter).
+            if fused is not None:
+                fused.update_camera(lambda_meas, meas.range_m, tick_start)
 
         # --- S2 (--handoff) external-cue consumption: CAMERA HAS PRIORITY
         # (ADR-0010 #5) -- only feed the shared tracker from the cue on a
@@ -1256,6 +1442,17 @@ async def run_acquire_and_engage(
                         # on the cue actually carrying velocity (old-mock safe).
                         if args.cue_velocity and cvx is not None and cvy is not None:
                             target_tracker.set_velocity(cvy, cvx)
+                        # P-6: fold the cue-implied range (bearing-weighted;
+                        # the cue NEVER touches the fused angle) + cue velocity
+                        # (world->NED: vn=world vy, ve=world vx) into the fused
+                        # track. Uses the latency-compensated corr_n/corr_e so
+                        # the fused range matches the tracker's own correction.
+                        if fused is not None and state.pos_n is not None and state.pos_e is not None:
+                            cue_rng = math.hypot(corr_n - state.pos_n, corr_e - state.pos_e)
+                            cue_vel_ned = (
+                                (cvy, cvx) if (cvx is not None and cvy is not None) else None
+                            )
+                            fused.update_cue(cue_rng, cue_vel_ned, tick_start)
                         tracker_correction_count += 1
                         ext_fresh = 1
 
@@ -1407,11 +1604,25 @@ async def run_acquire_and_engage(
                         "the track and continuing the dash (ADR-0015)"
                     )
 
-            tpos = target_tracker.pos_hat
-            if tpos is not None and state.pos_n is not None and state.pos_e is not None:
-                own = (state.pos_n, state.pos_e)
-                rel = (tpos[0] - own[0], tpos[1] - own[1])
+            # P-6 (--fuse-midcourse): once the camera is in the fused window,
+            # aim the dash off the bearing-weighted fused polar state (removes
+            # the cue's cross-LOS noise/datum error from the final dash
+            # stretch) instead of the raw cue Cartesian track. Falls back to
+            # the cue tracker before first detection / when the flag is off.
+            own = (state.pos_n, state.pos_e) if (state.pos_n is not None and state.pos_e is not None) else None
+            tpos = None
+            vt = (0.0, 0.0)
+            if args.fuse_midcourse and fused is not None and own is not None and fused.camera_fresh(tick_start):
+                own_vel_ned = (state.vel_n, state.vel_e) if getattr(state, "vel_n", None) is not None else None
+                st = fused.state(tick_start, own, own_vel_ned, target_tracker.vel_hat)
+                if st is not None:
+                    tpos = st["pos"]
+                    vt = st["vel"]
+            if tpos is None:
+                tpos = target_tracker.pos_hat
                 vt = target_tracker.vel_hat or (0.0, 0.0)
+            if tpos is not None and own is not None:
+                rel = (tpos[0] - own[0], tpos[1] - own[1])
                 t_go = solve_intercept_time(
                     rel, vt, s2params["DASH_SPEED"], s2params["DASH_MAX_LEAD_S"]
                 )
@@ -1495,6 +1706,73 @@ async def run_acquire_and_engage(
                 )
                 cue_reader.close()
                 cue_reader = None  # illegal-state-unrepresentable past this point
+                # P-6 (--warm-handoff): WARM lock-transfer (ADR-0015) at the
+                # latch instant -- initialize the camera-only terminal filters
+                # (lambda, lambda_dot, R, Rdot) + v_perp + the shared PIP track
+                # from the best track available (the fused polar state, or the
+                # dash tracker without --fuse-midcourse), so the terminal does
+                # NOT fly its first seconds on still-converging cold rate
+                # states (the ADR-0009 starved-Vc window). Angle stays
+                # camera-owned; rates are geometric from the (cue-emitted when
+                # fresh) target velocity. Pre-latch cue data only -- legal.
+                if args.warm_handoff and state.pos_n is not None and state.pos_e is not None:
+                    own_w = (state.pos_n, state.pos_e)
+                    own_vel_w = (state.vel_n, state.vel_e) if getattr(state, "vel_n", None) is not None else None
+                    st = fused.state(tick_start, own_w, own_vel_w, target_tracker.vel_hat) if fused is not None else None
+                    if st is None and target_tracker.pos_hat is not None:
+                        # No fused track (warm-handoff without fuse-midcourse):
+                        # derive the geometric state from the dash tracker.
+                        tp = target_tracker.pos_hat
+                        rel_w = (tp[0] - own_w[0], tp[1] - own_w[1])
+                        Rw = max(math.hypot(rel_w[0], rel_w[1]), 1e-3)
+                        lamw = math.atan2(rel_w[1], rel_w[0])
+                        uw = (rel_w[0] / Rw, rel_w[1] / Rw)
+                        vtw = target_tracker.vel_hat or (0.0, 0.0)
+                        vow = own_vel_w or (0.0, 0.0)
+                        vrelw = (vtw[0] - vow[0], vtw[1] - vow[1])
+                        st = dict(
+                            pos=tp, vel=vtw, lam=lamw, R=Rw,
+                            rdot=vrelw[0] * uw[0] + vrelw[1] * uw[1],
+                            lamdot=(uw[0] * vrelw[1] - uw[1] * vrelw[0]) / Rw,
+                        )
+                    if st is not None:
+                        # Capture init state BEFORE mutating x_hat (initialized
+                        # keys off x_hat). In the normal handoff (>=3 detections)
+                        # both are already initialized; these guards are
+                        # defensive for a pathological cold handoff.
+                        lam_was_init = lambda_filter.initialized
+                        # Angle stays CAMERA-owned when already tracking; only
+                        # seed it if the terminal angle filter is somehow cold.
+                        if not lam_was_init:
+                            lambda_filter.x_hat = st["lam"]
+                        lambda_filter.xdot_hat = st["lamdot"]
+                        if lambda_filter._last_correction_t is None:
+                            lambda_filter._last_correction_t = tick_start
+                        range_filter.x_hat = st["R"]
+                        range_filter.xdot_hat = st["rdot"]
+                        if range_filter._last_correction_t is None:
+                            range_filter._last_correction_t = tick_start
+                        # v_perp = the vehicle's ACTUAL cross-LOS velocity, so
+                        # the terminal's first command continues the dash
+                        # course rather than jumping from a stale integrator.
+                        uw = (math.cos(st["lam"]), math.sin(st["lam"]))
+                        pvec = (-uw[1], uw[0])
+                        if getattr(state, "vel_n", None) is not None:
+                            v_perp = _clamp(
+                                state.vel_n * pvec[0] + state.vel_e * pvec[1],
+                                -V_PERP_MAX, V_PERP_MAX,
+                            )
+                        # Re-anchor the shared PIP track to the fused state.
+                        target_tracker.fn.x_hat = st["pos"][0]
+                        target_tracker.fe.x_hat = st["pos"][1]
+                        target_tracker.fn.xdot_hat = st["vel"][0]
+                        target_tracker.fe.xdot_hat = st["vel"][1]
+                        print(
+                            f"[s2] WARM HANDOFF (P-6): terminal seeded "
+                            f"lambda={math.degrees(st['lam']):.1f}deg "
+                            f"lambda_dot={math.degrees(st['lamdot']):.1f}deg/s "
+                            f"R={st['R']:.2f}m Rdot={st['rdot']:.2f}m/s"
+                        )
                 phase = "ENGAGE"
                 engage_t0 = tick_start
             elif dash_elapsed > s2params["DASH_TIMEOUT_S"]:

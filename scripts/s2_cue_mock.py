@@ -39,6 +39,16 @@ process's own CSV log for audit ONLY, never sent over the wire (mirrors
 the camera-only / no-cheat honesty boundary elsewhere in this project:
 the CONSUMER of this cue must never have a back door to ground truth).
 
+The 3 core knobs (--sigma, --latency-s, --rate) are joined by OPT-IN
+ADR-0015 realism flags (range-dependent sigma, per-run datum bias, emitted
+velocity, latency jitter, bursty Markov dropout, link cutoff) and the P-6
+--stereo-config flag, which derives the range sigma from stereo GEOMETRY
+(sigma_R(R) = R^2 * sigma_d / (b * f_px)) rather than hand-set constants --
+the physical model the P-2 stereo-rig worker is calibrating (its defaults
+are placeholders; see the STEREO_* constants). Every one of these defaults
+OFF so the pre-ADR-0015 datagram + RNG stream stay byte-identical and
+scripts/check_s2.sh at defaults is unaffected.
+
 Every sample (delivered or not) that had truth available is logged to
 logs/s2_cue_<UTC timestamp>.csv: t_sim_sample, t_sim_emit, x_noisy,
 y_noisy, z_noisy, x_true, y_true, z_true -- so a run can be audited after
@@ -111,6 +121,22 @@ DEFAULT_DROPOUT_BURST_S = 1.5    # mean outage (burst) length, sim seconds (tabl
 # shared-RTK+PPS, else 2-4 m" budget the integration seat specified.
 SIGMA_RANGE_A_M = 0.4
 SIGMA_RANGE_B_M_PER_M2 = 0.008
+# --- ADR-0015 table #1 / P-2 stereo geometry (--stereo-config): derive the
+# range sigma from FIRST PRINCIPLES instead of the hand-set A + B*R^2 above.
+# Stereo range R = b*f_px/d (d = disparity, px); propagating a disparity
+# noise sigma_d through it gives
+#     sigma_R(R) = R^2 * sigma_d / (b * f_px)
+# (baseline b [m], focal f_px [px], sigma_d [px]). This is the physical model
+# the P-2 stereo-rig worker (scripts/stereo_model.py, in flight) is
+# calibrating; the defaults here are PLACEHOLDERS -- a parallel agent is
+# producing the calibrated (baseline, focal, sigma_disparity) for the real
+# 50-150 m engagement. NB: at this sim's COMPRESSED ~15 m standoff these
+# placeholders yield an optimistic ~0.1 m sigma (225*0.5/1080); the real rig's
+# calibrated constants + real range are what make it representative -- swap
+# them in from P-2, do not tune these to hit a number here.
+STEREO_DEFAULT_BASELINE_M = 2.0
+STEREO_DEFAULT_FOCAL_PX = 540.0
+STEREO_DEFAULT_SIGMA_DISPARITY_PX = 0.5
 # Velocity is a light EMA of the finite-difference of TRUE positions (models a
 # ground tracker's own smoothing) before per-axis noise is added.
 VEL_EMA_ALPHA = 0.5
@@ -252,6 +278,19 @@ def parse_args():
              "(default %.2f)" % DEFAULT_DROPOUT_BURST_S,
     )
     parser.add_argument(
+        "--stereo-config", type=str, default=None,
+        metavar="B,F_PX,SIGMA_D",
+        help="ADR-0015 table #1 (P-2 stereo geometry): derive the range sigma "
+             "from stereo geometry, sigma_R(R) = R^2*sigma_d/(b*f_px), instead "
+             "of the hand-set A+B*R^2 (--sigma-range) or flat --sigma. Give "
+             "'baseline_m,focal_px,sigma_disparity_px' (default placeholders "
+             "%.1f,%.0f,%.1f -- a parallel agent is calibrating the real "
+             "values; see the STEREO_* constants comment). Overrides "
+             "--sigma-range/--sigma when set." % (
+                 STEREO_DEFAULT_BASELINE_M, STEREO_DEFAULT_FOCAL_PX,
+                 STEREO_DEFAULT_SIGMA_DISPARITY_PX),
+    )
+    parser.add_argument(
         "--link-cutoff-range-m", type=float, default=None,
         help="ADR-0015 table #6: once the true interceptor<->target range "
              "first falls below this (m), STOP emitting permanently (models a "
@@ -316,6 +355,36 @@ def main() -> int:
     rng = random.Random(args.seed)  # per-sample MEASUREMENT noise (position, velocity, jitter)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dest = ("127.0.0.1", args.port)
+
+    # --- ADR-0015 table #1 (P-2 stereo geometry, --stereo-config): parse
+    # 'baseline_m,focal_px,sigma_disparity_px' once. None (default) => this
+    # whole feature is inert and the sigma model falls back to --sigma-range /
+    # flat --sigma exactly as before (byte-identical). Precompute the constant
+    # k = sigma_d/(b*f_px) so the per-sample cost is just k*R^2. ---
+    stereo_k = None
+    if args.stereo_config is not None:
+        try:
+            parts = [float(v) for v in args.stereo_config.split(",")]
+            if len(parts) != 3:
+                raise ValueError("expected exactly 3 comma-separated values")
+            b_m, f_px, sigma_d = parts
+            if b_m <= 0.0 or f_px <= 0.0:
+                raise ValueError("baseline and focal must be positive")
+        except ValueError as exc:
+            print(f"[s2-cue] FAILED: bad --stereo-config {args.stereo_config!r}: {exc} "
+                  f"(want 'baseline_m,focal_px,sigma_disparity_px', e.g. "
+                  f"{STEREO_DEFAULT_BASELINE_M},{STEREO_DEFAULT_FOCAL_PX:.0f},"
+                  f"{STEREO_DEFAULT_SIGMA_DISPARITY_PX})")
+            node.unsubscribe(POSE_TOPIC)
+            node.unsubscribe(CLOCK_TOPIC)
+            return 2
+        stereo_k = sigma_d / (b_m * f_px)   # sigma_R(R) = stereo_k * R^2
+        print(
+            f"[s2-cue] stereo-config ON: baseline={b_m:.2f} m focal={f_px:.0f} px "
+            f"sigma_disparity={sigma_d:.2f} px -> sigma_R(R) = {stereo_k:.5g}*R^2 "
+            f"(overrides --sigma-range/--sigma; PLACEHOLDER constants pending P-2 "
+            f"calibration -- see STEREO_* comment)"
+        )
 
     # --- ADR-0015 per-RUN datum bias (guarded: NO draw unless --datum-bias-m
     # > 0, so the default path leaves both this AND the main rng untouched).
@@ -496,8 +565,12 @@ def main() -> int:
 
                 if tag_pose.xyz is not None:
                     xt, yt, zt = tag_pose.xyz
-                    # sigma: flat (default) or range-dependent (--sigma-range).
-                    if args.sigma_range and R is not None:
+                    # sigma: stereo-geometry-derived (--stereo-config, highest
+                    # precedence), else range-dependent (--sigma-range), else
+                    # flat --sigma (default).
+                    if stereo_k is not None and R is not None:
+                        sigma_used = stereo_k * R * R
+                    elif args.sigma_range and R is not None:
                         sigma_used = SIGMA_RANGE_A_M + SIGMA_RANGE_B_M_PER_M2 * R * R
                     else:
                         sigma_used = args.sigma
