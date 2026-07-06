@@ -496,7 +496,13 @@ LOGS_DIR = os.path.join(REPO_ROOT, "logs")
 MOVER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "m4_target_mover.py")
 
 CSV_HEADER = [
-    "t", "phase", "law", "detected",
+    # t = wall-clock elapsed since script start (time.monotonic() - started);
+    # t_sim = SIM time from /clock (SimClockHolder.t), ONLY populated under
+    # --handoff (the only mode that subscribes to /clock -- see
+    # SimClockHolder). Blank otherwise. Demo-tooling need (docs/demo_plan.md):
+    # RTF sag makes wall != sim, so HUD/video time-sync must key off t_sim,
+    # not t.
+    "t", "t_sim", "phase", "law", "detected",
     "meas_x", "meas_y", "meas_z", "meas_range", "bearing_rad",
     "psi_deg", "lambda_deg", "lambda_dot_deg_s",
     "r_hat_m", "rdot_hat_m_s", "vc_m_s", "a_cmd_m_s2", "v_perp_m_s",
@@ -1024,7 +1030,7 @@ def write_row_m4(
     psi_deg, lambda_rad, lambda_dot_rad_s, r_hat_m, rdot_hat_m_s,
     vc_m_s, a_cmd_m_s2, v_perp_m_s, cmd, alt_m, gt_cam, gt_tag, gt_range,
     ext_xyz=None, ext_fresh=None, tgt_state=None, ext_age_s=None,
-    cue_stale=None, coast_phase=None,
+    cue_stale=None, coast_phase=None, t_sim=None,
 ):
     def fmt(value, spec="{:.4f}"):
         return "" if value is None else spec.format(value)
@@ -1035,6 +1041,7 @@ def write_row_m4(
 
     row = [
         f"{t:.3f}",
+        fmt(t_sim, "{:.3f}"),
         phase,
         law,
         "" if detected is None else int(detected),
@@ -2087,6 +2094,7 @@ async def run_acquire_and_engage(
             ext_xyz=(ext_n, ext_e, ext_z) if ext_fresh else None,
             ext_fresh=ext_fresh, tgt_state=tgt_state, ext_age_s=ext_age_s,
             cue_stale=cue_stale_flag, coast_phase=coast_phase_tick,
+            t_sim=sim_clock.t if sim_clock is not None else None,
         )
 
         if aborted:
@@ -2133,7 +2141,7 @@ async def run_acquire_and_engage(
     }
 
 
-async def run_bench(drone, state, meas_holder, tracker, writer, log_file, started, args):
+async def run_bench(drone, state, meas_holder, tracker, writer, log_file, started, args, sim_clock=None):
     """--bench: prove the lambda = psi + beta compensation actually works.
     Spins the vehicle in place (yawspeed square wave) over a STATIC tag
     (no mover) while running the lambda filter normally; if the
@@ -2195,6 +2203,7 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
                     detected, meas, psi_deg, lambda_filter.x_hat, lambda_filter.xdot_hat,
                     None, None, None, None, None, (0.0, 0.0, 0.0, 0.0), alt_m,
                     gt_cam, gt_tag, gt_range,
+                    t_sim=sim_clock.t if sim_clock is not None else None,
                 )
                 break
             if detected:
@@ -2217,6 +2226,7 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
             writer, log_file, time.monotonic() - started, phase, args.law,
             detected, meas, psi_deg, lambda_filter.x_hat, lambda_filter.xdot_hat,
             None, None, None, None, None, cmd, alt_m, gt_cam, gt_tag, gt_range,
+            t_sim=sim_clock.t if sim_clock is not None else None,
         )
 
         tick_elapsed = time.monotonic() - tick_start
@@ -2454,6 +2464,7 @@ async def main():
                 writer, log_file, time.monotonic() - started, "TAKEOFF", args.law,
                 detected, meas, state.yaw_deg, None, None, None, None, None, None,
                 0.0, None, state.relative_altitude_m, gt_cam, gt_tag, gt_range,
+                t_sim=sim_clock.t if sim_clock is not None else None,
             )
             if (
                 state.relative_altitude_m is not None
@@ -2487,7 +2498,8 @@ async def main():
             print(f"[m4] OFFBOARD active. Mode={'BENCH' if args.bench else args.law}.")
             if args.bench:
                 passed, mean_val, max_val = await run_bench(
-                    drone, state, meas_holder, tracker, writer, log_file, started, args
+                    drone, state, meas_holder, tracker, writer, log_file, started, args,
+                    sim_clock=sim_clock,
                 )
                 result_code = 0 if passed else 1
                 print(
