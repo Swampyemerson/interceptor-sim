@@ -2507,6 +2507,20 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     _handoff_vel_err = None
     _prev_in_terminal = False
 
+    # --- ADR-0023 Tier-1 latch/ZEM diagnostics (SCORING-ONLY, no RNG --
+    # same honesty boundary as min_range/breakoff above; the default paths
+    # are numerically untouched). ZEM at the handoff latch = the miss if
+    # both vehicles flew ballistically from the latch tick (the
+    # docs/terminal_diagnosis.md kinematic-lock metric, item 5):
+    # |rel + vrel*t_cpa| at t_cpa = -(rel.vrel)/|vrel|^2 (clamped >= 0).
+    # realized_correction (returned below) = zem_at_latch - final miss: how
+    # much of the delivered ZEM the terminal actually corrected -- the
+    # ~20-25% recoverable mechanization-loss channel Tier-1 targets.
+    _t1_prev_in_terminal = False
+    _t1_latch_t = None
+    _t1_latch_true_range = None
+    _t1_zem_at_latch = None
+
     n_steps = int(round(t_max / dt))
     t = 0.0
     for i in range(n_steps):
@@ -2555,6 +2569,23 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
             tag_lost_in_terminal = True
 
         vcx, vcy = law.step(t, dt, (ix, iy), (ivx, ivy), meas)
+
+        # ADR-0023 Tier-1 diagnostic (scoring-only; see the accumulator
+        # comment above): snapshot true-state ZEM the tick the law's
+        # dash->terminal latch fires (in_terminal False -> True). Uses the
+        # PRE-step vehicle velocity (ivx, ivy) -- the state the terminal
+        # inherits at the latch instant.
+        _t1_in_term = bool(getattr(law, "in_terminal", False))
+        if _t1_in_term and not _t1_prev_in_terminal:
+            _t1_latch_t = t
+            _t1_latch_true_range = true_range
+            _vt_now = vel_fn(t)
+            _relx, _rely = tx - ix, ty - iy
+            _vrx, _vry = _vt_now[0] - ivx, _vt_now[1] - ivy
+            _v2 = _vrx * _vrx + _vry * _vry
+            _tcpa = max(0.0, -(_relx * _vrx + _rely * _vry) / _v2) if _v2 > 1e-9 else 0.0
+            _t1_zem_at_latch = math.hypot(_relx + _vrx * _tcpa, _rely + _vry * _tcpa)
+        _t1_prev_in_terminal = _t1_in_term
 
         # P-6: the tick the fused law's one-way latch fires, close the cue
         # gate (no further deliveries; in-flight datagrams lost) -- the lab
@@ -2659,6 +2690,15 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
             getattr(sensor, "_cue_link_cut_t", None) is not None
             and _first_camera_lock_t is not None
             and _first_camera_lock_t > sensor._cue_link_cut_t
+        ),
+        # --- ADR-0023 Tier-1 latch/ZEM diagnostics (scoring-only; see the
+        # accumulator comment). None for laws without an in_terminal latch
+        # (everything except two_stage_dash) or runs that never latched. ---
+        latch_t=_t1_latch_t,
+        latch_true_range=_t1_latch_true_range,
+        zem_at_latch=_t1_zem_at_latch,
+        realized_correction=(
+            _t1_zem_at_latch - min_range if _t1_zem_at_latch is not None else None
         ),
     )
 
@@ -4058,6 +4098,287 @@ def write_jam_csv(rows, path):
             writer.writerow({k: r.get(k) for k in fieldnames})
 
 
+# =========================================================================
+# ADR-0023 TIER-1 GUIDANCE RECLAIM STUDY (--tier1): the free-software
+# reclaim of the ~20-25% RECOVERABLE mechanization loss the terminal
+# diagnosis quantified (docs/terminal_diagnosis.md items 5-6: the freeze
+# latch discards the last ~0.20 s = 0.17 m of correction capacity, and the
+# alpha-beta filters realize only 0.28 m of an available 0.72 m). Three
+# levers, A/B'd individually AND in every combination (2^3), each one
+# already implementable on a real Pi (per-tick scalar math only):
+#
+#   A  EARLY HANDOFF -- engage the camera-only terminal law at the FIRST
+#      solid detection streak instead of the current 3-streak latch.
+#      Capacity scales t_go^2 (diagnosis item 6), so latching ~1-1.5 m
+#      earlier is free correction capacity. "Solid" reuses the EXISTING
+#      latch streak logic (FUSE_LATCH_STREAK, mirroring m4_intercept.py's
+#      HANDOFF_STREAK_MIN) at a reduced count chosen by the pre-sweep below
+#      -- an AprilTag/fiducial detection has a near-zero false-positive
+#      rate (ADR-0003), so the 3-streak's job was never spoof rejection,
+#      only settling; the pre-sweep measures what that settling is worth.
+#      HONESTY: the ADR-0010 #5 one-way cue-socket latch is UNTOUCHED --
+#      an earlier latch closes the cue SOONER (reads strictly LESS cue
+#      data), never longer.
+#   B  SPLIT-FREEZE + LATER FREEZE -- ADR-0014 lever 2: freeze only the
+#      singular part (the v_perp magnitude) instead of the whole command
+#      vector; v_close (monotone in r_hat, never singular) and lambda_hat
+#      stay live; |lambda_dot| capped in BOTH a_cmd and the filter's own
+#      predict() (AlphaBetaFilter.rate_cap -- one clamp covers both, the
+#      anti-whipsaw requirement from ADR-0009/0014). "Later" = a smaller
+#      TERMINAL_FREEZE_RANGE, reclaiming the discarded pre-CPA correction
+#      window; cap + freeze range chosen by the pre-sweep.
+#   C  WARM-SETTLED TERMINAL FILTERS -- ADR-0018's already-built
+#      WARM_HANDOFF seeding (geometric lambda_dot/Rdot + v_perp + track
+#      re-anchor from the pre-terminal dash track at the latch instant).
+#      Alone it measured sub-noise at the 3-streak latch (ADR-0018); the
+#      Tier-1 question is whether it matters MORE under lever A, where the
+#      terminal starts one detection into the streak instead of three.
+#
+# Grid: 8 variants x BEST/EXPECTED/WORST perception tiers (reusing the P-6
+# presets -- the EXPECTED tier IS "ADR-0015 realistic defaults WITH
+# emit-velocity"; the cue model is deliberately HELD CONSTANT at the same
+# hand-set sigma_R the p6/EMIT batches used, NOT ADR-0017's corrected
+# constants -- changing two things would confound the A/B) x 6/8/10 m/s
+# x >= 80 seeds, terminal pure_pn (the Gazebo-validated robust law,
+# ADR-0011 addendum -- the mc_batch arms this study gates fly pronav).
+# Per-cell metrics add the diagnosis's own kinematic bookkeeping:
+# latch range, ZEM@latch, and realized terminal correction
+# (ZEM@latch - miss). Verdict rule: a lab win < ~15% is noise; a lever
+# that wins at BEST/EXPECTED but hurts at WORST is fragile (worse-than-
+# ideal mandate) and is called out as such.
+# =========================================================================
+T1_SPEEDS = (6.0, 8.0, 10.0)
+T1_PK_RANGES = (1.0, 2.0)
+T1_TERMINAL = "pure_pn"
+T1_PRESWEEP_SPEED = 6.0        # the Gazebo-batch speed (mc_p6/EMIT arms)
+# Pre-sweep candidate grids (EXPECTED tier, 6 m/s). Values bracket the
+# ADR-0014 proposals: cap 60-90 deg/s ("~60-75, tune"), freeze range from
+# the FPV 3.5 m baseline down to 1.5 m (the diagnosis's 0.20-s-to-go latch
+# happened at ~3 m ground truth; 2.0 m at |v_rel|~12 m/s is ~0.17 s).
+T1_A_STREAKS = (1, 2)
+T1_B_FREEZES = (3.5, 2.5, 2.0, 1.5)
+T1_B_CAPS = (60.0, 75.0, 90.0)
+
+
+def _t1_method_params(overrides, terminal_overrides):
+    """Assemble two_stage_dash params for one Tier-1 variant. Every variant
+    (including the base) carries the FULL Gazebo-faithful latch chain:
+      - FUSE_GAZEBO_LATCH: the real one-way streak latch;
+      - DASH_YAW_TRACKER: m4's actual DASH yaw law (boresight at the track
+        azimuth all through the dash -- without it the lab boresight holds
+        its INITIAL heading until first detection, and on a 6-10 m/s
+        crosser roughly half the runs never even acquire the streak, which
+        would corrupt a latch-TIMING lever like A at the source);
+      - CUE_UNTIL_LATCH: m4's cue-socket semantics (closed BY the latch,
+        not by a range gate) -- under lever A an earlier latch then closes
+        the cue STRICTLY SOONER, the honest direction (ADR-0010 #5).
+    All three are constant across the 8 variants, so the A/B isolates the
+    levers. NB: this makes the tier-1 base cell NOT number-comparable to
+    the P-6 study's base cells (which lacked the last two flags)."""
+    mp = dict(
+        DASH_SPEED=P6_DASH_SPEED, HANDOFF_RANGE=P6_HANDOFF_RANGE,
+        TERMINAL_METHOD=T1_TERMINAL, FUSE_GAZEBO_LATCH=True,
+        DASH_YAW_TRACKER=True, CUE_UNTIL_LATCH=True,
+    )
+    mp.update(overrides or {})
+    if terminal_overrides:
+        mp["TERMINAL_PARAMS"] = dict(terminal_overrides)
+    return mp
+
+
+def _t1_rows(perception, overrides, terminal_overrides, speed, n_seeds):
+    path_params = dict(S2_PATH_PARAMS, speed=speed, handoff_range=P6_HANDOFF_RANGE)
+    mp = _t1_method_params(overrides, terminal_overrides)
+    perc = None if perception is None else dict(perception)
+    return [
+        simulate("two_stage_dash", mp, P6_PATH, path_params, seed,
+                 two_stage=True, perception=perc)
+        for seed in range(n_seeds)
+    ]
+
+
+def _t1_stats(rows):
+    s = _p6_stats(rows, pk_ranges=T1_PK_RANGES)
+    zems = [r["zem_at_latch"] for r in rows if r.get("zem_at_latch") is not None]
+    rcs = [r["realized_correction"] for r in rows if r.get("realized_correction") is not None]
+    lrs = [r["latch_true_range"] for r in rows if r.get("latch_true_range") is not None]
+    s["zem"] = float(np.mean(zems)) if zems else None
+    s["realized"] = float(np.mean(rcs)) if rcs else None
+    s["latch_r"] = float(np.mean(lrs)) if lrs else None
+    s["n_latched"] = len(lrs)
+    return s
+
+
+def _t1_cell_line(label, speed, s):
+    def fmt(v, w=5, d=2):
+        return ("%*.*f" % (w, d, v)) if v is not None else " " * (w - 3) + "n/a"
+    tc = f"{s['term_cov']:.2f}" if s["term_cov"] is not None else " n/a"
+    return (f"    {label:22s} {speed:5.1f}  {s['n']:>3d} {s['n_latched']:>4d}  "
+            f"{s['mean']:5.2f} {s['p90']:5.2f}  {s['pk'][1.0]*100:4.0f}% "
+            f"{s['pk'][2.0]*100:4.0f}%  {tc:>5s}  {fmt(s['latch_r'])} "
+            f"{fmt(s['zem'])} {fmt(s['realized'])}")
+
+
+def _t1_header():
+    return (f"    {'variant':22s} {'speed':>5s}  {'n':>3s} {'nlat':>4s}  "
+            f"{'mean':>5s} {'p90':>5s}  {'Pk@1':>5s} {'Pk@2':>5s}  "
+            f"{'tcov':>5s}  {'latchR':>5s} {'ZEM@l':>5s} {'realzd':>5s}")
+
+
+def run_tier1_presweep(n_seeds):
+    """Pick lever A's streak and lever B's (cap, freeze) at the EXPECTED
+    tier, 6 m/s (the Gazebo-batch cell), before the main 2^3 table. Returns
+    (a_streak, b_cap, b_freeze). Selection = mean miss (Pk@1 tiebreak)."""
+    perception = P6_TIERS["EXPECTED"]
+    print("\n" + "-" * 100)
+    print(f"  TIER-1 PRE-SWEEP (EXPECTED tier, {T1_PRESWEEP_SPEED:.0f} m/s, "
+          f"{n_seeds} seeds/cell): pick lever A streak + lever B cap/freeze")
+    print("-" * 100)
+    print(_t1_header())
+
+    base_rows = _t1_rows(perception, None, None, T1_PRESWEEP_SPEED, n_seeds)
+    base = _t1_stats(base_rows)
+    print(_t1_cell_line("base (streak=3)", T1_PRESWEEP_SPEED, base))
+
+    a_results = {}
+    for streak in T1_A_STREAKS:
+        rows = _t1_rows(perception, dict(FUSE_LATCH_STREAK=streak), None,
+                        T1_PRESWEEP_SPEED, n_seeds)
+        s = _t1_stats(rows)
+        a_results[streak] = s
+        print(_t1_cell_line(f"A: latch streak={streak}", T1_PRESWEEP_SPEED, s))
+    a_streak = min(a_results, key=lambda k: (a_results[k]["mean"], -a_results[k]["pk"][1.0]))
+
+    print()
+    b_results = {}
+    for freeze in T1_B_FREEZES:
+        for cap in T1_B_CAPS:
+            tp = dict(SPLIT_FREEZE=True, LAMBDA_DOT_CAP_DEG_S=cap,
+                      TERMINAL_FREEZE_RANGE=freeze)
+            rows = _t1_rows(perception, None, tp, T1_PRESWEEP_SPEED, n_seeds)
+            s = _t1_stats(rows)
+            b_results[(cap, freeze)] = s
+            print(_t1_cell_line(f"B: split fr={freeze} cap={cap:.0f}",
+                                T1_PRESWEEP_SPEED, s))
+    b_cap, b_freeze = min(
+        b_results, key=lambda k: (b_results[k]["mean"], -b_results[k]["pk"][1.0])
+    )
+    print(f"\n  PRE-SWEEP PICKS: A streak={a_streak} "
+          f"(mean {a_results[a_streak]['mean']:.2f} vs base {base['mean']:.2f}); "
+          f"B cap={b_cap:.0f} deg/s freeze={b_freeze} m "
+          f"(mean {b_results[(b_cap, b_freeze)]['mean']:.2f})")
+    return a_streak, b_cap, b_freeze
+
+
+def run_tier1_study(n_seeds=80, presweep_seeds=80):
+    """The full Tier-1 A/B: 8 lever combos x 3 tiers x 3 speeds x n_seeds,
+    pure_pn terminal on the S2 dash config. Returns (all_rows, picks) so
+    main() can write the CSV."""
+    all_rows = []
+    t0 = time.perf_counter()
+    print("\n" + "=" * 100)
+    print("ADR-0023 TIER-1 GUIDANCE RECLAIM (--tier1): early-handoff x "
+          "split-freeze x warm-terminal, 2^3 combos")
+    print(f"  S2 dash{P6_DASH_SPEED:.0f}/handoff{P6_HANDOFF_RANGE:.0f}, "
+          f"terminal={T1_TERMINAL}, {n_seeds} seeds/cell, tiers BEST/EXPECTED/WORST "
+          "(P-6 presets; cue model held constant -- NOT ADR-0017's corrected sigma)")
+    print("=" * 100)
+
+    a_streak, b_cap, b_freeze = run_tier1_presweep(presweep_seeds)
+
+    lever_a = dict(FUSE_LATCH_STREAK=a_streak)
+    lever_b_tp = dict(SPLIT_FREEZE=True, LAMBDA_DOT_CAP_DEG_S=b_cap,
+                      TERMINAL_FREEZE_RANGE=b_freeze)
+    lever_c = dict(WARM_HANDOFF=True)
+
+    variants = []
+    for combo in range(8):
+        use_a, use_b, use_c = bool(combo & 1), bool(combo & 2), bool(combo & 4)
+        label = "base" if combo == 0 else "".join(
+            ch for ch, on in (("A", use_a), ("B", use_b), ("C", use_c)) if on
+        )
+        overrides = {}
+        if use_a:
+            overrides.update(lever_a)
+        if use_c:
+            overrides.update(lever_c)
+        variants.append((label, overrides, dict(lever_b_tp) if use_b else None))
+    # Order: base, A, B, C, AB, AC, BC, ABC (readability)
+    order = {"base": 0, "A": 1, "B": 2, "C": 3, "AB": 4, "AC": 5, "BC": 6, "ABC": 7}
+    variants.sort(key=lambda v: order[v[0]])
+
+    results = {}
+    for tier in P6_TIER_ORDER:
+        perception = P6_TIERS[tier]
+        results[tier] = {}
+        print("\n" + "-" * 100)
+        print(f"  TIER: {tier}"
+              + ("  (idealized -- perception OFF)" if perception is None else ""))
+        print("-" * 100)
+        print(_t1_header())
+        for label, overrides, term_over in variants:
+            results[tier][label] = {}
+            for sp in T1_SPEEDS:
+                rows = _t1_rows(perception, overrides, term_over, sp, n_seeds)
+                for r in rows:
+                    r["tier1_variant"] = label
+                    r["tier"] = tier
+                    r["a_streak"] = a_streak if (label != "base" and "A" in label) else 3
+                    r["b_cap"] = b_cap if (label != "base" and "B" in label) else None
+                    r["b_freeze"] = b_freeze if (label != "base" and "B" in label) else None
+                all_rows.extend(rows)
+                s = _t1_stats(rows)
+                results[tier][label][sp] = s
+                print(_t1_cell_line(label, sp, s))
+
+    # --- pooled verdict + fragility (same rules as the P-6 study) ---
+    print("\n" + "=" * 100)
+    print("TIER-1 VERDICT: pooled-over-speed mean miss / Pk / realized correction "
+          "per (tier x variant), delta vs the SAME tier's base")
+    print("=" * 100)
+    print(f"    {'tier':9s} {'variant':8s} {'mean':>6s} {'dMean':>7s} {'rel%':>6s}  "
+          f"{'Pk@1':>5s} {'Pk@2':>5s}  {'realzd':>6s} {'latchR':>6s}")
+    for tier in P6_TIER_ORDER:
+        base_mean = float(np.mean([results[tier]["base"][sp]["mean"] for sp in T1_SPEEDS]))
+        for label, _, _ in variants:
+            mean = float(np.mean([results[tier][label][sp]["mean"] for sp in T1_SPEEDS]))
+            pk1 = float(np.mean([results[tier][label][sp]["pk"][1.0] for sp in T1_SPEEDS]))
+            pk2 = float(np.mean([results[tier][label][sp]["pk"][2.0] for sp in T1_SPEEDS]))
+            rl = [results[tier][label][sp]["realized"] for sp in T1_SPEEDS]
+            rl = [x for x in rl if x is not None]
+            lr = [results[tier][label][sp]["latch_r"] for sp in T1_SPEEDS]
+            lr = [x for x in lr if x is not None]
+            rel = (base_mean - mean) / base_mean * 100.0 if base_mean > 1e-6 else 0.0
+            print(f"    {tier:9s} {label:8s} {mean:6.2f} {mean - base_mean:+7.2f} "
+                  f"{rel:+5.1f}%  {pk1*100:4.0f}% {pk2*100:4.0f}%  "
+                  f"{(np.mean(rl) if rl else float('nan')):6.2f} "
+                  f"{(np.mean(lr) if lr else float('nan')):6.2f}")
+        print()
+    print("  RULES: <~15% mean-miss delta = lab noise (trust ranking, not size); "
+          "a lever that wins at BEST/EXPECTED\n  but hurts at WORST is FRAGILE "
+          "(worse-than-ideal mandate). Winner still owes a Gazebo mc_batch A/B "
+          "-- lab ranks, Gazebo decides.")
+    print(f"\n[guidance_lab] Tier-1 study done in {time.perf_counter() - t0:.2f}s "
+          f"({len(all_rows)} runs)")
+    return all_rows, dict(a_streak=a_streak, b_cap=b_cap, b_freeze=b_freeze)
+
+
+def write_tier1_csv(rows, path):
+    fieldnames = [
+        "tier1_variant", "tier", "a_streak", "b_cap", "b_freeze",
+        "method", "path", "speed", "seed", "two_stage",
+        "dash_speed", "handoff_range_cfg", "terminal_method",
+        "miss_distance", "intercept_time", "control_effort",
+        "detection_coverage", "terminal_coverage", "tag_lost_in_terminal",
+        "latch_t", "latch_true_range", "zem_at_latch", "realized_correction",
+    ]
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({k: r.get(k) for k in fieldnames})
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--quick", action="store_true", help="small fast sweep (smoke test)")
@@ -4103,12 +4424,43 @@ def main():
                               "writing its own CSV. See the JAM section of this file.")
     parser.add_argument("--jam-seeds", type=int, default=80,
                          help="seed count per cell for the jam-envelope study (default 80)")
+    parser.add_argument("--tier1", action="store_true",
+                         help="run ONLY the ADR-0023 Tier-1 guidance-reclaim study "
+                              "(early-handoff x split-freeze x warm-terminal, 2^3 combos "
+                              "x BEST/EXPECTED/WORST tiers x 6/8/10 m/s, pure_pn terminal) "
+                              "instead of the main trade study, writing its own CSV. "
+                              "See the Tier-1 section of this file.")
+    parser.add_argument("--tier1-seeds", type=int, default=80,
+                         help="seed count per cell for the Tier-1 main table (default 80)")
+    parser.add_argument("--tier1-presweep-seeds", type=int, default=80,
+                         help="seed count per cell for the Tier-1 lever-parameter "
+                              "pre-sweep (default 80)")
     args = parser.parse_args()
 
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     csv_path = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}.csv")
     plot_prefix = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}")
+
+    if args.tier1:
+        print(f"\n[guidance_lab] ADR-0023 Tier-1 guidance-reclaim study "
+              f"(seeds={args.tier1_seeds}/cell, presweep={args.tier1_presweep_seeds})")
+        t1_csv_path = os.path.join(LOGS_DIR, f"guidance_lab_tier1_{timestamp}.csv")
+        all_rows, picks = run_tier1_study(
+            n_seeds=args.tier1_seeds, presweep_seeds=args.tier1_presweep_seeds
+        )
+        write_tier1_csv(all_rows, t1_csv_path)
+        print(f"\n[guidance_lab] Tier-1 CSV written: {t1_csv_path} ({len(all_rows)} rows)")
+        print(f"[guidance_lab] Tier-1 lever picks: {picks}")
+        print(
+            "  REMINDER: kinematic surrogate -- this RANKS the three Tier-1 levers; "
+            "the winner(s) still owe a paired Gazebo mc_batch A/B (--early-handoff / "
+            "--split-freeze / --warm-handoff on m4_intercept.py) before anything is a "
+            "result. The lab CANNOT model the ADR-0009 whipsaw (no commanded-direction"
+            " -> achieved-velocity collapse coupling), so split-freeze risk is "
+            "under-priced here by construction -- Gazebo decides."
+        )
+        return 0
 
     if args.jam_envelope:
         print(f"\n[guidance_lab] jammer link-cutoff envelope study "

@@ -9,6 +9,10 @@ __pycache__/
 logs/
 *.ulg
 
+# Regenerable analysis plots from mc_analyze.py (the committed plots/stereo_*.png are kept deliberately)
+plots/pk_vs_radius_*.png
+plots/miss_cdf_*.png
+
 # Gazebo / PX4 caches that can leak into the workspace
 .gz/
 build/

@@ -405,6 +405,37 @@ CUE_MOCK_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s2_c
 #   S2_CUE_MOCK_EXTRA="--sigma-range --emit-velocity --dropout-markov"
 CUE_MOCK_EXTRA_ENV = "S2_CUE_MOCK_EXTRA"
 
+# --- ADR-0023 Tier-1 guidance-reclaim flags (--early-handoff /
+# --split-freeze; both default OFF = byte-identical S2 gate). Values are
+# the guidance_lab.py --tier1 pre-sweep picks (EXPECTED tier, 6 m/s,
+# 120 seeds/cell, logs/guidance_lab_tier1_20260706T164637Z.csv) -- ported
+# for the Gazebo A/B; "lab ranks, Gazebo decides."
+#   --early-handoff (Tier-1 lever A): trigger the one-way HANDOFF latch on
+#     a SHORTER solid camera streak (2 instead of 3 consecutive fresh
+#     in-range detections -- the same existing streak logic, just a lower
+#     count; a fiducial detection has a near-zero false-positive rate, so
+#     the 3-streak was settling, not spoof rejection). Engages the
+#     camera-only terminal ~1 m earlier. HONESTY: the latch stays one-way
+#     and closes the cue SOONER -- strictly less cue data (ADR-0010 #5).
+#     NB the lab ranked this lever NEGATIVE at every tier (the dash's
+#     cue+camera lead solve out-corrects the camera-only terminal in that
+#     band); it is ported anyway because the lab's dash is documented
+#     optimistic vs Gazebo's (ZEM@handoff 0.4 m lab vs 1.69 m Gazebo) --
+#     exactly the kind of blind spot only a Gazebo A/B settles.
+#   --split-freeze (Tier-1 lever B, ADR-0014 lever 2): replace the
+#     whole-vector terminal freeze with a v_perp-magnitude-only freeze
+#     (v_close/yaw/lambda_hat stay LIVE off fresh detections; only the
+#     lambda_dot-driven term is singular as R->0), cap |lambda_dot| in
+#     BOTH a_cmd and the filter's own predict() (AlphaBetaFilter.rate_cap
+#     -- the anti-whipsaw requirement), and move the freeze later
+#     (TERMINAL_FREEZE_RANGE_M 3.5 -> 1.5, which per compute_v_close also
+#     extends the run-in throttle band exactly as the lab's B variant
+#     does). Lever C (warm-settled terminal filters) needs no new flag --
+#     it IS the existing ADR-0018 --warm-handoff seeding.
+EARLY_HANDOFF_STREAK_MIN = 2
+SPLIT_FREEZE_RANGE_M = 1.5
+SPLIT_FREEZE_LAMBDA_DOT_CAP_DEG_S = 60.0
+
 # ADR-0015 --coast-search (link-loss-before-lock dead-reckon + bounded seeker
 # search; docs/decisions.md ADR-0015 "Handoff continuity"). All sim-time.
 COAST_STALE_S = 1.0           # cue silent longer than this (sim) => stale/link-loss
@@ -557,6 +588,7 @@ class AlphaBetaFilter:
     def __init__(
         self, alpha: float, beta: float, angular: bool = False,
         kalata_sigma_process=None, kalata_sigma_meas=None, label: Optional[str] = None,
+        rate_cap: Optional[float] = None,
     ):
         self.alpha = alpha
         self.beta = beta
@@ -564,6 +596,17 @@ class AlphaBetaFilter:
         self.kalata_sigma_process = kalata_sigma_process
         self.kalata_sigma_meas = kalata_sigma_meas
         self.label = label
+        # RATE CAP (--split-freeze, ADR-0014 lever 2 / ADR-0023 Tier-1 lever
+        # B; ported from guidance_lab.py's AlphaBetaFilter): clamp xdot_hat
+        # to +-rate_cap (rad/s or m/s) immediately after every correct().
+        # Because predict() forward-integrates x_hat off this SAME stored
+        # xdot_hat, one clamp here caps BOTH the rate any caller reads
+        # (a_cmd = N*Vc*lambda_dot) AND the filter's own forward integration
+        # -- capping only a_cmd while predict() keeps integrating a raw,
+        # unbounded rate is the single easiest way to silently recreate the
+        # ADR-0009 whipsaw (ADR-0014 seat C's biggest-risk flag). Default
+        # None = untouched baseline behavior (byte-identical).
+        self.rate_cap = rate_cap
         self.n_corrections = 0
         self.x_hat: Optional[float] = None
         self.xdot_hat: float = 0.0
@@ -604,6 +647,8 @@ class AlphaBetaFilter:
             alpha, beta = self.alpha, self.beta
         self.x_hat += alpha * gain_scale * residual
         self.xdot_hat += beta * gain_scale * residual / dt_since
+        if self.rate_cap is not None:
+            self.xdot_hat = _clamp(self.xdot_hat, -self.rate_cap, self.rate_cap)
         self.last_innovation = residual
         self._last_correction_t = t
         self.n_corrections += 1
@@ -1162,6 +1207,25 @@ def parse_args():
              "converge from cold. Rates are set geometrically from the "
              "(cue-emitted when fresh) target velocity.",
     )
+    parser.add_argument(
+        "--early-handoff", action="store_true",
+        help="ADR-0023 Tier-1 lever A (default OFF, requires --handoff): "
+             "trigger the one-way HANDOFF latch on a %d-detection solid "
+             "streak instead of %d -- engage the camera-only terminal "
+             "earlier (and close the cue channel SOONER; the ADR-0010 #5 "
+             "one-way latch semantics are unchanged)."
+             % (EARLY_HANDOFF_STREAK_MIN, S2["HANDOFF_STREAK_MIN"]),
+    )
+    parser.add_argument(
+        "--split-freeze", action="store_true",
+        help="ADR-0023 Tier-1 lever B / ADR-0014 lever 2 (default OFF, "
+             "requires --fpv and --law pronav): freeze ONLY the v_perp "
+             "magnitude in the terminal (v_close/yaw/lambda_hat stay live), "
+             "cap |lambda_dot| at %.0f deg/s in both a_cmd and the filter "
+             "predict, and move the freeze later (%.1f -> %.1f m)."
+             % (SPLIT_FREEZE_LAMBDA_DOT_CAP_DEG_S,
+                FPV["TERMINAL_FREEZE_RANGE_M"], SPLIT_FREEZE_RANGE_M),
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
@@ -1176,6 +1240,13 @@ def parse_args():
         parser.error("--fuse-midcourse requires --handoff (P-6 fuses the mid-course cue)")
     if args.warm_handoff and not args.handoff:
         parser.error("--warm-handoff requires --handoff (P-6 warm-transfers at the cue handoff)")
+    if args.early_handoff and not args.handoff:
+        parser.error("--early-handoff requires --handoff (there is no HANDOFF latch without it)")
+    if args.split_freeze and not args.fpv:
+        parser.error("--split-freeze requires --fpv (it retunes the FPV terminal-freeze semantics)")
+    if args.split_freeze and args.law != "pronav":
+        parser.error("--split-freeze requires --law pronav (it freezes the pro-nav v_perp "
+                     "term specifically; the lab A/B was pure_pn-only)")
 
     if args.target_start is None:
         args.target_start = S2["TARGET_START_DEFAULT"] if args.handoff else "6.5,-4,0.5"
@@ -1228,7 +1299,18 @@ async def run_acquire_and_engage(
             kalata_sigma_meas=KALATA_RANGE_SIGMA_MEAS_M,
             label="range",
         )
-    lambda_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_LAMBDA, angular=True, **lambda_kalata_kwargs)
+    # --split-freeze (Tier-1 lever B): the lambda_dot cap lives IN the
+    # filter (rate_cap), so a_cmd's read and predict()'s forward integration
+    # are capped in one place -- see AlphaBetaFilter.rate_cap's docstring
+    # for why capping only a_cmd recreates the ADR-0009 whipsaw. None
+    # (flag off) => byte-identical baseline filter.
+    lambda_rate_cap = (
+        math.radians(SPLIT_FREEZE_LAMBDA_DOT_CAP_DEG_S) if args.split_freeze else None
+    )
+    lambda_filter = AlphaBetaFilter(
+        ALPHA, BETA_GAIN_LAMBDA, angular=True, rate_cap=lambda_rate_cap,
+        **lambda_kalata_kwargs,
+    )
     range_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_RANGE, angular=False, **range_kalata_kwargs)
     # PIP (ADR-0011) / S2 dash tracker: absolute target position+velocity
     # track. Used by --law pip's lead solve AND (under --handoff) by the
@@ -1256,6 +1338,12 @@ async def run_acquire_and_engage(
     v_perp = 0.0
     vh0 = vh1 = 0.0
     frozen_vworld = None
+    # --split-freeze (Tier-1 lever B) one-way latch state: once r_hat first
+    # dips under the (relocated) freeze range, the v_perp MAGNITUDE freezes
+    # (integration stops) but the command keeps being reconstructed each
+    # detected tick from the LIVE lambda_hat/v_close. frozen_vworld is never
+    # set on this path.
+    split_frozen = False
     last_cmd = (0.0, 0.0, 0.0, 0.0)
     mover_proc = None
     engage_t0 = None
@@ -1807,10 +1895,31 @@ async def run_acquire_and_engage(
             engage_elapsed = tick_start - engage_t0
 
             if detected:
-                in_terminal_coast = (
-                    frozen_vworld is not None
-                    or (r_hat is not None and r_hat < TERMINAL_FREEZE_RANGE_M)
-                )
+                if args.split_freeze:
+                    # Tier-1 lever B: no whole-vector coast, ever. Latch the
+                    # v_perp magnitude once (one-way, same permanent-freeze
+                    # philosophy as the original -- no un-freeze), keep
+                    # everything else live: v_close is compute_v_close(r_hat)
+                    # (monotone, never singular), lambda_hat/yaw correct off
+                    # every fresh detection, and lambda_dot is rate-capped in
+                    # the filter itself (see lambda_rate_cap above).
+                    in_terminal_coast = False
+                    if (
+                        not split_frozen
+                        and r_hat is not None
+                        and r_hat < TERMINAL_FREEZE_RANGE_M
+                    ):
+                        split_frozen = True
+                        print(
+                            f"[m4] Split-freeze latch: v_perp frozen at "
+                            f"{v_perp:+.2f} m/s (r_hat={r_hat:.2f} m); "
+                            "v_close/yaw/lambda_hat stay live through CPA"
+                        )
+                else:
+                    in_terminal_coast = (
+                        frozen_vworld is not None
+                        or (r_hat is not None and r_hat < TERMINAL_FREEZE_RANGE_M)
+                    )
                 if not in_terminal_coast:
                     v_close = compute_v_close(r_hat, args.fpv)  # two-speed under --fpv
 
@@ -1845,7 +1954,11 @@ async def run_acquire_and_engage(
                         u = (math.cos(lambda_hat), math.sin(lambda_hat))
                         p = (-math.sin(lambda_hat), math.cos(lambda_hat))
                         if args.law == "pronav":
-                            v_perp = _clamp(v_perp + a_cmd * dt, -V_PERP_MAX, V_PERP_MAX)
+                            if not split_frozen:
+                                v_perp = _clamp(v_perp + a_cmd * dt, -V_PERP_MAX, V_PERP_MAX)
+                            # else (--split-freeze, latched): v_perp holds its
+                            # frozen SCALAR value -- re-projected onto the
+                            # LIVE lambda_hat basis below each tick.
                         else:
                             v_perp = 0.0  # pursuit: no lateral term, ever.
                         vh0 = v_close * u[0] + v_perp * p[0]
@@ -2116,6 +2229,14 @@ async def main():
     started = time.monotonic()
     args = parse_args()
 
+    # ADR-0023 Tier-1 lever B (--split-freeze): move the freeze later BEFORE
+    # apply_fpv_profile() reads the dict, so the coast latch AND
+    # compute_v_close's throttle-band floor move together -- exactly the
+    # coupling the lab's B variant flew (guidance_lab.py PurePN shares
+    # freeze_range between both uses). Flag OFF => dict untouched.
+    if args.split_freeze:
+        FPV["TERMINAL_FREEZE_RANGE_M"] = SPLIT_FREEZE_RANGE_M
+
     if args.fpv:
         apply_fpv_profile()
         print(
@@ -2123,6 +2244,14 @@ async def main():
             f"(run-in {FPV['V_CLOSE_RUNIN']}, terminal {FPV['V_CLOSE_TERMINAL']} m/s), "
             f"terminal-freeze {TERMINAL_FREEZE_RANGE_M} m, V_PERP_MAX {V_PERP_MAX}, "
             f"BETA_GAIN_RANGE {BETA_GAIN_RANGE}"
+        )
+    if args.split_freeze:
+        print(
+            "[m4] Split-freeze ON (ADR-0023 Tier-1 lever B / ADR-0014 lever 2): "
+            f"v_perp magnitude freezes at r_hat<{TERMINAL_FREEZE_RANGE_M} m; "
+            "v_close/yaw/lambda_hat stay LIVE; |lambda_dot| capped at "
+            f"{SPLIT_FREEZE_LAMBDA_DOT_CAP_DEG_S:.0f} deg/s in BOTH a_cmd and "
+            "the filter predict (rate_cap)"
         )
 
     if args.kalata:
@@ -2143,6 +2272,18 @@ async def main():
             s2params["HANDOFF_RANGE_M"] = args.handoff_range
         if args.cue_port is not None:
             s2params["CUE_PORT"] = args.cue_port
+        # ADR-0023 Tier-1 lever A (--early-handoff): same one-way latch,
+        # same streak logic, lower count -- the latch (and the cue-socket
+        # close) fires ~1 m earlier at the S2 closing speeds.
+        if args.early_handoff:
+            s2params["HANDOFF_STREAK_MIN"] = EARLY_HANDOFF_STREAK_MIN
+            print(
+                "[s2] Early handoff ON (ADR-0023 Tier-1 lever A): HANDOFF "
+                f"latch streak {S2['HANDOFF_STREAK_MIN']} -> "
+                f"{s2params['HANDOFF_STREAK_MIN']} consecutive fresh in-range "
+                "detections (one-way latch semantics unchanged; cue closes "
+                "sooner)"
+            )
         print(
             "[s2] Handoff profile ON (ADR-0010 #4/#5): CUE_WAIT -> DASH -> "
             f"HANDOFF -> ENGAGE. dash_speed={s2params['DASH_SPEED']} m/s, "

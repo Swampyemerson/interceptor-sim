@@ -811,3 +811,39 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date:** 2026-07-06. (Builder decision via the main session; supersedes ADR-0022's
   "PROPOSED, not ratified" status for the metric specifically. Next build per builder:
   ADR-0023 Tier-1 free guidance reclaim.)
+
+## ADR-0023 addendum (2026-07-06) — Tier-1 free-software reclaim: built, lab-ranked, Gazebo-tested; NONE of the terminal levers move the miss — the kinematic diagnosis holds harder
+- **What was built (all default OFF, feature-guarded):** three levers from ADR-0023's
+  Tier-1 list — A `--early-handoff` (engage terminal at first solid detection streak
+  ~7.6 m instead of the latch ~6.2 m), B `--split-freeze` (keep v_close/yaw/λ̂ live, cap
+  |λ̇| at 60°/s in BOTH command and filter-predict, freeze later at 1.5 m), C reuse of the
+  existing `--warm-handoff` (seed the terminal λ/λ̇/R/Ṙ filters from the pre-latch track).
+  Lab driver `guidance_lab.py --tier1`; Gazebo flags on `m4_intercept.py`.
+- **Defaults intact (byte-identity + RUNTIME gates):** lab `--quick` numeric output
+  byte-identical vs HEAD; and with the flags OFF, `check_m4` PASS (pronav **0.447 m** < 1 m,
+  pursuit 2.532 m) and `check_s2` PASS (pronav **1.734 m** < 2.5 m, no-cheat audits a/b/c
+  all green). No default path changed.
+- **Lab ranking (7,200 runs, 80 seeds/cell, 3 tiers):** C (warm) won at every tier
+  (+7.8% mean-miss at EXPECTED, realized-correction 0.03→0.23 m); B (split-freeze)
+  ~neutral (+1.4%) BUT the point-mass lab CANNOT model the ADR-0009 whipsaw, so it
+  under-prices B's risk by construction; A (early-handoff) HURT (−14.6% EXPECTED) —
+  committing to an immature camera track early costs more than the t_go it buys. Dropped A.
+- **Gazebo decides (paired N=12, master-seed 42, realistic cue, per-seed vs BASE):**
+  BASE mean **1.247 m** (Pk@1 4/12) → C **1.218 m** (−0.030 m paired, 6/12 better, σ_Δ
+  0.085 — within the ~1 m run-to-run noise, NOT significant) → BC (B+C) **1.332 m**
+  (**+0.084 m WORSE**, only 2/12 better, σ_Δ 0.112). **Split-freeze HURTS in Gazebo** —
+  the whipsaw the lab couldn't see (6th documented lab-vs-Gazebo divergence, after PIP,
+  calibration, Kalata, absolute-Pk, fusion-coverage). Warm-handoff is marginal and
+  non-significant, consistent with ADR-0018's "warm-handoff ~null in Gazebo."
+- **Verdict:** none of the Tier-1 terminal-mechanization levers move the fast-regime miss
+  in Gazebo. All kept **default OFF** as documented null/negative results; flags retained
+  for reproducibility. **This STRENGTHENS ADR-0023:** the ~0.3-0.45 m "recoverable
+  mechanization loss" the lab estimated did NOT materialize — the miss is even more
+  stubbornly kinematic than the diagnosis's optimistic split. The real levers remain
+  **Tier-2 (longer-range acquisition → bigger t_go, capacity ∝ t_go²)** and the ratified
+  **proximity metric (ADR-0025)** — not terminal tweaks. Recommend Tier-2 (narrow the SDF
+  FOV / raise HANDOFF_RANGE per ADR-0024, with the M1/M2 re-baseline) as the next build.
+- **Date:** 2026-07-06. (Fable worker built lab+Gazebo; main session ran the paired A/B,
+  the regression gates, and the analysis. Batches on an idle machine, matched-load rule;
+  note: two batch-orchestration incidents (concurrent-chain sim collision + a self-killing
+  pkill) were caught and recovered — the reported arms are the clean re-runs.)

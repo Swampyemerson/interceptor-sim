@@ -80,6 +80,29 @@ reverses wide-FOV). **The working plan, cheapest-first:**
   ~0.5 m wins slow regime; net ~1.5 m fast regime) — one-way door on the resume
   line, do NOT flip unilaterally.
 
+## ✅ DONE — Tier-1 free-software reclaim (ADR-0023 addendum): terminal levers don't move the miss
+Built A/B/C behind flags (default OFF, byte-identical; gates re-run PASS: M4
+pronav 0.447 m, S2 1.734 m + audits). Lab ranked C>B>A; Gazebo paired N=12:
+BASE 1.247 → C 1.218 (−0.03, noise) → BC 1.332 (+0.08 WORSE — split-freeze
+whipsaw, 6th lab-vs-Gazebo divergence). None move the fast-regime miss →
+STRENGTHENS the kinematic diagnosis. Flags retained for reproducibility, all
+default OFF. Next lever is Tier-2 (acquisition range), not terminal tweaks.
+
+## Audit prep (builder: Fable 5 will audit)
+`docs/audit_targets.md` written — prioritized, refute-not-confirm brief. Top-3:
+ADR-0023 diagnosis validity (the linchpin; ZEM causal-interp + ½at² bound
+inputs), handoff honesty boundary, frame/sign conventions. Tier-2: lab
+byte-identity, small-n stats, the unadopted ADR-0017 σ_R constants in
+s2_cue_mock. Tier-3: sourced design numbers + metric-honesty.
+
+## Next build (per ADR-0023/0024/0025, when audit clears)
+- [ ] **Tier-2 acquisition range:** narrow SDF `<horizontal_fov>` + raise
+  HANDOFF_RANGE → earlier lock → bigger t_go (capacity ∝ t_go²). Re-baseline
+  M1/M2 + disclose (reopens ADR-0010 anti-tag-inflation door). The real lever.
+- [ ] **Adopt corrected cue constants** (ADR-0017 σ_R c=4.45e-05 + datum-bias
+  split) + 0.20 s WORST latency tier (ADR-0016) into s2_cue_mock defaults.
+- [ ] **M5 Monte-Carlo** under proximity metric (ram 0.5 m / net 1.5 m curve).
+
 ## Remaining before M5 finish line
 - [ ] **P-8 adopt corrected sim knobs then re-tune:** stereo σ_R split
   (c=4.45e-05 + --datum-bias-m, ADR-0017) into s2_cue_mock defaults; 0.20 s
