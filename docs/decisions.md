@@ -360,9 +360,48 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - ML bearing 1.5° is *cleaner* than the AprilTag-calibrated 6°, so c7 partly improves angle in-lab; Gaussian-per-frame noise misses temporal blur streaks. Link-cutoff cost is highly sensitive to the chosen 11.5 m cutoff (earlier cuts are worse). Datum-bias wash-out assumes the seeker itself has no mount/boresight bias.
 - **Date:** 2026-07-05. (Study: Opus sim-realism worker per the model policy's middleground tier; baseline reproduction verifier-confirmed; synthesis by Fable main session. Next: Gazebo port of the same knobs, then mc_batch re-run under realistic params — "lab ranks, Gazebo decides.")
 
-## ADR-0015 addendum (2026-07-05) — lab realism study: VELOCITY EMISSION is the perception lever; realistic Pk is recoverable with the designed mitigations
-- **Implementation (guidance_lab.py, Opus worker):** all 7 ADR-0015 data-constraints as opt-in variants behind a `PERCEPTION_DEFAULTS` dict threaded through `simulate(perception=...)`; every new RNG draw feature-guarded so the default path is **byte-identical** (pooled camera-only `pure_pn 1.786 / apn 1.798 / pip 1.804 / pursuit 1.934`, S2 `dash10/handoff10/pip 0.709/1.268/2.132`, `--adr0014` lever pooled `1.77815280...` — all reproduce ADR-0011/0014 exactly; independent verifier rerun to confirm). New driver `--adr0015` (80 seeds/cell, 3,600 runs, 1.77 s; `logs/guidance_lab_adr0015_*.csv`).
-- **Sensitivity ranking** (each constraint ALONE, PIP terminal, pooled 6/8/10 m/s, vs idealized baseline mean 1.42 m / Pk@1 36% / Pk@2 72%): link-cutoff@11.5 m (+0.78 m, **−26** Pk@2) ≥ σ_R∝R² (+0.69 m, −22) ≈ σ_R+datum (+0.72 m, −21) ≫ bursty dropout (+0.17 m, −10 Pk@1) > datum-bias-2.5 m alone (+0.21 m, −6) > latency jitter (+0.06 m, ~0) > ML-terminal-noise / LOS-rate-dropout (~0 — but see caveat 1).
-- **The dominant lever isn't in that table — it's constraint #2 (velocity channel).** Cue EMITS a filtered velocity (σ_v=0.5 m/s) vs drone DIFFERENTIATES the noisy cue: mean miss **3.16 → 1.01 m at 6 m/s** — a 2.1 m swing, ~3× the worst single degradation. Cheap to implement (extra bytes in the same track message).
-- **Honest Pk-vs-R under combined realism (PIP, 6/8/10 m/s):** differentiate = catastrophic (mean 3.16/3.56/3.78 m); **emit-velocity = 1.01/1.22/1.49 m, Pk@1 70/57/41%**; + ADR-0015 mitigations (shared-RTK 0.5 m datum + emit + link alive to lock) = **0.54/0.77/1.10 m, Pk@1 80/69/51%** — which BEATS the idealized flat-σ baseline at 8–10 m/s, because an emitted σ_v=0.5 velocity is cleaner at the handoff instant than differentiating even a perfect 0.5 m cue.
-- **PN-vs-PIP verdict under realistic velocity (the ADR-0011 question, clos
+## ADR-0015 2nd addendum (2026-07-05) — Gazebo paired A/B: carry VELOCITY on the ground link (direction confirmed); the lab's 2.1 m swing shrinks to ~0.4 m in Gazebo; a machine-load confound found and controlled
+- **Setup (the "lab ranks, Gazebo decides" test of the #1 lab lever):** two paired
+  `mc_batch.sh` arms, N=8 flights each, pronav, 6 m/s crosser, S2 dash+handoff,
+  master-seed 42 — identical cue seeds and crossing geometry per run index. Both
+  arms use the full realistic cue (`S2_CUE_MOCK_EXTRA`: σ_R(R) range-dependent +
+  0.5 m datum bias + emit-velocity σ_v=0.5 + 0.05 s latency jitter + Markov
+  dropout). Only difference: EMIT arm passes `--cue-velocity` (drone ingests the
+  cue's filtered velocity, `logs/mc_realistic_EMIT_20260706T015033Z.csv`); DIFF
+  arm differentiates the noisy cue positions itself
+  (`logs/mc_realistic_DIFF_20260706T022749Z.csv`).
+- **Result:** EMIT mean **1.394 m** / median 1.125 / Pk@1 37.5% / Pk@2 75% vs
+  DIFF mean **1.808 m** / median 1.793 / Pk@1 25% / Pk@2 50%. Paired per-seed:
+  DIFF worse on **6/8 seeds**, paired Δ = +0.414 m mean (+0.232 median), σ_Δ =
+  1.114 m → paired t ≈ 1.05, NOT statistically significant at n=8. Direction
+  matches the lab's #1 lever; the effect size is ~5× smaller than the lab's
+  3.16→1.01 m swing.
+- **The lab's "catastrophic differentiate" (~3.2 m) did NOT reproduce on a clean
+  machine — a load confound was found.** The two prior ~3.1–3.3 m DIFF points
+  (single n=1 flight; the dead first DIFF batch's run 0 = 3.257 m) were flown
+  while two other Claude sessions loaded the box; the clean-machine rerun of the
+  SAME seed (26226) gave 2.423 m. ADR-0009's RTF-load sensitivity applies to
+  whole BATCHES: cross-batch comparisons are only valid at matched machine load
+  (stale sessions killed before this rerun; make that a pre-batch checklist item).
+- **Why the effect shrinks in Gazebo:** both arms end camera-only, and ALL 16/16
+  flights (8 EMIT + 8 DIFF) still broke off by terminal dropout at CPA — terminal
+  perception remains THE limiter (ADR-0014's 20/20, now 36/36 across batches).
+  The velocity channel mainly improves dash/handoff geometry; the camera-only
+  terminal washes part of that advantage out.
+- **Cross-batch observation (needs n≥20 to firm up):** realistic-cue EMIT (mean
+  1.394, Pk@1 37.5%, n=8) OUTPERFORMS the older idealized-flat-σ baseline batch
+  (mean 2.19, Pk@1 5%, n=20, ADR-0014 addendum) — the Gazebo echo of the lab's
+  "an emitted σ_v=0.5 velocity beats differentiating even a clean position cue."
+  The velocity channel appears to matter more than all the added realism costs
+  combined, though the two batches differ in more than one knob.
+- **Decision (unchanged, now Gazebo-backed):** the ground track message carries a
+  filtered VELOCITY (a few extra bytes) — direction-confirmed in lab AND Gazebo,
+  and it is what makes a dead-reckon coast through a jammer link-cutoff possible.
+  Honest claim wording: "consistent direction, modest effect at n=8" — never the
+  lab's 2.1 m number.
+- **Hygiene note:** commit 47f18d7 accidentally committed a condensed DUPLICATE of
+  the first lab addendum, truncated mid-sentence; removed here — the complete
+  block above (with the caveats and Date line) is the record.
+- **Date:** 2026-07-05 (UTC stamps 2026-07-06T01:50/02:27). Batches run on an
+  otherwise-idle machine; analysis `scripts/mc_analyze.py`, paired comparison in
+  this addendum traces to the two CSVs above.
