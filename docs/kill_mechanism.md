@@ -212,7 +212,11 @@ advantage over the ram** to justify the reliability hit. Not recommended as prim
 
 ### Master table (radius set by physics, Pk read off our own curves)
 
-| Mechanism | Lethal R (BEST/EXP/WORST) | Payload cost | Weight | Pk @ 2 m/s (miss ~0.37 m) | Pk @ 6 m/s (miss ~2.2 m) | Pk @ realistic-cue (~1.4–1.8 m) | Verdict |
+*The "Pk @ realistic-cue (~1.4–1.8 m)" column is a LAB (`guidance_lab.py --adr0015`)
+estimate, NOT a Gazebo Monte-Carlo — see the audit note on the net recommendation (§7).
+The 2 m/s and 6 m/s columns trace to real Gazebo runs (M4 gate, ADR-0014 addendum batch).*
+
+| Mechanism | Lethal R (BEST/EXP/WORST) | Payload cost | Weight | Pk @ 2 m/s (miss ~0.37 m) | Pk @ 6 m/s (miss ~2.2 m) | Pk @ realistic-cue (~1.4–1.8 m, LAB) | Verdict |
 |---|---|---|---|---|---|---|---|
 | **Kinetic ram** | 0.5 / 0.30 / 0.15 m | **$0** | **0 g** | **~95–100%** | ~5% | ~0–5% | Honest baseline; wins slow regime free |
 | **Net (3–4 m)** | 2.0 / 1.5 / 0.9 m | ~$100–300 | ~370 g | ~100% | ~15–35% | ~40–75% | Best cheap *forgiveness* lever, no explosive |
@@ -303,8 +307,11 @@ advantage over the ram** to justify the reliability hit. Not recommended as prim
 2. **Cost-optimal forgiveness upgrade = a small net (R ≈ 1.5 m, ~370 g, ~$100–200,
    7 in class).** It is the *only* cheap lever that roughly doubles tolerable miss
    **without an explosive and without needing terminal target-sensing at the kill
-   radius.** It lifts the realistic-cue regime to ~40–75% and, salvoed 3–5×, reaches a
-   defensible Pk at 6 m/s. Recommend it explicitly **over** a fragmentation charge.
+   radius.** It lifts the realistic-cue regime to ~40–75% *(LAB estimate, guidance_lab
+   `--adr0015`, NOT Gazebo-confirmed — the one component later Gazebo-tested, velocity
+   emission, came in at ~1/5 the lab effect; re-derive from the M5 Gazebo Monte-Carlo
+   before headlining)* and, salvoed 3–5×, reaches a defensible Pk at 6 m/s. Recommend
+   it explicitly **over** a fragmentation charge.
 
 3. **Do NOT adopt a fragmentation/proximity-fuze radius to rescue the number.** It is
    inappropriate to build, and its radius is gated by the same terminal detection we

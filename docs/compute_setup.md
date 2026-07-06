@@ -60,9 +60,12 @@ tiny **track message**, never video (that is the whole point of the split — Se
 ```
 
 **The detector, honestly, run twice.** Peer-reviewed benchmark on Jetson Orin NX with
-TensorRT: **YOLOv8n ~= 52 fps (65 fps with INT8) at 640x640; YOLOv8s slower**, and
+TensorRT: **YOLOv8n ~= 52 fps at 640x640 (FP16); YOLOv8s slower**, and
 TensorRT cuts runtime 52-63% vs. plain PyTorch
-([MDPI, *Computers* 2025, 14(2):74](https://www.mdpi.com/2073-431X/15/2/74)). A
+([MDPI, *Computers* 2025, 15(2):74](https://www.mdpi.com/2073-431X/15/2/74)).
+[Audit 2026-07-06: the paper tests FP16/FP32 only and names INT8 as *future work* —
+the earlier "65 fps with INT8" figure is NOT supported by this source and is struck.
+The load-bearing EXPECTED tier below uses the derated FP16 numbers, not INT8.] A
 weaker Orin *Nano* gives YOLOv8n 16 ms / YOLOv8s 33 ms / YOLOv8m 50 ms per frame with
 TensorRT ([arXiv 2409.16808](https://arxiv.org/html/2409.16808v1)) — a useful
 pessimistic anchor. Newer YOLO26n on Orin NX 16GB is 4.13 ms FP16 / 3.49 ms INT8
@@ -116,7 +119,11 @@ The *raw* Hailo number is much faster: YOLOv11n on Pi 5 + Hailo-8 measures **104
 / 7.75 ms hardware latency** over the Pi's single-lane PCIe Gen3 x1
 ([Hailo community official benchmark](https://community.hailo.ai/t/official-fps-benchmark-on-hailo-8-using-raspberry-pi-5/18873)),
 and YOLOv8s on Pi 5 + Hailo-8L runs ~80-120 fps batched / ~107 fps ~= 8.4 ms
-single-stream ([Seeed multistream benchmark](https://wiki.seeedstudio.com/benchmark_of_multistream_inference_on_raspberrypi5_with_hailo8/)).
+single-stream ([Seeed YOLOv8s on RPi5 + AI Kit](https://wiki.seeedstudio.com/benchmark_on_rpi5_and_cm4_running_yolov8s_with_rpi_ai_kit/)).
+[Audit 2026-07-06: the previously-linked Seeed *multistream* page benchmarks YOLOv8**m**
+(1-ch 77 fps), not YOLOv8s — corrected to the YOLOv8s page; if the exact 107 fps figure
+can't be reconfirmed on the corrected page, treat it as a BEST-tier upper bound, not a
+design number. The load-bearing end-to-end figure is the ~35 fps below, which stands.]
 Two caveats keep us honest: the Pi 5 is **PCIe x1**, roughly *half* the host bandwidth
 of Hailo's official x2 Model-Zoo numbers (same source); and those figures are the NPU
 kernel alone. The **~29 ms / ~35 fps is the realistic *end-to-end*** figure once the
@@ -375,5 +382,6 @@ clocks within ~1 us?) and a **static stereo-vs-mono range-accuracy** measurement
 > - **BOM flags:** Orin NX 16GB is **~$899** now (ADR-0015's $400-600 is stale, was the
 >   8GB/pre-Super price); **MANET ~= $1,500-3,000+**, far above the "$20-100" link line.
 >   Hailo +$70-110 and RTK/PPS ~$400/pair confirmed. **Ground node ~$1,600 EO-only.**
-> - **Date:** 2026-07-06. (No council — synthesis of ADR-0012/0015 + 2026 sourcing;
->   reversible; every number bench-measurable per Section 6.)
+> - **Date:** 2026-07-05. (No council — synthesis of ADR-0012/0015 + 2026 sourcing;
+>   reversible; every number bench-measurable per Section 6. [Date corrected from
+>   2026-07-06 to match ADR-0016 in decisions.md; committed 2026-07-05 evening.])

@@ -265,7 +265,7 @@ The >=95% claim is dishonest if reaching it required: (a) altering previously-va
 - **Date:** 2026-07-05. (Council: 3x council-member @ max effort, seats briefed as guidance/honesty, scope-skeptic, guidance-depth; independent briefs + two-CSV traces; synthesis by main session. Execution autonomous while builder away.)
 
 ## ADR-0014 addendum (2026-07-05) — lab lever study + baseline Pk batch: 95% at a defensible radius is NOT reachable at FPV crossing speed
-- **Lab lever ranking (guidance_lab.py `--adr0014`, n=150-300/config; baseline byte-identical, re-verified):** of the three ADR-0014 terminal levers, (1) **yaw-rate authority** raises terminal detection COVERAGE +10-15% but barely moves miss (-0.6% pooled S2; -3.4% on camera-only pure_pn) — evidence the FPV-speed miss floor is KINEMATIC (time-to-go / vehicle authority), not detection-limited; (2) **split-freeze + lambda_dot cap** is tiny in the lab (~0.1%), BUT the lab cannot model the ADR-0009 whipsaw (point-mass has no commanded-direction->achieved-velocity-collapse coupling), so it UNDER-values the fix — worth one Gazebo A/B, not more; (3) **slower terminal closing is monotonically WORSE** (recreates the too-slow tail-chase ADR-0009 already fixed) — rejected. **Decisive lab finding:** none of the three close the gap to a **PIP terminal law** (already built, `--law pip`), which beats pure_pn+all-levers by ~40% mean miss at 6 m/s in the lab — so the terminal law choice, not these micro-levers, is the lever that matters. (Lab caveat: Gazebo's own S2 gate showed pip 2.27-2.29 vs pronav 1.99-2.34 — roughly TIED, not pip-40%-better — the recurring lab-over-optimism; only a Gazebo Monte-Carlo of both laws can rank them for real.)
+- **Lab lever ranking (guidance_lab.py `--adr0014`, n=150-300/config; baseline byte-identical, re-verified [audit 2026-07-06: byte-identical in stdout and in every prior CSV VALUE; the CSV header gained an additive `terminal_coverage` column at this commit — no existing number or RNG stream changed. "Byte-identical baseline" claims are hereby scoped to stdout + prior-column values]):** of the three ADR-0014 terminal levers, (1) **yaw-rate authority** raises terminal detection COVERAGE +10-15% but barely moves miss (-0.6% pooled S2; -3.4% on camera-only pure_pn) — evidence the FPV-speed miss floor is KINEMATIC (time-to-go / vehicle authority), not detection-limited; (2) **split-freeze + lambda_dot cap** is tiny in the lab (~0.1%), BUT the lab cannot model the ADR-0009 whipsaw (point-mass has no commanded-direction->achieved-velocity-collapse coupling), so it UNDER-values the fix — worth one Gazebo A/B, not more; (3) **slower terminal closing is monotonically WORSE** (recreates the too-slow tail-chase ADR-0009 already fixed) — rejected. **Decisive lab finding:** none of the three close the gap to a **PIP terminal law** (already built, `--law pip`), which beats pure_pn+all-levers by ~40% mean miss at 6 m/s in the lab — so the terminal law choice, not these micro-levers, is the lever that matters. (Lab caveat: Gazebo's own S2 gate showed pip 2.27-2.29 vs pronav 1.99-2.34 — roughly TIED, not pip-40%-better — the recurring lab-over-optimism; only a Gazebo Monte-Carlo of both laws can rank them for real.)
 - **Baseline Monte-Carlo (scripts/mc_batch.sh + mc_analyze.py; pronav, 6 m/s, N=20, 10 L2R/10 R2L, distinct cue seeds + geometry jitter; `logs/mc_batch_20260705T225008Z.csv`):** 20/20 clean + handoff. Miss mean **2.189 m** (median 2.296, std 0.614, min 0.949, max 3.425, p90 2.749, p95 2.906). **Pk vs R_lethal (Wilson 95% CI):** R=1.0 m -> **5%** [0.9,24]; 1.5 m -> 15% [5,36]; 2.0 m -> 35% [18,57]; 2.5 m -> 70% [48,86]; 3.0 m -> 95% [76,99]. Plots: `plots/pk_vs_radius_20260705T231001Z.png`, `plots/miss_cdf_20260705T231001Z.png`.
 - **THE universal failure mode (all 20/20 flights):** `lost detection for >1.0s inside terminal range` — terminal camera dropout right at CPA. n=20 confirms this is the SYSTEMIC limiter, not variance. **-> intercept accuracy at FPV speed is gated by PERCEPTION (terminal detection cadence/hold), not by the guidance math.** This is the empirical hook for the builder's redirect to design the perception half first (a better real seeker / fused track directly raises Pk); it also says the honest guidance deliverable is a **Pk-vs-(radius, speed) curve**, headline R=1.0 m, showing 95% holds only at lower speeds (S1 already got sub-meter at 3 m/s from hover) and degrades through the FPV band — a disclosed, defensible finding, NOT a number to reverse-engineer the radius toward (ADR-0014 honesty boundary).
 - **Status:** Pk-dialing PARKED per builder (2026-07-05) pending the perception design — the real track's rate/accuracy/latency/dropout will change the guidance-tuning constraints, so finalize perception first (see NEXT.md perception roadmap + the perception-design council). Infrastructure (mc_batch/mc_analyze, the lab lever variants) is committed and ready to resume.
@@ -459,7 +459,12 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   R²·δθ/b with FOCAL CANCELLING — no lens fixes it, only baseline or rigidity. 1→2 m
   nearly halves σ_R (0.85→0.45 m at 100 m EXPECTED); 2→4 m only reaches 0.26 m for a
   much harder mount, and in the WORST tier a floppier long bar makes accuracy WORSE
-  (optimum b≈2.24 m). Matching noise dominates the EXPECTED budget (71%).
+  (closed-form optimum b≈2.24 m [audit 2026-07-06: that closed form balances only the
+  match+cal terms; a dense grid over ALL FOUR terms of the script's own σ_R() puts the
+  true WORST-tier optimum at b≈2.95 m — the b=2 m choice is within ~15% of either on the
+  accuracy axis and unpenalized in BEST/EXPECTED where σ_R is monotone in b, so 2 m
+  stands as a mount-rigidity-vs-accuracy compromise, but "optimum ≈2 m" is imprecise]).
+  Matching noise dominates the EXPECTED budget (71%).
 - **Envelope (EXPECTED):** σ_R ≤ 1 m to ~150 m, ≈0.45 m at 100 m; detection floor
   ~160 m (accuracy binds, not detection — a balanced rig). Cross-range ≈ 1 cm at
   100 m. WORST: σ_R ≤ 1 m only to ~66 m and detection binds at ~59 m — the honest
@@ -560,6 +565,13 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   LOS-rate demand (ADR-0014 yaw-rate lever) moves this number. This is the 5th
   documented case of the lab ranking optimistically vs Gazebo (after PIP,
   calibration, Kalata, absolute-Pk); the rule holds — lab ranks, Gazebo decides.
+- **Audit note (2026-07-06):** these arms ran under the uncorrected σ_R=0.4+0.008·R²
+  cue model — ADR-0017's corrected split (c≈4.45e-05 + separate datum bias) was
+  already known but unadopted, and the steep curve overstates exactly the long-range
+  cue noise a mid-course fusion would improve. The "coverage win did not transfer"
+  verdict stands (the post-latch dropout is cue-independent), but the SIZE of the
+  mid-course/fusion lever is potentially understated — re-measure after P-8 adopts
+  the corrected constants before treating the mid-course conclusions as final.
 - **Date:** 2026-07-05. (Batches on an idle machine per the matched-load rule; analysis
   `scripts/mc_analyze.py` + paired per-seed comparison traced to the three CSVs above.)
 
@@ -657,7 +669,11 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   radius → Pk ~95-100% at R=0.5 m, no reframe needed; the "sub-meter miss problem" there
   was partly judging against a hit-to-kill bar only the ram requires. **At 6 m/s it is
   NOT** — mean 2.19 m gives Pk ~5% at R=0.5 m; a ram can't rescue it, a net lifts
-  realistic-cue (~1.4-1.8 m) to ~40-75% and needs the salvo to be defensible.
+  realistic-cue (~1.4-1.8 m) to ~40-75% [audit 2026-07-06: that ~40-75% is a LAB
+  (--adr0015) estimate, never Gazebo-confirmed — and the one component of that lab
+  stack later Gazebo-tested (velocity emission) landed at ~1/5 the lab effect size;
+  treat as a ranking, and re-derive from the M5 Gazebo Monte-Carlo before headlining]
+  and needs the salvo to be defensible.
 - **THE load-bearing insight (reinforces the whole perception pivot):** you cannot buy out
   the terminal perception problem with a bigger lethal radius. Sensor-free mechanisms
   (ram, net) forgive only ~0.5-2 m; the ONE mechanism that would forgive the 6 m/s miss
@@ -831,8 +847,12 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Gazebo decides (paired N=12, master-seed 42, realistic cue, per-seed vs BASE):**
   BASE mean **1.247 m** (Pk@1 4/12) → C **1.218 m** (−0.030 m paired, 6/12 better, σ_Δ
   0.085 — within the ~1 m run-to-run noise, NOT significant) → BC (B+C) **1.332 m**
-  (**+0.084 m WORSE**, only 2/12 better, σ_Δ 0.112). **Split-freeze HURTS in Gazebo** —
-  the whipsaw the lab couldn't see (6th documented lab-vs-Gazebo divergence, after PIP,
+  (**+0.084 m WORSE**, only 2/12 better, σ_Δ 0.112). **Split-freeze shows no benefit and
+  is plausibly harmful in Gazebo** [audit correction 2026-07-06: paired t≈2.60, p≈0.025
+  UNCORRECTED across this session's ~5 paired comparisons — borderline, and the whipsaw
+  mechanism is cited by analogy to ADR-0009, not re-traced in these flights; the original
+  "HURTS" phrasing over-claimed. Decision unchanged: default OFF] — consistent with the
+  whipsaw the lab couldn't see (6th documented lab-vs-Gazebo divergence, after PIP,
   calibration, Kalata, absolute-Pk, fusion-coverage). Warm-handoff is marginal and
   non-significant, consistent with ADR-0018's "warm-handoff ~null in Gazebo."
 - **Verdict:** none of the Tier-1 terminal-mechanization levers move the fast-regime miss
