@@ -706,3 +706,55 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   flight.
 - **Date:** 2026-07-05. (Opus research worker, WebSearch/WebFetch, URL-cited, vendor claims
   flagged; PROPOSAL pending diagnosis + builder/council ratification of the metric change.)
+
+## ADR-0023 — Terminal-dropout root cause (the linchpin): the miss is KINEMATIC, locked at handoff — NOT terminal perception. Corrects ADR-0014's "perception-gated" reading
+- **Context:** 60/60 realistic-cue fast-crosser flights end "lost detection >1 s at CPA",
+  miss ~1.4 m. Before investing in a solution lane we needed the mechanism, not the
+  symptom. Per-tick forensics over 41 flights (ZEM, true-bearing→pixel FOV projection,
+  detection cadence, board incidence, achieved accel/yaw) + a point-mass perfect-camera
+  control. Full analysis: `docs/terminal_diagnosis.md`; scripts in job 28aff4e9 tmp.
+- **Finding (verified independently by the main session from the per-flight table):** the
+  final miss is **96%+ determined at the handoff/freeze latch, BEFORE the camera-only
+  terminal begins** — r²(ZEM@freeze, miss) = **0.990** (main-session recompute 0.990;
+  ZEM@last-detection 0.992). The camera tracks the tag to mean **1.69 m / 0.074 s before
+  CPA** (219 px tag, 19.5° incidence, no blur model exists in the sim); the ">1 s dropout"
+  is ≥85% the outbound flythrough (tag geometrically behind the vehicle), not an early
+  loss. FOV-escape is real (LOS rate 485°/s avg, peaks 600-1870°/s, vs achieved yaw ≤
+  **124°/s** — a ~10:1 deficit, and note the airframe is NOT PX4-capped at 45°) but happens
+  0.037 s before CPA as a CONSEQUENCE of the already-committed miss; blind-window
+  contribution to the miss = **−0.03 m (nothing).**
+- **The decisive disproof of "perception-limited":** the worst flights held the camera
+  locked to short range and STILL missed — DIFF2#5 missed **3.37 m with detection to
+  3.47 m**; EMIT#3 missed 2.68 m with detection to 2.72 m. A perfect terminal camera
+  (point-mass control, 150 seeds) removes 100% of the dropout but cuts miss only **25%
+  (1.003 → 0.755 m)**. The kinematic bound is model-independent: correction capacity
+  ½·a·t_go² = ½·8.7 m/s²·(0.41 s)² = **0.72 m**, vs **1.69 m** ZEM delivered at handoff —
+  the 0.41 s terminal window is physically too short to fix the delivered geometry.
+- **Root-cause split of the ~1.4 m miss:** ~70% kinematic (delivered ZEM > terminal
+  capacity); ~20-25% recoverable guidance-mechanization loss (freeze latch discards the
+  last 0.20 s; α-β filter settle — realized only 0.28 m of an available 0.72 m); ~2%
+  FOV-escape; ~0% blur/scale/cadence.
+- **Decision — where the effort goes (reorders every prior solution lane):** treat this as
+  a TIME-TO-GO / delivered-geometry problem. Invest, in order: (1) **longer-range
+  ACQUISITION** — capacity scales with t_go², so acquiring at ~12 m instead of ~6.5 m
+  raises correction capacity 0.72 → ~4.3 m, above even the worst delivered ZEM (4.0 m); for
+  the real seeker this is DETECT RANGE, not FOV/resolution/deblur at CPA. (2) **Mid-course
+  track quality** (sets ZEM@handoff): the velocity-emitting cue (ADR-0015) is exactly this
+  lever; dash lead-law quality belongs here. (3) **Reclaim the ~0.3-0.45 m mechanization
+  loss** (ADR-0014 split-freeze / later freeze + warm-settled filters). **Explicitly
+  DE-PRIORITIZED by the data:** yaw-rate authority, camera FOV/resolution, motion-deblur,
+  higher frame rate, nested tags, and terminal-perception hold generally — including the
+  ADR-0022 look-angle law premise (FOV-escape is 2%, post-miss) and the ADR-0018 fusion
+  coverage story.
+- **Reconciliation:** STRENGTHENS ADR-0021 (miss is kinematically floored ~0.9-1.0 m even
+  with perfect sensing at 6 m/s → a lethal-radius kill mechanism is not optional, it's
+  required — you cannot null it). CORRECTS ADR-0014 addendum + memory "bottleneck =
+  terminal blind window" — the blind window is the symptom, the handoff ZEM is the disease.
+  REFRAMES ADR-0015's perception pivot: the perception lever that matters is ACQUISITION
+  RANGE (detect earlier) + track quality, NOT terminal hold-through-CPA.
+- **Caveat:** the perfect-camera-only-25% figure is from the point-mass lab, which is
+  documented to UNDER-price terminal effects — but the load-bearing arguments are the
+  Gazebo-log ZEM r²=0.99 and the model-independent ½·a·t_go² bound, not the lab. The ~0.4 m
+  reclaimable mechanization loss is the one place better terminal handling still pays.
+- **Date:** 2026-07-06. (Fable diagnostic worker, log forensics only; ZEM correlation +
+  smoking-gun flights + yaw-cap re-verified independently by the main session; no sim boot.)
