@@ -62,6 +62,7 @@ audit evidence that the data was available-but-deliberately-unread.
 import argparse
 import csv
 import json
+import math
 import os
 import random
 import signal
@@ -79,6 +80,11 @@ from gz.msgs10.clock_pb2 import Clock
 # no imports from the detection/guidance modules).
 WORLD_NAME = "apriltag"
 TAG_MODEL_NAME = "apriltag_target"
+# Interceptor model (mirrors m2_detect.DRONE_MODEL -- not imported, this script
+# stays standalone). Read from the SAME pose/info subscription as the tag so
+# the ADR-0015 range-dependent sigma / link-cutoff can use the true
+# interceptor<->target distance R with zero new topics or gz service calls.
+DRONE_MODEL = "x500_mono_cam_0"
 POSE_TOPIC = f"/world/{WORLD_NAME}/pose/info"
 CLOCK_TOPIC = "/clock"
 
@@ -87,6 +93,32 @@ DEFAULT_RATE_HZ = 10.0
 DEFAULT_SIGMA_M = 0.5
 DEFAULT_LATENCY_S = 0.12
 DEFAULT_DURATION_S = 60.0  # SIM seconds -- generous; the consumer decides how long it actually listens
+
+# --- ADR-0015 perception-realism knobs (all OPT-IN; every default below keeps
+# the datagram byte-identical and the RNG stream unchanged vs. the pre-ADR-0015
+# 3-knob mock, so scripts/check_s2.sh at defaults is unaffected -- see the
+# per-flag argparse defaults and the guarded draws in main()). Table refs are
+# to docs/decisions.md ADR-0015's "DATA CONSTRAINTS BACK TO THE GUIDANCE MATH".
+DEFAULT_VEL_SIGMA_M_S = 0.5      # per-axis velocity noise when --emit-velocity (table #2)
+DEFAULT_LATENCY_JITTER_S = 0.0   # DEVIATION from ADR-0015's suggested 0.05: 0.0 keeps
+                                 # the DEFAULT path byte-identical for the gate; dev/real
+                                 # runs pass --latency-jitter-s 0.05 explicitly (table #3)
+DEFAULT_DROPOUT_P = 0.12         # steady-state P(link out) for --dropout-markov (table #4)
+DEFAULT_DROPOUT_BURST_S = 1.5    # mean outage (burst) length, sim seconds (table #4)
+# Range-dependent sigma model (table #1): sigma_R = A + B*R^2. At the S2 dash
+# start (~15.4 m) this is ~2.3 m (standard-GPS/no-RTK regime); it tightens to
+# ~1.2 m at the 10 m handoff range and ~0.6 m at 5 m -- the "0.5 m only with
+# shared-RTK+PPS, else 2-4 m" budget the integration seat specified.
+SIGMA_RANGE_A_M = 0.4
+SIGMA_RANGE_B_M_PER_M2 = 0.008
+# Velocity is a light EMA of the finite-difference of TRUE positions (models a
+# ground tracker's own smoothing) before per-axis noise is added.
+VEL_EMA_ALPHA = 0.5
+# Derived-seed offsets so the per-RUN datum-bias direction and the per-TICK
+# dropout chain draw from their OWN Random instances -- enabling either knob
+# leaves the per-sample position-noise stream (the main rng) untouched.
+BIAS_SEED_OFFSET = 1000003
+DROPOUT_SEED_OFFSET = 2000003
 SETUP_WAIT_TIMEOUT_S = 15.0  # wall seconds to wait for the first pose_v + clock sample
 CSV_FLUSH_EVERY = 10
 WALL_POLL_S = 0.01  # tight poll so sim-time schedule crossings are caught promptly
@@ -96,22 +128,39 @@ LOGS_DIR = os.path.join(REPO_ROOT, "logs")
 
 
 class LatestTagPose:
-    """Latest known TRUE world position of the apriltag_target model, fed by
-    /world/apriltag/pose/info. Same lock-free "one attribute, replaced
-    atomically under the GIL" pattern as m2_detect.PoseTracker -- the
+    """Latest known TRUE world positions of the apriltag_target model AND the
+    interceptor model (x500_mono_cam_0), both fed by the ONE
+    /world/apriltag/pose/info subscription. Same lock-free "one attribute,
+    replaced atomically under the GIL" pattern as m2_detect.PoseTracker -- the
     callback fires on a background gz-transport thread, this process's main
-    loop just reads whatever is freshest. Model origin (top-level pose, no
+    loop just reads whatever is freshest. Model origins (top-level poses, no
     parent -- already in world frame, same as m2_detect.py's ground-truth
-    chain) IS the tag center (the mover streams z=0.5)."""
+    chain): the tag origin IS the tag center (the mover streams z=0.5); the
+    interceptor origin is used ONLY to compute the true interceptor<->target
+    range R for the ADR-0015 range-dependent sigma / link-cutoff models (never
+    sent over the wire)."""
 
     def __init__(self):
-        self.xyz = None  # (x, y, z) world/ENU, or None until the first message
+        self.xyz = None  # tag (x, y, z) world/ENU, or None until first message
+        self.interceptor_xyz = None  # interceptor (x, y, z) world/ENU, or None
 
     def on_pose_v(self, msg: Pose_V) -> None:
         for p in msg.pose:
             if p.name == TAG_MODEL_NAME:
                 self.xyz = (p.position.x, p.position.y, p.position.z)
-                return
+            elif p.name == DRONE_MODEL:
+                self.interceptor_xyz = (p.position.x, p.position.y, p.position.z)
+
+    def range_m(self):
+        """True interceptor<->target distance R (m), or None if either pose is
+        not yet available. Uses full 3D distance (the S2 geometry keeps both at
+        z~0.5, so this is essentially the horizontal range)."""
+        if self.xyz is None or self.interceptor_xyz is None:
+            return None
+        dx = self.xyz[0] - self.interceptor_xyz[0]
+        dy = self.xyz[1] - self.interceptor_xyz[1]
+        dz = self.xyz[2] - self.interceptor_xyz[2]
+        return math.sqrt(dx * dx + dy * dy + dz * dz)
 
 
 class LatestSimClock:
@@ -152,6 +201,68 @@ def parse_args():
     parser.add_argument(
         "--duration", type=float, default=DEFAULT_DURATION_S,
         help="how long to sample/stream, in SIM seconds",
+    )
+    # --- ADR-0015 perception-realism knobs (all OPT-IN; see the module
+    # docstring / the constants block. Every default here reproduces the
+    # pre-ADR-0015 3-knob behavior byte-for-byte.) ---
+    parser.add_argument(
+        "--sigma-range", action="store_true",
+        help="ADR-0015 table #1: replace the flat --sigma with a "
+             "range-dependent sigma_R = %.2f + %.3f*R^2 (R = true "
+             "interceptor<->target distance from the pose topic). Off by "
+             "default (flat --sigma preserved)." % (SIGMA_RANGE_A_M, SIGMA_RANGE_B_M_PER_M2),
+    )
+    parser.add_argument(
+        "--datum-bias-m", type=float, default=0.0,
+        help="ADR-0015 tables #1/#5: per-RUN constant common-mode offset "
+             "vector added to every emitted position (seeded random 3D "
+             "direction, this fixed magnitude in m). 0.5 = shared-RTK design "
+             "target, 2.5 = standard GPS. Default 0.0 (no bias, no draw).",
+    )
+    parser.add_argument(
+        "--emit-velocity", action="store_true",
+        help="ADR-0015 table #2: also send a filtered target velocity "
+             "(vx, vy, vz world) in each datagram (finite-difference of TRUE "
+             "positions, EMA-smoothed, plus per-axis --vel-sigma noise). "
+             "Backward compatible: extra keys only. Off by default.",
+    )
+    parser.add_argument(
+        "--vel-sigma", type=float, default=DEFAULT_VEL_SIGMA_M_S,
+        help="per-axis velocity noise std (m/s) used with --emit-velocity "
+             "(default %.2f)" % DEFAULT_VEL_SIGMA_M_S,
+    )
+    parser.add_argument(
+        "--latency-jitter-s", type=float, default=DEFAULT_LATENCY_JITTER_S,
+        help="ADR-0015 table #3: per-datagram delivery latency = --latency-s "
+             "+/- uniform(this) SIM seconds (seeded, clamped >= 0). Default "
+             "0.0 keeps the gate byte-identical; pass 0.05 to enable jitter.",
+    )
+    parser.add_argument(
+        "--dropout-markov", action="store_true",
+        help="ADR-0015 table #4: 2-state (in/out) Markov link dropout; while "
+             "'out', emit nothing. Off by default.",
+    )
+    parser.add_argument(
+        "--dropout-p", type=float, default=DEFAULT_DROPOUT_P,
+        help="steady-state P(link out) for --dropout-markov (default %.2f)" % DEFAULT_DROPOUT_P,
+    )
+    parser.add_argument(
+        "--dropout-burst-s", type=float, default=DEFAULT_DROPOUT_BURST_S,
+        help="mean outage (burst) length in SIM seconds for --dropout-markov "
+             "(default %.2f)" % DEFAULT_DROPOUT_BURST_S,
+    )
+    parser.add_argument(
+        "--link-cutoff-range-m", type=float, default=None,
+        help="ADR-0015 table #6: once the true interceptor<->target range "
+             "first falls below this (m), STOP emitting permanently (models a "
+             "jammer killing the link, possibly before camera lock). Default "
+             "off.",
+    )
+    parser.add_argument(
+        "--link-cutoff-s", type=float, default=None,
+        help="ADR-0015 table #6: once SIM time exceeds this many seconds "
+             "after the first emitted datagram, STOP emitting permanently. "
+             "Default off.",
     )
     return parser.parse_args()
 
@@ -202,16 +313,93 @@ def main() -> int:
         node.unsubscribe(CLOCK_TOPIC)
         return 2
 
-    rng = random.Random(args.seed)
+    rng = random.Random(args.seed)  # per-sample MEASUREMENT noise (position, velocity, jitter)
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     dest = ("127.0.0.1", args.port)
 
+    # --- ADR-0015 per-RUN datum bias (guarded: NO draw unless --datum-bias-m
+    # > 0, so the default path leaves both this AND the main rng untouched).
+    # Drawn from its OWN Random instance so enabling bias never perturbs the
+    # per-sample position-noise stream. A random 3D unit direction scaled by
+    # the requested magnitude -> a fixed common-mode offset on every emit. ---
+    bias = (0.0, 0.0, 0.0)
+    if args.datum_bias_m > 0.0:
+        bias_rng = random.Random(args.seed + BIAS_SEED_OFFSET)
+        bdx = bias_rng.gauss(0.0, 1.0)
+        bdy = bias_rng.gauss(0.0, 1.0)
+        bdz = bias_rng.gauss(0.0, 1.0)
+        bnorm = math.sqrt(bdx * bdx + bdy * bdy + bdz * bdz) or 1.0
+        bias = (
+            args.datum_bias_m * bdx / bnorm,
+            args.datum_bias_m * bdy / bnorm,
+            args.datum_bias_m * bdz / bnorm,
+        )
+        print(
+            f"[s2-cue] datum bias (per-run constant): "
+            f"({bias[0]:.3f}, {bias[1]:.3f}, {bias[2]:.3f}) m, |b|={args.datum_bias_m:.2f}"
+        )
+
+    # --- ADR-0015 Markov dropout transition probabilities (per 10 Hz sample
+    # tick). Steady-state P(out)=dropout_p, mean OUT (burst) length =
+    # dropout_burst_s: P(out->in)=period/burst, P(in->out)=P(out->in)*p/(1-p).
+    # Chain (and its own Random) only exists under --dropout-markov. ---
+    period = 1.0 / args.rate
+    dropout_rng = None
+    p_in_to_out = p_out_to_in = 0.0
+    dropout_state = ""  # "" when disabled; "in"/"out" when --dropout-markov
+    if args.dropout_markov:
+        dropout_rng = random.Random(args.seed + DROPOUT_SEED_OFFSET)
+        p = min(max(args.dropout_p, 0.0), 0.999)
+        p_out_to_in = min(1.0, period / max(args.dropout_burst_s, 1e-6))
+        p_in_to_out = min(1.0, p_out_to_in * (p / (1.0 - p))) if p > 0.0 else 0.0
+        dropout_state = "in"
+        print(
+            f"[s2-cue] Markov dropout ON: p_out={p:.2f} burst={args.dropout_burst_s:.2f}s "
+            f"-> P(in->out)={p_in_to_out:.4f} P(out->in)={p_out_to_in:.4f} per tick"
+        )
+
+    if args.sigma_range:
+        print(
+            f"[s2-cue] range-dependent sigma ON: sigma_R = {SIGMA_RANGE_A_M:.2f} + "
+            f"{SIGMA_RANGE_B_M_PER_M2:.3f}*R^2 (flat --sigma {args.sigma} ignored)"
+        )
+    if args.emit_velocity:
+        print(f"[s2-cue] velocity emission ON: vel_sigma={args.vel_sigma:.2f} m/s per axis")
+    if args.latency_jitter_s > 0.0:
+        print(f"[s2-cue] latency jitter ON: +/- {args.latency_jitter_s:.3f}s (sim)")
+    if args.link_cutoff_range_m is not None:
+        print(f"[s2-cue] link cutoff ON: range < {args.link_cutoff_range_m:.2f} m -> permanent link death")
+    if args.link_cutoff_s is not None:
+        print(f"[s2-cue] link cutoff ON: t_sim > {args.link_cutoff_s:.2f}s after first emit -> permanent link death")
+
     log_file = open(log_path, "w", newline="")
     writer = csv.writer(log_file)
+    # First 8 columns are IDENTICAL to the pre-ADR-0015 schema (anything that
+    # read them positionally still works); ADR-0015 quantities are appended.
     writer.writerow(
-        ["t_sim_sample", "t_sim_emit", "x_noisy", "y_noisy", "z_noisy", "x_true", "y_true", "z_true"]
+        [
+            "t_sim_sample", "t_sim_emit", "x_noisy", "y_noisy", "z_noisy",
+            "x_true", "y_true", "z_true",
+            "R", "sigma_used", "bias_x", "bias_y", "bias_z",
+            "vx", "vy", "vz", "latency_used", "dropout_state", "event", "cutoff",
+        ]
     )
     log_file.flush()
+
+    def _f(v, spec="{:.4f}"):
+        return "" if v is None else spec.format(v)
+
+    def write_cue_row(event, t_sample, t_emit, xn, yn, zn, xt, yt, zt,
+                      R, sigma_used, vel, latency_used, drop_state, cutoff):
+        writer.writerow([
+            _f(t_sample), _f(t_emit), _f(xn), _f(yn), _f(zn),
+            _f(xt), _f(yt), _f(zt),
+            _f(R), _f(sigma_used), _f(bias[0]), _f(bias[1]), _f(bias[2]),
+            _f(vel[0]) if vel is not None else "",
+            _f(vel[1]) if vel is not None else "",
+            _f(vel[2]) if vel is not None else "",
+            _f(latency_used), drop_state, event, "1" if cutoff else "",
+        ])
 
     # This exact line is a handshake, mirroring m4_target_mover.py's own
     # "streaming started" print -- m4_intercept.py's CUE_WAIT phase may
@@ -219,14 +407,20 @@ def main() -> int:
     # first pose/clock samples are confirmed good above.
     print("[s2-cue] streaming started")
 
-    period = 1.0 / args.rate
     sim_t0 = sim_clock.t
     next_sample_t = sim_t0
-    pending = []  # (deliver_sim_t, seq, t_sample, xn, yn, zn, xt, yt, zt)
+    # pending item: dict with everything needed to send + log at delivery.
+    pending = []
     seq = 0
     n_sampled = 0
     n_emitted = 0
     n_skipped_no_truth = 0
+    n_dropped = 0
+    link_dead = False
+    first_emit_sim_t = None
+    last_true_xyz = None      # for velocity finite-difference
+    last_sample_sim_t = None
+    vel_ema = None
 
     try:
         while not stop["flag"]:
@@ -239,30 +433,152 @@ def main() -> int:
                 break
 
             if t_now >= next_sample_t:
+                R = tag_pose.range_m()
+
+                if link_dead:
+                    # Link permanently killed (jammer): stop emitting, keep
+                    # looping/logging nothing until duration ends (audit).
+                    next_sample_t += period
+                    time.sleep(WALL_POLL_S)
+                    continue
+
+                # ADR-0015 table #6: link cutoff (range- or time-triggered).
+                cutoff_now = False
+                if args.link_cutoff_range_m is not None and R is not None and R < args.link_cutoff_range_m:
+                    cutoff_now = True
+                if (
+                    args.link_cutoff_s is not None and first_emit_sim_t is not None
+                    and (t_now - first_emit_sim_t) > args.link_cutoff_s
+                ):
+                    cutoff_now = True
+                if cutoff_now:
+                    link_dead = True
+                    xt = yt = zt = None
+                    if tag_pose.xyz is not None:
+                        xt, yt, zt = tag_pose.xyz
+                    write_cue_row(
+                        "drop_cutoff", t_now, None, None, None, None,
+                        xt, yt, zt, R, None, None, None, dropout_state, True,
+                    )
+                    log_file.flush()
+                    pending.clear()  # jammer kills in-flight datagrams too
+                    print(
+                        f"[s2-cue] LINK CUTOFF at t_sim={t_now:.3f} "
+                        f"(R={'n/a' if R is None else f'{R:.2f}'} m) -- link dead, "
+                        "emitting nothing further (ADR-0015 table #6)"
+                    )
+                    next_sample_t += period
+                    time.sleep(WALL_POLL_S)
+                    continue
+
+                # ADR-0015 table #4: Markov dropout step (advance chain, then
+                # honor an "out" state by emitting nothing this tick).
+                if dropout_rng is not None:
+                    u = dropout_rng.random()
+                    if dropout_state == "in":
+                        if u < p_in_to_out:
+                            dropout_state = "out"
+                    else:
+                        if u < p_out_to_in:
+                            dropout_state = "in"
+                    if dropout_state == "out":
+                        xt = yt = zt = None
+                        if tag_pose.xyz is not None:
+                            xt, yt, zt = tag_pose.xyz
+                        write_cue_row(
+                            "drop_markov", t_now, None, None, None, None,
+                            xt, yt, zt, R, None, None, None, dropout_state, False,
+                        )
+                        n_dropped += 1
+                        next_sample_t += period
+                        time.sleep(WALL_POLL_S)
+                        continue
+
                 if tag_pose.xyz is not None:
                     xt, yt, zt = tag_pose.xyz
-                    xn = xt + rng.gauss(0.0, args.sigma)
-                    yn = yt + rng.gauss(0.0, args.sigma)
-                    zn = zt + rng.gauss(0.0, args.sigma)
-                    deliver_t = t_now + args.latency_s
-                    pending.append((deliver_t, seq, t_now, xn, yn, zn, xt, yt, zt))
+                    # sigma: flat (default) or range-dependent (--sigma-range).
+                    if args.sigma_range and R is not None:
+                        sigma_used = SIGMA_RANGE_A_M + SIGMA_RANGE_B_M_PER_M2 * R * R
+                    else:
+                        sigma_used = args.sigma
+                    # Position noise (SAME 3 rng.gauss draws, SAME order as the
+                    # pre-ADR-0015 mock); bias adds a constant 0.0 by default.
+                    xn = xt + rng.gauss(0.0, sigma_used) + bias[0]
+                    yn = yt + rng.gauss(0.0, sigma_used) + bias[1]
+                    zn = zt + rng.gauss(0.0, sigma_used) + bias[2]
+                    # Velocity (only under --emit-velocity -> no extra draws by
+                    # default): EMA-filtered finite-difference of TRUE positions
+                    # over the sim-time sample interval, plus per-axis noise.
+                    vel = None
+                    if args.emit_velocity:
+                        if last_true_xyz is not None and last_sample_sim_t is not None \
+                                and (t_now - last_sample_sim_t) > 1e-6:
+                            dts = t_now - last_sample_sim_t
+                            raw = (
+                                (xt - last_true_xyz[0]) / dts,
+                                (yt - last_true_xyz[1]) / dts,
+                                (zt - last_true_xyz[2]) / dts,
+                            )
+                        else:
+                            raw = (0.0, 0.0, 0.0)
+                        if vel_ema is None:
+                            vel_ema = raw
+                        else:
+                            a = VEL_EMA_ALPHA
+                            vel_ema = (
+                                a * raw[0] + (1.0 - a) * vel_ema[0],
+                                a * raw[1] + (1.0 - a) * vel_ema[1],
+                                a * raw[2] + (1.0 - a) * vel_ema[2],
+                            )
+                        vel = (
+                            vel_ema[0] + rng.gauss(0.0, args.vel_sigma),
+                            vel_ema[1] + rng.gauss(0.0, args.vel_sigma),
+                            vel_ema[2] + rng.gauss(0.0, args.vel_sigma),
+                        )
+                    # Latency: fixed base +/- uniform jitter (only draws when
+                    # jitter > 0 -> default path byte-identical), clamped >= 0.
+                    latency_used = args.latency_s
+                    if args.latency_jitter_s > 0.0:
+                        latency_used = max(
+                            0.0, args.latency_s + rng.uniform(-args.latency_jitter_s, args.latency_jitter_s)
+                        )
+                    deliver_t = t_now + latency_used
+                    pending.append({
+                        "deliver_t": deliver_t, "seq": seq, "t_sample": t_now,
+                        "xn": xn, "yn": yn, "zn": zn, "xt": xt, "yt": yt, "zt": zt,
+                        "R": R, "sigma_used": sigma_used, "vel": vel,
+                        "latency_used": latency_used, "drop_state": dropout_state,
+                    })
                     seq += 1
                     n_sampled += 1
+                    last_true_xyz = (xt, yt, zt)
+                    last_sample_sim_t = t_now
                 else:
                     n_skipped_no_truth += 1
                 next_sample_t += period
 
-            while pending and sim_clock.t is not None and pending[0][0] <= sim_clock.t:
-                deliver_t, s, t_sample, xn, yn, zn, xt, yt, zt = pending.pop(0)
-                payload = {"seq": s, "t_sim": t_sample, "x": xn, "y": yn, "z": zn}
+            while pending and sim_clock.t is not None and pending[0]["deliver_t"] <= sim_clock.t:
+                item = pending.pop(0)
+                payload = {
+                    "seq": item["seq"], "t_sim": item["t_sample"],
+                    "x": item["xn"], "y": item["yn"], "z": item["zn"],
+                }
+                # Backward compatible: velocity keys appended only when present
+                # (old consumers / default path see the exact same 5-key JSON).
+                if item["vel"] is not None:
+                    payload["vx"] = item["vel"][0]
+                    payload["vy"] = item["vel"][1]
+                    payload["vz"] = item["vel"][2]
                 sock.sendto(json.dumps(payload).encode("utf-8"), dest)
                 t_emit = sim_clock.t
-                writer.writerow(
-                    [
-                        f"{t_sample:.4f}", f"{t_emit:.4f}",
-                        f"{xn:.4f}", f"{yn:.4f}", f"{zn:.4f}",
-                        f"{xt:.4f}", f"{yt:.4f}", f"{zt:.4f}",
-                    ]
+                if first_emit_sim_t is None:
+                    first_emit_sim_t = t_emit
+                write_cue_row(
+                    "emit", item["t_sample"], t_emit,
+                    item["xn"], item["yn"], item["zn"],
+                    item["xt"], item["yt"], item["zt"],
+                    item["R"], item["sigma_used"], item["vel"],
+                    item["latency_used"], item["drop_state"], False,
                 )
                 n_emitted += 1
                 if n_emitted % CSV_FLUSH_EVERY == 0:
@@ -282,7 +598,8 @@ def main() -> int:
     exit_code = 0
     print(
         f"[s2-cue] done: n_sampled={n_sampled} n_emitted={n_emitted} "
-        f"n_skipped_no_truth={n_skipped_no_truth} log={log_path}"
+        f"n_skipped_no_truth={n_skipped_no_truth} n_dropped={n_dropped} "
+        f"link_dead={int(link_dead)} log={log_path}"
     )
     return exit_code
 

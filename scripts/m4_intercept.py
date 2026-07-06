@@ -159,6 +159,7 @@ import json
 import math
 import os
 import queue
+import shlex
 import socket
 import subprocess
 import sys
@@ -376,6 +377,21 @@ S2 = {
     "MOVER_DURATION_DEFAULT_S": 20.0,
 }
 CUE_MOCK_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s2_cue_mock.py")
+# ADR-0015 dev-flight passthrough: extra flags appended VERBATIM (shlex-split)
+# to the auto-spawned s2_cue_mock.py command, sourced from this env var so a
+# space-separated realism flag list survives check_s2.sh's word-splitting of
+# EXTRA_ARGS. Unset/empty => the cue command is byte-identical to before
+# ADR-0015 (the S2 gate default path is untouched). Example:
+#   S2_CUE_MOCK_EXTRA="--sigma-range --emit-velocity --dropout-markov"
+CUE_MOCK_EXTRA_ENV = "S2_CUE_MOCK_EXTRA"
+
+# ADR-0015 --coast-search (link-loss-before-lock dead-reckon + bounded seeker
+# search; docs/decisions.md ADR-0015 "Handoff continuity"). All sim-time.
+COAST_STALE_S = 1.0           # cue silent longer than this (sim) => stale/link-loss
+COAST_ACQ_RANGE_M = 10.0      # predicted range at/below which the bounded search opens
+COAST_SEARCH_YAW_AMP_DEG = 20.0   # +/- yaw sweep amplitude around the predicted LOS
+COAST_SEARCH_PERIOD_S = 4.0       # sweep period (=> ~31 deg/s peak, a "modest rate")
+COAST_SEARCH_BUDGET_S = 8.0       # no acquisition within this (sim) after cue loss => BREAKOFF
 # Tracking-refinement PORT 2 (--cue-latency-comp): sim-time topic, standard
 # gz-transport Clock message (same one scripts/m4_target_mover.py's clock
 # helper child process reads).
@@ -444,6 +460,11 @@ CSV_HEADER = [
     # (sim_now - t_sim, clamped) at the tick a cue actually corrected the
     # tracker; blank when no cue was used this tick (mirrors ext_fresh).
     "ext_age_s",
+    # ADR-0015 --coast-search (link-loss-before-lock): cue_stale = the cue
+    # stream has gone silent longer than COAST_STALE_S (1 = stale, blank when
+    # --coast-search is off); coast_phase = "coast" (dead-reckon dash) /
+    # "search" (bounded yaw sweep at the predicted basket) / blank.
+    "cue_stale", "coast_phase",
 ]
 
 
@@ -592,6 +613,17 @@ class TargetTracker:
         self.fn.correct(abs_ne[0], t)
         self.fe.correct(abs_ne[1], t)
 
+    def set_velocity(self, vn, ve):
+        """ADR-0015 table #2 (--cue-velocity): overwrite the alpha-beta rate
+        states directly from an externally-supplied (cue) velocity, rather
+        than letting the filter differentiate a noisy position stream (which
+        the council found injects ~7 m/s of velocity noise -- a PIP-killer).
+        Only meaningful after at least one position correction has
+        initialized the filters."""
+        if self.fn.x_hat is not None:
+            self.fn.xdot_hat = vn
+            self.fe.xdot_hat = ve
+
     @property
     def initialized(self):
         return self.fn.x_hat is not None
@@ -698,7 +730,10 @@ class CueReader:
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._sock.bind(("127.0.0.1", port))
         self._sock.settimeout(0.5)
-        self.latest = None  # (t_recv_mono, t_sim, x, y, z, seq) or None
+        # (t_recv_mono, t_sim, x, y, z, seq, vx, vy, vz) or None. vx/vy/vz are
+        # None unless the mock was run with --emit-velocity (ADR-0015 table
+        # #2); consumers MUST tolerate the None case (old-mock compatibility).
+        self.latest = None
         self.n_received = 0
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -714,10 +749,17 @@ class CueReader:
                 break  # socket closed out from under us (close()) -- exit quietly
             try:
                 msg = json.loads(data.decode("utf-8"))
+                # vx/vy/vz optional (ADR-0015 table #2). msg.get(...) is None
+                # for the pre-ADR-0015 5-key datagram -> never a KeyError,
+                # never a crash for the differentiate path.
+                def _optf(key):
+                    v = msg.get(key)
+                    return None if v is None else float(v)
                 cue = (
                     time.monotonic(), float(msg["t_sim"]),
                     float(msg["x"]), float(msg["y"]), float(msg["z"]),
                     int(msg["seq"]),
+                    _optf("vx"), _optf("vy"), _optf("vz"),
                 )
             except (ValueError, KeyError, UnicodeDecodeError):
                 continue
@@ -725,8 +767,9 @@ class CueReader:
             self.n_received += 1
 
     def read(self):
-        """Latest (t_recv_mono, t_sim, x, y, z, seq) tuple, or None if no
-        datagram has arrived yet."""
+        """Latest (t_recv_mono, t_sim, x, y, z, seq, vx, vy, vz) tuple, or None
+        if no datagram has arrived yet. vx/vy/vz are None unless the mock ran
+        with --emit-velocity (ADR-0015)."""
         return self.latest
 
     def close(self):
@@ -786,6 +829,7 @@ def write_row_m4(
     psi_deg, lambda_rad, lambda_dot_rad_s, r_hat_m, rdot_hat_m_s,
     vc_m_s, a_cmd_m_s2, v_perp_m_s, cmd, alt_m, gt_cam, gt_tag, gt_range,
     ext_xyz=None, ext_fresh=None, tgt_state=None, ext_age_s=None,
+    cue_stale=None, coast_phase=None,
 ):
     def fmt(value, spec="{:.4f}"):
         return "" if value is None else spec.format(value)
@@ -833,6 +877,8 @@ def write_row_m4(
         fmt(tgt_state[2]) if tgt_state is not None else "",
         fmt(tgt_state[3]) if tgt_state is not None else "",
         fmt(ext_age_s, "{:.4f}"),
+        "" if cue_stale is None else int(cue_stale),
+        "" if coast_phase is None else coast_phase,
     ]
     writer.writerow(row)
     log_file.flush()
@@ -931,12 +977,32 @@ def parse_args():
              "velocity estimate by its known sim-time age before correcting "
              "(compensates the cue mock's fixed latency + delivery jitter).",
     )
+    parser.add_argument(
+        "--cue-velocity", action="store_true",
+        help="ADR-0015 table #2 (default OFF, requires --handoff): when the "
+             "cue datagrams carry vx/vy/vz (mock --emit-velocity), set the "
+             "shared TargetTracker's velocity states DIRECTLY from the cue "
+             "velocity (world->NED) instead of differentiating the noisy "
+             "position stream. No-ops safely if the mock sends no velocity.",
+    )
+    parser.add_argument(
+        "--coast-search", action="store_true",
+        help="ADR-0015 (default OFF, requires --handoff): link-loss-before-"
+             "lock branch. If the cue goes stale during DASH, dead-reckon the "
+             "track and keep dashing; inside predicted acquisition range hold "
+             "a bounded yaw-sweep seeker search; if no camera acquisition "
+             "within the sim-time budget, BREAKOFF (outcome=link_lost_no_acq).",
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
         parser.error("--handoff requires --fpv (S2 is an FPV-speed sub-step, ADR-0010)")
     if args.cue_latency_comp and not args.handoff:
         parser.error("--cue-latency-comp requires --handoff (there is no cue channel without it)")
+    if args.cue_velocity and not args.handoff:
+        parser.error("--cue-velocity requires --handoff (there is no cue channel without it)")
+    if args.coast_search and not args.handoff:
+        parser.error("--coast-search requires --handoff (there is no cue link to lose without it)")
 
     if args.target_start is None:
         args.target_start = S2["TARGET_START_DEFAULT"] if args.handoff else "6.5,-4,0.5"
@@ -1044,6 +1110,14 @@ async def run_acquire_and_engage(
     handoff_t = None
     handoff_range_at_trigger = None
     first_dash_detection_range = None
+    # ADR-0015 coast-search (link-loss-before-lock) state. last_cue_recv_sim_t
+    # is the sim time of the most recent NEW cue datagram (staleness clock);
+    # coast_active latches when the cue goes stale during DASH and resets if
+    # the link recovers; outcome is the S2_RESULT tag (ADR-0015).
+    last_cue_recv_sim_t = None
+    coast_active = False
+    coast_loss_sim_t = None
+    outcome = "no_handoff"
     if args.handoff:
         cue_reader = CueReader(s2params["CUE_PORT"])
         cue_cmd = [
@@ -1055,6 +1129,12 @@ async def run_acquire_and_engage(
             "--latency-s", str(s2params["CUE_MOCK_LATENCY_S"]),
             "--rate", str(s2params["CUE_MOCK_RATE_HZ"]),
         ]
+        # ADR-0015 dev-flight passthrough (env var so it survives check_s2.sh's
+        # word-splitting; empty => byte-identical spawn, S2 gate untouched).
+        cue_extra = os.environ.get(CUE_MOCK_EXTRA_ENV, "").strip()
+        if cue_extra:
+            cue_cmd.extend(shlex.split(cue_extra))
+            print(f"[s2] cue mock extra ({CUE_MOCK_EXTRA_ENV}): {cue_extra}")
         print(f"[s2] cue mock: {' '.join(cue_cmd)}")
         cue_proc = subprocess.Popen(cue_cmd, stdout=None, stderr=None)
 
@@ -1110,13 +1190,27 @@ async def run_acquire_and_engage(
         ext_n = ext_e = ext_z = None
         ext_fresh = 0
         ext_age_s = None
+        cue_stale_flag = None   # ADR-0015 coast-search per-tick CSV markers
+        coast_phase_tick = None
         if args.handoff and cue_reader is not None:
             cue = cue_reader.read()
             if cue is not None:
-                _t_recv_mono, t_sim_cue, cx, cy, cz, cseq = cue
+                # 9-tuple (ADR-0015): vx/vy/vz are None unless the mock ran
+                # with --emit-velocity (CueReader tolerates the old 5-key
+                # datagram). WORLD velocity, mapped to NED like position below.
+                _t_recv_mono, t_sim_cue, cx, cy, cz, cseq, cvx, cvy, cvz = cue
                 cue_is_new = last_cue_seq_seen is None or cseq != last_cue_seq_seen
                 if cue_is_new:
                     last_cue_seq_seen = cseq
+                    # Cue is alive this tick: reset the staleness clock, and if
+                    # we were coasting on a stale link that has now recovered,
+                    # drop back to normal cue-guided dash (ADR-0015).
+                    if sim_clock is not None and sim_clock.t is not None:
+                        last_cue_recv_sim_t = sim_clock.t
+                    if coast_active:
+                        print("[s2] COAST-SEARCH: cue link recovered -- resuming cue-guided dash")
+                        coast_active = False
+                        coast_loss_sim_t = None
                     if not fresh:
                         # WORLD -> NED mapping (empirically verified -- see
                         # the module docstring's "S2 WORLD-FRAME MAPPING"
@@ -1154,6 +1248,14 @@ async def run_acquire_and_engage(
                                 corr_n = ext_n + vel_hat[0] * ext_age_s
                                 corr_e = ext_e + vel_hat[1] * ext_age_s
                         target_tracker.correct((corr_n, corr_e), tick_start)
+                        # ADR-0015 table #2 (--cue-velocity): overwrite the
+                        # tracker's velocity states DIRECTLY from the cue's
+                        # own filtered velocity (world->NED: vn=world vy,
+                        # ve=world vx) instead of trusting the alpha-beta
+                        # differentiation of a noisy position stream. Guarded
+                        # on the cue actually carrying velocity (old-mock safe).
+                        if args.cue_velocity and cvx is not None and cvy is not None:
+                            target_tracker.set_velocity(cvy, cvx)
                         tracker_correction_count += 1
                         ext_fresh = 1
 
@@ -1287,6 +1389,24 @@ async def run_acquire_and_engage(
             # TRACKER's azimuth, not a camera bearing -- there may be no
             # detection yet at DASH's longer ranges.
             dash_elapsed = tick_start - dash_start_mono
+
+            # ADR-0015 coast-search: watch the cue staleness clock during DASH.
+            # last_cue_recv_sim_t stops advancing once the cue link dies (mock
+            # stops emitting -> CueReader stops seeing new seqs); when the gap
+            # exceeds COAST_STALE_S we latch into dead-reckon coast.
+            if args.coast_search and sim_clock is not None and sim_clock.t is not None \
+                    and last_cue_recv_sim_t is not None:
+                cue_age_dash = sim_clock.t - last_cue_recv_sim_t
+                cue_stale_flag = 1 if cue_age_dash > COAST_STALE_S else 0
+                if cue_age_dash > COAST_STALE_S and not coast_active:
+                    coast_active = True
+                    coast_loss_sim_t = sim_clock.t
+                    print(
+                        f"[s2] COAST-SEARCH: cue stale (age {cue_age_dash:.2f}s > "
+                        f"{COAST_STALE_S}s) at t_sim={sim_clock.t:.2f} -- dead-reckoning "
+                        "the track and continuing the dash (ADR-0015)"
+                    )
+
             tpos = target_tracker.pos_hat
             if tpos is not None and state.pos_n is not None and state.pos_e is not None:
                 own = (state.pos_n, state.pos_e)
@@ -1309,6 +1429,28 @@ async def run_acquire_and_engage(
                     vh0 *= scale
                     vh1 *= scale
                 yaw_deg = math.degrees(math.atan2(rel[1], rel[0]))
+
+                # ADR-0015 coast-search command override on a dead link. Far
+                # out: keep dead-reckoning the dash toward the PREDICTED point
+                # (the tracker keeps predicting every tick). Inside the
+                # predicted acquisition basket: HOLD and run a bounded yaw
+                # sweep around the predicted LOS to reacquire with the seeker.
+                if coast_active:
+                    pred_range = math.hypot(rel[0], rel[1])
+                    if pred_range <= COAST_ACQ_RANGE_M:
+                        coast_phase_tick = "search"
+                        vh0 = vh1 = 0.0
+                        t_since_loss = (
+                            sim_clock.t - coast_loss_sim_t
+                            if (sim_clock is not None and sim_clock.t is not None
+                                and coast_loss_sim_t is not None) else 0.0
+                        )
+                        yaw_deg = math.degrees(math.atan2(rel[1], rel[0])) + \
+                            COAST_SEARCH_YAW_AMP_DEG * math.sin(
+                                2.0 * math.pi * t_since_loss / COAST_SEARCH_PERIOD_S
+                            )
+                    else:
+                        coast_phase_tick = "coast"
             else:
                 vh0, vh1 = 0.0, 0.0
                 yaw_deg = psi_deg if psi_deg is not None else 0.0
@@ -1341,6 +1483,7 @@ async def run_acquire_and_engage(
 
             if handoff_streak >= s2params["HANDOFF_STREAK_MIN"]:
                 handoff_done = True
+                outcome = "handoff_engaged"
                 handoff_t = time.monotonic() - started
                 handoff_range_at_trigger = meas.range_m
                 print(
@@ -1362,6 +1505,25 @@ async def run_acquire_and_engage(
                     f"first camera detection range="
                     f"{'n/a' if first_dash_detection_range is None else f'{first_dash_detection_range:.2f}'})"
                 )
+
+            # ADR-0015 coast-search budget: no camera acquisition within the
+            # sim-time budget after cue link-loss -> break off rather than fly
+            # blind (docs/decisions.md ADR-0015 "Handoff continuity"). Guarded
+            # on phase=="DASH" so a HANDOFF that fired above takes priority.
+            if (
+                phase == "DASH" and not aborted and coast_active
+                and coast_loss_sim_t is not None and sim_clock is not None
+                and sim_clock.t is not None
+                and (sim_clock.t - coast_loss_sim_t) > COAST_SEARCH_BUDGET_S
+            ):
+                outcome = "link_lost_no_acq"
+                breakoff_reason = (
+                    f"coast-search: no camera acquisition within "
+                    f"{COAST_SEARCH_BUDGET_S}s of cue link-loss"
+                )
+                print(f"[s2] COAST-SEARCH BREAKOFF: {breakoff_reason}")
+                phase = "BREAKOFF"
+                breakoff_entry_mono = tick_start
 
         elif phase == "ENGAGE":
             engage_elapsed = tick_start - engage_t0
@@ -1529,6 +1691,7 @@ async def run_acquire_and_engage(
             vc, a_cmd, v_perp, cmd, alt_m, gt_cam, gt_tag, gt_range,
             ext_xyz=(ext_n, ext_e, ext_z) if ext_fresh else None,
             ext_fresh=ext_fresh, tgt_state=tgt_state, ext_age_s=ext_age_s,
+            cue_stale=cue_stale_flag, coast_phase=coast_phase_tick,
         )
 
         if aborted:
@@ -1547,6 +1710,14 @@ async def run_acquire_and_engage(
         # latch itself.
         cue_reader.close()
 
+    # ADR-0015 outcome tag: HANDOFF/coast-breakoff set it explicitly above;
+    # otherwise classify a plain abort vs. an un-handed-off end.
+    if outcome == "no_handoff":
+        if handoff_done:
+            outcome = "handoff_engaged"
+        elif aborted:
+            outcome = "aborted"
+
     return {
         "aborted": aborted,
         "abort_reason": abort_reason,
@@ -1563,6 +1734,7 @@ async def run_acquire_and_engage(
         "handoff_t": handoff_t,
         "handoff_range_at_trigger": handoff_range_at_trigger,
         "first_dash_detection_range": first_dash_detection_range,
+        "outcome": outcome,
     }
 
 
@@ -1966,12 +2138,16 @@ async def main():
                     # point is structurally impossible (AttributeError on
                     # None), not merely "didn't happen to occur" -- there is
                     # nothing left to count.
+                    # ADR-0015: S2_RESULT gains a trailing outcome tag
+                    # (handoff_engaged / link_lost_no_acq / aborted /
+                    # no_handoff). Appended LAST so check_s2.sh's existing
+                    # lookbehind greps for miss=/clean=/handoff= are unaffected.
                     print(
                         f"S2_RESULT law={args.law} miss={miss_distance:.3f} "
                         f"clean={int(clean)} handoff={int(result['handoff_done'])} "
                         f"handoff_range={'nan' if handoff_range is None else f'{handoff_range:.3f}'} "
                         f"handoff_t={'nan' if handoff_t is None else f'{handoff_t:.3f}'} "
-                        "cue_reads_post_handoff=0"
+                        f"cue_reads_post_handoff=0 outcome={result['outcome']}"
                     )
 
                 exit_ok = clean
@@ -1983,7 +2159,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
                 )
             result_code = 1
 
@@ -2045,7 +2221,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
                 )
         return 1
     except ActionError as exc:
@@ -2055,7 +2231,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
                 )
         return 1
     except RuntimeError as exc:
@@ -2065,7 +2241,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
                 )
         return 1
     except Exception as exc:  # noqa: BLE001 - top-level gate script, log and exit
@@ -2075,7 +2251,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
                 )
         return 1
     finally:
