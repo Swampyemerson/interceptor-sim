@@ -15,20 +15,25 @@ appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
 
 ## Build queue (ordered, per ADR-0023/0024/0025 — start here when the audit clears)
 
-1. **Tier-2 acquisition range (the real lever).** Narrow SDF `<horizontal_fov>` +
-   raise `HANDOFF_RANGE` → earlier lock → bigger t_go (correction capacity ∝ t_go²;
-   acquiring at 12 m instead of 6.5 m raises capacity 0.72 → ~4.3 m). Reopens the
-   ADR-0010 anti-tag-inflation door: MUST re-baseline M1/M2 gates + disclose in
-   README. Then paired mc_batch, primary metrics ZEM@handoff + miss.
+1. **Tier-2 acquisition range (the real lever) — now serves TWO problems (ADR-0027).**
+   Narrow SDF `<horizontal_fov>` + raise `HANDOFF_RANGE` → earlier lock → bigger t_go
+   (correction capacity ∝ t_go²; acquiring at 12 m instead of 6.5 m raises capacity
+   0.72 → ~4.3 m). Reopens the ADR-0010 anti-tag-inflation door: MUST re-baseline
+   M1/M2 gates + disclose in README. Then paired mc_batch, primary metrics ZEM@handoff
+   + miss. **Also fixes the new 9 m/s finding:** at 9 m/s only 5/12 flights latched
+   handoff at all — the tag crosses the ≤10 m envelope too fast for the 3-frame streak.
+   A longer-range gate + earlier acquisition lets more flights latch. Pair it with a
+   **lower/adaptive `HANDOFF_STREAK_MIN`** (2 within the gate at high closing speed?) —
+   test as its own A/B, since terminal kinematics can't touch the never-latched 58%.
 2. **Adopt corrected cue constants (P-8).** ADR-0017's stereo split — σ_R
    c=4.45e-05 (not 0.008·R²) + separate `--datum-bias-m` — into s2_cue_mock
    defaults, plus the 0.20 s WORST latency stress tier (ADR-0016). Changes the cue
    model → re-run S2 gate + a confirmation batch before trusting new numbers.
-2b. **Audit follow-ups (ADR-0026 — cheap, do alongside Tier-2).**
-   - **Second-speed forensic batch:** one mc_batch at 3 m/s + one at 9 m/s, re-run the
-     ZEM forensics (`scripts/forensics/`). The kinematic model predicts miss ∝
-     ZEM@handoff at every speed — the single cheapest thing that upgrades ADR-0023
-     from HOLDS-WITH-CAVEATS to HOLDS (all 41 current flights are 6 m/s only).
+2b. **Audit follow-ups (ADR-0026/0027).**
+   - **✅ Second-speed forensic batch DONE (ADR-0027):** kinematic diagnosis
+     GENERALIZES (r² 0.818/0.957/0.994 at 3/6/9 m/s, tracks capacity/ZEM ratio) →
+     ADR-0023 upgraded to HOLDS. New finding: 9 m/s handoff-latch reliability (5/12) —
+     folded into Tier-2 above.
    - **L2R vs R2L asymmetry:** a real ~0.6 m mirror asymmetry (p≈0.01, single batch)
      is most likely the fixed-tag-aspect perception effect, not a sign bug — confirm
      with a second paired batch + write it up, or find the guidance/acquisition term
