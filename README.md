@@ -167,6 +167,31 @@ is the part of this project that ports to a real interceptor close to as-is.
   sun angle needed an emissive-texture hack just to keep the tag legible in
   sim, ADR-0007). Real detection cadence will be worse than what these logs
   show, not better.
+- **The target board holds a fixed orientation (facing world −X) and only
+  translates** — the mover sets position, never attitude (ADR-0010 #6). A real
+  hostile drone is not a flat, fixed-orientation fiducial, so a direction-
+  dependent detection-timing effect is a sim artifact, not a guidance property:
+  left-to-right vs right-to-left crossings present mirror-opposite tag aspect
+  angles, so the interceptor first detects the tag ~12 m out on one and ~8 m on
+  the other, producing a real but modest ~0.2–0.44 m miss asymmetry. The
+  guidance itself is proven direction-symmetric (the pro-nav gain fits to
+  exactly 5.000 with r²=1.000 in *both* directions — it is not a sign bug;
+  ADR-0024 addendum, audit ADR-0026 item B).
+
+### The camera FOV was narrowed partway through (disclosed, re-baselined)
+
+The camera's field of view was changed from 99.7° to **60°** (ADR-0024
+addendum, the Tier-2 acquisition-range work). This is a hardware-analog change
+— a longer/narrower acquisition lens, the exact tradeoff a real seeker design
+makes — **not** an inflation of the target's apparent size (that boundary is
+ADR-0010): the tag's physical dimensions are unchanged. It reopens and re-earns
+the affected gates rather than assuming them: M1 is unaffected (same resolution
+and rate); M2's accuracy gate was re-run and re-passed (pose error actually
+*improved*, 0.086 m → 0.026 m, from more pixels on target); and M2's detection
+*envelope* was **measured, not assumed** — reliable to ~14 m with the 60° lens
+(`scripts/check_m2_envelope.py`), versus the old ad-hoc ~6 m figure. All
+Monte-Carlo / Pk numbers dated before this change used the wide-FOV camera;
+numbers after use the narrow one — the commit boundary is in `docs/decisions.md`.
 
 ### The lethal radius is a narrative assumption, not a modeled collision
 
