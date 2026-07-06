@@ -596,3 +596,44 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   ~60-160 m demonstration, blind at night/crossover — disclosed in the README.
 - **Date:** 2026-07-05. (Opus research worker, WebSearch/WebFetch; main-session review
   adopted the proposed block; sources in ground_modality.md.)
+
+## ADR-0020 — Jammer link-cutoff envelope (lab): target MANEUVER sets the coast margin, not the cutoff radius; and ADR-0015's "11.5 m = −26% Pk@2" was a compressed-geometry artifact
+- **Context:** ADR-0015 said the comms-denied design must satisfy `R_acquire ≥ R_cutoff +
+  coast_margin` and priced a jammer link-cut at 11.5 m as the WORST single degradation
+  (−26% Pk@2). Those numbers came from the 15.4 m-standoff S2 geometry. This study maps
+  the whole cliff on a realistic ~45 m runway, in `scripts/guidance_lab.py` behind
+  `--jam-envelope` (Fable worker; all default-OFF, byte-identical re-verified vs HEAD;
+  the driver also adopts ADR-0017's CORRECTED σ_R split — first use of it). Also ports
+  m4_intercept's `--coast-search` (dead-reckon to the cue-predicted basket + bounded
+  ±20° boresight sweep + break-off) into the lab, semantics matched 1:1.
+- **The 11.5 m −26% point does NOT reproduce.** On a real runway an 11.5 m cutoff costs
+  ~0 (EXPECTED Pk@2 100 vs 100; WORST 68-69 vs 67-68). It was an artifact of cutting an
+  infant track mid-dash in compressed geometry. Real drivers: track maturity at the cut,
+  coast distance, and target maneuver.
+- **Target MANEUVER is the binding constraint, not the cutoff radius.** Against a
+  straight-line (CV) crosser, emit-velocity dead-reckoning coasts cheaply: cliff edge
+  (>10-pt pooled Pk@2 drop) is ~40 m by raw Pk@2, 20 m by Pk@1, 15 m by seeker-locked
+  Pk@2. Against an s-weave target the edge collapses to ~9 m (total loss by 20 m) —
+  the predicted basket is simply wrong once the target turns. Effective coast margin:
+  +8 to +33 m (CV, by accounting) but **≈ +2 m (maneuvering).**
+- **Design ruling (supersedes ADR-0015's coast_margin optimism):** size the jam claim by
+  the MANEUVERING case — `R_acquire ≥ R_cutoff` with essentially NO slack unless
+  straight-line flight can be assumed. Emit-velocity coasting buys tens of meters ONLY
+  against non-maneuvering targets; it is near-worthless when the target jinks.
+- **Coast-search: keep it (default OFF).** Raw-Pk-neutral-to-slightly-negative on CV
+  targets (the hold sacrifices the running start), but at deep cutoffs it buys +5-6 pts
+  of camera-LOCKED intercepts (30 m: 72→78%; 40 m: 63→69%) and converts blind dead-reckon
+  flail into honest break-offs — its value is locked intercepts + honest aborts, invisible
+  to raw min-range.
+- **Fusion is orthogonal to the cliff** (|ΔPk@2| ≤ 1 pt everywhere): at cutoffs ≥
+  acquisition range the both-sources window never opens (ADR-0018's limit, now confirmed
+  across the whole cutoff axis); warm dead-reckon state does not move the edge.
+- **Honesty audit:** at 20-40 m cutoffs, 21-27% of runs score inside 2 m with the camera
+  NEVER locking (blind dead-reckon flybys — physically real min-ranges, legitimate under
+  a proximity-fuse metric but with no terminal correction, and the point-mass likely
+  flatters them vs Gazebo attitude dynamics). The "locked-Pk@2" column (miss ≤ 2 m AND
+  camera locked) is the defensible number for the "own camera finishes the intercept"
+  headline. Lab ranks/sizes; Gazebo decides. CSV: `logs/guidance_lab_jamenv_*.csv`.
+- **Date:** 2026-07-05. (Fable worker; `--jam-envelope`, 80 seeds/cell, 17.6k runs;
+  byte-identity vs HEAD confirmed. Gazebo confirmation queued: paired {no-cut, cut≈15 m,
+  cut≈25 m} × coast off/on, primary metric camera-locked-at-CPA rate + link-lost-no-acq.)

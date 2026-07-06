@@ -856,6 +856,7 @@ class Sensor:
         self._cue_cutoff_range = p["CUE_LINK_CUTOFF_RANGE_M"]
         self._cue_cutoff_time = p["CUE_LINK_CUTOFF_TIME_S"]
         self._cue_link_cut = False
+        self._cue_link_cut_t = None  # scoring diagnostic (jam-envelope study)
         # constraint 6: LOS-rate-dependent terminal camera dropout
         self._term_los_rate_dropout = bool(p["TERM_LOS_RATE_DROPOUT"])
         self._term_los_rate_ref = math.radians(p["TERM_LOS_RATE_REF_DEG_S"])
@@ -941,6 +942,7 @@ class Sensor:
                 or (self._cue_cutoff_time is not None and t >= self._cue_cutoff_time)
             ):
                 self._cue_link_cut = True
+                self._cue_link_cut_t = t
                 self._cue_pending = []
 
             self._cue_timer += dt
@@ -1804,6 +1806,56 @@ DEFAULT_DASH_PARAMS = dict(
     FUSE_CUE_SIGMA_QUAD=0.008,
     FUSE_DATUM_BUDGET_M=0.5,
     FUSE_VEL_STALE_S=0.6,      # emitted-velocity freshness horizon (~6 cue periods)
+    # --- ADR-0015 "Handoff continuity" coast-search, lab port (jam-envelope
+    # study; all default-off = byte-identical baseline). Mirrors
+    # m4_intercept.py --coast-search semantics EXACTLY (constants below are
+    # m4's COAST_* values verbatim): if the cue goes silent > COAST_STALE_S
+    # during the dash, latch a dead-reckon COAST toward the tracker's
+    # predicted point (the tracker already predict()s forward each tick on
+    # the last cue velocity -- which is exactly why ADR-0015 says velocity
+    # EMISSION is what makes coasting possible: the frozen vel_hat was
+    # ingested, not differentiated); once the PREDICTED range falls to
+    # COAST_ACQ_RANGE_M, HOLD position and run a bounded +/- yaw sweep of
+    # the seeker boresight around the predicted LOS (the "bounded seeker
+    # search" at the basket); if the camera has not acquired within
+    # COAST_SEARCH_BUDGET_S of link loss, BREAK OFF rather than fly blind.
+    # A cue that comes back (Markov burst, not a jammer) un-latches the
+    # coast, exactly like m4's "cue link recovered" branch. Acquisition
+    # itself stays 100% the existing Sensor det_range/FOV/dropout model --
+    # the sweep only points the boresight; if the dead-reckon error walks
+    # the true target outside the swept FOV cone or the target never comes
+    # inside det_range of the held position, the run stays lost (honest
+    # break-off/miss, no omniscient reacquisition). Everything here is
+    # per-tick scalar math on the drone's OWN track state -- same Pi-class
+    # implementability argument as FusedTrack (and it is already
+    # implemented on the real pipeline side in m4_intercept.py).
+    COAST_SEARCH=False,
+    COAST_STALE_S=1.0,             # m4 COAST_STALE_S
+    COAST_ACQ_RANGE_M=10.0,        # m4 COAST_ACQ_RANGE_M
+    COAST_SEARCH_YAW_AMP_DEG=20.0,  # m4 COAST_SEARCH_YAW_AMP_DEG
+    COAST_SEARCH_PERIOD_S=4.0,     # m4 COAST_SEARCH_PERIOD_S (~31 deg/s peak)
+    COAST_SEARCH_BUDGET_S=8.0,     # m4 COAST_SEARCH_BUDGET_S
+    # DASH_YAW_TRACKER (default False = byte-identical): m4's actual DASH
+    # yaw law -- "Yaw points at the TRACKER's azimuth, not a camera bearing
+    # -- there may be no detection yet at DASH's longer ranges" -- i.e. the
+    # boresight follows the cue-track azimuth all through the dash. The
+    # legacy lab boresight instead stays at its INITIAL heading until the
+    # first camera detection (fine on the compressed ~15 m standoff the lab
+    # was calibrated on, where the initial heading already points at the
+    # engagement; wrong for the jam-envelope's ~45 m runway, where cue-
+    # driven yaw is what delivers the seeker onto the target at all). The
+    # jam-envelope study turns this on for EVERY cell so the COAST_SEARCH
+    # off/on axis isolates the coast/search/break-off branch itself, not
+    # the boresight-steering difference.
+    DASH_YAW_TRACKER=False,
+    # CUE_UNTIL_LATCH (default False = byte-identical): extend ADR-0018's
+    # "cue stays deliverable until the one-way latch" real-pipeline
+    # semantics (m4's cue socket is closed BY the HANDOFF latch, never by a
+    # range gate) to NON-fused runs too. Only meaningful together with the
+    # Gazebo-faithful latch (FUSE_GAZEBO_LATCH or any flag implying it);
+    # the jam-envelope study sets it for every cell so a 9-11.5 m link
+    # cutoff means the same thing in fuse=off and fuse=on cells.
+    CUE_UNTIL_LATCH=False,
 )
 
 
@@ -1855,10 +1907,41 @@ class TwoStageDash:
         # honest.
         self.fuse_midcourse = bool(p.get("FUSE_MIDCOURSE", False))
         self.warm_handoff = bool(p.get("WARM_HANDOFF", False))
+        # ADR-0015 coast-search lab port (jam-envelope study; see the
+        # DEFAULT_DASH_PARAMS block for the full mechanization rationale).
+        # Both flags imply the Gazebo-faithful one-way latch below: the
+        # coast/search/break-off branch and the tracker-azimuth dash yaw
+        # are properties of the REAL (latched) S2 pipeline, and the legacy
+        # re-evaluated handoff would let them interleave dishonestly.
+        self.coast_search = bool(p.get("COAST_SEARCH", False))
+        self.dash_yaw_tracker = bool(p.get("DASH_YAW_TRACKER", False))
         self.gazebo_latch = (
             bool(p.get("FUSE_GAZEBO_LATCH", False))
             or self.fuse_midcourse or self.warm_handoff
+            or self.coast_search or self.dash_yaw_tracker
         )
+        # Cue deliverable until the latch even without fusion (real m4
+        # socket semantics; see DEFAULT_DASH_PARAMS). simulate() reads this.
+        self.cue_until_latch_flag = self.fuse_midcourse or bool(
+            p.get("CUE_UNTIL_LATCH", False)
+        )
+        self.coast_stale_s = p.get("COAST_STALE_S", 1.0)
+        self.coast_acq_range = p.get("COAST_ACQ_RANGE_M", 10.0)
+        self.coast_yaw_amp = math.radians(p.get("COAST_SEARCH_YAW_AMP_DEG", 20.0))
+        self.coast_period = p.get("COAST_SEARCH_PERIOD_S", 4.0)
+        self.coast_budget_s = p.get("COAST_SEARCH_BUDGET_S", 8.0)
+        self.coast_active = False      # currently coasting on a stale/dead link
+        self.coast_ever = False        # scoring: coast latched at least once
+        self.coast_searched = False    # scoring: reached the basket search phase
+        self.coast_breakoff = False    # budget expired w/o acquisition -> break off
+        self.coast_phase = None        # None | "coast" | "search" (diagnostic)
+        # Law-commanded absolute boresight heading for the Sensor (None =
+        # the legacy camera-detection-driven boresight). Only ever set when
+        # DASH_YAW_TRACKER/COAST_SEARCH is on -- simulate() ignores None, so
+        # the default path is untouched.
+        self.boresight_cmd = None
+        self._last_cue_t = None
+        self._coast_loss_t = None
         self.latch_streak = int(p.get("FUSE_LATCH_STREAK", 3))
         self.latched = False
         self._cam_streak = 0
@@ -1923,6 +2006,29 @@ class TwoStageDash:
         self.last_cmd = (vx, vy)
         return (vx, vy)
 
+    def _coast_update(self, t, meas):
+        """m4 --coast-search staleness bookkeeping (only called when
+        COAST_SEARCH is on). Mirrors m4_intercept.py exactly:
+          - the staleness clock only starts after the FIRST cue receipt
+            (m4 guards on last_cue_recv_sim_t is not None -- a cue that
+            never existed is a dash-timeout problem, not a coast);
+          - cue silent > COAST_STALE_S latches coast_active;
+          - a recovered cue (Markov burst over -- a jammer cutoff never
+            recovers) un-latches it and clears the loss clock."""
+        if meas is not None and meas.source == "cue":
+            if self.coast_active:
+                self.coast_active = False
+                self._coast_loss_t = None
+            self._last_cue_t = t
+        if (
+            not self.coast_active
+            and self._last_cue_t is not None
+            and (t - self._last_cue_t) > self.coast_stale_s
+        ):
+            self.coast_active = True
+            self.coast_ever = True
+            self._coast_loss_t = t
+
     def _step_fused(self, t, dt, own_pos, own_vel, meas):
         """P-6 path (any of FUSE_MIDCOURSE / WARM_HANDOFF / FUSE_GAZEBO_LATCH
         on; the all-defaults baseline never enters here). Differences vs
@@ -1954,6 +2060,10 @@ class TwoStageDash:
         # BEFORE it can touch any tracker/filter.
         if self.latched and meas is not None and meas.source == "cue":
             meas = None
+
+        # ADR-0015 coast-search staleness clock (feature-guarded; no RNG).
+        if self.coast_search and not self.latched:
+            self._coast_update(t, meas)
 
         self.tracker.predict(dt)
         if self.fused is not None:
@@ -1997,6 +2107,11 @@ class TwoStageDash:
         terminal_cmd = self.terminal.step(t, dt, own_pos, own_vel, meas)
         self.in_terminal = self.latched
         if self.latched:
+            # Past the latch the boresight is camera-driven again (m4's
+            # ENGAGE yaw law) -- stop commanding it. No-ops at baseline
+            # (boresight_cmd is only ever non-None under the new flags).
+            self.boresight_cmd = None
+            self.coast_phase = None
             self.last_cmd = terminal_cmd
             return terminal_cmd
 
@@ -2016,6 +2131,47 @@ class TwoStageDash:
 
         vt = aim_vel or (0.0, 0.0)
         rel = (aim_pos[0] - own_pos[0], aim_pos[1] - own_pos[1])
+
+        # --- ADR-0015 coast-search + m4 dash-yaw boresight (all feature-
+        # guarded; the baseline never sets boresight_cmd / coast state). ---
+        self.boresight_cmd = None
+        self.coast_phase = None
+        if self.dash_yaw_tracker:
+            # m4 DASH yaw law: boresight at the TRACK azimuth (fused when
+            # camera-fresh, else the cue tracker -- same source as the aim).
+            self.boresight_cmd = math.atan2(rel[1], rel[0])
+        if self.coast_search and self.coast_active:
+            pred_range = math.hypot(rel[0], rel[1])
+            los_pred = math.atan2(rel[1], rel[0])
+            # Break-off budget (checked while un-latched only -- a latch
+            # this same tick already returned above, m4's phase priority):
+            # no camera acquisition within the budget of link loss -> break
+            # off rather than fly blind. simulate() ends the run.
+            if (
+                self._coast_loss_t is not None
+                and (t - self._coast_loss_t) > self.coast_budget_s
+            ):
+                self.coast_breakoff = True
+            if pred_range <= self.coast_acq_range:
+                # Bounded seeker search at the predicted basket: HOLD
+                # position (velocity 0, first-order lag decelerates) and
+                # sweep the boresight +/- amp around the PREDICTED LOS.
+                self.coast_phase = "search"
+                self.coast_searched = True
+                t_since = t - (self._coast_loss_t if self._coast_loss_t is not None else t)
+                self.boresight_cmd = wrap_pi(
+                    los_pred
+                    + self.coast_yaw_amp
+                    * math.sin(2.0 * math.pi * t_since / self.coast_period)
+                )
+                self.last_cmd = (0.0, 0.0)
+                return (0.0, 0.0)
+            # Far out: dead-reckon COAST -- keep flying the same lead solve
+            # below (the tracker's predict() is the dead-reckoner), yaw at
+            # the predicted LOS so the seeker is looking down-track.
+            self.coast_phase = "coast"
+            self.boresight_cmd = los_pred
+
         t_go = solve_intercept_time(rel, vt, self.dash_speed, self.dash_max_lead_s)
         aim = (aim_pos[0] + vt[0] * t_go, aim_pos[1] + vt[1] * t_go)
         direction = (aim[0] - own_pos[0], aim[1] - own_pos[1])
@@ -2277,12 +2433,17 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     params = {**defaults, **(method_params or {})}
     law = cls(params)
 
-    # P-6 (FUSE_MIDCOURSE): under fusion the cue channel stays deliverable
-    # below handoff_range until the law's one-way latch fires (the real
-    # m4_intercept.py semantics -- the cue socket is closed BY the HANDOFF
-    # latch, not by a range gate). False for every non-fused config, leaving
-    # the baseline Sensor delivery condition byte-identical.
-    cue_until_latch = bool(getattr(law, "fuse_midcourse", False))
+    # P-6 (FUSE_MIDCOURSE) / jam-envelope (CUE_UNTIL_LATCH): the cue channel
+    # stays deliverable below handoff_range until the law's one-way latch
+    # fires (the real m4_intercept.py semantics -- the cue socket is closed
+    # BY the HANDOFF latch, not by a range gate). cue_until_latch_flag covers
+    # both FUSE_MIDCOURSE and the explicit CUE_UNTIL_LATCH param; False for
+    # every default config, leaving the baseline Sensor delivery condition
+    # byte-identical.
+    cue_until_latch = bool(
+        getattr(law, "cue_until_latch_flag", False)
+        or getattr(law, "fuse_midcourse", False)
+    )
 
     # ADR-0015: draw the per-run constant cue datum bias AFTER the path
     # builder (so its rng draw never perturbs geometry) and ONLY when
@@ -2327,6 +2488,8 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
     # link-cut latch to flag "link cut before the seeker acquired".
     _any_camera_meas = False
     _first_camera_lock_t = None
+    _first_camera_lock_range = None  # TRUE range at first camera lock (scoring only)
+    _coast_broke_off = False
 
     # --- track-quality diagnostics (SCORING-ONLY, same honesty boundary as
     # min_range/breakoff/tag_lost_in_terminal above -- reads tx,ty/vel_fn(t)
@@ -2376,6 +2539,7 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
             _any_camera_meas = True
             if _first_camera_lock_t is None:
                 _first_camera_lock_t = t
+                _first_camera_lock_range = true_range
         has_lock = last_meas_t is not None and (t - last_meas_t) <= MEAS_STALE_S
         if true_range < det_range:
             n_in_range_ticks += 1
@@ -2400,6 +2564,24 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
         # pipeline's socket-close + reader-nulling pair).
         if cue_until_latch and not sensor.cue_gate_closed and getattr(law, "latched", False):
             sensor.close_cue()
+
+        # ADR-0015 coast-search hooks (inert at baseline: boresight_cmd is
+        # only ever non-None, and coast_breakoff only ever True, under the
+        # DASH_YAW_TRACKER/COAST_SEARCH feature flags -- no RNG either way).
+        # The law's absolute boresight command (m4's DASH tracker-azimuth
+        # yaw / the bounded search sweep) becomes the sensor's desired
+        # heading; the sensor still slews it at its own yaw-rate cap, same
+        # as the real PX4 yaw setpoint path.
+        _bs_cmd = getattr(law, "boresight_cmd", None)
+        if _bs_cmd is not None:
+            sensor.desired_heading = _bs_cmd
+        if getattr(law, "coast_breakoff", False):
+            # No camera acquisition within the coast-search budget of link
+            # loss -> break off rather than fly blind (m4's
+            # link_lost_no_acq outcome). The run scores its min_range so
+            # far -- honestly a miss unless the dash already got close.
+            _coast_broke_off = True
+            break
 
         tracker = getattr(law, "tracker", None)
         if tracker is not None and tracker.pos_hat is not None:
@@ -2465,6 +2647,19 @@ def simulate(method_name, method_params, path_name, path_params, seed, two_stage
         # link cut by the jammer AND the seeker never acquired -> a
         # dead-reckon-coast miss (the ADR-0015 link-loss-before-lock gap).
         link_cut_no_acquire=bool(getattr(sensor, "_cue_link_cut", False)) and not _any_camera_meas,
+        # --- jam-envelope diagnostics (scoring-only; all inert/False/None at
+        # baseline -- no feature draws RNG) ---
+        first_camera_lock_range=_first_camera_lock_range,
+        coast_engaged=bool(getattr(law, "coast_ever", False)),
+        coast_searched=bool(getattr(law, "coast_searched", False)),
+        coast_breakoff=_coast_broke_off,
+        # camera acquired strictly AFTER the jammer cut the link = a
+        # successful dead-reckon-coast reacquisition.
+        acquired_after_cut=bool(
+            getattr(sensor, "_cue_link_cut_t", None) is not None
+            and _first_camera_lock_t is not None
+            and _first_camera_lock_t > sensor._cue_link_cut_t
+        ),
     )
 
 
@@ -3527,6 +3722,342 @@ def run_p6_study(n_seeds=80):
     return all_rows
 
 
+# =========================================================================
+# JAMMER LINK-CUTOFF ENVELOPE STUDY (--jam-envelope): the number the
+# comms-denied headline hangs on. ADR-0015 established ONE point (an 11.5 m
+# cutoff on the compressed ~15 m lab standoff cost -26% Pk@2 -- the worst
+# single degradation) and the design constraint R_acquire >= R_cutoff +
+# coast_margin; ADR-0018's honest limit is that at WORST the cutoff precedes
+# camera acquisition so the fusion window never opens. This study maps the
+# WHOLE cliff: Pk vs R_cutoff x coast-search{off,on} x fusion{off,on} at the
+# EXPECTED tier (+ a WORST column), and extracts (a) the cliff-edge cutoff,
+# (b) the tolerated cue-denied coast distance, (c) whether fusion moves the
+# cliff, (d) the data-backed form of the R_acquire/R_cutoff requirement.
+#
+# GEOMETRY -- extended ~45 m runway, NOT the compressed 15.4 m S2 standoff:
+# cutoffs at 20-40 m are meaningless on a 15.4 m start (the cue would die
+# at t=0, i.e. "never had a cue", collapsing every such cell into one), so
+# the envelope needs a runway longer than its largest cutoff. 45 m is also
+# more faithful to the real engagement (ADR-0017's ground rig tracks to
+# ~150 m; a jammer engages in the tens of meters). Consequence: these cells
+# are NOT comparable to the ADR-0015/P-6 tables (different geometry) -- the
+# no-cut column IS the study's own baseline. NB the 11.5 m ADR-0015 point
+# lands differently here: on a 45 m runway the track is mature by 11.5 m,
+# so its -26% was substantially a SHORT-RUNWAY artifact (cut at 11.5 m of
+# 15.4 m = an infant track), which this study quantifies explicitly.
+#
+# CUE SIGMA -- uses ADR-0017's CORRECTED noise/datum split, not the hand-set
+# sigma_R = 0.4 + 0.008 R^2 the compressed-geometry studies used: at 40+ m
+# that curve gives a 13+ m sigma (ADR-0017 measured it ~180x too steep as
+# stereo noise -- physics says ~0.45 m at 100 m), which would turn the
+# envelope into a cue-noise study instead of a link-cutoff study. ADR-0017
+# says adopt (a,c) EXPECTED=(0.000, 4.45e-05) / WORST=(0.214, 1.94e-04)
+# with datum bias 0.5 / 2.5 m "at the next cue-model change" -- this is it.
+# Everything else matches the P-6 tier presets (emit-velocity ON per
+# ADR-0015's #1 lever -- also exactly what makes dead-reckoning coast work).
+#
+# All cells run the Gazebo-faithful one-way latch + m4 cue-socket semantics
+# (CUE_UNTIL_LATCH) + m4 dash yaw (DASH_YAW_TRACKER -- see that param's
+# comment; an attribution probe below shows its isolated effect), so the
+# coast{off,on} axis isolates ONLY the ADR-0015 coast/search/break-off
+# branch, and fuse{off,on} only the FusedTrack aim.
+# =========================================================================
+JAM_SPEEDS = (6.0, 8.0, 10.0)
+JAM_DASH_SPEED = 10.0
+JAM_HANDOFF_RANGE = 10.0
+JAM_PATH = "crossing_l2r"
+JAM_PATH_PARAMS = dict(x0=6.5, y0_mag=44.5)   # sqrt(6.5^2+44.5^2) ~= 45.0 m start
+JAM_CUTOFFS = (None, 40.0, 30.0, 25.0, 20.0, 15.0, 11.5, 9.0)
+JAM_WORST_CUTOFFS = (None, 20.0, 15.0, 11.5, 9.0)   # where the cliff threatens
+JAM_WEAVE_CUTOFFS = (None, 30.0, 20.0, 9.0)
+JAM_PK2_DROP = 0.10   # ">10 pts Pk@2 drop" = the cliff / coast-margin criterion
+
+JAM_TIERS = dict(
+    # EXPECTED: the P-6 EXPECTED preset with ADR-0017's corrected stereo
+    # noise + datum split (see the header comment). Emit-velocity ON.
+    EXPECTED=dict(
+        CUE_SIGMA_BASE_M=0.0, CUE_SIGMA_QUAD=4.45e-05,
+        CUE_DATUM_BIAS_MAG_M=0.5,
+        CUE_EMIT_VELOCITY=True, CUE_VEL_SIGMA_M_S=0.5,
+        CUE_LATENCY_MEAN_S=0.12, CUE_LATENCY_JITTER_S=0.05,
+        CUE_DROPOUT_MARKOV=True, CUE_DROPOUT_P_OUT=0.12, CUE_DROPOUT_BURST_S=1.5,
+        TERM_LOS_RATE_DROPOUT=True, TERM_LOS_RATE_REF_DEG_S=90.0,
+        TERM_LOS_RATE_DROPOUT_MAX=0.7,
+        TERM_BEARING_SIGMA_DEG=1.5, TERM_RANGE_NOISE_FRAC=0.22,
+    ),
+    # WORST-CREDIBLE: ADR-0017 WORST stereo curve + 2.5 m standard-GPS
+    # datum, sigma_v=1.0, worse latency jitter, p_out 0.20 / 3 s bursts.
+    WORST=dict(
+        CUE_SIGMA_BASE_M=0.214, CUE_SIGMA_QUAD=1.94e-04,
+        CUE_DATUM_BIAS_MAG_M=2.5,
+        CUE_EMIT_VELOCITY=True, CUE_VEL_SIGMA_M_S=1.0,
+        CUE_LATENCY_MEAN_S=0.12, CUE_LATENCY_JITTER_S=0.08,
+        CUE_DROPOUT_MARKOV=True, CUE_DROPOUT_P_OUT=0.20, CUE_DROPOUT_BURST_S=3.0,
+        TERM_LOS_RATE_DROPOUT=True, TERM_LOS_RATE_REF_DEG_S=90.0,
+        TERM_LOS_RATE_DROPOUT_MAX=0.7,
+        TERM_BEARING_SIGMA_DEG=1.5, TERM_RANGE_NOISE_FRAC=0.22,
+    ),
+)
+
+
+def _jam_rows(tier_name, cutoff, coast, fuse, speed, n_seeds, terminal,
+              path=JAM_PATH, path_params=None, dash_yaw=True):
+    """n_seeds two_stage_dash runs for one envelope cell, rows stamped with
+    the cell coordinates for the CSV. Seeds are always range(n_seeds)."""
+    perc = dict(JAM_TIERS[tier_name])
+    if cutoff is not None:
+        perc["CUE_LINK_CUTOFF_RANGE_M"] = cutoff
+    mp = dict(
+        DASH_SPEED=JAM_DASH_SPEED, HANDOFF_RANGE=JAM_HANDOFF_RANGE,
+        TERMINAL_METHOD=terminal,
+        FUSE_GAZEBO_LATCH=True,        # honest S2 one-way latch, all cells
+        CUE_UNTIL_LATCH=True,          # m4 cue-socket semantics, all cells
+        DASH_YAW_TRACKER=dash_yaw,     # m4 dash yaw semantics (see probe)
+    )
+    if fuse:
+        mp["FUSE_MIDCOURSE"] = True
+    if coast:
+        mp["COAST_SEARCH"] = True
+    pp = dict(path_params if path_params is not None else JAM_PATH_PARAMS,
+              speed=speed, handoff_range=JAM_HANDOFF_RANGE)
+    rows = []
+    for seed in range(n_seeds):
+        r = simulate("two_stage_dash", mp, path, pp, seed, two_stage=True,
+                     perception=perc)
+        r.update(
+            jam_tier=tier_name, jam_cutoff=cutoff,
+            jam_coast=int(coast), jam_fuse=int(fuse),
+            jam_dash_yaw=int(dash_yaw), jam_path=path,
+        )
+        rows.append(r)
+    return rows
+
+
+def _jam_stats(rows):
+    miss = np.array([r["miss_distance"] for r in rows])
+    tc = [r["terminal_coverage"] for r in rows if r["terminal_coverage"] is not None]
+    acq = [r["first_camera_lock_range"] for r in rows
+           if r["first_camera_lock_range"] is not None]
+    return dict(
+        n=len(rows), mean=float(miss.mean()), p90=float(np.percentile(miss, 90)),
+        pk1=float(np.mean(miss <= 1.0)), pk2=float(np.mean(miss <= 2.0)),
+        term_cov=float(np.mean(tc)) if tc else None,
+        lock=float(np.mean([r["camera_locked"] for r in rows])),
+        reacq=float(np.mean([r["acquired_after_cut"] for r in rows])),
+        brk=float(np.mean([r["coast_breakoff"] for r in rows])),
+        acq_range=float(np.mean(acq)) if acq else None,
+    )
+
+
+def _jam_cut_label(cutoff):
+    return "no-cut" if cutoff is None else f"{cutoff:g} m"
+
+
+def _jam_print_header():
+    print(f"    {'cutoff':>7s}  {'n':>3s}  {'mean':>5s} {'p90':>5s}  "
+          f"{'Pk@1':>5s} {'Pk@2':>5s}  {'Pk@2 @6/8/10':>14s}  "
+          f"{'t_cov':>5s} {'lock':>5s} {'reacq':>5s} {'brkoff':>6s} {'acq_R':>5s}")
+
+
+def _jam_print_cell(cutoff, pooled, per_speed):
+    tc = f"{pooled['term_cov']:.2f}" if pooled["term_cov"] is not None else "  n/a"
+    aq = f"{pooled['acq_range']:5.2f}" if pooled["acq_range"] is not None else "  n/a"
+    pspd = "/".join(f"{per_speed[sp]['pk2'] * 100:3.0f}" for sp in JAM_SPEEDS)
+    print(f"    {_jam_cut_label(cutoff):>7s}  {pooled['n']:>3d}  "
+          f"{pooled['mean']:5.2f} {pooled['p90']:5.2f}  "
+          f"{pooled['pk1'] * 100:4.0f}% {pooled['pk2'] * 100:4.0f}%  "
+          f"{pspd:>14s}  {tc:>5s} {pooled['lock'] * 100:4.0f}% "
+          f"{pooled['reacq'] * 100:4.0f}% {pooled['brk'] * 100:5.0f}% {aq}")
+
+
+def _jam_config_sweep(tier, cutoffs, coast, fuse, terminal, n_seeds, all_rows,
+                      speeds=JAM_SPEEDS):
+    """Run cutoffs x speeds for one (tier, coast, fuse, terminal) config.
+    Returns {cutoff: pooled_stats} and prints the table block."""
+    out = {}
+    print(f"\n  --- tier={tier}  terminal={terminal}  "
+          f"coast-search={'ON ' if coast else 'off'}  "
+          f"fusion={'ON ' if fuse else 'off'} ---")
+    _jam_print_header()
+    for cutoff in cutoffs:
+        per_speed = {}
+        cell_rows = []
+        for sp in speeds:
+            rows = _jam_rows(tier, cutoff, coast, fuse, sp, n_seeds, terminal)
+            all_rows.extend(rows)
+            cell_rows.extend(rows)
+            per_speed[sp] = _jam_stats(rows)
+        pooled = _jam_stats(cell_rows)
+        out[cutoff] = pooled
+        _jam_print_cell(cutoff, pooled, per_speed)
+    return out
+
+
+def _jam_cliff(stats_by_cutoff, cutoffs):
+    """Cliff extraction for one config: largest cutoff still tolerated
+    (pooled Pk@2 within JAM_PK2_DROP of the no-cut baseline, with every
+    smaller tested cutoff also tolerated -- a prefix in ascending order),
+    plus ALL failing cutoffs (an isolated small-cutoff fail with larger
+    ones passing is visible seed noise, not hidden by the prefix rule).
+    Returns (base_pk2, edge, fails)."""
+    base = stats_by_cutoff[None]["pk2"]
+    finite = sorted(c for c in cutoffs if c is not None)
+    fails = [c for c in finite if base - stats_by_cutoff[c]["pk2"] > JAM_PK2_DROP]
+    edge = None
+    for c in finite:
+        if c in fails:
+            break
+        edge = c
+    return base, edge, fails
+
+
+def run_jam_envelope(n_seeds=80):
+    """The jammer link-cutoff envelope study. Returns all rows for the CSV."""
+    all_rows = []
+    t0 = time.perf_counter()
+    print("\n" + "=" * 100)
+    print(f"JAMMER LINK-CUTOFF ENVELOPE (ADR-0015 'Handoff continuity') -- "
+          f"~45 m runway, S2 dash{JAM_DASH_SPEED:.0f}/handoff{JAM_HANDOFF_RANGE:.0f}, "
+          f"{n_seeds} seeds/cell (seeds 0..{n_seeds - 1})")
+    print("=" * 100)
+    print("  All cells: Gazebo-faithful one-way latch + m4 cue-until-latch + m4 dash yaw;")
+    print("  EXPECTED tier = ADR-0015 realistic defaults WITH emit-velocity + ADR-0017")
+    print("  corrected sigma_R split. Geometry differs from the ADR-0015/P-6 tables --")
+    print("  compare cells to THIS study's no-cut column only.")
+
+    # --- (A) EXPECTED envelope: cutoff x coast x fuse, PIP terminal --------
+    print("\n" + "#" * 100)
+    print("#  (A) EXPECTED tier, terminal=pip: cutoff x coast-search x fusion")
+    print("#" * 100)
+    exp_pip = {}
+    for coast in (False, True):
+        for fuse in (False, True):
+            exp_pip[(coast, fuse)] = _jam_config_sweep(
+                "EXPECTED", JAM_CUTOFFS, coast, fuse, "pip", n_seeds, all_rows)
+
+    # --- (B) EXPECTED, pure_pn terminal (fuse=off only -- cheapness cut:
+    # the fusion axis is already covered on PIP, and ADR-0018 found fusion
+    # tier-consistent across both terminals) ---------------------------------
+    print("\n" + "#" * 100)
+    print("#  (B) EXPECTED tier, terminal=pure_pn (fusion=off only): cutoff x coast-search")
+    print("#" * 100)
+    exp_pn = {}
+    for coast in (False, True):
+        exp_pn[(coast, False)] = _jam_config_sweep(
+            "EXPECTED", JAM_CUTOFFS, coast, False, "pure_pn", n_seeds, all_rows)
+
+    # --- (C) WORST column at the threatening cutoffs, PIP -------------------
+    print("\n" + "#" * 100)
+    print("#  (C) WORST tier, terminal=pip: cutoff x coast-search x fusion")
+    print("#" * 100)
+    worst_pip = {}
+    for coast in (False, True):
+        for fuse in (False, True):
+            worst_pip[(coast, fuse)] = _jam_config_sweep(
+                "WORST", JAM_WORST_CUTOFFS, coast, fuse, "pip", n_seeds, all_rows)
+
+    # --- (D) maneuvering-target honesty probe: the crossing target is
+    # constant-velocity, which is the BEST case for a dead-reckon coast (the
+    # frozen velocity stays true). s_weave breaks that assumption -- the
+    # coast tolerance below is an upper bound and this probe shows how much
+    # a weaving target erodes it. ------------------------------------------
+    print("\n" + "#" * 100)
+    print("#  (D) MANEUVER PROBE: s_weave target @8 m/s, EXPECTED, pip, fusion=off")
+    print("#      (CV-target coast tolerance is an UPPER BOUND; weave breaks dead-reckoning)")
+    print("#" * 100)
+    weave_pp = dict(x0=6.5, y0=-44.5)   # same ~45 m start as the crossing cells
+    for coast in (False, True):
+        print(f"\n  --- s_weave  coast-search={'ON ' if coast else 'off'} ---")
+        _jam_print_header()
+        for cutoff in JAM_WEAVE_CUTOFFS:
+            rows = _jam_rows("EXPECTED", cutoff, coast, False, 8.0, n_seeds,
+                             "pip", path="s_weave", path_params=weave_pp)
+            all_rows.extend(rows)
+            s = _jam_stats(rows)
+            _jam_print_cell(cutoff, s, {sp: s for sp in JAM_SPEEDS})
+
+    # --- (E) attribution probe: DASH_YAW_TRACKER off vs on (coast off,
+    # fuse off) -- shows how much of any coast-cell gain is just "the
+    # boresight follows the track" (the m4 semantics every cell above uses)
+    # rather than the coast/search branch itself. ---------------------------
+    print("\n" + "#" * 100)
+    print("#  (E) ATTRIBUTION PROBE: m4 dash yaw (DASH_YAW_TRACKER) off vs on,")
+    print("#      EXPECTED, pip, coast=off, fuse=off, speeds 6+10 pooled")
+    print("#" * 100)
+    print(f"    {'cutoff':>7s}  {'yaw':>3s}  {'n':>3s}  {'mean':>5s} {'p90':>5s}  "
+          f"{'Pk@1':>5s} {'Pk@2':>5s}  {'lock':>5s} {'acq_R':>5s}")
+    for cutoff in (None, 40.0):
+        for dash_yaw in (False, True):
+            rows = []
+            for sp in (6.0, 10.0):
+                rows.extend(_jam_rows("EXPECTED", cutoff, False, False, sp,
+                                      n_seeds, "pip", dash_yaw=dash_yaw))
+            all_rows.extend(rows)
+            s = _jam_stats(rows)
+            aq = f"{s['acq_range']:5.2f}" if s["acq_range"] is not None else "  n/a"
+            print(f"    {_jam_cut_label(cutoff):>7s}  {'ON ' if dash_yaw else 'off'}  "
+                  f"{s['n']:>3d}  {s['mean']:5.2f} {s['p90']:5.2f}  "
+                  f"{s['pk1'] * 100:4.0f}% {s['pk2'] * 100:4.0f}%  "
+                  f"{s['lock'] * 100:4.0f}% {aq}")
+
+    # --- VERDICT ------------------------------------------------------------
+    print("\n" + "=" * 100)
+    print("ENVELOPE VERDICT (pooled 6/8/10 m/s; cliff criterion: pooled Pk@2 "
+          f"drop > {JAM_PK2_DROP * 100:.0f} pts vs the SAME config's no-cut)")
+    print("=" * 100)
+    verdicts = {}
+    for label, table, cutoffs in (
+        ("EXPECTED pip", exp_pip, JAM_CUTOFFS),
+        ("EXPECTED pure_pn", exp_pn, JAM_CUTOFFS),
+        ("WORST pip", worst_pip, JAM_WORST_CUTOFFS),
+    ):
+        for (coast, fuse), stats in table.items():
+            base, edge, fails = _jam_cliff(stats, cutoffs)
+            acq = stats[None]["acq_range"]
+            margin = (edge - acq) if (edge is not None and acq is not None) else None
+            key = (label, coast, fuse)
+            verdicts[key] = dict(base=base, edge=edge, fails=fails, acq=acq, margin=margin)
+            fail_txt = ("none tested" if not fails
+                        else ",".join(_jam_cut_label(c) for c in fails))
+            print(f"  {label:18s} coast={'ON ' if coast else 'off'} "
+                  f"fuse={'ON ' if fuse else 'off'}:  no-cut Pk@2={base * 100:3.0f}%  "
+                  f"tolerated cutoff <= {_jam_cut_label(edge) if edge is not None else 'NONE':>7s}"
+                  f"  fails: {fail_txt}"
+                  + (f"  R_acq~{acq:.1f} m  coast margin~{margin:+.1f} m"
+                     if margin is not None else ""))
+    print("\n  Reading the margin: 'coast margin' = tolerated_cutoff - measured "
+          "acquisition range, i.e. how many")
+    print("  meters of cue-denied dead-reckon coast the system absorbs before "
+          "the >10-pt Pk@2 cliff. In")
+    print("  ADR-0015's constraint form R_acquire >= R_cutoff + coast_margin, "
+          "the data supports R_acquire >=")
+    print("  R_cutoff - X with X = the printed margin (a NEGATIVE required "
+          "margin: acquisition may happen X m")
+    print("  INSIDE the cutoff radius because the coast covers the gap).")
+
+    print(f"\n[guidance_lab] jam-envelope study done in "
+          f"{time.perf_counter() - t0:.2f}s ({len(all_rows)} runs)")
+    return all_rows
+
+
+def write_jam_csv(rows, path):
+    fieldnames = [
+        "method", "path", "speed", "seed", "two_stage",
+        "dash_speed", "handoff_range_cfg", "terminal_method",
+        "jam_tier", "jam_cutoff", "jam_coast", "jam_fuse", "jam_dash_yaw", "jam_path",
+        "miss_distance", "intercept_time", "control_effort",
+        "detection_coverage", "terminal_coverage", "tag_lost_in_terminal",
+        "camera_locked", "first_camera_lock_t", "first_camera_lock_range",
+        "link_cut", "link_cut_no_acquire", "acquired_after_cut",
+        "coast_engaged", "coast_searched", "coast_breakoff",
+    ]
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({k: r.get(k) for k in fieldnames})
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--quick", action="store_true", help="small fast sweep (smoke test)")
@@ -3564,12 +4095,38 @@ def main():
                               "study, writing its own CSV. See the P-6 section of this file.")
     parser.add_argument("--p6-seeds", type=int, default=80,
                          help="seed count per cell for the P-6 fusion study (default 80, >=80 asked)")
+    parser.add_argument("--jam-envelope", action="store_true",
+                         help="run ONLY the jammer link-cutoff ENVELOPE study (ADR-0015 "
+                              "'Handoff continuity': Pk vs cutoff range x coast-search x "
+                              "fusion on a ~45 m runway, EXPECTED + WORST tiers, cliff-edge "
+                              "and coast-margin extraction) instead of the main trade study, "
+                              "writing its own CSV. See the JAM section of this file.")
+    parser.add_argument("--jam-seeds", type=int, default=80,
+                         help="seed count per cell for the jam-envelope study (default 80)")
     args = parser.parse_args()
 
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     csv_path = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}.csv")
     plot_prefix = os.path.join(LOGS_DIR, f"guidance_lab_{timestamp}")
+
+    if args.jam_envelope:
+        print(f"\n[guidance_lab] jammer link-cutoff envelope study "
+              f"(seeds={args.jam_seeds}/cell)")
+        jam_csv_path = os.path.join(LOGS_DIR, f"guidance_lab_jamenv_{timestamp}.csv")
+        all_rows = run_jam_envelope(n_seeds=args.jam_seeds)
+        write_jam_csv(all_rows, jam_csv_path)
+        print(f"\n[guidance_lab] jam-envelope CSV written: {jam_csv_path} "
+              f"({len(all_rows)} rows)")
+        print(
+            "  REMINDER: kinematic surrogate -- this RANKS and SIZES the link-cutoff "
+            "envelope (relative cliff position, coast tolerance, fusion interaction); "
+            "the lab under-prices terminal perception (ADR-0015 caveat) and the "
+            "crossing target is constant-velocity (dead-reckon best case -- see the "
+            "s_weave probe). The cliff numbers gate a Gazebo --coast-search A/B; "
+            "Gazebo decides."
+        )
+        return 0
 
     if args.p6_fusion:
         print(f"\n[guidance_lab] P-6 mid-course-fusion + warm-handoff study "
