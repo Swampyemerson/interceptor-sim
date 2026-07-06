@@ -13,18 +13,16 @@ linchpin), lab byte-identity, small-n stats, cue-mock σ_R gap, sourced numbers,
 metric honesty, repo hygiene, plus one end-to-end gate reproduction. Results get
 appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
 
-## Build queue (ordered, per ADR-0023/0024/0025 — start here when the audit clears)
+## Build queue (ordered, per ADR-0023/0024/0025)
 
-1. **Tier-2 acquisition range (the real lever) — now serves TWO problems (ADR-0027).**
-   Narrow SDF `<horizontal_fov>` + raise `HANDOFF_RANGE` → earlier lock → bigger t_go
-   (correction capacity ∝ t_go²; acquiring at 12 m instead of 6.5 m raises capacity
-   0.72 → ~4.3 m). Reopens the ADR-0010 anti-tag-inflation door: MUST re-baseline
-   M1/M2 gates + disclose in README. Then paired mc_batch, primary metrics ZEM@handoff
-   + miss. **Also fixes the new 9 m/s finding:** at 9 m/s only 5/12 flights latched
-   handoff at all — the tag crosses the ≤10 m envelope too fast for the 3-frame streak.
-   A longer-range gate + earlier acquisition lets more flights latch. Pair it with a
-   **lower/adaptive `HANDOFF_STREAK_MIN`** (2 within the gate at high closing speed?) —
-   test as its own A/B, since terminal kinematics can't touch the never-latched 58%.
+1. **✅ Tier-2 acquisition range — CONCLUDED (ADR-0024 3rd addendum).** Full FOV/streak
+   sweep done in Gazebo: **60° FOV narrowing REJECTED** (0/12 latch at 9 m/s — can't
+   hold a fast crosser; 7th lab-vs-Gazebo divergence, reverted from the tree).
+   **streak-min=2 (`--early-handoff`) ADOPTED for the fast/FPV regime** — ~doubled the
+   9 m/s latch (42%→88%), but the miss stays kinematic (~3.3 m; 3rd reconfirmation of
+   ADR-0023). Net: use `--early-handoff` for fast-regime M5 batches; the 9 m/s *miss*
+   is a proximity-metric problem (ADR-0025), not a sensing one. Still open: an S2-gate
+   re-check at streak=2 before making it the global default.
 2. **Adopt corrected cue constants (P-8).** ADR-0017's stereo split — σ_R
    c=4.45e-05 (not 0.008·R²) + separate `--datum-bias-m` — into s2_cue_mock
    defaults, plus the 0.20 s WORST latency stress tier (ADR-0016). Changes the cue
@@ -47,11 +45,16 @@ appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
    face stays world −X, so maneuvers are velocity-schedule changes only —
    ADR-0010 #6). Outputs: miss-vs-intensity curve, per-path pursuit-vs-pronav,
    Pk-vs-radius curves under the ADR-0025 proximity metric (ram 0.5 m / net 1.5 m).
-4. **M5 finish (the protected finish line).** Trajectory overlays + miss
-   histograms/CDF (matplotlib → plots/), README final numbers filled into the
-   drafted TODO slots, reproduce instructions, and the demo GIF (GUI
-   pursuit-vs-pronav side-by-side — Emerson's standing request). Batches at idle
-   load, paired seeds, ~3 min/run wall — budget hours.
+4. **M5 finish + the DEMO (the protected finish line).** Trajectory overlays + miss
+   histograms/CDF (matplotlib → plots/), README final numbers, reproduce
+   instructions. **The demo video + portfolio packaging is now fully planned in
+   `docs/demo_plan.md`** (data-driven glass-cockpit HUD from the CSV, 9-beat
+   storyboard, honest kill depiction, 5-part portfolio package, ordered TODO).
+   Ungated demo tooling (ffmpeg install, `t_sim` CSV column, `render_hud.py`, the
+   kill graphic, WRITEUP skeleton) can be built NOW; the hero-take flight + S3
+   maneuvering mover are gated on guidance being final (which it now largely is —
+   Tier-2 concluded). Batches at idle load, paired seeds, `--early-handoff` for the
+   fast regime.
 
 ## Parked (designed, not scheduled — do not build before M5 ships)
 
