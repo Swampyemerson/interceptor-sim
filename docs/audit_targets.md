@@ -32,6 +32,18 @@ in the repo. Start there and at the honesty boundary (A).
   truly side-effect-free (it makes no gz service calls — verify)? Does any Tier-1 or
   fusion code path read `ext_*` / cue state after the latch? Trace every consumer of
   the cue holder and confirm it is nulled and not re-populated.
+- **Strengthened 2026-07-06 (this audit's own gaps, closed):** `tests/test_honesty_static.py`
+  adds a fast, sim-free `ast`-based check of `scripts/m4_intercept.py` itself — every
+  `cue_reader` read is guarded (or is the one designated latch site), and every `gt_*`
+  read is allowlisted to logging/scoring only, never the command chain (proven by
+  injecting a fake `v_perp += gt_range` into a scratch copy and confirming it fails).
+  `scripts/check_s2.sh` audit (a) now also asserts every **non-detected** post-handoff
+  ENGAGE row holds the previous command or hovers exactly (the old check only looked at
+  `ext_*`, blind to what a non-detected tick commands). A new advisory audit (d)
+  (`corr(d_cmd, d_gt)`, commanded-minus-camera vs ground-truth-minus-camera LOS
+  deviation) was calibrated against every historical S2 flight in `logs/`: honest
+  flights span roughly -0.99..+0.92, so no bound separates honest noise from a leak at
+  this sample size — it is intentionally advisory/non-gating, not a hard pass/fail.
 
 ### B. Terminal guidance mechanization + coordinate-frame/sign conventions
 - **Artifacts:** `scripts/m4_intercept.py` terminal law (strapdown `λ = ψ + β`,

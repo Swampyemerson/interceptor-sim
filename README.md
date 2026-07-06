@@ -125,6 +125,9 @@ degraded version of) ground truth, because it stands in for a real,
 independent sensor (a ground stereo rig) that GOALS.md explicitly scopes out
 of this sim. Every gate script re-derives the numeric no-cheat check: commands
 must trace to the camera's measured range/bearing, not to the scoring feed.
+`tests/test_honesty_static.py` backs this with a fast, sim-free static check
+of the guidance source itself (no ground-truth or post-latch cue read ever
+feeds a command), runnable standalone or under pytest.
 
 ---
 

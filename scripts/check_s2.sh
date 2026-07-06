@@ -168,17 +168,24 @@ if [[ ! -e "$WORLD_SYMLINK" || "$(readlink -f "$WORLD_SYMLINK" 2>/dev/null)" != 
 fi
 
 # --- audit function: reads a flight CSV and checks (a) no ext_* activity
-# at/after the first ENGAGE row, (b) at least one DASH row before it, and
-# (c) commanded velocity azimuth tracks the camera-derived lambda_deg on
-# ENGAGE rows with a detection (numeric no-cheat check, adapted from the
-# project's existing camera-not-ground-truth audits -- ADR-0008/M3,
-# ADR-0009/M4 -- to this two-stage handoff's specific claim: post-handoff,
-# nothing but the camera drives the command). LAW-AWARE correlation bound
-# (ADR-0013): pronav >= 0.7 (its lateral term is built directly off lambda);
-# pip >= 0.55, because PIP's lead-point solve legitimately decorrelates the
-# commanded azimuth from the raw LOS -- the cleanest flight of the dev
-# session (m4_intercept_pip_20260705T174315Z.csv, miss 1.087 m, structurally
-# honest on audits (a)/(b)) measured corr 0.689 and would fail a flat 0.7.
+# at/after the first ENGAGE row, PLUS (Fable audit 2026-07-06,
+# docs/audit_targets.md item A) every non-detected post-handoff ENGAGE row
+# commands exactly the held previous velocity or the hover fallback -- the
+# original ext_* check alone is blind to what a non-detected tick commands;
+# (b) at least one DASH row before it; (c) commanded velocity azimuth tracks
+# the camera-derived lambda_deg on ENGAGE rows with a detection (numeric
+# no-cheat check, adapted from the project's existing camera-not-ground-truth
+# audits -- ADR-0008/M3, ADR-0009/M4 -- to this two-stage handoff's specific
+# claim: post-handoff, nothing but the camera drives the command). LAW-AWARE
+# correlation bound (ADR-0013): pronav >= 0.7 (its lateral term is built
+# directly off lambda); pip >= 0.55, because PIP's lead-point solve
+# legitimately decorrelates the commanded azimuth from the raw LOS -- the
+# cleanest flight of the dev session (m4_intercept_pip_20260705T174315Z.csv,
+# miss 1.087 m, structurally honest on audits (a)/(b)) measured corr 0.689
+# and would fail a flat 0.7. Also (d), ADVISORY ONLY (see its own comment
+# below for why): a residual-leak correlation that a partial/blended leak
+# could hide from (c) inside the honest camera/ground-truth coupling that
+# already exists in a working intercept.
 audit_csv() {
     local csv_path="$1"
     local law="$2"
@@ -210,17 +217,65 @@ bad_rows = [
     i for i, r in enumerate(rows[engage_idx:], start=engage_idx)
     if r["ext_x"] or r["ext_y"] or r["ext_z"] or r["ext_fresh"] not in ("", "0")
 ]
-if bad_rows:
-    print(
-        f"[audit] FAIL (a): {len(bad_rows)} rows at/after first ENGAGE "
-        f"(row {engage_idx}) have non-empty ext_* -- cue used post-handoff "
-        f"(first offender: row {bad_rows[0]})"
-    )
+
+# (a) EXTENDED (Fable audit 2026-07-06, docs/audit_targets.md item A): the
+# ext_* check above only proves the cue isn't touched -- it says nothing
+# about what a NON-detected ENGAGE tick commands, and audit (c) below is
+# blind to those same rows (it filters to detected==1). m4_intercept.py's
+# non-detected ENGAGE branch (module code) has exactly two legal outcomes:
+# hold the last command verbatim (inside TERMINAL_RANGE_M, dropout-hold) or
+# hover with velocity pinned to (0,0,0) (far from the target, lost-tag).
+# Both are LITERAL value reuse / hardcoded constants, never recomputed from
+# any source (camera, cue, or ground truth) -- so this checks for an EXACT
+# match against the CSV's own prior row, not a tolerance band. Any future
+# regression that made a non-detected tick coast on the cue or on ground
+# truth would show up here as a velocity that is neither the previous row's
+# nor zero.
+HOLD_TOL = 1e-6
+bad_nondet_rows = []
+for i, r in enumerate(rows[engage_idx:], start=engage_idx):
+    if r["phase"] != "ENGAGE" or r["detected"] == "1":
+        continue
+    prev = rows[i - 1]
+    try:
+        cur = tuple(float(r[k]) for k in ("cmd_vn", "cmd_ve", "cmd_vd"))
+        prv = tuple(float(prev[k]) for k in ("cmd_vn", "cmd_ve", "cmd_vd"))
+    except (KeyError, ValueError):
+        bad_nondet_rows.append((i, "missing/unparseable cmd_v* cell"))
+        continue
+    is_hold = all(abs(cur[k] - prv[k]) < HOLD_TOL for k in range(3))
+    is_hover = all(abs(v) < HOLD_TOL for v in cur)
+    if not (is_hold or is_hover):
+        bad_nondet_rows.append((
+            i,
+            f"cmd=({cur[0]:.4f},{cur[1]:.4f},{cur[2]:.4f}) is neither the "
+            f"held previous row's ({prv[0]:.4f},{prv[1]:.4f},{prv[2]:.4f}) "
+            "nor the hover fallback (0,0,0)",
+        ))
+
+if bad_rows or bad_nondet_rows:
     ok = False
+    if bad_rows:
+        print(
+            f"[audit] FAIL (a): {len(bad_rows)} rows at/after first ENGAGE "
+            f"(row {engage_idx}) have non-empty ext_* -- cue used post-handoff "
+            f"(first offender: row {bad_rows[0]})"
+        )
+    if bad_nondet_rows:
+        first_i, first_reason = bad_nondet_rows[0]
+        print(
+            f"[audit] FAIL (a): {len(bad_nondet_rows)} non-detected ENGAGE "
+            f"rows commanded a velocity that is neither held nor hovered "
+            f"(first offender: row {first_i}, {first_reason})"
+        )
 else:
+    n_nondet_checked = sum(
+        1 for r in rows[engage_idx:] if r["phase"] == "ENGAGE" and r["detected"] != "1"
+    )
     print(
         f"[audit] PASS (a): zero non-empty ext_* cells across "
-        f"{len(rows) - engage_idx} rows at/after first ENGAGE (row {engage_idx})"
+        f"{len(rows) - engage_idx} rows at/after first ENGAGE (row {engage_idx}), "
+        f"and all {n_nondet_checked} non-detected ENGAGE rows held/hovered exactly"
     )
 
 # (b) at least one DASH row precedes the first ENGAGE row -- proves the
@@ -287,6 +342,97 @@ else:
             ok = False
         else:
             print(f"[audit] PASS (c): cmd-velocity-azimuth vs camera lambda_deg correlation {corr:.3f} >= {bound} over {n} rows")
+
+# (d) residual-leak check (Fable audit 2026-07-06, docs/audit_targets.md item
+# A): audit (c) shows the command tracks the CAMERA'S OWN lambda -- but that
+# alone can't rule out a PARTIAL/blended leak, because in a working intercept
+# the camera's lambda and the ground-truth LOS are themselves highly
+# correlated (both are looking at roughly the same real target). The sharper
+# test: does the command's DEVIATION from lambda track ground truth's
+# DEVIATION from lambda? d_cmd = commanded azimuth - lambda_deg; d_gt =
+# ground-truth LOS azimuth - lambda_deg (ground-truth azimuth from
+# gt_cam_*/gt_tag_* world positions, mapped to the SAME NED-compass
+# convention as lambda_deg/cmd azimuth -- see m4_intercept.py's "S2
+# WORLD-FRAME MAPPING": north=world_y, east=world_x). A leak's signature
+# would be corr(d_cmd, d_gt) that is HIGH.
+#
+# CALIBRATION (2026-07-06, offline over every historical S2 (--handoff) run
+# under logs/ with a DASH phase -- all independently audit-(a)/(b)/(c)-clean,
+# so corr(d_cmd, d_gt) on THESE flights is the honest-flight noise floor, not
+# a leak signature): pip, n=10 flights (8-31 usable rows each), corr range
+# [-0.986, +0.293], mean -0.527; pronav, n=124 flights, corr range
+# [-0.973, +0.920], mean -0.389. Pooling every row within a law across all
+# flights doesn't tame this either (pip pooled n=204 rows -> -0.564; pronav
+# pooled n=2031 rows -> +0.382) -- the correlation does NOT converge toward
+# zero with more data, which means it is tracking a real, law-dependent
+# mechanization coupling (PIP's lead solve and pro-nav's lambda_dot
+# integration both legitimately respond to the same real target geometry
+# that ALSO drives the ground-truth residual), not a leak/no-leak split.
+# Known-honest flights already span almost the entire possible [-1, +1]
+# range in BOTH signs, so no numeric bound separates "honest" from "leaking"
+# at this sample size (n=8-31 residual ticks per flight) -- a hard bound here
+# would either let a real leak through or fail real honest flights
+# (including the official gate runs, e.g. pip 20260705T211520Z sits at -0.99
+# on this metric while being independently clean on (a)/(b)/(c)).
+#
+# DECISION: audit (d) is ADVISORY ONLY -- printed for a human to eyeball
+# trend-wise across many runs, and never gates the exit code. This is the
+# honest call the metric's own data supports, not a shortcut: see the task
+# brief's own escape hatch for exactly this situation.
+xs_res, ys_res = [], []
+for r in rows[engage_idx:]:
+    if r["phase"] != "ENGAGE":
+        continue
+    if r["detected"] != "1" or not r["lambda_deg"] or not r["cmd_vn"] or not r["cmd_ve"]:
+        continue
+    if not r["gt_cam_x"] or not r["gt_cam_y"] or not r["gt_tag_x"] or not r["gt_tag_y"]:
+        continue
+    lam = float(r["lambda_deg"])
+    vn = float(r["cmd_vn"])
+    ve = float(r["cmd_ve"])
+    if abs(vn) < 1e-6 and abs(ve) < 1e-6:
+        continue
+    az = math.degrees(math.atan2(ve, vn))
+    diff = az - lam
+    if diff > 180.0:
+        az -= 360.0
+    elif diff < -180.0:
+        az += 360.0
+    d_cmd = az - lam
+
+    north = float(r["gt_tag_y"]) - float(r["gt_cam_y"])
+    east = float(r["gt_tag_x"]) - float(r["gt_cam_x"])
+    gt_az = math.degrees(math.atan2(east, north))
+    diff2 = gt_az - lam
+    if diff2 > 180.0:
+        gt_az -= 360.0
+    elif diff2 < -180.0:
+        gt_az += 360.0
+    d_gt = gt_az - lam
+
+    xs_res.append(d_cmd)
+    ys_res.append(d_gt)
+
+n_res = len(xs_res)
+if n_res < 5:
+    print(f"[audit] WARN (d) [advisory]: only {n_res} usable rows -- skipping residual-leak advisory")
+else:
+    mxr = sum(xs_res) / n_res
+    myr = sum(ys_res) / n_res
+    covr = sum((xs_res[i] - mxr) * (ys_res[i] - myr) for i in range(n_res))
+    vxr = sum((v - mxr) ** 2 for v in xs_res)
+    vyr = sum((v - myr) ** 2 for v in ys_res)
+    if vxr < 1e-6 or vyr < 1e-6:
+        print(f"[audit] WARN (d) [advisory]: degenerate variance over {n_res} rows -- skipping residual-leak advisory")
+    else:
+        corr_d = covr / math.sqrt(vxr * vyr)
+        print(
+            f"[audit] INFO (d) [advisory, non-gating]: residual-leak "
+            f"corr(d_cmd, d_gt) = {corr_d:.3f} over {n_res} rows (historical "
+            "honest-flight range spans roughly -0.99..+0.92 -- see the "
+            "calibration comment above; not bounded, does not affect the "
+            "exit code)"
+        )
 
 sys.exit(0 if ok else 1)
 PYEOF
