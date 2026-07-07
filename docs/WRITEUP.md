@@ -76,6 +76,15 @@ These are stated as engineering maturity, not apology — sim-to-real awareness 
 - **The "kill" is a lethal-radius closest-approach criterion, not a modeled collision** — the target is a flat board with no airframe body. Every Pk is closest-approach vs. a *chosen* radius set by real kill-mechanism physics (kinetic ram ≈ 0.5 m, net ≈ 1.5 m, ADR-0025), never a radius reverse-engineered to clear a threshold. This is honest rather than a dodge precisely *because* the kinematic diagnosis shows the miss is floored near ~0.9–1.0 m even with perfect sensing at 6 m/s — a lethal radius isn't hiding a bad miss, it's the physically required design.
 - **Sim omits motion blur, rolling shutter, vibration, and variable lighting.** Real detection cadence will be *worse* than these logs, not better. The hardware is chosen (Pixhawk 6C + Pi 5 + global-shutter mono cam + X500) and staged bench-perception-first, but not built.
 
+### Where it actually breaks — a measured robustness envelope (ADR-0031)
+
+Rather than assert robustness, I stress-tested it. Holding the best (dash-track-fix) config fixed and degrading the cue, the intercept **holds — ≥83% handoff, ~1.2–1.5 m miss — as long as either link dropout stays under ~2× nominal, or a jammer leaves the cue alive to within ~12 m of the target.** Beyond ~4× dropout or a cutoff at ~16 m+, it fails on 33–83% of flights. Two things make this an *honest* finding rather than a comforting one:
+
+- **It fails by never engaging, not by a wider miss.** Every catastrophic failure is the same mode: the mid-course dead-reckon drifts off, the camera never builds its detection streak, and the flight never reaches the terminal phase at all. So **perception *availability*, not terminal accuracy, is the binding constraint once the cue degrades.**
+- **The naive metric lies here.** A blind flyby still logs a small ballistic "miss," so *averaging miss distance would flatter the broken configs* (a 50%-failure arm shows a lower raw mean than baseline). The honest headline under degraded perception is **handoff rate, not miss.** Recognizing that is the point.
+
+(Caveat: n=6/arm — this brackets the ~12–16 m cliff without pinning it; a bounded reacquisition search, `--coast-search`, is the obvious untested mitigation.)
+
 ## 7. Engineering process — the part that is the portfolio
 
 - **30+ ADRs with real dissent and reversals.** A lab-and-analysis-endorsed plan to *narrow the camera FOV* (99.7° → 60°) for longer-range acquisition was overturned by Gazebo: the narrow field couldn't *hold* a fast crosser and the 9 m/s handoff-latch rate collapsed 42% → 0%. Rejected; the wide lens stays; the real fix (streak-min = 2) doubled the latch to 88% instead (ADR-0024 addenda). My *own* guidance guesses were killed by analysis before flying more than once.
