@@ -5,7 +5,63 @@ sequences and large MP4/GIF media, not source. Two sample stills are committed
 separately under `docs/images/` (`demo_chase_final.png`, `demo_onboard_final.png`)
 for quick viewing without regenerating anything.
 
-## Status (2026-07-07): DONE — re-capture after builder feedback (3 fixes + 1 add)
+## Finished demo video — `scripts/build_demo.py` (2026-07-07)
+
+The produced cut is assembled offline (no Gazebo/GPU — the 700+ frames are already
+captured) by **`scripts/build_demo.py`** from the hero flight
+`logs/m4_intercept_pronav_20260707T211601Z.csv` (miss **0.632 m**). Run it with:
+
+```
+.venv/bin/python scripts/build_demo.py          # onboard MP4+GIF + chase MP4
+.venv/bin/python scripts/build_demo.py --fast    # onboard MP4 only (quick iteration)
+```
+
+**PRIMARY = the ONBOARD (seeker-POV) cut** — the interceptor's own camera with the
+FPV OSD HUD overlaid, ending on the proximity-fuse close-out. Beats:
+1. **Title card** — "Camera-only proportional-navigation counter-UAS intercept".
+2. **DASH establish (REAL-TIME 1×)** — seeker view during the external-cue dash;
+   HUD shows `PHASE DASH`, `SENSOR EXTERNAL CUE`, ground speed ramping 0→~10 m/s.
+3. **HANDOFF beat** — `SENSOR` flips to `CAMERA-ONLY` with a "DATALINK DENIED →
+   CAMERA-ONLY TERMINAL" callout (the comms-denied headline; keyed off `ext_fresh`
+   1→0, not a phase value).
+4. **Terminal (SLOW MOTION ~7×)** — the AprilTag looms and fills the frame while the
+   HUD firing solution collapses: `RANGE` 5.3→1 m across the red R_lethal tick, LOS
+   rate spiking, `T-GO` counting down, `APRILTAG LOCKED`.
+5. **PROXIMITY FUSE — DETONATE hold (~1.7 s)** — flash + stylised criterion ring on
+   the tag, captioned **"CPA 0.63 m < 1.5 m lethal radius (ADR-0025 criterion — not a
+   modeled blast)"**. There is no collision/blast volume in the sim (ADR-0014).
+6. **Outro metrics card** — the validated numbers (pro-nav 4.6–7.6× vs pursuit @
+   2 m/s; kinematic-limit diagnosis; 0.63 m CPA under realistic degraded perception;
+   proximity metric; comms-denied handoff).
+
+**SECONDARY = the CHASE (wide) cut** — the same intercept from the world chase
+camera + a compact HUD, ~3.8 s, a brief B-roll wide angle. Deliberately short; the
+onboard seeker view is the centerpiece.
+
+**Retiming is disclosed on-screen** (`REAL-TIME 1×` / `SLOW MOTION ~7×` pills): the
+whole engagement is only ~0.3 s of sim time, so the terminal is slowed for clarity.
+Slow-mo in-betweens are honest cross-dissolves of adjacent captured frames; the HUD
+is overlaid **unblended** (crisp) on top so its ticks/readouts never ghost.
+
+**The HUD** is `scripts/render_hud.py --layout overlay` (new FPV OSD): every widget
+traces to a CSV column — phase/sensor/AprilTag lamps, a heading tape (`psi_deg`),
+`T-GO` (`r_hat_m`/`vc_m_s`), a depleting `RANGE` bar with the R_lethal tick
+(`r_hat_m`), `CLOSING` (`vc_m_s`), `LOS RATE` (`lambda_dot_deg_s`), a `GND SPD` gauge
+(0.3 s-smoothed d/dt of `gt_cam_x/y`, GT-derived/display-only), an `ALT` gauge
+(`alt_m`), the two-series mini-map, and a fixed boresight reticle. No pitch/roll
+horizon — the CSV has no honest source for it, and this low-altitude engagement is
+essentially level (see the module docstring). The `sidebar` layout is retained for
+back-compat with `compose_demo.sh`.
+
+**Outputs:** `interceptor_onboard.mp4` (~15 s, 1280×960, PRIMARY), a highlight-loop
+`interceptor_onboard.gif` (handoff→fuse), and `interceptor_chase.mp4` (~3.8 s,
+960×540, SECONDARY). The committed stills `docs/images/demo_onboard_final.png` (the
+proximity-fuse frame) and `demo_chase_final.png` are refreshed from this flight.
+
+## Capture-session history (2026-07-07) — re-capture after builder feedback (3 fixes + 1 add)
+
+*(Historical context for how the raw frames were captured. The finished video is
+built from them by `build_demo.py`, documented above.)*
 
 Builder (Emerson) reviewed the first hero capture and caught three real problems;
 a fourth (ground texture) was added by the main session mid-task. All four are
@@ -77,28 +133,25 @@ render-side patch:
 
 ```
 demo_out/
-  onboard_frames/           -- 704 PNGs, interceptor's own camera, FULL raw
-                                capture (sim_t ~4.1-27.3s, covers takeoff
-                                through landing)
-  onboard_frames_trimmed/    -- 362 PNGs, trimmed to start at t_sim=15.412
-                                (~2.5s before CUE_WAIT) -- feeds onboard_raw.mp4
-  chase_frames/              -- 706 PNGs, the world's static chase-camera
-                                sensor, FULL raw capture
-  chase_frames_trimmed/       -- 362 PNGs, same t_sim=15.412 start as onboard
-                                -- feeds chase_raw.mp4
-  chase_frames_composite/      -- 89 PNGs, TIGHT trim (t_sim>=18.0s, target
-                                already crossing within ~0.5s), frame-count-
-                                matched to hud_opaque/ for the main composite
-  hud_opaque/                   -- render_hud.py frames (opaque bg), 89 frames,
-                                from the tight-trimmed CSV
-  hud_transparent/               -- same, alpha=0 (Premiere overlay), 89 frames
-  interceptor_demo.mp4             -- compose_demo.sh's HUD+chase composite
-                                (2560x1080, ~3.0s, TIGHT/action-focused cut)
-  interceptor_demo.gif              -- README-friendly GIF of the same
-  onboard_raw.mp4                    -- standalone onboard-camera video (wider
-                                cut, ffmpeg, no HUD)
-  chase_raw.mp4                       -- standalone chase-camera video (wider
-                                cut, ffmpeg, no HUD)
+  == raw captures (Premiere source layers) + their manifest.csv (idx,sim_t,file) ==
+  onboard_frames/            -- 704 PNGs, interceptor's own camera (1280x960),
+                                FULL raw capture (sim_t ~4.1-27.3s)
+  chase_frames/              -- 706 PNGs, world chase camera (960x540), FULL raw
+  == transparent HUD overlay LAYERS (render_hud.py --layout overlay, alpha=0) ==
+  hud_onboard_transparent/   -- FPV OSD frames (1280x960), named frame_<capIdx>,
+                                index-aligned 1:1 with onboard_frames (engagement
+                                window) -- the Premiere HUD layer for the onboard cut
+  hud_chase_transparent/     -- same for the chase cut (960x540)
+  == assembled composites (build_demo.py output) ==
+  onboard_final_frames/      -- the PRIMARY onboard cut, composited + cards + fuse
+  chase_final_frames/        -- the SECONDARY chase cut
+  interceptor_onboard.mp4    -- PRIMARY finished video (~15s, 1280x960)
+  interceptor_onboard.gif    -- README highlight loop (handoff -> fuse)
+  interceptor_chase.mp4      -- SECONDARY wide view (~3.8s, 960x540)
+  == legacy (first-pass, kept; superseded by build_demo.py) ==
+  onboard_frames_trimmed/, chase_frames_trimmed/, chase_frames_composite/,
+  hud_opaque/, hud_transparent/, hud_frames/, interceptor_demo.{mp4,gif},
+  onboard_raw.mp4, chase_raw.mp4   -- the earlier compose_demo.sh / sidebar-HUD pass
 ```
 
 ## The hero flight (v2, post-fix)
