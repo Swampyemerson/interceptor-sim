@@ -56,6 +56,23 @@ appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
    Tier-2 concluded). Batches at idle load, paired seeds, `--early-handoff` for the
    fast regime.
 
+## Follow-up flagged (not yet built)
+
+- **`m4_intercept.py` target pre-placement race (ADR-0032).** The target spawns
+  at its world-file default pose; `m4_target_mover.py`'s own pre-warm relocation
+  to `--target-start` fires too late (after the camera may have already locked
+  the nearby default-position board), causing a guaranteed BREAKOFF/abort if the
+  caller doesn't externally pre-place the tag first (as `mc_batch.sh` always
+  does — every gated ADR number went through that guard). Consider having
+  `m4_intercept.py` do this pre-placement internally. Low urgency (every gated
+  path already has the workaround) but a real footgun for anyone calling the
+  script directly, as the demo-capture task did.
+- **`compose_demo.sh`/`demo_capture_frames.py` time-alignment.** No automatic
+  correction if a chase/onboard capture starts before the flight CSV's own
+  `t_sim[0]` — desyncs the composite by the head-start (see ADR-0032, "Sync
+  gotcha"). A `--sim-t-start` trim-to-match step would remove the manual fix
+  needed this session.
+
 ## Parked (designed, not scheduled — do not build before M5 ships)
 
 - Deployment-profile phases M-1..M-4 (ground standby → launch-on-detect →
@@ -68,6 +85,13 @@ appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
 
 ## Done (newest first — one line each; the ADR holds the story)
 
+- **2026-07-07 portfolio demo video DONE:** hero flight captured (miss=1.061 m,
+  clean, `--early-handoff` + ADR-0030 FIX config under the realistic degraded
+  cue), FPV interceptor reskin verified number-safe (check_m2 unchanged),
+  chase-cam pose data-grounded + iterated live, HUD+chase composite produced.
+  Found + worked around a real pre-existing `m4_intercept.py` target
+  pre-placement race (see "Follow-up flagged" above). (ADR-0032,
+  `demo_out/README.md`)
 - **2026-07-06 Tier-1 terminal levers:** A/B/C flags built, gates PASS; none move
   the fast-regime miss in Gazebo (paired N=12) → strengthens the kinematic
   diagnosis; 6th lab-vs-Gazebo divergence. (ADR-0023 addendum)

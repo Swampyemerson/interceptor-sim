@@ -282,22 +282,36 @@
          OFFBOARD entry unreliable. Dropping to 960x540 restored idle RTF to
          ~1.0 in isolated (no-Python-client) tests. Do not raise this
          resolution again without re-checking idle RTF first.
-         POSE FINDING + STILL UNVERIFIED (same task): the FIRST pose tried,
-         `18 -8 14 0 0.667 -2.737` (~24 m from the engagement, pitch ~38 deg
-         down), rendered correctly (real content, both drones visible -- see
-         the demo capture report's sample frame) but read as a flat, mostly-
-         ground, both-drones-tiny wide shot -- not a dramatic "chase" look.
-         The pose below is a closer (~14.7 m), shallower-pitch (~30.7 deg)
-         REPLACEMENT aimed at the likely DASH/HANDOFF zone (roughly midway
-         along the running-start corridor, not the far tag-start point) --
-         computed analytically, NOT yet re-rendered/eyeballed (the render
-         pipeline wedged mid-task, see the demo capture report's "blocker"
-         section). TWEAK: re-verify this pose against a live captured frame
-         before trusting it; the four other TWEAK knobs above (lights, sky,
-         ground material) are still fair game too. -->
+         POSE FINDING (RE-RENDERED + VALIDATED, 2026-07-07 boot 3): two
+         earlier guesses (24 m/pitch 38 deg, then 14.7 m/pitch 28-30 deg)
+         both aimed at an assumed engagement point (~5,0,0.5) that turned
+         out wrong -- real hero-flight telemetry
+         (logs/m4_intercept_pronav_20260707T000735Z.csv, the compose_demo.sh
+         default) shows CPA/ENGAGE actually happens around
+         gt_cam=(6.3,-12.2,1.1)/gt_tag=(6.5,-12.2,0.5), ~12 m further down
+         the -Y running-start corridor than guessed. This pose was tuned
+         LIVE against real captured frames (via `gz service .../set_pose`
+         on this static model -- confirmed working, no reboot needed per
+         iteration) at 3 candidate ranges/pitches, previewed with both
+         drones pre-placed at real DASH-sequence coordinates from that same
+         CSV: 14.8 m/pitch 28 deg (too far, sky only ~9% of frame) -> 10 m/
+         pitch 15 deg (CONFIRMED GOOD: level horizon, sky ~30% of frame --
+         upper-third target met, both drones a clearly separated,
+         reasonably sized pair of silhouettes at the pre-CPA separation
+         point gt_cam=(5.68,-10.60,1.0)/gt_tag=(6.50,-13.47,0.50)). Camera
+         sits 10 m out along the perpendicular to the interceptor's dash
+         bearing (broadside view -- shows the dash as lateral motion, not
+         just a size-change head-on shot), aimed at engagement center
+         (6.4,-12.2,0.8). Euler->quaternion note for anyone live-tuning via
+         set_pose again: SDF's "roll pitch yaw" is NOT what gz.msgs.Pose's
+         `orientation` field takes over the service API (that needs a
+         quaternion) -- use the standard ZYX (roll,pitch,yaw intrinsic)
+         formula; a guessed/wrong quaternion silently renders (no error)
+         but introduces spurious roll (tilted horizon) -- confirmed by
+         trial (see this task's report). -->
     <model name="demo_chase_cam">
       <static>true</static>
-      <pose>16 -10 9 0 0.535 -2.820</pose>
+      <pose>14.900 -7.612 3.388 0 0.262 -2.647</pose>
       <link name="link">
         <inertial>
           <mass>1</mass>
