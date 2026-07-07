@@ -1,5 +1,3 @@
-<!-- DRAFT pending M5 Monte-Carlo; structure final -->
-
 # Counter-UAS Interceptor Sim: Camera-Only Proportional Navigation in PX4/Gazebo
 
 A **simulation-only** counter-UAS interceptor: a quadcopter that uses its own
@@ -28,6 +26,12 @@ where a council of independent reviewers weighed in) is logged in
 a stand-in, not a real-world sensor, and this README says exactly what that
 does and doesn't mean for the numbers that follow.
 
+**Portfolio materials:** the [technical writeup](docs/WRITEUP.md) (the
+whiteboard-defense doc), the [resume bullets + how-it-works + 30-second
+pitch](docs/portfolio_bullets.md), the [one-pager + interviewer Q&A](docs/interviewer_prep.md)
+(the hard questions, honestly answered), and the [architecture diagram +
+demo shot-list](docs/portfolio_visuals.md).
+
 ---
 
 ## Headline results (traced to a gate, an ADR, or a log)
@@ -39,8 +43,10 @@ does and doesn't mean for the numbers that follow.
 | **S2** — two-stage handoff, 6 m/s crosser (uncatchable from a hover start, ADR-0011 addendum) | miss **1.1-2.3 m** across dev/gate/verifier flights (gate runs: pip 2.291 m & 2.270 m, pronav 1.992 m & 2.342 m), both laws pass, handoff latches, all honesty audits pass | tiered < 2.5 m (this gate proves the *architecture* — a running start + honest handoff — not sub-meter precision at 3x M4's speed) | `scripts/check_s2.sh`; ADR-0010 #7, ADR-0013; `logs/m4_intercept_{pip,pronav}_20260705T21*Z.csv` |
 | Ground-link A/B: cue **emits** filtered velocity vs. drone **differentiates** noisy position, Gazebo, 6 m/s, paired n=8 | EMIT mean **1.394 m** / Pk\@2 **75%** vs. DIFF mean **1.808 m** / Pk\@2 **50%** — DIFF worse on 6/8 paired seeds, direction confirms the lab's #1 lever, but the delta (+0.41 m) is **not yet statistically significant at n=8** | — (design finding, not a gate) | ADR-0015 2nd addendum; `logs/mc_realistic_EMIT_20260706T015033Z.csv`, `logs/mc_realistic_DIFF_20260706T022749Z.csv` |
 | Preliminary Pk-vs-radius batch, pronav, 6 m/s, N=20 (**pre-realism-upgrade — superseded by M5**) | mean miss 2.189 m; Pk(R=1.0 m) 5% [95% CI 0.9-24%]; Pk(R=2.0 m) 35%; Pk(R=2.5 m) 70%; Pk(R=3.0 m) 95% [76-99%]. Every flight lost the tag for >1 s right at closest approach — but see the root-cause note below: that dropout is a *symptom*, not the cause. | — | ADR-0014 addendum; `logs/mc_batch_20260705T225008Z.csv` |
-| **Root-cause diagnosis** — why fast-crosser flights miss ~1.4 m (41-flight forensics) | The miss is **kinematic, not perceptual**: 96% determined at handoff (r²=0.99 between zero-effort-miss@handoff and final miss); the terminal window (~0.4 s) is physically too short to fix the delivered geometry (½·a·t_go² = 0.72 m « 1.69 m). A *perfect* terminal camera cuts miss only 25%. Fix = acquire earlier + better handoff geometry, **not** a better seeker. | — (corrects the earlier "perception-limited" reading) | **ADR-0023**; `docs/terminal_diagnosis.md` |
-| **M5** — Monte-Carlo, pursuit vs. pro-nav × 6/9/12 m/s crossers, n=48 (proximity metric) | At **FPV crossing speed the two laws are statistically tied** (6 m/s: pro-nav 2.17 m vs pursuit 2.32 m; 9 m/s: 3.61 vs 3.60; 12 m/s: 4.44 vs 4.82, both 0/8 latch = uncatchable from a hover start) — both are **kinematically limited**, so the terminal *law* stops setting the miss. Pooled Pk@2.5 m = 27% [17–41], Pk@3 m = 35%. **This maps the regime:** pro-nav's 4.6–7.6× win is the *slow-target* (M4, 2 m/s) result; at FPV speed the lever becomes engagement *geometry* (running start, ADR-0028) and kill *radius* (ADR-0025), not the guidance law. | — (regime-mapping result; n=8/cell, deltas within noise) | **ADR-0029**; `logs/mc_batch_20260706T213437Z.csv`; `plots/pk_vs_radius_20260706T222603Z.png` |
+| **Root-cause diagnosis** — why fast-crosser flights miss ~1.4 m (41-flight forensics) | The miss is **kinematic, not perceptual**. The model-independent proof: the ~0.4 s terminal window's physical correction capacity **½·a·t_go² = 0.72 m** sits far below the **1.69 m** of error already delivered at handoff — so a *perfect* terminal camera cuts the miss only ~25%. (Miss also tracks zero-effort-miss@handoff, r²=0.96, generalizing across 3/6/9 m/s.) Fix = acquire earlier + better handoff geometry, **not** a better seeker. | — (corrects the earlier "perception-limited" reading) | **ADR-0023**, ADR-0027; `docs/terminal_diagnosis.md` |
+| **M5** — Monte-Carlo, pursuit vs. pro-nav × 6/9/12 m/s crossers, n=48 (proximity metric) | At **FPV crossing speed the two laws are statistically tied** (6 m/s: pro-nav 2.17 m vs pursuit 2.32 m; 9 m/s: 3.61 vs 3.60; 12 m/s: 4.44 vs 4.82, both 0/8 latch = uncatchable from a hover start) — both are **kinematically limited**, so the terminal *law* stops setting the miss. Pooled Pk@2.5 m = 27% [17–41], Pk@3 m = 35%. **This maps the regime:** pro-nav's 4.6–7.6× win is the *slow-target* (M4, 2 m/s) result; at FPV speed the lever becomes engagement *geometry* (running start) and kill *radius* (ADR-0025), not the guidance law. | — (regime-mapping result; n=8/cell, deltas within noise) | **ADR-0029**; `logs/mc_batch_20260706T213437Z.csv`; `plots/pk_vs_radius_20260706T222603Z.png` |
+| **Running start** — ground-launch geometry, Gazebo-confirmed | Longer standoff + faster dash makes the FPV band catchable on the *same quad*: the 12 m/s crosser goes from **0/8 latch (uncatchable from hover) → 6/6, miss 4.5 → 2.3 m** (−49%); 9 m/s 3.6 → 1.9 m (−47%). A rare clean lab→Gazebo agreement. **Honesty:** these used an *idealized* cue — see the next row. | — (validates the ground-standby → launch-on-detect concept) | **ADR-0028**; `logs/mc_batch_runningstart_adr0028_confirm.csv` |
+| **★ Dash-track fix under REALISTIC perception** (the culmination) | The fast-target miss was ~70–75% a stale *mid-course track*, not the seeker. Fix: the ground cue emits a *filtered velocity* + a dash-clamp fix. **Under a realistically degraded cue (noise, latency jitter, Markov dropout): 9 m/s → 1.19 m, 12 m/s → 1.48 m, 6/6 handoff** — eliminates a 33% mid-course-failure mode and **beats even the earlier idealized-cue baseline** (delivered zero-effort-miss 3.2 → 1.4 m). Note: leans on a good ground-velocity track (a real-system requirement, disclosed). | — (the honest "we got further," survives degraded perception) | **ADR-0030**; `logs/mc_arm{B,C}_*_runningstart.csv` |
 
 Preliminary plots from that pre-realism batch (kept for the writeup, **not**
 the final M5 numbers):
@@ -439,6 +445,20 @@ Gazebo/PX4/Claude sessions before trusting a comparison across batches.
 
 ## Demo
 
-<!-- TODO: M5 demo GIF -- screen-recorded GUI side-by-side of a pursuit vs.
-     pro-nav intercept on the same crossing path (Emerson's standing request
-     to watch it fly is also the demo content, per NEXT.md's M5 plan). -->
+The intercept is shown with a **data-driven status overlay** generated straight
+from the flight log — every readout traces to a CSV column, and the honesty
+boundary is drawn on the panel itself (the cue is labeled a *mocked* stand-in,
+ground-truth markers are labeled *scoring-only*, and the "kill" is labeled a
+lethal-radius *criterion*, not a modeled collision).
+
+Sample panel across the four key beats of the dash-track-fix hero flight (0.58 m
+miss at 9 m/s under a realistically degraded cue) — note the sensor lamp flipping
+from **EXTERNAL CUE** to **CAMERA-ONLY** at handoff, the comms-denied headline:
+
+![Status overlay across the intercept](docs/images/hud_overlay_sample.png)
+
+**The video** composites this panel beside a Gazebo render of the same flight.
+The overlay frames come from [`scripts/render_hud.py`](scripts/render_hud.py);
+[`scripts/compose_demo.sh`](scripts/compose_demo.sh) assembles the MP4 + GIF in
+one command. The only prerequisite is `ffmpeg` (`sudo apt install -y ffmpeg`);
+the shot-list is in [`docs/portfolio_visuals.md`](docs/portfolio_visuals.md).
