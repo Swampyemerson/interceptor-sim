@@ -97,9 +97,13 @@ render-side patch:
    model file's own "BODY RE-ORIENT" comment for the full derivation.
    **Detection re-validated on an actual re-flown Gazebo run**: ENGAGE+BREAKOFF
    detection rate 0.408 (new, post-reorient) vs 0.208 (old, pre-reorient) —
-   not degraded (the body was never visible to the interceptor's own onboard
-   camera in EITHER orientation, by design; only the chase camera's oblique
-   view changes).
+   not degraded. (Correction 2026-07-07: an earlier version of this note
+   claimed the body was "never visible" to the onboard camera — wrong. The
+   onboard camera DOES see the target's body at long range, as a distant
+   growing shape; the 20 s re-cut's establish beat is built from exactly those
+   authentic frames. What the re-orient preserves, and what detection depends
+   on, is that no body part enters the TAG's occlusion footprint — the tag
+   face the detector sees is geometrically unchanged in either orientation.)
 2. **HUD mini-map track viz fixed** (`scripts/render_hud.py`): (a) the
    degraded ground-cue estimate (`tgt_n_hat`/`tgt_e_hat`) is now plotted as
    the FULL-LENGTH array (NaNs left in place) instead of a NaN-filtered/
