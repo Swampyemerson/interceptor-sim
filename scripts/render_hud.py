@@ -45,10 +45,20 @@ project's non-negotiables, not style preferences):
     safety officer's radar would. It is drawn visually distinct (dashed,
     labeled "GT (reference only)") and never appears before the tick it
     actually happens on -- no foreknowledge.
+  - The APRILTAG LOCK lamp is keyed off `detected` (0/1), parsed through
+    parse_flag01() so a genuinely blank cell renders as "--" (pre-
+    acquisition / unknown), never silently coerced to 0/"SEARCHING". This
+    is the demo's core honesty disclosure: the target model is dressed as
+    an FPV racing drone for the video, but the lock is a classical/
+    fiducial AprilTag detection (GOALS.md's "same architecture, one
+    honest simplification"), not an EO/IR seeker actually recognizing an
+    FPV airframe. The lamp text says "APRILTAG", not "TARGET LOCK", so
+    that distinction reads on-screen even out of context.
 
 WIDGETS (each -> the exact CSV column driving it):
   PHASE banner              <- phase
   SENSOR / mode lamp        <- ext_fresh (see compute_handoff_idx())
+  APRILTAG LOCK lamp        <- detected (see parse_flag01())
   INTERCEPT SOLUTION        <- tgt_n_hat / tgt_e_hat presence
   CLOSING SPEED             <- vc_m_s
   RANGE                     <- r_hat_m
@@ -62,7 +72,15 @@ WIDGETS (each -> the exact CSV column driving it):
 
 CLI:
     .venv/bin/python scripts/render_hud.py <flight_csv> --out <dir> \\
-        [--fps N] [--radius M]
+        [--fps N] [--radius M] [--transparent]
+
+--transparent: writes frames with the empty canvas at alpha=0 (only the
+drawn HUD panels/text/lines are opaque or semi-opaque), for compositing
+as an overlay LAYER on top of a Gazebo render in a video editor (e.g.
+Premiere Pro) instead of the default side-by-side sidebar look. The
+lamp/readout panels keep a semi-opaque dark backing plate for legibility
+over moving video; the default (no --transparent) opaque near-black
+background is unchanged. See render_frame()'s `transparent` branches.
 
 Output: <dir>/frame_000000.png, frame_000001.png, ... (RGBA PNG, one per
 CSV row by default; one per 1/--fps-second time-grid sample if --fps is
@@ -109,6 +127,12 @@ COLOR_RED = "#ff3b30"
 COLOR_DIM = "#3a4a42"      # blank/NaN readouts -- dark, never a false number
 COLOR_WHITE = "#d8f5e0"
 COLOR_GT_REF = "#6a7a72"   # ground-truth reference elements -- visually distinct/dim
+
+# --transparent panel backing: widget panels (lamp boxes, the readout
+# block, the mini-map) keep this semi-opaque dark fill for legibility when
+# composited over moving video; everything NOT inside a panel/widget stays
+# alpha=0 (see render_frame()'s `transparent` branches).
+PANEL_ALPHA = 0.55
 
 PHASE_COLORS = {
     "TAKEOFF": COLOR_WHITE,
@@ -275,10 +299,11 @@ class HudContext:
     HUD wouldn't), the handoff tick, and the closest-approach tick. All
     derived once from the full CSV, all NaN-safe."""
 
-    def __init__(self, rows, radius_m):
+    def __init__(self, rows, radius_m, source_name=""):
         self.rows = rows
         self.n = len(rows)
         self.radius_m = radius_m
+        self.source_name = source_name
 
         self.gt_cam_x = col_floats(rows, "gt_cam_x")
         self.gt_cam_y = col_floats(rows, "gt_cam_y")
@@ -291,6 +316,10 @@ class HudContext:
         self.vc_m_s = col_floats(rows, "vc_m_s")
         self.r_hat_m = col_floats(rows, "r_hat_m")
         self.lambda_dot_deg_s = col_floats(rows, "lambda_dot_deg_s")
+        # Optional[int] per row, NOT a float array -- None (blank cell) must
+        # stay distinguishable from 0 ("SEARCHING") for the APRILTAG lamp's
+        # third "--" (pre-acquisition/unknown) state. See parse_flag01().
+        self.detected_flags = [parse_flag01(r.get("detected")) for r in rows]
 
         self.handoff_idx = compute_handoff_idx(rows)
         self.cpa_idx = compute_cpa_idx(self.gt_range)
@@ -326,35 +355,77 @@ def _monospace_family():
 MONO = _monospace_family()
 
 
-def render_frame(ctx, i, out_path):
+def render_frame(ctx, i, out_path, transparent=False):
     row = ctx.rows[i]
     fig = plt.figure(figsize=(FIG_W_IN, FIG_H_IN), dpi=FIG_DPI)
-    fig.patch.set_facecolor(COLOR_BG)
+    if transparent:
+        # The whole canvas starts fully transparent (alpha=0). Widget
+        # panels below opt back IN to a semi-opaque dark backing
+        # (PANEL_ALPHA) for legibility; everything else -- the gaps
+        # between panels, the map's side margins -- stays alpha=0, per
+        # the --transparent contract in the module docstring.
+        fig.patch.set_alpha(0.0)
+    else:
+        fig.patch.set_facecolor(COLOR_BG)
+
+    # facecolor/alpha kwargs for the three bordered lamp boxes (PHASE,
+    # SENSOR, APRILTAG): opaque mode relies on txt_ax's own opaque
+    # background so the boxes stay outline-only (unchanged look);
+    # transparent mode fills each box with a semi-opaque backing plate
+    # since the canvas behind it is now alpha=0.
+    box_fill = dict(facecolor=COLOR_BG, alpha=PANEL_ALPHA) if transparent else dict(facecolor="none")
 
     # --- Text/readout panel (top ~42% of the canvas) ---
     txt_ax = fig.add_axes((0.0, 0.58, 1.0, 0.42))
-    txt_ax.set_facecolor(COLOR_BG)
     txt_ax.set_xlim(0, 1)
     txt_ax.set_ylim(0, 1)
     txt_ax.axis("off")
+    if transparent:
+        txt_ax.patch.set_alpha(0.0)
+        # One backing plate behind the whole lower readout block
+        # (INTERCEPT SOLUTION through the honesty footnotes) so that
+        # block reads as a single legible instrument cluster over video,
+        # flush against the APRILTAG box's bottom edge (y=0.66) -- see
+        # the APRILTAG panel below.
+        txt_ax.add_patch(plt.Rectangle((0.0, 0.0), 1.0, 0.66, facecolor=COLOR_BG,
+                                        alpha=PANEL_ALPHA, edgecolor="none", zorder=0))
+    else:
+        txt_ax.set_facecolor(COLOR_BG)
 
     phase = row.get("phase", "") or "--"
     phase_color = PHASE_COLORS.get(phase, COLOR_WHITE)
     txt_ax.add_patch(plt.Rectangle((0.03, 0.90), 0.94, 0.09,
-                                    facecolor="none", edgecolor=phase_color, linewidth=2))
+                                    edgecolor=phase_color, linewidth=2, **box_fill))
     txt_ax.text(0.5, 0.945, f"PHASE: {phase}", color=phase_color, fontsize=20,
                 family=MONO, ha="center", va="center", weight="bold")
 
     label = mode_label(i, ctx.handoff_idx)
     lamp_color = COLOR_GREEN if label == "CAMERA-ONLY" else COLOR_AMBER
     txt_ax.add_patch(plt.Rectangle((0.03, 0.78), 0.94, 0.09,
-                                    facecolor="none", edgecolor=lamp_color, linewidth=2))
+                                    edgecolor=lamp_color, linewidth=2, **box_fill))
     txt_ax.text(0.5, 0.825, f"SENSOR: {label}", color=lamp_color, fontsize=15,
+                family=MONO, ha="center", va="center", weight="bold")
+
+    # APRILTAG LOCK lamp <- `detected` (see parse_flag01() / module
+    # docstring honesty note). Three states, never a 0-fill on blank:
+    #   None (blank cell)  -> "--"        dim/unknown (pre-acquisition)
+    #   0                  -> "SEARCHING" amber (mid-flight, no lock this tick)
+    #   1                  -> "LOCKED"    green
+    det_i = ctx.detected_flags[i]
+    if det_i is None:
+        tag_text, tag_color = "APRILTAG: --", COLOR_DIM
+    elif det_i == 1:
+        tag_text, tag_color = "APRILTAG: LOCKED", COLOR_GREEN
+    else:
+        tag_text, tag_color = "APRILTAG: SEARCHING", COLOR_AMBER
+    txt_ax.add_patch(plt.Rectangle((0.03, 0.66), 0.94, 0.09,
+                                    edgecolor=tag_color, linewidth=2, **box_fill))
+    txt_ax.text(0.5, 0.705, tag_text, color=tag_color, fontsize=15,
                 family=MONO, ha="center", va="center", weight="bold")
 
     sol = solution_label(ctx.tgt_n_hat[i])
     sol_color = COLOR_GREEN if sol == "CONVERGED" else COLOR_AMBER
-    txt_ax.text(0.5, 0.70, f"INTERCEPT SOLUTION: {sol}", color=sol_color, fontsize=13,
+    txt_ax.text(0.5, 0.58, f"INTERCEPT SOLUTION: {sol}", color=sol_color, fontsize=13,
                 family=MONO, ha="center", va="center")
 
     def readout_line(y, label_text, value_text, good):
@@ -365,13 +436,13 @@ def render_frame(ctx, i, out_path):
                     family=MONO, ha="right", va="center", weight="bold")
 
     vc = ctx.vc_m_s[i]
-    readout_line(0.58, "CLOSING SPEED", fmt_num(vc, " m/s"), not math.isnan(vc))
+    readout_line(0.49, "CLOSING SPEED", fmt_num(vc, " m/s"), not math.isnan(vc))
     r_hat = ctx.r_hat_m[i]
-    readout_line(0.50, "RANGE", fmt_num(r_hat, " m"), not math.isnan(r_hat))
+    readout_line(0.415, "RANGE", fmt_num(r_hat, " m"), not math.isnan(r_hat))
     ldot = ctx.lambda_dot_deg_s[i]
-    readout_line(0.42, "LOS RATE", fmt_num(ldot, " deg/s", "{:+.1f}"), not math.isnan(ldot))
+    readout_line(0.34, "LOS RATE", fmt_num(ldot, " deg/s", "{:+.1f}"), not math.isnan(ldot))
     law = (row.get("law") or "--").upper()
-    readout_line(0.34, "LAW", law, True)
+    readout_line(0.265, "LAW", law, True)
 
     t_display = row.get("t_sim") or ""
     t_display = t_display.strip() if t_display else ""
@@ -379,21 +450,27 @@ def render_frame(ctx, i, out_path):
         t_display = row.get("t", "") + "s (wall)"
     else:
         t_display = t_display + "s (sim)"
-    txt_ax.text(0.5, 0.22, f"t = {t_display}", color=COLOR_GT_REF, fontsize=10,
+    txt_ax.text(0.5, 0.15, f"t = {t_display}", color=COLOR_GT_REF, fontsize=10,
                 family=MONO, ha="center", va="center")
 
     # Honest-depiction footnotes (docs/demo_plan.md "Honest-depiction
     # rules" -- static every frame, cheap, and non-negotiable per CLAUDE.md).
-    txt_ax.text(0.5, 0.10,
+    txt_ax.text(0.5, 0.075,
                 "EXTERNAL CUE = mocked ground-sensor stand-in, not live hardware",
                 color=COLOR_GT_REF, fontsize=8, family=MONO, ha="center", va="center")
-    txt_ax.text(0.5, 0.05,
+    txt_ax.text(0.5, 0.03,
                 "GT markers = scoring reference only, never fed to guidance",
                 color=COLOR_GT_REF, fontsize=8, family=MONO, ha="center", va="center")
 
     # --- Mini-map (bottom ~55% of the canvas) ---
     map_ax = fig.add_axes((0.08, 0.04, 0.84, 0.50))
     map_ax.set_facecolor(COLOR_BG)
+    if transparent:
+        # The map is itself a widget panel -- keep it as a legible
+        # semi-opaque plate (its own facecolor/alpha), not fully
+        # transparent; the area OUTSIDE this axes' rectangle (side
+        # margins, the gap above it) is still alpha=0 via fig.patch.
+        map_ax.patch.set_alpha(PANEL_ALPHA)
     for spine in map_ax.spines.values():
         spine.set_color(COLOR_PANEL_LINE)
     map_ax.tick_params(colors=COLOR_GT_REF, labelsize=7)
@@ -461,6 +538,25 @@ def render_frame(ctx, i, out_path):
     if legend:
         legend.get_frame().set_alpha(0.7)
 
+    # --- Footer strip: subtle, small, run-traceability caption (CLAUDE.md
+    # "numbers trace to a run") -- not a widget readout, just a source tag
+    # so a frame pulled out of context still says where its numbers came
+    # from. Sits in the margin below the map; alpha=0 background under
+    # --transparent (bare small text), opaque COLOR_BG otherwise.
+    footer_ax = fig.add_axes((0.0, 0.0, 1.0, 0.035))
+    footer_ax.set_xlim(0, 1)
+    footer_ax.set_ylim(0, 1)
+    footer_ax.axis("off")
+    if transparent:
+        footer_ax.patch.set_alpha(0.0)
+    else:
+        footer_ax.set_facecolor(COLOR_BG)
+    footer_ax.text(
+        0.5, 0.5,
+        f"render_hud.py (offline overlay, not in-sim capture) -- source: {ctx.source_name or '--'}",
+        color=COLOR_DIM, fontsize=6, family=MONO, ha="center", va="center",
+    )
+
     fig.canvas.draw()
     rgba = np.asarray(fig.canvas.buffer_rgba())  # (H, W, 4) uint8
     plt.close(fig)
@@ -484,11 +580,15 @@ def main():
     ap.add_argument("--radius", type=float, default=DEFAULT_RADIUS_M,
                     help=f"lethal-radius ring, meters (ADR-0025: net={LETHAL_RADIUS_NET_M}, "
                          f"ram={LETHAL_RADIUS_RAM_M}; default {DEFAULT_RADIUS_M})")
+    ap.add_argument("--transparent", action="store_true",
+                    help="write frames with the empty canvas at alpha=0 (widget panels keep a "
+                         "semi-opaque dark backing) for compositing as an overlay layer on top "
+                         "of a Gazebo render, instead of the default opaque near-black sidebar")
     args = ap.parse_args()
 
     rows = load_rows(args.csv_path)
     os.makedirs(args.out, exist_ok=True)
-    ctx = HudContext(rows, args.radius)
+    ctx = HudContext(rows, args.radius, source_name=os.path.basename(args.csv_path))
 
     if args.fps:
         _grid_times, sample_idx = build_time_grid(rows, args.fps)
@@ -499,12 +599,13 @@ def main():
     shape = None
     for frame_num, row_idx in enumerate(indices):
         out_path = os.path.join(args.out, f"frame_{frame_num:06d}.png")
-        shape = render_frame(ctx, row_idx, out_path)
+        shape = render_frame(ctx, row_idx, out_path, transparent=args.transparent)
 
     print(
         f"[render_hud] wrote {len(indices)} frames to {args.out} "
         f"(source rows={len(rows)}, frame shape={shape}, "
-        f"handoff_idx={ctx.handoff_idx}, cpa_idx={ctx.cpa_idx})"
+        f"handoff_idx={ctx.handoff_idx}, cpa_idx={ctx.cpa_idx}, "
+        f"transparent={args.transparent})"
     )
 
 
