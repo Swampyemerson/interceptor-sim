@@ -453,6 +453,20 @@ SPLIT_FREEZE_LAMBDA_DOT_CAP_DEG_S = 60.0
 ACCEL_BOOST_MPC_ACC_HOR_MAX = 20.0
 ACCEL_BOOST_MPC_TILTMAX_AIR = 70.0
 
+# --- ADR-0028 addendum follow-up flag (--dash-unclamp; default OFF,
+# requires --fpv): the running-start dash commands a unit vector toward the
+# lead point scaled to S2["DASH_SPEED"] (see the DASH phase's vh0/vh1
+# construction), so its norm is DASH_SPEED exactly -- then the FPV
+# V_TOTAL_MAX safety clamp silently rescales it back down. At the
+# ADR-0028-confirm dash speed (16 m/s) this is a real, silent inconsistency:
+# FPV["V_TOTAL_MAX"] defaults to 13, so a `--dash-speed 16` dash is clamped
+# to 13 m/s the whole time while the lead-point solve (solve_intercept_time)
+# assumed the vehicle actually flies at 16. Raising the ceiling to 18 lets a
+# 16 m/s dash reach its commanded speed with a few m/s of lateral-lead
+# headroom to spare, without touching V_PERP_MAX (unrelated -- that's the
+# terminal pro-nav lateral clamp, not the dash's total-speed clamp).
+DASH_UNCLAMP_V_TOTAL_MAX = 18.0
+
 # ADR-0015 --coast-search (link-loss-before-lock dead-reckon + bounded seeker
 # search; docs/decisions.md ADR-0015 "Handoff continuity"). All sim-time.
 COAST_STALE_S = 1.0           # cue silent longer than this (sim) => stale/link-loss
@@ -1262,6 +1276,18 @@ def parse_args():
              % (FPV["PX4_PARAMS"]["MPC_ACC_HOR_MAX"], ACCEL_BOOST_MPC_ACC_HOR_MAX,
                 FPV["PX4_PARAMS"]["MPC_TILTMAX_AIR"], ACCEL_BOOST_MPC_TILTMAX_AIR),
     )
+    parser.add_argument(
+        "--dash-unclamp", action="store_true",
+        help="ADR-0028 addendum follow-up (default OFF, requires --fpv): "
+             "raise FPV['V_TOTAL_MAX'] %.1f -> %.1f m/s. The DASH phase "
+             "commands a unit vector scaled to S2['DASH_SPEED'] then clamps "
+             "it to V_TOTAL_MAX -- at --dash-speed 16 the default 13 m/s "
+             "ceiling silently clamps the dash below its intended speed "
+             "while the lead solve still assumes 16. This flag removes that "
+             "clamp for the running-start dash (does not touch V_PERP_MAX, "
+             "the separate terminal pro-nav lateral clamp)."
+             % (FPV["V_TOTAL_MAX"], DASH_UNCLAMP_V_TOTAL_MAX),
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
@@ -1285,6 +1311,8 @@ def parse_args():
                      "term specifically; the lab A/B was pure_pn-only)")
     if args.accel_boost and not args.fpv:
         parser.error("--accel-boost requires --fpv (it retunes the FPV PX4 param bundle)")
+    if args.dash_unclamp and not args.fpv:
+        parser.error("--dash-unclamp requires --fpv (it retunes the FPV V_TOTAL_MAX clamp)")
 
     if args.target_start is None:
         args.target_start = S2["TARGET_START_DEFAULT"] if args.handoff else "6.5,-4,0.5"
@@ -2277,6 +2305,19 @@ async def main():
     # freeze_range between both uses). Flag OFF => dict untouched.
     if args.split_freeze:
         FPV["TERMINAL_FREEZE_RANGE_M"] = SPLIT_FREEZE_RANGE_M
+
+    # ADR-0028 addendum follow-up (--dash-unclamp): patch V_TOTAL_MAX BEFORE
+    # apply_fpv_profile() reads FPV into the module-level global (same
+    # ordering requirement as --split-freeze above). Flag OFF => dict
+    # untouched, byte-identical to every prior FPV/S2 run.
+    if args.dash_unclamp:
+        _v_total_before = FPV["V_TOTAL_MAX"]
+        FPV["V_TOTAL_MAX"] = DASH_UNCLAMP_V_TOTAL_MAX
+        print(
+            "[m4] Dash-unclamp ON (ADR-0028 addendum follow-up): "
+            f"V_TOTAL_MAX {_v_total_before} -> {DASH_UNCLAMP_V_TOTAL_MAX} m/s "
+            "(lets a fast --dash-speed actually reach its commanded speed)"
+        )
 
     # ADR-0028 Gazebo-confirm (--accel-boost): patch the PX4-param bundle
     # BEFORE it's read (both by the log line below and by the actual
