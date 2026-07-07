@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DEMO-ONLY visual dress-up of the M2 AprilTag target: same tag, wrapped in a
+  primitive-built "enemy FPV quadcopter" body so the portfolio demo video
+  reads as "interceptor catches an enemy drone" rather than "interceptor
+  catches a printed board". Built for scripts/../worlds/apriltag_demo.sdf;
+  the gated worlds (worlds/apriltag.sdf etc.) keep using the plain
+  models/apriltag_target board untouched -- no gated number depends on this
+  file.
+
+  DETECTION CONTRACT (do not break): the <visual name='tag_visual'> block
+  below is copied VERBATIM from models/apriltag_target/model.sdf -- same
+  pose (0 0 0 0 -1.5708 0), same plane size (0.625 m/side -> 0.5 m
+  pupil-apriltags tag_size per that model's own derivation comment), same
+  emissive_map material (ADR-0007 -- emissive is what makes the tag
+  decodable at range independent of scene lighting; a flat/albedo-only
+  material would silently reintroduce the detection-range regression ADR-0007
+  fixed). It resolves the SAME texture file via
+  model://apriltag_target/tag36h11_00000.png rather than a duplicated copy,
+  so there is exactly one tag image asset in the repo and zero drift risk
+  between the two models. If this model is included with the same pose used
+  for apriltag_target today (see worlds/apriltag.sdf's `5 0 0.5 0 0 0`), the
+  detected tag geometry is byte-identical to the current gated target.
+
+  OCCLUSION SAFETY (why the body can't hide the tag): everything added below
+  is either
+    (a) behind the tag plane in local +X (the model's local -X is the
+        "outward"/approach-facing normal per ADR-0007's derivation, so +X is
+        "aft"/away from the approaching interceptor) -- these parts are only
+        ever visible where they extend PAST the tag's own 0.625 m square
+        footprint (|local Y| or |local Z| > 0.3125), because the opaque tag
+        plane at local X=0 sits in front of them and occludes the rest; or
+    (b) entirely outside the tag's 0.625 m square footprint in Y/Z (the
+        camera/antenna nub, placed above the tag's top edge), so it never
+        overlaps the tag's rendered pixels regardless of its X depth.
+  See the per-visual comments for the numbers. No collision geometry is
+  added (mirrors apriltag_target, which also has none -- ADR-0009 addendum
+  notes a flythrough is physically harmless; keeping that true here avoids
+  introducing any new physics behavior for a purely cosmetic model).
+-->
+<sdf version='1.9'>
+  <model name='fpv_target'>
+    <static>true</static>
+    <link name='base'>
+
+      <!-- ================= THE TAG (unchanged -- see header) ================= -->
+      <visual name='tag_visual'>
+        <pose>0 0 0 0 -1.5708 0</pose>
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>0.625 0.625</size>
+          </plane>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+          <pbr>
+            <metal>
+              <albedo_map>model://apriltag_target/tag36h11_00000.png</albedo_map>
+              <emissive_map>model://apriltag_target/tag36h11_00000.png</emissive_map>
+              <roughness>1.0</roughness>
+              <metalness>0.0</metalness>
+            </metal>
+          </pbr>
+        </material>
+      </visual>
+
+      <!-- ================= ENEMY QUAD BODY (decoration only) =================
+           Local frame recap: -X = front/outward (tag-facing side, toward the
+           approaching interceptor), +X = aft. Y = left/right, Z = up/down
+           (matches the tag's own span so "beyond the tag's edge" means
+           |Y|>0.3125 or |Z|>0.3125). Everything below is dark carbon
+           (near-black) with a few red "enemy" accents. -->
+
+      <!-- Central fuselage: fully behind the tag (X in [0.04,0.24]) and
+           smaller than the tag's 0.3125 m half-width/half-height in Y/Z, so
+           it is completely hidden behind the opaque tag plane from a -X
+           (approach) view -- it only matters for oblique/side demo angles. -->
+      <visual name='body_visual'>
+        <pose>0.14 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.20 0.16 0.10</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+
+      <!-- 4 arms, X-quad layout, built as cylinders rolled about the local
+           X axis (roll only -> every point on each cylinder stays at
+           local X = 0.14 +/- radius, i.e. strictly behind the tag plane at
+           X=0; roll just fans the length direction out into the Y-Z plane).
+           roll = 45/135/225/315 deg picks the 4 diagonal quadrants; radial
+           midpoint 0.29 m, length 0.42 m -> tips reach radial 0.50 m, i.e.
+           |Y|=|Z|=0.354 m at the diagonal, past the tag's 0.3125 m half-
+           width/height, so the outer ~40% of each arm peeks past the tag's
+           corners (the "this is mounted on a drone" read) while the inner
+           run is hidden behind the tag. -->
+      <visual name='arm_ne_visual'>
+        <pose>0.14 -0.205061 0.205061 0.785398 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='arm_se_visual'>
+        <pose>0.14 -0.205061 -0.205061 2.356194 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='arm_sw_visual'>
+        <pose>0.14 0.205061 -0.205061 3.926991 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='arm_nw_visual'>
+        <pose>0.14 0.205061 0.205061 5.497787 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+
+      <!-- 4 prop discs: thin cylinders pitched +90 deg about local Y so
+           their length axis (thickness, 6 mm) runs along local X and their
+           radius (95 mm) fans out in the Y-Z plane -- i.e. a flat disc
+           facing the camera, like a propeller viewed near head-on. Centered
+           at the same radial-0.50 m diagonal points as the arm tips, depth
+           X=0.17 (still behind the tag at X=0). Semi-transparent to read as
+           a spinning blur rather than a solid can. -->
+      <visual name='prop_ne_visual'>
+        <pose>0.17 -0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name='prop_se_visual'>
+        <pose>0.17 -0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name='prop_sw_visual'>
+        <pose>0.17 0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name='prop_nw_visual'>
+        <pose>0.17 0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+
+      <!-- 4 motor hubs, same diagonal positions as the prop discs (depth
+           X=0.155, between the arm plane and the prop-disc plane), small
+           pitched cylinders. Diagonal pair NE/SW painted red as an "enemy"
+           strobe/ID accent; the other diagonal pair (SE/NW) stays dark
+           carbon like the rest of the airframe. -->
+      <visual name='hub_ne_visual'>
+        <pose>0.155 -0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.25 0.02 0.02 1</ambient>
+          <diffuse>0.65 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name='hub_se_visual'>
+        <pose>0.155 -0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='hub_sw_visual'>
+        <pose>0.155 0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.25 0.02 0.02 1</ambient>
+          <diffuse>0.65 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name='hub_nw_visual'>
+        <pose>0.155 0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+
+      <!-- Small camera/antenna nub, red. Positioned ABOVE the tag's top
+           edge (local Z=0.36 > the tag's 0.3125 m half-height, so its
+           whole 0.025 m half-height still clears 0.335 > 0.3125) -- i.e. it
+           never overlaps the tag's Y/Z footprint at all, so it is safe to
+           place at local X=-0.03 (slightly forward of the tag plane, toward
+           the camera) without ever occluding a tag pixel. Reads as an FPV
+           cam pod / antenna peeking over the top of the tag "shield". -->
+      <visual name='cam_nub_visual'>
+        <pose>-0.03 0 0.36 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.04 0.04 0.05</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.25 0.02 0.02 1</ambient>
+          <diffuse>0.65 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>
