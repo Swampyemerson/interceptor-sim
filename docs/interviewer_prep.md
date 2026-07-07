@@ -1,0 +1,255 @@
+# DELIVERABLE A — ONE-PAGE RECRUITER SUMMARY
+
+```markdown
+# Counter-UAS Interceptor Sim — Camera-Only Proportional Navigation (PX4 / Gazebo SITL)
+
+**Autonomous visual intercept of a moving drone, guided by the same law used in homing missiles since the 1950s — validated headless, logged, and reproducible.**
+
+> **Resume line (made true and defensible):**
+> *"Implemented proportional-navigation guidance for autonomous visual intercept in
+> PX4/Gazebo SITL; validated via Monte-Carlo miss-distance analysis; diagnosed the
+> fast-target kinematic limit and recovered it with a two-stage cue-to-camera handoff."*
+
+---
+
+## The capability this exists to prove (the headline)
+**When the datalink is jammed, the interceptor's own camera locks the target and finishes the intercept on its own.** An external ground cue steers a fast mid-course dash, then hands off — one-way, the channel is *structurally closed* — to a camera-only terminal phase. That comms-denied "the drone finishes itself" handoff is the whole point of the architecture.
+
+---
+
+## Three headline numbers
+| # | Result | What it means |
+|---|---|---|
+| **1** | **Pro-nav flew 4.6–7.6× tighter than pursuit** — 0.28–0.44 m vs 2.0–2.5 m miss against a moving target, camera-only | The classic guidance result, measured, not asserted — 3 gated runs on identical paths |
+| **2** | **96% of the fast-target miss is set at handoff** — diagnosed the miss as *kinematic, not perceptual* (r²=0.96), then recovered it: a two-stage cue→camera handoff turned an *uncatchable* 9–12 m/s crosser into a **~1.2–1.5 m intercept under a realistic degraded cue** | Root-caused a hard limit and engineered around it, instead of blaming the sensor |
+| **3** | **30+ logged decision records with real reversals + verifier-gated milestones + an automated no-cheating test** | Engineering process a defense/GNC team can audit — the portfolio *is* the rigor |
+
+Foundational gates all pass headless: camera-only static intercept held a 2 m standoff to **0.018–0.035 m** error (bar < 0.5 m); AprilTag detection at **1.000** rate, 0.086 m pose error.
+
+---
+
+## The honest limitation (stated up front, because owning it is the point)
+**The AprilTag is a stand-in for "a reliable target lock exists," not a claim that real drones carry fiducials.** This sim proves the *guidance and control* core — which ports to real hardware nearly as-is — and deliberately mocks away the *perception* problem (finding and holding a lock on a small, fast, non-cooperative drone), which is designed but not simulated and is named as the project's #1 unsolved risk. Every number assumes clean perception, so it is an honest *upper bound* on a real seeker's.
+
+---
+
+## Where the hero media goes
+- **[HERO VIDEO / GIF — top of page]** Side-by-side screen recording: pursuit vs. pro-nav intercepting the *same* crossing target. Pursuit trails and misses; pro-nav flies the lead and closes. This is the 10-second "it works" proof. *(M5 deliverable, per project plan.)*
+- **[ARCHITECTURE DIAGRAM — below the fold]** The two-sensor split: ground cue → mid-course dash → one-way handoff → camera-only terminal → PX4/MAVSDK. (Mermaid source already in README.)
+- **[RESULTS PLOTS]** Pk-vs-lethal-radius curve and miss-distance CDF from the Monte-Carlo batch.
+
+*Stack: PX4 SITL + Gazebo Harmonic, `gz_x500_mono_cam`, MAVSDK-Python, `pupil-apriltags`. Headless, every run logged to CSV. No ROS 2 — minimal dependency surface by design.*
+```
+
+---
+
+# DELIVERABLE B — INTERVIEWER Q&A / DEFENSE PREP
+
+```markdown
+# Interviewer Q&A — Defense Prep (Aerospace / GNC)
+
+Fifteen of the hardest questions a GNC interviewer would actually ask, each with a crisp,
+honest, defensible answer. Every number traces to an ADR, a gate script, or a log.
+
+---
+
+### 1. Explain proportional navigation. Why does it work?
+Pro-nav commands lateral acceleration proportional to how fast the line of sight (LOS) to
+the target is rotating: `a = N · Vc · λ̇`, where `λ̇` is the LOS turn rate, `Vc` the closing
+speed, and `N` the navigation constant. The geometric insight: if the bearing to the target
+*isn't rotating* while range is closing, you're on a collision course — so driving `λ̇` to
+zero *is* the intercept condition. It's robust because it only needs an **angle rate**, not a
+target-velocity estimate — which is exactly why a noisy monocular seeker can still fly it.
+
+### 2. Why N=5 for the navigation constant?
+The M4 council started at **N=4** — theory says any N≥3 collapses the miss against a
+constant-velocity target, and N=4 leaves margin for filter lag without over-commanding. I
+then swept {3,4,5} in the offline lab and in Gazebo; **N=5** gave the best miss and the gain
+fit back to exactly **5.000 with r²=1.000 in both crossing directions** (a clean symmetry
+check that also ruled out a sign bug). N is deliberately *fixed per run and swept in the
+Monte-Carlo* rather than adapted in-flight — an adaptive N is a new failure mode I chose not
+to add. So N=5 is empirical-best-with-margin, not a textbook default I copied. *(ADR-0009,
+ADR-0011, ADR-0024)*
+
+### 3. What does the AprilTag hide? What's the real perception problem?
+The AprilTag is a **stand-in for "a reliable bearing to the target exists"** — nothing more.
+It lets me isolate and prove the guidance/control loop, which is *agnostic to how the bearing
+was produced* (pro-nav only ever consumes an angle rate). What it hides is the genuinely hard
+part: a real terminal seeker must **find** a small, fast, non-cooperative drone against sky
+clutter with **no fiducial**, then **hold** that lock through motion blur and airframe
+vibration in the final 1–2 seconds. I've *designed* that half on paper — detect-then-track
+(motion proposal + small ML classifier + correlation tracker) on a Pi 5 + Hailo NPU, which
+raised tiny-target recall from 0.41 to 0.86 in the cited study — but I have **not** simulated
+it, and I name it as the project's **#1 existential risk**. No guidance cleverness closes it.
+*(ADR-0015)*
+
+### 4. Why did your running-start number change between versions? *(the honesty correction)*
+This is my favorite thing to own. I first showed a "running start" (ground launch + longer
+standoff + faster dash) cutting a 9 m/s crosser's miss ~47% — **but that ran on an idealized
+cue** (flat 0.5 m noise, fixed latency, no dropout). When I re-flew it under a **realistic
+degraded cue** the number got *worse*: 9 m/s went 1.90 → **2.93 m**, and **33% of flights
+never even reached handoff**. Rather than bury that, I logged it as a formal honesty
+correction and chased the root cause: the real lever wasn't the running start itself, it was
+the **mid-course velocity track** (~70–75% of the delivered miss). The cue was emitting
+position only, so the interceptor's velocity estimate never converged — plus a real bug where
+a "16 m/s dash" was silently clamped to 13. Having the ground sensor **emit a filtered
+velocity** and unclamping the dash gave, *under the same realistic cue*, **1.19 m @ 9 m/s and
+1.48 m @ 12 m/s with 6/6 handoff** — beating even the old idealized-cue number. The lesson: an
+optimistic assumption inflated a headline; finding that made the final result both better and
+trustworthy. *(ADR-0028, ADR-0030)*
+
+### 5. What breaks on real hardware?
+In rough order: **(a) terminal perception** — no fiducial, real blur, vibration, uncontrolled
+lighting, and a slower embedded CPU all shrink the already-marginal camera-only window
+(existential, not a tuning nuisance). **(b) Every timing constant** — filter gains, the
+acquire streak, terminal ranges — was tuned to the sim's ~14 Hz desktop detection cadence;
+I explicitly assume *none* port unchanged and gate the hardware plan on a bench measurement of
+real detection Hz first. **(c) The physics I don't model** — no motion blur, rolling shutter,
+or vibration, so real detection cadence is worse than my logs, never better. **(d)
+Cross-platform datum/clock skew** between the ground sensor and the drone (RTK vs standard GPS
+= 2–3 m common-mode) — the sim uses a perfect world→NED mapping the real system has to earn
+with a shared RTK base and PPS-disciplined clocks. Hardware is *chosen* (Pixhawk 6C, Pi 5 +
+Hailo, global-shutter cam, X500) and *staged bench-perception-first*, but not built.
+*(ADR-0012, ADR-0015)*
+
+### 6. Why ENU, FRD, and NED — why not pick one frame?
+Because each stage has a *natural* frame and forcing one frame everywhere adds sign-error
+surface. **World = ENU** (origin at the interceptor's start) for logging and geometry.
+**Camera = OpenCV convention** (z forward, x right, y down) because that's what the detector's
+pose output already uses. **Interceptor body = FRD** (forward-right-down). The key design
+choice: the camera measurement is inherently *body-relative* (a bearing off the nose), so I
+command **body-frame velocity + yawspeed** — which needs no compass/heading conversion at all,
+eliminating a whole class of sign bugs. PX4's own setpoints are NED, so the one conversion I
+do keep (world→NED) I **determined empirically**, not by assumption: I measured
+commanded-velocity-vs-actual-displacement residuals and found `north=world_y, east=world_x` —
+the *opposite* of the naive guess. Agreeing these frames up front, and verifying the one
+mapping with data, is exactly how you avoid the classic guidance sign-flip. *(GOALS.md,
+ADR-0008, ADR-0013)*
+
+### 7. How do you know the guidance isn't cheating with ground truth?
+Three layers. **(1) Structural:** the AprilTag detector and filters only ever touch rendered
+camera pixels — they never subscribe to the ground-truth pose topic. The mocked ground cue
+*is* allowed a *degraded* version of truth, because it stands in for a real independent sensor
+that GOALS.md scopes out — but at handoff that channel is **closed and the holder nulled**, so
+a post-handoff cue read is *structurally impossible*, not just avoided by convention. **(2)
+Numeric, per gate:** every gate re-derives that the commanded velocity's azimuth correlates
+with the *camera-measured* LOS, not the scoring feed, and asserts zero external-labeled ticks
+after handoff. **(3) Static:** `tests/test_honesty_static.py` is a sim-free AST check on the
+guidance source itself — it fails the build if any ground-truth or post-latch cue read ever
+feeds a command. Ground truth streams to the CSV logs for *scoring only*. The verifier also
+independently confirmed the detector and truth ranges are never identical (0/67 rows, ~0.7 m
+mean offset) — a genuinely separate measurement chain. *(README honesty section, ADR-0010 #5,
+ADR-0026)*
+
+### 8. Why is pursuit ≈ pro-nav at high speed, when you also claim pro-nav wins 4.6–7.6×?
+Both are true, and together they're the more interesting result. Pro-nav's decisive win is a
+**slow-target** result: at 2 m/s it was 4.6–7.6× tighter than pursuit because there's enough
+time-to-go for the law to null the miss. At **FPV crossing speed (6–12 m/s) the two laws tie**
+— not because pro-nav failed, but because the miss becomes **kinematically limited**: the
+geometry is delivered before the terminal law can act, so *which* law you run stops mattering.
+So the guidance *law* dominates in the slow/close regime, and the engagement *geometry*
+(running start) and kill *radius* dominate in the fast regime. That regime map is a more
+mature systems finding than "pro-nav always wins," and I'd rather present that than
+cherry-pick the speed where my law looks best. *(ADR-0029, ADR-0009)*
+
+### 9. You call the fast-target miss "kinematic, not perceptual." How do you know it isn't just your seeker being bad?
+Two model-independent arguments, not just a correlation. **(1) A capacity bound:** the terminal
+window is ~0.4 s, and the interceptor's demonstrated lateral acceleration (~8.7 m/s²) can
+correct at most `½·a·t_go² ≈ 0.72 m` in that window — but the geometry *delivered* at handoff
+was a **1.69 m** zero-effort-miss. The physics simply can't null 1.7 m in 0.4 s, regardless of
+sensor quality. **(2) A counterfactual:** substituting a *perfect* terminal camera cuts the
+miss only ~25%. And **(3)** the correlation backs both up — r²(miss-at-handoff, final miss) =
+0.96 at 6 m/s, and it *sharpens* with speed (0.82 → 0.96 → 0.99 across 3/6/9 m/s), reconfirmed
+across FOV, gate, and streak changes. The ">1 s lost detection at closest approach" that looks
+like a perception failure is ≥85% the harmless *outbound flythrough* — a symptom, not the
+cause. That's why the fix was earlier acquisition and a better handoff track, not a better
+seeker. *(ADR-0023, ADR-0026, ADR-0027)*
+
+### 10. Is the lethal-radius (Pk) metric self-serving — a way to hide a bad miss?
+Fair challenge, and I built the guardrails specifically to answer it. **The radius is fixed
+from a real kill mechanism's physics *before* looking at results** — kinetic ram ≈ 0.5 m
+(what cheap FPV interceptors actually do) and net ≈ 1.5 m — never reverse-engineered to clear
+a threshold. I **headline the full Pk-vs-radius curve**, per-speed with confidence intervals,
+so a reader applies their own bar, and I explicitly *refuse* to headline R ≥ 2 m (that region
+mostly scores ballistic coast). Critically, it's honest *because* of the kinematic diagnosis:
+the miss is floored near ~1 m at 6 m/s **even with perfect sensing**, so a proximity kill
+isn't hiding a bad miss — it's the physically *required* design, since you cannot null the
+last meter in the time available. That's also what every fielded cheap kinetic counter-UAS
+does; hit-to-kill is a $M-class technique. The honest caveat I always state: the sim target is
+a flat board with no collision volume, so *any* R is a disclosed narrative assumption, not a
+simulated hit. *(ADR-0025, ADR-0021, README honesty section)*
+
+### 11. Why did PIP — the theoretically superior lead-guidance law — lose to plain pro-nav?
+This is one of my favorite negative results. In the offline lab, PIP (a Predicted-Intercept-
+Point lead solve) beat pure pro-nav 2–4× on every path. In Gazebo, camera-only, it was
+**worse** — 3.03 m vs 1.6 m. Why: PIP's lead solve needs a clean target *velocity* estimate,
+and a real monocular stream (~14 Hz, 30–40% edge dropouts) starves that estimate, so its
+predicted intercept point is simply wrong. Pure pro-nav needs only the LOS *rate*, which
+survives the noisy, intermittent stream far better. The resume-worthy phrasing: *the
+theoretically superior law degraded under realistic sensor noise; the simpler, sensor-light
+law proved more robust.* It taught me the project's core discipline — **"lab ranks, Gazebo
+decides"** — and PIP does recover to roughly tied once it inherits the cue's clean mid-course
+track after handoff, which is itself an informative data point. *(ADR-0011)*
+
+### 12. "Lab ranks, Gazebo decides" — quantify that. How often was your fast offline model wrong?
+The offline point-mass lab exists to screen ideas cheaply, but it does **not** get the final
+word — and I keep score. It ranked optimistically, in the same direction, in **7 of 8**
+head-to-head checks: PIP (lost in Gazebo), Kalata-index filter gains (won −24–28% in lab,
+worse in every Gazebo flight), differentiate-vs-emit velocity (2.1 m lab swing shrank to a
+not-yet-significant 0.41 m), mid-course fusion (recovered coverage 0.08→0.96 in lab, flat in
+Gazebo), and the FOV-narrowing (below). The lab was recalibrated to match Gazebo's real
+failure modes, but it's *trusted for ranking candidates, never for an absolute number* — only
+a Gazebo gate is. Documenting where my own fast surrogate misled me is, I think, more
+convincing than a model that was never wrong. *(ADR-0011 3rd addendum, ADR-0013, ADR-0018)*
+
+### 13. Give me a decision you got wrong and reversed.
+Narrowing the camera FOV from 99.7° to 60°. The analytic model *and* the offline lab both
+predicted a win — a narrower lens resolves the tag farther out (~15 m vs ~6 m), which the fast
+regime is starved for. Gazebo overruled it: the narrow field detects farther but **can't
+hold** a fast crosser as it swings off the boresight, and the 9 m/s handoff-latch rate
+collapsed from 42% to **0%**. I did *not* adopt it — the sim keeps the validated wide lens —
+and the real acquisition fix turned out to be a looser lock requirement (2 detections instead
+of 3). One keeper: the exercise produced a script that now *measures* the detection envelope
+instead of assuming it. A lab-endorsed idea, empirically overturned, the right fix found, the
+fundamental limit reconfirmed — that arc is the methodology, not a footnote. *(ADR-0024)*
+
+### 14. Why simulation only, and why no ROS 2 — doesn't that limit what this proves?
+Simulation-only is a deliberate scoping choice: it lets me prove the **guidance and control
+core** — the part that ports to real hardware nearly as-is — with reproducible, logged,
+re-runnable numbers, before spending on an airframe. The honest boundary is drawn explicitly:
+what transfers (the guidance loop) vs. what doesn't (perception, real physics). **No ROS 2** is
+a minimal-dependency-surface decision — camera frames come straight out of Gazebo via
+gz-transport, control via MAVSDK over local UDP. It also drove a real hardware finding: it
+initially argued against a Jetson (whose only edge was CUDA AprilTag via Isaac ROS = ROS 2),
+though I later reversed the *compute* choice to Pi 5 + a Hailo NPU once I confirmed real ML
+ships a standalone Python API and doesn't force ROS 2. Fewer moving parts, every interface
+auditable. *(GOALS.md, ADR-0012, ADR-0015)*
+
+### 15. What would you do next?
+In priority order: **(1) The perception half** — build detect-then-track on the Pi 5 + Hailo
+bench against a printed tag at real size, in outdoor light, spinning to reproduce yaw-rate
+blur, and *measure* real detection Hz. That's the go/no-go gate on the whole hardware plan and
+directly attacks the #1 risk. **(2) Stress perception availability** — the realistic-cue
+dash-aborts showed a degraded ground link causes *catastrophic* mid-course failures, so I'd
+quantify the jam/dropout envelope. **(3) Tighten the statistics** — my Monte-Carlo cells are
+n=6–8; the qualitative findings are robust but the per-speed deltas need a larger batch before
+any headline. **(4) Ship the portfolio** — the demo GIF and writeup, disclosing the perception
+gap as future work. What I would *not* do is more guidance tuning — the analysis puts the
+theory floor near where I am, and the remaining gap is genuinely the faked perception half, not
+the guidance math. *(ADR-0030, ADR-0029)*
+
+---
+
+### Bonus — the one-way handoff: why does it matter and how is it enforced?
+The comms-denied story only means something if the ground channel is *provably* gone during
+the terminal phase. So handoff isn't "stop reading the cue" — at the latch tick the UDP socket
+is **closed and the holder set to null**, making a post-handoff cue read raise rather than
+return stale data (illegal-state-unrepresentable). The mock keeps logging as
+available-but-unread evidence. This is what lets me claim "even if the link is jammed
+mid-flight, the interceptor finishes on its own" and back it with a static test, not a
+promise. *(ADR-0010 #5)*
+```
+
+---
+
+Both documents above are complete and self-contained. Source files consulted: `/home/emerson/interceptor-sim/README.md` and `/home/emerson/interceptor-sim/docs/decisions.md` (ADR-0008 through ADR-0030), plus `GOALS.md` for the coordinate-frame conventions. Key numeric corrections I applied vs. the task brief: the terminal window is **~0.4 s** (not 0.25 s); the load-bearing kinematic proof is the **capacity bound (0.72 m vs 1.69 m ZEM)** and **r²=0.96 at handoff** (the 0.99 figure is at freeze and is near-tautological — I did not lead with it); the running-start honesty correction and dash-track fix numbers (idealized 1.90/2.30 m → realistic-degraded 2.93/3.08 m → fixed 1.19/1.48 m) are quoted from ADR-0028/0030.
