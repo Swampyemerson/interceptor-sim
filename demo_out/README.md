@@ -17,46 +17,60 @@ captured) by **`scripts/build_demo.py`** from the hero flight
 ```
 
 **PRIMARY = the ONBOARD (seeker-POV) cut** — the interceptor's own camera with the
-FPV OSD HUD overlaid, ending on the proximity-fuse close-out. Beats:
-1. **Title card** — "Camera-only proportional-navigation counter-UAS intercept".
-2. **DASH establish (REAL-TIME 1×)** — seeker view during the external-cue dash;
-   HUD shows `PHASE DASH`, `SENSOR EXTERNAL CUE`, ground speed ramping 0→~10 m/s.
-3. **HANDOFF beat** — `SENSOR` flips to `CAMERA-ONLY` with a "DATALINK DENIED →
-   CAMERA-ONLY TERMINAL" callout (the comms-denied headline; keyed off `ext_fresh`
-   1→0, not a phase value).
-4. **Terminal (SLOW MOTION ~7×)** — the AprilTag looms and fills the frame while the
-   HUD firing solution collapses: `RANGE` 5.3→1 m across the red R_lethal tick, LOS
-   rate spiking, `T-GO` counting down, `APRILTAG LOCKED`.
-5. **PROXIMITY FUSE — DETONATE hold (~1.7 s)** — flash + stylised criterion ring on
-   the tag, captioned **"CPA 0.63 m < 1.5 m lethal radius (ADR-0025 criterion — not a
-   modeled blast)"**. There is no collision/blast volume in the sim (ADR-0014).
-6. **Outro metrics card** — the validated numbers (pro-nav 4.6–7.6× vs pursuit @
-   2 m/s; kinematic-limit diagnosis; 0.63 m CPA under realistic degraded perception;
-   proximity metric; comms-denied handoff).
+FPV OSD HUD overlaid, ending on the proximity-fuse close-out. **Re-cut 2026-07-07 on
+builder feedback**: come in from further away, keep the slow-mo interception, remove
+the mini-map, de-cringe the OSD, drop the outro. Beats (~20 s total):
+1. **Title card (short)** — one headline line ("Camera-only proportional-navigation
+   counter-UAS intercept") + one understated honesty line. No lecture.
+2. **ESTABLISH (REAL-TIME 1×, ~4.5 s)** — the interceptor holds on the external cue
+   while the target sits as a distant shape near the horizon: it comes in from far
+   away. HUD `PHASE TAKEOFF/CUE_WAIT`, `SENSOR EXT CUE (mock)`, `APRILTAG SEARCHING`,
+   `RANGE ACQUIRING`.
+3. **BUILDUP / DASH-IN (SLOW MOTION ~4×, ~7 s)** — gently paced so the target visibly
+   GROWS from a distant shape to an AprilTag speck as range closes 30 m → ~5 m; the
+   `GND SPD` gauge ramps; `APRILTAG SEARCHING`.
+4. **HANDOFF beat (SLOW MOTION ~7×)** — `SENSOR` flips to `CAMERA-ONLY` with a
+   "DATALINK DENIED → CAMERA-ONLY TERMINAL" callout (comms-denied headline; keyed off
+   `ext_fresh` 1→0, not a phase value); `APRILTAG` flips `SEARCHING → LOCKED`.
+5. **Terminal (SLOW MOTION ~7×)** — the AprilTag looms and fills the frame while the
+   HUD firing solution collapses: `RANGE` across the red R_lethal tick, LOS rate
+   spiking, `T-GO` counting down, `APRILTAG LOCKED`. Kept exactly (builder liked it).
+6. **PROXIMITY FUSE — DETONATE hold (~1.9 s), then cut to black** — de-cringed: ONE
+   thin criterion ring on the tag (no white flash, no expanding shockwave, no double
+   rings), captioned **"CPA 0.63 m < 1.5 m lethal radius (ADR-0025 criterion — not a
+   modeled blast)"**. No collision/blast volume in the sim (ADR-0014). The old
+   outro/metrics card was REMOVED (builder feedback #4); the reel ends here.
 
 **SECONDARY = the CHASE (wide) cut** — the same intercept from the world chase
 camera + a compact HUD, ~3.8 s, a brief B-roll wide angle. Deliberately short; the
 onboard seeker view is the centerpiece.
 
-**Retiming is disclosed on-screen** (`REAL-TIME 1×` / `SLOW MOTION ~7×` pills): the
-whole engagement is only ~0.3 s of sim time, so the terminal is slowed for clarity.
-Slow-mo in-betweens are honest cross-dissolves of adjacent captured frames; the HUD
-is overlaid **unblended** (crisp) on top so its ticks/readouts never ghost.
+**Retiming is disclosed on-screen** (`REAL-TIME 1×` establish / `SLOW MOTION ~4×`
+buildup / `SLOW MOTION ~7×` terminal pills): the dash closes 30 m in ~2 s of sim
+time and the terminal is only ~0.36 s, so the approach is gently paced and the
+terminal slowed for clarity. Slow-mo in-betweens are honest cross-dissolves of
+adjacent captured frames; the HUD is overlaid **unblended** (crisp) on top so its
+ticks/readouts never ghost.
 
-**The HUD** is `scripts/render_hud.py --layout overlay` (new FPV OSD): every widget
+**The HUD** is `scripts/render_hud.py --layout overlay` (FPV OSD): every widget
 traces to a CSV column — phase/sensor/AprilTag lamps, a heading tape (`psi_deg`),
 `T-GO` (`r_hat_m`/`vc_m_s`), a depleting `RANGE` bar with the R_lethal tick
 (`r_hat_m`), `CLOSING` (`vc_m_s`), `LOS RATE` (`lambda_dot_deg_s`), a `GND SPD` gauge
 (0.3 s-smoothed d/dt of `gt_cam_x/y`, GT-derived/display-only), an `ALT` gauge
-(`alt_m`), the two-series mini-map, and a fixed boresight reticle. No pitch/roll
-horizon — the CSV has no honest source for it, and this low-altitude engagement is
-essentially level (see the module docstring). The `sidebar` layout is retained for
-back-compat with `compose_demo.sh`.
+(`alt_m`), and a fixed thin boresight reticle. **The two-series mini-map, the
+"INTERCEPT SOLUTION" status line, and the "LAW PRONAV" label were REMOVED from the
+overlay in the 2026-07-07 de-cringe pass** (builder: read like a clean instrument
+panel, not a moving-map video game — err toward LESS). The honesty footnotes (mocked
+cue; `GND SPD`/CPA are GT scoring-only, never fed to guidance) stay, just smaller. No
+pitch/roll horizon — the CSV has no honest source for it, and this low-altitude
+engagement is essentially level (see the module docstring). The `sidebar` layout is
+retained (with its mini-map) for back-compat with `compose_demo.sh`.
 
-**Outputs:** `interceptor_onboard.mp4` (~15 s, 1280×960, PRIMARY), a highlight-loop
-`interceptor_onboard.gif` (handoff→fuse), and `interceptor_chase.mp4` (~3.8 s,
+**Outputs:** `interceptor_onboard.mp4` (~20 s, 1280×960, PRIMARY), a highlight-loop
+`interceptor_onboard.gif` (handoff→fuse, ~3 MB), and `interceptor_chase.mp4` (~3.8 s,
 960×540, SECONDARY). The committed stills `docs/images/demo_onboard_final.png` (the
-proximity-fuse frame) and `demo_chase_final.png` are refreshed from this flight.
+proximity-fuse frame) and `demo_chase_final.png` are refreshed from this flight (both
+de-cringed: no mini-map).
 
 ## Capture-session history (2026-07-07) — re-capture after builder feedback (3 fixes + 1 add)
 

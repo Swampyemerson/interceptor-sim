@@ -3,7 +3,7 @@
 
 WHAT: builds the finished ONBOARD hero cut (the seeker POV + the FPV OSD HUD
 overlaid, ending on the proximity-fuse close-out) as the PRIMARY video, plus a
-brief CHASE/wide secondary cut, bracketed by title/outro cards. All OFFLINE --
+brief CHASE/wide secondary cut, opened by a short title card (no outro). OFFLINE --
 no Gazebo/GPU; the 700+ frames are already captured (demo_out/onboard_frames,
 chase_frames + their manifest.csv) and the flight is the ADR-0032/0033 hero CSV
 (logs/m4_intercept_pronav_20260707T211601Z.csv, miss 0.632 m).
@@ -125,51 +125,26 @@ def text_layer(items, W, H, bg=None):
 
 
 def title_card(W, H):
+    # Short: a one-line headline (the intercept name) + one understated honesty
+    # line -- nothing lecture-y (builder feedback #4). The criterion-not-collision
+    # honesty is carried in-scene by the proximity-fuse banner at the CPA hold.
     items = [
-        {"plate": (0.06, 0.30, 0.88, 0.42), "plate_ec": rh.COLOR_PANEL_LINE,
-         "plate_lw": 1.4, "plate_alpha": 0.0},
-        {"x": 0.5, "y": 0.70, "text": "CAMERA-ONLY  PROPORTIONAL-NAVIGATION",
+        {"x": 0.5, "y": 0.575, "text": "CAMERA-ONLY  PROPORTIONAL-NAVIGATION",
          "color": rh.COLOR_WHITE, "size": 20, "weight": "bold"},
-        {"x": 0.5, "y": 0.625, "text": "COUNTER-UAS  INTERCEPT",
+        {"x": 0.5, "y": 0.50, "text": "COUNTER-UAS  INTERCEPT",
          "color": rh.COLOR_GREEN, "size": 26, "weight": "bold"},
-        {"x": 0.5, "y": 0.52, "text": "PX4 / Gazebo SITL    monocular AprilTag seeker    pro-nav guidance",
-         "color": rh.COLOR_GRAY, "size": 12},
-        {"x": 0.5, "y": 0.45, "text": "external ground cue  ->  comms-denied handoff  ->  onboard-camera terminal",
-         "color": rh.COLOR_AMBER, "size": 12},
-        {"x": 0.5, "y": 0.115, "text": "Simulation only.  Every readout traces to a logged CSV column.",
-         "color": rh.COLOR_GT_REF, "size": 9},
-        {"x": 0.5, "y": 0.085, "text": "\"kill\" = closest-approach < lethal-radius criterion (ADR-0025), not a modeled collision.",
-         "color": rh.COLOR_GT_REF, "size": 9},
+        {"x": 0.5, "y": 0.395,
+         "text": "PX4 / Gazebo SITL    -    simulation only; every readout traces to a logged CSV column",
+         "color": rh.COLOR_GT_REF, "size": 10},
     ]
     layer = text_layer(items, W, H, bg=rh.COLOR_BG)
     return layer[:, :, :3]
 
 
-def outro_card(W, H):
-    bx, tx = 0.10, 0.135      # bullet dot x, text x
-    ys = [0.60, 0.52, 0.44, 0.36, 0.28]
-    bullets = [
-        "Pro-nav vs pursuit:  4.6-7.6x tighter miss @ 2 m/s  (M4, gated A/B)",
-        "FPV crossing speed:  miss is KINEMATICALLY limited -- diagnosed, not a law failure",
-        "Dash-track fix:  0.63 m CPA under a REALISTIC degraded ground cue (9 m/s crosser)",
-        "Comms-denied:  external cue -> camera-only handoff -- the headline capability",
-        "Metric:  proximity / lethal-radius Pk  (ram ~0.5 m / net ~1.5 m, ADR-0025)",
-    ]
-    items = [{"x": 0.5, "y": 0.775, "text": "RESULTS", "color": rh.COLOR_GREEN,
-              "size": 24, "weight": "bold"},
-             {"plate": (0.07, 0.20, 0.86, 0.52), "plate_ec": rh.COLOR_PANEL_LINE,
-              "plate_lw": 1.4, "plate_alpha": 0.0}]
-    for y, b in zip(ys, bullets):
-        items.append({"x": bx, "y": y, "text": ">", "color": rh.COLOR_GREEN, "size": 13, "ha": "center", "weight": "bold"})
-        items.append({"x": tx, "y": y, "text": b, "color": rh.COLOR_WHITE, "size": 12.5, "ha": "left"})
-    items += [
-        {"x": 0.5, "y": 0.135, "text": "Simulation only -- no collision/blast volume.  gt_* is scoring-only, never fed to guidance.",
-         "color": rh.COLOR_GT_REF, "size": 9},
-        {"x": 0.5, "y": 0.105, "text": "Every number traces to a logged run + an ADR in docs/decisions.md.",
-         "color": rh.COLOR_GT_REF, "size": 9},
-    ]
-    layer = text_layer(items, W, H, bg=rh.COLOR_BG)
-    return layer[:, :, :3]
+# NOTE: the outro/metrics "RESULTS" card was REMOVED (2026-07-07, builder
+# feedback #4 -- "I don't really need the screen at the end explaining the
+# interceptor"). The video now ends on the proximity-fuse CPA hold and cuts to
+# black. The results narrative lives in the README / docs, not the demo reel.
 
 
 def fuse_banner(W, H, cpa_m):
@@ -189,32 +164,26 @@ def fuse_banner(W, H, cpa_m):
 
 
 def draw_fuse(base_bgr, banner_bgra, progress, center):
-    """base + expanding red ring + brief white flash + fading DETONATE banner.
-    progress in [0,1] across the hold; center=(cx,cy) px (the aimpoint)."""
+    """De-cringed proximity-fuse close-out (2026-07-07, builder feedback #3):
+    ONE thin static red criterion ring on the aimpoint + the fading DETONATE
+    banner. Removed the gamey stuff: the white trigger flash, the expanding
+    shockwave ring, and the amber second concentric ring. Reads like an
+    instrument, not a video game. progress in [0,1] across the hold; center=
+    (cx,cy) px (the tag centroid / criterion-ring centre)."""
     H, W = base_bgr.shape[:2]
     out = base_bgr.copy()
     cx, cy = center
     red = _hex_bgr(rh.COLOR_RED)
-    amber = _hex_bgr(rh.COLOR_AMBER)
 
-    # brief white flash on the trigger instant (first ~0.1 of the hold)
-    if progress < 0.12:
-        f = (0.12 - progress) / 0.12
-        white = np.full_like(out, 255)
-        out = cv2.addWeighted(out, 1.0, white, 0.55 * f, 0.0)
-
-    # expanding ring: grows over the first ~0.35, then a steady criterion ring holds
-    rmax = int(0.42 * min(W, H))
-    grow = min(1.0, progress / 0.35)
-    r = int(rmax * grow)
-    overlay = out.copy()
-    if r > 4:
-        cv2.circle(overlay, (cx, cy), r, red, thickness=max(3, int(10 * (1 - grow) + 3)), lineType=cv2.LINE_AA)
-        cv2.circle(overlay, (cx, cy), max(1, int(r * 0.72)), amber, thickness=2, lineType=cv2.LINE_AA)
-        out = cv2.addWeighted(overlay, 0.8, out, 0.2, 0.0)
-    # steady criterion ring after growth
-    if grow >= 1.0:
-        cv2.circle(out, (cx, cy), rmax, red, thickness=2, lineType=cv2.LINE_AA)
+    # single thin criterion ring -- quick fade-in, then steady. Marks the
+    # lethal-radius CRITERION around the tag (stylised; there is no modeled
+    # blast volume in the sim -- the banner states this explicitly).
+    rf = min(1.0, progress / 0.15)
+    if rf > 0:
+        r = int(0.34 * min(W, H))
+        ring = out.copy()
+        cv2.circle(ring, (cx, cy), r, red, thickness=2, lineType=cv2.LINE_AA)
+        out = cv2.addWeighted(ring, rf, out, 1.0 - rf, 0.0)
 
     # banner fades in over the first ~0.2 then holds
     bf = min(1.0, progress / 0.2)
@@ -302,13 +271,18 @@ def build_onboard(ctx, make_gif=True):
     simt, files = load_manifest(os.path.join(ONBOARD_DIR, "manifest.csv"))
 
     # key capture indices (from the manifest / CSV markers)
-    DASH0 = nearest_idx(simt, 18.42)     # 432
-    HANDOFF = nearest_idx(simt, 20.164)  # 485  ext_fresh 1->0
+    EST0 = nearest_idx(simt, 14.0)       # ~300  establish start: target is a
+                                         #       distant shape near the horizon
+                                         #       while the interceptor holds on
+                                         #       the external cue (comes in from
+                                         #       far -- builder feedback #1)
+    DASH0 = nearest_idx(simt, 18.42)     # 432  dash / buildup begins (range closes)
+    HANDOFF = nearest_idx(simt, 20.164)  # 485  ext_fresh 1->0 (datalink denied)
     FIRSTDET = nearest_idx(simt, 20.264) # 488  first AprilTag detection
     CPA = ctx.cpa_idx and nearest_idx(simt, float(ctx.t_sim[ctx.cpa_idx]))  # 496
     cpa_m = float(ctx.gt_range[ctx.cpa_idx])
 
-    need = range(DASH0 - 2, CPA + 3)
+    need = range(EST0 - 1, CPA + 3)
     hud = render_hud_layer(ctx, simt, need, os.path.join(DEMO, "hud_onboard_transparent"), W, H)
     vid = {i: cv2.imread(files[i]) for i in need}   # raw seeker frames (blended for slow-mo)
 
@@ -316,8 +290,11 @@ def build_onboard(ctx, make_gif=True):
         """HUD-over-video for a single (crisp) capture index."""
         return alpha_over(vid[i], hud[i])
 
-    # disclosure pills + handoff callout (cached transparent layers)
+    # disclosure pills + handoff callout (cached transparent layers). Three
+    # honestly-labelled playback rates in a clean progression: real-time
+    # establish -> gentle ~4x buildup (watch it grow) -> ~7x terminal.
     pill_rt = disclosure_pill(W, H, "REAL-TIME  1x", rh.COLOR_GRAY)
+    pill_bu = disclosure_pill(W, H, "SLOW MOTION  ~4x", rh.COLOR_AMBER)
     pill_sm = disclosure_pill(W, H, "SLOW MOTION  ~7x", rh.COLOR_AMBER)
     ho_call = callout(W, H, "DATALINK DENIED  ->  CAMERA-ONLY TERMINAL", rh.COLOR_GREEN)
     banner = fuse_banner(W, H, cpa_m)
@@ -356,40 +333,49 @@ def build_onboard(ctx, make_gif=True):
                     frame = alpha_over(frame, lay)
                 emit(frame)
 
-    # 1) TITLE (fade in from black, hold, fade to first frame)
+    # 1) TITLE (short: fade in from black, brief hold, fade to first frame)
     title = title_card(W, H)
     black = np.zeros((H, W, 3), np.uint8)
     emit_fade(black, title, 0.5)
-    emit_hold(title, 2.6)
-    first = alpha_over(comp_of(DASH0), pill_rt)
+    emit_hold(title, 2.4)
+    first = alpha_over(comp_of(EST0), pill_rt)
     emit_fade(title, first, 0.5)
 
-    # 2) ESTABLISH / DASH -- real-time (source ~31 fps ≈ 1x at 30 fps out)
-    for i in range(DASH0, HANDOFF):
+    # 2) ESTABLISH -- REAL-TIME 1x, coming in from far away (builder feedback #1):
+    #    the target is a distant shape near the horizon while the interceptor
+    #    holds on the external cue. Source ~30 fps ≈ 1x at 30 fps out.
+    for i in range(EST0, DASH0):
         emit(alpha_over(comp_of(i), pill_rt))
+
+    # 3) BUILDUP / DASH-IN -- gently paced ~4x slow-mo so the target visibly
+    #    GROWS from a distant shape to an AprilTag speck as range closes
+    #    (30 m -> ~5 m). Honest cross-dissolve of adjacent captured frames with
+    #    a crisp HUD; the APRILTAG lamp holds SEARCHING here (flips LOCKED in
+    #    the terminal beat below -- good drama, builder feedback #1).
+    emit_slow(DASH0, HANDOFF, 4, [pill_bu])
 
     hl_start = n  # README-GIF highlight loop starts at the handoff beat
 
-    # 3) HANDOFF beat -- slow, with the CAMERA-ONLY callout
+    # 4) HANDOFF beat -- slow, with the CAMERA-ONLY callout (datalink denied)
     emit_slow(HANDOFF, FIRSTDET, 8, [pill_sm, ho_call])
 
-    # 4) TERMINAL slow-mo -- the tag loom + the HUD firing solution collapsing
+    # 5) TERMINAL slow-mo (~7x) -- the tag loom + the HUD firing solution
+    #    collapsing. Kept EXACTLY as the builder liked it (feedback #2).
     emit_slow(FIRSTDET, CPA, 7, [pill_sm])
 
-    # 5) CPA / PROXIMITY FUSE hold (~1.6 s) -- flash, ring, DETONATE banner
+    # 6) CPA / PROXIMITY FUSE hold -- one thin criterion ring + DETONATE banner
+    #    (de-cringed: no flash / no shockwave / no double rings, feedback #3).
     cpa_comp = alpha_over(comp_of(CPA), pill_sm)
-    center = (int(W * 0.53), int(H * 0.58))  # the AprilTag centroid at CPA
-    holdN = int(round(1.7 * FPS))
+    center = (int(W * 0.60), int(H * 0.67))  # the AprilTag centroid at CPA
+    holdN = int(round(1.9 * FPS))
     for k in range(holdN):
         emit(draw_fuse(cpa_comp, banner, k / (holdN - 1), center))
     hl_end = n  # highlight loop ends after the fuse hold
 
-    # 6) OUTRO metrics card
-    outro = outro_card(W, H)
+    # 7) End on the fuse hold and cut to black -- NO outro/metrics card
+    #    (builder feedback #4: don't explain the interceptor at the end).
     last_fuse = draw_fuse(cpa_comp, banner, 1.0, center)
-    emit_fade(last_fuse, outro, 0.5)
-    emit_hold(outro, 4.4)
-    emit_fade(outro, black, 0.5)
+    emit_fade(last_fuse, black, 0.5)
 
     mp4 = os.path.join(DEMO, "interceptor_onboard.mp4")
     print(f"[onboard] {n} frames ({n / FPS:.1f}s), CPA={cpa_m:.3f} m at capture idx {CPA}")

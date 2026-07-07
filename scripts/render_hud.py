@@ -24,7 +24,6 @@ OSD FIELDS (overlay) and the exact CSV column driving each:
   PHASE lamp                 <- phase
   SENSOR / mode lamp         <- ext_fresh          (see compute_handoff_idx())
   APRILTAG LOCK lamp         <- detected           (see parse_flag01())
-  INTERCEPT SOLUTION status  <- tgt_n_hat presence
   HEADING tape (attitude)    <- psi_deg
   T_GO (time-to-intercept)   <- r_hat_m / vc_m_s   (camera firing solution)
   RANGE bar + readout        <- r_hat_m            (R_lethal tick = --radius)
@@ -33,8 +32,12 @@ OSD FIELDS (overlay) and the exact CSV column driving each:
   GND SPD gauge               <- d/dt of gt_cam_x/y (GT-derived, scoring ref;
                                  0.3 s smoothed -- see HudContext.ground_speed)
   ALT gauge/readout           <- alt_m
-  Top-down mini-map           <- gt_cam_x/y, psi_deg (own ship), tgt_e/n_hat
-                                 (cue estimate), gt_tag_x/y + gt_range (CPA ring)
+
+  The top-down mini-map, the INTERCEPT-SOLUTION status line, and the "LAW"
+  label were REMOVED from the OVERLAY OSD in the 2026-07-07 de-cringe pass
+  (builder feedback: the OSD should read like a clean instrument panel, not a
+  moving-map video game -- err toward LESS). The mini-map lives on in the
+  `sidebar` layout only; draw_minimap() is retained for that caller.
 
 WHY NO PITCH/ROLL HORIZON: the CSV has psi_deg (yaw/heading) but no pitch or
 roll column. A flight-path angle derived from d(alt)/dt over ground speed is
@@ -755,19 +758,18 @@ def render_overlay_frame(ctx, i, out_path, transparent=False, W=OVERLAY_W, H=OVE
     # --- top-centre heading tape (attitude/heading, <- psi_deg) ---
     _heading_tape(ax, 0.5, 0.945, 0.30, 0.075, ctx.psi_deg[i], transparent, fs * 0.9)
 
-    # --- top-right T-GO hero number + intercept-solution status ---
-    trx, trw, trh = 0.70, 0.285, 0.09
-    _plate(ax, trx, 0.895, trw, trh, transparent, z=2)
+    # --- top-right T-GO hero number (time-to-intercept, camera firing solution) ---
+    # The gamey "SOLUTION: CONVERGED/SOLVING" status line was removed in the
+    # 2026-07-07 de-cringe pass -- T-GO ("--" until the camera has a solution)
+    # already carries the "do we have a firing solution yet" story honestly.
+    trx, trw, trh = 0.70, 0.285, 0.052
+    _plate(ax, trx, 0.933, trw, trh, transparent, z=2)
     tgo = ctx.t_go(i)
-    ax.text(trx + 0.02, 0.955, "T-GO", color=COLOR_GRAY, fontsize=fs * 0.85,
+    ax.text(trx + 0.02, 0.959, "T-GO", color=COLOR_GRAY, fontsize=fs * 0.85,
             family=MONO, ha="left", va="center", zorder=3)
-    ax.text(trx + trw - 0.02, 0.952, ("--" if math.isnan(tgo) else f"{tgo:0.2f}s"),
-            color=COLOR_WHITE, fontsize=fs * 1.6, family=MONO, ha="right", va="center",
+    ax.text(trx + trw - 0.02, 0.957, ("--" if math.isnan(tgo) else f"{tgo:0.2f}s"),
+            color=COLOR_WHITE, fontsize=fs * 1.5, family=MONO, ha="right", va="center",
             weight="bold", zorder=3)
-    sol = solution_label(ctx.tgt_n_hat[i])
-    sol_color = COLOR_GREEN if sol == "CONVERGED" else COLOR_AMBER
-    ax.text(trx + trw / 2, 0.912, f"SOLUTION: {sol}", color=sol_color,
-            fontsize=fs * 0.78, family=MONO, ha="center", va="center", weight="bold", zorder=3)
 
     # --- left GND SPD gauge / right ALT gauge (flight state) ---
     gs = ctx.ground_speed[i]
@@ -777,9 +779,9 @@ def render_overlay_frame(ctx, i, out_path, transparent=False, W=OVERLAY_W, H=OVE
     _vgauge(ax, 0.950, 0.42, 0.028, 0.30, alt, ALT_MAX, "ALT",
             fmt_num(alt, "", "{:.2f}") + "\nm", transparent, fs * 0.85)
 
-    # --- bottom-left mini-map inset ---
-    map_ax = fig.add_axes((0.018, 0.05, 0.255, 0.30))
-    draw_minimap(map_ax, ctx, i, transparent=transparent, compact=True)
+    # --- bottom-left mini-map inset: REMOVED (2026-07-07 de-cringe pass) ---
+    # The two-series moving-map read as a video-game minimap, not an instrument
+    # (builder feedback #3a). draw_minimap() is retained for the sidebar layout.
 
     # --- bottom-centre firing-solution cluster: RANGE bar + readouts ---
     bx, bw = 0.335, 0.33
@@ -798,19 +800,18 @@ def render_overlay_frame(ctx, i, out_path, transparent=False, W=OVERLAY_W, H=OVE
     ax.text(bx + bw, 0.160, fmt_num(ldot, " deg/s", "{:+.1f}"),
             color=(COLOR_WHITE if not math.isnan(ldot) else COLOR_DIM),
             fontsize=fs * 0.92, family=MONO, ha="right", va="center", weight="bold", zorder=3)
-    law = (row.get("law") or "--").upper()
-    ax.text(bx + bw / 2, 0.185, f"LAW {law}", color=COLOR_GRAY, fontsize=fs * 0.72,
-            family=MONO, ha="center", va="center", zorder=3)
+    # (The "LAW PRONAV" label was removed in the 2026-07-07 de-cringe pass --
+    #  builder feedback #3c; the guidance law is stated on the title card.)
 
-    # --- bottom-right time + honesty footnotes ---
+    # --- bottom-right time + honesty footnotes (understated, but non-negotiable) ---
     t_display = (row.get("t_sim") or "").strip()
     t_display = (t_display + "s sim") if t_display else ((row.get("t", "") or "--") + "s wall")
     ax.text(0.985, 0.115, f"t = {t_display}", color=COLOR_GT_REF, fontsize=fs * 0.72,
             family=MONO, ha="right", va="center", zorder=3)
     ax.text(0.985, 0.033, "EXTERNAL CUE = mocked ground sensor, not live hardware",
-            color=COLOR_GT_REF, fontsize=fs * 0.6, family=MONO, ha="right", va="center", zorder=3)
-    ax.text(0.985, 0.013, "GT / CPA markers = scoring reference only, never fed to guidance",
-            color=COLOR_GT_REF, fontsize=fs * 0.6, family=MONO, ha="right", va="center", zorder=3)
+            color=COLOR_GT_REF, fontsize=fs * 0.55, family=MONO, ha="right", va="center", zorder=3)
+    ax.text(0.985, 0.013, "GND SPD / CPA = ground truth, scoring only, never fed to guidance",
+            color=COLOR_GT_REF, fontsize=fs * 0.55, family=MONO, ha="right", va="center", zorder=3)
 
     return _save(fig, out_path)
 
