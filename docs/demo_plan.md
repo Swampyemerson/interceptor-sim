@@ -106,11 +106,23 @@ video, cross-linked, one LinkedIn post.
 - [x] Target sat static until engage → make it incoming from the start of the shot.
 - [x] Flat green ground → subtle grid/checker for a sense of speed (demo world only).
 - [ ] **More drone-/OSD-like HUD info, but ONLY if genuinely useful — no cringe.**
-      Recreate a real FPV/interceptor OSD feel with fields that actually carry meaning:
-      candidates worth adding (each traces to a CSV column) — battery/flight-time
-      proxy, altitude, a compact attitude/horizon indicator, ground speed, a
-      time-to-intercept / t_go readout, a range-closure bar. Cut anything decorative
-      that doesn't inform. Keep the aerospace-instrument look; legibility over density.
+      Recreate a real FPV/interceptor OSD feel with fields that actually carry meaning
+      (each traces to a CSV column): altitude, ground speed, a compact attitude/horizon
+      indicator, a time-to-intercept / t_go readout, a range-closure bar. Cut anything
+      decorative that doesn't inform. **Apply the `dataviz` skill's rules (loaded 2026-07-07):**
+      • Pick form by job — meters/bars for magnitude (range-closure, speed, alt), status
+        lamps for state (phase, AprilTag lock), a hero number for the headline (range/miss).
+      • Color by job, dark aerospace surface: the mini-map's TWO series must be
+        CVD-safe AND not color-alone — TRUE PATH = cool cyan `#4fc3d6`, **solid smooth**
+        line, labeled "TRUE PATH (ref)"; CUE ESTIMATE = warm amber `#e8912e`, **broken**
+        line (gaps at dropouts), labeled "CUE EST". (warm/cool + line-style + labels =
+        safe; the skill's node validator couldn't run here — no node — but this is a
+        canonical CVD-safe pair with mandatory secondary encoding.)
+      • Status lamps use RESERVED status colors WITH text (never color-alone): green=LOCKED,
+        amber=SEARCHING. Gauge/meter fills = ONE sequential hue; the value TEXT stays in
+        white/gray ink (text tokens), never the bar's color. Recessive grid/axes; thin 2px
+        marks; monospace. One scale per gauge (never dual-axis). Legend/direct-labels on
+        the 2-series map. Then eyeball a rendered frame for collisions/overflow.
 - [ ] **Final onboard frame = the closest-approach (CPA) frame, with a
       "PROXIMITY FUSE — DETONATE" overlay.** MUST be honest: pair the label with the
       real trigger number (e.g. "CPA 1.06 m < 1.5 m lethal radius") so it reads as the
