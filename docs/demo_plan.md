@@ -98,6 +98,26 @@ video, cross-linked, one LinkedIn post.
 
 ## TODO (ordered; gated where noted)
 
+**Demo polish — builder feedback (2026-07-07), do in the next capture pass:**
+- [x] Target drone was oriented sideways (tag on its "front" while it crosses) →
+      re-orient body to fly forward, tag on the -X side (detection preserved).
+- [x] HUD track viz oversold the chaos → break the estimate line at real signal
+      dropouts, plot smooth ground-truth as reference, label the degraded cue.
+- [x] Target sat static until engage → make it incoming from the start of the shot.
+- [x] Flat green ground → subtle grid/checker for a sense of speed (demo world only).
+- [ ] **More drone-/OSD-like HUD info, but ONLY if genuinely useful — no cringe.**
+      Recreate a real FPV/interceptor OSD feel with fields that actually carry meaning:
+      candidates worth adding (each traces to a CSV column) — battery/flight-time
+      proxy, altitude, a compact attitude/horizon indicator, ground speed, a
+      time-to-intercept / t_go readout, a range-closure bar. Cut anything decorative
+      that doesn't inform. Keep the aerospace-instrument look; legibility over density.
+- [ ] **Final onboard frame = the closest-approach (CPA) frame, with a
+      "PROXIMITY FUSE — DETONATE" overlay.** MUST be honest: pair the label with the
+      real trigger number (e.g. "CPA 1.06 m < 1.5 m lethal radius") so it reads as the
+      ratified proximity/lethal-radius criterion being met (ADR-0025), NOT a modeled
+      detonation (the sim has no collision/blast — keep the README/WRITEUP disclosure).
+      A brief stylized flash is fine if clearly the criterion, not a physics explosion.
+
 **Now (ungated, safe to build against validated numbers/tooling):**
 - [ ] Install `ffmpeg` (`sudo apt install -y ffmpeg` — apt is allowed; may prompt,
       so Emerson may need to run it via `! sudo apt install -y ffmpeg`). Blocks the
