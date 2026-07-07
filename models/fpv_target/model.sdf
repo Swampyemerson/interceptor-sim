@@ -37,6 +37,40 @@
   added (mirrors apriltag_target, which also has none -- ADR-0009 addendum
   notes a flythrough is physically harmless; keeping that true here avoids
   introducing any new physics behavior for a purely cosmetic model).
+
+  BODY RE-ORIENT (portfolio demo polish, builder feedback: the drone read as
+  "strafing sideways" instead of "flying forward along its travel path" --
+  the hero flight crosses along +Y, worlds/apriltag_demo.sdf --target-vel
+  0,9.0). FIX: yaw the fuselage box (body_visual) and the camera/antenna nub
+  (cam_nub_visual) -90 deg about LOCAL Z so their elongated/offset axis now
+  points along Y instead of X -- these are the only two parts with a
+  directional "nose" read. The 4-fold-symmetric arm/prop/hub "shield" ring
+  (radially diagonal in the Y-Z plane, no inherent front/back) is left
+  COMPLETELY UNCHANGED, on purpose: a naive whole-assembly rotation about
+  the tag's own local origin was checked with a small numeric script and
+  DOES push the hub/prop/arm centers to local X<0 (in FRONT of the tag
+  plane, e.g. hub_ne_visual's center goes from (0.155,-0.354,0.354) to
+  (-0.354,-0.155,0.354)) while still inside/near the tag's Y/Z footprint --
+  a real occlusion breach. So instead of rotating POSITIONS about the tag's
+  origin, only the ORIENTATION (yaw field) of body_visual changes, its
+  POSITION stays byte-identical (0.14 0 0) -- since SDF pose composition is
+  R = Rz(yaw)*Ry(pitch)*Rx(roll), adding a yaw to an already-yaw=0 pose is
+  just "new_yaw = -1.570796", nothing else. This keeps the box fully within
+  X in [0.06, 0.22] (still 100% behind/hidden by the tag from the
+  interceptor's own -X approach view, exactly as before -- verified by hand:
+  the box was ALREADY completely hidden from head-on in the original
+  orientation too, since its old Y/Z half-extents (0.08/0.05) sat inside the
+  tag's 0.3125 m footprint; this re-orient is a pure no-op for the
+  interceptor's onboard camera, and ONLY changes the CHASE-camera's oblique
+  broadside read -- so it cannot affect detection). cam_nub_visual is
+  REPOSITIONED (not just re-yawed -- its footprint is X/Y-symmetric so a yaw
+  alone wouldn't visibly move it) from (-0.03,0,0.36) to (0,0.03,0.36),
+  sliding its small "forward offset" from the old nose axis (-X) onto the
+  new one (+Y); it stays safe unconditionally because Z=0.36 (+/-0.025 half-
+  height) is outside the tag's +/-0.3125 footprint on Z alone, regardless of
+  X/Y. Net result: the fuselage's long axis and its little canopy/antenna
+  marker both point along the travel direction; the tag itself did not move
+  a millimeter (see DETECTION CONTRACT above, still byte-identical).
 -->
 <sdf version='1.9'>
   <model name='fpv_target'>
@@ -74,12 +108,17 @@
            |Y|>0.3125 or |Z|>0.3125). Everything below is dark carbon
            (near-black) with a few red "enemy" accents. -->
 
-      <!-- Central fuselage: fully behind the tag (X in [0.04,0.24]) and
-           smaller than the tag's 0.3125 m half-width/half-height in Y/Z, so
-           it is completely hidden behind the opaque tag plane from a -X
-           (approach) view -- it only matters for oblique/side demo angles. -->
+      <!-- Central fuselage: fully behind the tag (X in [0.06,0.22] after the
+           yaw below -- still inside [0.04,0.24]) and smaller than the tag's
+           0.3125 m half-width/half-height in Y/Z, so it is completely
+           hidden behind the opaque tag plane from a -X (approach) view --
+           it only matters for oblique/side demo angles. Position
+           UNCHANGED; yaw=-90deg (see header "BODY RE-ORIENT") swaps the
+           box's long 0.20 m axis from local X onto local Y, so it reads as
+           pointing along the target's +Y travel direction instead of the
+           old approach-facing X axis. -->
       <visual name='body_visual'>
-        <pose>0.14 0 0 0 0 0</pose>
+        <pose>0.14 0 0 0 0 -1.570796</pose>
         <geometry>
           <box>
             <size>0.20 0.16 0.10</size>
@@ -292,12 +331,15 @@
       <!-- Small camera/antenna nub, red. Positioned ABOVE the tag's top
            edge (local Z=0.36 > the tag's 0.3125 m half-height, so its
            whole 0.025 m half-height still clears 0.335 > 0.3125) -- i.e. it
-           never overlaps the tag's Y/Z footprint at all, so it is safe to
-           place at local X=-0.03 (slightly forward of the tag plane, toward
-           the camera) without ever occluding a tag pixel. Reads as an FPV
-           cam pod / antenna peeking over the top of the tag "shield". -->
+           never overlaps the tag's Y/Z footprint at all REGARDLESS of its
+           X/Y position, so it is safe to slide its small forward offset
+           from the old nose axis (local X=-0.03, toward the camera) onto
+           the new one (local Y=+0.03, "BODY RE-ORIENT" above) without ever
+           occluding a tag pixel. Reads as an FPV cam pod / antenna peeking
+           over the top of the tag "shield", now offset toward the travel
+           direction instead of the approach direction. -->
       <visual name='cam_nub_visual'>
-        <pose>-0.03 0 0.36 0 0 0</pose>
+        <pose>0 0.03 0.36 0 0 0</pose>
         <geometry>
           <box>
             <size>0.04 0.04 0.05</size>

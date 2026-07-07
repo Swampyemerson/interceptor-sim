@@ -165,10 +165,34 @@
               <size>500 500</size>
             </plane>
           </geometry>
+          <!-- TWEAK 5, revised: a tiled grid texture (portfolio demo polish
+               -- a flat single-color plane gave no sense of ground speed/
+               parallax when the drones cross it). SDF's <plane> geometry
+               has no UV-tiling field (checked against the installed
+               sdformat14 1.9 schema) and gz-sim's PBR material has no
+               scale/repeat field either, so a single <albedo_map> always
+               maps UV [0,1] across the WHOLE 500 m plane -- the 5 m grid
+               spacing is baked directly into the texture's pixels instead
+               (100x100 cells across the 2048x2048 PNG). See
+               scripts/gen_demo_ground_texture.py (the generator, keep its
+               PLANE_SIZE_M in sync with the <size> above if that ever
+               changes) and models/demo_ground_grid/grid_ground.png (the
+               asset, resolved the same cross-model way
+               models/fpv_target/model.sdf already resolves the AprilTag's
+               own texture -- model://<name>/<file>, works without an
+               <include>). diffuse/specular kept as a fallback tint/gloss
+               for any renderer path that ignores pbr; ambient unchanged. -->
           <material>
             <ambient>0.28 0.32 0.20 1</ambient>
             <diffuse>0.32 0.38 0.22 1</diffuse>
             <specular>0.15 0.15 0.15 1</specular>
+            <pbr>
+              <metal>
+                <albedo_map>model://demo_ground_grid/grid_ground.png</albedo_map>
+                <roughness>1.0</roughness>
+                <metalness>0.0</metalness>
+              </metal>
+            </pbr>
           </material>
         </visual>
         <pose>0 0 0 0 -0 0</pose>

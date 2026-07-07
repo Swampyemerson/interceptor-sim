@@ -126,7 +126,16 @@ COLOR_AMBER = "#ffb000"
 COLOR_RED = "#ff3b30"
 COLOR_DIM = "#3a4a42"      # blank/NaN readouts -- dark, never a false number
 COLOR_WHITE = "#d8f5e0"
-COLOR_GT_REF = "#6a7a72"   # ground-truth reference elements -- visually distinct/dim
+COLOR_GT_REF = "#6a7a72"   # dim ground-truth text/footnotes (own-ship arrow stays green)
+
+# Mini-map TWO-SERIES track pair (docs/demo_plan.md TODO, "dataviz skill"
+# rules, logged 2026-07-07): CVD-safe by construction -- cool vs warm hue
+# AND a line-style difference (solid-smooth vs broken-with-markers) AND
+# direct labels, never color alone. Deliberately distinct from COLOR_AMBER
+# (used elsewhere for lamps/readouts) so changing this pair never touches
+# unrelated UI.
+MAP_TRUE_PATH_COLOR = "#4fc3d6"   # cool cyan -- true target path (reference only)
+MAP_CUE_EST_COLOR = "#e8912e"     # warm amber -- degraded ground-cue estimate
 
 # --transparent panel backing: widget panels (lamp boxes, the readout
 # block, the mini-map) keep this semi-opaque dark fill for legibility when
@@ -329,8 +338,24 @@ class HudContext:
         # world_x=East/world_y=North). tgt_n_hat/e_hat are already named
         # North/East in the same frame (no translation term needed --
         # GOALS.md: "World: ENU, origin at the interceptor's start").
-        east_pts = [self.gt_cam_x, self.gt_tag_x, self.tgt_e_hat]
-        north_pts = [self.gt_cam_y, self.gt_tag_y, self.tgt_n_hat]
+        #
+        # MAP EXTENT is driven by GROUND TRUTH ONLY (gt_cam_x/y, gt_tag_x/y)
+        # -- tgt_e_hat/tgt_n_hat is DELIBERATELY EXCLUDED here (builder
+        # feedback fix). The degraded ground-cue estimate is real, honest,
+        # and genuinely noisy (a --sigma-range --datum-bias-m --dropout-
+        # markov mock cue), with real sample-to-sample swings of 5-15 m --
+        # if the axis autoscale includes it, those swings dominate the
+        # zoom and squash the smooth ground-truth path down to a sliver in
+        # the middle of the frame, defeating the whole "noisy sensor, smooth
+        # truth" contrast this panel exists to show. A real cockpit MFD
+        # doesn't rescale its whole map because one noisy blip read
+        # garbage; it just lets the blip go off-frame. Same idea here: the
+        # amber estimate is still plotted every tick (see render_frame()),
+        # it simply gets clipped by matplotlib's normal axis behavior when
+        # it swings outside the ground-truth-anchored frame, instead of
+        # dragging the frame out to fit it.
+        east_pts = [self.gt_cam_x, self.gt_tag_x]
+        north_pts = [self.gt_cam_y, self.gt_tag_y]
         all_east = np.concatenate([a[~np.isnan(a)] for a in east_pts])
         all_north = np.concatenate([a[~np.isnan(a)] for a in north_pts])
         if len(all_east) == 0:
@@ -483,20 +508,44 @@ def render_frame(ctx, i, out_path, transparent=False):
 
     upto = i + 1
 
-    # Ground-truth reference target track (dashed, dim, labeled).
+    # Ground-truth reference target track: a CLEAR, SMOOTH line (solid, not
+    # dashed -- a dash pattern reads as choppy/broken, which is the opposite
+    # of what this line is supposed to say). Plotted from the pose topic,
+    # which updates every tick with no dropouts, so there is nothing to
+    # break here -- but for robustness/consistency with the estimate line
+    # below, this ALSO plots the full-length array (gaps, if any, render as
+    # a break, never a false interpolation across missing ground truth).
+    # Label is explicit that this is NOT what guidance sees (honesty rule,
+    # module docstring): "true path (reference, not seen by guidance)".
+    # Color: cool cyan (MAP_TRUE_PATH_COLOR) -- CVD-safe pairing with the
+    # estimate's warm amber below (docs/demo_plan.md "dataviz skill" TODO),
+    # reinforced by a line-style difference too (solid vs broken+markers),
+    # never color alone.
     gt_e, gt_n = ctx.gt_tag_x[:upto], ctx.gt_tag_y[:upto]
-    m = ~np.isnan(gt_e) & ~np.isnan(gt_n)
-    if m.any():
-        map_ax.plot(gt_e[m], gt_n[m], "--", color=COLOR_GT_REF, linewidth=1.0,
-                    label="target GT (reference only)")
+    if (~np.isnan(gt_e) & ~np.isnan(gt_n)).any():
+        map_ax.plot(gt_e, gt_n, "-", color=MAP_TRUE_PATH_COLOR, linewidth=1.6,
+                    solid_capstyle="round", zorder=2,
+                    label="true path (reference, not seen by guidance)")
 
-    # Guidance-legitimate target track estimate (solid, amber).
+    # Guidance-legitimate target track estimate: the degraded ground-cue
+    # tracker output. FIX (builder feedback): DO NOT compact/filter out the
+    # NaN (blank-cell / dropout) samples before plotting -- doing so pulls
+    # the two nearest VALID samples next to each other in the plotted array
+    # and draws a straight line stitching across the dropout gap, which
+    # reads as a fake zigzag that never happened. Plotting the FULL-LENGTH
+    # array (NaNs left in place) instead relies on matplotlib's own
+    # behavior of not drawing a segment when either endpoint is NaN -- the
+    # line breaks cleanly at every dropout tick, with no interpolation.
+    # Small per-sample markers reinforce the "noisy sensor" read (each dot
+    # is one real measurement, not a smoothed curve).
     tgt_e, tgt_n = ctx.tgt_e_hat[:upto], ctx.tgt_n_hat[:upto]
     m = ~np.isnan(tgt_e) & ~np.isnan(tgt_n)
     if m.any():
-        map_ax.plot(tgt_e[m], tgt_n[m], "-", color=COLOR_AMBER, linewidth=1.5,
-                    label="target track (tracker estimate)")
-        map_ax.plot(tgt_e[m][-1], tgt_n[m][-1], "o", color=COLOR_AMBER, markersize=6)
+        map_ax.plot(tgt_e, tgt_n, "-", marker="o", markersize=2.8, linewidth=1.2,
+                    color=MAP_CUE_EST_COLOR, zorder=3,
+                    label="degraded ground-cue estimate")
+        map_ax.plot(tgt_e[m][-1], tgt_n[m][-1], "o", color=MAP_CUE_EST_COLOR, markersize=6,
+                    zorder=4)
 
     # Own-ship trail + heading arrow (reference position -- not fed back
     # into guidance, see module docstring).
