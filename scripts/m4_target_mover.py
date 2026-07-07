@@ -65,7 +65,12 @@ from gz.msgs10.boolean_pb2 import Boolean
 # from there on purpose: this script is meant to stay small and completely
 # standalone (no shared subscription state, no shared anything), since its
 # entire reason for existing is to be a minimal, subscription-free process.
-WORLD_NAME = "apriltag"
+# INTERCEPTOR_WORLD_NAME env var override (default "apriltag", byte-
+# identical for every gated caller): see scripts/m2_detect.py's matching
+# comment -- m4_intercept.py spawns this script as a subprocess, which
+# inherits the parent's environment, so setting the var once before
+# launching m4_intercept.py retargets the mover too (demo-video tooling).
+WORLD_NAME = os.environ.get("INTERCEPTOR_WORLD_NAME", "apriltag")
 TARGET_MODEL_NAME = "apriltag_target"
 SET_POSE_SERVICE = f"/world/{WORLD_NAME}/set_pose"
 

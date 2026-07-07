@@ -254,6 +254,82 @@
       <pose>5 0 0.5 0 0 0</pose>
     </include>
 
+    <!-- DEMO CHASE/OVERVIEW CAMERA (portfolio-video capture task, added for
+         the same reason the world header explains for the GUI's VideoRecorder
+         being finicky under WSLg -- a plain camera SENSOR gives a robust,
+         headless, scriptable capture path: subscribe to its own gz-transport
+         Image topic exactly like the interceptor's onboard mono_cam
+         (scripts/m1_capture.py's decode pattern), no GUI needed at all.
+         STATIC wide establishing shot (not a live tracking follow -- no
+         plugin needed, simplest reliable option): elevated and offset to the
+         east/south of the whole engagement corridor (interceptor spawns near
+         the world origin; target running-start is out at y~-29, closing
+         toward y~0 over the DASH+ENGAGE), pitched down and yawed to look
+         back across that corridor. Same camera sensor block style as PX4's
+         own mono_cam/model.sdf (RGB_INT8, no distortion) so
+         scripts/m1_capture.py's image_msg_to_bgr decode works unchanged.
+         hfov 1.7 rad (~97 deg, close to the interceptor's own 1.74 rad lens)
+         is wide enough to keep both drones in frame through most of the
+         engagement given the pose below; 960x540 (16:9) for video -- NOT
+         the original 1280x720 attempt (see below) and not the onboard
+         camera's 1280x960 4:3.
+         RESOLUTION FINDING (2026-07-07 demo-capture task, logged so it
+         isn't re-discovered the hard way): a SECOND full camera sensor in
+         this world at 1280x720 measured RTF collapsing to ~0.05 (vs ~1.0
+         for the single-camera gated apriltag.sdf under the same idle
+         conditions) -- an order of magnitude worse than ADR-0009's
+         documented ~0.3-0.5 "under load" floor, enough to make MAVSDK's
+         OFFBOARD entry unreliable. Dropping to 960x540 restored idle RTF to
+         ~1.0 in isolated (no-Python-client) tests. Do not raise this
+         resolution again without re-checking idle RTF first.
+         POSE FINDING + STILL UNVERIFIED (same task): the FIRST pose tried,
+         `18 -8 14 0 0.667 -2.737` (~24 m from the engagement, pitch ~38 deg
+         down), rendered correctly (real content, both drones visible -- see
+         the demo capture report's sample frame) but read as a flat, mostly-
+         ground, both-drones-tiny wide shot -- not a dramatic "chase" look.
+         The pose below is a closer (~14.7 m), shallower-pitch (~30.7 deg)
+         REPLACEMENT aimed at the likely DASH/HANDOFF zone (roughly midway
+         along the running-start corridor, not the far tag-start point) --
+         computed analytically, NOT yet re-rendered/eyeballed (the render
+         pipeline wedged mid-task, see the demo capture report's "blocker"
+         section). TWEAK: re-verify this pose against a live captured frame
+         before trusting it; the four other TWEAK knobs above (lights, sky,
+         ground material) are still fair game too. -->
+    <model name="demo_chase_cam">
+      <static>true</static>
+      <pose>16 -10 9 0 0.535 -2.820</pose>
+      <link name="link">
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.01</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.01</iyy>
+            <iyz>0</iyz>
+            <izz>0.01</izz>
+          </inertia>
+        </inertial>
+        <sensor name="chase_cam" type="camera">
+          <pose>0 0 0 0 0 0</pose>
+          <camera>
+            <horizontal_fov>1.7</horizontal_fov>
+            <image>
+              <width>960</width>
+              <height>540</height>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>3000</far>
+            </clip>
+          </camera>
+          <always_on>1</always_on>
+          <update_rate>30</update_rate>
+          <visualize>true</visualize>
+        </sensor>
+      </link>
+    </model>
+
     <!-- ================= GUI (new for this world) =================
          MinimalScene 3D view + the supporting plugins that make its
          interactive features (orbit/pan/zoom, right-click Follow, entity

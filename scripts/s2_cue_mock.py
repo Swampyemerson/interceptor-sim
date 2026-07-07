@@ -88,7 +88,12 @@ from gz.msgs10.clock_pb2 import Clock
 # Mirrors scripts/m2_detect.py's WORLD_NAME / TAG_MODEL_NAME -- not imported
 # from there on purpose (task requirement: this script stays standalone,
 # no imports from the detection/guidance modules).
-WORLD_NAME = "apriltag"
+# INTERCEPTOR_WORLD_NAME env var override (default "apriltag", byte-
+# identical for every gated caller): see scripts/m2_detect.py's matching
+# comment -- m4_intercept.py spawns this script as a subprocess, which
+# inherits the parent's environment, so setting the var once before
+# launching m4_intercept.py retargets the cue mock too (demo-video tooling).
+WORLD_NAME = os.environ.get("INTERCEPTOR_WORLD_NAME", "apriltag")
 TAG_MODEL_NAME = "apriltag_target"
 # Interceptor model (mirrors m2_detect.DRONE_MODEL -- not imported, this script
 # stays standalone). Read from the SAME pose/info subscription as the tag so

@@ -17,6 +17,13 @@ plots/miss_cdf_*.png
 .gz/
 build/
 
+# Demo-video capture output (regenerable frame sequences + large MP4/GIF;
+# demo_out/README.md explains the pipeline and IS tracked despite the
+# directory-wide ignore below. A couple of committed sample stills live in
+# docs/images/ instead of here.
+demo_out/*
+!demo_out/README.md
+
 # Editor / OS
 .vscode/
 .idea/

@@ -122,7 +122,16 @@ from gz.msgs10.image_pb2 import Image, RGB_INT8
 from gz.msgs10.camera_info_pb2 import CameraInfo
 from gz.msgs10.pose_v_pb2 import Pose_V
 
-WORLD_NAME = "apriltag"
+# INTERCEPTOR_WORLD_NAME env var override (default "apriltag" -- byte-
+# identical to every gated caller, none of which sets this var): lets the
+# demo-video tooling point this SAME detector at worlds/apriltag_demo.sdf
+# (world name "apriltag_demo") without forking the script. m4_intercept.py
+# imports IMAGE_TOPIC/CAMERA_INFO_TOPIC/POSE_TOPIC from this module, and
+# spawns scripts/m4_target_mover.py / scripts/s2_cue_mock.py as child
+# processes that inherit this same env var (each has its own matching
+# override -- see their WORLD_NAME comments), so setting this once before
+# launch retargets the whole pipeline at once.
+WORLD_NAME = os.environ.get("INTERCEPTOR_WORLD_NAME", "apriltag")
 DRONE_MODEL = "x500_mono_cam_0"
 # base_link is NOT used in the ground-truth chain -- see the module
 # docstring's "IMPORTANT CORRECTION". Kept as a named constant only because
