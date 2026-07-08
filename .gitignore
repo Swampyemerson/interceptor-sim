@@ -16,6 +16,14 @@ plots/miss_cdf_*.png
 plots/per_path_*.png
 plots/traj_overlay_*.png
 
+# Markerless-seeker prototype (ADR-0033 item 2): isolated venv, downloaded model
+# weights, and regenerable eval artifacts — the .py modules ARE tracked.
+.venv-seeker/
+scripts/seeker/weights/
+scripts/seeker/out/
+scripts/seeker/eval_out/
+scripts/seeker/eval_tag_boxes.json
+
 # Gazebo / PX4 caches that can leak into the workspace
 .gz/
 build/
