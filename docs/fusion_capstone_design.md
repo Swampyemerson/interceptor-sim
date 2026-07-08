@@ -77,19 +77,23 @@ best-case for a chi-square gate; and F1 says WORST is where fusion may in fact
 
 ## 3. Design decisions (v2, incorporating F1–F6)
 
-**D1 — Q-tuning prerequisite (P0).** Offline replay of ADR-0037's logged
-per-tick streams through candidate PSDs, THEN one Gazebo confirm arm.
-Amendments: (a) replay uses the SAME fixed `dt=0.05` cadence production runs
-(`m4_intercept.py:1472`) — the logged sim-dt shows RTF≈0.62, so the tuned PSD
-is a *control-loop-relative* number; log the achieved RTF beside it; (b)
-exclude post-breakoff tail rows (`POST_BREAKOFF_LOG_S=2.0` regime mix); (c)
-replay is a SCREEN, not proof — open-loop replay of a closed-loop failure
-cannot show a better Q would have prevented the aborts; the confirm arm does
-the epistemic work; (d) **gate: NIS/NEES in-band (primary, hundreds of ticks)
-+ zero occurrences of the `"lost tag >5.0s"` abort signature in the confirm
-arm + clean-rate within tolerance (Wilson CI overlap), NOT a strict ≥ at
-n=8.** The confirm arm IS cell L0 (reused, not a separate flight set). If the
-gate fails: EKF cells BLOCKED; fall back to the L2 ladder only; log honestly.
+**D1 — EKF flight-worthiness prerequisite (P0) — EXECUTED OFFLINE 2026-07-08,
+REFRAMED by its own results.** The planned Q-tune ran ahead of schedule
+(`scripts/ekf_q_replay.py`, `scripts/ekf_lockout_forensics.py`; ADR-0037 +
+ADR-0041 addenda) and found: (a) NO over-wide-P signature at Q=64 — pooled
+NIS/gate metrics sit on the TIGHT side, every lower PSD is monotonically
+worse, and no lockout cascade exists (max 2 consecutive rejections anywhere);
+(b) the ADR-0037 clean-rate "regression" is a **post-CPA scoring artifact**
+(all 6 aborted flights intercepted at 0.675–1.339 m, 3/6 beating their paired
+alpha-beta twin; the abort fired on the EKF's physically-correct post-CPA
+range extrapolation crossing the `TERMINAL_RANGE_M=3.0` branch, which
+alpha-beta's impossible negative coasted range never does). **Q-tuning is
+RETIRED as a prerequisite. P0 is now:** (i) analyzer-level post-CPA abort
+reclassification (zero flight-code change; applied to ALL arms, including a
+re-examination of the markerless arms' aborts through the same lens); (ii)
+the L0 confirm arm, gated on **EKF clean-rate parity under the corrected
+scoring** + no NEW abort signatures. Keep Q=64 unless L0 says otherwise. If
+L0 still fails: EKF cells BLOCKED, fall back to the L2 ladder, log honestly.
 
 **D2 — Wiring shape (P1), polar-disciplined.** Under `--tracker ekf
 --fuse-midcourse`, route accepted cue datagrams into `correct_cue`, with:
@@ -166,8 +170,8 @@ mechanically traced to seeker false-locks, not guidance dishonesty).
 
 ## 4. Build plan (ordered; each step separately verifiable)
 
-- **P0** Q-tune: replay screen (fixed-dt cadence, tail-excluded, NIS/NEES) →
-  L0 confirm arm → D1 gate verdict.
+- **P0** DONE-offline (Q-tune retired; see D1): remaining = post-CPA abort
+  reclassification in the analyzers + L0 confirm arm → D1 gate verdict.
 - **P1** Wire `correct_cue` polar-split + relative-state logging fields +
   own-position insurance term; flags-gated, byte-identical when OFF.
 - **P2** D3 boundary: latch re-inflation + adaptive gate-recovery + both
