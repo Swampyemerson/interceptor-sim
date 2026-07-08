@@ -11,7 +11,10 @@ logs/
 
 # Regenerable analysis plots from mc_analyze.py (the committed plots/stereo_*.png are kept deliberately)
 plots/pk_vs_radius_*.png
+plots/miss_hist_cdf_*.png
 plots/miss_cdf_*.png
+plots/per_path_*.png
+plots/traj_overlay_*.png
 
 # Gazebo / PX4 caches that can leak into the workspace
 .gz/

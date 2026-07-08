@@ -41,7 +41,14 @@ the CONSUMER of this cue must never have a back door to ground truth).
 
 The 3 core knobs (--sigma, --latency-s, --rate) are joined by OPT-IN
 ADR-0015 realism flags (range-dependent sigma, per-run datum bias, emitted
-velocity, latency jitter, bursty Markov dropout, link cutoff) and the P-6
+velocity, latency jitter, bursty Markov dropout, link cutoff). Per ADR-0017
+(P-8), the range-dependent-sigma model's DEFAULT constants are now the
+physics-grounded EXPECTED tier (sigma_R = 0.000 + 4.45e-05*R^2), NOT the old
+hand-set 0.4 + 0.008*R^2 (which was ~180x too steep as stereo noise); that
+old pessimistic curve is reachable via --sigma-range-a/--sigma-range-b, and
+the long-range 2-4 m cue error it used to lump into the R^2 term is now the
+SEPARATE per-run --datum-bias-m offset. A WORST-tier 0.20 s latency stress
+(ADR-0016) is opt-in via --latency-worst-tier. Also present is the P-6
 --stereo-config flag, which derives the range sigma from stereo GEOMETRY
 (sigma_R(R) = R^2 * sigma_d / (b * f_px)) rather than hand-set constants --
 the physical model the P-2 stereo-rig worker is calibrating (its defaults
@@ -106,7 +113,8 @@ CLOCK_TOPIC = "/clock"
 DEFAULT_PORT = 47800
 DEFAULT_RATE_HZ = 10.0
 DEFAULT_SIGMA_M = 0.5
-DEFAULT_LATENCY_S = 0.12
+DEFAULT_LATENCY_S = 0.12    # ADR-0016 EXPECTED cue-delivery latency tier
+WORST_LATENCY_S = 0.20     # ADR-0016 WORST stress tier (opt-in via --latency-worst-tier)
 DEFAULT_DURATION_S = 60.0  # SIM seconds -- generous; the consumer decides how long it actually listens
 
 # --- ADR-0015 perception-realism knobs (all OPT-IN; every default below keeps
@@ -120,12 +128,30 @@ DEFAULT_LATENCY_JITTER_S = 0.0   # DEVIATION from ADR-0015's suggested 0.05: 0.0
                                  # runs pass --latency-jitter-s 0.05 explicitly (table #3)
 DEFAULT_DROPOUT_P = 0.12         # steady-state P(link out) for --dropout-markov (table #4)
 DEFAULT_DROPOUT_BURST_S = 1.5    # mean outage (burst) length, sim seconds (table #4)
-# Range-dependent sigma model (table #1): sigma_R = A + B*R^2. At the S2 dash
-# start (~15.4 m) this is ~2.3 m (standard-GPS/no-RTK regime); it tightens to
-# ~1.2 m at the 10 m handoff range and ~0.6 m at 5 m -- the "0.5 m only with
-# shared-RTK+PPS, else 2-4 m" budget the integration seat specified.
-SIGMA_RANGE_A_M = 0.4
-SIGMA_RANGE_B_M_PER_M2 = 0.008
+# Range-dependent sigma model (ADR-0015 table #1, CORRECTED per ADR-0017 P-8):
+# sigma_R(R) = A + C*R^2, A in meters, C in m/m^2 (i.e. 1/m). ADR-0017 grounded
+# this in stereo-rig physics (scripts/stereo_model.py) and found the ORIGINAL
+# hand-set curve (A=0.4, C=0.008) was ~180x too STEEP as stereo NOISE -- it
+# extrapolates to ~80 m sigma at R=100 m where the physics gives ~0.45 m. The
+# 2-4 m handoff-range error that old curve modeled is REAL, but it is the GPS
+# DATUM/CLOCK offset -- a per-RUN CONSTANT that belongs in --datum-bias-m, NOT
+# in the R^2 noise term. So the R^2 NOISE (this A+C*R^2) and the per-run DATUM
+# BIAS (--datum-bias-m) are now SEPARATE knobs. Corrected three-tier constants
+# (ADR-0017; consistency-checked to sigma_disparity ~0.48 px at EXPECTED):
+#     BEST     (A,C) = (0.000, 1.08e-05), datum-bias 0.3 m
+#   * EXPECTED (A,C) = (0.000, 4.45e-05), datum-bias 0.5 m   <- the DEFAULTS below
+#     WORST    (A,C) = (0.214, 1.94e-04), datum-bias 2.5 m
+# The DEFAULTS below are the EXPECTED tier. The OLD pre-ADR-0017 pessimistic
+# curve is still reachable for regression/comparison via explicit overrides:
+#     --sigma-range --sigma-range-a 0.4 --sigma-range-b 0.008
+# (see --sigma-range-a / --sigma-range-b). datum-bias tiers pass via
+# --datum-bias-m; the WORST latency tier via --latency-worst-tier (ADR-0016).
+SIGMA_RANGE_A_M = 0.000            # ADR-0017 EXPECTED tier 'a' (was 0.4 pessimistic)
+SIGMA_RANGE_B_M_PER_M2 = 4.45e-05  # ADR-0017 EXPECTED tier 'c' (was 0.008 pessimistic)
+# OLD pre-ADR-0017 pessimistic curve, kept as named constants so the override
+# example above and any regression harness can cite the exact retired values.
+SIGMA_RANGE_A_OLD_M = 0.4
+SIGMA_RANGE_B_OLD_M_PER_M2 = 0.008
 # --- ADR-0015 table #1 / P-2 stereo geometry (--stereo-config): derive the
 # range sigma from FIRST PRINCIPLES instead of the hand-set A + B*R^2 above.
 # Stereo range R = b*f_px/d (d = disparity, px); propagating a disparity
@@ -238,17 +264,40 @@ def parse_args():
     # pre-ADR-0015 3-knob behavior byte-for-byte.) ---
     parser.add_argument(
         "--sigma-range", action="store_true",
-        help="ADR-0015 table #1: replace the flat --sigma with a "
-             "range-dependent sigma_R = %.2f + %.3f*R^2 (R = true "
-             "interceptor<->target distance from the pose topic). Off by "
-             "default (flat --sigma preserved)." % (SIGMA_RANGE_A_M, SIGMA_RANGE_B_M_PER_M2),
+        help="ADR-0015 table #1 (CORRECTED per ADR-0017 P-8): replace the flat "
+             "--sigma with a range-dependent sigma_R = a + c*R^2 (R = true "
+             "interceptor<->target distance from the pose topic). Defaults are "
+             "the ADR-0017 EXPECTED tier a=%.3g, c=%.3g; override a/c with "
+             "--sigma-range-a/--sigma-range-b (e.g. the OLD pre-ADR-0017 "
+             "pessimistic curve: --sigma-range-a %.1f --sigma-range-b %.3f). "
+             "Off by default (flat --sigma preserved)." % (
+                 SIGMA_RANGE_A_M, SIGMA_RANGE_B_M_PER_M2,
+                 SIGMA_RANGE_A_OLD_M, SIGMA_RANGE_B_OLD_M_PER_M2),
+    )
+    parser.add_argument(
+        "--sigma-range-a", type=float, default=None,
+        help="ADR-0017: override the range-sigma constant term a (m) used by "
+             "--sigma-range. Default None => EXPECTED tier %.3g. Reach the OLD "
+             "pessimistic curve with --sigma-range-a %.1f (+ --sigma-range-b "
+             "%.3f); BEST/WORST 'a' are 0.000/0.214." % (
+                 SIGMA_RANGE_A_M, SIGMA_RANGE_A_OLD_M, SIGMA_RANGE_B_OLD_M_PER_M2),
+    )
+    parser.add_argument(
+        "--sigma-range-b", type=float, default=None,
+        help="ADR-0017: override the range-sigma R^2 coefficient c (m/m^2) "
+             "used by --sigma-range. Default None => EXPECTED tier %.3g. OLD "
+             "pessimistic %.3f; BEST/WORST 'c' are 1.08e-05/1.94e-04." % (
+                 SIGMA_RANGE_B_M_PER_M2, SIGMA_RANGE_B_OLD_M_PER_M2),
     )
     parser.add_argument(
         "--datum-bias-m", type=float, default=0.0,
-        help="ADR-0015 tables #1/#5: per-RUN constant common-mode offset "
-             "vector added to every emitted position (seeded random 3D "
-             "direction, this fixed magnitude in m). 0.5 = shared-RTK design "
-             "target, 2.5 = standard GPS. Default 0.0 (no bias, no draw).",
+        help="ADR-0015 tables #1/#5 (semantics clarified by ADR-0017): per-RUN "
+             "constant common-mode offset vector added to every emitted "
+             "position -- a seeded random 3D direction (from --seed) at this "
+             "fixed magnitude in m. This is the GPS DATUM/CLOCK offset, kept "
+             "SEPARATE from the R^2 stereo noise (--sigma-range). ADR-0017 "
+             "tiers: 0.3 BEST / 0.5 EXPECTED (shared-RTK design target) / 2.5 "
+             "WORST (standard GPS). Default 0.0 (no bias, no draw).",
     )
     parser.add_argument(
         "--emit-velocity", action="store_true",
@@ -267,6 +316,15 @@ def parse_args():
         help="ADR-0015 table #3: per-datagram delivery latency = --latency-s "
              "+/- uniform(this) SIM seconds (seeded, clamped >= 0). Default "
              "0.0 keeps the gate byte-identical; pass 0.05 to enable jitter.",
+    )
+    parser.add_argument(
+        "--latency-worst-tier", action="store_true",
+        help="ADR-0016 three-tier latency budget: force the WORST stress tier, "
+             "overriding --latency-s to %.2f s (sim) -- the pessimistic SiK-link "
+             "cue-delivery latency the sim never runs at default. Opt-in stress "
+             "preset, NOT the default (EXPECTED = --latency-s %.2f s). Combine "
+             "with --latency-jitter-s for jitter on top." % (
+                 WORST_LATENCY_S, DEFAULT_LATENCY_S),
     )
     parser.add_argument(
         "--dropout-markov", action="store_true",
@@ -432,10 +490,27 @@ def main() -> int:
             f"-> P(in->out)={p_in_to_out:.4f} P(out->in)={p_out_to_in:.4f} per tick"
         )
 
-    if args.sigma_range:
+    # ADR-0017 P-8: resolve the range-noise coefficients. Defaults are the
+    # corrected EXPECTED tier (module constants); --sigma-range-a/-b override
+    # per-run (e.g. to reach the OLD pessimistic curve). Only consulted when
+    # --sigma-range is active (stereo-config still takes precedence over both).
+    sr_a = SIGMA_RANGE_A_M if args.sigma_range_a is None else args.sigma_range_a
+    sr_b = SIGMA_RANGE_B_M_PER_M2 if args.sigma_range_b is None else args.sigma_range_b
+    # ADR-0016 latency tiers: EXPECTED --latency-s (default 0.12); the opt-in
+    # --latency-worst-tier forces the 0.20 s WORST stress tier (overrides
+    # --latency-s). All jitter/delivery math below uses latency_base.
+    latency_base = WORST_LATENCY_S if args.latency_worst_tier else args.latency_s
+    if args.latency_worst_tier:
         print(
-            f"[s2-cue] range-dependent sigma ON: sigma_R = {SIGMA_RANGE_A_M:.2f} + "
-            f"{SIGMA_RANGE_B_M_PER_M2:.3f}*R^2 (flat --sigma {args.sigma} ignored)"
+            f"[s2-cue] WORST latency tier ON (ADR-0016): --latency-s forced to "
+            f"{WORST_LATENCY_S:.2f}s sim (EXPECTED default was {args.latency_s:.2f}s)"
+        )
+    if args.sigma_range:
+        old = (sr_a == SIGMA_RANGE_A_OLD_M and sr_b == SIGMA_RANGE_B_OLD_M_PER_M2)
+        tier = " [OLD pre-ADR-0017 pessimistic curve]" if old else " [ADR-0017 corrected]"
+        print(
+            f"[s2-cue] range-dependent sigma ON: sigma_R = {sr_a:.3g} + "
+            f"{sr_b:.3g}*R^2{tier} (flat --sigma {args.sigma} ignored)"
         )
     if args.emit_velocity:
         print(f"[s2-cue] velocity emission ON: vel_sigma={args.vel_sigma:.2f} m/s per axis")
@@ -576,7 +651,7 @@ def main() -> int:
                     if stereo_k is not None and R is not None:
                         sigma_used = stereo_k * R * R
                     elif args.sigma_range and R is not None:
-                        sigma_used = SIGMA_RANGE_A_M + SIGMA_RANGE_B_M_PER_M2 * R * R
+                        sigma_used = sr_a + sr_b * R * R
                     else:
                         sigma_used = args.sigma
                     # Position noise (SAME 3 rng.gauss draws, SAME order as the
@@ -615,10 +690,10 @@ def main() -> int:
                         )
                     # Latency: fixed base +/- uniform jitter (only draws when
                     # jitter > 0 -> default path byte-identical), clamped >= 0.
-                    latency_used = args.latency_s
+                    latency_used = latency_base
                     if args.latency_jitter_s > 0.0:
                         latency_used = max(
-                            0.0, args.latency_s + rng.uniform(-args.latency_jitter_s, args.latency_jitter_s)
+                            0.0, latency_base + rng.uniform(-args.latency_jitter_s, args.latency_jitter_s)
                         )
                     deliver_t = t_now + latency_used
                     pending.append({

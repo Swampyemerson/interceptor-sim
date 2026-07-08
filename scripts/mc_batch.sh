@@ -62,6 +62,41 @@
 #   --speeds S1,S2,...    comma-separated |target vy| values, m/s (6.0)
 #   --directions MODE     both|l2r|r2l -- both alternates L2R/R2L across the
 #                          n flights of each config (both)
+#   --path MODE           line|weave|jink -- target maneuver path forwarded to
+#                          m4_target_mover.py (via env, see below). line is the
+#                          straight crosser (default, unchanged); weave is an
+#                          S-curve; jink is sharp seed-scheduled turns (line)
+#   --geometry MODE       standard|oblique_close -- crossing geometry.
+#                          standard is the current fixed-downrange Y-crosser
+#                          (unchanged). oblique_close is a constant-speed
+#                          oblique CLOSING approach from the east (a westward
+#                          vx added by rotating the crossing velocity by
+#                          --west-angle-deg toward world -X) -- it exercises
+#                          world_x-axis MOTION, but it is NOT the ADR-0026
+#                          item B mirror-symmetry test (that gap is "target
+#                          start_x never flipped negative"; closing it needs
+#                          interceptor look-direction support in
+#                          m4_intercept.py, out of this lane's file scope --
+#                          reviewer correction, ADR-0033 path-suite lane).
+#                          Treat oblique_close as its OWN distinct geometry,
+#                          not a substitute for the axis-mirror test. Keeps
+#                          target X>0 so the rigid -X-facing tag stays
+#                          visible (ADR-0010 #6); the plan builder FAILS FAST
+#                          if --x0/--west-angle-deg/--speeds don't leave at
+#                          least MIN_CLOSING_RUNWAY_S=20s of closing time
+#                          before the oblique leg would cross world X=0 --
+#                          this is a LARGE --x0 at the 45deg/6.0 defaults
+#                          (~85m: x0 >= X_FLOOR_M + 20*speed*cos(135deg)),
+#                          since the runway must outlast the mover's whole
+#                          scripted --duration, not just time-to-intercept.
+#                          The error message states the exact minimum for
+#                          your config. (standard)
+#   --west-angle-deg D     oblique_close-geometry closing angle off the
+#                          crossing axis, toward world -X, degrees (45.0)
+#   --weave-period-s S     --path weave S-curve period, sim s (4.0)
+#   --weave-lat-speed V    --path weave peak lateral speed, m/s (3.0)
+#   --jink-count N         --path jink number of sharp turns (2)
+#   --jink-min-deg D       --path jink minimum turn per jink, degrees (40.0)
 #   --master-seed N       seeds the WHOLE plan's RNG draws (cue_seed + y
 #                          jitter), reproducible given the same value (42)
 #   --x0 X                target start X, meters, held fixed (never
@@ -116,9 +151,16 @@ MODE="s2"
 EXTRA_ARGS=""
 OUT_CSV=""
 DRY_RUN=0
+PATH_MODE="line"
+GEOMETRY="standard"
+WEST_ANGLE_DEG=45.0
+WEAVE_PERIOD_S=4.0
+WEAVE_LAT_SPEED=3.0
+JINK_COUNT=2
+JINK_MIN_DEG=40.0
 
 usage() {
-    sed -n '2,90p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,111p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -132,6 +174,13 @@ while [[ $# -gt 0 ]]; do
         --y0-mag) Y0_MAG="$2"; shift 2;;
         --jitter) JITTER="$2"; shift 2;;
         --mode) MODE="$2"; shift 2;;
+        --path) PATH_MODE="$2"; shift 2;;
+        --geometry) GEOMETRY="$2"; shift 2;;
+        --west-angle-deg) WEST_ANGLE_DEG="$2"; shift 2;;
+        --weave-period-s) WEAVE_PERIOD_S="$2"; shift 2;;
+        --weave-lat-speed) WEAVE_LAT_SPEED="$2"; shift 2;;
+        --jink-count) JINK_COUNT="$2"; shift 2;;
+        --jink-min-deg) JINK_MIN_DEG="$2"; shift 2;;
         --extra-args) EXTRA_ARGS="$2"; shift 2;;
         --out) OUT_CSV="$2"; shift 2;;
         --dry-run) DRY_RUN=1; shift;;
@@ -146,6 +195,14 @@ if [[ "$MODE" != "s2" && "$MODE" != "m4" ]]; then
 fi
 if [[ "$DIRECTIONS" != "both" && "$DIRECTIONS" != "l2r" && "$DIRECTIONS" != "r2l" ]]; then
     echo "[mc_batch] FAIL: --directions must be 'both', 'l2r', or 'r2l' (got '$DIRECTIONS')" >&2
+    exit 1
+fi
+if [[ "$PATH_MODE" != "line" && "$PATH_MODE" != "weave" && "$PATH_MODE" != "jink" ]]; then
+    echo "[mc_batch] FAIL: --path must be 'line', 'weave', or 'jink' (got '$PATH_MODE')" >&2
+    exit 1
+fi
+if [[ "$GEOMETRY" != "standard" && "$GEOMETRY" != "oblique_close" ]]; then
+    echo "[mc_batch] FAIL: --geometry must be 'standard' or 'oblique_close' (got '$GEOMETRY')" >&2
     exit 1
 fi
 IFS=',' read -r -a LAW_ARR <<< "$LAWS"
@@ -165,7 +222,9 @@ done
 # plan is reproducible from --master-seed alone. ---
 PLAN_FILE="$(mktemp)"
 "$VENV_PYTHON" - "$N" "$LAWS" "$SPEEDS" "$DIRECTIONS" "$MASTER_SEED" "$X0" "$Y0_MAG" "$JITTER" \
+    "$GEOMETRY" "$WEST_ANGLE_DEG" \
     > "$PLAN_FILE" <<'PYEOF'
+import math
 import sys
 import random
 
@@ -177,8 +236,30 @@ master_seed = int(sys.argv[5])
 x0 = float(sys.argv[6])
 y0_mag = float(sys.argv[7])
 jitter = float(sys.argv[8])
+geometry = sys.argv[9]
+west_angle_deg = float(sys.argv[10])
+west_angle = math.radians(west_angle_deg)
+
+# Reviewer correction (ADR-0033 path-suite lane): oblique_close's vx<0 leg
+# WILL cross world X=0 in finite time (x0/|vx|), after which the interceptor
+# is west of the target and the rigidly -X-facing tag board (ADR-0010 #6)
+# points away from it -- the same invariant scripts/m4_target_mover.py's
+# X_FLOOR_M enforces for --path jink. Fail the WHOLE plan fast (before any
+# sim boots) rather than silently booting a flight that is kinematically
+# doomed by construction. X_FLOOR_M mirrors m4_target_mover.py's own
+# constant; MIN_CLOSING_RUNWAY_S mirrors m4_intercept.py's
+# S2["MOVER_DURATION_DEFAULT_S"] (20.0s, --mode s2's default and this
+# script's default --mode) -- the conservative/binding case since --mode m4
+# uses a shorter 12s mover duration.
+X_FLOOR_M = 0.5
+MIN_CLOSING_RUNWAY_S = 20.0
 
 rng = random.Random(master_seed)
+# A SEPARATE, independent RNG stream feeds the per-flight --path-seed so
+# adding it does NOT perturb the existing y_jitter/cue_seed draw order --
+# standard/line arms stay byte-identical to pre-M5 plans (no change to any
+# existing arm's behavior). Deterministic given --master-seed.
+path_rng = random.Random((master_seed * 2654435761 + 12345) & 0xFFFFFFFF)
 run_idx = 0
 for law in laws:
     for speed in speeds:
@@ -188,33 +269,75 @@ for law in laws:
             else:
                 direction = directions_mode
             sign = 1.0 if direction == "l2r" else -1.0
+            # These two draws are UNCHANGED in order/semantics from before.
             y_jitter = rng.uniform(-jitter, jitter)
             cue_seed = rng.randint(1, 999999)
+            path_seed = path_rng.randint(1, 999999)
             start_y = -sign * y0_mag + y_jitter
-            vx = 0.0
-            vy = sign * speed
+            if geometry == "standard":
+                # Fixed-downrange Y-crosser (current behavior, verbatim).
+                start_x = x0
+                vx = 0.0
+                vy = sign * speed
+            elif geometry == "oblique_close":
+                # constant-speed oblique CLOSING approach from the east.
+                # Rotate the crossing heading (sign*90 deg) toward world -X
+                # by west_angle, preserving |v|=speed; vx<0 (closing),
+                # vy=sign*|lateral| still crosses -> the L2R/R2L pair survives
+                # "by construction" (ADR-0033). start_x stays at x0 (>0), so
+                # the -X-facing tag stays visible through CPA (ADR-0010 #6).
+                # NOTE: this is NOT the ADR-0026 item B axis-mirror test (see
+                # the --geometry usage comment above) -- it is its own
+                # distinct world_x-motion geometry.
+                heading = sign * (math.pi / 2.0) + sign * west_angle
+                start_x = x0
+                vx = speed * math.cos(heading)
+                vy = speed * math.sin(heading)
+                if vx < 0:
+                    t_cross = (start_x - X_FLOOR_M) / abs(vx)
+                    if t_cross < MIN_CLOSING_RUNWAY_S:
+                        print(
+                            f"geometry=oblique_close: x0={x0} west_angle_deg="
+                            f"{west_angle_deg} speed={speed} direction={direction} "
+                            f"gives only {t_cross:.1f}s of closing runway before "
+                            f"the target crosses world X={X_FLOOR_M} (need >= "
+                            f"{MIN_CLOSING_RUNWAY_S}s). Raise --x0 or lower "
+                            "--west-angle-deg / --speeds.",
+                            file=sys.stderr,
+                        )
+                        sys.exit(1)
+            else:
+                print(f"unknown --geometry {geometry!r}", file=sys.stderr)
+                sys.exit(1)
             print(
                 "\t".join(
                     [
                         str(run_idx), law, f"{speed:.3f}", direction,
-                        f"{x0:.3f}", f"{start_y:.3f}", f"{vx:.3f}", f"{vy:.3f}",
-                        str(cue_seed),
+                        f"{start_x:.3f}", f"{start_y:.3f}", f"{vx:.3f}", f"{vy:.3f}",
+                        str(cue_seed), str(path_seed),
                     ]
                 )
             )
             run_idx += 1
 PYEOF
+PLAN_EXIT=$?
+if [[ "$PLAN_EXIT" -ne 0 ]]; then
+    echo "[mc_batch] FAIL: flight-plan generation failed (exit $PLAN_EXIT) -- see error above (e.g. an oblique_close runway check). No sim will be booted." >&2
+    rm -f "$PLAN_FILE"
+    exit 1
+fi
 
 TOTAL_FLIGHTS="$(wc -l < "$PLAN_FILE" | tr -d ' ')"
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "[mc_batch] DRY RUN -- planned $TOTAL_FLIGHTS flights (mode=$MODE, master_seed=$MASTER_SEED)."
+    echo "[mc_batch] path=$PATH_MODE geometry=$GEOMETRY west_angle_deg=$WEST_ANGLE_DEG x0=$X0 y0_mag=$Y0_MAG"
     echo "[mc_batch] No sim will be booted, no files written."
-    printf "%-8s %-8s %-6s %-5s %-6s %-8s %-6s %-6s %-8s\n" \
-        run_idx law speed dir start_x start_y vx vy cue_seed
-    while IFS=$'\t' read -r run_idx law speed direction sx sy vx vy cue_seed; do
-        printf "%-8s %-8s %-6s %-5s %-6s %-8s %-6s %-6s %-8s\n" \
-            "$run_idx" "$law" "$speed" "$direction" "$sx" "$sy" "$vx" "$vy" "$cue_seed"
+    printf "%-8s %-8s %-6s %-5s %-8s %-8s %-8s %-8s %-8s %-8s\n" \
+        run_idx law speed dir start_x start_y vx vy cue_seed path_seed
+    while IFS=$'\t' read -r run_idx law speed direction sx sy vx vy cue_seed path_seed; do
+        printf "%-8s %-8s %-6s %-5s %-8s %-8s %-8s %-8s %-8s %-8s\n" \
+            "$run_idx" "$law" "$speed" "$direction" "$sx" "$sy" "$vx" "$vy" "$cue_seed" "$path_seed"
     done < "$PLAN_FILE"
     rm -f "$PLAN_FILE"
     exit 0
@@ -262,6 +385,7 @@ echo "[mc_batch] ================================================"
 echo "[mc_batch] Monte-Carlo batch starting at $TIMESTAMP"
 echo "[mc_batch] Plan: $TOTAL_FLIGHTS flights, laws=$LAWS speeds=$SPEEDS directions=$DIRECTIONS"
 echo "[mc_batch] mode=$MODE x0=$X0 y0_mag=$Y0_MAG jitter=$JITTER master_seed=$MASTER_SEED"
+echo "[mc_batch] path=$PATH_MODE geometry=$GEOMETRY west_angle_deg=$WEST_ANGLE_DEG weave_period_s=$WEAVE_PERIOD_S weave_lat_speed=$WEAVE_LAT_SPEED jink_count=$JINK_COUNT jink_min_deg=$JINK_MIN_DEG"
 echo "[mc_batch] Aggregate CSV: $OUT_CSV"
 echo "[mc_batch] Batch log: $BATCH_LOG"
 echo "[mc_batch] ================================================"
@@ -278,6 +402,8 @@ header = [
     # extra informational columns (harmless -- mc_analyze.py reads by name)
     "config", "direction", "target_start_x", "py_exit_code",
     "sim_log_path", "run_log_path",
+    # M5 path/geometry provenance (trailing, read-by-name safe)
+    "path", "geometry", "path_seed",
 ]
 with open(path, "w", newline="") as f:
     csv.writer(f).writerow(header)
@@ -326,9 +452,11 @@ record_row() {
     local run_idx="$1" law="$2" speed="$3" direction="$4"
     local tsx="$5" tsy="$6" tvx="$7" tvy="$8" cue_seed="$9"
     local run_log="${10}" py_exit="${11}" forced_reason="${12:-}" sim_log="${13:-}"
+    local path_seed="${14:-}"
 
     "$VENV_PYTHON" - "$OUT_CSV" "$run_idx" "$law" "$tvx" "$tvy" "$tsy" "$cue_seed" \
         "$run_log" "$py_exit" "$forced_reason" "${law}_${speed}" "$direction" "$tsx" "$sim_log" \
+        "$PATH_MODE" "$GEOMETRY" "$path_seed" \
         <<'PYEOF'
 import csv
 import math
@@ -338,7 +466,8 @@ import sys
 (
     out_csv, run_idx, law, tvx, tvy, tsy, cue_seed,
     run_log, py_exit, forced_reason, config, direction, tsx, sim_log,
-) = sys.argv[1:15]
+    path_mode, geometry, path_seed,
+) = sys.argv[1:18]
 
 miss = float("nan")
 clean = 0
@@ -414,6 +543,7 @@ row = [
     clean, handoff, handoff_range, handoff_t,
     first_det_range, coverage, breakoff_reason, flight_csv_path,
     config, direction, tsx, py_exit, sim_log, run_log,
+    path_mode, geometry, path_seed,
 ]
 with open(out_csv, "a", newline="") as f:
     csv.writer(f).writerow(row)
@@ -426,11 +556,11 @@ PYEOF
 
 run_counter=0
 
-while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed; do
+while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed path_seed; do
     run_counter=$((run_counter + 1))
     echo ""
     echo "[mc_batch] ============ Flight $run_counter/$TOTAL_FLIGHTS (run_idx=$run_idx) ============"
-    echo "[mc_batch] law=$law speed=$speed direction=$direction target_start=(${tsx},${tsy},0.5) target_vel=(${tvx},${tvy}) cue_seed=$cue_seed"
+    echo "[mc_batch] law=$law speed=$speed direction=$direction target_start=(${tsx},${tsy},0.5) target_vel=(${tvx},${tvy}) cue_seed=$cue_seed path=$PATH_MODE path_seed=$path_seed geometry=$GEOMETRY"
 
     kill_stale_sim
 
@@ -465,7 +595,7 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed; do
         echo "[mc_batch] WARNING: sim did not become ready within ${READY_TIMEOUT_S}s for run_idx=$run_idx. See $SIM_LOG"
         echo "[mc_batch] Recording failure row and continuing to the next flight."
         record_row "$run_idx" "$law" "$speed" "$direction" "$tsx" "$tsy" "$tvx" "$tvy" "$cue_seed" \
-            "-" "" "sim_boot_timeout" "$SIM_LOG"
+            "-" "" "sim_boot_timeout" "$SIM_LOG" "$path_seed"
         teardown_sim
         continue
     fi
@@ -488,7 +618,7 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed; do
         echo "[mc_batch] WARNING: could not pre-place the tag after 3 attempts for run_idx=$run_idx."
         echo "[mc_batch] Recording failure row and continuing to the next flight."
         record_row "$run_idx" "$law" "$speed" "$direction" "$tsx" "$tsy" "$tvx" "$tvy" "$cue_seed" \
-            "-" "" "tag_preplacement_failed" "$SIM_LOG"
+            "-" "" "tag_preplacement_failed" "$SIM_LOG" "$path_seed"
         teardown_sim
         continue
     fi
@@ -501,7 +631,19 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed; do
 
     echo "[mc_batch] Running m4_intercept.py ${MODE_ARGS[*]:-} --law $law --target-start ${tsx},${tsy},0.5 --target-vel ${tvx},${tvy} --cue-seed $cue_seed $EXTRA_ARGS (outer timeout ${PY_TIMEOUT_S}s)..."
     echo "[mc_batch] Run output -> $RUN_LOG (also streamed below)"
+    # The path is plumbed to the mover through the ENVIRONMENT (m4_intercept.py
+    # is UNCHANGED -- it spawns m4_target_mover.py as a subprocess that
+    # inherits this env; same INTERCEPTOR_WORLD_NAME pattern). The env-var
+    # prefix applies to `timeout` and is inherited by the python child + the
+    # mover it spawns. line/standard leave these at the mover's own defaults,
+    # so an untouched line/standard batch is byte-identical to before.
     # shellcheck disable=SC2086
+    INTERCEPTOR_TARGET_PATH="$PATH_MODE" \
+    INTERCEPTOR_PATH_SEED="$path_seed" \
+    INTERCEPTOR_WEAVE_PERIOD_S="$WEAVE_PERIOD_S" \
+    INTERCEPTOR_WEAVE_LAT_SPEED="$WEAVE_LAT_SPEED" \
+    INTERCEPTOR_JINK_COUNT="$JINK_COUNT" \
+    INTERCEPTOR_JINK_MIN_DEG="$JINK_MIN_DEG" \
     timeout "$PY_TIMEOUT_S" "$VENV_PYTHON" "$REPO_ROOT/scripts/m4_intercept.py" \
         "${MODE_ARGS[@]}" --law "$law" \
         --target-start "${tsx},${tsy},0.5" --target-vel "${tvx},${tvy}" \
@@ -516,7 +658,7 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed; do
     fi
 
     record_row "$run_idx" "$law" "$speed" "$direction" "$tsx" "$tsy" "$tvx" "$tvy" "$cue_seed" \
-        "$RUN_LOG" "$PY_EXIT" "$forced_reason" "$SIM_LOG"
+        "$RUN_LOG" "$PY_EXIT" "$forced_reason" "$SIM_LOG" "$path_seed"
 
     teardown_sim
 done < "$PLAN_FILE"

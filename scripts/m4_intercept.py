@@ -1129,6 +1129,78 @@ def recompute_min_gt_range_from_csv(log_path: str) -> float:
     return min_val if min_val is not None else float("nan")
 
 
+def preplace_target(target_start: str, timeout_s: float = 6.0) -> bool:
+    """ADR-0033 (M5 finish; fixes the ADR-0032 pre-placement race): teleport
+    the AprilTag target to --target-start via a SHORT-LIVED SUBPROCESS running
+    the `gz service` CLI (mirroring scripts/mc_batch.sh's external pre-place),
+    BEFORE this process does any in-process gz-transport init.
+
+    Why a subprocess and NOT node.request(): this process holds a gz-transport
+    /clock subscription under --handoff (SimClockHolder), and the gz-transport13
+    quirk documented on SimClockHolder means a process holding ANY subscription
+    never receives gz service RESPONSES. More decisively, this must run before
+    Node() even exists so the always-on camera detection thread never sees the
+    stale world-file default-position board (~5 m away). A separate subprocess
+    sidesteps the quirk entirely (the mover pattern).
+
+    World name comes from the INTERCEPTOR_WORLD_NAME env override (default
+    "apriltag", ADR-0032), matching m4_target_mover.py / s2_cue_mock.py.
+
+    Non-fatal: returns False (with a warning) on any failure. mc_batch.sh's own
+    external pre-place remains a valid guard and a second set_pose is idempotent,
+    so a failure here is a warning, not an abort. Uses a wall-clock subprocess
+    timeout purely as an outer process guard (not a sim-scheduled duration); the
+    gz CLI's own --timeout 2000 ms fires first."""
+    world_name = os.environ.get("INTERCEPTOR_WORLD_NAME", "apriltag")
+    service = f"/world/{world_name}/set_pose"
+    try:
+        parts = [float(v) for v in target_start.split(",")]
+        x, y, z = parts[0], parts[1], parts[2]
+    except (ValueError, IndexError):
+        print(
+            f"[m4] WARNING: could not parse --target-start {target_start!r} for "
+            "tag pre-placement; skipping (mover / mc_batch pre-place still applies)"
+        )
+        return False
+    # Same request shape as mc_batch.sh: name + position, orientation left at
+    # identity (the apriltag_target model bakes its facing into geometry).
+    req = f'name: "apriltag_target" position {{ x: {x} y: {y} z: {z} }}'
+    cmd = [
+        "gz", "service", "-s", service,
+        "--reqtype", "gz.msgs.Pose", "--reptype", "gz.msgs.Boolean",
+        "--timeout", "2000", "--req", req,
+    ]
+    print(
+        f"[m4] Pre-placing tag at ({x}, {y}, {z}) via {service} "
+        "(subprocess gz service CLI, before any gz-transport init -- ADR-0033)..."
+    )
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout_s
+        )
+    except FileNotFoundError:
+        print(
+            "[m4] WARNING: 'gz' CLI not found; skipping tag pre-placement "
+            "(mover / mc_batch external pre-place still applies)"
+        )
+        return False
+    except subprocess.TimeoutExpired:
+        print(
+            f"[m4] WARNING: tag pre-placement timed out after {timeout_s}s; "
+            "continuing (mover / mc_batch external pre-place still applies)"
+        )
+        return False
+    if result.returncode != 0:
+        print(
+            f"[m4] WARNING: tag pre-placement gz service returned "
+            f"{result.returncode}; continuing (mover / mc_batch external "
+            f"pre-place still applies). stderr: {result.stderr.strip()}"
+        )
+        return False
+    print("[m4] Tag pre-placed.")
+    return True
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -1150,6 +1222,16 @@ def parse_args():
         "--target-vel", default=None,
         help="tag velocity 'vx,vy' (m/s) -- forwarded to m4_target_mover.py "
              "(default: 0,2.0, or 0,6.0 under --handoff)",
+    )
+    parser.add_argument(
+        "--no-preplace", action="store_true",
+        help="ADR-0033 (default OFF, i.e. internal pre-placement ON): skip the "
+             "one-shot 'gz service .../set_pose' subprocess that teleports the "
+             "tag to --target-start BEFORE any in-process gz-transport init, so "
+             "the always-on camera detection thread cannot lock the world-file "
+             "default-position board first (the ADR-0032 race). Only fires when "
+             "--target-start is EXPLICITLY given; harmless/idempotent alongside "
+             "mc_batch.sh's own external pre-place. Set this to opt out.",
     )
     parser.add_argument(
         "--require-miss", type=float, default=None,
@@ -1314,6 +1396,12 @@ def parse_args():
     if args.dash_unclamp and not args.fpv:
         parser.error("--dash-unclamp requires --fpv (it retunes the FPV V_TOTAL_MAX clamp)")
 
+    # ADR-0033 (M5 finish): remember whether the caller EXPLICITLY passed
+    # --target-start BEFORE we fill in a default just below. The internal tag
+    # pre-placement (main(), before any gz-transport init) fires ONLY for an
+    # explicitly-provided pose so it never invents one for the default
+    # M4/S1/S2 gated callers -- their behavior stays byte-for-byte unchanged.
+    args.target_start_provided = args.target_start is not None
     if args.target_start is None:
         args.target_start = S2["TARGET_START_DEFAULT"] if args.handoff else "6.5,-4,0.5"
     if args.target_vel is None:
@@ -2400,6 +2488,27 @@ async def main():
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = "bench" if args.bench else args.law
     log_path = os.path.join(LOGS_DIR, f"m4_intercept_{suffix}_{timestamp}.csv")
+
+    # ADR-0033 (M5 finish; fixes the ADR-0032 pre-placement race). If the
+    # caller gave an EXPLICIT --target-start, teleport the tag there NOW --
+    # before Node(), the camera/pose subscriptions, and the detection thread
+    # exist -- so the always-on detector cannot lock the world-file
+    # default-position board (~5 m away) before the mover's own pre-warm
+    # relocation fires deep into CUE_WAIT/DASH (the confirmed race signature:
+    # r_hat frozen near 5 m while gt_range diverges to 25-30 m). This runs as a
+    # SHORT-LIVED SUBPROCESS (gz service CLI, see preplace_target) precisely
+    # because this process will hold a /clock subscription (SimClockHolder) and
+    # must make ZERO in-process gz service calls. Non-fatal; --no-preplace opts
+    # out, and mc_batch.sh's own external pre-place remains a valid idempotent
+    # guard.
+    if args.no_preplace:
+        print(
+            "[m4] Tag pre-placement DISABLED (--no-preplace): relying on the "
+            "mover / external pre-place (ADR-0032 race can recur if neither "
+            "pre-places the tag before detection starts)."
+        )
+    elif args.target_start_provided:
+        preplace_target(args.target_start)
 
     node = Node()
 

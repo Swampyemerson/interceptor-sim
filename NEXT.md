@@ -49,10 +49,15 @@ confirm is DONE (ADR-0028 addendum); streak=2 held the 6 m/s S2 gate (ADR-0029c)
    rate + pose error → a sim-vs-bench gap table. **BUILDER ACTION: order parts now**
    (Pi 5 8GB ~$120, cooler/PSU/SD ~$35, global-shutter cam + wide lens ~$75) —
    lead time overlaps the M5 finish; software prep is pre-staged.
-2. **Kill the AprilTag (markerless seeker).** Classical-CV motion/blob seeker on a
-   markerless target (Gazebo, or bench video) feeding the SAME bearing interface.
-   Partial result acceptable — it converts the project from "guidance demo" to
-   "seeker development" and closes the disclosed #1 risk arc. Design-as-ADR first.
+2. **Kill the AprilTag (markerless seeker).** Markerless seeker on a tag-less
+   target feeding the SAME bearing interface. Candidates (builder widened scope
+   2026-07-07): classical CV (motion/blob/KLT) AND a pre-built lightweight neural
+   detector needing minimal adaptation (nano-class, drone-fine-tuned) — the
+   parent architecture (ADR-0015, Pi5+Hailo detect-then-track) already assumes an
+   ML detector, so this is architecture-consistent, and GOALS.md's "no ML" rule
+   was about isolating guidance, which this milestone deliberately un-isolates.
+   Partial result acceptable. Design-as-ADR first; research brief in progress
+   (`docs/seeker_design_brief.md`).
 3. **EKF target-track A/B.** Proper EKF vs the alpha-beta baseline, paired seeds
    n≥8, honest null-result framing (Kalata's Gazebo rejection, ADR-0013, is the
    precedent). Pure software — may interleave with 1–2.

@@ -16,10 +16,40 @@ goes away), the mover has to run with ZERO subscriptions of its own -- so
 it lives in this small, separate, subscription-free script instead of
 being folded into m4_intercept.py's asyncio loop.
 
-WHAT: parses a start position and a constant 2D velocity, then streams
+WHAT: parses a start position and a base 2D velocity, then streams
 `set_pose` requests at a fixed wall rate for a fixed duration. Positions
-are computed from ELAPSED **SIM TIME** (position = start + velocity *
-sim_elapsed), not wall time and not accumulated tick-by-tick.
+are computed from ELAPSED **SIM TIME** (position = f(sim_elapsed)), not
+wall time and not accumulated tick-by-tick.
+
+MANEUVERING PATHS (--path, M5/ADR-0010 #6): three target paths are
+supported, all POSITION-only (the tag board's face is rigidly world -X in
+the SDF; ADR-0010 #6 says maneuvers are velocity-schedule changes, never
+yaw/aspect changes, so this mover sets position and never orientation):
+  * line  (default) -- straight line, position = start + base_vel *
+    sim_elapsed. BYTE-IDENTICAL to the pre-M5 behavior.
+  * weave -- an S-curve: a sinusoidal lateral offset (perpendicular to the
+    base velocity) added on top of the straight line. Knobs --weave-period-s
+    and --weave-lat-speed (peak lateral speed). Against a 6-12 m/s crosser
+    the defaults (4 s period, 3 m/s lateral) give ~1.9 m lateral amplitude.
+    A startup check (main(), matching jink's explicit X_FLOOR_M clamp below)
+    fails fast if x0 - amplitude <= X_FLOOR_M, i.e. an over-large weave
+    config would swing world-X at/below the safety floor -- rather than
+    silently violating the same ADR-0010 #6 invariant jink enforces.
+  * jink -- one or more SHARP, discontinuous velocity-direction changes at
+    sim times scheduled DETERMINISTICALLY from --path-seed (same seed =>
+    identical schedule; different seeds => different, so paired-seed A/B
+    stays valid). Heading changes are constrained to keep world-X
+    non-decreasing (vx >= 0) so the -X-facing tag stays ahead of the
+    interceptor (ADR-0010 #6).
+
+ENV-VAR PLUMBING (so scripts/mc_batch.sh can select a path without editing
+scripts/m4_intercept.py, which spawns this mover as a subprocess that
+inherits the parent env -- the same INTERCEPTOR_WORLD_NAME pattern used for
+the world name below): every path flag also reads an INTERCEPTOR_TARGET_PATH
+/ _WEAVE_PERIOD_S / _WEAVE_LAT_SPEED / _JINK_COUNT / _JINK_MIN_DEG /
+_PATH_SEED env var as its argparse DEFAULT, so setting the env var once
+before launching m4_intercept.py retargets the mover too. An explicit CLI
+flag always wins over the env var.
 
 WHY SIM TIME (found 2026-07-05, the hard way): under full mission load
 (camera rendering + detection + PX4 + guidance) this sim's real-time
@@ -42,6 +72,13 @@ running, tag already placed near --start so the pre-warm request has
 something sane to confirm against):
 
     .venv/bin/python scripts/m4_target_mover.py --start "6.5,-4,0.5" --vel "0,2.0" --duration 12
+    .venv/bin/python scripts/m4_target_mover.py --start "6.5,-14,0.5" --vel "0,6.0" --duration 20 --path weave
+    .venv/bin/python scripts/m4_target_mover.py --start "6.5,-14,0.5" --vel "0,6.0" --duration 20 --path jink --path-seed 7
+
+Offline (NO simulator) -- print the generated velocity schedule + integrated
+positions over sim time and exit, for verifying a path before a batch:
+
+    .venv/bin/python scripts/m4_target_mover.py --vel "0,6.0" --duration 20 --path jink --path-seed 7 --dry-run
 
 Normally this is spawned automatically by scripts/m4_intercept.py's ENGAGE
 phase (see that file), using the same venv interpreter (sys.executable).
@@ -49,7 +86,9 @@ phase (see that file), using the same venv interpreter (sys.executable).
 
 import argparse
 import csv
+import math
 import os
+import random
 import signal
 import subprocess
 import sys
@@ -86,6 +125,142 @@ DEFAULT_VEL = "0,2.0"
 DEFAULT_RATE_HZ = 50.0
 DEFAULT_DURATION_S = 12.0  # SIM seconds (see module docstring)
 SIM_CLOCK_TIMEOUT_S = 10.0  # wall seconds to wait for the first /clock sample
+
+# --- maneuvering-path defaults (env-var-overridable so mc_batch.sh can plumb
+# a path through the UNCHANGED m4_intercept.py via the inherited environment;
+# see the module docstring's ENV-VAR PLUMBING note). An explicit CLI flag
+# always overrides the env var (argparse uses these only as the default). ---
+DEFAULT_PATH = os.environ.get("INTERCEPTOR_TARGET_PATH", "line")
+DEFAULT_WEAVE_PERIOD_S = float(os.environ.get("INTERCEPTOR_WEAVE_PERIOD_S", "4.0"))
+DEFAULT_WEAVE_LAT_SPEED = float(os.environ.get("INTERCEPTOR_WEAVE_LAT_SPEED", "3.0"))
+DEFAULT_JINK_COUNT = int(os.environ.get("INTERCEPTOR_JINK_COUNT", "2"))
+DEFAULT_JINK_MIN_DEG = float(os.environ.get("INTERCEPTOR_JINK_MIN_DEG", "40.0"))
+DEFAULT_PATH_SEED = int(os.environ.get("INTERCEPTOR_PATH_SEED", "0"))
+VALID_PATHS = ("line", "weave", "jink")
+
+# ADR-0010 #6 safety floor: the -X-facing tag board must stay ahead of the
+# interceptor (which spawns at world X=0), so no path is allowed to drive the
+# target's world-X below this. line/weave never approach it at the batch
+# geometries; jink additionally constrains its headings to vx >= 0.
+X_FLOOR_M = 0.5
+
+
+def _perp_unit(vx, vy):
+    """Left-hand (+90 deg) horizontal unit vector perpendicular to the base
+    velocity (vx, vy). For a +Y ('north') crosser this is -X ('west'); the
+    weave alternates the offset's sign so which way perp points is
+    immaterial. A ~zero base velocity has no travel direction, so default the
+    lateral axis to world +X ('east')."""
+    speed = math.hypot(vx, vy)
+    if speed < 1e-9:
+        return (1.0, 0.0)
+    return (-vy / speed, vx / speed)
+
+
+def _weave_amplitude(weave_period_s, weave_lat_speed):
+    """Peak lateral displacement of --path weave's S-curve. offset(t) =
+    amp*sin(w t) with w = 2*pi/period, and PEAK lateral speed (the knob) is
+    amp*w by construction, so amp = weave_lat_speed*period/(2*pi). Shared by
+    build_path() (to actually generate the path) and main()'s startup safety
+    check (so the two can never drift apart)."""
+    return weave_lat_speed * weave_period_s / (2.0 * math.pi)
+
+
+def _build_jink_schedule(vx, vy, duration, seed, jink_count, jink_min_deg):
+    """Deterministic piecewise-constant velocity schedule for --path jink: a
+    list of (t_start_s, vx, vy) segments. Segment 0 is the UNCHANGED base
+    velocity, so motion before the first jink is byte-identical to a straight
+    line. Each scheduled jink (times drawn from random.Random(seed) in the
+    middle 70% of the flight) rotates the heading to a fresh value that (a)
+    differs from the previous heading by at least jink_min_deg -- a genuinely
+    SHARP change -- and (b) keeps vx >= 0, so the target's world-X never
+    decreases and the -X-facing tag stays ahead of the interceptor
+    (ADR-0010 #6). Same seed => identical schedule; different seeds =>
+    different (paired-seed A/B stays valid)."""
+    speed = math.hypot(vx, vy)
+    segments = [(0.0, vx, vy)]
+    if speed < 1e-9 or jink_count <= 0:
+        return segments
+    rng = random.Random(seed)
+    lo, hi = 0.15 * duration, 0.85 * duration
+    times = sorted(rng.uniform(lo, hi) for _ in range(jink_count))
+    # Bound the heading cone strictly inside +-90 deg so cos(heading) > 0
+    # (vx > 0) for every jinked segment.
+    hmax = math.pi / 2.0 - math.radians(1.0)
+    min_step = math.radians(jink_min_deg)
+    prev = math.atan2(vy, vx)
+    for tj in times:
+        cand = prev
+        for _ in range(50):
+            cand = rng.uniform(-hmax, hmax)
+            if abs(cand - prev) >= min_step:
+                break
+        prev = cand
+        segments.append((tj, speed * math.cos(cand), speed * math.sin(cand)))
+    return segments
+
+
+def build_path(path, x0, y0, z0, vx, vy, duration, weave_period_s,
+               weave_lat_speed, jink_count, jink_min_deg, path_seed):
+    """Return (pos_fn, vel_fn): pos_fn(sim_elapsed) -> (x, y, z) is what the
+    mover streams via set_pose; vel_fn(sim_elapsed) -> (vx, vy) is the
+    instantaneous commanded velocity (for logs / the --dry-run schedule). All
+    three paths are closed-form / piecewise-closed-form in sim_elapsed (no
+    tick-by-tick accumulation), matching the line path's original property."""
+    if path == "line":
+        def pos_fn(t):
+            return (x0 + vx * t, y0 + vy * t, z0)
+
+        def vel_fn(t):
+            return (vx, vy)
+
+        return pos_fn, vel_fn
+
+    if path == "weave":
+        px, py = _perp_unit(vx, vy)
+        w = 2.0 * math.pi / weave_period_s
+        # Displacement offset(t) = amp*sin(w t) so the PEAK lateral speed
+        # (d/dt) is exactly weave_lat_speed = amp*w -> amp = weave_lat_speed/w.
+        amp = _weave_amplitude(weave_period_s, weave_lat_speed)
+
+        def pos_fn(t):
+            off = amp * math.sin(w * t)
+            return (x0 + vx * t + px * off, y0 + vy * t + py * off, z0)
+
+        def vel_fn(t):
+            lat = weave_lat_speed * math.cos(w * t)
+            return (vx + px * lat, vy + py * lat)
+
+        return pos_fn, vel_fn
+
+    if path == "jink":
+        segs = _build_jink_schedule(
+            vx, vy, duration, path_seed, jink_count, jink_min_deg
+        )
+
+        def pos_fn(t):
+            x, y = x0, y0
+            for i, (ts, svx, svy) in enumerate(segs):
+                te = segs[i + 1][0] if i + 1 < len(segs) else float("inf")
+                dt = min(t, te) - ts
+                if dt <= 0.0:
+                    break
+                x += svx * dt
+                y += svy * dt
+            return (max(x, X_FLOOR_M), y, z0)
+
+        def vel_fn(t):
+            cur = segs[0]
+            for seg in segs:
+                if seg[0] <= t:
+                    cur = seg
+                else:
+                    break
+            return (cur[1], cur[2])
+
+        return pos_fn, vel_fn
+
+    raise ValueError(f"unknown --path {path!r} (expected one of {VALID_PATHS})")
 
 # Child process source: subscribes to /clock (gz.msgs Clock, sim field) and
 # prints sim-time seconds, one per line. Runs in its OWN process because a
@@ -175,6 +350,40 @@ def main() -> int:
         "--duration", type=float, default=DEFAULT_DURATION_S,
         help="how long to stream, in seconds",
     )
+    parser.add_argument(
+        "--path", default=DEFAULT_PATH, choices=VALID_PATHS,
+        help="target path: line (default, straight), weave (S-curve), or "
+             "jink (sharp seed-scheduled turns). Default is INTERCEPTOR_TARGET_"
+             f"PATH env or 'line'. (env default: {DEFAULT_PATH!r})",
+    )
+    parser.add_argument(
+        "--weave-period-s", type=float, default=DEFAULT_WEAVE_PERIOD_S,
+        help=f"--path weave S-curve period in SIM seconds (default {DEFAULT_WEAVE_PERIOD_S})",
+    )
+    parser.add_argument(
+        "--weave-lat-speed", type=float, default=DEFAULT_WEAVE_LAT_SPEED,
+        help="--path weave PEAK lateral speed (m/s), perpendicular to the base "
+             f"velocity (default {DEFAULT_WEAVE_LAT_SPEED})",
+    )
+    parser.add_argument(
+        "--jink-count", type=int, default=DEFAULT_JINK_COUNT,
+        help=f"--path jink number of sharp turns (default {DEFAULT_JINK_COUNT})",
+    )
+    parser.add_argument(
+        "--jink-min-deg", type=float, default=DEFAULT_JINK_MIN_DEG,
+        help="--path jink minimum heading change per jink, degrees "
+             f"(default {DEFAULT_JINK_MIN_DEG})",
+    )
+    parser.add_argument(
+        "--path-seed", type=int, default=DEFAULT_PATH_SEED,
+        help="--path jink schedule seed -- same seed gives an identical "
+             f"schedule (default {DEFAULT_PATH_SEED})",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="print the generated velocity schedule + integrated positions "
+             "over sim time and exit 0, WITHOUT touching Gazebo (offline check)",
+    )
     args = parser.parse_args()
 
     try:
@@ -183,6 +392,63 @@ def main() -> int:
     except ValueError as exc:
         print(f"[m4-mover] FAILED: {exc}")
         return 2
+
+    # Reviewer correction: weave had no X_FLOOR_M guard (only jink applied
+    # one), so an over-large --weave-period-s/--weave-lat-speed could swing
+    # world-X at/below X_FLOOR_M -- driving the target behind the
+    # interceptor with the rigidly -X-facing tag turned away, silently
+    # breaking the ADR-0010 #6 invariant. Fail fast (both --dry-run and a
+    # live run) rather than clamp: clamping position without also reshaping
+    # vel_fn would desync the logged velocity from the actual (clamped)
+    # motion, so an explicit, loud precondition is the honest fix. Uses the
+    # SAME amplitude formula build_path() uses (_weave_amplitude), so this
+    # can't drift out of sync with the actual path.
+    if args.path == "weave":
+        amp = _weave_amplitude(args.weave_period_s, args.weave_lat_speed)
+        min_x = x0 - amp
+        if min_x <= X_FLOOR_M:
+            print(
+                f"[m4-mover] FAILED: --path weave with weave_period_s="
+                f"{args.weave_period_s} weave_lat_speed={args.weave_lat_speed} "
+                f"gives amplitude {amp:.3f}m, swinging world-X as low as "
+                f"{min_x:.3f}m from start_x={x0} -- at/below the X_FLOOR_M="
+                f"{X_FLOOR_M} safety floor (ADR-0010 #6: the -X-facing tag "
+                "must stay ahead of the interceptor). Raise --start's x, or "
+                "lower --weave-lat-speed / raise --weave-period-s."
+            )
+            return 2
+
+    # Build the sim-time position/velocity functions for the chosen path.
+    # line is byte-identical to the pre-M5 straight line; weave/jink layer a
+    # sim-time-scheduled maneuver on top of the SAME base velocity.
+    pos_fn, vel_fn = build_path(
+        args.path, x0, y0, z0, vx, vy, args.duration,
+        args.weave_period_s, args.weave_lat_speed,
+        args.jink_count, args.jink_min_deg, args.path_seed,
+    )
+
+    # Offline schedule dump (no Gazebo, no /clock, no set_pose): print the
+    # commanded velocity + integrated position over sim time and exit. Used to
+    # verify a path deterministically before committing a batch to it.
+    if args.dry_run:
+        print(
+            f"[m4-mover] DRY RUN path={args.path} start=({x0},{y0},{z0}) "
+            f"base_vel=({vx},{vy}) duration={args.duration}s "
+            f"weave_period_s={args.weave_period_s} weave_lat_speed={args.weave_lat_speed} "
+            f"jink_count={args.jink_count} jink_min_deg={args.jink_min_deg} "
+            f"path_seed={args.path_seed}"
+        )
+        print("t,x,y,z,vx,vy")
+        step = 0.25
+        n_steps = int(round(args.duration / step))
+        for k in range(n_steps + 1):
+            t = k * step
+            px_, py_, pz_ = pos_fn(t)
+            pvx, pvy = vel_fn(t)
+            print(
+                f"{t:.2f},{px_:.4f},{py_:.4f},{pz_:.4f},{pvx:.4f},{pvy:.4f}"
+            )
+        return 0
 
     os.makedirs(LOGS_DIR, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -256,10 +522,9 @@ def main() -> int:
             # Position from elapsed SIM time (see module docstring: the
             # target must move in the same clock the vehicle's physics
             # uses, or a sagging real-time factor silently scales its
-            # speed).
-            x = x0 + vx * sim_elapsed
-            y = y0 + vy * sim_elapsed
-            z = z0
+            # speed). pos_fn is line/weave/jink per --path; line is exactly
+            # start + base_vel * sim_elapsed as before.
+            x, y, z = pos_fn(sim_elapsed)
 
             ok = send_pose(node, x, y, z, STREAM_TIMEOUT_MS)
             n_requests += 1
