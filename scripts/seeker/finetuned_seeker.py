@@ -21,6 +21,7 @@ no ultralytics at inference -- the ONNX runs standalone.
 """
 from __future__ import annotations
 
+import json
 import math
 import os
 from typing import Optional
@@ -59,7 +60,6 @@ class FinetunedNNSeeker:
         self.fx, self.fy, self.cx, self.cy = fx, fy, cx, cy
         self.conf = conf_thres
         self.imgsz = imgsz
-        self.span = target_span_m
         # SELF-MASK (ADR-0038 forensic fix): a positives-only fine-tune false-locks
         # on the interceptor's OWN body-fixed prop arms at the FOV periphery
         # (observed at bearing -44/+33 deg, constant ~1.5 m range while gt=29 m --
@@ -83,6 +83,37 @@ class FinetunedNNSeeker:
             pass
         print(f"[finetuned] loaded {os.path.basename(weights)} imgsz={self.imgsz} "
               f"conf={self.conf}")
+
+        # RANGE CALIBRATION (ADR-0040 addendum): the known-size range formula
+        # (range = FX * span / box_width_px) underestimates badly (meas/gt
+        # median ~0.06 in flight) because this model's boxes run large vs the
+        # assumed 1.0 m span -- calibrate_range.py fits an effective span from
+        # an IoU-gated positives-only render set. This is the SECONDARY lever
+        # (a range fix can't help when the detection itself is wrong; the
+        # PRIMARY v2 lever is hard-negative training). Resolution order:
+        # 1) MARKERLESS_SPAN_M env override, 2) a calib sidecar next to
+        # `weights`, 3) the target_span_m default (byte-identical to before
+        # this patch when neither exists -- e.g. the gated v1 arm's weights).
+        self.span = target_span_m
+        span_source = "default"
+        env_span = os.environ.get("MARKERLESS_SPAN_M")
+        if env_span:
+            try:
+                self.span = float(env_span)
+                span_source = f"env MARKERLESS_SPAN_M={env_span}"
+            except ValueError:
+                pass
+        else:
+            calib_path = str(weights) + ".calib.json"
+            if os.path.exists(calib_path):
+                try:
+                    with open(calib_path) as fh:
+                        calib = json.load(fh)
+                    self.span = float(calib["span_m_eff"])
+                    span_source = f"calib sidecar {os.path.basename(calib_path)}"
+                except Exception:
+                    pass
+        print(f"[finetuned] span={self.span:.3f} m ({span_source})")
 
     def _none(self, t_mono):
         return SeekerDetection(t_mono, None, None, None, None, None, 0)

@@ -129,9 +129,9 @@ def go(args):
     model = YOLO(args.base)
     model.train(data=args.data, imgsz=args.imgsz, epochs=args.epochs,
                 batch=args.batch, project=os.path.join(HERE, "runs"),
-                name="drone_finetune", exist_ok=True)
-    best = os.path.join(HERE, "runs", "drone_finetune", "weights", "best.pt")
-    dst = os.path.join(WEIGHTS_DIR, "drone_finetuned.pt")
+                name=args.run_name, exist_ok=True)
+    best = os.path.join(HERE, "runs", args.run_name, "weights", "best.pt")
+    dst = os.path.join(WEIGHTS_DIR, args.out_name + ".pt")
     if os.path.exists(best):
         import shutil; shutil.copy(best, dst)
         YOLO(dst).export(format="onnx", imgsz=args.imgsz, opset=12, simplify=True)
@@ -153,6 +153,12 @@ def main():
     ap.add_argument("--imgsz", type=int, default=1280)
     ap.add_argument("--epochs", type=int, default=80)
     ap.add_argument("--batch", type=int, default=16)
+    # v2+ runs must NOT clobber the gated v1 artifacts (runs/drone_finetune,
+    # weights/drone_finetuned.onnx) -- the paired A/B compares against them.
+    ap.add_argument("--run-name", default="drone_finetune",
+                    help="ultralytics run dir name (v1 default; use e.g. drone_finetune_v2)")
+    ap.add_argument("--out-name", default="drone_finetuned",
+                    help="output weights basename in weights/ (v1 default)")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--dry-run", action="store_true", default=True,
                    help="validate the plan, train nothing (DEFAULT — safe while batch runs)")
