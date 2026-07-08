@@ -110,7 +110,11 @@ from gz.msgs10.boolean_pb2 import Boolean
 # inherits the parent's environment, so setting the var once before
 # launching m4_intercept.py retargets the mover too (demo-video tooling).
 WORLD_NAME = os.environ.get("INTERCEPTOR_WORLD_NAME", "apriltag")
-TARGET_MODEL_NAME = "apriltag_target"
+# INTERCEPTOR_TARGET_MODEL retargets which model this mover teleports (default
+# "apriltag_target", byte-identical for every gated caller). ADR-0033 item 2
+# sets it to "fpv_target_markerless" for the markerless A/B, exactly as
+# INTERCEPTOR_WORLD_NAME retargets the world -- same inherited-env pattern.
+TARGET_MODEL_NAME = os.environ.get("INTERCEPTOR_TARGET_MODEL", "apriltag_target")
 SET_POSE_SERVICE = f"/world/{WORLD_NAME}/set_pose"
 
 PREWARM_TIMEOUT_MS = 2000

@@ -1173,8 +1173,12 @@ def preplace_target(target_start: str, timeout_s: float = 6.0) -> bool:
         )
         return False
     # Same request shape as mc_batch.sh: name + position, orientation left at
-    # identity (the apriltag_target model bakes its facing into geometry).
-    req = f'name: "apriltag_target" position {{ x: {x} y: {y} z: {z} }}'
+    # identity (the target model bakes its facing into geometry -- apriltag_target
+    # via the tag mount, fpv_target_markerless via the body, both identity).
+    # INTERCEPTOR_TARGET_MODEL retargets the pre-placed model for the markerless
+    # A/B (ADR-0033 item 2); default "apriltag_target" keeps the gated path exact.
+    model_name = os.environ.get("INTERCEPTOR_TARGET_MODEL", "apriltag_target")
+    req = f'name: "{model_name}" position {{ x: {x} y: {y} z: {z} }}'
     cmd = [
         "gz", "service", "-s", service,
         "--reqtype", "gz.msgs.Pose", "--reptype", "gz.msgs.Boolean",

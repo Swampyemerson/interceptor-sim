@@ -139,7 +139,12 @@ DRONE_MODEL = "x500_mono_cam_0"
 # that need the vehicle body frame, not just the camera).
 BASE_LINK_NAME = "base_link"
 CAMERA_LINK_NAME = "camera_link"
-TAG_MODEL_NAME = "apriltag_target"
+# INTERCEPTOR_TARGET_MODEL retargets the ground-truth target entity looked up in
+# the pose topic (default "apriltag_target", byte-identical for every gated
+# caller). ADR-0033 item 2 sets it to "fpv_target_markerless" for the markerless
+# A/B so gt_* scoring resolves the tag-less body -- gt stays SCORING-only either
+# way. m3/m4 import this name, so the one env read propagates to the whole gt path.
+TAG_MODEL_NAME = os.environ.get("INTERCEPTOR_TARGET_MODEL", "apriltag_target")
 
 IMAGE_TOPIC = (
     f"/world/{WORLD_NAME}/model/{DRONE_MODEL}/link/{CAMERA_LINK_NAME}"

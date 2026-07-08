@@ -101,7 +101,12 @@ from gz.msgs10.clock_pb2 import Clock
 # inherits the parent's environment, so setting the var once before
 # launching m4_intercept.py retargets the cue mock too (demo-video tooling).
 WORLD_NAME = os.environ.get("INTERCEPTOR_WORLD_NAME", "apriltag")
-TAG_MODEL_NAME = "apriltag_target"
+# INTERCEPTOR_TARGET_MODEL retargets the true-pose entity this cue mock reads to
+# SYNTHESIZE the ground-rig cue (default "apriltag_target"; ADR-0033 item 2 sets
+# "fpv_target_markerless" for the markerless A/B). The cue mock legitimately reads
+# gt to mock the ground SENSOR's output -- that cue is structurally MID-COURSE and
+# unreadable post-handoff (honesty boundary), unchanged by which body it tracks.
+TAG_MODEL_NAME = os.environ.get("INTERCEPTOR_TARGET_MODEL", "apriltag_target")
 # Interceptor model (mirrors m2_detect.DRONE_MODEL -- not imported, this script
 # stays standalone). Read from the SAME pose/info subscription as the tag so
 # the ADR-0015 range-dependent sigma / link-cutoff can use the true

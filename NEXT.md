@@ -5,42 +5,62 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit — the old file had three generations of roadmap
 interleaved.)*
 
-## Current: M5 FINISH — the protected finish line (builder ratified 2026-07-07, ADR-0033)
+## Current: POST-M5 roadmap A→C→B (builder ratified 2026-07-08, overnight autonomous)
 
-Scope is pinned in ADR-0033. Order below; sims ONE at a time at idle load; paired
-seeds; `--early-handoff`; speeds **6/9/12** (ADR-0029 comparability — supersedes
-the older 6/8/10 note). Demo video is DONE (ADR-0032); running-start Gazebo
-confirm is DONE (ADR-0028 addendum); streak=2 held the 6 m/s S2 gate (ADR-0029c).
+M5 is DONE (PROGRESS.md ✅, ADR-0036, `scripts/check_m5.sh` PASS). Builder order
+for the post-M5 work: **A (fly the markerless seeker now) → C (ground-rig
+division-of-labor sweep) → B (fine-tune a sim-domain detector for demo)**. "For
+real life we can use the MIT model." Recommendation-first on hard forks; careful
+todo tracking. Model policy unchanged (Fable=setup/direction only; Opus is the
+sanctioned safeguard fallback; on Opus now = normal).
 
-1. **Build (parallel, code-only, no sims):**
-   a. **P-8 corrected cue constants → s2_cue_mock defaults** (σ_R c=4.45e-05 not
-      0.008·R², separate `--datum-bias-m` — ADR-0017; + 0.20 s WORST latency
-      stress tier — ADR-0016). Changes the cue model → S2 gate must re-earn.
-   b. **Path suite:** S-weave + jink as sim-time-scheduled VELOCITY schedules in
-      m4_target_mover (board face stays world −X; maneuvers are velocity-schedule
-      changes only — ADR-0010 #6; jink schedule must derive from the run seed for
-      paired A/B) + a **west-approach geometry** (east/world_x axis has never been
-      mirror-tested; also the L2R/R2L asymmetry second batch, by construction).
-      Wire through mc_batch.sh.
-   c. **Fix the ADR-0032 pre-placement race in m4_intercept.py itself** — internal
-      tag pre-place via a SUBPROCESS `gz service` call (NOT in-process: the script
-      holds a /clock subscription and is safe only because it makes no gz service
-      calls itself — see Key facts). README reproduce instructions expose this
-      footgun to outsiders, so it's in-scope for M5.
-   d. **Plot/analysis upgrades:** trajectory overlays, miss histogram/CDF,
-      per-path pursuit-vs-pronav; keep Pk-vs-radius (ADR-0025 metric, ram 0.5 m /
-      net 1.5 m). Dev against the existing ADR-0029 logs — no new sims needed.
-2. **Gate + dev-verify (sequential sims, boot-budget discipline):** weave/jink/west
-   mover dev flights (share boots where possible), then re-run `check_s2.sh` under
-   the new cue defaults.
-3. **Final batch (design as a short ADR first, then overnight at idle):**
-   {pursuit, pronav} × {6, 9, 12 m/s} × paths {L→R, R→L, west, weave, jink} on the
-   ADOPTED deployment profile (running start + velocity-emission cue +
-   `--dash-unclamp` + `--early-handoff`, realistic degraded cue, corrected
-   constants), n≥8 paired. Outputs: miss-vs-intensity, per-path law comparison,
-   Pk-vs-radius.
-4. **Analyze + ship:** plots → README final numbers + GIF (from demo_out) +
-   reproduce instructions → verifier gate → commit.
+### Seeker markerless — infrastructure DONE this session (2026-07-08)
+- **Combined venv** `.venv-seeker` is now flight-capable: gz_system.pth bridge +
+  mavsdk 3.15.3 + pupil-apriltags added; it already had onnxruntime 1.27 + cv2 +
+  numpy 2.5.1/protobuf 7.35.1 (IDENTICAL to main .venv → gz-compatible). **Main
+  .venv is UNTOUCHED** (gated M0–M5 reproducibility preserved). Use
+  `MC_VENV_PYTHON=…/.venv-seeker/bin/python` for markerless arms.
+- **`worlds/markerless.sdf`** — world name `markerless`, target
+  `models/fpv_target_markerless` (tag-less body) at (5,0,0.5). Symlinked into PX4.
+- **Entity-name parametrization (env `INTERCEPTOR_TARGET_MODEL`, default
+  apriltag_target):** fixed the 3 hardcodes that broke gt+cue on the markerless
+  world — `m2_detect.py` TAG_MODEL_NAME (gt entity), `s2_cue_mock.py` (cue reads
+  target pose), `m4_target_mover.py`/`m4_intercept.py` preplace. Defaults keep the
+  apriltag path byte-identical.
+- **`mc_batch.sh` parametrized:** `MC_WORLD` / `MC_TARGET_MODEL` / `MC_SEEKER` /
+  `MC_VENV_PYTHON` env knobs, all defaulting to the gated apriltag path. This
+  SOLVES the ground_rig_sweep_plan.md §3a "BLOCKING PREREQUISITE" (venv gap).
+- **Range probe** (`scripts/seeker/probe_markerless_range.py`, `logs/markerless_probe/`):
+  static COCO two-stage on the tag-less body fires only 2/8 ranges (reliable ~2 m).
+  **BUT in-flight it acquires at 8–18 m** — the two-stage MOTION-proposal layer
+  needs a moving target the static probe didn't provide. Off-the-shelf markerless
+  is viable in the deployment profile; the cost is sparse coverage (~5–9%), not a
+  big miss (miss is ZEM-set at handoff, ADR-0023).
+- **Honesty audit re-earned (partial):** `tests/test_honesty_static.py` 7/7 PASS
+  (command chain clean after edits); seeker modules read no gt_* in detect();
+  every flight logs `cue_reads_post_handoff=0`. Full per-tick check owed at A/B close.
+
+### A→C→B execution status
+1. **A — markerless A/B (RUNNING):** paired n=8 apriltag-vs-markerless on the M5
+   deployment profile (master-seed 42). Markerless arm → `logs/mc_ab_markerless.csv`
+   (run 0: miss 1.06 m clean handoff, first_det 18.3 m). Apriltag control arm next
+   (`logs/mc_ab_apriltag.csv`) = also validates the mc_batch edits are byte-safe.
+2. **C — ground-rig sweep (`docs/ground_rig_sweep_plan.md`, ADR-0038 drafted):**
+   Arm A = the A/B markerless arm, BASE = the A/B apriltag arm → only NEW arms
+   B (markerless, drop --early-handoff), C (markerless --handoff-range 20), D
+   (markerless --handoff-range 2.5), E (apriltag --handoff-range 2.5) remain =
+   ~24–32 flights. Reconcile: in-flight acq 8–18 m (not 2–3 m) softens H1/Arm-D.
+3. **B — sim-domain fine-tune (tools ready, no sim yet):**
+   `scripts/seeker/render_sim_dataset.py` (exact-label static-grid renderer via
+   PoseTracker) + worker's `gen_sim_dataset.py` (flight-frame async-join labeler).
+   `.venv-seeker-train` has ultralytics 8.4.90 but **torch is CPU-only** → CPU
+   fine-tune of a nano (run AFTER sims, no contention). Then re-eval + re-run the
+   markerless A/B with tuned weights (denser coverage expected).
+
+### Also built this session (gated / parallel)
+- **Bird decoy + MC gate:** `models/fpv_bird_decoy/` (gz-valid) + `scripts/bird_mc_harness.py`
+  (offline scaffold; exits 1 = gate NOT-yet-satisfiable until the seeker classifier
+  is wired — a real gate, not a fake pass). Gated behind ADR-0035 red-team fixes.
 
 ## Build queue (post-M5 — builder ratified 2026-07-07, ADR-0033)
 

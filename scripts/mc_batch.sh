@@ -128,7 +128,18 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
-VENV_PYTHON="$REPO_ROOT/.venv/bin/python"
+# --seeker markerless needs onnxruntime (absent from the gated .venv); set
+# MC_VENV_PYTHON to the combined venv (.venv-seeker + the gz/mavsdk bridge,
+# ADR-0033 item 2) for markerless arms. Default keeps every gated apriltag arm
+# on .venv, byte-identical.
+VENV_PYTHON="${MC_VENV_PYTHON:-$REPO_ROOT/.venv/bin/python}"
+# Markerless A/B knobs (ADR-0033 item 2). All default to the gated apriltag
+# path, so an untouched batch is byte-identical. MC_WORLD selects BOTH the world
+# name and the worlds/<name>.sdf file; MC_TARGET_MODEL is the set_pose handle;
+# MC_SEEKER is forwarded verbatim to m4_intercept.py --seeker.
+MC_WORLD="${MC_WORLD:-apriltag}"
+MC_TARGET_MODEL="${MC_TARGET_MODEL:-apriltag_target}"
+MC_SEEKER="${MC_SEEKER:-apriltag}"
 LOGS_DIR="$REPO_ROOT/logs"
 READY_TIMEOUT_S=120
 # NOTE: do NOT wait for "Ready for takeoff!" -- ADR-0004 / check_s2.sh.
@@ -354,14 +365,14 @@ if [[ ! -x "$VENV_PYTHON" ]]; then
     rm -f "$PLAN_FILE"
     exit 1
 fi
-REPO_WORLD="$REPO_ROOT/worlds/apriltag.sdf"
+REPO_WORLD="$REPO_ROOT/worlds/${MC_WORLD}.sdf"
 if [[ ! -f "$REPO_WORLD" ]]; then
     echo "[mc_batch] FAIL: $REPO_WORLD not found" >&2
     rm -f "$PLAN_FILE"
     exit 1
 fi
 PX4_WORLDS_DIR="$PX4_DIR/Tools/simulation/gz/worlds"
-WORLD_SYMLINK="$PX4_WORLDS_DIR/apriltag.sdf"
+WORLD_SYMLINK="$PX4_WORLDS_DIR/${MC_WORLD}.sdf"
 if [[ ! -e "$WORLD_SYMLINK" || "$(readlink -f "$WORLD_SYMLINK" 2>/dev/null)" != "$(readlink -f "$REPO_WORLD")" ]]; then
     echo "[mc_batch] Linking $WORLD_SYMLINK -> $REPO_WORLD"
     ln -sf "$REPO_WORLD" "$WORLD_SYMLINK"
@@ -569,9 +580,9 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed pat
     RUN_LOG="$LOGS_DIR/mc_batch_run_${run_idx}_${FLIGHT_TS}.log"
     forced_reason=""
 
-    echo "[mc_batch] Launching HEADLESS PX4 SITL + Gazebo (gz_x500_mono_cam, world=apriltag)..."
+    echo "[mc_batch] Launching HEADLESS PX4 SITL + Gazebo (gz_x500_mono_cam, world=${MC_WORLD})..."
     echo "[mc_batch] Sim output -> $SIM_LOG"
-    setsid bash -c "cd '$PX4_DIR' && tail -f /dev/null | env PX4_GZ_WORLD=apriltag GZ_SIM_RESOURCE_PATH='$REPO_ROOT/models' HEADLESS=1 make px4_sitl gz_x500_mono_cam" \
+    setsid bash -c "cd '$PX4_DIR' && tail -f /dev/null | env PX4_GZ_WORLD=${MC_WORLD} GZ_SIM_RESOURCE_PATH='$REPO_ROOT/models' HEADLESS=1 make px4_sitl gz_x500_mono_cam" \
         > "$SIM_LOG" 2>&1 &
     SIM_PID=$!
     echo "[mc_batch] Sim launched (pid/pgid $SIM_PID)."
@@ -606,8 +617,8 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed pat
     echo "[mc_batch] Pre-placing the tag at (${tsx}, ${tsy}, 0.5)..."
     placed=0
     for attempt in 1 2 3; do
-        if gz service -s /world/apriltag/set_pose --reqtype gz.msgs.Pose --reptype gz.msgs.Boolean --timeout 2000 \
-            --req "name: \"apriltag_target\" position { x: $tsx y: $tsy z: 0.5 }"; then
+        if gz service -s /world/${MC_WORLD}/set_pose --reqtype gz.msgs.Pose --reptype gz.msgs.Boolean --timeout 2000 \
+            --req "name: \"${MC_TARGET_MODEL}\" position { x: $tsx y: $tsy z: 0.5 }"; then
             placed=1
             break
         fi
@@ -633,7 +644,7 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed pat
     # NEGATIVE (e.g. -4.243); a space-separated "-4.243,4.243" is mis-read by
     # argparse as an option flag ("expected one argument"). The =-form is
     # byte-identical for the positive/zero vx of every other geometry.
-    echo "[mc_batch] Running m4_intercept.py ${MODE_ARGS[*]:-} --law $law --target-start=${tsx},${tsy},0.5 --target-vel=${tvx},${tvy} --cue-seed $cue_seed $EXTRA_ARGS (outer timeout ${PY_TIMEOUT_S}s)..."
+    echo "[mc_batch] Running m4_intercept.py ${MODE_ARGS[*]:-} --law $law --seeker $MC_SEEKER --target-start=${tsx},${tsy},0.5 --target-vel=${tvx},${tvy} --cue-seed $cue_seed $EXTRA_ARGS (outer timeout ${PY_TIMEOUT_S}s)..."
     echo "[mc_batch] Run output -> $RUN_LOG (also streamed below)"
     # The path is plumbed to the mover through the ENVIRONMENT (m4_intercept.py
     # is UNCHANGED -- it spawns m4_target_mover.py as a subprocess that
@@ -648,8 +659,10 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed pat
     INTERCEPTOR_WEAVE_LAT_SPEED="$WEAVE_LAT_SPEED" \
     INTERCEPTOR_JINK_COUNT="$JINK_COUNT" \
     INTERCEPTOR_JINK_MIN_DEG="$JINK_MIN_DEG" \
+    INTERCEPTOR_WORLD_NAME="$MC_WORLD" \
+    INTERCEPTOR_TARGET_MODEL="$MC_TARGET_MODEL" \
     timeout "$PY_TIMEOUT_S" "$VENV_PYTHON" "$REPO_ROOT/scripts/m4_intercept.py" \
-        "${MODE_ARGS[@]}" --law "$law" \
+        "${MODE_ARGS[@]}" --law "$law" --seeker "$MC_SEEKER" \
         --target-start="${tsx},${tsy},0.5" --target-vel="${tvx},${tvy}" \
         --cue-seed "$cue_seed" $EXTRA_ARGS 2>&1 | tee "$RUN_LOG"
     PY_EXIT="${PIPESTATUS[0]}"

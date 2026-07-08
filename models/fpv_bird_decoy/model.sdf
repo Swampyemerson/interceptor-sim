@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BIRD DECOY (docs/bird_discrimination_design.md S6.2, ADR-0035): a
+  bird-sized, visually- and structurally-distinct decoy for the
+  drones-and-birds Monte-Carlo gate that scripts/bird_mc_harness.py
+  documents/scaffolds. Structural sibling of
+  models/fpv_target_markerless/ (static, collision-free, purely visual,
+  meant to be driven kinematically by a mover process, gz-transport
+  `set_pose`) but modeling the OTHER object class the safety interlock
+  must reject: a bird, not a hostile UAS.
+
+  WHAT: a small elongated fuselage + head + tail-fan + two flat wing
+  planes set in a shallow glide dihedral -- NO 4-arm quad frame, NO prop
+  discs, NO red "enemy" motor-hub accents (models/fpv_target's / models/
+  fpv_target_markerless's signature look), and NO AprilTag or fiducial of
+  any kind. Colored dull brown/grey, not the FPV target's near-black
+  carbon + red-accent scheme -- a human or a green channel can tell the
+  two apart at a glance, on purpose (this is the whole point of a
+  DISTINCT decoy: false_engage_on_birds should be trivially 0 if the
+  interlock so much as looks at shape or color, which is exactly the
+  PLUMBING-tier claim below, not a bird-rejection claim).
+
+  SIZE (deliberately NOT trivially separable by size alone): wingtip to
+  wingtip is body_width(0.05) + 2*wing_span(0.19) = 0.43 m, inside the
+  design doc's 0.3-0.5 m "matched pixel footprint" band (S6.2) -- the
+  band the doc calls the genuinely hard case, because stereo true-size
+  (sigma_R ~= 0.45 m at 100 m, ADR-0017) cannot separate a bird that
+  small from the ~0.3 m fpv_target quad (S2b-2, S0 item 5). A future
+  WORST-tier decoy variant would keep this footprint but ALSO add a
+  flapping actor and an adversarial straight-glide path -- this model is
+  the (static) body only; the flap/path realism lives in the mover, not
+  here (see TIER note below).
+
+  DIHEDRAL GEOMETRY NOTE: local frame here is X = left/right (span),
+  Y = forward/travel direction (matches m4_target_mover.py's convention
+  and models/fpv_target_markerless's "+Y = travel direction" -- no extra
+  yaw fix-up is needed because this model's fuselage box is built with
+  its long axis on Y from the start). Each wing panel is offset along X
+  and given a small PITCH (rotation about the local Y axis -- NOT roll,
+  which would rotate the wrong plane) so its outboard tip lifts toward
+  +Z: left wing (offset -X) uses +pitch, right wing (offset +X) uses
+  -pitch, by construction mirror-symmetric.
+
+  TIER (be honest, mirrors the design doc S6.2 two-tier framing): this
+  is the PLUMBING-tier decoy -- a static, non-flapping glide posture. It
+  is enough to exercise interlock WIRING (does "bird" route to
+  break-off? does a multi-bird gate hold as contested?) and stands in
+  for the doc's adversarial STRAIGHT-GLIDE case (S0 item 5, S6.2): a
+  non-flapping glide shows low jerk and never hovers, so it looks
+  drone-like on kinematics alone -- exactly the case an AFFIRMATIVE
+  powered-drone signature (never "failed to look bird-like") must fail
+  closed on. It does NOT include a WORST-tier flapping actor (a Gazebo
+  <actor> COLLADA skeleton, or a scripted wing-dihedral oscillation --
+  see the Gazebo Harmonic actors docs cited in the design doc's Sources)
+  -- that is documented future work, not built here. A green gate
+  against THIS decoy is interlock-WIRING validated, never
+  bird-rejection validated (S6.4, red-team fix #6) -- state that
+  verbatim in any writeup that cites it.
+
+  FLIES LIKE THE OTHER TARGET MODELS: <static>true</static>, no
+  collision, no inertia -- purely visual. Not yet wired into any world
+  or mover; scripts/bird_mc_harness.py documents the intended
+  Monte-Carlo usage and currently exits non-zero (by design) because the
+  classify() hook it gates on is unwired -- see that script's docstring.
+
+  VALIDATION STATUS: static-checked with `gz sdf --check` only, per this
+  task's scope (no sim boot performed while authoring this model -- ONE
+  sim at a time / idle-machine-load rule, CLAUDE.md). Live-spawn/render
+  validation is deferred to when this decoy is actually wired into a
+  world for a real Monte-Carlo run.
+-->
+<sdf version='1.9'>
+  <model name='fpv_bird_decoy'>
+    <static>true</static>
+    <link name='base'>
+
+      <!-- Fuselage: small elongated body, long axis on local Y (travel
+           direction). 0.22 m nose-to-tail-root, 0.05 m wide, 0.05 m tall. -->
+      <visual name='body_visual'>
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.05 0.22 0.05</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.30 0.22 0.15 1</ambient>
+          <diffuse>0.42 0.32 0.22 1</diffuse>
+          <specular>0.08 0.07 0.06 1</specular>
+        </material>
+      </visual>
+
+      <!-- Head/beak nub at the +Y (leading, travel-direction) end. -->
+      <visual name='head_visual'>
+        <pose>0 0.12 0.01 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.03 0.05 0.03</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.32 0.24 0.16 1</ambient>
+          <diffuse>0.45 0.34 0.24 1</diffuse>
+          <specular>0.08 0.07 0.06 1</specular>
+        </material>
+      </visual>
+
+      <!-- Tail fan: flat, wide, thin box at the -Y (trailing) end, pitched
+           a few degrees for a fanned-tail silhouette. -->
+      <visual name='tail_visual'>
+        <pose>0 -0.16 0 0 0.05 0</pose>
+        <geometry>
+          <box>
+            <size>0.10 0.09 0.006</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.26 0.19 0.13 1</ambient>
+          <diffuse>0.36 0.27 0.18 1</diffuse>
+          <specular>0.06 0.05 0.05 1</specular>
+        </material>
+      </visual>
+
+      <!-- Two wing planes, shallow-glide dihedral (~10 deg). Span 0.19 m
+           each, offset +/-0.115 m in X -> tip-to-tip 0.43 m (see header
+           note). Thin flat boxes, grey-brown, duller than the body. -->
+      <visual name='wing_left_visual'>
+        <pose>-0.115 0 0.01 0 0.18 0</pose>
+        <geometry>
+          <box>
+            <size>0.19 0.09 0.006</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.28 0.26 0.24 1</ambient>
+          <diffuse>0.40 0.37 0.33 1</diffuse>
+          <specular>0.06 0.06 0.06 1</specular>
+        </material>
+      </visual>
+      <visual name='wing_right_visual'>
+        <pose>0.115 0 0.01 0 -0.18 0</pose>
+        <geometry>
+          <box>
+            <size>0.19 0.09 0.006</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.28 0.26 0.24 1</ambient>
+          <diffuse>0.40 0.37 0.33 1</diffuse>
+          <specular>0.06 0.06 0.06 1</specular>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>
