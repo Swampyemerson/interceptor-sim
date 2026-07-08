@@ -63,6 +63,16 @@ ADR-0006 transform chain) is sampled every tick purely to SCORE the run
 grep for "gt_" and you will only find it downstream of a command that was
 already sent.
 
+SEEKER SOURCE (--seeker apriltag|markerless, ADR-0033 item 2): the default
+`apriltag` path is byte-identical to before -- pupil-apriltags on the fiducial.
+`--seeker markerless` swaps ONLY the detection SOURCE to the two-stage markerless
+seeker (scripts/seeker/two_stage_seeker.py, via scripts/seeker/markerless_loop.py):
+it reads the target BODY, never a marker, and emits the SAME Measurement, so the
+guidance/tracker/pro-nav math is unchanged. It reads ONLY camera pixels + fixed
+intrinsics (never gt_*), so being a NEW guidance path it RE-EARNS the numeric
+no-cheat audit at the live Gazebo A/B (the NEXT gated step). Its deps
+(onnxruntime + opencv-contrib) live in .venv-seeker, not the main .venv.
+
 WHY NED VELOCITY + ABSOLUTE YAW SETPOINTS (changed from body-frame +
 yawspeed mid-M4; ADR-0009 second addendum): the guidance law already
 produces a world-frame velocity vector, PX4's body-frame velocity
@@ -1381,6 +1391,17 @@ def parse_args():
              "on LOS-rate error). Alpha-beta-only knobs (--kalata, "
              "--split-freeze rate cap) do not apply under --tracker ekf.",
     )
+    parser.add_argument(
+        "--seeker", choices=["apriltag", "markerless"], default="apriltag",
+        help="detection SOURCE for the guidance Measurement (default apriltag = "
+             "byte-identical to HEAD: pupil-apriltags on the fiducial). "
+             "'markerless' (ADR-0033 item 2) swaps ONLY the detection source to "
+             "the two-stage markerless seeker (scripts/seeker/two_stage_seeker.py: "
+             "classical dark-blob proposal -> NN verify) reading the target BODY, "
+             "not a marker; the guidance/tracker/pro-nav math is unchanged. Needs "
+             "onnxruntime + opencv-contrib from .venv-seeker (NOT the main .venv) "
+             "and RE-EARNS the no-cheat audit at the live Gazebo A/B (NEXT step).",
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
@@ -2597,12 +2618,28 @@ async def main():
 
     meas_holder = MeasurementHolder()
     stop_event = threading.Event()
-    detector_thread = threading.Thread(
-        target=detection_loop,
-        args=(frame_holder, meas_holder, fx, fy, cx, cy, stop_event),
-        kwargs={"detector_kwargs": {"quad_decimate": 2.0}},
-        daemon=True,
-    )
+    if args.seeker == "markerless":
+        # ADR-0033 item 2: swap ONLY the detection SOURCE to the two-stage
+        # markerless seeker. Imported LAZILY (and only in this branch) so the
+        # apriltag default never touches onnxruntime/opencv-contrib and stays
+        # byte-identical. Deps live in .venv-seeker; re-earns the no-cheat audit
+        # at the live A/B (module docstring + markerless_loop.py).
+        sys.path.insert(0, os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "seeker"))
+        from markerless_loop import markerless_detection_loop
+        print("[m4] Seeker: MARKERLESS two-stage (--seeker markerless).")
+        detector_thread = threading.Thread(
+            target=markerless_detection_loop,
+            args=(frame_holder, meas_holder, fx, fy, cx, cy, stop_event),
+            daemon=True,
+        )
+    else:
+        detector_thread = threading.Thread(
+            target=detection_loop,
+            args=(frame_holder, meas_holder, fx, fy, cx, cy, stop_event),
+            kwargs={"detector_kwargs": {"quad_decimate": 2.0}},
+            daemon=True,
+        )
     detector_thread.start()
     print("[m4] Detection thread started.")
 
