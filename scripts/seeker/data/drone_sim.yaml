@@ -1,0 +1,8 @@
+# Single-class drone detector — fine-tune data config (ultralytics format).
+# Fill in the paths once the sim/real frames + YOLO-format labels exist.
+# Labels: one .txt per image, lines "0 xc yc w h" (class 0 = drone, normalized).
+path: /home/emerson/interceptor-sim/scripts/seeker/data          # dataset root
+train: images/train   # relative to path
+val:   images/val
+names:
+  0: drone

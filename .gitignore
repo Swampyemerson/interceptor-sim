@@ -22,7 +22,14 @@ plots/traj_overlay_*.png
 scripts/seeker/weights/
 scripts/seeker/out/
 scripts/seeker/eval_out/
+scripts/seeker/twostage_out/
 scripts/seeker/eval_tag_boxes.json
+
+# Drone-specific detector lane (ADR-0033 task #9): its own train/export venv
+# (torch/ultralytics, large) and downloaded/generated training data — the
+# drone_detector_eval.py / train_drone_finetune.py modules ARE tracked.
+.venv-seeker-train/
+scripts/seeker/data/
 
 # Gazebo / PX4 caches that can leak into the workspace
 .gz/

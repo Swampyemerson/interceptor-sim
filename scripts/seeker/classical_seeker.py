@@ -90,6 +90,25 @@ class SeekerDetection:
                 self.decision_margin, self.n_detections)
 
 
+@dataclass
+class Proposal:
+    """A candidate region-of-interest from the cheap PROPOSAL stage of
+    detect-then-track (ADR-0015 s2 / brief s6). Deliberately carries NO bearing:
+    the proposal layer surfaces *where to look*, and a downstream classifier
+    (nn_seeker) decides *whether it is the target*. This is the fix for the
+    standalone-classical self-lock (seeker_prototype_results.md s3.4): a raw dark
+    blob at the FOV edge is the interceptor's OWN prop-arm, and emitting a bearing
+    for it corrupts the alpha-beta LOS filter. As a proposal it is harmless -- the
+    two-stage self-mask drops it and the NN never confirms it."""
+
+    box: Tuple[int, int, int, int]       # (x, y, w, h) pixels
+    centroid: Tuple[float, float]        # (u, v) pixels
+    area_px: int
+    score: float                         # contrast * log10(area); ranking only
+    contrast: float
+    source: str = "blob"                 # "blob" (dark-salient) or "motion"
+
+
 def load_intrinsics(path: str = "camera_intrinsics.json"):
     """Return (fx, fy, cx, cy) from the calibrated intrinsics file."""
     d = json.loads(Path(path).read_text())
@@ -187,6 +206,88 @@ class ClassicalSeeker:
             return SeekerDetection.empty(t_mono)
         return self._make_detection(best, t_mono, source="detect")
 
+    # --------------------------------------------------------------- proposals
+    def _motion_mask(self, gray: np.ndarray, prev_gray: np.ndarray,
+                     thresh: int = 18) -> np.ndarray:
+        """Ego-motion-compensated frame-difference mask (best-effort).
+
+        The camera is MOVING, so a raw absdiff lights up the whole scene. We try
+        to cancel ego-motion with an ORB-feature homography (prev -> current) and
+        difference the aligned frames. HONEST LIMIT (brief R1): a homography only
+        models pan/tilt/zoom or a planar background, textureless sky yields few
+        features, and this footage is a STITCHED establish+fly-by cut (not a clean
+        approach), so alignment is fragile -- on failure we fall back to the raw
+        previous frame and the caller should lean on the dark-blob channel. Motion
+        is an *additional* proposal source, never the sole one."""
+        aligned = prev_gray
+        try:
+            orb = cv2.ORB_create(400)
+            k1, d1 = orb.detectAndCompute(prev_gray, None)
+            k2, d2 = orb.detectAndCompute(gray, None)
+            if d1 is not None and d2 is not None and len(k1) >= 12 and len(k2) >= 12:
+                bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+                matches = sorted(bf.match(d1, d2), key=lambda z: z.distance)[:80]
+                if len(matches) >= 12:
+                    src = np.float32([k1[m.queryIdx].pt for m in matches]).reshape(-1, 1, 2)
+                    dst = np.float32([k2[m.trainIdx].pt for m in matches]).reshape(-1, 1, 2)
+                    Hm, _ = cv2.findHomography(src, dst, cv2.RANSAC, 3.0)
+                    if Hm is not None:
+                        aligned = cv2.warpPerspective(prev_gray, Hm,
+                                                      (gray.shape[1], gray.shape[0]))
+        except cv2.error:
+            aligned = prev_gray
+        diff = cv2.absdiff(gray, aligned)
+        mm = (diff > thresh).astype(np.uint8) * 255
+        k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        mm = cv2.morphologyEx(mm, cv2.MORPH_OPEN, k)
+        mm = cv2.morphologyEx(mm, cv2.MORPH_CLOSE, k)
+        return mm
+
+    def propose(self, frame_bgr: np.ndarray, prev_gray: Optional[np.ndarray] = None,
+                max_candidates: int = 8, include_motion: bool = False,
+                motion_thresh: int = 18):
+        """PROPOSAL stage: return a LIST of candidate ROIs (`Proposal`), NOT a
+        bearing. Unlike `detect()` (which picks the single best-scoring blob and
+        emits a standalone bearing -- the piece that self-locks), this surfaces
+        *every* plausible dark/moving blob so a downstream classifier can pick the
+        real target. Own prop-arms and the true target both appear here; that is
+        intentional -- the two-stage pipeline's self-mask + NN gate sort them out.
+
+        prev_gray: previous frame's grayscale, enables the (fragile) motion
+        channel when include_motion=True. Returns up to `max_candidates`, ranked
+        by contrast*log(area)."""
+        mask, gray = self._target_mask(frame_bgr)
+        if include_motion and prev_gray is not None:
+            mask = cv2.bitwise_or(mask, self._motion_mask(gray, prev_gray, motion_thresh))
+        H, W = gray.shape
+        max_area = self.max_area_frac * H * W
+        n, lab, stats, cent = cv2.connectedComponentsWithStats(mask, 8)
+        out = []
+        for c in range(1, n):
+            a = int(stats[c, cv2.CC_STAT_AREA])
+            if a < self.min_area or a > max_area:
+                continue
+            x, y, w, h = (int(stats[c, cv2.CC_STAT_LEFT]),
+                          int(stats[c, cv2.CC_STAT_TOP]),
+                          int(stats[c, cv2.CC_STAT_WIDTH]),
+                          int(stats[c, cv2.CC_STAT_HEIGHT]))
+            blob = (lab == c)
+            ring = cv2.dilate(blob.astype(np.uint8),
+                              cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+            ring = (ring > 0) & (~blob)
+            bg = gray[ring]
+            fg = gray[blob]
+            if bg.size < 10:
+                continue
+            contrast = float(np.clip((bg.mean() - fg.mean()) / 128.0, 0.0, 1.0))
+            out.append(Proposal(
+                box=(x, y, w, h),
+                centroid=(float(cent[c, 0]), float(cent[c, 1])),
+                area_px=a, score=contrast * math.log10(a + 10),
+                contrast=contrast, source="blob"))
+        out.sort(key=lambda p: p.score, reverse=True)
+        return out[:max_candidates]
+
     def _make_detection(self, cand: dict, t_mono: float, source: str) -> SeekerDetection:
         x, y, w, h = cand["box"]
         u, v = cand["cent"]
@@ -247,3 +348,44 @@ class ClassicalSeeker:
         else:
             self._tracker = None
         return det
+
+
+def _main():
+    """Standalone driver. Two modes, both offline (no sim):
+      --proposal-only : run the PROPOSAL stage and print candidate ROIs (no
+                        bearing) -- the input to two_stage_seeker.py.
+      (default)       : run the standalone single-best detect() and print the
+                        emitted bearing/range (the existing API, unchanged)."""
+    import argparse
+    ap = argparse.ArgumentParser(description="Classical markerless seeker (offline).")
+    ap.add_argument("frame", help="path to a BGR frame_*.png")
+    ap.add_argument("--proposal-only", action="store_true",
+                    help="emit candidate ROIs (proposal stage) instead of a bearing")
+    ap.add_argument("--intrinsics", default="camera_intrinsics.json")
+    ap.add_argument("--max-candidates", type=int, default=8)
+    args = ap.parse_args()
+
+    fx, fy, cx, cy = load_intrinsics(args.intrinsics)
+    seeker = ClassicalSeeker(fx, fy, cx, cy)
+    img = cv2.imread(args.frame)
+    if img is None:
+        raise SystemExit(f"could not read {args.frame}")
+    if args.proposal_only:
+        props = seeker.propose(img, max_candidates=args.max_candidates)
+        print(f"{len(props)} proposal ROI(s) (no bearing emitted; for two-stage):")
+        for i, p in enumerate(props):
+            print(f"  [{i}] box={p.box} centroid=({p.centroid[0]:.0f},"
+                  f"{p.centroid[1]:.0f}) area={p.area_px} contrast={p.contrast:.2f} "
+                  f"score={p.score:.2f} src={p.source}")
+    else:
+        det = seeker.detect(img)
+        if det.detected():
+            print(f"detect(): bearing={math.degrees(det.bearing_rad):+.2f}deg "
+                  f"range~{det.range_m:.2f}m conf={det.decision_margin:.2f} "
+                  f"box={det.box}  (standalone single-best -- may self-lock own prop)")
+        else:
+            print("detect(): no detection")
+
+
+if __name__ == "__main__":
+    _main()
