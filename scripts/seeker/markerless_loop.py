@@ -90,7 +90,17 @@ def markerless_detection_loop(frame_holder, meas_holder, fx, fy, cx, cy,
     # holder by type() so we need not import m3 (which pulls gz/pupil-apriltags
     # absent from .venv-seeker). meas_holder.latest is a Measurement at start.
     Measurement = type(meas_holder.latest)
-    seeker = TwoStageSeeker(fx, fy, cx, cy)
+    # Option B (ADR-0033 item 2): if a fine-tuned single-class ONNX is provided via
+    # MARKERLESS_NN_WEIGHTS, run it DIRECTLY on the full frame (denser than the
+    # two-stage's COCO-verify). Otherwise the default off-the-shelf two-stage path.
+    _nn_weights = os.environ.get("MARKERLESS_NN_WEIGHTS")
+    if _nn_weights:
+        from finetuned_seeker import FinetunedNNSeeker
+        _conf = float(os.environ.get("MARKERLESS_NN_CONF", "0.25"))
+        seeker = FinetunedNNSeeker(fx, fy, cx, cy, _nn_weights, conf_thres=_conf)
+        print(f"[markerless] fine-tuned full-frame seeker: {_nn_weights}")
+    else:
+        seeker = TwoStageSeeker(fx, fy, cx, cy)
     last_seq = -1
     warned_resolution = False
     while not stop_event.is_set():

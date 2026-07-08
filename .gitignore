@@ -47,3 +47,6 @@ demo_out/*
 .idea/
 .DS_Store
 .session-started
+runs/ + training artifacts
+scripts/seeker/runs/
+scripts/seeker/weights/yolo11n.pt
