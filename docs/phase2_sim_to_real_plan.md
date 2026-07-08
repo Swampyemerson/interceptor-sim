@@ -193,6 +193,50 @@ work is CPU/offline. Stereo rendering adds GPU load — watch dmesg dxgk.
   T23 audit exists to surface those; treat a too-good sim number as a bug to
   investigate, not a win.
 
+## 5.5 Infra map + feasibility (2026-07-08 scout — read before T16)
+
+**Nothing real exists yet.** `stereo_model.py` is a pure analytic error budget
+(no Gazebo); `s2_cue_mock.py` reads gt pose + adds noise. No disparity /
+triangulation / rectification code anywhere. So T16–T18 is greenfield.
+
+**Camera-sensor precedent to copy:** `worlds/apriltag_demo.sdf:336-369`
+(`demo_chase_cam`) is a static `<model>` in the world carrying its own
+`<sensor type="camera">` — exactly the rig shape (not bolted to the PX4
+airframe). The onboard sensor block lives in PX4's tree
+(`~/PX4-Autopilot/Tools/simulation/gz/models/mono_cam/model.sdf:50-67`):
+hfov 1.74, 1280×960, RGB_INT8 default (every decoder asserts this), no
+`<topic>` (gz auto-derives `/world/<W>/model/<model>/link/<link>/sensor/<sensor>/image`).
+
+**★ THE PIVOTAL FEASIBILITY RISK — RTF collapse (recorded at
+`worlds/apriltag_demo.sdf:300-308`).** Adding ONE extra camera at 1280×720
+collapsed real-time factor to **~0.05** (10× below the ADR-0009 under-load
+floor — broke MAVSDK OFFBOARD entry); dropping to **960×540 restored ~1.0**.
+A real stereo rig is TWO cameras + the onboard = **three camera renders**, and
+`stereo_design.md` wants **1920×1200** per rig camera for 100 m ranging — far
+past the safe config. Compounded by likely **llvmpipe software rendering**
+(GPU-headless is unverified here; confirm `nvidia-smi` shows Gazebo load before
+committing). **This reshapes fork F1:** live three-camera render during the
+flight loop is probably infeasible. Strong candidate approaches for the fresh
+session to weigh (council F1): (a) **decouple the rig render from the flight** —
+teleport-snapshot the two rig views offline (the `render_sim_dataset.py`
+pattern) to build/validate the triangulation pipeline, then feed its *output
+statistics* into the cue at flight time (a measured, not synthetic, noise
+model — a real improvement over the mock without paying live render); (b) low
+res + low rate rig cameras live; (c) a separate sim instance for the rig. Do
+NOT assume live full-res stereo works — measure RTF with the rig first.
+
+**The clean bridge (keeps everything downstream unchanged):** `s2_cue_mock.py`
+already has a `--stereo-config B,F_PX,SIGMA_D` hook (baseline 2.0, focal 540,
+σ_d 0.5 — `s2_cue_mock.py:173-175`, explicitly "swap in real calibration").
+Real triangulation output can emit the SAME `:47800` JSON (`{seq,t_sim,x,y,z,
+vx,vy,vz}`), so `m4_intercept.py`'s `CueReader` + the world→NED mapping
+(north=world_y, east=world_x) stay byte-unchanged. New plumbing needed: a new
+world SDF + its PX4 symlink (the `check_*.sh` pattern), rig topics into a
+`GzFrameSource`/`demo_capture_frames.py`-style ingest, and a new
+triangulation/track process replacing the mock. Multiple processes CAN each
+hold camera subscriptions concurrently (proven in-repo); only a process that
+calls gz *services* (set_pose) must stay subscription-free (the mover pattern).
+
 ## 6. Open ADRs owed (skeletons to fill as each ships)
 
 ADR-0045 stereo rig + world · ADR-0046 ground NN · ADR-0047 triangulation +
