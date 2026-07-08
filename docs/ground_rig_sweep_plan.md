@@ -1,5 +1,5 @@
 # Ground-rig sweep plan — does a longer-carried cue buy back the markerless
-# acquisition-range regression? (Option C deliverable, ADR-0038)
+# acquisition-range regression? (Option C deliverable, ADR-0039)
 
 *Precise, runnable experimental plan. Nothing here has been run — this is the
 design the main session executes next, one arm at a time, sims ONE at a time
@@ -382,7 +382,7 @@ this sweep validates (or doesn't) for handoff-reach.
 3. Hand-tabulate handoff-reach / clean-rate / dash-abort / terminal-abort
    counts per arm (small n — a spreadsheet-sized table, no new tooling
    needed).
-4. Write the result up as an ADR addendum to ADR-0038 (or a new ADR if the
+4. Write the result up as an ADR addendum to ADR-0039 (or a new ADR if the
    finding is substantial) with the same "not significant at this n" honesty
    discipline as ADR-0030/0037, and feed the H2 verdict into the ADR-0034
    fusion-capstone build decision per §5 above.

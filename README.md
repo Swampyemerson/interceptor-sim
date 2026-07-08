@@ -418,12 +418,36 @@ FPV threat carries no fiducial. The forward arc below is deliberately aimed at
    toward sim-to-real credibility, turning "it worked in Gazebo" into "the same
    code ran on the target compute."
 
-2. **Kill the AprilTag — a markerless seeker.** Replace the fiducial with
-   classical CV plus a pre-built lightweight neural net, feeding the **same
-   bearing interface** the guidance loop already consumes. Because pro-nav only
-   ever needs an angle *rate* (see "What transfers" above), the guidance math is
-   unchanged — this swaps the perception front-end and directly retires the #1
-   disclosed risk.
+2. **Kill the AprilTag — a markerless seeker. ✅ FLOWN (ADR-0038/0039).** Replaced
+   the fiducial with a tag-less target body + a two-stage markerless seeker (cheap
+   motion/blob proposal → self-mask → crop → NN verify) feeding the **same bearing
+   interface** the guidance loop already consumes — the pro-nav math is
+   byte-unchanged (it only ever needs an angle *rate*). Paired n=8 A/B on the
+   adopted deployment profile, camera-only terminal, no-cheat audit re-earned
+   (`cue_reads_post_handoff=0` on every flight):
+   - **Markerless holds 75% clean / 100% handoff and MATCHES the AprilTag miss
+     (~1 m) whenever it acquires early.** In flight it acquires at **8–18 m** — the
+     two-stage's motion-proposal layer needs a *moving* target, far better than the
+     ~2 m a static probe suggested ("lab ranks, Gazebo decides" applied to the
+     seeker). The cost of removing the tag is **~+1 m median miss + 2/8
+     late-acquisition flybys** from sparse detection coverage (5–24% vs the tag's
+     continuous ~14 Hz) — a *detection-density* problem, not a guidance one.
+   - **A ground-rig handoff-timing sweep (Option C, ADR-0039) does NOT recover it.**
+     No timing lever helps (stricter streak and wider ceiling both hurt), confirming
+     the regression is the seeker's raw detection probability — which redirects the
+     fix to an in-domain fine-tune (below) and the fusion capstone (item 4). And the
+     same tight-handoff lever **helps or hurts depending on the seeker's acquisition
+     envelope** (it starves the AprilTag's far-acquisition streak → dash-aborts, but
+     is fine for the near-acquiring markerless seeker) — a clean "context matters" result.
+   - **In-domain fine-tune (Option B):** COCO has no drone class and the MIT drone
+     model doesn't transfer to the synthetic body, so a single-class nano is
+     fine-tuned on 495 Gazebo renders of the tag-less target (gt-projected labels,
+     training-time only) to densify detection. *(Real hardware uses the MIT model;
+     the sim fine-tune is a demo/sim-domain aid.)*
+
+   ![Paired A/B: markerless matches the tag except on late-acquisition flybys](docs/images/seeker_ab_paired_scatter.png)
+
+   ![Pk vs radius by arm — markerless A/B + ground-rig sweep](docs/images/seeker_ab_pk_by_arm.png)
 
 3. **EKF target-track A/B vs. alpha-beta.** The most-asked GNC interview topic.
    Framed honestly: per the [kinematic root-cause diagnosis](docs/terminal_diagnosis.md)
