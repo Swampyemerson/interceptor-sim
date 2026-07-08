@@ -53,12 +53,23 @@ def _letterbox(img, new_size):
 class FinetunedNNSeeker:
     def __init__(self, fx, fy, cx, cy, weights: str,
                  conf_thres: float = 0.25, imgsz: int = 640,
-                 target_span_m: float = TARGET_SPAN_M):
+                 target_span_m: float = TARGET_SPAN_M,
+                 max_bearing_deg: float = 30.0, edge_margin_px: float = 40.0):
         import onnxruntime as ort
         self.fx, self.fy, self.cx, self.cy = fx, fy, cx, cy
         self.conf = conf_thres
         self.imgsz = imgsz
         self.span = target_span_m
+        # SELF-MASK (ADR-0038 forensic fix): a positives-only fine-tune false-locks
+        # on the interceptor's OWN body-fixed prop arms at the FOV periphery
+        # (observed at bearing -44/+33 deg, constant ~1.5 m range while gt=29 m --
+        # the confident-wrong-bearing hazard, seeker_prototype_results.md s3.4). The
+        # real target is compact and near boresight through a cue-guided approach, so
+        # reject any detection beyond max_bearing_deg OR touching the L/R frame edge
+        # (where the props intrude) -- the two-stage's interior/self-mask gate, which
+        # this full-frame path had omitted.
+        self.max_bearing_rad = max_bearing_deg * math.pi / 180.0
+        self.edge_margin_px = edge_margin_px
         so = ort.SessionOptions()
         so.intra_op_num_threads = 2
         self.sess = ort.InferenceSession(weights, so,
@@ -92,13 +103,19 @@ class FinetunedNNSeeker:
                 float(row[2]), float(row[3]), float(row[4])
             if score < self.conf:
                 continue
+            # undo letterbox back to original-frame pixels
+            bw = w_ / r
+            bh = h_ / r
+            u = (cx_ - pad_l) / r
+            v = (cy_ - pad_t) / r
+            # SELF-MASK: reject own-airframe periphery locks (bearing gate + edge touch)
+            bearing = math.atan2((u - self.cx) / self.fx, 1.0)
+            if abs(bearing) > self.max_bearing_rad:
+                continue
+            if (u - bw / 2) < self.edge_margin_px or (u + bw / 2) > (W - self.edge_margin_px):
+                continue
             n_hits += 1
             if score > best_score:
-                # undo letterbox back to original-frame pixels
-                bw = w_ / r
-                bh = h_ / r
-                u = (cx_ - pad_l) / r
-                v = (cy_ - pad_t) / r
                 best_score, best_box = score, (u, v, bw, bh)
         if best_box is None:
             return self._none(t_mono)
