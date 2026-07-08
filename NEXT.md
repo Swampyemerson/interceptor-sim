@@ -5,37 +5,32 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit; rebuilt 2026-07-08 after the seeker-v2 +
 fusion-P0/P1/P2 session.)*
 
-## Current: fusion capstone execution (ADR-0041) + terminal noise lever (ADR-0042)
+## Current: capstone CLOSED (ADR-0044) — remaining items are builder-gated
 
-Seeker v2 is DONE (ADR-0042, `scripts/check_seeker_v2.sh` 6/6): hard negatives
-KILLED the pollution (0.751 → 0.000) and calibration fixed range (0.056 → 0.935),
-per-tick audit green incl. the (c) canary — but clean-rate stayed 6/8 and the
-measured mechanism moved: the residual +1 m gap-to-tag is **terminal
-bearing-noise throughput** (box-center λ̇ noise ~1.5–2× the tag's subpixel
-corners; the vehicle follows achievable noise commands), NOT detection
-persistence (v2 sees the real target 78–89% of final-second ticks). ADR-0037's
-EKF clean-rate "regression" was separately exposed as a **post-CPA scoring
-artifact** (ADR-0037/0041 addenda + `abort_lens.py`): corrected, the EKF is at
-FULL PARITY with alpha-beta — the capstone's EKF cells are unblocked at Q=64.
+The fusion capstone is DONE and the post-M5 software arc with it. Headline
+(ADR-0044): **mid-course cue fusion WORKS under the markerless seeker** — the
+hand-set polar FusedTrack beat fusion-off on 8/8 paired seeds (median
+−0.356 m), rescued both chronic failures, flew 16/16 clean, and SURVIVED the
+WORST-tier cue (8/8, max 2.88 m). `--fuse-midcourse` is now RECOMMENDED for
+markerless configs. Covariance gating (EKF `correct_cue`) did NOT earn its
+keep: variance blowup at EXPECTED (corrected 11/16 vs 16/16, though it also
+produced the project's tightest-ever 0.151/0.229 m hits), REGRESSION at WORST
+(5/8, 7.66 m tail — council finding F1 confirmed in flight). Honesty boundary
+held everywhere: 0 post-latch cue updates across all 32 EKF flights.
 
-### Next up (in order)
-1. **Merge fusion P1+P2** (branch `worktree-agent-a8188ebafbcfc5ea8`, 31/31
-   tests, adversarially reviewed + fixed H1/M1/M2): rebase onto main, rerun
-   both suites, byte-identity diff audit on a control flight, ff-merge, prune.
-2. ~~Terminal λ̇ noise rolloff~~ DONE 2026-07-08 (ADR-0043): PRE-REGISTERED NULL —
-   design-as-mini-ADR first — options: box-center EMA, λ̇ filter gain rolloff
-   inside terminal range, or a measurement-variance-scheduled alpha-beta gain.
-   Cheap, guidance-side, directly attacks the measured +1 m. Gate: paired n=8
-   v2-vs-v2+rolloff, same seeds; success = median gap-to-tag shrinks with
-   clean-rate ≥ 6/8 and no new failure modes.
-3. **Fusion P3 ladder** (ADR-0041 D4, all sim): L0 (markerless, EKF@64, off —
-   also the D1 confirm arm under corrected scoring) → L1 (EKF, fusion on) →
-   L2 (αβ+FusedTrack, on) → L3 stress pair (WORST cue, survival check).
-   n=16 verdict cells (~65–75 s/flight measured). Headline PRE-NAMED: L1 vs
-   L2 at EXPECTED tier on relative-frame track RMSE. Per-tick audit
-   (`audit_per_tick.py`) + abort lens (`abort_lens.py`) run on every arm.
-4. **Fusion P4**: analysis (Wilson CIs on rates; corrected + raw clean-rate
-   both reported), plots, results-ADR, docs.
+### Open (all gated on the BUILDER or hardware)
+1. **Hardware Stage 0 bench — ORDER PARTS (~$230)**: Pi 5 8GB + cooler/PSU/SD
+   + global-shutter cam. Everything software-side is pre-staged and waiting.
+2. **Bird MC gate #8**: needs the P(hostile) classifier (ADR-0035 red-team
+   fixes + Stage-0 bench data). `bird_mc_harness.py` exits 1 by design.
+3. **Parked**: deployment phases M-1..M-4 (design-as-ADR when picked up);
+   README/portfolio polish pass over the new arcs (ADR-0038..0044) when the
+   builder wants the resume artifact updated.
+
+### Small logged follow-ups (non-blocking, ADR-0044)
+- Near-CPA chi-square gating quirk (only if EKF path is ever promoted);
+  FusedTrack state logging + L2 track-RMSE re-fly; p_diag_at_latch -> CSV;
+  gain-washout metric; audit_per_tick cue-activity marker.
 
 ### Standing tooling from this session (use these)
 - `scripts/audit_per_tick.py` — per-tick honesty audit for ANY batch arm
