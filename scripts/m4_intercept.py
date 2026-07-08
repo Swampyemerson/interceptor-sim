@@ -1370,6 +1370,17 @@ def parse_args():
              "the separate terminal pro-nav lateral clamp)."
              % (FPV["V_TOTAL_MAX"], DASH_UNCLAMP_V_TOTAL_MAX),
     )
+    parser.add_argument(
+        "--tracker", choices=["alphabeta", "ekf"], default="alphabeta",
+        help="pro-nav LOS/range estimator (default alphabeta = the frozen "
+             "M4/M5 fixed-gain g-h pair, byte-identical to HEAD). 'ekf' swaps "
+             "in the Cartesian constant-velocity EKF (scripts/ekf_tracker.py, "
+             "ADR-0033 item 3): a covariance-carrying drop-in for the two "
+             "scalar filters, gated for the pre-registered paired-seed A/B in "
+             "docs/ekf_design_brief.md (expect NULL on miss / possible signal "
+             "on LOS-rate error). Alpha-beta-only knobs (--kalata, "
+             "--split-freeze rate cap) do not apply under --tracker ekf.",
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
@@ -1466,6 +1477,17 @@ async def run_acquire_and_engage(
         **lambda_kalata_kwargs,
     )
     range_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_RANGE, angular=False, **range_kalata_kwargs)
+    # --tracker ekf (ADR-0033 item 3, docs/ekf_design_brief.md): swap the
+    # fixed-gain g-h pair for the Cartesian constant-velocity EKF, which
+    # exposes lambda_filter/range_filter VIEWS mirroring the AlphaBetaFilter
+    # surface (predict/correct/x_hat/xdot_hat/_last_correction_t) so the rest
+    # of the loop is unchanged. Default 'alphabeta' leaves the two lines above
+    # untouched and this branch a no-op -> the M4/M5/S2 gate path is
+    # byte-identical to HEAD. The EKF constructed above is discarded here.
+    if args.tracker == "ekf":
+        from ekf_tracker import EKFTracker
+        ekf_tracker = EKFTracker()
+        lambda_filter, range_filter = ekf_tracker.lambda_filter, ekf_tracker.range_filter
     # PIP (ADR-0011) / S2 dash tracker: absolute target position+velocity
     # track. Used by --law pip's lead solve AND (under --handoff) by the
     # DASH phase's own lead-pursuit -- ONE instance, shared across every
