@@ -81,3 +81,18 @@ than the tag's 5-7/~40).
 - PRE-NOTED RISK: a line-path win for C does NOT license adopting C as default —
   early freeze forfeits real corrections against maneuvering targets; a weave
   sensitivity arm is REQUIRED before any default change.
+
+## P3 headline amendment (2026-07-08, logged BEFORE L2 completed — L1 unblinded, L2 in the air)
+
+The ADR-0041 pre-named headline (L1-vs-L2 relative-frame track RMSE) is
+computable only for L1: the new ekf_* CSV fields log the EKF state, but the
+alpha-beta FusedTrack path logs no equivalent fused state (the same logging
+asymmetry ADR-0041 F4 exposed for ADR-0037 — under-specified in the design).
+AMENDED PRIMARY (decided before seeing any L2 number): paired L1-vs-L2 on
+metrics logged identically in both arms — (i) handoff quality (handoff_range_m,
+handoff_t_s: earlier/longer-range latches = better mid-course custody),
+(ii) corrected clean-rate (abort_lens) and dash-abort/handoff-reach,
+(iii) end-to-end miss (expected NULL, kinematic ceiling). L1's EKF-vs-gt
+relative RMSE + NEES report as supplementary filter-health, not the verdict.
+FusedTrack state logging + an L2 re-fly is the P4 follow-up if a track-level
+comparison is still wanted after these verdicts.
