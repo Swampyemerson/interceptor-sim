@@ -169,8 +169,12 @@ one-way doors) / ADR skeleton owed. Build order follows dependencies.
    after T19). **T20 fusion refinement** validated on the T18/T19 real data.
 6. **T23 shortcomings audit** folds in findings from each step.
 
-Sim-cost basis: ~65–75 s/flight (ADR-0044 measurement). Design/NN/triangulation
-work is CPU/offline. Stereo rendering adds GPU load — watch dmesg dxgk.
+Sim-cost basis: ~65–75 s/flight (ADR-0041 measurement — 5-batch average; the
+number survives F1 candidate (a) unchanged, but under (b)/(c) re-measure the
+per-flight wall cost at the chosen rig config, and require rig-world RTF inside
+the ADR-0009-safe band — not merely "boots" — before pre-registering any
+real-cue gate). Design/NN/triangulation work is CPU/offline. Stereo rendering
+adds GPU load — watch dmesg dxgk.
 
 ## 5. How to drive this phase (for the autonomous session)
 
@@ -221,9 +225,29 @@ session to weigh (council F1): (a) **decouple the rig render from the flight** �
 teleport-snapshot the two rig views offline (the `render_sim_dataset.py`
 pattern) to build/validate the triangulation pipeline, then feed its *output
 statistics* into the cue at flight time (a measured, not synthetic, noise
-model — a real improvement over the mock without paying live render); (b) low
-res + low rate rig cameras live; (c) a separate sim instance for the rig. Do
-NOT assume live full-res stereo works — measure RTF with the rig first.
+model — a real improvement over the mock without paying live render) — BUT
+note the tension the 2026-07-08 review confirmed: (a) satisfies the T16–T18
+validation goals while the flight-time cue quietly stays a (recalibrated)
+mock, which does NOT satisfy §1's "real spoof injected into the real
+pipeline" promise as written. If (a) wins, T19 is REDEFINED as:
+ground_station.py runs the real detect+triangulate code path on
+replayed/snapshot frames and emits over the real :47800 link (real code, real
+link, offline frames); the spoof test injects into THAT pipeline; and the
+council must state explicitly whether offline-replay triangulation output
+counts as "real stereo data" for T20's adoption gate; (b) low res + low rate
+rig cameras live — the RATE lever is the credible one (the cue is consumed at
+10 Hz sim-time, s2_cue_mock.py; 2×1920x1200@5–10 Hz and 2×960x540@10 Hz
+straddle the known-good/known-bad throughput points), while any RESOLUTION
+cut scales f_px down and the σ_R constant c = σ_d/(b·f_px) UP — so a low-res
+rig invalidates the fixed c=4.45e-05 target and shrinks the 60–160 m
+envelope; the T18 validation must compare against the resolution-scaled c
+(see §5.6 #7); (c) a separate sim instance for the rig — near-disqualified:
+it conflicts with the incident-backed ONE-sim-at-a-time batch-hygiene rule
+and needs a cross-instance gt-pose bridge (a brand-new honesty-audit surface)
+plus a clock-mapping layer between two independent sim clocks; only viable if
+the council ratifies an explicit exception covering all three. Do
+NOT assume live full-res stereo works — measure RTF with the rig first
+(scripts/probe_stereo_rtf.sh is that measurement).
 
 **The clean bridge (keeps everything downstream unchanged):** `s2_cue_mock.py`
 already has a `--stereo-config B,F_PX,SIGMA_D` hook (baseline 2.0, focal 540,
@@ -236,6 +260,72 @@ world SDF + its PX4 symlink (the `check_*.sh` pattern), rig topics into a
 triangulation/track process replacing the mock. Multiple processes CAN each
 hold camera subscriptions concurrently (proven in-repo); only a process that
 calls gz *services* (set_pose) must stay subscription-free (the mover pattern).
+
+## 5.6 Ratified-plan amendments (2026-07-08 adversarial review — 18 confirmed findings)
+
+*A 5-dimension / 2-skeptic-per-finding review ran before any Phase-2 build
+started. 3 raw findings were refuted (notably: the plan does NOT contradict
+itself over §5.5 vs A1 — the council delegation is coherent; and no repo
+evidence contradicts the llvmpipe suspicion). The 18 confirmed ones are folded
+into the sections above where they were local edits; the requirement-level
+additions live here. Each is BINDING on the task it names.*
+
+1. **Sim-time discipline for the real cue (CRITICAL — binds T18/T19).** A real
+   two-process pipeline's NN + triangulation + UDP latency happens in WALL
+   time; under RTF < 1 that maps to a *smaller* sim-time delay, so the real
+   pipeline would deliver cues systematically FRESHER than reality — and
+   fresher than the mock it is A/B'd against (a flattering-gap violation of
+   the sim-time rule, ADR-0009 class). Required: (i) stamp `t_sim` from the
+   camera frame's sim-time header, never from a clock at emit time; (ii)
+   impose a MODELED sim-time latency floor (mock-style `--latency-s`) so
+   delivered latency is a controlled knob ≥ the measured pipeline latency;
+   (iii) log delivered sim-time latency per datagram; (iv) T19's
+   pre-registered gate includes measured sim-time latency vs the ADR-0016
+   tier being modeled.
+2. **Bias/spoof injection in the REAL pipeline (binds T18/T19; T20 depends).**
+   In sim the rig and drone share one world frame — a real triangulation
+   pipeline has ZERO natural datum bias, so the WORST-tier bias-lock tests
+   (and §1's "real spoof" promise) are unrunnable without an explicit
+   mechanism. Required: ground_station.py takes `--datum-bias-m` /
+   `--assumed-rig-pose` perturbing the rig extrinsics used for triangulation
+   (physically faithful to a GPS/survey offset), plus a track-message-level
+   spoof injector for the jam story. Without this, T20's "adopt only on real
+   data" gate is empty.
+3. **m4_intercept.py's real change surface (binds T19/F2).** "Consumes it
+   UNCHANGED" is true only of CueReader parsing — m4_intercept.py OWNS the
+   cue process lifecycle (spawn, seed, kill). The F2 council decides who owns
+   ground_station.py's lifecycle (recommended: spawned by m4_intercept.py
+   like the mock); the mock branch stays byte-identical INCLUDING the spawned
+   command line.
+4. **Ground-side honesty mechanism (binds T18/T19 gates).** "Honesty boundary
+   re-earned" gets a concrete form: a subscription audit asserting
+   ground_station.py holds NO gt/pose subscriptions at runtime — camera
+   topics + clock only (the mover-pattern equivalent for the ground side) —
+   added to the pre-registered T18/T19 gates alongside audit_per_tick.py.
+5. **Rig placement / FoV coverage analysis (binds T16).** The rig sees a
+   wedge; nothing guarantees the ratified dash profile crosses it. Required
+   T16 sub-step: compute the shared-FoV wedge (HFOV + 60–160 m envelope)
+   against the flown intercept profile in BOTH directions, choose and
+   document the rig pose so the target is inside the wedge from cue-wait
+   through the handoff, and log a per-flight in-wedge fraction.
+6. **Two drones in frame (binds T17/T18).** The ground NN will see the
+   INTERCEPTOR too; "single known target = trivial correspondence" is false
+   the moment both are airborne. Required: interceptor airframe in the ground
+   dataset (distinguishable class or hard negative) + a ground-side identity
+   gate excluding detections consistent with the interceptor's own downlinked
+   nav position (legitimate ground-side info per ADR-0016).
+7. **σ_R model must scale with the flown resolution (binds T16/T18).** If RTF
+   forces a resolution below the 1920×1200 design point, f_px drops and
+   c = σ_d/(b·f_px) rises — validating against the fixed c=4.45e-05 would be
+   comparing to the wrong model. Required: T18 compares measured σ_R against
+   the resolution-scaled c, and records which (resolution, f_px, c) triple
+   feeds the flight-time cue.
+8. **Cue-velocity quality analysis (binds T18, informs T16's sensor rate).**
+   The fusion arc assumed σ_v ≈ 0.5 m/s from the mock. Required analytic
+   pre-step: propagate σ_R through the candidate track filter at candidate
+   frame rates → predicted (σ_v, lag) curve; choose the rig camera rate from
+   it; measured σ_v vs the mock's 0.5 m/s becomes T18's second checkpoint
+   next to σ_R.
 
 ## 6. Open ADRs owed (skeletons to fill as each ships)
 

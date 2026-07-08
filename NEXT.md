@@ -24,9 +24,11 @@ every new cue path.
 ### Phase-2 build queue (dependency-ordered; the durable todo)
 1. **Stereo rig world + two real cameras** (T16, foundation) — `models/ground_stereo_rig/`
    + `worlds/stereo_intercept.sdf`, 2.0 m baseline (ADR-0017 geometry). Council F1
-   (real stereo vs analytic). Blocks 3,4.
+   (real stereo vs analytic), RTF probe first (`scripts/probe_stereo_rtf.sh`).
+   Blocks 2,3,4 (T17 needs the rig viewpoint/intrinsics).
 2. **Ground NN detector** (T17) — reuse the onboard v2 render→fine-tune→calibrate
-   recipe from the ground viewpoint. ∥ with 6,8.
+   recipe from the ground viewpoint. ∥ with 7,9 (design docs); its render step
+   holds the simulator, so sim-serialized with 1,3,6.
 3. **Triangulation + ground velocity/track** (T18, needs 1+2) — 2-cam → 3D
    position + velocity; **VALIDATE measured σ_R vs ADR-0017 c=4.45e-05** (pivotal
    — may revise every fusion conclusion).
