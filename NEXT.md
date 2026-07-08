@@ -56,8 +56,20 @@ confirm is DONE (ADR-0028 addendum); streak=2 held the 6 m/s S2 gate (ADR-0029c)
    parent architecture (ADR-0015, Pi5+Hailo detect-then-track) already assumes an
    ML detector, so this is architecture-consistent, and GOALS.md's "no ML" rule
    was about isolating guidance, which this milestone deliberately un-isolates.
-   Partial result acceptable. Design-as-ADR first; research brief in progress
-   (`docs/seeker_design_brief.md`).
+   Partial result acceptable. Design brief `docs/seeker_design_brief.md`.
+   **PROTOTYPED 2026-07-08 (offline, real onboard frames, `docs/seeker_prototype_results.md`,
+   `scripts/seeker/`):** pre-built YOLOv8n detects the drone BODY not the tag (seam proven,
+   `nn_seeker.py`), but COCO has no drone class → terminal-only acquisition (~1.6–3 m vs the
+   tag's 9–12 m = the predicted R2 acquisition-range regression, the real cost of removing
+   the tag; capacity ~t_go², ADR-0023/0024). Classical lane's seam is good but its detector
+   locked the interceptor's OWN prop-arm (confident wrong bearing — fix with self-mask or
+   demote to a motion/blob proposal layer). **Next (gated behind M5):** fine-tune a
+   license-clean (MIT/Apache, NOT AGPL) single-class drone nano into the same seam; wire it
+   into `m4_intercept.py`'s detect() behind `--seeker nn`; paired-seed gt-logged A/B vs the
+   AprilTag on `models/fpv_target_markerless` (built) with the no-cheat audit re-earned.
+   **SAFETY (builder mandate 2026-07-08): must NOT engage BIRDS** — see the drone-vs-bird
+   discrimination design (`docs/bird_discrimination_design.md`) + its ADR; positive-ID
+   interlock, fail-safe, false-engage-on-birds→0. This gates the seeker becoming lethal.
 3. **EKF target-track A/B.** Proper EKF vs the alpha-beta baseline, paired seeds
    n≥8, honest null-result framing (Kalata's Gazebo rejection, ADR-0013, is the
    precedent). Pure software — may interleave with 1–2.
