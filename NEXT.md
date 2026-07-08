@@ -22,7 +22,7 @@ FULL PARITY with alpha-beta — the capstone's EKF cells are unblocked at Q=64.
 1. **Merge fusion P1+P2** (branch `worktree-agent-a8188ebafbcfc5ea8`, 31/31
    tests, adversarially reviewed + fixed H1/M1/M2): rebase onto main, rerun
    both suites, byte-identity diff audit on a control flight, ff-merge, prune.
-2. **Terminal λ̇ noise rolloff for markerless bearings** (ADR-0042 lever a):
+2. ~~Terminal λ̇ noise rolloff~~ DONE 2026-07-08 (ADR-0043): PRE-REGISTERED NULL —
    design-as-mini-ADR first — options: box-center EMA, λ̇ filter gain rolloff
    inside terminal range, or a measurement-variance-scheduled alpha-beta gain.
    Cheap, guidance-side, directly attacks the measured +1 m. Gate: paired n=8
