@@ -210,7 +210,7 @@ shipped onboard cut uses `overlay` and has no mini-map.**
 - **Readiness:** onboard-camera capture is a gz image-topic grab (doable headless as PNGs if VideoRecorder drops frames under WSLg). HUD READY NOW.
 
 ### (OPTIONAL) BEAT 5b — Maneuvering-target adaptation — FULL-VISION CUT ONLY
-- **Status (updated):** the **maneuvering mover now exists** — the M5 final batch (running this session) adds **weave/jink** and `oblique_close` arms (ADR-0033 item 0b), so a jink beat can be built from *real* maneuvering data rather than staged. It was **not** in the shipped cut (that hero is a straight-line 9 m/s crosser); fold this beat into a re-cut once the final batch lands. Still: never stage a jink from straight-line data — use a genuine weave/jink flight.
+- **Status (DONE — data landed, ADR-0036):** the M5 final batch flew the **weave/jink** and `oblique_close` arms (ADR-0033 item 0b), so a jink beat can now be built from *real* maneuvering data rather than staged. The numbers to caption it with: **jink@9 pro-nav 1.02 m** (≈ the straight-line 1.08 m — a sharp discrete jink is cheap), **weave@9 1.41 m** (the worst maneuver, with an L2R 2.18 m / R2L 0.64 m directional split), and the oblique arm intercepting cleanly both ways (L2R 0.63 m / R2L 0.38 m, 16/16 clean). It was **not** in the shipped cut (that hero is a straight-line 9 m/s crosser); fold this beat into a re-cut using a genuine weave/jink flight from the batch (`logs/mc_final_all.csv`, ADR-0036) — never stage a jink from straight-line data.
 
 ### BEAT 6 — Intercept + honest lethal-radius kill graphic
 - **Main render:** closest approach; interceptor and tag converge. No fake explosion.
@@ -223,7 +223,7 @@ shipped onboard cut uses `overlay` and has no mini-map.**
 - **Main render:** clean stat card. Structure it so the **gated/verifier-confirmed** claims headline and the **hero dev-number** is presented as current-best-with-caveat (this tiering *is* the credibility signal for a defense audience):
   - **Gated classics (rock-solid):** M4 pro-nav vs pursuit **4.6–7.6x tighter** (0.28–0.44 m vs 2.0–2.5 m, 2 m/s); M3 static standoff error **0.018 / 0.035 m**; S2 two-stage camera-only handoff validated + verifier-confirmed.
   - **The systems finding:** the fast-target miss is **kinematic, ~96% locked at handoff** (r²=0.957) — diagnosed, then recovered.
-  - **Hero (current best, label as directional):** running-start + dash-track fix, **9 m/s ~1.19 m** (12 m/s ~1.48 m), **6/6 handoff**, under a **realistic degraded cue** — ADR-0030. Caveat on-card: *"dev A/B, n=6/speed, per-speed not yet individually significant; realistic-cue but clean AprilTag seeker — an upper bound on clean perception."*
+  - **M5 regime map (the statistical headline, ADR-0036, n=96, supersedes the ADR-0030 dev A/B):** on the adopted running-start deployment profile the whole **6/9/12 m/s FPV band is catchable** — **96.9% clean**, mean miss **1.08 m**, median **0.93 m**; per-speed pro-nav Pk@net-radius (1.5 m) **96% / 75% / 38%**, Pk@2.0 m **100% / 88% / 100%**. Laws **tied** at FPV speed (kinematic regime, ~1 m); pro-nav's 4.6–7.6× win is the *slower-target* M4 (2 m/s) result. Maneuvers survive: jink@9 **1.02 m**, weave@9 **1.41 m**. Caveat on-card: *"n=8/cell, per-cell pursuit-vs-pro-nav deltas within the ~1 m noise; clean-AprilTag seeker = an upper bound on perception."*
 - **Honest label:** *"Every number traces to a logged run. AprilTag = stand-in for a reliable target lock; the real seeker is unbuilt. Kill = lethal-radius criterion."*
 - **Readiness:** READY NOW to author (all numbers exist in ADRs/logs). If you want the outro to cite a *gated* fast number, the ADR-0030 hero should first be re-flown as a small verifier-gated batch — right now it's a dev A/B, not a gate.
 
@@ -237,8 +237,8 @@ shipped onboard cut uses `overlay` and has no mini-map.**
   dropped the old beat-7 metrics/outro card (builder feedback); the reel ends on the proximity-fuse
   hold, cut to black.
 - **FULL-VISION cut:** a maneuvering-target beat (5b) is the remaining add — see the note under
-  BEAT 5b: the M5 final batch (running now) introduces weave/jink mover arms, so the maneuvering
-  *data* is no longer missing; a re-cut can fold it in once that batch lands.
+  BEAT 5b: the M5 final batch (DONE, ADR-0036) flew weave/jink + oblique mover arms, so the
+  maneuvering *data* now exists (jink@9 1.02 m, weave@9 1.41 m); a re-cut can fold it in.
 
 ### Readiness summary (updated — the reel is built)
 | Capability | State | Note |
@@ -247,27 +247,28 @@ shipped onboard cut uses `overlay` and has no mini-map.**
 | Hero per-tick data | **DONE** | shipped on the 0.632 m re-cut, `logs/m4_intercept_pronav_20260707T211601Z.csv` per `demo_out/README.md` (`t_sim` populated); `logs/` is gitignored/regenerable and this file is not guaranteed present on disk — see reconciliation note above |
 | Gazebo flight + onboard/chase capture | **DONE** | 704 onboard + 706 chase PNGs captured; `build_demo.py` assembles offline (no re-sim) |
 | Stitch / composite / MP4 / GIF | **DONE** | ffmpeg installed (`/usr/bin/ffmpeg`); `build_demo.py` is the current builder |
-| Maneuvering beat (5b) | **DATA PENDING** | weave/jink mover arms exist in the M5 final batch (running); fold in on a re-cut |
+| Maneuvering beat (5b) | **DATA DONE** | weave/jink + oblique arms flew in the M5 final batch (ADR-0036); jink@9 1.02 m, weave@9 1.41 m — fold in on a re-cut |
 
 **Files referenced (all absolute):** `/home/emerson/interceptor-sim/scripts/build_demo.py` (the current
 demo builder), `/home/emerson/interceptor-sim/scripts/render_hud.py`, `/home/emerson/interceptor-sim/scripts/m4_intercept.py`, `/home/emerson/interceptor-sim/scripts/s2_cue_mock.py`, `/home/emerson/interceptor-sim/scripts/sim_gui.sh`, `/home/emerson/interceptor-sim/demo_out/README.md` (full build log — cites the 0.632 m shipped re-cut), `/home/emerson/interceptor-sim/docs/decisions.md` (ADR-0010/0013/0023/0027/0028/0029/0030/0031/0032 — note ADR-0032 as logged there still records the earlier 1.061 m capture, not the 0.632 m re-cut; see reconciliation note above). Shipped hero CSV per the build log: `/home/emerson/interceptor-sim/logs/m4_intercept_pronav_20260707T211601Z.csv` (0.632 m) — `logs/` is gitignored/regenerable and this path is not guaranteed to be present on disk. An earlier sub-meter two-stage draft CSV kept for HUD-tooling drafts only: `/home/emerson/interceptor-sim/logs/m4_intercept_pronav_20260706T182646Z.csv` (ENGAGE + handoff, miss 0.51 m) — not a published take.
 
 ---
 
-### Results plots — asset reconciliation (flag)
+### Results plots — DONE (M5 final batch, ADR-0036)
 
-The README currently embeds two preliminary plots at timestamps that **do not exist on disk**:
-`plots/pk_vs_radius_20260705T231001Z.png` and `plots/miss_cdf_20260705T231001Z.png` (confirmed missing;
-the README lane is fixing those refs). The plots that **do** exist and are safe to reference:
+The M5 final batch is complete and its three results figures are **committed to `docs/images/`**
+(git-tracked, so they survive a clean clone) and embedded in the README. Any "results plots" slot in a
+portfolio layout should cite these:
 
-- **ADR-0029 M5 regime-map batch:** `plots/pk_vs_radius_20260706T222603Z.png`,
-  `plots/miss_cdf_20260706T222603Z.png` (the published regime map; `logs/mc_batch_20260706T213437Z.csv`).
-- Earlier preliminary batches: `plots/{pk_vs_radius,miss_cdf}_20260706T180227Z.png` /
-  `...191852Z.png` (pre-realism-upgrade — label as superseded if used).
-- Newer `plots/*_20260708T0*.png` (e.g. `pk_vs_radius_by_arm_20260708T012435Z.png`,
-  `per_path_...`, `traj_overlay_...`) are **intermediate outputs of the in-progress M5 final batch** —
-  do **not** headline them until that batch completes and its numbers are ratified.
+- **`docs/images/m5_pk_vs_radius_by_arm.png`** — the ADR-0025 headline: Pk vs. lethal radius, per
+  speed × law. Report the per-speed curves, never the pooled curve alone.
+- **`docs/images/m5_miss_hist_cdf.png`** — miss-distance histogram + CDF across all 96 flights
+  (mean 1.08 m, median 0.93 m).
+- **`docs/images/m5_traj_overlay.png`** — every intercept trajectory in the batch.
 
-**The final-batch results plots (running-start + ADR-0017-corrected cue + maneuvering/oblique arms) are
-pending.** Any "results plots" slot in a portfolio layout should cite the ADR-0029 regime-map figures now
-and be swapped to the final-batch figures once they land — do not fabricate a final number in the interim.
+All three trace to `logs/mc_final_all.csv` and ADR-0036 (n=96; regenerate with `scripts/mc_analyze.py`).
+They **supersede** the earlier ADR-0029 regime-map plots (`plots/*_20260706T222603Z.png`, old hover
+geometry) and every preliminary `plots/*` batch figure — use the committed `docs/images/m5_*` set, not the
+old timestamped `plots/` files. The two preliminary README refs that never existed on disk
+(`plots/{pk_vs_radius,miss_cdf}_20260705T231001Z.png`) are gone: the README now embeds the committed
+`docs/images/m5_*` figures.
