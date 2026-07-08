@@ -61,6 +61,20 @@ confirm is DONE (ADR-0028 addendum); streak=2 held the 6 m/s S2 gate (ADR-0029c)
 3. **EKF target-track A/B.** Proper EKF vs the alpha-beta baseline, paired seeds
    n≥8, honest null-result framing (Kalata's Gazebo rejection, ADR-0013, is the
    precedent). Pure software — may interleave with 1–2.
+4. **CAPSTONE — covariance-gated mid-course FUSION (ADR-0034, the path forward as
+   we drop the AprilTag).** Re-open the ADR-0018 `--fuse-midcourse` null (it was
+   measured under a clean tag + fixed-gain αβ — the two conditions that suppress
+   fusion) NOW that the seeker is markerless (noisier camera → cue carries info
+   again) and the tracker is an EKF (weights sources by live covariance; the
+   innovation gate IS the "fall back to camera when the ground track is worse"
+   logic, for free). This is NOT a 4th thread — it's where items 2+3 MEET.
+   Expected payoff is mid-course robustness (handoff-reach / fewer dash-aborts,
+   the ADR-0030 binding failure), NOT terminal miss (kinematic ceiling ADR-0023).
+   HARD honesty constraint: fusion stays MID-COURSE, terminal stays camera-only,
+   and the `cue_reads_post_handoff=0` audit must extend to "no cue-tainted EKF
+   state/covariance survives handoff" (else the jam-resistance thesis breaks
+   through the filter's memory). Ladder up fusion{off,on}×tracker{αβ,EKF}×
+   seeker{tag,markerless}, don't run all 8. Design-as-ADR before building.
 
 ## Follow-up flagged (not yet built)
 
