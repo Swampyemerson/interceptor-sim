@@ -439,11 +439,22 @@ FPV threat carries no fiducial. The forward arc below is deliberately aimed at
      same tight-handoff lever **helps or hurts depending on the seeker's acquisition
      envelope** (it starves the AprilTag's far-acquisition streak → dash-aborts, but
      is fine for the near-acquiring markerless seeker) — a clean "context matters" result.
-   - **In-domain fine-tune (Option B):** COCO has no drone class and the MIT drone
-     model doesn't transfer to the synthetic body, so a single-class nano is
-     fine-tuned on 495 Gazebo renders of the tag-less target (gt-projected labels,
-     training-time only) to densify detection. *(Real hardware uses the MIT model;
-     the sim fine-tune is a demo/sim-domain aid.)*
+   - **In-domain fine-tune (Option B, ADR-0040):** a single-class YOLO11n
+     fine-tuned on 495 Gazebo renders of the tag-less body (gt-projected labels,
+     training-time only) reaches **mAP50 0.992** and turns the off-the-shelf
+     **2/8 terminal-only acquisition into 8/8 dense acquisition out to 12 m** —
+     the acquisition-range regression is *closed*. In flight it **doubles
+     coverage (0.11 → 0.25), cuts mean miss 3.39 → 2.45 m, and halves the median
+     gap to the tag (+1.03 → +0.66 m)**, eliminating both off-the-shelf
+     catastrophic flybys. A forensic catch along the way: the naive full-frame
+     model **false-locked on the interceptor's own prop arms** (bearing ±44°,
+     range 0.06× ground truth) until a **self-mask** was added — the same gate
+     the two-stage seeker uses. Honest limit: flight **clean-rate is a wash
+     (6/8)** — a positives-only model is necessary-not-sufficient; v2 needs hard
+     negatives + a calibrated known-size range. *(Real hardware uses the MIT
+     model; the sim fine-tune is a demo/sim-domain aid.)*
+
+   ![Option B — fine-tune doubles coverage & cuts mean miss, clean-rate a wash](docs/images/seeker_finetune_3way.png)
 
    ![Paired A/B: markerless matches the tag except on late-acquisition flybys](docs/images/seeker_ab_paired_scatter.png)
 

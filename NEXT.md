@@ -43,19 +43,37 @@ sanctioned safeguard fallback; on Opus now = normal).
 ### A→C→B execution status
 1. **A — markerless A/B (RUNNING):** paired n=8 apriltag-vs-markerless on the M5
    deployment profile (master-seed 42). Markerless arm → `logs/mc_ab_markerless.csv`
-   (run 0: miss 1.06 m clean handoff, first_det 18.3 m). Apriltag control arm next
-   (`logs/mc_ab_apriltag.csv`) = also validates the mc_batch edits are byte-safe.
-2. **C — ground-rig sweep (`docs/ground_rig_sweep_plan.md`, ADR-0038 drafted):**
-   Arm A = the A/B markerless arm, BASE = the A/B apriltag arm → only NEW arms
-   B (markerless, drop --early-handoff), C (markerless --handoff-range 20), D
-   (markerless --handoff-range 2.5), E (apriltag --handoff-range 2.5) remain =
-   ~24–32 flights. Reconcile: in-flight acq 8–18 m (not 2–3 m) softens H1/Arm-D.
-3. **B — sim-domain fine-tune (tools ready, no sim yet):**
-   `scripts/seeker/render_sim_dataset.py` (exact-label static-grid renderer via
-   PoseTracker) + worker's `gen_sim_dataset.py` (flight-frame async-join labeler).
-   `.venv-seeker-train` has ultralytics 8.4.90 but **torch is CPU-only** → CPU
-   fine-tune of a nano (run AFTER sims, no contention). Then re-eval + re-run the
-   markerless A/B with tuned weights (denser coverage expected).
+   **A DONE (ADR-0038):** 6/8 clean, 100% handoff, median miss 1.83 m; matches the
+   tag (~1 m) when it acquires early (8–18 m in flight); +1 m median cost = 2/8
+   late-acquisition flybys (sparse coverage 5–24%). Apriltag control reproduces M5
+   (8/8 clean, 0.92 m) → mc_batch MC_* edits byte-safe. cue_reads_post_handoff=0 all.
+2. **C — ground-rig sweep DONE (ADR-0039, `docs/ground_rig_sweep_plan.md`):** arms
+   B/C/D/E flown. **No handoff-timing lever recovers markerless** (stricter streak +
+   wider ceiling both HURT) → the regression is detection-coverage, not timing;
+   redirects to B + fusion (ADR-0034). Tight-ceiling is context-dependent: starves
+   the AprilTag's far acquisition (3 dash-aborts, Arm E) but fine for markerless.
+   Plots `docs/images/seeker_ab_*.png`.
+3. **B — sim-domain fine-tune DONE (ADR-0040):** 495-img in-domain dataset
+   (`render_sim_dataset.py`, exact gt-projected labels) → YOLO11n CPU fine-tune
+   **mAP50 0.992** (`weights/drone_finetuned.onnx`, git-ignored). Static probe:
+   **2/8 → 8/8 ranges (2–12 m)** fire — acquisition regression CLOSED. Full-frame
+   `FinetunedNNSeeker` + `MARKERLESS_NN_WEIGHTS` env. Forensic fix: naive full-frame
+   false-locked on own props (bearing ±44°) → added self-mask. Tuned A/B (n=8):
+   **coverage 0.11→0.25 (2×), mean miss 3.39→2.45 m, median gap-to-tag +1.03→+0.66 m**
+   (fixed both off-the-shelf flybys) — **but clean-rate a WASH 6/8** (positives-only
+   model = necessary-not-sufficient). **v2 levers:** hard NEGATIVE frames (own-airframe/
+   background), calibrated known-size range, or fuse two-stage crop-verify. Feeds the
+   ADR-0034 fusion capstone. Plots `docs/images/seeker_finetune_3way.png`.
+
+### Open follow-ups (next session)
+- **Seeker v2** (above): hard-negatives + range calibration to lift markerless clean-rate.
+- **#16 Fusion capstone (ADR-0034):** seeker (markerless) + EKF both now exist → the
+  covariance-gated mid-course fusion A/B is unblocked. Design-as-ADR first; ladder
+  fusion{off,on}×tracker{αβ,EKF}×seeker{tag,markerless}, don't run all 8.
+- **#8 Bird MC gate:** `scripts/bird_mc_harness.py` exits 1 until the seeker classifier
+  is wired (a `P(hostile)` posterior, NOT the detection-confidence slot); gated behind
+  ADR-0035 red-team fixes + Stage-0 bench.
+- **#17 Hardware Stage-0:** BUILDER action — order the ~$230 parts (`docs/stage0_bench_plan.md`).
 
 ### Also built this session (gated / parallel)
 - **Bird decoy + MC gate:** `models/fpv_bird_decoy/` (gz-valid) + `scripts/bird_mc_harness.py`

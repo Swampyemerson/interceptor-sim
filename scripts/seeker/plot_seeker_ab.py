@@ -118,4 +118,38 @@ ax.legend(loc="upper right", fontsize=8); ax.grid(alpha=0.2, axis="y")
 fig.tight_layout(); fig.savefig(os.path.join(IMG, "seeker_c_sweep_bars.png"), dpi=130)
 plt.close(fig)
 
+# ---- Figure 4: Option B — 3-way seeker comparison (fine-tune effect) ------
+THREE = [
+    ("AprilTag\n(baseline)",        "logs/mc_ab_apriltag.csv",         BLUE),
+    ("Markerless\noff-the-shelf",   "logs/mc_ab_markerless.csv",       ORANGE),
+    ("Markerless\nfine-tuned",      "logs/mc_ab_markerless_tuned.csv", GREEN),
+]
+if all(load(p) for _, p, _ in THREE):
+    fig, axes = plt.subplots(1, 3, figsize=(11, 4.2))
+    names = [n for n, _, _ in THREE]
+    cols = [c for _, _, c in THREE]
+    def arm_metrics(path):
+        rows = load(path); n = len(rows)
+        clean = sum(1 for r in rows if r.get("clean") == "1") / n
+        mean_miss = sum(m for m in (miss(r) for r in rows) if not math.isnan(m)) / n
+        cov = [float(r["coverage"]) for r in rows if r.get("coverage") not in (None, "", "nan")]
+        return clean, mean_miss, (sum(cov) / len(cov) if cov else 0)
+    M = [arm_metrics(p) for _, p, _ in THREE]
+    for ax, idx, title, ylab, hi in [
+        (axes[0], 0, "clean-rate (higher better)", "fraction of 8", 1.05),
+        (axes[1], 1, "mean miss (lower better)", "m", max(m[1] for m in M) * 1.2),
+        (axes[2], 2, "detection coverage (density)", "fraction of ticks", max(m[2] for m in M) * 1.3),
+    ]:
+        ax.bar(range(3), [m[idx] for m in M], color=cols)
+        ax.set_xticks(range(3)); ax.set_xticklabels(names, fontsize=8)
+        ax.set_title(title, fontsize=10); ax.set_ylabel(ylab); ax.set_ylim(0, hi)
+        for i, m in enumerate(M):
+            ax.text(i, m[idx], f"{m[idx]:.2f}", ha="center", va="bottom", fontsize=8)
+        ax.grid(alpha=0.2, axis="y")
+    fig.suptitle("Option B — in-domain fine-tune: doubles coverage & cuts mean miss, "
+                 "but clean-rate is a wash (ADR-0040)", fontsize=11)
+    fig.tight_layout(); fig.savefig(os.path.join(IMG, "seeker_finetune_3way.png"), dpi=130)
+    plt.close(fig)
+    print("wrote docs/images/seeker_finetune_3way.png")
+
 print("wrote docs/images/seeker_ab_pk_by_arm.png, seeker_ab_paired_scatter.png, seeker_c_sweep_bars.png")
