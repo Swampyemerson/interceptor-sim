@@ -563,6 +563,15 @@ CSV_HEADER = [
     # --coast-search is off); coast_phase = "coast" (dead-reckon dash) /
     # "search" (bounded yaw sweep at the predicted basket) / blank.
     "cue_stale", "coast_phase",
+    # Fusion capstone (design D2/F4, ADR-0041): the EKF's OWN relative
+    # target state + P diagonal, scored against gt_* in the RELATIVE frame
+    # (tgt_n_hat/tgt_e_hat above always come from the alpha-beta
+    # TargetTracker in EVERY arm -- ADR-0037's position-RMSE null was
+    # structurally guaranteed; this is the field that actually measures the
+    # EKF). Empty string unless --tracker ekf (existing empty-field
+    # convention -- see write_row_m4's fmt()).
+    "ekf_dn_hat", "ekf_de_hat", "ekf_dvn_hat", "ekf_dve_hat",
+    "ekf_p_diag0", "ekf_p_diag1", "ekf_p_diag2", "ekf_p_diag3",
 ]
 
 
@@ -1067,7 +1076,7 @@ def write_row_m4(
     psi_deg, lambda_rad, lambda_dot_rad_s, r_hat_m, rdot_hat_m_s,
     vc_m_s, a_cmd_m_s2, v_perp_m_s, cmd, alt_m, gt_cam, gt_tag, gt_range,
     ext_xyz=None, ext_fresh=None, tgt_state=None, ext_age_s=None,
-    cue_stale=None, coast_phase=None, t_sim=None,
+    cue_stale=None, coast_phase=None, t_sim=None, ekf_state=None,
 ):
     def fmt(value, spec="{:.4f}"):
         return "" if value is None else spec.format(value)
@@ -1118,6 +1127,19 @@ def write_row_m4(
         fmt(ext_age_s, "{:.4f}"),
         "" if cue_stale is None else int(cue_stale),
         "" if coast_phase is None else coast_phase,
+        # Fusion capstone (design D2/F4, ADR-0041): ekf_state is
+        # (dn, de, dvn, dve, p00, p11, p22, p33) or None -- None on every
+        # call site except run_acquire_and_engage's, and even there only
+        # when --tracker ekf AND the EKF is initialized (existing
+        # empty-field convention).
+        fmt(ekf_state[0]) if ekf_state is not None else "",
+        fmt(ekf_state[1]) if ekf_state is not None else "",
+        fmt(ekf_state[2]) if ekf_state is not None else "",
+        fmt(ekf_state[3]) if ekf_state is not None else "",
+        fmt(ekf_state[4], "{:.5f}") if ekf_state is not None else "",
+        fmt(ekf_state[5], "{:.5f}") if ekf_state is not None else "",
+        fmt(ekf_state[6], "{:.5f}") if ekf_state is not None else "",
+        fmt(ekf_state[7], "{:.5f}") if ekf_state is not None else "",
     ]
     writer.writerow(row)
     log_file.flush()
@@ -1509,6 +1531,12 @@ async def run_acquire_and_engage(
     # of the loop is unchanged. Default 'alphabeta' leaves the two lines above
     # untouched and this branch a no-op -> the M4/M5/S2 gate path is
     # byte-identical to HEAD. The EKF constructed above is discarded here.
+    # ekf_tracker (the EKFTracker instance, not to be confused with the
+    # `tracker` parameter -- the gz AprilTag/ground-truth handle) stays None
+    # under alphabeta so downstream P1/P2 fusion-capstone code (cue routing,
+    # the DASH aim gate, the handoff latch, CSV/S2_RESULT logging) can guard
+    # on `ekf_tracker is not None` without a NameError.
+    ekf_tracker = None
     if args.tracker == "ekf":
         from ekf_tracker import EKFTracker
         ekf_tracker = EKFTracker()
@@ -1528,7 +1556,16 @@ async def run_acquire_and_engage(
     # every branch below no-ops) unless a P-6 flag is set -> default path
     # byte-identical. Fed camera (angle+range) in the fresh block and cue
     # (range+velocity) in the ext-cue block, PRE-latch only.
-    fused = FusedTrack() if (args.fuse_midcourse or args.warm_handoff) else None
+    # Fusion capstone (design D2, ADR-0041): under tracker=ekf AND
+    # fuse-midcourse, the EKF's OWN covariance-gated correct_cue replaces
+    # FusedTrack for the mid-course fusion mechanism ("no double-fusion") --
+    # FusedTrack is not constructed in that one combination. Every other
+    # combination (alphabeta+fuse/warm, ekf+warm-handoff-only, ekf+neither)
+    # is byte-identical to before this change.
+    fused = (
+        None if (args.tracker == "ekf" and args.fuse_midcourse)
+        else (FusedTrack() if (args.fuse_midcourse or args.warm_handoff) else None)
+    )
 
     phase = "CUE_WAIT" if args.handoff else "ACQUIRE"
     acquire_start_mono = time.monotonic()
@@ -1742,6 +1779,33 @@ async def run_acquire_and_engage(
                                 (cvy, cvx) if (cvx is not None and cvy is not None) else None
                             )
                             fused.update_cue(cue_rng, cue_vel_ned, tick_start)
+                        # Fusion capstone (design D2, ADR-0041): under
+                        # tracker=ekf + fuse-midcourse, route this SAME
+                        # accepted cue datagram into the EKF's own
+                        # covariance-gated correct_cue (polar-split -- "the
+                        # cue never touches the angle", ekf_tracker.py)
+                        # instead of FusedTrack (not constructed in this
+                        # combination -- see `fused` above). Only once the
+                        # EKF is camera-initialized, mirroring
+                        # FusedTrack.update_cue's own initialized-gate (a
+                        # biased cue must never define the camera-anchored
+                        # track's initial state). World->NED->RELATIVE via
+                        # own EKF2 position/velocity (legal, honesty
+                        # boundary) -- north=world_y east=world_x, same
+                        # mapping already used for ext_n/ext_e above.
+                        if (
+                            ekf_tracker is not None and args.fuse_midcourse
+                            and ekf_tracker.initialized
+                            and state.pos_n is not None and state.pos_e is not None
+                        ):
+                            rel_pos = (corr_n - state.pos_n, corr_e - state.pos_e)
+                            rel_vel = None
+                            if (
+                                cvx is not None and cvy is not None
+                                and getattr(state, "vel_n", None) is not None
+                            ):
+                                rel_vel = (cvy - state.vel_n, cvx - state.vel_e)
+                            ekf_tracker.correct_cue(rel_pos, rel_vel, tick_start)
                         tracker_correction_count += 1
                         ext_fresh = 1
 
@@ -1913,6 +1977,24 @@ async def run_acquire_and_engage(
                 if st is not None:
                     tpos = st["pos"]
                     vt = st["vel"]
+            elif (
+                args.fuse_midcourse and args.tracker == "ekf" and ekf_tracker is not None
+                and own is not None and ekf_tracker.initialized
+                and ekf_tracker.last_camera_t is not None
+                and (tick_start - ekf_tracker.last_camera_t) <= MEAS_STALE_S
+            ):
+                # Fusion capstone (design D2, ADR-0041): the aim source
+                # FusedTrack.state() serves above comes instead from the
+                # EKF's own covariance-gated relative state (dn,de -> tpos;
+                # dvn,dve -> vt, converted to ABSOLUTE NED velocity via own
+                # EKF2 velocity since dvn/dve are target-MINUS-own -- see
+                # ekf_tracker.py's module docstring) -- FusedTrack is not
+                # constructed in this combination (no double-fusion). Same
+                # camera-fresh gating semantics as fused.camera_fresh().
+                own_vel_ned = (state.vel_n, state.vel_e) if getattr(state, "vel_n", None) is not None else None
+                if own_vel_ned is not None:
+                    tpos = (own[0] + ekf_tracker.x[0], own[1] + ekf_tracker.x[1])
+                    vt = (ekf_tracker.x[2] + own_vel_ned[0], ekf_tracker.x[3] + own_vel_ned[1])
             if tpos is None:
                 tpos = target_tracker.pos_hat
                 vt = target_tracker.vel_hat or (0.0, 0.0)
@@ -2001,6 +2083,18 @@ async def run_acquire_and_engage(
                 )
                 cue_reader.close()
                 cue_reader = None  # illegal-state-unrepresentable past this point
+                # Fusion capstone handoff boundary (design D3, ADR-0041):
+                # latch the EKF at the exact same instant the cue channel
+                # closes -- belt (cue_reader=None already makes a further
+                # correct_cue call unreachable) and suspenders (latch()
+                # itself makes it raise + count, and re-inflates P's
+                # position block if the cue was ever used pre-latch, the F1
+                # confident-bias-lock escape hatch). Called for every EKF
+                # run regardless of --fuse-midcourse -- the D3.2 adaptive
+                # gate-recovery is a general post-handoff robustness
+                # feature, not fusion-specific.
+                if ekf_tracker is not None:
+                    ekf_tracker.latch()
                 # P-6 (--warm-handoff): WARM lock-transfer (ADR-0015) at the
                 # latch instant -- initialize the camera-only terminal filters
                 # (lambda, lambda_dot, R, Rdot) + v_perp + the shared PIP track
@@ -2283,6 +2377,18 @@ async def run_acquire_and_engage(
             tgt_vel_hat = target_tracker.vel_hat or (0.0, 0.0)
             tgt_state = (tgt_pos_hat[0], tgt_pos_hat[1], tgt_vel_hat[0], tgt_vel_hat[1])
 
+        # Fusion capstone (design D2/F4, ADR-0041): the EKF's own relative
+        # state + P diagonal, logged only under --tracker ekf once the EKF
+        # is initialized (empty otherwise -- see write_row_m4/CSV_HEADER).
+        ekf_row_state = None
+        if args.tracker == "ekf" and ekf_tracker is not None and ekf_tracker.initialized:
+            ekf_row_state = (
+                float(ekf_tracker.x[0]), float(ekf_tracker.x[1]),
+                float(ekf_tracker.x[2]), float(ekf_tracker.x[3]),
+                float(ekf_tracker.P[0, 0]), float(ekf_tracker.P[1, 1]),
+                float(ekf_tracker.P[2, 2]), float(ekf_tracker.P[3, 3]),
+            )
+
         write_row_m4(
             writer, log_file, time.monotonic() - started, phase, args.law,
             detected, meas, psi_deg, lambda_hat, lambda_dot_hat, r_hat, rdot_hat,
@@ -2291,6 +2397,7 @@ async def run_acquire_and_engage(
             ext_fresh=ext_fresh, tgt_state=tgt_state, ext_age_s=ext_age_s,
             cue_stale=cue_stale_flag, coast_phase=coast_phase_tick,
             t_sim=sim_clock.t if sim_clock is not None else None,
+            ekf_state=ekf_row_state,
         )
 
         if aborted:
@@ -2334,6 +2441,14 @@ async def run_acquire_and_engage(
         "handoff_range_at_trigger": handoff_range_at_trigger,
         "first_dash_detection_range": first_dash_detection_range,
         "outcome": outcome,
+        # Fusion capstone (design D3, ADR-0041): None under tracker!=ekf
+        # (main()'s S2_RESULT emission only tags these under tracker=ekf).
+        "ekf_cue_updates_post_handoff": (
+            ekf_tracker.cue_updates_post_handoff if ekf_tracker is not None else None
+        ),
+        "ekf_camera_gated_post_handoff": (
+            ekf_tracker.camera_gated_post_handoff if ekf_tracker is not None else None
+        ),
     }
 
 
@@ -2832,17 +2947,44 @@ async def main():
                     # triggers (ADR-0010 #5), so any read attempt after that
                     # point is structurally impossible (AttributeError on
                     # None), not merely "didn't happen to occur" -- there is
-                    # nothing left to count.
+                    # nothing left to count. Tagged [structural] (design D3,
+                    # ADR-0041) to distinguish it from the two EKF counters
+                    # below, which ARE measured at runtime (belt vs.
+                    # suspenders -- see EKFTracker.latch()/correct_cue()).
+                    # check_s2.sh parses this line by lookbehind grep on the
+                    # `cue_reads_post_handoff=0` substring (verified against
+                    # scripts/check_s2.sh 2026-07-08); the trailing
+                    # `[structural]` tag is appended AFTER that exact
+                    # substring so the existing parse is unaffected.
+                    #
                     # ADR-0015: S2_RESULT gains a trailing outcome tag
                     # (handoff_engaged / link_lost_no_acq / aborted /
                     # no_handoff). Appended LAST so check_s2.sh's existing
                     # lookbehind greps for miss=/clean=/handoff= are unaffected.
+                    # Fusion capstone (design D3, ADR-0041): under
+                    # tracker=ekf ONLY, two MEASURED post-handoff counters
+                    # are appended after outcome= (same "appended last"
+                    # discipline) -- ekf_cue_updates_post_handoff must read 0
+                    # on every honest flight (the structural belt above
+                    # backed by a live count); ekf_camera_gated_post_handoff
+                    # is the F1 canary (consecutive post-latch camera
+                    # rejections, design D3.2).
+                    ekf_tags = ""
+                    if args.tracker == "ekf":
+                        ekf_cue_uph = result.get("ekf_cue_updates_post_handoff")
+                        ekf_gate_ph = result.get("ekf_camera_gated_post_handoff")
+                        ekf_tags = (
+                            f" ekf_cue_updates_post_handoff="
+                            f"{0 if ekf_cue_uph is None else ekf_cue_uph}[measured]"
+                            f" ekf_camera_gated_post_handoff="
+                            f"{0 if ekf_gate_ph is None else ekf_gate_ph}[measured]"
+                        )
                     print(
                         f"S2_RESULT law={args.law} miss={miss_distance:.3f} "
                         f"clean={int(clean)} handoff={int(result['handoff_done'])} "
                         f"handoff_range={'nan' if handoff_range is None else f'{handoff_range:.3f}'} "
                         f"handoff_t={'nan' if handoff_t is None else f'{handoff_t:.3f}'} "
-                        f"cue_reads_post_handoff=0 outcome={result['outcome']}"
+                        f"cue_reads_post_handoff=0[structural] outcome={result['outcome']}{ekf_tags}"
                     )
 
                 exit_ok = clean
@@ -2854,7 +2996,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0[structural] outcome=error"
                 )
             result_code = 1
 
@@ -2916,7 +3058,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0[structural] outcome=error"
                 )
         return 1
     except ActionError as exc:
@@ -2926,7 +3068,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0[structural] outcome=error"
                 )
         return 1
     except RuntimeError as exc:
@@ -2936,7 +3078,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0[structural] outcome=error"
                 )
         return 1
     except Exception as exc:  # noqa: BLE001 - top-level gate script, log and exit
@@ -2946,7 +3088,7 @@ async def main():
             if args.handoff:
                 print(
                     f"S2_RESULT law={args.law} miss=nan clean=0 handoff=0 "
-                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0 outcome=error"
+                    "handoff_range=nan handoff_t=nan cue_reads_post_handoff=0[structural] outcome=error"
                 )
         return 1
     finally:

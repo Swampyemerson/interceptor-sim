@@ -12,8 +12,9 @@ just at a gate.
 Everything here is `ast`-based, never regex/string-matching Python source:
 a renamed variable or a reflowed comment should never flip a real answer.
 
-Two structural invariants, both scoped to `run_acquire_and_engage` (the only
-function that ever touches `cue_reader` or builds a velocity command):
+Three structural invariants, all scoped to `run_acquire_and_engage` (the only
+function that ever touches `cue_reader`, calls `correct_cue`, or builds a
+velocity command):
 
   (A) CUE_READER LATCH (ADR-0010 #5): every place `cue_reader` is READ (an
       attribute access, e.g. `.read()` / `.close()` / `.n_received`) sits
@@ -41,6 +42,20 @@ function that ever touches `cue_reader` or builds a velocity command):
       test_injected_ground_truth_leak_is_caught proves both checks actually
       fire, by mutating a throwaway copy of the file with a fake
       `v_perp += gt_range` line and asserting they reject it.
+
+  (C) FUSION CAPSTONE CUE-INTO-EKF BOUNDARY (design D2/D3, ADR-0041): every
+      `correct_cue(...)` call site (the mechanism that actually feeds an
+      accepted cue datagram into the EKF's covariance-aware state) must sit
+      behind the SAME `cue_reader is not None` guard shape (A) requires --
+      test_correct_cue_calls_are_cue_reader_guarded.
+      test_injected_post_latch_correct_cue_leak_is_caught proves it fires,
+      by mutating a throwaway copy with a fake correct_cue(...) call
+      injected right after the one-way latch (`cue_reader = None`, outside
+      any guard) and asserting it's rejected. (correct_cue also has its own
+      RUNTIME belt-and-suspenders in ekf_tracker.py -- it raises and
+      increments a counter if ever called post-latch(); this static check
+      is the SOURCE-level tripwire that a call site was written unguarded
+      in the first place.)
 
 Run directly: `python tests/test_honesty_static.py` (exit 0/1, prints a
 PASS/FAIL line per check). Also pytest-collectible as-is: every function
@@ -445,6 +460,105 @@ def test_cue_reader_latch_is_the_only_close_then_null():
     assert _find_latch_close_call(fn) is not None, (
         f"expected exactly 1 of {len(close_calls)} cue_reader.close() call(s) to be "
         "immediately followed by `cue_reader = None` (the one-way latch) -- found 0 or >1"
+    )
+
+
+# --------------------------------------------------------------------------
+# (C) fusion capstone: correct_cue() call sites (design D2/D3, ADR-0041)
+# --------------------------------------------------------------------------
+
+def _correct_cue_call_sites(fn):
+    return [
+        n for n in ast.walk(fn)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "correct_cue"
+    ]
+
+
+def _check_correct_cue_guards(path):
+    """Returns a list of violation strings (empty = clean). The fusion
+    capstone (design D2) routes accepted cue datagrams into
+    EKFTracker.correct_cue -- the mechanism that actually feeds the cue into
+    the (potentially post-handoff-persisting) EKF state. Every call site
+    must sit behind the SAME `cue_reader is not None` guard shape the
+    cue_reader reads themselves require (reuses _find_cue_none_compare, the
+    exact helper _check_cue_reader_guards uses) -- a correct_cue call
+    reachable without that guard is exactly the shape a post-handoff cue
+    leak into the EKF would take, structurally distinct from (but just as
+    dangerous as) a bare cue_reader read."""
+    tree = _load_tree(path)
+    fn = _find_function(tree, "run_acquire_and_engage")
+    violations = []
+    for call in _correct_cue_call_sites(fn):
+        guard = None
+        for child, anc in _ancestor_chain(call):
+            if not isinstance(anc, (ast.If, ast.IfExp)):
+                continue
+            branch = _branch(child, anc)
+            if branch not in ("body", "orelse"):
+                continue
+            none_cmp = _find_cue_none_compare(anc.test)
+            if none_cmp is None:
+                continue
+            op_is_not = isinstance(none_cmp.ops[0], ast.IsNot)
+            direction_ok = (branch == "body") if op_is_not else (branch == "orelse")
+            if direction_ok:
+                guard = anc
+                break
+        if guard is None:
+            violations.append(
+                f"line {call.lineno}: correct_cue(...) is called with no "
+                "enclosing `cue_reader is not None` guard on the reachable "
+                "branch -- this is exactly the shape a post-handoff cue "
+                "leak into the EKF would take"
+            )
+    return violations
+
+
+def test_correct_cue_calls_are_cue_reader_guarded():
+    violations = _check_correct_cue_guards(M4_PATH)
+    assert not violations, "correct_cue guard violation(s):\n" + "\n".join(violations)
+    # Sanity: at least one real call site exists (the P1 fusion-capstone
+    # wiring) so this test isn't vacuously passing because the call got
+    # removed or renamed out from under it.
+    tree = _load_tree(M4_PATH)
+    fn = _find_function(tree, "run_acquire_and_engage")
+    assert len(_correct_cue_call_sites(fn)) >= 1, (
+        "expected at least one correct_cue(...) call in run_acquire_and_engage "
+        "-- did the P1 fusion-capstone cue-routing move?"
+    )
+
+
+def test_injected_post_latch_correct_cue_leak_is_caught():
+    """Calibration: prove _check_correct_cue_guards actually fires, by
+    mutating a THROWAWAY temp copy of m4_intercept.py with a fake
+    correct_cue(...) call injected immediately after the one-way latch
+    (`cue_reader = None`) -- outside any `cue_reader is not None` guard,
+    structurally identical to a real post-handoff cue leak into the EKF --
+    and asserting the checker rejects it. Never touches the real file."""
+    with open(M4_PATH) as f:
+        lines = f.readlines()
+    target = "cue_reader = None  # illegal-state-unrepresentable past this point\n"
+    idx = next(i for i, l in enumerate(lines) if l.strip() == target.strip())
+    indent = lines[idx][: len(lines[idx]) - len(lines[idx].lstrip())]
+    injected = (
+        f"{indent}ekf_tracker.correct_cue((1.0, 1.0), None, tick_start)  "
+        "# INJECTED for honesty-test calibration -- must never pass\n"
+    )
+    mutated = lines[: idx + 1] + [injected] + lines[idx + 1:]
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mutated_path = os.path.join(tmp_dir, "m4_intercept_MUTATED_for_test.py")
+        with open(mutated_path, "w") as f:
+            f.writelines(mutated)
+        violations = _check_correct_cue_guards(mutated_path)
+
+    assert violations, (
+        "expected the injected post-latch correct_cue call to trip the "
+        "guard check, but it passed clean -- checker has a gap"
+    )
+    assert any("correct_cue" in v for v in violations), (
+        f"guard check fired, but not clearly on the injected call: {violations}"
     )
 
 
