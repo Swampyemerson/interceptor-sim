@@ -99,6 +99,14 @@ the real cost of the honest version. See
 [`docs/seeker_prototype_results.md`](docs/seeker_prototype_results.md) and the
 roadmap.
 
+**Post-M5 (2026-07-08, ADR-0038..0044 — the two flagship arcs; details in the
+roadmap section):**
+
+| Experiment | Result | Source |
+|---|---|---|
+| **Markerless seeker arc** — kill the AprilTag, then fix the detector honestly | Camera-only intercept on a tag-less body: 6/8 clean, matches the tag when acquiring early. Seeker v2 (hard negatives from the drone's own props + shadow): **pollution 0.751 → 0.000, range honesty 0.056 → 0.935**, endgame coverage now *beats the tag* — residual +1 m gap is bearing quality (box-center vs subpixel), measured to mechanism; guidance levers pre-registered NULL | ADR-0038/0040/0042/0043; `scripts/check_seeker_v2.sh` (6/6); `docs/images/seeker_v2_ab.png` |
+| **Fusion capstone** — does mid-course cue fusion help once the seeker is noisy? | **YES for hand-set polar fusion:** 8/8 paired win (−0.356 m median, p≈0.008), both chronic seeds rescued, survives the WORST-credible cue 8/8 → `--fuse-midcourse` recommended for markerless. **NO for covariance gating:** wash at the realistic tier, **regresses under WORST bias** (7.66 m tail — the council's offline bias-lock prediction, confirmed in flight). Honesty: 0 post-latch cue updates, 32 EKF flights, live-counted | ADR-0041/0044; `logs/mc_fusion_*.csv` |
+
 Foundational milestones M0 (toolchain boot), M1 (camera pipeline), M2
 (AprilTag detection, 1.000 detection rate / 0.0861 m mean pose error) all
 passed their gates on 2026-07-04 — see [`PROGRESS.md`](PROGRESS.md) for the
@@ -460,23 +468,55 @@ FPV threat carries no fiducial. The forward arc below is deliberately aimed at
 
    ![Pk vs radius by arm — markerless A/B + ground-rig sweep](docs/images/seeker_ab_pk_by_arm.png)
 
-3. **EKF target-track A/B vs. alpha-beta.** The most-asked GNC interview topic.
-   Framed honestly: per the [kinematic root-cause diagnosis](docs/terminal_diagnosis.md)
-   (ADR-0023), a better *track* is unlikely to move the *terminal miss* (it's
-   time-to-go-limited), so this is pre-registered as a likely **NULL on miss** —
-   its real payoff is mid-course robustness, measured, not assumed.
+   - **Seeker v2 — hard negatives + range calibration. ✅ CLOSED (ADR-0042/0043).**
+     A 3-flight capture pass harvested what the static renders never contained —
+     the interceptor's **own prop blades and its own drone-shaped ground shadow**
+     (both slipped past v1's left/right-edge self-mask). Retrained with 354 hard
+     negatives + a measured range-calibration sidecar: **false-detection pollution
+     0.751 → 0.000** (not one bad tick in 354), **range honesty 0.056 → 0.935**,
+     static acquisition still 8/8, per-tick honesty audit green. The honestly-
+     failed part, pre-registered: **clean-rate stayed 6/8** — final-second
+     forensics showed v2 now *out-covers even the AprilTag* in the endgame
+     (78–89% vs 5–7 of final-second ticks) and the residual **+1 m gap is
+     bearing QUALITY** (box-center jitter, p90 2.8°/tick, vs subpixel tag
+     corners) at the kinematic ceiling. Two guidance-side levers (terminal gain
+     rolloff, early freeze) were pre-registered, flown, and are **honest NULLs**
+     (ADR-0043) — the gap needs a better bearing *measurement* (real-hardware
+     seeker territory), not more tuning.
 
-4. **Fusion capstone — covariance-gated mid-course fusion (ADR-0034).** The one
-   experiment that *unifies* items 2 and 3: an EKF weights the ground cue and the
-   onboard camera by their **live covariance**, and the filter's innovation gate
-   *is* the "fall back to camera when the ground track goes bad" logic, natively.
-   This re-opens the earlier fusion NULL (ADR-0018) on purpose — that null was
-   measured under a clean tag and a fixed-gain tracker, exactly the conditions
-   that suppress fusion's value. The honest payoff target is **mid-course
-   robustness / handoff-reach** (the ADR-0030/0031 dash-abort failure mode), **not**
-   terminal miss (still kinematically capped). **Honesty boundary preserved:**
-   fusion stays *mid-course*, the terminal stays *camera-only*, and the
-   no-cheat audit extends to "no cue-tainted filter state survives the handoff."
+   ![Seeker v2 4-way A/B](docs/images/seeker_v2_ab.png)
+
+3. **EKF target-track A/B vs. alpha-beta. ✅ DONE — with a plot twist (ADR-0037
+   + addendum).** Pre-registered NULL on miss confirmed (Δ −0.009 m, CI straddles
+   0). The A/B's apparent finding — an 8/8 → 2/8 clean-rate collapse blamed on
+   untuned process noise — was later **overturned by offline forensics**: all six
+   "failed" flights intercepted at 0.68–1.34 m (three *beat* their alpha-beta
+   twin) and were flagged only because the EKF's *physically correct* post-CPA
+   range extrapolation crossed an abort-timer branch that alpha-beta's
+   impossible negative coasted range never does. A perfect 6/6-vs-0/10
+   discriminator; the scoring lens (`abort_lens.py`) now corrects it, and the
+   EKF stands at **full parity** — a case study in how a paired metric can
+   indict the *scorekeeper* instead of the filter.
+
+4. **Fusion capstone — ✅ CLOSED, and the headline is positive (ADR-0041/0044).**
+   Design was council-reviewed *before* building (two failure modes found by
+   executing the filter offline — a tuned-gate bias-lock and cross-range bearing
+   poisoning — both fixed pre-flight). The ~56-flight ladder then delivered the
+   project's clearest positive result: **with the noisy markerless seeker,
+   mid-course cue fusion WORKS** — the hand-set polar `FusedTrack` beat
+   fusion-off on **8/8 paired seeds (median −0.356 m, sign-test p≈0.008)**,
+   rescued both chronic failure seeds, flew 16/16 clean, and **survived the
+   WORST-credible cue** (2.5 m datum bias + dropout) at 8/8. The earlier fusion
+   null (ADR-0018) flipped exactly as hypothesized: it had been measured under a
+   clean tag, where the cue had nothing to add. The equally honest negative:
+   **covariance gating did NOT earn its keep** — at the realistic tier it traded
+   consistency for occasional brilliance (the project's tightest-ever 0.151 m
+   and 0.229 m intercepts, alongside a fatter bad tail), and under the
+   WORST-tier biased cue it **regressed** (corrected 5/8, one 7.66 m flyby) —
+   the council's bias-lock prediction, confirmed in flight. Fixed weights with
+   the polar discipline ("the cue never touches the angle") win here.
+   **Honesty boundary held throughout:** zero post-latch cue updates across all
+   32 EKF flights, measured by live counters, not asserted.
 
 ---
 
