@@ -140,6 +140,25 @@ CUE_RANGE_SIGMA_A = 0.0          # a (m), ADR-0017 corrected
 CUE_RANGE_SIGMA_C = 4.45e-05     # c (m / m^2), ADR-0017 corrected (was 0.008, ~180x too steep)
 CUE_DATUM_BUDGET_M = 0.5         # shared-RTK datum/clock offset budget (ADR-0015 row 1)
 CUE_VEL_SIGMA_M_S = 0.5          # emitted-cue velocity sigma (ADR-0015 #1 lever)
+# Fusion capstone design D2 (ADR-0041): the caller converts the cue's world
+# position into a RELATIVE position by subtracting OWN EKF2 position
+# (m4_intercept.py's state.pos_n/pos_e) -- itself an unmeasured error source,
+# never bench-validated against gt in this design pass ("or measure EKF2-vs-
+# gt for one flight first -- ten minutes -- and size it properly" was the
+# design doc's other option; this fixed term is the cheaper one taken now).
+CUE_OWN_POS_INSURANCE_M = 0.15   # 1-sigma, RSS'd into the cue position R
+
+# --- Handoff boundary (design D3, ADR-0041): the one-way latch re-inflation
+# floor and the adaptive gate-recovery floors. Both sized relative to the
+# council's own WORST-tier finding (F1: an untuned worst-credible 2.5 m
+# datum bias made a sensibly-tuned gate reject 81-100% of VALID post-latch
+# camera corrections) -- generously above that 2.5 m so a first post-latch
+# camera correction is never chi-square-rejected purely from carried-over
+# cue-position confidence, even at the worst case the council measured. ---
+LATCH_POS_SIGMA_FLOOR_M = 3.0            # D3.1: unconditional latch re-inflation, position block only
+GATE_RECOVERY_STREAK_N = 3               # D3.2: consecutive post-latch camera rejections that trigger recovery
+GATE_RECOVERY_POS_SIGMA_FLOOR_M = 3.0    # D3.2 position-block floor (same scale as the latch floor)
+GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S = 8.0  # D3.2 velocity-block floor (looser than warm, tighter than cold-init's 12.0 -- still worth keeping some carried state, just not confidently)
 
 # --- Process noise Q (brief section 2.4). Continuous white-noise-acceleration
 # (CWNA) per-axis block  Q_axis = q * [[T^3/3, T^2/2],[T^2/2, T]], q = PSD of
@@ -312,6 +331,29 @@ class EKFTracker:
         self.last_S = None
         self.last_innovation: float = 0.0
         self.n_gated = 0
+        # Camera-channel-only freshness (design D2 mid-course aim gate): set
+        # by _camera_update on every attempted (not just accepted) camera
+        # correction, distinct from _last_correction_t, which correct_cue
+        # also advances -- a caller wanting "did the CAMERA (not the cue)
+        # correct recently" needs this, mirroring FusedTrack.last_camera_t /
+        # camera_fresh() (m4_intercept.py:848,877).
+        self.last_camera_t: Optional[float] = None
+
+        # Handoff boundary (design D3, ADR-0041). _cue_called is TRUE the
+        # instant correct_cue is first invoked PRE-latch (belt: latch() reads
+        # it to decide whether P needs re-inflation) -- it is a "was the cue
+        # ever used" flag, not a per-call counter. cue_updates_post_handoff
+        # is the reverse: a call COUNT of illegal post-latch attempts, which
+        # the m4_intercept.py wiring proves stays 0 (the cue_reader=None
+        # belt already makes such a call structurally unreachable in normal
+        # flight; this counter is the suspenders for a synthetic/injected
+        # leak test).
+        self._latched = False
+        self._cue_called = False
+        self.cue_updates_post_handoff = 0
+        self.camera_gated_post_handoff = 0
+        self._post_latch_gate_streak = 0
+        self.p_diag_at_latch: Optional[tuple] = None
 
         self.lambda_filter = _ChannelView(self, "lambda")
         self.range_filter = _ChannelView(self, "range")
@@ -403,6 +445,12 @@ class EKFTracker:
         if self._pending_bearing is not None and abs(self._pending_bearing[0] - t) < 1e-9:
             lam = self._pending_bearing[1]
         self._pending_bearing = None
+        # design D2 mid-course aim gate: mark "a camera update was attempted
+        # this tick" unconditionally (matches FusedTrack.camera_fresh()'s
+        # ungated semantics -- FusedTrack has no gate to consider at all, so
+        # this is the closest analogous meaning for the EKF: "fresh" =
+        # processed, not "fresh" = accepted).
+        self.last_camera_t = t
 
         if self.x is None:
             # Cold init (brief section 2.5): position from the first
@@ -448,13 +496,37 @@ class EKFTracker:
 
     # ---------------------------------------------------------------
     # Cue update (interface-complete for the gated fusion arm, brief
-    # section 3.3). Takes the cue as a RELATIVE position (caller subtracts
-    # own NED, mirroring m4_intercept's existing cue path) plus an optional
-    # RELATIVE velocity. R inflated by the datum-bias budget (bias-dominated
-    # cue error, brief section 2.3). PRE-latch only in the real pipeline.
+    # section 3.3; POLAR-SPLIT per design D2 / ADR-0041 F2). Takes the cue
+    # as a RELATIVE position (caller subtracts own NED, mirroring
+    # m4_intercept's existing cue path) plus an optional RELATIVE velocity.
+    # PRE-latch only -- see latch() below; a post-latch call is structurally
+    # illegal and raises.
     # ---------------------------------------------------------------
     def correct_cue(self, rel_pos_ned, rel_vel_ned, t: float) -> None:
+        if self._latched:
+            # Belt-and-suspenders (design D3): m4_intercept.py nulls
+            # cue_reader at the exact HANDOFF instant this latch() call is
+            # made, so this call site is structurally unreachable in normal
+            # flight (the belt). This raise + counter is the suspenders --
+            # tests/test_ekf_tracker.py and the injected-leak honesty-static
+            # variant both exercise it directly.
+            self.cue_updates_post_handoff += 1
+            raise RuntimeError(
+                "EKFTracker.correct_cue() called after latch() -- the cue "
+                "channel is structurally closed post-handoff (design D3, "
+                "ADR-0041); m4_intercept.py must never reach this call site "
+                "once cue_reader is nulled."
+            )
+        self._cue_called = True
+
         if self.x is None:
+            # Cold init straight from the cue (interface-complete for a
+            # cue-only cold start): no lambda_hat exists yet to polar-split
+            # against. In the real m4_intercept.py wiring this branch is
+            # never reached -- correct_cue is only called AFTER the EKF is
+            # camera-initialized (mirrors FusedTrack.update_cue's own
+            # initialized-gate: "a biased cue must never define the
+            # CAMERA-anchored track's initial state").
             dn, de = float(rel_pos_ned[0]), float(rel_pos_ned[1])
             vn = 0.0 if rel_vel_ned is None else float(rel_vel_ned[0])
             ve = 0.0 if rel_vel_ned is None else float(rel_vel_ned[1])
@@ -463,22 +535,54 @@ class EKFTracker:
             self.P = np.diag([INIT_POS_SIGMA_M ** 2, INIT_POS_SIGMA_M ** 2, pv ** 2, pv ** 2])
             self._last_correction_t = t
             return
-        R = self.r_hat
-        sigma_stat = CUE_RANGE_SIGMA_A + CUE_RANGE_SIGMA_C * R * R
-        sigma_pos = math.sqrt(sigma_stat * sigma_stat + CUE_DATUM_BUDGET_M ** 2)
-        if rel_vel_ned is None:
-            H = np.array([[1.0, 0.0, 0.0, 0.0],
-                          [0.0, 1.0, 0.0, 0.0]])
-            Rmat = np.diag([sigma_pos ** 2, sigma_pos ** 2])
-            y = np.array([rel_pos_ned[0] - self.x[0], rel_pos_ned[1] - self.x[1]])
-            self._apply_update(H, Rmat, y, t, dof=2)
-        else:
-            H = np.eye(4)
-            Rmat = np.diag([sigma_pos ** 2, sigma_pos ** 2,
-                            CUE_VEL_SIGMA_M_S ** 2, CUE_VEL_SIGMA_M_S ** 2])
-            z = np.array([rel_pos_ned[0], rel_pos_ned[1], rel_vel_ned[0], rel_vel_ned[1]])
-            y = z - self.x
-            self._apply_update(H, Rmat, y, t, dof=4)
+
+        # --- Polar split (F2 fix, design D2): decompose the position
+        # innovation into along-LOS (range) and cross-LOS components using
+        # the CURRENT lambda_hat, then feed ONLY the along-LOS scalar into
+        # the filter -- the cross-LOS component is DROPPED OUTRIGHT (not
+        # merely inflated). Chosen over a large-but-finite R inflation
+        # because (a) it exactly matches FusedTrack's stated discipline
+        # ("the cue NEVER touches the angle") with no residual leak at any
+        # finite inflation factor, and (b) a pure cross-LOS cue offset is
+        # then EXACTLY orthogonal to the measurement direction u (u . offset
+        # = 0 when offset = k*p, since u perp p by construction) -- so the
+        # innovation itself is zero rather than merely down-weighted:
+        # provably inert on lambda_hat, not just "small" (see
+        # test_cue_polar_split_cross_range_never_touches_bearing). Reuses
+        # the existing dof=1 gate threshold (GATE_CHI2_DOF1_P99), the same
+        # one _scalar_range_update already uses for a range-only camera
+        # correction.
+        R_hat = self.r_hat
+        lam = self.lambda_hat
+        u = (math.cos(lam), math.sin(lam))     # along-LOS unit vector
+        y_pos_n = rel_pos_ned[0] - self.x[0]
+        y_pos_e = rel_pos_ned[1] - self.x[1]
+        y_along = y_pos_n * u[0] + y_pos_e * u[1]
+
+        sigma_stat = CUE_RANGE_SIGMA_A + CUE_RANGE_SIGMA_C * R_hat * R_hat
+        # +CUE_OWN_POS_INSURANCE_M (design D2): the world->NED->relative
+        # conversion at the call site subtracts OWN EKF2 position, which is
+        # itself imperfect and unmeasured here -- RSS in a fixed budget so
+        # the cue R does not understate the true position uncertainty.
+        sigma_pos = math.sqrt(
+            sigma_stat * sigma_stat + CUE_DATUM_BUDGET_M ** 2 + CUE_OWN_POS_INSURANCE_M ** 2
+        )
+        H_along = np.array([[u[0], u[1], 0.0, 0.0]])
+        Rmat_along = np.array([[sigma_pos ** 2]])
+        self._apply_update(H_along, Rmat_along, np.array([y_along]), t, dof=1)
+
+        # Velocity (design D2: "the cue contributes range/velocity only" --
+        # the angle restriction is POSITION-specific; the cue's emitted
+        # velocity is a trusted lever (ADR-0015 #1) and updates dvn/dve
+        # directly, a separate sequential-measurement update from the
+        # along-LOS position update above -- same pattern the joint camera
+        # update already documents as "identical to the batch update").
+        if rel_vel_ned is not None:
+            H_vel = np.array([[0.0, 0.0, 1.0, 0.0],
+                              [0.0, 0.0, 0.0, 1.0]])
+            Rmat_vel = np.diag([CUE_VEL_SIGMA_M_S ** 2, CUE_VEL_SIGMA_M_S ** 2])
+            y_vel = np.array([rel_vel_ned[0] - self.x[2], rel_vel_ned[1] - self.x[3]])
+            self._apply_update(H_vel, Rmat_vel, y_vel, t, dof=2)
 
     # ---------------------------------------------------------------
     # Shared update core: gain, gate, Joseph-form covariance, diagnostics.
@@ -502,7 +606,26 @@ class EKFTracker:
                 thresh = 13.277  # chi2.ppf(0.99, 4)
             if nis > thresh:
                 self.n_gated += 1
+                if self._latched:
+                    # F1 escape hatch (design D3.2, ADR-0041): post-latch,
+                    # this can only be a camera-channel rejection --
+                    # correct_cue raises before ever reaching _apply_update
+                    # once latched, so every post-latch caller here is the
+                    # bearing/range channel. Track CONSECUTIVE rejections;
+                    # N=3 running is the signature of a bias-locked filter
+                    # (an unbiased camera measurement should not keep
+                    # failing the gate on clean Gaussian data -- the
+                    # pre-registered gating null) and triggers recovery.
+                    self.camera_gated_post_handoff += 1
+                    self._post_latch_gate_streak += 1
+                    if self._post_latch_gate_streak >= GATE_RECOVERY_STREAK_N:
+                        self._gate_recovery_reinflate()
+                        self._post_latch_gate_streak = 0
                 return
+        if self._latched:
+            # An ACCEPTED post-latch camera correction breaks any streak of
+            # rejections -- the recovery trigger is CONSECUTIVE, not total.
+            self._post_latch_gate_streak = 0
 
         K = self.P @ H.T @ Sinv
         self.x = self.x + K @ y
@@ -514,6 +637,55 @@ class EKFTracker:
         self.P = 0.5 * (self.P + self.P.T)
         self._last_correction_t = t
         self.n_corrections += 1
+
+    def _gate_recovery_reinflate(self) -> None:
+        """F1 fix (design D3.2, ADR-0041): N consecutive post-latch camera
+        rejections is the signature of a bias-locked filter (a correctly-
+        modeled, unbiased camera measurement should not fail the gate N
+        times running on clean Gaussian data -- the pre-registered gating
+        null from brief section 2.6). Widen P's position AND velocity
+        blocks (track-loss-recovery pattern) so the next camera correction
+        is accepted and can pull the state back toward truth, rather than
+        the filter's own tight-but-wrong P shielding the error forever."""
+        if self.P is None:
+            return
+        self.P[0, 0] = GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
+        self.P[1, 1] = GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
+        self.P[0, 1] = 0.0
+        self.P[1, 0] = 0.0
+        self.P[2, 2] = GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
+        self.P[3, 3] = GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
+        self.P[2, 3] = 0.0
+        self.P[3, 2] = 0.0
+
+    # ---------------------------------------------------------------
+    # Handoff boundary (design D3, ADR-0041; the "re-initialize, or provably
+    # decay" standard from docs/ekf_design_brief.md). One-way: called
+    # exactly once, at the same instant m4_intercept.py nulls cue_reader.
+    # ---------------------------------------------------------------
+    def latch(self) -> None:
+        """Close the cue channel structurally (correct_cue raises after
+        this). If correct_cue was EVER called pre-latch, the position block
+        of P may carry cue-shaped confidence that would otherwise survive
+        the boundary UNBOUNDED (F3: "the natural config ... leaves P
+        completely unbounded at latch") -- unconditionally re-inflate it to
+        LATCH_POS_SIGMA_FLOOR_M so the first post-latch camera corrections
+        are accepted even if the state itself is still cue-biased (the F1
+        confident-bias-lock escape hatch). Left UNTOUCHED (state AND P) when
+        the cue was never used pre-latch -- a camera-only warm handoff needs
+        no re-inflation; its P already reflects camera-only confidence, and
+        forcing it wider would only make the terminal re-earn confidence it
+        legitimately already has. p_diag_at_latch records P's diagonal
+        AFTER this decision either way, for post-flight audit. Idempotent:
+        a second call just re-latches and re-records the diagnostic."""
+        if self._cue_called and self.P is not None:
+            self.P[0, 0] = LATCH_POS_SIGMA_FLOOR_M ** 2
+            self.P[1, 1] = LATCH_POS_SIGMA_FLOOR_M ** 2
+            self.P[0, 1] = 0.0
+            self.P[1, 0] = 0.0
+        self._latched = True
+        if self.P is not None:
+            self.p_diag_at_latch = tuple(float(v) for v in np.diag(self.P))
 
     # ---------------------------------------------------------------
     # Warm-start (brief section 2.5). Seed x_hat AND P from a polar handoff

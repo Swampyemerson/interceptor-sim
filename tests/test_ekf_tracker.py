@@ -27,6 +27,16 @@ Three checks, mapping to the task's requirements:
       AlphaBetaFilter drop-in contract, and the alpha-beta construction lines
       + gains in m4_intercept.py are unchanged from HEAD.
 
+  (d) fusion capstone P1/P2 (design D2/D3, ADR-0041) --
+      test_cue_polar_split_cross_range_never_touches_bearing (F2 fix: a pure
+      cross-LOS cue offset must not move lambda_hat; a pure along-LOS offset
+      DOES move range); test_latch_reinflates_position_block_only_if_cue_used
+      (D3.1: unconditional latch re-inflation, gated on whether the cue was
+      ever used pre-latch); test_correct_cue_after_latch_raises_and_counts
+      (the post-latch structural-illegality belt-and-suspenders); and
+      test_gate_recovery_after_n_consecutive_post_latch_rejections (D3.2, the
+      F1 confident-bias-lock escape hatch).
+
 Run:  .venv/bin/python -m pytest tests/test_ekf_tracker.py -v
 """
 
@@ -41,7 +51,7 @@ SCRIPTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, SCRIPTS)
 
 import ekf_tracker as ekf_mod  # noqa: E402
-from ekf_tracker import EKFTracker, chi2_ppf, norm_ppf  # noqa: E402
+from ekf_tracker import EKFTracker, chi2_ppf, norm_ppf, wrap_pi  # noqa: E402
 
 
 # =====================================================================
@@ -363,6 +373,190 @@ def test_quantile_helpers_sane():
     # Large dof (as used by the NIS/NEES bands): near-exact.
     assert abs(chi2_ppf(0.975, 1000) - 1089.531) < 2.0
     assert abs(chi2_ppf(0.025, 1000) - 914.257) < 2.0
+
+
+# =====================================================================
+# (d) Fusion capstone P1/P2 (design D2/D3, ADR-0041)
+# =====================================================================
+def _camera_init(f, lam_deg=20.0, r=20.0, t=0.0):
+    """Bring a fresh EKFTracker to its post-cold-init state with one joint
+    camera correction (lambda, R) -- the state every correct_cue call in the
+    real pipeline assumes (correct_cue is only ever reached after the
+    camera has anchored the track)."""
+    f.lambda_filter.predict(0.05)
+    f.range_filter.predict(0.05)
+    f.lambda_filter.correct(math.radians(lam_deg), t)
+    f.range_filter.correct(r, t)
+    return f
+
+
+def test_cue_polar_split_cross_range_never_touches_bearing():
+    """F2 fix (design D2): a PURE cross-LOS cue offset (perpendicular to the
+    current lambda_hat) must not move lambda_hat by more than a degree-scale
+    epsilon -- the door FusedTrack's polar split was built to close (ADR-0018:
+    "the cue NEVER touches the angle"), now closed for correct_cue too. The
+    same-magnitude offset applied ALONG the LOS instead DOES move range
+    measurably -- the polar split discards only the cross component, not the
+    whole cue channel."""
+    f = _camera_init(EKFTracker())
+    lam_before, r_before = f.lambda_hat, f.r_hat
+    p_perp = (-math.sin(lam_before), math.cos(lam_before))  # unit cross-LOS
+    cross_offset = 5.0
+    cue_pos = (f.x[0] + cross_offset * p_perp[0], f.x[1] + cross_offset * p_perp[1])
+    f.correct_cue(cue_pos, None, 0.1)
+
+    lam_shift_deg = math.degrees(wrap_pi(f.lambda_hat - lam_before))
+    r_shift = f.r_hat - r_before
+    assert abs(lam_shift_deg) < 0.5, (
+        f"pure cross-range cue offset moved lambda_hat by {lam_shift_deg:.4f} deg "
+        "-- the cue is touching the angle again"
+    )
+    assert abs(r_shift) < 0.2, (
+        f"pure cross-range cue offset unexpectedly moved range by {r_shift:.4f} m"
+    )
+
+    # Same magnitude, but ALONG the LOS: must move range.
+    f2 = _camera_init(EKFTracker())
+    lam2_before, r2_before = f2.lambda_hat, f2.r_hat
+    u = (math.cos(lam2_before), math.sin(lam2_before))      # unit along-LOS
+    along_offset = 1.5   # inside the gate (a 5 m along offset gets legitimately gated, see below)
+    cue_pos2 = (f2.x[0] + along_offset * u[0], f2.x[1] + along_offset * u[1])
+    f2.correct_cue(cue_pos2, None, 0.1)
+    r2_shift = f2.r_hat - r2_before
+    assert r2_shift > 0.5, (
+        f"along-LOS cue offset only moved range by {r2_shift:.4f} m -- "
+        "expected a measurable correction toward the cue"
+    )
+    assert f2.n_gated == 0, "a moderate along-LOS offset should not trip the chi-square gate"
+
+
+def test_cue_gross_along_los_offset_is_gated_not_silently_eaten():
+    """Sanity companion to the split test above: the along-LOS channel still
+    goes through the SAME chi-square gate as everything else (dof=1,
+    GATE_CHI2_DOF1_P99) -- a gross along-LOS outlier is rejected, not
+    silently absorbed, exactly like _scalar_range_update's existing gate."""
+    f = _camera_init(EKFTracker())
+    r_before = f.r_hat
+    u = (math.cos(f.lambda_hat), math.sin(f.lambda_hat))
+    gross_offset = 5.0
+    cue_pos = (f.x[0] + gross_offset * u[0], f.x[1] + gross_offset * u[1])
+    f.correct_cue(cue_pos, None, 0.1)
+    assert f.n_gated == 1, "gross along-LOS cue offset should be gated"
+    assert abs(f.r_hat - r_before) < 1e-9, "a gated update must not move the state"
+
+
+def test_correct_cue_before_camera_init_uses_raw_cartesian_cold_start():
+    """Interface-completeness edge case: correct_cue on a COLD (x is None)
+    tracker still works (cue-only cold start), using the raw rel_pos_ned --
+    there is no lambda_hat yet to polar-split against. The real
+    m4_intercept.py wiring never reaches this branch (it only calls
+    correct_cue once the EKF is camera-initialized), but the interface must
+    not crash if it's ever driven this way directly."""
+    f = EKFTracker()
+    f.correct_cue((18.0, 4.0), (1.0, -0.5), 0.0)
+    assert f.initialized
+    assert abs(f.x[0] - 18.0) < 1e-9 and abs(f.x[1] - 4.0) < 1e-9
+    assert abs(f.x[2] - 1.0) < 1e-9 and abs(f.x[3] - (-0.5)) < 1e-9
+
+
+def test_latch_reinflates_position_block_only_if_cue_used():
+    """D3.1: unconditional latch re-inflation of P's position block to
+    LATCH_POS_SIGMA_FLOOR_M -- but ONLY when correct_cue was ever called
+    pre-latch. A camera-only track's P is left completely untouched (it
+    already reflects legitimate camera-only confidence; forcing it wider
+    would make the terminal re-earn confidence it already has)."""
+    # Cue was used pre-latch.
+    f1 = _camera_init(EKFTracker())
+    f1.correct_cue((f1.x[0] - 1.0, f1.x[1] + 0.5), (0.5, 0.0), 0.1)
+    assert f1._cue_called
+    f1.latch()
+    floor2 = ekf_mod.LATCH_POS_SIGMA_FLOOR_M ** 2
+    assert abs(f1.P[0, 0] - floor2) < 1e-9
+    assert abs(f1.P[1, 1] - floor2) < 1e-9
+    assert abs(f1.P[0, 1]) < 1e-9 and abs(f1.P[1, 0]) < 1e-9
+    assert f1.p_diag_at_latch is not None
+    assert abs(f1.p_diag_at_latch[0] - floor2) < 1e-9
+
+    # Cue never used pre-latch -- P must be byte-identical before/after.
+    f2 = _camera_init(EKFTracker())
+    p_before = f2.P.copy()
+    assert not f2._cue_called
+    f2.latch()
+    assert np.array_equal(f2.P, p_before), (
+        "P must be completely untouched by latch() when the cue was never "
+        "called pre-latch"
+    )
+    assert f2.p_diag_at_latch == tuple(float(v) for v in np.diag(p_before))
+
+
+def test_correct_cue_after_latch_raises_and_counts():
+    """D3.1 belt-and-suspenders: correct_cue is structurally illegal after
+    latch() -- it must raise AND increment cue_updates_post_handoff (the
+    counter the S2_RESULT line reports, which must read 0 on every real
+    flight since m4_intercept.py nulls cue_reader at the same instant)."""
+    f = _camera_init(EKFTracker())
+    f.latch()
+    assert f.cue_updates_post_handoff == 0
+    with pytest.raises(RuntimeError):
+        f.correct_cue((f.x[0] + 1.0, f.x[1]), None, 0.2)
+    assert f.cue_updates_post_handoff == 1
+    with pytest.raises(RuntimeError):
+        f.correct_cue((f.x[0] + 1.0, f.x[1]), (0.1, 0.1), 0.3)
+    assert f.cue_updates_post_handoff == 2
+
+
+def test_gate_recovery_after_n_consecutive_post_latch_rejections():
+    """D3.2 (F1 fix): after GATE_RECOVERY_STREAK_N consecutive post-latch
+    camera rejections, P's position+velocity blocks are re-inflated to the
+    declared floors and the streak resets -- so the NEXT (4th, normal)
+    camera correction is accepted, escaping the confident-bias-lock F1
+    demonstrated at the project's own constants."""
+    dt = 0.05
+    rng = np.random.default_rng(11)
+    f = EKFTracker(q_accel_psd=1.0)
+    x = np.array([20.0, 3.0, -1.5, 0.3], dtype=float)
+    for k in range(40):
+        x[0] += x[2] * dt
+        x[1] += x[3] * dt
+        R = math.hypot(x[0], x[1])
+        lam = math.atan2(x[1], x[0])
+        f.lambda_filter.predict(dt)
+        f.range_filter.predict(dt)
+        f.lambda_filter.correct(lam + math.radians(0.5) * rng.standard_normal(), k * dt)
+        f.range_filter.correct(R + 0.10 * R * rng.standard_normal(), k * dt)
+
+    f.latch()
+    assert f.camera_gated_post_handoff == 0
+
+    t = 100.0
+    for i in range(ekf_mod.GATE_RECOVERY_STREAK_N):
+        t += dt
+        f.lambda_filter.predict(dt)
+        f.range_filter.predict(dt)
+        # Gross outlier: 60 deg bearing error + 50 m range error -- reliably
+        # gated (nis far above GATE_CHI2_DOF2_P99=9.21) on a converged track.
+        f.lambda_filter.correct(math.atan2(x[1], x[0]) + math.radians(60), t)
+        f.range_filter.correct(math.hypot(x[0], x[1]) + 50.0, t)
+
+    assert f.camera_gated_post_handoff == ekf_mod.GATE_RECOVERY_STREAK_N
+    assert f._post_latch_gate_streak == 0, "streak must reset once recovery fires"
+    pos_floor2 = ekf_mod.GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
+    vel_floor2 = ekf_mod.GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
+    assert abs(f.P[0, 0] - pos_floor2) < 1e-9
+    assert abs(f.P[1, 1] - pos_floor2) < 1e-9
+    assert abs(f.P[2, 2] - vel_floor2) < 1e-9
+    assert abs(f.P[3, 3] - vel_floor2) < 1e-9
+
+    # 4th innovation: a NORMAL (small) camera correction -- must be accepted.
+    n_corr_before = f.n_corrections
+    gated_before = f.camera_gated_post_handoff
+    t += dt
+    f.lambda_filter.predict(dt)
+    f.range_filter.predict(dt)
+    f.lambda_filter.correct(math.atan2(x[1], x[0]), t)
+    f.range_filter.correct(math.hypot(x[0], x[1]), t)
+    assert f.n_corrections == n_corr_before + 1, "the 4th (normal) correction must be accepted"
+    assert f.camera_gated_post_handoff == gated_before, "the 4th correction must not be gated"
 
 
 if __name__ == "__main__":
