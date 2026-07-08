@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MARKERLESS FPV target (ADR-0033 post-M5 queue item 2: "kill the AprilTag").
+
+  WHAT THIS IS: a copy of models/fpv_target's enemy-quad BODY with the
+  AprilTag plane DELETED ON PURPOSE. models/fpv_target dresses the M2 tag in a
+  primitive FPV airframe so the demo reads as "interceptor catches a drone";
+  this model keeps ONLY that airframe and carries NO fiducial at all. It is the
+  target the future markerless seeker (ADR-0033 item 2: classical CV + a
+  lightweight pre-built NN feeding the SAME bearing interface) must detect by
+  its body / shape / motion -- there is deliberately no tag to lock onto. That
+  removal attacks the project's disclosed #1 risk: today the AprilTag is an
+  honest stand-in for "a reliable target lock exists," and this model is the
+  infrastructure that lets us test intercept WITHOUT that stand-in.
+
+  FLIES IDENTICALLY TO fpv_target: like models/fpv_target (and
+  models/apriltag_target), this model is <static>true</static> with NO
+  collision and NO inertial geometry -- it is purely visual and is driven
+  kinematically by scripts/m4_target_mover.py (mover/guidance code is OUT OF
+  SCOPE here and UNCHANGED). Every body part below -- fuselage box, 4 arms, 4
+  prop discs, 4 motor hubs, camera/antenna nub -- is copied BYTE-IDENTICAL in
+  pose, geometry, and material from models/fpv_target/model.sdf. The ONLY
+  difference from fpv_target is that its <visual name='tag_visual'> plane
+  (the 0.625 m emissive AprilTag) is not present. Because that tag plane is
+  gone, the body parts that fpv_target intentionally hid BEHIND the tag (see
+  that model's "OCCLUSION SAFETY" header) are now fully visible from the
+  approach view -- which is exactly the point: a tag-less quad silhouette.
+
+  VALIDATION STATUS: static-checked with `gz sdf --check` only. A live-spawn /
+  render / detection check is DEFERRED to post-M5 (item 2) because a Monte-Carlo
+  sim batch is running on this machine right now -- do NOT boot a sim to test
+  this model. It is not yet referenced by any world; wiring it into a world and
+  validating markerless detection is future work.
+-->
+<sdf version='1.9'>
+  <model name='fpv_target_markerless'>
+    <static>true</static>
+    <link name='base'>
+
+      <!-- ================= NO TAG (ADR-0033 item 2) =================
+           The <visual name='tag_visual'> AprilTag plane that fpv_target
+           carries here is intentionally absent. The markerless seeker must
+           work without a fiducial. -->
+
+      <!-- ================= ENEMY QUAD BODY (copied from fpv_target) =========
+           Local frame recap: -X = front/outward (the approach-facing side,
+           toward the interceptor), +X = aft. Y = left/right, Z = up/down.
+           Dark carbon (near-black) airframe with a few red "enemy" accents.
+           Poses/geometry/materials are byte-identical to fpv_target; only the
+           tag plane (and its texture/material) has been removed. -->
+
+      <!-- Central fuselage. yaw=-90deg swaps the box's long 0.20 m axis onto
+           local Y so it reads as pointing along the target's +Y travel
+           direction (carried over from fpv_target's BODY RE-ORIENT). -->
+      <visual name='body_visual'>
+        <pose>0.14 0 0 0 0 -1.570796</pose>
+        <geometry>
+          <box>
+            <size>0.20 0.16 0.10</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+
+      <!-- 4 arms, X-quad layout: cylinders rolled about local X (roll only,
+           so every point stays at local X = 0.14 +/- radius). roll =
+           45/135/225/315 deg picks the 4 diagonal quadrants; radial midpoint
+           0.29 m, length 0.42 m -> tips reach radial 0.50 m. -->
+      <visual name='arm_ne_visual'>
+        <pose>0.14 -0.205061 0.205061 0.785398 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='arm_se_visual'>
+        <pose>0.14 -0.205061 -0.205061 2.356194 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='arm_sw_visual'>
+        <pose>0.14 0.205061 -0.205061 3.926991 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='arm_nw_visual'>
+        <pose>0.14 0.205061 0.205061 5.497787 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.013</radius>
+            <length>0.42</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+
+      <!-- 4 prop discs: thin cylinders pitched +90 deg about local Y (flat
+           disc facing the camera). Radius 95 mm, thickness 6 mm, centered at
+           the radial-0.50 m diagonal points, depth X=0.17. Semi-transparent
+           to read as a spinning blur. -->
+      <visual name='prop_ne_visual'>
+        <pose>0.17 -0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name='prop_se_visual'>
+        <pose>0.17 -0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name='prop_sw_visual'>
+        <pose>0.17 0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <visual name='prop_nw_visual'>
+        <pose>0.17 0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.095</radius>
+            <length>0.006</length>
+          </cylinder>
+        </geometry>
+        <transparency>0.5</transparency>
+        <material>
+          <ambient>0.15 0.15 0.16 1</ambient>
+          <diffuse>0.18 0.18 0.19 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+
+      <!-- 4 motor hubs at the diagonal positions (depth X=0.155). Diagonal
+           pair NE/SW painted red as an "enemy" ID accent; SE/NW stay dark
+           carbon. -->
+      <visual name='hub_ne_visual'>
+        <pose>0.155 -0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.25 0.02 0.02 1</ambient>
+          <diffuse>0.65 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name='hub_se_visual'>
+        <pose>0.155 -0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+      <visual name='hub_sw_visual'>
+        <pose>0.155 0.353553 -0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.25 0.02 0.02 1</ambient>
+          <diffuse>0.65 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name='hub_nw_visual'>
+        <pose>0.155 0.353553 0.353553 0 1.570796 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.022</radius>
+            <length>0.03</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0.03 0.03 0.035 1</ambient>
+          <diffuse>0.05 0.05 0.06 1</diffuse>
+          <specular>0.25 0.25 0.28 1</specular>
+        </material>
+      </visual>
+
+      <!-- Small camera/antenna nub, red, offset toward the +Y travel
+           direction. Reads as an FPV cam pod / antenna. -->
+      <visual name='cam_nub_visual'>
+        <pose>0 0.03 0.36 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.04 0.04 0.05</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0.25 0.02 0.02 1</ambient>
+          <diffuse>0.65 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>

@@ -248,8 +248,90 @@ return stale data (illegal-state-unrepresentable). The mock keeps logging as
 available-but-unread evidence. This is what lets me claim "even if the link is jammed
 mid-flight, the interceptor finishes on its own" and back it with a static test, not a
 promise. *(ADR-0010 #5)*
+
+---
+
+### 16. Your seeker uses an AprilTag — a printed marker. Isn't that cheating? A real drone has no marker.
+Yes, and I say so before you have to ask — it's the project's **#1 disclosed risk**, not a
+thing I hope you don't notice. GOALS.md makes exactly *one* honest simplification: the
+AprilTag stands in for "a reliable target lock exists," so the sim can isolate and prove
+the **guidance/control** core, which is agnostic to how the bearing was produced. What the
+tag hides is the genuinely hard part — finding and holding a lock on a small, fast,
+non-cooperative drone against sky clutter with no fiducial. The next build-queue item
+(ADR-0033 item 2) **deletes the tag**: a markerless seeker that detects the target drone's
+own body and feeds the *same* `Measurement` bearing/range interface the guidance already
+consumes — one dataclass, one thread, the perception→control seam was built for this swap.
+Plan is classical detect-then-track first (ego-motion-compensated frame differencing → blob
+→ correlation tracker → the existing α-β filter), then a lightweight pre-built neural
+detector (NanoDet-Plus or an MIT drone fine-tune — I avoid AGPL YOLO for a public repo) as
+the classifier stage. The guidance math doesn't change, because pro-nav only ever needs an
+**angle rate**; what changes is the camera degrades from sub-degree/~5% (tag) to
+~1–2°/15–30% (a real box), and range comes from known-size pixel scaling instead of a pose
+solve. And per my own ZEM analysis (Q9), that's the *tolerable* degradation — bearing
+quality dominates, range only throttles closing speed. So the honest headline is: the
+guidance is real and ports as-is; the perception is faked *on purpose* and un-faking it is
+the disclosed next step. *(GOALS.md, ADR-0015, ADR-0033)*
+
+### 17. Did you use a Kalman filter?
+Right now, effectively yes — just the frozen special case of one. The target track runs a
+pair of **alpha-beta (g-h) filters**, and alpha-beta *is* the steady-state Kalman filter for
+a constant-velocity target evaluated at a fixed sample rate and fixed noise, with the gain
+frozen at its converged value and the covariance bookkeeping thrown away (you can derive it
+straight from the Kalata tracking index). So I already ship the Kalman gain — it's just
+hard-coded as α=0.5, β=0.30 on the LOS channel. The planned upgrade (ADR-0033 item 3) is a
+proper **EKF** — EKF, not plain KF, because the camera measures *polar* (bearing, range) of a
+naturally *Cartesian* target state, and fusing the Cartesian ground cue makes it nonlinear
+either way. Here's the part I'd want to say out loud: I **pre-register a null on
+end-to-end miss.** The miss is kinematic (Q9), ~96% locked at handoff, so a better estimator
+can only touch the ~20–25% mechanization slice — and most of *that* is control logic, not
+estimation. Where the EKF *should* genuinely help is the covariance-derived gain surviving
+our bimodal cadence (~14 Hz bursts and multi-second dropout gaps) — the exact thing that
+made a naive adaptive-gain attempt (Kalata) win in the lab and then *diverge* in every Gazebo
+flight (ADR-0013). So my honest expected result is "track RMSE and LOS-rate error improve,
+end-to-end miss stays tied" — and I'd A/B it under the project's own discipline (paired
+seeds, n≥8, report "not significant at this n"). Knowing when the fancy tool is *not* the
+bottleneck is the point. *(ADR-0013, ADR-0023, ADR-0033; `docs/ekf_design_brief.md`)*
+
+### 18. You have a ground sensor and an onboard camera — how would you fuse them?
+With a covariance-gated mid-course EKF (ADR-0034), and I'd be careful about *where* fusion is
+allowed to act. The intuition — "fuse when the ground cue helps, fall back to the camera when
+it looks worse" — is *exactly* what a correctly-specified EKF does natively: it weights each
+source by its live covariance (a far-range, datum-biased, or stale cue gets demoted
+continuously), and its **innovation gate** *rejects* a cue measurement outright when it
+disagrees with the prediction beyond a chi-square threshold — a literal "this ground reading
+looks wrong, ignore it" switch that falls out of the estimator, not a hand-tuned `if`. The
+interesting history: I already tested fusion once and it came out **default-OFF** (ADR-0018) —
+but under two conditions rigged against it, a clean AprilTag (so the cue could only dilute an
+already-excellent camera) and a fixed-gain tracker (which can't weight by instantaneous
+quality). The markerless seeker makes the camera genuinely noisier and the EKF adds live
+covariance weighting, so flipping both is the honest reason to re-open that "settled" null.
+Two hard boundaries: (a) the payoff is **mid-course robustness — earlier lock, fewer
+dash-aborts — not the terminal miss**, which the kinematic ceiling still caps; and (b) my
+whole story is *comms-denied terminal*, so fusion stays **mid-course only** and the terminal
+degrades to camera-only. That forces a sharper honesty audit than alpha-beta needed: not just
+"no cue *reads* after handoff" but "**no cue-tainted filter *state* survives handoff**" — I
+have to re-initialize or provably decay the cue's contribution to the state and covariance at
+the latch, or the jam-resistance claim quietly breaks. *(ADR-0018, ADR-0034, ADR-0023)*
+
+### 19. Does any of this survive real hardware? How would you find out cheaply?
+I'd find out for ~$230 before spending a dollar on an airframe — that's the whole design of
+the **Stage-0 bench** (ADR-0012/0033 item 1). A Raspberry Pi 5 + a global-shutter mono camera
+runs the *exact* detection code against a *printed* AprilTag and produces a measured
+**sim-vs-bench gap table**: static detection rate and range/bearing error vs. a tape-measured
+reference, sustained detection Hz, the yaw-rate/motion-blur threshold where detection falls
+off, and lighting robustness. It deliberately measures the three sim knobs I currently
+*assume* — terminal range σ, bearing σ, and the high-LOS-rate dropout the sim doesn't model
+at all — plus the single biggest unmeasured number in the whole project: the Pi-5 detection
+rate for this detector, which every filter gain and terminal-timing constant was tuned
+against assuming ~14 Hz desktop cadence. It's structured as an honest go/no-go: if sustained
+Hz drops below ~8 or detection dies below ~30°/s of yaw, the camera-only terminal window
+collapses on real hardware exactly as the council feared — and that's a *successful* ~$230
+result, because it redirects effort to the Hailo/ML seeker path *before* the ~$260–530
+airframe spend. The bench is perception-only — no flight, no PX4 — precisely because
+perception is the risk; the guidance already reproduces from logs. *(ADR-0012, ADR-0015,
+ADR-0033; `docs/stage0_bench_plan.md`)*
 ```
 
 ---
 
-Both documents above are complete and self-contained. Source files consulted: `/home/emerson/interceptor-sim/README.md` and `/home/emerson/interceptor-sim/docs/decisions.md` (ADR-0008 through ADR-0030), plus `GOALS.md` for the coordinate-frame conventions. Key numeric corrections I applied vs. the task brief: the terminal window is **~0.4 s** (not 0.25 s); the load-bearing kinematic proof is the **capacity bound (0.72 m vs 1.69 m ZEM)** and **r²=0.96 at handoff** (the 0.99 figure is at freeze and is near-tautological — I did not lead with it); the running-start honesty correction and dash-track fix numbers (idealized 1.90/2.30 m → realistic-degraded 2.93/3.08 m → fixed 1.19/1.48 m) are quoted from ADR-0028/0030.
+Both documents above are complete and self-contained. Every number traces to a milestone gate script, a timestamped CSV in `logs/`, or an ADR in `docs/decisions.md` (ADR-0008 through ADR-0034), with `GOALS.md` for the coordinate-frame conventions and the forward-work briefs `docs/{seeker_design_brief,ekf_design_brief,stage0_bench_plan}.md` for Q16–Q19. Numeric conventions held throughout: the terminal window is **~0.4 s**; the load-bearing kinematic proof is the **capacity bound (0.72 m vs 1.69 m ZEM)** and **r²≈0.96 at handoff** (the 0.99 freeze figure is near-tautological and not led with); the running-start honesty correction and dash-track fix (idealized 1.90/2.30 m → realistic-degraded 2.93/3.08 m → fixed 1.19/1.48 m) are from ADR-0028/0030. The M5 final-batch numbers (running-start + ADR-0017-corrected cue + maneuvering/oblique arms) are **pending** and are deliberately not quoted; the published ADR-0029 regime map is the current headline.

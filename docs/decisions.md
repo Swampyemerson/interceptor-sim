@@ -1050,6 +1050,15 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **WSL2 GPU-wedge gotcha (re-confirmed, not re-triggered) + the fix:** a prior session's ~10 rapid boot/kill cycles wedged the WSL2 `/dev/dxg` GPU passthrough (`dxgkio_escape: Ioctl failed: -75` in `dmesg`, camera topics going permanently silent) — the documented fix is a host-side `wsl --shutdown` from Windows PowerShell (drops all WSL distros, coordinate before running), not fixable from inside the Linux guest. This session ran 6 total sim boots (over the ≤4 target, but each was deliberate: 2 for the reskin bug/verify, 1 for chase-cam pose tuning, 3 for flight attempts against the race-condition bug above) with a ≥30s cooldown and a post-boot `dmesg`+camera-topic check every time; every cluster of `dxgk` errors observed correlated with the PRIOR boot's teardown window (confirmed by timestamp), never a live boot's active window — the GPU never re-wedged this session. Discipline (cooldown + post-boot camera-publish check + immediate stop-and-report on any silent topic or new post-boot `dxgk` error) held up as the right operating procedure.
 - **Date:** 2026-07-07.
 
+## ADR-0032 addendum (2026-07-08) — the SHIPPED demo hero is the 0.632 m re-cut
+- The demo was re-cut after this ADR was logged: the shipped assets (`demo_out/*`, per
+  `demo_out/README.md`) are built from a later hero flight, **miss 0.632 m**
+  (`logs/m4_intercept_pronav_20260707T211601Z.csv`, same ADR-0030 FIX config) — not the
+  1.061 m first capture recorded above. Both draws are consistent with the ~1.19 m
+  published mean under the ~1 m single-flight terminal-dropout noise. **Treat 0.632 m as
+  the shipped-asset number** (README/demo docs cite it) and 1.061 m as the first-capture
+  number; portfolio docs lead with the honest ~1.19 m mean and cite the hero as one take.
+
 ## ADR-0033 — Post-M5 roadmap RATIFIED (builder, 2026-07-07): protect the M5 finish line, then hardware bench → markerless seeker → EKF
 - **Context:** M5 is ~90% done (Monte-Carlo n=48 ADR-0029; running-start Gazebo-confirmed ADR-0028 addendum; demo video shipped ADR-0032). Builder set explicit priorities for what comes next, with rationale aimed at how aerospace interviewers read a portfolio.
 - **Decision (the ratified order):**

@@ -120,17 +120,62 @@ Frame conventions (label on the diagram slide): World = ENU (origin at intercept
 
 ---
 
-# DELIVERABLE B — DEMO-VIDEO SHOT LIST (refined to the real hero result)
+# DELIVERABLE B — DEMO VIDEO (BUILT — shot list + the shipped cut)
 
-**Hero flight = the ADR-0030 running-start + dash-track-fix intercept:** 9 m/s crossing target, pro-nav terminal (N=5), under the **REALISTIC degraded cue**, miss **~1.19 m**, handoff **6/6**. Delivered ZEM@handoff **3.2 -> 1.4 m**. It is the honest best because it beats the old *idealized*-cue running-start (1.90 m) while flying the harder degraded cue.
+> **STATUS UPDATE (2026-07-07): the demo is BUILT and shipped (ADR-0032).** ffmpeg is now
+> installed (`/usr/bin/ffmpeg`), and the reel is assembled offline by **`scripts/build_demo.py`**
+> (not the older `compose_demo.sh`) from a real hero flight — no live sim needed to re-render.
+> The shot list below is the plan the finished cut was built from; the specifics that changed
+> in the build (hero number, OSD de-cringe) are reconciled inline. Full build documentation
+> lives in `demo_out/README.md`.
 
-**Hero re-fly recipe (the frozen config to shoot):** `m4_intercept.py --fpv --handoff --law pronav --early-handoff` + running-start geometry `--y0-mag 29.3 --dash-speed 16 --dash-unclamp` + dash-track fix `--emit-velocity --cue-velocity` + realistic cue `--sigma-range --datum-bias-m 0.5 --latency-jitter-s 0.05 --dropout-markov`.
+**Shipped assets (`demo_out/`, gitignored — regenerable):**
+- `interceptor_onboard.mp4` (~20 s, 1280x960) — **PRIMARY**: the interceptor's own camera with
+  the FPV OSD HUD overlaid, ending on the proximity-fuse close-out.
+- `interceptor_onboard.gif` (~3 MB) — README highlight loop (handoff → fuse).
+- `interceptor_chase.mp4` (~3.8 s, 960x540) — **SECONDARY**: the same intercept from the world
+  chase camera + a compact HUD.
+- Legacy first-pass `interceptor_demo.{mp4,gif}` (sidebar-HUD compose_demo.sh output) are kept but
+  superseded. Committed stills: `docs/images/demo_onboard_final.png`, `demo_chase_final.png`.
 
-**Two hard readiness facts up front:**
-- **ffmpeg is NOT installed** (confirmed: `which ffmpeg` -> none). Every step that stitches HUD frames into video, composites the HUD beside the Gazebo capture, or exports the MP4/GIF is **blocked on `sudo apt install -y ffmpeg`** (Emerson's sudo). `compose_demo.sh` and `demo_run.sh` are also **not built yet**.
-- **`scripts/render_hud.py` works right now** and produces the entire HUD panel (640x1080 RGBA frames) from any per-tick CSV — validated tool. But existing hero-class CSVs have **`t_sim` unpopulated**, so `--fps` falls back to wall-clock time with a printed warning (fine for a draft; re-fly with the `t_sim` column added for clean HUD<->video time-sync). Per `demo_plan.md`'s hard gating rule, the **published** hero take must be a *fresh GUI flight* of the frozen recipe above — existing dev CSVs are for tooling drafts only.
+**Hero flight (what actually shipped) = the ADR-0030 running-start + dash-track-fix config under
+the REALISTIC degraded cue:** 9 m/s crossing target, pro-nav terminal (N=5), cue-seed 31, miss
+**0.632 m** (source: `demo_out/README.md` build log, which cites
+`logs/m4_intercept_pronav_20260707T211601Z.csv`; CPA at `t_sim=20.528 s`, `gt_range=0.6324`), handoff
+latched. **Reconciliation note (cross-checked against `docs/decisions.md`):** the ratified ADR-0032
+entry (decisions.md, the ADR log) records only the *first* capture, **1.061 m**, because the 0.632 m
+re-cut happened after that entry was logged — decisions.md has not yet been amended with the re-cut
+number. Treat **1.061 m as the ADR-of-record number** and **0.632 m as the shipped-asset number**;
+both trace to real runs of the same frozen config (below) and both are consistent with the ~1.19 m
+mean under the ~1 m run-to-run terminal-dropout noise (see honesty note next). This doc is in the
+portfolio-docs lane and cannot edit `docs/decisions.md`; flagging here for a future ADR-0032 addendum
+that records the 0.632 m re-cut. **Log-file caveat:** `logs/` is gitignored and regenerable, and the
+Monte-Carlo batch running in this repo actively writes/prunes that directory — the exact CSV filename
+above is a provenance citation from the build log, not a guarantee the file is present on disk right
+now. **Honesty note to keep on any metrics card:** a single hero flight is a *favorable draw* — the
+honest statistical headline for this config is the **~1.19 m mean at 9 m/s (ADR-0030/0031)**, and
+0.632/1.061 m are both consistent with it under the ~1 m run-to-run terminal-dropout noise. Lead with
+the mean, present the hero flight as an illustration, not the claim.
 
-HUD command per beat (same for all): `.venv/bin/python scripts/render_hud.py <hero_flight.csv> --out frames/ --fps 30 --radius 1.5` (net lethal radius; use `--radius 0.5` for the ram variant).
+**Hero recipe (frozen config, from `demo_out/README.md`):**
+```
+INTERCEPTOR_WORLD_NAME=apriltag_demo \
+S2_CUE_MOCK_EXTRA="--sigma-range --datum-bias-m 0.5 --latency-jitter-s 0.05 --dropout-markov --emit-velocity --vel-sigma 0.5" \
+.venv/bin/python scripts/m4_intercept.py --fpv --handoff --law pronav \
+    --target-start 6.5,-29.3,0.5 --target-vel 0,9.0 --cue-seed 31 \
+    --dash-speed 16 --early-handoff --cue-velocity --dash-unclamp
+```
+
+**The HUD is `scripts/render_hud.py --layout overlay`** (the FPV OSD). Every widget traces to a CSV
+column (phase/sensor/AprilTag lamps, heading tape, `T-GO`, a depleting `RANGE` bar with the
+`R_lethal` tick, `CLOSING`, `LOS RATE`, a GT-derived display-only `GND SPD` gauge, `ALT`, a fixed
+boresight reticle) with the honesty footnotes (mocked cue; `GND SPD`/CPA are GT scoring-only, never
+fed to guidance) burned in small. **De-cringe pass (2026-07-07):** the **two-series mini-map, the
+"INTERCEPT SOLUTION" status line, and the "LAW PRONAV" label were REMOVED from the `overlay` layout**
+(builder feedback: read like a clean instrument panel, not a moving-map video game). The older
+`sidebar` layout — which *does* keep the mini-map — is retained only for `compose_demo.sh`
+back-compat. **Where a beat below mentions the mini-map, that applies to the `sidebar` layout; the
+shipped onboard cut uses `overlay` and has no mini-map.**
 
 ---
 
@@ -165,7 +210,7 @@ HUD command per beat (same for all): `.venv/bin/python scripts/render_hud.py <he
 - **Readiness:** onboard-camera capture is a gz image-topic grab (doable headless as PNGs if VideoRecorder drops frames under WSLg). HUD READY NOW.
 
 ### (OPTIONAL) BEAT 5b — Maneuvering-target adaptation — FULL-VISION CUT ONLY
-- **Status:** **NOT ready** — needs the **S3 maneuvering mover** (sim-time velocity schedule in `m4_target_mover.py`), not yet built. Do **not** stage a jink from straight-line data. Omit from the SHIP-NOW cut; add later.
+- **Status (updated):** the **maneuvering mover now exists** — the M5 final batch (running this session) adds **weave/jink** and `oblique_close` arms (ADR-0033 item 0b), so a jink beat can be built from *real* maneuvering data rather than staged. It was **not** in the shipped cut (that hero is a straight-line 9 m/s crosser); fold this beat into a re-cut once the final batch lands. Still: never stage a jink from straight-line data — use a genuine weave/jink flight.
 
 ### BEAT 6 — Intercept + honest lethal-radius kill graphic
 - **Main render:** closest approach; interceptor and tag converge. No fake explosion.
@@ -173,7 +218,8 @@ HUD command per beat (same for all): `.venv/bin/python scripts/render_hud.py <he
 - **Honest label (burned in by render_hud):** *"CPA <miss> m (R_lethal criterion, NOT a modeled collision)"* + the standing *"GT markers = scoring reference only, never fed to guidance."*
 - **Readiness:** kill graphic **READY NOW** (part of render_hud's mini-map). Compositing beside the flight video needs ffmpeg.
 
-### BEAT 7 — Metrics outro card (the real numbers, honestly tiered)
+### BEAT 7 — Metrics outro card (the real numbers, honestly tiered) — CUT FROM THE SHIPPED REEL
+- **Status (updated):** the de-cringe pass **removed the outro/metrics card** from the shipped onboard reel (builder feedback #4 — the cut now ends on the proximity-fuse hold to black). This beat is retained here as the spec for a *standalone* metrics slide (README, slide deck) rather than a tail card on the video. If used, keep the tiering below.
 - **Main render:** clean stat card. Structure it so the **gated/verifier-confirmed** claims headline and the **hero dev-number** is presented as current-best-with-caveat (this tiering *is* the credibility signal for a defense audience):
   - **Gated classics (rock-solid):** M4 pro-nav vs pursuit **4.6–7.6x tighter** (0.28–0.44 m vs 2.0–2.5 m, 2 m/s); M3 static standoff error **0.018 / 0.035 m**; S2 two-stage camera-only handoff validated + verifier-confirmed.
   - **The systems finding:** the fast-target miss is **kinematic, ~96% locked at handoff** (r²=0.957) — diagnosed, then recovered.
@@ -184,17 +230,44 @@ HUD command per beat (same for all): `.venv/bin/python scripts/render_hud.py <he
 ---
 
 ### Cut plan
-- **SHIP-NOW cut:** beats 1-5, 6, 7 — needs only (a) ffmpeg installed and (b) one GUI capture of the frozen hero recipe. Everything HUD-side is already built and tested.
-- **FULL-VISION cut:** add beat 5b once the S3 mover exists.
+- **SHIPPED cut:** beats 1-6 as the ~20 s onboard (seeker-POV) reel + the ~3.8 s chase B-roll —
+  **BUILT** by `scripts/build_demo.py` from the 0.632 m hero flight (the ADR-0032 re-cut per
+  `demo_out/README.md`; the ADR-0032 entry itself records the earlier 1.061 m capture — see the
+  reconciliation note above). The de-cringe pass
+  dropped the old beat-7 metrics/outro card (builder feedback); the reel ends on the proximity-fuse
+  hold, cut to black.
+- **FULL-VISION cut:** a maneuvering-target beat (5b) is the remaining add — see the note under
+  BEAT 5b: the M5 final batch (running now) introduces weave/jink mover arms, so the maneuvering
+  *data* is no longer missing; a re-cut can fold it in once that batch lands.
 
-### Readiness summary (what blocks what)
-| Capability | State | Blocker |
+### Readiness summary (updated — the reel is built)
+| Capability | State | Note |
 |---|---|---|
-| HUD panel (all widgets, lamp, kill ring, CPA, honest footnotes) | **READY NOW** | none — `render_hud.py` validated |
-| Hero per-tick data | exists as dev A/B CSVs | re-fly frozen recipe for the *published* take; add `t_sim` col for clean sync |
-| Gazebo GUI flight capture | tooling partial | `sim_gui.sh` exists; `demo_run.sh` capture script **not built** |
-| Onboard-camera feed capture | doable | gz image-topic -> PNGs (headless fallback if VideoRecorder drops frames) |
-| Stitch / composite / MP4 / GIF | **BLOCKED** | **ffmpeg not installed** (`sudo apt install -y ffmpeg` — Emerson's sudo); `compose_demo.sh` not built |
-| Maneuvering beat (5b) | **NOT READY** | S3 mover not built |
+| HUD panel (all widgets, lamp, kill ring, CPA, honest footnotes) | **DONE** | `render_hud.py --layout overlay`, de-cringed (no mini-map/LAW/solution line) |
+| Hero per-tick data | **DONE** | shipped on the 0.632 m re-cut, `logs/m4_intercept_pronav_20260707T211601Z.csv` per `demo_out/README.md` (`t_sim` populated); `logs/` is gitignored/regenerable and this file is not guaranteed present on disk — see reconciliation note above |
+| Gazebo flight + onboard/chase capture | **DONE** | 704 onboard + 706 chase PNGs captured; `build_demo.py` assembles offline (no re-sim) |
+| Stitch / composite / MP4 / GIF | **DONE** | ffmpeg installed (`/usr/bin/ffmpeg`); `build_demo.py` is the current builder |
+| Maneuvering beat (5b) | **DATA PENDING** | weave/jink mover arms exist in the M5 final batch (running); fold in on a re-cut |
 
-**Files referenced (all absolute):** `/home/emerson/interceptor-sim/scripts/render_hud.py`, `/home/emerson/interceptor-sim/scripts/m4_intercept.py`, `/home/emerson/interceptor-sim/scripts/s2_cue_mock.py`, `/home/emerson/interceptor-sim/scripts/sim_gui.sh`, `/home/emerson/interceptor-sim/docs/demo_plan.md`, `/home/emerson/interceptor-sim/docs/decisions.md` (ADR-0010/0013/0023/0027/0028/0029/0030). A sub-meter two-stage draft CSV to exercise the HUD today: `/home/emerson/interceptor-sim/logs/m4_intercept_pronav_20260706T182646Z.csv` (ENGAGE + handoff, miss 0.51 m) — a *draft/tooling* input only, not the published 9 m/s hero.
+**Files referenced (all absolute):** `/home/emerson/interceptor-sim/scripts/build_demo.py` (the current
+demo builder), `/home/emerson/interceptor-sim/scripts/render_hud.py`, `/home/emerson/interceptor-sim/scripts/m4_intercept.py`, `/home/emerson/interceptor-sim/scripts/s2_cue_mock.py`, `/home/emerson/interceptor-sim/scripts/sim_gui.sh`, `/home/emerson/interceptor-sim/demo_out/README.md` (full build log — cites the 0.632 m shipped re-cut), `/home/emerson/interceptor-sim/docs/decisions.md` (ADR-0010/0013/0023/0027/0028/0029/0030/0031/0032 — note ADR-0032 as logged there still records the earlier 1.061 m capture, not the 0.632 m re-cut; see reconciliation note above). Shipped hero CSV per the build log: `/home/emerson/interceptor-sim/logs/m4_intercept_pronav_20260707T211601Z.csv` (0.632 m) — `logs/` is gitignored/regenerable and this path is not guaranteed to be present on disk. An earlier sub-meter two-stage draft CSV kept for HUD-tooling drafts only: `/home/emerson/interceptor-sim/logs/m4_intercept_pronav_20260706T182646Z.csv` (ENGAGE + handoff, miss 0.51 m) — not a published take.
+
+---
+
+### Results plots — asset reconciliation (flag)
+
+The README currently embeds two preliminary plots at timestamps that **do not exist on disk**:
+`plots/pk_vs_radius_20260705T231001Z.png` and `plots/miss_cdf_20260705T231001Z.png` (confirmed missing;
+the README lane is fixing those refs). The plots that **do** exist and are safe to reference:
+
+- **ADR-0029 M5 regime-map batch:** `plots/pk_vs_radius_20260706T222603Z.png`,
+  `plots/miss_cdf_20260706T222603Z.png` (the published regime map; `logs/mc_batch_20260706T213437Z.csv`).
+- Earlier preliminary batches: `plots/{pk_vs_radius,miss_cdf}_20260706T180227Z.png` /
+  `...191852Z.png` (pre-realism-upgrade — label as superseded if used).
+- Newer `plots/*_20260708T0*.png` (e.g. `pk_vs_radius_by_arm_20260708T012435Z.png`,
+  `per_path_...`, `traj_overlay_...`) are **intermediate outputs of the in-progress M5 final batch** —
+  do **not** headline them until that batch completes and its numbers are ratified.
+
+**The final-batch results plots (running-start + ADR-0017-corrected cue + maneuvering/oblique arms) are
+pending.** Any "results plots" slot in a portfolio layout should cite the ADR-0029 regime-map figures now
+and be swapped to the final-batch figures once they land — do not fabricate a final number in the interim.
