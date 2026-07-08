@@ -629,7 +629,11 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed pat
         MODE_ARGS=(--fpv --handoff)
     fi
 
-    echo "[mc_batch] Running m4_intercept.py ${MODE_ARGS[*]:-} --law $law --target-start ${tsx},${tsy},0.5 --target-vel ${tvx},${tvy} --cue-seed $cue_seed $EXTRA_ARGS (outer timeout ${PY_TIMEOUT_S}s)..."
+    # NB: --target-vel uses the =-attached form because oblique_close's vx is
+    # NEGATIVE (e.g. -4.243); a space-separated "-4.243,4.243" is mis-read by
+    # argparse as an option flag ("expected one argument"). The =-form is
+    # byte-identical for the positive/zero vx of every other geometry.
+    echo "[mc_batch] Running m4_intercept.py ${MODE_ARGS[*]:-} --law $law --target-start=${tsx},${tsy},0.5 --target-vel=${tvx},${tvy} --cue-seed $cue_seed $EXTRA_ARGS (outer timeout ${PY_TIMEOUT_S}s)..."
     echo "[mc_batch] Run output -> $RUN_LOG (also streamed below)"
     # The path is plumbed to the mover through the ENVIRONMENT (m4_intercept.py
     # is UNCHANGED -- it spawns m4_target_mover.py as a subprocess that
@@ -646,7 +650,7 @@ while IFS=$'\t' read -r run_idx law speed direction tsx tsy tvx tvy cue_seed pat
     INTERCEPTOR_JINK_MIN_DEG="$JINK_MIN_DEG" \
     timeout "$PY_TIMEOUT_S" "$VENV_PYTHON" "$REPO_ROOT/scripts/m4_intercept.py" \
         "${MODE_ARGS[@]}" --law "$law" \
-        --target-start "${tsx},${tsy},0.5" --target-vel "${tvx},${tvy}" \
+        --target-start="${tsx},${tsy},0.5" --target-vel="${tvx},${tvy}" \
         --cue-seed "$cue_seed" $EXTRA_ARGS 2>&1 | tee "$RUN_LOG"
     PY_EXIT="${PIPESTATUS[0]}"
 

@@ -1757,8 +1757,11 @@ async def run_acquire_and_engage(
                 engage_t0 = tick_start
                 mover_args = [
                     sys.executable, MOVER_SCRIPT,
-                    "--start", args.target_start,
-                    "--vel", args.target_vel,
+                    f"--start={args.target_start}",
+                    # =-attached: a negative leading vx (oblique_close, e.g.
+                    # "-4.243,4.243") is otherwise mis-read by the mover's
+                    # argparse as a flag. Byte-identical for positive/zero vx.
+                    f"--vel={args.target_vel}",
                     "--duration", str(args.mover_duration),
                 ]
                 print(f"[m4] mover: {' '.join(mover_args)}")
@@ -1805,8 +1808,11 @@ async def run_acquire_and_engage(
                 dash_start_mono = tick_start
                 mover_args = [
                     sys.executable, MOVER_SCRIPT,
-                    "--start", args.target_start,
-                    "--vel", args.target_vel,
+                    f"--start={args.target_start}",
+                    # =-attached: a negative leading vx (oblique_close, e.g.
+                    # "-4.243,4.243") is otherwise mis-read by the mover's
+                    # argparse as a flag. Byte-identical for positive/zero vx.
+                    f"--vel={args.target_vel}",
                     "--duration", str(args.mover_duration),
                 ]
                 print(f"[s2] mover: {' '.join(mover_args)}")
