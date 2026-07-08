@@ -5,32 +5,58 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit; rebuilt 2026-07-08 after the seeker-v2 +
 fusion-P0/P1/P2 session.)*
 
-## Current: capstone CLOSED (ADR-0044) — remaining items are builder-gated
+## Current: PHASE 2 — Sim-to-Real (real pipelines = hardware blueprint)
 
-The fusion capstone is DONE and the post-M5 software arc with it. Headline
-(ADR-0044): **mid-course cue fusion WORKS under the markerless seeker** — the
-hand-set polar FusedTrack beat fusion-off on 8/8 paired seeds (median
-−0.356 m), rescued both chronic failures, flew 16/16 clean, and SURVIVED the
-WORST-tier cue (8/8, max 2.88 m). `--fuse-midcourse` is now RECOMMENDED for
-markerless configs. Covariance gating (EKF `correct_cue`) did NOT earn its
-keep: variance blowup at EXPECTED (corrected 11/16 vs 16/16, though it also
-produced the project's tightest-ever 0.151/0.229 m hits), REGRESSION at WORST
-(5/8, 7.66 m tail — council finding F1 confirmed in flight). Honesty boundary
-held everywhere: 0 post-latch cue updates across all 32 EKF flights.
+**Builder ratified 2026-07-08 (evening).** Phase 1 (guidance + honesty +
+markerless seeker + mid-course fusion) is DONE and gated (ADR-0001..0044).
+Phase 2 replaces every MOCK with a REAL, implementable pipeline so the sim
+becomes the hardware build blueprint. **Full plan + recommendations + ADR
+skeletons: `docs/phase2_sim_to_real_plan.md` — READ IT FIRST.**
 
-### Open (all gated on the BUILDER or hardware)
-1. **Hardware Stage 0 bench — ORDER PARTS (~$230)**: Pi 5 8GB + cooler/PSU/SD
-   + global-shutter cam. Everything software-side is pre-staged and waiting.
-2. **Bird MC gate #8**: needs the P(hostile) classifier (ADR-0035 red-team
-   fixes + Stage-0 bench data). `bird_mc_harness.py` exits 1 by design.
-3. **Parked**: deployment phases M-1..M-4 (design-as-ADR when picked up);
-   README/portfolio polish pass over the new arcs (ADR-0038..0044) when the
-   builder wants the resume artifact updated.
+**Drive this autonomously.** Complete a step → gate → commit → START the next
+unblocked step the same session ([[session-persistence-mandate]]). Between sim
+runs, pull design/analysis forward. **Proactively run the analytical deep-dives**
+(anti-jam mechanics, coverage, sim-to-real gaps) and answer from the logs —
+don't wait to be asked. Council the one-way-door forks (F1/F2/F3 in the plan)
+before building; verifier-gate every close-out; honesty boundary re-earned on
+every new cue path.
+
+### Phase-2 build queue (dependency-ordered; the durable todo)
+1. **Stereo rig world + two real cameras** (T16, foundation) — `models/ground_stereo_rig/`
+   + `worlds/stereo_intercept.sdf`, 2.0 m baseline (ADR-0017 geometry). Council F1
+   (real stereo vs analytic). Blocks 3,4.
+2. **Ground NN detector** (T17) — reuse the onboard v2 render→fine-tune→calibrate
+   recipe from the ground viewpoint. ∥ with 6,8.
+3. **Triangulation + ground velocity/track** (T18, needs 1+2) — 2-cam → 3D
+   position + velocity; **VALIDATE measured σ_R vs ADR-0017 c=4.45e-05** (pivotal
+   — may revise every fusion conclusion).
+4. **Compute split + real link** (T19, needs 3) — `ground_station.py` process
+   emits the real track; `m4_intercept.py` consumes unchanged; `--cue-source
+   {mock,stereo}` flag, default `mock` (gated reproducibility preserved). Council F2.
+5. **Fusion refinement** (T20) — bias-state EKF (estimate the datum offset, kill
+   the WORST-tier bias-lock) + camera-favoring confidence. Prototype on mock;
+   ADOPT only on real stereo data (builder's sequencing). Attacks the ADR-0044 null.
+6. **Higher-speed + maneuvering arms** (T21) — 12 m/s + weave/jink with markerless
+   + fusion (arc was 9 m/s straight-line only). Sim, serialized. Can run on mock now,
+   re-run on real cue after 4.
+7. **FPV fidelity** (T22, design first) — real FPV speed/accel/payload; `--fpv-fast`
+   profile. Note ADR-0028: guidance ceiling binds, not airframe agility.
+8. **Sim-to-real shortcomings audit** (T23) — gap table (severity + bench-measurable):
+   frames, latency, comms, GPS/datum, intrinsics, IMU/EKF2, thermal/night, safety.
+9. **Real-world NN transfer plan** (T24) — MIT model vs camera fine-tune, onboard +
+   ground; Stage-0 data loop; what transfers vs rebuilt.
+
+### Still builder-gated / parked (carried from Phase 1 close)
+- **Hardware Stage 0 bench — ORDER PARTS (~$230)**: Pi 5 8GB + global-shutter cam.
+  Blocks the bird gate + the real-seeker bearing-quality lever; software pre-staged.
+- **Bird MC gate #8**: needs the P(hostile) classifier (ADR-0035 + Stage-0 data).
+- Deployment phases M-1..M-4 (brief drafted `docs/deployment_phases_design_brief.md`);
+  README/portfolio polish over ADR-0038..0044.
 
 ### Small logged follow-ups (non-blocking, ADR-0044)
-- Near-CPA chi-square gating quirk (only if EKF path is ever promoted);
-  FusedTrack state logging + L2 track-RMSE re-fly; p_diag_at_latch -> CSV;
-  gain-washout metric; audit_per_tick cue-activity marker.
+- Near-CPA chi-square gating quirk (only if EKF path is promoted); FusedTrack
+  state logging + L2 track-RMSE re-fly; p_diag_at_latch -> CSV; gain-washout
+  metric; audit_per_tick cue-activity marker.
 
 ### Standing tooling from this session (use these)
 - `scripts/audit_per_tick.py` — per-tick honesty audit for ANY batch arm

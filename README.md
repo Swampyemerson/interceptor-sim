@@ -518,6 +518,20 @@ FPV threat carries no fiducial. The forward arc below is deliberately aimed at
    **Honesty boundary held throughout:** zero post-latch cue updates across all
    32 EKF flights, measured by live counters, not asserted.
 
+### Phase 2 — sim-to-real (in progress, ratified 2026-07-08)
+
+With the guidance/honesty/perception core proven, the project's next arc turns
+the sim into a **hardware build blueprint**: replace the ground-sensor *mock*
+with a **real two-camera stereo rig** (rendered cameras → NN detection →
+triangulated distance + velocity), split the compute across a real
+ground-station↔drone link, refine the fusion to reject *persistent* jam bias
+(bias-state estimation, not noise-averaging), model **real FPV speeds/payload**,
+and extend coverage to higher-speed and maneuvering intercepts — each step with
+a systematic sim-to-real gap audit so a too-good sim number is treated as a bug,
+not a win. Full plan, recommendations, and open ADRs:
+[`docs/phase2_sim_to_real_plan.md`](docs/phase2_sim_to_real_plan.md); the live
+queue is in [`NEXT.md`](NEXT.md).
+
 ---
 
 ## Reproduce it
