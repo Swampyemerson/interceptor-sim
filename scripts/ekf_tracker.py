@@ -646,22 +646,34 @@ class EKFTracker:
         null from brief section 2.6). Widen P's position AND velocity
         blocks (track-loss-recovery pattern) so the next camera correction
         is accepted and can pull the state back toward truth, rather than
-        the filter's own tight-but-wrong P shielding the error forever."""
+        the filter's own tight-but-wrong P shielding the error forever.
+
+        M1 (ADR-0041 adversarial review): floor via max(), never shrink.
+        Assignment could DECREASE a diagonal entry that already grew past
+        the floor (e.g. a long dropout under Q=64), and shrinking one
+        diagonal entry while leaving cross terms (P[0,2], P[1,3], ...)
+        untouched can leave P non-PSD. Increasing a PSD matrix's diagonal
+        always preserves PSD regardless of the cross terms -- so this is
+        simultaneously the correctness fix and the reason no off-diagonal
+        zeroing is needed (or wanted) here."""
         if self.P is None:
             return
-        self.P[0, 0] = GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
-        self.P[1, 1] = GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
-        self.P[0, 1] = 0.0
-        self.P[1, 0] = 0.0
-        self.P[2, 2] = GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
-        self.P[3, 3] = GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
-        self.P[2, 3] = 0.0
-        self.P[3, 2] = 0.0
+        pos_floor2 = GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
+        vel_floor2 = GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
+        self.P[0, 0] = max(self.P[0, 0], pos_floor2)
+        self.P[1, 1] = max(self.P[1, 1], pos_floor2)
+        self.P[2, 2] = max(self.P[2, 2], vel_floor2)
+        self.P[3, 3] = max(self.P[3, 3], vel_floor2)
 
     # ---------------------------------------------------------------
     # Handoff boundary (design D3, ADR-0041; the "re-initialize, or provably
     # decay" standard from docs/ekf_design_brief.md). One-way: called
-    # exactly once, at the same instant m4_intercept.py nulls cue_reader.
+    # exactly once, at the same instant m4_intercept.py nulls cue_reader --
+    # AFTER any warm-handoff seeding completes (H1, ADR-0041 adversarial
+    # review: state warm-transfer is legitimate, but latch() must be the
+    # LAST word on P, or a warm-handoff reseed immediately after latch()
+    # would silently undo the D3.1 floor -- see seed_from_polar()'s own
+    # defense-in-depth for the reverse ordering mistake).
     # ---------------------------------------------------------------
     def latch(self) -> None:
         """Close the cue channel structurally (correct_cue raises after
@@ -669,20 +681,23 @@ class EKFTracker:
         of P may carry cue-shaped confidence that would otherwise survive
         the boundary UNBOUNDED (F3: "the natural config ... leaves P
         completely unbounded at latch") -- unconditionally re-inflate it to
-        LATCH_POS_SIGMA_FLOOR_M so the first post-latch camera corrections
-        are accepted even if the state itself is still cue-biased (the F1
-        confident-bias-lock escape hatch). Left UNTOUCHED (state AND P) when
-        the cue was never used pre-latch -- a camera-only warm handoff needs
-        no re-inflation; its P already reflects camera-only confidence, and
-        forcing it wider would only make the terminal re-earn confidence it
-        legitimately already has. p_diag_at_latch records P's diagonal
-        AFTER this decision either way, for post-flight audit. Idempotent:
-        a second call just re-latches and re-records the diagnostic."""
+        AT LEAST LATCH_POS_SIGMA_FLOOR_M (max(), never shrink -- M1, see
+        _gate_recovery_reinflate's docstring for the PSD argument) so the
+        first post-latch camera corrections are accepted even if the state
+        itself is still cue-biased (the F1 confident-bias-lock escape
+        hatch). Left UNTOUCHED (state AND P) when the cue was never used
+        pre-latch -- a camera-only warm handoff needs no re-inflation; its P
+        already reflects camera-only confidence, and forcing it wider would
+        only make the terminal re-earn confidence it legitimately already
+        has. p_diag_at_latch records P's diagonal AFTER this decision
+        either way, for post-flight audit. Idempotent: a second call just
+        re-latches and re-records the diagnostic (and, since it's max(),
+        can only ever hold P steady or widen it further, never shrink it
+        back toward the floor)."""
         if self._cue_called and self.P is not None:
-            self.P[0, 0] = LATCH_POS_SIGMA_FLOOR_M ** 2
-            self.P[1, 1] = LATCH_POS_SIGMA_FLOOR_M ** 2
-            self.P[0, 1] = 0.0
-            self.P[1, 0] = 0.0
+            floor2 = LATCH_POS_SIGMA_FLOOR_M ** 2
+            self.P[0, 0] = max(self.P[0, 0], floor2)
+            self.P[1, 1] = max(self.P[1, 1], floor2)
         self._latched = True
         if self.P is not None:
             self.p_diag_at_latch = tuple(float(v) for v in np.diag(self.P))
@@ -705,6 +720,19 @@ class EKFTracker:
         self.x = np.array([dn, de, dvn, dve])
         self.P = np.diag([WARM_POS_SIGMA_M ** 2, WARM_POS_SIGMA_M ** 2,
                           WARM_VEL_SIGMA_M_S ** 2, WARM_VEL_SIGMA_M_S ** 2])
+        if self._latched:
+            # H1 (ADR-0041 adversarial review) defense-in-depth: the real
+            # m4_intercept.py wiring calls latch() AFTER this warm-start
+            # completes, so latch() is normally the genuine last word on P
+            # (see the "Handoff boundary" section comment above). This
+            # branch protects any OTHER call ordering: state warm-transfer
+            # is legitimate even if it somehow runs post-latch, but
+            # confidence must never regress below the D3.1 floor once
+            # latched -- max(), never shrink (same PSD argument as
+            # _gate_recovery_reinflate).
+            floor2 = LATCH_POS_SIGMA_FLOOR_M ** 2
+            self.P[0, 0] = max(self.P[0, 0], floor2)
+            self.P[1, 1] = max(self.P[1, 1], floor2)
         if t is not None:
             self._last_correction_t = t
 

@@ -562,6 +562,140 @@ def test_injected_post_latch_correct_cue_leak_is_caught():
     )
 
 
+def _find_ekf_latch_guard_if(fn):
+    """The `if ekf_tracker is not None: ekf_tracker.latch()` If-node inside
+    run_acquire_and_engage, or None."""
+    for node in ast.walk(fn):
+        if not isinstance(node, ast.If):
+            continue
+        test = node.test
+        if not (
+            isinstance(test, ast.Compare) and len(test.ops) == 1
+            and isinstance(test.ops[0], ast.IsNot)
+            and _is_name(test.left, "ekf_tracker") and _is_none_const(test.comparators[0])
+        ):
+            continue
+        for stmt in node.body:
+            if (
+                isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
+                and isinstance(stmt.value.func, ast.Attribute)
+                and stmt.value.func.attr == "latch"
+                and _is_name(stmt.value.func.value, "ekf_tracker")
+            ):
+                return node
+    return None
+
+
+def _find_warm_handoff_seeding_if(fn):
+    """The `if args.warm_handoff and state.pos_n is not None and
+    state.pos_e is not None:` block -- the top-level If statement whose test
+    contains args.warm_handoff, inside run_acquire_and_engage. Returns the
+    ast.If node, or None."""
+    for node in ast.walk(fn):
+        if isinstance(node, ast.If) and _contains_attr_chain(node.test, "args.warm_handoff"):
+            return node
+    return None
+
+
+def test_ekf_latch_runs_after_warm_handoff_seeding():
+    """H1 (ADR-0041 adversarial review): ekf_tracker.latch() must run AFTER
+    the --warm-handoff seeding block completes, not before. seed_from_polar
+    (the warm-handoff seeding mechanism) RESETS P to the small
+    WARM_POS/VEL_SIGMA values -- legitimate state warm-transfer, but if
+    latch() ran BEFORE that reset, the reset would silently UNDO the D3.1
+    re-inflation (and p_diag_at_latch would then record a floor that no
+    longer existed the very next instant -- the exact bug this test guards).
+
+    Structural regression tripwire: both the latch() guard and the
+    warm-handoff seeding If block are direct sibling statements in the SAME
+    statement list (the HANDOFF-trigger body inside run_acquire_and_engage);
+    assert the latch() guard's position in that list is STRICTLY AFTER the
+    warm-handoff block's position. (ekf_tracker.py's seed_from_polar() also
+    independently re-floors P if it's ever the one called after latch() --
+    test_seed_from_polar_after_latch_respects_the_floor in
+    test_ekf_tracker.py -- but that's defense in depth; THIS test is what
+    proves the real wiring's call order is correct in the first place.)"""
+    tree = _load_tree(M4_PATH)
+    fn = _find_function(tree, "run_acquire_and_engage")
+    latch_if = _find_ekf_latch_guard_if(fn)
+    assert latch_if is not None, (
+        "expected an `if ekf_tracker is not None: ekf_tracker.latch()` "
+        "guard in run_acquire_and_engage"
+    )
+    warm_if = _find_warm_handoff_seeding_if(fn)
+    assert warm_if is not None, (
+        "expected the --warm-handoff seeding If block in run_acquire_and_engage"
+    )
+    parent = getattr(latch_if, "parent", None)
+    assert parent is getattr(warm_if, "parent", None), (
+        "ekf_tracker.latch()'s guard and the --warm-handoff seeding block "
+        "are not siblings under the same parent statement -- ordering can't "
+        "be verified the way this test assumes; needs a human look"
+    )
+    body = parent.body if isinstance(getattr(parent, "body", None), list) else []
+    assert latch_if in body and warm_if in body, (
+        "expected both blocks to be direct statements in their shared "
+        "parent's body"
+    )
+    assert body.index(latch_if) > body.index(warm_if), (
+        "ekf_tracker.latch() must be positioned AFTER the --warm-handoff "
+        "seeding block in source order (H1, ADR-0041 adversarial review: "
+        "latch() must be the LAST word on P -- seed_from_polar resets P, "
+        "so if latch() ran first, a warm-handoff reseed would silently "
+        "undo the D3.1 floor)"
+    )
+
+
+def test_injected_latch_before_warm_handoff_ordering_bug_is_caught():
+    """Calibration: prove the ordering test above actually fires, by
+    mutating a THROWAWAY temp copy of m4_intercept.py that swaps the
+    `if ekf_tracker is not None: ekf_tracker.latch()` guard back to BEFORE
+    the --warm-handoff seeding block (the exact H1 regression) and asserting
+    it's rejected. Never touches the real file."""
+    tree = _load_tree(M4_PATH)
+    fn = _find_function(tree, "run_acquire_and_engage")
+    latch_if = _find_ekf_latch_guard_if(fn)
+    warm_if = _find_warm_handoff_seeding_if(fn)
+    assert latch_if is not None and warm_if is not None
+
+    with open(M4_PATH) as f:
+        lines = f.readlines()
+    # Extract each block's exact source lines (1-indexed lineno/end_lineno).
+    latch_lines = lines[latch_if.lineno - 1: latch_if.end_lineno]
+    warm_lines = lines[warm_if.lineno - 1: warm_if.end_lineno]
+    lo = min(latch_if.lineno, warm_if.lineno) - 1
+    hi = max(latch_if.end_lineno, warm_if.end_lineno)
+    assert warm_if.lineno < latch_if.lineno, (
+        "test assumes the CURRENT (fixed) source order is warm_if then "
+        "latch_if -- if this fails, the source changed shape and the "
+        "mutation below needs to be rebuilt"
+    )
+    # Swap: latch guard first, then the warm-handoff block (the H1 bug).
+    mutated = lines[:lo] + latch_lines + warm_lines + lines[hi:]
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mutated_path = os.path.join(tmp_dir, "m4_intercept_MUTATED_for_test.py")
+        with open(mutated_path, "w") as f:
+            f.writelines(mutated)
+        mtree = _load_tree(mutated_path)
+        mfn = _find_function(mtree, "run_acquire_and_engage")
+        m_latch_if = _find_ekf_latch_guard_if(mfn)
+        m_warm_if = _find_warm_handoff_seeding_if(mfn)
+        assert m_latch_if is not None and m_warm_if is not None
+        m_parent = getattr(m_latch_if, "parent", None)
+        ordering_ok = (
+            m_parent is getattr(m_warm_if, "parent", None)
+            and isinstance(getattr(m_parent, "body", None), list)
+            and m_latch_if in m_parent.body and m_warm_if in m_parent.body
+            and m_parent.body.index(m_latch_if) > m_parent.body.index(m_warm_if)
+        )
+    assert not ordering_ok, (
+        "expected the injected latch-before-warm-handoff reordering to trip "
+        "the ordering check, but it reported latch() still running after "
+        "warm-handoff seeding -- checker has a gap"
+    )
+
+
 # --------------------------------------------------------------------------
 # (B) ground-truth boundary checks
 # --------------------------------------------------------------------------

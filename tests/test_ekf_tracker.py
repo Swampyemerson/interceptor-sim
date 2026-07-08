@@ -29,13 +29,36 @@ Three checks, mapping to the task's requirements:
 
   (d) fusion capstone P1/P2 (design D2/D3, ADR-0041) --
       test_cue_polar_split_cross_range_never_touches_bearing (F2 fix: a pure
-      cross-LOS cue offset must not move lambda_hat; a pure along-LOS offset
-      DOES move range); test_latch_reinflates_position_block_only_if_cue_used
-      (D3.1: unconditional latch re-inflation, gated on whether the cue was
-      ever used pre-latch); test_correct_cue_after_latch_raises_and_counts
-      (the post-latch structural-illegality belt-and-suspenders); and
+      cross-LOS cue offset must leave the state bit-identical; a pure
+      along-LOS offset DOES move range);
+      test_cue_polar_split_cross_range_accumulation_never_moves_bearing (the
+      REAL F2 regression guard -- F2 is an ACCUMULATION effect a single shot
+      cannot catch, see the ADR-0041 adversarial-review note below);
+      test_latch_reinflates_position_block_only_if_cue_used (D3.1:
+      unconditional latch re-inflation via max()/floor semantics, gated on
+      whether the cue was ever used pre-latch);
+      test_correct_cue_after_latch_raises_and_counts (the post-latch
+      structural-illegality belt-and-suspenders);
       test_gate_recovery_after_n_consecutive_post_latch_rejections (D3.2, the
-      F1 confident-bias-lock escape hatch).
+      F1 confident-bias-lock escape hatch); test_seed_from_polar_after_latch_
+      respects_the_floor and test_seed_from_polar_before_latch_then_latch_
+      still_reaches_the_floor (H1: latch() must be the LAST word on P
+      regardless of call order relative to warm-handoff seeding).
+
+ADR-0041 ADVERSARIAL REVIEW (2026-07-08, post-P1/P2 merge review) fixed two
+defects here: M1 -- latch()/gate-recovery originally used ASSIGNMENT, which
+could DECREASE a diagonal entry that had already grown past the floor (e.g.
+a long dropout under Q=64) and leave P non-PSD; fixed to max()-based floor
+semantics (never shrink). M2 -- the original single-shot polar-split test
+used a loose <0.5 deg epsilon and was VACUOUS against the exact regression
+it was meant to guard: reverting the polar split to a full-Cartesian dof=2
+[dn,de] update still passed it, because F2 is an ACCUMULATION effect
+invisible to one shot (measured via a real mutation probe against THIS
+file: a Cartesian mutant drifts lambda_hat 2.86 deg after 60 corrections of
+a persistent 1 m cross bias vs the fixed code's exact 0.0 deg) -- fixed by
+strengthening the single-shot check to EXACT bit-identity and adding the
+accumulation test as the real discriminator. See H1/M1/M2 in
+docs/decisions.md's ADR-0041 addendum for the full review trace.
 
 Run:  .venv/bin/python -m pytest tests/test_ekf_tracker.py -v
 """
@@ -392,28 +415,38 @@ def _camera_init(f, lam_deg=20.0, r=20.0, t=0.0):
 
 def test_cue_polar_split_cross_range_never_touches_bearing():
     """F2 fix (design D2): a PURE cross-LOS cue offset (perpendicular to the
-    current lambda_hat) must not move lambda_hat by more than a degree-scale
-    epsilon -- the door FusedTrack's polar split was built to close (ADR-0018:
-    "the cue NEVER touches the angle"), now closed for correct_cue too. The
-    same-magnitude offset applied ALONG the LOS instead DOES move range
-    measurably -- the polar split discards only the cross component, not the
-    whole cue channel."""
+    current lambda_hat) must leave the state BIT-IDENTICAL -- the door
+    FusedTrack's polar split was built to close (ADR-0018: "the cue NEVER
+    touches the angle"), now closed for correct_cue too. The same-magnitude
+    offset applied ALONG the LOS instead DOES move range measurably -- the
+    polar split discards only the cross component, not the whole channel.
+
+    M2 (ADR-0041 adversarial review): this SINGLE-SHOT check is EXACT (not a
+    degree-scale epsilon -- a loose epsilon here was proven vacuous against
+    the exact regression it's meant to guard, see the module docstring), but
+    it is not, by itself, a sufficient regression guard: a 5 m cross offset
+    gets chi-square-gated by a full-Cartesian [dn,de] update too (rejected
+    ==> "no state change" for a completely different, non-discriminating
+    reason), and F2 is fundamentally an ACCUMULATION effect a single shot
+    can't expose either way. The REAL guard is
+    test_cue_polar_split_cross_range_accumulation_never_moves_bearing below
+    -- keep this test for the single-shot orthogonality property (documents
+    the exact mechanism: u . (k*p) == 0 for any k since u perp p) but never
+    rely on it alone."""
     f = _camera_init(EKFTracker())
     lam_before, r_before = f.lambda_hat, f.r_hat
+    x_before = f.x.copy()
     p_perp = (-math.sin(lam_before), math.cos(lam_before))  # unit cross-LOS
     cross_offset = 5.0
     cue_pos = (f.x[0] + cross_offset * p_perp[0], f.x[1] + cross_offset * p_perp[1])
     f.correct_cue(cue_pos, None, 0.1)
 
-    lam_shift_deg = math.degrees(wrap_pi(f.lambda_hat - lam_before))
-    r_shift = f.r_hat - r_before
-    assert abs(lam_shift_deg) < 0.5, (
-        f"pure cross-range cue offset moved lambda_hat by {lam_shift_deg:.4f} deg "
-        "-- the cue is touching the angle again"
+    assert np.array_equal(f.x, x_before), (
+        "a pure cross-range cue offset must leave the state BIT-IDENTICAL "
+        f"(x changed by {f.x - x_before}) -- the along-LOS innovation must "
+        "be (numerically) exactly zero, not merely small"
     )
-    assert abs(r_shift) < 0.2, (
-        f"pure cross-range cue offset unexpectedly moved range by {r_shift:.4f} m"
-    )
+    assert f.lambda_hat == lam_before and f.r_hat == r_before
 
     # Same magnitude, but ALONG the LOS: must move range.
     f2 = _camera_init(EKFTracker())
@@ -428,6 +461,54 @@ def test_cue_polar_split_cross_range_never_touches_bearing():
         "expected a measurable correction toward the cue"
     )
     assert f2.n_gated == 0, "a moderate along-LOS offset should not trip the chi-square gate"
+
+
+def test_cue_polar_split_cross_range_accumulation_never_moves_bearing():
+    """M2 (ADR-0041 adversarial review) -- the REAL F2 regression guard.
+
+    F2 is an ACCUMULATION effect: a single shot cannot distinguish the fixed
+    polar-split code from a full-Cartesian [dn,de] regression (see the test
+    above's docstring). This test drives 60 consecutive correct_cue calls
+    (interleaved with the SAME predict() calls the real m4 tick loop makes
+    every tick, cue or no cue), each a PERSISTENT 1 m cross-LOS bias -- fixed
+    in WORLD frame relative to the TRUE (stationary) target position and a
+    FIXED offset direction computed once up front, modeling a persistent
+    datum/GPS-style bias rather than one that (unphysically) chases the
+    tracker's own possibly-drifted estimate.
+
+    Mutation probe performed by hand against this file (temporarily
+    reverting correct_cue's polar split to the pre-F2-fix full-Cartesian
+    dof=2 [dn,de] update, keeping everything else, incl. sigma_pos, R
+    inflation and gating, identical): the CARTESIAN mutant drifts
+    lambda_hat by 2.86 deg over these same 60 corrections (n_gated=0 the
+    whole time -- a 1 m bias at ~20 m range is comfortably inside the
+    gate); the FIXED polar-split code drifts by EXACTLY 0.0 deg (bit-exact:
+    raw radian difference == 0.0, not merely below a printed-degrees
+    rounding threshold) -- confirmed by direct inspection, not just the
+    wrap_pi-rounded degrees display. This test asserts the exact-zero
+    property that discriminates the two."""
+    f = _camera_init(EKFTracker())
+    lam0, r0 = f.lambda_hat, f.r_hat
+    true_dn, true_de = f.x[0], f.x[1]           # fixed truth (stationary target)
+    p_perp = (-math.sin(lam0), math.cos(lam0))  # fixed cross-LOS direction, computed once
+    t = 0.1
+    dt = 0.05
+    n_shots = 60
+    cross_bias_m = 1.0
+    for _ in range(n_shots):
+        f.lambda_filter.predict(dt)   # mirrors the m4 tick loop: predict every tick
+        f.range_filter.predict(dt)
+        cue_pos = (true_dn + cross_bias_m * p_perp[0], true_de + cross_bias_m * p_perp[1])
+        f.correct_cue(cue_pos, None, t)
+        t += dt
+
+    assert f.lambda_hat == lam0, (
+        f"a persistent PURE cross-range cue bias accumulated a lambda_hat "
+        f"drift of {math.degrees(wrap_pi(f.lambda_hat - lam0)):.6f} deg over "
+        f"{n_shots} corrections -- expected EXACTLY 0.0 (the mutation-probed "
+        "full-Cartesian regression drifts 2.86 deg under the identical setup)"
+    )
+    assert f.r_hat == r0, "a persistent PURE cross-range cue bias must never move range either"
 
 
 def test_cue_gross_along_los_offset_is_gated_not_silently_eaten():
@@ -460,22 +541,28 @@ def test_correct_cue_before_camera_init_uses_raw_cartesian_cold_start():
 
 
 def test_latch_reinflates_position_block_only_if_cue_used():
-    """D3.1: unconditional latch re-inflation of P's position block to
-    LATCH_POS_SIGMA_FLOOR_M -- but ONLY when correct_cue was ever called
-    pre-latch. A camera-only track's P is left completely untouched (it
-    already reflects legitimate camera-only confidence; forcing it wider
-    would make the terminal re-earn confidence it already has)."""
-    # Cue was used pre-latch.
+    """D3.1: unconditional latch re-inflation of P's position block to AT
+    LEAST LATCH_POS_SIGMA_FLOOR_M -- but ONLY when correct_cue was ever
+    called pre-latch. A camera-only track's P is left completely untouched
+    (it already reflects legitimate camera-only confidence; forcing it
+    wider would make the terminal re-earn confidence it already has).
+
+    M1 (ADR-0041 adversarial review): floor semantics are max()-based, so
+    this asserts P >= floor (not ==) -- see the "grown wide" case below,
+    which is the actual regression M1 guards: assignment could DECREASE a
+    diagonal entry that had already grown past the floor (e.g. a long
+    dropout under Q=64), and shrinking one diagonal entry while leaving
+    cross terms untouched can leave P non-PSD."""
+    # Cue was used pre-latch, P still small (typical case): floor RAISES it.
     f1 = _camera_init(EKFTracker())
     f1.correct_cue((f1.x[0] - 1.0, f1.x[1] + 0.5), (0.5, 0.0), 0.1)
     assert f1._cue_called
     f1.latch()
     floor2 = ekf_mod.LATCH_POS_SIGMA_FLOOR_M ** 2
-    assert abs(f1.P[0, 0] - floor2) < 1e-9
-    assert abs(f1.P[1, 1] - floor2) < 1e-9
-    assert abs(f1.P[0, 1]) < 1e-9 and abs(f1.P[1, 0]) < 1e-9
+    assert f1.P[0, 0] >= floor2 - 1e-9
+    assert f1.P[1, 1] >= floor2 - 1e-9
     assert f1.p_diag_at_latch is not None
-    assert abs(f1.p_diag_at_latch[0] - floor2) < 1e-9
+    assert f1.p_diag_at_latch[0] >= floor2 - 1e-9
 
     # Cue never used pre-latch -- P must be byte-identical before/after.
     f2 = _camera_init(EKFTracker())
@@ -487,6 +574,84 @@ def test_latch_reinflates_position_block_only_if_cue_used():
         "called pre-latch"
     )
     assert f2.p_diag_at_latch == tuple(float(v) for v in np.diag(p_before))
+
+    # M1: cue used pre-latch, but P had ALREADY grown past the floor (e.g. a
+    # long dropout under Q=64) -- latch() must NOT shrink it back down; the
+    # variance stays exactly what it was (max() is a no-op when already
+    # above the floor).
+    f3 = _camera_init(EKFTracker())
+    f3.correct_cue((f3.x[0] - 1.0, f3.x[1] + 0.5), (0.5, 0.0), 0.1)
+    assert f3._cue_called
+    grown_var = floor2 * 5.0   # well above the floor
+    f3.P[0, 0] = grown_var
+    f3.P[1, 1] = grown_var
+    f3.latch()
+    assert f3.P[0, 0] == grown_var, (
+        "latch() must not SHRINK a position variance that was already "
+        "above the floor (M1: max()-based floor, never assignment)"
+    )
+    assert f3.P[1, 1] == grown_var
+
+
+def test_seed_from_polar_before_latch_then_latch_still_reaches_the_floor():
+    """H1 (ADR-0041 adversarial review) regression test, exactly the ordering
+    now used in m4_intercept.py: correct_cue used pre-latch (so _cue_called
+    is True), THEN a warm-handoff-style seed_from_polar() call (which resets
+    P to the SMALL WARM_POS/VEL_SIGMA values -- legitimate state transfer,
+    but P-shrinking), THEN latch() (matching the fixed call order). latch()
+    must be the LAST word on P: the position block must satisfy the D3.1
+    floor AFTERWARD, undoing the warm-seed's P reset rather than leaving it
+    silently in place (the exact bug: latch() used to run BEFORE seeding,
+    so the seed's P reset silently won regardless of what latch() had just
+    done)."""
+    f = _camera_init(EKFTracker())
+    f.correct_cue((f.x[0] - 1.0, f.x[1] + 0.5), (0.5, 0.0), 0.1)
+    assert f._cue_called
+
+    # Simulate the warm-handoff seeding block -- resets P to the SMALL warm
+    # values, well below the D3.1 floor.
+    f.seed_from_polar(f.lambda_hat, f.lambda_dot_hat, f.r_hat, f.rdot_hat, t=0.2)
+    warm_var = ekf_mod.WARM_POS_SIGMA_M ** 2
+    assert abs(f.P[0, 0] - warm_var) < 1e-9, "seed_from_polar should reset P to the warm values"
+    assert warm_var < ekf_mod.LATCH_POS_SIGMA_FLOOR_M ** 2, (
+        "test setup assumption broken: WARM_POS_SIGMA_M must be smaller "
+        "than LATCH_POS_SIGMA_FLOOR_M for this to be a meaningful regression check"
+    )
+
+    # NEW call order (H1 fix): latch() runs AFTER seeding.
+    f.latch()
+    floor2 = ekf_mod.LATCH_POS_SIGMA_FLOOR_M ** 2
+    assert f.P[0, 0] >= floor2 - 1e-9, (
+        f"P[0,0]={f.P[0, 0]:.4f} is below the D3.1 floor {floor2:.4f} after "
+        "latch() -- the warm-handoff reseed silently undid the re-inflation "
+        "(H1 regression)"
+    )
+    assert f.P[1, 1] >= floor2 - 1e-9
+    assert f.p_diag_at_latch[0] >= floor2 - 1e-9
+
+
+def test_seed_from_polar_after_latch_respects_the_floor():
+    """H1 (ADR-0041 adversarial review) defense-in-depth: if seed_from_polar
+    is ever called AFTER latch() (the real m4_intercept.py wiring never does
+    this -- see test_ekf_latch_runs_after_warm_handoff_seeding in
+    test_honesty_static.py, which proves the actual call order statically --
+    but the API itself should not silently regress P below the floor for
+    ANY caller/ordering). State warm-transfer is legitimate even post-latch;
+    confidence must never regress below the D3.1 floor once latched."""
+    f = _camera_init(EKFTracker())
+    f.correct_cue((f.x[0] - 1.0, f.x[1] + 0.5), (0.5, 0.0), 0.1)
+    f.latch()
+    floor2 = ekf_mod.LATCH_POS_SIGMA_FLOOR_M ** 2
+    assert f.P[0, 0] >= floor2 - 1e-9   # sanity: floor already applied
+
+    # A hypothetical post-latch seed_from_polar call (state warm-transfer is
+    # legal; P must not regress below the floor because of it).
+    f.seed_from_polar(f.lambda_hat, f.lambda_dot_hat, f.r_hat, f.rdot_hat, t=0.3)
+    assert f.P[0, 0] >= floor2 - 1e-9, (
+        "seed_from_polar() called AFTER latch() must still respect the "
+        "D3.1 floor (H1 defense-in-depth)"
+    )
+    assert f.P[1, 1] >= floor2 - 1e-9
 
 
 def test_correct_cue_after_latch_raises_and_counts():
@@ -507,10 +672,13 @@ def test_correct_cue_after_latch_raises_and_counts():
 
 def test_gate_recovery_after_n_consecutive_post_latch_rejections():
     """D3.2 (F1 fix): after GATE_RECOVERY_STREAK_N consecutive post-latch
-    camera rejections, P's position+velocity blocks are re-inflated to the
-    declared floors and the streak resets -- so the NEXT (4th, normal)
-    camera correction is accepted, escaping the confident-bias-lock F1
-    demonstrated at the project's own constants."""
+    camera rejections, P's position+velocity blocks are re-inflated to AT
+    LEAST the declared floors and the streak resets -- so the NEXT (4th,
+    normal) camera correction is accepted, escaping the confident-bias-lock
+    F1 demonstrated at the project's own constants.
+
+    M1 (ADR-0041 adversarial review): floor semantics are max()-based, so
+    this asserts P >= floor (not ==)."""
     dt = 0.05
     rng = np.random.default_rng(11)
     f = EKFTracker(q_accel_psd=1.0)
@@ -542,10 +710,10 @@ def test_gate_recovery_after_n_consecutive_post_latch_rejections():
     assert f._post_latch_gate_streak == 0, "streak must reset once recovery fires"
     pos_floor2 = ekf_mod.GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
     vel_floor2 = ekf_mod.GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
-    assert abs(f.P[0, 0] - pos_floor2) < 1e-9
-    assert abs(f.P[1, 1] - pos_floor2) < 1e-9
-    assert abs(f.P[2, 2] - vel_floor2) < 1e-9
-    assert abs(f.P[3, 3] - vel_floor2) < 1e-9
+    assert f.P[0, 0] >= pos_floor2 - 1e-9
+    assert f.P[1, 1] >= pos_floor2 - 1e-9
+    assert f.P[2, 2] >= vel_floor2 - 1e-9
+    assert f.P[3, 3] >= vel_floor2 - 1e-9
 
     # 4th innovation: a NORMAL (small) camera correction -- must be accepted.
     n_corr_before = f.n_corrections
@@ -557,6 +725,30 @@ def test_gate_recovery_after_n_consecutive_post_latch_rejections():
     f.range_filter.correct(math.hypot(x[0], x[1]), t)
     assert f.n_corrections == n_corr_before + 1, "the 4th (normal) correction must be accepted"
     assert f.camera_gated_post_handoff == gated_before, "the 4th correction must not be gated"
+
+
+def test_gate_recovery_never_shrinks_p_already_above_the_floor():
+    """M1 (ADR-0041 adversarial review) companion to the latch() case: if P
+    has already grown past the gate-recovery floor (e.g. a long dropout
+    under Q=64) when the recovery trigger fires, _gate_recovery_reinflate
+    must NOT shrink it back down -- max()-based floor, never assignment
+    (the PSD argument: increasing a diagonal entry always preserves PSD;
+    decreasing one while leaving cross terms untouched need not)."""
+    f = _camera_init(EKFTracker())
+    f.latch()
+    pos_floor2 = ekf_mod.GATE_RECOVERY_POS_SIGMA_FLOOR_M ** 2
+    vel_floor2 = ekf_mod.GATE_RECOVERY_VEL_SIGMA_FLOOR_M_S ** 2
+    grown_pos = pos_floor2 * 4.0
+    grown_vel = vel_floor2 * 4.0
+    f.P[0, 0] = grown_pos
+    f.P[1, 1] = grown_pos
+    f.P[2, 2] = grown_vel
+    f.P[3, 3] = grown_vel
+    f._gate_recovery_reinflate()
+    assert f.P[0, 0] == grown_pos, "gate-recovery must not shrink an already-wide position variance"
+    assert f.P[1, 1] == grown_pos
+    assert f.P[2, 2] == grown_vel, "gate-recovery must not shrink an already-wide velocity variance"
+    assert f.P[3, 3] == grown_vel
 
 
 if __name__ == "__main__":

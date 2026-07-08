@@ -2083,18 +2083,6 @@ async def run_acquire_and_engage(
                 )
                 cue_reader.close()
                 cue_reader = None  # illegal-state-unrepresentable past this point
-                # Fusion capstone handoff boundary (design D3, ADR-0041):
-                # latch the EKF at the exact same instant the cue channel
-                # closes -- belt (cue_reader=None already makes a further
-                # correct_cue call unreachable) and suspenders (latch()
-                # itself makes it raise + count, and re-inflates P's
-                # position block if the cue was ever used pre-latch, the F1
-                # confident-bias-lock escape hatch). Called for every EKF
-                # run regardless of --fuse-midcourse -- the D3.2 adaptive
-                # gate-recovery is a general post-handoff robustness
-                # feature, not fusion-specific.
-                if ekf_tracker is not None:
-                    ekf_tracker.latch()
                 # P-6 (--warm-handoff): WARM lock-transfer (ADR-0015) at the
                 # latch instant -- initialize the camera-only terminal filters
                 # (lambda, lambda_dot, R, Rdot) + v_perp + the shared PIP track
@@ -2162,6 +2150,28 @@ async def run_acquire_and_engage(
                             f"lambda_dot={math.degrees(st['lamdot']):.1f}deg/s "
                             f"R={st['R']:.2f}m Rdot={st['rdot']:.2f}m/s"
                         )
+                # Fusion capstone handoff boundary (design D3, ADR-0041).
+                # H1 (adversarial review, fixed): latch() runs AFTER the
+                # warm-handoff seeding block above, not before -- seeding is
+                # a legitimate state warm-transfer, but it also resets P
+                # (seed_from_polar), and if latch() ran first that reset
+                # would silently UNDO the D3.1 floor (p_diag_at_latch would
+                # then record a floor that no longer exists the very next
+                # instant). Moving the call here makes latch() the true LAST
+                # word on P for this tick -- belt (cue_reader=None above
+                # already makes a further correct_cue call unreachable) and
+                # suspenders (latch() itself makes correct_cue raise + count,
+                # and re-inflates P's position block via max(), never
+                # shrinking -- M1 -- if the cue was ever used pre-latch, the
+                # F1 confident-bias-lock escape hatch). seed_from_polar()
+                # also independently re-floors if it's ever the one called
+                # AFTER latch() instead (defense in depth for any other call
+                # ordering). Called for every EKF run regardless of
+                # --fuse-midcourse -- the D3.2 adaptive gate-recovery is a
+                # general post-handoff robustness feature, not
+                # fusion-specific.
+                if ekf_tracker is not None:
+                    ekf_tracker.latch()
                 phase = "ENGAGE"
                 engage_t0 = tick_start
             elif dash_elapsed > s2params["DASH_TIMEOUT_S"]:
