@@ -51,3 +51,33 @@ detection POLLUTION, not box geometry.*
 
 Run-to-run noise ~1 m on miss; "not significant at this n" language applies to
 any miss delta inside that. Batches at idle load, arms sequential.
+
+---
+
+# ADR-0043 pre-registration — terminal bearing-noise lever (added 2026-07-08, BEFORE the arms fly)
+
+Mechanism measured in ADR-0042: v2's endgame dispersion (+1.1 m median gap-to-tag)
+comes from PN following box-center bearing noise (tick-to-tick p90 2.8 deg vs the
+tag's subpixel ~0.00 deg, 3.5-12 m band, n=139 pairs) with honest vc — NOT from
+detection coverage (v2 sees the real target 78-89% of final-second ticks, MORE
+than the tag's 5-7/~40).
+
+**Arms (n=8 paired, master-seed 42, v2 weights + sidecar, same profile):**
+- **B (gain rolloff):** `--terminal-gain-scale 0.35` — lambda-filter gain scaled
+  in ENGAGE only. Sizing: noise ratio ~1.5-2x => Kalman-ish gain ratio
+  1/ratio^2 ~= 0.25-0.44; 0.35 is the midpoint. Keeps corrections, weights them.
+- **C (early freeze):** `--terminal-freeze-range 6.0` — ballistic through the
+  noise band (mimics deliberately what the tag's sparse detections did
+  accidentally). Forfeits real corrections below 6 m.
+
+**Pre-registered outcomes:**
+- PRIMARY: median paired gap-to-tag. SUCCESS = gap shrinks from +1.142 m toward
+  or past v1's +0.658 m WITH >=6/8 seeds moving the same direction (the
+  noise-floor-aware sign test), clean-rate >= 6/8, no new flyby (max miss <= 4 m).
+- Mechanism check: endgame |a_cmd| medians drop toward tag-like (B) / exact 0
+  inside 6 m (C); pollution stays 0.000; per-tick audit + cue_reads green.
+- NULL: neither arm achieves the sign-consistent shrink -> log honestly; the
+  lever moves to measurement-side smoothing or the fusion capstone.
+- PRE-NOTED RISK: a line-path win for C does NOT license adopting C as default —
+  early freeze forfeits real corrections against maneuvering targets; a weave
+  sensitivity arm is REQUIRED before any default change.

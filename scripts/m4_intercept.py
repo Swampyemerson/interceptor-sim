@@ -1383,6 +1383,21 @@ def parse_args():
                 FPV["TERMINAL_FREEZE_RANGE_M"], SPLIT_FREEZE_RANGE_M),
     )
     parser.add_argument(
+        "--terminal-gain-scale", type=float, default=1.0,
+        help="ADR-0043 lever B (default 1.0 = byte-identical): scale the "
+             "lambda-filter correction gain during ENGAGE only -- rolls off "
+             "the markerless box-center bearing-noise throughput (measured "
+             "p90 2.8 deg/tick vs the tag's subpixel corners, ADR-0042). "
+             "alpha-beta only; the EKF channel view ignores gain_scale by "
+             "design (it weights by covariance).")
+    parser.add_argument(
+        "--terminal-freeze-range", type=float, default=None,
+        help="ADR-0043 lever C (default None = FPV profile value %.1f m, "
+             "requires --fpv): override TERMINAL_FREEZE_RANGE_M -- freeze "
+             "the terminal velocity vector EARLIER so the endgame is "
+             "ballistic through the bearing-noise band."
+             % FPV["TERMINAL_FREEZE_RANGE_M"],)
+    parser.add_argument(
         "--accel-boost", action="store_true",
         help="ADR-0028 Gazebo-confirm (default OFF, requires --fpv): ~2x "
              "the FPV PX4 param bundle's MPC_ACC_HOR_MAX (%.1f -> %.1f m/s^2) "
@@ -1446,6 +1461,12 @@ def parse_args():
         parser.error("--early-handoff requires --handoff (there is no HANDOFF latch without it)")
     if args.split_freeze and not args.fpv:
         parser.error("--split-freeze requires --fpv (it retunes the FPV terminal-freeze semantics)")
+    if not (0.0 < args.terminal_gain_scale <= 1.0):
+        parser.error("--terminal-gain-scale must be in (0, 1] (1.0 = off/byte-identical)")
+    if args.terminal_freeze_range is not None and not args.fpv:
+        parser.error("--terminal-freeze-range requires --fpv (it overrides the FPV freeze constant)")
+    if args.terminal_freeze_range is not None and args.terminal_freeze_range <= 0:
+        parser.error("--terminal-freeze-range must be positive")
     if args.split_freeze and args.law != "pronav":
         parser.error("--split-freeze requires --law pronav (it freezes the pro-nav v_perp "
                      "term specifically; the lab A/B was pure_pn-only)")
@@ -1672,7 +1693,14 @@ async def run_acquire_and_engage(
             fused.predict(dt)
         if fresh:
             lambda_meas = psi_rad + meas.bearing_rad
-            lambda_filter.correct(lambda_meas, tick_start)
+            # ADR-0043 lever B: roll off the bearing-noise throughput in the
+            # terminal ONLY (gain 1.0 elsewhere and by default). No-op under
+            # --tracker ekf (the channel view ignores gain_scale by design).
+            lambda_filter.correct(
+                lambda_meas, tick_start,
+                gain_scale=(args.terminal_gain_scale
+                            if phase == "ENGAGE" else 1.0),
+            )
             range_filter.correct(meas.range_m, tick_start)
             # PIP absolute target track (ADR-0011): own NED position (EKF,
             # own-state) + the camera relative vector in NED. The relative
@@ -2571,6 +2599,17 @@ async def main():
     # freeze_range between both uses). Flag OFF => dict untouched.
     if args.split_freeze:
         FPV["TERMINAL_FREEZE_RANGE_M"] = SPLIT_FREEZE_RANGE_M
+
+    # ADR-0043 lever C (--terminal-freeze-range): freeze EARLIER for a noisy
+    # markerless bearing channel -- same pre-apply dict-patch pattern as
+    # --split-freeze above. Flag None => dict untouched, byte-identical.
+    if args.terminal_freeze_range is not None:
+        _tfr_before = FPV["TERMINAL_FREEZE_RANGE_M"]
+        FPV["TERMINAL_FREEZE_RANGE_M"] = args.terminal_freeze_range
+        print(
+            "[m4] Terminal-freeze-range override (ADR-0043 lever C): "
+            f"{_tfr_before} -> {args.terminal_freeze_range} m"
+        )
 
     # ADR-0028 addendum follow-up (--dash-unclamp): patch V_TOTAL_MAX BEFORE
     # apply_fpv_profile() reads FPV into the module-level global (same
