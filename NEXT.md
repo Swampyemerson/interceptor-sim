@@ -5,68 +5,62 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit — the old file had three generations of roadmap
 interleaved.)*
 
-## Current: Fable 5 audit (2026-07-06) — then the build queue below
+## Current: M5 FINISH — the protected finish line (builder ratified 2026-07-07, ADR-0033)
 
-`docs/audit_targets.md` is the brief (refute-not-confirm). Audit covers: handoff
-honesty boundary, frame/sign conventions, ADR-0023 diagnosis validity (the
-linchpin), lab byte-identity, small-n stats, cue-mock σ_R gap, sourced numbers,
-metric honesty, repo hygiene, plus one end-to-end gate reproduction. Results get
-appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
+Scope is pinned in ADR-0033. Order below; sims ONE at a time at idle load; paired
+seeds; `--early-handoff`; speeds **6/9/12** (ADR-0029 comparability — supersedes
+the older 6/8/10 note). Demo video is DONE (ADR-0032); running-start Gazebo
+confirm is DONE (ADR-0028 addendum); streak=2 held the 6 m/s S2 gate (ADR-0029c).
 
-## Build queue (ordered, per ADR-0023/0024/0025)
+1. **Build (parallel, code-only, no sims):**
+   a. **P-8 corrected cue constants → s2_cue_mock defaults** (σ_R c=4.45e-05 not
+      0.008·R², separate `--datum-bias-m` — ADR-0017; + 0.20 s WORST latency
+      stress tier — ADR-0016). Changes the cue model → S2 gate must re-earn.
+   b. **Path suite:** S-weave + jink as sim-time-scheduled VELOCITY schedules in
+      m4_target_mover (board face stays world −X; maneuvers are velocity-schedule
+      changes only — ADR-0010 #6; jink schedule must derive from the run seed for
+      paired A/B) + a **west-approach geometry** (east/world_x axis has never been
+      mirror-tested; also the L2R/R2L asymmetry second batch, by construction).
+      Wire through mc_batch.sh.
+   c. **Fix the ADR-0032 pre-placement race in m4_intercept.py itself** — internal
+      tag pre-place via a SUBPROCESS `gz service` call (NOT in-process: the script
+      holds a /clock subscription and is safe only because it makes no gz service
+      calls itself — see Key facts). README reproduce instructions expose this
+      footgun to outsiders, so it's in-scope for M5.
+   d. **Plot/analysis upgrades:** trajectory overlays, miss histogram/CDF,
+      per-path pursuit-vs-pronav; keep Pk-vs-radius (ADR-0025 metric, ram 0.5 m /
+      net 1.5 m). Dev against the existing ADR-0029 logs — no new sims needed.
+2. **Gate + dev-verify (sequential sims, boot-budget discipline):** weave/jink/west
+   mover dev flights (share boots where possible), then re-run `check_s2.sh` under
+   the new cue defaults.
+3. **Final batch (design as a short ADR first, then overnight at idle):**
+   {pursuit, pronav} × {6, 9, 12 m/s} × paths {L→R, R→L, west, weave, jink} on the
+   ADOPTED deployment profile (running start + velocity-emission cue +
+   `--dash-unclamp` + `--early-handoff`, realistic degraded cue, corrected
+   constants), n≥8 paired. Outputs: miss-vs-intensity, per-path law comparison,
+   Pk-vs-radius.
+4. **Analyze + ship:** plots → README final numbers + GIF (from demo_out) +
+   reproduce instructions → verifier gate → commit.
 
-1. **✅ Tier-2 acquisition range — CONCLUDED (ADR-0024 3rd addendum).** Full FOV/streak
-   sweep done in Gazebo: **60° FOV narrowing REJECTED** (0/12 latch at 9 m/s — can't
-   hold a fast crosser; 7th lab-vs-Gazebo divergence, reverted from the tree).
-   **streak-min=2 (`--early-handoff`) ADOPTED for the fast/FPV regime** — ~doubled the
-   9 m/s latch (42%→88%), but the miss stays kinematic (~3.3 m; 3rd reconfirmation of
-   ADR-0023). Net: use `--early-handoff` for fast-regime M5 batches; the 9 m/s *miss*
-   is a proximity-metric problem (ADR-0025), not a sensing one. Still open: an S2-gate
-   re-check at streak=2 before making it the global default.
-2. **Adopt corrected cue constants (P-8).** ADR-0017's stereo split — σ_R
-   c=4.45e-05 (not 0.008·R²) + separate `--datum-bias-m` — into s2_cue_mock
-   defaults, plus the 0.20 s WORST latency stress tier (ADR-0016). Changes the cue
-   model → re-run S2 gate + a confirmation batch before trusting new numbers.
-2b. **Audit follow-ups (ADR-0026/0027).**
-   - **✅ Second-speed forensic batch DONE (ADR-0027):** kinematic diagnosis
-     GENERALIZES (r² 0.818/0.957/0.994 at 3/6/9 m/s, tracks capacity/ZEM ratio) →
-     ADR-0023 upgraded to HOLDS. New finding: 9 m/s handoff-latch reliability (5/12) —
-     folded into Tier-2 above.
-   - **L2R vs R2L asymmetry:** a real ~0.6 m mirror asymmetry (p≈0.01, single batch)
-     is most likely the fixed-tag-aspect perception effect, not a sign bug — confirm
-     with a second paired batch + write it up, or find the guidance/acquisition term
-     if it isn't the tag aspect. The east/world_x axis has NEVER been mirror-tested
-     (target start_x never flipped) — add a west-approach geometry to the M5 suite.
-3. **S3/S4 folded into M5's Monte-Carlo (proposal, logged here 2026-07-06).**
-   ADR-0010's S3 (path suite) and S4 (adaptation proof) merge into the M5 batch:
-   mc_batch over {pursuit, pronav} × speeds {6, 8, 10} × paths {crossing L→R, R→L,
-   S-weave, jink} through the dash+handoff pipeline, sim-time-scheduled mover
-   (verify sim-time scheduling composes with DISCONTINUOUS velocity changes; board
-   face stays world −X, so maneuvers are velocity-schedule changes only —
-   ADR-0010 #6). Outputs: miss-vs-intensity curve, per-path pursuit-vs-pronav,
-   Pk-vs-radius curves under the ADR-0025 proximity metric (ram 0.5 m / net 1.5 m).
-4. **M5 finish + the DEMO (the protected finish line).** Trajectory overlays + miss
-   histograms/CDF (matplotlib → plots/), README final numbers, reproduce
-   instructions. **The demo video + portfolio packaging is now fully planned in
-   `docs/demo_plan.md`** (data-driven glass-cockpit HUD from the CSV, 9-beat
-   storyboard, honest kill depiction, 5-part portfolio package, ordered TODO).
-   Ungated demo tooling (ffmpeg install, `t_sim` CSV column, `render_hud.py`, the
-   kill graphic, WRITEUP skeleton) can be built NOW; the hero-take flight + S3
-   maneuvering mover are gated on guidance being final (which it now largely is —
-   Tier-2 concluded). Batches at idle load, paired seeds, `--early-handoff` for the
-   fast regime.
+## Build queue (post-M5 — builder ratified 2026-07-07, ADR-0033)
+
+1. **Hardware Stage 0 bench (ADR-0012), ~$230.** Pi 5 + camera detecting a printed
+   tag with the REAL detection code (`frame_source.py` port path), measured frame
+   rate + pose error → a sim-vs-bench gap table. **BUILDER ACTION: order parts now**
+   (Pi 5 8GB ~$120, cooler/PSU/SD ~$35, global-shutter cam + wide lens ~$75) —
+   lead time overlaps the M5 finish; software prep is pre-staged.
+2. **Kill the AprilTag (markerless seeker).** Classical-CV motion/blob seeker on a
+   markerless target (Gazebo, or bench video) feeding the SAME bearing interface.
+   Partial result acceptable — it converts the project from "guidance demo" to
+   "seeker development" and closes the disclosed #1 risk arc. Design-as-ADR first.
+3. **EKF target-track A/B.** Proper EKF vs the alpha-beta baseline, paired seeds
+   n≥8, honest null-result framing (Kalata's Gazebo rejection, ADR-0013, is the
+   precedent). Pure software — may interleave with 1–2.
 
 ## Follow-up flagged (not yet built)
 
-- **`m4_intercept.py` target pre-placement race (ADR-0032).** The target spawns
-  at its world-file default pose; `m4_target_mover.py`'s own pre-warm relocation
-  to `--target-start` fires too late (after the camera may have already locked
-  the nearby default-position board), causing a guaranteed BREAKOFF/abort if the
-  caller doesn't externally pre-place the tag first (as `mc_batch.sh` always
-  does — every gated ADR number went through that guard). Consider having
-  `m4_intercept.py` do this pre-placement internally. Low urgency (every gated
-  path already has the workaround) but a real footgun for anyone calling the
-  script directly, as the demo-capture task did.
+- **`m4_intercept.py` target pre-placement race (ADR-0032):** promoted into the
+  M5 finish scope above (step 1c) — no longer just flagged.
 - **`compose_demo.sh`/`demo_capture_frames.py` time-alignment.** No automatic
   correction if a chase/onboard capture starts before the flight CSV's own
   `t_sim[0]` — desyncs the composite by the head-start (see ADR-0032, "Sync
@@ -79,9 +73,7 @@ appended to decisions.md as an audit ADR; anything REFUTED reorders the queue.
   climb-out dash → end-to-end timeline). Design-as-ADR first when picked up.
 - P-9 real seeker / real ground rig (parent-project hardware lines; sim models
   their OUTPUT only). Jam-envelope Gazebo confirmation (lab study done, ADR-0020).
-- Hardware bring-up per ADR-0012 Stage 0 (bench perception ~$200) — blocked on
-  builder buying parts; software port-gaps are pre-staged (FrameSource,
-  pyapriltags fallback, calibrate_camera.py).
+- *(Hardware Stage 0 bench PROMOTED to the post-M5 build queue above, ADR-0033.)*
 
 ## Done (newest first — one line each; the ADR holds the story)
 
