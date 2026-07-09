@@ -196,11 +196,13 @@ def main() -> int:
     with open(real_sigma_path, "w") as fh:
         json.dump(real_sigma_by_standoff, fh, indent=2, default=str)
     print(f"[multirange-nn] wrote {real_sigma_path}")
-    print("\n[multirange-nn] HONEST CAVEAT: n=5 pairs/standoff is FAR too thin for a robust "
+    _ns = [v.get("n", 0) for v in real_sigma_by_standoff.values()]
+    _nstr = f"{min(_ns)}-{max(_ns)}" if _ns else "?"
+    print(f"\n[multirange-nn] HONEST CAVEAT: n={_nstr} pairs/standoff is thin for a robust "
           "sigma_R estimate (vs t18_sigma_validation's n_trials in the hundreds/thousands per "
           "point) -- read this as a coarse SANITY TREND, not a statistical confirmation. "
-          "ground_v1 was trained EXCLUSIVELY on ~160 m frames (ADR-0049), so 50/90/130 m "
-          "detections are genuinely out-of-domain for this detector.")
+          "(A detector trained on a NARROW range band is out-of-domain at other ranges -- "
+          "ground_v1 was ~160 m only, ADR-0049; ground_v2 spans 50-160 m, ADR-0055.)")
     return 0
 
 

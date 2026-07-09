@@ -106,7 +106,12 @@ every new cue path.
    ONLY on real T17-v2 data. **⚑ Pre-registered NULL: if T17-v2 brings the real
    cue bias within the 0.5 m budget the hand-set already tolerates, this earns
    NOTHING (default stays plain --fuse-midcourse) — don't adopt on a wash.**
-   Gated on T17-v2 (in progress).
+   **UPDATE (ADR-0055 verifier): T20 DEFERRED as a probable FULL null —**
+   T17-v2 fixed the nominal bias AND ADR-0044's hand-set already survives the
+   WORST 2.5 m datum bias 8/8, so the agreement-monitor has no regime left
+   where it earns its complexity. Hand-set `--fuse-midcourse` stays the
+   recommended fusion; ADR-0054 design stands as ratified-but-unbuilt, revisit
+   only for a bias >2.5 m or active time-varying spoof. NOT the next work.
 6. **Higher-speed + maneuvering arms** (T21) — 12 m/s + weave/jink with markerless
    + fusion (arc was 9 m/s straight-line only). Sim, serialized. Can run on mock now,
    re-run on real cue after 4.
