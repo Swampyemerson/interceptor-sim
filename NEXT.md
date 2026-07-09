@@ -82,22 +82,20 @@ every new cue path.
      byte-identical); FLIP-LATER pins flipped.** Live-emit path smoke-VALIDATED
      (station.py subscribes to real /clock, emits correct positions, 0 floor
      violations).
-   - **★ T19 BLOCKED — real clock-epoch bug (ADR-0052, check_t19.sh 535616b
-     correctly FAILS assertion 4, cue-vs-target 24.36 m, 2/2 deterministic):**
-     the cache frame_t_sim (baked 0-2.7 s from the CAPTURE clock) has NO
-     relationship to the live flight clock (~23 s at station.py spawn) → all
-     26 frames burst-release → latest-wins CueReader sees only the stale
-     dash-END frame. The smoke test hid it by running at sim-clock~0. **FIX
-     (design, not a one-liner): (1) epoch-rebase station.py to t0=/clock at
-     stream start (+ maybe a bounded CueReader queue); (2) mover-trigger
-     co-start — S2 spawns the mover at interceptor-triggered DASH but the
-     cache assumes the target already moving from t=0, so epoch-rebasing alone
-     is insufficient; co-align the mover + cache timelines (plausibly
-     council-worthy, may reopen a slice of ADR-0046).** This epoch mismatch
-     IS the ground↔drone time-sync (PPS/RTK) problem ADR-0015/0017 flagged —
-     a headline T23 gap, demonstrated end-to-end.
-   - **Still owes after the fix:** real latency-floor profile under concurrent
-     Gazebo render; real `--spoof` modes; the delivered-latency gate assertion.
+   - **★ T19 VALIDATED + verifier-gated (ADR-0052 RESOLVED, e22d6a8,
+     check_t19.sh exit 0): the drone flies on a genuinely computed stereo
+     cue.** The first flight found a real clock-epoch bug (cache clock vs
+     flight clock → burst → 24.36 m); fixed by epoch-rebase + mover co-start
+     + a --min-conf gate (drops the ADR-0050 seq=2 outlier via the ordinary
+     miss path). Cue tracks the moving target MEDIAN 0.99 m / MAX 2.06 m;
+     handoff at ~8 m; miss ~3 m; audit clean (0/73 post-handoff cue leakage);
+     5 pins green. **The whole T16→T17→T18→T19 real-pipeline spine works
+     end-to-end.** The epoch bug IS the ground↔drone time-sync (PPS/RTK)
+     problem ADR-0015/0017 flagged — now demonstrated + a headline T23 gap.
+   - **T19 still OWES (non-blocking):** real latency-floor profile under
+     concurrent Gazebo render; real `--spoof` corruption modes; the
+     delivered-latency gate assertion. And T19's real-cue A/B vs mock (does
+     the drone intercept as well on the real cue?) is a follow-up arm.
 5. **Fusion refinement** (T20) — bias-state EKF (estimate the datum offset, kill
    the WORST-tier bias-lock) + camera-favoring confidence. Prototype on mock;
    ADOPT only on real stereo data (builder's sequencing). Attacks the ADR-0044 null.
