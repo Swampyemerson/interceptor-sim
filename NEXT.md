@@ -65,6 +65,40 @@ every new cue path.
    frames, latency, comms, GPS/datum, intrinsics, IMU/EKF2, thermal/night, safety.
 9. **Real-world NN transfer plan** (T24) — MIT model vs camera fine-tune, onboard +
    ground; Stage-0 data loop; what transfers vs rebuilt.
+10. **FINAL — Phase-2 demo video** (T25, builder-requested; do LAST, after the real
+    pipeline T16–T19 + the maneuvering/fastest-speed arm T21 produce loggable
+    flights — else it demos the mock/straight-line, not the real story). Successor
+    to the ADR-0032 hero video (tooling to reuse/extend: `scripts/build_demo.py`,
+    `compose_demo.sh`, `demo_capture_frames.py`; output pattern `demo_out/*.mp4`).
+    **Narrative arc:** (1) OPEN on BOTH ground stereo rig views (split/side-by-side)
+    detecting the threat near MAX reliable range (~150–160 m EXPECTED envelope,
+    docs/stereo_design.md — NOT the 60 m WORST floor) with a HUD flash at the
+    INSTANT of NN detection (bbox + "TARGET ACQUIRED" + range/bearing, driven from
+    the REAL detector's actual detection frame — do not fake it). (2) A few seconds
+    later CUT to the onboard drone camera as the interceptor takes off + begins the
+    dash. (3) SLOW-MO the final seconds through interception. **Requirements:**
+    threat on a NON-straight track (weave/jink mover — needs the T21 maneuvering
+    flight logged first; the markerless+fusion arc is straight-line-only so far, so
+    either fly T21 maneuvering first OR fall back to the tag arm if markerless
+    maneuvering isn't ready — decide honestly). Fastest RELIABLE-speed intercept
+    from the logged regime (M5/ADR-0025: 12 m/s dash clean under the decoupled
+    terminal-speed rule, ADR-0033 #2 — confirm the equivalent for the
+    markerless/fusion+real-cue config before committing the speed; do NOT inflate).
+    **HUD sensor-attribution (the anti-jam money shot):** label which sensor owns
+    the track each phase — ground stereo cue MID-COURSE → HANDOFF-LATCH marker →
+    onboard-camera-ONLY terminal — with the fusion confidence / track-owner
+    indicator flipping at the latch (visualize the honesty boundary, ADR-0044).
+    **Production:** use any skills/plugins/connectors (install as needed) to
+    maximize quality — two-cam + onboard compositing, HUD overlays, slow-mo ramp,
+    titles; render GPU-accelerated (4070, GUI/demo path, not the headless batch
+    path) at the highest stable resolution. **Audit step (required):** after
+    render, extract SEVERAL intermediate frames and review for improvements — HUD
+    legibility, timing/sync (WATCH the ADR-0032 compose_demo.sh/demo_capture_frames.py
+    time-alignment gotcha), framing, slow-mo smoothness, whether the detection-instant
+    and handoff-latch moments read clearly; iterate before calling it final.
+    Feasibility note: F1 (ADR-0046) renders the two rig views OFFLINE as
+    trajectory-matched frames, so both stereo views exist to composite — the video
+    is achievable under the chosen architecture.
 
 ### Still builder-gated / parked (carried from Phase 1 close)
 - **Hardware Stage 0 bench — ORDER PARTS (~$230)**: Pi 5 8GB + global-shutter cam.
