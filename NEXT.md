@@ -77,11 +77,27 @@ every new cue path.
      live, detection cached — hybrid); (c) large floor + reduced cue rate.**
      Check (a) FIRST (cheapest, keeps the ratified design). This is the
      ground-station analog of ADR-0046's live-render feasibility gate.
-   - **T19b still owes:** m4 `--cue-source` wiring + `GROUND_STATION_VENV_PYTHON`
-     const (protect the repro pins — flip the FLIP-LATER assertions);
-     `check_t19.sh` flight gate (delivered latency never below floor); live
-     /clock validation under a real flight; real latency-floor profile under
-     concurrent Gazebo render; real `--spoof` modes.
+   - **T19b wiring DONE (ace11d0): m4 `--cue-source {mock,stereo}` + explicit
+     .venv-seeker interpreter; ALL 5 repro pins green (every gated path
+     byte-identical); FLIP-LATER pins flipped.** Live-emit path smoke-VALIDATED
+     (station.py subscribes to real /clock, emits correct positions, 0 floor
+     violations).
+   - **★ T19 BLOCKED — real clock-epoch bug (ADR-0052, check_t19.sh 535616b
+     correctly FAILS assertion 4, cue-vs-target 24.36 m, 2/2 deterministic):**
+     the cache frame_t_sim (baked 0-2.7 s from the CAPTURE clock) has NO
+     relationship to the live flight clock (~23 s at station.py spawn) → all
+     26 frames burst-release → latest-wins CueReader sees only the stale
+     dash-END frame. The smoke test hid it by running at sim-clock~0. **FIX
+     (design, not a one-liner): (1) epoch-rebase station.py to t0=/clock at
+     stream start (+ maybe a bounded CueReader queue); (2) mover-trigger
+     co-start — S2 spawns the mover at interceptor-triggered DASH but the
+     cache assumes the target already moving from t=0, so epoch-rebasing alone
+     is insufficient; co-align the mover + cache timelines (plausibly
+     council-worthy, may reopen a slice of ADR-0046).** This epoch mismatch
+     IS the ground↔drone time-sync (PPS/RTK) problem ADR-0015/0017 flagged —
+     a headline T23 gap, demonstrated end-to-end.
+   - **Still owes after the fix:** real latency-floor profile under concurrent
+     Gazebo render; real `--spoof` modes; the delivered-latency gate assertion.
 5. **Fusion refinement** (T20) — bias-state EKF (estimate the datum offset, kill
    the WORST-tier bias-lock) + camera-favoring confidence. Prototype on mock;
    ADOPT only on real stereo data (builder's sequencing). Attacks the ADR-0044 null.
