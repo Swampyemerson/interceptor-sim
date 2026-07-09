@@ -86,8 +86,12 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
   gates, ADR-0009). Movers, holds, durations, latencies: sim-clock only.
 - **Batch hygiene.** Gates and Monte-Carlo batches run at IDLE machine load only
   (load confound documented, ADR-0015 2nd addendum). ONE sim at a time; batch arms
-  run sequentially. Never `pkill` a batch from a shell whose args contain the batch
-  script's name (self-kill).
+  run sequentially. Never `pkill -f`/`pgrep -f` with ANY literal pattern typed
+  inline in a tool-call command — the harness evals the command text, so the
+  pattern sits in an ancestor's argv, self-matches, and kills the invocation
+  (exit 144) even with zero real matches (generalized 2026-07-08 from the
+  original "batch script's name" rule; hit 3× that day). Kill/poll logic lives
+  in script FILES (scripts/sim_kill.sh, or a scratchpad script) invoked by path.
 - **Statistics before verdicts.** Run-to-run terminal-dropout noise is ~1 m; a
   single-flight delta below that is noise. A/B claims need paired seeds (n≥8) plus
   mechanism evidence, and honest "not significant at this n" language.

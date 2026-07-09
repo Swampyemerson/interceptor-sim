@@ -15,6 +15,9 @@ From `~/PX4-Autopilot` (v1.17.0):
 - Plain `HEADLESS=1 make px4_sitl gz_x500` boots the default world (M0/M1 era).
 - On the apriltag world, gz topics live under `/world/apriltag/...` — rediscover with `gz topic -l` if world/model names change.
 - `PX4_SIM_SPEED_FACTOR` exists but CAUTION: under load RTF sags to ~0.3-0.5 anyway; anything timing-critical must schedule on SIM time, not wall time (ADR-0009 — this cost 5 dev runs + 2 failed gates). FPV-speed runs push PX4 params at runtime via MAVSDK pre-arm (ADR-0010 #3), not airframe files.
+- **`GALLIUM_DRIVER=d3d12` is RECOMMENDED for NEW runs** (ADR-0046 addendum): GPU rendering via WSL's d3d12 makes the baseline RTF rock-solid (probe: loaded 0.9989 mean/0.9597 min vs 0.82/0.065 default llvmpipe) and check_m3 passed under it (0.027 m standoff). Export it before the make line. Existing gated paths keep their stock env; first d3d12 BATCH arm needs a paired-seed sanity vs stock before A/B use.
+- Background launches MUST hold stdin open: `setsid bash -c "cd ~/PX4-Autopilot && tail -f /dev/null | env <vars> make px4_sitl gz_x500_mono_cam" > log 2>&1 &` (check_m3.sh:117 pattern). A /dev/null stdin makes the pxh console re-print its prompt in a tight loop — 21 GB of "pxh> " in an hour (2026-07-08).
+- `gz topic -e` in scripts: ALWAYS bound with `-n <count>` — `timeout` alone wedges (gz is a Ruby wrapper; TERM hits the wrapper, the real echoer keeps the pipe open and a command substitution never sees EOF).
 
 ## Verify it is up
 - Boot-complete line to grep for: `Startup script returned successfully`.
