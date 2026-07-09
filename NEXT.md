@@ -96,9 +96,17 @@ every new cue path.
      concurrent Gazebo render; real `--spoof` corruption modes; the
      delivered-latency gate assertion. And T19's real-cue A/B vs mock (does
      the drone intercept as well on the real cue?) is a follow-up arm.
-5. **Fusion refinement** (T20) — bias-state EKF (estimate the datum offset, kill
-   the WORST-tier bias-lock) + camera-favoring confidence. Prototype on mock;
-   ADOPT only on real stereo data (builder's sequencing). Attacks the ADR-0044 null.
+5. **Fusion refinement** (T20) — **DESIGN RATIFIED (ADR-0054, judge-panel of 3):
+   refine the WINNER (hand-set FusedTrack, 8/8 WORST), NOT the regressed EKF —
+   a range-agreement monitor (scalar along-LOS de-bias vs a shadow camera-only
+   track, camera-lock-streak-gated) + camera-favoring confidence rolloff.**
+   `--fuse-agreement-monitor` default OFF, byte-identical when off. Execution
+   pending: STEP 1 = offline replay screens (scripts/agreement_monitor_replay.py,
+   4 pre-registered screens) → guidance_lab rank → mock Gazebo ladder → adopt
+   ONLY on real T17-v2 data. **⚑ Pre-registered NULL: if T17-v2 brings the real
+   cue bias within the 0.5 m budget the hand-set already tolerates, this earns
+   NOTHING (default stays plain --fuse-midcourse) — don't adopt on a wash.**
+   Gated on T17-v2 (in progress).
 6. **Higher-speed + maneuvering arms** (T21) — 12 m/s + weave/jink with markerless
    + fusion (arc was 9 m/s straight-line only). Sim, serialized. Can run on mock now,
    re-run on real cue after 4.
