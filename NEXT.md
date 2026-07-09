@@ -43,9 +43,15 @@ every new cue path.
    detector. **KNOWN GAP → needs T17-v2 (multi-range captures + diverse
    negatives/backgrounds; Stage-0 real data) before any envelope/lethal
    framing.** Scripts committed; weights/dataset gitignored (regenerable).
-3. **Triangulation + ground velocity/track** (T18, needs 1+2) — 2-cam → 3D
-   position + velocity; **VALIDATE measured σ_R vs ADR-0017 c=4.45e-05** (pivotal
-   — may revise every fusion conclusion).
+3. **Triangulation + ground velocity/track** (T18, needs 1+2) — **scaffold
+   DONE + validated (perfect-centroid σ_R matches model 1-2%); PIVOTAL
+   CHECKPOINT run (ADR-0050): real-detector σ_R at ~161 m handoff = 0.48 m
+   CLEAN (UNDER the mock's 1.15 m) → NO RED FLAG, fusion conclusions not
+   threatened.** BUT best-case/thin (single range, n=10, train-adjacent; the
+   naive 8 m ALL-number is a leakage+outlier artifact, quarantined). σ_R∝R²
+   UNTESTED. Harness `scripts/t18_nn_sigma_validation.py`, notes
+   `docs/t18_nn_validation_notes.md`. **σ_R not CLOSED → gated on the
+   independent multi-range capture (below).**
 4. **Compute split + real link** (T19, needs 3) — `ground_station.py` process
    emits the real track; `m4_intercept.py` consumes unchanged; `--cue-source
    {mock,stereo}` flag, default `mock` (gated reproducibility preserved).
@@ -102,6 +108,17 @@ every new cue path.
     Feasibility note: F1 (ADR-0046) renders the two rig views OFFLINE as
     trajectory-matched frames, so both stereo views exist to composite — the video
     is achievable under the chosen architecture.
+
+### Phase-2 follow-ups surfaced this session (dependency notes)
+- **Independent multi-range capture campaign (serves 3 needs — ADR-0050):**
+  a second capture at different rig pose(s)/standoff so the target spans a
+  RANGE of distances + different lighting, never touching ground_v1's
+  training → (a) validates σ_R∝R² (closes T18's pivotal question), (b) tests
+  detector generalization = the **T17-v2** the ADR-0049 gap needs, (c) gives
+  the truly held-out σ_R for **T20 fusion adoption**. Do before leaning on the
+  0.48 m number or adopting any fusion default on "real" data.
+- **d3d12 batch adoption:** validated on check_m3 (ADR-0046 addendum); first
+  d3d12 BATCH arm still owes a paired-seed sanity vs stock before A/B use.
 
 ### Still builder-gated / parked (carried from Phase 1 close)
 - **Hardware Stage 0 bench — ORDER PARTS (~$230)**: Pi 5 8GB + global-shutter cam.
