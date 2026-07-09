@@ -78,14 +78,24 @@ def image_msg_to_bgr(msg) -> np.ndarray:
 
 
 def markerless_detection_loop(frame_holder, meas_holder, fx, fy, cx, cy,
-                              stop_event, detector_kwargs=None):
+                              stop_event, detector_kwargs=None,
+                              track=False, seed_ctx=None):
     """Same signature / threading contract as m3.detection_loop, so
     m4_intercept.py only swaps the thread `target` and nothing else.
 
     Publishes a fresh `Measurement` (latest-wins, atomic attribute assign) per
     new frame seq; None-fills every target field on no-detect so the alpha-beta
     LOS filter coasts. `detector_kwargs` is accepted for signature-compat with
-    detection_loop but is unused (the seeker has no quad_decimate knob)."""
+    detection_loop but is unused (the seeker has no quad_decimate knob).
+
+    DETECT-THEN-TRACK (ADR-0058, --track): when `track=True`, the per-frame NN
+    detect() is wrapped in a DetectThenTracker (detect_track.py) -- the NN
+    ACQUIRES a validated target, a cv2 CSRT tracker FOLLOWS it densely
+    frame-to-frame (ignoring phantom NN boxes), and the NN periodically
+    re-validates. `seed_ctx` (SeekerSeedContext) carries own-state + the
+    pre-handoff cue so the seed is cue-validated (real target, not a phantom);
+    post-handoff it runs camera-only (honesty). `track=False` is byte-identical
+    to the plain markerless path -- the tracker is never constructed."""
     # SAME Measurement class the guidance publishes/consumes -- taken off the
     # holder by type() so we need not import m3 (which pulls gz/pupil-apriltags
     # absent from .venv-seeker). meas_holder.latest is a Measurement at start.
@@ -101,6 +111,16 @@ def markerless_detection_loop(frame_holder, meas_holder, fx, fy, cx, cy,
         print(f"[markerless] fine-tuned full-frame seeker: {_nn_weights}")
     else:
         seeker = TwoStageSeeker(fx, fy, cx, cy)
+    # ADR-0058 detect-then-track wrapper (default OFF -> `frame_source` is the
+    # bare seeker, byte-identical to the plain markerless path).
+    tracker = None
+    if track:
+        from detect_track import DetectThenTracker
+        tracker = DetectThenTracker(seeker, fx, fy, cx, cy, seed_ctx=seed_ctx)
+        print("[markerless] DETECT-THEN-TRACK ON (ADR-0058): NN acquires a "
+              f"cue-validated target, {tracker.tracker_kind} tracker follows it "
+              "densely; NN re-validates every "
+              f"{tracker.revalidate_every} frames.", flush=True)
     last_seq = -1
     warned_resolution = False
     while not stop_event.is_set():
@@ -129,8 +149,21 @@ def markerless_detection_loop(frame_holder, meas_holder, fx, fy, cx, cy,
             meas_holder.latest = Measurement(t_mono, None, None, None, None, 0)
             continue
 
-        det = seeker.detect(frame_bgr, t_mono=t_mono)
+        if tracker is not None:
+            det = tracker.process(frame_bgr, t_mono)
+        else:
+            det = seeker.detect(frame_bgr, t_mono=t_mono)
         # SeekerDetection.as_measurement_tuple() == the exact positional args of
         # Measurement(t_mono, range_m, bearing_rad, meas_xyz, decision_margin,
         # n_detections); None-filled when nothing was confirmed (filter coasts).
-        meas_holder.latest = Measurement(*det.as_measurement_tuple())
+        # The optional 7th arg (Measurement.source, default "") tags provenance
+        # for m4's meas_source CSV column (ADR-0058 review minor): "track" = a
+        # CSRT tracker box, an NN class name (e.g. "drone") = a fresh NN
+        # detection, "" = no detection. Plain (non---track) markerless also
+        # gains the NN tag -- additive column only, guidance never reads it.
+        meas_holder.latest = Measurement(
+            *det.as_measurement_tuple(),
+            (det.class_name or "") if det.range_m is not None else "")
+
+    if tracker is not None:
+        print(tracker.stats_line(), flush=True)

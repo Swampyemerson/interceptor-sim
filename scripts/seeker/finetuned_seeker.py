@@ -118,6 +118,32 @@ class FinetunedNNSeeker:
     def _none(self, t_mono):
         return SeekerDetection(t_mono, None, None, None, None, None, 0)
 
+    def box_to_detection(self, box_xywh, t_mono, score, n_hits):
+        """Convert a box (x0, y0, w, h top-left, image pixels) to a
+        SeekerDetection using the EXACT SAME geometry detect() uses (width-based
+        known-size range, box-center bearing). This is the seam the
+        detect-then-track tracker (detect_track.py) publishes through, so a
+        tracker-sourced Measurement is identical in construction to an NN one --
+        only the box comes from CSRT instead of the net. detect() itself is left
+        untouched (the plain `--seeker markerless` path stays byte-identical)."""
+        x0, y0, bw, bh = box_xywh
+        u = x0 + bw / 2.0
+        v = y0 + bh / 2.0
+        bearing_h = math.atan2((u - self.cx) / self.fx, 1.0)   # + = right
+        bearing_v = math.atan2((v - self.cy) / self.fy, 1.0)   # + = down
+        range_m = self.fx * self.span / max(bw, 1.0)
+        ray = np.array([(u - self.cx) / self.fx, (v - self.cy) / self.fy, 1.0])
+        xyz = range_m * ray
+        return SeekerDetection(
+            t_mono=t_mono, range_m=range_m, bearing_rad=bearing_h,
+            bearing_vert_rad=bearing_v, meas_xyz=xyz,
+            decision_margin=score, n_detections=n_hits,
+            # class_name "track" (NOT "drone"): this seam is only called by the
+            # detect-then-track wrapper on a TRACKER box; the name is the
+            # provenance tag m4 logs as meas_source (unified with
+            # TwoStageSeeker.box_to_detection -- review minor).
+            box_xywh=(x0, y0, bw, bh), class_name="track")
+
     def detect(self, frame_bgr, t_mono: Optional[float] = None) -> SeekerDetection:
         H, W = frame_bgr.shape[:2]
         img, r, (pad_l, pad_t) = _letterbox(frame_bgr, self.imgsz)

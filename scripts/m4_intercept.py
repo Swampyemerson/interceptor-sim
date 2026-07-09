@@ -593,6 +593,13 @@ CSV_HEADER = [
     # convention -- see write_row_m4's fmt()).
     "ekf_dn_hat", "ekf_de_hat", "ekf_dvn_hat", "ekf_dve_hat",
     "ekf_p_diag0", "ekf_p_diag1", "ekf_p_diag2", "ekf_p_diag3",
+    # ADR-0058 detect-then-track provenance (review minor): which stage produced
+    # this tick's Measurement -- "track" (CSRT tracker box; decision_margin is
+    # then the STALE last NN confidence, not a fresh score) vs an NN class name
+    # ("drone" for the fine-tuned seeker) for a fresh NN detection. Blank on the
+    # AprilTag path / no detection / plain markerless (appended at the END so
+    # every existing by-name DictReader consumer is unaffected).
+    "meas_source",
 ]
 
 
@@ -1168,6 +1175,9 @@ def write_row_m4(
         fmt(ekf_state[5], "{:.5f}") if ekf_state is not None else "",
         fmt(ekf_state[6], "{:.5f}") if ekf_state is not None else "",
         fmt(ekf_state[7], "{:.5f}") if ekf_state is not None else "",
+        # meas_source (ADR-0058 provenance): getattr default keeps the AprilTag
+        # Measurement (no source field written by m3's detection_loop) blank.
+        (getattr(meas, "source", "") or "") if (meas is not None and detected) else "",
     ]
     writer.writerow(row)
     log_file.flush()
@@ -1528,10 +1538,32 @@ def parse_args():
              "onnxruntime + opencv-contrib from .venv-seeker (NOT the main .venv) "
              "and RE-EARNS the no-cheat audit at the live Gazebo A/B (NEXT step).",
     )
+    parser.add_argument(
+        "--track", action="store_true",
+        help="ADR-0058 DETECT-THEN-TRACK (default OFF, requires --seeker "
+             "markerless): wrap the per-frame NN in a cv2 CSRT visual tracker. "
+             "The NN ACQUIRES a cue-validated target (camera-implied position "
+             "within 8 m of the pre-handoff cue, so it seeds on the REAL target "
+             "not a phantom); the tracker then FOLLOWS that visual blob densely "
+             "frame-to-frame, IGNORING the ~18 m-off phantom NN boxes that wreck "
+             "the plain markerless terminal at 12 m/s + maneuver (ADR-0056/0057). "
+             "The NN re-validates every N frames (drift correction). The tracker "
+             "is camera-only; the cue seeds it ONLY pre-handoff (legal), so the "
+             "terminal stays jam-resistant. Byte-identical to plain markerless "
+             "when off. Tunables: MARKERLESS_TRACK_* env vars.",
+    )
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
         parser.error("--handoff requires --fpv (S2 is an FPV-speed sub-step, ADR-0010)")
+    if args.track and args.seeker != "markerless":
+        parser.error("--track requires --seeker markerless (ADR-0058 detect-then-track "
+                     "wraps the markerless NN; there is no NN to track otherwise)")
+    if args.track and not args.handoff:
+        parser.error("--track requires --handoff (the tracker SEED is validated "
+                     "against the pre-handoff cue and the post-handoff re-acquire "
+                     "gate against the cue-warmed camera track; without a cue "
+                     "channel neither validation reference exists, ADR-0058)")
     if args.cue_latency_comp and not args.handoff:
         parser.error("--cue-latency-comp requires --handoff (there is no cue channel without it)")
     if args.cue_velocity and not args.handoff:
@@ -1578,7 +1610,7 @@ def parse_args():
 
 async def run_acquire_and_engage(
     drone, state, meas_holder, tracker, writer, log_file, started, args, s2params=None,
-    sim_clock=None,
+    sim_clock=None, seed_ctx=None, detector_thread=None,
 ):
     """Non-handoff (default): ACQUIRE (hover + yaw-center on the static tag)
     -> ENGAGE (spawn the mover, run the chosen guidance law) -> BREAKOFF
@@ -1678,6 +1710,7 @@ async def run_acquire_and_engage(
     consecutive_fresh = 0
     centered_streak = 0
     last_meas_t_mono = None
+    detector_thread_died_logged = False  # detector-thread liveness log (once)
 
     v_perp = 0.0
     vh0 = vh1 = 0.0
@@ -1818,6 +1851,18 @@ async def run_acquire_and_engage(
 
     while True:
         tick_start = time.monotonic()
+        # Detector-thread liveness (observability only, review finding #5): if the
+        # detection thread has died mid-flight (e.g. an honesty-belt raise inside
+        # it), log it ONCE. The MEAS_STALE_S gate already fails safe -- stale
+        # measurements read as detected=False -> the hold/breakoff/abort ladder --
+        # so this surfaces the CAUSE instead of leaving it a silent staleness.
+        if (detector_thread is not None and not detector_thread.is_alive()
+                and not detector_thread_died_logged):
+            print("[m4] WARNING: detection thread is NO LONGER ALIVE -- "
+                  "measurements will go stale; the MEAS_STALE_S gate coasts then "
+                  "aborts (fail-safe). See the detector traceback above.",
+                  flush=True)
+            detector_thread_died_logged = True
         detected, meas = sample_measurement(meas_holder)
         # new_meas: the detection thread produced a NEW result since our last
         # tick (whether or not it contains a detection). fresh: that new
@@ -2665,6 +2710,20 @@ async def run_acquire_and_engage(
                 float(ekf_tracker.P[2, 2]), float(ekf_tracker.P[3, 3]),
             )
 
+        # ADR-0058 detect-then-track: hand the markerless detection thread this
+        # tick's own-state (PX4 EKF pos + yaw -- own-state, legal), the latest
+        # pre-handoff cue target position (SEED validation), and the shared
+        # TargetTracker's position estimate (cam_track -- the velocity-aware
+        # camera-track prediction the POST-handoff re-acquire gate validates
+        # against; post-latch that tracker is camera-corrected only, so the read
+        # is legal on the --warm-handoff basis, ADR-0015/0018). update() forces
+        # cue_pos to None once handoff_done -> the tracker is camera-only
+        # post-latch (jam-resistant, ADR-0010 #5). No-op without --track.
+        if seed_ctx is not None:
+            seed_ctx.update(state.pos_n, state.pos_e, psi_rad,
+                            last_cue_pos, handoff_done,
+                            cam_track=target_tracker.pos_hat)
+
         write_row_m4(
             writer, log_file, time.monotonic() - started, phase, args.law,
             detected, meas, psi_deg, lambda_hat, lambda_dot_hat, r_hat, rdot_hat,
@@ -3028,6 +3087,7 @@ async def main():
 
     meas_holder = MeasurementHolder()
     stop_event = threading.Event()
+    seed_ctx = None  # ADR-0058 detect-then-track seed context (set below iff --track)
     if args.seeker == "markerless":
         # ADR-0033 item 2: swap ONLY the detection SOURCE to the two-stage
         # markerless seeker. Imported LAZILY (and only in this branch) so the
@@ -3038,9 +3098,23 @@ async def main():
             os.path.dirname(os.path.abspath(__file__)), "seeker"))
         from markerless_loop import markerless_detection_loop
         print("[m4] Seeker: MARKERLESS two-stage (--seeker markerless).")
+        # ADR-0058 detect-then-track: build the shared seed context (own-state +
+        # pre-handoff cue snapshot from the guidance loop) so the tracker seed is
+        # cue-validated. seed_ctx stays None when --track is off (byte-identical).
+        if args.track:
+            from detect_track import SeekerSeedContext, validate_track_kind
+            # Validate the tracker kind HERE, in the MAIN thread, BEFORE the
+            # detector thread starts (review finding #4): an unknown/refused
+            # MARKERLESS_TRACK_KIND becomes a loud immediate error instead of a
+            # silent detector-thread death (KCF stays refused with the
+            # range-freeze reason).
+            validate_track_kind()
+            seed_ctx = SeekerSeedContext()
+            print("[m4] --track ON (ADR-0058): detect-then-track markerless seeker.")
         detector_thread = threading.Thread(
             target=markerless_detection_loop,
             args=(frame_holder, meas_holder, fx, fy, cx, cy, stop_event),
+            kwargs={"track": args.track, "seed_ctx": seed_ctx},
             daemon=True,
         )
     else:
@@ -3175,7 +3249,8 @@ async def main():
             else:
                 result = await run_acquire_and_engage(
                     drone, state, meas_holder, tracker, writer, log_file, started, args,
-                    s2params=s2params, sim_clock=sim_clock,
+                    s2params=s2params, sim_clock=sim_clock, seed_ctx=seed_ctx,
+                    detector_thread=detector_thread,
                 )
                 mover_proc = result["mover_proc"]
                 cue_proc = result["cue_proc"]

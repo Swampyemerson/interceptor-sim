@@ -5,6 +5,32 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit; rebuilt 2026-07-08 after the seeker-v2 +
 fusion-P0/P1/P2 session.)*
 
+## ⚡ SESSION RESUME BLOCK (written 2026-07-09 ~22:45Z at 4% session limit — READ FIRST, then delete this block once absorbed)
+
+**Where we are: detect-then-track (task #27) DONE and COMMITTED (post-fix, micro-review green-lit, headline arm flown). ADR-0058 final. Next up: v3 dataset (#28), then T25.**
+
+**State on disk (all uncommitted, working tree is the source of truth):**
+- Feature + review fixes: `scripts/seeker/detect_track.py` (NEW: DetectThenTracker + SeekerSeedContext + legal_cue_pos() runtime honesty belt), `scripts/seeker/{markerless_loop,two_stage_seeker,finetuned_seeker,nn_seeker}.py`, `scripts/m4_intercept.py` (`--track`, requires `--handoff`; seed_ctx per tick; meas_source CSV column), `scripts/m3_static_intercept.py` (check what changed — likely Measurement-field seam; verify byte-safe), `tests/test_honesty_static.py` (70 pass 2 skip = 66 baseline + 4 new honesty tripwires), `scripts/analyze_track_ab.py` (three-way attribution classifier). `yolo11n.pt` + `.claude/settings.local.json` are UNRELATED — never stage them.
+- ADR-0058 **WRITTEN to `docs/decisions.md`** (line ~1345; the prior "draft staged" claim was stale — it was never in the file, confirmed grep 0, now written fresh with the two-review verdict, the two defect fixes, and full three-way attribution for all four arms). Update it with the headline-arm (trackgate_weave12_r2 — r1 invalidated by a launch-args error, see the ADR provenance note) numbers once that batch lands.
+- v3 dataset plan (task #28, execution-ready): `docs/seeker_v3_dataset_plan.md` + `scripts/seeker_v3_capture.py` (self-test 8/8, dry-run 648/648 verified).
+
+**Results so far (corrected classifier, three-way attribution; details in ADR-0058 draft):**
+- CAMERA-TERMINAL Pk@2.5 (post-handoff min gt — the honest metric): weave **10/15 med 2.28 m** (plain 3/16 med 13.3), jink **14/15 med 1.97, REAL-conditioned 13/13** (plain n=8 1/8 med 7.79). AprilTag ceiling 8/8 med 1.64. Phantom handoffs 12/16→2/16 (weave). Pooled Pk 15/16 both arms (flattering — includes legal cue-banked hits; always report all three levels).
+- **★ HEADLINE ARM (r2, post-fix, `--track`+`--handoff-cue-gate 8`, weave n=16): CLEAN SWEEP — pooled 16/16 (med 2.11), camera-terminal 14/14 (med 2.03, max 2.48), ZERO phantom handoffs, 0/155 FALSE terminal dets, reacq_rejected=0. Full numbers + the two never-handoff characterizations in ADR-0058. Deployment config ADOPTED; builder's maneuver-fix directive SATISFIED.**
+
+**In flight at session cutoff (CHECK FIRST — batch processes may have died with the session):**
+1. ~~plain_jink~~ **DONE before cutoff: n=16, pooled Pk@2.5 3/16, med 3.58, max 5.67** (`logs/mc_t21_plain_jink12_n16.csv`) vs track_jink 15/16 / 1.98. Paired baseline COMPLETE — analyzed three-way in ADR-0058.
+2. ~~Fable re-review~~ **DELIVERED + BOTH DEFECTS FIXED (RTF-invariant frame-count coast clock; REACQ cap 12 m) + minors folded (main-thread kind validation, thread-liveness log, tightened latch pin). Verdict `docs/review_track_fix_delta_20260709.md`; micro-review of the fix delta green-lit the commit.**
+
+**Remaining queue (in order):**
+1. ~~plain_jink verdict → GPU health → cooldown~~ **DONE** (GPU clean, dxgk flat/benign through both r-arms).
+2. ~~HEADLINE ARM~~ **DONE (r2 — r1 was invalidated by a launch-args error, 16 argparse-rejected boots, no data; see ADR-0058 provenance note). Results above.**
+3. ~~Full analysis → finalize ADR-0058 → fold review verdict → full test suite → commit SPECIFIC paths~~ **DONE — suite 71 passed / 2 skipped; committed (feature + tests + docs; yolo11n.pt/settings/v3-files excluded).** Optional residue: verifier gate re-run if main wants an independent pass.
+4. Then task #28: v3 capture (~2.5–3 h sim, plan §Phase-0 forensics first) → CPU fine-tune (~6 h, .venv-seeker-train) → frame-level v2-vs-v3 gates G1–G5 → re-A/B detect-then-track on v3.
+5. Then T25 demo video (builder: deferred until markerless honestly holds a maneuvering terminal — **the r2 headline arm + ADR-0058 SATISFIES this (14/14 camera-only maneuvering terminal); confirm with builder before starting video**).
+
+**Operating pattern (builder-mandated):** Fable head; Opus subagents build; FABLE subagents review every correctness-critical diff before commit ("Opus misses obvious changes"). Sonnet only for rote volume. Never end session until builder says. Batches: sequential, sim-time, watcher via log-sentinel grep only (never pkill/pgrep with sim-name substrings inline — self-kill). Subagent auto-resume on batch exit is UNRELIABLE — always arm an independent sentinel watcher.
+
 ## Current: PHASE 2 — Sim-to-Real (real pipelines = hardware blueprint)
 
 **Builder ratified 2026-07-08 (evening).** Phase 1 (guidance + honesty +

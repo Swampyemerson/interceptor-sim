@@ -108,7 +108,12 @@ class SeekerDetection:
     decision_margin: Optional[float]      # detector confidence (0..1) in the
     #                                       Measurement.decision_margin slot
     n_detections: int
-    # Debug / eval extras (never read by guidance):
+    # Extras beyond the guidance Measurement contract. NOT "debug-only" anymore
+    # (stale comment fixed, ADR-0058 review): box_xywh is READ by the
+    # detect-then-track wrapper (detect_track.py) to seed/validate its visual
+    # tracker, and class_name doubles as the measurement-provenance tag m4 logs
+    # as meas_source ("track" = tracker box via box_to_detection, an NN class
+    # name = fresh NN detection). The guidance MATH still never reads either.
     box_xywh: Optional[Tuple[float, float, float, float]] = None
     class_name: Optional[str] = None
 

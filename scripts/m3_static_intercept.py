@@ -198,6 +198,13 @@ class Measurement:
     meas_xyz: Optional[np.ndarray]
     decision_margin: Optional[float]
     n_detections: int
+    # ADR-0058 provenance (DEFAULTED -- every existing 6-positional-arg
+    # construction, including this file's detection_loop, is byte-identical):
+    # which stage produced this measurement. "" = AprilTag/plain path; "track" =
+    # detect-then-track CSRT tracker box (decision_margin is then the STALE last
+    # NN confidence); an NN class name (e.g. "drone") = fresh markerless NN
+    # detection. Logged to m4's meas_source CSV column; never read by control.
+    source: str = ""
 
 
 class LatestFrame:

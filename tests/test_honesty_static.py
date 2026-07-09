@@ -830,6 +830,174 @@ def test_injected_ground_truth_leak_is_caught():
 
 
 # --------------------------------------------------------------------------
+# ADR-0058 detect-then-track honesty tripwires (review finding #1a). The
+# tracker's cue latch has exactly ONE enforcement site (SeekerSeedContext:
+# update() nulls cue_pos under handoff_done; legal_cue_pos() raises if a cue
+# is ever observable post-latch). These tests pin that shape statically (AST)
+# and exercise the runtime belt, so a refactor that silently weakens the latch
+# fails CI instead of flying.
+# --------------------------------------------------------------------------
+
+DETECT_TRACK_PATH = os.path.join(REPO_ROOT, "scripts", "seeker", "detect_track.py")
+
+
+def _detect_track_tree():
+    with open(DETECT_TRACK_PATH) as fh:
+        return ast.parse(fh.read(), filename=DETECT_TRACK_PATH)
+
+
+def _class_def(tree, name):
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef) and node.name == name:
+            return node
+    raise AssertionError(f"class {name!r} not found in detect_track.py")
+
+
+def test_detect_track_never_reads_ground_truth():
+    """The tracker module must never touch a gt_* name/attribute (camera pixels
+    + own-state + pre-handoff cue only). AST-level so docstrings/comments that
+    MENTION gt_* (the honesty note itself) don't false-positive."""
+    tree = _detect_track_tree()
+    offenders = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id.startswith("gt_"):
+            offenders.append(f"Name {node.id} line {node.lineno}")
+        if isinstance(node, ast.Attribute) and node.attr.startswith("gt_"):
+            offenders.append(f"Attribute .{node.attr} line {node.lineno}")
+    assert not offenders, f"detect_track.py reads ground truth: {offenders}"
+
+
+def _is_null_under_latch(assign):
+    """True iff `assign` is exactly `<x> = None if handoff_done else <y>` (an
+    IfExp whose body is the constant None, gated on the Name `handoff_done`)."""
+    v = assign.value
+    return (isinstance(v, ast.IfExp)
+            and isinstance(v.body, ast.Constant) and v.body.value is None
+            and isinstance(v.test, ast.Name) and v.test.id == "handoff_done")
+
+
+def _cue_pos_null_under_latch_violations(tree):
+    """Honesty belt #1 pin, TIGHTENED (review finding #3). EVERY assignment to
+    self.cue_pos inside SeekerSeedContext.update() must be
+    `self.cue_pos = None if handoff_done else cue_pos` -- 'ALL', not 'some'. The
+    review mutation-proved a some-matches pin is bypassed by an APPENDED second
+    assignment (e.g. a trailing `self.cue_pos = cue_pos`) that quietly re-admits
+    a post-latch cue. Returns a list of violation strings (empty = clean)."""
+    ctx_cls = _class_def(tree, "SeekerSeedContext")
+    update = next((n for n in ctx_cls.body
+                   if isinstance(n, ast.FunctionDef) and n.name == "update"), None)
+    if update is None:
+        return ["SeekerSeedContext.update() missing"]
+    assigns = [
+        node for node in ast.walk(update)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Attribute) and t.attr == "cue_pos"
+                and isinstance(t.value, ast.Name) and t.value.id == "self"
+                for t in node.targets)
+    ]
+    if not assigns:
+        return ["SeekerSeedContext.update() has no assignment to self.cue_pos -- "
+                "the null-under-latch enforcement is gone"]
+    return [
+        f"line {a.lineno}: assignment to self.cue_pos is not "
+        "`None if handoff_done else cue_pos` -- an appended assignment that "
+        "bypasses the latch is exactly this shape (review finding #3)"
+        for a in assigns if not _is_null_under_latch(a)
+    ]
+
+
+def test_seed_ctx_update_nulls_cue_under_latch():
+    """Pin the null-under-latch shape (honesty belt #1): EVERY assignment to
+    self.cue_pos in SeekerSeedContext.update() must be
+    `self.cue_pos = None if handoff_done else cue_pos` -- the line(s) that make a
+    post-latch cue unrepresentable. Tightened from 'some assignment matches' to
+    'ALL match' (review finding #3)."""
+    violations = _cue_pos_null_under_latch_violations(_detect_track_tree())
+    assert not violations, (
+        "null-under-latch pin violation(s):\n" + "\n".join(violations)
+        + "\n(restore the shape, or update this pin WITH an ADR explaining the "
+        "new latch enforcement.)")
+
+
+def test_injected_second_cue_pos_assign_is_caught():
+    """Calibration (review finding #3): prove the TIGHTENED pin actually fires,
+    by mutating a THROWAWAY temp copy of detect_track.py with an APPENDED
+    `self.cue_pos = cue_pos` inside update() -- the exact bypass a some-matches
+    pin missed -- and asserting the checker rejects it. Never touches the real
+    file."""
+    with open(DETECT_TRACK_PATH) as f:
+        lines = f.readlines()
+    target = "self.cue_pos = None if handoff_done else cue_pos"
+    idx = next(i for i, l in enumerate(lines) if l.strip() == target)
+    indent = lines[idx][: len(lines[idx]) - len(lines[idx].lstrip())]
+    injected = f"{indent}self.cue_pos = cue_pos  # INJECTED latch bypass -- must never pass\n"
+    mutated = lines[: idx + 1] + [injected] + lines[idx + 1:]
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        mutated_path = os.path.join(tmp_dir, "detect_track_MUTATED_for_test.py")
+        with open(mutated_path, "w") as f:
+            f.writelines(mutated)
+        with open(mutated_path) as f:
+            mtree = ast.parse(f.read(), filename=mutated_path)
+        violations = _cue_pos_null_under_latch_violations(mtree)
+
+    assert violations, (
+        "expected the appended `self.cue_pos = cue_pos` to trip the tightened "
+        "null-under-latch pin, but it passed clean -- the pin is still the weak "
+        "'some assignment matches' shape")
+    assert any("cue_pos" in v for v in violations), (
+        f"pin fired, but not clearly on the injected assignment: {violations}")
+
+
+def test_tracker_reads_cue_only_via_legal_accessor():
+    """Belt #2 coverage: DetectThenTracker must never read .cue_pos directly --
+    every cue read goes through SeekerSeedContext.legal_cue_pos(), the accessor
+    that raises on a post-latch cue. (SeekerSeedContext's own methods are the
+    only sanctioned raw-attribute sites.)"""
+    tree = _detect_track_tree()
+    trk_cls = _class_def(tree, "DetectThenTracker")
+    raw_reads = [
+        f"line {node.lineno}" for node in ast.walk(trk_cls)
+        if isinstance(node, ast.Attribute) and node.attr == "cue_pos"
+    ]
+    assert not raw_reads, (
+        f"DetectThenTracker reads .cue_pos directly at {raw_reads} -- must go "
+        "through SeekerSeedContext.legal_cue_pos() (the raising accessor)")
+    used = any(isinstance(n, ast.Attribute) and n.attr == "legal_cue_pos"
+               for n in ast.walk(trk_cls))
+    assert used, "DetectThenTracker never calls legal_cue_pos() -- belt #2 unused"
+
+
+def test_seed_ctx_runtime_latch_belt():
+    """Runtime exercise of both belts (importable under the main .venv -- cv2
+    present, onnxruntime not needed: detect_track imports only cv2 + the
+    SeekerDetection dataclass)."""
+    sys.path.insert(0, os.path.join(REPO_ROOT, "scripts", "seeker"))
+    try:
+        from detect_track import SeekerSeedContext
+    except ImportError:  # pragma: no cover -- e.g. a venv without cv2
+        return  # runner mode: silently pass; the 3 static pins above still hold
+    ctx = SeekerSeedContext()
+    # Pre-handoff: cue passes through.
+    ctx.update(1.0, 2.0, 0.1, (5.0, 6.0), False, cam_track=(5.0, 6.0))
+    assert ctx.legal_cue_pos() == (5.0, 6.0)
+    # Handoff: same call shape, latch nulls the cue even though a cue was passed.
+    ctx.update(1.0, 2.0, 0.1, (5.0, 6.0), True, cam_track=(5.0, 6.0))
+    assert ctx.cue_pos is None, "update() failed to null cue_pos under the latch"
+    assert ctx.legal_cue_pos() is None
+    # Structural violation (bypassing update): the accessor must RAISE.
+    ctx.cue_pos = (5.0, 6.0)
+    try:
+        ctx.legal_cue_pos()
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError(
+            "legal_cue_pos() returned a post-latch cue instead of raising -- "
+            "honesty belt #2 is gone")
+
+
+# --------------------------------------------------------------------------
 # Runner (so `python tests/test_honesty_static.py` works with no pytest)
 # --------------------------------------------------------------------------
 

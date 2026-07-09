@@ -167,6 +167,19 @@ class TwoStageSeeker:
         ray = ray / np.linalg.norm(ray)
         return bearing_h, bearing_v, range_m, range_m * ray
 
+    def box_to_detection(self, box_xywh, t_mono, score, n):
+        """Box (x0, y0, w, h top-left, image px) -> SeekerDetection via the SAME
+        _geometry() detect() uses (max(w,h) known-size range, box-center bearing).
+        The seam the detect-then-track tracker publishes through; detect() is
+        untouched so the plain markerless path stays byte-identical."""
+        x0, y0, w, h = box_xywh
+        u, v = x0 + w / 2.0, y0 + h / 2.0
+        bh_, bv_, rng, xyz = self._geometry(u, v, w, h)
+        return SeekerDetection(
+            t_mono=t_mono, range_m=rng, bearing_rad=bh_, bearing_vert_rad=bv_,
+            meas_xyz=xyz, decision_margin=score, n_detections=n,
+            box_xywh=(x0, y0, w, h), class_name="track")
+
     # ------------------------------------------------------ full pipeline
     def detect(self, frame_bgr, t_mono: Optional[float] = None,
                prev_gray: Optional[np.ndarray] = None, include_motion: bool = False,
