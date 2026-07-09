@@ -1462,6 +1462,27 @@ def parse_args():
              "range disagrees with this protected coast by more than this many "
              "metres -> coast through the false lock. Typical: 6 m.")
     parser.add_argument(
+        "--handoff-cue-gate", type=float, default=None,
+        help="ADR-0057 attempt-3 ROOT-CAUSE fix (default None = OFF, byte-"
+             "identical): the CUE-VALIDATED HANDOFF gate. The root cause of "
+             "markerless maneuver misses is a phantom camera FALSE-LOCK during "
+             "DASH that reads in-range (~1.8 m) and TRIGGERS the handoff streak, "
+             "latching camera-only while the TRUE target is 15-100 m away. "
+             "PRE-handoff the external cue is legitimately available (its whole "
+             "job is to guide the dash until the camera truly acquires), so we "
+             "validate the handoff-triggering camera detection against the CUE's "
+             "target position: a camera detection only counts toward the handoff "
+             "streak if the camera-IMPLIED target NED position (own pos + range "
+             "along the LOS) is within this many metres of the latest cue target "
+             "position. A phantom (camera implies ~1.8 m ahead when the cue says "
+             "20 m away) is REJECTED -> the interceptor keeps dashing on the cue "
+             "toward the real target -> only a GENUINE acquisition latches "
+             "handoff. Only gates the handoff STREAK -- the dash guidance, the "
+             "terminal, and the cue latch are untouched. Honesty-clean: the cue "
+             "is only used PRE-handoff, exactly where it is legitimate. "
+             "Typical: 8 m (phantoms are ~18 m off the cue; the cue's own error "
+             "is ~0.5-2.5 m).")
+    parser.add_argument(
         "--accel-boost", action="store_true",
         help="ADR-0028 Gazebo-confirm (default OFF, requires --fpv): ~2x "
              "the FPV PX4 param bundle's MPC_ACC_HOR_MAX (%.1f -> %.1f m/s^2) "
@@ -1705,6 +1726,13 @@ async def run_acquire_and_engage(
     coast_r = None
     coast_fpv = None
     coast_gate_rejects = 0
+    # ADR-0057 attempt-3 CUE-VALIDATED HANDOFF state (only used when
+    # --handoff-cue-gate is set): last_cue_pos is the latest cue-reported target
+    # NED position (updated each tick a fresh cue datagram sets ext_n/ext_e);
+    # handoff_cue_rejects tallies handoff-candidate camera detections rejected
+    # because the camera-implied target position disagreed with the cue.
+    last_cue_pos = None
+    handoff_cue_rejects = 0
     handoff_streak = 0
     handoff_done = False
     handoff_t = None
@@ -1916,6 +1944,12 @@ async def run_acquire_and_engage(
                         ext_n = cy
                         ext_e = cx
                         ext_z = cz
+                        # ADR-0057 attempt-3: persist the latest cue-reported
+                        # target NED position so the handoff-streak gate can
+                        # validate a handoff-triggering camera detection against
+                        # where the cue says the target is (only read below when
+                        # --handoff-cue-gate is set; no effect otherwise).
+                        last_cue_pos = (ext_n, ext_e)
                         # Tracking-refinement PORT 2 (--cue-latency-comp,
                         # default OFF): the cue's AGE at USE is sim_now -
                         # t_sim (includes the mock's fixed 0.12s latency
@@ -2256,7 +2290,37 @@ async def run_acquire_and_engage(
             # streak; a tick with no new detector result at all leaves it
             # untouched -- normal ~14 Hz-vs-20 Hz cadence, not a miss).
             if new_meas:
-                if meas.range_m is not None and meas.range_m <= s2params["HANDOFF_RANGE_M"]:
+                in_handoff_range = (
+                    meas.range_m is not None
+                    and meas.range_m <= s2params["HANDOFF_RANGE_M"]
+                )
+                # ADR-0057 attempt-3 CUE-VALIDATED HANDOFF gate (default OFF ->
+                # cue_consistent stays True -> byte-identical). A phantom camera
+                # false-lock during DASH reads in-range but points at empty space
+                # ~1.8 m ahead while the cue says the true target is ~20 m away.
+                # Compute the camera-IMPLIED target NED position (own pos + range
+                # along the measured LOS, the same north=range*cos(lambda),
+                # east=range*sin(lambda) mapping the fresh block uses) and reject
+                # the detection for handoff purposes if it disagrees with the
+                # latest cue position by more than the gate. Rejected -> treated
+                # exactly like an out-of-range detection (streak resets), so the
+                # interceptor keeps dashing on the cue until a genuine, cue-
+                # consistent acquisition latches handoff. Only the STREAK is
+                # gated; nothing else changes.
+                cue_consistent = True
+                if (in_handoff_range and args.handoff_cue_gate is not None
+                        and last_cue_pos is not None
+                        and state.pos_n is not None and state.pos_e is not None):
+                    lambda_meas_h = psi_rad + meas.bearing_rad
+                    cam_tgt_n = state.pos_n + meas.range_m * math.cos(lambda_meas_h)
+                    cam_tgt_e = state.pos_e + meas.range_m * math.sin(lambda_meas_h)
+                    cue_gap = math.hypot(
+                        cam_tgt_n - last_cue_pos[0], cam_tgt_e - last_cue_pos[1]
+                    )
+                    if cue_gap > args.handoff_cue_gate:
+                        cue_consistent = False
+                        handoff_cue_rejects += 1
+                if in_handoff_range and cue_consistent:
                     handoff_streak += 1
                 else:
                     handoff_streak = 0
@@ -2645,6 +2709,7 @@ async def run_acquire_and_engage(
         "terminal_rejects": terminal_rejects,   # ADR-0056 false-lock gate
         "coast_gate_rejects": coast_gate_rejects,  # ADR-0057 attempt-2 coast gate
         "coast_r": coast_r,                      # protected coast range (final)
+        "handoff_cue_rejects": handoff_cue_rejects,  # ADR-0057 attempt-3 cue-validated handoff gate
         "min_gt_range_running": min_gt_range_running,
         "mover_proc": mover_proc,
         "cue_proc": cue_proc,
@@ -3151,6 +3216,7 @@ async def main():
                     f"n_ticks={result['n_ticks']} coverage={coverage:.3f} "
                     f"terminal_rejects={result.get('terminal_rejects', 0)} "
                     f"coast_gate_rejects={result.get('coast_gate_rejects', 0)} "
+                    f"handoff_cue_rejects={result.get('handoff_cue_rejects', 0)} "
                     f"coast_r={_coast_r_str} "
                     f"breakoff_reason={result['breakoff_reason'] or 'n/a'} "
                     f"aborted={result['aborted']} log={log_path}"
