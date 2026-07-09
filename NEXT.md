@@ -45,7 +45,14 @@ every new cue path.
    — may revise every fusion conclusion).
 4. **Compute split + real link** (T19, needs 3) — `ground_station.py` process
    emits the real track; `m4_intercept.py` consumes unchanged; `--cue-source
-   {mock,stereo}` flag, default `mock` (gated reproducibility preserved). Council F2.
+   {mock,stereo}` flag, default `mock` (gated reproducibility preserved).
+   **F2 DECIDED (ADR-0048, council 3/3): reuse :47800 JSON; m4 spawns
+   ground_station.py like the mock; sim-time via DUAL-GATE buffer-release
+   (`sim_time>=deliver_t AND result_ready` — floor violations logged, floor
+   profiled under concurrent Gazebo render); reproducibility via AST-token
+   pin of the mock argv + s2_cue_mock hash pin (no shared helper between
+   branches); ground_station.py runs in .venv-seeker (explicit venv const,
+   not sys.executable).** Build gated on T18 real data.
 5. **Fusion refinement** (T20) — bias-state EKF (estimate the datum offset, kill
    the WORST-tier bias-lock) + camera-favoring confidence. Prototype on mock;
    ADOPT only on real stereo data (builder's sequencing). Attacks the ADR-0044 null.
