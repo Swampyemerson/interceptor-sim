@@ -163,9 +163,13 @@ every new cue path.
   → **T17-v2 (multi-range training) now justified by EVIDENCE + is T20's
   PREREQUISITE.** Harnesses `scripts/multirange_*.py` reusable for the v2
   dataset. Do NOT adopt a fusion default on ground_v1 multi-range data (biased).
-- **T17-v2 (multi-range detector) — NEXT unblocker:** retrain on the multi-range
-  captures (fixes the ADR-0049/0053 out-of-domain bias); then re-run the real-
-  detector σ_R across ranges (held-out) → unblocks T20 fusion adoption.
+- **T17-v2 (multi-range detector) — DONE + gate PASS (ADR-0055, verifier
+  pending):** ground_v2 fixes the ADR-0053 out-of-domain bias, HELD-OUT-
+  validated (70 m −6.17→−0.010 m, 130 m +0.26→−0.14 m; box-size monotonic).
+  `ground_v2.{pt,onnx}` = recommended detector. **→ TRIPS T20's pre-registered
+  NULL: nominal cue bias now <0.5 m, so the fusion de-bias earns nothing on
+  nominal data (don't adopt as default).** T20's anti-jam value (injected
+  WORST datum/spoof bias-lock, ADR-0044) stays the only open T20 question.
 - **d3d12 batch adoption:** validated on check_m3 (ADR-0046 addendum); first
   d3d12 BATCH arm still owes a paired-seed sanity vs stock before A/B use.
 

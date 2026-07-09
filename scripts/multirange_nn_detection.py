@@ -54,11 +54,16 @@ def main() -> int:
     ap.add_argument("--weights", default=DEFAULT_WEIGHTS)
     ap.add_argument("--conf", type=float, default=0.25, help="matches check_t17.sh's own default")
     ap.add_argument("--imgsz", type=int, default=960)
+    ap.add_argument("--out-dir", default=OUT_DIR,
+                    help="T17-v2 addition: override the output dir (default unchanged) so this "
+                         "script can be run once per weights set (e.g. ground_v1 vs ground_v2) "
+                         "against the SAME --root without one run clobbering the other's CSVs.")
     args = ap.parse_args()
 
-    os.makedirs(OUT_DIR, exist_ok=True)
+    out_dir = args.out_dir
+    os.makedirs(out_dir, exist_ok=True)
     standoff_dirs = discover_standoff_dirs(args.root)
-    print(f"[multirange-nn] root={args.root}  weights={args.weights}  conf={args.conf}")
+    print(f"[multirange-nn] root={args.root}  weights={args.weights}  conf={args.conf}  out_dir={out_dir}")
 
     all_rows = []
     rigs_by_standoff = {}
@@ -102,7 +107,7 @@ def main() -> int:
               f"({n_hit/n:.0%})  " +
               (f"mean_box_diag={mean_size:.1f} px" if mean_size else "no hits"))
 
-    csv_path = os.path.join(OUT_DIR, "nn_detections_multirange.csv")
+    csv_path = os.path.join(out_dir, "nn_detections_multirange.csv")
     fieldnames = ["standoff", "seq", "camera", "true_R_m", "hit", "det_conf",
                   "det_u", "det_v", "box_w_px", "box_h_px", "box_diag_px"]
     with open(csv_path, "w", newline="") as fh:
@@ -123,7 +128,7 @@ def main() -> int:
             "mean_box_diag_px": (sum(r["box_diag_px"] for r in sub if r["hit"]) / n_hit) if n_hit else None,
             "mean_conf": (sum(r["det_conf"] for r in sub if r["hit"]) / n_hit) if n_hit else None,
         }
-    summary_path = os.path.join(OUT_DIR, "nn_detection_summary.json")
+    summary_path = os.path.join(out_dir, "nn_detection_summary.json")
     with open(summary_path, "w") as fh:
         json.dump(summary, fh, indent=2)
     print(f"[multirange-nn] wrote {summary_path}")
@@ -178,7 +183,7 @@ def main() -> int:
               f"REAL-CENTROID sigma_R={sigma if sigma is not None else 'n/a (need >=2)'}  "
               f"mean_bias={statistics.mean(resids):+.3f} m" if resids else "no usable pairs")
 
-    tri_csv = os.path.join(OUT_DIR, "real_centroid_triangulation.csv")
+    tri_csv = os.path.join(out_dir, "real_centroid_triangulation.csv")
     if tri_rows:
         with open(tri_csv, "w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=list(tri_rows[0].keys()))
@@ -187,7 +192,7 @@ def main() -> int:
                 w.writerow(r)
         print(f"[multirange-nn] wrote {tri_csv}")
 
-    real_sigma_path = os.path.join(OUT_DIR, "real_centroid_sigma_by_standoff.json")
+    real_sigma_path = os.path.join(out_dir, "real_centroid_sigma_by_standoff.json")
     with open(real_sigma_path, "w") as fh:
         json.dump(real_sigma_by_standoff, fh, indent=2, default=str)
     print(f"[multirange-nn] wrote {real_sigma_path}")
