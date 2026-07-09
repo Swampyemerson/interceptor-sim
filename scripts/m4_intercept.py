@@ -561,7 +561,7 @@ CSV_HEADER = [
     # RTF sag makes wall != sim, so HUD/video time-sync must key off t_sim,
     # not t.
     "t", "t_sim", "phase", "law", "detected",
-    "meas_x", "meas_y", "meas_z", "meas_range", "bearing_rad",
+    "meas_x", "meas_y", "meas_z", "meas_range", "meas_conf", "bearing_rad",
     "psi_deg", "lambda_deg", "lambda_dot_deg_s",
     "r_hat_m", "rdot_hat_m_s", "vc_m_s", "a_cmd_m_s2", "v_perp_m_s",
     "cmd_vn", "cmd_ve", "cmd_vd", "cmd_yaw_deg",
@@ -1104,6 +1104,12 @@ def write_row_m4(
 
     meas_xyz = meas.meas_xyz if (meas is not None and detected) else None
     meas_range = meas.range_m if (meas is not None and detected) else None
+    # meas_conf: the seeker's detection CONFIDENCE (Measurement.decision_margin
+    # slot -- markerless NN score for the markerless seeker, AprilTag
+    # decision_margin otherwise). LOGGING ONLY (ADR-0057 characterization: is
+    # the terminal false-lock separable by confidence?); guidance never reads
+    # this. Mirrors meas_range's detected-only / blank-otherwise convention.
+    meas_conf = meas.decision_margin if (meas is not None and detected) else None
     bearing_rad = meas.bearing_rad if (meas is not None and detected) else None
 
     row = [
@@ -1116,6 +1122,7 @@ def write_row_m4(
         fmt(meas_xyz[1]) if meas_xyz is not None else "",
         fmt(meas_xyz[2]) if meas_xyz is not None else "",
         fmt(meas_range),
+        fmt(meas_conf),
         fmt(bearing_rad, "{:.5f}"),
         fmt(psi_deg, "{:.3f}"),
         fmt(math.degrees(lambda_rad), "{:.3f}") if lambda_rad is not None else "",
