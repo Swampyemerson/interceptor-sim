@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  STEREO_INTERCEPT world (Phase-2 T16, ADR-0046 F1 DECIDED: "trajectory-
+  matched offline-render REPLAY" -- the ground stereo rig's frames are
+  rendered OFFLINE by teleporting the target along its deterministic dash
+  path (scripts/rig_snapshot_capture.py); the REAL detect+triangulate+track
+  pipeline (T18/T19) replays those frames LIVE at flight time, paced by sim
+  time, over the real :47800 link. Live rig rendering during an actual
+  flight is DEFERRED behind a pre-registered probe gate (ADR-0046 item 4),
+  not built here -- a live 3rd/4th camera at design resolution collapses
+  Gazebo's real-time factor the same way worlds/apriltag_demo.sdf's single
+  extra 1280x720 camera did (RTF ~0.05), confirmed rig-specific by
+  scripts/probe_stereo_rtf.sh. Council: 3/3, no dissent on the pick; see
+  docs/decisions.md ADR-0046 for the full record.)
+
+  BYTE-IDENTICAL to worlds/markerless.sdf (physics / scene / ground_plane /
+  sun / spherical_coordinates kept EXACTLY -- PX4's gz_bridge depends on it,
+  GOALS.md M2) EXCEPT for two deliberate changes:
+
+    1. World name is "stereo_intercept" (not "markerless"). Every gz-
+       transport topic for this run keys off it, e.g.
+       /world/stereo_intercept/model/x500_mono_cam_0/link/camera_link/sensor/imager/image
+       and /world/stereo_intercept/set_pose. The flight stack already reads
+       the world name from the INTERCEPTOR_WORLD_NAME env var
+       (scripts/m2_detect.py's WORLD_NAME, reused by m3/m4/mover/
+       s2_cue_mock/rig_snapshot_capture.py), so set
+       INTERCEPTOR_WORLD_NAME=stereo_intercept to match this file.
+
+    2. ADDED: an <include> of model://ground_stereo_rig (models/
+       ground_stereo_rig/, T16) at the `broadside_160m` pose from
+       docs/rig_geometry_analysis.md Sec 2 / logs/rig_geometry/coverage.csv
+       -- the recommended PRACTICAL (off-flight-line) pose: rig center at
+       world (-153.5, 0.0, 1.8) [1.8 m tripod-class mount height per
+       docs/stereo_design.md's mount], yaw 0 rad, so its boresight (link
+       local +X) points back along world +X at the fixed-X=6.5 m dash
+       corridor -- a 160.0 m standoff (6.5 - (-153.5) = 160.0), the rig's
+       own design-envelope ceiling (docs/stereo_design.md).
+
+       WEDGE-COVERAGE SANITY CHECK (recomputed here, cross-checked against
+       coverage.csv's 91%/91% figure): each camera's half-angle is
+       0.349 rad / 2 = 0.1745 rad (10 deg). At the corridor's row
+       (x=6.5, ~160 m downrange of the rig), the shared wedge's half-width
+       is 160 m * tan(10 deg) = ~28.2 m, i.e. it covers target world-Y in
+       roughly [-28.2, +28.2]. The dash profile (scripts/m4_target_mover.py,
+       scripts/rig_geometry_analysis.py) sweeps Y from +-29.3 m through
+       Y=0 -- so the wedge covers the corridor for ALL of the dash except
+       the first ~1.1 m of travel from the +-29.3 m start (the single most
+       oblique, farthest moment of CUE_WAIT: |y|=29.3 gives an off-boresight
+       angle of atan(29.3/160)=10.36 deg, just outside the 10 deg
+       half-angle) -- through HANDOFF (~160.8 m range -> ~10 m range) and
+       on to the y=+-5 m boundary scripts/rig_snapshot_capture.py samples
+       to. This matches coverage.csv's `broadside_160m` row: 0.914 path
+       fraction covered, both directions (r2l/l2r), continuous from just
+       after CUE_WAIT start through HANDOFF. The counter-intuitive reason
+       this pose (not a closer one) wins: at fixed half-angle, absolute
+       wedge width GROWS with standoff (docs/rig_geometry_analysis.md
+       Sec 2), so the farther-back, design-envelope-ceiling pose covers
+       more of the corridor than any closer candidate tested.
+
+       The target <include> (fpv_target_markerless) is UNCHANGED from
+       markerless.sdf: same model, same pose (5, 0, 0.5), same identity
+       orientation -- the flight stack still moves it via set_pose during
+       ENGAGE/the rig capture harness. Set
+       INTERCEPTOR_TARGET_MODEL=fpv_target_markerless (the default) to
+       match.
+
+  Launch (mirrors worlds/markerless.sdf): reachable as
+  ${PX4_GZ_WORLDS}/stereo_intercept.sdf at runtime (symlink like
+  markerless.sdf -- scripts/check_t16.sh creates/repairs it, ADR-0005
+  pattern), models via GZ_SIM_RESOURCE_PATH:
+
+    PX4_GZ_WORLD=stereo_intercept \
+    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    HEADLESS=1 make px4_sitl gz_x500_mono_cam
+
+  With INTERCEPTOR_WORLD_NAME=stereo_intercept
+  INTERCEPTOR_TARGET_MODEL=fpv_target_markerless set for any flight-stack
+  script (m2/m3/m4_*.py, scripts/rig_snapshot_capture.py) run against this
+  world.
+-->
+<sdf version="1.9">
+  <world name="stereo_intercept">
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1 1</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>500 500</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <pose>0 0 0 0 -0 0</pose>
+      <self_collide>false</self_collide>
+    </model>
+    <light name="sunUTC" type="directional">
+      <pose>0 0 500 0 -0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0.001 0.625 -0.78</direction>
+      <diffuse>0.904 0.904 0.904 1</diffuse>
+      <specular>0.271 0.271 0.271 1</specular>
+      <attenuation>
+        <range>2000</range>
+        <linear>0</linear>
+        <constant>1</constant>
+        <quadratic>0</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg> 8.546163739800146</longitude_deg>
+      <elevation>0</elevation>
+    </spherical_coordinates>
+
+    <!-- Markerless target: tag-less enemy quad body at (5, 0, 0.5), approach
+         face (-X) toward the interceptor at origin (see
+         models/fpv_target_markerless/model.sdf for the facing derivation --
+         same convention as apriltag_target). NO fiducial: the seeker must lock
+         the body. UNCHANGED from worlds/markerless.sdf. -->
+    <include>
+      <uri>model://fpv_target_markerless</uri>
+      <name>fpv_target_markerless</name>
+      <pose>5 0 0.5 0 0 0</pose>
+    </include>
+
+    <!-- T16 ground stereo rig (ADR-0046 F1): `broadside_160m` pose from
+         docs/rig_geometry_analysis.md Sec 2 / logs/rig_geometry/coverage.csv
+         -- world (-153.5, 0.0, 1.8), yaw 0 rad, boresight along +X, 160 m
+         standoff, facing the fixed-X=6.5 m dash corridor. See the world
+         header comment above for the wedge-coverage sanity check
+         (~28.2 m half-width at the corridor's row -- 91%/91% path coverage
+         both dash directions, per coverage.csv). -->
+    <include>
+      <uri>model://ground_stereo_rig</uri>
+      <name>ground_stereo_rig</name>
+      <pose>-153.5 0.0 1.8 0 0 0</pose>
+    </include>
+  </world>
+</sdf>

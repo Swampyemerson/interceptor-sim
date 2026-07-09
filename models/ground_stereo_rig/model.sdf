@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ground_stereo_rig -- T16 (ADR-0046 F1 decision item 1): the ground-based
+  two-camera stereo rig that Phase-2's "trajectory-matched offline-render
+  replay" uses to build in-domain stereo frames along the deterministic
+  target dash path (scripts/rig_snapshot_capture.py), for T18's real
+  triangulation/ranging validation.
+
+  WHY OFFLINE REPLAY, NOT LIVE (ADR-0046): a live 3rd/4th camera (2 rig +
+  1 onboard) at the 1920x1200 design resolution collapses Gazebo's
+  real-time factor. worlds/apriltag_demo.sdf:300-308's single-extra-camera
+  1280x720 precedent already measured RTF ~0.05 (an order of magnitude
+  below the ADR-0009 under-load floor); scripts/probe_stereo_rtf.sh's
+  rig-specific probe confirms full-res@30Hz is a TOTAL RTF collapse
+  (0.038 mean), full-res@10Hz ~0.54, and every consumed-rig config dips
+  into the OFFBOARD-entry risk band. But UNSUBSCRIBED sensors are ~free
+  (isolated RTF ~1.0 even at 2x1920x1200) -- the cost is CONSUMPTION
+  (transport/serialization of a SUBSCRIBED topic), not rendering itself.
+  So T16 renders this rig's frames OFFLINE via a teleport-and-capture
+  harness (scripts/rig_snapshot_capture.py), and the REAL
+  detect+triangulate+track pipeline (T18/T19) replays those frames LIVE at
+  flight time, paced by sim time. Live rig rendering during a real flight
+  is DEFERRED behind a pre-registered probe gate (ADR-0046 item 4), not
+  built here.
+
+  GEOMETRY: one STATIC link "link" carries two <sensor type="camera">
+  blocks, rig_left and rig_right, fronto-parallel (both boresights along
+  the link's local +X, no toe-in -- matches
+  scripts/rig_geometry_analysis.py's wedge model, which assumes parallel
+  boresights), offset +/-1.0 m along the link's local Y axis (2.0 m total
+  baseline -- docs/stereo_design.md ADR-0017's chosen knee-of-the-curve
+  baseline: going 1->2 m nearly halves sigma_R at 100 m, 2->4 m barely
+  helps for a much harder mount). rig_left sits at local +Y (matches the
+  FLU convention other rig probes in this repo use, e.g.
+  scripts/probe_stereo_rtf.sh's generated rig block: +Y = left when facing
+  +X).
+
+  Sensor block style copied from worlds/apriltag_demo.sdf:336-369
+  (demo_chase_cam), the established "static model + camera sensor, not
+  bolted to the PX4 airframe" precedent: no <topic> override (gz
+  auto-derives
+  /world/<W>/model/ground_stereo_rig/link/link/sensor/<rig_left|rig_right>/image)
+  and no <format> override (RGB_INT8 default -- every decoder in this repo,
+  e.g. scripts/m1_capture.py's image_msg_to_bgr, asserts this exact
+  format and fails loudly otherwise).
+
+  horizontal_fov 0.349 rad (~20 deg, ADR-0017's 16 mm C-mount-equivalent
+  lens), 1920x1200 (docs/stereo_design.md's design resolution -- an
+  OFFLINE render pays no RTF tax, so there is no reason to cut resolution
+  the way a LIVE rig would need to, per §5.6 finding #7's res-vs-c
+  tradeoff), update_rate 10 Hz (docs/rig_geometry_analysis.md Sec 3: 10 Hz
+  clears the fusion arc's sigma_v <= 0.5 m/s bar against a gentle target
+  even at the far 160.8 m handoff range; this is also the cadence
+  scripts/rig_snapshot_capture.py's default --rate samples the deterministic
+  dash path at), clip 0.1/3000 m (matches every other camera sensor in
+  this repo, e.g. demo_chase_cam / PX4's own mono_cam).
+
+  This model carries NO world-frame placement of its own -- only the
+  link-local sensor geometry above. worlds/stereo_intercept.sdf's
+  <include> sets the actual deployment pose (the `broadside_160m` pose
+  from logs/rig_geometry/coverage.csv / docs/rig_geometry_analysis.md
+  Sec 2).
+-->
+<sdf version="1.9">
+  <model name="ground_stereo_rig">
+    <static>true</static>
+    <link name="link">
+      <inertial>
+        <mass>1</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.01</iyy>
+          <iyz>0</iyz>
+          <izz>0.01</izz>
+        </inertia>
+      </inertial>
+      <sensor name="rig_left" type="camera">
+        <pose>0 1.0 0 0 0 0</pose>
+        <camera>
+          <horizontal_fov>0.349</horizontal_fov>
+          <image>
+            <width>1920</width>
+            <height>1200</height>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>3000</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>10</update_rate>
+        <visualize>true</visualize>
+      </sensor>
+      <sensor name="rig_right" type="camera">
+        <pose>0 -1.0 0 0 0 0</pose>
+        <camera>
+          <horizontal_fov>0.349</horizontal_fov>
+          <image>
+            <width>1920</width>
+            <height>1200</height>
+          </image>
+          <clip>
+            <near>0.1</near>
+            <far>3000</far>
+          </clip>
+        </camera>
+        <always_on>1</always_on>
+        <update_rate>10</update_rate>
+        <visualize>true</visualize>
+      </sensor>
+    </link>
+  </model>
+</sdf>

@@ -22,15 +22,17 @@ before building; verifier-gate every close-out; honesty boundary re-earned on
 every new cue path.
 
 ### Phase-2 build queue (dependency-ordered; the durable todo)
-1. **Stereo rig world + two real cameras** (T16, foundation) — **F1 DECIDED
-   2026-07-08 (ADR-0046, council 3/3): trajectory-matched offline-render
-   REPLAY** — rig renders offline at full 1920×1200 along the deterministic
+1. **Stereo rig world + two real cameras** (T16) — **DONE 2026-07-08 late
+   evening, verifier-gated (check_t16.sh 5/5, independent re-run exit 0).**
+   F1 decided (ADR-0046, council 3/3): trajectory-matched offline-render
+   REPLAY — rig renders offline at full 1920×1200 along the deterministic
    mover path; the REAL detect+triangulate+track code runs LIVE at flight
    time on those frames (sim-time paced, real :47800 link); live rendering
    deferred behind a pre-registered probe gate; separate-sim rejected.
-   Build: `models/ground_stereo_rig/` + `worlds/stereo_intercept.sdf`
-   (rig at broadside_160m) + snapshot-capture harness + gate script.
-   Blocks 2,3,4 (T17 needs the rig viewpoint/intrinsics).
+   Shipped: `models/ground_stereo_rig/`, `worlds/stereo_intercept.sdf`
+   (rig at broadside_160m), `scripts/rig_snapshot_capture.py`,
+   `scripts/check_t16.sh`. Next sim job: full capture sweep (both
+   directions) = T17's dataset + T18's replay sequence.
 2. **Ground NN detector** (T17) — reuse the onboard v2 render→fine-tune→calibrate
    recipe from the ground viewpoint. ∥ with 7,9 (design docs); its render step
    holds the simulator, so sim-serialized with 1,3,6.
