@@ -123,6 +123,14 @@ every new cue path.
    markerless perception artifact (tag shows none). Real-cue re-run needs
    maneuvering caches (not built). **Informs T25: feature the AprilTag maneuvering
    / markerless-straight-line regime, be honest about the markerless maneuver limit.**
+   - **MANEUVER FIX (builder-directed, video deferred until done):** attempt 1
+     `--terminal-reject-gate` NOT VALIDATED (ADR-0057, self-correction): my n=2
+     pilot "win" was misread NOISE; the run-to-run false-lock noise floor at
+     12 m/s+maneuver is ~5 m (a sporadic coin-flip, not ~1 m); n=8 A/B mixed
+     (weave 1/8->5/8 but mostly noise; jink regressed; 50% harm on the 4/16
+     gate-firing flights). Gate stays default-OFF/not-adopted. **REOPENED: fix
+     at the DETECTION level (temporal/size/confidence consistency or detect-
+     then-track), measure at n>=16-24 against the ~5 m noise floor.**
 7. **FPV fidelity** (T22, design first) — real FPV speed/accel/payload; `--fpv-fast`
    profile. Note ADR-0028: guidance ceiling binds, not airframe agility.
 8. **Sim-to-real shortcomings audit** (T23) — **DRAFTED `docs/sim_to_real_gaps.md`:**
