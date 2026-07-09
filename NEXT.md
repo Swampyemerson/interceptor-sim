@@ -112,9 +112,17 @@ every new cue path.
    where it earns its complexity. Hand-set `--fuse-midcourse` stays the
    recommended fusion; ADR-0054 design stands as ratified-but-unbuilt, revisit
    only for a bias >2.5 m or active time-varying spoof. NOT the next work.
-6. **Higher-speed + maneuvering arms** (T21) — 12 m/s + weave/jink with markerless
-   + fusion (arc was 9 m/s straight-line only). Sim, serialized. Can run on mock now,
-   re-run on real cue after 4.
+6. **Higher-speed + maneuvering arms** (T21) — **DONE (ADR-0056, plot
+   docs/images/t21_maneuver_miss.png):** at 12 m/s + weave/jink, markerless+fusion
+   degrades (Pk@2.5: weave 1/8, jink 3/8; miss median 3.7-5.4 m) but a clean
+   AprilTag CONTROL holds 8/8 at 1.6 m → the limit is markerless BEARING QUALITY
+   (perception), NOT kinematic (guidance/airframe catch the maneuverer) and NOT
+   detection rate (both seekers sparse) — the maneuver removes the averaging that
+   hid the markerless bearing noise (extends ADR-0042/0043). Fix = terminal
+   tracker/subpixel or the real seeker, not guidance. Direction asymmetry =
+   markerless perception artifact (tag shows none). Real-cue re-run needs
+   maneuvering caches (not built). **Informs T25: feature the AprilTag maneuvering
+   / markerless-straight-line regime, be honest about the markerless maneuver limit.**
 7. **FPV fidelity** (T22, design first) — real FPV speed/accel/payload; `--fpv-fast`
    profile. Note ADR-0028: guidance ceiling binds, not airframe agility.
 8. **Sim-to-real shortcomings audit** (T23) — **DRAFTED `docs/sim_to_real_gaps.md`:**
