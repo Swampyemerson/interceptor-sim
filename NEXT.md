@@ -35,7 +35,11 @@ every new cue path.
    directions) = T17's dataset + T18's replay sequence.
 2. **Ground NN detector** (T17) — reuse the onboard v2 render→fine-tune→calibrate
    recipe from the ground viewpoint. ∥ with 7,9 (design docs); its render step
-   holds the simulator, so sim-serialized with 1,3,6.
+   holds the simulator, so sim-serialized with 1,3,6. **Builder ruling
+   2026-07-08 (ADR-0047): single-class "drone" detector, acquisition only
+   (interceptor still grounded at lock) → detect-then-track custody +
+   downlinked-nav identity gate. NO interceptor class in the dataset; the
+   detect→track handoff and drop/re-acquire logic are the real test surface.**
 3. **Triangulation + ground velocity/track** (T18, needs 1+2) — 2-cam → 3D
    position + velocity; **VALIDATE measured σ_R vs ADR-0017 c=4.45e-05** (pivotal
    — may revise every fusion conclusion).

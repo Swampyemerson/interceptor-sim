@@ -308,12 +308,24 @@ additions live here. Each is BINDING on the task it names.*
    against the flown intercept profile in BOTH directions, choose and
    document the rig pose so the target is inside the wedge from cue-wait
    through the handoff, and log a per-flight in-wedge fraction.
-6. **Two drones in frame (binds T17/T18).** The ground NN will see the
-   INTERCEPTOR too; "single known target = trivial correspondence" is false
-   the moment both are airborne. Required: interceptor airframe in the ground
-   dataset (distinguishable class or hard negative) + a ground-side identity
-   gate excluding detections consistent with the interceptor's own downlinked
-   nav position (legitimate ground-side info per ADR-0016).
+6. **Two drones in frame (binds T17/T18) — AMENDED 2026-07-08, builder
+   ruling (ADR-0047).** The ground NN will see the INTERCEPTOR too once it
+   launches. Do NOT solve this with drone-type classification: in the field
+   both airframes are FPV-class quads, so a type discriminator is brittle
+   and a sim-trained one learns Gazebo-specific cues that don't transfer
+   (the T24 lesson). Required instead: (i) ACQUISITION — the NN only answers
+   "is there a drone"; under launch-on-detect the interceptor is still on
+   the ground at lock time, so exactly one airborne object exists.
+   Single-class detector; NO interceptor class in the training set.
+   (ii) MAINTENANCE — detect-then-track: after lock, custody is held by
+   track continuity frame-to-frame, not per-frame re-classification; a
+   second drone entering frame is simply not the held track.
+   (iii) IDENTITY GATE — detections consistent with the interceptor's own
+   downlinked nav position (legitimate ground-side info per ADR-0016) are
+   ignored by the tracker and excluded on re-acquisition after a track
+   drop. Honest weak point (log in T23): when the two drones are
+   2D-coincident in the rig view, only 3D/range separation or the
+   downlinked position disambiguates.
 7. **σ_R model must scale with the flown resolution (binds T16/T18).** If RTF
    forces a resolution below the 1920×1200 design point, f_px drops and
    c = σ_d/(b·f_px) rises — validating against the fixed c=4.45e-05 would be
