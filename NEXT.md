@@ -147,13 +147,17 @@ every new cue path.
     is achievable under the chosen architecture.
 
 ### Phase-2 follow-ups surfaced this session (dependency notes)
-- **Independent multi-range capture campaign (serves 3 needs — ADR-0050):**
-  a second capture at different rig pose(s)/standoff so the target spans a
-  RANGE of distances + different lighting, never touching ground_v1's
-  training → (a) validates σ_R∝R² (closes T18's pivotal question), (b) tests
-  detector generalization = the **T17-v2** the ADR-0049 gap needs, (c) gives
-  the truly held-out σ_R for **T20 fusion adoption**. Do before leaning on the
-  0.48 m number or adopting any fusion default on "real" data.
+- **Multi-range capture — DONE (ADR-0053, rig at 4 standoffs 50-160 m via
+  live set_pose):** σ_R∝R² **VALIDATED** at the physics/pipeline level
+  (σ_R=3.62e-05·R^2.003, c matches model 0.98x) — closes T18's scaling gap.
+  BUT the real detector does NOT generalize: ground_v1 (trained ~160 m) has a
+  −6.3 m systematic bias at 50 m + a non-monotonic box-size head out-of-domain.
+  → **T17-v2 (multi-range training) now justified by EVIDENCE + is T20's
+  PREREQUISITE.** Harnesses `scripts/multirange_*.py` reusable for the v2
+  dataset. Do NOT adopt a fusion default on ground_v1 multi-range data (biased).
+- **T17-v2 (multi-range detector) — NEXT unblocker:** retrain on the multi-range
+  captures (fixes the ADR-0049/0053 out-of-domain bias); then re-run the real-
+  detector σ_R across ranges (held-out) → unblocks T20 fusion adoption.
 - **d3d12 batch adoption:** validated on check_m3 (ADR-0046 addendum); first
   d3d12 BATCH arm still owes a paired-seed sanity vs stock before A/B use.
 
