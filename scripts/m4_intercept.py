@@ -1429,6 +1429,18 @@ def parse_args():
              "ballistic through the bearing-noise band."
              % FPV["TERMINAL_FREEZE_RANGE_M"],)
     parser.add_argument(
+        "--terminal-reject-gate", type=float, default=None,
+        help="ADR-0056 fix (default None = OFF, byte-identical): terminal "
+             "false-lock reject gate. At 12 m/s + maneuver the markerless "
+             "seeker throws GROSS false detections (meas range ~1.6 m while "
+             "the true target is ~20 m away, T21 diagnosis) that guidance "
+             "chases. In ENGAGE, REJECT a fresh detection whose range "
+             "disagrees with the OWN range-track's dead-reckoned prediction "
+             "by more than this many metres (own track, no cue -> honesty-"
+             "clean) -> the interceptor COASTS through the false lock instead "
+             "of chasing it. Typical: 4-6 m (false locks are ~18 m off, real "
+             "detections <6 m).")
+    parser.add_argument(
         "--accel-boost", action="store_true",
         help="ADR-0028 Gazebo-confirm (default OFF, requires --fpv): ~2x "
              "the FPV PX4 param bundle's MPC_ACC_HOR_MAX (%.1f -> %.1f m/s^2) "
@@ -1663,6 +1675,7 @@ async def run_acquire_and_engage(
     dash_start_mono = None
     last_cue_seq_seen = None
     tracker_correction_count = 0
+    terminal_rejects = 0   # ADR-0056: ENGAGE false-lock detections gated out
     handoff_streak = 0
     handoff_done = False
     handoff_t = None
@@ -1772,6 +1785,21 @@ async def run_acquire_and_engage(
         target_tracker.predict(dt)
         if fused is not None:
             fused.predict(dt)
+        # ADR-0056 terminal false-lock reject gate: the markerless seeker
+        # throws gross false detections at ENGAGE on a fast/maneuvering target
+        # (meas range ~1.6 m while the OWN range-track predicts ~20 m, T21
+        # diagnosis) that guidance chases. Gate against range_filter.x_hat --
+        # the OWN dead-reckoned range (predict()'d at line ~1771 THIS tick, no
+        # cue -> honesty-clean). Reject -> this tick coasts (no fresh update).
+        # Default off (None) = byte-identical. ENGAGE-only + filter must be
+        # initialized (the handoff detection seeds x_hat, so the first false
+        # near-lock is caught before it corrupts the filter).
+        if (fresh and args.terminal_reject_gate is not None and phase == "ENGAGE"
+                and range_filter.initialized and meas.range_m is not None
+                and abs(meas.range_m - range_filter.x_hat) > args.terminal_reject_gate):
+            terminal_rejects += 1
+            fresh = False          # treat as no fresh detection -> coast this tick
+            detected = False       # keep the CSV/acquire bookkeeping consistent
         if fresh:
             lambda_meas = psi_rad + meas.bearing_rad
             # ADR-0043 lever B: roll off the bearing-noise throughput in the
@@ -2559,6 +2587,7 @@ async def run_acquire_and_engage(
         "breakoff_reason": breakoff_reason,
         "n_ticks": n_ticks,
         "n_detected_ticks": n_detected_ticks,
+        "terminal_rejects": terminal_rejects,   # ADR-0056 false-lock gate
         "min_gt_range_running": min_gt_range_running,
         "mover_proc": mover_proc,
         "cue_proc": cue_proc,
@@ -3061,6 +3090,7 @@ async def main():
                 print(
                     f"[m4] law={args.law} miss_distance_m={miss_distance:.3f} "
                     f"n_ticks={result['n_ticks']} coverage={coverage:.3f} "
+                    f"terminal_rejects={result.get('terminal_rejects', 0)} "
                     f"breakoff_reason={result['breakoff_reason'] or 'n/a'} "
                     f"aborted={result['aborted']} log={log_path}"
                 )
