@@ -112,6 +112,33 @@ own known/assumed pose, a sensor-siting fact, not the target's gt).
 file's source for that boundary.
 
 =======================================================================
+CENTROID-CACHE REPLAY MODE (ADR-0051, T19b part-1 -- built here)
+=======================================================================
+ADR-0051 refines the "runs the real detect code LIVE during the flight"
+language above: because the capture frames are pre-rendered and
+DETERMINISTIC (ADR-0046), running `GroundDetector` on a given frame ahead
+of time (`scripts/ground_station/build_centroid_cache.py`) yields the
+IDENTICAL detection a live call during the flight would produce -- so
+`--centroid-cache PATH` lets this module skip the live onnxruntime/cv2 call
+entirely and instead look up each frame's already-computed centroid from a
+`centroids.csv` built offline. `CachedDetector` below is a drop-in
+replacement for `GroundDetector` (same one-method `.detect_path(path) ->
+DetectionResult` contract `process_frame()` calls), so `process_frame()`,
+`CueScheduler`, the dual gate, the track filter, and the :47800 emit path
+are ALL completely unmodified by this mode -- only WHICH object plays the
+`detector` role changes. Because a cache lookup is a dict access (not
+~0.85-1.25 s of CPU inference, ADR-0051's T19a evidence), `result_ready`
+becomes true almost immediately after `schedule()`, so the dual gate's
+release timing in this mode is governed by the MODELED latency floor
+(`--latency-s` / `DEFAULT_LATENCY_S`) rather than by unmodeled live compute
+-- this is ADR-0051's whole point, and is exactly what
+`tests/test_ground_station.py`'s cache-mode floor-violation test checks.
+
+The LIVE path (no `--centroid-cache`) is UNCHANGED and still the default --
+ADR-0051 keeps it for the hardware model (a real Pi/Jetson genuinely runs
+detection concurrently with flight) and for reversibility (one flag).
+
+=======================================================================
 T19b OWES (explicitly out of scope for this task; NOT built here)
 =======================================================================
   1. `m4_intercept.py --cue-source {mock,stereo}` wiring (spawn this file
@@ -122,21 +149,33 @@ T19b OWES (explicitly out of scope for this task; NOT built here)
      `/clock` and driving this module's dual gate under real RTF/contention
      -- this task deliberately does not boot a simulator; `--replay-clock`
      is an OFFLINE stand-in for demonstration only, disclosed as such, never
-     used by a gate).
+     used by a gate). Applies to BOTH the LIVE and CACHED detection modes --
+     `--centroid-cache` only changes where the centroid comes from, not the
+     clock/gate mechanics.
   4. A real offline latency-floor profile "measured WITH Gazebo concurrently
      rendering" (ADR-0048 SS3) to replace `DEFAULT_LATENCY_S` below, which
      currently just MIRRORS `s2_cue_mock.DEFAULT_LATENCY_S` (0.12 s) for
      comparability, NOT because it has been profiled for this module's own
      (measured) ~0.25-0.35 s/frame-pair CPU onnxruntime compute cost -- see
      the smoke-run notes in the task report for why this default routinely
-     trips `floor_violated` today, which is the dual gate doing its job
-     honestly on an unprofiled floor, not a bug.
+     trips `floor_violated` today in LIVE mode (the dual gate doing its job
+     honestly on an unprofiled floor, not a bug) and why CACHED mode does
+     not.
   5. Real `--spoof` corruption modes (`apply_spoof()` below is a documented
      T19a no-op stub).
 
-Run (OFFLINE smoke demo, no PX4/Gazebo, `.venv-seeker` for onnxruntime):
+Run (OFFLINE smoke demo, no PX4/Gazebo, LIVE detection, `.venv-seeker` for
+onnxruntime):
     .venv-seeker/bin/python scripts/ground_station/station.py \\
         --capture-dir logs/rig_captures/full_sweep_20260709T015530Z \\
+        --dash-direction r2l --replay-clock --seq-limit 8
+
+Run (OFFLINE smoke demo, CACHED detection -- ADR-0051, no onnxruntime/cv2
+needed at all once the cache exists; build it first with
+build_centroid_cache.py, see that module's own docstring):
+    .venv-seeker/bin/python scripts/ground_station/station.py \\
+        --capture-dir logs/rig_captures/full_sweep_20260709T015530Z \\
+        --centroid-cache logs/rig_captures/full_sweep_20260709T015530Z/centroids.csv \\
         --dash-direction r2l --replay-clock --seq-limit 8
 
 Run (future T19b LIVE usage, PX4/Gazebo already up, /clock publishing):
@@ -311,9 +350,101 @@ def frame_paths(capture_dir: str, seq: int):
 
 
 # ============================================================================
+# Centroid cache (ADR-0051, T19b part-1) -- CachedDetector replay mode.
+# `scripts/ground_station/build_centroid_cache.py` writes `centroids.csv` in
+# this exact column shape (single source of truth: it imports
+# CENTROID_CACHE_FIELDNAMES from here). See module docstring's
+# "CENTROID-CACHE REPLAY MODE" section for the rationale.
+# ============================================================================
+CENTROID_CACHE_FIELDNAMES = [
+    "seq", "t_sim", "det_l", "u_l", "v_l", "conf_l", "det_r", "u_r", "v_r", "conf_r",
+]
+
+
+def load_centroid_cache(path: str) -> dict:
+    """Loads a `centroids.csv` (built by `build_centroid_cache.py`) into
+    `{seq: {"l": DetectionResult, "r": DetectionResult, "t_sim": float}}`. A
+    cache MISS on a side (`det_l`/`det_r` == 0) is stored as
+    `DetectionResult(False, None, None)` -- the exact same shape a live
+    `GroundDetector` miss produces, so `process_frame()`'s existing
+    `not dl.hit or not dr.hit -> status="miss"` branch (and the scheduler's
+    `cancel()` path it feeds) handles a cache miss with ZERO new code."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"centroid cache not found: {path} -- build it first with "
+            "scripts/ground_station/build_centroid_cache.py (ADR-0051)"
+        )
+    cache: dict = {}
+    with open(path, newline="") as f:
+        for row in csv.DictReader(f):
+            seq = int(row["seq"])
+
+            def _side(prefix, row=row):
+                hit = str(row[f"det_{prefix}"]).strip() in ("1", "True", "true")
+                if not hit:
+                    return DetectionResult(False, None, None)
+                u = float(row[f"u_{prefix}"])
+                v = float(row[f"v_{prefix}"])
+                conf = float(row[f"conf_{prefix}"])
+                # Zero-size box so box_center() returns exactly (u, v) --
+                # same convention tests/test_ground_station.py's
+                # _synthetic_stub_detector() already uses.
+                return DetectionResult(True, conf, (u, v, u, v))
+
+            cache[seq] = {"l": _side("l"), "r": _side("r"), "t_sim": float(row["t_sim"])}
+    if not cache:
+        raise ValueError(f"centroid cache at {path} is empty (0 rows)")
+    return cache
+
+
+def _parse_cached_frame_path(path: str):
+    """Inverse of `frame_paths()`: given a path of the form
+    `.../{left,right}/NNNNN.png`, returns `(seq, side)` with
+    `side in {"l", "r"}`. Raises ValueError loudly on anything that doesn't
+    match that convention -- a cache-mode misuse (e.g. a stub path from a
+    test not following this layout) should fail fast, not silently mis-key."""
+    parent = os.path.basename(os.path.dirname(path))
+    stem = os.path.splitext(os.path.basename(path))[0]
+    if parent == "left":
+        side = "l"
+    elif parent == "right":
+        side = "r"
+    else:
+        raise ValueError(
+            f"cannot infer camera side from path {path!r} -- expected "
+            ".../left/NNNNN.png or .../right/NNNNN.png (frame_paths()'s own convention)"
+        )
+    try:
+        seq = int(stem)
+    except ValueError:
+        raise ValueError(f"cannot parse frame seq from path {path!r} (expected an integer filename stem)")
+    return seq, side
+
+
+class CachedDetector:
+    """Drop-in replacement for `GroundDetector` (same one-method
+    `.detect_path(path) -> DetectionResult` contract `process_frame()`
+    calls), backed by a `load_centroid_cache()` dict. Zero onnxruntime/cv2
+    import -- constructing and using this never touches either dependency,
+    which is why `--centroid-cache` mode can run under a venv without them
+    (see `test_station_module_imports_without_onnxruntime_or_cv2`'s
+    counterpart for cache mode)."""
+
+    def __init__(self, cache: dict):
+        self.cache = cache
+
+    def detect_path(self, path: str) -> DetectionResult:
+        seq, side = _parse_cached_frame_path(path)
+        entry = self.cache.get(seq)
+        if entry is None:
+            return DetectionResult(False, None, None)
+        return entry[side]
+
+
+# ============================================================================
 # Per-frame detect -> triangulate (the "producer" work; blocking, real
-# wall-clock compute -- this is exactly what CueScheduler's readiness gate
-# is timing).
+# wall-clock compute in LIVE mode, an immediate dict lookup in CACHED mode --
+# this is exactly what CueScheduler's readiness gate is timing).
 # ============================================================================
 def process_frame(row: dict, capture_dir: str, rig: RigConfig, assumed_pose: Pose4, detector) -> dict:
     """Runs detection on BOTH camera frames for one `index.csv` row, then
@@ -670,6 +801,14 @@ def parse_args(argv=None):
     ap.add_argument("--weights", default=DEFAULT_WEIGHTS, help="ground_v1 .onnx weights")
     ap.add_argument("--conf", type=float, default=DEFAULT_CONF, help="detector confidence threshold")
     ap.add_argument("--imgsz", type=int, default=DEFAULT_IMGSZ, help="detector inference size")
+    ap.add_argument("--centroid-cache", type=str, default=None,
+                     help="ADR-0051 T19b part-1: path to a centroids.csv built by "
+                          "scripts/ground_station/build_centroid_cache.py. When given, "
+                          "replays those PRECOMPUTED centroids through the (still LIVE) "
+                          "triangulate+track+emit pipeline instead of calling GroundDetector "
+                          "live -- no onnxruntime/cv2 import at all in this mode. "
+                          "--weights/--conf/--imgsz are ignored when this is set. "
+                          "Default: None (LIVE detection, unchanged T19a behavior).")
     ap.add_argument("--datum-bias-m", type=float, default=None,
                      help="ADR-0046 SS5.6 #2 / ADR-0048 SS2: shift the ASSUMED rig pose by this many "
                           "metres along the rig's own boresight (mutually exclusive with "
@@ -747,14 +886,28 @@ def main(argv=None) -> int:
         assumed_pose = rig.true_pose
     print(f"[ground-station] rig true_pose={tuple(rig.true_pose)} assumed_pose={tuple(assumed_pose)}")
 
-    try:
-        detector = GroundDetector(weights=args.weights, conf=args.conf, imgsz=args.imgsz)
-    except ImportError as exc:
-        print(f"[ground-station] FAILED: detector deps missing ({exc}). Run under a venv with "
-              "onnxruntime + opencv (this checkout: .venv-seeker) -- see module docstring's "
-              "interpreter note.")
-        audit.close()
-        return 2
+    if args.centroid_cache:
+        try:
+            cache = load_centroid_cache(args.centroid_cache)
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"[ground-station] FAILED: {exc}")
+            audit.close()
+            return 2
+        detector = CachedDetector(cache)
+        print(f"[ground-station] detection mode: CACHED (ADR-0051 T19b part-1) -- "
+              f"centroid_cache={args.centroid_cache} n_seq={len(cache)} "
+              "(no onnxruntime/cv2 import, no live detector compute)")
+    else:
+        try:
+            detector = GroundDetector(weights=args.weights, conf=args.conf, imgsz=args.imgsz)
+        except ImportError as exc:
+            print(f"[ground-station] FAILED: detector deps missing ({exc}). Run under a venv with "
+                  "onnxruntime + opencv (this checkout: .venv-seeker) -- see module docstring's "
+                  "interpreter note.")
+            audit.close()
+            return 2
+        print(f"[ground-station] detection mode: LIVE -- weights={args.weights} conf={args.conf} "
+              f"imgsz={args.imgsz} (onnxruntime CPU compute per frame)")
 
     if args.replay_clock:
         clock = ReplayClock(rtf=args.replay_rtf)

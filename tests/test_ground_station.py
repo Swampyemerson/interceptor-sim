@@ -12,7 +12,7 @@ VENV: `.venv/bin/python -m pytest tests/test_ground_station.py -v` (matches
 `tests/test_t18_scaffold.py`'s own documented convention -- main `.venv`,
 NOT `.venv-seeker`, which has no pytest).
 
-Six groups, mapping to the task's requirements:
+Seven groups, mapping to the task's requirements:
   (1) THE DUAL GATE (ADR-0048 SS3, the core deliverable) -- `CueScheduler`
       exercised directly and structurally: not released before the deadline
       even when ready; not released past the deadline when not ready
@@ -37,6 +37,18 @@ Six groups, mapping to the task's requirements:
       SKIPPED under the main `.venv` (no onnxruntime there by design --
       see `station.py`'s interpreter note); would run under `.venv-seeker`
       if pytest were added there.
+  (7) CENTROID-CACHE REPLAY MODE (ADR-0051, T19b part-1) -- (a) THE
+      DETERMINISM CLAIM: cache-replay centroids/triangulation are
+      bit-for-bit identical to a fresh LIVE `GroundDetector` pass on the
+      same frames (`pytest.importorskip`'d, real detector, real cached
+      frames -- SKIPPED under main `.venv`, same as group 6); (b) cache
+      mode's near-instant `result_ready` yields ZERO `floor_violated`
+      events on the REAL threaded producer/consumer loop, contrasting
+      ADR-0051's cited LIVE-CPU smoke (6/6 violations) -- synthetic
+      zero-jitter centroids, no onnxruntime needed, runs unconditionally;
+      (c) a cache miss cancels that seq (no cue, doesn't block the FIFO);
+      (d) the emitted `t_sim` still comes from `index.csv`'s baked frame
+      time, never from the cache file's own (unused) `t_sim` column.
 """
 import json
 import math
@@ -49,12 +61,15 @@ SCRIPTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, SCRIPTS)
 
 from ground_station.station import (  # noqa: E402
+    CachedDetector,
+    CENTROID_CACHE_FIELDNAMES,
     CueScheduler,
     DEFAULT_CAPTURE_DIR,
     DEFAULT_LATENCY_S,
     apply_spoof,
     frame_paths,
     load_capture,
+    load_centroid_cache,
     process_frame,
     select_dash_direction,
 )
@@ -449,3 +464,266 @@ def test_real_detector_matches_t18_reference_centroids():
     assert v_l == pytest.approx(644.3714, abs=1.0)
     assert u_r == pytest.approx(388.3046, abs=1.0)
     assert v_r == pytest.approx(644.2438, abs=1.0)
+
+
+# ============================================================================
+# (7) CENTROID-CACHE REPLAY MODE -- ADR-0051, T19b part-1.
+# ============================================================================
+def _synthetic_centroid_cache(rig, rows):
+    """Zero-jitter cache dict, same `project_world_to_stereo_pixels`
+    round-trip technique `_synthetic_stub_detector()` above uses, shaped the
+    way `CachedDetector` expects: `{seq: {"l": DetectionResult,
+    "r": DetectionResult, "t_sim": float}}`. Lets the timing/miss/provenance
+    tests below exercise the REAL `CachedDetector`/`process_frame()`/
+    `CueScheduler` machinery without needing onnxruntime or real pixels."""
+    cache = {}
+    for row in rows:
+        gt = (float(row["gt_target_x"]), float(row["gt_target_y"]), float(row["gt_target_z"]))
+        uv = project_world_to_stereo_pixels(gt, rig.true_pose, rig.baseline_m, rig.f_px, rig.cx, rig.cy)
+        assert uv is not None, f"seq={row['seq']} gt point projects behind a camera -- bad test fixture row"
+        u_l, v_l, u_r, v_r = uv
+        cache[row["seq"]] = {
+            "l": DetectionResult(True, 0.99, (u_l, v_l, u_l, v_l)),
+            "r": DetectionResult(True, 0.99, (u_r, v_r, u_r, v_r)),
+            "t_sim": row["t_sim_nominal"],
+        }
+    return cache
+
+
+def _run_mini_flight(rows, capture_dir, rig, detector, latency_s, tmp_path, poll_interval_s=0.005):
+    """Runs `station.py`'s REAL threaded producer/consumer loop -- the exact
+    `_producer_loop`/`_consumer_loop`/`CueScheduler`/`AuditLog` functions
+    `main()` wires together -- over `rows`, using a real-wall-clock
+    `ReplayClock` (rtf=1.0) and a throwaway loopback UDP socket pair. This
+    (not a synchronous same-thread call, which could never exhibit a race)
+    is what makes the floor-violation comparison below a genuine timing
+    claim rather than a tautology. Returns `(n_emitted, scheduler)`."""
+    import socket
+    import threading
+
+    from ground_station.station import AuditLog, ReplayClock, _consumer_loop, _producer_loop
+
+    audit = AuditLog(os.path.join(str(tmp_path), "audit.csv"))
+    scheduler = CueScheduler()
+    send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    recv_sock.bind(("127.0.0.1", 0))
+    dest = recv_sock.getsockname()
+
+    clock = ReplayClock(rtf=1.0)
+    stop_event = threading.Event()
+    finished_event = threading.Event()
+    error_box: list = []
+
+    worker = threading.Thread(
+        target=_producer_loop,
+        args=(rows, capture_dir, rig, rig.true_pose, detector, scheduler,
+              latency_s, False, 1.0, 1.0, None, audit, stop_event, finished_event, error_box, None),
+        daemon=True,
+    )
+    worker.start()
+    n_emitted = _consumer_loop(clock, scheduler, send_sock, dest, stop_event, finished_event, audit, poll_interval_s)
+    worker.join(timeout=10.0)
+    send_sock.close()
+    recv_sock.close()
+    audit.close()
+    assert not error_box, f"producer thread raised: {error_box}"
+    assert finished_event.is_set()
+    return n_emitted, scheduler
+
+
+# ---- (7a) THE DETERMINISM CLAIM -- ADR-0051's central, falsifiable claim ----
+def test_centroid_cache_replay_matches_live_detection_byte_identical(rig, capture_rows, tmp_path):
+    """*** ADR-0051's CENTRAL CLAIM, empirically checked *** -- "running the
+    detector live vs precomputed on the SAME frames yields BYTE-IDENTICAL
+    cue values." Builds a real `centroids.csv` via
+    `build_centroid_cache.detect_row()` (the exact function
+    `build_centroid_cache.py`'s CLI calls) over 4 REAL frames from the
+    on-disk T16/T18 capture using a fresh `GroundDetector`, then runs BOTH
+    (a) `station.process_frame()` through `CachedDetector` reading that
+    cache and (b) `station.process_frame()` through a SECOND,
+    independently-constructed live `GroundDetector` on the exact same
+    frames -- and asserts every field (detected centroid, confidence, AND
+    the resulting triangulated x/y/z/range/disparity) is EXACTLY
+    (bit-for-bit) equal.
+
+    If this does NOT hold, ADR-0051's whole justification for shipping a
+    precompute cache instead of live GPU detection is FALSE -- this is
+    flagged as a CRITICAL finding in that case, not silently loosened to an
+    `approx()` tolerance."""
+    pytest.importorskip("onnxruntime")
+    pytest.importorskip("cv2")
+    from ground_station.detect import GroundDetector
+    from ground_station.build_centroid_cache import detect_row, write_cache_csv
+
+    subset = capture_rows[10:14]
+    assert len(subset) == 4
+    for row in subset:
+        left_path, right_path = frame_paths(CAPTURE_DIR, row["seq"])
+        assert os.path.exists(left_path) and os.path.exists(right_path), (
+            "test fixture expects real cached frames on disk"
+        )
+
+    # (a) "offline precompute" pass -- a fresh GroundDetector instance,
+    # detect_row() per frame (build_centroid_cache.py's own per-row call),
+    # written to and read back from a real CSV (round-trips through
+    # str()/float(), which is lossless for IEEE-754 doubles in Python).
+    build_detector = GroundDetector()
+    cache_rows = [detect_row(row, CAPTURE_DIR, build_detector) for row in subset]
+    assert any(r["det_l"] and r["det_r"] for r in cache_rows), "test fixture produced no hits at all"
+    cache_path = os.path.join(str(tmp_path), "centroids.csv")
+    write_cache_csv(cache_rows, cache_path)
+    cached_detector = CachedDetector(load_centroid_cache(cache_path))
+
+    # (b) "flight-time LIVE" pass -- a SECOND, independently-constructed
+    # detector instance (models two separate processes: the offline cache
+    # build and a later live flight), same weights/conf/imgsz.
+    live_detector = GroundDetector()
+
+    mismatches = []
+    for row in subset:
+        res_cached = process_frame(row, CAPTURE_DIR, rig, rig.true_pose, cached_detector)
+        res_live = process_frame(row, CAPTURE_DIR, rig, rig.true_pose, live_detector)
+        assert res_cached["status"] == "hit", (row["seq"], res_cached)
+        assert res_live["status"] == "hit", (row["seq"], res_live)
+        for key in ("u_l", "v_l", "u_r", "v_r", "det_conf_left", "det_conf_right",
+                    "x", "y", "z", "range_m", "disparity_px"):
+            vc, vl = res_cached[key], res_live[key]
+            if vc != vl:
+                mismatches.append((row["seq"], key, vc, vl))
+
+    assert not mismatches, (
+        "*** CRITICAL: ADR-0051's determinism claim DOES NOT HOLD *** -- "
+        f"{len(mismatches)} field(s) differed between cache-replay and a fresh live "
+        f"detection pass on the same frames: {mismatches}"
+    )
+
+
+# ---- (7b) immediate readiness -> zero floor violations (contrast T19a) ----
+def test_cache_mode_immediate_readiness_yields_zero_floor_violations(rig, capture_rows, tmp_path):
+    """ADR-0051's win, demonstrated on the REAL threaded producer/consumer
+    machinery (see `_run_mini_flight()` -- not a synchronous stand-in, which
+    could never show a race): a `CachedDetector.detect_path()` call is a
+    dict lookup (~microseconds), so `result_ready` is true long before
+    `sim_time` (a real-wall-clock-driven `ReplayClock`) crosses
+    `deliver_t_sim`. At the SAME `DEFAULT_LATENCY_S` floor T19a's LIVE-CPU
+    smoke run violated on EVERY frame (n_floor_violations=6/6 -- ADR-0051's
+    own cited evidence, docs/decisions.md; not re-run here since
+    reproducing a ~1 s/frame-pair live-CPU smoke inside a unit test would
+    cost the whole suite several seconds per run for an already-logged
+    fact), cache mode here delivers all 6 frames with ZERO
+    `floor_violated` events."""
+    subset = capture_rows[:6]
+    cache = _synthetic_centroid_cache(rig, subset)
+    detector = CachedDetector(cache)
+
+    n_emitted, scheduler = _run_mini_flight(subset, CAPTURE_DIR, rig, detector, DEFAULT_LATENCY_S, tmp_path)
+
+    assert n_emitted == len(subset)
+    assert scheduler.floor_violation_log == [], (
+        f"expected zero floor violations in cache mode, got {scheduler.floor_violation_log}"
+    )
+    assert scheduler.n_pending == 0
+    assert scheduler.cancelled == []
+
+
+# ---- (7c) a cache miss produces no cue, doesn't block the FIFO ----
+def test_cache_miss_produces_no_cue_and_does_not_block_fifo(rig, capture_rows, tmp_path):
+    """A cache MISS (`det_l=0` or `det_r=0` on the underlying centroids.csv
+    row) must behave exactly like a live detection miss: `process_frame()`
+    returns `status="miss"` (no `x`/`y`/`z`), and -- run through the real
+    mini-flight machinery -- that seq is `cancel()`'d (not blocked on
+    forever) while the OTHER frames still emit normally."""
+    subset = capture_rows[:3]
+    cache = _synthetic_centroid_cache(rig, subset)
+    miss_seq = subset[1]["seq"]
+    cache[miss_seq]["l"] = DetectionResult(False, None, None)  # force a left-camera miss
+    detector = CachedDetector(cache)
+
+    res = process_frame(subset[1], CAPTURE_DIR, rig, rig.true_pose, detector)
+    assert res["status"] == "miss"
+    assert "x" not in res
+
+    n_emitted, scheduler = _run_mini_flight(subset, CAPTURE_DIR, rig, detector, DEFAULT_LATENCY_S, tmp_path)
+    assert n_emitted == 2
+    assert (miss_seq, "miss") in scheduler.cancelled
+    assert all(seq != miss_seq for seq, _payload in scheduler.emitted)
+    assert scheduler.floor_violation_log == []  # a miss is cancel()'d, never a floor violation
+
+
+# ---- (7d) t_sim provenance holds under cache mode too ----
+def test_cache_mode_t_sim_is_baked_frame_time_not_cache_value(rig, capture_rows):
+    """The emitted payload's `t_sim` must come from `index.csv`'s own
+    `t_sim_nominal` (the frame's BAKED capture-time sim clock, ADR-0048 SS3
+    (1)) -- never from `centroids.csv`'s own `t_sim` column, which
+    `CachedDetector` doesn't even read (it exists in the cache file purely
+    for human cross-reference). Proven by deliberately poisoning the
+    cache's stored `t_sim` with an obviously-wrong value and confirming the
+    emitted payload is unaffected."""
+    row = capture_rows[7]
+    cache = _synthetic_centroid_cache(rig, [row])
+    cache[row["seq"]]["t_sim"] = -999.0  # deliberately WRONG; must be ignored
+    detector = CachedDetector(cache)
+
+    res = process_frame(row, CAPTURE_DIR, rig, rig.true_pose, detector)
+    assert res["status"] == "hit"
+    payload = build_cue_payload(row["seq"], row["t_sim_nominal"], res["x"], res["y"], res["z"])
+
+    assert payload["t_sim"] == row["t_sim_nominal"]
+    assert payload["t_sim"] != -999.0
+    assert res["frame_t_sim"] == row["t_sim_nominal"]
+
+
+# ---- centroids.csv round trip (write_cache_csv -> load_centroid_cache) ----
+def test_centroid_cache_csv_round_trips_hits_and_misses_exactly(tmp_path):
+    """`write_cache_csv()` -> `load_centroid_cache()`: hits produce
+    `DetectionResult(True, conf, (u, v, u, v))` with an EXACT float
+    round-trip (Python's `str(float)`/`float(str(...))` is lossless for
+    IEEE-754 doubles); misses produce `DetectionResult(False, None, None)`
+    on that side only, independent of the other side."""
+    from ground_station.build_centroid_cache import write_cache_csv
+
+    rows = [
+        {"seq": 0, "t_sim": 0.1, "det_l": 1, "u_l": 123.456789012345, "v_l": 44.0, "conf_l": 0.913,
+         "det_r": 1, "u_r": 100.1, "v_r": 44.0, "conf_r": 0.87},
+        {"seq": 1, "t_sim": 0.2, "det_l": 0, "u_l": "", "v_l": "", "conf_l": "",
+         "det_r": 1, "u_r": 90.0, "v_r": 40.0, "conf_r": 0.5},
+    ]
+    path = os.path.join(str(tmp_path), "centroids.csv")
+    write_cache_csv(rows, path)
+
+    with open(path, newline="") as f:
+        header = f.readline().strip().split(",")
+    assert header == CENTROID_CACHE_FIELDNAMES
+
+    cache = load_centroid_cache(path)
+    assert set(cache.keys()) == {0, 1}
+    assert cache[0]["l"].hit and cache[0]["r"].hit
+    assert cache[0]["l"].box_xyxy == (123.456789012345, 44.0, 123.456789012345, 44.0)
+    assert cache[0]["l"].conf == 0.913
+    assert cache[1]["l"].hit is False
+    assert cache[1]["l"].box_xyxy is None
+    assert cache[1]["l"].conf is None
+    assert cache[1]["r"].hit is True
+
+
+def test_load_centroid_cache_missing_file_raises():
+    with pytest.raises(FileNotFoundError):
+        load_centroid_cache("/nonexistent/path/centroids.csv")
+
+
+def test_cached_detector_parses_path_seq_and_side(rig, capture_rows):
+    """`CachedDetector.detect_path()` recovers `(seq, side)` from the SAME
+    `.../{left,right}/NNNNN.png` path shape `frame_paths()` builds -- a
+    lookup miss for an unknown seq is a clean miss, not a KeyError/crash."""
+    row = capture_rows[0]
+    cache = _synthetic_centroid_cache(rig, [row])
+    detector = CachedDetector(cache)
+
+    left_path, right_path = frame_paths(CAPTURE_DIR, row["seq"])
+    dl = detector.detect_path(left_path)
+    dr = detector.detect_path(right_path)
+    assert dl.hit and dr.hit
+
+    unknown_left, _ = frame_paths(CAPTURE_DIR, row["seq"] + 999)
+    assert detector.detect_path(unknown_left).hit is False
