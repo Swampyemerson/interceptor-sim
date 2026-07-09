@@ -62,6 +62,26 @@ every new cue path.
    pin of the mock argv + s2_cue_mock hash pin (no shared helper between
    branches); ground_station.py runs in .venv-seeker (explicit venv const,
    not sys.executable).** Build gated on T18 real data.
+   - **T19a DONE (offline, uncommitted→committed): `scripts/ground_station/
+     station.py` + `detect.py` + `tests/test_ground_station.py` (17 tests).**
+     Dual-gate CueScheduler built + offline-validated; .venv-seeker resolved
+     (gz-transport + onnxruntime, native inference not ultralytics); a latent
+     consumer-loop deadlock (stranded pending item on mid-frame exception)
+     found + fixed. Full suite 56 pass, repro pins still 5/5.
+   - **★ MEASURED FINDING → T19b DESIGN FORK (F4):** real detection is
+     ~0.85–1.25 s/frame-pair ON CPU (.venv-seeker onnxruntime) — the dual-gate
+     correctly HELD (proved it's load-bearing, not cosmetic) but ~1 s/frame is
+     far too slow for a live 10 Hz cue. **T19b must resolve: (a) onnxruntime-
+     GPU on the 4070 (likely ~10-30 ms → vindicates ADR-0046 live-detection);
+     (b) precompute detections, replay cached centroids live (real triangulate
+     live, detection cached — hybrid); (c) large floor + reduced cue rate.**
+     Check (a) FIRST (cheapest, keeps the ratified design). This is the
+     ground-station analog of ADR-0046's live-render feasibility gate.
+   - **T19b still owes:** m4 `--cue-source` wiring + `GROUND_STATION_VENV_PYTHON`
+     const (protect the repro pins — flip the FLIP-LATER assertions);
+     `check_t19.sh` flight gate (delivered latency never below floor); live
+     /clock validation under a real flight; real latency-floor profile under
+     concurrent Gazebo render; real `--spoof` modes.
 5. **Fusion refinement** (T20) — bias-state EKF (estimate the datum offset, kill
    the WORST-tier bias-lock) + camera-favoring confidence. Prototype on mock;
    ADOPT only on real stereo data (builder's sequencing). Attacks the ADR-0044 null.
