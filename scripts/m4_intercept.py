@@ -1448,6 +1448,20 @@ def parse_args():
              "of chasing it. Typical: 4-6 m (false locks are ~18 m off, real "
              "detections <6 m).")
     parser.add_argument(
+        "--terminal-coast-gate", type=float, default=None,
+        help="ADR-0057 attempt-2 (default None = OFF, byte-identical): the "
+             "PROTECTED-COAST consistency gate. A SEPARATE, independent gate "
+             "from --terminal-reject-gate. attempt-1 gated a fresh ENGAGE "
+             "detection against the LIVE range_filter.x_hat, which the FIRST "
+             "phantom corrupts (then later phantoms look consistent -> the gate "
+             "fails, ADR-0057). This version snapshots the CAMERA-ONLY range at "
+             "handoff (range_filter is camera-only, never cue-corrected -> "
+             "honesty-clean), dead-reckons it forward by the commanded closing "
+             "speed, and NEVER corrects it with any detection -- an "
+             "UNCORRUPTABLE reference. In ENGAGE, REJECT a fresh detection whose "
+             "range disagrees with this protected coast by more than this many "
+             "metres -> coast through the false lock. Typical: 6 m.")
+    parser.add_argument(
         "--accel-boost", action="store_true",
         help="ADR-0028 Gazebo-confirm (default OFF, requires --fpv): ~2x "
              "the FPV PX4 param bundle's MPC_ACC_HOR_MAX (%.1f -> %.1f m/s^2) "
@@ -1683,6 +1697,14 @@ async def run_acquire_and_engage(
     last_cue_seq_seen = None
     tracker_correction_count = 0
     terminal_rejects = 0   # ADR-0056: ENGAGE false-lock detections gated out
+    # ADR-0057 attempt-2 PROTECTED-COAST gate state (only used when
+    # --terminal-coast-gate is set): coast_r is the camera-only range snapshot
+    # at handoff, dead-reckoned forward and NEVER corrected by a detection
+    # (uncorruptable); coast_fpv freezes the closing-rate basis; the counter
+    # tallies ENGAGE detections the coast gate rejected.
+    coast_r = None
+    coast_fpv = None
+    coast_gate_rejects = 0
     handoff_streak = 0
     handoff_done = False
     handoff_t = None
@@ -1807,6 +1829,22 @@ async def run_acquire_and_engage(
             terminal_rejects += 1
             fresh = False          # treat as no fresh detection -> coast this tick
             detected = False       # keep the CSV/acquire bookkeeping consistent
+        # ADR-0057 attempt-2 PROTECTED-COAST gate (independent of the reject
+        # gate above). Dead-reckon the protected coast range every ENGAGE tick,
+        # BEFORE the gate: decrement by the commanded closing speed. The rate is
+        # compute_v_close(coast_r) -- the protected reference drives its OWN
+        # decrement, so a phantom that corrupts range_filter.x_hat cannot corrupt
+        # the coast either (attempt-1's bug). Clamp at 0 (a range is non-
+        # negative). coast_r is never touched by a detection. Default off (None)
+        # = byte-identical (coast_r stays None, this whole block is skipped).
+        if (args.terminal_coast_gate is not None and phase == "ENGAGE"
+                and coast_r is not None):
+            coast_r = max(coast_r - compute_v_close(coast_r, coast_fpv) * dt, 0.0)
+            if (fresh and meas.range_m is not None
+                    and abs(meas.range_m - coast_r) > args.terminal_coast_gate):
+                coast_gate_rejects += 1
+                fresh = False      # coast this tick (no fresh correction)
+                detected = False   # keep the CSV/acquire bookkeeping consistent
         if fresh:
             lambda_meas = psi_rad + meas.bearing_rad
             # ADR-0043 lever B: roll off the bearing-noise throughput in the
@@ -2228,6 +2266,16 @@ async def run_acquire_and_engage(
                 outcome = "handoff_engaged"
                 handoff_t = time.monotonic() - started
                 handoff_range_at_trigger = meas.range_m
+                # ADR-0057 attempt-2: snapshot the PROTECTED camera-only coast
+                # range at handoff. range_filter is camera-only (never cue-
+                # corrected -- honesty verified), so x_hat is the own, honesty-
+                # clean range; fall back to the raw camera range if the filter
+                # never initialized. coast_fpv freezes the closing-rate basis
+                # (the FPV two-speed law) for the dead-reckoning.
+                if args.terminal_coast_gate is not None:
+                    coast_r = (range_filter.x_hat if range_filter.initialized
+                               else meas.range_m)
+                    coast_fpv = args.fpv
                 print(
                     f"[s2] HANDOFF at t={handoff_t:.2f}s, camera range="
                     f"{meas.range_m:.2f} m (streak={handoff_streak}), r_hat="
@@ -2595,6 +2643,8 @@ async def run_acquire_and_engage(
         "n_ticks": n_ticks,
         "n_detected_ticks": n_detected_ticks,
         "terminal_rejects": terminal_rejects,   # ADR-0056 false-lock gate
+        "coast_gate_rejects": coast_gate_rejects,  # ADR-0057 attempt-2 coast gate
+        "coast_r": coast_r,                      # protected coast range (final)
         "min_gt_range_running": min_gt_range_running,
         "mover_proc": mover_proc,
         "cue_proc": cue_proc,
@@ -3094,10 +3144,14 @@ async def main():
                     (not result["aborted"]) and engaged_close and result["handoff_done"]
                 )
 
+                _coast_r_val = result.get("coast_r")
+                _coast_r_str = "n/a" if _coast_r_val is None else f"{_coast_r_val:.2f}"
                 print(
                     f"[m4] law={args.law} miss_distance_m={miss_distance:.3f} "
                     f"n_ticks={result['n_ticks']} coverage={coverage:.3f} "
                     f"terminal_rejects={result.get('terminal_rejects', 0)} "
+                    f"coast_gate_rejects={result.get('coast_gate_rejects', 0)} "
+                    f"coast_r={_coast_r_str} "
                     f"breakoff_reason={result['breakoff_reason'] or 'n/a'} "
                     f"aborted={result['aborted']} log={log_path}"
                 )
