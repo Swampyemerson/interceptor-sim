@@ -299,39 +299,31 @@ def _kwarg(call, name):
     return None
 
 
-def test_cue_source_flag_absent_today():
-    """*** FLIP-LATER ***: T19 has not landed yet, so --cue-source does not
-    exist in parse_args(). This test currently asserts that ABSENCE (a real,
-    meaningful assertion right now: it fails the moment someone starts wiring
-    the flag in, which is useful signal that T19 has begun / this pin file
-    needs updating). Once T19 lands, this test's body must be REPLACED with
-    the actual ADR-0048 SS4d guarantee: parse `--cue-source`'s add_argument
-    call and assert its `default` keyword is the string "mock" (council
-    decision 2's "gated --cue-source {mock,stereo}, default mock")."""
+def test_cue_source_default_is_mock():
+    """ADR-0048 SS4d (FLIPPED 2026-07-08 when T19 landed): --cue-source now
+    exists; its default MUST be the literal "mock" so every gated path that
+    omits the flag spawns the mock byte-identically (council decision 2:
+    "gated --cue-source {mock,stereo}, default mock"). Choices must be exactly
+    {mock, stereo}."""
     tree, _src = _load_tree(M4_PATH)
     fn = _find_function(tree, "parse_args")
     calls = _add_argument_calls(fn)
-    assert calls, "expected at least one parser.add_argument(...) call in parse_args()"
-
-    all_flags = []
-    dest_names = []
-    for call in calls:
-        all_flags.extend(_flag_strings(call))
-        dest_kw = _kwarg(call, "dest")
-        if isinstance(dest_kw, ast.Constant) and isinstance(dest_kw.value, str):
-            dest_names.append(dest_kw.value)
-
-    assert "--cue-source" not in all_flags, (
-        "--cue-source now exists in parse_args() -- T19 has landed. This test "
-        "is stale by design (see its FLIP-LATER docstring): replace its body "
-        "with an assertion that the --cue-source add_argument call's "
-        "`default` keyword equals the string \"mock\" (ADR-0048 SS4d)."
-    )
-    assert "cue_source" not in dest_names, (
-        "an add_argument call sets dest='cue_source' without the literal "
-        "flag '--cue-source' appearing in its positional args -- same "
-        "FLIP-LATER note as above applies; update this test for T19."
-    )
+    cue_src_calls = [c for c in calls if "--cue-source" in _flag_strings(c)]
+    assert len(cue_src_calls) == 1, (
+        f"expected exactly one --cue-source add_argument call, found "
+        f"{len(cue_src_calls)}")
+    default_kw = _kwarg(cue_src_calls[0], "default")
+    assert isinstance(default_kw, ast.Constant) and default_kw.value == "mock", (
+        "--cue-source default must be the literal string 'mock' (ADR-0048 SS4d "
+        "byte-identical gated-default guarantee); got "
+        f"{ast.dump(default_kw) if default_kw is not None else 'no default kwarg'}")
+    choices_kw = _kwarg(cue_src_calls[0], "choices")
+    choice_vals = set()
+    if isinstance(choices_kw, (ast.List, ast.Tuple)):
+        choice_vals = {e.value for e in choices_kw.elts
+                       if isinstance(e, ast.Constant)}
+    assert choice_vals == {"mock", "stereo"}, (
+        f"--cue-source choices must be exactly mock/stereo; got {choice_vals}")
 
 
 # ==========================================================================

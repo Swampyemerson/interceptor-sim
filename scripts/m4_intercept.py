@@ -419,6 +419,27 @@ CUE_MOCK_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "s2_c
 #   S2_CUE_MOCK_EXTRA="--sigma-range --emit-velocity --dropout-markov"
 CUE_MOCK_EXTRA_ENV = "S2_CUE_MOCK_EXTRA"
 
+# --- Phase 2 T19 real cue path (ADR-0046/0048/0051) ---------------------------
+# --cue-source stereo swaps the mock for the REAL ground pipeline:
+# scripts/ground_station/station.py replays a precomputed detection cache
+# (ADR-0051) through LIVE triangulation + the dual-gate, emitting the SAME
+# :47800 JSON (CueReader unchanged). It runs the real detector+gz stack, which
+# lives in .venv-seeker (NOT the main .venv) -- so an EXPLICIT interpreter, per
+# ADR-0048 Sec 5 (sys.executable would ImportError a default-venv stereo
+# flight). The mock branch below stays byte-identical (default --cue-source
+# mock); the two branches share NO cue_cmd-building helper (ADR-0048 Sec 4f,
+# the ADR-0014 shared-code pollution lesson). Cache + capture-dir come from env
+# (like S2_CUE_MOCK_EXTRA) so the byte-identical default path never sees them.
+GROUND_STATION_SCRIPT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "ground_station", "station.py")
+GROUND_STATION_VENV_PYTHON = os.environ.get(
+    "GROUND_STATION_VENV_PYTHON",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                 ".venv-seeker", "bin", "python"))
+STEREO_CACHE_ENV = "STEREO_CENTROID_CACHE"      # path to centroids.csv
+STEREO_CAPTURE_DIR_ENV = "STEREO_CAPTURE_DIR"   # the rig capture dir (t_sim/meta)
+STEREO_CUE_EXTRA_ENV = "STEREO_CUE_EXTRA"       # verbatim passthrough (bias/spoof/vel)
+
 # --- ADR-0023 Tier-1 guidance-reclaim flags (--early-handoff /
 # --split-freeze; both default OFF = byte-identical S2 gate). Values are
 # the guidance_lab.py --tier1 pre-sweep picks (EXPECTED tier, 6 m/s,
@@ -1310,6 +1331,16 @@ def parse_args():
         help="seed forwarded to scripts/s2_cue_mock.py (reproducibility)",
     )
     parser.add_argument(
+        "--cue-source", choices=["mock", "stereo"], default="mock",
+        help="Phase 2 T19 (ADR-0048): cue producer under --handoff. 'mock' "
+             "(default) spawns scripts/s2_cue_mock.py byte-identically (every "
+             "gated M0-M5/S2/markerless path unchanged); 'stereo' spawns the "
+             "REAL scripts/ground_station/station.py replaying a precomputed "
+             "detection cache (env %s + %s) through live triangulation + the "
+             "dual-gate, emitting the same :47800 JSON." % (
+                 STEREO_CACHE_ENV, STEREO_CAPTURE_DIR_ENV),
+    )
+    parser.add_argument(
         "--kalata", action="store_true",
         help="tracking-refinement PORT 1 (default OFF): recompute the "
              "lambda/range alpha-beta filters' gains from the Kalata "
@@ -1647,22 +1678,44 @@ async def run_acquire_and_engage(
     outcome = "no_handoff"
     if args.handoff:
         cue_reader = CueReader(s2params["CUE_PORT"])
-        cue_cmd = [
-            sys.executable, CUE_MOCK_SCRIPT,
-            "--port", str(s2params["CUE_PORT"]),
-            "--seed", str(args.cue_seed),
-            "--duration", str(s2params["CUE_MOCK_RUN_DURATION_S"]),
-            "--sigma", str(s2params["CUE_MOCK_SIGMA_M"]),
-            "--latency-s", str(s2params["CUE_MOCK_LATENCY_S"]),
-            "--rate", str(s2params["CUE_MOCK_RATE_HZ"]),
-        ]
-        # ADR-0015 dev-flight passthrough (env var so it survives check_s2.sh's
-        # word-splitting; empty => byte-identical spawn, S2 gate untouched).
-        cue_extra = os.environ.get(CUE_MOCK_EXTRA_ENV, "").strip()
-        if cue_extra:
-            cue_cmd.extend(shlex.split(cue_extra))
-            print(f"[s2] cue mock extra ({CUE_MOCK_EXTRA_ENV}): {cue_extra}")
-        print(f"[s2] cue mock: {' '.join(cue_cmd)}")
+        if args.cue_source == "mock":
+            cue_cmd = [
+                sys.executable, CUE_MOCK_SCRIPT,
+                "--port", str(s2params["CUE_PORT"]),
+                "--seed", str(args.cue_seed),
+                "--duration", str(s2params["CUE_MOCK_RUN_DURATION_S"]),
+                "--sigma", str(s2params["CUE_MOCK_SIGMA_M"]),
+                "--latency-s", str(s2params["CUE_MOCK_LATENCY_S"]),
+                "--rate", str(s2params["CUE_MOCK_RATE_HZ"]),
+            ]
+            # ADR-0015 dev-flight passthrough (env var so it survives check_s2.sh's
+            # word-splitting; empty => byte-identical spawn, S2 gate untouched).
+            cue_extra = os.environ.get(CUE_MOCK_EXTRA_ENV, "").strip()
+            if cue_extra:
+                cue_cmd.extend(shlex.split(cue_extra))
+                print(f"[s2] cue mock extra ({CUE_MOCK_EXTRA_ENV}): {cue_extra}")
+            print(f"[s2] cue mock: {' '.join(cue_cmd)}")
+        else:  # stereo (ADR-0046/0048/0051): real ground pipeline, cached detection.
+            # NO shared builder with the mock branch (ADR-0048 Sec 4f). Cache +
+            # capture dir are REQUIRED (fail loud, don't fly a cueless stereo run).
+            stereo_cache = os.environ.get(STEREO_CACHE_ENV, "").strip()
+            stereo_capdir = os.environ.get(STEREO_CAPTURE_DIR_ENV, "").strip()
+            if not stereo_cache or not stereo_capdir:
+                print(f"[s2] FAILED: --cue-source stereo needs {STEREO_CACHE_ENV} "
+                      f"+ {STEREO_CAPTURE_DIR_ENV} env (centroid cache + capture dir)")
+                sys.exit(2)
+            cue_cmd = [
+                GROUND_STATION_VENV_PYTHON, GROUND_STATION_SCRIPT,
+                "--centroid-cache", stereo_cache,
+                "--capture-dir", stereo_capdir,
+                "--port", str(s2params["CUE_PORT"]),
+                "--latency-s", str(s2params["CUE_MOCK_LATENCY_S"]),
+            ]
+            stereo_extra = os.environ.get(STEREO_CUE_EXTRA_ENV, "").strip()
+            if stereo_extra:
+                cue_cmd.extend(shlex.split(stereo_extra))
+                print(f"[s2] cue stereo extra ({STEREO_CUE_EXTRA_ENV}): {stereo_extra}")
+            print(f"[s2] cue stereo (ground_station): {' '.join(cue_cmd)}")
         cue_proc = subprocess.Popen(cue_cmd, stdout=None, stderr=None)
 
     while True:
