@@ -28,7 +28,7 @@ OUT_DIR="$REPO/logs/stereo_rtf_probe"
 GEN_DIR="$OUT_DIR/gen"
 CSV="$OUT_DIR/results.csv"
 BOOT_TIMEOUT_S=240
-SETTLE_S=8
+SETTLE_S=20   # skip boot transients — 8 s still caught RTF~0.06 settling dips
 SAMPLE_S=25
 COOLDOWN_S=8
 
@@ -52,9 +52,11 @@ mkdir -p "$OUT_DIR" "$GEN_DIR"
 SUB_PIDS=()
 GPU_PID=""
 
+MAKE_PID=""
 cleanup() {
-  for p in "${SUB_PIDS[@]:-}"; do kill "$p" 2>/dev/null; done
+  for p in "${SUB_PIDS[@]:-}"; do kill -- "-$p" 2>/dev/null; done
   [ -n "$GPU_PID" ] && kill "$GPU_PID" 2>/dev/null
+  [ -n "$MAKE_PID" ] && kill -- "-$MAKE_PID" 2>/dev/null
   bash "$REPO/scripts/sim_kill.sh"
 }
 trap cleanup EXIT
@@ -109,7 +111,13 @@ EOF
 }
 
 rtf_stats() { # $1=seconds ; echoes "mean min n"
-  timeout "$1" gz topic -e -t "/world/$WORLD_NAME/stats" 2>/dev/null \
+  # -n bounds the echo so it EXITS BY ITSELF (world stats ~5 Hz -> ~5*seconds
+  # msgs). Plain `timeout gz topic` wedges: gz is a Ruby launcher, TERM hits
+  # the wrapper while the real echoer keeps the pipe open and awk never sees
+  # EOF (hung the first probe run for an hour, 2026-07-08). timeout stays as
+  # a belt-and-suspenders backstop only.
+  local n_msgs=$(( $1 * 5 ))
+  timeout $(( $1 * 4 )) gz topic -e -t "/world/$WORLD_NAME/stats" -n "$n_msgs" 2>/dev/null \
     | awk '/real_time_factor:/ {v=$2; s+=v; n++; if(min==""||v<min)min=v}
            END { if(n>0) printf "%.4f %.4f %d\n", s/n, min, n; else print "nan nan 0" }'
 }
@@ -124,15 +132,23 @@ for cfg in "${CONFIGS[@]}"; do
   gen_world "$W" "$H" "$RATE"
   BOOT_LOG="$OUT_DIR/boot_$LABEL.log"
 
-  ( cd "$PX4_DIR" && env $EXTRA_ENV PX4_GZ_WORLD="$WORLD_NAME" \
-      GZ_SIM_RESOURCE_PATH="$REPO/models" HEADLESS=1 \
-      make px4_sitl gz_x500_mono_cam > "$BOOT_LOG" 2>&1 ) &
+# Launch pattern copied from check_m3.sh:117 / mc_batch.sh:585 — `tail -f
+  # /dev/null |` holds stdin open so pxh never sees EOF (a /dev/null stdin
+  # makes the pxh prompt re-print in a tight loop: 20 GB of "pxh> " in an
+  # hour, found the hard way 2026-07-08); setsid = one clean group to kill.
+  setsid bash -c "cd '$PX4_DIR' && tail -f /dev/null | env $EXTRA_ENV PX4_GZ_WORLD='$WORLD_NAME' \
+      GZ_SIM_RESOURCE_PATH='$REPO/models' HEADLESS=1 \
+      make px4_sitl gz_x500_mono_cam" > "$BOOT_LOG" 2>&1 &
   MAKE_PID=$!
 
   BOOT_OK=0
   for _ in $(seq 1 "$BOOT_TIMEOUT_S"); do
     grep -q "Startup script returned successfully" "$BOOT_LOG" 2>/dev/null && { BOOT_OK=1; break; }
     kill -0 "$MAKE_PID" 2>/dev/null || break
+    # runaway-output guard: no healthy boot log is anywhere near 200 MB
+    if [ "$(stat -c%s "$BOOT_LOG" 2>/dev/null || echo 0)" -gt 209715200 ]; then
+      echo "  LOG FLOOD (>200MB) — failing config"; break
+    fi
     sleep 1
   done
 
@@ -146,15 +162,17 @@ for cfg in "${CONFIGS[@]}"; do
 
     ISO=$(rtf_stats "$SAMPLE_S")
 
-    # loaded phase: drain every camera image topic like a client would
+    # loaded phase: drain every camera image topic like a client would.
+    # setsid per subscriber: gz is a Ruby wrapper spawning the real echoer —
+    # kill the GROUP (-$p) or the echoer survives and pollutes the next config.
     SUB_PIDS=()
     while IFS= read -r t; do
-      gz topic -e -t "$t" > /dev/null 2>&1 &
+      setsid gz topic -e -t "$t" > /dev/null 2>&1 &
       SUB_PIDS+=($!)
     done < <(gz topic -l 2>/dev/null | grep -E "/world/$WORLD_NAME/.*(imager|rig_left|rig_right)/image$")
     sleep 2
     LOAD=$(rtf_stats "$SAMPLE_S")
-    for p in "${SUB_PIDS[@]:-}"; do kill "$p" 2>/dev/null; done; SUB_PIDS=()
+    for p in "${SUB_PIDS[@]:-}"; do kill -- "-$p" 2>/dev/null; done; SUB_PIDS=()
 
     kill "$GPU_PID" 2>/dev/null; GPU_PID=""
     GPU_MAX=$(awk -F', *' '{if($1>m)m=$1} END{print m+0}' "$GPU_CSV")
@@ -169,6 +187,9 @@ for cfg in "${CONFIGS[@]}"; do
   echo "$LABEL,$W,$H,$RATE,$EXTRA_ENV,$BOOT_OK,$IM,$IN,$INN,$LM,$LN,$LNN,$GPU_MAX,$MEM_MAX,$RHINT" >> "$CSV"
   echo "  isolated RTF mean=$IM min=$IN (n=$INN) | loaded mean=$LM min=$LN (n=$LNN) | GPU max ${GPU_MAX}% ${MEM_MAX}MiB | $RHINT"
 
+  # kill the whole setsid launch group (incl. the tail-f stdin holder), then
+  # the pattern-based sweep as belt
+  [ -n "$MAKE_PID" ] && kill -- "-$MAKE_PID" 2>/dev/null; MAKE_PID=""
   bash "$REPO/scripts/sim_kill.sh"
 done
 
