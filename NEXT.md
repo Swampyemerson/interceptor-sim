@@ -104,8 +104,11 @@ every new cue path.
    re-run on real cue after 4.
 7. **FPV fidelity** (T22, design first) — real FPV speed/accel/payload; `--fpv-fast`
    profile. Note ADR-0028: guidance ceiling binds, not airframe agility.
-8. **Sim-to-real shortcomings audit** (T23) — gap table (severity + bench-measurable):
-   frames, latency, comms, GPS/datum, intrinsics, IMU/EKF2, thermal/night, safety.
+8. **Sim-to-real shortcomings audit** (T23) — **DRAFTED `docs/sim_to_real_gaps.md`:**
+   26-gap table across 9 dimensions, 23 FLATTER the design (dangerous kind); headline
+   = the ADR-0052 clock-epoch/time-sync finding (critical). Stage-0 priority list
+   (motion-blur L2 #1 — testable today, most-repeated "existential" gap). Living map;
+   fold in future bench/flight findings. Honesty boundary framed as a STRENGTH.
 9. **Real-world NN transfer plan** (T24) — MIT model vs camera fine-tune, onboard +
    ground; Stage-0 data loop; what transfers vs rebuilt.
 10. **FINAL — Phase-2 demo video** (T25, builder-requested; do LAST, after the real
