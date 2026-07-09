@@ -48,12 +48,27 @@ than cosmetic: a batch/gate can later assert delivered latency never reads
 BELOW the floor (ADR-0048 SS3's own pre-registered T19 gate condition).
 
 t_sim PROVENANCE (ADR-0048 SS3 (1), also GOALS.md's sim-time-not-wall-time
-standing rule, ADR-0009): every emitted payload's `"t_sim"` is the frame's
-BAKED capture-time sim clock from `index.csv`'s `t_sim_nominal` column --
-NEVER this flight's live wall clock, NEVER this flight's live sim clock at
-release time (that only sets WHEN a datagram may be released, never what
-timestamp it carries). This is immune to THIS run's RTF, exactly like the
-mock's own `t_sim_sample`.
+standing rule, ADR-0009) -- UPDATED by ADR-0052's epoch rebase: every
+emitted payload's `"t_sim"` is `t0 + index.csv`'s baked `t_sim_nominal`
+column, where `t0` is the LIVE `/clock` sim time sampled once, at the
+moment this run started streaming (0.0 in `--replay-clock`/offline mode,
+so that mode's `t_sim` is still the raw baked value, byte-identical to
+pre-ADR-0052 behavior). It is STILL never this flight's live wall clock,
+and STILL never the live sim clock's value AT RELEASE time (that continues
+to only set WHEN a datagram may be released, never what timestamp it
+carries) -- only the ONE-TIME `t0` sample at stream start is new. Why:
+ADR-0052 found that the raw baked 0-2.7s clock has no relationship to a
+real flight's live clock (station.py spawns tens of seconds into a real
+flight, at CUE_WAIT entry) -- gating against the unrebased value either
+bursts the whole cache in one microsecond (sim_t already far past every
+`deliver_t_sim`) or works only by the accident of starting the process at
+sim_t~0. Rebasing to `t0` streams the cache over `[t0, t0+cache_span]` of
+THIS flight's live time, and makes `t_sim` the live sim time the target was
+actually AT that position -- which is exactly what `CueReader`'s staleness
+math (`ext_age_s = sim_clock.t - t_sim_cue`, `m4_intercept.py`) needs to
+read as "latency", not as "~23s stale". Still immune to THIS run's RTF
+inside the `[t0, t0+cache_span]` window, exactly like the mock's own
+`t_sim_sample`.
 
 =======================================================================
 INTERPRETER FINDING (ADR-0048 SS5 -- resolved, no T19b blocker)
@@ -137,6 +152,29 @@ release timing in this mode is governed by the MODELED latency floor
 The LIVE path (no `--centroid-cache`) is UNCHANGED and still the default --
 ADR-0051 keeps it for the hardware model (a real Pi/Jetson genuinely runs
 detection concurrently with flight) and for reversibility (one flag).
+
+=======================================================================
+CONFIDENCE GATE (ADR-0052 addendum -- `--min-conf`, closes the T19 flight
+finding, both detection modes)
+=======================================================================
+The FIRST live flight of this module (ADR-0052) found that a real
+detection can technically "hit" on both cameras and still be USELESS: the
+T19 stereo-cue flight's own `centroids.csv` seq=2 is the target's first
+frame straddling the right camera's FOV edge (`u_r~4.9px`, `conf_r=0.32`
+against a normal ~0.94-0.96) -- triangulating that low-confidence,
+near-degenerate-disparity box anyway produced a ~43 m position error, a
+single outlier that dominated the flight's cue-vs-target alignment check
+even after the epoch-rebase fix above made every OTHER frame track to
+~1 m (matching ADR-0050's expected real-detector sigma_R). `process_frame()`'s
+`min_conf` parameter (`--min-conf`, default 0.5) rejects EITHER camera's
+confidence below threshold as a `"rejected_low_conf"` status -- handled by
+the EXACT SAME downstream code path as a real miss (`scheduler.cancel()`,
+logged to the audit CSV, never blocks the FIFO) -- in BOTH detection modes,
+because both `CachedDetector` and `GroundDetector` funnel through this one
+`process_frame()` call; there is no separate gate to duplicate per mode.
+This is a real-rig-fidelity fix, not a threshold tuned to erase one number:
+a real ground station has no business triangulating a detection it isn't
+confident in, cached replay or live.
 
 =======================================================================
 T19b OWES (explicitly out of scope for this task; NOT built here)
@@ -230,6 +268,13 @@ DEFAULT_LATENCY_S = 0.12            # MIRRORS s2_cue_mock.DEFAULT_LATENCY_S -- s
 DEFAULT_POLL_INTERVAL_S = 0.01      # tight poll, same rationale as s2_cue_mock.WALL_POLL_S
 DEFAULT_SETUP_TIMEOUT_S = 15.0      # wall seconds to wait for the first live /clock sample
 CSV_FLUSH_EVERY = 10
+# ADR-0052 confidence gate: a detection with EITHER camera's confidence
+# below this is treated as a MISS (rejected, not triangulated) -- see
+# process_frame()'s own docstring for the full rationale/citation. 0.5
+# rejects the T19 flight-diagnosed seq=2 conf=0.32 edge-of-FOV degenerate
+# while keeping every ~0.94-0.96 normal frame in
+# logs/rig_captures/full_sweep_20260709T015530Z/centroids.csv.
+DEFAULT_MIN_CONF = 0.5
 
 # Secondary feature (--emit-velocity, off by default): GroundTrackFilter's
 # Kalata mode needs a measurement-noise scale at construction time (fixed,
@@ -446,7 +491,8 @@ class CachedDetector:
 # wall-clock compute in LIVE mode, an immediate dict lookup in CACHED mode --
 # this is exactly what CueScheduler's readiness gate is timing).
 # ============================================================================
-def process_frame(row: dict, capture_dir: str, rig: RigConfig, assumed_pose: Pose4, detector) -> dict:
+def process_frame(row: dict, capture_dir: str, rig: RigConfig, assumed_pose: Pose4, detector,
+                   min_conf: Optional[float] = None) -> dict:
     """Runs detection on BOTH camera frames for one `index.csv` row, then
     triangulates if both hit. `detector` needs only `.detect_path(path) ->
     DetectionResult` -- a real `GroundDetector` in production, any object
@@ -459,7 +505,26 @@ def process_frame(row: dict, capture_dir: str, rig: RigConfig, assumed_pose: Pos
     position, not the target's). Callers must treat `gt_target_*` as
     log-only, exactly like `s2_cue_mock.py`'s own true-position CSV columns.
 
-    Returns a dict with `"status"` in `{"hit", "miss", "degenerate"}`.
+    CONFIDENCE GATE (ADR-0052 addendum, closes the T19 seq=2 outlier):
+    `min_conf` (`None` = disabled, the pre-gate default -- every EXISTING
+    caller that doesn't pass it is byte-identical) rejects a detection as a
+    MISS -- same `"status"`, same downstream `cancel()`/audit handling as a
+    real det=0 miss, just a distinct `"rejected_low_conf"` status string so
+    it is separately countable -- when EITHER camera's confidence is below
+    `min_conf`, even though both cameras technically hit. Rationale: a real
+    ground rig should not triangulate off a low-confidence, edge-of-FOV,
+    tiny-disparity detection any more than it should off a miss -- doing so
+    is exactly how T19's flight-diagnosed seq=2 outlier happened (ADR-0052:
+    `centroids.csv` seq=2 is the target's first frame straddling the right
+    camera's FOV edge, `u_r~4.9px`, `conf_r=0.32` against a normal
+    ~0.94-0.96, and triangulating it anyway produced a ~43 m position error
+    -- ADR-0050's own single-range sigma_R checkpoint already flagged real-
+    detector edge cases as the open risk this closes). `station.py --min-
+    conf` defaults to 0.5, which rejects that one conf=0.32 frame while
+    keeping every ~0.94+ normal frame.
+
+    Returns a dict with `"status"` in
+    `{"hit", "miss", "rejected_low_conf", "degenerate"}`.
     """
     seq = row["seq"]
     left_path, right_path = frame_paths(capture_dir, seq)
@@ -478,6 +543,13 @@ def process_frame(row: dict, capture_dir: str, rig: RigConfig, assumed_pose: Pos
     }
     if not dl.hit or not dr.hit:
         base["status"] = "miss"
+        return base
+
+    if min_conf is not None and (
+        (dl.conf is not None and dl.conf < min_conf)
+        or (dr.conf is not None and dr.conf < min_conf)
+    ):
+        base["status"] = "rejected_low_conf"
         return base
 
     u_l, v_l = box_center(dl.box_xyxy)
@@ -677,7 +749,8 @@ class AuditLog:
 def _producer_loop(frames, capture_dir, rig, assumed_pose, detector, scheduler: CueScheduler,
                     latency_s, emit_velocity, kalata_sigma_process, kalata_sigma_meas,
                     spoof_mode, audit: AuditLog, stop_event: threading.Event,
-                    finished_event: threading.Event, error_box: list, seq_limit=None):
+                    finished_event: threading.Event, error_box: list, seq_limit=None,
+                    t0: float = 0.0, min_conf: Optional[float] = None):
     """`error_box` is a plain list used as an out-parameter (a thread's
     return value / raised exception is otherwise invisible to the joining
     caller): on ANY unexpected exception mid-frame, this appends it,
@@ -690,7 +763,27 @@ def _producer_loop(frames, capture_dir, rig, assumed_pose, detector, scheduler: 
     sufficient -- `n_pending` never reached 0). `--spoof` itself is now ALSO
     validated once at startup in `main()`, before any thread starts, so this
     is defense-in-depth for any OTHER future per-frame exception, not the
-    primary fix for that specific case."""
+    primary fix for that specific case.
+
+    `t0` (ADR-0052 epoch rebase): the LIVE sim time at which this run's
+    streaming started (0.0 in `--replay-clock`/offline mode and in every
+    existing caller that doesn't pass it -- byte-identical to pre-ADR-0052
+    behavior, since `0.0 + x == x` exactly for any finite float). Every
+    per-frame `frame_t_sim` used below is `t0 + row["t_sim_nominal"]`, NOT
+    the raw baked capture-time value -- see module docstring's "t_sim
+    PROVENANCE" section for why: the cache's baked 0-2.7s clock has no
+    relationship to THIS flight's live clock (ADR-0052's root cause), so
+    gating/emitting against the raw baked value either bursts the whole
+    cache the instant `sim_t` first exceeds ~2.7s (LIVE mode, spawned tens
+    of seconds into a real flight) or is fine by accident (the old
+    sim-time-0 smoke test). Rebasing to `t0` streams the cache over
+    `[t0, t0 + cache_span]` of live flight time instead, and `deliver_t_sim`
+    is `frame_t_sim + latency_s` in that SAME rebased frame -- so it still
+    correctly bounds the modeled latency floor above the true release time.
+
+    `min_conf` (ADR-0052 confidence gate): forwarded straight to
+    `process_frame()` -- see that function's own docstring. `None` (default,
+    every caller that doesn't pass it) disables the gate."""
     track_filter = GroundTrackFilter(
         kalata_sigma_process=kalata_sigma_process, kalata_sigma_meas=kalata_sigma_meas,
     ) if emit_velocity else None
@@ -704,11 +797,17 @@ def _producer_loop(frames, capture_dir, rig, assumed_pose, detector, scheduler: 
             if seq_limit is not None and n >= seq_limit:
                 break
             n += 1
-            seq, frame_t_sim = row["seq"], row["t_sim_nominal"]
+            # ADR-0052 epoch rebase: frame_t_sim is t0 + the frame's BAKED
+            # capture-time offset, not the raw baked value -- see this
+            # function's own docstring and module docstring's "t_sim
+            # PROVENANCE" section. t0=0.0 (every caller that doesn't pass it,
+            # including --replay-clock) makes this an exact no-op.
+            seq = row["seq"]
+            frame_t_sim = t0 + row["t_sim_nominal"]
             deliver_t_sim = frame_t_sim + latency_s
             scheduler.schedule(seq, frame_t_sim, deliver_t_sim)
 
-            res = process_frame(row, capture_dir, rig, assumed_pose, detector)
+            res = process_frame(row, capture_dir, rig, assumed_pose, detector, min_conf=min_conf)
             if res["status"] != "hit":
                 scheduler.cancel(seq, reason=res["status"])
                 audit.write({
@@ -801,6 +900,14 @@ def parse_args(argv=None):
     ap.add_argument("--weights", default=DEFAULT_WEIGHTS, help="ground_v1 .onnx weights")
     ap.add_argument("--conf", type=float, default=DEFAULT_CONF, help="detector confidence threshold")
     ap.add_argument("--imgsz", type=int, default=DEFAULT_IMGSZ, help="detector inference size")
+    ap.add_argument("--min-conf", type=float, default=DEFAULT_MIN_CONF,
+                     help="ADR-0052 confidence gate: reject a detection (in BOTH cached and live "
+                          "modes) as a MISS -- no triangulation, no cue, doesn't block the FIFO -- "
+                          "when EITHER camera's confidence is below this, even if both cameras "
+                          "technically hit. A real ground rig should not triangulate off a "
+                          "low-confidence/edge-of-FOV/tiny-disparity detection any more than off "
+                          "a miss (see process_frame()'s docstring for the T19 seq=2 incident this "
+                          "closes: conf_r=0.32 -> ~43 m triangulation error). Default 0.5.")
     ap.add_argument("--centroid-cache", type=str, default=None,
                      help="ADR-0051 T19b part-1: path to a centroids.csv built by "
                           "scripts/ground_station/build_centroid_cache.py. When given, "
@@ -885,6 +992,8 @@ def main(argv=None) -> int:
     else:
         assumed_pose = rig.true_pose
     print(f"[ground-station] rig true_pose={tuple(rig.true_pose)} assumed_pose={tuple(assumed_pose)}")
+    print(f"[ground-station] ADR-0052 confidence gate: min_conf={args.min_conf} "
+          "(either camera below this -> rejected_low_conf, treated as a miss)")
 
     if args.centroid_cache:
         try:
@@ -912,8 +1021,12 @@ def main(argv=None) -> int:
     if args.replay_clock:
         clock = ReplayClock(rtf=args.replay_rtf)
         node = None
+        # ADR-0052: t0=0.0 in offline mode -- no epoch rebase, byte-identical
+        # to pre-ADR-0052 behavior (this mode's t_sim stays the raw baked
+        # value; there is no real flight clock to rebase against).
+        t0 = 0.0
         print(f"[ground-station] --replay-clock ON (rtf={args.replay_rtf}) -- NOT a real sim clock, "
-              "offline demo only (module docstring 'T19b OWES' #3)")
+              "offline demo only (module docstring 'T19b OWES' #3); t0=0.0 (no epoch rebase)")
     else:
         try:
             node, clock = make_live_node_and_clock(timeout_s=args.setup_timeout_s)
@@ -921,7 +1034,16 @@ def main(argv=None) -> int:
             print(f"[ground-station] FAILED: {exc}")
             audit.close()
             return 2
-        print(f"[ground-station] subscribed to {CLOCK_TOPIC}")
+        # ADR-0052 epoch rebase: t0 = the live /clock sim time RIGHT NOW, at
+        # the moment streaming starts -- every cache frame's frame_t_sim/
+        # deliver_t_sim/emitted t_sim is t0 + its baked offset from here on
+        # (see _producer_loop's docstring). This is the fix for the T19
+        # clock-epoch bug (ADR-0052): station.py spawns tens of seconds into
+        # a real flight, so gating against the raw 0-2.7s baked clock bursts
+        # the whole cache in one microsecond.
+        t0 = clock.t
+        print(f"[ground-station] subscribed to {CLOCK_TOPIC}; ADR-0052 epoch rebase t0={t0:.4f}s "
+              "(cache will stream over [t0, t0+cache_span] of this flight's live sim time)")
 
     kalata_sigma_meas = (
         args.kalata_sigma_meas_m if args.kalata_sigma_meas_m is not None
@@ -940,6 +1062,7 @@ def main(argv=None) -> int:
         args=(frames, args.capture_dir, rig, assumed_pose, detector, scheduler,
               args.latency_s, args.emit_velocity, args.kalata_sigma_process, kalata_sigma_meas,
               args.spoof, audit, stop_event, finished_event, error_box, args.seq_limit),
+        kwargs={"t0": t0, "min_conf": args.min_conf},  # ADR-0052 epoch rebase + confidence gate
         daemon=False,
     )
     worker.start()
@@ -955,9 +1078,11 @@ def main(argv=None) -> int:
 
     n_floor_violations = len(scheduler.floor_violation_log)
     n_missed = sum(1 for _, r in scheduler.cancelled if r == "miss")
+    n_rejected_low_conf = sum(1 for _, r in scheduler.cancelled if r == "rejected_low_conf")
     n_degenerate = sum(1 for _, r in scheduler.cancelled if r == "degenerate")
     print(
         f"[ground-station] done: n_emitted={n_emitted} n_missed={n_missed} "
+        f"n_rejected_low_conf={n_rejected_low_conf} "
         f"n_degenerate={n_degenerate} n_floor_violations={n_floor_violations} log={audit.path}"
     )
     if error_box:

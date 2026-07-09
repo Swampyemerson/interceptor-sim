@@ -54,6 +54,7 @@ import json
 import math
 import os
 import sys
+import threading
 
 import pytest
 
@@ -66,6 +67,7 @@ from ground_station.station import (  # noqa: E402
     CueScheduler,
     DEFAULT_CAPTURE_DIR,
     DEFAULT_LATENCY_S,
+    DEFAULT_MIN_CONF,
     apply_spoof,
     frame_paths,
     load_capture,
@@ -246,6 +248,92 @@ def test_emitted_t_sim_is_baked_frame_time_not_release_clock():
     assert released[0].payload["t_sim"] == frame_t_sim
     assert released[0].payload["t_sim"] != release_sim_t
     assert released[0].frame_t_sim == frame_t_sim
+
+
+# ============================================================================
+# (2b) ADR-0052 EPOCH REBASE -- LIVE mode's t0 (the live /clock sim time at
+# stream start) shifts every frame's frame_t_sim/deliver_t_sim/emitted t_sim
+# from the cache's raw 0-2.7s baked capture time into THIS flight's live
+# sim-time frame: [t0, t0+cache_span] instead of [0, cache_span]. Exercised
+# by calling _producer_loop() directly and synchronously (no thread, no real
+# clock needed -- a synthetic zero-jitter stub detector makes result_ready
+# true immediately, so nothing here depends on wall time) with t0=23.0,
+# mirroring ADR-0052's own root-cause number (station.py spawns ~23s into a
+# real check_t19.sh flight, at CUE_WAIT entry, well past the cache's ~2.7s
+# span baked against ITS OWN capture run's clock).
+# ============================================================================
+def test_epoch_rebase_gates_delivery_at_t0_plus_frame_offset(rig, capture_rows, tmp_path):
+    from ground_station.station import AuditLog, _producer_loop
+
+    subset = capture_rows[:3]
+    detector = _synthetic_stub_detector(rig, subset, CAPTURE_DIR)
+    scheduler = CueScheduler()
+    audit = AuditLog(os.path.join(str(tmp_path), "audit.csv"))
+    stop_event = threading.Event()
+    finished_event = threading.Event()
+    error_box: list = []
+
+    t0 = 23.0
+    frame0_baked = subset[0]["t_sim_nominal"]
+    latency_s = DEFAULT_LATENCY_S
+    expected_deliver_t_sim = t0 + frame0_baked + latency_s
+    expected_t_sim = t0 + frame0_baked
+
+    _producer_loop(
+        subset, CAPTURE_DIR, rig, rig.true_pose, detector, scheduler,
+        latency_s, False, 1.0, 1.0, None, audit, stop_event, finished_event, error_box, None,
+        t0=t0,
+    )
+    audit.close()
+    assert not error_box, f"producer raised: {error_box}"
+
+    # Not gated against the raw baked deadline (~frame0_baked + latency_s,
+    # long past by sim_t=23.0 -- exactly ADR-0052's bug: that would burst
+    # the whole cache the instant sim_t first exceeds it). Rebased gating
+    # means the deadline hasn't even arrived yet at sim_t == t0 itself.
+    assert scheduler.poll(t0) == []
+    assert scheduler.n_pending == 3
+
+    released = scheduler.poll(expected_deliver_t_sim)
+    assert len(released) == 1
+    item = released[0]
+    assert item.seq == subset[0]["seq"]
+    assert item.deliver_t_sim == pytest.approx(expected_deliver_t_sim)
+    assert item.frame_t_sim == pytest.approx(expected_t_sim)
+    # t_sim delivered on the wire reflects the REBASED live-flight time
+    # (t0 + baked offset) -- NOT the raw 0-2.7s baked value alone (that
+    # value is what CueReader's staleness math, ext_age_s = sim_clock.t -
+    # t_sim_cue, would otherwise read as "~23s stale" instead of "~latency").
+    assert item.payload["t_sim"] == pytest.approx(expected_t_sim)
+    assert item.payload["t_sim"] != frame0_baked
+
+
+def test_epoch_rebase_t0_zero_is_byte_identical_to_pre_adr0052(rig, capture_rows, tmp_path):
+    """`t0` omitted (every existing caller, and `--replay-clock`'s offline
+    mode) defaults to 0.0, which is an EXACT no-op (`0.0 + x == x` for any
+    finite float) -- the emitted `t_sim` is the raw baked frame time,
+    unchanged from pre-ADR-0052 behavior."""
+    from ground_station.station import AuditLog, _producer_loop
+
+    subset = capture_rows[:2]
+    detector = _synthetic_stub_detector(rig, subset, CAPTURE_DIR)
+    scheduler = CueScheduler()
+    audit = AuditLog(os.path.join(str(tmp_path), "audit.csv"))
+    stop_event = threading.Event()
+    finished_event = threading.Event()
+    error_box: list = []
+
+    _producer_loop(
+        subset, CAPTURE_DIR, rig, rig.true_pose, detector, scheduler,
+        DEFAULT_LATENCY_S, False, 1.0, 1.0, None, audit, stop_event, finished_event, error_box, None,
+    )  # t0 not passed -> defaults to 0.0
+    audit.close()
+    assert not error_box
+
+    frame0_baked = subset[0]["t_sim_nominal"]
+    released = scheduler.poll(frame0_baked + DEFAULT_LATENCY_S)
+    assert len(released) == 1
+    assert released[0].payload["t_sim"] == frame0_baked
 
 
 # ============================================================================
@@ -490,14 +578,18 @@ def _synthetic_centroid_cache(rig, rows):
     return cache
 
 
-def _run_mini_flight(rows, capture_dir, rig, detector, latency_s, tmp_path, poll_interval_s=0.005):
+def _run_mini_flight(rows, capture_dir, rig, detector, latency_s, tmp_path, poll_interval_s=0.005,
+                      min_conf=None):
     """Runs `station.py`'s REAL threaded producer/consumer loop -- the exact
     `_producer_loop`/`_consumer_loop`/`CueScheduler`/`AuditLog` functions
     `main()` wires together -- over `rows`, using a real-wall-clock
     `ReplayClock` (rtf=1.0) and a throwaway loopback UDP socket pair. This
     (not a synchronous same-thread call, which could never exhibit a race)
     is what makes the floor-violation comparison below a genuine timing
-    claim rather than a tautology. Returns `(n_emitted, scheduler)`."""
+    claim rather than a tautology. `min_conf` (ADR-0052 confidence gate,
+    default None/disabled -- every EXISTING caller that doesn't pass it is
+    unaffected) is forwarded straight to `_producer_loop`. Returns
+    `(n_emitted, scheduler)`."""
     import socket
     import threading
 
@@ -519,6 +611,7 @@ def _run_mini_flight(rows, capture_dir, rig, detector, latency_s, tmp_path, poll
         target=_producer_loop,
         args=(rows, capture_dir, rig, rig.true_pose, detector, scheduler,
               latency_s, False, 1.0, 1.0, None, audit, stop_event, finished_event, error_box, None),
+        kwargs={"min_conf": min_conf},
         daemon=True,
     )
     worker.start()
@@ -649,6 +742,63 @@ def test_cache_miss_produces_no_cue_and_does_not_block_fifo(rig, capture_rows, t
     assert (miss_seq, "miss") in scheduler.cancelled
     assert all(seq != miss_seq for seq, _payload in scheduler.emitted)
     assert scheduler.floor_violation_log == []  # a miss is cancel()'d, never a floor violation
+
+
+# ---- (7c-2) ADR-0052 CONFIDENCE GATE -- a low-confidence HIT is rejected
+# exactly like a miss (the T19 flight finding this closes: centroids.csv
+# seq=2 hit on both cameras, conf_r=0.32, u_r~4.9px edge-of-FOV -> a ~43 m
+# triangulation error that dominated check_t19.sh's assertion 4 even after
+# the epoch-rebase fix made every other frame track to ~1 m). ----
+def test_cache_low_confidence_hit_rejected_as_miss(rig, capture_rows):
+    """A cached row where BOTH cameras technically hit but one confidence is
+    below `min_conf` must be treated exactly like a real detection miss:
+    `status="rejected_low_conf"`, no `x`/`y`/`z`, no triangulation attempted
+    -- mirroring the T19 seq=2 incident (conf_r=0.32)."""
+    row = capture_rows[7]
+    cache = _synthetic_centroid_cache(rig, [row])
+    right_box = cache[row["seq"]]["r"].box_xyxy
+    cache[row["seq"]]["r"] = DetectionResult(True, 0.32, right_box)  # hit, but low-confidence
+    detector = CachedDetector(cache)
+
+    res_gated = process_frame(row, CAPTURE_DIR, rig, rig.true_pose, detector, min_conf=DEFAULT_MIN_CONF)
+    assert res_gated["status"] == "rejected_low_conf"
+    assert "x" not in res_gated
+    assert res_gated["det_conf_left"] == pytest.approx(0.99)
+    assert res_gated["det_conf_right"] == pytest.approx(0.32)
+
+    # Gate disabled (min_conf=None, the pre-ADR-0052-gate default every
+    # EXISTING caller gets) -> the same low-confidence box still triangulates,
+    # proving the rejection above is the gate, not some other change.
+    res_ungated = process_frame(row, CAPTURE_DIR, rig, rig.true_pose, detector, min_conf=None)
+    assert res_ungated["status"] == "hit"
+
+    # Boundary: min_conf is a STRICT less-than -- exactly AT the confidence
+    # value must NOT reject (only genuinely BELOW threshold does).
+    res_at_threshold = process_frame(row, CAPTURE_DIR, rig, rig.true_pose, detector, min_conf=0.32)
+    assert res_at_threshold["status"] == "hit"
+
+
+def test_cache_low_confidence_rejected_does_not_block_fifo_and_no_cue_for_that_seq(rig, capture_rows, tmp_path):
+    """Run through the REAL threaded producer/consumer machinery (not just
+    `process_frame()` in isolation): a rejected low-confidence seq must not
+    appear in the emitted cue stream and must not block the OTHER (normal-
+    confidence) frames around it -- exactly the FIFO-non-blocking guarantee
+    `test_cache_miss_produces_no_cue_and_does_not_block_fifo` proves for a
+    real miss, now proven for a rejected-but-technically-hit frame too."""
+    subset = capture_rows[:3]
+    cache = _synthetic_centroid_cache(rig, subset)
+    low_conf_seq = subset[1]["seq"]
+    left_box = cache[low_conf_seq]["l"].box_xyxy
+    cache[low_conf_seq]["l"] = DetectionResult(True, 0.3, left_box)  # hit, but low-confidence
+    detector = CachedDetector(cache)
+
+    n_emitted, scheduler = _run_mini_flight(
+        subset, CAPTURE_DIR, rig, detector, DEFAULT_LATENCY_S, tmp_path, min_conf=DEFAULT_MIN_CONF
+    )
+    assert n_emitted == 2
+    assert (low_conf_seq, "rejected_low_conf") in scheduler.cancelled
+    assert all(seq != low_conf_seq for seq, _payload in scheduler.emitted)
+    assert scheduler.floor_violation_log == []  # a rejection is cancel()'d, never a floor violation
 
 
 # ---- (7d) t_sim provenance holds under cache mode too ----

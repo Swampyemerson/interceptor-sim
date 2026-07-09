@@ -1718,6 +1718,34 @@ async def run_acquire_and_engage(
             print(f"[s2] cue stereo (ground_station): {' '.join(cue_cmd)}")
         cue_proc = subprocess.Popen(cue_cmd, stdout=None, stderr=None)
 
+        # ADR-0052 PART 2 (T19 clock-epoch fix) -- --cue-source stereo ONLY:
+        # co-start the target mover HERE, at CUE_WAIT entry, instead of
+        # waiting for the DASH transition below. station.py's epoch rebase
+        # (ADR-0052 PART 1) streams the cache over [t0, t0+cache_span] of
+        # THIS flight's live time starting from the moment IT begins
+        # streaming (right after this cue_proc spawn) -- so the target's own
+        # motion timeline must be co-aligned with that same t0, not started
+        # later at DASH, or the (now correctly paced) cue stream would still
+        # describe a target that hasn't started moving yet. This is gated
+        # STRICTLY on cue_source == "stereo": the mock path's mover-at-DASH
+        # timing is untouched (s2_cue_mock.py synthesizes its cue from the
+        # LIVE pose topic at read time, so it has no equivalent pre-baked-
+        # clock alignment problem -- co-starting the mover for it would
+        # change a currently-correct, gated, pinned behavior for no reason).
+        # Realism note: a real hostile target is already inbound before the
+        # interceptor launches -- a target moving from CUE_WAIT (not parked
+        # until DASH) is MORE faithful to that threat model, so this is a
+        # correctness fix AND a realism improvement (ADR-0052).
+        if args.cue_source == "stereo":
+            mover_args = [
+                sys.executable, MOVER_SCRIPT,
+                f"--start={args.target_start}",
+                f"--vel={args.target_vel}",
+                "--duration", str(args.mover_duration),
+            ]
+            print(f"[s2] mover (co-started with stereo cue, ADR-0052): {' '.join(mover_args)}")
+            mover_proc = subprocess.Popen(mover_args, stdout=None, stderr=None)
+
     while True:
         tick_start = time.monotonic()
         detected, meas = sample_measurement(meas_holder)
@@ -1998,17 +2026,27 @@ async def run_acquire_and_engage(
                 )
                 phase = "DASH"
                 dash_start_mono = tick_start
-                mover_args = [
-                    sys.executable, MOVER_SCRIPT,
-                    f"--start={args.target_start}",
-                    # =-attached: a negative leading vx (oblique_close, e.g.
-                    # "-4.243,4.243") is otherwise mis-read by the mover's
-                    # argparse as a flag. Byte-identical for positive/zero vx.
-                    f"--vel={args.target_vel}",
-                    "--duration", str(args.mover_duration),
-                ]
-                print(f"[s2] mover: {' '.join(mover_args)}")
-                mover_proc = subprocess.Popen(mover_args, stdout=None, stderr=None)
+                # ADR-0052 PART 2: under --cue-source stereo, the mover was
+                # already co-started at CUE_WAIT entry (above) so its motion
+                # timeline lines up with station.py's epoch-rebase t0 -- do
+                # NOT spawn a second one here. mover_proc is None here on
+                # every OTHER path (mock, or plain --handoff without a cue
+                # source distinction), so this branch is byte-identical to
+                # before ADR-0052 for those.
+                if mover_proc is None:
+                    mover_args = [
+                        sys.executable, MOVER_SCRIPT,
+                        f"--start={args.target_start}",
+                        # =-attached: a negative leading vx (oblique_close, e.g.
+                        # "-4.243,4.243") is otherwise mis-read by the mover's
+                        # argparse as a flag. Byte-identical for positive/zero vx.
+                        f"--vel={args.target_vel}",
+                        "--duration", str(args.mover_duration),
+                    ]
+                    print(f"[s2] mover: {' '.join(mover_args)}")
+                    mover_proc = subprocess.Popen(mover_args, stdout=None, stderr=None)
+                else:
+                    print("[s2] mover: already running (co-started at CUE_WAIT entry, ADR-0052)")
             elif cue_wait_elapsed > s2params["CUE_WAIT_TIMEOUT_S"]:
                 aborted = True
                 abort_reason = (
