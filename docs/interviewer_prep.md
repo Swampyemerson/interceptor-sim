@@ -356,7 +356,7 @@ confirmed in flight). Fixed weights with "the cue never touches the angle" win. 
 rail held: zero post-latch cue updates across all 32 EKF flights, live-counted.)*
 
 ### 19. Does any of this survive real hardware? How would you find out cheaply?
-I'd find out for ~$230 before spending a dollar on an airframe — that's the whole design of
+I'd find out for ~$257 before spending a dollar on an airframe — that's the whole design of
 the **Stage-0 bench** (ADR-0012/0033 item 1). A Raspberry Pi 5 + a global-shutter mono camera
 runs the *exact* detection code against a *printed* AprilTag and produces a measured
 **sim-vs-bench gap table**: static detection rate and range/bearing error vs. a tape-measured
@@ -367,7 +367,7 @@ at all — plus the single biggest unmeasured number in the whole project: the P
 rate for this detector, which every filter gain and terminal-timing constant was tuned
 against assuming ~14 Hz desktop cadence. It's structured as an honest go/no-go: if sustained
 Hz drops below ~8 or detection dies below ~30°/s of yaw, the camera-only terminal window
-collapses on real hardware exactly as the council feared — and that's a *successful* ~$230
+collapses on real hardware exactly as the council feared — and that's a *successful* ~$257
 result, because it redirects effort to the Hailo/ML seeker path *before* the ~$260–530
 airframe spend. The bench is perception-only — no flight, no PX4 — precisely because
 perception is the risk; the guidance already reproduces from logs. *(ADR-0012, ADR-0015,

@@ -169,7 +169,7 @@ radio, a real airframe, and RF/red-team test ranges are all later stages. This
 list is ordered so the cheapest, already-planned, highest-leverage
 measurements come first.
 
-**(a) Measurable TODAY with the already-designed Stage-0 cart (~$230–310, order now — closes L1–L4, informs T3/T4):**
+**(a) Measurable TODAY with the already-designed Stage-0 cart (~$257, design-review §6 re-cost — order now; closes L1–L4, informs T3/T4):**
 1. **L2 — motion-blur/yaw-rate ramp** (`stage0_bench_plan.md` §3c). Highest priority: this is the single gap named "existential" more than any other in the project's own history. Answers whether the sim's zero-blur assumption is safe up to the ~60°/s terminal LOS rate.
 2. **L1/L4 — lens calibration + distortion** (§2.4). Cheap, mandatory before any other number on real hardware is trustworthy (a bad fx silently rescales every range).
 3. **Sustained detection Hz on the Pi 5 CPU** (§3b) — the project's own "headline unknown ADR-0012 could not answer"; also the first real data point for T3/T4 (embedded-vs-desktop compute).

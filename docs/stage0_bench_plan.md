@@ -1,7 +1,8 @@
 # Stage 0 Hardware Bench Plan — measure the real perception gap before buying an airframe
 
 > **Status:** execution plan for post-M5 queue item 1 (ADR-0033). Not started.
-> **Scope:** ADR-0012 "Stage 0" — a ~$230 Raspberry Pi 5 + camera rig that runs
+> **Scope:** ADR-0012 "Stage 0" — a ~$257 Raspberry Pi 5 + camera rig (design-review
+> §6 re-cost of ADR-0012's original ~$230 figure) that runs
 > the project's *real* detection code against a *printed* AprilTag and produces a
 > measured **sim-vs-bench gap table**. This is the cheapest possible go/no-go on the
 > whole hardware plan: it can save the airframe spend if the numbers say the
@@ -99,7 +100,7 @@ sim. That is the whole trick to making the bench numbers comparable.
 | 32 GB microSD | ~$9 |
 | Arducam OV9281 USB (B0332) | ~$65 |
 | Wide ~1.6 mm M12 lens | ~$18 |
-| **Total** | **~$241** (Pi-price-dependent: $230 → $310) |
+| **Total** | **~$241** (Pi-price-dependent: $230 → $310); + the $15 yaw-ramp jig the design review (§6, 2026-07-10) moved into this cart → **adopted cart ~$257** |
 
 Why the OV9281 USB is the primary despite needing a lens swap:
 1. **USB/UVC is the smallest possible code change — literally none.** `OpenCVFrameSource`
@@ -144,7 +145,9 @@ for the one number it can't give you (§3c). Sources for the 4 GB Pi price:
   ([price-rise notice](https://www.raspberrypi.com/news/more-memory-driven-price-rises/),
   [Tom's Hardware](https://www.tomshardware.com/raspberry-pi/raspberry-pi-5-price-increases-drastically-as-ai-shortage-bites-16gb-version-now-usd205-second-price-increase-in-three-months-over-70-percent-more-expensive-than-original-msrp)).
   **Order the Pi first, check live stock at [rpilocator.com](https://rpilocator.com), and
-  don't wait for a price dip that may not come.** The ADR-0012 "~$230 Stage 0" figure assumed
+  don't wait for a price dip that may not come.** (The design review §6's adopted cart —
+  official-reseller Pi + the yaw-ramp jig moved in — is ~$257, the figure now quoted
+  project-wide.) The ADR-0012 "~$230 Stage 0" figure assumed
   the pre-shortage Pi; at today's price the primary cart is ~$240–310. That is still an order
   of magnitude below buying the X500 airframe (~$260–530, ADR-0012) that this bench exists to
   de-risk.

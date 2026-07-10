@@ -286,7 +286,7 @@ every new cue path.
   d3d12 BATCH arm still owes a paired-seed sanity vs stock before A/B use.
 
 ### Still builder-gated / parked (carried from Phase 1 close)
-- **Hardware Stage 0 bench — ORDER PARTS (~$230)**: Pi 5 8GB + global-shutter cam.
+- **Hardware Stage 0 bench — ORDER PARTS (~$257, design-review §6 re-cost)**: Pi 5 8GB + global-shutter cam.
   Blocks the bird gate + the real-seeker bearing-quality lever; software pre-staged.
 - **Bird MC gate #8**: needs the P(hostile) classifier (ADR-0035 + Stage-0 data).
 - Deployment phases M-1..M-4 (brief drafted `docs/deployment_phases_design_brief.md`);
@@ -314,8 +314,11 @@ every new cue path.
 
 ## Build queue (post-M5 — builder ratified 2026-07-07, ADR-0033; status 2026-07-08)
 
-1. **Hardware Stage 0 bench (ADR-0012), ~$230 — BUILDER ACTION: order parts**
-   (Pi 5 8GB ~$120, cooler/PSU/SD ~$35, global-shutter cam + wide lens ~$75).
+1. **Hardware Stage 0 bench (ADR-0012), ~$257 — BUILDER ACTION: order parts**
+   (Pi 5 8GB ~$130 at official-reseller pricing, cooler/PSU/SD, OV9281
+   global-shutter cam + wide lens, + the $15 yaw-ramp jig the design review
+   §6 moved into this cart — re-cost of the old ~$230 figure, see
+   `docs/stage0_bench_plan.md`).
    Software prep pre-staged; everything else can proceed without it.
 2. **Kill the AprilTag (markerless seeker)** — DONE through v2 (ADR-0038/39/40/42):
    flies camera-only on the tag-less body, 6/8 clean, zero pollution, honest

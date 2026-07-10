@@ -159,7 +159,7 @@ to keep exactly one training pipeline to maintain instead of two.
 ## 3. The Stage-0 data loop
 
 `docs/stage0_bench_plan.md` already specifies a Pi 5 + global-shutter-camera
-bench (~$230-310, parts ordered per NEXT.md) — but that plan is scoped
+bench (~$257, design-review §6 re-cost; parts on the builder per NEXT.md) — but that plan is scoped
 **narrowly to the AprilTag go/no-go gate** (detection rate, range/bearing
 error, detection Hz, motion-blur threshold, lighting robustness, all against
 a *printed fiducial*). It says nothing about capturing real drone-vs-bird

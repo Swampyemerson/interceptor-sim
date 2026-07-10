@@ -2,7 +2,7 @@
 
 *(Every number below traces to a gate script, an ADR in `docs/decisions.md`, or a
 CSV in `logs/`. Nothing here overclaims — the honest limitations are stated as
-part of the story. Updated 2026-07-09 for the post-M5 arcs: the markerless
+part of the story. Updated 2026-07-10 for the post-M5 arcs: the markerless
 seeker, the detect-then-track maneuvering terminal (ADR-0058), the real stereo
 pipeline spine (ADR-0045..0053), and the sim-to-real design review; r²/ZEM
 wording corrected 2026-07-10 (r² is variance explained, never "% of the miss" —
@@ -17,8 +17,9 @@ depend on a claim the project itself has put on HOLD are explicitly marked
 > **Implemented proportional-navigation guidance for autonomous camera-only
 > drone intercept in PX4/Gazebo SITL (MAVSDK-Python); validated via
 > Monte-Carlo miss-distance analysis (n=96), then removed the fiducial — a
-> markerless neural-net seeker with a verified anti-phantom detect-then-track
-> terminal holds camera-only intercepts against a 12 m/s weaving target.**
+> markerless neural-net seeker with an anti-phantom detect-then-track
+> terminal holds camera-only intercepts against a 12 m/s weaving target
+> (verified at n=14: one weave arm, one empty Gazebo world, mock ground cue).**
 
 ---
 
@@ -30,13 +31,19 @@ depend on a claim the project itself has put on HOLD are explicitly marked
   than pursuit** against a 2 m/s crossing target (**0.28–0.44 m vs. 2.0–2.5 m**),
   confirmed across three independent verifier-gated runs. *(M4, ADR-0009)*
 
-- **Validated by Monte-Carlo at fleet scale:** a 96-flight final batch across
-  pursuit/pro-nav × 6/9/12 m/s × straight/weave/jink/oblique target paths on
-  the adopted deployment profile — **96.9% clean, mean miss 1.08 m, median
-  0.93 m**, the whole 6–12 m/s FPV speed band catchable (12 m/s was uncatchable
-  from a hover start), with the kill metric reported as a **full
-  Pk-vs-lethal-radius curve**, never a single cherry-picked radius. *(M5,
-  ADR-0036; `logs/mc_final_all.csv`; sensitivity: `docs/pk_vs_radius_note.md`)*
+- **Validated by Monte-Carlo at fleet scale — on the AprilTag sensor:** a
+  96-flight final batch across pursuit/pro-nav × 6/9/12 m/s ×
+  straight/weave/jink/oblique target paths on the adopted deployment profile —
+  **96.9% clean** ("clean" = the flight ran to completion and engaged: no
+  abort, closest approach inside the breakoff-arm range, handoff done; a
+  crashed or timed-out flight logs miss = nan and stays in every Pk
+  denominator as a failure), **mean miss 1.08 m, median 0.93 m**, the whole
+  6–12 m/s FPV speed band catchable (12 m/s was uncatchable from a hover
+  start), with the kill metric reported as a **full Pk-vs-lethal-radius
+  curve**, never a single cherry-picked radius. This batch flew the clean
+  **AprilTag** sensor — the disclosed upper bound — not the markerless seeker
+  of the neighboring bullets. *(M5, ADR-0036; `logs/mc_final_all.csv`;
+  sensitivity: `docs/pk_vs_radius_note.md`)*
 
 - **Diagnosed the fast-target limit as kinematic, not perceptual** via a
   41-flight forensic batch: **the final miss is a near-deterministic function
@@ -72,6 +79,17 @@ depend on a claim the project itself has put on HOLD are explicitly marked
   error validated against the σ_R ∝ R² physics model across 50–160 m (measured
   exponent 2.003). *(ADR-0045..0053, `check_t19.sh` exit 0)*
 
+- **Showed the ground cue earns its keep exactly when the seeker gets noisy —
+  a clean paired win:** with the markerless seeker (not the clean tag),
+  turning mid-course cue fusion on tightened the miss on **8/8 paired seeds
+  (sign test p≈0.008, median −0.356 m)**, rescued both chronic failure seeds,
+  and **survived the WORST-credible modeled cue 8/8** — honestly reversing
+  the earlier clean-tag "fusion never helps" null once the sensor changed;
+  the fancier covariance-gated variant was a wash at the realistic tier,
+  **regressed under WORST cue bias (7.66 m tail)**, and was rejected. Fusion
+  is mid-course only — **0 post-latch cue updates, live-counted** — so the
+  camera-only terminal boundary held. *(ADR-0041/0044; `logs/mc_fusion_*.csv`)*
+
 - **Ran it like a flight program:** ~60 logged decision records including
   **public retractions** (an n=2 "win" re-read as noise against a measured
   ~5 m run-to-run floor, ADR-0057), scripted pass/fail milestone gates with
@@ -105,9 +123,10 @@ depend on a claim the project itself has put on HOLD are explicitly marked
 
 - "Works comms-denied / jam-resistant" (fails closed under pre-acquisition jam
   in the adopted config; fix built, not yet flown — ADR-0059).
-- "Pk ≥ 95%" (14/14 observed → 95% Clopper-Pearson lower bound ~77%; the
-  statistics are honest as "no failures observed," not as a Pk floor — design
-  review G14).
+- "Pk ≥ 95%" (14/14 camera-terminal observed → 95% Clopper-Pearson lower
+  bound ~77% at n=14; the design review's ~79% figure is the same bound at
+  the pooled n=16 — different denominators; the statistics are honest as "no
+  failures observed," not as a Pk floor — design review G14).
 - Anything implying the numbers transfer to real optics, real compute, wind,
   or a real airframe (every perception number is an upper bound from clean
   renders — design review §2, `docs/sim_to_real_gaps.md`).

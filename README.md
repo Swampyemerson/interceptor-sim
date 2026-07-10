@@ -131,7 +131,9 @@ approach measured only after the camera latch, when the cue is structurally
 unreadable), and (iii) *real-handoff-conditioned* (14/14 — excludes the two
 flights that never latched and are honestly counted as **not**
 camera-terminal intercepts). Statistics caveat, per the design review: 14/14
-observed gives a 95% Clopper-Pearson lower bound of ~77% — honest as "no
+observed gives a 95% Clopper-Pearson lower bound of ~77% (drawn from the
+camera-terminal n=14; the review's ~79% bound is the same calculation on the
+pooled 16/16 — different denominators) — honest as "no
 failures observed at n=14," not yet as "Pk ≥ 95%." The adopted config is
 batch-validated on weave; the jink arm re-run on post-fix code is queued
 (design review G14).
@@ -494,7 +496,7 @@ FPV threat carries no fiducial. The forward arc below is deliberately aimed at
    larger-n batch (**n=96**) + committed plots. *(Landed — see the M5 row and the
    three figures in the results table above.)*
 
-1. **Hardware Stage 0 bench (~$230).** A Raspberry Pi 5 + camera running the
+1. **Hardware Stage 0 bench (~$257, design-review re-cost).** A Raspberry Pi 5 + camera running the
    **real detection code** off the sim's own frames — the cheapest possible step
    toward sim-to-real credibility, turning "it worked in Gazebo" into "the same
    code ran on the target compute."
