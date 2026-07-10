@@ -51,6 +51,27 @@ from the validated r2 arm's plumbing (`scripts/mc_deployment_arm.sh` env +
 `logs/mc_t21_trackgate_weave12_r2_stdout.log` argv, run 1; mc_batch forwards
 the weave path to the mover through `INTERCEPTOR_*` env).
 
+> **⚠️ CONFOUND FOUND 2026-07-10 (first capture attempt) — passive capture
+> PERTURBS the flight; the archived hero seeds do NOT re-fly clean under it.**
+> Flying the hero re-fly with TWO concurrent passive captures (onboard + chase)
+> produced "User callback queue slow" gz-transport warnings throughout and
+> pushed BOTH sanctioned seeds out of the clean envelope: hero seed (256788)
+> detected fine in DASH (174/394 rows) but never CLOSED to the 10 m handoff gate
+> → abort; backup seed (167415) latched handoff at 9.05 m then broke off
+> (miss 6.62 m). The archived r2 flights (1.09 / 1.17 m clean) were flown in a
+> BATCH with NO concurrent frame capture — the second/third topic subscriber
+> starves m4's own camera+guidance loop and shifts timing enough to change the
+> outcome. The demo world is byte-identical scene (only adds the chase cam) — NOT
+> the confound. Code-version drift is also in play: the archived reference beats
+> are PRE-FIX-A; re-flies run current post-FIX-A code. **Remedies (pick one when
+> resuming §A): (1) capture ONBOARD-ONLY (drop the chase pass; halves the
+> contention) and legitimately SELECT a clean demo flight from several r2-arm
+> seeds — allowed by the storyboard rule since the end-card stats come from the
+> ARM, not the chosen flight; (2) if contention still binds, dump frames from
+> m4's OWN subscriber (an m4 change) instead of a second subscriber; (3) or a
+> deterministic trajectory-replay render like §B uses for the rig.** Chase
+> (shot 7) becomes a SEPARATE lighter pass, not concurrent with the onboard hero.
+
 ```bash
 cd ~/interceptor-sim
 # 1) deployment-config env (ADR-0058, mirrored from mc_deployment_arm.sh)
