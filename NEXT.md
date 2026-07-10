@@ -160,17 +160,23 @@ tracked-or-accepted; repo publishable on a remote.
 ## 🔨 BUILD QUEUE
 
 ### Sim queue (serialized, idle load, one at a time)
-1. **T25 demo video render** — GO CONFIRMED (builder 2026-07-10), CONDITIONAL:
-   the final video MUST feature (1) THE TILTING (#40 mount-compose — NEW, gated
-   on the re-fly verdict), (2) final best tracking (ADR-0058), (3) stereo camera
-   handoff, (4) a great interception clip. NOT ready yet: current
-   `t25_demo.mp4` is title+end cards only (10 s); all 7 substantive shots are
-   unrendered sim captures and the tilt shot needs the re-fly verdict first.
-   Render when the re-fly verdict is logged AND the sim is free, capturing all
-   shots (incl. the new tilt shot) in one pass. Storyboard
-   `docs/t25_storyboard.md` (+ 2026-07-10 tilt addendum), plan
-   `scripts/video/t25_render_plan.md`; audit frames after render. See memory
-   `t25-video-must-feature-tilt`.
+1. **T25 demo video render** — GO CONFIRMED (builder 2026-07-10), IN PROGRESS.
+   Must feature (1) THE TILTING, (2) best tracking, (3) stereo handoff, (4) a
+   great interception clip.
+   - **DONE: the interception CORE (2/3/4 elements).** §A onboard hero flight
+     captured clean (r2 run 0, CPA 2.076 m, real handoff) → shots 3–6 built + a
+     17.7 s partial cut `demo_out/t25/t25_demo.mp4` (shots 0/3/4/5/6/8, shot 6
+     8× slow-mo). CONFOUND found+fixed: passive capture perturbs the flight; the
+     CHASE camera (2nd render) was the culprit → capture ONBOARD-ONLY on the
+     plain `markerless` world (render plan §A, RESOLVED). demo_out is gitignored
+     (regenerable) — footage is local.
+   - **STILL OPEN for the full render:** shots 1–2 (ground-stereo — §B compositor
+     ~half-day, NOT built); shot 7 (chase — separate lighter pass, do NOT run
+     concurrent with the onboard hero); the NEW tilt shot (nominal availability
+     A/B — needs its own capture; frame it as availability, NOT recovery, per the
+     ADR-0068 Stage-2 NULL). Storyboard `docs/t25_storyboard.md`, plan
+     `scripts/video/t25_render_plan.md`. Builder decision worth surfacing: build
+     the §B compositor + tilt capture now, or ship the interception-core cut?
 2. **#40 mount-compose RE-FLY — FLOWN; Stage-1 verdict FAIL on strict parity
    (ADR-0068 addendum, `bfdb86e`).** up15-compensated worse on 7/8 seeds
    (median +0.16 m) → NO fixed +15° mount adoption. BUT compensation WORKS:

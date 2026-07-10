@@ -71,6 +71,19 @@ the weave path to the mover through `INTERCEPTOR_*` env).
 > m4's OWN subscriber (an m4 change) instead of a second subscriber; (3) or a
 > deterministic trajectory-replay render like §B uses for the rig.** Chase
 > (shot 7) becomes a SEPARATE lighter pass, not concurrent with the onboard hero.
+>
+> **RESOLVED 2026-07-10 (same session): remedy (1) WORKED.** Onboard-only capture
+> on the plain `markerless` world (ONE rendered camera, matching the clean
+> baseline) + selecting a clean demo flight from the arm seeds produced a clean
+> captured hero flight: **r2 run 0 (cue 26226, path 857665), CPA 2.076 m, real
+> handoff @ 9.95 m, normal breakoff** (`logs/m4_intercept_pronav_20260710T232121Z.csv`,
+> 1097 onboard frames in `demo_out/t25/onboard_frames/`). Shots 3–6 built + a
+> 17.7 s partial cut (`demo_out/t25/t25_demo.mp4`, shots 0/3/4/5/6/8; shot 6 now
+> 8× slow-mo). NOTE: this flight's early-handoff closed acquisition+handoff on the
+> same frame → shots 4/5 are honestly tight (9/7 frames). STILL OPEN for a full
+> render: shots 1–2 (ground-stereo, §B compositor ~half-day, not built), shot 7
+> (chase — separate lighter pass), and the NEW tilt shot (nominal availability
+> A/B, needs its own capture; NOT a recovery claim — ADR-0068 Stage-2 NULL).
 
 ```bash
 cd ~/interceptor-sim
