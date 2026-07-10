@@ -16,12 +16,13 @@ restore it on sight. Concretely:
   or let the **Fable project manager** (see Model orchestration) pick it — BUILD it, and
   when it lands take the next. Surface only for a true one-way door or a hard external
   blocker, and even then keep other work moving.
-- **SPEED IS A FIRST-CLASS OBJECTIVE and tokens are NOT a constraint.** Minimize
-  wall-clock: fan out MULTIPLE subagents in parallel for every independent unit of work,
-  keep the sim busy with the serial batch queue at the same time, and prefer a **Workflow**
-  (ultracode is the default) whenever a task decomposes. Spending more tokens to finish
-  sooner or more thoroughly is always the right trade — never economize tokens at the cost
-  of speed, coverage, or quality. A perfect idle loses to steady VISIBLE progress.
+- **SPEED matters and PARALLELISM is the lever — but spend tokens DELIBERATELY.** Minimize
+  wall-clock by running genuinely independent work concurrently: keep the sim busy with the
+  serial batch queue while sim-free work proceeds, and use a **Workflow** when a task truly
+  decomposes. But tokens are NOT free — fan out a subagent when there is real independent
+  work or when Fable's review/judgment earns its cost, NOT reflexively for every small task
+  (a Fable agent per doc-nit is waste; do routine work inline). Steady VISIBLE progress
+  beats both a perfect idle and a token firehose.
 - **COMMIT VISIBLY and FREQUENTLY, and PUSH — uncommitted work is invisible work.** Do not
   hoard a batch "for his review"; stage specific paths and commit each milestone as it
   lands (the git log IS the proof of work), and push to the remote if one is configured.
@@ -30,54 +31,46 @@ restore it on sight. Concretely:
 - Drive every build through its loop autonomously: build → Fable review → sim gate →
   commit → next. Don't wait to be told to continue.
 
-## Model orchestration — FABLE-FIRST (Fable is the default workhorse AND the project manager)
+## Model orchestration — Fable SELECTIVELY, for the high-leverage work (review, hard tasks, planning)
 
-REALITY (2026-07-05, builder-confirmed with the in-product notice): Fable 5 ships
-DELIBERATELY BROAD safeguards that, per Anthropic's own message, "may flag safe and
-routine coding, cybersecurity, or biology work." This project's defense-sim terminology
-(interceptor, lethal radius, proximity fuse, kill probability, warhead) TRIPS that filter,
-and a flagged turn AUTO-SWITCHES the session to Opus 4.8 — a product-level behavior neither
-agent nor operator can disable or bypass, which may re-trigger after a manual switch back,
-and is NOT operator error or a bad launch. Sanctioned remedy: `/feedback`. Do NOT word
-prompts to evade the classifier.
+REALITY (2026-07-05, builder-confirmed): Fable 5 ships broad safeguards that flag this
+project's defense-sim terms (interceptor, lethal radius, proximity fuse, kill probability,
+warhead); a flagged turn AUTO-SWITCHES the session to Opus 4.8 — product behavior, cannot be
+disabled, NOT operator error, may re-trigger after a manual switch back. Sanctioned remedy:
+`/feedback`. Do NOT word prompts to evade the classifier.
 
-**The routing rule the builder wants (2026-07-10), in strict priority order:**
+**The routing rule the builder wants (2026-07-10, refined — a walk-back from "Fable for
+everything"):** Fable is the stronger seat for judgment and is notably BETTER AT SEEING
+WHAT'S MISSING — reviewing work, catching gaps, and deciding workflow/planning questions.
+So spend it THERE, occasionally and deliberately, NOT as a firehose. Tokens are not free;
+don't spawn a subagent where doing the thing inline is cheaper.
 
-1. **FABLE FIRST — the default for essentially everything that won't trip the safeguard.**
-   Route to `model: fable` subagents ALL non-flagged work: feature/tooling builds, CV /
-   training / statistics / analysis, doc + ADR prose, results write-ups, diff review — AND,
-   explicitly, **PROJECT MANAGEMENT**: keeping the todo list correct and progressing;
-   keeping `NEXT.md` / `PROGRESS.md` / the memory files current, consistent, and in good
-   order; ensuring commits land and push; and making the ADMINISTRATIVE "what's next / what
-   is most effective to drive the project to done" decisions. Fan out SEVERAL Fable
-   subagents in parallel — tokens are not a factor, speed is. Neutral-wording content (code
-   mechanics, stats, CV, org/admin, file hygiene) reliably holds on Fable; only content that
-   genuinely needs the flagged framing bounces. Evidence (2026-07-10): parallel Fable
-   subagents cleanly did portfolio doc-polish and a full cue-error decomposition with zero
-   safeguard flags.
-   - **STANDING FABLE PROJECT-MANAGER role:** keep a Fable subagent owning project
-     organization — auditing the git state (nothing stranded uncommitted), reconciling the
-     todo list, keeping the management files honest and current, and proposing/deciding the
-     prioritized next-work queue — so the head never babysits management files. Re-spawn or
-     resume it whenever the project state has moved.
-2. **OPUS subagents — ONLY for what Fable CANNOT do because the safeguard blocks it:** the
-   flagged defense-framed content — guidance-law / interceptor / lethal-radius / jam /
-   honesty-boundary builds and their reviews. Use `model: opus` for exactly those. Do NOT
-   route neutral work to Opus just because the head happens to be on Opus: the head model
-   here is frequently PINNED to Opus by the safeguard, and that is precisely why delegatable
-   work must be PUSHED OFF the head to Fable, not done inline. (This decays silently the
-   moment the head gets busy — self-check every turn: "is anything delegatable sitting on
-   the head or on Opus that Fable could do? → move it to Fable.")
-3. **SONNET subagents — ONLY for work that genuinely needs little reasoning:** installs,
-   boilerplate, running sim batches, log/CSV greps, wide read-only searches, mechanical
-   spec'd edits. Never put judgment work on Sonnet. `.claude/agents/` (sonnet-worker,
-   verifier, council-member) are Sonnet-pinned; a `model:` override bumps them up.
+1. **Reach for a `model: fable` subagent OCCASIONALLY and DELIBERATELY, for high-leverage work:**
+   - **REVIEW / gap-spotting** — a Fable pass over a build, a plan, a result set, or a
+     decision to catch what was missed BEFORE it's committed or acted on (the "head builds,
+     Fable reviews" pattern; Fable earns its cost here). This is its best use.
+   - **The MOST COMPLEX / high-judgment tasks** — hard builds, subtle analyses, ambiguous
+     design calls where Fable's judgment materially beats doing it on the (often
+     Opus-pinned) head.
+   - **WORKFLOW / PLANNING decisions** — "what's next, what's most effective, what are we
+     missing" — the roadmap / prioritization / project-manager thinking Fable is best at.
+     A periodic Fable PM-or-review pass to keep the project honest and well-sequenced is
+     worth it; a Fable agent for every doc-nit is not.
+2. **The head does the ROUTINE delegatable work itself** — ordinary builds, doc edits, ADR
+   prose, commits, management-file upkeep — accepting Opus quality when the safeguard has
+   pinned the head there, rather than spawning a Fable agent for each small thing. Reserve
+   Fable for where its edge (review, complexity, gap-spotting) actually pays.
+3. **SONNET subagents for genuinely low-reasoning VOLUME** — installs, boilerplate, sim
+   batches, log/CSV greps, wide read-only searches, mechanical spec'd edits. `.claude/agents/`
+   (sonnet-worker, verifier, council-member) are Sonnet-pinned; a `model:` override bumps up.
+4. **OPUS subagents ONLY for what Fable can't do because the safeguard blocks it** — the
+   flagged defense-framed guidance / jam / honesty builds and their reviews.
 
-The head (whatever model the safeguard leaves it on) does ONLY: orchestration, interpreting
-subagent reports, rulings/sequencing, sim-batch driving, and the flagged builds that cannot
-be delegated. Everything else → a subagent, **Fable by default**. Verify the model first
-thing with `/model`; the project pins `claude-fable-5` in `.claude/settings.json`, and the
-safeguard may still switch mid-session — accept the bounce, never fight it, keep working.
+Balance: parallelize for SPEED when there is genuinely independent work in flight (keep the
+sim busy while sim-free work proceeds), but let each spawn EARN its tokens — a targeted Fable
+review, a hard task, or a planning pass, not reflexive fan-out. Verify the model first thing
+with `/model`; the project pins `claude-fable-5`, and the safeguard may switch it mid-session
+— accept the bounce, keep working.
 
 ## Decision protocol (educated decisions, with a council when it matters)
 
