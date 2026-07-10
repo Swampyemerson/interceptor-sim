@@ -190,6 +190,25 @@ Two sensors, one interceptor. A mocked ground cue steers the *mid-course*
 dash; the onboard camera takes over completely for the *terminal* phase, with
 no way back to the ground link once it does.
 
+**Functional block diagram** — the current two-sensor architecture: ground stereo
+cue → jammable link → one-way handoff → onboard camera-only terminal, with the
+markerless seeker, the range/velocity-only fusion, the rejected EKF variant, the
+Pi 5 + Hailo flight compute (ADR-0063), and the `gt_*` honesty boundary marked.
+
+![Functional block diagram of the counter-UAS interceptor](docs/images/architecture_block_diagram.png)
+
+**Operational process flow** — ground standby → launch-on-detect → mid-course dash
+→ one-way handoff → camera-only pro-nav terminal, including the cue-jammed coast
+fallback and the comms-denied **HELD** status (ADR-0059: the latch defeats a
+*post*-handoff jam, but a *pre*-acquisition jam is perception-limited).
+
+![Operational process flow of the intercept](docs/images/process_flow_diagram.png)
+
+*(Vector SVG sources for both live in [`docs/images/`](docs/images/) for slides.)*
+The Mermaid diagram below traces the sim-level dataflow in more detail; note it
+shows the original **AprilTag** detector — the current terminal seeker is the
+**markerless NN + detect-then-track** (see the honesty section and ADR-0056..0058).
+
 ```mermaid
 flowchart TD
     MOVER["m4_target_mover.py<br/>subscription-free process,<br/>gz set_pose @ 50 Hz"] --> GT
