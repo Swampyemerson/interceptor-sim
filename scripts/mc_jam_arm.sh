@@ -124,6 +124,21 @@ case "$ARM" in
     jam_fixon)
         run_arm "jam_fixon_r${CUTOFF_RANGE_M}" "--link-cutoff-range-m $CUTOFF_RANGE_M" \
             "$DEPLOY_EXTRA" ;;
+    jam_fixon_coast)
+        # ADR-0059 RECOVERY arm (task #39). Adds ADR-0015 --coast-search on top
+        # of the fix: on cue staleness the interceptor DEAD-RECKONS the dash to
+        # the predicted acquisition basket (COAST_ACQ_RANGE_M=10 m) then runs a
+        # bounded +/-20 deg yaw sweep to REACQUIRE the target with the onboard
+        # camera. The staleness fix (unguarded at both read-sites) keeps the
+        # handoff/seed decisions camera-only = anti-phantom under jam; coast-
+        # search supplies the reach-the-basket + search that fixon-alone lacked
+        # (fixon aborted 13-15/16 as 'never reached handoff'). Compare to
+        # jam_fixon (no coast) at the SAME cutoff: does REAL-ish recovery jump?
+        # KNOWN RISK: the sweep is lateral (yaw) only; if the dash-pitch throws
+        # the target above the FoV (ADR-0060), yaw-only may not reacquire -- the
+        # MC will show it (watch the 'never' outcome + first_det coverage).
+        run_arm "jam_fixon_coast_r${CUTOFF_RANGE_M}" "--link-cutoff-range-m $CUTOFF_RANGE_M" \
+            "$DEPLOY_EXTRA --coast-search" ;;
     dry)
         # Show the planned matrix for the jam_fixon arm without booting a sim.
         export S2_CUE_MOCK_EXTRA="${REALISTIC_CUE} --link-cutoff-range-m ${CUTOFF_RANGE_M}"
