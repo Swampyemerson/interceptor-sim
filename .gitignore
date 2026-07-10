@@ -71,3 +71,19 @@ demo_out/*
 runs/ + training artifacts
 scripts/seeker/runs/
 scripts/seeker/weights/yolo11n.pt
+!logs/m4_intercept_pronav_20260709T232337Z.csv
+!logs/m4_intercept_pronav_20260709T232447Z.csv
+!logs/m4_intercept_pronav_20260709T232556Z.csv
+!logs/m4_intercept_pronav_20260709T232706Z.csv
+!logs/m4_intercept_pronav_20260709T232818Z.csv
+!logs/m4_intercept_pronav_20260709T232931Z.csv
+!logs/m4_intercept_pronav_20260709T233036Z.csv
+!logs/m4_intercept_pronav_20260709T233147Z.csv
+!logs/m4_intercept_pronav_20260709T233256Z.csv
+!logs/m4_intercept_pronav_20260709T233404Z.csv
+!logs/m4_intercept_pronav_20260709T233510Z.csv
+!logs/m4_intercept_pronav_20260709T233630Z.csv
+!logs/m4_intercept_pronav_20260709T233734Z.csv
+!logs/m4_intercept_pronav_20260709T233852Z.csv
+!logs/m4_intercept_pronav_20260709T233958Z.csv
+!logs/m4_intercept_pronav_20260709T234106Z.csv
