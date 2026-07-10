@@ -33,9 +33,10 @@ doc fixes (DEEP-R2 dead cites + M4 selection disclosure, DEEP-P1 pitch cue
 scope, DEEP-P9 header, FWD-A7 1.64 m pin, FWD-A4 jink-1/8 ADR home, the
 interviewer-prep jam-MC currency rewrite, demo_out hero-CSV annotations,
 P-commitsE `check_t21.sh` discoverability). Moved since first writing:
-**17 findings → FIXED** (13 from UNTRACKED, 4 from PARTIAL), **7 → TRACKED**
-(now hold NEXT.md queue slots), **4 → PARTIAL** (real work landed, remainder
-queued). §4 and §5 recounted to match: **UNTRACKED 51 → 27.**
+**18 findings → FIXED** (13 from UNTRACKED via the doc commits, 4 from
+PARTIAL, plus DEEP-N1 whose #42 guard committed mid-refresh, `84eb756`),
+**7 → TRACKED** (now hold NEXT.md queue slots), **3 → PARTIAL** (real work
+landed, remainder queued). §4 and §5 recounted to match: **UNTRACKED 51 → 27.**
 
 ---
 
@@ -61,7 +62,7 @@ queued). §4 and §5 recounted to match: **UNTRACKED 51 → 27.**
 | DEEP-C3 | Cue-staleness can't distinguish jam from a benign >1 s dropout. | LOW | **ACCEPTED** | Deliberate design choice, documented in ADR-0059 itself (the `control_active` arm exists specifically to characterize this). Verifier's own read: "documented deliberate fail-open, low-prob compound." |
 | DEEP-C4 | `MEAS_STALE_S` wall-time gate (m3:305-307). | LOW/nit | **ACCEPTED** | Verifier downgraded to a doc nit: the whole estimator/control stack is wall-timed and already mitigated by the idle-load rule (ADR-0009). No code change requested. |
 | DEEP-C5 | Missed root cause worth a line: `predict()` integrates a fixed nominal `dt` while `correct()` scales by wall `dt_since` — a real predict/correct dt inconsistency under loop saturation. | LOW | **UNTRACKED** | No ADR line or fix found addressing this. |
-| DEEP-N1 | Honesty AST no-gt pin is scoped to `detect_track.py` alone; the live `--track` measurement also flows through unpinned `two_stage_seeker.py` (which holds real `gt_frames` reads in its offline `_run_eval`) and `FinetunedNNSeeker` — no check, static or runtime, would catch GT wired into the seeker's *measurement*. | MEDIUM | **PARTIAL** | Task #42: `tests/test_honesty_seekers.py` now exists on disk (verified 2026-07-10 refresh — AST-based Name/Attribute/arg scan parametrized over all five live seeker modules incl. `two_stage_seeker.py`/`finetuned_seeker.py`, with a LOUD allowlist scoped to the one offline `_run_eval` and a self-checking allowlist test). Still **uncommitted** and not yet run under the full suite — remains PARTIAL until committed with its task (docs-only refresh could not commit a test file mid-batch). |
+| DEEP-N1 | Honesty AST no-gt pin is scoped to `detect_track.py` alone; the live `--track` measurement also flows through unpinned `two_stage_seeker.py` (which holds real `gt_frames` reads in its offline `_run_eval`) and `FinetunedNNSeeker` — no check, static or runtime, would catch GT wired into the seeker's *measurement*. | MEDIUM | **FIXED** | Task #42, `84eb756`: `tests/test_honesty_seekers.py` — AST-based Name/Attribute/arg scan parametrized over all five live seeker modules (incl. `two_stage_seeker.py`/`finetuned_seeker.py`), LOUD allowlist scoped to the one offline `_run_eval` with a self-checking allowlist-hygiene test, live-entry-point pins, a transitive-import tripwire, and a mechanical injection test proving it catches a `tracker.gt_range` added to a live `detect()`. Verified 112 passed / 2 skipped via `run_tests.sh` per the commit. (The boundary was intact in fact — this future-proofs it.) |
 | DEEP-N2 | m4 gt-checks scoped to `run_acquire_and_engage` only; `run_bench()`/`main()` TAKEOFF unaudited (logging-only, no live leak); checks catch `ast.Name 'gt_*'` but not attribute-form (`tracker.gt_range`). | LOW | **UNTRACKED** | No evidence of scope widening. |
 | DEEP-R1 | Hero demo CSV (`m4_intercept_pronav_20260707T211601Z.csv`, miss 0.632 m) is cited as present but is absent from disk and git. | MEDIUM | **FIXED** | `95614cf` repointed `README.md` to the verified `mc_final_all.csv` batch; the 2026-07-10 refresh annotated both `demo_out/README.md` cites (:12, :188-192) to say the CSV was rotated off disk and never committed, with the ADR-0032 addendum in `docs/decisions.md` named as the durable record. The CSV itself is unrecoverable — every remaining cite now says so honestly, which is the fix this finding admits. |
 | DEEP-R2 | Cluster: two dead ADR-0028/0030 CSV cites, ADR-0060 pitch numbers trace to ulogs outside the repo, README repo-map says `plots/` is checked in (it's gitignored), and the M4 "three independent gate runs" don't disclose they're the 3 tightest of 8 pronav runs (the other 5 fail the gate). | LOW/nit cluster | **PARTIAL** | 2026-07-10 refresh fixed all doc halves: dead ADR-0028/0030 cites annotated in README results rows + `decisions.md:1012` (CSVs rotated, ADR tables are the record); M4 selection disclosure added as an ADR-0009 addendum + a README M4-row note, and the non-resolving `{0322xx,0324xx,0331xx}` glob corrected to the real committed stamps `{032238,032528,033250}`; README `plots/`+`logs/` repo-map lines rewritten to match what git actually tracks. **Remaining:** the ADR-0060 pitch numbers still trace to rotated ulogs — needs a `dash_pitch_probe.py --dump-summary-csv` re-run + commit (script execution, not doable mid-batch). |
@@ -192,7 +193,7 @@ remainders worth naming.)*
 
 **Highest-value / highest-risk still open:**
 
-- **DEEP-N2 — the m4-side honesty-check scope.** The seeker-side half of the honesty blind spot is now guarded (#42, `tests/test_honesty_seekers.py`, written and verified on disk, pending commit — DEEP-N1 is PARTIAL above), but m4's own gt-checks are still scoped to `run_acquire_and_engage` only and still catch only `ast.Name` reads, not attribute-form (`tracker.gt_range`). *Next:* widen the m4 AST checks to attribute-form + `run_bench()`/`main()` — the same pattern #42 already implements for the seekers.
+- **DEEP-N2 — the m4-side honesty-check scope.** The seeker-side half of the honesty blind spot is now guarded and committed (#42, `84eb756` — DEEP-N1 is FIXED above), but m4's own gt-checks are still scoped to `run_acquire_and_engage` only and still catch only `ast.Name` reads, not attribute-form (`tracker.gt_range`). *Next:* widen the m4 AST checks to attribute-form + `run_bench()`/`main()` — the same pattern #42 already implements for the seekers.
 - **FWD-B2 — own-ship GNSS denial.** The jammer that kills the cue kills GPS L1 more easily; the dash navigates to an NED PIP against NED gate radii, so a GPS-jammed dash never reaches handoff — the same fail-closed *class* as ADR-0059 via a different sensor, with zero doc coverage. *Next:* a design-review gap entry + desk note on the NED-PIP dependence.
 - **FWD-B4 — no stacked-WORST regression arm.** Every exposure is a one-knob A/B while reality stacks blur+latency+gust+degraded r̂ simultaneously in the terminal second, against only 0.72 m of correction capacity. *Next:* one standing stacked-EXPECTED arm, n≥16 paired.
 - **DEEP-R2 remainder — ADR-0060 pitch numbers trace to rotated ulogs.** Everything else in the R2 cluster was fixed at the refresh (dead cites, selection disclosure, repo-map lines); this last leg needs a `dash_pitch_probe.py --dump-summary-csv` re-run + commit (script execution — an idle/m4-window item, not doable mid-batch).
@@ -206,13 +207,14 @@ remainders worth naming.)*
 - *Design gaps never given a home:* FWD-B2 (above), FWD-B3 (cold-start launch readiness), FWD-B4 (above), FWD-B6 (adversarial seeker, threat envelope, post-engagement, process death, cal lifecycle, RF desense, BOM holes, ROE, target-reacts-to-attack), FWD-C6 (cue-trust non-jam components: clock-skew tiers, maneuvering stereo caches, T19's owed items), FWD-C7 (instrumentation G11/G12), FWD-C8 (rolling-shutter ADR, G10 own-state knob).
 - *Never independently audited at all:* P-NEW2 (rig-extrinsics chain, n=1), P-NEW5 (two-drone confusion untestable in replay).
 
-**PARTIAL remainders (work landed, gap named):** DEEP-N1 (#42 guard written,
-uncommitted), DEEP-T1 (runner landed `0123f61`; COAST_STALE_S value pin +
-pure-helper coverage open), DEEP-R2 (pitch-probe CSV), FWD-C2 (LICENSE/remote/
-CI — remote is builder decision #2), P-H2 (#43 sim-gated `--epoch-t0` half).
+**PARTIAL remainders (work landed, gap named):** DEEP-T1 (runner landed
+`0123f61`; COAST_STALE_S value pin + pure-helper coverage open), DEEP-R2
+(pitch-probe CSV), FWD-C2 (LICENSE/remote/CI — remote is builder decision #2),
+P-H2 (#43 sim-gated `--epoch-t0` half).
 
-**Moved out of this section at the refresh:** now FIXED — DEEP-R1, DEEP-P1,
-DEEP-P2, DEEP-P3, DEEP-P4, DEEP-P5, DEEP-P8, DEEP-P9, FWD-A4, FWD-A5, FWD-A6,
+**Moved out of this section at the refresh:** now FIXED — DEEP-N1 (`84eb756`),
+DEEP-R1, DEEP-P1, DEEP-P2, DEEP-P3, DEEP-P4, DEEP-P5, DEEP-P8, DEEP-P9,
+FWD-A4, FWD-A5, FWD-A6,
 FWD-A7, P-M1, P-commitsB, P-commitsC, P-commitsD, P-commitsE; now TRACKED
 (NEXT.md queue slots) — DEEP-H2, DEEP-P7/FWD-C5 (G8, sim-queue 8), FWD-B1,
 FWD-B5 (grooming lane), P-M6 (#44), P-NEW1 (#43 remainder), FWD-C4 (confirmed
@@ -229,8 +231,8 @@ parentheses):*
 
 | Disposition | Count | Meaning |
 |---|---|---|
-| **FIXED** | 35 *(was 18)* | Landed, independently re-verified live against the current repo (not just trusted from the audit or commit message). |
-| **PARTIAL** | 5 *(was 5, different membership)* | Real progress landed, a real gap remains — each row explains exactly what's still open. Now: DEEP-N1, DEEP-R2, DEEP-T1, FWD-C2, P-H2. |
+| **FIXED** | 36 *(was 18)* | Landed, independently re-verified live against the current repo (not just trusted from the audit or commit message). |
+| **PARTIAL** | 4 *(was 5, different membership)* | Real progress landed, a real gap remains — each row explains exactly what's still open. Now: DEEP-R2, DEEP-T1, FWD-C2, P-H2. |
 | **TRACKED** | 11 *(was 4)* | Has a task # or a NEXT.md queue slot, no code/doc yet. |
 | **ACCEPTED** | 3 *(unchanged)* | A deliberate no-fix call, with the reason given. |
 | **UNTRACKED** | 27 *(was 51)* | No disposition exists anywhere. Still the number that matters most for honesty — but the burn-down was real: everything remaining is LOW/MEDIUM polish, deeper stereo/fusion correctness, or parent-project design gaps, all named in §4. |
