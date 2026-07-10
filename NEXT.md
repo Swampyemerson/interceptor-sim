@@ -59,21 +59,24 @@ tracked-or-accepted; repo publishable on a remote.
   `model: fable` subagents. Session-scoped; the weekly limit resets — the
   permanent CLAUDE.md Fable-first policy is unchanged. See memory
   `fable-limit-opus-override`.**
-- **#40 mount-compose CODE SHIPPED + PRE-REGISTERED (ADR-0068, committed):**
-  `--cam-mount-up-deg` composes the fixed mount rotation into FIX-A's LOS
-  derotation (byte-identical at 0.0; round-trip oracle + physics-anchored sign
-  test; bench MOUNT case). Mechanism refined: the uncompensated error is
-  ROLL-driven (~0.65° wings-level, ~6.5° at 30° roll for up15), which is why
-  ADR-0067's terminal cost was dose-dependent. Re-fly bar pre-registered
-  (`docs/adr0067_refly_preregistration.md`). Passed a 5-lens adversarial review
-  (13/15 findings fixed pre-commit incl. an INVERTED validity gate + a cross-era
-  control-selection trap). **NEXT sim-queue item: fly the paired re-fly**
-  (`scripts/uptilt_ab_arm.sh --mount 0 --mount 15 --compensate --go`, ~25 min,
-  idle only) → analyze against the pre-registered bars → Stage-2 recovery re-test.
-- **Publish-prep drafted (uncommitted, new files):** `LICENSE` (MIT),
+- **#40 mount-compose COMPLETE — code shipped + BOTH re-fly stages flown
+  (ADR-0068 + 2 addenda, committed `1f5693b`/`bfdb86e`/`3bc890b`):**
+  `--cam-mount-up-deg` composes the fixed mount into FIX-A's LOS derotation
+  (byte-identical at 0.0; passed a 5-lens adversarial review, 13/15 findings
+  fixed pre-commit incl. an INVERTED validity gate). **Stage-1 (nominal terminal
+  parity) = FAIL** (up15-compensated worse 7/8, median +0.16 m) → NO fixed +15°
+  mount adopted; BUT compensation WORKS (Pk@2.5 4/8→8/8, penalty +0.82→+0.16 m).
+  **Stage-2 (comms-jam RECOVERY re-test) = NULL** and it RE-SCOPES the recovery
+  limit: the tilt fixes FoV availability (dash-above-FoV 32%→0%) but recovery
+  stays NULL (RH 3/16, camera-never-detected 12/16 vs #39 baseline 10/16 — no
+  improvement). **The binding recovery limit is FAR-RANGE NN DETECTION, not the
+  dash-pitch FoV** (consistent with ADR-0061 v3 NULL). Perception AVAILABILITY
+  is solved by the tilt; perception SENSITIVITY (far-range recall under jam) is
+  the remaining hard blocker.
+- **Publish-prep COMMITTED (`2de924e`):** `LICENSE` (MIT),
   `docs/license_notice_weights.md` (AGPL-on-weights nuance + builder decision),
-  `.github/workflows/ci.yml` (recreates run_tests.sh's two-venv layout; activates
-  when the remote exists). Commit-ready; a first CI run will need one dep-pin pass.
+  `.github/workflows/ci.yml`. Inert until a remote exists; first CI run will need
+  one dep-pin pass.
 
 - **#33 Pk campaign DONE** (ADR-0064, `d81e046`): fresh post-FIX-A weave n=72 →
   **Pk@2.8 m 72/72 = CP-LB 95.0%** (the ≥95%-CI bar cleared); **Pk@2.5 m 71/72 =
@@ -89,14 +92,15 @@ tracked-or-accepted; repo publishable on a remote.
   Pk@2.5 8/8 → 2/8; guidance still assumes zero mount). NO mount adopted —
   #40 mount-compose now gates everything terminal. Evidence CSVs + analysis
   committed. `models/mono_cam` shadow symlink **verified removed** post-chain.
-- **NEW IDEA — adaptive camera tilt (ADR-0065, task #46):** track the actual dash
-  pitch instead of one fixed compromise angle; the perception-availability lever
-  that could UN-HOLD comms-denied recovery (the ADR-0059 NULL failed precisely
-  because the camera couldn't reacquire out of the down-pitched FoV). The fixed
-  A/B is now FLOWN (ADR-0067) and STRENGTHENS this idea's case: a fixed angle
-  buys availability at a dose-dependent terminal price that a pitch-following
-  schedule would avoid. Sim-test after #40 mount-compose exists (it needs the
-  same compensation machinery).
+- **adaptive camera tilt (ADR-0065, task #46) — case REVISED by the #40 Stage-2
+  NULL.** Still valuable for NOMINAL acquisition (a pitch-following schedule buys
+  the availability without the fixed mount's dose-dependent terminal cost —
+  Stage-1 showed that cost is real). BUT it will NOT un-HOLD comms-denied
+  recovery: Stage-2 proved the recovery limit is FAR-RANGE NN DETECTION, not FoV
+  pointing (the fixed tilt fixed the FoV and recovery stayed NULL). So #46 is a
+  nominal-acquisition improvement, NOT the comms-denied fix. The comms-denied
+  recovery lever is a better far-range detector (v3 was a NULL, ADR-0061 — this
+  is genuinely hard).
 - While ANY batch flies: do not touch `scripts/`, `m4_intercept.py`, or anything
   a flight imports; one sim at a time; idle load only. NOTE (measured): the
   headless sim renders on llvmpipe (software) → it is CPU-bound with the RTX 4070

@@ -34,6 +34,25 @@ flying at the time of writing. What the tilt shot can honestly show:
 Add a tilt shot (proposed slot: between the dash and terminal beats, or as an
 A/B inset) to the shot list once the re-fly verdict is logged.
 
+**RE-FLY VERDICT IN (2026-07-10, ADR-0068 addenda) — what the tilt shot can and
+cannot honestly claim:**
+- **SHOW (gated, honest):** the NOMINAL availability win — side-by-side dash
+  frames, target above-FoV (level) vs in-FoV (up-tilt), dash-above-FoV 32%→0%,
+  first-det +4 m. This is the visually compelling "stays in frame during the
+  pitched dash" beat.
+- **Stage-1 (nominal terminal) = FAIL on strict parity** → do NOT show the fixed
+  +15° mount as an ADOPTED terminal config. If a terminal number is shown, it is
+  the compensated arm's Pk@2.5 8/8 (compensation recovers the cost) with the
+  honest note that strict parity wasn't met and no fixed mount is adopted.
+- **Stage-2 (comms-jam recovery) = NULL** → the tilt does NOT un-HOLD
+  comms-denied recovery. **Do NOT imply the tilt enables comms-denied recovery.**
+  The honest framing: the tilt solves perception AVAILABILITY (FoV); the
+  remaining blocker is far-range detection. The existing honesty-handoff beat
+  (cue goes dark) must keep "works comms-denied" HELD wording (storyboard
+  constraint), now reinforced by Stage-2.
+- Net: the tilt shot is a NOMINAL-ACQUISITION availability story, not a
+  comms-denied-recovery story.
+
 ---
 
 ## The featured engagement (what "fastest reliable" means, exactly)
