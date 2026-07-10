@@ -14,6 +14,26 @@ detector evaluation completes — the demo flies the best detector. The
 maneuver-fix deferral is already met (ADR-0058, 14/14 camera-only maneuvering
 terminal), so nothing else gates this.
 
+**ADDED 2026-07-10 (builder, mid-session): the FINAL video must feature FOUR
+elements — (1) THE TILTING (the up-tilt camera mount / #40 mount-compose),
+(2) the final best tracking (detect-then-track, ADR-0058), (3) the stereo
+camera handoff (ground stereo → cue → onboard handoff), (4) a great
+interception clip.** (2)/(3)/(4) are the existing storyboard (shots 1–7).
+(1) is NEW and NOT in the shot list below yet — it is GATED on the #40
+compensated re-fly verdict (`docs/adr0067_refly_preregistration.md`), which is
+flying at the time of writing. What the tilt shot can honestly show:
+- The AVAILABILITY win is a GATED ADR-0067 result and showable regardless of
+  the terminal verdict: side-by-side dash frames, target ABOVE-FoV (level cam)
+  vs IN-FoV (up-tilt) — dash-above-FoV 32% → 0%. This is the visually
+  compelling "target stays in the frame during the pitched dash" beat.
+- Whether we show the tilt as an ADOPTED terminal config depends on the re-fly:
+  PARITY PASS → show tilt+compensation carrying the intercept; FAIL → show the
+  availability win only and flag adaptive tilt (#46) as the live lever (do NOT
+  imply an adopted fixed mount). Pre-registration bars decide; no claim ahead
+  of the verdict.
+Add a tilt shot (proposed slot: between the dash and terminal beats, or as an
+A/B inset) to the shot list once the re-fly verdict is logged.
+
 ---
 
 ## The featured engagement (what "fastest reliable" means, exactly)

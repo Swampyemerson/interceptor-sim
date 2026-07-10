@@ -156,10 +156,17 @@ tracked-or-accepted; repo publishable on a remote.
 ## 🔨 BUILD QUEUE
 
 ### Sim queue (serialized, idle load, one at a time)
-1. **T25 demo video render** — first free GPU/sim slot, builder go-confirm;
-   the top portfolio artifact; feature the regimes that genuinely hold
-   (ADR-0056 framing), HUD sensor-attribution anti-jam money shot; audit
-   frames after render (`scripts/video/t25_render_plan.md`).
+1. **T25 demo video render** — GO CONFIRMED (builder 2026-07-10), CONDITIONAL:
+   the final video MUST feature (1) THE TILTING (#40 mount-compose — NEW, gated
+   on the re-fly verdict), (2) final best tracking (ADR-0058), (3) stereo camera
+   handoff, (4) a great interception clip. NOT ready yet: current
+   `t25_demo.mp4` is title+end cards only (10 s); all 7 substantive shots are
+   unrendered sim captures and the tilt shot needs the re-fly verdict first.
+   Render when the re-fly verdict is logged AND the sim is free, capturing all
+   shots (incl. the new tilt shot) in one pass. Storyboard
+   `docs/t25_storyboard.md` (+ 2026-07-10 tilt addendum), plan
+   `scripts/video/t25_render_plan.md`; audit frames after render. See memory
+   `t25-video-must-feature-tilt`.
 2. **[NEXT SIM ITEM] #40 mount-compose RE-FLY — the compose CODE is SHIPPED
    (ADR-0068); what remains is flying it.** `scripts/uptilt_ab_arm.sh
    --mount 0 --mount 15 --compensate --go` (refly up00 control + up15
