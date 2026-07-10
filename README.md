@@ -733,8 +733,10 @@ This hero flight predates the markerless detect-then-track arc (ADR-0058). The
 next demo — ground-stereo detection through a 12 m/s weaving camera-only
 terminal, with the sensor-attribution HUD and the honesty handoff on screen —
 is storyboarded shot-by-shot in
-[`docs/t25_storyboard.md`](docs/t25_storyboard.md) and is sequenced after the
-detector retrain finishes (it should fly the best detector).
+[`docs/t25_storyboard.md`](docs/t25_storyboard.md). It flies the deployed **v2**
+detector (`drone_finetuned_v2.onnx`): the ADR-0061 v3 retrain closed as a NULL
+(it regressed flight recall), so v2 remains the shipped seeker and the
+detect-then-track stack (ADR-0058) carries the maneuvering terminal.
 
 Sample status panel across the four key beats of that intercept — note the
 sensor lamp flipping from **EXTERNAL CUE** to **CAMERA-ONLY** at handoff, the

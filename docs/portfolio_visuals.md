@@ -142,12 +142,13 @@ Frame conventions (label on the diagram slide): World = ENU (origin at intercept
 the REALISTIC degraded cue:** 9 m/s crossing target, pro-nav terminal (N=5), cue-seed 31, miss
 **0.632 m** (source: `demo_out/README.md` build log, which cites
 `logs/m4_intercept_pronav_20260707T211601Z.csv`; CPA at `t_sim=20.528 s`, `gt_range=0.6324`), handoff
-latched. **Reconciliation note (cross-checked against `docs/decisions.md`):** the ratified ADR-0032
-entry (decisions.md, the ADR log) records only the *first* capture, **1.061 m**, because the 0.632 m
-re-cut happened after that entry was logged — decisions.md has not yet been amended with the re-cut
-number. Treat **1.061 m as the ADR-of-record number** and **0.632 m as the shipped-asset number**;
-both trace to real runs of the same frozen config (below) and both are consistent with the ~1.19 m
-mean under the ~1 m run-to-run terminal-dropout noise (see honesty note next). This doc is in the
+latched. **Reconciliation note (cross-checked against `docs/decisions.md`):** the original ADR-0032
+entry recorded only the *first* capture, **1.061 m**; the **ADR-0032 addendum (decisions.md,
+2026-07-08)** then logged the **0.632 m** re-cut and rules it the number to prefer (the shipped
+`demo_out/*` assets are built from it). Treat **0.632 m as the shipped-asset number** and
+**1.061 m as the first-capture number**; portfolio docs lead with the honest **~1.19 m mean**
+and cite the hero as one take. Both traces are real runs of the same frozen config (below),
+consistent with the ~1.19 m mean under the ~1 m run-to-run terminal-dropout noise (see honesty note next). This doc is in the
 portfolio-docs lane and cannot edit `docs/decisions.md`; flagging here for a future ADR-0032 addendum
 that records the 0.632 m re-cut. **Log-file caveat:** `logs/` is gitignored and regenerable, and the
 Monte-Carlo batch running in this repo actively writes/prunes that directory — the exact CSV filename
