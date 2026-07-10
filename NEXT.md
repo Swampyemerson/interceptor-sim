@@ -177,13 +177,17 @@ tracked-or-accepted; repo publishable on a remote.
      framed as NOMINAL availability (32%→0% above-FoV, ADR-0067 arm stat), NOT
      recovery (Stage-2 NULL). Now shot 3b in the cut → **22.7 s partial**
      (shots 0/3/3b/4/5/6/8).
-   - **STILL OPEN for the full render:** shots 1–2 (ground-stereo — §B compositor
-     ~half-day, NOT built, needs a rig capture); shot 7 (chase — separate lighter
-     pass, do NOT run concurrent with the onboard hero — the 2nd rendered camera
-     is what perturbs the flight). Storyboard `docs/t25_storyboard.md`, plan
-     `scripts/video/t25_render_plan.md`. Builder decision worth surfacing: build
-     the §B stereo compositor for the full ~60 s cut, or ship the current
-     interception-core + tilt version?
+   - **DONE: the STEREO opener (element 3).** §B rig capture (40 pose pairs,
+     staged 134–138 m) + ground-station replay (`ground_v2.onnx`, first firm
+     track 135 m, mean range err 0.46 m). Built `scripts/video/make_stereo_shots.py`
+     — a HUD-forward L|R stereo clip (SEARCHING→TRACKING lamp, triangulated range
+     vs gt trace) → shots 1–2. **ALL FOUR required elements now in the cut →
+     30.7 s** (shots 0/1/2/3/3b/4/5/6/8).
+   - **STILL OPEN (nice-to-have, not one of the 4 required):** shot 7 (chase
+     angle — separate lighter pass; the 2nd rendered camera perturbs the flight,
+     so capture it ALONE, not concurrent with an onboard hero). After that, a
+     final frame-honesty audit + `assemble_t25.sh --require-all`. Storyboard
+     `docs/t25_storyboard.md`, plan `scripts/video/t25_render_plan.md`.
 2. **#40 mount-compose RE-FLY — FLOWN; Stage-1 verdict FAIL on strict parity
    (ADR-0068 addendum, `bfdb86e`).** up15-compensated worse on 7/8 seeds
    (median +0.16 m) → NO fixed +15° mount adoption. BUT compensation WORKS:
