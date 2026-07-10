@@ -19,13 +19,13 @@ also wait for that to land and re-validate. Nothing below boots a sim.
 | # | Beat | Source | Status |
 |---|------|--------|--------|
 | 0 | Title + architecture strip | **EXISTING / offline** — `make_t25_cards.py` → `demo_out/t25/cards/shot0_title.png` | ✅ buildable now (validated) |
-| 1 | Ground stereo detection (both rig cams, DETECT flash) | **NEW render** — stereo rig capture pass (§B). Needs a small harness extension (§B gap 1) + the shot-1/2 compositor (§B gap 3) | ⏳ sim-gated |
+| 1 | Ground stereo detection (both rig cams, DETECT flash) | **NEW render** — stereo rig capture pass (§B). Harness extension BUILT + dry-run-validated (§B gap 1 ✅); still needs the shot-1/2 compositor (§B gap 3, gated on the capture existing) | ⏳ sim-gated |
 | 2 | Track established → cue up (σ_R bar, latency readout) | **NEW render** — same §B pass + `scripts/ground_station/station.py` replay audit CSV | ⏳ sim-gated |
 | 3 | Launch + dash begins (onboard cam) | **NEW render** — hero-seed re-fly with onboard frame capture (§A) | ⏳ sim-gated |
 | 4 | Terminal acquisition — detect-then-track (NN ACQUIRE → CSRT box) | **NEW render** — same §A flight | ⏳ sim-gated |
 | 5 | HANDOFF — cue lamp goes dark (the honesty beat) | **NEW render** — same §A flight | ⏳ sim-gated |
 | 6 | Terminal slow-mo to intercept + CPA close-out | **NEW render** — same §A flight, retimed at assembly (§A step 5) | ⏳ sim-gated |
-| 7 | Chase-cam replay | **NEW render** — same §A pass IF the chase camera is added to the markerless world first (§C gap) | ⏳ sim-gated + world edit |
+| 7 | Chase-cam replay | **NEW render** — same §A pass; chase-cam world variant BUILT + gz-sdf-validated (§C ✅) | ⏳ sim-gated |
 | 8 | Results end card (ADR-0058 numbers + disclosures) | **EXISTING / offline** — `make_t25_cards.py` recomputes from committed `logs/mc_t21_trackgate_weave12_r2.csv`, asserts byte-match vs ADR-0058 → `demo_out/t25/cards/shot8_endcard.png` | ✅ buildable now (validated) |
 
 **Existing committed flight data backing the shots** (validation + numbers,
@@ -143,21 +143,47 @@ cd ~/PX4-Autopilot && env PX4_GZ_WORLD=stereo_intercept \
 
 Three flagged gaps before shots 1–2 can render:
 
-1. **Weave replay:** `rig_snapshot_capture.py` currently replays the `line`
-   path only. Either (a) extend it with a `--poses-from <csv>` teleport
-   schedule built from the hero flight's `gt_tag_x/y/z,t_sim` columns (the
-   storyboard's "weave trajectory replayed from the hero flight's target
-   schedule"), or (b) stage the line path and caption shot 1–2 as the
-   straight-line regime. (a) matches the storyboard; (b) is arguably MORE
-   honest since the stereo pipeline's validation IS straight-line
-   (ADR-0053). Decide at render time; either way constraint #3's mock-cue
+1. **Weave replay — ✅ BUILT (2026-07-10, sim-free pass), option (a):**
+   `rig_snapshot_capture.py` now takes `--poses-from <flight_csv>` (teleport
+   schedule from the flight's `t_sim` + `gt_tag_x/y/z`, nearest-row resample
+   at `--rate`, NO interpolation — no invented poses), plus
+   `--t-start/--t-end/--pre-roll-s` windowing, `--x/y/z-shift` staging, and
+   `--dry-run` (schedule + staging metrics offline, gz untouched). The line
+   path is byte-identical when the flag is absent (`--smoke`/full dry-runs
+   verified; index.csv gains an appended `t_sim_source` column ONLY in
+   replay mode). Dry-run against the committed run-1 hero CSV: 47 poses @
+   10 Hz over the mover window, `--x-shift -25` stages the corridor at
+   **133.2–138.5 m** from the broadside_160m rig — inside the validated
+   50–160 m band and the storyboard's ~120–150 m first-firm-track note
+   (zero shift = 158–163 m, the T16-native band, at/over the validated
+   edge — use the shift). Option (b) (line path) remains available as the
+   fallback via the unchanged default mode. Constraint #3's mock-cue
    disclosure line stays on the end card and in the shot-1/2 footnote.
-   Staging: place the replay inside the validated 50–160 m band (first firm
-   track ~120–150 m per the storyboard, `docs/stereo_design.md` floor).
-2. **Detector choice:** `ground_station/detect.py` defaults to
-   `ground_v1.onnx`; `ground_v2.onnx` exists in `scripts/seeker/weights/`.
-   The storyboard says "ground_v2 or its v3-era successor" — pass the
-   chosen weights explicitly and note it in the shot's caption/log.
+   One honest framing note for the edit: from the rig the weave's lateral
+   component lies mostly ALONG its line of sight (range oscillation), so
+   the rig view itself looks near-straight — the weave is visible in the
+   shot-2 inset map / track trace, not the raw rig image. Do not caption
+   the rig image as "visibly weaving."
+2. **Detector choice — ✅ DECIDED: `ground_v2.onnx`** (pass explicitly:
+   `--weights scripts/seeker/weights/ground_v2.onnx`; input 960×960, same
+   as v1, so the default `--imgsz 960` holds — verified via onnxruntime).
+   Why v2 is the honest, non-cherry-picked choice: ADR-0055's decision (1)
+   makes ground_v2 the RECOMMENDED ground detector, verifier-confirmed,
+   with held-out-range generalization proof (70/130 m never trained, bias
+   −0.010/−0.14 m); ground_v1 is a single ~160 m operating point
+   (ADR-0049 necessary-not-sufficient) with a −6.3 m systematic bias at
+   50 m and a non-monotonic box head out-of-domain (ADR-0053) — picking v1
+   and a range band where it happens to behave would be exactly the
+   cherry-pick the storyboard forbids, while v2 is valid across the whole
+   50–160 m staging envelope and its adoption (ADR-0055) predates this
+   video. Two caption obligations: (i) name the weights on the shot
+   ("ground detector: ground_v2, multi-range, ADR-0055"); (ii) the
+   historical T18/T19 gates were driven by v1 (ADR-0049/0053 provenance) —
+   the shot-2 pipeline caption cites the pipeline, not v1 specifically, so
+   no conflict, but don't claim v2 drove those gates. Note there is NO
+   "v3-era successor" for the GROUND detector: the pending v3 evaluation is
+   the ONBOARD seeker (`drone_finetuned_v3.onnx`, terminal 1.5–50 m
+   domain) — it gates the §A re-fly config, not this choice.
 3. **Shot-1/2 compositor (offline, NOT yet built):** a side-by-side
    left|right rig view with the DETECT flash + sim-time stamp at each
    camera's first-detection instant, per-camera NN boxes, the
@@ -171,21 +197,41 @@ Three flagged gaps before shots 1–2 can render:
    real pipeline, but the cue that steered the §A flight is the calibrated
    mock — one footnote line, already worded in the storyboard.
 
-## §C — Chase view (shot 7)
+## §C — Chase view (shot 7) — ✅ WORLD BUILT (2026-07-10, sim-free pass)
 
-`worlds/markerless.sdf` has **no chase camera** — only `apriltag_demo.sdf`
-carries the `demo_chase_cam` model (a plain camera sensor publishing an
-Image topic; that's how the M5-era chase footage was captured). Before the
-§A pass, create `worlds/markerless_demo.sdf`: copy `markerless.sdf`, rename
-the world to `markerless_demo`, and paste in `apriltag_demo.sdf`'s
-`demo_chase_cam` `<model>` block (lines ~336–383). Then the §A pass boots
-with `PX4_GZ_WORLD=markerless_demo` / `INTERCEPTOR_WORLD_NAME=markerless_demo`
-(topics gain the new world prefix) and a second passive capture runs:
+`worlds/markerless_demo.sdf` now exists: byte-identical to
+`worlds/markerless.sdf` (physics/scene/target include unchanged — verified
+by diff) except the world name and the added `demo_chase_cam` model
+(`apriltag_demo.sdf`'s exact 960×540 @ 30 Hz sensor block — the RTF-safe
+resolution per that file's RESOLUTION FINDING). `gz sdf -k` PASS (invoke
+with `SDF_PATH=$PWD/models`, not GZ_SIM_RESOURCE_PATH — the bare CLI has no
+gz-sim find callback). Symlinked into
+`~/PX4-Autopilot/Tools/simulation/gz/worlds/` (the established pattern), so
+`PX4_GZ_WORLD=markerless_demo` resolves.
+
+**The pose was NOT copied** — apriltag_demo's chase pose aims at the OLD
+engagement point (6.4, −12.2), which is ~92° off THIS flight's CPA (checked
+against the committed hero CSV; it would film empty ground). The new pose
+`14.445 2.440 3.431 0 0.262 2.533` is re-derived by the same documented
+recipe from `logs/m4_intercept_pronav_20260709T232447Z.csv`: 10 m broadside
+of the dash bearing, aimed at the CPA midpoint (6.66, 8.72, 0.75), pitch
+15°, yaw biased +4° toward the launch origin — full derivation + framing
+check (takeoff, dash, CPA, breakoff all inside the 1.7 rad hfov) is in the
+world file's header. The re-fly uses the same seeds, so the geometry holds;
+fine-tune live via `set_pose` if needed (no reboot — see the header note,
+and mind the quaternion gotcha).
+
+§A boots with `PX4_GZ_WORLD=markerless_demo` /
+`INTERCEPTOR_WORLD_NAME=markerless_demo` (ALL topics gain the new world
+prefix — the onboard capture topic in §A step 3 becomes
+`/world/markerless_demo/model/x500_mono_cam_0/link/camera_link/sensor/imager/image`)
+and a second passive capture runs (link name confirmed from the world file
+— no placeholder):
 
 ```bash
 .venv/bin/python scripts/demo_capture_frames.py \
-    --topic /world/markerless_demo/model/demo_chase_cam/link/<link>/sensor/chase_cam/image \
-    --out demo_out/t25/chase_frames &     # exact topic: gz topic -l after boot
+    --topic /world/markerless_demo/model/demo_chase_cam/link/link/sensor/chase_cam/image \
+    --out demo_out/t25/chase_frames &     # sanity: gz topic -l | grep chase_cam
 ```
 
 Chase HUD: `hud_overlay.py --frames demo_out/t25/chase_frames/manifest.csv`
@@ -211,3 +257,91 @@ mini-map already draws both if a side-panel treatment is preferred.
   scoring-only (constraint #5), and never appears before the CPA tick.
 - Pre-publish frame audit (storyboard checklist): scan `hud_audit.csv` for
   every frame from latch to CPA, not a sample.
+
+---
+
+## Readiness (2026-07-10 sim-free pass — all buildable-now blockers cleared)
+
+Per-shot state after this pass. "Remaining" = sim-gated steps only, all
+sequenced by main behind the v3-eval + guidance-fix gate (top of file).
+
+| # | Shot | Ready? | Remaining sim step(s) |
+|---|------|--------|----------------------|
+| 0 | Title card | ✅ render-ready | none (offline, already validated) |
+| 1–2 | Ground stereo opener | 🟡 harness ready | ONE §B rig-replay boot + capture + station replay (sequence below); then the gap-3 compositor (offline, ~half-day, deliberately built only once the capture exists) |
+| 3–6 | Onboard hero beats | ✅ render-ready | the ONE §A re-fly (unchanged §A sequence, but boot `markerless_demo` per §C so shot 7 comes free in the same pass) |
+| 7 | Chase replay | ✅ render-ready | same §A re-fly (world variant built/validated/symlinked; second passive capture per §C) |
+| 8 | Results end card | ✅ render-ready | none (offline, already validated) |
+
+**What this pass built (no sim booted, nothing committed):**
+
+1. `worlds/markerless_demo.sdf` — chase-cam world variant, `gz sdf -k`
+   PASS, pose re-derived for the weave corridor (§C), symlinked into PX4's
+   worlds dir. Guidance-fix files untouched.
+2. `scripts/rig_snapshot_capture.py` `--poses-from` weave-replay mode +
+   `--dry-run` offline validator (§B gap 1); default line path
+   byte-identical, `--smoke` dry-run verified.
+3. Ground-detector decision for shots 1–2: **ground_v2.onnx** (§B gap 2,
+   ADR-0047/0049/0053/0055 chain).
+
+**Exact §B render sequence for shots 1–2 (copy-paste, idle machine, ONE
+sim):**
+
+```bash
+# 0) OFFLINE rehearsal first (no sim; uses the re-fly's CSV once §A has
+#    flown, or the committed run-1 CSV — same seeds => same target track):
+.venv-seeker/bin/python scripts/rig_snapshot_capture.py \
+    --poses-from logs/m4_intercept_pronav_<REFLY_STAMP>Z.csv \
+    --x-shift -25 --pre-roll-s 3 --dry-run
+
+# 1) boot the rig world (per §B / check_t16.sh)
+cd ~/PX4-Autopilot && env PX4_GZ_WORLD=stereo_intercept \
+    GZ_SIM_RESOURCE_PATH=$HOME/interceptor-sim/models HEADLESS=1 \
+    make px4_sitl gz_x500_mono_cam   # wait for "Ready for takeoff!"
+
+# 2) weave replay capture (same flags as the rehearsal, minus --dry-run)
+cd ~/interceptor-sim && INTERCEPTOR_WORLD_NAME=stereo_intercept \
+    INTERCEPTOR_TARGET_MODEL=fpv_target_markerless \
+    .venv-seeker/bin/python scripts/rig_snapshot_capture.py \
+    --poses-from logs/m4_intercept_pronav_<REFLY_STAMP>Z.csv \
+    --x-shift -25 --pre-roll-s 3 \
+    --out logs/rig_captures/t25_weave_replay
+
+# 3) ground-station replay over the capture -> cue + audit CSV
+#    (offline mode: --replay-clock; weights per §B gap 2 DECISION)
+.venv-seeker/bin/python scripts/ground_station/station.py \
+    --capture-dir logs/rig_captures/t25_weave_replay \
+    --weights scripts/seeker/weights/ground_v2.onnx \
+    --replay-clock --emit-velocity
+# keep the audit CSV path it prints — the gap-3 compositor reads it
+
+# 4) sim down; the shot-1/2 compositor build (gap 3) is now unblocked
+#    (offline; composites left|right frames + DETECT flash + sigma_R bar
+#    from the capture dir + audit CSV)
+```
+
+Staging knobs, pre-decided (from the dry-run numbers above): `--x-shift
+-25` → 133–139 m from the rig (validated band + storyboard staging);
+`--pre-roll-s 3` gives ~3 s of honest empty-frame SEARCHING footage before
+the threat's run (shot 1's opening beat; target enters the hfov wedge ~1.5 s
+after mover start). Keep `--rate` at the default 10 Hz — that IS the rig
+sensor's design cadence (`docs/stereo_design.md`, 10 Hz cue), so the
+station replay's latency/track numbers stay authentic; the 10 fps rig
+footage plays at assembly via plain frame duplication to 30 fps
+(frame-RATE conversion, not retiming — no watermark owed, no invented
+frames). Content-length note for the edit: the hero mover only runs ~3.6 s
+start→CPA at 12 m/s, so shots 1–2 have ~3 s pre-roll + ~4.6 s of live
+track to cut from — if the storyboard's ~11 s combined target feels long,
+hold shot 2 on the track/σ_R/latency readouts (compositor cards), don't
+slow the rig footage.
+
+**Station-replay caveats for the operator (known, acceptable):** (i) the
+track filter's validation is straight-line (ADR-0053) — the weave replay
+exercises it out-of-validation, which is exactly what the storyboard's
+constraint-#3 footnote already discloses; treat the emitted track as the
+honest visualization it is, NOT as a new validation claim. (ii)
+`station.py --dash-direction` filter stays unset (replay rows are labeled
+`weave_replay`, not r2l/l2r). (iii) the replay index.csv carries
+`t_sim_source` (appended column) tracing every pose to its flight-CSV row
+— the compositor should stamp shot-1/2 sim-times from `t_sim_nominal`
+(station.py's ADR-0052 rebase semantics, unchanged).

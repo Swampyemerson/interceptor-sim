@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MARKERLESS DEMO world (T25 shot 7 — chase-cam replay;
+  scripts/video/t25_render_plan.md §C).
+
+  BYTE-IDENTICAL to worlds/markerless.sdf (physics / scene / ground_plane /
+  sun / spherical_coordinates / fpv_target_markerless include kept EXACTLY —
+  the flight must be the same flight) EXCEPT for two deliberate changes,
+  mirroring how worlds/apriltag_demo.sdf extends worlds/apriltag.sdf:
+
+    1. World name is "markerless_demo". Every gz-transport topic keys off it:
+       onboard:  /world/markerless_demo/model/x500_mono_cam_0/link/camera_link/sensor/imager/image
+       chase:    /world/markerless_demo/model/demo_chase_cam/link/link/sensor/chase_cam/image
+       Boot with PX4_GZ_WORLD=markerless_demo and set
+       INTERCEPTOR_WORLD_NAME=markerless_demo (flight stack + mover + cue all
+       read the world name from that env var, see worlds/markerless.sdf).
+
+    2. Adds the static demo_chase_cam model — the same plain 960x540 camera
+       sensor apriltag_demo.sdf carries (the M5-era chase-footage mechanism).
+       RESOLUTION NOTE carried over from apriltag_demo.sdf: a second camera
+       at 1280x720 collapsed RTF to ~0.05 in this stack; 960x540 restored
+       idle RTF ~1.0. Do not raise the resolution without re-checking RTF.
+
+  CHASE-CAM POSE DERIVATION (offline, 2026-07-10 — numbers trace to the
+  committed hero flight logs/m4_intercept_pronav_20260709T232447Z.csv, the
+  T25 §A reference: 12 m/s weave r2l, seeds cue=256788/path=778181):
+    - CPA row t_sim=23.200: cam=(6.186,8.816,0.999) tag=(7.136,8.617,0.500),
+      miss 1.091 m -> engagement center (6.66, 8.72, 0.75).
+    - Recipe = the apriltag_demo.sdf POSE FINDING recipe re-derived for THIS
+      corridor: camera 10 m out along the perpendicular to the interceptor's
+      dash bearing (broadside — dash reads as lateral motion), aimed at the
+      engagement center, pitch 0.262 rad (the proven 15 deg down), yaw biased
+      +4 deg from center-aim toward the launch origin so takeoff AND CPA both
+      sit inside the 1.7 rad hfov.
+    - Framing check vs that CSV (all inside +/-48.7 deg half-fov): launch
+      origin +44.5, target start -39.0, mid-dash target -35.5, CPA -2.8,
+      early-dash interceptor +34.5, breakoff -43.5. Only the target's
+      post-CPA exit (+55.5) leaves frame — shot 7 ends at CPA slow-mo.
+    - The re-fly flies the same seeds, so the same geometry applies. If the
+      framing needs a nudge at render time, live-tune via
+      `gz service /world/markerless_demo/set_pose` on this static model (no
+      reboot needed — mechanism confirmed in apriltag_demo.sdf's notes; that
+      service takes a QUATERNION, not roll/pitch/yaw — see the Euler note
+      there before hand-writing one).
+
+  Launch (mirrors worlds/markerless.sdf; symlinked into PX4's worlds dir like
+  the other project worlds):
+
+    PX4_GZ_WORLD=markerless_demo \
+    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    HEADLESS=1 make px4_sitl gz_x500_mono_cam
+-->
+<sdf version="1.9">
+  <world name="markerless_demo">
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1 1</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>500 500</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <pose>0 0 0 0 -0 0</pose>
+      <self_collide>false</self_collide>
+    </model>
+    <light name="sunUTC" type="directional">
+      <pose>0 0 500 0 -0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0.001 0.625 -0.78</direction>
+      <diffuse>0.904 0.904 0.904 1</diffuse>
+      <specular>0.271 0.271 0.271 1</specular>
+      <attenuation>
+        <range>2000</range>
+        <linear>0</linear>
+        <constant>1</constant>
+        <quadratic>0</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg> 8.546163739800146</longitude_deg>
+      <elevation>0</elevation>
+    </spherical_coordinates>
+
+    <!-- Chase camera for T25 shot 7 — same sensor block as
+         apriltag_demo.sdf's demo_chase_cam (960x540 @ 30 Hz, hfov 1.7);
+         ONLY the pose differs (derived above for the weave-hero corridor;
+         apriltag_demo's pose aims at the OLD engagement point (6.4,-12.2)
+         which is ~92 deg off THIS flight's CPA — verified unusable here).
+         Publishes:
+         /world/markerless_demo/model/demo_chase_cam/link/link/sensor/chase_cam/image
+         Capture with scripts/demo_capture_frames.py (pass that topic;
+         passive, subscribe-only, safe alongside the flight). -->
+    <model name="demo_chase_cam">
+      <static>true</static>
+      <pose>14.445 2.440 3.431 0 0.262 2.533</pose>
+      <link name="link">
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.01</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.01</iyy>
+            <iyz>0</iyz>
+            <izz>0.01</izz>
+          </inertia>
+        </inertial>
+        <sensor name="chase_cam" type="camera">
+          <pose>0 0 0 0 0 0</pose>
+          <camera>
+            <horizontal_fov>1.7</horizontal_fov>
+            <image>
+              <width>960</width>
+              <height>540</height>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>3000</far>
+            </clip>
+          </camera>
+          <always_on>1</always_on>
+          <update_rate>30</update_rate>
+          <visualize>true</visualize>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- Markerless target: tag-less enemy quad body at (5, 0, 0.5), approach
+         face (-X) toward the interceptor at origin (see
+         models/fpv_target_markerless/model.sdf for the facing derivation --
+         same convention as apriltag_target). NO fiducial: the seeker must lock
+         the body. -->
+    <include>
+      <uri>model://fpv_target_markerless</uri>
+      <name>fpv_target_markerless</name>
+      <pose>5 0 0.5 0 0 0</pose>
+    </include>
+  </world>
+</sdf>

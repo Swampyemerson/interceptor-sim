@@ -74,6 +74,49 @@ auto-generated dataset LABEL, exactly as a human labeler's measured
 ground-truth box would be, and structurally unable to leak into any live
 guidance path (this script has no guidance loop at all).
 
+WEAVE REPLAY MODE (T25 shots 1-2; scripts/video/t25_render_plan.md SectB
+gap 1, option (a)): `--poses-from <flight_csv>` swaps the built-in line
+path for a teleport schedule built from an m4_intercept.py flight CSV's
+`t_sim` + `gt_tag_x/y/z` columns -- i.e. the rig re-renders the EXACT
+target track a hero flight flew (weave included). Design points:
+
+  * NEAREST-ROW resampling at --rate, NO interpolation: every teleported
+    pose is one the flight actually logged (then shifted by the staging
+    offsets) -- no invented in-between positions, the same honesty rule
+    the video tooling applies to frames (no minterpolate).
+  * The schedule window defaults to [mover-start - --pre-roll-s, last row]
+    (mover start auto-detected as the first row the target moved
+    > 0.05 m from its initial pose; the pre-roll gives the rig honest
+    empty/"SEARCHING" frames before the threat starts its run).
+    Override with --t-start/--t-end (source-CSV sim-time).
+  * --x-shift/--y-shift/--z-shift stage the replayed track relative to the
+    rig (worlds/stereo_intercept.sdf pins the rig at broadside_160m,
+    (-153.5, 0, 1.8, yaw 0)). The hero corridor at zero shift sits at
+    ~160-163 m from the rig (the T16 native band); `--x-shift -25` puts it
+    at ~135-139 m, inside the ADR-0053-validated 50-160 m band and the
+    storyboard's "first firm track ~120-150 m" staging note. The shift is
+    recorded in capture_meta.json and index.csv carries the SHIFTED
+    commanded pose (= the pose actually rendered), plus a `t_sim_source`
+    column tracing each sample to its source-CSV row.
+  * index.csv keeps `t_sim_nominal` = k*dt from schedule start (0-based),
+    exactly the line path's semantics -- station.py's ADR-0052 epoch
+    rebase (t0 + t_sim_nominal) keeps working unchanged. dash_direction
+    is "weave_replay"; dash_speed is the schedule's measured median
+    ground speed.
+  * `--dry-run` builds and prints the schedule + staging metrics (rig
+    range span, first in-frame sample) and exits WITHOUT touching gz --
+    validates a replay entirely offline, no sim needed.
+
+    # offline validation (no sim):
+    .venv-seeker/bin/python scripts/rig_snapshot_capture.py \\
+        --poses-from logs/m4_intercept_pronav_20260709T232447Z.csv \\
+        --x-shift -25 --dry-run
+
+    # real capture (sim up on stereo_intercept, ONE sim, idle machine):
+    .venv-seeker/bin/python scripts/rig_snapshot_capture.py \\
+        --poses-from <hero flight csv> --x-shift -25 \\
+        --out logs/rig_captures/t25_weave_replay
+
 RUN (sim already up on stereo_intercept, see scripts/check_t16.sh for the
 boot line):
 
@@ -92,6 +135,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import subprocess
 import sys
@@ -147,6 +191,11 @@ PATH_BOUNDARY_ABS_Y_M = 5.0
 TELEPORT_TIMEOUT_S = 4.0
 SETTLE_TIMEOUT_S = 8.0
 DEFAULT_SETTLE_FRAMES = 3
+
+# --- Weave-replay mode (T25 shots 1-2, see module docstring) ---
+MOVER_START_EPS_M = 0.05     # "target has moved" threshold for auto t-start
+DEFAULT_PRE_ROLL_S = 1.0     # empty/"SEARCHING" seconds kept before mover start
+REPLAY_DIRECTION_LABEL = "weave_replay"
 
 
 class FrameHolder:
@@ -233,6 +282,100 @@ def build_samples(x0, y0_mag, z0, dash_speed, rate_hz, sign, boundary=PATH_BOUND
     return samples, direction
 
 
+def load_flight_gt_poses(csv_path):
+    """Read (t_sim, gt_tag_x, gt_tag_y, gt_tag_z) from an m4_intercept.py
+    flight CSV, sorted by t_sim. gt_tag_* here is the flight's SCORING-ONLY
+    ground truth being reused OFFLINE as a teleport/label schedule -- the
+    same boundary as this harness's own gt_target_* columns (see GROUND
+    TRUTH HONESTY in the module docstring): it feeds a rendered dataset,
+    never a live guidance decision."""
+    with open(csv_path, newline="") as fh:
+        reader = csv.DictReader(fh)
+        need = ("t_sim", "gt_tag_x", "gt_tag_y", "gt_tag_z")
+        missing = [c for c in need if c not in (reader.fieldnames or [])]
+        if missing:
+            raise SystemExit(
+                f"[rig-capture] --poses-from {csv_path}: missing column(s) {missing}")
+        rows = []
+        for r in reader:
+            try:
+                rows.append((float(r["t_sim"]), float(r["gt_tag_x"]),
+                             float(r["gt_tag_y"]), float(r["gt_tag_z"])))
+            except (TypeError, ValueError):
+                continue  # rows logged before gt columns fill in
+    if len(rows) < 2:
+        raise SystemExit(
+            f"[rig-capture] --poses-from {csv_path}: fewer than 2 usable gt rows")
+    rows.sort(key=lambda r: r[0])
+    return rows
+
+
+def detect_mover_start(rows, eps_m=MOVER_START_EPS_M):
+    """First source t_sim at which the target has moved > eps_m from its
+    initial pose (the mover's start); falls back to the first row's t_sim
+    if the target never moves (degenerate, but don't crash a dry-run)."""
+    x0, y0, z0 = rows[0][1:4]
+    for (t, x, y, z) in rows:
+        if math.dist((x, y, z), (x0, y0, z0)) > eps_m:
+            return t
+    return rows[0][0]
+
+
+def build_replay_samples(rows, rate_hz, t_start, t_end,
+                         x_shift=0.0, y_shift=0.0, z_shift=0.0):
+    """Resample the flight's gt_tag schedule at the nominal capture cadence.
+    NEAREST-ROW selection, no interpolation (module docstring: every
+    teleported pose is one the flight actually logged, plus the staging
+    shift). Returns samples of (t_sim_nominal, x, y, z, t_sim_source) --
+    t_sim_nominal is k*dt from the schedule start (0-based, the line path's
+    exact semantics; station.py's ADR-0052 rebase depends on it),
+    t_sim_source is the source-CSV row's own t_sim."""
+    dt = 1.0 / rate_hz
+    ts = [r[0] for r in rows]
+    samples = []
+    i = 0
+    k = 0
+    while True:
+        t_k = t_start + k * dt
+        if t_k > t_end + 1e-9:
+            break
+        while i + 1 < len(rows) and abs(ts[i + 1] - t_k) <= abs(ts[i] - t_k):
+            i += 1
+        t_src, x, y, z = rows[i]
+        samples.append((k * dt, x + x_shift, y + y_shift, z + z_shift, t_src))
+        k += 1
+        if k > 100000:
+            raise RuntimeError("build_replay_samples runaway (check --rate/--t-end)")
+    return samples
+
+
+def replay_staging_metrics(samples):
+    """Offline staging metrics against the pinned broadside_160m rig pose:
+    median ground speed of the schedule, min/max horizontal range from the
+    rig origin, and the first sample index whose bearing sits inside the
+    rig's hfov wedge (single-point rig approximation -- ignores the 2 m
+    stereo baseline; a per-camera frame-entry check is what the render
+    itself shows). Used by --dry-run and stamped into capture_meta.json."""
+    speeds = []
+    for a, b in zip(samples, samples[1:]):
+        dt = b[0] - a[0]
+        if dt > 0:
+            speeds.append(math.dist(a[1:4], b[1:4]) / dt)
+    speed_med = float(np.median(speeds)) if speeds else 0.0
+    rig_x, rig_y, _rig_z, rig_yaw = RIG_POSE_XYZ_YAW
+    half = RIG_HFOV_RAD / 2.0
+    ranges = []
+    first_in_frame = None
+    for idx, s in enumerate(samples):
+        dx, dy = s[1] - rig_x, s[2] - rig_y
+        ranges.append(math.hypot(dx, dy))
+        bearing = math.atan2(dy, dx) - rig_yaw
+        bearing = (bearing + math.pi) % (2 * math.pi) - math.pi
+        if first_in_frame is None and abs(bearing) <= half:
+            first_in_frame = idx
+    return speed_med, min(ranges), max(ranges), first_in_frame
+
+
 def capture_direction(node, holders, samples, direction, args, out_dir, index_rows, seq_start):
     left_dir = os.path.join(out_dir, "left")
     right_dir = os.path.join(out_dir, "right")
@@ -242,7 +385,11 @@ def capture_direction(node, holders, samples, direction, args, out_dir, index_ro
     left_holder, right_holder = holders
     seq = seq_start
     n_ok = n_skipped = 0
-    for (t_sim_nominal, x, y, z) in samples:
+    for item in samples:
+        # line-path samples are (t, x, y, z); replay samples append the
+        # source-CSV t_sim as a 5th element (see build_replay_samples).
+        t_sim_nominal, x, y, z = item[:4]
+        t_sim_source = item[4] if len(item) > 4 else None
         if not teleport(x, y, z):
             print(f"[rig-capture] {direction} seq={seq}: teleport FAILED @ ({x},{y},{z}) -- skipping")
             n_skipped += 1
@@ -269,7 +416,7 @@ def capture_direction(node, holders, samples, direction, args, out_dir, index_ro
         right_path = os.path.join(right_dir, f"{seq:05d}.png")
         cv2.imwrite(left_path, left_bgr)
         cv2.imwrite(right_path, right_bgr)
-        index_rows.append({
+        row = {
             "seq": seq,
             "t_sim_nominal": f"{t_sim_nominal:.4f}",
             "gt_target_x": f"{x:.4f}",
@@ -277,7 +424,10 @@ def capture_direction(node, holders, samples, direction, args, out_dir, index_ro
             "gt_target_z": f"{z:.4f}",
             "dash_direction": direction,
             "dash_speed": f"{args.dash_speed:.3f}",
-        })
+        }
+        if t_sim_source is not None:
+            row["t_sim_source"] = f"{t_sim_source:.4f}"
+        index_rows.append(row)
         n_ok += 1
         seq += 1
 
@@ -308,24 +458,123 @@ def main() -> int:
     ap.add_argument("--smoke", action="store_true",
                     help="smoke-test mode: 3 poses, one direction only (ignores --y0-sign "
                          "'both' and truncates the sweep) -- used by scripts/check_t16.sh")
+    # --- weave-replay mode (T25 shots 1-2; module docstring "WEAVE REPLAY MODE") ---
+    ap.add_argument("--poses-from", default=None, metavar="FLIGHT_CSV",
+                    help="REPLAY MODE: build the teleport schedule from this "
+                         "m4_intercept.py flight CSV's t_sim + gt_tag_x/y/z columns "
+                         "instead of the built-in line path (--x0/--y0-mag/"
+                         "--dash-speed/--y0-sign are ignored). Nearest-row resample "
+                         "at --rate, no interpolation.")
+    ap.add_argument("--t-start", type=float, default=None,
+                    help="replay window start, SOURCE-CSV sim-time seconds "
+                         "(default: auto = mover start - --pre-roll-s)")
+    ap.add_argument("--t-end", type=float, default=None,
+                    help="replay window end, SOURCE-CSV sim-time seconds "
+                         "(default: last usable row)")
+    ap.add_argument("--pre-roll-s", type=float, default=DEFAULT_PRE_ROLL_S,
+                    help="seconds of pre-mover-start hold kept in the auto window "
+                         f"(empty/'SEARCHING' rig frames; default {DEFAULT_PRE_ROLL_S})")
+    ap.add_argument("--x-shift", type=float, default=0.0,
+                    help="world-X staging offset added to every replayed pose, m "
+                         "(-25 puts the hero corridor ~135-139 m from the "
+                         "broadside_160m rig, inside the validated 50-160 m band)")
+    ap.add_argument("--y-shift", type=float, default=0.0,
+                    help="world-Y staging offset, m (default 0)")
+    ap.add_argument("--z-shift", type=float, default=0.0,
+                    help="world-Z staging offset, m (default 0)")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="build + print the teleport schedule and staging metrics, "
+                         "then exit without touching gz (offline, no sim needed)")
     args = ap.parse_args()
 
     runstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out_dir = args.out or os.path.join(REPO_ROOT, "logs", "rig_captures", runstamp)
-    os.makedirs(out_dir, exist_ok=True)
 
-    if args.y0_sign in ("+", "-"):
-        signs = [args.y0_sign]
-    else:  # "both"
-        # --smoke wants exactly one direction (the task spec: "3 poses, one
-        # direction") -- pick '+' (r2l) as the smoke direction even if the
-        # caller left --y0-sign at its 'both' default.
-        signs = ["+"] if args.smoke else ["+", "-"]
+    # Build every teleport schedule BEFORE touching gz (pure functions), so
+    # --dry-run can validate a plan fully offline. plans: (samples, direction,
+    # sign) -- sign is None in replay mode.
+    replay_meta = None
+    if args.poses_from:
+        # --- weave-replay mode (module docstring "WEAVE REPLAY MODE") ---
+        rows = load_flight_gt_poses(args.poses_from)
+        t_move = detect_mover_start(rows)
+        t_start = (args.t_start if args.t_start is not None
+                   else max(rows[0][0], t_move - args.pre_roll_s))
+        t_end = args.t_end if args.t_end is not None else rows[-1][0]
+        if t_end <= t_start:
+            raise SystemExit(f"[rig-capture] empty replay window: "
+                             f"t_start={t_start:.3f} >= t_end={t_end:.3f}")
+        samples = build_replay_samples(rows, args.rate, t_start, t_end,
+                                       args.x_shift, args.y_shift, args.z_shift)
+        if args.smoke:
+            samples = samples[:3]
+        speed_med, r_min, r_max, first_in = replay_staging_metrics(samples)
+        # index rows' dash_speed column = the schedule's measured median
+        # ground speed (replay mode has no commanded line speed).
+        args.dash_speed = speed_med
+        plans = [(samples, REPLAY_DIRECTION_LABEL, None)]
+        signs = [REPLAY_DIRECTION_LABEL]  # meta's signs_captured
+        replay_meta = {
+            "mode": "weave_replay",
+            "poses_from": os.path.abspath(args.poses_from),
+            "poses_source_rows": len(rows),
+            "mover_start_t_sim_source": round(t_move, 4),
+            "t_start_source": round(t_start, 4),
+            "t_end_source": round(t_end, 4),
+            "pre_roll_s": args.pre_roll_s,
+            "shift_xyz_m": [args.x_shift, args.y_shift, args.z_shift],
+            "replay_speed_med_m_s": round(speed_med, 3),
+            "rig_range_min_m": round(r_min, 2),
+            "rig_range_max_m": round(r_max, 2),
+            "first_in_frame_seq": first_in,
+        }
+        print(f"[rig-capture] REPLAY schedule from {args.poses_from}")
+        print(f"[rig-capture]   source rows={len(rows)} mover_start@t_sim={t_move:.3f} "
+              f"window=[{t_start:.3f},{t_end:.3f}]s rate={args.rate} Hz -> {len(samples)} poses")
+        print(f"[rig-capture]   shift=({args.x_shift},{args.y_shift},{args.z_shift}) m  "
+              f"median ground speed={speed_med:.2f} m/s  "
+              f"rig range {r_min:.1f}-{r_max:.1f} m")
+        if first_in is None:
+            print("[rig-capture]   WARNING: NO sample inside the rig hfov wedge -- "
+                  "the whole replay is out of frame; adjust --x-shift/--y-shift")
+        else:
+            s = samples[first_in]
+            print(f"[rig-capture]   first in-frame sample: seq {first_in} @ "
+                  f"t_nominal={s[0]:.1f}s pose=({s[1]:.1f},{s[2]:.1f},{s[3]:.2f})")
+    else:
+        if args.y0_sign in ("+", "-"):
+            signs = [args.y0_sign]
+        else:  # "both"
+            # --smoke wants exactly one direction (the task spec: "3 poses, one
+            # direction") -- pick '+' (r2l) as the smoke direction even if the
+            # caller left --y0-sign at its 'both' default.
+            signs = ["+"] if args.smoke else ["+", "-"]
+        plans = []
+        for sign in signs:
+            samples, direction = build_samples(
+                args.x0, args.y0_mag, args.z0, args.dash_speed, args.rate, sign,
+            )
+            if args.smoke:
+                samples = samples[:3]
+            plans.append((samples, direction, sign))
 
     print(f"[rig-capture] world={WORLD_NAME} target={TARGET_MODEL_NAME} rig={RIG_MODEL_NAME}")
     print(f"[rig-capture] left={LEFT_TOPIC}")
     print(f"[rig-capture] right={RIGHT_TOPIC}")
     print(f"[rig-capture] signs={signs} smoke={args.smoke} out={out_dir}")
+
+    if args.dry_run:
+        for samples, direction, _sign in plans:
+            print(f"[rig-capture] DRY-RUN {direction}: {len(samples)} poses; "
+                  f"first/last 3:")
+            preview = samples[:3] + (samples[-3:] if len(samples) > 6 else [])
+            for s in preview:
+                extra = f"  t_src={s[4]:.3f}" if len(s) > 4 else ""
+                print(f"    t_nom={s[0]:7.3f}  pose=({s[1]:9.3f},{s[2]:9.3f},{s[3]:6.3f}){extra}")
+        print("[rig-capture] DRY-RUN OK: schedule built, nothing captured, gz untouched")
+        return 0
+
+    os.makedirs(out_dir, exist_ok=True)
 
     node = Node()
     left_holder = FrameHolder("rig_left")
@@ -347,13 +596,11 @@ def main() -> int:
     index_rows = []
     seq = 0
     total_ok = total_skipped = 0
-    for sign in signs:
-        samples, direction = build_samples(
-            args.x0, args.y0_mag, args.z0, args.dash_speed, args.rate, sign,
-        )
-        if args.smoke:
-            samples = samples[:3]
-        print(f"[rig-capture] direction={direction} (sign={sign!r}): {len(samples)} poses")
+    for samples, direction, sign in plans:
+        if sign is not None:
+            print(f"[rig-capture] direction={direction} (sign={sign!r}): {len(samples)} poses")
+        else:
+            print(f"[rig-capture] direction={direction}: {len(samples)} poses")
         seq, n_ok, n_skipped = capture_direction(
             node, (left_holder, right_holder), samples, direction, args, out_dir,
             index_rows, seq,
@@ -365,11 +612,16 @@ def main() -> int:
     node.unsubscribe(RIGHT_TOPIC)
 
     index_path = os.path.join(out_dir, "index.csv")
+    fieldnames = [
+        "seq", "t_sim_nominal", "gt_target_x", "gt_target_y", "gt_target_z",
+        "dash_direction", "dash_speed",
+    ]
+    if replay_meta is not None:
+        # replay rows carry the source-CSV t_sim; appended column so every
+        # existing DictReader consumer keeps working unchanged.
+        fieldnames.append("t_sim_source")
     with open(index_path, "w", newline="") as fh:
-        writer = csv.DictWriter(fh, fieldnames=[
-            "seq", "t_sim_nominal", "gt_target_x", "gt_target_y", "gt_target_z",
-            "dash_direction", "dash_speed",
-        ])
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(index_rows)
 
@@ -404,6 +656,13 @@ def main() -> int:
         "git_rev": git_rev,
         "runstamp": runstamp,
     }
+    meta["mode"] = "line" if replay_meta is None else "weave_replay"
+    if replay_meta is not None:
+        # replay provenance (appended keys only -- existing consumers read
+        # meta by key and are unaffected). NOTE: in replay mode the dash_*
+        # keys above describe the UNUSED line-path defaults; "mode" +
+        # these keys are authoritative.
+        meta.update(replay_meta)
     meta_path = os.path.join(out_dir, "capture_meta.json")
     with open(meta_path, "w") as fh:
         json.dump(meta, fh, indent=2)
