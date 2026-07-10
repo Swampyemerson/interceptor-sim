@@ -1,5 +1,12 @@
 # KICKOFF PROMPT — paste everything below the line into Claude Code
 
+> **⚠️ HISTORICAL ARTIFACT (M0 kickoff, 2026-07-04).** This was the project's
+> original from-scratch kickoff; it predates the GPU note (an RTX 4070 IS
+> available) and M0–M5 are long complete (project is in Phase 2, ADR-0065+).
+> Retained verbatim as the record of how the project started — do NOT reuse as
+> a session prompt; a fresh session starts from `CLAUDE.md` + `NEXT.md`'s
+> CURRENT block instead.
+
 > This is the message to paste into the open Claude Code window (running on Fable 5,
 > started inside this project folder). `CLAUDE.md` and `GOALS.md` are already in the
 > folder and auto-load — they carry the mission, the model/council rules, and the

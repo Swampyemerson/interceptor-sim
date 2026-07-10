@@ -26,13 +26,13 @@ where a council of independent reviewers weighed in) is logged in
 a stand-in, not a real-world sensor, and this README says exactly what that
 does and doesn't mean for the numbers that follow.
 
-**Portfolio materials:** the [technical writeup](docs/WRITEUP.md) (the
-whiteboard-defense doc), the [resume bullets + how-it-works + 30-second
-pitch](docs/portfolio_bullets.md), the [one-pager + interviewer Q&A](docs/interviewer_prep.md)
-(the hard questions, honestly answered), the [architecture diagram +
-demo shot-list](docs/portfolio_visuals.md), the
+**Portfolio materials:** the standalone writeup/bullets/interviewer-prep/visuals
+drafts were retired 2026-07-10 (ADR-0066; recoverable at git hash `e6f06d3`) —
+portfolio and interview material is regenerated at project end by a dedicated
+pass over the canonical sources: this README, [`docs/decisions.md`](docs/decisions.md),
+and the [audit findings tracker](docs/audit_findings_tracker.md). Still live: the
 [T25 demo-video storyboard](docs/t25_storyboard.md) (shot-by-shot, with the
-per-shot data source and honesty constraints), and the
+per-shot data source and honesty constraints) and the
 [Pk-vs-lethal-radius sensitivity note](docs/pk_vs_radius_note.md) (how much
 the headline metric moves with the assumed kill radius — design review G15).
 
@@ -121,43 +121,82 @@ closing, the arc's biggest remaining hole. Both halves are the story.
 |---|---|---|
 | **T21 — the maneuvering limit, found and isolated** | At 12 m/s + weave/jink the markerless NN throws sporadic, *high-confidence* **phantom detections ~18 m off the true target** → 12/16 false handoffs, misses of 4–9 m — while an AprilTag control at the *same* speed, guidance, and airframe holds **8/8 at median 1.64 m**. So the limit is perception (bearing quality), not kinematics or guidance. Confidence gating is structurally dead here (phantom median confidence 0.34 > real 0.17 — *inverted*). Honest retraction along the way: an n=2 "fix win" was re-read as noise (the maneuvering run-to-run floor is ~5 m, not the ~1 m straight-line floor), and the first three fix attempts failed or turned out to be comms-*available* crutches. | ADR-0056/0057; `docs/images/t21_maneuver_miss.png` |
 | **★ Detect-then-track terminal — the fix that works** (NN acquires *once*, a cv2 CSRT visual tracker follows frame-to-frame, the NN re-validates every 8 frames) | **Post-handoff camera-terminal Pk@2.5 m: weave 3/16 → 14/14, jink 1/8 → 14/15** (the paired n=16 jink A/B baseline reads 3/15 → 14/15, ADR-0058); **phantom handoffs 12 → 0**; **0 of 155** terminal detections false in the headline arm — the first arm of the whole campaign with zero gross false terminal detections; landing within ~0.4 m of the AprilTag perception ceiling (8/8 @ 1.64 m). The pre-registered deployment-config validation (`--track --handoff-cue-gate 8`, 12 m/s weave, n=16 paired seeds): pooled Pk@2.5 **16/16** (median 2.11 m, max 2.48 m) / post-handoff camera-terminal **14/14** (median 2.03 m) / real-handoff-conditioned **14/14**. Committed `d10c9ca`, verifier-passed on all five claims. | **ADR-0058**; `logs/mc_t21_trackgate_weave12_r2.csv`; analyzer `scripts/analyze_track_ab.py` |
+| **★ Statistics hardening — the Pk claim earns a real confidence interval (task #33, n=72)** | The n=16 headline above only supports a 79.4% Clopper-Pearson lower bound — too small for a "≥95%" claim. A fresh, homogeneous, post-FIX-A (ADR-0062 derotation) campaign of **72 weave flights, 12 m/s, adopted deployment config**: **Pk@2.8 m 72/72 = 100% point, 95.0% CP-LB — clears the ≥95%-(95% CI) bar**; **Pk@2.5 m 71/72 = 98.6% point, 92.5% CP-LB**. The one sub-2.5 m miss (2.757 m) handed off cleanly — ordinary terminal dispersion, not a phantom or a failed handoff; zero handoff/phantom failures across all 72. Scope discipline: weave path + 12 m/s only, never pooled across paths/speeds (ADR-0025) — jink is separately 16/16. This is the **cued (non-jammed)** deployment config; comms-denied stays HELD (ADR-0059, next row). | **ADR-0064**; `logs/mc_pk72_weave_s{1042,2042,3042,4042}.csv`, `logs/mc_fixA_on_weave.csv`; harness `scripts/stats_hardening_options.sh` |
 
 **Pk here is always reported three ways** — this is deliberate, and the
-flattering number is never quoted alone: (i) *pooled whole-flight* (16/16 —
-flattering, because `miss_m` is a whole-flight minimum that credits closest
-approaches banked during the legal cue-guided dash), (ii) *post-handoff
-camera-terminal* (14/14 — the honest comms-denied-capability metric: closest
-approach measured only after the camera latch, when the cue is structurally
-unreadable), and (iii) *real-handoff-conditioned* (14/14 — excludes the two
-flights that never latched and are honestly counted as **not**
-camera-terminal intercepts). Statistics caveat, per the design review: 14/14
-observed gives a 95% Clopper-Pearson lower bound of ~77% (drawn from the
-camera-terminal n=14; the review's ~79% bound is the same calculation on the
-pooled 16/16 — different denominators) — honest as "no
-failures observed at n=14," not yet as "Pk ≥ 95%." The adopted config is
-batch-validated on weave; the jink arm re-run on post-fix code is queued
-(design review G14).
+flattering number is never quoted alone: (i) *pooled whole-flight* (`miss_m`
+is a whole-flight minimum that credits closest approaches banked during the
+legal cue-guided dash), (ii) *post-handoff camera-terminal* (the honest
+comms-denied-capability metric: closest approach measured only after the
+camera latch, when the cue is structurally unreadable), and (iii)
+*real-handoff-conditioned* (excludes any flight that never latched, honestly
+counted as **not** a camera-terminal intercept). The original n=16 headline
+(14/14 camera-terminal, ADR-0058) only supported a 95% Clopper-Pearson lower
+bound of ~77–79% — honest as "no failures observed at n=14/16," not yet as
+"Pk ≥ 95%."
 
-> **Comms-denied status: HELD — architecture built, validation in progress,
-> not yet a proven capability.** The one-way handoff latch is real and
-> structural: once the camera terminal latches, the cue channel is closed and
-> unreadable, so a link jammed *after* handoff cannot touch the terminal —
-> that part is tested and audited. But the design review found (ADR-0059,
-> mechanism confirmed by an independent code trace) that the adopted
-> deployment config `--track --handoff-cue-gate 8` **fails closed under a cue
-> jammed mid-dash, before camera acquisition**: the anti-phantom gates
-> compare against the last-received cue position, which freezes when the link
-> dies, and within ~1 s the frozen reference rejects the *real* target — the
-> interceptor never hands off. No phantom chase, but a mission kill in
-> exactly the scenario the project exists to prove. (The genuine tension: the
-> default config hands off fine under jam but eats phantoms; the config that
-> beats phantoms is the one that failed under jam.) A fix is **implemented
-> and unit/honesty-tested** (sim-time cue-staleness age-out → camera-only
-> fallback; 86 tests pass; inert when the cue is fresh) and a paired
-> comms-denied Monte-Carlo jam harness is built (`scripts/mc_jam_arm.sh`) —
-> but it has **not yet flown**. Until that batch lands, "works comms-denied"
-> is a held claim everywhere in this project's materials, including the
-> resume bullets.
+**Hardened 2026-07-10 (ADR-0064, task #33).** A fresh, homogeneous,
+post-FIX-A (ADR-0062 derotation) campaign of **72 weave flights, 12 m/s, the
+adopted deployment config** had **zero handoff or phantom failures** — every
+flight handed off REAL — so the pooled, post-handoff-camera-terminal, and
+real-handoff-conditioned denominators coincide at n=72 here (unlike the n=16
+arm's 14-of-16 camera-terminal split). Result: **Pk ≥ 95% (95% CI) at a 2.8 m
+proximity radius** — 72/72 clean, 100% point, Clopper-Pearson lower bound
+**95.0%**, clearing the ratified ≥95% bar (ADR-0025) with a defensible
+interval, not just a point estimate — and **98.6% point / 92.5% CI-LB at
+2.5 m** (71/72; the one miss, 2.757 m, still handed off cleanly — a wide
+terminal-dispersion draw, not a phantom or a failed handoff). Disclosed: the
+fresh 64 flights alone reach 94.4% CP-LB at 2.8 m; pooling the 8
+already-flown post-FIX-A `fixA_on` seeds lifts it to exactly 95.0% (the point
+estimate is 98–100% either way). **Scope discipline (ADR-0025): weave path +
+12 m/s only, never pooled across paths or speeds** — jink is separately
+16/16 clean, and this is the **cued (non-jammed)** deployment config;
+comms-denied capability stays HELD regardless (see the box below). Full
+method, denominators, and honesty notes: **ADR-0064**.
+
+> **Comms-denied status: HELD — tested, not merely "not yet tested."** The
+> honest reason changed on 2026-07-10: the paired jam Monte-Carlo has now
+> FLOWN, the fail-closed bug is demonstrated with a dose-response witness,
+> the fix is validated FAIL-SAFE, and a dedicated recovery arm came back an
+> honest NULL. The claim stays HELD because recovery genuinely doesn't work
+> yet — not because the test hasn't run.
+>
+> The one-way handoff latch is real and structural: once the camera terminal
+> latches, the cue channel is closed and unreadable, so a link jammed *after*
+> handoff cannot touch the terminal — that part is tested and audited. The
+> design review found (ADR-0059, mechanism confirmed by an independent code
+> trace) that the adopted deployment config `--track --handoff-cue-gate 8`
+> **fails closed under a cue jammed mid-dash, before camera acquisition**: the
+> anti-phantom gates compare against the last-received cue position, which
+> freezes when the link dies, and the frozen reference rejects the *real*
+> target — the interceptor never hands off. A fix was built (sim-time
+> cue-staleness age-out → camera-only fallback; 86 tests pass, inert when
+> the cue is fresh).
+>
+> **The jam MC flew (ADR-0059, 2026-07-10):** an 8-arm, n=16-paired campaign
+> across three pre-acquisition link-cutoff depths (15/18/22 m). *Without* the
+> fix, real (non-phantom) handoffs collapse **12/16 → 2/16 → 0/16** as the jam
+> moves earlier — a clean dose-response demonstration that the bug is real and
+> gets worse exactly where the mechanism predicts. *With* the fix, the
+> failure mode **flips from being fooled onto a stale-cue ghost target**
+> (fooled phantom-handoffs 9/16 → 1/16 at 18 m, 5/16 → 0/16 at 22 m) **to a
+> clean, honest abort** — validated **FAIL-SAFE, not recovery** (net real-
+> handoff gain is ~0 at 18 m, +1 at 22 m — within single-flight noise). A
+> dedicated **recovery** arm (`--coast-search`: dead-reckon to the predicted
+> acquisition basket, then a bounded yaw sweep, task #39) was flown next and
+> is an honest **NULL**: coast-search engaged on every jam flight, but the
+> camera **never detected the target at all on 10 of 16 flights** at the
+> 15–21 m coast range. The binding constraint is **perception availability**
+> — the nose-down dash pitch (ADR-0060) throws the target above the camera's
+> field of view, and the markerless detector's far-range recall is weak —
+> not guidance; a coast-search behavior cannot fix a perception-availability
+> problem.
+>
+> So "works comms-denied" **stays HELD**, everywhere in this project's
+> materials including the resume bullets — but the open lever is now
+> perception, not guidance or the handoff logic. That lever is live work: the
+> fixed up-tilt camera mount A/B (**task #35**, running now) and the
+> adaptive/active-tilt design idea (**ADR-0065**) both attack this exact gap.
 
 Two more design-review products, included as evidence the sim is audited
 rather than trusted: **(1) the camera-pitch finding (ADR-0060, measured from
@@ -435,11 +474,15 @@ detector locks on — the ground channel is closed and unreadable from that
 tick forward, not just unused by convention. What it is: the comms-denied
 headline this whole project exists to prove — even if the ground link is
 jammed mid-flight, the interceptor finishes the intercept on its own.
-*(Scope note, 2026-07-09: that sentence is proven for a link lost **after**
-the camera latch — the latch is structural. For a jam **before** the latch,
-the adopted anti-phantom deployment config currently fails closed; the fix is
-built and in validation, not yet proven — ADR-0059, and see the comms-denied
-status box in the results section.)* Why it
+*(Scope note, updated 2026-07-10: that sentence is proven for a link lost
+**after** the camera latch — the latch is structural. For a jam **before**
+the latch, the adopted anti-phantom deployment config fails closed — now
+demonstrated with a flown, paired jam Monte-Carlo (dose-response witness,
+ADR-0059) — and the staleness fix is validated FAIL-SAFE, not recovery; a
+dedicated recovery arm came back an honest NULL, perception-bound (coast-
+search engaged but could not reacquire at 15–21 m). "Works comms-denied"
+stays HELD; see the comms-denied status box in the results section for the
+full picture and the open perception lever (#35, ADR-0065).)* Why it
 matters: a hover-start interceptor is kinematically capped at ~3 m/s against
 a crosser (S1, ADR-0011 addendum) — a genuinely uncatchable 6-10 m/s FPV
 target requires the running start the dash provides. Measured: turns an
@@ -640,7 +683,8 @@ the **maneuvering camera-only terminal** landed (ADR-0056..0058, the
 post-spine results table above), and the **sim-to-real design review** turned
 the remaining unknowns into ranked, bench-measurable work items with a costed
 build path (see the results section; the comms-denied validation campaign,
-ADR-0059, is the top of that queue).
+ADR-0059, flew off the top of that queue — fail-safe validated, recovery an
+honest NULL, perception now the open lever).
 
 ---
 
@@ -788,7 +832,6 @@ offline (no Gazebo/GPU needed — the frames are already captured) with
 [`scripts/compose_demo.sh`](scripts/compose_demo.sh) sidebar composite is kept
 for back-compat. The only prerequisite is `ffmpeg` (`sudo apt install -y
 ffmpeg`); the full pipeline and shot-list are documented in
-[`demo_out/README.md`](demo_out/README.md) and
-[`docs/portfolio_visuals.md`](docs/portfolio_visuals.md). Every HUD readout traces
-to a CSV column, and the retiming (real-time establish / slow-motion terminal) is
-disclosed on-screen.
+[`demo_out/README.md`](demo_out/README.md) (portfolio shot-list retired,
+ADR-0066). Every HUD readout traces to a CSV column, and the retiming
+(real-time establish / slow-motion terminal) is disclosed on-screen.

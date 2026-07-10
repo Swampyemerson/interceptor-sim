@@ -10,30 +10,45 @@ is the loop that ran the M5 final batch (ADR-0036, 96 flights, 6 arms, zero wedg
 
 ## The adopted deployment-profile arm (the M5/A-B config)
 
-Every arm shares the ADR-0028/0030 running-start profile + realistic corrected cue. Set the
-cue env, then call one arm (one `--path`+`--geometry` per invocation):
+**Canonical entry point: `scripts/mc_deployment_arm.sh`.** It bakes in the full ADOPTED
+ADR-0058/0062 deployment argv and env so an arm can no longer be launched from a stale
+template. Read its header before using it — it is the single source of truth for what
+"the adopted config" means at any given time. Do not hand-roll the `mc_batch.sh` invocation
+below from memory; call the wrapper instead:
 
 ```bash
 cd /home/emerson/interceptor-sim
-export S2_CUE_MOCK_EXTRA="--sigma-range --datum-bias-m 0.5 --latency-jitter-s 0.05 --dropout-markov --emit-velocity --vel-sigma 0.5"
-scripts/mc_batch.sh --laws pursuit,pronav --speeds 9 --directions both \
-  --path line --geometry standard --n 8 --y0-mag 29.3 --x0 6.5 --master-seed 42 \
-  --extra-args "--dash-speed 16 --early-handoff --cue-velocity --dash-unclamp" \
-  --out logs/mc_ARMNAME.csv > logs/mc_ARMNAME_stdout.log 2>&1
+scripts/mc_deployment_arm.sh --path weave --n 16 --out logs/mc_ARMNAME.csv           # echo only (default): prints env + command
+scripts/mc_deployment_arm.sh --path weave --n 16 --out logs/mc_ARMNAME.csv --dry-run # mc_batch plan print, boots nothing
+scripts/mc_deployment_arm.sh --path weave --n 16 --out logs/mc_ARMNAME.csv --go      # actually fly (idle load only)
 ```
-- `--n` × number of `--laws` = flight count (both directions alternate within `--n`).
-- Maneuvers: `--path {line,weave,jink}` (jink is deterministic from the run seed).
-- Sideways sign channel: `--geometry oblique_close --west-angle-deg 45 --x0 90` (needs the
-  big `--x0`; **its target vx is NEGATIVE** — mc_batch passes `--target-vel=` attached, do
-  not "fix" that to a space).
-- ALWAYS `--dry-run` first to confirm the flight count and (for oblique) the runway check.
+- `--path {line,weave,jink}`, `--n N`, `--master-seed S` (default 42), `--speeds V` (default
+  12), `--out logs/NAME.csv`. `--force` overrides the idle-load gate.
+- The wrapper sets the markerless flight env (`MC_WORLD`, `MC_TARGET_MODEL`, `MC_SEEKER`,
+  `MC_VENV_PYTHON`, `MARKERLESS_NN_WEIGHTS`) and the realistic-cue env
+  (`S2_CUE_MOCK_EXTRA`) itself — do not set these by hand for a deployment arm, and do not
+  copy the extra-args string out of the wrapper into a separate `mc_batch.sh` call; call the
+  wrapper.
+- It already refuses to run with a leftover `models/mono_cam` up-tilt shadow, refuses a
+  second sim, and gates on 1-min loadavg — see its header for the full safety-rail list.
+- `--n` × number of laws in the wrapper's fixed `--laws pronav` = flight count (both
+  directions alternate within `--n`). Maneuvers: `--path {line,weave,jink}` (jink is
+  deterministic from the run seed).
+- For a **non-deployment** arm (a different law/geometry/extra-args combo the wrapper
+  doesn't cover — e.g. a pursuit comparator, or `--geometry oblique_close`), call
+  `scripts/mc_batch.sh` directly and mirror the wrapper's env/argv by hand; sideways sign
+  channel needs the big `--x0` and **its target vx is NEGATIVE** — mc_batch passes
+  `--target-vel=` attached, do not "fix" that to a space.
+- ALWAYS `--dry-run` first (wrapper or raw `mc_batch.sh`) to confirm the flight count and
+  (for oblique) the runway check.
 
 ## The gate loop (per arm, sequential — NEVER two arms at once)
 
-1. **Launch** the arm as a tracked background command (just the `mc_batch.sh` line — no
-   trailing `&`, no `nohup`; a trailing `&` + run_in_background makes the *launcher* return
-   exit-0 immediately while the batch runs on, misreading it as done). You get notified when
-   the batch process itself exits.
+1. **Launch** the arm as a tracked background command (just the `mc_batch.sh` line, or the
+   `scripts/mc_deployment_arm.sh ... --go` line for a deployment arm — no trailing `&`, no
+   `nohup`; a trailing `&` + run_in_background makes the *launcher* return exit-0
+   immediately while the batch runs on, misreading it as done). You get notified when the
+   batch process itself exits.
 2. **Wait** for completion by grepping the stdout log for the sentinel `Batch complete`.
    **CRITICAL — the self-kill footgun:** any waiter/health command whose argv contains a
    sim-process pattern (`px4`, `gz sim`, `sitl`, `bin/px4`) will be killed by mc_batch's own

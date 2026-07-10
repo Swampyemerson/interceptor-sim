@@ -11,7 +11,7 @@ __pycache__/
 logs/*
 *.ulg
 
-# Audit 2026-07-10 finding H1 (docs/audit_deep_2026-07-10.md): the tiny
+# Audit 2026-07-10 finding DEEP-H1 (docs/audit_findings_tracker.md): the tiny
 # aggregate result CSVs the README/ADRs cite as evidence are COMMITTED so the
 # published numbers survive disk loss. Big per-tick flight CSVs, ulogs, sim
 # logs, and images stay ignored — only these small aggregates are re-included.
@@ -68,9 +68,12 @@ demo_out/*
 .idea/
 .DS_Store
 .session-started
-runs/ + training artifacts
+
+# runs/ + training artifacts
 scripts/seeker/runs/
 scripts/seeker/weights/yolo11n.pt
+# Root-level demo copy of the base weights (never stage — NEXT.md rule, now self-enforcing)
+/yolo11n.pt
 !logs/m4_intercept_pronav_20260709T232337Z.csv
 !logs/m4_intercept_pronav_20260709T232447Z.csv
 !logs/m4_intercept_pronav_20260709T232556Z.csv

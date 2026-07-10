@@ -19,6 +19,36 @@ From `~/PX4-Autopilot` (v1.17.0):
 - Background launches MUST hold stdin open: `setsid bash -c "cd ~/PX4-Autopilot && tail -f /dev/null | env <vars> make px4_sitl gz_x500_mono_cam" > log 2>&1 &` (check_m3.sh:117 pattern). A /dev/null stdin makes the pxh console re-print its prompt in a tight loop — 21 GB of "pxh> " in an hour (2026-07-08).
 - `gz topic -e` in scripts: ALWAYS bound with `-n <count>` — `timeout` alone wedges (gz is a Ruby wrapper; TERM hits the wrapper, the real echoer keeps the pipe open and a command substitution never sees EOF).
 
+## Launch (headless) — markerless world (the deployed config since ADR-0058)
+The apriltag world above is the AprilTag-fiducial baseline. The **adopted deployment
+config flies the markerless (NN) seeker instead** — `worlds/markerless.sdf`, a tag-less
+target body, world/target env set to match. The exports below mirror
+`scripts/mc_deployment_arm.sh` (the canonical wrapper for an mc_batch deployment arm —
+prefer it for an actual batch; use the standalone launch line below only for a manual/debug
+boot outside mc_batch):
+
+    export MC_WORLD="markerless"
+    export MC_TARGET_MODEL="fpv_target_markerless"
+    export MC_SEEKER="markerless"
+    export MC_VENV_PYTHON=~/interceptor-sim/.venv-seeker/bin/python
+    export MARKERLESS_NN_WEIGHTS=~/interceptor-sim/scripts/seeker/weights/drone_finetuned_v2.onnx
+    PX4_GZ_WORLD=markerless GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models HEADLESS=1 make px4_sitl gz_x500_mono_cam
+
+- `worlds/markerless.sdf` needs the same symlink treatment as `apriltag.sdf` (into
+  `~/PX4-Autopilot/Tools/simulation/gz/worlds/`) before `PX4_GZ_WORLD=markerless` resolves.
+- `mc_batch.sh` does this translation itself: it reads `MC_WORLD` (default `apriltag`) and
+  passes it straight through as `PX4_GZ_WORLD` on its internal launch line — so setting
+  `MC_WORLD=markerless` (as `mc_deployment_arm.sh` does) is sufficient for a batch; the
+  `PX4_GZ_WORLD=markerless` line above is only for launching PX4/Gazebo by hand.
+  `MC_TARGET_MODEL`/`MC_SEEKER` are consumed by `mc_batch.sh` and `m4_intercept.py`, not by
+  the `make` line itself.
+- `MARKERLESS_NN_WEIGHTS` must point at the deployed weights (`drone_finetuned_v2.onnx`,
+  v2 — v3 is a closed honest NULL, ADR-0061; do not point this at a v3 checkpoint).
+  `MC_VENV_PYTHON` must be the seeker venv (`.venv-seeker`), which is CPU-only torch — see
+  memory note on that venv.
+- Topics live under `/world/markerless/...` on this world (mirror the apriltag-world
+  rediscovery note below with `gz topic -l` if names change).
+
 ## Verify it is up
 - Boot-complete line to grep for: `Startup script returned successfully`.
 - CAUTION: "Ready for takeoff!" only prints AFTER a GCS/MAVSDK link connects —

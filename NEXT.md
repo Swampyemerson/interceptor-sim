@@ -11,23 +11,33 @@ are collapsed into DONE; nothing was lost, the ADRs hold every story.)*
 The mission (GOALS.md) is a portfolio piece proving the guidance+vision core
 with reproducible, logged numbers. Six steps, in value order:
 
-1. **Statistics (#33, RUNNING).** Finish the n=72 fresh post-FIX-A weave
-   campaign → the defensible headline "Pk ≥ 95% (95% CI)" — or the honest
-   number it actually yields. This is the resume line's statistical backbone.
+1. ✅ **DONE — Statistics (#33).** Fresh post-FIX-A weave n=72 landed:
+   **Pk@2.8 m 72/72 = 95.0% CI-LB** (the ≥95%-CI bar cleared), **Pk@2.5 m
+   71/72 = 98.6%** point / 92.5% CI-LB (ADR-0064, `d81e046`). The resume
+   line's statistical backbone is set.
 2. **The demo (T25).** Assemble + render the Phase-2 demo video — the single
    most visible portfolio artifact. Tooling is assemble-ready (9302483,
    715ce85); the builder's stated precondition (v3 eval complete) is MET
-   (ADR-0061). Needs builder go-confirm; GPU render slot between/after #33 chunks.
-3. **The perception lever (#40 mount-compose → #35 up-tilt A/B).** The one
-   open engineering lever that is now LOAD-BEARING TWICE: nominal dash
-   acquisition (ADR-0060 — ~35% of dash ticks the target is above the FoV)
-   AND comms-denied recovery (ADR-0059 recovery NULL — binding constraint is
-   onboard perception at 15–21 m, not guidance). Outcome either un-HOLDs
-   recovery (huge) or honestly documents the limit. Either is portfolio-good.
+   (ADR-0061). Needs builder go-confirm; GPU render slot is now the first
+   free sim-queue item (#33 is DONE — see below).
+3. **The perception lever (#35 up-tilt A/B, standalone → #40 mount-compose,
+   gates the compensated terminal-miss).** The one open engineering lever
+   that is now LOAD-BEARING TWICE: nominal dash acquisition (ADR-0060 — ~35%
+   of dash ticks the target is above the FoV) AND comms-denied recovery
+   (ADR-0059 recovery NULL — binding constraint is onboard perception at
+   15–21 m, not guidance). Outcome either un-HOLDs recovery (huge) or
+   honestly documents the limit. Either is portfolio-good. **Scope split
+   (ADR-0062 boundary note, #40 follow-up 1):** #35's acquisition metrics
+   (first-detection range) fly standalone and are RUNNING NOW; #40's
+   mount-compose is only needed to trust the *compensated terminal-miss*
+   number once FIX-A's derotation must account for a non-zero mount tilt —
+   it does not block #35's acquisition result.
 4. **Correctness closure (#44, #40 remainder, #43 remainder).** Drive the
    audited known-bugs list to fixed-or-ADR'd — no silent known defects.
-5. **Honesty hardening (#42 + handoff-streak tests).** Close the two sharpest
-   honesty-infrastructure gaps (DEEP-N1, DEEP-H2) → interview-proof boundary.
+5. **Honesty hardening (DEEP-H2 handoff-streak tests).** ✅ #42/DEEP-N1 FIXED
+   (`84eb756`, tracker `c497468`) — the seeker-side AST no-gt scan is
+   committed. Remaining: DEEP-H2 handoff-streak state-machine unit tests →
+   interview-proof boundary.
 6. **Publish (BUILDER).** GitHub remote (private first → public after a
    claims scrub), LICENSE, CI on `scripts/run_tests.sh`; order the Stage-0
    cart (~$257) for the hardware arc. Until a remote exists the entire
@@ -71,7 +81,19 @@ tracked-or-accepted; repo publishable on a remote.
   `scripts/experiments/uptilt_ab_analyze.py`), the #33 sizing script
   (`scripts/stats_hardening_options.sh`), the #30 blur evidence
   (`scripts/experiments/logs/blur_replay_sample.csv`).
-  **Never stage:** `yolo11n.pt`, `.claude/settings.local.json`.
+  **Never stage:** `yolo11n.pt`. **Verify-removed:** `models/mono_cam` — the
+  #35 sweep's shadow symlink; confirm it's gone once the up-tilt chain
+  finishes (or run `scripts/uptilt_ab_arm.sh --cleanup`) before trusting any
+  *other* batch's world. `.claude/settings.local.json` **IS git-tracked**
+  (`4f098b7`) — the real rule is commit permission drift separately and
+  deliberately, never bundled into a task commit.
+- **2026-07-10 doc declutter (ADR-0066):** retired 9 non-load-bearing
+  portfolio/one-off docs (`docs/{interviewer_prep,portfolio_bullets,
+  portfolio_visuals,WRITEUP,audit_deep_2026-07-10,audit_forward_2026-07-10,
+  audit_pipeline_frames_2026-07-10,overnight_report_2026-07-10,
+  review_track_fix_delta_20260709}.md`) to git history — findings live in
+  `docs/audit_findings_tracker.md` + the ADRs; portfolio material
+  regenerates at project end by a dedicated agent. Recoverable at `e6f06d3`.
 - **No git remote exists** — "push" is impossible; remote setup is a builder
   decision (account + public/private). Recommendation logged in THE PLAN §6.
 
@@ -102,44 +124,47 @@ tracked-or-accepted; repo publishable on a remote.
 ## 🔨 BUILD QUEUE
 
 ### Sim queue (serialized, idle load, one at a time)
-1. **#33 chunks 2–5** — Pk campaign to n=72 fresh post-FIX-A weave (the
-   headline stat). Verdict with Wilson/CP CI + honest language at whatever n
-   lands.
-2. **T25 demo video render** — first free GPU/sim slot, builder go-confirm;
+1. **T25 demo video render** — first free GPU/sim slot, builder go-confirm;
    the top portfolio artifact; feature the regimes that genuinely hold
    (ADR-0056 framing), HUD sensor-attribution anti-jam money shot; audit
    frames after render (`scripts/video/t25_render_plan.md`).
-3. **[m4 window — between batches] #40 FIX-A follow-ups** — uptilt
-   mount-compose FIRST (it blocks #35: FIX-A assumes zero mount tilt), then
-   gate derotation, M7 slant-range, attitude CSV cols, FIX-B tuning gate.
-4. **#35 up-tilt mount A/B** — load-bearing twice (see PLAN §3); harness
-   pre-drafted on disk; A/B n≥16 paired vs the ~5 m maneuver noise floor.
-5. **[m4 window] #44 ψ/β time-alignment (P-M6)** — detection-latency × yaw
+2. **[m4 window — between batches] #40 FIX-A follow-ups** — uptilt
+   mount-compose (gates the *compensated terminal-miss* number once #35
+   picks a mount angle; does NOT block #35's acquisition metrics, which fly
+   standalone — ADR-0062 boundary note), then gate derotation, M7
+   slant-range, attitude CSV cols, FIX-B tuning gate.
+3. **#35 up-tilt mount A/B — RUNNING NOW** (see CURRENT) — load-bearing
+   twice (see PLAN §3); acquisition metrics fly standalone, no #40
+   dependency; harness pre-drafted on disk; A/B n≥16 paired vs the ~5 m
+   maneuver noise floor.
+4. **[m4 window] #44 ψ/β time-alignment (P-M6)** — detection-latency × yaw
    LOS bias; distinct from FIX-A (time-alignment, not rotation); bites under
    yaw acceleration = exactly the maneuver regime. Then its A/B.
-6. **#32 r_hat honesty campaign** — aspect/bias/freeze probes + the G5
+5. **#32 r_hat honesty campaign** — aspect/bias/freeze probes + the G5
    vertical probe (FWD-C4) pinned into its arm list.
-7. **#43 remainder** — sim-gated `--epoch-t0` shared co-start + P-NEW1 RTF
+6. **#43 remainder** — sim-gated `--epoch-t0` shared co-start + P-NEW1 RTF
    sensitivity pass (the "biggest unexamined item"; sim-free half DONE c724347).
-8. **NEW (needs task #): G8 clutter/decoy-world batch** (DEEP-P7/FWD-C5) —
+7. **NEW (needs task #): G8 clutter/decoy-world batch** (DEEP-P7/FWD-C5) —
    the adopted gate radii have only ever seen one empty world; scopes the
    "0/155 false detections" headline.
 
 ### Sim-free lane (parallel, anytime — safe during batches)
-- **#34 ADR half: write the flight-compute ADR** — council verdict (Pi 5 +
-  Hailo, bench-gated) sits only in `docs/overnight_report_2026-07-10.md`;
-  agent-doable NOW; unblocks Stage-2 buying decisions. (Cart order itself =
-  builder, below.)
-- **#42 honesty AST scan parametrized over live seeker modules** (DEEP-N1,
-  sharpest honesty gap) — new test file in `tests/`, safe during batches.
 - **NEW (needs task #): handoff-streak state-machine unit tests** (DEEP-H2) —
   AST-pin tightening now (sim-free); `update_handoff_streak()` extraction is
   an m4-window item (mirror the FIX-B pattern).
 - **Publish prep:** LICENSE recommendation (MIT) + CI workflow on
   `run_tests.sh` — write ready-to-commit, activate when the remote exists.
-- **Audit-backlog grooming** (tracker §4, 51 untracked): FWD-B5 HMAC cue-auth
-  ADR draft (design only); FWD-B1 salvo-correlation $0 desk probe; small doc
-  residue (DEEP-P1, DEEP-R2, P-commitsD/E).
+- **Audit-backlog grooming** (tracker §4/§5 — UNTRACKED down to **27**, from
+  the original 51 at first writing; DEEP-P1/P-commitsD/P-commitsE are
+  already FIXED, not residue): FWD-B5 HMAC cue-auth ADR draft (design only);
+  FWD-B1 salvo-correlation $0 desk probe (both already TRACKED, sitting
+  here). Top still-UNTRACKED per §4: DEEP-N2 (m4-side honesty-check scope —
+  widen the AST gt-checks to attribute-form, mirroring #42), FWD-B2
+  (own-ship GNSS denial — same fail-closed class as ADR-0059, undocumented),
+  FWD-B4 (no stacked-WORST regression arm). **DEEP-R2 remainder** (PARTIAL:
+  ADR-0060 pitch numbers need a `dash_pitch_probe.py --dump-summary-csv`
+  re-run + commit) is real work but m4-window, not this-lane-safe (script
+  execution).
 
 ### Builder decisions pending (surface when he's back — do NOT block on these)
 1. **Order the Stage-0 cart** (~$257, #34; `docs/stage0_bench_plan.md`).

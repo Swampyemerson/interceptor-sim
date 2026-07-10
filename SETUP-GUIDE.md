@@ -22,7 +22,7 @@ In WSL at `~/interceptor-sim` (Windows mirror in your Downloads > Simulation Wor
 - **GOALS.md** - what you are building and why.
 - **CLAUDE.md** - how Claude works, the model + council setup, your setup, and who it is helping (you).
 - **KICKOFF-PROMPT.md** - the full kickoff (the /go command runs this).
-- **.claude/skills/** - px4-gazebo, pronav, sim-milestone, sim-debug (used automatically). Built-in /code-review and /debug too.
+- **.claude/skills/** - px4-gazebo, pronav, sim-milestone, sim-debug, mc-batch (used automatically). Built-in /code-review and /debug too.
 - **.claude/agents/** - the Sonnet worker, decision council, and verifier.
 
 ## Handy things to know

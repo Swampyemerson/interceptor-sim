@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """PRE-REGISTERED verdict script for the ADR-0059 comms-denied jam Monte-Carlo
 (task #31). Written 2026-07-10, BEFORE any jam arm flew, per the overnight audit
-(docs/audit_forward_2026-07-10.md section 1, "jam MC: GO to fly, NO-GO to
-conclude without a pre-registered verdict script").
+(forward-audit §1, "jam MC: GO to fly, NO-GO to conclude without a
+pre-registered verdict script" — dispositions in docs/audit_findings_tracker.md;
+the source report was retired to git history, ADR-0066).
 
 Scores the four paired arms produced by scripts/mc_jam_arm.sh (master-seed 42,
 n=16, identical geometry; the ONLY differences are the cue cutoff and whether
@@ -459,7 +460,7 @@ def main():
     print("=" * 78)
     print("check_jam_mc.py -- PRE-REGISTERED verdict, ADR-0059 comms-denied jam MC")
     print("Pre-registered 2026-07-10 BEFORE any arm flew "
-          "(docs/audit_forward_2026-07-10.md section 1).")
+          "(forward-audit §1; see docs/audit_findings_tracker.md, ADR-0066).")
     print("SCOPE: speed-12 / gate-8 ONLY. At low target speed the frozen cue")
     print("stays inside the 8 m gate and the fail-closed witness silently fails")
     print("to bite -- do NOT generalize a CLOSED verdict beyond this point.")

@@ -86,7 +86,8 @@ undisclosed mock is the fastest way to look naive.
    the top, an architecture diagram (DASH→HANDOFF→ENGAGE phase + data flow), keep
    the honesty section above the results, embed the video/GIF.
 3. **The demo video** (above).
-4. **Technical writeup** `docs/WRITEUP.md` — the guidance-ladder story + LOS-rate
+4. **Technical writeup** `docs/WRITEUP.md` *(retired 2026-07-10, ADR-0066; regenerated at
+   project end by a dedicated agent, recoverable at git hash `e6f06d3`)* — the guidance-ladder story + LOS-rate
    primer + frames + the two-stage architecture + results + honest limitations +
    sim-to-real gap. This is the interview-defense script (pre-answer "why N=5",
    "why ENU/FRD", "what does the tag hide", "what breaks on real hardware").
@@ -127,7 +128,9 @@ video, cross-linked, one LinkedIn post.
       "PROXIMITY FUSE — DETONATE" overlay.** MUST be honest: pair the label with the
       real trigger number (e.g. "CPA 1.06 m < 1.5 m lethal radius") so it reads as the
       ratified proximity/lethal-radius criterion being met (ADR-0025), NOT a modeled
-      detonation (the sim has no collision/blast — keep the README/WRITEUP disclosure).
+      detonation (the sim has no collision/blast — keep the README/WRITEUP disclosure;
+      WRITEUP retired 2026-07-10, ADR-0066, regenerated at project end, recoverable at
+      `e6f06d3`).
       A brief stylized flash is fine if clearly the criterion, not a physics explosion.
 
 **Now (ungated, safe to build against validated numbers/tooling):**
@@ -143,7 +146,9 @@ video, cross-linked, one LinkedIn post.
       Validate against an existing clean pronav log.
 - [ ] Build the honest lethal-radius kill graphic + top-down closest-approach plot
       (ring at ADR-0025 radius + CPA marker + miss).
-- [ ] Draft `docs/WRITEUP.md` skeleton by assembling existing docs + ADRs.
+- [ ] Draft `docs/WRITEUP.md` skeleton by assembling existing docs + ADRs. *(`docs/WRITEUP.md`
+      retired 2026-07-10, ADR-0066; regenerated at project end by a dedicated agent,
+      recoverable at git hash `e6f06d3`.)*
 - [ ] Lock the resume line + quantified bullets; add the README recruiter TL;DR +
       architecture diagram.
 
