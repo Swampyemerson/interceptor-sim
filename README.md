@@ -194,9 +194,13 @@ method, denominators, and honesty notes: **ADR-0064**.
 >
 > So "works comms-denied" **stays HELD**, everywhere in this project's
 > materials including the resume bullets — but the open lever is now
-> perception, not guidance or the handoff logic. That lever is live work: the
-> fixed up-tilt camera mount A/B (**task #35**, running now) and the
-> adaptive/active-tilt design idea (**ADR-0065**) both attack this exact gap.
+> perception, not guidance or the handoff logic. That lever's first probe is
+> FLOWN: the fixed up-tilt mount A/B (**task #35, ADR-0067**) closed the
+> dash-FoV gap (above-FoV ticks 32% → 0%) but bought only +2–3 m paired
+> acquisition and a dose-dependent uncompensated terminal cost — **no mount
+> adopted**; the live path is #40 mount-compose (compensation → terminal
+> re-fly → tilted recovery re-test) and the adaptive-tilt design idea
+> (**ADR-0065**, task #46), whose case this result strengthened.
 
 Two more design-review products, included as evidence the sim is audited
 rather than trusted: **(1) the camera-pitch finding (ADR-0060, measured from
@@ -208,8 +212,9 @@ threads a 0–6° sliver from the top edge with essentially zero vertical
 margin. The naive intuition ("a pitched-down camera looks below the target"
 → wrong direction) was inverted by measurement, and the sim *under*-states
 the real-hardware gap (a real drag-limited quad holds that pitch all cruise
-long). Remedy: a fixed up-tilted camera mount — an airframe design decision
-now feeding the hardware path. **(2) the sim-to-real design review itself**
+long). Remedy candidate: an up-tilted camera mount — the #35 A/B (ADR-0067)
+confirmed it closes the FoV gap but left adoption gated on #40 mount-compose
+(the uncompensated tilt costs terminal accuracy dose-dependently). **(2) the sim-to-real design review itself**
 ([`docs/design_review_sim_to_real_2026-07-10.md`](docs/design_review_sim_to_real_2026-07-10.md)):
 ranked gaps with the load-bearing assumption named for each, a real-world
 variable table where every row maps to a bench-measurable quantity, and a
@@ -482,7 +487,9 @@ ADR-0059) — and the staleness fix is validated FAIL-SAFE, not recovery; a
 dedicated recovery arm came back an honest NULL, perception-bound (coast-
 search engaged but could not reacquire at 15–21 m). "Works comms-denied"
 stays HELD; see the comms-denied status box in the results section for the
-full picture and the open perception lever (#35, ADR-0065).)* Why it
+full picture and the open perception lever (#40 mount-compose → tilted
+recovery re-test, then adaptive tilt #46/ADR-0065; the #35 fixed-mount A/B
+is flown, ADR-0067).)* Why it
 matters: a hover-start interceptor is kinematically capped at ~3 m/s against
 a crosser (S1, ADR-0011 addendum) — a genuinely uncatchable 6-10 m/s FPV
 target requires the running start the dash provides. Measured: turns an

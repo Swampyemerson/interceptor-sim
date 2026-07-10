@@ -40,7 +40,12 @@ with reproducible, logged numbers. Six steps, in value order:
 6. **Publish (BUILDER).** GitHub remote (private first → public after a
    claims scrub), LICENSE, CI on `scripts/run_tests.sh`; order the Stage-0
    cart (~$257) for the hardware arc. Until a remote exists the entire
-   evidence base has ZERO off-machine backup.
+   evidence base has ZERO off-machine backup. **Binding constraint on the
+   project-end portfolio regeneration (ADR-0066):** the retired portfolio
+   docs carried hard-won claim-scoping fixes (tracker rows FWD-A1/A2/A5/A6,
+   DEEP-P4/H3/H4 — comms-denied HELD, r² wording, superseded numbers);
+   regenerated material MUST re-apply those FIXED rows, not resurrect the
+   overclaims.
 
 **Definition of done:** headline stats flown+gated; demo rendered; every claim
 correctly scoped/HELD on every surface; audit backlog groomed to
@@ -138,15 +143,23 @@ tracked-or-accepted; repo publishable on a remote.
    derotation for a non-zero mount; #35 is FLOWN, ADR-0067 — compensation
    now gates the terminal re-fly at the candidate angle (up15), any mount
    adoption, AND the tilted recovery re-test), then gate derotation, M7
-   slant-range, attitude CSV cols, FIX-B tuning gate.
-3. **[m4 window] #44 ψ/β time-alignment (P-M6)** — detection-latency × yaw
+   slant-range, attitude CSV cols, FIX-B tuning gate. **PRE-REGISTER the
+   re-fly bar before it flies** (ADR-0067 addendum): paired n≥8 vs up00,
+   terminal-miss parity criterion, recovery reacquire count, `engBelow`
+   (up15's 12% is the worst arm — watch it), per-seed sign counts added to
+   `uptilt_ab_analyze.py`.
+3. **[conditional, after #40] #46 adaptive camera tilt sim A/B (ADR-0065)**
+   — pitch-following schedule vs the best fixed mount; strengthened by
+   ADR-0067 (fixed angle buys availability at a terminal price adaptive
+   scheduling would avoid); candidate to un-HOLD ADR-0059 recovery.
+4. **[m4 window] #44 ψ/β time-alignment (P-M6)** — detection-latency × yaw
    LOS bias; distinct from FIX-A (time-alignment, not rotation); bites under
    yaw acceleration = exactly the maneuver regime. Then its A/B.
-4. **#32 r_hat honesty campaign** — aspect/bias/freeze probes + the G5
+5. **#32 r_hat honesty campaign** — aspect/bias/freeze probes + the G5
    vertical probe (FWD-C4) pinned into its arm list.
-5. **#43 remainder** — sim-gated `--epoch-t0` shared co-start + P-NEW1 RTF
+6. **#43 remainder** — sim-gated `--epoch-t0` shared co-start + P-NEW1 RTF
    sensitivity pass (the "biggest unexamined item"; sim-free half DONE c724347).
-6. **NEW (needs task #): G8 clutter/decoy-world batch** (DEEP-P7/FWD-C5) —
+7. **NEW (needs task #): G8 clutter/decoy-world batch** (DEEP-P7/FWD-C5) —
    the adopted gate radii have only ever seen one empty world; scopes the
    "0/155 false detections" headline.
 

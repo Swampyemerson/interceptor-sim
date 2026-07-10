@@ -1480,7 +1480,7 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 
 ## ADR-0065 — DESIGN IDEA (builder, 2026-07-10): ADAPTIVE / active camera tilt — tilt the camera UP in the dash for an earlier lock, return toward horizon at dash-end. The upgrade over the FIXED up-tilt mount (#35), pointed straight at the ADR-0060 pitch gap and the ADR-0059 comms-denied recovery NULL.
 
-- **Context.** The dash pitches nose-down 27–36° (ADR-0060), throwing the horizon-level target ABOVE the fixed forward camera's FoV — ~35% of dash ticks the target is out of frame, and the first in-range detection threads a 0–6° top-edge sliver with ~zero vertical margin. The fixed up-tilt mount A/B (task #35, flying now) tests ONE compromise mount angle against this. And the comms-denied recovery NULL (ADR-0059 / task #39) failed for EXACTLY this reason: under a pre-acquisition cue jam the coast-search reached the basket but the camera never reacquired (10/16 flights, zero detections) — the binding constraint was PERCEPTION AVAILABILITY (target out of the down-pitched FoV), not guidance.
+- **Context.** The dash pitches nose-down 27–36° (ADR-0060), throwing the horizon-level target ABOVE the fixed forward camera's FoV — ~35% of dash ticks the target is out of frame, and the first in-range detection threads a 0–6° top-edge sliver with ~zero vertical margin. The fixed up-tilt mount A/B (task #35 — now FLOWN, ADR-0067: FoV gap closes but small paired gain + uncompensated terminal cost, no mount adopted) tests ONE compromise mount angle against this. And the comms-denied recovery NULL (ADR-0059 / task #39) failed for EXACTLY this reason: under a pre-acquisition cue jam the coast-search reached the basket but the camera never reacquired (10/16 flights, zero detections) — the binding constraint was PERCEPTION AVAILABILITY (target out of the down-pitched FoV), not guidance.
 - **The idea (builder's words, paraphrased).** Instead of a fixed mount, an **ADAPTIVE / active camera tilt**: tilt the camera UP during the dash to counter the nose-down pitch (keep the target framed → EARLIER lock), then return the camera toward horizon-level as the dash ends / the terminal begins (keep the target framed as the geometry flattens, "as best it can, given the airframe is still tilted"). It TRACKS the actual vehicle pitch across the trajectory, where the fixed mount can only pick one compromise angle.
 - **Options.** (A) **Fixed up-tilt mount** (#35) — simple, cheap, robust, no moving parts, one compromise angle (best at one point of the dash, wrong elsewhere). (B) **Adaptive / active tilt** — a servo-tilted camera or a small gimbal that follows the pitch; better coverage at BOTH the dash and the terminal; BUT adds weight, cost, power, actuation latency, a control loop, and a mechanical failure mode.
 - **Decision — DEFERRED, design-captured (not built).** Sequence: (1) finish the FIXED up-tilt A/B (#35) — it bounds the fixed-mount ceiling and is already flying; (2) if the fixed mount helps but isn't enough, **sim-test the adaptive schedule** — drive the camera pitch as a function of the vehicle pitch (or a scheduled ramp: up in dash → toward level at handoff) and re-fly the up-tilt-style A/B, reporting acquisition recovery (first_det_range_m, coverage, FoV margin) and, with the #40 mount-compose applied, the terminal miss. The adaptive tilt is a live **candidate to un-HOLD the comms-denied recovery** — it supplies the perception-availability the coast-search alone could not.
@@ -1553,3 +1553,17 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   scheduling would avoid.
 - **Date.** 2026-07-10. (Chain `bska471mo` up00/up25/up35 + prior up15; shadow
   symlink verified removed post-chain; analyzed same session, builder away.)
+- **Addendum (2026-07-10, same day — Fable review pass).** Two review catches folded
+  in: (1) **`engBelow` (engagement-below-FoV) was omitted from the result readout and
+  is NON-monotone:** up15 shows **12%** of engagement ticks with the target below
+  frame — the WORST of all four arms (up00 0%, up25 1%, up35 0%) — plausibly part of
+  the terminal-cost mechanism (tilting up loses the bottom of frame in the endgame)
+  and a point FOR adaptive tilt (ADR-0065). Carry `engBelow` into the #40 re-fly
+  metric set alongside miss/Pk. (2) **The −5.31 m baseline systematic is diagnosed,
+  not just flagged:** the old r2 baseline (`mc_t21_trackgate_weave12_r2.csv`) is
+  PRE-FIX-A — ADR-0064 already banned pooling with it for exactly this reason.
+  Formal consequence: **cross-era acquisition-range comparisons are INVALID**
+  project-wide; any acquisition claim must use within-sweep paired controls.
+  Also pre-register the #40 re-fly bar BEFORE it flies: paired n≥8 vs up00,
+  terminal-miss parity criterion, recovery reacquire count, `engBelow`, and add a
+  per-seed sign count to `uptilt_ab_analyze.py` (it currently prints medians only).
