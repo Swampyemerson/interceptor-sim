@@ -1,0 +1,96 @@
+# CI -- runs the project's one test entrypoint, scripts/run_tests.sh.
+#
+# Written 2026-07-10 ahead of the GitHub remote (NEXT.md publish prep); will
+# first run when the repo is pushed; expect one iteration of dependency
+# pinning on first real run.
+#
+# WHAT THIS DOES: recreates run_tests.sh's two-venv layout (.venv main suite,
+# .venv-seeker for the ONNX-parity tests, see scripts/run_tests.sh's own
+# header) inside the runner, then invokes run_tests.sh unmodified so CI
+# exercises the exact same command a developer runs locally.
+#
+# THE ONE NON-OBVIOUS DEPENDENCY (found while writing this, not assumed):
+# the suite is documented as "sim-free" (no Gazebo/PX4 boot, no display), and
+# that's true -- but two files (tests/test_breakoff_deadband.py,
+# tests/test_cue_staleness.py) `from m4_intercept import (...)` at module
+# scope, and m4_intercept.py unconditionally imports `gz.transport13` /
+# `gz.msgs10` and (transitively, via m2_detect.py/m3_static_intercept.py)
+# `apriltag_detector` -> `pupil_apriltags`. gz.transport13/gz.msgs10 are
+# NOT pip-installable (repo's own requirements.txt says so) -- they come
+# from the Gazebo Harmonic apt repo. Below installs just the two python
+# *binding* packages (no rendering/GUI/full gz-harmonic meta-package, no
+# display needed) and links them into .venv via --system-site-packages, the
+# same mechanism this repo's local .venv already uses (a gz_system.pth ->
+# /usr/lib/python3/dist-packages leak, per requirements.txt's own comment).
+#
+# OPEN RISKS (flagged, not hidden -- first real run may need to fix these):
+#   1. The apt-repo/keyring steps below were copied from this project's
+#      working WSL2 Ubuntu 24.04 ("noble") dev box and were NOT verified on
+#      an actual GitHub-hosted runner. If ubuntu-latest drifts off 24.04, or
+#      OSRF's keyring URL/package names change, this step is the first
+#      thing to fix. Fallback if it can't be made to work: deselect the two
+#      gz-importing files, e.g.
+#        .venv/bin/python -m pytest tests/ -q \
+#          --ignore=tests/test_breakoff_deadband.py \
+#          --ignore=tests/test_cue_staleness.py
+#      (that only drops pure-function unit tests that happen to import a
+#      flight script for two helpers; it does not skip anything that
+#      actually boots Gazebo/PX4 -- nothing in this suite does).
+#   2. `pupil-apriltags==1.0.4.post11` (requirements.txt) ships a compiled
+#      native wheel; it installs fine on this dev box (same OS/arch/Python)
+#      but manylinux wheel coverage can lag a new Python point release.
+#   3. This intentionally does NOT try to install PX4/Gazebo itself or run
+#      any sim -- those need a real display-less GL stack and are exactly
+#      the ADR-0009/ADR-0015 "one sim at a time, idle machine" work this
+#      repo already keeps off of shared CI runners.
+#
+# Reference: docs/decisions.md, GOALS.md ("headless, logged runs").
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Deliberately NOT actions/setup-python: the Gazebo apt packages below
+      # install python3-gz-transport13 against the runner's SYSTEM python3
+      # (Ubuntu 24.04 ships 3.12 by default already, matching this repo's
+      # dev venvs -- see .venv/pyvenv.cfg). A separately-provisioned
+      # setup-python interpreter would not see the apt-installed bindings.
+      - name: Check system Python version
+        run: python3 --version
+
+      - name: Install Gazebo Harmonic python bindings (apt, no GUI/render)
+        run: |
+          sudo curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
+            -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+            | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y python3-gz-transport13 python3-gz-msgs10
+
+      - name: Create .venv (main suite) and install deps
+        run: |
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: "Create .venv-seeker (ONNX parity: has onnxruntime + cv2) and install deps"
+        run: |
+          python3 -m venv .venv-seeker
+          .venv-seeker/bin/pip install --upgrade pip
+          .venv-seeker/bin/pip install \
+            numpy==2.5.1 \
+            opencv-python-headless==5.0.0.93 \
+            onnxruntime==1.27.0 \
+            pytest==9.1.1
+
+      - name: Run the test suite (scripts/run_tests.sh, unmodified)
+        run: bash scripts/run_tests.sh -v
