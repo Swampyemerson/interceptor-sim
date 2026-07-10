@@ -170,13 +170,20 @@ tracked-or-accepted; repo publishable on a remote.
      CHASE camera (2nd render) was the culprit → capture ONBOARD-ONLY on the
      plain `markerless` world (render plan §A, RESOLVED). demo_out is gitignored
      (regenerable) — footage is local.
+   - **DONE: the TILT shot (element 1).** up15 dash footage captured (onboard-only,
+     clean, miss 1.979 m; first-det 16.9 m vs up00 12.4 m — the availability win
+     visible in the demo itself). Built `scripts/video/make_tilt_ab_card.py` — a
+     matched-15 m-range LEVEL vs UP-TILT A/B card (`demo_out/t25/shot3b_tilt_ab.png`),
+     framed as NOMINAL availability (32%→0% above-FoV, ADR-0067 arm stat), NOT
+     recovery (Stage-2 NULL). Now shot 3b in the cut → **22.7 s partial**
+     (shots 0/3/3b/4/5/6/8).
    - **STILL OPEN for the full render:** shots 1–2 (ground-stereo — §B compositor
-     ~half-day, NOT built); shot 7 (chase — separate lighter pass, do NOT run
-     concurrent with the onboard hero); the NEW tilt shot (nominal availability
-     A/B — needs its own capture; frame it as availability, NOT recovery, per the
-     ADR-0068 Stage-2 NULL). Storyboard `docs/t25_storyboard.md`, plan
+     ~half-day, NOT built, needs a rig capture); shot 7 (chase — separate lighter
+     pass, do NOT run concurrent with the onboard hero — the 2nd rendered camera
+     is what perturbs the flight). Storyboard `docs/t25_storyboard.md`, plan
      `scripts/video/t25_render_plan.md`. Builder decision worth surfacing: build
-     the §B compositor + tilt capture now, or ship the interception-core cut?
+     the §B stereo compositor for the full ~60 s cut, or ship the current
+     interception-core + tilt version?
 2. **#40 mount-compose RE-FLY — FLOWN; Stage-1 verdict FAIL on strict parity
    (ADR-0068 addendum, `bfdb86e`).** up15-compensated worse on 7/8 seeds
    (median +0.16 m) → NO fixed +15° mount adoption. BUT compensation WORKS:
