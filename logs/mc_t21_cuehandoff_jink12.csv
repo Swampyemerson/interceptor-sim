@@ -1,1 +1,0 @@
-run_idx,law,target_vx,target_vy,target_start_y,cue_seed,miss_m,clean,handoff,handoff_range_m,handoff_t_s,first_det_range_m,coverage,breakoff_reason,flight_csv_path,config,direction,target_start_x,py_exit_code,sim_log_path,run_log_path,path,geometry,path_seed
