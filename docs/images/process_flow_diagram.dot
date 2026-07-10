@@ -1,0 +1,44 @@
+// Counter-UAS Interceptor — Operational Process Flow
+// Render:  dot -Tsvg process_flow_diagram.dot -o process_flow_diagram.svg
+//          dot -Tpng -Gdpi=150 process_flow_diagram.dot -o process_flow_diagram.png
+digraph ProcessFlow {
+  rankdir=TB;
+  bgcolor="white";
+  fontname="DejaVu Sans";
+  labelloc="t"; fontsize=20;
+  label=<<b>Counter-UAS Interceptor &#8212; Operational Process Flow</b><br/><font point-size="11" color="#555555">Ground-standby &#8594; launch-on-detect &#8594; mid-course dash &#8594; one-way handoff &#8594; camera-only terminal intercept</font>>;
+  nodesep=0.45; ranksep=0.5;
+  node [fontname="DejaVu Sans", fontsize=11, shape=box, style="rounded,filled", fillcolor="#eceff1", color="#37474f", penwidth=1.4, margin="0.20,0.12"];
+  edge [fontname="DejaVu Sans", fontsize=9, color="#455a64", penwidth=1.3, arrowsize=0.8];
+
+  start     [label="Ground standby\n(armed, on the pad)", shape=ellipse, fillcolor="#e3f2fd", color="#1565c0"];
+  detect    [label="Ground stereo rig detects a threat\n(single target — the interceptor is grounded,\nso no drone-vs-drone discrimination yet)"];
+  dconf     [label="Detection\nconfident?", shape=diamond, fillcolor="#fff9c4", color="#f9a825", margin="0.05,0.02"];
+  launch    [label="LAUNCH ON DETECT\nmax-speed climb-out", fillcolor="#e8f5e9", color="#2e7d32"];
+  dash      [label="Mid-course dash\nground stereo owns custody\ncue = range + velocity, fixed-weight fuse"];
+  jam       [label="Cue stale /\njammed?", shape=diamond, fillcolor="#ffcdd2", color="#c62828", margin="0.05,0.02"];
+  coast     [label="Coast on last track + own camera\nfusion ignores cue bearing by construction\n(comms-denied fallback)", fillcolor="#fff3e0", color="#e65100"];
+  acq       [label="Onboard camera acquisition\nmarkerless NN + CSRT tracker"];
+  tvalid    [label="Camera track\nvalid & consistent?", shape=diamond, fillcolor="#fff9c4", color="#f9a825", margin="0.05,0.02"];
+  reacq     [label="Re-acquire\ngate out the interceptor's own\n(downlinked) position"];
+  latch     [label="◆ ONE-WAY HANDOFF LATCH ◆\ncue reader destroyed\n0 post-handoff cue reads", shape=box, style="filled,bold", fillcolor="#fff3e0", color="#e65100", fontcolor="#bf360c", penwidth=2.4];
+  terminal  [label="Terminal phase\nCAMERA-ONLY proportional navigation (N=5)\ndrive line-of-sight rate → 0", fillcolor="#e8f5e9", color="#2e7d32"];
+  intercept [label="INTERCEPT\n(proximity / miss distance logged)", shape=ellipse, fillcolor="#c8e6c9", color="#2e7d32", penwidth=2.0];
+
+  start -> detect -> dconf;
+  dconf -> detect [label="no — keep scanning", style=dashed, color="#9e9e9e", fontcolor="#9e9e9e", constraint=false];
+  dconf -> launch [label="yes", fontcolor="#2e7d32"];
+  launch -> dash -> jam;
+  jam -> coast [label="yes (worst tier)", fontcolor="#c62828"];
+  jam -> acq [label="no"];
+  coast -> acq;
+  acq -> tvalid;
+  tvalid -> reacq [label="no", style=dashed, color="#e65100", fontcolor="#e65100"];
+  reacq -> acq [style=dashed, color="#e65100", constraint=false];
+  tvalid -> latch [label="yes", fontcolor="#2e7d32"];
+  latch -> terminal -> intercept;
+
+  // footnote
+  note [label="Honesty: gt_* is scoring/logging only, never a guidance input.  Comms-denied recovery is HELD (ADR-0059):\nthe latch defeats a post-handoff jam, but a PRE-acquisition jam is perception-limited (up-tilt mount + far-range detector are the levers).", shape=note, style="filled,dashed", fillcolor="#fafafa", fontcolor="#616161", color="#9e9e9e", fontsize=9];
+  intercept -> note [style=invis];
+}
