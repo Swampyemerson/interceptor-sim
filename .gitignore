@@ -5,9 +5,30 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Simulation logs & artifacts (regenerable; analyze from logs/ locally)
-logs/
+# Simulation logs & artifacts (regenerable; analyze from logs/ locally).
+# `logs/*` NOT `logs/`: git cannot re-include (`!`) a path inside a fully
+# ignored directory, and the audited evidence exceptions below need it.
+logs/*
 *.ulg
+
+# Audit 2026-07-10 finding H1 (docs/audit_deep_2026-07-10.md): the tiny
+# aggregate result CSVs the README/ADRs cite as evidence are COMMITTED so the
+# published numbers survive disk loss. Big per-tick flight CSVs, ulogs, sim
+# logs, and images stay ignored — only these small aggregates are re-included.
+!logs/mc_final_*.csv
+!logs/mc_t21_*.csv
+!logs/mc_realistic_*.csv
+# M3 gate evidence (README/PROGRESS: standoff err 0.018 / 0.035 m)
+!logs/m3_intercept_20260705T000619Z.csv
+!logs/m3_intercept_20260705T000818Z.csv
+# M4 gate evidence (README/PROGRESS: pronav 0.402/0.277/0.443 m vs
+# pursuit 2.544/2.109/2.048 m, three paired gate runs)
+!logs/m4_intercept_pronav_20260705T032238Z.csv
+!logs/m4_intercept_pronav_20260705T032528Z.csv
+!logs/m4_intercept_pronav_20260705T033250Z.csv
+!logs/m4_intercept_pursuit_20260705T032138Z.csv
+!logs/m4_intercept_pursuit_20260705T032425Z.csv
+!logs/m4_intercept_pursuit_20260705T033147Z.csv
 
 # Regenerable analysis plots from mc_analyze.py (the committed plots/stereo_*.png are kept deliberately)
 plots/pk_vs_radius_*.png
