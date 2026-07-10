@@ -724,8 +724,10 @@ lethal-radius *criterion*, not a modeled collision).
 A shipped hero flight (ADR-0032): the exact ADR-0030 FIX config — running start
 + velocity-emission ground cue + dash-unclamp — flown under a **realistically
 degraded cue**, intercepting a 9 m/s crosser at **miss 0.632 m, clean, handoff
-latched** (`logs/m4_intercept_pronav_20260707T211601Z.csv`, consistent with the
-~1.19 m published mean for this config — run-to-run noise, both in range).
+latched** — shown in the demo (ADR-0032). *(This hero flight's per-tick log was
+not preserved on disk; the verifiable committed source for this config is the M5
+batch `logs/mc_final_all.csv` — ~1.19 m mean, ADR-0036 — so the 0.632 m hero
+sits within that distribution as run-to-run noise.)*
 
 This hero flight predates the markerless detect-then-track arc (ADR-0058). The
 next demo — ground-stereo detection through a 12 m/s weaving camera-only
