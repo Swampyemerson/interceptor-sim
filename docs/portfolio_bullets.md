@@ -1,8 +1,10 @@
 # Interceptor Sim — Interviewer-Facing Core
 
 *(Every number below traces to a gate script, an ADR in `docs/decisions.md`, or a
-CSV in `logs/`. Nothing here overclaims — the honest limitations are stated as
-part of the story. Updated 2026-07-10 for the post-M5 arcs: the markerless
+CSV in `logs/`. Written not to overclaim — the honest limitations are stated as
+part of the story, and these claims were swept by three adversarial audits
+(`docs/audit_findings_tracker.md`); judge that intent against the sources, not
+this sentence. Updated 2026-07-10 for the post-M5 arcs: the markerless
 seeker, the detect-then-track maneuvering terminal (ADR-0058), the real stereo
 pipeline spine (ADR-0045..0053), and the sim-to-real design review; r²/ZEM
 wording corrected 2026-07-10 (r² is variance explained, never "% of the miss" —
@@ -75,7 +77,9 @@ depend on a claim the project itself has put on HOLD are explicitly marked
 - **Replaced the mocked ground sensor with a real computed pipeline:** a
   rendered two-camera stereo rig → NN detection → live triangulation → real
   UDP link, with the interceptor flying on the **genuinely computed** cue
-  end-to-end (real cue tracks truth to **0.99 m median**) and the stereo range
+  end-to-end (real cue tracks truth to **0.99 m median** — a delivered-cue
+  figure that a measured epoch skew partially flatters; full decomposition in
+  `docs/t19_cue_error_decomposition.md`) and the stereo range
   error validated against the σ_R ∝ R² physics model across 50–160 m (measured
   exponent 2.003). *(ADR-0045..0053, `check_t19.sh` exit 0)*
 
@@ -222,8 +226,9 @@ depend on a claim the project itself has put on HOLD are explicitly marked
 > seeker started hallucinating at 12 m/s against a weaving target, I isolated
 > it with an AprilTag control, built a detect-then-track terminal, and took
 > phantom handoffs from twelve-in-sixteen to zero — fourteen-for-fourteen
-> camera-only intercepts, reported at three honesty levels so the flattering
-> number never stands alone. And when my own design review found that the
+> camera-only intercepts (that validation arm flew the scripted mock cue; the
+> computed stereo pipeline was proven end-to-end separately), reported at
+> three honesty levels so the flattering number never stands alone. And when my own design review found that the
 > anti-phantom config failed closed under a mid-dash jam, I put the
 > jam-resistance claim on hold, built the fix, and it's in validation now —
 > I'd rather show you the hole I caught than a number I can't defend."

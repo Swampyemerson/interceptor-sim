@@ -9,7 +9,10 @@ for quick viewing without regenerating anything.
 
 The produced cut is assembled offline (no Gazebo/GPU — the 700+ frames are already
 captured) by **`scripts/build_demo.py`** from the hero flight
-`logs/m4_intercept_pronav_20260707T211601Z.csv` (miss **0.632 m**). Run it with:
+`logs/m4_intercept_pronav_20260707T211601Z.csv` (miss **0.632 m**; that CSV was
+rotated off disk and never committed — the result is durably logged in the
+ADR-0032 addendum in `docs/decisions.md`, and the captured frames here are the
+surviving artifact). Run it with:
 
 ```
 .venv/bin/python scripts/build_demo.py          # onboard MP4+GIF + chase MP4
@@ -186,7 +189,9 @@ S2_CUE_MOCK_EXTRA="--sigma-range --datum-bias-m 0.5 --latency-jitter-s 0.05 --dr
 
 Same ADR-0030 FIX config + cue-seed 31 as the first hero capture (ADR-0032).
 Result: **miss_distance_m=0.632, clean=1, engaged=1, handoff=1**
-(`logs/m4_intercept_pronav_20260707T211601Z.csv`) — even better than the
+(`logs/m4_intercept_pronav_20260707T211601Z.csv` — since rotated off disk and
+never committed; the ADR-0032 addendum in `docs/decisions.md` is the durable
+record of this number) — even better than the
 first capture's 1.061 m, and consistent with ADR-0030/0031's published
 ~1.19 m mean for this config (run-to-run noise, both within range). CPA at
 `t_sim=20.528s`, `gt_range=0.6324`.

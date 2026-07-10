@@ -374,29 +374,30 @@ perception is the risk; the guidance already reproduces from logs. *(ADR-0012, A
 ADR-0033; `docs/stage0_bench_plan.md`)*
 
 ### 20. Your thesis is comms-denied intercept. Show me one flight where the link was jammed and the intercept completed. *(the ADR-0059 question)*
-There isn't one — and I'll say that before you find it. **No flown arm, in any configuration,
-has ever had the cue jammed**: every batch ran the cue mock full-duration (ADR-0059 is
-explicit about this). Here is exactly what *is* demonstrated versus what isn't.
-**Demonstrated:** the one-way handoff latch is real and structural — at the latch the UDP
-socket is closed and the holder nulled, so a jam *after* camera lock cannot touch the
-terminal; that's enforced by AST-level static tests and per-gate numeric audits. Strong
-evidence, but evidence *by construction* — a different kind than a flown jam.
-**Found by my own design review:** the adopted anti-phantom deployment config
-(`--track --handoff-cue-gate 8`) **fails closed** under a jam *before* camera acquisition —
-the anti-phantom gates compare against the last-received cue position, which freezes when the
-link dies, and within ~1 s the frozen reference rejects the *real* target. No phantom chase,
-but a mission kill in exactly the scenario the project exists to prove. The genuine tension:
-the default config hands off fine under jam but eats phantoms; the config that beats phantoms
-is the one that failed under jam. **Built, not yet flown:** a sim-time cue-staleness age-out
-with camera-only fallback (inert while the cue is fresh; 86 unit/honesty tests pass, including
-a regression witness that reproduces the frozen-cue failure and an anti-phantom check that the
-fallback doesn't re-admit the ~18 m phantom) plus a paired jam Monte-Carlo harness
-(`scripts/mc_jam_arm.sh`). **And the follow-up you should ask** — "so the one scenario the
-project exists to prove has never been demonstrated end-to-end?" — *correct.* I'd rather hand
-you that sentence myself. The claim is HELD project-wide until the jam batch lands; catching
-the hole in my own review, retracting the claim everywhere, and building the fix and the
-harness before flying it is the process this portfolio is actually selling. *(ADR-0059,
-ADR-0060; `docs/design_review_sim_to_real_2026-07-10.md`)*
+There isn't one — and I'll say that before you find it. **The jam Monte-Carlo has now flown
+(ADR-0059 RESULTS: 8 paired arms, n=16 each, link cutoffs at 15/18/22 m): no jammed flight in
+the adopted config completed a real intercept.** Here is exactly what *is* demonstrated versus
+what isn't. **Demonstrated:** (1) the one-way handoff latch is real and structural — at the
+latch the UDP socket is closed and the holder nulled, so a jam *after* camera lock cannot touch
+the terminal; enforced by AST-level static tests and per-gate numeric audits. (2) The
+fail-closed bug my own design review predicted is real, with a clean dose-response witness:
+real-ish handoffs collapse **12 → 2 → 0** as the jam moves pre-acquisition (15/18/22 m cutoffs)
+— the anti-phantom gates compare against the last-received cue position, which freezes when the
+link dies, and the frozen reference then rejects the *real* target. (3) The cue-staleness
+age-out fix is validated as **fail-SAFE, not recovery**: it eliminates being *fooled* into
+phantom-handoffs onto the dead cue (fooled ghost-handoffs 9→1 at 18 m, 5→0 at 22 m) and aborts
+cleanly — but net recovery is ~0–1 flight, within noise. (4) The recovery hypothesis (fix +
+`--coast-search` dead-reckon-and-sweep) was pre-registered, flown, and is an honest **NULL**
+(1/16 real-ish handoffs vs the pre-registered ≥11 bar) — coast-search engaged on every jam
+flight and still couldn't reacquire, so **the binding constraint is onboard perception at the
+15–21 m acquisition window, not guidance** (which is why the camera up-tilt mount study,
+ADR-0060, is the next lever). **And the follow-up you should ask** — "so the one scenario the
+project exists to prove has never been demonstrated end-to-end?" — *still correct, and now
+measured rather than merely suspected.* The claim stays HELD project-wide. Catching the hole in
+my own review, retracting the claim everywhere, pre-registering the verdict scripts before the
+data, and publishing two nulls instead of a soft pass is the process this portfolio is actually
+selling. *(ADR-0059 + its RESULTS/CLOSE + the #39 recovery addendum, ADR-0060;
+`docs/design_review_sim_to_real_2026-07-10.md`)*
 ```
 
 ---

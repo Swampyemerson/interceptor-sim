@@ -43,14 +43,14 @@ the headline metric moves with the assumed kill radius — design review G15).
 | Milestone / experiment | Result | Bar | Source |
 |---|---|---|---|
 | **M3** — static intercept, hold 2 m standoff | final standoff error **0.018 m** / **0.035 m** (two verifier-confirmed runs) | < 0.5 m | `scripts/check_m3.sh`; ADR-0008; `logs/m3_intercept_20260705T000619Z.csv`, `...000818Z.csv` |
-| **M4** — pro-nav vs. pursuit, 2.0 m/s crossing target, camera-only | pro-nav miss **0.402 / 0.277 / 0.443 m** vs. pursuit **2.544 / 2.109 / 2.048 m** (3 independent gate runs, identical paths) — pro-nav 4.6-7.6x tighter | pro-nav < 1.0 m | `scripts/check_m4.sh`; ADR-0009 + 2nd addendum; `logs/m4_intercept_{pursuit,pronav}_20260705T{0322,0324,0331}xxZ.csv` |
+| **M4** — pro-nav vs. pursuit, 2.0 m/s crossing target, camera-only | pro-nav miss **0.402 / 0.277 / 0.443 m** vs. pursuit **2.544 / 2.109 / 2.048 m** (3 independent gate runs, identical paths) — pro-nav 4.6-7.6x tighter. *Selection note (audit 2026-07-10): these are the official gate-config runs — three earlier dev-phase pronav flights that night read 1.04–1.12 m, over the gate, before the final config (disclosed in the ADR-0009 addendum).* | pro-nav < 1.0 m | `scripts/check_m4.sh`; ADR-0009 + addenda; pronav gate CSVs (committed): `logs/m4_intercept_pronav_20260705T{032238,032528,033250}Z.csv` |
 | **S2** — two-stage handoff, 6 m/s crosser (uncatchable from a hover start, ADR-0011 addendum) | miss **1.1-2.3 m** across dev/gate/verifier flights (gate runs: pip 2.291 m & 2.270 m, pronav 1.992 m & 2.342 m), both laws pass, handoff latches, all honesty audits pass | tiered < 2.5 m (this gate proves the *architecture* — a running start + honest handoff — not sub-meter precision at 3x M4's speed) | `scripts/check_s2.sh`; ADR-0010 #7, ADR-0013; `logs/m4_intercept_{pip,pronav}_20260705T21*Z.csv` |
 | Ground-link A/B: cue **emits** filtered velocity vs. drone **differentiates** noisy position, Gazebo, 6 m/s, paired n=8 | EMIT mean **1.394 m** / Pk\@2 **75%** vs. DIFF mean **1.808 m** / Pk\@2 **50%** — DIFF worse on 6/8 paired seeds, direction confirms the lab's #1 lever, but the delta (+0.41 m) is **not yet statistically significant at n=8** | — (design finding, not a gate) | ADR-0015 2nd addendum; `logs/mc_realistic_EMIT_20260706T015033Z.csv`, `logs/mc_realistic_DIFF_20260706T022749Z.csv` |
 | Preliminary Pk-vs-radius batch, pronav, 6 m/s, N=20 (**pre-realism-upgrade — superseded by M5**) | mean miss 2.189 m; Pk(R=1.0 m) 5% [95% CI 0.9-24%]; Pk(R=2.0 m) 35%; Pk(R=2.5 m) 70%; Pk(R=3.0 m) 95% [76-99%]. Every flight lost the tag for >1 s right at closest approach — but see the root-cause note below: that dropout is a *symptom*, not the cause. | — | ADR-0014 addendum; `logs/mc_batch_20260705T225008Z.csv` |
 | **Root-cause diagnosis** — why fast-crosser flights miss ~1.4 m (41-flight forensics) | The miss is **kinematic, not perceptual**. The model-independent proof: the ~0.4 s terminal window's physical correction capacity **½·a·t_go² = 0.72 m** sits far below the **1.69 m** of error already delivered at handoff — so a *perfect* terminal camera cuts the miss only ~25%. (Miss also tracks zero-effort-miss@handoff, r²=0.96, generalizing across 3/6/9 m/s.) Fix = acquire earlier + better handoff geometry, **not** a better seeker. | — (corrects the earlier "perception-limited" reading) | **ADR-0023**, ADR-0027; `docs/terminal_diagnosis.md` |
 | **M5** — final Monte-Carlo on the adopted deployment profile (running start + velocity-emission cue + corrected σ_R, ADR-0017), pursuit vs. pro-nav × 6/9/12 m/s + maneuvering + oblique arms, **n=96** (proximity metric) | **96.9% clean** (93/96), mean miss **1.08 m**, median **0.93 m**. Per-speed pro-nav (ADR-0025, never pooled): **6 m/s** Pk@1.5 m **96%**; **9 m/s** Pk@1.5 m **75%** / Pk@2.0 m **88%**; **12 m/s** Pk@1.5 m **38%** but Pk@2.0 m **100%** — the adopted profile makes the **whole 6/9/12 m/s FPV band catchable** (vs. ADR-0029's old hover geometry: Pk@2.5 m 27%, 12 m/s uncatchable at 0/8). **Guidance law tied on every path** (per-path pursuit-vs-pro-nav deltas < the ~1 m run-to-run noise) — reconfirms the kinematic regime at FPV speed, now ~1 m not ~3.6 m; pro-nav's decisive 4.6–7.6× win stays the *slower-target* M4 (2 m/s, gated) result. Maneuvers survive: jink@9 pro-nav **1.02 m** ≈ line **1.08 m** (jinks are cheap), weave@9 the worst at **1.41 m**. | — (regime-mapping result; n=8/cell, laws tied within noise) | **ADR-0036**; `logs/mc_final_all.csv`; `docs/images/m5_pk_vs_radius_by_arm.png` |
-| **Running start** — ground-launch geometry, Gazebo-confirmed | Longer standoff + faster dash makes the FPV band catchable on the *same quad*: the 12 m/s crosser goes from **0/8 latch (uncatchable from hover) → 6/6, miss 4.5 → 2.3 m** (−49%); 9 m/s 3.6 → 1.9 m (−47%). A rare clean lab→Gazebo agreement. **The airframe is NOT the lever:** "make the drone more agile" (doubling the accel/tilt caps) was tested and is a **NULL** — the interceptor only pulls ~6.7 m/s² lateral, *under* even its default cap, so the binding constraint is the guidance command ceiling (`V_PERP_MAX`/`V_TOTAL_MAX`), not the quad. **Honesty:** these used an *idealized* cue — see the next row. | — (validates the ground-standby → launch-on-detect concept) | **ADR-0028**; `logs/mc_batch_runningstart_adr0028_confirm.csv` |
-| **★ Dash-track fix under REALISTIC perception** (the culmination) | The fast-target miss was ~70–75% a stale *mid-course track*, not the seeker. Fix: the ground cue emits a *filtered velocity* + a dash-clamp fix. **Under a realistically degraded cue (noise, latency jitter, Markov dropout): 9 m/s → 1.19 m, 12 m/s → 1.48 m, 6/6 handoff** — eliminates a 33% mid-course-failure mode and **beats even the earlier idealized-cue baseline** (delivered zero-effort-miss 3.2 → 1.4 m). Note: leans on a good ground-velocity track (a real-system requirement, disclosed). | — (the honest "we got further," survives degraded perception) | **ADR-0030**; `logs/mc_arm{B,C}_*_runningstart.csv` |
+| **Running start** — ground-launch geometry, Gazebo-confirmed | Longer standoff + faster dash makes the FPV band catchable on the *same quad*: the 12 m/s crosser goes from **0/8 latch (uncatchable from hover) → 6/6, miss 4.5 → 2.3 m** (−49%); 9 m/s 3.6 → 1.9 m (−47%). A rare clean lab→Gazebo agreement. **The airframe is NOT the lever:** "make the drone more agile" (doubling the accel/tilt caps) was tested and is a **NULL** — the interceptor only pulls ~6.7 m/s² lateral, *under* even its default cap, so the binding constraint is the guidance command ceiling (`V_PERP_MAX`/`V_TOTAL_MAX`), not the quad. **Honesty:** these used an *idealized* cue — see the next row. | — (validates the ground-standby → launch-on-detect concept) | **ADR-0028** (its arm CSVs `mc_batch_{baseline,runningstart}_adr0028_confirm.csv` were rotated off disk and never committed — the ADR's own tables are the record; superseded by the committed M5 batch above) |
+| **★ Dash-track fix under REALISTIC perception** (the culmination) | The fast-target miss was ~70–75% a stale *mid-course track*, not the seeker. Fix: the ground cue emits a *filtered velocity* + a dash-clamp fix. **Under a realistically degraded cue (noise, latency jitter, Markov dropout): 9 m/s → 1.19 m, 12 m/s → 1.48 m, 6/6 handoff** — eliminates a 33% mid-course-failure mode and **beats even the earlier idealized-cue baseline** (delivered zero-effort-miss 3.2 → 1.4 m). Note: leans on a good ground-velocity track (a real-system requirement, disclosed). | — (the honest "we got further," survives degraded perception) | **ADR-0030** (its arm CSVs `mc_arm{B,C}_*_runningstart.csv` were rotated off disk and never committed — the ADR's own tables are the record; superseded by the committed M5 batch, `logs/mc_final_all.csv`) |
 | **Perception-availability envelope** — where the intercept *breaks* under a degraded / jammed cue (the honest limitations number) | Stress-swept the ADR-0030 FIX config while worsening the ground cue (higher dropout, shorter link-cutoff range). Every catastrophic failure is the **same mode** — `DASH: failed to reach handoff range` — the mid-course dead-reckon drifts, the camera never builds its streak, and the flight **never reaches the terminal phase.** So under a degraded cue the binding constraint is perception **availability**, not terminal accuracy. Methodology catch: `miss_m` is still logged for these blind fly-bys and is deceptively *small* (a ballistic closest-approach), so **handoff-reach rate — not mean miss — is the honest headline** under degraded perception (a raw-miss average would *flatter* the broken arms). | — (the disclosed "where it breaks") | **ADR-0031**; `logs/` cue-degradation sweep (n=6/arm, master-seed 42) |
 
 > **★ The M5 final batch is DONE (ADR-0036, n=96).** The row above ran on the
@@ -627,9 +627,13 @@ ADR-0059, is the top of that queue).
 
 ## Reproduce it
 
-Everything here runs headless (`HEADLESS=1`) and writes to `logs/` (CSV,
-gitignored — regenerate rather than expect it checked in) and `plots/`
-(PNG, checked in). All Python runs through the project's own venv,
+Everything here runs headless (`HEADLESS=1`) and writes to `logs/` (CSV —
+mostly gitignored/regenerable, but the key evidence CSVs behind the headline
+numbers ARE committed: `mc_final_*.csv`, the `mc_t21_*` aggregates + 16
+per-tick r2 flight CSVs, and the M3/M4 gate CSVs) and `plots/` (the
+stereo/rig design PNGs are committed; the batch-analysis PNGs — Pk-vs-radius,
+miss CDFs — are gitignored and regenerate from the CSVs). All Python runs
+through the project's own venv,
 `.venv/bin/python` — no need to activate it first.
 
 **One-time setup** (if you don't already have the config files, e.g. a fresh
@@ -648,6 +652,7 @@ scripts/check_m3.sh    # static intercept holds a 2 m standoff, < 0.5 m final er
 scripts/check_m4.sh    # moving-target intercept, pursuit vs. pro-nav, pro-nav < 1.0 m
 scripts/check_s1.sh    # FPV-speed straight crossing (speed-only realism step)
 scripts/check_s2.sh    # two-stage ground-cue handoff + camera-only terminal, < 2.5 m tiered
+scripts/check_t21.sh   # re-asserts the ADR-0058 detect-then-track headline (14/14) from the committed CSVs — no sim needed
 ```
 
 `scripts/check_m2.sh` also creates or repairs the symlink PX4 needs to find
@@ -700,9 +705,12 @@ Gazebo/PX4/Claude sessions before trusting a comparison across batches.
 - `docs/` — the decisions log (`decisions.md`) and the perception/stereo/
   compute design docs this README links to above.
 - `logs/` — every run's telemetry, detections, and miss distance as CSV
-  (gitignored — regenerable, analyze locally, not checked in).
-- `plots/` — matplotlib output (Pk-vs-radius, miss CDFs, stereo-design
-  plots); checked in.
+  (mostly gitignored/regenerable; the key evidence CSVs — `mc_final_*`,
+  `mc_t21_*`, M3/M4 gate runs, the 16 per-tick r2 flights — are committed
+  so the headline numbers survive a fresh clone).
+- `plots/` — matplotlib output; the stereo-design PNGs (`rig_*`, `stereo_*`)
+  are checked in, the batch-analysis plots (Pk-vs-radius, miss CDFs) are
+  gitignored and regenerable from the committed CSVs.
 - `PROGRESS.md` — the milestone roll-up table with dates and log stamps.
 - `NEXT.md` — the current top of the stack; the most detailed, most current
   account of what's built and what's next.
