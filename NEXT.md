@@ -5,7 +5,21 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit; rebuilt 2026-07-08 after the seeker-v2 +
 fusion-P0/P1/P2 session.)*
 
-## ⚠️ OPEN CRITICAL FINDING (ADR-0059, 2026-07-10) — jam fail-closed in the ADOPTED config
+## 🌙 OVERNIGHT PLAN (2026-07-10 night — builder asleep, "run multiple Fable audits, use the pure window")
+
+**RUNNING (all Fable, sim-free, budget-spend):** deep codebase audit workflow (correctness/honesty/repro/tests/portfolio-redteam → verify → morning report); forward audit workflow (v3-eval + jam-MC methodology soundness / design-review missed gaps / claim completeness / next-value); flight-compute council (3 members → #34 ADR); pre-draft worker (jink n=16, stats n=72-vs-reframe, up-tilt mount SDF variants — so the sim queue fires instantly).
+
+**SIM CRITICAL PATH (event-driven):** v3 fine-tune (~30 min left, setsid daemon) → V3_TRAIN_EXPORT_DONE → poke v3 agent → Phase-4 eval → v3 verdict (expect NULL per audit, accept honestly) → **sim frees** → jam MC (jam_fixon + control_active FIRST → un-HOLD comms-denied → commit jam fix) → jink n=16 post-fix → then T25 render / stats overnight.
+
+**CADENCE:** the ~42-min self-terminating watcher is the heartbeat (re-arm each cycle — reap-proof). Each audit/agent completion re-invokes main → act on findings (sim-free fixes first), launch the next audit, drive the sim queue. Morning = consolidated report: audit findings + fixes, v3 verdict, jam-validation status, council recommendation, decisions needed.
+
+**Committed this session:** 309c24e (design review + v3 tooling + probes), 1a14869 (portfolio surface). HELD for validated-commit: jam code (m4/detect_track/mc_jam_arm.sh/test_cue_staleness) + decisions.md (ADR-0059/0060).
+
+## 🌅 OVERNIGHT OUTCOME (2026-07-10) — READ `docs/overnight_report_2026-07-10.md` FIRST
+
+Big autonomous night. **Honesty spine held across 3 deep audits.** Flagship results: v3 retrain = honest NULL (forward audit CAUGHT a false-win before it scored; markerless still works via detect-then-track/v2); comms-denied jam MC = fail-closed DEMONSTRATED (monotonic witness collapse REAL-ish 12→2→0 across 15/18/22 m cutoffs) + the ADR-0059 fix VALIDATED-AS-FAIL-SAFE (anti-fooled, phantom eliminated) but NOT recovery → "works comms-denied" STAYS HELD; full recovery = fix+coast-search (#39). **6 commits** (309c24e/1a14869/7dad15e/2665bbb/f6427af/81562b8). **Option B ratified** (markerless flies). **DECISIONS NEEDED FROM EMERSON:** (a) commit the held jam-fix workstream as a fail-safe default-off option OR hold for fix+coast-search? (b) order the ~$257 Stage-0 cart + Hailo (#34). Open findings → tasks #37 (breakoff), #38 (roll/pitch derotation), #39 (coast-search recovery). Full detail in the morning report.
+
+## ✅ CLOSED — jam fail-closed (ADR-0059): finding + fix built + validated as fail-safe (jam MC done 2026-07-10; recovery = #39)
 
 The design review (task #29, `docs/design_review_sim_to_real_2026-07-10.md`) + an independent code-trace found that the **adopted deployment config `--track --handoff-cue-gate 8` FAILS CLOSED under a mid-dash cue jam**: `last_cue_pos` never ages out, so a frozen stale cue makes the handoff-gate AND the `_seed_ok` seed-gate reject the real target once it drifts >8 m from the frozen point (~0.67 s after the jam) → never hands off. Default config (no cue-gate) hands off fine under jam but eats phantoms — a genuine tension. Mid-dash jam is an IN-SCOPE WORST tier (ADR-0015 `--link-cutoff`), so this is a real regression, but LATENT (no ADR-0058 arm ever flew a jam). **Portfolio honesty: HOLD "works comms-denied" until fixed.** Fix design + plan in ADR-0059 → task #31. **UPDATE 2026-07-10: fix now BUILT + double-reviewed (v3 is TRAINING, not flying m4, so m4 was safe to edit); MC validation pending at idle post-train — see current-state block below.**
 
