@@ -1699,3 +1699,46 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   - **Honesty.** Own-state attitude + static mount constant + camera only; no
     `gt_*`; audit spine intact (gt-leak normal, (a)/(b) pass); the (c) tilted-
     geometry sensitivity is documented above, not waved away.
+
+- **Addendum (2026-07-10, #40 STAGE-2 — the tilted+compensated comms-jam RECOVERY
+  re-test is a NULL, and it RE-SCOPES the recovery limit from FoV-availability to
+  FAR-RANGE NN DETECTION).** Per the pre-registration (`docs/adr0067_refly_
+  preregistration.md` Stage 2): the ADR-0059 #39 coast-search jam arm re-flown at
+  r18, n=16, master-seed 42, WITH the up15 shadow + `--cam-mount-up-deg 15`
+  (`scripts/stage2_tilt_recovery_arm.sh`; evidence
+  `logs/mc_adr0059_jam_fixon_coast_r18_tilt15.csv`). Coast-search VERIFIED engaged
+  (12 `cue stale -> dead-reckoning` latches — a real recovery test, not a plumbing
+  no-op); `--cam-mount-up-deg 15` in all 16 flights; shadow removed post-run.
+  - **Result vs the pre-registered bars.** REAL-ish handoffs (RH) **3/16** (need
+    ≥11/16 for RECOVERY; #39 coast NULL was 1/16, so ΔRH = **+2/16**, below the
+    +4/16 PARTIAL floor) → **NULL**. Scored by `check_jam_mc.py` (tilt coast as
+    `--fixon`): G3b REAL-ish 3/16, 1 PHANTOM, 12 never.
+  - **MECHANISM metric (the load-bearing one) — the availability claim is
+    REFUTED in the recovery regime.** Camera-never-detected during coast =
+    **12/16** (bar ≤4/16; #39 baseline 10/16) — the tilt did NOT reduce
+    never-detected (12 vs 10, no improvement, within noise). The 4 flights that
+    did reacquire detected only at **7.6–9.2 m** (near the 10 m handoff range),
+    not the earlier reacquisition the availability win would predict.
+  - **The re-scoping (the reportable finding).** #39 was AMBIGUOUS between two
+    compounding recovery limits: (a) FoV geometry (the down-pitched dash throws
+    the target above frame) and (b) far-range NN recall (acquire-from-scratch
+    under jam at 15–21 m). The up-tilt DEMONSTRABLY fixes (a) — proven nominally
+    (ADR-0067: dash-above-FoV 32%→0%, first-det +4 m) — yet recovery stays NULL
+    and never-detected stays ~12/16. **Therefore the binding recovery limit is
+    (b), far-range NN DETECTION, NOT the dash-pitch FoV.** Consistent with
+    ADR-0061 (v3 far-range-recall retrain = NULL) and ADR-0063 open-risk #1.
+    (Contributing nuance: during coast-search the attitude is less nose-down than
+    the committed cued dash, so a dash-tuned up-tilt points less optimally there
+    — but the dominant signal is that even successful detections happened only at
+    close range, a recall limit, not a pointing one.)
+  - **Verdict / claim state.** "Works comms-denied" **STAYS HELD** — recovery not
+    achieved. The perception-availability lever (camera pointing: fixed #35 OR
+    adaptive #46) is NOT the comms-denied recovery fix; the lever is a better
+    FAR-RANGE DETECTOR. #46 adaptive tilt remains valuable for NOMINAL acquisition
+    (the availability win is real there) but this NULL shows it would not un-HOLD
+    recovery by itself. This closes the ADR-0059 → #35/ADR-0067 → #40 recovery
+    arc: perception AVAILABILITY (FoV) is solved by the tilt; perception
+    SENSITIVITY (far-range recall under jam) is the remaining hard blocker.
+  - **Honesty.** Own-state + static mount + camera only; no `gt_*`. The tilted-
+    camera audit-(c) geometry sensitivity (ADR-0068 Stage-1 addendum) applies to
+    this arm identically; gt-leak advisory normal; honesty spine intact.
