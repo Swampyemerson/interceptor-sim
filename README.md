@@ -29,8 +29,12 @@ does and doesn't mean for the numbers that follow.
 **Portfolio materials:** the [technical writeup](docs/WRITEUP.md) (the
 whiteboard-defense doc), the [resume bullets + how-it-works + 30-second
 pitch](docs/portfolio_bullets.md), the [one-pager + interviewer Q&A](docs/interviewer_prep.md)
-(the hard questions, honestly answered), and the [architecture diagram +
-demo shot-list](docs/portfolio_visuals.md).
+(the hard questions, honestly answered), the [architecture diagram +
+demo shot-list](docs/portfolio_visuals.md), the
+[T25 demo-video storyboard](docs/t25_storyboard.md) (shot-by-shot, with the
+per-shot data source and honesty constraints), and the
+[Pk-vs-lethal-radius sensitivity note](docs/pk_vs_radius_note.md) (how much
+the headline metric moves with the assumed kill radius — design review G15).
 
 ---
 
@@ -106,6 +110,70 @@ roadmap section):**
 |---|---|---|
 | **Markerless seeker arc** — kill the AprilTag, then fix the detector honestly | Camera-only intercept on a tag-less body: 6/8 clean, matches the tag when acquiring early. Seeker v2 (hard negatives from the drone's own props + shadow): **pollution 0.751 → 0.000, range honesty 0.056 → 0.935**, endgame coverage now *beats the tag* — residual +1 m gap is bearing quality (box-center vs subpixel), measured to mechanism; guidance levers pre-registered NULL | ADR-0038/0040/0042/0043; `scripts/check_seeker_v2.sh` (6/6); `docs/images/seeker_v2_ab.png` |
 | **Fusion capstone** — does mid-course cue fusion help once the seeker is noisy? | **YES for hand-set polar fusion:** 8/8 paired win (−0.356 m median, p≈0.008), both chronic seeds rescued, survives the WORST-credible cue 8/8 → `--fuse-midcourse` recommended for markerless. **NO for covariance gating:** wash at the realistic tier, **regresses under WORST bias** (7.66 m tail — the council's offline bias-lock prediction, confirmed in flight). Honesty: 0 post-latch cue updates, 32 EKF flights, live-counted | ADR-0041/0044; `logs/mc_fusion_*.csv` |
+
+**Post-spine (2026-07-09/10, ADR-0056..0060 — the maneuvering camera-only
+terminal, and the design review that then audited it):** the markerless
+(tag-less) seeker now holds a **12 m/s maneuvering, camera-only terminal** —
+and the project's own adversarial design review then found, and is still
+closing, the arc's biggest remaining hole. Both halves are the story.
+
+| Experiment | Result | Source |
+|---|---|---|
+| **T21 — the maneuvering limit, found and isolated** | At 12 m/s + weave/jink the markerless NN throws sporadic, *high-confidence* **phantom detections ~18 m off the true target** → 12/16 false handoffs, misses of 4–9 m — while an AprilTag control at the *same* speed, guidance, and airframe holds **8/8 at median 1.64 m**. So the limit is perception (bearing quality), not kinematics or guidance. Confidence gating is structurally dead here (phantom median confidence 0.34 > real 0.17 — *inverted*). Honest retraction along the way: an n=2 "fix win" was re-read as noise (the maneuvering run-to-run floor is ~5 m, not the ~1 m straight-line floor), and the first three fix attempts failed or turned out to be comms-*available* crutches. | ADR-0056/0057; `docs/images/t21_maneuver_miss.png` |
+| **★ Detect-then-track terminal — the fix that works** (NN acquires *once*, a cv2 CSRT visual tracker follows frame-to-frame, the NN re-validates every 8 frames) | **Post-handoff camera-terminal Pk@2.5 m: weave 3/16 → 14/14, jink 1/8 → 14/15** (the paired n=16 jink A/B baseline reads 3/15 → 14/15, ADR-0058); **phantom handoffs 12 → 0**; **0 of 155** terminal detections false in the headline arm — the first arm of the whole campaign with zero gross false terminal detections; landing within ~0.4 m of the AprilTag perception ceiling (8/8 @ 1.64 m). The pre-registered deployment-config validation (`--track --handoff-cue-gate 8`, 12 m/s weave, n=16 paired seeds): pooled Pk@2.5 **16/16** (median 2.11 m, max 2.48 m) / post-handoff camera-terminal **14/14** (median 2.03 m) / real-handoff-conditioned **14/14**. Committed `d10c9ca`, verifier-passed on all five claims. | **ADR-0058**; `logs/mc_t21_trackgate_weave12_r2.csv`; analyzer `scripts/analyze_track_ab.py` |
+
+**Pk here is always reported three ways** — this is deliberate, and the
+flattering number is never quoted alone: (i) *pooled whole-flight* (16/16 —
+flattering, because `miss_m` is a whole-flight minimum that credits closest
+approaches banked during the legal cue-guided dash), (ii) *post-handoff
+camera-terminal* (14/14 — the honest comms-denied-capability metric: closest
+approach measured only after the camera latch, when the cue is structurally
+unreadable), and (iii) *real-handoff-conditioned* (14/14 — excludes the two
+flights that never latched and are honestly counted as **not**
+camera-terminal intercepts). Statistics caveat, per the design review: 14/14
+observed gives a 95% Clopper-Pearson lower bound of ~77% — honest as "no
+failures observed at n=14," not yet as "Pk ≥ 95%." The adopted config is
+batch-validated on weave; the jink arm re-run on post-fix code is queued
+(design review G14).
+
+> **Comms-denied status: HELD — architecture built, validation in progress,
+> not yet a proven capability.** The one-way handoff latch is real and
+> structural: once the camera terminal latches, the cue channel is closed and
+> unreadable, so a link jammed *after* handoff cannot touch the terminal —
+> that part is tested and audited. But the design review found (ADR-0059,
+> mechanism confirmed by an independent code trace) that the adopted
+> deployment config `--track --handoff-cue-gate 8` **fails closed under a cue
+> jammed mid-dash, before camera acquisition**: the anti-phantom gates
+> compare against the last-received cue position, which freezes when the link
+> dies, and within ~1 s the frozen reference rejects the *real* target — the
+> interceptor never hands off. No phantom chase, but a mission kill in
+> exactly the scenario the project exists to prove. (The genuine tension: the
+> default config hands off fine under jam but eats phantoms; the config that
+> beats phantoms is the one that failed under jam.) A fix is **implemented
+> and unit/honesty-tested** (sim-time cue-staleness age-out → camera-only
+> fallback; 86 tests pass; inert when the cue is fresh) and a paired
+> comms-denied Monte-Carlo jam harness is built (`scripts/mc_jam_arm.sh`) —
+> but it has **not yet flown**. Until that batch lands, "works comms-denied"
+> is a held claim everywhere in this project's materials, including the
+> resume bullets.
+
+Two more design-review products, included as evidence the sim is audited
+rather than trusted: **(1) the camera-pitch finding (ADR-0060, measured from
+flight ulogs, no new sims):** during the dash the interceptor pitches
+nose-down 27–36° median (max 42–52°), throwing the horizon-level target to
+the **top** of the frame — a median ~35% of dash ticks have the target
+entirely above the field of view, and the first in-range detection currently
+threads a 0–6° sliver from the top edge with essentially zero vertical
+margin. The naive intuition ("a pitched-down camera looks below the target"
+→ wrong direction) was inverted by measurement, and the sim *under*-states
+the real-hardware gap (a real drag-limited quad holds that pitch all cruise
+long). Remedy: a fixed up-tilted camera mount — an airframe design decision
+now feeding the hardware path. **(2) the sim-to-real design review itself**
+([`docs/design_review_sim_to_real_2026-07-10.md`](docs/design_review_sim_to_real_2026-07-10.md)):
+ranked gaps with the load-bearing assumption named for each, a real-world
+variable table where every row maps to a bench-measurable quantity, and a
+costed real-build path ($0 desk probes available today → ~$257 Stage-0
+perception bench → ~$1.05–1.25k all stages).
 
 Foundational milestones M0 (toolchain boot), M1 (camera pipeline), M2
 (AprilTag detection, 1.000 detection rate / 0.0861 m mean pose error) all
@@ -345,7 +413,12 @@ where do I need to aim to actually meet it, not just point at it now), then
 detector locks on — the ground channel is closed and unreadable from that
 tick forward, not just unused by convention. What it is: the comms-denied
 headline this whole project exists to prove — even if the ground link is
-jammed mid-flight, the interceptor finishes the intercept on its own. Why it
+jammed mid-flight, the interceptor finishes the intercept on its own.
+*(Scope note, 2026-07-09: that sentence is proven for a link lost **after**
+the camera latch — the latch is structural. For a jam **before** the latch,
+the adopted anti-phantom deployment config currently fails closed; the fix is
+built and in validation, not yet proven — ADR-0059, and see the comms-denied
+status box in the results section.)* Why it
 matters: a hover-start interceptor is kinematically capped at ~3 m/s against
 a crosser (S1, ADR-0011 addendum) — a genuinely uncatchable 6-10 m/s FPV
 target requires the running start the dash provides. Measured: turns an
@@ -532,6 +605,22 @@ not a win. Full plan, recommendations, and open ADRs:
 [`docs/phase2_sim_to_real_plan.md`](docs/phase2_sim_to_real_plan.md); the live
 queue is in [`NEXT.md`](NEXT.md).
 
+**Phase-2 status (2026-07-09):** the **real-pipeline spine is done and
+verifier-gated** (ADR-0045..0053): a rendered two-camera ground stereo rig →
+single-class NN detector → live triangulation → real UDP link, with the drone
+flying on the **genuinely computed** stereo cue end-to-end (`check_t19.sh`
+exit 0; the real cue tracks truth to **0.99 m median**), and the stereo range
+error validated to follow the σ_R ∝ R² model across 50–160 m (measured
+exponent 2.003, ADR-0053). Two honest findings the spine surfaced are
+themselves portfolio results: a clock-epoch bug that is exactly the real
+ground↔drone time-sync problem (ADR-0052), and the ground detector's
+out-of-domain bias (→ the in-progress detector retrain). On top of the spine,
+the **maneuvering camera-only terminal** landed (ADR-0056..0058, the
+post-spine results table above), and the **sim-to-real design review** turned
+the remaining unknowns into ranked, bench-measurable work items with a costed
+build path (see the results section; the comms-denied validation campaign,
+ADR-0059, is the top of that queue).
+
 ---
 
 ## Reproduce it
@@ -637,6 +726,13 @@ A shipped hero flight (ADR-0032): the exact ADR-0030 FIX config — running star
 degraded cue**, intercepting a 9 m/s crosser at **miss 0.632 m, clean, handoff
 latched** (`logs/m4_intercept_pronav_20260707T211601Z.csv`, consistent with the
 ~1.19 m published mean for this config — run-to-run noise, both in range).
+
+This hero flight predates the markerless detect-then-track arc (ADR-0058). The
+next demo — ground-stereo detection through a 12 m/s weaving camera-only
+terminal, with the sensor-attribution HUD and the honesty handoff on screen —
+is storyboarded shot-by-shot in
+[`docs/t25_storyboard.md`](docs/t25_storyboard.md) and is sequenced after the
+detector retrain finishes (it should fly the best detector).
 
 Sample status panel across the four key beats of that intercept — note the
 sensor lamp flipping from **EXTERNAL CUE** to **CAMERA-ONLY** at handoff, the
