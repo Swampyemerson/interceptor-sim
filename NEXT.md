@@ -39,12 +39,27 @@ tracked-or-accepted; repo publishable on a remote.
 
 ## 📍 CURRENT (2026-07-10, live — builder away, autonomous)
 
-- **RUNNING: #33 Pk campaign sub-arm 1** — fresh post-FIX-A weave n=16, seed
-  1042 → `logs/mc_pk72_weave_s1042.csv` (~13/16 flights at this writing).
-  Campaign = 72 fresh post-FIX-A weave flights in n=16 chunks (background
-  reaper ~51 min); **pooling with the pre-FIX-A r2 arm is INVALID** (ADR-0062
-  addendum). While ANY batch flies: do not touch `scripts/`, `m4_intercept.py`,
-  or anything a flight imports; one sim at a time; idle load only.
+- **#33 Pk campaign DONE** (ADR-0064, `d81e046`): fresh post-FIX-A weave n=72 →
+  **Pk@2.8 m 72/72 = CP-LB 95.0%** (the ≥95%-CI bar cleared); **Pk@2.5 m 71/72 =
+  98.6%** point / 92.5% LB (the one 2.757 m miss handed off cleanly = terminal
+  noise, not a failure). Evidence CSVs committed. Radius-explicit framing (never
+  a bare "95% Pk"); weave/12 m/s only, never pooled across paths.
+- **RUNNING: #35 up-tilt mount A/B** (`bska471mo`) — up15 done 8/8, mechanism
+  confirmed (first-detection 14.3 → **21.9 m** median, the mount WORKS); up00/
+  up25/up35 chaining now. Analyze via `scripts/experiments/uptilt_ab_analyze.py`
+  when done. ⚠️ the sweep owns the `models/mono_cam` shadow symlink — AFTER the
+  chain finishes, verify it's gone or run `scripts/uptilt_ab_arm.sh --cleanup`
+  (a stranded link silently tilts EVERY future batch).
+- **NEW IDEA — adaptive camera tilt (ADR-0065, task #46):** track the actual dash
+  pitch instead of one fixed compromise angle; the perception-availability lever
+  that could UN-HOLD comms-denied recovery (the ADR-0059 NULL failed precisely
+  because the camera couldn't reacquire out of the down-pitched FoV). Plan: finish
+  the fixed A/B first, then sim-test the pitch-following schedule.
+- While ANY batch flies: do not touch `scripts/`, `m4_intercept.py`, or anything
+  a flight imports; one sim at a time; idle load only. NOTE (measured): the
+  headless sim renders on llvmpipe (software) → it is CPU-bound with the RTX 4070
+  IDLE; light/subagent work runs fine alongside a batch and the final demo can
+  GPU-render, but a second CPU-heavy sim/pytest still distorts RTF.
 - **Claim state:** "works comms-denied" **HELD** — the ADR-0059 fix is
   validated FAIL-SAFE, recovery is a NULL (coast-search engaged but did not
   recover; perception-bound). v2 stays the deployed detector (v3 = honest
