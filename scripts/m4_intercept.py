@@ -636,6 +636,112 @@ def wrap_pi(angle: float) -> float:
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
 
 
+def _quat_rotate(quat, vec):
+    """Rotate 3-vector `vec` by unit quaternion `quat` = (w, x, y, z), i.e.
+    apply the rotation q (v' = q * v * q_conj). Pure math, no numpy dependency.
+    MAVSDK's attitude_quaternion() is the body(FRD)->NED rotation, so feeding a
+    body-frame vector returns it in NED."""
+    w, x, y, z = quat
+    vx, vy, vz = vec
+    # t = 2 * (q_xyz x v)
+    tx = 2.0 * (y * vz - z * vy)
+    ty = 2.0 * (z * vx - x * vz)
+    tz = 2.0 * (x * vy - y * vx)
+    # v' = v + w*t + (q_xyz x t)
+    rx = vx + w * tx + (y * tz - z * ty)
+    ry = vy + w * ty + (z * tx - x * tz)
+    rz = vz + w * tz + (x * ty - y * tx)
+    return rx, ry, rz
+
+
+def derotate_bearing_lambda(meas_xyz, bearing_rad, quat, psi_rad):
+    """Inertial LOS azimuth lambda from a camera measurement, derotating the
+    FULL vehicle attitude (roll + pitch + yaw), not just yaw (audit-3 H1 fix).
+
+    THE BUG THIS FIXES: the pre-fix `lambda = psi + beta` compensates YAW ONLY.
+    beta (bearing_rad) is the target's HORIZONTAL azimuth in the camera OPTICAL
+    frame; adding the vehicle yaw psi gives the inertial azimuth ONLY when the
+    camera boresight is level. At the measured 27-36 deg dash pitch (ADR-0060)
+    that inflates the azimuth ~1/cos(pitch) (12-24% gain error) and, under roll,
+    mixes the target's VERTICAL off-boresight component into the azimuth with a
+    roll-following sign -- corrupting lambda and lambda_dot, the pro-nav input.
+
+    THE FIX: rotate the camera ray camera(optical)->body(FRD)->NED with the full
+    attitude quaternion, then lambda = atan2(east, north). meas_xyz (camera
+    optical-frame target vector: x right, y down, z forward) carries the
+    elevation the bearing alone throws away, so the roll cross-coupling is
+    captured. Only a UNIT direction matters (atan2 is scale-invariant), so the
+    range magnitude in meas_xyz is irrelevant.
+
+    HONESTY (ADR-0008/0010): meas_xyz + bearing_rad are pure CAMERA measurements;
+    `quat` and psi_rad are the vehicle's OWN-state EKF attitude (MAVSDK
+    attitude_quaternion / attitude_euler) -- the same own-state basis as the
+    position used everywhere else. No ground truth. Re-earns the no-cheat audit.
+
+    IDENTITY AT ZERO ROLL/PITCH: with the quaternion a pure-yaw rotation, the
+    optical->body->NED chain reduces to lambda = psi + beta EXACTLY (the target's
+    vertical component lands entirely in the NED down axis and never touches
+    north/east), so the validated LEVEL M3/M4/M5 results are preserved to the
+    bit and only tilt introduces a (correct) change. See tests/
+    test_bearing_derotation.py and run_bench's --bench derotation self-check.
+
+    FALLBACK: if the quaternion is not yet available (attitude stream not up),
+    return the pre-fix yaw-only lambda = psi + beta so nothing regresses to
+    worse-than-before during the brief startup window."""
+    if quat is None or bearing_rad is None:
+        return psi_rad + (bearing_rad if bearing_rad is not None else 0.0)
+    # Camera ray in the OPTICAL frame (x right, y down, z forward). Prefer the
+    # full 3D vector (carries elevation -> the roll cross-coupling term); fall
+    # back to the bearing at zero elevation if it's missing.
+    if meas_xyz is not None:
+        rx, ry, rz = float(meas_xyz[0]), float(meas_xyz[1]), float(meas_xyz[2])
+    else:
+        rx, ry, rz = math.sin(bearing_rad), 0.0, math.cos(bearing_rad)
+    # optical -> body FRD: forward(+x_b)=+z_opt, right(+y_b)=+x_opt, down(+z_b)=+y_opt
+    # NOTE (#40 / #35): this permutation assumes the camera boresight is aligned
+    # with body-forward -- ZERO mount tilt. If an up-tilted mount is adopted
+    # (ADR-0060 A/B), the fixed mount rotation must be composed in HERE (a
+    # constant quaternion pre-multiply on `body`), else lambda is wrong by the
+    # mount angle. Today the sim mount is level, so this is exact.
+    body = (rz, rx, ry)
+    n_e_d = _quat_rotate(quat, body)
+    return math.atan2(n_e_d[1], n_e_d[0])
+
+
+def update_range_increase_streak(streak, last_fresh_range, streak_start_range,
+                                 meas_range, deadband):
+    """Advance the past-CPA range-increase breakoff streak by one FRESH
+    detection, with a noise DEADBAND (audit finding #37). Pure function so it is
+    exhaustively unit-testable (tests/test_breakoff_deadband.py).
+
+    Returns (streak, last_fresh_range, streak_start_range).
+
+    A step counts as a RISE only when meas_range > last_fresh_range + deadband;
+    then the streak grows and streak_start_range records the range at the BASE
+    of the current rising run (for the min-rise trigger check). A genuine DROP
+    (meas_range <= last_fresh_range) resets the streak. A within-deadband CREEP
+    (last_fresh_range < meas_range <= last_fresh_range + deadband) HOLDS the
+    streak WITHOUT advancing last_fresh_range -- so quantization jitter can't
+    ratchet up a false streak, yet a real slow post-CPA recession (measured 0.04
+    -0.11 m/detection on legitimate breakoffs) still fires within one extra
+    detection instead of being reset away.
+
+    DEFAULT (deadband == 0.0) IS BYTE-IDENTICAL to the pre-fix inline logic:
+    the creep band is empty (no value is both > last_fresh and <= last_fresh),
+    so every step is either a strict rise (streak+1) or a drop/flat (reset),
+    exactly as before, and last_fresh_range advances every fresh tick."""
+    if last_fresh_range is None:
+        return 0, meas_range, None
+    if meas_range > last_fresh_range + deadband:
+        if streak == 0:
+            streak_start_range = last_fresh_range
+        return streak + 1, meas_range, streak_start_range
+    if meas_range > last_fresh_range:
+        # within-deadband creep: hold streak, keep the last SIGNIFICANT range
+        return streak, last_fresh_range, streak_start_range
+    return 0, meas_range, None
+
+
 # --- Kalata-derived alpha-beta gains (tracking-refinement PORT 1, --kalata).
 # Ported VERBATIM (formula + variable names) from scripts/guidance_lab.py's
 # kalata_alpha_beta() -- see that function's docstring for the full
@@ -1087,6 +1193,11 @@ class M4TelemetryState(TelemetryState):
     def __init__(self):
         super().__init__()
         self.yaw_deg: Optional[float] = None
+        # Full body(FRD)->NED attitude quaternion (w, x, y, z) from PX4's own
+        # EKF (MAVSDK attitude_quaternion) -- own-state, honesty-legal, the same
+        # basis as yaw/position. Used to derotate the camera LOS bearing for
+        # roll+pitch, not just yaw (audit-3 H1, derotate_bearing_lambda).
+        self.att_quat: Optional[tuple] = None
         self.pos_n: Optional[float] = None
         self.pos_e: Optional[float] = None
         # Own NED velocity (P-6 fused/warm-handoff geometric rate init needs
@@ -1098,6 +1209,14 @@ class M4TelemetryState(TelemetryState):
 async def track_attitude(drone, state: "M4TelemetryState") -> None:
     async for euler in drone.telemetry.attitude_euler():
         state.yaw_deg = euler.yaw_deg
+
+
+async def track_attitude_quaternion(drone, state: "M4TelemetryState") -> None:
+    """Own-state body(FRD)->NED attitude quaternion (PX4 EKF). Kept alongside
+    the Euler yaw stream (which still feeds yaw setpoints + PIP) so the LOS
+    bearing can be derotated for the FULL attitude, not just yaw (audit-3 H1)."""
+    async for q in drone.telemetry.attitude_quaternion():
+        state.att_quat = (q.w, q.x, q.y, q.z)
 
 
 async def track_local_position(drone, state: "M4TelemetryState") -> None:
@@ -1500,6 +1619,34 @@ def parse_args():
              "range disagrees with this protected coast by more than this many "
              "metres -> coast through the false lock. Typical: 6 m.")
     parser.add_argument(
+        "--breakoff-deadband-m", type=float, default=0.0,
+        help="Audit #37 (default 0.0 = OFF, byte-identical): noise deadband on "
+             "the past-CPA range-increase breakoff. A fresh detection only "
+             "counts toward the 3-in-a-row rising streak if its measured range "
+             "exceeds the last significant range by MORE than this many metres "
+             "(else the streak HOLDS, without ratcheting). Sizes out the ~2-3 "
+             "cm/px range quantization jitter that false-triggered early "
+             "breakoffs while still closing (7/33 logged). Deployment: 0.05 -- "
+             "kept SMALL because a real post-CPA recession can be only 0.04-"
+             "0.11 m/detection (a bigger deadband would suppress a legit "
+             "breakoff).")
+    parser.add_argument(
+        "--breakoff-min-rise-m", type=float, default=0.0,
+        help="Audit #37 (default 0.0 = OFF, byte-identical): require the total "
+             "measured-range rise from the base of the streak to be at least "
+             "this many metres before the range-increase breakoff triggers -- a "
+             "trend gate on top of the count. Deployment: 0.15.")
+    parser.add_argument(
+        "--breakoff-max-range-m", type=float, default=None,
+        help="Audit #37 (default None = OFF, byte-identical): only allow the "
+             "range-increase breakoff to trigger when the MEASURED range is at "
+             "or below this many metres. A legitimate past-CPA breakoff happens "
+             "near CPA (small measured range); a large-range 'increase' is a "
+             "lost-target / phantom flyby, not a real overshoot. Gates on the "
+             "camera's own measured range (NOT the dead-reckoned r_hat, which a "
+             "phantom can corrupt UPWARD on a genuine intercept). Deployment: "
+             "TERMINAL_RANGE_M (5.0 m under --fpv).")
+    parser.add_argument(
         "--handoff-cue-gate", type=float, default=None,
         help="ADR-0057 attempt-3 ROOT-CAUSE fix (default None = OFF, byte-"
              "identical): the CUE-VALIDATED HANDOFF gate. The root cause of "
@@ -1779,6 +1926,7 @@ async def run_acquire_and_engage(
     breakoff_armed = False
     range_increase_streak = 0
     last_fresh_range = None
+    streak_start_range = None   # range at the base of the current rising run (min-rise gate)
     dropout_start_mono = None
     lost_since_mono = None
 
@@ -1973,7 +2121,15 @@ async def run_acquire_and_engage(
                 fresh = False      # coast this tick (no fresh correction)
                 detected = False   # keep the CSV/acquire bookkeeping consistent
         if fresh:
-            lambda_meas = psi_rad + meas.bearing_rad
+            # Inertial LOS azimuth, derotating the FULL attitude (roll+pitch+
+            # yaw) -- not the pre-fix yaw-only `psi + beta`, which inflated the
+            # azimuth ~1/cos(pitch) at the 27-36 deg dash pitch and mixed roll
+            # cross-coupling into lambda (audit-3 H1). IDENTITY at zero roll/
+            # pitch, so the validated level M3/M4/M5 results are preserved.
+            # meas_xyz + bearing are camera-only; att_quat + psi are own-state
+            # EKF -> honesty-clean (derotate_bearing_lambda docstring).
+            lambda_meas = derotate_bearing_lambda(
+                meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad)
             # ADR-0043 lever B: roll off the bearing-noise throughput in the
             # terminal ONLY (gain 1.0 elsewhere and by default). No-op under
             # --tracker ekf (the channel view ignores gain_scale by design).
@@ -1985,8 +2141,8 @@ async def run_acquire_and_engage(
             range_filter.correct(meas.range_m, tick_start)
             # PIP absolute target track (ADR-0011): own NED position (EKF,
             # own-state) + the camera relative vector in NED. The relative
-            # vector uses the SAME bench-validated LOS azimuth psi+beta the
-            # pronav command frame uses: north = range*cos(lambda),
+            # vector uses the SAME full-attitude derotated LOS azimuth (#38,
+            # lambda_meas) the pronav command frame uses: north = range*cos(lambda),
             # east = range*sin(lambda). Target info stays camera-only.
             if state.pos_n is not None and state.pos_e is not None:
                 rel_n = meas.range_m * math.cos(lambda_meas)
@@ -1996,7 +2152,8 @@ async def run_acquire_and_engage(
                 )
                 tracker_correction_count += 1
             # P-6: camera owns the fused angle + full-gain range (lambda_meas
-            # is the inertial LOS psi+beta, exactly as the guidance filter).
+            # is the full-attitude derotated inertial LOS azimuth (#38), exactly
+            # as the guidance filter).
             if fused is not None:
                 fused.update_camera(lambda_meas, meas.range_m, tick_start)
 
@@ -2733,15 +2890,31 @@ async def run_acquire_and_engage(
                             f"measured range {meas.range_m:.2f} m < hard floor "
                             f"{BREAKOFF_HARD_FLOOR_M} m"
                         )
-                    if last_fresh_range is not None and meas.range_m > last_fresh_range:
-                        range_increase_streak += 1
-                    else:
-                        range_increase_streak = 0
-                    last_fresh_range = meas.range_m
+                    range_increase_streak, last_fresh_range, streak_start_range = (
+                        update_range_increase_streak(
+                            range_increase_streak, last_fresh_range,
+                            streak_start_range, meas.range_m,
+                            args.breakoff_deadband_m)
+                    )
+                    # Trigger: armed + N-in-a-row rising, AND (audit #37, all
+                    # default no-op) within the max measured range when set, AND
+                    # the total rise from the streak base clears the min-rise
+                    # when set. Defaults (deadband 0, max None, min-rise 0) make
+                    # both extra clauses vacuously true -> byte-identical.
+                    rise_ok = (
+                        streak_start_range is None
+                        or meas.range_m - streak_start_range >= args.breakoff_min_rise_m
+                    )
+                    range_ok = (
+                        args.breakoff_max_range_m is None
+                        or meas.range_m <= args.breakoff_max_range_m
+                    )
                     if (
                         not breakoff_reason
                         and breakoff_armed
                         and range_increase_streak >= BREAKOFF_RANGE_INCREASES
+                        and range_ok
+                        and rise_ok
                     ):
                         breakoff_reason = (
                             f"measured range increased for {range_increase_streak} "
@@ -2911,16 +3084,127 @@ async def run_acquire_and_engage(
     }
 
 
+def _euler_to_quat_body_to_ned(roll, pitch, yaw):
+    """(roll, pitch, yaw) radians -> body(FRD)->NED unit quaternion (w,x,y,z),
+    standard aerospace ZYX (yaw about down, then pitch about right, then roll
+    about forward). Used by the --bench derotation self-check (and mirrored in
+    tests/test_bearing_derotation.py) to build known-attitude fixtures."""
+    cr, sr = math.cos(roll / 2), math.sin(roll / 2)
+    cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
+    cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
+    return (
+        cr * cp * cy + sr * sp * sy,   # w
+        sr * cp * cy - cr * sp * sy,   # x
+        cr * sp * cy + sr * cp * sy,   # y
+        cr * cp * sy - sr * sp * cy,   # z
+    )
+
+
+def bench_derotation_selfcheck(tol_deg=0.05):
+    """Known-attitude proof that the FULL-attitude LOS derotation is correct --
+    the piece the live level-spin bench CANNOT exercise (it only ever flies
+    roll=pitch=0, the one geometry where roll/pitch coupling is identically
+    zero, audit-3 H1). Returns (ok, lines) with a human-readable transcript.
+
+      1. IDENTITY: at roll=pitch=0, the derotated lambda == psi + beta for a
+         grid of bearings/elevations/yaws (preserves the validated level runs).
+      2. PITCH: a known nose-up pitch inflates the azimuth of an off-boresight
+         target -- the pre-fix `psi + beta` is provably wrong, the fix is right.
+      3. ROLL: a known roll mixes a purely-VERTICAL target offset into the
+         azimuth (pre-fix lambda == 0, derotated lambda != 0), matching an
+         independent rotation-matrix computation."""
+    lines = []
+    ok = True
+    tol = math.radians(tol_deg)
+
+    def rot_body_to_ned(quat, v):  # independent cross-check of _quat_rotate
+        return _quat_rotate(quat, v)
+
+    # 1. IDENTITY at zero roll/pitch (the level-results-preserved guarantee).
+    for yaw_d in (0.0, 37.0, -80.0):
+        for bearing_d in (0.0, 12.0, -25.0):
+            for elev_d in (0.0, 15.0, -20.0):   # vertical off-boresight
+                psi = math.radians(yaw_d)
+                b = math.radians(bearing_d)
+                el = math.radians(elev_d)
+                # optical ray with this bearing AND elevation
+                mx = (math.sin(b) * math.cos(el), math.sin(el),
+                      math.cos(b) * math.cos(el))
+                q = _euler_to_quat_body_to_ned(0.0, 0.0, psi)
+                got = derotate_bearing_lambda(mx, b, q, psi)
+                want = wrap_pi(psi + b)
+                if abs(wrap_pi(got - want)) > tol:
+                    ok = False
+                    lines.append(
+                        f"IDENTITY FAIL yaw={yaw_d} b={bearing_d} el={elev_d}: "
+                        f"got {math.degrees(got):.3f} want {math.degrees(want):.3f}")
+    lines.append("IDENTITY (roll=pitch=0 -> lambda==psi+beta): "
+                 f"{'PASS' if ok else 'FAIL'} (27 cases)")
+
+    # 2. PITCH inflates the azimuth of an off-boresight target.
+    pitch = math.radians(30.0)
+    b = math.radians(20.0)
+    mx = (math.sin(b), 0.0, math.cos(b))   # horizontal off-boresight, no elevation
+    q = _euler_to_quat_body_to_ned(0.0, pitch, 0.0)
+    got = derotate_bearing_lambda(mx, b, q, 0.0)
+    # independent: optical->body then body->NED via the SAME quaternion
+    body = (mx[2], mx[0], mx[1])
+    ned = rot_body_to_ned(q, body)
+    want = math.atan2(ned[1], ned[0])
+    yaw_only = b   # the pre-fix answer
+    pitch_ok = abs(wrap_pi(got - want)) <= tol and abs(wrap_pi(got - yaw_only)) > math.radians(1.0)
+    ok = ok and pitch_ok
+    lines.append(
+        f"PITCH 30deg, target b=20deg: derotated={math.degrees(got):.2f} "
+        f"(indep {math.degrees(want):.2f}), yaw-only={math.degrees(yaw_only):.2f} "
+        f"-> error corrected {math.degrees(abs(wrap_pi(got - yaw_only))):.2f}deg: "
+        f"{'PASS' if pitch_ok else 'FAIL'}")
+
+    # 3. ROLL couples a purely-VERTICAL target offset into azimuth.
+    roll = math.radians(40.0)
+    # target on the boresight horizontally (b=0) but BELOW it (positive y_opt = down)
+    mx = (0.0, math.tan(math.radians(15.0)), 1.0)
+    q = _euler_to_quat_body_to_ned(roll, 0.0, 0.0)
+    got = derotate_bearing_lambda(mx, 0.0, q, 0.0)
+    body = (mx[2], mx[0], mx[1])
+    ned = rot_body_to_ned(q, body)
+    want = math.atan2(ned[1], ned[0])
+    roll_ok = abs(wrap_pi(got - want)) <= tol and abs(got) > math.radians(1.0)
+    ok = ok and roll_ok
+    lines.append(
+        f"ROLL 40deg, vertical-only offset (b=0): derotated={math.degrees(got):.2f} "
+        f"(indep {math.degrees(want):.2f}), yaw-only=0.00 -> cross-coupling "
+        f"captured: {'PASS' if roll_ok else 'FAIL'}")
+    return ok, lines
+
+
 async def run_bench(drone, state, meas_holder, tracker, writer, log_file, started, args, sim_clock=None):
-    """--bench: prove the lambda = psi + beta compensation actually works.
-    Spins the vehicle in place (yawspeed square wave) over a STATIC tag
-    (no mover) while running the lambda filter normally; if the
+    """--bench: prove the LOS azimuth compensation actually works, in TWO parts.
+
+    (A) DEROTATION SELF-CHECK (runs first, no flight): a known-attitude proof
+    that the FULL roll+pitch+yaw derotation (derotate_bearing_lambda) is correct
+    -- IDENTITY at zero tilt, correct azimuth inflation under a known pitch, and
+    correct roll cross-coupling. The live spin below only ever flies LEVEL, the
+    one geometry where the roll/pitch coupling is identically zero, so it alone
+    could NEVER catch the audit-3 H1 bug; this static check can (bench_derotation
+    _selfcheck()). A failure here aborts the bench before arming.
+
+    (B) LEVEL SPIN: spins the vehicle in place (yawspeed square wave) over a
+    STATIC tag (no mover) while running the lambda filter normally; if the
     compensation is correct, lambda_dot_hat should stay near zero (the tag
     genuinely isn't moving) even though the raw bearing is sweeping hard as
     the vehicle spins under it. See the module docstring's "strapdown
     seeker" section for why this is exactly the failure mode a naive
     d(bearing)/dt would fall into.
     """
+    derot_ok, derot_lines = bench_derotation_selfcheck()
+    print("[m4] --bench derotation self-check:")
+    for ln in derot_lines:
+        print(f"    {ln}")
+    if not derot_ok:
+        print("BENCH FAILED: derotation self-check FAILED (see lines above)")
+        return False, float("nan"), float("nan")
+
     dt = 1.0 / CONTROL_RATE_HZ
     lambda_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_LAMBDA, angular=True)
 
@@ -2944,7 +3228,14 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
 
         lambda_filter.predict(dt)
         if fresh:
-            lambda_filter.correct(psi_rad + meas.bearing_rad, tick_start)
+            # Same FULL-attitude derotation the guidance loop uses; at the
+            # bench's LEVEL spin (roll=pitch=0) it is identity == psi+beta, so
+            # the bench pass/fail number is unchanged (the derotation itself is
+            # proved separately by the self-check above).
+            lambda_filter.correct(
+                derotate_bearing_lambda(
+                    meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad),
+                tick_start)
 
         v_down = (
             _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
@@ -3272,6 +3563,7 @@ async def main():
             asyncio.create_task(track_armed(drone, state)),
             asyncio.create_task(track_landed_state(drone, state)),
             asyncio.create_task(track_attitude(drone, state)),
+            asyncio.create_task(track_attitude_quaternion(drone, state)),
             asyncio.create_task(track_local_position(drone, state)),
         ]
 

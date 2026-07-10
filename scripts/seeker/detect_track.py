@@ -247,6 +247,15 @@ class DetectThenTracker:
         # Degeneracy guards for a bad tracker box.
         self.min_box_px = _envf("MARKERLESS_TRACK_MIN_BOX_PX", 4.0)
         self.max_box_frac = _envf("MARKERLESS_TRACK_MAX_BOX_FRAC", 0.9)
+        # FRAME-BORDER COAST (audit #37): the NN's own detect() self-masks
+        # edge-touching boxes (finetuned_seeker.edge_margin_px), but a CSRT
+        # TRACKER box bypasses every mask -- and a box clipped by the frame edge
+        # has a truncated width (under-reading the width-based range, feeding a
+        # false past-CPA range rise) and a biased centre (skewing bearing). When
+        # >0, COAST (publish nothing, keep the lock) on any frame where the
+        # tracker box comes within this many px of a frame edge. Default 0 =
+        # disabled = byte-identical. Deployment: ~8 px.
+        self.border_margin_px = _envf("MARKERLESS_TRACK_BORDER_MARGIN_PX", 0.0)
 
         self.tracker = None
         self.last_box: Optional[Tuple[float, float, float, float]] = None
@@ -260,6 +269,7 @@ class DetectThenTracker:
         self.n_seed = self.n_reseed = self.n_lost = 0
         self.n_track_frames = self.n_nn_frames = self.n_phantom_ignored = 0
         self.n_reacq_rejected = 0
+        self.n_border_coast = 0   # frames coasted for a frame-edge-clipped box (audit #37)
 
     # ---- seeker-agnostic box -> Measurement (SAME conversion the NN uses) ----
     def _box_to_det(self, box, t_mono, score, n) -> SeekerDetection:
@@ -372,6 +382,17 @@ class DetectThenTracker:
             return True
         return False
 
+    def _touches_border(self, box, W, H) -> bool:
+        """True if any edge of `box` sits within border_margin_px of a frame
+        edge (audit #37). Disabled (always False) when the margin is <= 0, so
+        the default path is byte-identical."""
+        if self.border_margin_px <= 0:
+            return False
+        x, y, w, h = box
+        m = self.border_margin_px
+        return (x <= m or y <= m
+                or (x + w) >= (W - m) or (y + h) >= (H - m))
+
     def _none(self, t_mono) -> SeekerDetection:
         return SeekerDetection(t_mono, None, None, None, None, None, 0)
 
@@ -409,6 +430,15 @@ class DetectThenTracker:
             self.n_lost += 1
             return self._none(t_mono)   # coast; ACQUIRE re-seeds next frames
 
+        # Frame-border coast (audit #37): a box clipped by the frame edge yields
+        # a truncated-width (under-read) range + biased bearing. COAST -- publish
+        # nothing this frame but KEEP the tracker alive (unlike a loss), so
+        # tracking resumes cleanly if the box re-enters the interior. Default
+        # margin 0 -> _touches_border always False -> byte-identical.
+        if self._touches_border(box, W, H):
+            self.n_border_coast += 1
+            return self._none(t_mono)
+
         self.since_nn += 1
         # ---- periodic NN re-validation / drift correction ----
         if self.since_nn >= self.revalidate_every:
@@ -438,6 +468,6 @@ class DetectThenTracker:
         return (f"[detect-track] seeds={self.n_seed} reseeds={self.n_reseed} "
                 f"lost={self.n_lost} track_frames={self.n_track_frames} "
                 f"nn_frames={self.n_nn_frames} phantoms_ignored={self.n_phantom_ignored} "
-                f"reacq_rejected={self.n_reacq_rejected} "
+                f"reacq_rejected={self.n_reacq_rejected} border_coast={self.n_border_coast} "
                 f"kind={self.tracker_kind} revalidate_every={self.revalidate_every} "
                 f"reseed_iou={self.reseed_iou} seed_gate_m={self.seed_cue_gate_m}")
