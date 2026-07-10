@@ -1650,3 +1650,52 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   no CSV schema change.
 - **Date.** 2026-07-10. Code+tests+pre-registration in this commit; re-fly results land
   as an addendum.
+
+- **Addendum (2026-07-10, task #40 — the mount-compose RE-FLY FLEW; STAGE-1
+  VERDICT = FAIL on strict parity, but compensation RECOVERED most of the
+  terminal cost).** Per `docs/adr0067_refly_preregistration.md` (pre-registered
+  BEFORE the fly): up00 refly control vs up15 compensated (`--cam-mount-up-deg
+  15`), n=8 paired, master-seed 42, `logs/mc_uptilt_refly_weave12_up{00,15c}.csv`
+  + `logs/uptilt_refly_analysis_20260710.txt`.
+  - **Validity gates.** (1) Shadow swap TOOK: up15c d(top_margin) +8.3° (below
+    +15) with d(first_det) +4.07 m — the CORRECTED (review-fixed) valid
+    signature, analyzer-flagged. (2) Machinery-stability tripwire PASS: fresh
+    refly-up00 vs the ADR-0067 up00 reproduces to sub-noise (miss med|Δ| 0.065 m
+    ≤ 1.0 m; first-det med +0.60 m ≤ 2 m) — the harness is stable, differences
+    are real. (3) No-cheat audit: (a)/(b) PASS and the gt-leak (d) advisory is
+    within the honest range on every arm → NO ground-truth leak. The (c)
+    cmd-follows-camera correlation drops below its level-calibrated 0.7 on
+    TILTED arms (uncompensated up15 0.437; compensated up15c 0.654 — compensation
+    IMPROVES it), a confirmed tilted-terminal-GEOMETRY effect (both level arms
+    pass, gt-leak normal), NOT a cheat and NOT compensation-specific. Recorded as
+    a geometry-sensitivity of audit (c) for tilted mounts; honesty spine intact.
+  - **PRIMARY — terminal parity (up15c − refly-up00, paired miss).** Per-seed
+    +0.18 +1.02 +0.12 +0.49 +0.14 +1.31 +0.09 −0.02: **worse on 7/8 seeds**,
+    median paired delta **+0.158 m**, **Pk@2.5 8/8**. Pre-registered bars: PASS
+    needs worse ≤5/8 AND median ≤+0.30; FAIL is worse ≥7/8 OR median ≥+0.84.
+    **7/8 worse ⇒ FAIL** (strict parity NOT achieved — a small, directionally-
+    consistent residual remains). BUT vs the uncompensated up15 (ride-along,
+    8/8 worse, median +0.82 m, Pk 4/8): **compensation cut the median penalty
+    ~5× (+0.82 → +0.16 m) and RESTORED Pk@2.5 4/8 → 8/8.** So compensation
+    WORKS — it removes most of the ADR-0067 terminal cost — it just does not
+    reach statistical parity (still a ~0.16 m, within-noise-magnitude but
+    sign-significant bias, carried mostly by 2/8 seeds compensation didn't fully
+    fix).
+  - **SECONDARY — acquisition retained:** up15c d(first_det_range) med +4.07 m
+    vs refly-up00 (further = earlier detection), positive on 7/8 — the
+    availability win holds under compensation (dash-above-FoV 35% → 0%, in-FoV
+    58% → 89%). **WATCH — engBelow:** up15c 0% (vs uncompensated up15 12%) on
+    the analyzable engage flights (denom noise flagged), no bottom-of-frame cost
+    in this sweep.
+  - **DECISION (per the pre-registered FAIL rule).** NO fixed +15° mount
+    adoption on this n=8 strict-parity FAIL. The residual terminal bias + the
+    fixed-angle compromise STRENGTHEN the case for #46 adaptive camera tilt
+    (ADR-0065), which buys the availability without committing to one fixed
+    angle. Compensation itself is VALIDATED and SHIPPED (ADR-0068): it is the
+    prerequisite that makes any tilted config flyable, and it recovered the
+    terminal cost from Pk 4/8 to 8/8. Stage 2 (tilted+compensated comms-jam
+    recovery re-test) may still fly — the availability question stands
+    independently of nominal-terminal adoption (pre-registration §Stage-2).
+  - **Honesty.** Own-state attitude + static mount constant + camera only; no
+    `gt_*`; audit spine intact (gt-leak normal, (a)/(b) pass); the (c) tilted-
+    geometry sensitivity is documented above, not waved away.

@@ -1,0 +1,39 @@
+
+===== PER-ARM AGGREGATES =====
+arm                                        mount   n dashInFoV dashAbove 1stDetR_m topMargin hoTopMarg engBelow missMed Pk@2.5 clean
+mc_uptilt_refly_weave12_up00.csv               0   8       58%       35%     15.08       1.5       8.6       0%    1.75   8/8   4/8
+mc_uptilt_refly_weave12_up15c.csv             15   8       89%        0%     20.33       9.8      26.1       0%    2.16   8/8   4/8
+mc_uptilt_weave12_up00.csv                     0   8       61%       32%     20.46       4.2      10.7       0%    1.81   8/8   4/8
+mc_uptilt_weave12_up15.csv                    15   8       90%        0%     20.68      12.5      30.8      12%    2.42   4/8   1/8
+
+[WARN] 2 mount-0 arms passed (mc_uptilt_refly_weave12_up00.csv, mc_uptilt_weave12_up00.csv). CONTROL = mc_uptilt_refly_weave12_up00.csv (refly/within-sweep preferred). Cross-era pairing is INVALID (ADR-0067 addendum): confirm the control is the within-sweep up00 before trusting the PRIMARY parity read.
+
+===== PAIRED PER-SEED DELTAS vs mc_uptilt_refly_weave12_up00.csv (same run_idx = same cue/path seeds) =====
+mc_uptilt_refly_weave12_up15c.csv (n_paired=8): d(first_det_range) med=+4.07 m, d(top_margin) med=+8.3 deg (mount +15)  (swap took: d below +mount, d(first_det) > 0)
+    d(miss) [m] per-seed: +0.18 +1.02 +0.12 +0.49 +0.14 +1.31 +0.09 -0.02
+      -> tighter 1/8, worse 7/8; med=+0.158, med|d|=0.158
+    d(first_det_range) [m] per-seed: +3.36 +3.67 +6.66 +4.69 -4.14 +7.80 +1.38 +4.47
+      -> closer 1/8, further 7/8; med=+4.070, med|d|=4.305
+    d(engBelow) [frac] per-seed: -0.224 +0.000 +0.140 +0.017 +0.000 +0.000
+      -> lower 1/6, higher 2/6, tie 3; med=+0.000, med|d|=0.008  [!] denom 6 != expected 8 (dropped 2) -- re-fly the lost seed(s) before scoring (bars are counts of exactly N)
+mc_uptilt_weave12_up00.csv (n_paired=8): d(first_det_range) med=+0.60 m, d(top_margin) med=-0.7 deg (mount +0)
+    d(miss) [m] per-seed: +0.05 -0.09 +0.02 -0.01 +0.14 -0.07 +0.06 +0.07
+      -> tighter 3/8, worse 5/8; med=+0.036, med|d|=0.065
+    d(first_det_range) [m] per-seed: -0.25 +0.70 -1.28 +5.47 -1.77 +11.84 +0.50 +4.96
+      -> closer 3/8, further 5/8; med=+0.600, med|d|=1.525
+    d(engBelow) [frac] per-seed: +0.000 +0.693 +0.000 +0.000 +0.023 +0.000
+      -> lower 0/6, higher 2/6, tie 4; med=+0.000, med|d|=0.000  [!] denom 6 != expected 8 (dropped 2) -- re-fly the lost seed(s) before scoring (bars are counts of exactly N)
+mc_uptilt_weave12_up15.csv (n_paired=8): d(first_det_range) med=+5.57 m, d(top_margin) med=+9.4 deg (mount +15)  (swap took: d below +mount, d(first_det) > 0)
+    d(miss) [m] per-seed: +0.23 +1.19 +0.64 +1.29 +0.17 +1.00 +0.46 +1.17
+      -> tighter 0/8, worse 8/8; med=+0.819, med|d|=0.819
+    d(first_det_range) [m] per-seed: +2.86 +4.52 +1.90 +7.86 -5.43 +6.99 +6.61 +7.68
+      -> closer 1/8, further 7/8; med=+5.565, med|d|=6.020
+    d(engBelow) [frac] per-seed: +0.000 -0.109 +0.148 -0.025 +0.000 +0.380
+      -> lower 2/6, higher 2/6, tie 2; med=+0.000, med|d|=0.067  [!] denom 6 != expected 8 (dropped 2) -- re-fly the lost seed(s) before scoring (bars are counts of exactly N)
+
+CAVEATS (per arm):
+  mc_uptilt_refly_weave12_up00.csv: (c)-metrics UNCOMPENSATED (m4 assumes zero mount) -- worst case, not the design ceiling (ADR-0067 sweep, or a mount-0 arm).
+  mc_uptilt_refly_weave12_up15c.csv: (c)-metrics COMPENSATED (--cam-mount-up-deg active; guidance composes the mount) -- this is the #40 design condition.
+  mc_uptilt_weave12_up00.csv: (c)-metrics UNCOMPENSATED (m4 assumes zero mount) -- worst case, not the design ceiling (ADR-0067 sweep, or a mount-0 arm).
+  mc_uptilt_weave12_up15.csv: (c)-metrics UNCOMPENSATED (m4 assumes zero mount) -- worst case, not the design ceiling (ADR-0067 sweep, or a mount-0 arm).
+  ALL arms: n small -> Wilson-CI language for any binomial claim (ADR-0041 F5); ~1 m single-flight miss noise; ~5 m false-lock noise at 12 m/s maneuver (ADR-0057).
