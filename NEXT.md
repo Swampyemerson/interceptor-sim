@@ -20,18 +20,17 @@ with reproducible, logged numbers. Six steps, in value order:
    715ce85); the builder's stated precondition (v3 eval complete) is MET
    (ADR-0061). Needs builder go-confirm; GPU render slot is now the first
    free sim-queue item (#33 is DONE — see below).
-3. **The perception lever (#35 up-tilt A/B, standalone → #40 mount-compose,
-   gates the compensated terminal-miss).** The one open engineering lever
-   that is now LOAD-BEARING TWICE: nominal dash acquisition (ADR-0060 — ~35%
-   of dash ticks the target is above the FoV) AND comms-denied recovery
-   (ADR-0059 recovery NULL — binding constraint is onboard perception at
-   15–21 m, not guidance). Outcome either un-HOLDs recovery (huge) or
-   honestly documents the limit. Either is portfolio-good. **Scope split
-   (ADR-0062 boundary note, #40 follow-up 1):** #35's acquisition metrics
-   (first-detection range) fly standalone and are RUNNING NOW; #40's
-   mount-compose is only needed to trust the *compensated terminal-miss*
-   number once FIX-A's derotation must account for a non-zero mount tilt —
-   it does not block #35's acquisition result.
+3. **The perception lever — #35 FLOWN (ADR-0067) → #40 mount-compose is now
+   the active step.** The A/B answered the availability question: a fixed
+   up-tilt CLOSES the ADR-0060 FoV gap (dash-above-FoV 32% → 0%, in-FoV 61%
+   → ~90%), but the paired acquisition gain is small (+2–3 m; the interim
+   "+7.6 m" was baseline-confounded — ADR-0067 documents the catch) and the
+   UNCOMPENSATED terminal cost is dose-dependent (Pk@2.5 8/8 → 2/8 by 35°).
+   NO mount adopted. Path to a verdict on un-HOLDing ADR-0059 recovery:
+   #40 mount-compose (compensate FIX-A derotation for the tilt) → re-fly
+   terminal at the chosen angle (up15 = leading candidate, not a choice) →
+   tilted+compensated recovery re-test. Adaptive tilt (ADR-0065, #46)
+   gained standing from this result.
 4. **Correctness closure (#44, #40 remainder, #43 remainder).** Drive the
    audited known-bugs list to fixed-or-ADR'd — no silent known defects.
 5. **Honesty hardening (DEEP-H2 handoff-streak tests).** ✅ #42/DEEP-N1 FIXED
@@ -54,17 +53,23 @@ tracked-or-accepted; repo publishable on a remote.
   98.6%** point / 92.5% LB (the one 2.757 m miss handed off cleanly = terminal
   noise, not a failure). Evidence CSVs committed. Radius-explicit framing (never
   a bare "95% Pk"); weave/12 m/s only, never pooled across paths.
-- **RUNNING: #35 up-tilt mount A/B** (`bska471mo`) — up15 done 8/8, mechanism
-  confirmed (first-detection 14.3 → **21.9 m** median, the mount WORKS); up00/
-  up25/up35 chaining now. Analyze via `scripts/experiments/uptilt_ab_analyze.py`
-  when done. ⚠️ the sweep owns the `models/mono_cam` shadow symlink — AFTER the
-  chain finishes, verify it's gone or run `scripts/uptilt_ab_arm.sh --cleanup`
-  (a stranded link silently tilts EVERY future batch).
+- **#35 up-tilt A/B FLOWN + analyzed (ADR-0067):** mechanism CONFIRMED —
+  dash-above-FoV 32% → **0%** at every tilt, in-FoV 61% → ~90%. But: paired
+  acquisition gain only **+2–3 m** vs the up00 control (the earlier
+  "14.3 → 21.9 m" read compared against the OLD r2 baseline, which detects
+  5.3 m later than up00 on identical seeds — confound caught, corrected);
+  uncompensated terminal penalty is dose-dependent (miss med 1.81 → 2.79 m,
+  Pk@2.5 8/8 → 2/8; guidance still assumes zero mount). NO mount adopted —
+  #40 mount-compose now gates everything terminal. Evidence CSVs + analysis
+  committed. `models/mono_cam` shadow symlink **verified removed** post-chain.
 - **NEW IDEA — adaptive camera tilt (ADR-0065, task #46):** track the actual dash
   pitch instead of one fixed compromise angle; the perception-availability lever
   that could UN-HOLD comms-denied recovery (the ADR-0059 NULL failed precisely
-  because the camera couldn't reacquire out of the down-pitched FoV). Plan: finish
-  the fixed A/B first, then sim-test the pitch-following schedule.
+  because the camera couldn't reacquire out of the down-pitched FoV). The fixed
+  A/B is now FLOWN (ADR-0067) and STRENGTHENS this idea's case: a fixed angle
+  buys availability at a dose-dependent terminal price that a pitch-following
+  schedule would avoid. Sim-test after #40 mount-compose exists (it needs the
+  same compensation machinery).
 - While ANY batch flies: do not touch `scripts/`, `m4_intercept.py`, or anything
   a flight imports; one sim at a time; idle load only. NOTE (measured): the
   headless sim renders on llvmpipe (software) → it is CPU-bound with the RTX 4070
@@ -76,17 +81,17 @@ tracked-or-accepted; repo publishable on a remote.
   NULL, ADR-0061). Adopted config: `--track --handoff-cue-gate 8` + FIX-A
   derotation (ADR-0058/0062). Jink n=16 post-fix: 16/16 Pk@2.5 (d393a6b).
 - **Uncommitted on disk (intentional pre-drafts — commit with their tasks,
-  never mid-batch):** the #35 up-tilt harness (`scripts/uptilt_ab_arm.sh`,
-  `scripts/uptilt_make_variants.py`, `scripts/experiments/uptilt_mounts/`,
-  `scripts/experiments/uptilt_ab_analyze.py`), the #33 sizing script
-  (`scripts/stats_hardening_options.sh`), the #30 blur evidence
-  (`scripts/experiments/logs/blur_replay_sample.csv`).
-  **Never stage:** `yolo11n.pt`. **Verify-removed:** `models/mono_cam` — the
-  #35 sweep's shadow symlink; confirm it's gone once the up-tilt chain
-  finishes (or run `scripts/uptilt_ab_arm.sh --cleanup`) before trusting any
-  *other* batch's world. `.claude/settings.local.json` **IS git-tracked**
-  (`4f098b7`) — the real rule is commit permission drift separately and
-  deliberately, never bundled into a task commit.
+  never mid-batch):** the #30 blur evidence
+  (`scripts/experiments/logs/blur_replay_sample.csv`) — everything else
+  (the #35 up-tilt harness + evidence, the #33 sizing script) was committed
+  with ADR-0067.
+  **Never stage:** `yolo11n.pt` (now enforced by `.gitignore`).
+  `models/mono_cam` shadow symlink: verified removed after the #35 chain
+  (2026-07-10) — if a future sweep strands it, run
+  `scripts/uptilt_ab_arm.sh --cleanup` before trusting any other batch's
+  world. `.claude/settings.local.json` **IS git-tracked** (`4f098b7`) — the
+  real rule is commit permission drift separately and deliberately, never
+  bundled into a task commit.
 - **2026-07-10 doc declutter (ADR-0066):** retired 9 non-load-bearing
   portfolio/one-off docs (`docs/{interviewer_prep,portfolio_bullets,
   portfolio_visuals,WRITEUP,audit_deep_2026-07-10,audit_forward_2026-07-10,
@@ -128,23 +133,20 @@ tracked-or-accepted; repo publishable on a remote.
    the top portfolio artifact; feature the regimes that genuinely hold
    (ADR-0056 framing), HUD sensor-attribution anti-jam money shot; audit
    frames after render (`scripts/video/t25_render_plan.md`).
-2. **[m4 window — between batches] #40 FIX-A follow-ups** — uptilt
-   mount-compose (gates the *compensated terminal-miss* number once #35
-   picks a mount angle; does NOT block #35's acquisition metrics, which fly
-   standalone — ADR-0062 boundary note), then gate derotation, M7
+2. **[m4 window — between batches] #40 FIX-A follow-ups — NOW THE CRITICAL
+   PATH for the perception lever:** uptilt mount-compose (compensate FIX-A
+   derotation for a non-zero mount; #35 is FLOWN, ADR-0067 — compensation
+   now gates the terminal re-fly at the candidate angle (up15), any mount
+   adoption, AND the tilted recovery re-test), then gate derotation, M7
    slant-range, attitude CSV cols, FIX-B tuning gate.
-3. **#35 up-tilt mount A/B — RUNNING NOW** (see CURRENT) — load-bearing
-   twice (see PLAN §3); acquisition metrics fly standalone, no #40
-   dependency; harness pre-drafted on disk; A/B n≥16 paired vs the ~5 m
-   maneuver noise floor.
-4. **[m4 window] #44 ψ/β time-alignment (P-M6)** — detection-latency × yaw
+3. **[m4 window] #44 ψ/β time-alignment (P-M6)** — detection-latency × yaw
    LOS bias; distinct from FIX-A (time-alignment, not rotation); bites under
    yaw acceleration = exactly the maneuver regime. Then its A/B.
-5. **#32 r_hat honesty campaign** — aspect/bias/freeze probes + the G5
+4. **#32 r_hat honesty campaign** — aspect/bias/freeze probes + the G5
    vertical probe (FWD-C4) pinned into its arm list.
-6. **#43 remainder** — sim-gated `--epoch-t0` shared co-start + P-NEW1 RTF
+5. **#43 remainder** — sim-gated `--epoch-t0` shared co-start + P-NEW1 RTF
    sensitivity pass (the "biggest unexamined item"; sim-free half DONE c724347).
-7. **NEW (needs task #): G8 clutter/decoy-world batch** (DEEP-P7/FWD-C5) —
+6. **NEW (needs task #): G8 clutter/decoy-world batch** (DEEP-P7/FWD-C5) —
    the adopted gate radii have only ever seen one empty world; scopes the
    "0/155 false detections" headline.
 

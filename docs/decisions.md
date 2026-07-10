@@ -1513,3 +1513,43 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   future portfolio-writing pass. Removing them is zero information loss — git history
   is the durable archive — and a direct win for every session's signal-to-noise.
 - **Date.** 2026-07-10.
+## ADR-0067 — #35 up-tilt mount A/B FLOWN (4 arms × n=8, paired seeds): mechanism CONFIRMED — a fixed up-tilt closes the ADR-0060 dash-FoV gap (dash-above-FoV 32% → 0%) — but the paired acquisition gain is SMALL (+2–3 m, the interim "+7.6 m" read was baseline-confounded) and the uncompensated terminal cost is dose-dependent; NO mount adopted until #40 mount-compose flies
+
+- **Context.** ADR-0060 measured ~35% of dash ticks with the target above the FoV;
+  ADR-0059's comms-denied recovery NULL is perception-bound (no reacquire at
+  15–21 m). #35 asks whether a fixed up-tilt camera mount recovers that
+  availability. Arms: 0°/15°/25°/35° up-tilt, paired seeds (master 42),
+  weave/12 m/s, adopted config, n=8/arm. Harness `scripts/uptilt_ab_arm.sh` +
+  `scripts/uptilt_make_variants.py` (model-shadow symlink swap, self-cleaning);
+  analysis `scripts/experiments/uptilt_ab_analyze.py`. Evidence:
+  `logs/mc_uptilt_weave12_up{00,15,25,35}.csv` + `logs/uptilt_ab_analysis_20260710.txt`
+  (all committed with this ADR).
+- **Result — mechanism (the availability question).** Dash-in-FoV 61% (up00) →
+  90/87/93% (up15/25/35); dash-above-FoV **32% → 0%** at every tilt — the
+  ADR-0060 gap CLOSES. Paired mechanism check confirms the swap took:
+  top-margin +9.6°/+18.6°/+27.5° (expected ≈ +15/+25/+35°).
+- **Result — acquisition range, and the confound caught.** Paired first-detection
+  deltas vs the up00 control: **+2.92/+1.83/+2.26 m median** — real but SMALL.
+  The interim note "first-detection 14.3 → 21.9 m (the mount WORKS)" compared
+  up15 against the OLD r2 baseline (14.25 m); the sweep's own up00 control reads
+  20.46 m, and the analyzer's paired check shows the old baseline detecting
+  **−5.31 m later than up00 on identical seeds** — the old baseline's conditions
+  differ systematically from this harness. Honest gain = the within-sweep
+  +2–3 m, NOT +7.6 m. (Statistics-before-verdicts; the interim claim is
+  corrected on every surface in this commit.)
+- **Result — terminal (worst-case by construction).** Flown UNCOMPENSATED (m4
+  assumes a zero mount, so the boresight offset biases terminal LOS): miss
+  median 1.81 → 2.42/2.59/2.79 m; Pk@2.5 8/8 → 4/8, 3/8, 2/8 as tilt rises.
+  Expected penalty, NOT the design ceiling — per the ADR-0062 boundary note,
+  #40 mount-compose gates any terminal verdict. n=8/arm: Wilson-CI language
+  only; no binomial headline claims from this sweep.
+- **Decision.** NO mount angle adopted. The availability win is real and is the
+  recovery-relevant quantity, but whether it un-HOLDs ADR-0059 recovery is
+  undecidable until (a) #40 compensation removes the terminal penalty and
+  (b) a recovery re-run flies tilted+compensated. At this n and uncompensated,
+  up15 shows most of the coverage win at the least terminal cost — noted as the
+  leading candidate, not a choice. Adaptive tilt (ADR-0065, #46) gains standing:
+  a fixed compromise angle buys availability at a terminal price adaptive
+  scheduling would avoid.
+- **Date.** 2026-07-10. (Chain `bska471mo` up00/up25/up35 + prior up15; shadow
+  symlink verified removed post-chain; analyzed same session, builder away.)

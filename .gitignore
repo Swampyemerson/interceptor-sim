@@ -92,3 +92,6 @@ scripts/seeker/weights/yolo11n.pt
 !logs/m4_intercept_pronav_20260709T234106Z.csv
 !logs/mc_adr0059_*.csv
 !logs/mc_pk72_*.csv
+# #35 up-tilt A/B evidence (ADR-0067)
+!logs/mc_uptilt_*.csv
+!logs/uptilt_ab_analysis_20260710.txt
