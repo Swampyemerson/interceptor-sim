@@ -5,7 +5,29 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit; rebuilt 2026-07-08 after the seeker-v2 +
 fusion-P0/P1/P2 session.)*
 
-## ⚡ SESSION RESUME BLOCK (written 2026-07-09 ~22:45Z at 4% session limit — READ FIRST, then delete this block once absorbed)
+## ⚠️ OPEN CRITICAL FINDING (ADR-0059, 2026-07-10) — jam fail-closed in the ADOPTED config
+
+The design review (task #29, `docs/design_review_sim_to_real_2026-07-10.md`) + an independent code-trace found that the **adopted deployment config `--track --handoff-cue-gate 8` FAILS CLOSED under a mid-dash cue jam**: `last_cue_pos` never ages out, so a frozen stale cue makes the handoff-gate AND the `_seed_ok` seed-gate reject the real target once it drifts >8 m from the frozen point (~0.67 s after the jam) → never hands off. Default config (no cue-gate) hands off fine under jam but eats phantoms — a genuine tension. Mid-dash jam is an IN-SCOPE WORST tier (ADR-0015 `--link-cutoff`), so this is a real regression, but LATENT (no ADR-0058 arm ever flew a jam). **Portfolio honesty: HOLD "works comms-denied" until fixed.** Fix design + plan in ADR-0059 → task #31. **UPDATE 2026-07-10: fix now BUILT + double-reviewed (v3 is TRAINING, not flying m4, so m4 was safe to edit); MC validation pending at idle post-train — see current-state block below.**
+
+## 📍 CURRENT STATE + UNCOMMITTED WORK (2026-07-10, live session — READ THIS FIRST; the older resume block below is detect-then-track lineage, now committed as d10c9ca)
+
+**Two big threads converging:**
+- **v3 seeker retrain (task #28):** fine-tune LIVE (~epoch 2/60, ETA ~4–5 h), dataset triple-checked clean (build check + verify_split_v3 + Ultralytics 0-corrupt), Phase-4 eval fully pre-registered (mis-lock metric = positive-frame wrong-lock, recall-led verdict, NULL branch). Sim busy (CPU). On completion → v2-vs-v3 honest verdict + ADR-0061 closing #28. Watcher `b4s8idaru`.
+- **Design review (task #29, DONE):** `docs/design_review_sim_to_real_2026-07-10.md` delivered. Actions tracked #30–35.
+
+**Design-review findings tackled this session:**
+- **Blur (G1, #30a):** sample DONE — detection survives the terminal-blur design band, bearing <0.25°; SCOPED (sim renders, not real optics — bench closes it). `scripts/experiments/blur_replay.py`.
+- **Camera-pitch (var #19, ADR-0060):** MEASURED from ulog — dash pitches nose-down 27–36° (max ~52°), throws the horizon target to the TOP of frame; ~35% of dash ticks target above FoV; handoff threads a 0–6° sliver, ~zero vertical margin (real HW worse). Remedy = up-tilted camera mount (task #35). `scripts/experiments/dash_pitch_probe.py`.
+- **Jam fail-closed (ADR-0059, #31):** FIX BUILT + double-reviewed (Opus build → Fable review caught a post-handoff false-STALE defect + overruled my horizon lean → fixes) → 86 tests green, honesty latch intact, horizon 1.0 s. PENDING the 4-arm MC validation at idle post-train.
+
+**UNCOMMITTED WORKING TREE (commit at validated milestones; stage SPECIFIC paths, never -A):**
+- Jam fix: `m4_intercept.py`, `scripts/seeker/detect_track.py` (comment-only), `tests/test_cue_staleness.py` (new), `scripts/mc_jam_arm.sh` (new), ADR-0059 in `docs/decisions.md` → commit AFTER `jam_fixon` MC arm validates.
+- Design review + characterization: `docs/design_review_sim_to_real_2026-07-10.md`, ADR-0060 in `docs/decisions.md`, `scripts/experiments/{blur_replay,dash_pitch_probe}.py`, `NEXT.md`.
+- v3 will add ADR-0061 + artifacts after eval. **NEVER stage: `yolo11n.pt`, `.claude/settings.local.json`.**
+
+**SIM-GATED QUEUE for post-train idle (ONE sim at a time, idle load):** (1) jam MC 4 arms [#31, highest — validates the ADR-0059 fix], (2) up-tilt mount A/B [#35], (3) r_hat honesty [#32], (4) stats hardening n=48 [#33], (5) full blur sweep [#30a]. + BUILDER: Stage-0 cart [#34]. T25 video after v3 eval.
+
+## ⚡ SESSION RESUME BLOCK (written 2026-07-09 ~22:45Z — SUPERSEDED by the current-state block above; kept for detect-then-track lineage only)
 
 **Where we are: detect-then-track (task #27) DONE and COMMITTED (post-fix, micro-review green-lit, headline arm flown). ADR-0058 final. Next up: v3 dataset (#28), then T25.**
 
@@ -26,8 +48,9 @@ fusion-P0/P1/P2 session.)*
 1. ~~plain_jink verdict → GPU health → cooldown~~ **DONE** (GPU clean, dxgk flat/benign through both r-arms).
 2. ~~HEADLINE ARM~~ **DONE (r2 — r1 was invalidated by a launch-args error, 16 argparse-rejected boots, no data; see ADR-0058 provenance note). Results above.**
 3. ~~Full analysis → finalize ADR-0058 → fold review verdict → full test suite → commit SPECIFIC paths~~ **DONE — suite 71 passed / 2 skipped; committed (feature + tests + docs; yolo11n.pt/settings/v3-files excluded).** Optional residue: verifier gate re-run if main wants an independent pass.
-4. Then task #28: v3 capture (~2.5–3 h sim, plan §Phase-0 forensics first) → CPU fine-tune (~6 h, .venv-seeker-train) → frame-level v2-vs-v3 gates G1–G5 → re-A/B detect-then-track on v3.
-5. Then T25 demo video (builder: deferred until markerless honestly holds a maneuvering terminal — **the r2 headline arm + ADR-0058 SATISFIES this (14/14 camera-only maneuvering terminal); confirm with builder before starting video**).
+4. **RUNNING NOW: task #28** — v3 capture (~2.5–3 h sim, plan §Phase-0 forensics first) → CPU fine-tune (~6 h, .venv-seeker-train) → frame-level v2-vs-v3 gates G1–G5 → re-A/B detect-then-track on v3. Owns the sim.
+5. **RUNNING NOW (parallel, sim-free): task #29** — design review + sim-to-real interfering-variable inventory + cost-effective real-world implementation path (builder 2026-07-09). Ultracode workflow wf_a01f1020-19b (scout→analyze→adversarial-verify→synthesize). On completion: write the doc, present, log ADR, fold top actions into this queue. Feeds parked T23 gap audit + deployment M-1..M-4 + Stage-0.
+6. **T25 demo video — SEQUENCED AFTER v3 EVALUATION (builder 2026-07-09: "after eval completes please").** The maneuver-fix deferral is now MET (ADR-0058, 14/14 camera-only maneuvering terminal); builder wants the demo to fly the BEST detector, so hold T25 until #28's G1–G5 eval finishes, then confirm-and-render.
 
 **Operating pattern (builder-mandated):** Fable head; Opus subagents build; FABLE subagents review every correctness-critical diff before commit ("Opus misses obvious changes"). Sonnet only for rote volume. Never end session until builder says. Batches: sequential, sim-time, watcher via log-sentinel grep only (never pkill/pgrep with sim-name substrings inline — self-kill). Subagent auto-resume on batch exit is UNRELIABLE — always arm an independent sentinel watcher.
 
