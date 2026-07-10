@@ -12,29 +12,32 @@
 
 ---
 
-## The capability this exists to prove (the headline)
-**When the datalink is jammed, the interceptor's own camera locks the target and finishes the intercept on its own.** An external ground cue steers a fast mid-course dash, then hands off — one-way, the channel is *structurally closed* — to a camera-only terminal phase. That comms-denied "the drone finishes itself" handoff is the whole point of the architecture.
+## The capability this exists to prove (the headline — currently HELD, in validation)
+**Design intent: when the datalink is jammed, the interceptor's own camera locks the target and finishes the intercept on its own.** An external ground cue steers a fast mid-course dash, then hands off — one-way, the channel is *structurally closed* — to a camera-only terminal phase. That comms-denied "the drone finishes itself" handoff is the whole point of the architecture.
+
+> **Status: HELD (ADR-0059) — architecture built, not yet a proven capability.** The post-latch half is real and tested: once the camera terminal latches, the cue channel is structurally unreadable, so a link jammed *after* handoff cannot touch the terminal. But the project's own design review found the adopted anti-phantom config **fails closed under a cue jammed mid-dash, before camera acquisition** — the anti-phantom gates compare against the last-received cue position, which freezes when the link dies, and the frozen reference rejects the *real* target: the interceptor never hands off. A fix is **implemented and unit/honesty-tested** (86 tests pass; inert when the cue is fresh) and a paired jam Monte-Carlo harness is built (`scripts/mc_jam_arm.sh`) — but it has **not yet flown**, and no end-to-end jammed intercept has been demonstrated in *any* config. Until that batch lands, "works comms-denied" is a held claim everywhere in this project's materials.
 
 ---
 
-## Three headline numbers
+## Four headline numbers
 | # | Result | What it means |
 |---|---|---|
 | **1** | **Pro-nav flew 4.6–7.6× tighter than pursuit** — 0.28–0.44 m vs 2.0–2.5 m miss against a moving target, camera-only | The classic guidance result, measured, not asserted — 3 gated runs on identical paths |
-| **2** | **96% of the fast-target miss is set at handoff** — diagnosed the miss as *kinematic, not perceptual* (r²=0.96), then recovered it: a two-stage cue→camera handoff turned an *uncatchable* 9–12 m/s crosser into a **~1.2–1.5 m intercept under a realistic degraded cue** | Root-caused a hard limit and engineered around it, instead of blaming the sensor |
-| **3** | **30+ logged decision records with real reversals + verifier-gated milestones + an automated no-cheating test** | Engineering process a defense/GNC team can audit — the portfolio *is* the rigor |
+| **2** | **Diagnosed the fast-target miss as kinematic, not perceptual** — the final miss is a near-deterministic function of handoff geometry (r²≈0.96 vs zero-effort-miss@handoff, i.e. 96% of the run-to-run *variance*, not 96% of the miss itself), and the terminal window's physical correction capacity (**0.72 m**) sits far below the **1.69 m** delivered — a *perfect* seeker cuts only ~25%. Then recovered it: the running-start + velocity-emitting-cue profile makes the whole 6–12 m/s FPV band catchable — **n=96 final batch: 96.9% clean, mean miss 1.08 m, median 0.93 m** (ADR-0036) | Root-caused a hard limit and engineered around it, instead of blaming the sensor |
+| **3** | **Removed the fiducial and survived maneuvers** — a markerless NN seeker plus an anti-phantom **detect-then-track** terminal holds camera-only intercepts against a 12 m/s weaving target: post-handoff camera-terminal Pk@2.5 m **weave 3/16 → 14/14**, phantom handoffs **12 → 0**, **0 of 155** terminal detections false (ADR-0056..0058) | The disclosed #1 risk (the AprilTag stand-in) was attacked head-on, with an AprilTag control isolating the failure to perception |
+| **4** | **~60 logged decision records with real reversals and public retractions + verifier-gated milestones + an automated no-cheating test** | Engineering process a defense/GNC team can audit — the portfolio *is* the rigor |
 
 Foundational gates all pass headless: camera-only static intercept held a 2 m standoff to **0.018–0.035 m** error (bar < 0.5 m); AprilTag detection at **1.000** rate, 0.086 m pose error.
 
 ---
 
 ## The honest limitation (stated up front, because owning it is the point)
-**The AprilTag is a stand-in for "a reliable target lock exists," not a claim that real drones carry fiducials.** This sim proves the *guidance and control* core — which ports to real hardware nearly as-is — and deliberately mocks away the *perception* problem (finding and holding a lock on a small, fast, non-cooperative drone), which is designed but not simulated and is named as the project's #1 unsolved risk. Every number assumes clean perception, so it is an honest *upper bound* on a real seeker's.
+**The AprilTag was a stand-in for "a reliable target lock exists" — and the project then removed it.** The current seeker is a markerless neural net with a detect-then-track terminal, built and Gazebo-tested against maneuvering targets (ADR-0038..0058). What remains honestly un-simulated is *real-world* perception — motion blur, vibration, real optics, real compute — so every perception number is an upper bound from clean rendered frames, and sim-to-real transfer is the disclosed #1 remaining risk (`docs/sim_to_real_gaps.md`). Comms-denied operation is a **held** claim (ADR-0059) until its jam batch lands.
 
 ---
 
 ## Where the hero media goes
-- **[HERO VIDEO / GIF — top of page]** Side-by-side screen recording: pursuit vs. pro-nav intercepting the *same* crossing target. Pursuit trails and misses; pro-nav flies the lead and closes. This is the 10-second "it works" proof. *(M5 deliverable, per project plan.)*
+- **[HERO VIDEO / GIF — top of page]** Side-by-side screen recording: pursuit vs. pro-nav intercepting the *same* crossing target. Pursuit trails and misses; pro-nav flies the lead and closes. This is the 10-second "it works" proof. *(Demo built — ADR-0032; a post-ADR-0058 re-cut on the markerless detect-then-track terminal is storyboarded in `docs/t25_storyboard.md`.)*
 - **[ARCHITECTURE DIAGRAM — below the fold]** The two-sensor split: ground cue → mid-course dash → one-way handoff → camera-only terminal → PX4/MAVSDK. (Mermaid source already in README.)
 - **[RESULTS PLOTS]** Pk-vs-lethal-radius curve and miss-distance CDF from the Monte-Carlo batch.
 
@@ -48,8 +51,12 @@ Foundational gates all pass headless: camera-only static intercept held a 2 m st
 ```markdown
 # Interviewer Q&A — Defense Prep (Aerospace / GNC)
 
-Fifteen of the hardest questions a GNC interviewer would actually ask, each with a crisp,
+Twenty of the hardest questions a GNC interviewer would actually ask, each with a crisp,
 honest, defensible answer. Every number traces to an ADR, a gate script, or a log.
+*(Currency note, 2026-07-10: Q3/Q16/Q17/Q18 were written before the markerless-seeker,
+EKF, and fusion arcs flew — each now carries a dated status update rather than a silent
+rewrite, because the reasoning-then-result arc is itself the portfolio. Q20 is the
+comms-denied question, answered under the ADR-0059 HOLD.)*
 
 ---
 
@@ -82,6 +89,15 @@ vibration in the final 1–2 seconds. I've *designed* that half on paper — det
 raised tiny-target recall from 0.41 to 0.86 in the cited study — but I have **not** simulated
 it, and I name it as the project's **#1 existential risk**. No guidance cleverness closes it.
 *(ADR-0015)*
+
+*(Status update, 2026-07-10: this answer has since been overtaken by the work it called for.
+The markerless seeker was built and Gazebo-flown (ADR-0038..0043 — matches the tag's miss when
+it acquires early; hard-negative retraining took false-detection pollution 0.751 → 0.000), its
+12 m/s maneuvering failure mode — high-confidence phantom detections ~18 m off target — was
+isolated with an AprilTag control, and a **detect-then-track** terminal fixed it: post-handoff
+camera-terminal Pk@2.5 m weave 3/16 → **14/14**, phantom handoffs 12 → 0 (ADR-0056..0058).
+What stays true: REAL-hardware perception — blur, vibration, real optics, real compute — is
+still un-simulated and is the #1 sim-to-real risk, `docs/sim_to_real_gaps.md`.)*
 
 ### 4. Why did your running-start number change between versions? *(the honesty correction)*
 This is my favorite thing to own. I first showed a "running start" (ground launch + longer
@@ -245,9 +261,13 @@ The comms-denied story only means something if the ground channel is *provably* 
 the terminal phase. So handoff isn't "stop reading the cue" — at the latch tick the UDP socket
 is **closed and the holder set to null**, making a post-handoff cue read raise rather than
 return stale data (illegal-state-unrepresentable). The mock keeps logging as
-available-but-unread evidence. This is what lets me claim "even if the link is jammed
-mid-flight, the interceptor finishes on its own" and back it with a static test, not a
-promise. *(ADR-0010 #5)*
+available-but-unread evidence. **Scope, stated honestly (ADR-0059):** the latch proves the
+claim for a link jammed *after* the camera terminal locks — a post-latch jam structurally
+cannot touch the terminal, and that is backed by a static test, not a promise. It does **not**
+yet prove a jam *before* camera acquisition: the adopted anti-phantom config fails closed
+there (found by the project's own design review), the fix is implemented and unit-tested but
+the jam Monte-Carlo has not flown — so the full "jammed mid-flight" sentence is a **held**
+claim (see Q20). *(ADR-0010 #5, ADR-0059)*
 
 ---
 
@@ -272,6 +292,11 @@ quality dominates, range only throttles closing speed. So the honest headline is
 guidance is real and ports as-is; the perception is faked *on purpose* and un-faking it is
 the disclosed next step. *(GOALS.md, ADR-0015, ADR-0033)*
 
+*(Status update, 2026-07-10: DONE — the tag is gone. See Q3's status update for the full arc:
+markerless seeker flown, ADR-0038..0043; maneuvering phantom failure isolated with an AprilTag
+control and fixed by detect-then-track, 14/14 camera-terminal at 12 m/s weave, ADR-0056..0058.
+The guidance math was indeed byte-unchanged — the prediction in this answer held.)*
+
 ### 17. Did you use a Kalman filter?
 Right now, effectively yes — just the frozen special case of one. The target track runs a
 pair of **alpha-beta (g-h) filters**, and alpha-beta *is* the steady-state Kalman filter for
@@ -282,15 +307,23 @@ hard-coded as α=0.5, β=0.30 on the LOS channel. The planned upgrade (ADR-0033 
 proper **EKF** — EKF, not plain KF, because the camera measures *polar* (bearing, range) of a
 naturally *Cartesian* target state, and fusing the Cartesian ground cue makes it nonlinear
 either way. Here's the part I'd want to say out loud: I **pre-register a null on
-end-to-end miss.** The miss is kinematic (Q9), ~96% locked at handoff, so a better estimator
-can only touch the ~20–25% mechanization slice — and most of *that* is control logic, not
-estimation. Where the EKF *should* genuinely help is the covariance-derived gain surviving
+end-to-end miss.** The miss is kinematic (Q9) — a near-deterministic function of handoff
+geometry (r²≈0.96 vs ZEM, i.e. variance explained), with only ~0.72 m of the 1.69 m delivered
+error physically recoverable in the terminal window — so a better estimator can only touch
+that ~25% recoverable slice, and most of *that* is control logic, not estimation. Where the EKF *should* genuinely help is the covariance-derived gain surviving
 our bimodal cadence (~14 Hz bursts and multi-second dropout gaps) — the exact thing that
 made a naive adaptive-gain attempt (Kalata) win in the lab and then *diverge* in every Gazebo
 flight (ADR-0013). So my honest expected result is "track RMSE and LOS-rate error improve,
 end-to-end miss stays tied" — and I'd A/B it under the project's own discipline (paired
 seeds, n≥8, report "not significant at this n"). Knowing when the fancy tool is *not* the
 bottleneck is the point. *(ADR-0013, ADR-0023, ADR-0033; `docs/ekf_design_brief.md`)*
+
+*(Status update, 2026-07-10: flown — ADR-0037 + addendum. The pre-registered null on miss
+CONFIRMED (Δ −0.009 m, CI straddles 0). Bonus twist: an apparent 8/8 → 2/8 clean-rate collapse
+was overturned by offline forensics — the EKF's physically-correct post-CPA range extrapolation
+was tripping an abort-timer branch that alpha-beta's impossible negative coasted range never
+does; the scoring lens, not the filter, was at fault. Corrected, the EKF stands at full parity.
+Alpha-beta stays the default for measured reasons.)*
 
 ### 18. You have a ground sensor and an onboard camera — how would you fuse them?
 With a covariance-gated mid-course EKF (ADR-0034), and I'd be careful about *where* fusion is
@@ -313,6 +346,15 @@ degrades to camera-only. That forces a sharper honesty audit than alpha-beta nee
 have to re-initialize or provably decay the cue's contribution to the state and covariance at
 the latch, or the jam-resistance claim quietly breaks. *(ADR-0018, ADR-0034, ADR-0023)*
 
+*(Status update, 2026-07-10: flown — ADR-0041/0044. Half right, half honestly wrong. With the
+noisy markerless seeker, mid-course cue fusion WORKS — the hand-set polar `FusedTrack` beat
+fusion-off on 8/8 paired seeds (median −0.356 m, p≈0.008) and survived the WORST-credible cue;
+the ADR-0018 null flipped exactly as this answer hypothesized. But covariance gating — the
+mechanism this answer advocates — did NOT earn its keep: a wash at the realistic tier and a
+regression under WORST-tier cue bias (a 7.66 m flyby — the council's predicted bias-lock,
+confirmed in flight). Fixed weights with "the cue never touches the angle" win. The honesty
+rail held: zero post-latch cue updates across all 32 EKF flights, live-counted.)*
+
 ### 19. Does any of this survive real hardware? How would you find out cheaply?
 I'd find out for ~$230 before spending a dollar on an airframe — that's the whole design of
 the **Stage-0 bench** (ADR-0012/0033 item 1). A Raspberry Pi 5 + a global-shutter mono camera
@@ -330,8 +372,33 @@ result, because it redirects effort to the Hailo/ML seeker path *before* the ~$2
 airframe spend. The bench is perception-only — no flight, no PX4 — precisely because
 perception is the risk; the guidance already reproduces from logs. *(ADR-0012, ADR-0015,
 ADR-0033; `docs/stage0_bench_plan.md`)*
+
+### 20. Your thesis is comms-denied intercept. Show me one flight where the link was jammed and the intercept completed. *(the ADR-0059 question)*
+There isn't one — and I'll say that before you find it. **No flown arm, in any configuration,
+has ever had the cue jammed**: every batch ran the cue mock full-duration (ADR-0059 is
+explicit about this). Here is exactly what *is* demonstrated versus what isn't.
+**Demonstrated:** the one-way handoff latch is real and structural — at the latch the UDP
+socket is closed and the holder nulled, so a jam *after* camera lock cannot touch the
+terminal; that's enforced by AST-level static tests and per-gate numeric audits. Strong
+evidence, but evidence *by construction* — a different kind than a flown jam.
+**Found by my own design review:** the adopted anti-phantom deployment config
+(`--track --handoff-cue-gate 8`) **fails closed** under a jam *before* camera acquisition —
+the anti-phantom gates compare against the last-received cue position, which freezes when the
+link dies, and within ~1 s the frozen reference rejects the *real* target. No phantom chase,
+but a mission kill in exactly the scenario the project exists to prove. The genuine tension:
+the default config hands off fine under jam but eats phantoms; the config that beats phantoms
+is the one that failed under jam. **Built, not yet flown:** a sim-time cue-staleness age-out
+with camera-only fallback (inert while the cue is fresh; 86 unit/honesty tests pass, including
+a regression witness that reproduces the frozen-cue failure and an anti-phantom check that the
+fallback doesn't re-admit the ~18 m phantom) plus a paired jam Monte-Carlo harness
+(`scripts/mc_jam_arm.sh`). **And the follow-up you should ask** — "so the one scenario the
+project exists to prove has never been demonstrated end-to-end?" — *correct.* I'd rather hand
+you that sentence myself. The claim is HELD project-wide until the jam batch lands; catching
+the hole in my own review, retracting the claim everywhere, and building the fix and the
+harness before flying it is the process this portfolio is actually selling. *(ADR-0059,
+ADR-0060; `docs/design_review_sim_to_real_2026-07-10.md`)*
 ```
 
 ---
 
-Both documents above are complete and self-contained. Every number traces to a milestone gate script, a timestamped CSV in `logs/`, or an ADR in `docs/decisions.md` (ADR-0008 through ADR-0034), with `GOALS.md` for the coordinate-frame conventions and the forward-work briefs `docs/{seeker_design_brief,ekf_design_brief,stage0_bench_plan}.md` for Q16–Q19. Numeric conventions held throughout: the terminal window is **~0.4 s**; the load-bearing kinematic proof is the **capacity bound (0.72 m vs 1.69 m ZEM)** and **r²≈0.96 at handoff** (the 0.99 freeze figure is near-tautological and not led with); the running-start honesty correction and dash-track fix (idealized 1.90/2.30 m → realistic-degraded 2.93/3.08 m → fixed 1.19/1.48 m) are from ADR-0028/0030. The M5 final-batch numbers (running-start + ADR-0017-corrected cue + maneuvering/oblique arms) are **pending** and are deliberately not quoted; the published ADR-0029 regime map is the current headline.
+Both documents above are complete and self-contained. Every number traces to a milestone gate script, a timestamped CSV in `logs/`, or an ADR in `docs/decisions.md` (ADR-0003 through ADR-0060), with `GOALS.md` for the coordinate-frame conventions. Numeric conventions held throughout: the terminal window is **~0.4 s**; the load-bearing kinematic proof is the **capacity bound (0.72 m vs 1.69 m ZEM)**, with **r²≈0.96 vs ZEM@handoff** as the supporting correlation — r² is *variance explained* and is never rendered as "% of the miss" (the 0.99 freeze figure is near-tautological and not led with); the running-start honesty correction and dash-track fix (idealized 1.90/2.30 m → realistic-degraded 2.93/3.08 m → fixed 1.19/1.48 m, ADR-0028/0030) are the historical arc, flown under the old too-steep σ_R curve. The current statistical headline is the **M5 final batch (ADR-0036, n=96: 96.9% clean, mean 1.08 m, median 0.93 m)**, which supersedes the ADR-0029/0030 numbers; the current capability headline is the **markerless detect-then-track terminal (ADR-0058: 14/14 post-handoff camera-terminal at 12 m/s weave)**; and **comms-denied is HELD (ADR-0059)** until the jam Monte-Carlo flies. Where this doc and the README disagree, the README wins.

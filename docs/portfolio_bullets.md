@@ -4,7 +4,9 @@
 CSV in `logs/`. Nothing here overclaims — the honest limitations are stated as
 part of the story. Updated 2026-07-09 for the post-M5 arcs: the markerless
 seeker, the detect-then-track maneuvering terminal (ADR-0058), the real stereo
-pipeline spine (ADR-0045..0053), and the sim-to-real design review. Bullets that
+pipeline spine (ADR-0045..0053), and the sim-to-real design review; r²/ZEM
+wording corrected 2026-07-10 (r² is variance explained, never "% of the miss" —
+audit H5). Bullets that
 depend on a claim the project itself has put on HOLD are explicitly marked
 **[pending validation]** — do not use them unmarked.)*
 
@@ -37,10 +39,12 @@ depend on a claim the project itself has put on HOLD are explicitly marked
   ADR-0036; `logs/mc_final_all.csv`; sensitivity: `docs/pk_vs_radius_note.md`)*
 
 - **Diagnosed the fast-target limit as kinematic, not perceptual** via a
-  41-flight forensic batch: **~96% of the final miss is locked in at sensor
-  handoff** (r²≈0.96), and the ~0.4 s terminal window's physical correction
-  capacity (½·a·t_go² = **0.72 m**) sits far below the delivered error
-  (**1.69 m**) — so a flawless terminal seeker would cut the miss only ~25%.
+  41-flight forensic batch: **the final miss is a near-deterministic function
+  of handoff geometry** (r²≈0.96 vs zero-effort-miss@handoff — variance
+  explained, not a fraction of the miss), and the ~0.4 s terminal window's
+  physical correction capacity (½·a·t_go² = **0.72 m**) sits far below the
+  delivered error (**1.69 m**) — so a flawless terminal seeker would cut the
+  miss only ~25%; ~75% is physically locked in.
   The fix that actually worked attacked the mid-course geometry, not the
   camera. *(ADR-0023, replicated ADR-0027; recovery ADR-0028/0030)*
 
@@ -146,12 +150,17 @@ depend on a claim the project itself has put on HOLD are explicitly marked
 
 - **The mature finding — the fast-target wall is geometry, not eyesight.**
   When the target moves fast, the miss is baked in *before* the terminal phase
-  starts: **~96% of the miss is set at handoff**, and the final seconds are
-  physically too short to fix the delivered geometry (0.72 m of correction
-  capacity vs 1.69 m of delivered error). So the levers are *getting there
-  earlier with better geometry* — which is what the running-start +
-  velocity-emitting-cue fix delivered (~1.2–1.5 m at 9–12 m/s under a
-  degraded cue).
+  starts: **the final miss is almost entirely a function of the geometry at
+  handoff** (statistically, handoff geometry explains ~96% of the run-to-run
+  *spread* in miss — r²≈0.96 — which is not the same as 96% of any one miss),
+  and the final seconds are physically too short to fix the delivered geometry
+  (0.72 m of correction capacity vs 1.69 m of delivered error — even a perfect
+  camera only cuts ~25%). So the levers are *getting there earlier with better
+  geometry* — which is what the running-start + velocity-emitting-cue fix
+  delivered; on the final adopted profile the whole 6–12 m/s band reads
+  **mean 1.08 m / median 0.93 m over 96 flights** (ADR-0036 — the earlier
+  ~1.2–1.5 m ADR-0030 figures were flown under the old, too-steep range-noise
+  curve and are superseded).
 
 - **The maneuvering fix — detect-then-track.** At 12 m/s with a weaving
   target, the neural seeker's failure wasn't "too slow" — it hallucinated

@@ -200,7 +200,7 @@ shipped onboard cut uses `overlay` and has no mini-map.**
 ### BEAT 4 — THE HANDOFF (headline beat, comms-denied)
 - **Main render:** hold/slow-mo on the instant. Optionally a visual "external link severed" motif.
 - **HUD panel:** the money shot — SENSOR lamp **flips EXTERNAL CUE (amber) -> CAMERA-ONLY (green)** on the tick `ext_fresh` goes 1->0; the `ext_*` readouts blank on-screen. `PHASE: DASH -> ENGAGE`. This is the one-way latch: the UDP socket is closed and the cue reader nulled, so the flip is structurally irreversible (that's *why* the HUD can treat it as a latch).
-- **Honest label:** *"Handoff = one-way latch; cue channel closed. From here the intercept is camera-only (the comms-denied capability)."*
+- **Honest label:** *"Handoff = one-way latch; cue channel closed. From here the intercept is camera-only."* Do **not** caption this beat as proven jam-resistance: the latch proves a jam *after* handoff cannot touch the terminal, but "works comms-denied" is a **HELD claim project-wide (ADR-0059)** — the adopted anti-phantom config fails closed under a jam *before* camera acquisition (fix implemented + unit-tested, jam Monte-Carlo built but not yet flown, and no end-to-end jammed intercept has been demonstrated in any config). Safe phrasing for the label/voiceover: *"designed comms-denied — the terminal is structurally cut off from the ground link; the mid-dash-jam case is in validation."*
 - **Readiness:** HUD READY NOW (the lamp logic is built and keyed off `ext_fresh`). Main render needs GUI capture. This beat is the single most important frame in the reel.
 
 ### BEAT 5 — Camera-only terminal pro-nav
@@ -222,7 +222,7 @@ shipped onboard cut uses `overlay` and has no mini-map.**
 - **Status (updated):** the de-cringe pass **removed the outro/metrics card** from the shipped onboard reel (builder feedback #4 — the cut now ends on the proximity-fuse hold to black). This beat is retained here as the spec for a *standalone* metrics slide (README, slide deck) rather than a tail card on the video. If used, keep the tiering below.
 - **Main render:** clean stat card. Structure it so the **gated/verifier-confirmed** claims headline and the **hero dev-number** is presented as current-best-with-caveat (this tiering *is* the credibility signal for a defense audience):
   - **Gated classics (rock-solid):** M4 pro-nav vs pursuit **4.6–7.6x tighter** (0.28–0.44 m vs 2.0–2.5 m, 2 m/s); M3 static standoff error **0.018 / 0.035 m**; S2 two-stage camera-only handoff validated + verifier-confirmed.
-  - **The systems finding:** the fast-target miss is **kinematic, ~96% locked at handoff** (r²=0.957) — diagnosed, then recovered.
+  - **The systems finding:** the fast-target miss is **kinematic — a near-deterministic function of handoff geometry** (r²=0.957 vs ZEM@handoff, i.e. variance explained; correction capacity 0.72 m vs 1.69 m delivered → a perfect seeker cuts only ~25%) — diagnosed, then recovered. *(Never caption r² as "% of the miss.")*
   - **M5 regime map (the statistical headline, ADR-0036, n=96, supersedes the ADR-0030 dev A/B):** on the adopted running-start deployment profile the whole **6/9/12 m/s FPV band is catchable** — **96.9% clean**, mean miss **1.08 m**, median **0.93 m**; per-speed pro-nav Pk@net-radius (1.5 m) **96% / 75% / 38%**, Pk@2.0 m **100% / 88% / 100%**. Laws **tied** at FPV speed (kinematic regime, ~1 m); pro-nav's 4.6–7.6× win is the *slower-target* M4 (2 m/s) result. Maneuvers survive: jink@9 **1.02 m**, weave@9 **1.41 m**. Caveat on-card: *"n=8/cell, per-cell pursuit-vs-pro-nav deltas within the ~1 m noise; clean-AprilTag seeker = an upper bound on perception."*
 - **Honest label:** *"Every number traces to a logged run. AprilTag = stand-in for a reliable target lock; the real seeker is unbuilt. Kill = lethal-radius criterion."*
 - **Readiness:** READY NOW to author (all numbers exist in ADRs/logs). If you want the outro to cite a *gated* fast number, the ADR-0030 hero should first be re-flown as a small verifier-gated batch — right now it's a dev A/B, not a gate.
@@ -239,6 +239,14 @@ shipped onboard cut uses `overlay` and has no mini-map.**
 - **FULL-VISION cut:** a maneuvering-target beat (5b) is the remaining add — see the note under
   BEAT 5b: the M5 final batch (DONE, ADR-0036) flew weave/jink + oblique mover arms, so the
   maneuvering *data* now exists (jink@9 1.02 m, weave@9 1.41 m); a re-cut can fold it in.
+- **NEXT demo (supersedes this shot list for the current headline):** the shipped hero predates
+  the markerless **detect-then-track** arc — the project's current capability headline is the
+  camera-only maneuvering terminal (**14/14 post-handoff at 12 m/s weave, 0 phantom handoffs,
+  ADR-0058**). That demo — ground-stereo detection through a 12 m/s weaving camera-only
+  terminal, with the sensor-attribution HUD and the honesty handoff on screen — is storyboarded
+  shot-by-shot in `docs/t25_storyboard.md` and is sequenced after the detector retrain. Keep the
+  ADR-0059 HELD rule from BEAT 4 in any cut: comms-denied is designed and in validation, not
+  proven.
 
 ### Readiness summary (updated — the reel is built)
 | Capability | State | Note |
