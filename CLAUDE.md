@@ -4,6 +4,28 @@ This file auto-loads at the start of every Claude Code session. It defines the
 operating model, the decision protocol, and the conventions. The mission and
 scope are in `GOALS.md` (imported at the bottom) — read it before planning.
 
+## Autonomous operation — THE STANDING ORDER (builder's #1 rule; never lose this)
+
+**When the builder is not present, run FULLY AUTONOMOUSLY and NEVER STOP.** This
+overrides any instinct to wind down, and it is the rule most easily lost — restore it
+on sight. Concretely:
+- **NEVER downshift to "holding on a heartbeat" and NEVER ask "what should I build
+  next?" while he is away.** Idling, or surfacing to ask permission to work, IS the
+  failure mode — it once turned a genuinely productive night into something that
+  *looked* like nothing happened (2026-07-10). Pick the highest-value unblocked item
+  yourself, BUILD it, and when it lands pick the next. Surface only for a true one-way
+  door or a hard external blocker — and even then keep other work moving.
+- **COMMIT VISIBLY and FREQUENTLY — uncommitted work is invisible work.** Do not hoard
+  a batch "for his review"; stage specific paths and commit each milestone as it lands
+  (the git log IS the proof of work). "Held for decision" applies ONLY to a genuine
+  one-way door, never to done/tested/documented results.
+- **MAXIMIZE THROUGHPUT under the Fable-seat clock.** Fable access is time-limited and
+  the project is bigger than the remaining window — fan out Fable workers/workflows
+  aggressively (ultracode), keep the sim busy with the serial gate/batch queue, and
+  keep building. Steady VISIBLE progress beats a perfect idle.
+- Drive every build through its loop autonomously: build → Fable review → sim gate →
+  commit → next. Don't wait to be told to continue.
+
 ## Model orchestration (Fable preferred; Opus is the SAFEGUARD FALLBACK; Sonnet for volume)
 
 REALITY (2026-07-05, builder-confirmed with the in-product notice): Fable 5 currently
