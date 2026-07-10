@@ -5,6 +5,34 @@ lives in `docs/decisions.md` (ADRs) and `PROGRESS.md` (roll-up). Restructured
 2026-07-06 during the Fable audit; rebuilt 2026-07-08 after the seeker-v2 +
 fusion-P0/P1/P2 session.)*
 
+## ⏩ LIVE (2026-07-10 continued — autonomous window, builder away) — READ FIRST
+
+**Shipped this session (visible commits):**
+- `706bb46` — **ADR-0062 guidance-correctness fixes #37/#38.** FIX-A: full-attitude
+  LOS-bearing derotation (own-state quaternion, optical→body→NED) — A/B-VALIDATED
+  help-or-neutral at dash tilt (paired weave n=8: 7/8 seeds tighter, 0 worse,
+  −0.161 m median, both 8/8 Pk; identity-preserving at level so M3/M4/M5 bit-safe).
+  FIX-B: past-CPA range-increase breakoff noise deadband — ships INERT (default
+  byte-identical), tuning gated separately. Suite 102 pass / 2 skip.
+- `149c9a8` — MC harnesses (deployment A/B arm + adopted-config jink n=16).
+- `46026d4` — **jam_fixon_coast recovery arm** added to `mc_jam_arm.sh` (#39).
+
+**SIM QUEUE (one at a time, idle load — event-driven as each frees the sim):**
+1. **RUNNING:** jink n=16 adopted config (`mc_t21_trackgate_jink16.sh --go`,
+   watcher `bx04qugf5`) — the #33 top stats item, closes the jink-on-post-fix gap
+   (r2 headline was weave-only) and captures FIX-A on jink.
+2. **NEXT:** `scripts/mc_jam_arm.sh jam_fixon_coast` at `CUTOFF_RANGE_M=18` then
+   `=22` (#39 comms-denied RECOVERY) — compare REAL-ish recovery vs the ADR-0059
+   fixon (no-coast) arms; if recovery jumps, un-HOLD "works comms-denied" as a
+   scoped recovery claim + write the ADR. Risk: yaw-only sweep vs ADR-0060 top-of-
+   frame pitch.
+3. up-tilt mount A/B (#35) — NOTE: confounded by FIX-A's zero-mount-tilt assumption;
+   needs the #40 mount-compose first. r_hat honesty (#32). stats n=48/72 (#33 opt A).
+
+**Parallel (sim-free):** audit-findings tracker (#36, Sonnet worker) in flight.
+**#40 FIX-A follow-ups** (uptilt mount-compose, gate derotation, M7 slant-range,
+attitude CSV cols, FIX-B tuning gate) — all touch m4, so BETWEEN sim batches only.
+
 ## 🌙 OVERNIGHT PLAN (2026-07-10 night — builder asleep, "run multiple Fable audits, use the pure window")
 
 **RUNNING (all Fable, sim-free, budget-spend):** deep codebase audit workflow (correctness/honesty/repro/tests/portfolio-redteam → verify → morning report); forward audit workflow (v3-eval + jam-MC methodology soundness / design-review missed gaps / claim completeness / next-value); flight-compute council (3 members → #34 ADR); pre-draft worker (jink n=16, stats n=72-vs-reframe, up-tilt mount SDF variants — so the sim queue fires instantly).
