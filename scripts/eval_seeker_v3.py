@@ -678,20 +678,55 @@ def gate2(v2_maneuver: List[FrameScore], v3_maneuver: List[FrameScore],
     v3_r, _, _ = recall(v3_maneuver)
     clause_a = v3_r >= (v2_r - 0.05)
 
-    v2_r_b, _, n_gt_v2b = recall(v2_maneuver_1530)
-    v3_r_b, _, n_gt_v3b = recall(v3_maneuver_1530)
-    clause_b = (not math.isnan(v3_r_b) and not math.isnan(v2_r_b)
-                and v3_r_b >= (v2_r_b + 0.10))
+    v2_r_b, v2_m_b, n_gt_v2b = recall(v2_maneuver_1530)
+    v3_r_b, v3_m_b, n_gt_v3b = recall(v3_maneuver_1530)
+    threshold_met = bool(not math.isnan(v3_r_b) and not math.isnan(v2_r_b)
+                         and v3_r_b >= (v2_r_b + 0.10))
+    # SIGNIFICANCE GUARD (audit fix 1): the maneuver∩15-30m bucket is tiny
+    # (~29 frames), so a +0.10 "win" can be ~3 correlated frames. The +0.10
+    # counts ONLY if it is statistically distinguishable: the two bucket-recall
+    # 95% Wilson CIs are DISJOINT with v3 above v2, OR a per-flight paired sign
+    # test on the bucket is significant with v3 ahead. Otherwise it is WITHIN
+    # NOISE -> routes to the NULL branch, never a WIN.
+    v2_ci = wilson_ci(v2_m_b, n_gt_v2b) if n_gt_v2b > 0 else (float("nan"), float("nan"))
+    v3_ci = wilson_ci(v3_m_b, n_gt_v3b) if n_gt_v3b > 0 else (float("nan"), float("nan"))
+    ci_disjoint = bool(not any(math.isnan(x) for x in (*v2_ci, *v3_ci)) and v3_ci[0] > v2_ci[1])
+    from collections import defaultdict as _dd
+
+    def _flight_recall(frames):
+        by = _dd(list)
+        for f in frames:
+            if f.gt_present:
+                by[f.run_tag].append(f)
+        return {t: recall(fs)[0] for t, fs in by.items()}
+    fr2, fr3 = _flight_recall(v2_maneuver_1530), _flight_recall(v3_maneuver_1530)
+    bucket_outcomes = []
+    for t in sorted(set(fr2) & set(fr3)):
+        d = fr3[t] - fr2[t]
+        bucket_outcomes.append(1 if d > 0 else (-1 if d < 0 else 0))
+    bucket_sign = sign_test(bucket_outcomes)
+    sign_significant = bool(bucket_sign.get("significant_at_0.05", False)
+                            and sum(1 for o in bucket_outcomes if o > 0)
+                            > sum(1 for o in bucket_outcomes if o < 0))
+    clause_b_significant = bool(ci_disjoint or sign_significant)
+    clause_b = bool(threshold_met and clause_b_significant)
+    clause_b_within_noise = bool(threshold_met and not clause_b_significant)
 
     v2_r_all, _, _ = recall(v2_all_1530)
     v3_r_all, _, _ = recall(v3_all_1530)
 
     passed = bool(clause_a and clause_b)
-    return {"gate": "G2", "desc": "M2 recall (maneuvering) v3 >= v2-0.05 AND "
-                                   "(maneuvering ∩ 15-30m) v3 >= v2+0.10",
+    return {"gate": "G2", "desc": "M2 recall (maneuvering) v3 >= v2-0.05 AND (maneuvering ∩ "
+                                   "15-30m) v3 >= v2+0.10 AND that +0.10 is statistically "
+                                   "distinguishable (disjoint bucket CIs OR paired sign test)",
             "v2_recall_maneuver": v2_r, "v3_recall_maneuver": v3_r, "clause_a_passed": clause_a,
             "v2_recall_maneuver_15_30m": v2_r_b, "v3_recall_maneuver_15_30m": v3_r_b,
             "n_gt_present_maneuver_15_30m_v2": n_gt_v2b, "n_gt_present_maneuver_15_30m_v3": n_gt_v3b,
+            "bucket_ci_v2": list(v2_ci), "bucket_ci_v3": list(v3_ci), "bucket_ci_disjoint": ci_disjoint,
+            "bucket_sign_test": bucket_sign, "bucket_sign_significant": sign_significant,
+            "clause_b_threshold_met": threshold_met,
+            "clause_b_significant": clause_b_significant,
+            "clause_b_within_noise": clause_b_within_noise,
             "clause_b_passed": clause_b,
             "informational_wholepool_15_30m_v2_recall": v2_r_all,
             "informational_wholepool_15_30m_v3_recall": v3_r_all,
@@ -706,10 +741,19 @@ def gate3(v2_line: List[FrameScore], v3_line: List[FrameScore]) -> dict:
     """G3 no-regression: on line-6/line-9 eval flights, v3 recall within 0.02
     of v2 AND v3 phantom rate <= 1.5x v2's. Small-count caveat: only 2 flights
     feed this gate."""
-    v2_r, _, n_gt_v2 = recall(v2_line)
-    v3_r, _, n_gt_v3 = recall(v3_line)
-    recall_ok = (not math.isnan(v2_r) and not math.isnan(v3_r)
-                 and abs(v3_r - v2_r) <= 0.02)
+    v2_r, v2_m, n_gt_v2 = recall(v2_line)
+    v3_r, v3_m, n_gt_v3 = recall(v3_line)
+    # audit fix 2: 0.02 is below the line pool's frame granularity (~1/34=0.029),
+    # and abs() wrongly FAILS an UPSIDE (v3 matching one more frame). No-regression
+    # = v3 not WORSE than v2 by more than a one-matched-frame tolerance, OR the
+    # recall Wilson CIs overlap. An INCREASE never fails (drop abs()).
+    n_gt = max(n_gt_v2, n_gt_v3, 1)
+    tol = max(0.02, 1.0 / n_gt)
+    v2_ci = wilson_ci(v2_m, n_gt_v2) if n_gt_v2 > 0 else (float("nan"), float("nan"))
+    v3_ci = wilson_ci(v3_m, n_gt_v3) if n_gt_v3 > 0 else (float("nan"), float("nan"))
+    ci_ov = bool(not any(math.isnan(x) for x in (*v2_ci, *v3_ci)) and ci_overlap(v2_ci, v3_ci))
+    recall_ok = bool(not math.isnan(v2_r) and not math.isnan(v3_r)
+                     and (v3_r >= v2_r - tol or ci_ov))
 
     v2_m1 = phantom_rate(v2_line)
     v3_m1 = phantom_rate(v3_line)
@@ -723,10 +767,13 @@ def gate3(v2_line: List[FrameScore], v3_line: List[FrameScore]) -> dict:
         phantom_ok = v3_m1 <= threshold
 
     passed = bool(recall_ok and phantom_ok)
-    return {"gate": "G3", "desc": "no-regression (line-6/line-9): |v3-v2| recall <= 0.02 "
-                                   "AND v3 phantom <= 1.5x v2",
+    return {"gate": "G3", "desc": "no-regression (line-6/line-9): v3 recall not worse than v2 by "
+                                   ">max(0.02, 1/n_gt) UNLESS CIs overlap (upside never fails) AND "
+                                   "v3 phantom <= 1.5x v2",
             "v2_recall": v2_r, "v3_recall": v3_r, "n_gt_present_v2": n_gt_v2,
             "n_gt_present_v3": n_gt_v3, "recall_ok": recall_ok,
+            "recall_tol": tol, "bucket_ci_v2": list(v2_ci), "bucket_ci_v3": list(v3_ci),
+            "recall_ci_overlap": ci_ov,
             "v2_m1_phantom_rate": v2_m1, "v3_m1_phantom_rate": v3_m1, "threshold": threshold,
             "phantom_ok": phantom_ok, "note": note, "passed": passed}
 
@@ -838,14 +885,22 @@ def verdict(g1: dict, g2: dict, g3: dict, grid_result: Optional[Dict[float, Dict
     v3_far_recall = g2.get("v3_recall_maneuver_15_30m")
     n_far_v2 = g2.get("n_gt_present_maneuver_15_30m_v2") or 0
     n_far_v3 = g2.get("n_gt_present_maneuver_15_30m_v3") or 0
+    # far_range_improved = the SIGNIFICANCE-GUARDED clause_b (audit fix 1: +0.10
+    # alone is not enough; the bucket CIs must be disjoint or the paired sign
+    # test significant). clause_a (maneuver recall did not COLLAPSE) is a
+    # separate WIN precondition (audit fix 3).
+    clause_a_ok = bool(g2.get("clause_a_passed"))
     far_range_improved = bool(g2.get("clause_b_passed"))
+    clause_b_within_noise = bool(g2.get("clause_b_within_noise"))
     far_low_n = bool(n_far_v2 < 20)
     far_note = ("far-range in-flight bucket is LOW-N (gt-present frames v2={} v3={}); "
-                "read via the paired per-flight sign test, not the pooled point estimate "
-                "-- if within noise, this is the declared NULL branch, NOT a fallback to "
-                "the near-ceiling static grid number".format(n_far_v2, n_far_v3)
+                "read via the bucket Wilson CIs + paired sign test, not the pooled point "
+                "estimate -- if the +0.10 is within noise, this is the declared NULL branch, "
+                "NOT a fallback to the near-ceiling static grid number".format(n_far_v2, n_far_v3)
                 ) if far_low_n else ""
-    far_range_inconclusive = bool(far_low_n and not far_range_improved)
+    # inconclusive when the +0.10 was met but NOT significant, or low-n with no
+    # improvement at all -> honest NULL, never a WIN.
+    far_range_inconclusive = bool(clause_b_within_noise or (far_low_n and not far_range_improved))
 
     # SUPPORTING: static-grid generalization / no-regression (3 m and 18 m SEPARATE).
     grid_generalization = None
@@ -867,9 +922,12 @@ def verdict(g1: dict, g2: dict, g3: dict, grid_result: Optional[Dict[float, Dict
     straight_line_ok = bool(g3["passed"])
     no_new_class = no_new_phantom_class_proxy(g1["v2_phantom_frame_stats"], g1["v3_phantom_frame_stats"])
 
-    # WIN is driven by the FLIGHT far-range signal (not the grid). An inconclusive
-    # (low-n, no improvement) flight signal cannot be a win -> honest NULL.
-    win = bool(far_range_improved and straight_line_ok and no_new_class["no_new_phantom_class"])
+    # WIN is driven by the FLIGHT far-range signal (not the grid), and requires
+    # (audit fix 3) that maneuver recall did NOT collapse (clause_a) -- otherwise
+    # a maneuver-recall crash could not block a WIN. An inconclusive (within-noise
+    # or low-n, no improvement) flight signal cannot be a win -> honest NULL.
+    win = bool(clause_a_ok and far_range_improved and not far_range_inconclusive
+               and straight_line_ok and no_new_class["no_new_phantom_class"])
 
     if g1["underpowered"]:
         phantom_claim = "NOT claimed (G1 UNDERPOWERED): " + g1["headline"]
@@ -906,6 +964,8 @@ def verdict(g1: dict, g2: dict, g3: dict, grid_result: Optional[Dict[float, Dict
         "v2_far_range_recall": v2_far_recall, "v3_far_range_recall": v3_far_recall,
         "far_range_n_gt_v2": n_far_v2, "far_range_n_gt_v3": n_far_v3,
         "far_range_improved": far_range_improved,
+        "maneuver_recall_not_collapsed_clause_a": clause_a_ok,
+        "far_range_within_noise": clause_b_within_noise,
         "far_range_low_n": far_low_n, "far_range_note": far_note,
         "far_range_inconclusive": far_range_inconclusive,
         "straight_line_no_regression": straight_line_ok,
@@ -1208,10 +1268,27 @@ def build_report(frames_v2: List[FrameScore], frames_v3: List[FrameScore], out_d
           f"({v['no_new_phantom_class']['note']})")
     print(f"    phantom_rate_claim       : {v['phantom_rate_claim']}")
     print(f"    -> v3 is a WIN: {v['win']}")
+    if not v['win']:
+        reasons = []
+        if not v.get('maneuver_recall_not_collapsed_clause_a'):
+            reasons.append("maneuver recall regressed (clause_a fail)")
+        if v.get('far_range_within_noise'):
+            reasons.append("far-range +0.10 is WITHIN NOISE (bucket CIs overlap AND sign test n.s.)")
+        elif not v['far_range_improved']:
+            reasons.append("far-range recall did not improve to a significant +0.10")
+        if not v['straight_line_no_regression']:
+            reasons.append("straight-line regression (G3 fail)")
+        if not v['no_new_phantom_class']['no_new_phantom_class']:
+            reasons.append("a detectably-worse phantom class appeared")
+        print(f"       NOT a win because: {'; '.join(reasons) or 'see gate breakdown above'}")
 
     if g1["underpowered"]:
         print("\n" + UNDERPOWERED_TEXT)
-    if g1["status"] == "PASS" and not g2["passed"]:
+    # NULL branch printed when G1 passes but G2 fails (plan Sec 8 declared NULL) OR
+    # whenever the far-range signal is within noise / inconclusive (the honest NULL).
+    # Never alongside WIN=True: win now requires a SIGNIFICANT, non-collapsed
+    # far-range signal, so the two are mutually exclusive by construction.
+    if (g1["status"] == "PASS" and not g2["passed"]) or v.get("far_range_inconclusive"):
         print("\n" + NULL_BRANCH_TEXT)
 
     summary = {
@@ -1611,8 +1688,9 @@ def _run_self_test() -> int:
 
     # --- 8c. verdict(): reframed headline, both the grid-provided and the
     #         G2-fallback far-range source, and the underpowered phantom-claim wording ---
-    g2_pass_farbucket = {"clause_b_passed": True, "v2_recall_maneuver_15_30m": 0.2,
-                          "v3_recall_maneuver_15_30m": 0.4}
+    g2_pass_farbucket = {"clause_b_passed": True, "clause_a_passed": True,
+                          "clause_b_within_noise": False,
+                          "v2_recall_maneuver_15_30m": 0.2, "v3_recall_maneuver_15_30m": 0.4}
     g3_pass = {"passed": True}
     g3_fail = {"passed": False}
 
@@ -1667,6 +1745,20 @@ def _run_self_test() -> int:
           f"got {v_ml.get('mislock')}")
     check("verdict: no mis-lock stats given -> mislock None (back-compat with earlier calls)",
           verdict(g1_A, g2_pass_farbucket, g3_pass, None)["mislock"] is None)
+
+    # audit fix 1+3: clause_b WITHIN NOISE (+0.10 met but not significant) -> NOT a win, NULL
+    g2_within_noise = {"clause_b_passed": False, "clause_a_passed": True, "clause_b_within_noise": True,
+                        "v2_recall_maneuver_15_30m": 0.2, "v3_recall_maneuver_15_30m": 0.4}
+    v_wn = verdict(g1_A, g2_within_noise, g3_pass, None)
+    check("verdict: clause_b within-noise (+0.10 not significant) -> WIN False AND far_range_inconclusive True",
+          v_wn["win"] is False and v_wn["far_range_inconclusive"] is True, f"got win={v_wn['win']} "
+          f"inconclusive={v_wn['far_range_inconclusive']}")
+    # audit fix 3: clause_a fail (maneuver recall COLLAPSE) blocks the win even if clause_b passed
+    g2_clausea_fail = {"clause_b_passed": True, "clause_a_passed": False, "clause_b_within_noise": False,
+                        "v2_recall_maneuver_15_30m": 0.2, "v3_recall_maneuver_15_30m": 0.4}
+    v_ca = verdict(g1_A, g2_clausea_fail, g3_pass, None)
+    check("verdict: clause_a fail (maneuver-recall collapse) blocks WIN even with clause_b passed",
+          v_ca["win"] is False, f"got {v_ca['win']}")
 
     v_underpowered = verdict(g1_C, g2_pass_farbucket, g3_pass, grid_win)
     check("verdict: G1 UNDERPOWERED (scenario C) -> phantom_rate_claim explicitly says NOT claimed",
