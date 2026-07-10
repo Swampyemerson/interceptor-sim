@@ -88,3 +88,4 @@ scripts/seeker/weights/yolo11n.pt
 !logs/m4_intercept_pronav_20260709T233958Z.csv
 !logs/m4_intercept_pronav_20260709T234106Z.csv
 !logs/mc_adr0059_*.csv
+!logs/mc_pk72_*.csv
