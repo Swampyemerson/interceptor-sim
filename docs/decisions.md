@@ -1567,3 +1567,86 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   Also pre-register the #40 re-fly bar BEFORE it flies: paired n≥8 vs up00,
   terminal-miss parity criterion, recovery reacquire count, `engBelow`, and add a
   per-seed sign count to `uptilt_ab_analyze.py` (it currently prints medians only).
+
+## ADR-0068 — #40 MOUNT-COMPOSE SHIPS: `--cam-mount-up-deg` composes the fixed camera-mount rotation into FIX-A's full-attitude LOS derotation (byte-identical at the 0.0 default); the uncompensated error is diagnosed as ROLL-driven; the re-fly bar is PRE-REGISTERED before any arm flies
+
+- **Context.** ADR-0067 adopted NO mount: the up-tilt's availability win is real but the
+  uncompensated terminal cost is dose-dependent, and every terminal verdict was gated on
+  #40 — composing the mount rotation into `derotate_bearing_lambda` (the loud TODO at the
+  optical→FRD permutation, ADR-0062 follow-up list item 1). This ADR ships that
+  compensation + the pre-registered re-fly plan.
+- **The fix.** New m4 flag `--cam-mount-up-deg` (default 0.0 = OFF): after the
+  optical→body permutation, pre-rotate the ray by the constant R_y(+mount) — in FRD a
+  positive rotation about +y tips body-forward UP, matching the SDF variants' negative
+  sensor pitch (uptilt_make_variants.py sign note). Guarded (`if mount_up_rad:`) so the
+  default keeps the EXACT pre-#40 float path — byte-identical, pinned by a bitwise
+  identity test. Startup fallback (no attitude quaternion) stays `psi + beta`, mount
+  ignored (documented: no frame chain to compose into; level-vehicle error is the small
+  1/cos compression). The yaw-only acquisition/handoff gates are UNCHANGED — the
+  ADR-0062 scope boundary re-checked at 15°: the 2D camera-implied-position error at the
+  8 m cue gate is ≤ ~1.5 m; margin holds; gate derotation stays a tracked follow-up.
+- **Mechanism refined (new understanding, numerically verified).** The uncompensated
+  azimuth error is ROLL-driven, not pitch-driven: a 15° mount offset is a VERTICAL
+  off-boresight term, and roll couples vertical into azimuth — audit-3 H1's exact
+  cross-coupling mechanism, now sourced by the mount instead of the target's elevation.
+  Measured on the oracle fixture (target az 20°, up15): ~0.65° wings-level at ANY pitch,
+  ~3.0° at 15° roll, ~6.5° at 30° roll. The weave terminal rolls constantly — this is
+  why ADR-0067's terminal cost was dose-dependent while its acquisition (wings-level
+  dash) barely suffered. Retro-read of the ADR-0067 evidence with the new per-seed sign
+  counts: uncompensated up15 was worse on **8/8 seeds**, median PAIRED delta **+0.84 m**
+  (the +0.61 m in ADR-0067 is the delta-of-medians — a different statistic; the
+  pre-registration binds the paired one to remove metric-shopping room).
+- **Tests / gates (all sim-free, all green pre-commit).** Round-trip oracle: forward-
+  generate the optical ray through an INDEPENDENT matrix chain (attitude + mount),
+  derotation recovers the true inertial azimuth to <1e-9 over a grid incl. mounts
+  0/15/25/35/−10°; bitwise byte-identity of the 0.0 default; roll-driven-error fixture
+  (composed exact, zero-mount off by >2° at 30° roll); startup-fallback pin; bench
+  self-check gains the MOUNT case (mirrored in `--bench`). `tests/test_bearing_derotation.py`
+  13/13; full `scripts/run_tests.sh` ALL GREEN.
+- **Harness.** `mc_deployment_arm.sh --m4-extra "FLAGS"` appends AFTER the r2-mirrored
+  argv prefix (disclosed deviation, echoed in the plan print — the r2 provenance is
+  preserved verbatim). `uptilt_ab_arm.sh --compensate` flies the re-fly: refly CSV names
+  (`mc_uptilt_refly_weave12_up{00,15c}.csv` — ADR-0067 evidence never overwritten, and a
+  --go guard now refuses ANY existing out-CSV), explicit `--cam-mount-up-deg 0` on the
+  control (argv-symmetric, byte-identical by the guard). `uptilt_ab_analyze.py` now
+  prints per-seed deltas + sign counts for miss / first_det_range / engBelow (the
+  ADR-0067-addendum mandate; smoke-tested against the flown evidence).
+- **Pre-registration.** `docs/adr0067_refly_preregistration.md` commits WITH this ADR,
+  BEFORE any arm flies: stage 1 = up00 vs up15c, n=8 paired, parity bar (median paired
+  miss delta ≤ +0.30 m AND worse ≤5/8; FAIL at ≥7/8 worse or ≥ +0.84 m), acquisition
+  direction check, engBelow watch metric, validity gates (shadow mechanism check,
+  machinery-stability tripwire vs the ADR-0067 up00, per-tick no-cheat audit). Stage 2 =
+  tilted+compensated coast-search jam re-test, thresholds verbatim from
+  `docs/adr0059_recovery_preregistration.md`, plus the availability mechanism bar
+  (camera-never-detected ≤4/16 vs baseline 10/16). Only RECOVERY DEMONSTRATED un-HOLDs
+  "works comms-denied", scoped.
+- **Review (5-lens adversarial workflow, each finding refutation-verified; ran on
+  Fable subagents before the mid-session Fable-limit switch to Opus).** 13/15 findings
+  survived verification; ALL FIXED before this commit. Load-bearing catches: (1) **the
+  Stage-1 validity gate 0 was diagnostically INVERTED** — because the analyzer adds the
+  mount analytically and `vert_body` is pose-independent, a FAILED shadow swap reads
+  d(top_margin) ≈ +mount EXACTLY with d(first_det) ≈ 0 (the naive "expected PASS"),
+  while a WORKING swap reads d(top_margin) BELOW +mount (flown +9.6/+18.6/+27.5) with
+  positive d(first_det); gate + analyzer text corrected, the invalid signature is now
+  auto-flagged. (2) **control selection was CLI-order-dependent** — two mount-0 arms
+  (the ride-along legacy up00) could silently re-base the PRIMARY parity read to the
+  cross-era control (INVALID per the ADR-0067 addendum); analyzer now prefers the
+  `refly` control and WARNs. (3) **n=16 INCONCLUSIVE bars were undefined** (the /8 sign
+  bars don't scale) → α-matched n=16 thresholds + a terminal rule pre-registered now.
+  (4) **Stage-2 "thresholds VERBATIM / no new goalposts" was false** in two places
+  (comparator rebased fixon→coast-NULL loosening PARTIAL by one flight; the
+  never-detected ≤4/16 bar is new) → both disclosed, PARTIAL scoped as cross-sweep
+  suggestive. (5) **the absolute up/down mount sign wasn't pinned** — a coordinated
+  flip across impl+oracle passed 13/13; added a physics anchor (level-ahead target
+  through an up-mount lands below optical center, y_opt>0) that fails the coordinated
+  mutation (verified). Plus: per-arm compensation-aware caveat (the blanket
+  "UNCOMPENSATED" footer would have been false on committed re-fly evidence), med|Δ|
+  tripwire stat, dropped-pair attrition surfaced, harness OUT-collision preflighted for
+  all arms. Two findings correctly REJECTED (the +0.61/+0.84 statistic — already
+  pre-empted; the stdout-log provenance — durable via the timestamped batch log).
+- **Honesty.** The compensation consumes the static mount angle (an airframe config
+  constant, known a priori) + own-state EKF attitude + camera measurements — no `gt_*`;
+  `audit_per_tick.py` reads the logged `lambda_deg` (no recompute) and stays valid;
+  no CSV schema change.
+- **Date.** 2026-07-10. Code+tests+pre-registration in this commit; re-fly results land
+  as an addendum.

@@ -183,5 +183,149 @@ def test_bench_selfcheck_passes():
     assert ok, "\n".join(lines)
 
 
+# --------------------------------------------------- #40 MOUNT COMPOSE (ADR-0067)
+def optical_ray_for(d_ned, roll, pitch, yaw, mount_up):
+    """Forward-generate the OPTICAL-frame ray a camera tilted UP by mount_up
+    would measure for a target in inertial direction d_ned, given the vehicle
+    attitude. Built from the independent matrix oracle (NOT the quaternion path
+    under test): NED -> body via M^T, body -> camera FRD via R_y(-mount),
+    camera FRD -> optical via the inverse permutation."""
+    M = rot_matrix_body_to_ned(roll, pitch, yaw)
+    b = tuple(M[0][i] * d_ned[0] + M[1][i] * d_ned[1] + M[2][i] * d_ned[2]
+              for i in range(3))                       # M^T @ d  (inverse)
+    cm, sm = math.cos(-mount_up), math.sin(-mount_up)
+    cam = (cm * b[0] + sm * b[2], b[1], -sm * b[0] + cm * b[2])  # R_y(-mount)
+    return (cam[1], cam[2], cam[0])   # camera FRD -> optical (right, down, fwd)
+
+
+def test_mount_up_sign_is_physically_anchored():
+    """ABSOLUTE-SIGN ANCHOR (review finding): every other mount test is a
+    round-trip or a magnitude check, all of which pass under a COORDINATED
+    up<->down flip across the impl AND the oracle helpers. Pin the physical
+    fact directly so a consistent sign-convention refactor cannot ship green:
+    a target level-ahead of the vehicle, seen through a camera tilted UP, must
+    appear BELOW the optical center (optical y is DOWN-positive, so y_opt > 0).
+    The <1e-9 round-trip in the other tests then transfers this anchor to the
+    implementation."""
+    ray = optical_ray_for((1.0, 0.0, 0.0), 0.0, 0.0, 0.0, math.radians(15.0))
+    assert ray[1] > 0.0, (
+        "level-ahead target through an UP-tilted camera must land below center "
+        f"(y_opt > 0); got y_opt={ray[1]:.4f} -- sign convention inverted")
+    # and the composed derotation on that ray recovers azimuth 0 (dead ahead)
+    beta = math.atan2(ray[0], ray[2])
+    q = _euler_to_quat_body_to_ned(0.0, 0.0, 0.0)
+    got = derotate_bearing_lambda(ray, beta, q, 0.0, mount_up_rad=math.radians(15.0))
+    assert abs(wrap_pi(got)) < 1e-9
+
+
+def test_mount_zero_default_and_explicit_are_bit_identical():
+    """mount_up_rad=0.0 (and the omitted default) take the EXACT pre-#40 float
+    path (the compose block is guarded out) -- every pre-mount caller, gate,
+    and validated result is preserved to the bit."""
+    for roll_d in (-40, 0, 25):
+        for pitch_d in (-35, 0, 20):
+            for yaw_d in (-120, 0, 160):
+                for bearing_d in (-30, 0, 15):
+                    for elev_d in (-25, 0, 20):
+                        roll, pitch, yaw = map(math.radians, (roll_d, pitch_d, yaw_d))
+                        b = math.radians(bearing_d)
+                        ray = ray_from_bearing_elev(b, math.radians(elev_d))
+                        q = _euler_to_quat_body_to_ned(roll, pitch, yaw)
+                        got_default = derotate_bearing_lambda(ray, b, q, yaw)
+                        got_zero = derotate_bearing_lambda(ray, b, q, yaw,
+                                                           mount_up_rad=0.0)
+                        assert got_default == got_zero   # bitwise, not approx
+
+
+def test_mount_compose_roundtrip_recovers_true_azimuth():
+    """The load-bearing #40 oracle: forward-generate the optical ray through
+    attitude + mount with the INDEPENDENT matrix chain, then check the composed
+    derotation recovers the target's true inertial azimuth to <1e-9 over a grid
+    of mounts (incl. the flown +15/+25/+35 and a down-mount), attitudes, target
+    azimuths, and target elevations."""
+    for mount_d in (0, 15, 25, 35, -10):
+        for roll_d in (-25, 0, 30):
+            for pitch_d in (-35, 0, 20):
+                for yaw_d in (-120, 0, 45):
+                    for alpha_d in (-30, 0, 20):
+                        for el_down_d in (-15, 0, 10):
+                            mount = math.radians(mount_d)
+                            roll, pitch, yaw = map(
+                                math.radians, (roll_d, pitch_d, yaw_d))
+                            alpha = math.radians(alpha_d)
+                            el = math.radians(el_down_d)
+                            d_ned = (math.cos(el) * math.cos(alpha),
+                                     math.cos(el) * math.sin(alpha),
+                                     math.sin(el))     # NED, down positive
+                            ray = optical_ray_for(d_ned, roll, pitch, yaw, mount)
+                            if ray[2] < 0.15:
+                                continue   # behind/edge-on: not a physical measurement
+                            beta = math.atan2(ray[0], ray[2])
+                            q = _euler_to_quat_body_to_ned(roll, pitch, yaw)
+                            got = derotate_bearing_lambda(
+                                ray, beta, q, yaw, mount_up_rad=mount)
+                            assert abs(wrap_pi(got - alpha)) < 1e-9, (
+                                f"mount={mount_d} roll={roll_d} pitch={pitch_d} "
+                                f"yaw={yaw_d} alpha={alpha_d} el={el_down_d}: "
+                                f"got {math.degrees(got):.4f}")
+
+
+def test_mount_level_vehicle_compression_corrected():
+    """LEVEL vehicle + 15deg up-mount, target at true azimuth 20deg: the tilted
+    camera measures an INFLATED optical bearing (atan(tan a / cos m)); the
+    composed derotation recovers 20.000deg exactly, the zero-mount call keeps
+    the inflation (~0.66 deg -- small at level, which is why the yaw-only GATES
+    keep their reviewed ADR-0062 margin at 15 deg)."""
+    mount = math.radians(15.0)
+    alpha = math.radians(20.0)
+    d_ned = (math.cos(alpha), math.sin(alpha), 0.0)
+    ray = optical_ray_for(d_ned, 0.0, 0.0, 0.0, mount)
+    beta = math.atan2(ray[0], ray[2])
+    q = _euler_to_quat_body_to_ned(0.0, 0.0, 0.0)
+    got_c = derotate_bearing_lambda(ray, beta, q, 0.0, mount_up_rad=mount)
+    got_u = derotate_bearing_lambda(ray, beta, q, 0.0)
+    assert abs(wrap_pi(got_c - alpha)) < 1e-9
+    err_u = abs(wrap_pi(got_u - alpha))
+    assert math.radians(0.3) < err_u < math.radians(1.5)   # the 1/cos compression
+    # and the measured optical bearing really is the inflated one
+    assert abs(beta - math.atan(math.tan(alpha) / math.cos(mount))) < 1e-9
+
+
+def test_mount_error_is_roll_driven_and_corrected():
+    """The regime that motivated #40, with the mechanism made precise: the
+    zero-mount azimuth error is ROLL-driven -- the 15deg mount offset is a
+    VERTICAL off-boresight term, and roll couples vertical into azimuth
+    (exactly audit-3 H1's cross-coupling, now sourced by the mount instead of
+    the target's elevation). Measured on this fixture: ~0.65deg wings-level
+    (any pitch), ~3deg at 15deg roll, ~6.5deg at 30deg roll -- the weave
+    terminal rolls constantly, which is the dose-dependent terminal cost
+    ADR-0067 flew. The composed call is exact in all of them."""
+    mount = math.radians(15.0)
+    alpha = math.radians(20.0)
+    roll = math.radians(30.0)
+    pitch = math.radians(-30.0)     # rolled, nose-down: the dash/weave regime
+    d_ned = (math.cos(alpha), math.sin(alpha), 0.0)
+    ray = optical_ray_for(d_ned, roll, pitch, 0.0, mount)
+    beta = math.atan2(ray[0], ray[2])
+    q = _euler_to_quat_body_to_ned(roll, pitch, 0.0)
+    got_c = derotate_bearing_lambda(ray, beta, q, 0.0, mount_up_rad=mount)
+    got_u = derotate_bearing_lambda(ray, beta, q, 0.0)
+    assert abs(wrap_pi(got_c - alpha)) < 1e-9
+    assert abs(wrap_pi(got_u - alpha)) > math.radians(2.0)   # ~6.5deg here
+    # wings-level the residual is the small 1/cos-class compression (<1deg):
+    ray_l = optical_ray_for(d_ned, 0.0, pitch, 0.0, mount)
+    beta_l = math.atan2(ray_l[0], ray_l[2])
+    q_l = _euler_to_quat_body_to_ned(0.0, pitch, 0.0)
+    got_ul = derotate_bearing_lambda(ray_l, beta_l, q_l, 0.0)
+    assert abs(wrap_pi(got_ul - alpha)) < math.radians(1.0)
+
+
+def test_mount_fallback_no_quaternion_unchanged():
+    """Startup fallback (no attitude yet) ignores the mount by design (documented
+    in the docstring): still exactly psi + beta."""
+    assert derotate_bearing_lambda((0.2, 0.1, 1.0), 0.4, None, 0.7,
+                                   mount_up_rad=math.radians(15.0)) == 0.7 + 0.4
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

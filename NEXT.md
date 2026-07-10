@@ -53,6 +53,28 @@ tracked-or-accepted; repo publishable on a remote.
 
 ## 📍 CURRENT (2026-07-10, live — builder away, autonomous)
 
+- **⚠️ SESSION OVERRIDE (2026-07-10, builder): Fable weekly limit ~90% — use
+  OPUS (`claude-opus-4-8`) everywhere the routing rules say Fable (review /
+  gap-spotting / planning / hard tasks) for the REST OF THIS SESSION. No
+  `model: fable` subagents. Session-scoped; the weekly limit resets — the
+  permanent CLAUDE.md Fable-first policy is unchanged. See memory
+  `fable-limit-opus-override`.**
+- **#40 mount-compose CODE SHIPPED + PRE-REGISTERED (ADR-0068, committed):**
+  `--cam-mount-up-deg` composes the fixed mount rotation into FIX-A's LOS
+  derotation (byte-identical at 0.0; round-trip oracle + physics-anchored sign
+  test; bench MOUNT case). Mechanism refined: the uncompensated error is
+  ROLL-driven (~0.65° wings-level, ~6.5° at 30° roll for up15), which is why
+  ADR-0067's terminal cost was dose-dependent. Re-fly bar pre-registered
+  (`docs/adr0067_refly_preregistration.md`). Passed a 5-lens adversarial review
+  (13/15 findings fixed pre-commit incl. an INVERTED validity gate + a cross-era
+  control-selection trap). **NEXT sim-queue item: fly the paired re-fly**
+  (`scripts/uptilt_ab_arm.sh --mount 0 --mount 15 --compensate --go`, ~25 min,
+  idle only) → analyze against the pre-registered bars → Stage-2 recovery re-test.
+- **Publish-prep drafted (uncommitted, new files):** `LICENSE` (MIT),
+  `docs/license_notice_weights.md` (AGPL-on-weights nuance + builder decision),
+  `.github/workflows/ci.yml` (recreates run_tests.sh's two-venv layout; activates
+  when the remote exists). Commit-ready; a first CI run will need one dep-pin pass.
+
 - **#33 Pk campaign DONE** (ADR-0064, `d81e046`): fresh post-FIX-A weave n=72 →
   **Pk@2.8 m 72/72 = CP-LB 95.0%** (the ≥95%-CI bar cleared); **Pk@2.5 m 71/72 =
   98.6%** point / 92.5% LB (the one 2.757 m miss handed off cleanly = terminal
@@ -138,16 +160,17 @@ tracked-or-accepted; repo publishable on a remote.
    the top portfolio artifact; feature the regimes that genuinely hold
    (ADR-0056 framing), HUD sensor-attribution anti-jam money shot; audit
    frames after render (`scripts/video/t25_render_plan.md`).
-2. **[m4 window — between batches] #40 FIX-A follow-ups — NOW THE CRITICAL
-   PATH for the perception lever:** uptilt mount-compose (compensate FIX-A
-   derotation for a non-zero mount; #35 is FLOWN, ADR-0067 — compensation
-   now gates the terminal re-fly at the candidate angle (up15), any mount
-   adoption, AND the tilted recovery re-test), then gate derotation, M7
-   slant-range, attitude CSV cols, FIX-B tuning gate. **PRE-REGISTER the
-   re-fly bar before it flies** (ADR-0067 addendum): paired n≥8 vs up00,
-   terminal-miss parity criterion, recovery reacquire count, `engBelow`
-   (up15's 12% is the worst arm — watch it), per-seed sign counts added to
-   `uptilt_ab_analyze.py`.
+2. **[NEXT SIM ITEM] #40 mount-compose RE-FLY — the compose CODE is SHIPPED
+   (ADR-0068); what remains is flying it.** `scripts/uptilt_ab_arm.sh
+   --mount 0 --mount 15 --compensate --go` (refly up00 control + up15
+   compensated, n=8 paired, ~25 min, idle only) → analyze against the
+   PRE-REGISTERED bars in `docs/adr0067_refly_preregistration.md` (parity =
+   median paired miss delta ≤ +0.30 m AND worse ≤5/8; FAIL ≥7/8 worse or
+   ≥ +0.84 m; validity gate 0 CORRECTED — the healthy swap reads d(top_margin)
+   BELOW +mount with d(first_det)>0, NOT ≈+mount) → then Stage-2
+   tilted+compensated coast-search recovery re-test. Remaining #40 follow-ups
+   (separate, lower): gate derotation, M7 slant-range, attitude CSV cols,
+   FIX-B tuning gate.
 3. **[conditional, after #40] #46 adaptive camera tilt sim A/B (ADR-0065)**
    — pitch-following schedule vs the best fixed mount; strengthened by
    ADR-0067 (fixed angle buys availability at a terminal price adaptive

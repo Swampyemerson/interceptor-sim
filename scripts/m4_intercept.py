@@ -654,9 +654,12 @@ def _quat_rotate(quat, vec):
     return rx, ry, rz
 
 
-def derotate_bearing_lambda(meas_xyz, bearing_rad, quat, psi_rad):
+def derotate_bearing_lambda(meas_xyz, bearing_rad, quat, psi_rad,
+                            mount_up_rad=0.0):
     """Inertial LOS azimuth lambda from a camera measurement, derotating the
-    FULL vehicle attitude (roll + pitch + yaw), not just yaw (audit-3 H1 fix).
+    FULL vehicle attitude (roll + pitch + yaw), not just yaw (audit-3 H1 fix),
+    and composing a FIXED camera-mount up-tilt when one is fitted (#40,
+    mount_up_rad -- see the MOUNT COMPOSE note at the permutation below).
 
     THE BUG THIS FIXES: the pre-fix `lambda = psi + beta` compensates YAW ONLY.
     beta (bearing_rad) is the target's HORIZONTAL azimuth in the camera OPTICAL
@@ -687,7 +690,10 @@ def derotate_bearing_lambda(meas_xyz, bearing_rad, quat, psi_rad):
 
     FALLBACK: if the quaternion is not yet available (attitude stream not up),
     return the pre-fix yaw-only lambda = psi + beta so nothing regresses to
-    worse-than-before during the brief startup window."""
+    worse-than-before during the brief startup window. (The mount is NOT
+    composed in the fallback: with no attitude there is no frame chain to
+    compose into; the window is the pre-flight stream warmup, where the
+    level-vehicle mount-induced azimuth error is the small 1/cos compression.)"""
     if quat is None or bearing_rad is None:
         return psi_rad + (bearing_rad if bearing_rad is not None else 0.0)
     # Camera ray in the OPTICAL frame (x right, y down, z forward). Prefer the
@@ -698,12 +704,20 @@ def derotate_bearing_lambda(meas_xyz, bearing_rad, quat, psi_rad):
     else:
         rx, ry, rz = math.sin(bearing_rad), 0.0, math.cos(bearing_rad)
     # optical -> body FRD: forward(+x_b)=+z_opt, right(+y_b)=+x_opt, down(+z_b)=+y_opt
-    # NOTE (#40 / #35): this permutation assumes the camera boresight is aligned
-    # with body-forward -- ZERO mount tilt. If an up-tilted mount is adopted
-    # (ADR-0060 A/B), the fixed mount rotation must be composed in HERE (a
-    # constant quaternion pre-multiply on `body`), else lambda is wrong by the
-    # mount angle. Today the sim mount is level, so this is exact.
     body = (rz, rx, ry)
+    # MOUNT COMPOSE (#40, ADR-0067): a camera mounted tilted UP by mount_up_rad
+    # rotates the boresight about body +y (right), so the TRUE body-frame ray is
+    # R_y(+mount) @ body -- in FRD a positive rotation about +y tips +x toward
+    # -z (up): R_y(t)@(1,0,0) = (cos t, 0, -sin t). Without this, an up-tilted
+    # mount (uptilt_ab_arm.sh shadow variants) leaves lambda wrong by the mount
+    # angle mixed through the vehicle attitude -- the dose-dependent terminal
+    # cost ADR-0067 measured. Guarded so the 0.0 default (and every pre-#40
+    # caller) keeps the EXACT pre-compose float path -- byte-identical, pinned
+    # by tests/test_bearing_derotation.py.
+    if mount_up_rad:
+        ct, st = math.cos(mount_up_rad), math.sin(mount_up_rad)
+        bx, by, bz = body
+        body = (ct * bx + st * bz, by, -st * bx + ct * bz)
     n_e_d = _quat_rotate(quat, body)
     return math.atan2(n_e_d[1], n_e_d[0])
 
@@ -1647,6 +1661,20 @@ def parse_args():
              "phantom can corrupt UPWARD on a genuine intercept). Deployment: "
              "TERMINAL_RANGE_M (5.0 m under --fpv).")
     parser.add_argument(
+        "--cam-mount-up-deg", type=float, default=0.0,
+        help="#40 mount-compose (ADR-0062 follow-up / ADR-0067; default 0.0 = "
+             "OFF, byte-identical): FIXED camera-mount UP-tilt in degrees. "
+             "Composes the constant mount rotation into the FIX-A "
+             "full-attitude LOS derotation (a R_y(+mount) pre-rotation on the "
+             "optical->body ray), so guidance stops assuming a level boresight "
+             "when an up-tilted mount variant is fitted. Applies to the "
+             "pro-nav LOS / PIP / fused derotation ONLY; the yaw-only "
+             "acquisition+handoff gates keep the reviewed ADR-0062 scope "
+             "boundary (<=~1.5 m implied-position error at the 8 m cue gate "
+             "at 15 deg -- margin holds). MUST match the physically fitted "
+             "mount (scripts/uptilt_ab_arm.sh --compensate passes shadow "
+             "model + this flag together).")
+    parser.add_argument(
         "--handoff-cue-gate", type=float, default=None,
         help="ADR-0057 attempt-3 ROOT-CAUSE fix (default None = OFF, byte-"
              "identical): the CUE-VALIDATED HANDOFF gate. The root cause of "
@@ -1787,6 +1815,9 @@ def parse_args():
         parser.error("--accel-boost requires --fpv (it retunes the FPV PX4 param bundle)")
     if args.dash_unclamp and not args.fpv:
         parser.error("--dash-unclamp requires --fpv (it retunes the FPV V_TOTAL_MAX clamp)")
+    if not (-45.0 <= args.cam_mount_up_deg <= 45.0):
+        parser.error("--cam-mount-up-deg must be in [-45, 45] (a fixed mount "
+                     "tilt; the flown A/B swept +15/+25/+35, ADR-0067)")
 
     # ADR-0033 (M5 finish): remember whether the caller EXPLICITLY passed
     # --target-start BEFORE we fill in a default just below. The internal tag
@@ -2127,9 +2158,11 @@ async def run_acquire_and_engage(
             # cross-coupling into lambda (audit-3 H1). IDENTITY at zero roll/
             # pitch, so the validated level M3/M4/M5 results are preserved.
             # meas_xyz + bearing are camera-only; att_quat + psi are own-state
-            # EKF -> honesty-clean (derotate_bearing_lambda docstring).
+            # EKF -> honesty-clean (derotate_bearing_lambda docstring). The
+            # mount angle is a STATIC config constant (#40) -- honesty-neutral.
             lambda_meas = derotate_bearing_lambda(
-                meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad)
+                meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad,
+                mount_up_rad=math.radians(args.cam_mount_up_deg))
             # ADR-0043 lever B: roll off the bearing-noise throughput in the
             # terminal ONLY (gain 1.0 elsewhere and by default). No-op under
             # --tracker ekf (the channel view ignores gain_scale by design).
@@ -3175,6 +3208,41 @@ def bench_derotation_selfcheck(tol_deg=0.05):
         f"ROLL 40deg, vertical-only offset (b=0): derotated={math.degrees(got):.2f} "
         f"(indep {math.degrees(want):.2f}), yaw-only=0.00 -> cross-coupling "
         f"captured: {'PASS' if roll_ok else 'FAIL'}")
+
+    # 4. MOUNT COMPOSE (#40, ADR-0067): forward-generate the optical ray a
+    #    camera tilted UP by 15 deg would measure for a target at a KNOWN
+    #    inertial azimuth, then check the mount-composed derotation recovers
+    #    the truth exactly while the zero-mount call is provably wrong. The
+    #    zero-mount error is ROLL-driven (the mount offset is a vertical
+    #    off-boresight term; roll couples vertical into azimuth -- H1's
+    #    mechanism, mount-sourced): ~0.65deg wings-level, ~6.5deg at 30deg
+    #    roll on this fixture -- hence the rolled dash/weave attitude here.
+    mount = math.radians(15.0)
+    alpha = math.radians(20.0)   # true target azimuth, level target
+    roll = math.radians(30.0)    # weave-terminal roll (the error driver)
+    pitch = math.radians(-30.0)  # nose-DOWN dash attitude (ADR-0060 regime)
+    q = _euler_to_quat_body_to_ned(roll, pitch, 0.0)
+    # target unit dir in NED (level, azimuth alpha) -> body (inverse = conjugate
+    # rotation) -> camera FRD (R_y(-mount)) -> optical permutation inverse.
+    d_ned = (math.cos(alpha), math.sin(alpha), 0.0)
+    qc = (q[0], -q[1], -q[2], -q[3])           # NED -> body
+    b_frd = _quat_rotate(qc, d_ned)
+    cm, sm = math.cos(-mount), math.sin(-mount)
+    cam = (cm * b_frd[0] + sm * b_frd[2], b_frd[1],
+           -sm * b_frd[0] + cm * b_frd[2])     # R_y(-mount) @ body = camera FRD
+    mx = (cam[1], cam[2], cam[0])              # (right, down, fwd) = optical
+    beta = math.atan2(mx[0], mx[2])
+    got_c = derotate_bearing_lambda(mx, beta, q, 0.0, mount_up_rad=mount)
+    got_u = derotate_bearing_lambda(mx, beta, q, 0.0)   # zero-mount (wrong here)
+    mount_ok = (abs(wrap_pi(got_c - alpha)) <= tol
+                and abs(wrap_pi(got_u - alpha)) > math.radians(2.0))
+    ok = ok and mount_ok
+    lines.append(
+        f"MOUNT 15deg up @ roll 30deg / pitch -30deg, target az=20deg: "
+        f"composed={math.degrees(got_c):.2f} (truth 20.00), zero-mount="
+        f"{math.degrees(got_u):.2f} -> roll-coupled mount error corrected "
+        f"{math.degrees(abs(wrap_pi(got_u - alpha))):.2f}deg: "
+        f"{'PASS' if mount_ok else 'FAIL'}")
     return ok, lines
 
 
@@ -3234,7 +3302,8 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
             # proved separately by the self-check above).
             lambda_filter.correct(
                 derotate_bearing_lambda(
-                    meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad),
+                    meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad,
+                    mount_up_rad=math.radians(args.cam_mount_up_deg)),
                 tick_start)
 
         v_down = (

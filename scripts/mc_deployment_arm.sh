@@ -24,6 +24,10 @@
 #   scripts/mc_deployment_arm.sh --path jink --n 16 --out logs/mc_X.csv --go      # actually fly (idle load only)
 # Flags: --path {line,weave,jink}  --n N  --master-seed S (42)  --speeds V (12)
 #        --out logs/NAME.csv  [--dry-run | --go]  [--force]
+#        [--m4-extra "FLAGS"]  -- extra m4_intercept flags APPENDED to the
+#          r2-mirrored argv (a DISCLOSED deviation, echoed in the plan print;
+#          used by uptilt_ab_arm.sh --compensate to pass --cam-mount-up-deg,
+#          the #40 mount-compose re-fly, docs/adr0067_refly_preregistration.md)
 #
 # SAFETY RAILS (each traces to a logged incident):
 #   * ONE sim at a time: refuses if a live px4 process exists (mc-batch skill).
@@ -60,6 +64,7 @@ SPEEDS=12
 OUT_CSV=""
 ACTION="echo"
 FORCE=0
+M4_EXTRA=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -68,6 +73,7 @@ while [[ $# -gt 0 ]]; do
         --master-seed) MASTER_SEED="$2"; shift 2;;
         --speeds) SPEEDS="$2"; shift 2;;
         --out) OUT_CSV="$2"; shift 2;;
+        --m4-extra) M4_EXTRA="$2"; shift 2;;
         --dry-run) ACTION="dry-run"; shift;;
         --go) ACTION="go"; shift;;
         --force) FORCE=1; shift;;
@@ -86,6 +92,11 @@ esac
 # ---- the ADR-0058 deployment config (DO NOT edit casually: the exact argv
 # ---- order below mirrors the r2 headline arm's logged m4 invocation) -------
 EXTRA_ARGS_STR="--dash-speed 16 --early-handoff --cue-velocity --dash-unclamp --fuse-midcourse --track --handoff-cue-gate 8"
+# --m4-extra flags go AFTER the r2-mirrored prefix (append-only => the r2
+# argv order is preserved verbatim; the deviation is disclosed in print_plan).
+if [[ -n "$M4_EXTRA" ]]; then
+    EXTRA_ARGS_STR="$EXTRA_ARGS_STR $M4_EXTRA"
+fi
 
 # ---- the markerless flight env (NEXT.md key-facts block + r2 stdout log) ---
 export MC_WORLD="markerless"
@@ -127,6 +138,10 @@ fi
 
 print_plan() {
     echo "[deploy-arm] ADR-0058 deployment-config arm (markerless, realistic cue)"
+    if [[ -n "$M4_EXTRA" ]]; then
+        echo "[deploy-arm] DISCLOSED DEVIATION from the r2-mirrored argv:"
+        echo "    --m4-extra \"$M4_EXTRA\" (appended after the r2 prefix)"
+    fi
     echo "[deploy-arm] env:"
     echo "    MC_WORLD=$MC_WORLD"
     echo "    MC_TARGET_MODEL=$MC_TARGET_MODEL"
