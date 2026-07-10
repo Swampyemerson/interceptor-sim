@@ -6,57 +6,78 @@ scope are in `GOALS.md` (imported at the bottom) — read it before planning.
 
 ## Autonomous operation — THE STANDING ORDER (builder's #1 rule; never lose this)
 
-**When the builder is not present, run FULLY AUTONOMOUSLY and NEVER STOP.** This
-overrides any instinct to wind down, and it is the rule most easily lost — restore it
-on sight. Concretely:
+**When the builder is not present, run FULLY AUTONOMOUSLY and NEVER STOP, at maximum
+throughput.** This overrides any instinct to wind down; it is the rule most easily lost —
+restore it on sight. Concretely:
 - **NEVER downshift to "holding on a heartbeat" and NEVER ask "what should I build
   next?" while he is away.** Idling, or surfacing to ask permission to work, IS the
   failure mode — it once turned a genuinely productive night into something that
-  *looked* like nothing happened (2026-07-10). Pick the highest-value unblocked item
-  yourself, BUILD it, and when it lands pick the next. Surface only for a true one-way
-  door or a hard external blocker — and even then keep other work moving.
-- **COMMIT VISIBLY and FREQUENTLY — uncommitted work is invisible work.** Do not hoard
-  a batch "for his review"; stage specific paths and commit each milestone as it lands
-  (the git log IS the proof of work). "Held for decision" applies ONLY to a genuine
-  one-way door, never to done/tested/documented results.
-- **MAXIMIZE THROUGHPUT under the Fable-seat clock.** Fable access is time-limited and
-  the project is bigger than the remaining window — fan out Fable workers/workflows
-  aggressively (ultracode), keep the sim busy with the serial gate/batch queue, and
-  keep building. Steady VISIBLE progress beats a perfect idle.
+  *looked* like nothing happened (2026-07-10). Pick the highest-value unblocked item —
+  or let the **Fable project manager** (see Model orchestration) pick it — BUILD it, and
+  when it lands take the next. Surface only for a true one-way door or a hard external
+  blocker, and even then keep other work moving.
+- **SPEED IS A FIRST-CLASS OBJECTIVE and tokens are NOT a constraint.** Minimize
+  wall-clock: fan out MULTIPLE subagents in parallel for every independent unit of work,
+  keep the sim busy with the serial batch queue at the same time, and prefer a **Workflow**
+  (ultracode is the default) whenever a task decomposes. Spending more tokens to finish
+  sooner or more thoroughly is always the right trade — never economize tokens at the cost
+  of speed, coverage, or quality. A perfect idle loses to steady VISIBLE progress.
+- **COMMIT VISIBLY and FREQUENTLY, and PUSH — uncommitted work is invisible work.** Do not
+  hoard a batch "for his review"; stage specific paths and commit each milestone as it
+  lands (the git log IS the proof of work), and push to the remote if one is configured.
+  "Held for decision" applies ONLY to a genuine one-way door, never to done/tested/
+  documented results. The Fable PM audits this so nothing strands uncommitted.
 - Drive every build through its loop autonomously: build → Fable review → sim gate →
   commit → next. Don't wait to be told to continue.
 
-## Model orchestration (Fable preferred; Opus is the SAFEGUARD FALLBACK; Sonnet for volume)
+## Model orchestration — FABLE-FIRST (Fable is the default workhorse AND the project manager)
 
-REALITY (2026-07-05, builder-confirmed with the in-product notice): Fable 5 currently
-ships DELIBERATELY BROAD safeguards that, per Anthropic's own message, "may flag safe
-and routine coding, cybersecurity, or biology work." This counter-UAS interceptor
-project's defense-sim terminology (interceptor, lethal radius, proximity fuse, kill
-probability, warhead) TRIPS that broad filter, and when a turn is flagged the Claude
-Code client AUTOMATICALLY SWITCHES the session to Opus 4.8. This is a product-level
-safety behavior: neither the agent nor the operator can disable or bypass it, it is
-NOT operator error or a bad launch, and it may re-trigger even after a manual switch
-back. The sanctioned remedy is `/feedback` (the notice invites it; the safeguards are
-being refined). Do NOT try to word prompts to evade the classifier.
+REALITY (2026-07-05, builder-confirmed with the in-product notice): Fable 5 ships
+DELIBERATELY BROAD safeguards that, per Anthropic's own message, "may flag safe and
+routine coding, cybersecurity, or biology work." This project's defense-sim terminology
+(interceptor, lethal radius, proximity fuse, kill probability, warhead) TRIPS that filter,
+and a flagged turn AUTO-SWITCHES the session to Opus 4.8 — a product-level behavior neither
+agent nor operator can disable or bypass, which may re-trigger after a manual switch back,
+and is NOT operator error or a bad launch. Sanctioned remedy: `/feedback`. Do NOT word
+prompts to evade the classifier.
 
-Implications for how to work:
-- **Prefer Fable when it's the active model** (it's the stronger seat for judgment),
-  but EXPECT the session to bounce to Opus on flagged turns — that is NORMAL here, not
-  a misconfiguration. Check `/model` to know which you're on; the project pins
-  `"model": "claude-fable-5"` in `.claude/settings.json` so a fresh launch starts on
-  Fable, and the safeguard may still switch it mid-session.
-- **Do strong work on whichever model is active.** Correctness is model-agnostic; the
-  project has progressed well across both. Don't stall waiting to be on Fable.
-- **Hard / high-judgment sub-tasks:** prefer Fable (main session, or a `model: fable`
-  subagent — the Task/Agent tool supports it), accepting the same flagging may apply;
-  Opus is the practical fallback for this project's flagged content, not a downgrade
-  to fight.
-- **Sonnet 5 = genuinely mechanical / parallel / verifiable VOLUME** — installs,
-  boilerplate, running sim batches, log reading, wide read-only searches. The
-  `.claude/agents/` (sonnet-worker, verifier, council-member) are Sonnet-pinned; a
-  `model:` override bumps them up.
-- **Verify the model first thing** each session with `/model`; if you want Fable and
-  the safeguard has switched you, switch back and continue, knowing it may bounce.
+**The routing rule the builder wants (2026-07-10), in strict priority order:**
+
+1. **FABLE FIRST — the default for essentially everything that won't trip the safeguard.**
+   Route to `model: fable` subagents ALL non-flagged work: feature/tooling builds, CV /
+   training / statistics / analysis, doc + ADR prose, results write-ups, diff review — AND,
+   explicitly, **PROJECT MANAGEMENT**: keeping the todo list correct and progressing;
+   keeping `NEXT.md` / `PROGRESS.md` / the memory files current, consistent, and in good
+   order; ensuring commits land and push; and making the ADMINISTRATIVE "what's next / what
+   is most effective to drive the project to done" decisions. Fan out SEVERAL Fable
+   subagents in parallel — tokens are not a factor, speed is. Neutral-wording content (code
+   mechanics, stats, CV, org/admin, file hygiene) reliably holds on Fable; only content that
+   genuinely needs the flagged framing bounces. Evidence (2026-07-10): parallel Fable
+   subagents cleanly did portfolio doc-polish and a full cue-error decomposition with zero
+   safeguard flags.
+   - **STANDING FABLE PROJECT-MANAGER role:** keep a Fable subagent owning project
+     organization — auditing the git state (nothing stranded uncommitted), reconciling the
+     todo list, keeping the management files honest and current, and proposing/deciding the
+     prioritized next-work queue — so the head never babysits management files. Re-spawn or
+     resume it whenever the project state has moved.
+2. **OPUS subagents — ONLY for what Fable CANNOT do because the safeguard blocks it:** the
+   flagged defense-framed content — guidance-law / interceptor / lethal-radius / jam /
+   honesty-boundary builds and their reviews. Use `model: opus` for exactly those. Do NOT
+   route neutral work to Opus just because the head happens to be on Opus: the head model
+   here is frequently PINNED to Opus by the safeguard, and that is precisely why delegatable
+   work must be PUSHED OFF the head to Fable, not done inline. (This decays silently the
+   moment the head gets busy — self-check every turn: "is anything delegatable sitting on
+   the head or on Opus that Fable could do? → move it to Fable.")
+3. **SONNET subagents — ONLY for work that genuinely needs little reasoning:** installs,
+   boilerplate, running sim batches, log/CSV greps, wide read-only searches, mechanical
+   spec'd edits. Never put judgment work on Sonnet. `.claude/agents/` (sonnet-worker,
+   verifier, council-member) are Sonnet-pinned; a `model:` override bumps them up.
+
+The head (whatever model the safeguard leaves it on) does ONLY: orchestration, interpreting
+subagent reports, rulings/sequencing, sim-batch driving, and the flagged builds that cannot
+be delegated. Everything else → a subagent, **Fable by default**. Verify the model first
+thing with `/model`; the project pins `claude-fable-5` in `.claude/settings.json`, and the
+safeguard may still switch mid-session — accept the bounce, never fight it, keep working.
 
 ## Decision protocol (educated decisions, with a council when it matters)
 
