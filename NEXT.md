@@ -167,17 +167,25 @@ tracked-or-accepted; repo publishable on a remote.
    `docs/t25_storyboard.md` (+ 2026-07-10 tilt addendum), plan
    `scripts/video/t25_render_plan.md`; audit frames after render. See memory
    `t25-video-must-feature-tilt`.
-2. **[NEXT SIM ITEM] #40 mount-compose RE-FLY — the compose CODE is SHIPPED
-   (ADR-0068); what remains is flying it.** `scripts/uptilt_ab_arm.sh
-   --mount 0 --mount 15 --compensate --go` (refly up00 control + up15
-   compensated, n=8 paired, ~25 min, idle only) → analyze against the
-   PRE-REGISTERED bars in `docs/adr0067_refly_preregistration.md` (parity =
-   median paired miss delta ≤ +0.30 m AND worse ≤5/8; FAIL ≥7/8 worse or
-   ≥ +0.84 m; validity gate 0 CORRECTED — the healthy swap reads d(top_margin)
-   BELOW +mount with d(first_det)>0, NOT ≈+mount) → then Stage-2
-   tilted+compensated coast-search recovery re-test. Remaining #40 follow-ups
-   (separate, lower): gate derotation, M7 slant-range, attitude CSV cols,
-   FIX-B tuning gate.
+2. **#40 mount-compose RE-FLY — FLOWN; Stage-1 verdict FAIL on strict parity
+   (ADR-0068 addendum, `bfdb86e`).** up15-compensated worse on 7/8 seeds
+   (median +0.16 m) → NO fixed +15° mount adoption. BUT compensation WORKS:
+   it cut the terminal penalty ~5× (uncompensated median +0.82 m → +0.16 m)
+   and RESTORED Pk@2.5 4/8 → 8/8; the availability win holds (dash-above-FoV
+   35% → 0%, first-det +4 m). The residual + fixed-angle compromise STRENGTHEN
+   #46 adaptive tilt. Compensation code is validated+shipped.
+   - **[NEXT SIM ITEM] Stage-2 tilted+compensated RECOVERY re-test** — the
+     headline comms-denied question. Fly the ADR-0059 coast-search jam arm at
+     r18, n=16, WITH the up15 shadow + `--cam-mount-up-deg 15` (harness:
+     `scripts/stage2_tilt_recovery_arm.sh`); score by `scripts/check_jam_mc.py`
+     against the pre-registered Stage-2 thresholds (RECOVERY iff RH ≥ 11/16 AND
+     J ≥ 8/16; MECHANISM: camera-never-detected ≤ 4/16 vs the #39 baseline
+     10/16). A positive result un-HOLDs "works comms-denied" (scoped). The
+     availability mechanism the recovery needs is now confirmed strong.
+   - Remaining #40 follow-ups (separate, lower): gate derotation, M7
+     slant-range, attitude CSV cols, FIX-B tuning gate.
+   - **#46 adaptive tilt (ADR-0065)** is now the favored perception-availability
+     path (fixed mount has a residual terminal cost adaptive scheduling avoids).
 3. **[conditional, after #40] #46 adaptive camera tilt sim A/B (ADR-0065)**
    — pitch-following schedule vs the best fixed mount; strengthened by
    ADR-0067 (fixed angle buys availability at a terminal price adaptive

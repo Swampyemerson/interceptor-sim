@@ -89,6 +89,18 @@ REALISTIC_CUE="--sigma-range --datum-bias-m 0.5 --latency-jitter-s 0.05 --dropou
 # appended per-arm below (default = COAST_STALE_S = 1.0 s when omitted).
 DEPLOY_EXTRA="--dash-speed 16 --early-handoff --cue-velocity --dash-unclamp --fuse-midcourse --track --handoff-cue-gate 8"
 
+# #40 Stage-2 recovery re-test hook (ADR-0068 / docs/adr0067_refly_preregistration
+# .md): MOUNT_DEG appends --cam-mount-up-deg (composes a fitted up-tilt mount into
+# FIX-A's LOS derotation) and OUT_SUFFIX distinguishes the CSV so the #39 coast
+# NULL evidence is never overwritten. BOTH default EMPTY => byte-identical to the
+# validated ADR-0059 arms (the caller must ALSO set the up15 shadow symlink +
+# UPTILT_EXPECTED=1; scripts/stage2_tilt_recovery_arm.sh owns that lifecycle).
+MOUNT_DEG="${MOUNT_DEG:-}"
+OUT_SUFFIX="${OUT_SUFFIX:-}"
+if [[ -n "$MOUNT_DEG" ]]; then
+    DEPLOY_EXTRA="$DEPLOY_EXTRA --cam-mount-up-deg $MOUNT_DEG"
+fi
+
 CUTOFF_RANGE_M="${CUTOFF_RANGE_M:-15}"     # pre-acquisition cue kill range (m)
 BIG_HORIZON="1000000000"                   # --cue-stale-horizon that disables the fix (A/B)
 
@@ -137,7 +149,7 @@ case "$ARM" in
         # KNOWN RISK: the sweep is lateral (yaw) only; if the dash-pitch throws
         # the target above the FoV (ADR-0060), yaw-only may not reacquire -- the
         # MC will show it (watch the 'never' outcome + first_det coverage).
-        run_arm "jam_fixon_coast_r${CUTOFF_RANGE_M}" "--link-cutoff-range-m $CUTOFF_RANGE_M" \
+        run_arm "jam_fixon_coast_r${CUTOFF_RANGE_M}${OUT_SUFFIX}" "--link-cutoff-range-m $CUTOFF_RANGE_M" \
             "$DEPLOY_EXTRA --coast-search" ;;
     dry)
         # Show the planned matrix for the jam_fixon arm without booting a sim.
