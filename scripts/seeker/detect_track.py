@@ -229,14 +229,20 @@ class DetectThenTracker:
         # coast time while still tolerating real velocity-aware prediction error.
         # Env-tunable (MARKERLESS_TRACK_REACQ_CAP_M) for the A/B sweep.
         self.reacq_cap_m = _envf("MARKERLESS_TRACK_REACQ_CAP_M", 12.0)
-        # RTF-INVARIANT COAST CLOCK (review finding #1 / ADR-0009): the coast
-        # that ages the re-acquire radius is measured in FRAMES-since-loss * this
+        # FRAME-BASED COAST CLOCK (review finding #1 / ADR-0009): the coast that
+        # ages the re-acquire radius is measured in FRAMES-since-loss * this
         # nominal sim-time-per-processed-frame, NOT wall time. time.monotonic()
         # sagged 2-3x under RTF load, so wall-time aging grew the radius that much
-        # too fast per sim-second. Frames are the detection loop's natural
-        # RTF-invariant clock (the same basis as the every-N-frames re-validation
-        # cadence). Default 1/14 s ~ the detector's measured ~14 Hz effective
-        # cadence (m4_intercept.py:1858). Env-tunable.
+        # too fast per sim-second; frames are the detection loop's natural clock
+        # (the same basis as the every-N-frames re-validation cadence). NOTE
+        # (ADR-0058 residual #1, softened here): this is RTF-ROBUST, not fully
+        # RTF-invariant -- FRAME_DT_S embeds the RTF~1 NN cadence, so under RTF sag
+        # the ACQUIRE loop turns camera-bound (30 Hz sim) and the coast clock can
+        # run up to ~30/14 ~ 2.1x fast in sim-seconds. The REACQ_CAP_M cap carries
+        # the anti-phantom guarantee regardless (the ~18 m phantom is rejected at
+        # EVERY coast age), and batch arms fly at RTF~1, so this is not batch-
+        # invalidating. Default 1/14 s ~ the detector's measured ~14 Hz effective
+        # cadence. Env-tunable.
         self.frame_dt_s = _envf("MARKERLESS_TRACK_FRAME_DT_S", 1.0 / 14.0)
         # Degeneracy guards for a bad tracker box.
         self.min_box_px = _envf("MARKERLESS_TRACK_MIN_BOX_PX", 4.0)
@@ -286,15 +292,22 @@ class DetectThenTracker:
         # ~20 m away) does not.
         if cue_pos is not None and own is not None:
             return self._cue_gap(det, own, cue_pos) <= self.seed_cue_gate_m
-        # POST-HANDOFF (no cue, review finding #2): the re-seed must be consistent
-        # with the guidance's own velocity-aware CAMERA-track prediction
-        # (cam_track = TargetTracker pos_hat, predict()ed every tick -- camera-only
-        # post-latch, legal). Acceptance radius AGES with coast time at a bounded
-        # rate (prediction error grows while coasting), hard-capped. Deliberately
-        # NO confidence gate (ADR-0057: confidence is INVERTED -- phantoms score
-        # HIGHER than the real few-pixel target) and NO gating on the stale
-        # last_box pixel location (arbitrary after a coast; it burned weave runs
-        # 2/4 with 8 and 7 FALSE post-handoff dets). No legal reference -> coast.
+        # NO-CUE branch (review finding #2): reached when legal_cue_pos() is None.
+        # That happens POST-handoff (the cue channel is closed one-way at the
+        # latch) AND -- ADR-0059 -- PRE-handoff when the cue is STALE/jammed and
+        # m4_intercept feeds cue_pos=None, so a frozen cue can no longer reject the
+        # real target and this camera-track-continuity gate becomes the anti-
+        # phantom lever under jam. The re-seed must be consistent with the
+        # guidance's own velocity-aware CAMERA-track prediction (cam_track =
+        # TargetTracker pos_hat, predict()ed every tick -- camera-corrected only
+        # post-latch; pre-handoff under jam it is the DEAD-RECKONED track, carrying
+        # the last legitimate cue state forward, the same legality as --coast-
+        # search / --warm-handoff). Acceptance radius AGES with coast time at a
+        # bounded rate (prediction error grows while coasting), hard-capped.
+        # Deliberately NO confidence gate (ADR-0057: confidence is INVERTED --
+        # phantoms score HIGHER than the real few-pixel target) and NO gating on
+        # the stale last_box pixel location (arbitrary after a coast; it burned
+        # weave runs 2/4 with 8 and 7 FALSE post-handoff dets). No legal ref -> coast.
         cam_track = ctx.cam_track
         if cam_track is None or own is None:
             return False

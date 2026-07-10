@@ -530,6 +530,34 @@ def compute_v_close(r_hat, fpv_on):
     frac = (r_hat - lo) / (hi - lo)  # 1 at hi -> 0 at lo
     return term + frac * (runin - term)
 
+
+def cue_is_stale(last_cue_recv_sim_t, sim_now, horizon):
+    """ADR-0059: has the external cue link gone silent (jammed) for longer than
+    `horizon` SIM seconds?
+
+    When the cue is jammed mid-dash, CueReader.read() keeps returning the last
+    datagram forever, so `cue_is_new` goes False and BOTH last_cue_pos and its
+    staleness clock last_cue_recv_sim_t FREEZE. This predicate compares the frozen
+    clock against the live sim clock so the two cue read-sites (the --handoff-cue-
+    gate and the --track seeker seed) can treat a frozen cue as ABSENT and fall
+    back to their camera-only paths, instead of validating the REAL target against
+    a stale point that has drifted out of the gate (the ADR-0059 fail-closed hole).
+
+    Returns True ONLY in the jammed-AFTER-first-fix case: a cue was received
+    (last_cue_recv_sim_t is not None), the sim clock is live (sim_now is not None),
+    and the gap since the last NEW datagram exceeds the horizon. Returns False --
+    the INERT path that leaves every full-duration-cue run on its exact
+    pre-ADR-0059 branch -- when the cue is fresh, when no cue ever arrived
+    (last_cue_recv_sim_t is None; last_cue_pos is already None so the existing
+    cueless fallbacks apply), or when there is no sim clock (sim_now is None).
+
+    SIM TIME ONLY (ADR-0009 -- never wall time; RTF sag would distort a wall
+    clock). Pure function: no I/O, no globals -- unit-tested directly."""
+    if last_cue_recv_sim_t is None or sim_now is None:
+        return False
+    return (sim_now - last_cue_recv_sim_t) > horizon
+
+
 # --- MAVSDK / takeoff constants (mirrors scripts/m3_static_intercept.py's
 # own constants -- not reused via import, since M3 doesn't export these as
 # module-level names meant for reuse; they're the same numbers by design). ---
@@ -1493,6 +1521,27 @@ def parse_args():
              "Typical: 8 m (phantoms are ~18 m off the cue; the cue's own error "
              "is ~0.5-2.5 m).")
     parser.add_argument(
+        "--cue-stale-horizon", type=float, default=COAST_STALE_S,
+        help="ADR-0059 fix (default %.1fs = COAST_STALE_S; effective only under "
+             "--handoff): the cue-staleness horizon in SIM seconds. If the cue "
+             "link is JAMMED mid-dash, CueReader.read() keeps returning the last "
+             "datagram forever and last_cue_pos FREEZES at the pre-jam target "
+             "position; both the --handoff-cue-gate and the --track seeker-seed "
+             "gate then reject the REAL target once it drifts past the gate radius "
+             "from that frozen point, so the deployment config (--track "
+             "--handoff-cue-gate 8) fails CLOSED under a pre-acquisition jam -- a "
+             "regression against the ADR-0015 WORST-tier link-cutoff coast-search "
+             "was built to survive. This horizon ages the frozen cue OUT: once the "
+             "cue has been silent longer than this (sim time), it is treated as "
+             "ABSENT -- the handoff cue-gate is skipped (falls back to the camera-"
+             "only N-consecutive-in-range streak) and the seeker seed is fed "
+             "cue_pos=None (routes _seed_ok into its camera-track-continuity anti-"
+             "phantom branch). DEFAULT-ON but INERT under a full-duration cue: the "
+             "cue age never crosses the horizon, so every branch stays exactly "
+             "pre-ADR-0059 (all ADR-0058 validation + pinned tests unchanged). Set "
+             "very large to DISABLE (A/B against the old fail-closed behavior)."
+             % COAST_STALE_S)
+    parser.add_argument(
         "--accel-boost", action="store_true",
         help="ADR-0028 Gazebo-confirm (default OFF, requires --fpv): ~2x "
              "the FPV PX4 param bundle's MPC_ACC_HOR_MAX (%.1f -> %.1f m/s^2) "
@@ -1766,6 +1815,11 @@ async def run_acquire_and_engage(
     # because the camera-implied target position disagreed with the cue.
     last_cue_pos = None
     handoff_cue_rejects = 0
+    # ADR-0059 cue-staleness fallback: latched True the first tick the cue is
+    # ruled stale (jammed), so the "falling back to camera-only" notice prints
+    # ONCE (observability for the jam MC arm). Stays False for every full-
+    # duration-cue run (the cue never ages out) -> no print, byte-identical.
+    cue_stale_fallback_latched = False
     handoff_streak = 0
     handoff_done = False
     handoff_t = None
@@ -2070,6 +2124,53 @@ async def run_acquire_and_engage(
                         tracker_correction_count += 1
                         ext_fresh = 1
 
+        # ADR-0059 cue-staleness age-out (default-ON, INERT unless the cue is
+        # actually stale PRE-handoff). last_cue_recv_sim_t (the sim-time clock
+        # updated on every NEW cue datagram, ~line 2005) stops advancing the moment
+        # the cue link is jammed, while the sim clock marches on -- so this crosses
+        # the horizon ~cue_stale_horizon s after the jam. Once stale, BOTH cue
+        # read-sites below (the handoff cue-gate + the detect-then-track seeker
+        # seed) treat the frozen last_cue_pos as ABSENT and fall back to their
+        # camera-only paths; WITHOUT this the frozen cue rejects the real target and
+        # the deployment config fails closed under a pre-acquisition jam (ADR-0059,
+        # a regression vs the ADR-0015 WORST-tier link-cutoff).
+        #
+        # `not handoff_done` GUARD (Fable review, moderate defect): at the handoff
+        # latch the cue channel is closed one-way, so last_cue_recv_sim_t freezes on
+        # EVERY normal flight and the raw predicate would go True ~horizon s into
+        # ENGAGE -- falsely marking cue_stale=1 / printing the notice mid-terminal.
+        # Staleness is only MEANINGFUL pre-handoff (that is the only place the cue
+        # read-sites act on it: the gate is DASH-only, and update() already forces
+        # cue_pos=None post-latch). Gating the predicate on `not handoff_done`
+        # forces it False post-handoff -> restores post-handoff guidance + CSV
+        # byte-identity AND keeps the marker/notice a clean PRE-handoff-jam signal.
+        #
+        # INERT PROOF: pre-handoff under a full-duration cue, last_cue_recv_sim_t
+        # advances every datagram, the age stays well under the horizon, so
+        # cue_is_stale_now is False and both sites take their exact pre-ADR-0059
+        # branch -> guidance identical when the cue is fresh. SIM TIME only
+        # (ADR-0009). Fires only in the jammed-AFTER-first-fix case (cueless runs
+        # keep last_cue_recv_sim_t=None -> not stale; the existing last_cue_pos=None
+        # fallbacks already handle those).
+        cue_is_stale_now = (not handoff_done) and cue_is_stale(
+            last_cue_recv_sim_t,
+            sim_clock.t if sim_clock is not None else None,
+            args.cue_stale_horizon,
+        )
+        if cue_is_stale_now and not args.coast_search:
+            # Jam-arm observability + CSV marker. Skipped entirely under
+            # --coast-search, which OWNS cue_stale_flag (set unconditionally at
+            # its branch below) -- no double-write, coast-search runs untouched.
+            cue_stale_flag = 1
+            if not cue_stale_fallback_latched:
+                cue_stale_fallback_latched = True
+                print(
+                    f"[s2] ADR-0059: cue STALE (silent > {args.cue_stale_horizon:.2f}s "
+                    f"sim) at t_sim={sim_clock.t:.2f} -- last_cue_pos frozen; "
+                    "handoff cue-gate + seeker seed fall back to CAMERA-ONLY "
+                    "(cue treated as ABSENT, anti-phantom via camera-track "
+                    "continuity)", flush=True)
+
         lambda_hat = lambda_filter.x_hat
         lambda_dot_hat = lambda_filter.xdot_hat if lambda_filter.initialized else None
         r_hat = range_filter.x_hat
@@ -2352,8 +2453,17 @@ async def run_acquire_and_engage(
                 # interceptor keeps dashing on the cue until a genuine, cue-
                 # consistent acquisition latches handoff. Only the STREAK is
                 # gated; nothing else changes.
+                # ADR-0059: when the cue is STALE (jammed), skip the cue-gate
+                # entirely -- `not cue_is_stale_now` drops the whole block so
+                # cue_consistent stays True and the handoff falls back to the
+                # camera-only N-consecutive-in-range streak (the default-config
+                # behavior, which ADR-0059 confirms survives jam). Inert when the
+                # cue is fresh (cue_is_stale_now is False -> condition unchanged ->
+                # byte-identical). A frozen cue would otherwise reject the real
+                # target here (cue_gap grows ~12 m/s past the gate) -> fail closed.
                 cue_consistent = True
                 if (in_handoff_range and args.handoff_cue_gate is not None
+                        and not cue_is_stale_now
                         and last_cue_pos is not None
                         and state.pos_n is not None and state.pos_e is not None):
                     lambda_meas_h = psi_rad + meas.bearing_rad
@@ -2720,8 +2830,18 @@ async def run_acquire_and_engage(
         # cue_pos to None once handoff_done -> the tracker is camera-only
         # post-latch (jam-resistant, ADR-0010 #5). No-op without --track.
         if seed_ctx is not None:
+            # ADR-0059: when the cue is STALE (jammed), feed cue_pos=None so
+            # _seed_ok routes into its camera-track-continuity branch -- the
+            # velocity-aware anti-phantom guard under jam -- instead of validating
+            # the real target against a frozen cue that rejects it. INERT when the
+            # cue is fresh (seed_cue_pos == last_cue_pos -> byte-identical). Honesty
+            # (ADR-0010/0059): once stale, NO cue-derived value reaches the seed --
+            # the frozen last_cue_pos is structurally dropped here; the fallback is
+            # camera-only. The post-handoff null-under-latch in update() is
+            # untouched (handoff_done still forces cue_pos=None regardless).
+            seed_cue_pos = None if cue_is_stale_now else last_cue_pos
             seed_ctx.update(state.pos_n, state.pos_e, psi_rad,
-                            last_cue_pos, handoff_done,
+                            seed_cue_pos, handoff_done,
                             cam_track=target_tracker.pos_hat)
 
         write_row_m4(
