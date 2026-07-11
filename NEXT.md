@@ -78,16 +78,23 @@ tracked-or-accepted; repo publishable on a remote.
    box-center (the ADR-0056 residual, a hard perception refinement); **(b) the
    honest METRIC REFRAME** — 1.5–2 m is already Pk@2.5 8/8 = a proximity-fuse KILL
    (ADR-0025).
-   **BUILDER CHOSE (a) — SUBPIXEL BEARING (ADR-0071, BUILT+TESTED, committed).** The
-   darkness-weighted centroid replaces the box-center bearing (immune to box-edge
-   jitter). **n=8 SCREEN = the FIRST POSITIVE lever after accel/t_go/tilt all failed:**
-   paired mean −0.19 m, distribution median 1.85 → 1.35 m, wins BIG on the bad flights
-   (1.90→1.34, 1.06→0.70, 1.34→0.64) and loses only noise elsewhere — but the paired
-   delta-median is flat (−0.001, 4/7 better) so it's PROMISING-not-proven at n=7 (one
-   MAVSDK offboard-race NaN). **n=16 extension IN FLIGHT** (pooling master-seed 43).
-   If it holds → n=72 headline (ADR-0064) → re-capture the video intercept with the
-   tighter miss. Fallbacks if it fades: tune `MARKERLESS_TRACK_SUBPIXEL_PCTL`, or the
-   RANGE channel (width-based range is also box-noise-sensitive).
+   **BUILDER CHOSE (a) — SUBPIXEL BEARING (ADR-0071) → TESTED to n=31 → NULL (the
+   n=8 "win" was small-sample NOISE).** The darkness-weighted centroid is real +
+   honesty-clean, but the paired mean CPA REGRESSED as n grew (n=15 −0.16 → n=23
+   −0.075 → **n=31 +0.06 m**, sign 16 worse/11 better). Marginal tail survivor (90th
+   pctl 2.15 vs 2.40, Pk 30/31 vs 28/31) is within noise. Likely the α-β lambda
+   filter already smooths the box-center jitter. **Kept DEFAULT-OFF (validated, no
+   robust benefit).**
+   **★ TIGHTER-MISS LANE CLOSED (ADR-0071 add. #2).** EVERY lever eliminated: accel
+   (ADR-0069), t_go/handoff (ADR-0070), tilt (ADR-0070 worse), subpixel (null). The
+   ~2 m weave CPA is the practical SEEKER FLOOR (kinematic ADR-0023 + bearing-quality
+   ADR-0056) AND already a **Pk@2.5 KILL** (72/72, ADR-0064) — a proximity-fuse
+   interceptor detonates on target at 2 m (ADR-0025), so "tighter CPA" is the wrong
+   objective; the intercept already SUCCEEDS. A genuinely tighter miss needs a
+   fundamentally different terminal seeker (subpixel-corner fiducial / higher-Hz
+   clean bearing), not a guidance tweak. **Net: a rigorous 4-lever honest
+   negative-results arc → the correct root cause. The video's current ~2 m intercept
+   IS the honest best.**
 2. **TILT for a tighter intercept — PIVOT to FIXED tilt first (builder 2026-07-10 eve).**
    Builder's call: try a FIXED up-tilt before the complex adaptive gimbal — the dash
    is "always at speed forward" (consistent nose-down pitch, ADR-0060) and the stereo
