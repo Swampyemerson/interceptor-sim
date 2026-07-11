@@ -452,11 +452,14 @@ def main() -> int:
         help="max forward nose-down pitch for --orient-to-velocity (deg)",
     )
     parser.add_argument(
-        "--orient-yaw-offset-deg", type=float, default=-90.0,
-        help="model baked-forward offset for --orient-to-velocity: the markerless "
-             "mesh's nose points along local +Y, so -90 aligns the aircraft "
-             "+X-forward attitude with it (a reskin model may need a different "
-             "value). Default -90 reproduces the known-good +Y-line pose.",
+        "--orient-yaw-offset-deg", type=float,
+        default=float(os.environ.get("INTERCEPTOR_ORIENT_YAW_OFFSET_DEG", "-90.0")),
+        help="model baked-forward offset for --orient-to-velocity: the OLD "
+             "billboard markerless mesh's nose points along local +Y, so -90 aligns "
+             "the aircraft +X-forward attitude with it; the new fpv_quad_enemy mesh "
+             "has a +X nose so it needs 0. Env INTERCEPTOR_ORIENT_YAW_OFFSET_DEG "
+             "sets the default so it propagates through m4_intercept's mover spawn. "
+             "Default -90 reproduces the known-good +Y-line pose.",
     )
     parser.add_argument(
         "--path", default=DEFAULT_PATH, choices=VALID_PATHS,
