@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  fpv_quad_enemy -- a PROPER 3D quadcopter target, red "enemy" accented.
+
+  WHY THIS MODEL EXISTS: models/fpv_target_markerless (and models/fpv_target,
+  models/apriltag_target before it) lay their 4 arms/props out in the LOCAL
+  Y-Z PLANE -- e.g. arm_ne_visual pose "0.14 -0.205061 0.205061 ...": fixed
+  local X, varying Y/Z. Since local Z is up, that puts the rotor plane
+  VERTICAL -- it is a flat billboard facing -X, not a real quad, and it reads
+  as fake the moment the mover yaws/banks/pitches it (a horizontal quad's
+  rotor disc should stay in the local X-Y plane). This model fixes that by
+  using the REAL x500 airframe meshes (vendored below) so the rotor plane is
+  genuinely HORIZONTAL and the silhouette is correct from every viewing
+  angle, at every attitude the mover commands.
+
+  LOCAL FRAME: FORWARD = +X (nose), rotor plane HORIZONTAL in X-Y, +Z up.
+  Static, teleported by scripts/m4_target_mover.py (no physics, no joints).
+  Red enemy accents on the 4 prop + 4 motor-bell visuals so it reads as a
+  hostile target distinct from the (dark carbon / blue-accented) interceptor
+  airframe -- see models/x500_base/model.config for that reskin's rationale.
+
+  Forward-axis confirmation: PX4-Autopilot's x500_base/model.sdf places its
+  NXP_FMUK66_FRONT decal visual at pose "0.047 .001 .043 ..." -- a positive-X
+  offset -- i.e. the nose/front of the real x500 airframe is +X. This model
+  keeps that convention so scripts/m4_target_mover.py's yaw-toward-heading
+  logic (which assumes +X = forward) points the nose the right way.
+
+  PROVENANCE: geometry, meshes, and material are copied/flattened from
+  PX4-Autopilot's Tools/simulation/gz/models/x500_base/model.sdf (the real
+  x500 quad used by the interceptor itself). This is a NEW model -- it does
+  NOT touch models/fpv_target_markerless/ or any other existing target.
+
+  STRUCTURE: ONE static link ("base") with ONLY <visual> elements -- no
+  <collision>, no <inertial>, no <joint>, no <plugin>, no separate rotor
+  links. x500_base's 4 rotors are each their own link (joined to base_link by
+  a revolute joint) purely so PX4/Gazebo can spin the props; since this
+  target is teleported kinematically and never spins props, every rotor's
+  visuals are FLATTENED into "base" by composing the rotor link's pose with
+  each visual's local pose (both are pure translations -- x500_base's rotor
+  links and their visuals carry zero rotation relative to each other -- so
+  the flatten is just vector addition; the visual's own mesh rotation, e.g.
+  the frame mesh's 180 deg yaw, is preserved unchanged):
+
+    rotor_0 link pose      (0.174, -0.174, 0.06)   [x500_base/model.sdf L316-320]
+    rotor_0_visual pose  + (-0.022, -0.14638461538461536, -0.016)  [L329-330]
+    ---------------------------------------------------------------
+    flattened prop_0 pose   (0.152, -0.32038461538461536, 0.044)
+
+    rotor_0_visual_motor_bell pose (0, 0, -0.032) added to the SAME rotor_0
+    link pose (0.174, -0.174, 0.06) gives the flattened bell_0 pose
+    (0.174, -0.174, 0.028).
+
+  The base_link_visual (airframe) and 4 5010_motor_base_N visuals need no
+  composition: in x500_base, base_link itself carries no <pose> (identity
+  relative to the model root), so those visual poses are copied verbatim.
+
+  Full per-rotor arithmetic (source: x500_base/model.sdf, this repo's copy
+  at models/x500_base/model.sdf, read verbatim before writing this file):
+
+    rotor_0: link (0.174, -0.174, 0.06), prop mesh 1345_prop_ccw.stl
+      prop visual local  (-0.022, -0.14638461538461536, -0.016)
+      -> flattened        (0.152, -0.32038461538461536, 0.044)
+      bell visual local  (0, 0, -0.032)
+      -> flattened        (0.174, -0.174, 0.028)
+
+    rotor_1: link (-0.174, 0.174, 0.06), prop mesh 1345_prop_ccw.stl
+      prop visual local  (-0.022, -0.14638461538461536, -0.016)
+      -> flattened        (-0.196, 0.02761538461538464, 0.044)
+      bell visual local  (0, 0, -0.032)
+      -> flattened        (-0.174, 0.174, 0.028)
+
+    rotor_2: link (0.174, 0.174, 0.06), prop mesh 1345_prop_cw.stl
+      prop visual local  (-0.022, -0.14638461538461536, -0.016)
+      -> flattened        (0.152, 0.02761538461538464, 0.044)
+      bell visual local  (0, 0, -0.032)
+      -> flattened        (0.174, 0.174, 0.028)
+
+    rotor_3: link (-0.174, -0.174, 0.06), prop mesh 1345_prop_cw.stl
+      prop visual local  (-0.022, -0.14638461538461536, -0.016)
+      -> flattened        (-0.196, -0.32038461538461536, 0.044)
+      bell visual local  (0, 0, -0.032)
+      -> flattened        (-0.174, -0.174, 0.028)
+
+  All flattened poses keep the visual's own rotation (0 0 0 for props and
+  bells; the frame mesh keeps its 180 deg yaw). Rotor-plane visuals sit at
+  local z ~ 0.028-0.044 -- HORIZONTAL, next to the airframe at z ~ 0.025-0.032
+  -- confirming this is a real 3D quad, not a vertical billboard.
+
+  MESHES: vendored (real files, not symlinks -- verified with `ls -lL` and
+  `file`) into models/fpv_quad_enemy/meshes/ from this repo's models/x500_base
+  copy (itself a symlink farm to PX4-Autopilot's x500_base) via `cp -L`:
+  NXP-HGD-CF.dae (airframe), 5010Base.dae (motor base x4), 5010Bell.dae
+  (motor bell x4), 1345_prop_ccw.stl / 1345_prop_cw.stl (props x4), plus
+  CF.png (the airframe mesh's own carbon-fiber texture, referenced by
+  NXP-HGD-CF.dae's <library_images><init_from>CF.png</init_from>, vendored
+  alongside it so the texture resolves).
+
+  VALIDATION STATUS: static-checked only (`gz sdf -k`). No live spawn / no
+  sim boot performed for this deliverable -- see docs/decisions.md for the
+  ADR covering this model's introduction.
+-->
+<sdf version='1.9'>
+  <model name="fpv_quad_enemy">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+    <link name="base">
+
+      <!-- Airframe (carbon-fiber frame mesh). Copied verbatim from
+           x500_base's base_link_visual -- no composition needed since
+           base_link carries no pose relative to the x500_base model root. -->
+      <visual name="frame_visual">
+        <pose>0 0 .025 0 0 3.141592654</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/NXP-HGD-CF.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <!-- 4 motor bases (the arm-tip mounts the rotor bells sit on). Copied
+           verbatim from x500_base's 4 5010_motor_base_N visuals. -->
+      <visual name="motor_base_0">
+        <pose>0.174 0.174 .032 0 0 -.45</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Base.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="motor_base_1">
+        <pose>-0.174 0.174 .032 0 0 -.45</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Base.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="motor_base_2">
+        <pose>0.174 -0.174 .032 0 0 -.45</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Base.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <visual name="motor_base_3">
+        <pose>-0.174 -0.174 .032 0 0 -.45</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Base.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <!-- 4 props -- FLATTENED from x500_base's rotor_N link pose + that
+           rotor's own *_visual local pose (see header derivation). RED enemy
+           accent material (the ADR-0033-style "enemy" tint used elsewhere in
+           this repo, e.g. fpv_target_markerless's hub visuals). -->
+      <visual name="prop_0">
+        <pose>0.152 -0.32038461538461536 0.044 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.8461538461538461 0.8461538461538461 0.8461538461538461</scale>
+            <uri>model://fpv_quad_enemy/meshes/1345_prop_ccw.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name="prop_1">
+        <pose>-0.196 0.02761538461538464 0.044 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.8461538461538461 0.8461538461538461 0.8461538461538461</scale>
+            <uri>model://fpv_quad_enemy/meshes/1345_prop_ccw.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name="prop_2">
+        <pose>0.152 0.02761538461538464 0.044 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.8461538461538461 0.8461538461538461 0.8461538461538461</scale>
+            <uri>model://fpv_quad_enemy/meshes/1345_prop_cw.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name="prop_3">
+        <pose>-0.196 -0.32038461538461536 0.044 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.8461538461538461 0.8461538461538461 0.8461538461538461</scale>
+            <uri>model://fpv_quad_enemy/meshes/1345_prop_cw.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+      <!-- 4 motor bells -- FLATTENED from the same rotor_N link pose + that
+           rotor's *_visual_motor_bell (x500_base rotor_0) / *_motor_top
+           (rotor_1..3, same mesh) local pose (0,0,-0.032). RED enemy accent
+           to match the props. -->
+      <visual name="bell_0">
+        <pose>0.174 -0.174 0.028 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Bell.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name="bell_1">
+        <pose>-0.174 0.174 0.028 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Bell.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name="bell_2">
+        <pose>0.174 0.174 0.028 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Bell.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+      <visual name="bell_3">
+        <pose>-0.174 -0.174 0.028 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>1 1 1</scale>
+            <uri>model://fpv_quad_enemy/meshes/5010Bell.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.5 0.03 0.03 1</ambient>
+          <diffuse>0.8 0.05 0.05 1</diffuse>
+          <specular>0.3 0.1 0.1 1</specular>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>
