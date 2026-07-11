@@ -96,20 +96,28 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
       than v2's 21.6 m), **intercepted 1.18 m clean** — BUT **handoff late at 1.91 m** (v2 was 9 m)
       with 26 tracker losses: detection is INTERMITTENT on the BANKED aspects (level+yaw dataset never
       showed them). Core works; robustness needs banking poses.
-   4. ⏳ **BANKING-POSE RETRAIN** (in flight) — extend the capture to set roll+pitch+yaw (gt box is
-      orientation-invariant so auto-labels stay correct), augment the dataset with banked aspects,
-      retrain → earlier handoff + consistent detection. Then a Pk batch + SWAP in as deployed.
+   4. ⏳ **BANKING-POSE RETRAIN — IN FLIGHT.** Scripts on disk (UNCOMMITTED — commit them):
+      `render_sim_dataset_banked.py` (teleport extended to roll+pitch+yaw, banks ±50°/pitch +20°;
+      gt box orientation-invariant so auto-labels stay correct) → `merge_quad_v2.py` (level ∪ banked
+      → `quad_dataset_v2`) → `train_daemon_quad_v2.py` (setsid, sentinel `QUAD_V2_TRAIN_EXPORT_DONE`) →
+      `drone_finetuned_quad_v2.{pt,onnx}`. **Accurate stage: only the banked CAPTURE is running**
+      (~780/198 frames); merge + v2-train NOT yet launched. Goal: earlier/stable handoff. Then a Pk
+      batch → SWAP in as deployed. **⭐ FULL RESUME GUIDE (check/export/re-validate/swap commands, since
+      the scratchpad repro scripts are ephemeral): `docs/quad_target_retrain.md`.**
    The orient plumbing + the billboard finding (add. #2) are why. Deployed v2 + fpv_target_markerless
-   still untouched until the quad seeker is robust + Pk-validated.
+   still untouched until the quad seeker is robust + Pk-validated (swap is Pk-gated, not done).
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
    lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
    the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
    ACQUISITION-DENSITY gap (ADR-0038: missing/late detections, not imprecise ones). Likely a
    5th null. If built: pre-register PAIRED n≥8 vs a RECALL / tail-Pk metric with a kill-criterion.
    Otherwise **headline the existing 4-lever negative-results arc** (the more mature story).
-- **NEXT (this thread):** validate orient flight → (if seeker OK) build vendored-mesh demo reskin
-  + detection-check flight → GPU render → re-capture the T25 intercept clip with the banking
-  target → assemble. Keypoint head deferred behind the pre-registration gate.
+- **NEXT (this thread) — follow `docs/quad_target_retrain.md`:** finish banked capture → merge
+  (`merge_quad_v2.py`) → launch `train_daemon_quad_v2.py` (setsid) → export → re-validate the
+  intercept (expect an earlier handoff than the level seeker's 1.91 m) → Pk batch → Pk-gated SWAP.
+  Then GPU render → re-capture the T25 intercept clip with the banking quad target → assemble.
+  Keypoint head deferred behind the pre-registration gate. **Commit the 3 uncommitted retrain
+  scripts** (`render_sim_dataset_banked.py`, `merge_quad_v2.py`, `train_daemon_quad_v2.py`).
 
 ### 🎯 PRIOR DIRECTIVES (2026-07-10 evening) — tighter-miss lane CLOSED (context for the above)
 1. **TIGHTER INTERCEPT — "2 m is too much." → ANSWERED (ADR-0069): accel-prediction
