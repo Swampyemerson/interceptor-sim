@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  QUAD_ENEMY world -- markerless seeker retrain on the NEW fpv_quad_enemy
+  target (a proper 3D quad body, replacing the flat-billboard
+  fpv_target_markerless used for the v2/v3 seeker).
+
+  BYTE-IDENTICAL to worlds/markerless.sdf (physics / scene / ground_plane /
+  sun / spherical_coordinates kept EXACTLY -- PX4's gz_bridge depends on it,
+  GOALS.md M2) EXCEPT for two deliberate changes:
+
+    1. World name is "quad_enemy" (not "markerless"). Every gz-transport
+       topic for this run keys off it, e.g.
+       /world/quad_enemy/model/x500_mono_cam_0/link/camera_link/sensor/imager/image
+       and /world/quad_enemy/set_pose. Set
+       INTERCEPTOR_WORLD_NAME=quad_enemy to match this file (m2_detect.py /
+       render_sim_dataset.py read the world name from that env var).
+
+    2. The target <include> is models/fpv_quad_enemy (the real 3D quad body,
+       x500 airframe meshes, red enemy accents -- see that model's model.sdf
+       for the full derivation) instead of models/fpv_target_markerless.
+       Same pose (5, 0, 0.5), same identity orientation -- fpv_quad_enemy's
+       local +X is its forward/nose axis (see that model's header), matching
+       the approach-facing convention the other targets bake in.
+
+  NO chase cam here (this is a clean onboard-capture world for
+  render_sim_dataset.py, not a demo-video world -- contrast with
+  worlds/quad_enemy_verify.sdf, which adds a static chase_cam for T25 replay
+  footage).
+
+  Launch (mirrors worlds/markerless.sdf; symlinked into PX4's worlds dir):
+
+    PX4_GZ_WORLD=quad_enemy \
+    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    HEADLESS=1 make px4_sitl gz_x500_mono_cam
+-->
+<sdf version="1.9">
+  <world name="quad_enemy">
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+    <scene>
+      <grid>false</grid>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1 1</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>500 500</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <pose>0 0 0 0 -0 0</pose>
+      <self_collide>false</self_collide>
+    </model>
+    <light name="sunUTC" type="directional">
+      <pose>0 0 500 0 -0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0.001 0.625 -0.78</direction>
+      <diffuse>0.904 0.904 0.904 1</diffuse>
+      <specular>0.271 0.271 0.271 1</specular>
+      <attenuation>
+        <range>2000</range>
+        <linear>0</linear>
+        <constant>1</constant>
+        <quadratic>0</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg> 8.546163739800146</longitude_deg>
+      <elevation>0</elevation>
+    </spherical_coordinates>
+
+    <!-- Quad-enemy target: real 3D quad body at (5, 0, 0.5), identity
+         orientation (its local +X nose points further along world +X, i.e.
+         away from the interceptor at the origin -- see
+         models/fpv_quad_enemy/model.sdf for the local-frame derivation).
+         Orientation here is a placeholder: render_sim_dataset.py's teleport
+         calls set an explicit yaw quaternion on every grid point anyway, so
+         this pose is only what a fresh boot shows before capture starts.
+         NO fiducial: the seeker must lock the body. -->
+    <include>
+      <uri>model://fpv_quad_enemy</uri>
+      <name>fpv_quad_enemy</name>
+      <pose>5 0 0.5 0 0 0</pose>
+    </include>
+  </world>
+</sdf>
