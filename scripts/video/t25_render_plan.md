@@ -72,6 +72,12 @@ the weave path to the mover through `INTERCEPTOR_*` env).
 > deterministic trajectory-replay render like §B uses for the rig.** Chase
 > (shot 7) becomes a SEPARATE lighter pass, not concurrent with the onboard hero.
 >
+> **SLOW-MO RE-CUT APPLIED 2026-07-11 (builder feedback):** shot 6 re-cut to
+> frames 680–702 (gt_range 14.1 m → CPA 2.08 m → 2.79 m) — the APPROACH-to-CPA,
+> ending AT closest approach, NOT the old 699–720 recede. Dropped the redundant
+> tight real-time acquire/handoff beats (shots 4/5, 9 & 7 frames); the 8× slow-mo
+> now shows acquire+handoff+CPA readably as the intercept climax. Cut = 30.4 s.
+>
 > **RESOLVED 2026-07-10 (same session): remedy (1) WORKED.** Onboard-only capture
 > on the plain `markerless` world (ONE rendered camera, matching the clean
 > baseline) + selecting a clean demo flight from the arm seeds produced a clean
