@@ -81,10 +81,17 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
    heritage), so orienting it just tilts a vertical wall — NOT a real banking quad (my "chase
    frames validated banking" read was a misread; corrected). The `velocity_orientation()` unit
    tests stand; the defect is model geometry. **NEW ARC (builder-directed, retrain accepted):**
-   build a proper 3D quad target (real x500 mesh, red enemy, HORIZONTAL rotor plane) →
-   render-verify banking → **RETRAIN seeker v3** on the new appearance → RE-VALIDATE Pk/miss →
-   swap in. `models/fpv_quad_enemy/` (new; validated `fpv_target_markerless` untouched). The
-   0.784 m intercept + orient plumbing still hold; only the target MESH + NN change.
+   1. ✅ **Proper 3D quad target BUILT + VERIFIED** — `models/fpv_quad_enemy/` (real x500 mesh,
+      red enemy props, HORIZONTAL rotor plane, nose +X; meshes vendored ~25 MB = git-LFS
+      candidate; `53b0400`). Chase render CONFIRMS it banks like a real drone (mover
+      `--orient-to-velocity --orient-yaw-offset-deg 0`, 3184 poses, 0 fail). `worlds/quad_enemy_verify.sdf`.
+   2. ⏳ **RETRAIN the seeker on the new appearance** (worker in flight) — in-domain gt-labeled
+      dataset of `fpv_quad_enemy` (`render_sim_dataset.py`, level+yaw grid, wide yaws) →
+      `train_daemon_quad.py` (yolo11n, imgsz 640, 60 ep, setsid-detached) →
+      `weights/drone_finetuned_quad.{pt,onnx}`. Deployed `v2` + `fpv_target_markerless` untouched.
+      First retrain is level+yaw; if banked detection is weak, add banking poses.
+   3. ☐ **RE-VALIDATE** detection + Pk/miss, then SWAP in as the deployed target+seeker.
+   The 0.784 m intercept + orient plumbing hold; the billboard finding (add. #2) is why the retrain.
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
    lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
    the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
