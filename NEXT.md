@@ -76,10 +76,15 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
    quat=None) + REFUSED for apriltag_target** → every measured MC batch unconfounded (mc_batch
    never passes the flag). **(B) reskin = PENDING** (vendored mesh demo model, gated on a
    seeker-detection check — the NN was trained on the primitive silhouette).
-   **✅ VALIDATED LIVE (ADR-0072 addendum):** intercept flight with orient ON acquired the
-   banking target at 21.6 m, handed off at 9.05 m, intercepted at **0.784 m** (clean, 0 mover
-   service failures); chase side-view frames confirm the target BANKS naturally (body rolls,
-   shadow stays level) — signs correct, `-90°` offset right. Ready for demo renders.
+   **⚠️ CORRECTED (ADR-0072 add. #2, builder 2026-07-11): the orient MATH is fine but the
+   MODEL is a flat BILLBOARD** (arms/props in the local Y-Z VERTICAL plane, a tag-panel
+   heritage), so orienting it just tilts a vertical wall — NOT a real banking quad (my "chase
+   frames validated banking" read was a misread; corrected). The `velocity_orientation()` unit
+   tests stand; the defect is model geometry. **NEW ARC (builder-directed, retrain accepted):**
+   build a proper 3D quad target (real x500 mesh, red enemy, HORIZONTAL rotor plane) →
+   render-verify banking → **RETRAIN seeker v3** on the new appearance → RE-VALIDATE Pk/miss →
+   swap in. `models/fpv_quad_enemy/` (new; validated `fpv_target_markerless` untouched). The
+   0.784 m intercept + orient plumbing still hold; only the target MESH + NN change.
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
    lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
    the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
