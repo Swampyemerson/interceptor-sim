@@ -51,9 +51,44 @@ with reproducible, logged numbers. Six steps, in value order:
 correctly scoped/HELD on every surface; audit backlog groomed to
 tracked-or-accepted; repo publishable on a remote.
 
-## 📍 CURRENT (2026-07-10, live)
+## 📍 CURRENT (2026-07-11, live)
 
-### 🎯 NEW BUILDER DIRECTIVES (2026-07-10 evening — HIGHEST PRIORITY, in flight)
+### 🎯 BUILDER CHALLENGES (2026-07-11) — 3 questions ADJUDICATED (ADR-0072, GO-WITH-CHANGES) → EXECUTING the target-realism fix
+Builder pushback on the demo/video: "we got many sub-1 m intercepts on AprilTag, where's
+the perfect-setup floor claim from? there has to be a better tracking system. The enemy
+drone is a static, not-even-correctly-oriented model that doesn't resemble a maneuvering
+drone. Can we pivot to a different sim?" A 5-agent research workflow (`wf_48003243-ca1`)
+settled all three; adversary verdict **GO-WITH-CHANGES**:
+1. **SIM PIVOT → NO. Stay on Gazebo.** Both complaints are algorithm/modeling issues
+   IDENTICAL in any simulator, not Gazebo ceilings. A pivot invalidates ~70 Gazebo-measured
+   ADRs + Pk 72/72 + the M3/M4/detection curves (non-transferable), forces a full YOLO
+   retrain on new pixels, and needs a ≥16 GB GPU + native Linux this 4070/12 GB WSL2 box
+   lacks (Isaac/Pegasus). Photoreal + banking are reachable far cheaper IN Gazebo. Revisit
+   only if photoreal domain-randomization becomes central AND the builder moves to native
+   Linux + a bigger GPU. **(My 1.64 m "floor" claim was CORRECTED: that is the 12 m/s WEAVE
+   only; sub-meter is real at slower/straighter regimes — M3 0.02 m, M4 pursuit 0.945 m.)**
+2. **TARGET REALISM → FIX IN PLACE. (A) orient-to-velocity = BUILT + COMMITTED (e4bd6ba,
+   3eebab8).** The mover streamed POSITION ONLY (ADR-0010 #6) → the target crabbed sideways,
+   frozen nose, dead-level. New `--orient-to-velocity` (env `INTERCEPTOR_ORIENT_TO_VEL`):
+   yaw-to-travel + coordinated-turn BANK into the turn + nose-down PITCH, composed with the
+   model's baked +Y-forward offset (`--orient-yaw-offset-deg -90`); signs verified vs the
+   rotated body axes; 8 unit tests. **Default-OFF byte-identical (send_pose untouched when
+   quat=None) + REFUSED for apriltag_target** → every measured MC batch unconfounded (mc_batch
+   never passes the flag). **(B) reskin = PENDING** (vendored mesh demo model, gated on a
+   seeker-detection check — the NN was trained on the primitive silhouette).
+   **⏳ IN FLIGHT:** paired test flight (hero seed, orient ON) validating the ADR-0058 seeker
+   still acquires/hands-off/intercepts the BANKING target + a live bank/pitch sign eyeball.
+3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
+   lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
+   the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
+   ACQUISITION-DENSITY gap (ADR-0038: missing/late detections, not imprecise ones). Likely a
+   5th null. If built: pre-register PAIRED n≥8 vs a RECALL / tail-Pk metric with a kill-criterion.
+   Otherwise **headline the existing 4-lever negative-results arc** (the more mature story).
+- **NEXT (this thread):** validate orient flight → (if seeker OK) build vendored-mesh demo reskin
+  + detection-check flight → GPU render → re-capture the T25 intercept clip with the banking
+  target → assemble. Keypoint head deferred behind the pre-registration gate.
+
+### 🎯 PRIOR DIRECTIVES (2026-07-10 evening) — tighter-miss lane CLOSED (context for the above)
 1. **TIGHTER INTERCEPT — "2 m is too much." → ANSWERED (ADR-0069): accel-prediction
    is the WRONG lever; ACQUISITION RANGE (= adaptive tilt #46) is the right one.**
    A 5-agent research/design workflow + a kill-gate probe settled it: (a) the code
