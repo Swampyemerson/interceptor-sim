@@ -76,8 +76,10 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
    quat=None) + REFUSED for apriltag_target** → every measured MC batch unconfounded (mc_batch
    never passes the flag). **(B) reskin = PENDING** (vendored mesh demo model, gated on a
    seeker-detection check — the NN was trained on the primitive silhouette).
-   **⏳ IN FLIGHT:** paired test flight (hero seed, orient ON) validating the ADR-0058 seeker
-   still acquires/hands-off/intercepts the BANKING target + a live bank/pitch sign eyeball.
+   **✅ VALIDATED LIVE (ADR-0072 addendum):** intercept flight with orient ON acquired the
+   banking target at 21.6 m, handed off at 9.05 m, intercepted at **0.784 m** (clean, 0 mover
+   service failures); chase side-view frames confirm the target BANKS naturally (body rolls,
+   shadow stays level) — signs correct, `-90°` offset right. Ready for demo renders.
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
    lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
    the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
