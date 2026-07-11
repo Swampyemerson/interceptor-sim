@@ -294,6 +294,20 @@ chase layout later or simply accept the lamps/readouts — decide at edit).
 Trajectory ribbon + labeled CPA marker: `render_hud.py --layout sidebar`'s
 mini-map already draws both if a side-panel treatment is preferred.
 
+> **⚠️ CHASE-INTERCEPT CONFOUND CONFIRMED (2026-07-11).** A chase-ONLY capture
+> during a LIVE intercept STILL perturbs the flight — not just the double-capture
+> case. Booting `markerless_demo` (extra rendered `demo_chase_cam`) + a full
+> intercept starved the guidance's onboard detection: handoff slipped to sim-t
+> **70.6 s** (vs ~28 s onboard-only) and the flight **aborted** ("lost tag >5 s",
+> CPA 1.155 m, `clean=0`; `demo_out/orient_test/chase_int_flight.log`). The extra
+> camera's RENDER load (not just a 2nd subscriber) is the cost — llvmpipe software
+> render, GPU idle. **So the chase shot cannot show a CLEAN intercept headless.**
+> Use the chase pass for the target's banking CONTEXT with the mover only (clean,
+> `demo_out/orient_test/chase_frames`, 576 frames, target banks clearly) and take
+> the CLEAN intercept result from the ONBOARD-only pass (flight-1: 0.784 m banking
+> intercept, `logs/m4_intercept_pronav_20260711T174723Z.csv`). GPU render (queued
+> in NEXT.md) may lift the RTF enough to make a chase-intercept viable — retest then.
+
 ## Honesty checklist pointers (enforced by the tooling)
 
 - Cue lamp is a pure function of the one-way latch index — it cannot
