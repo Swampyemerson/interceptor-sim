@@ -54,17 +54,24 @@ tracked-or-accepted; repo publishable on a remote.
 ## 📍 CURRENT (2026-07-10, live)
 
 ### 🎯 NEW BUILDER DIRECTIVES (2026-07-10 evening — HIGHEST PRIORITY, in flight)
-1. **TIGHTER INTERCEPT — "2 m is too much."** Improve the guidance to PREDICT the
-   end location from the target's ACCELERATION (2nd derivative) → a predicted
-   intercept point BEYOND the current-velocity trajectory. Look up the INDUSTRY
-   STANDARD (APN / augmented pro-nav; Kalman constant-acceleration target-state
-   estimator → PIP; optimal / ZEM guidance) and IMPLEMENT if it helps. NOTE: APN
-   + PIP were previously REJECTED (ADR-0010/0011) but on the NOISY MONOCULAR
-   signal — the detect-then-track (ADR-0058) + fused mid-course cue (ADR-0044)
-   are cleaner now, so this is a RE-TEST WITH NEW EVIDENCE, not a blind
-   re-propose. Weave/12 m/s is a maneuvering (accelerating) target → an
-   accel-aware law targets exactly its ZEM (ADR-0023). Gate paired A/B vs the
-   current pro-nav; the lab RANKS, Gazebo DECIDES.
+1. **TIGHTER INTERCEPT — "2 m is too much." → ANSWERED (ADR-0069): accel-prediction
+   is the WRONG lever; ACQUISITION RANGE (= adaptive tilt #46) is the right one.**
+   A 5-agent research/design workflow + a kill-gate probe settled it: (a) the code
+   uses ZERO target acceleration (plain pro-nav, LOS-rate nulling); (b) the ~2 m
+   weave miss is ~84% a fast-crossing KINEMATIC FLOOR — a zero-accel straight 12 m/s
+   crosser already misses ~1.6 m; only ~0.27 m avg is the maneuver term; the 0.35 s
+   terminal is capacity-bound (needs ~33 m/s² vs ~8-13). (c) The kill-gate probe
+   (`scripts/experiments/dash_accel_lead_probe.py`) proves NO estimator tuning gets a
+   clean+in-phase accel from the σ=0.5 m/s cue (SNR<1, noise/lag wall) — so even the
+   one legal experiment (accel-augmented DASH lead on the clean cue) is a pre-known
+   NEGATIVE, NO sim spend. The terminal APN rejection (ADR-0010/0011) still holds
+   (AprilTag clean-bearing control already sits 8/8 @ 1.64 m with plain pro-nav →
+   lead/accel is not the missing lever). **The real levers: acquisition range
+   (earlier detection → bigger t_go, capacity ~ t_go²) + mid-course delivered-ZEM +
+   the proximity-Pk metric (2.08 m is already Pk@2.5 8/8). Adaptive tilt (#46) is
+   the acquisition-range lever → directive #2 IS the guidance fix.** Optional
+   later: `--dash-accel-lead` flag built as a default-off documented negative if
+   the "did you try it" question needs code, but the probe already closed it.
 2. **ADAPTIVE TILT — BUILD #46 (ADR-0065).** The adaptive camera tilt that TRACKS
    the dash pitch to keep the target in frame for EARLIER detection + interception
    (vs the fixed +15° mount, which #40 showed has a residual terminal cost). Then
