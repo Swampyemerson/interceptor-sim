@@ -107,6 +107,14 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
       commands, since the scratchpad repro scripts are ephemeral): `docs/quad_target_retrain.md`.**
    The orient plumbing + the billboard finding (add. #2) are why. Deployed v2 + fpv_target_markerless
    still untouched until the quad seeker is robust + Pk-validated (swap is Pk-gated, not done).
+   5. 💡 **NEW IDEA — BANK-AS-ACCEL CUE for maneuver-predictive guidance (ADR-0073, builder 2026-07-11).**
+      The banking quad now EXPOSES its lateral accel: `tan(bank)=a_lat/g`, a LEADING indicator read
+      WITHOUT differentiation → **bypasses the noise wall that killed ADR-0069's accel-prediction**.
+      Small bank-regression head, runs on the Pi+Hailo, honesty-legal. Payoff small on the mild weave
+      (~0.27 m maneuver term) but SCALES with maneuver aggressiveness. **Feasibility gate (design-time,
+      no new sim): train a bank head on `quad_dataset_banked` (known banks), measure bank-error vs range,
+      check the accel-SNR clears the ADR-0069 wall — DO THIS after the v2 re-validation.** Gate passes →
+      council the guidance mechanization → lab APN A/B → Gazebo.
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
    lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
    the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
