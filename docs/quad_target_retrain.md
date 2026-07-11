@@ -172,3 +172,18 @@ TRAINING-data auto-labels only (offline), orientation-invariant bounding-sphere 
 The mover's `--orient-to-velocity` drives the *target's own* body orientation from its
 *own* velocity/accel — not a sensor the interceptor reads. Every re-validation flight
 re-earns the per-tick no-cheat audit.
+
+## v2 (banking) seeker — RESULT (2026-07-11, single flight)
+Trained to saturation (~epoch 17, stopped early), exported `drone_finetuned_quad_v2.onnx`.
+One re-validation flight on `quad_enemy` (orient ON, offset 0):
+- **Handoff FIXED:** first-det 21.9 m, **handoff 6.75 m** (level seeker was 1.91 m; v2 near the
+  old ~9 m), **tracker losses 26 → 4.** The banked data did its job — consistent dash detection.
+- **BUT this flight ABORTED in the terminal:** "lost tag >5 s far from target", CPA 1.027 m but
+  `clean=0`, and **reacq_rejected=43** — the seeker saw detections post-loss but the re-acquisition
+  gate (`seed_gate_m=8.0`, `reseed_iou=0.2`) rejected them. NEW failure mode vs the level seeker
+  (which had a late handoff but then intercepted). Single flight — could be seed-specific OR a
+  terminal re-acq-gate mismatch (the CSRT/gate were tuned for the billboard, not the maneuvering
+  quad). Log `logs/m4_intercept_pronav_20260711T221501Z.csv`.
+- **Next: a small characterization batch** (several path-seeds, v2 seeker) to see if the terminal
+  abort is systematic; if so, investigate the re-acq gate for the maneuvering quad. Swap still
+  Pk-gated + NOT done.
