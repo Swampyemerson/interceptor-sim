@@ -90,8 +90,17 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
       `train_daemon_quad.py` (yolo11n, imgsz 640, 60 ep, setsid-detached) →
       `weights/drone_finetuned_quad.{pt,onnx}`. Deployed `v2` + `fpv_target_markerless` untouched.
       First retrain is level+yaw; if banked detection is weak, add banking poses.
-   3. ☐ **RE-VALIDATE** detection + Pk/miss, then SWAP in as the deployed target+seeker.
-   The 0.784 m intercept + orient plumbing hold; the billboard finding (add. #2) is why the retrain.
+   3. ⏳ **RE-VALIDATED (first pass) — retrained seeker WORKS on the new quad, needs banking data.**
+      `drone_finetuned_quad` (best.pt @ ~epoch 16, val mAP50 0.995 — but leaky random split so the
+      real gate is the intercept): live intercept on `quad_enemy` world **first-det 23.3 m** (better
+      than v2's 21.6 m), **intercepted 1.18 m clean** — BUT **handoff late at 1.91 m** (v2 was 9 m)
+      with 26 tracker losses: detection is INTERMITTENT on the BANKED aspects (level+yaw dataset never
+      showed them). Core works; robustness needs banking poses.
+   4. ⏳ **BANKING-POSE RETRAIN** (in flight) — extend the capture to set roll+pitch+yaw (gt box is
+      orientation-invariant so auto-labels stay correct), augment the dataset with banked aspects,
+      retrain → earlier handoff + consistent detection. Then a Pk batch + SWAP in as deployed.
+   The orient plumbing + the billboard finding (add. #2) are why. Deployed v2 + fpv_target_markerless
+   still untouched until the quad seeker is robust + Pk-validated.
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
    lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
    the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
