@@ -28,7 +28,7 @@ retrain-gated — this is not a free swap.**
 | Verify + capture/intercept worlds | ✅ DONE, symlinked into PX4 | `worlds/quad_enemy_verify.sdf` (chase-verify), `worlds/quad_enemy.sdf` (onboard-only capture + intercept), committed `0d9d20e` |
 | Level+yaw dataset | ✅ DONE (1320 imgs: 1052 train / 268 val, gitignored, regenerable) | `scripts/seeker/data/quad_dataset/` via `render_sim_dataset.py` |
 | **Level seeker** `drone_finetuned_quad` | ✅ **trained + exported**, ⚠️ **re-validated on ONE flight only (no Pk batch)** | `scripts/seeker/weights/drone_finetuned_quad.{pt,onnx}` (gitignored), daemon `train_daemon_quad.py`, committed `0d9d20e` |
-| **Banking-pose retrain** `drone_finetuned_quad_v2` | ⏳ **IN FLIGHT — banked dataset CAPTURE running; merge + v2-train NOT yet launched** | scripts on disk (see below), **uncommitted** |
+| **Banking-pose retrain** `drone_finetuned_quad_v2` | ⏳ **IN FLIGHT — banked capture DONE (1344 imgs), merge DONE (`quad_dataset_v2`, 2664 imgs), v2-training LAUNCHED** (setsid, ~5.5 h for 60 ep but saturates ~ep 20) | scripts committed `9a8fd56`; log `logs/train_quad_v2_20260711T204234Z.log`, sentinel `QUAD_V2_TRAIN_EXPORT_DONE` |
 | Pk batch on the new pair | ❌ not started | — |
 | Swap to deployed | ❌ not done (fallback stays live) | — |
 
@@ -53,11 +53,18 @@ The three retrain scripts exist on disk (**uncommitted** — the builder will co
   `quad_dataset_v2`, sentinel `QUAD_V2_TRAIN_EXPORT_DONE`, exports
   `scripts/seeker/weights/drone_finetuned_quad_v2.{pt,onnx}`.
 
-**As of last check the banked CAPTURE is the active stage** (`render_sim_dataset_banked.py`
-running against a live `quad_enemy` sim; ~780 train / ~198 val banked frames written so
-far into `scripts/seeker/data/quad_dataset_banked/`). **The merge has NOT run**
-(`quad_dataset_v2` does not exist yet) and **the v2 training daemon has NOT been launched**
-(no `runs/drone_finetune_quad_v2/`, no `drone_finetuned_quad_v2` weights).
+**UPDATE (2026-07-11, later): capture + merge DONE, v2-training LAUNCHED.** Banked capture
+finished at **1344 frames** (1072 train / 272 val); the euler→quat in the extended capture
+was verified **byte-identical (1e-12)** to the mover's `_euler_zyx_to_quat`, so captured
+poses match exactly what the live `--orient-to-velocity` target flies; and same-position/
+different-orientation gt boxes were confirmed **byte-identical** (orientation-invariance /
+honesty boundary verified empirically). Merge produced `scripts/seeker/data/quad_dataset_v2/`
+= **2664 frames** (train 2124 = 1052 level + 1072 banked; val 540 = 268 level + 272 banked).
+The v2 daemon is **running setsid-detached** (was PID 1588430; verify by log freshness, not
+PID) → `logs/train_quad_v2_20260711T204234Z.log`. At ~2.4 s/it × 133 it/epoch the full 60
+epochs is **~5–5.5 h**, but metrics saturate ~epoch 20 → **export best.pt EARLY (step 4)**
+once converged rather than waiting it out. Then re-validate (step 5). NOT yet done:
+`drone_finetuned_quad_v2` weights export, re-validation, Pk batch, swap.
 
 ---
 

@@ -96,14 +96,15 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
       than v2's 21.6 m), **intercepted 1.18 m clean** — BUT **handoff late at 1.91 m** (v2 was 9 m)
       with 26 tracker losses: detection is INTERMITTENT on the BANKED aspects (level+yaw dataset never
       showed them). Core works; robustness needs banking poses.
-   4. ⏳ **BANKING-POSE RETRAIN — IN FLIGHT.** Scripts on disk (UNCOMMITTED — commit them):
+   4. ⏳ **BANKING-POSE RETRAIN — v2 TRAINING RUNNING.** Scripts committed (`9a8fd56`):
       `render_sim_dataset_banked.py` (teleport extended to roll+pitch+yaw, banks ±50°/pitch +20°;
-      gt box orientation-invariant so auto-labels stay correct) → `merge_quad_v2.py` (level ∪ banked
-      → `quad_dataset_v2`) → `train_daemon_quad_v2.py` (setsid, sentinel `QUAD_V2_TRAIN_EXPORT_DONE`) →
-      `drone_finetuned_quad_v2.{pt,onnx}`. **Accurate stage: only the banked CAPTURE is running**
-      (~780/198 frames); merge + v2-train NOT yet launched. Goal: earlier/stable handoff. Then a Pk
-      batch → SWAP in as deployed. **⭐ FULL RESUME GUIDE (check/export/re-validate/swap commands, since
-      the scratchpad repro scripts are ephemeral): `docs/quad_target_retrain.md`.**
+      euler→quat verified byte-identical to the mover, gt box orientation-invariant) → `merge_quad_v2.py`
+      (level ∪ banked → `quad_dataset_v2` = **2664 imgs**) → `train_daemon_quad_v2.py` (setsid, sentinel
+      `QUAD_V2_TRAIN_EXPORT_DONE`) → `drone_finetuned_quad_v2.{pt,onnx}`. **Accurate stage: capture DONE
+      (1344), merge DONE, v2-training LAUNCHED** (`logs/train_quad_v2_20260711T204234Z.log`; ~5.5 h for
+      60 ep but SATURATES ~ep 20 → export best.pt EARLY). Then re-validate (expect earlier/stable handoff
+      vs the level seeker's 1.91 m) → Pk batch → SWAP. **⭐ FULL RESUME GUIDE (check/export/re-validate/swap
+      commands, since the scratchpad repro scripts are ephemeral): `docs/quad_target_retrain.md`.**
    The orient plumbing + the billboard finding (add. #2) are why. Deployed v2 + fpv_target_markerless
    still untouched until the quad seeker is robust + Pk-validated (swap is Pk-gated, not done).
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
