@@ -72,10 +72,31 @@ tracked-or-accepted; repo publishable on a remote.
    the acquisition-range lever → directive #2 IS the guidance fix.** Optional
    later: `--dash-accel-lead` flag built as a default-off documented negative if
    the "did you try it" question needs code, but the probe already closed it.
-2. **ADAPTIVE TILT — BUILD #46 (ADR-0065).** The adaptive camera tilt that TRACKS
-   the dash pitch to keep the target in frame for EARLIER detection + interception
-   (vs the fixed +15° mount, which #40 showed has a residual terminal cost). Then
-   FEATURE it in the video (replaces the fixed-tilt A/B).
+2. **ADAPTIVE TILT — BUILD #46 (ADR-0065). NOW THE PRIMARY GUIDANCE LEVER (ADR-0069:
+   acquisition range tightens the miss, not accel-prediction).** CONCRETE BUILD PLAN
+   (scoped 2026-07-10; PX4/Gazebo has NATIVE gimbal support — no gimbal from scratch):
+   - **Model:** a `mono_cam_gimbal` variant of the seeker camera — keep `camera_link`
+     as the airframe mount (x500_mono_cam's fixed `CameraJoint` attaches it, UNCHANGED),
+     add a REVOLUTE PITCH joint `camera_link → camera_pitch_link` that holds the
+     `imager` sensor with the SAME 1280×960 / hfov 1.74 / topic / intrinsics (NN
+     pipeline untouched), + a `gz-sim-joint-position-controller-system` on the pitch
+     joint (sub-topic `command/gimbal_pitch`, PID like the stock gimbal p=0.8). Shadow
+     it via `models/mono_cam` (the #40 symlink mechanism) — REUSE the uptilt shadow
+     guards (mc_deployment_arm refuses a stray shadow unless UPTILT_EXPECTED=1).
+   - **Controller (honesty-clean, own-state ONLY):** a small gz-transport publisher
+     (like s2_cue_mock) reads the vehicle pitch (own-state EKF attitude) and commands
+     `gimbal_pitch = clamp(-vehicle_pitch + lead, limits)` to hold the boresight at the
+     horizon through the nose-down dash. NO gt_*; NO camera-dependence for v1 (pure
+     pitch-stabilization); optional v2 adds a small camera/cue-bearing elevation lead.
+   - **Guidance:** extend the #40 `--cam-mount-up-deg` (static) to a TIME-VARYING live
+     gimbal angle in `derotate_bearing_lambda` — the commanded pitch each tick (m4
+     owns/knows it). Reuse the round-trip oracle test pattern (byte-identical at 0).
+   - **Validate:** paired A/B vs level + vs the fixed +15° — does earlier acquisition
+     (first-det range, coverage, FoV margin) → a TIGHTER terminal miss (the ADR-0069
+     mechanism: bigger t_go / smaller delivered ZEM)? Pre-register the bar. Honest
+     prior: availability WILL improve (the #40 mechanism); whether it converts to a
+     sub-2 m miss is the open question (handoff-range/t_go must actually extend).
+   - Then FEATURE it in the video (replaces the fixed-tilt shot 3b per directive #3).
 3. **VIDEO fixes:** (a) MORE footage of the intercept itself; (b) the slow-mo
    comes TOO LATE — it starts after the interceptor has already PASSED the drone;
    retime so slow-mo covers the APPROACH-TO-CPA, not the flyby; (c) REMOVE the
