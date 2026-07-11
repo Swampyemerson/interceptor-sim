@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GENERATED VARIANT (scripts/gimbal_make_variant.py) — ADAPTIVE-TILT #46/ADR-0065.
+     Identical to the canonical PX4 x500_mono_cam EXCEPT CameraJoint is a CONTROLLED
+     REVOLUTE PITCH joint instead of fixed. The camera (mono_cam) is untouched:
+     same 1280x960 imager, intrinsics, and camera_link image topic -> the NN seeker
+     pipeline needs no change. A gz JointPositionController holds the joint at the
+     angle published on /gimbal/pitch_cmd (own-state pitch-stabilization controller,
+     scripts/gimbal_controller.py). PITCH SIGN: revolute about +y; a POSITIVE joint
+     angle tips the +x boresight DOWN (R_y: x->cos t x - sin t z, z-up model frame),
+     so commanding NEGATIVE = tilt UP (counters the nose-down dash). -->
+<sdf version='1.9'>
+  <model name='x500_mono_cam'>
+    <include merge='true'>
+      <uri>x500</uri>
+    </include>
+    <include merge='true'>
+      <uri>model://mono_cam</uri>
+      <pose>.12 .03 .242 0 0 0</pose>
+    </include>
+    <joint name="CameraJoint" type="revolute">
+      <parent>base_link</parent>
+      <child>camera_link</child>
+      <pose relative_to="base_link">.12 .03 .242 0 0 0</pose>
+      <axis>
+        <xyz>0 1 0</xyz>
+        <limit>
+          <lower>-1.3</lower>
+          <upper>1.3</upper>
+          <effort>10</effort>
+          <velocity>10</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.2</damping>
+        </dynamics>
+      </axis>
+    </joint>
+    <plugin filename="gz-sim-joint-position-controller-system"
+            name="gz::sim::systems::JointPositionController">
+      <joint_name>CameraJoint</joint_name>
+      <topic>/gimbal/pitch_cmd</topic>
+      <p_gain>4.0</p_gain>
+      <i_gain>0.2</i_gain>
+      <d_gain>0.2</d_gain>
+      <i_max>1.0</i_max>
+      <i_min>-1.0</i_min>
+    </plugin>
+  </model>
+</sdf>

@@ -202,6 +202,7 @@ from gz.transport13 import Node
 from gz.msgs10.image_pb2 import Image
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.clock_pb2 import Clock
+from gz.msgs10.double_pb2 import Double   # #46 adaptive-tilt gimbal command
 
 from mavsdk import System
 from mavsdk.action import ActionError
@@ -1207,6 +1208,11 @@ class M4TelemetryState(TelemetryState):
     def __init__(self):
         super().__init__()
         self.yaw_deg: Optional[float] = None
+        # Own-state pitch (deg, PX4 EKF Euler; nose-up +). Honesty-legal own-state.
+        # Drives the #46 adaptive camera tilt (ADR-0065): the gimbal counters the
+        # nose-down dash pitch to hold the boresight near horizon, keeping the
+        # target in frame for earlier acquisition (the ADR-0069 t_go lever).
+        self.pitch_deg: Optional[float] = None
         # Full body(FRD)->NED attitude quaternion (w, x, y, z) from PX4's own
         # EKF (MAVSDK attitude_quaternion) -- own-state, honesty-legal, the same
         # basis as yaw/position. Used to derotate the camera LOS bearing for
@@ -1223,6 +1229,7 @@ class M4TelemetryState(TelemetryState):
 async def track_attitude(drone, state: "M4TelemetryState") -> None:
     async for euler in drone.telemetry.attitude_euler():
         state.yaw_deg = euler.yaw_deg
+        state.pitch_deg = euler.pitch_deg   # #46 adaptive tilt (own-state)
 
 
 async def track_attitude_quaternion(drone, state: "M4TelemetryState") -> None:
@@ -1675,6 +1682,28 @@ def parse_args():
              "mount (scripts/uptilt_ab_arm.sh --compensate passes shadow "
              "model + this flag together).")
     parser.add_argument(
+        "--adaptive-tilt", action="store_true",
+        help="#46 adaptive camera tilt (ADR-0065; default OFF, byte-identical): "
+             "drive a pitch GIMBAL to counter the nose-down dash pitch and hold "
+             "the seeker boresight near the horizon, keeping the horizon-level "
+             "target IN FRAME for EARLIER acquisition -> longer terminal t_go -> "
+             "tighter miss (the ADR-0069 acquisition-range lever). The gimbal "
+             "up-tilt each tick = clamp(-own_pitch + lead, 0, max) from the PX4 "
+             "EKF Euler pitch (own-state, honesty-legal, NO gt_*); the command is "
+             "published to the gz JointPositionController (/gimbal/pitch_cmd) AND "
+             "composed LIVE into the FIX-A LOS derotation (time-varying "
+             "--cam-mount-up-deg). Requires the mono_cam_gimbal airframe variant "
+             "(scripts/experiments/gimbal_mount, shadowed via models/x500_mono_cam).")
+    parser.add_argument(
+        "--adaptive-tilt-lead-deg", type=float, default=3.0,
+        help="#46: extra up-tilt above pure horizon-hold (deg, default 3.0) — "
+             "point slightly ABOVE the horizon so the target enters frame sooner "
+             "on the closing geometry.")
+    parser.add_argument(
+        "--adaptive-tilt-max-deg", type=float, default=35.0,
+        help="#46: clamp on the commanded up-tilt (deg, default 35.0) — the "
+             "gimbal mechanical/FoV limit.")
+    parser.add_argument(
         "--handoff-cue-gate", type=float, default=None,
         help="ADR-0057 attempt-3 ROOT-CAUSE fix (default None = OFF, byte-"
              "identical): the CUE-VALIDATED HANDOFF gate. The root cause of "
@@ -1818,6 +1847,12 @@ def parse_args():
     if not (-45.0 <= args.cam_mount_up_deg <= 45.0):
         parser.error("--cam-mount-up-deg must be in [-45, 45] (a fixed mount "
                      "tilt; the flown A/B swept +15/+25/+35, ADR-0067)")
+    if args.adaptive_tilt and args.cam_mount_up_deg != 0.0:
+        parser.error("--adaptive-tilt and a non-zero --cam-mount-up-deg are "
+                     "mutually exclusive (adaptive drives the mount LIVE; a "
+                     "fixed offset would double-count). Use one.")
+    if args.adaptive_tilt and not (0.0 <= args.adaptive_tilt_max_deg <= 45.0):
+        parser.error("--adaptive-tilt-max-deg must be in [0, 45]")
 
     # ADR-0033 (M5 finish): remember whether the caller EXPLICITLY passed
     # --target-start BEFORE we fill in a default just below. The internal tag
@@ -1837,7 +1872,7 @@ def parse_args():
 
 async def run_acquire_and_engage(
     drone, state, meas_holder, tracker, writer, log_file, started, args, s2params=None,
-    sim_clock=None, seed_ctx=None, detector_thread=None,
+    sim_clock=None, seed_ctx=None, detector_thread=None, gimbal_pub=None,
 ):
     """Non-handoff (default): ACQUIRE (hover + yaw-center on the static tag)
     -> ENGAGE (spawn the mover, run the chosen guidance law) -> BREAKOFF
@@ -2114,6 +2149,21 @@ async def run_acquire_and_engage(
         psi_rad = math.radians(psi_deg) if psi_deg is not None else 0.0
         alt_m = state.relative_altitude_m
 
+        # --- #46 adaptive camera tilt (ADR-0065): every tick, command the pitch
+        # gimbal to counter the nose-down dash pitch (hold the boresight near
+        # horizon + a small up-lead) and compose the LIVE tilt into the FIX-A
+        # derotation. Own-state EKF pitch ONLY -> honesty-legal (no gt_*). Default
+        # off -> cur_mount_up_deg = the static --cam-mount-up-deg (byte-identical).
+        if args.adaptive_tilt:
+            _p = state.pitch_deg if state.pitch_deg is not None else 0.0
+            cur_mount_up_deg = max(0.0, min(args.adaptive_tilt_max_deg,
+                                            -_p + args.adaptive_tilt_lead_deg))
+            if gimbal_pub is not None:
+                # SDF sign: a NEGATIVE joint angle tilts the boresight UP.
+                gimbal_pub.publish(Double(data=-math.radians(cur_mount_up_deg)))
+        else:
+            cur_mount_up_deg = args.cam_mount_up_deg
+
         # --- filters: predict every tick, correct only on FRESH ticks ---
         lambda_filter.predict(dt)
         range_filter.predict(dt)
@@ -2162,7 +2212,7 @@ async def run_acquire_and_engage(
             # mount angle is a STATIC config constant (#40) -- honesty-neutral.
             lambda_meas = derotate_bearing_lambda(
                 meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad,
-                mount_up_rad=math.radians(args.cam_mount_up_deg))
+                mount_up_rad=math.radians(cur_mount_up_deg))
             # ADR-0043 lever B: roll off the bearing-noise throughput in the
             # terminal ONLY (gain 1.0 elsewhere and by default). No-op under
             # --tracker ekf (the channel view ignores gain_scale by design).
@@ -3510,6 +3560,16 @@ async def main():
 
     node = Node()
 
+    # #46 adaptive tilt: advertise the pitch-gimbal command to the airframe's
+    # gz JointPositionController (mono_cam_gimbal variant). Own-state-driven,
+    # commanded from the control loop; None when --adaptive-tilt is off.
+    gimbal_pub = None
+    if args.adaptive_tilt:
+        gimbal_pub = node.advertise("/gimbal/pitch_cmd", Double)
+        print("[m4] #46 adaptive tilt ON: advertising /gimbal/pitch_cmd "
+              f"(lead {args.adaptive_tilt_lead_deg:.1f} deg, max "
+              f"{args.adaptive_tilt_max_deg:.1f} deg)")
+
     print(f"[m4] Reading camera intrinsics from {CAMERA_INFO_TOPIC} ...")
     try:
         fx, fy, cx, cy, width, height = get_camera_intrinsics(node, CAMERA_INFO_TIMEOUT_S)
@@ -3731,7 +3791,7 @@ async def main():
                 result = await run_acquire_and_engage(
                     drone, state, meas_holder, tracker, writer, log_file, started, args,
                     s2params=s2params, sim_clock=sim_clock, seed_ctx=seed_ctx,
-                    detector_thread=detector_thread,
+                    detector_thread=detector_thread, gimbal_pub=gimbal_pub,
                 )
                 mover_proc = result["mover_proc"]
                 cue_proc = result["cue_proc"]
