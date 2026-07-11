@@ -332,15 +332,48 @@ def _euler_zyx_to_quat(roll, pitch, yaw):
             cr * cp * sy - sr * sp * cy)   # z
 
 
+def _quat_mul(a, b):
+    """Hamilton product a*b of two (w,x,y,z) quaternions (world orientation
+    composition R_a . R_b = apply b first in the local frame, then a)."""
+    aw, ax, ay, az = a
+    bw, bx, by, bz = b
+    return (aw * bw - ax * bx - ay * by - az * bz,
+            aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw)
+
+
+def quat_rotate_forward(q, fwd_local=(0.0, 1.0, 0.0)):
+    """Rotate the model's LOCAL forward axis by world-orientation quaternion q ->
+    the nose direction in world coords. Used to verify the nose faces travel."""
+    w, x, y, z = q
+    fx, fy, fz = fwd_local
+    # v' = q * (0,v) * q_conj
+    tx = 2 * (y * fz - z * fy)
+    ty = 2 * (z * fx - x * fz)
+    tz = 2 * (x * fy - y * fx)
+    return (fx + w * tx + (y * tz - z * ty),
+            fy + w * ty + (z * tx - x * tz),
+            fz + w * tz + (x * ty - y * tx))
+
+
 def velocity_orientation(vel_fn, t, max_bank_deg=55.0, pitch_gain=0.035,
-                         max_pitch_deg=25.0, dt=0.05, g=9.81):
+                         max_pitch_deg=25.0, model_forward_offset_deg=-90.0,
+                         dt=0.05, g=9.81):
     """Realistic maneuvering-drone orientation from the target's OWN velocity
     (the builder's fix: the target must yaw to face travel + BANK into turns +
     pitch forward, not slide rigid). YAW = atan2(vy, vx); ROLL = coordinated-turn
     bank into the lateral accel (tan(bank)=a_lat/g), banking TOWARD the turn;
-    PITCH = a modest nose-down forward lean growing with speed. a_lat is a finite
-    difference of vel_fn -- honesty-irrelevant (this is the TARGET's own motion,
-    not a sensor). Returns a (w,x,y,z) world quaternion, identity below ~0.1 m/s."""
+    PITCH = a modest nose-down forward lean growing with speed.
+
+    model_forward_offset_deg composes the model's BAKED-in forward direction: the
+    fpv_target_markerless mesh has its nose (long axis) along local +Y (yaw=-90 in
+    the SDF), so a -90 offset makes the aircraft-frame +X-forward attitude line up
+    with the model's +Y nose -- WITHOUT it the default +Y line would point the nose
+    90 deg sideways. It is model-specific, so the reskin/demo model can override it.
+    a_lat is a finite difference of vel_fn -- honesty-irrelevant (the TARGET's own
+    motion, not a sensor the interceptor reads). Returns a normalized (w,x,y,z)
+    world quaternion, identity below ~0.1 m/s."""
     vx, vy = vel_fn(t)
     speed = math.hypot(vx, vy)
     if speed < 0.1:
@@ -351,9 +384,15 @@ def velocity_orientation(vel_fn, t, max_bank_deg=55.0, pitch_gain=0.035,
     px, py = -vy / speed, vx / speed            # perpendicular-LEFT unit
     a_lat = ax * px + ay * py                    # + = accelerating left
     mb = math.radians(max_bank_deg)
-    bank = max(-mb, min(mb, math.atan2(a_lat, g)))   # bank INTO the turn (left turn -> roll left)
-    pitch = -min(math.radians(max_pitch_deg), pitch_gain * speed)   # nose-down lean
-    return _euler_zyx_to_quat(bank, pitch, yaw)
+    # NOTE the signs are for THIS frame (ENU +Z-up, model +Y-forward composition,
+    # verified against the rotated body axes): bank NEGATES atan2(a_lat,g) so the
+    # lift tilts INTO the turn, and pitch is POSITIVE for nose-DOWN (a +Y rotation
+    # tilts +X-forward toward -Z here). Both signs were confirmed empirically.
+    bank = -max(-mb, min(mb, math.atan2(a_lat, g)))    # roll INTO the turn
+    pitch = min(math.radians(max_pitch_deg), pitch_gain * speed)   # nose-down lean
+    q_aircraft = _euler_zyx_to_quat(bank, pitch, yaw)
+    q_offset = _euler_zyx_to_quat(0.0, 0.0, math.radians(model_forward_offset_deg))
+    return _quat_mul(q_aircraft, q_offset)       # apply model-forward offset in the local frame first
 
 
 def send_pose(node: Node, x: float, y: float, z: float, timeout_ms: int,
@@ -411,6 +450,13 @@ def main() -> int:
     parser.add_argument(
         "--orient-max-pitch-deg", type=float, default=25.0,
         help="max forward nose-down pitch for --orient-to-velocity (deg)",
+    )
+    parser.add_argument(
+        "--orient-yaw-offset-deg", type=float, default=-90.0,
+        help="model baked-forward offset for --orient-to-velocity: the markerless "
+             "mesh's nose points along local +Y, so -90 aligns the aircraft "
+             "+X-forward attitude with it (a reskin model may need a different "
+             "value). Default -90 reproduces the known-good +Y-line pose.",
     )
     parser.add_argument(
         "--path", default=DEFAULT_PATH, choices=VALID_PATHS,
@@ -605,6 +651,7 @@ def main() -> int:
                     vel_fn, sim_elapsed,
                     max_bank_deg=args.orient_max_bank_deg,
                     max_pitch_deg=args.orient_max_pitch_deg,
+                    model_forward_offset_deg=args.orient_yaw_offset_deg,
                 )
             ok = send_pose(node, x, y, z, STREAM_TIMEOUT_MS, quat=quat)
             n_requests += 1
