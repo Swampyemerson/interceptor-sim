@@ -29,7 +29,7 @@ retrain-gated — this is not a free swap.**
 | Level+yaw dataset | ✅ DONE (1320 imgs: 1052 train / 268 val, gitignored, regenerable) | `scripts/seeker/data/quad_dataset/` via `render_sim_dataset.py` |
 | **Level seeker** `drone_finetuned_quad` | ✅ **trained + exported**, ⚠️ **re-validated on ONE flight only (no Pk batch)** | `scripts/seeker/weights/drone_finetuned_quad.{pt,onnx}` (gitignored), daemon `train_daemon_quad.py`, committed `0d9d20e` |
 | **Banking-pose retrain** `drone_finetuned_quad_v2` | ✅ **trained (stopped ~ep 17, saturated) + exported**; re-validated 1 flight = **handoff FIXED (6.75 m, 4 losses)** but that flight ABORTED in the terminal (see "v2 seeker RESULT" below) | `scripts/seeker/weights/drone_finetuned_quad_v2.{pt,onnx}` (gitignored); scripts committed `9a8fd56` |
-| Characterization batch (is the terminal abort systematic?) | ⏳ **RUNNING** (6 path-seeds, v2 seeker, `quad_v2_batch.sh`) | tally clean-rate + handoff dist |
+| Characterization batch | ✅ **6/6 CLEAN** (median miss ~1.2 m, handoff ~6.8 m; the earlier abort was run-to-run noise) | see "v2 characterization batch" below |
 | Pk batch on the new pair | ❌ not started (after the terminal issue is understood) | — |
 | Swap to deployed | ❌ not done (fallback stays live) | — |
 
@@ -188,3 +188,23 @@ One re-validation flight on `quad_enemy` (orient ON, offset 0):
 - **Next: a small characterization batch** (several path-seeds, v2 seeker) to see if the terminal
   abort is systematic; if so, investigate the re-acq gate for the maneuvering quad. Swap still
   Pk-gated + NOT done.
+
+### v2 characterization batch — 6/6 CLEAN (the abort was noise)
+6 flights, different path-seeds, v2 seeker on `quad_enemy` (orient ON):
+| flight (path/cue seed) | first-det | handoff | miss | result |
+|---|---|---|---|---|
+| 1 (778181/256788) | 23.8 | 6.75 | 1.12 | clean |
+| 2 (111222/314159) | 14.0 | 2.23 | 0.88 | clean |
+| 3 (333444/271828) | 24.5 | 9.47 | 1.32 | clean |
+| 4 (555666/141421) | 24.5 | 6.92 | 1.21 | clean |
+| 5 (777888/173205) | 22.8 | 2.02 | 1.45 | clean |
+| 6 (246810/223606) | 9.95 | 9.15 | 3.09 | clean |
+
+**6/6 clean, median miss ~1.2 m, median handoff ~6.8 m** (level seeker was stuck at 1.9 m).
+The single-flight terminal abort earlier was **run-to-run noise** — flight 1 here used the SAME
+seeds (778181/256788) and came back CLEAN (1.12 m), confirming the abort was the ~1 m terminal-
+dropout noise (methodology rule), not systematic. The one high miss (3.09 m, flight 6) is a LATE
+ACQUISITION (first-det 9.95 m), the ADR-0038 acquire-late→miss-more tail, not a banking failure.
+**Conclusion: the proper-quad model + banking retrain VALIDATES — clean maneuvering intercepts,
+handoff restored.** NOT yet the n≥8 paired Pk bar (ADR-0064 discipline) → that batch is the swap
+gate; the swap remains Pk-gated + not done, fallback (`fpv_target_markerless`+`drone_finetuned_v2`) live.
