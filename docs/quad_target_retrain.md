@@ -28,8 +28,9 @@ retrain-gated — this is not a free swap.**
 | Verify + capture/intercept worlds | ✅ DONE, symlinked into PX4 | `worlds/quad_enemy_verify.sdf` (chase-verify), `worlds/quad_enemy.sdf` (onboard-only capture + intercept), committed `0d9d20e` |
 | Level+yaw dataset | ✅ DONE (1320 imgs: 1052 train / 268 val, gitignored, regenerable) | `scripts/seeker/data/quad_dataset/` via `render_sim_dataset.py` |
 | **Level seeker** `drone_finetuned_quad` | ✅ **trained + exported**, ⚠️ **re-validated on ONE flight only (no Pk batch)** | `scripts/seeker/weights/drone_finetuned_quad.{pt,onnx}` (gitignored), daemon `train_daemon_quad.py`, committed `0d9d20e` |
-| **Banking-pose retrain** `drone_finetuned_quad_v2` | ⏳ **IN FLIGHT — banked capture DONE (1344 imgs), merge DONE (`quad_dataset_v2`, 2664 imgs), v2-training LAUNCHED** (setsid, ~5.5 h for 60 ep but saturates ~ep 20) | scripts committed `9a8fd56`; log `logs/train_quad_v2_20260711T204234Z.log`, sentinel `QUAD_V2_TRAIN_EXPORT_DONE` |
-| Pk batch on the new pair | ❌ not started | — |
+| **Banking-pose retrain** `drone_finetuned_quad_v2` | ✅ **trained (stopped ~ep 17, saturated) + exported**; re-validated 1 flight = **handoff FIXED (6.75 m, 4 losses)** but that flight ABORTED in the terminal (see "v2 seeker RESULT" below) | `scripts/seeker/weights/drone_finetuned_quad_v2.{pt,onnx}` (gitignored); scripts committed `9a8fd56` |
+| Characterization batch (is the terminal abort systematic?) | ⏳ **RUNNING** (6 path-seeds, v2 seeker, `quad_v2_batch.sh`) | tally clean-rate + handoff dist |
+| Pk batch on the new pair | ❌ not started (after the terminal issue is understood) | — |
 | Swap to deployed | ❌ not done (fallback stays live) | — |
 
 ### The level-seeker re-validation result (single flight — NOT a Pk claim)
