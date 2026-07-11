@@ -72,8 +72,27 @@ tracked-or-accepted; repo publishable on a remote.
    the acquisition-range lever → directive #2 IS the guidance fix.** Optional
    later: `--dash-accel-lead` flag built as a default-off documented negative if
    the "did you try it" question needs code, but the probe already closed it.
-2. **ADAPTIVE TILT — BUILD #46 (ADR-0065). NOW THE PRIMARY GUIDANCE LEVER (ADR-0069:
-   acquisition range tightens the miss, not accel-prediction).** CONCRETE BUILD PLAN
+2. **TILT for a tighter intercept — PIVOT to FIXED tilt first (builder 2026-07-10 eve).**
+   Builder's call: try a FIXED up-tilt before the complex adaptive gimbal — the dash
+   is "always at speed forward" (consistent nose-down pitch, ADR-0060) and the stereo
+   cue guides the dash (no search needed), so a fixed tilt may be "about as good" for
+   acquisition at far lower cost (no gimbal/controller/PX4-swap). **KEY INSIGHT: neither
+   fixed nor adaptive tilt has been tested for TIGHTENING the miss yet.** #40/ADR-0067
+   tested terminal PARITY (does the tilt make it WORSE — no, Pk stays 8/8 compensated);
+   it did NOT test whether the earlier detection the tilt buys converts to an EARLIER
+   HANDOFF at longer range → bigger t_go → tighter miss (the ADR-0069 lever). That
+   handoff-range extension is the piece that actually tightens the miss, and it works
+   with the SIMPLE fixed tilt (`--cam-mount-up-deg`, in-project #40 shadow, NO PX4 swap).
+   - **NEXT EXPERIMENT (cheap): fixed up15 (compensated) + EXTENDED --handoff-range vs
+     level control**, weave 12, paired n≥8. Metric: does it hand off at longer range →
+     tighter CPA? Pre-registered `docs/adaptive_tilt_prereg.md`.
+   - **Adaptive gimbal #46 = the FALLBACK (BUILT, committed 8657320 + adaptive_tilt_arm.sh):**
+     model sim-validated, m4 own-state controller + live derotation, default-off
+     byte-identical. Use ONLY if the fixed tilt leaves too much on the table (pitch
+     variation / terminal residual). Builder approved the reversible PX4 model-swap.
+   - (superseded adaptive-first build plan below, kept for the fallback):
+
+   **ADAPTIVE TILT #46 (ADR-0065) — FALLBACK build plan.** CONCRETE BUILD PLAN
    (scoped 2026-07-10; PX4/Gazebo has NATIVE gimbal support — no gimbal from scratch):
    - **Model:** a `mono_cam_gimbal` variant of the seeker camera — keep `camera_link`
      as the airframe mount (x500_mono_cam's fixed `CameraJoint` attaches it, UNCHANGED),
