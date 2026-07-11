@@ -158,6 +158,19 @@ not silently cherry-pick beyond choosing a clean flight (storyboard rule).
 If it reproduces a no-handoff flight (runs 10/12 in the arm had none),
 re-fly the backup seed (run 13's row in the r2 CSV) instead.
 
+> **⚠️ INTERCEPT SLOW-MO TIMING FIX (builder, 2026-07-10 eve — "the slow mo comes
+> too late, after the interceptor has really passed the drone").** VERIFIED on the
+> hero flight: CPA (min gt_range 2.076 m) is at **frame 698**, but the shipped
+> shot 6 slow-mo was **frames 699–720 = the RECEDE** (range climbing 2 m → 9 m as
+> the interceptor flies away). The slow-mo must cover the **APPROACH-TO-CPA and END
+> AT CPA**: cut the intercept clip so its last frame = argmin(gt_range) and it
+> spans ~1.0–1.5 s of closing BEFORE it (hero: frames ~672→700, range ~9 m → 2 m).
+> Also "more footage of the intercept itself" — widen the intercept window (start
+> the slow-mo earlier in the closing, e.g. from ~6–8 m) rather than the current
+> tight 4/5/6 split. When re-capturing with the new guidance (tighter miss) +
+> adaptive tilt, ANCHOR the intercept-shot cut to the CPA row (argmin gt_range),
+> not a fixed frame offset. hud_overlay.py prints the CPA sim-time — use it.
+
 ## §B — Ground-stereo pass (shots 1–2)
 
 The only genuinely new machinery (storyboard production note). World:
