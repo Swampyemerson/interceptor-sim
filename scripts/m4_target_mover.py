@@ -320,18 +320,58 @@ def _parse_floats(value: str, n: int, flag_name: str):
         raise ValueError(f"--{flag_name} value {value!r} is not all numbers") from exc
 
 
-def send_pose(node: Node, x: float, y: float, z: float, timeout_ms: int) -> bool:
-    """One `set_pose` request. Orientation is deliberately omitted (left at
-    the message default, i.e. identity) -- the model's world orientation
-    for apriltag_target is identity and its facing is baked into the model
-    geometry itself (see models/apriltag_target/model.sdf), so there is
-    nothing to set here besides position. Returns True iff the service
-    replied AND its Boolean payload was true."""
+def _euler_zyx_to_quat(roll, pitch, yaw):
+    """Aircraft ZYX (yaw about world +Z-up, then pitch about +Y, then roll about
+    +X-forward) -> world orientation quaternion (w, x, y, z)."""
+    cy, sy = math.cos(yaw / 2), math.sin(yaw / 2)
+    cp, sp = math.cos(pitch / 2), math.sin(pitch / 2)
+    cr, sr = math.cos(roll / 2), math.sin(roll / 2)
+    return (cr * cp * cy + sr * sp * sy,   # w
+            sr * cp * cy - cr * sp * sy,   # x
+            cr * sp * cy + sr * cp * sy,   # y
+            cr * cp * sy - sr * sp * cy)   # z
+
+
+def velocity_orientation(vel_fn, t, max_bank_deg=55.0, pitch_gain=0.035,
+                         max_pitch_deg=25.0, dt=0.05, g=9.81):
+    """Realistic maneuvering-drone orientation from the target's OWN velocity
+    (the builder's fix: the target must yaw to face travel + BANK into turns +
+    pitch forward, not slide rigid). YAW = atan2(vy, vx); ROLL = coordinated-turn
+    bank into the lateral accel (tan(bank)=a_lat/g), banking TOWARD the turn;
+    PITCH = a modest nose-down forward lean growing with speed. a_lat is a finite
+    difference of vel_fn -- honesty-irrelevant (this is the TARGET's own motion,
+    not a sensor). Returns a (w,x,y,z) world quaternion, identity below ~0.1 m/s."""
+    vx, vy = vel_fn(t)
+    speed = math.hypot(vx, vy)
+    if speed < 0.1:
+        return (1.0, 0.0, 0.0, 0.0)
+    yaw = math.atan2(vy, vx)
+    vx1, vy1 = vel_fn(t + dt)
+    ax, ay = (vx1 - vx) / dt, (vy1 - vy) / dt
+    px, py = -vy / speed, vx / speed            # perpendicular-LEFT unit
+    a_lat = ax * px + ay * py                    # + = accelerating left
+    mb = math.radians(max_bank_deg)
+    bank = max(-mb, min(mb, math.atan2(a_lat, g)))   # bank INTO the turn (left turn -> roll left)
+    pitch = -min(math.radians(max_pitch_deg), pitch_gain * speed)   # nose-down lean
+    return _euler_zyx_to_quat(bank, pitch, yaw)
+
+
+def send_pose(node: Node, x: float, y: float, z: float, timeout_ms: int,
+              quat=None) -> bool:
+    """One `set_pose` request. Position always; ORIENTATION only when `quat`
+    (w,x,y,z) is given -- the #target-realism fix (`--orient-to-velocity`). When
+    quat is None the orientation field is left at the message default (identity),
+    BYTE-IDENTICAL to the prior behavior. NOTE: only pass quat for the MARKERLESS
+    target -- the AprilTag target's board must keep facing the camera (identity),
+    so the flag is guarded off for apriltag_target in main(). Returns True iff the
+    service replied AND its Boolean payload was true."""
     req = Pose()
     req.name = TARGET_MODEL_NAME
     req.position.x = x
     req.position.y = y
     req.position.z = z
+    if quat is not None:
+        req.orientation.w, req.orientation.x, req.orientation.y, req.orientation.z = quat
     ok, response = node.request(SET_POSE_SERVICE, req, Pose, Boolean, timeout_ms)
     return bool(ok and response.data)
 
@@ -353,6 +393,24 @@ def main() -> int:
     parser.add_argument(
         "--duration", type=float, default=DEFAULT_DURATION_S,
         help="how long to stream, in seconds",
+    )
+    parser.add_argument(
+        "--orient-to-velocity", action="store_true",
+        default=(os.environ.get("INTERCEPTOR_ORIENT_TO_VEL", "0") == "1"),
+        help="stream a REALISTIC maneuvering-drone orientation (yaw to face "
+             "travel + BANK into turns + forward pitch) derived from the "
+             "target's own velocity, instead of a rigid identity pose. For the "
+             "MARKERLESS target only -- the AprilTag board must face the camera, "
+             "so this is force-disabled for apriltag_target. Default OFF "
+             "(byte-identical rigid pose); env INTERCEPTOR_ORIENT_TO_VEL=1.",
+    )
+    parser.add_argument(
+        "--orient-max-bank-deg", type=float, default=55.0,
+        help="max coordinated-turn bank angle for --orient-to-velocity (deg)",
+    )
+    parser.add_argument(
+        "--orient-max-pitch-deg", type=float, default=25.0,
+        help="max forward nose-down pitch for --orient-to-velocity (deg)",
     )
     parser.add_argument(
         "--path", default=DEFAULT_PATH, choices=VALID_PATHS,
@@ -517,6 +575,17 @@ def main() -> int:
     sim_t0 = sim_clock.t
     exit_code = 0
 
+    # #target-realism: velocity-derived orientation, but NEVER for the AprilTag
+    # target (its board must keep facing the camera or M2 detection breaks).
+    orient_active = args.orient_to_velocity and "apriltag" not in TARGET_MODEL_NAME.lower()
+    if args.orient_to_velocity and not orient_active:
+        print("[m4-mover] --orient-to-velocity IGNORED for apriltag_target "
+              "(board must face the camera); using rigid identity pose.")
+    elif orient_active:
+        print(f"[m4-mover] orient-to-velocity ON (max bank "
+              f"{args.orient_max_bank_deg} deg, max pitch "
+              f"{args.orient_max_pitch_deg} deg) for {TARGET_MODEL_NAME}.")
+
     try:
         while not stop["flag"]:
             sim_elapsed = (sim_clock.t or sim_t0) - sim_t0
@@ -530,7 +599,14 @@ def main() -> int:
             # start + base_vel * sim_elapsed as before.
             x, y, z = pos_fn(sim_elapsed)
 
-            ok = send_pose(node, x, y, z, STREAM_TIMEOUT_MS)
+            quat = None
+            if orient_active:
+                quat = velocity_orientation(
+                    vel_fn, sim_elapsed,
+                    max_bank_deg=args.orient_max_bank_deg,
+                    max_pitch_deg=args.orient_max_pitch_deg,
+                )
+            ok = send_pose(node, x, y, z, STREAM_TIMEOUT_MS, quat=quat)
             n_requests += 1
             final_y = y
 
