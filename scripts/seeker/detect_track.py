@@ -48,6 +48,8 @@ from __future__ import annotations
 
 import math
 import os
+
+import numpy as np   # ADR-0071 subpixel-centroid bearing
 from typing import Optional, Tuple
 
 import cv2
@@ -213,6 +215,17 @@ class DetectThenTracker:
         # target (drift correction).
         self.revalidate_every = max(1, _envi("MARKERLESS_TRACK_REVALIDATE", 8))
         self.reseed_iou = _envf("MARKERLESS_TRACK_RESEED_IOU", 0.2)
+        # SUBPIXEL bearing (ADR-0071, default 0 = OFF, byte-identical): the
+        # published terminal bearing comes from the tracker box CENTER, which
+        # jitters ~box-width/2 frame-to-frame -- the ~1.5 m terminal miss FLOOR
+        # (ADR-0056/0070: even a clean AprilTag seeker sits 1.64 m). When ON,
+        # replace the box center with a DARKNESS-WEIGHTED CENTROID of the small
+        # dark target within the box (drone vs the lighter sky/ground) -> a
+        # subpixel, edge-jitter-immune target center. Camera pixels only (no cue,
+        # no gt) -> honesty-clean. Only the PUBLISHED bearing is refined; the
+        # tracker box + all gating stay byte-identical.
+        self.subpixel = _envi("MARKERLESS_TRACK_SUBPIXEL", 0)
+        self.subpixel_dark_pctl = _envf("MARKERLESS_TRACK_SUBPIXEL_PCTL", 40.0)
         # POST-HANDOFF RE-ACQUIRE gate (review finding #2): a re-seed with no cue
         # must be consistent with the guidance's own VELOCITY-AWARE camera-track
         # prediction (seed_ctx.cam_track), within a radius that AGES with coast
@@ -274,6 +287,38 @@ class DetectThenTracker:
     # ---- seeker-agnostic box -> Measurement (SAME conversion the NN uses) ----
     def _box_to_det(self, box, t_mono, score, n) -> SeekerDetection:
         return self.seeker.box_to_detection(tuple(box), t_mono, score, n)
+
+    def _subpixel_center(self, frame_bgr, box):
+        """ADR-0071 darkness-weighted subpixel centroid of the dark target within
+        `box`. Returns (cx, cy) image px, or None (caller keeps the box center).
+        The small drone is darker than the sky/ground, so weight each pixel by how
+        much darker it is than the ROI's low percentile (robust to a loose box +
+        a bright background). Camera pixels ONLY -- no cue, no gt: honesty-clean."""
+        x, y, w, h = box
+        H, W = frame_bgr.shape[:2]
+        x0, y0 = int(max(0, math.floor(x))), int(max(0, math.floor(y)))
+        x1, y1 = int(min(W, math.ceil(x + w))), int(min(H, math.ceil(y + h)))
+        if x1 - x0 < 3 or y1 - y0 < 3:
+            return None
+        roi = frame_bgr[y0:y1, x0:x1]
+        gray = roi.mean(axis=2) if roi.ndim == 3 else roi.astype(np.float64)
+        thr = np.percentile(gray, self.subpixel_dark_pctl)
+        wgt = np.clip(thr - gray, 0.0, None)      # darker than thr -> positive weight
+        tot = float(wgt.sum())
+        if tot <= 1e-6:
+            return None
+        ys, xs = np.mgrid[0:gray.shape[0], 0:gray.shape[1]]
+        return (x0 + float((wgt * xs).sum() / tot),
+                y0 + float((wgt * ys).sum() / tot))
+
+    def _recenter(self, frame_bgr, box):
+        """Shift `box` so its center = the subpixel target centroid, keeping w,h
+        (the width-based range is unchanged -- only the bearing is refined)."""
+        c = self._subpixel_center(frame_bgr, box)
+        if c is None:
+            return box
+        x, y, w, h = box
+        return (c[0] - w / 2.0, c[1] - h / 2.0, w, h)
 
     # ---- geometry helper: camera-implied target NED from a detection ----
     @staticmethod
@@ -461,8 +506,12 @@ class DetectThenTracker:
                 else:
                     self.n_phantom_ignored += 1   # ignore the phantom, keep lock
 
-        self.last_box = box
-        return self._box_to_det(box, t_mono, self.last_score, 1)
+        self.last_box = box   # tracker box drives gating + next-frame update (unchanged)
+        # ADR-0071: publish the bearing off the SUBPIXEL centroid, not the box
+        # center (default OFF = byte-identical). Only the published box is
+        # recentered; last_box / the tracker / all gating are untouched.
+        pub_box = self._recenter(frame_bgr, box) if self.subpixel else box
+        return self._box_to_det(pub_box, t_mono, self.last_score, 1)
 
     def stats_line(self) -> str:
         return (f"[detect-track] seeds={self.n_seed} reseeds={self.n_reseed} "
