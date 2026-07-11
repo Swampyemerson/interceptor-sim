@@ -115,6 +115,15 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
       no new sim): train a bank head on `quad_dataset_banked` (known banks), measure bank-error vs range,
       check the accel-SNR clears the ADR-0069 wall — DO THIS after the v2 re-validation.** Gate passes →
       council the guidance mechanization → lab APN A/B → Gazebo.
+   6. 💡 **NEW IDEA — FOVEATED / AUTO-CROP detection + higher-res (ADR-0074, builder 2026-07-11).**
+      Detect on a downscaled whole frame → crop the FULL-RES ROI → re-run the SAME detector on just
+      the drone (compute ~2× a cheap pass, not a full-sensor high-res pass). **FREE WIN: we already
+      downscale 1280→640, so an auto-crop on the NATIVE crop doubles pixels-on-target with NO new
+      camera.** Attacks the v2 late-handoff/intermittent-banked-detection (ADR-0038 density) + is a
+      near-prerequisite for the bank cue (ADR-0073, needs pixels). NOT the mild-weave miss (kinematic,
+      like ADR-0071 subpixel null). **Cheapest first step: native-res auto-crop stage** → test steadier
+      handoff. Honesty (ADR-0025): a real higher-res sensor must be DISCLOSED + M1/M2 re-earned + σ_R
+      rescaled (not tag-inflation). Sim: hi-res camera costs render (GPU-render switch). Pairs with #5.
 3. **BETTER TRACKING → the learned single-keypoint head is the CORRECT design but the WRONG
    lever here → OPTIONAL, pre-registered.** It refines bearing PRECISION, which is NEITHER
    the weave kinematic floor (ADR-0056: even a clean AprilTag = 1.64 m) NOR the slower-regime
