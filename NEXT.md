@@ -51,7 +51,36 @@ with reproducible, logged numbers. Six steps, in value order:
 correctly scoped/HELD on every surface; audit backlog groomed to
 tracked-or-accepted; repo publishable on a remote.
 
-## 📍 CURRENT (2026-07-10, live — builder away, autonomous)
+## 📍 CURRENT (2026-07-10, live)
+
+### 🎯 NEW BUILDER DIRECTIVES (2026-07-10 evening — HIGHEST PRIORITY, in flight)
+1. **TIGHTER INTERCEPT — "2 m is too much."** Improve the guidance to PREDICT the
+   end location from the target's ACCELERATION (2nd derivative) → a predicted
+   intercept point BEYOND the current-velocity trajectory. Look up the INDUSTRY
+   STANDARD (APN / augmented pro-nav; Kalman constant-acceleration target-state
+   estimator → PIP; optimal / ZEM guidance) and IMPLEMENT if it helps. NOTE: APN
+   + PIP were previously REJECTED (ADR-0010/0011) but on the NOISY MONOCULAR
+   signal — the detect-then-track (ADR-0058) + fused mid-course cue (ADR-0044)
+   are cleaner now, so this is a RE-TEST WITH NEW EVIDENCE, not a blind
+   re-propose. Weave/12 m/s is a maneuvering (accelerating) target → an
+   accel-aware law targets exactly its ZEM (ADR-0023). Gate paired A/B vs the
+   current pro-nav; the lab RANKS, Gazebo DECIDES.
+2. **ADAPTIVE TILT — BUILD #46 (ADR-0065).** The adaptive camera tilt that TRACKS
+   the dash pitch to keep the target in frame for EARLIER detection + interception
+   (vs the fixed +15° mount, which #40 showed has a residual terminal cost). Then
+   FEATURE it in the video (replaces the fixed-tilt A/B).
+3. **VIDEO fixes:** (a) MORE footage of the intercept itself; (b) the slow-mo
+   comes TOO LATE — it starts after the interceptor has already PASSED the drone;
+   retime so slow-mo covers the APPROACH-TO-CPA, not the flyby; (c) REMOVE the
+   fixed-15° two-camera A/B (shot 3b) — show the ADAPTIVE TILT system instead.
+4. **GitHub remote — SKIP for now** (builder, 2026-07-10 — was pending, now
+   deferred; the zero-off-machine-backup risk still stands, re-surface later).
+5. **Keep persistent docs updated with directives + work as it lands** (builder:
+   survive a session clear). Capture SAME-TURN. See [[context-loss-is-the-1-frustration]].
+
+---
+
+### (prior autonomous block — 2026-07-10, builder now present)
 
 - **⚠️ SESSION OVERRIDE (2026-07-10, builder): Fable weekly limit ~90% — use
   OPUS (`claude-opus-4-8`) everywhere the routing rules say Fable (review /
