@@ -77,8 +77,17 @@ tracked-or-accepted; repo publishable on a remote.
    < 1.5 m: **(a) TERMINAL BEARING QUALITY** — subpixel/centroid vs the NN
    box-center (the ADR-0056 residual, a hard perception refinement); **(b) the
    honest METRIC REFRAME** — 1.5–2 m is already Pk@2.5 8/8 = a proximity-fuse KILL
-   (ADR-0025), so "tighter CPA" is largely the wrong objective. **DECISION FOR THE
-   BUILDER: (a) chase subpixel bearing, or (b) accept 2 m = a kill and move on?**
+   (ADR-0025).
+   **BUILDER CHOSE (a) — SUBPIXEL BEARING (ADR-0071, BUILT+TESTED, committed).** The
+   darkness-weighted centroid replaces the box-center bearing (immune to box-edge
+   jitter). **n=8 SCREEN = the FIRST POSITIVE lever after accel/t_go/tilt all failed:**
+   paired mean −0.19 m, distribution median 1.85 → 1.35 m, wins BIG on the bad flights
+   (1.90→1.34, 1.06→0.70, 1.34→0.64) and loses only noise elsewhere — but the paired
+   delta-median is flat (−0.001, 4/7 better) so it's PROMISING-not-proven at n=7 (one
+   MAVSDK offboard-race NaN). **n=16 extension IN FLIGHT** (pooling master-seed 43).
+   If it holds → n=72 headline (ADR-0064) → re-capture the video intercept with the
+   tighter miss. Fallbacks if it fades: tune `MARKERLESS_TRACK_SUBPIXEL_PCTL`, or the
+   RANGE channel (width-based range is also box-noise-sensitive).
 2. **TILT for a tighter intercept — PIVOT to FIXED tilt first (builder 2026-07-10 eve).**
    Builder's call: try a FIXED up-tilt before the complex adaptive gimbal — the dash
    is "always at speed forward" (consistent nose-down pitch, ADR-0060) and the stereo
