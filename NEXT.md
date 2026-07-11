@@ -66,12 +66,19 @@ tracked-or-accepted; repo publishable on a remote.
    one legal experiment (accel-augmented DASH lead on the clean cue) is a pre-known
    NEGATIVE, NO sim spend. The terminal APN rejection (ADR-0010/0011) still holds
    (AprilTag clean-bearing control already sits 8/8 @ 1.64 m with plain pro-nav →
-   lead/accel is not the missing lever). **The real levers: acquisition range
-   (earlier detection → bigger t_go, capacity ~ t_go²) + mid-course delivered-ZEM +
-   the proximity-Pk metric (2.08 m is already Pk@2.5 8/8). Adaptive tilt (#46) is
-   the acquisition-range lever → directive #2 IS the guidance fix.** Optional
-   later: `--dash-accel-lead` flag built as a default-off documented negative if
-   the "did you try it" question needs code, but the probe already closed it.
+   lead/accel is not the missing lever).
+   **UPDATE (ADR-0070, FLOWN): the acquisition-range lever ALSO does NOT tighten the
+   miss.** A 3-arm A/B doubled t_go (handoff 6.5→13.5 m) with CPA UNCHANGED (paired
+   median +0.02 m, 4/8 each way), and the fixed tilt made it WORSE (8/8 seeds,
+   +0.48 m). The ~1.5 m miss is TERMINAL-BEARING-NOISE-floored (ADR-0056: a clean
+   AprilTag seeker already sits 1.64 m), NOT time/capacity-limited. **So NO
+   guidance/acquisition lever tightens it: not accel-prediction, not bigger t_go,
+   not tilt (fixed OR adaptive — same bearing floor).** The only real levers for
+   < 1.5 m: **(a) TERMINAL BEARING QUALITY** — subpixel/centroid vs the NN
+   box-center (the ADR-0056 residual, a hard perception refinement); **(b) the
+   honest METRIC REFRAME** — 1.5–2 m is already Pk@2.5 8/8 = a proximity-fuse KILL
+   (ADR-0025), so "tighter CPA" is largely the wrong objective. **DECISION FOR THE
+   BUILDER: (a) chase subpixel bearing, or (b) accept 2 m = a kill and move on?**
 2. **TILT for a tighter intercept — PIVOT to FIXED tilt first (builder 2026-07-10 eve).**
    Builder's call: try a FIXED up-tilt before the complex adaptive gimbal — the dash
    is "always at speed forward" (consistent nose-down pitch, ADR-0060) and the stereo
