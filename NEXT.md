@@ -96,15 +96,16 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
       than v2's 21.6 m), **intercepted 1.18 m clean** — BUT **handoff late at 1.91 m** (v2 was 9 m)
       with 26 tracker losses: detection is INTERMITTENT on the BANKED aspects (level+yaw dataset never
       showed them). Core works; robustness needs banking poses.
-   4. ⏳ **BANKING-POSE RETRAIN — v2 TRAINING RUNNING.** Scripts committed (`9a8fd56`):
-      `render_sim_dataset_banked.py` (teleport extended to roll+pitch+yaw, banks ±50°/pitch +20°;
-      euler→quat verified byte-identical to the mover, gt box orientation-invariant) → `merge_quad_v2.py`
-      (level ∪ banked → `quad_dataset_v2` = **2664 imgs**) → `train_daemon_quad_v2.py` (setsid, sentinel
-      `QUAD_V2_TRAIN_EXPORT_DONE`) → `drone_finetuned_quad_v2.{pt,onnx}`. **Accurate stage: capture DONE
-      (1344), merge DONE, v2-training LAUNCHED** (`logs/train_quad_v2_20260711T204234Z.log`; ~5.5 h for
-      60 ep but SATURATES ~ep 20 → export best.pt EARLY). Then re-validate (expect earlier/stable handoff
-      vs the level seeker's 1.91 m) → Pk batch → SWAP. **⭐ FULL RESUME GUIDE (check/export/re-validate/swap
-      commands, since the scratchpad repro scripts are ephemeral): `docs/quad_target_retrain.md`.**
+   4. ✅ **BANKING-POSE RETRAIN — TRAINED + VALIDATED (6/6 clean).** `drone_finetuned_quad_v2`
+      (level ∪ 1344 banked = 2664 imgs; stopped ~ep 17 saturated, exported). **Characterization batch
+      6/6 CLEAN, median miss ~1.2 m, median handoff ~6.8 m** — the banked data FIXED the level seeker's
+      stuck 1.91 m handoff + intermittent banked detection (26→4 losses). The one earlier terminal abort
+      was run-to-run noise (same seed re-flew clean). One high miss (3.09 m) was a late-acquisition tail
+      (ADR-0038), not a banking failure. Scripts committed `9a8fd56`; weights gitignored.
+      **Remaining before SWAP: a proper paired n≥8 Pk batch** (ADR-0064 discipline; the n=6 is a
+      characterization, not the Pk bar) → then swap `fpv_quad_enemy`+`drone_finetuned_quad_v2` in as
+      deployed. Swap is Pk-GATED + NOT done; fallback (`fpv_target_markerless`+`drone_finetuned_v2`) live.
+      **⭐ FULL RESUME GUIDE: `docs/quad_target_retrain.md`** (state table + batch result + swap steps).
    The orient plumbing + the billboard finding (add. #2) are why. Deployed v2 + fpv_target_markerless
    still untouched until the quad seeker is robust + Pk-validated (swap is Pk-gated, not done).
    5. 💡 **NEW IDEA — BANK-AS-ACCEL CUE for maneuver-predictive guidance (ADR-0073, builder 2026-07-11).**
