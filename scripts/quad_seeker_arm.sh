@@ -36,7 +36,8 @@ export INTERCEPTOR_ORIENT_YAW_OFFSET_DEG=0
 export INTERCEPTOR_WEAVE_MIRROR=1
 
 # NN-only (drop --track for the maneuvering quad, ADR-0076 add #2)
-EXTRA_ARGS_STR="--dash-speed 16 --early-handoff --cue-velocity --dash-unclamp --fuse-midcourse --handoff-cue-gate 8"
+# QUAD_ARM_EXTRA appends extra m4 flags (e.g. --cue-vel-hold) for an A/B arm.
+EXTRA_ARGS_STR="--dash-speed 16 --early-handoff --cue-velocity --dash-unclamp --fuse-midcourse --handoff-cue-gate 8 ${QUAD_ARM_EXTRA:-}"
 
 DRYFLAG=""
 [ "$MODE" = "--dry-run" ] && DRYFLAG="--dry-run"

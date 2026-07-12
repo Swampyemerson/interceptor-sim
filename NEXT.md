@@ -67,17 +67,24 @@ The realistic-quad r2l failure got a clean re-diagnosis + the last cheap levers 
 - **Why cheap filters can't separate it (pinned from flight data — do NOT re-try):** seeker range is
   unreliable (real 4m target reads measR 1.57m = SAME as phantom at 15m) + phantom box centers overlap
   real-target image space. So range-gate/size-cap/position-mask all fail by construction.
-- **AUTO-CROP (ADR-0074) = the remaining honest lever, VALIDATION IN FLIGHT.** Crop seeker was already
-  trained (val mAP50 0.995), exported `drone_finetuned_quad_crop.onnx`. `mc_quad_crop_s123_weave`:
-  l2r 0.83m ✓ (preserves precision, unlike hardened), first r2l 3.07m ✗ — likely the add #6 bootstrap
-  (phantom seeds the crop center at acquisition). Full n=16 pending.
-- **NEXT branches:** (a) if auto-crop weave r2l recovers → run the LINE path (builder's "first straight
-  line") + Pk gate + swap. (b) if r2l stays ~3m → try auto-crop + `--track`, OR coarse-to-fine (v2
-  full-frame ACQUIRE → crop REFINE, add #6), OR accept the documented markerless-perception limit
-  (AprilTag shows NO r2l asymmetry; billboard 72/72 both-ways is the headline) + polish. Guidance-side
-  secondary gap (far-dropout dead-stop m4:3136, garbage tracker vel) is a symptom not the root.
-- Harness: `scripts/quad_seeker_arm.sh WEIGHTS SEED PATH OUT --go` (add `MARKERLESS_AUTOCROP=1` for crop).
-- **Deployed v2 + billboard fallback UNTOUCHED.** Billboard 72/72 (ADR-0064) is unaffected + stands.
+- **AUTO-CROP (ADR-0074) FLOWN (ADR-0076 add #14):** weave l2r 6/8 @2.24m ✓ (PRESERVES precision,
+  unlike hardened) / r2l 1/8 @3.76m ✗; line r2l 0/8 @5.26m. Does NOT fix r2l (acquisition bootstrap,
+  add #6). Exported `drone_finetuned_quad_crop.onnx`.
+- **DASH-LEAD-VELOCITY guidance fix — BUILT, TESTED, CLEANLY NULL → r2l root is PERCEPTION, ARC CLOSED.**
+  Found the r2l dash lead velocity collapses (tgt_vn_hat −0.6 vs true −12) — phantom detections corrupt
+  the tracker even when cue-gate-rejected for handoff. Built `--cue-vel-hold` (re-assert cue velocity);
+  it CLEANED the velocity (−0.6→−11.7) but **r2l Pk UNCHANGED + l2r slightly worse → lead velocity is
+  NOT the cause.** REVERTED (m4_intercept.py back to HEAD). r2l root = **aspect-biased LATE DETECTION**
+  (r2l first-det 3.64m — too late for a 12m/s crosser; AprilTag shows no r2l asymmetry). ALL levers now
+  exhausted (perception + guidance); the fix is a fundamentally BETTER SENSOR (parent-project thesis),
+  not a cheap tweak.
+- **HONEST STATE for "intercept working":** ✅ billboard 72/72 BOTH directions (line+weave, ADR-0064) —
+  the headline, DONE. ✅ realistic quad works l2r (~88% weave). ❌ quad r2l = documented hard
+  perception limit. Deployed v2 + billboard fallback UNTOUCHED.
+- **BUILDER DECISION (surface): keep investing in quad-r2l perception (a big better-sensor build) OR
+  accept the documented limit + consolidate the strong billboard result + move to T25 video / publish?**
+- Harness: `scripts/quad_seeker_arm.sh WEIGHTS SEED PATH OUT --go` (`MARKERLESS_AUTOCROP=1` for crop;
+  `QUAD_ARM_EXTRA="..."` appends m4 flags for an A/B).
 
 ### 🌙 OVERNIGHT AUTONOMOUS RUN (2026-07-12 ~02:30 PDT → ≥08:00, builder asleep; priority: ACCURACY + CLOSE INTERCEPTION)
 Executing the ADR-0076 fix-#3 build (raise the ~50% NN-coverage ceiling on the quad):
