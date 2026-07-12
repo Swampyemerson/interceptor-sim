@@ -41,8 +41,11 @@ stops handing the cue over (handoff_done -> cue_pos=None) and the tracker runs
 CAMERA-ONLY, so the terminal is jam-resistant. NEVER reads gt_*; own pos/yaw come
 from PX4's own EKF (own-state, legal, ADR-0008 split).
 
-Deps: cv2 (opencv, TrackerCSRT/KCF/MIL) from .venv-seeker / the combined flight
-venv. No new dependency beyond what the markerless seeker already needs.
+Deps: cv2 (opencv, TrackerCSRT/KCF/MIL/Vit) from .venv-seeker / the combined
+flight venv. VIT (MARKERLESS_TRACK_KIND=VIT, opt-in, CSRT stays default) adds
+one small ONNX weight file (scripts/seeker/weights/object_tracking_vittrack_
+2023sep.onnx, OpenCV Zoo, BSD license, ~700 KB) -- see weights/LICENSES.md.
+No new Python dependency: cv2.dnn runs the ONNX directly, same as the NN seeker.
 """
 from __future__ import annotations
 
@@ -60,8 +63,22 @@ from nn_seeker import SeekerDetection  # the None-fill / field contract
 # --------------------------------------------------------------------- kind gate
 # Trackers this module supports. KCF is deliberately EXCLUDED (see
 # validate_track_kind): it has no scale adaptation, so the range-from-box-width
-# channel would freeze at the seed value.
-_VALID_TRACK_KINDS = ("CSRT", "MIL")
+# channel would freeze at the seed value. VIT (ADR-0076 fix #2) is a learned
+# Siamese/transformer tracker (cv2.TrackerVit, OpenCV Zoo vittrack ONNX) --
+# robust to the frame-to-frame appearance change a correlation tracker (CSRT)
+# loses lock on for a banking/maneuvering target; scale-adaptive (verified:
+# its box width tracks a growing/shrinking target), so range-from-box-width
+# behaves the same as under CSRT. Opt-in only -- CSRT stays the default.
+_VALID_TRACK_KINDS = ("CSRT", "MIL", "VIT")
+
+# Default VIT model path (OpenCV Zoo vittrack, BSD license -- see
+# weights/LICENSES.md). Resolved relative to THIS FILE's directory, not the
+# caller's cwd, so the tracker builds regardless of where a script is invoked
+# from. MARKERLESS_VIT_MODEL overrides it (e.g. to point at a different/newer
+# vittrack export) without a code change.
+_VIT_MODEL_DEFAULT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "weights", "object_tracking_vittrack_2023sep.onnx")
 
 
 def validate_track_kind(kind: Optional[str] = None) -> str:
@@ -78,7 +95,11 @@ def validate_track_kind(kind: Optional[str] = None) -> str:
     KCF is refused outright: it has NO scale adaptation, so range-from-box-width
     (which feeds Vc / breakoff / the handoff trigger) would freeze at the seed
     value. Unknown values are refused (not silently coerced to CSRT, the old
-    _new_tracker fall-through behaviour)."""
+    _new_tracker fall-through behaviour). VIT (cv2.TrackerVit, a learned/
+    transformer tracker, ADR-0076 fix #2) is accepted as an opt-in A/B arm
+    against CSRT; it needs its ONNX weight file present (see _VIT_MODEL_DEFAULT
+    / MARKERLESS_VIT_MODEL), checked in DetectThenTracker.__init__ so a missing
+    weight is also a loud immediate error, not a silent thread death."""
     if kind is None:
         kind = os.environ.get("MARKERLESS_TRACK_KIND", "CSRT")
     k = str(kind).upper()
@@ -86,7 +107,7 @@ def validate_track_kind(kind: Optional[str] = None) -> str:
         raise ValueError(
             "MARKERLESS_TRACK_KIND=KCF refused: KCF has no scale adaptation, "
             "so range-from-box would be frozen at the seed value (feeds Vc/"
-            "breakoff/handoff). Use CSRT (default, scale-adaptive) or MIL.")
+            "breakoff/handoff). Use CSRT (default, scale-adaptive), MIL, or VIT.")
     if k not in _VALID_TRACK_KINDS:
         raise ValueError(
             f"MARKERLESS_TRACK_KIND={kind!r} is not a known tracker; use one of "
@@ -208,6 +229,17 @@ class DetectThenTracker:
         # before this thread starts, so a bad value is a loud immediate error
         # rather than a silent detector-thread death here.
         self.tracker_kind = validate_track_kind()
+        # VIT model path (only resolved/checked when actually selected, so CSRT/
+        # MIL construction never touches the filesystem for a file they don't
+        # need). Fail LOUD here (main-thread __init__, same pattern as the KCF
+        # refuse above) rather than inside _new_tracker deep in the ACQUIRE path.
+        self.vit_model_path = os.environ.get("MARKERLESS_VIT_MODEL", _VIT_MODEL_DEFAULT)
+        if self.tracker_kind == "VIT" and not os.path.isfile(self.vit_model_path):
+            raise FileNotFoundError(
+                f"MARKERLESS_TRACK_KIND=VIT needs the vittrack ONNX weight at "
+                f"{self.vit_model_path!r} (missing). Set MARKERLESS_VIT_MODEL to "
+                "point at a different file, or fetch the default one -- see "
+                "scripts/seeker/weights/LICENSES.md.")
         # SEED gate: camera-implied target within this many m of the cue (option a,
         # the primary, trustworthy seed gate). 8 m matches --handoff-cue-gate.
         self.seed_cue_gate_m = _envf("MARKERLESS_TRACK_SEED_GATE_M", 8.0)
@@ -398,7 +430,30 @@ class DetectThenTracker:
     def _new_tracker(self):
         if self.tracker_kind == "MIL":
             return cv2.TrackerMIL_create()
+        if self.tracker_kind == "VIT":
+            return self._new_vit_tracker()
         return cv2.TrackerCSRT_create()
+
+    def _new_vit_tracker(self):
+        """cv2.TrackerVit (OpenCV Zoo vittrack ONNX): a learned Siamese/
+        transformer tracker, robust to appearance change frame-to-frame (the
+        exact failure mode CSRT hits on the banking/maneuvering target, ADR-
+        0076 fix #2). `.update()` returns `(ok, box)` exactly like CSRT/MIL --
+        verified empirically (standalone check, not just API-shape) that its
+        box also SCALE-ADAPTS (width tracks a growing/shrinking target), so the
+        downstream box->range/bearing conversion (_box_to_det et al.) needs no
+        changes; it is genuinely a drop-in tracker backend.
+
+        cv2's Python binding surfaces two equivalent spellings for the params-
+        constructor overload -- the flat `cv2.TrackerVit_create(params)` and
+        the nested `cv2.TrackerVit.create(params)` -- both present in this repo's
+        cv2 build (5.0.0). Prefer the flat name; fall back to the nested one so
+        this also works on a cv2 build that only exposes one spelling."""
+        params = cv2.TrackerVit_Params()
+        params.net = self.vit_model_path
+        if hasattr(cv2, "TrackerVit_create"):
+            return cv2.TrackerVit_create(params)
+        return cv2.TrackerVit.create(params)
 
     def _init_tracker(self, frame_bgr, box_xywh) -> bool:
         """Build + init a NEW tracker; only REPLACE the current lock on success

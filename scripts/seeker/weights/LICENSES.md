@@ -9,6 +9,7 @@ provenance is explicit (brief R6).
 | `yolov8n.onnx` | Ultralytics YOLOv8n, COCO-pretrained, exported to ONNX | **AGPL-3.0** | Untuned-COCO baseline (no drone class). NN-lane seeker. AGPL = network-copyleft; do NOT ship in a closed stack. |
 | `drone_yolo11x.pt` | [doguilmak/Drone-Detection-YOLOv11x](https://huggingface.co/doguilmak/Drone-Detection-YOLOv11x) `weight/best.pt` | **MIT** (weights) | Single class `drone`; YOLOv11x (56.8 M params); mAP50 0.905 on its own real-photo domain. Trained on ~1k real drone images. Card: "domain adaptation is strongly recommended." |
 | `drone_yolo11x_1280.onnx` | Above `.pt`, exported by us at imgsz=1280 | MIT weights; exported with **ultralytics (AGPL) tooling** | Export TOOL is AGPL but only used offline at build time; the resulting ONNX runs under onnxruntime with no ultralytics dependency. If publishing this ONNX, the MIT weight license governs the *weights*; note the tool provenance. |
+| `object_tracking_vittrack_2023sep.onnx` | [opencv/opencv_zoo](https://github.com/opencv/opencv_zoo) `models/object_tracking_vittrack/` | **BSD-3-Clause** | ViT-based (transformer) tracker read by `cv2.TrackerVit`; `../detect_track.py`'s opt-in `MARKERLESS_TRACK_KIND=VIT` A/B arm against the default CSRT (ADR-0076 fix #2). ~700 KB (int8-quantized backbone), pre-trained, not sim-domain-tuned -- it tracks a generic visual blob's appearance/motion, not drone-specific features. |
 
 ## License takeaway for the public portfolio (R6)
 - The COCO YOLOv8n baseline and any YOLOv8/YOLO11 fine-tune are **AGPL-3.0**.
@@ -31,4 +32,9 @@ curl -L -o weights/drone_yolo11x.pt \
 .venv-seeker-train/bin/python -c "from ultralytics import YOLO; \
   YOLO('scripts/seeker/weights/drone_yolo11x.pt').export(format='onnx', imgsz=1280, opset=12, simplify=True)"
 mv scripts/seeker/weights/drone_yolo11x.onnx scripts/seeker/weights/drone_yolo11x_1280.onnx
+
+# VIT tracker weight (~700 KB; opencv_zoo stores it via git-lfs, so pull the
+# LFS blob directly rather than the raw.githubusercontent.com pointer file):
+curl -fL -o weights/object_tracking_vittrack_2023sep.onnx \
+  https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/object_tracking_vittrack/object_tracking_vittrack_2023sep.onnx
 ```
