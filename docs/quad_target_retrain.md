@@ -208,3 +208,25 @@ ACQUISITION (first-det 9.95 m), the ADR-0038 acquire-late→miss-more tail, not 
 **Conclusion: the proper-quad model + banking retrain VALIDATES — clean maneuvering intercepts,
 handoff restored.** NOT yet the n≥8 paired Pk bar (ADR-0064 discipline) → that batch is the swap
 gate; the swap remains Pk-gated + not done, fallback (`fpv_target_markerless`+`drone_finetuned_v2`) live.
+
+## AUTO-CROP hi-res seeker (ADR-0074, fix #3) — the coverage lever (2026-07-12)
+Raises the ~50% NN-coverage ceiling by running the NN on a NATIVE-640 crop around the target
+(2x pixels-on-target) instead of the downscaled full frame. Committed `6db3ed1` (default-OFF,
+byte-identical). Files: `scripts/seeker/{crop_geom,auto_crop_seeker,render_sim_dataset_crop,
+verify_autocrop}.py` + `finetuned_seeker.py`/`markerless_loop.py` hooks; `train_daemon_quad_crop.py`.
+RESUME the arc (durable commands; scratchpad chain is ephemeral):
+```bash
+# 1) capture native-crop dataset (sim up on quad_enemy, GPU render):
+INTERCEPTOR_WORLD_NAME=quad_enemy INTERCEPTOR_TARGET_MODEL=fpv_quad_enemy \
+  .venv-seeker/bin/python scripts/seeker/render_sim_dataset_crop.py \
+  --out=scripts/seeker/data/quad_dataset_crop --ranges=2,2.5,3,4,5,6,8 \
+  --laterals=-0.75,0,0.75 --heights=0.25,0.5 --yaws-deg=0,90,180,-90 \
+  --banks-deg=0,-50,-30,30,50 --pitches-deg=0,20 --extent-m=0.9 --val-frac=0.2
+# 2) crop-retrain (setsid, CPU):
+setsid .venv-seeker-train/bin/python scripts/seeker/train_daemon_quad_crop.py \
+  > logs/train_quad_crop_$(date -u +%Y%m%dT%H%M%SZ).log 2>&1 < /dev/null &   # sentinel CROP_TRAIN_EXPORT_DONE
+# 3) validate (NN-only + auto-crop):  MARKERLESS_AUTOCROP=1 MARKERLESS_NN_WEIGHTS=.../drone_finetuned_quad_crop.onnx
+#    mc_batch quad config (MC_WORLD=quad_enemy MC_TARGET_MODEL=fpv_quad_enemy MC_SEEKER=markerless,
+#    orient ON offset 0, NO --track) --n 32 --speeds 12.0 --path weave --master-seed 42
+```
+Success = NN-only+auto-crop Pk@2.5 BEATS the NN-only 640 baseline (the coverage lever worked).
