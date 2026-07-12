@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 # Seeker v3 ride-along capture pass (docs/seeker_v3_dataset_plan.md Phase 2 +
 # eval pool). NEW file (task #28); models on capture_pass.sh (fresh boot per
 # flight + passive recorder) and mc_batch.sh (the markerless deployment-profile

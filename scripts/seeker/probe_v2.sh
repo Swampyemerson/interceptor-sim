@@ -4,6 +4,7 @@
 # tears down. Runs as a FILE so the pkill patterns can't match the caller
 # (the mc_batch self-kill lesson).
 set -u
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SIM_LOG="$REPO/logs/probe_v2_sim_$(date -u +%Y%m%dT%H%M%SZ).log"
 WEIGHTS="${1:-$REPO/scripts/seeker/weights/drone_finetuned_v2.onnx}"

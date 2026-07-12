@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 # Monte-Carlo BATCH runner (GOALS.md M5: "Monte-Carlo batch over target
 # speeds/paths"). Flies N engagements per (law, speed) config through the
 # SAME validated pipeline scripts/check_s2.sh gates (m4_intercept.py --fpv

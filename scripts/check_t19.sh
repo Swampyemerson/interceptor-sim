@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 # T19 scripted milestone gate: the LIVE stereo-cue intercept flight.
 # Boots headless PX4 SITL + Gazebo on the markerless world, flies
 # scripts/m4_intercept.py under `--cue-source stereo` (ADR-0046/0048/0051):

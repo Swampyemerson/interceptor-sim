@@ -20,6 +20,7 @@
 # ~0.3-0.5 as the "under load" floor where sim-time scheduling still works;
 # the 0.05 demo collapse broke MAVSDK OFFBOARD entry outright.
 set -u
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PX4_DIR="$HOME/PX4-Autopilot"
 WORLD_NAME="stereo_probe"

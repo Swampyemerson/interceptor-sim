@@ -36,6 +36,7 @@
 # Exit code: check_t17v2.sh's exit code (0 = PASS), or an earlier non-zero
 # code if capture/build/train itself failed before the gate could run.
 set -uo pipefail
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"

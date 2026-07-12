@@ -17,6 +17,7 @@
 # Exit code: 0 = PASS (both flights clean AND pro-nav miss < 1.0 m),
 # non-zero = FAIL.
 set -uo pipefail
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"

@@ -33,6 +33,7 @@
 # threshold honest to its measured run variance (no-flag flights spanned
 # 1.09-2.25 m); precision tightening is S3/M5 scope.
 set -uo pipefail
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"

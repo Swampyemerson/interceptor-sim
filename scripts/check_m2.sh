@@ -10,6 +10,7 @@
 # Exit code: 0 = PASS, non-zero = FAIL (propagates m2_detect.py's exit code,
 # or a gate-specific failure code if the sim never comes up).
 set -uo pipefail
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
