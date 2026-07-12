@@ -104,10 +104,19 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
       stuck 1.91 m handoff + intermittent banked detection (26→4 losses). The one earlier terminal abort
       was run-to-run noise (same seed re-flew clean). One high miss (3.09 m) was a late-acquisition tail
       (ADR-0038), not a banking failure. Scripts committed `9a8fd56`; weights gitignored.
-      **Remaining before SWAP: a proper paired n≥8 Pk batch** (ADR-0064 discipline; the n=6 is a
-      characterization, not the Pk bar) → then swap `fpv_quad_enemy`+`drone_finetuned_quad_v2` in as
-      deployed. Swap is Pk-GATED + NOT done; fallback (`fpv_target_markerless`+`drone_finetuned_v2`) live.
-      **⭐ FULL RESUME GUIDE: `docs/quad_target_retrain.md`** (state table + batch result + swap steps).
+      **⚠️ CORRECTED — the "6/6 clean" was EASY-GEOMETRY (target 30 m out). The real Pk batch on the
+      STANDARD geometry (14 m, both dirs — the one the billboard aced 72/72) = POOR (~2/45 Pk@2.5)
+      (ADR-0076).** GPU render is NOT the cause (paired CPU/GPU equivalent, ADR-0075 vindicated). The
+      billboard FLATTERED detection; the realistic quad is detected intermittently → late handoff. Root
+      cause: **the CSRT tracker loses the banking quad ~25×/flight** (NN coverage ~50%, reacq_rejected~0)
+      — partly fixable. **NO SWAP** (quad Pk not validated); fallback (`fpv_target_markerless`+`v2`) live.
+      **⭐ RESUME GUIDE: `docs/quad_target_retrain.md`.**
+   4b. 🔧 **DETECTION-FIX PROGRAM (builder "implement all 3", ADR-0076) — IN FLIGHT:**
+      **#1 tracker levers** (env A/B: NN-only, revalidate 2/4 vs CSRT-8) — sweep RUNNING (`tracker_sweep.sh`).
+      **#2 appearance-robust tracker** — integrate cv2 `TrackerVit` (learned, edge-capable) as
+      `MARKERLESS_TRACK_KIND=VIT`, CSRT stays default — worker CODING it. **#3 fundamental lifts** — bank
+      cue (ADR-0073 feasibility gate) + 4K/auto-crop (ADR-0074) — the big arcs, NEXT. All valid on GPU
+      render now (equivalent + fast). Test each → keep the winner → then re-run the Pk batch.
    The orient plumbing + the billboard finding (add. #2) are why. Deployed v2 + fpv_target_markerless
    still untouched until the quad seeker is robust + Pk-validated (swap is Pk-gated, not done).
    5. 💡 **NEW IDEA — BANK-AS-ACCEL CUE for maneuver-predictive guidance (ADR-0073, builder 2026-07-11).**
