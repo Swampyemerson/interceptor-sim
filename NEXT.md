@@ -64,6 +64,7 @@ Executing the ADR-0076 fix-#3 build (raise the ~50% NN-coverage ceiling on the q
 2. **Honest NN-only 640 baseline Pk** — n=32 batch RUNNING (`mc_quad_nnonly_*`) to nail where the quad
    really sits (~50%?) with a Wilson CI.
 3. Bank cue (ADR-0073) feasibility gate + higher-n Pk on the winner, if time.
+**KEY FINDINGS (overnight):** (a) honest baseline = 41% Pk@2.5 but it's a DIRECTIONAL split — **l2r 81%, r2l 0/16** (ADR-0076 add #5); (b) r2l fails on a big PHANTOM box (~292 px reading 1.7 m at 15 m true, 9× the real target; ADR-0076 add #6); (c) ADR-0077 range-gate = FAILED/NULL (box-width range too noisy — l2r regressed); (d) the r2l fix is now the AUTO-CROP (crop out the phantom bg — crop-retrain running) or NEGATIVE-MINING. THE REFRAME: fix r2l → quad jumps from 41% toward ~80% (l2r-level) = the close-interception win. Guidance/geometry are sound (l2r proves it); this is purely r2l perception false-positives.
 Config facts: quad = `fpv_quad_enemy` + `drone_finetuned_quad_v2` seeker, NN-only (drop `--track`),
 orient ON offset 0, GPU render (ADR-0075). Standard mc_batch geometry. Resume: `docs/quad_target_retrain.md`.
 NO swap (billboard baseline stands until the quad earns a Pk).
