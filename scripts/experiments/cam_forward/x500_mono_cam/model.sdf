@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ADR-0076 add #16: seeker camera moved FORWARD past the front rotors (x 0.12 -> 0.40)
+     to take the interceptor's OWN props out of the FOV -> removes the r2l phantom at the
+     SOURCE (Fable design-correct fix / builder directive 2026-07-12). Same mono_cam sensor
+     (1280x960, intrinsics unchanged), same model name + camera_link topic -> NN pipeline +
+     gt scoring unchanged; ONLY the CameraJoint translation moves. Swapped in over PX4's
+     stock x500_mono_cam/model.sdf for the run, always restored. -->
+<sdf version='1.9'>
+  <model name='x500_mono_cam'>
+    <include merge='true'>
+      <uri>x500</uri>
+    </include>
+    <include merge='true'>
+      <uri>model://mono_cam</uri>
+      <pose>.40 .03 .242 0 0 0</pose>
+    </include>
+    <joint name="CameraJoint" type="fixed">
+      <parent>base_link</parent>
+      <child>camera_link</child>
+      <pose relative_to="base_link">.40 .03 .242 0 0 0</pose>
+    </joint>
+  </model>
+</sdf>
