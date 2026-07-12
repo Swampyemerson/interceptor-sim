@@ -53,7 +53,31 @@ with reproducible, logged numbers. Six steps, in value order:
 correctly scoped/HELD on every surface; audit backlog groomed to
 tracked-or-accepted; repo publishable on a remote.
 
-## 📍 CURRENT (2026-07-11, live)
+## 📍 CURRENT (2026-07-12, live)
+
+### 🎯 SESSION 2026-07-12 (builder directive: "get first straight-line then maneuvering intercept working")
+The realistic-quad r2l failure got a clean re-diagnosis + the last cheap levers closed. State:
+- **Negative-mining CLOSED (ADR-0076 add #13, committed).** The add #11 "mining NULL" was epoch-7
+  UNDER-TRAINING (that flight never engaged, 0 ENGAGE ticks). The CLEAN fully-trained hardened seeker
+  (val mAP50 0.994, leakage-free seed 123, n=16): l2r 0/8 @2.73m (regressed), r2l 2/8 @3.29m (phantom
+  killed, not clean), overall 2/16=13% vs v2 ~44% → hard-neg injection regresses box precision. Both
+  dirs symmetric ~3m → reconfirms guidance symmetric.
+- **PHANTOM IDENTIFIED = the interceptor's OWN prop blades** at the top FoV corners (viewed a mined
+  true-neg frame). Fixed body feature; self-mask misses the inner blade tip.
+- **Why cheap filters can't separate it (pinned from flight data — do NOT re-try):** seeker range is
+  unreliable (real 4m target reads measR 1.57m = SAME as phantom at 15m) + phantom box centers overlap
+  real-target image space. So range-gate/size-cap/position-mask all fail by construction.
+- **AUTO-CROP (ADR-0074) = the remaining honest lever, VALIDATION IN FLIGHT.** Crop seeker was already
+  trained (val mAP50 0.995), exported `drone_finetuned_quad_crop.onnx`. `mc_quad_crop_s123_weave`:
+  l2r 0.83m ✓ (preserves precision, unlike hardened), first r2l 3.07m ✗ — likely the add #6 bootstrap
+  (phantom seeds the crop center at acquisition). Full n=16 pending.
+- **NEXT branches:** (a) if auto-crop weave r2l recovers → run the LINE path (builder's "first straight
+  line") + Pk gate + swap. (b) if r2l stays ~3m → try auto-crop + `--track`, OR coarse-to-fine (v2
+  full-frame ACQUIRE → crop REFINE, add #6), OR accept the documented markerless-perception limit
+  (AprilTag shows NO r2l asymmetry; billboard 72/72 both-ways is the headline) + polish. Guidance-side
+  secondary gap (far-dropout dead-stop m4:3136, garbage tracker vel) is a symptom not the root.
+- Harness: `scripts/quad_seeker_arm.sh WEIGHTS SEED PATH OUT --go` (add `MARKERLESS_AUTOCROP=1` for crop).
+- **Deployed v2 + billboard fallback UNTOUCHED.** Billboard 72/72 (ADR-0064) is unaffected + stands.
 
 ### 🌙 OVERNIGHT AUTONOMOUS RUN (2026-07-12 ~02:30 PDT → ≥08:00, builder asleep; priority: ACCURACY + CLOSE INTERCEPTION)
 Executing the ADR-0076 fix-#3 build (raise the ~50% NN-coverage ceiling on the quad):
