@@ -20,6 +20,14 @@ references in these modules are docstrings plus two_stage_seeker._run_eval's
 OFFLINE eval scoring). So this guard is future-proofing, not a leak fix: a
 `gt_` read added to a live detect()/update() tomorrow must fail CI today.
 
+2026-07-12 (ADR-0074, AUTO-CROP): markerless_loop.py now also constructs an
+`auto_crop_seeker.AutoCropSeeker` around every seeker (default OFF via
+MARKERLESS_AUTOCROP=0, pure passthrough when off) BEFORE the detect-then-track
+wrapper. That module (and the pure-arithmetic crop_geom.py it imports for the
+crop-window math shared with the offline training capture,
+render_sim_dataset_crop.py) are added to LIVE_SEEKER_MODULES below -- both are
+on the live measurement path and must be scanned like every other seeker file.
+
 WHAT IS FLAGGED (all `ast`-based, never regex over source -- docstrings and
 comments that MENTION gt_* can never false-positive):
   * ast.Name whose id starts with "gt_" or "ground_truth" (any ctx -- a
@@ -72,16 +80,21 @@ SEEKER_DIR = os.path.join(REPO_ROOT, "scripts", "seeker")
 # gt_frames, ground_truth_world_points all flag; tag_gt / height do not.
 GT_PREFIXES = ("gt_", "ground_truth")
 
-# The five modules the live --seeker markerless [--track] measurement path
-# flows through (markerless_loop is the thread target m4_intercept swaps in;
-# the rest are the seekers/geometry it constructs). detect_track.py is NOT
-# here because test_honesty_static.py already pins it (see IMPORT_EXEMPT).
+# The modules the live --seeker markerless [--track] measurement path flows
+# through (markerless_loop is the thread target m4_intercept swaps in; the
+# rest are the seekers/geometry it constructs). detect_track.py is NOT here
+# because test_honesty_static.py already pins it (see IMPORT_EXEMPT).
+# auto_crop_seeker.py / crop_geom.py (ADR-0074, 2026-07-12): the AUTO-CROP
+# wrapper markerless_loop.py now constructs around every seeker, and the
+# pure-arithmetic crop-window module it imports.
 LIVE_SEEKER_MODULES = (
     "two_stage_seeker.py",
     "finetuned_seeker.py",
     "nn_seeker.py",
     "markerless_loop.py",
     "classical_seeker.py",
+    "auto_crop_seeker.py",
+    "crop_geom.py",
 )
 
 # module -> {dotted function scope: WHY it may touch gt_* (offline only)}.
@@ -101,10 +114,10 @@ OFFLINE_ALLOWLIST = {
         ),
     },
     # finetuned_seeker.py / nn_seeker.py / markerless_loop.py /
-    # classical_seeker.py: NO entries -- their gt_ mentions are docstring
-    # text only, which an AST scan never flags. Adding a gt_ read anywhere
-    # in them fails until a human lists the (offline) function here with a
-    # reason.
+    # classical_seeker.py / auto_crop_seeker.py / crop_geom.py: NO entries --
+    # their gt_ mentions are docstring text only, which an AST scan never
+    # flags. Adding a gt_ read anywhere in them fails until a human lists the
+    # (offline) function here with a reason.
 }
 
 # Anti-vacuous pin: the live entry points this guard exists to protect. If a
@@ -119,6 +132,9 @@ LIVE_ENTRY_POINTS = {
     "markerless_loop.py": ("markerless_detection_loop",),
     "classical_seeker.py": ("ClassicalSeeker.detect", "ClassicalSeeker.propose",
                             "ClassicalSeeker.update"),
+    "auto_crop_seeker.py": ("AutoCropSeeker.detect",
+                            "AutoCropSeeker.box_to_detection"),
+    "crop_geom.py": ("crop_bounds", "box_crop_to_full"),
 }
 
 # Local (scripts/seeker) modules a covered module may import WITHOUT being in
@@ -230,6 +246,14 @@ def test_classical_seeker_live_path_is_gt_free():
     _assert_module_gt_free("classical_seeker.py")
 
 
+def test_auto_crop_seeker_live_path_is_gt_free():
+    _assert_module_gt_free("auto_crop_seeker.py")
+
+
+def test_crop_geom_live_path_is_gt_free():
+    _assert_module_gt_free("crop_geom.py")
+
+
 def test_module_table_matches_expansion():
     """The five test_*_live_path_is_gt_free functions above ARE the expansion
     of LIVE_SEEKER_MODULES; fail if the table gains a module without a
@@ -329,8 +353,11 @@ def test_locally_imported_seeker_modules_are_covered():
 _INJECTIONS = (
     # The attribute form, in a live detect() -- the exact hypothetical from
     # audit DEEP-N1 ("meas = tracker.gt_range inside a live detect()").
+    # Anchor updated 2026-07-12 (ADR-0074): the letterbox line moved into the
+    # new _infer_boxes() helper (shared with raw_boxes_crop()); this anchor
+    # is the first line still unique to FinetunedNNSeeker.detect() itself.
     ("finetuned_seeker.py",
-     "img, r, (pad_l, pad_t) = _letterbox(frame_bgr, self.imgsz)",
+     "H, W = frame_bgr.shape[:2]",
      "meas = tracker.gt_range  # INJECTED for honesty-guard calibration -- must never pass",
      ".gt_range",
      "FinetunedNNSeeker.detect"),

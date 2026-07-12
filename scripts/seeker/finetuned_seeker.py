@@ -118,14 +118,24 @@ class FinetunedNNSeeker:
     def _none(self, t_mono):
         return SeekerDetection(t_mono, None, None, None, None, None, 0)
 
-    def box_to_detection(self, box_xywh, t_mono, score, n_hits):
+    def box_to_detection(self, box_xywh, t_mono, score, n_hits, class_name="track"):
         """Convert a box (x0, y0, w, h top-left, image pixels) to a
         SeekerDetection using the EXACT SAME geometry detect() uses (width-based
         known-size range, box-center bearing). This is the seam the
         detect-then-track tracker (detect_track.py) publishes through, so a
         tracker-sourced Measurement is identical in construction to an NN one --
         only the box comes from CSRT instead of the net. detect() itself is left
-        untouched (the plain `--seeker markerless` path stays byte-identical)."""
+        untouched (the plain `--seeker markerless` path stays byte-identical).
+        `box_xywh` MUST already be in FULL-FRAME pixel coords -- the AUTO-CROP
+        wrapper (auto_crop_seeker.AutoCropSeeker, ADR-0074) maps its crop-local
+        box through crop_geom.box_crop_to_full BEFORE calling this, so the
+        bearing/range math below (which uses self.cx/self.cy, the FULL-FRAME
+        principal point) is always correct regardless of which caller reached
+        it. `class_name` defaults to "track" (unchanged default, so the
+        existing detect_track.py caller -- which never passes it -- is
+        byte-identical); AutoCropSeeker passes "drone_crop" so the m4
+        meas_source CSV column can tell an auto-crop-sourced NN hit apart from
+        a CSRT tracker box."""
         x0, y0, bw, bh = box_xywh
         u = x0 + bw / 2.0
         v = y0 + bh / 2.0
@@ -138,14 +148,18 @@ class FinetunedNNSeeker:
             t_mono=t_mono, range_m=range_m, bearing_rad=bearing_h,
             bearing_vert_rad=bearing_v, meas_xyz=xyz,
             decision_margin=score, n_detections=n_hits,
-            # class_name "track" (NOT "drone"): this seam is only called by the
-            # detect-then-track wrapper on a TRACKER box; the name is the
-            # provenance tag m4 logs as meas_source (unified with
-            # TwoStageSeeker.box_to_detection -- review minor).
-            box_xywh=(x0, y0, bw, bh), class_name="track")
+            box_xywh=(x0, y0, bw, bh), class_name=class_name)
 
-    def detect(self, frame_bgr, t_mono: Optional[float] = None) -> SeekerDetection:
-        H, W = frame_bgr.shape[:2]
+    def _infer_boxes(self, frame_bgr):
+        """ONE forward pass on `frame_bgr` (whatever its size -- the full
+        1280x960 frame, or a 640x640 AUTO-CROP window, ADR-0074) -> a list of
+        (score, u, v, bw, bh) rows above `self.conf`, in `frame_bgr`'s OWN
+        pixel coordinate space (letterbox undone, but NO self-mask/bearing/
+        edge filtering applied yet -- that filtering is meaningful only in the
+        FULL frame's own coordinate space, see detect() vs. raw_boxes_crop()
+        below). Split out of detect() so both callers share ONE inference
+        path; detect()'s own control flow / outputs are unchanged by this
+        split (pure extraction, verified equivalent)."""
         img, r, (pad_l, pad_t) = _letterbox(frame_bgr, self.imgsz)
         blob = img[:, :, ::-1].transpose(2, 0, 1)[None].astype(np.float32) / 255.0
         out = self.sess.run(None, {self.iname: np.ascontiguousarray(blob)})[0]
@@ -153,18 +167,52 @@ class FinetunedNNSeeker:
         if preds.shape[0] < preds.shape[1]:  # (5, N) -> (N, 5)
             preds = preds.T
         # columns: cx, cy, w, h, class0_score  (single class)
-        best_score, best_box = 0.0, None
-        n_hits = 0
+        rows = []
         for row in preds:
             cx_, cy_, w_, h_, score = float(row[0]), float(row[1]), \
                 float(row[2]), float(row[3]), float(row[4])
             if score < self.conf:
                 continue
-            # undo letterbox back to original-frame pixels
+            # undo letterbox back to the input frame's own pixels
             bw = w_ / r
             bh = h_ / r
             u = (cx_ - pad_l) / r
             v = (cy_ - pad_t) / r
+            rows.append((score, u, v, bw, bh))
+        return rows
+
+    def raw_boxes_crop(self, crop_bgr):
+        """AUTO-CROP inference (ADR-0074): run `_infer_boxes` on a native-res
+        CROP and return the single best (score, box_xywh) in the CROP's OWN
+        (crop-local) pixel coords, top-left (x, y, w, h) -- or (0.0, None) if
+        nothing cleared `self.conf`.
+
+        Deliberately DOES NOT apply detect()'s own-airframe self-mask (the
+        bearing gate + edge-touch reject): that mask exists to reject the
+        interceptor's OWN rotor arms, which intrude from the FULL 1280x960
+        frame's periphery (self.cx/self.cy/self.max_bearing_rad/
+        edge_margin_px are all full-frame quantities) -- applying it against
+        a small local crop's own coordinate frame would reject valid
+        detections almost everywhere in the crop (e.g. self.cx=640 is off the
+        RIGHT EDGE of a 640-wide crop) rather than mask anything real. The
+        caller (auto_crop_seeker.AutoCropSeeker) maps the returned box back to
+        FULL-FRAME pixels via crop_geom.box_crop_to_full and then calls
+        box_to_detection() on that full-frame box for the actual bearing/
+        range math -- the self-mask isn't needed here because a crop is only
+        ever taken around an ALREADY-trusted recent detection, not blindly
+        over the whole frame."""
+        best_score, best_box = 0.0, None
+        for score, u, v, bw, bh in self._infer_boxes(crop_bgr):
+            if score > best_score:
+                best_score, best_box = score, (u - bw / 2.0, v - bh / 2.0, bw, bh)
+        return best_score, best_box
+
+    def detect(self, frame_bgr, t_mono: Optional[float] = None) -> SeekerDetection:
+        H, W = frame_bgr.shape[:2]
+        # columns: cx, cy, w, h, class0_score  (single class)
+        best_score, best_box = 0.0, None
+        n_hits = 0
+        for score, u, v, bw, bh in self._infer_boxes(frame_bgr):
             # SELF-MASK: reject own-airframe periphery locks (bearing gate + edge touch)
             bearing = math.atan2((u - self.cx) / self.fx, 1.0)
             if abs(bearing) > self.max_bearing_rad:

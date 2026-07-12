@@ -111,6 +111,21 @@ def markerless_detection_loop(frame_holder, meas_holder, fx, fy, cx, cy,
         print(f"[markerless] fine-tuned full-frame seeker: {_nn_weights}")
     else:
         seeker = TwoStageSeeker(fx, fy, cx, cy)
+    # AUTO-CROP high-res mode (ADR-0074, default OFF via MARKERLESS_AUTOCROP=0):
+    # wraps whichever seeker was just built. When disabled (the default),
+    # AutoCropSeeker.detect() is a pure passthrough to seeker.detect() -- the
+    # exact same call this loop made before the wrapper existed -- so
+    # constructing it unconditionally is byte-identical to not wrapping at
+    # all. When enabled, it crops a 640x640 NATIVE-res window around the last
+    # detection's pixel and runs the NN on that instead of the downscaled
+    # full frame (raises coverage on a small/edge-on/banking target, ADR-0076);
+    # it falls back to the ordinary full-frame path itself when there is no
+    # recent detection to center on (see auto_crop_seeker.py for the full
+    # convention). This wrap happens BEFORE the detect-then-track wrapper
+    # below, so `--track`'s own ACQUIRE/re-validate calls to seeker.detect()
+    # transparently go through the crop logic too.
+    from auto_crop_seeker import AutoCropSeeker
+    seeker = AutoCropSeeker(seeker)
     # ADR-0058 detect-then-track wrapper (default OFF -> `frame_source` is the
     # bare seeker, byte-identical to the plain markerless path).
     tracker = None
@@ -167,3 +182,5 @@ def markerless_detection_loop(frame_holder, meas_holder, fx, fy, cx, cy,
 
     if tracker is not None:
         print(tracker.stats_line(), flush=True)
+    if getattr(seeker, "enabled", False):
+        print(seeker.stats_line(), flush=True)
