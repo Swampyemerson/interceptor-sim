@@ -226,13 +226,24 @@ def build_path(path, x0, y0, z0, vx, vy, duration, weave_period_s,
         # Displacement offset(t) = amp*sin(w t) so the PEAK lateral speed
         # (d/dt) is exactly weave_lat_speed = amp*w -> amp = weave_lat_speed/w.
         amp = _weave_amplitude(weave_period_s, weave_lat_speed)
+        # ADR-0076 add #12: the FIXED left-hand _perp_unit makes the weave NON-mirror
+        # between a +Y ('l2r') and a -Y ('r2l') crosser -- for +Y perp=-X (offset pulls
+        # the target NEAR the interceptor, crosses ~4.6 m) but for -Y perp=+X (pushes it
+        # FAR, ~8.4 m). mc_batch mirrors only start_y+vy, so the weave is the one element
+        # that fails to reflect -> a 3.8 m unfair handicap on r2l at CPA (verified: gt_tag_x
+        # @CPA pinned 4.6 m l2r vs 8.4 m r2l across all 16 seeds). With
+        # INTERCEPTOR_WEAVE_MIRROR=1, key the offset sign to copysign(1,vy) so BOTH
+        # directions cross at the NEAR extreme = a true mirror. vy>0 (l2r) is byte-identical
+        # (built-in invariance check); DEFAULT-OFF preserves all prior weave results.
+        mirror = (math.copysign(1.0, vy)
+                  if os.environ.get("INTERCEPTOR_WEAVE_MIRROR") == "1" else 1.0)
 
         def pos_fn(t):
-            off = amp * math.sin(w * t)
+            off = amp * math.sin(w * t) * mirror
             return (x0 + vx * t + px * off, y0 + vy * t + py * off, z0)
 
         def vel_fn(t):
-            lat = weave_lat_speed * math.cos(w * t)
+            lat = weave_lat_speed * math.cos(w * t) * mirror
             return (vx + px * lat, vy + py * lat)
 
         return pos_fn, vel_fn
