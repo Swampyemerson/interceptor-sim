@@ -18,8 +18,10 @@ with reproducible, logged numbers. Six steps, in value order:
 2. **The demo (T25).** Assemble + render the Phase-2 demo video — the single
    most visible portfolio artifact. Tooling is assemble-ready (9302483,
    715ce85); the builder's stated precondition (v3 eval complete) is MET
-   (ADR-0061). Needs builder go-confirm; GPU render slot is now the first
-   free sim-queue item (#33 is DONE — see below).
+   (ADR-0061). Needs builder go-confirm. **✅ GPU RENDER NOW ON (ADR-0075,
+   `8568f09`): `scripts/sim_gpu_render.sh` (sourced by all boot scripts) →
+   RTX 4070 via d3d12, measured RTF 0.336→0.951 (2.8×), images identical;
+   toggle `SIM_GPU_RENDER=0`. Unblocks faster renders + 4K (ADR-0074).**
 3. **The perception lever — #35 FLOWN (ADR-0067) → #40 mount-compose is now
    the active step.** The A/B answered the availability question: a fixed
    up-tilt CLOSES the ADR-0060 FoV gap (dash-above-FoV 32% → 0%, in-FoV 61%
