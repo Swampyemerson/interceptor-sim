@@ -559,6 +559,70 @@ def cue_is_stale(last_cue_recv_sim_t, sim_now, horizon):
     return (sim_now - last_cue_recv_sim_t) > horizon
 
 
+# --- Markerless PHANTOM range-plausibility gate (camera-only false-positive
+# rejection; diagnosis ADR-0076 addenda #5/#6). Flying the quad r2l, the
+# markerless NN periodically locks a big FALSE box (a phantom) onto the
+# background; a big box reads as a SHORT implied range (meas_range from box
+# width), e.g. ~1.5 m, while the true target range is 15-20 m -- guidance
+# then chases the phantom and misses by ~7 m (l2r is fine at 81% Pk@2.5, so
+# guidance/geometry are sound; this is purely a perception false-positive).
+#
+# THE FIX: reject a fresh detection whose implied range grossly disagrees
+# with an EXPECTED range -- the S2 cue's range pre-handoff (legal: the cue
+# already feeds mid-course, ADR-0010 #4/#5), or this run's OWN alpha-beta
+# SMOOTHED camera range r_hat post-handoff (cue is latched closed, camera-
+# only). Gross-outlier bounds only (GATE_LO/GATE_HI default 0.35x/2.8x) --
+# a 1.5 m read vs a 15 m expected is 0.10x, well inside; ordinary box-width
+# noise on a real target never approaches that ratio.
+#
+# Default OFF (env unset/"0") -> phantom_range_reject() is never called with
+# gate_on True from the one call site in run_acquire_and_engage -> byte-
+# identical output. Env-tunable so a batch/gate can dial the bounds without
+# a code change.
+MARKERLESS_PHANTOM_RANGE_GATE_ENV = "MARKERLESS_PHANTOM_RANGE_GATE"
+MARKERLESS_PHANTOM_GATE_LO_ENV = "MARKERLESS_PHANTOM_GATE_LO"
+MARKERLESS_PHANTOM_GATE_HI_ENV = "MARKERLESS_PHANTOM_GATE_HI"
+PHANTOM_GATE_LO_DEFAULT = 0.35
+PHANTOM_GATE_HI_DEFAULT = 2.8
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    """Same truthy-string convention as scripts/seeker/auto_crop_seeker.py's
+    _env_bool (kept local here -- this module doesn't import that seeker
+    helper module at top level). Unset -> default; "0"/""/"false"/"no"/"off"
+    (case-insensitive) -> False; anything else -> True."""
+    v = os.environ.get(name)
+    if v is None:
+        return default
+    return v.strip().lower() not in ("0", "", "false", "no", "off")
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def phantom_range_reject(meas_range, expected_range, gate_lo, gate_hi):
+    """True if `meas_range` should be REJECTED as a range-implausible phantom
+    detection, given `expected_range` (the trusted range anchor: the S2 cue's
+    range pre-handoff, or the alpha-beta smoothed camera r_hat post-handoff --
+    see the module-level comment above this function for the full mechanism).
+
+    `expected_range` is None during warmup (no cue reading yet AND the range
+    filter hasn't initialized) -- this ALWAYS returns False in that case, so
+    a not-yet-converged estimate never blocks initial acquisition. Also False
+    if `meas_range` is None (no detection to judge) or `expected_range <= 0`
+    (degenerate -- e.g. own position exactly at the cue point).
+
+    Pure function: no I/O, no globals -- unit-tested directly, same pattern
+    as cue_is_stale() above."""
+    if meas_range is None or expected_range is None or expected_range <= 0:
+        return False
+    return meas_range < gate_lo * expected_range or meas_range > gate_hi * expected_range
+
+
 # --- MAVSDK / takeoff constants (mirrors scripts/m3_static_intercept.py's
 # own constants -- not reused via import, since M3 doesn't export these as
 # module-level names meant for reuse; they're the same numbers by design). ---
@@ -2014,6 +2078,15 @@ async def run_acquire_and_engage(
     last_cue_seq_seen = None
     tracker_correction_count = 0
     terminal_rejects = 0   # ADR-0056: ENGAGE false-lock detections gated out
+    # Phantom range-plausibility gate (ADR-0076 add #5/#6 diagnosis; see the
+    # module-level comment above phantom_range_reject() for the mechanism).
+    # Env read ONCE per run (not per tick). Default OFF ("0") -> phantom_gate_on
+    # False -> the per-tick call site below never sets fresh/detected False ->
+    # byte-identical to before this gate existed.
+    phantom_gate_on = _env_bool(MARKERLESS_PHANTOM_RANGE_GATE_ENV, False)
+    phantom_gate_lo = _env_float(MARKERLESS_PHANTOM_GATE_LO_ENV, PHANTOM_GATE_LO_DEFAULT)
+    phantom_gate_hi = _env_float(MARKERLESS_PHANTOM_GATE_HI_ENV, PHANTOM_GATE_HI_DEFAULT)
+    phantom_range_rejects = 0
     # ADR-0057 attempt-2 PROTECTED-COAST gate state (only used when
     # --terminal-coast-gate is set): coast_r is the camera-only range snapshot
     # at handoff, dead-reckoned forward and NEVER corrected by a detection
@@ -2170,6 +2243,49 @@ async def run_acquire_and_engage(
         target_tracker.predict(dt)
         if fused is not None:
             fused.predict(dt)
+        # Phantom range-plausibility gate (ADR-0076 add #5/#6): reject a fresh
+        # detection whose implied range (meas.range_m, from box width) grossly
+        # disagrees with an EXPECTED range, BEFORE any filter below applies a
+        # correction -- a rejected tick coasts exactly like a no-detection
+        # tick (mirrors the ADR-0056/0057 gates just below). Runs every phase
+        # (CUE_WAIT/DASH/ENGAGE), not ENGAGE-only, since the r2l phantom hits
+        # during DASH too. Default OFF (phantom_gate_on False) -> this whole
+        # block is a no-op -> byte-identical.
+        #
+        # expected range, in priority order:
+        #   1. PRE-handoff (not handoff_done) + a cue reading exists
+        #      (last_cue_pos) + the cue isn't stale (ADR-0059 -- a frozen far
+        #      cue must not reject a real, closing detection): the S2 cue's
+        #      range (own NED position -> cue-reported target position).
+        #      Legal pre-handoff -- the cue already feeds the mid-course.
+        #   2. Else, if the range filter has initialized: r_hat, the alpha-
+        #      beta SMOOTHED camera range (camera-only; this is the ONLY
+        #      anchor available post-handoff, since the cue channel is
+        #      latched closed at HANDOFF -- ADR-0010 #5).
+        #   3. Else (warmup: no cue reading yet AND r_hat not initialized):
+        #      expected stays None -> phantom_range_reject() always returns
+        #      False -> never gate, so initial acquisition is never blocked.
+        # (last_cue_pos/last_cue_recv_sim_t reflect the most recent cue
+        # datagram already processed -- up to one tick stale, since the cue-
+        # reading block runs later in this same loop body; negligible against
+        # the cue's own ~10 Hz rate and the gate's gross-outlier width.)
+        if fresh and phantom_gate_on and meas.range_m is not None:
+            phantom_expected = None
+            if (not handoff_done and last_cue_pos is not None
+                    and state.pos_n is not None and state.pos_e is not None
+                    and not cue_is_stale(
+                        last_cue_recv_sim_t,
+                        sim_clock.t if sim_clock is not None else None,
+                        args.cue_stale_horizon)):
+                phantom_expected = math.hypot(
+                    last_cue_pos[0] - state.pos_n, last_cue_pos[1] - state.pos_e)
+            elif range_filter.initialized:
+                phantom_expected = range_filter.x_hat
+            if phantom_range_reject(meas.range_m, phantom_expected,
+                                     phantom_gate_lo, phantom_gate_hi):
+                phantom_range_rejects += 1
+                fresh = False          # treat as no fresh detection -> coast this tick
+                detected = False       # keep the CSV/acquire bookkeeping consistent
         # ADR-0056 terminal false-lock reject gate: the markerless seeker
         # throws gross false detections at ENGAGE on a fast/maneuvering target
         # (meas range ~1.6 m while the OWN range-track predicts ~20 m, T21
@@ -3145,6 +3261,7 @@ async def run_acquire_and_engage(
         "coast_gate_rejects": coast_gate_rejects,  # ADR-0057 attempt-2 coast gate
         "coast_r": coast_r,                      # protected coast range (final)
         "handoff_cue_rejects": handoff_cue_rejects,  # ADR-0057 attempt-3 cue-validated handoff gate
+        "phantom_range_rejects": phantom_range_rejects,  # ADR-0076 add #5/#6 phantom range-plausibility gate
         "min_gt_range_running": min_gt_range_running,
         "mover_proc": mover_proc,
         "cue_proc": cue_proc,
@@ -3833,6 +3950,7 @@ async def main():
                     f"terminal_rejects={result.get('terminal_rejects', 0)} "
                     f"coast_gate_rejects={result.get('coast_gate_rejects', 0)} "
                     f"handoff_cue_rejects={result.get('handoff_cue_rejects', 0)} "
+                    f"phantom_range_rejects={result.get('phantom_range_rejects', 0)} "
                     f"coast_r={_coast_r_str} "
                     f"breakoff_reason={result['breakoff_reason'] or 'n/a'} "
                     f"aborted={result['aborted']} log={log_path}"
