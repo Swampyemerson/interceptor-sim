@@ -70,19 +70,30 @@ The realistic-quad r2l failure got a clean re-diagnosis + the last cheap levers 
 - **AUTO-CROP (ADR-0074) FLOWN (ADR-0076 add #14):** weave l2r 6/8 @2.24m ✓ (PRESERVES precision,
   unlike hardened) / r2l 1/8 @3.76m ✗; line r2l 0/8 @5.26m. Does NOT fix r2l (acquisition bootstrap,
   add #6). Exported `drone_finetuned_quad_crop.onnx`.
-- **DASH-LEAD-VELOCITY guidance fix — BUILT, TESTED, CLEANLY NULL → r2l root is PERCEPTION, ARC CLOSED.**
-  Found the r2l dash lead velocity collapses (tgt_vn_hat −0.6 vs true −12) — phantom detections corrupt
-  the tracker even when cue-gate-rejected for handoff. Built `--cue-vel-hold` (re-assert cue velocity);
-  it CLEANED the velocity (−0.6→−11.7) but **r2l Pk UNCHANGED + l2r slightly worse → lead velocity is
-  NOT the cause.** REVERTED (m4_intercept.py back to HEAD). r2l root = **aspect-biased LATE DETECTION**
-  (r2l first-det 3.64m — too late for a 12m/s crosser; AprilTag shows no r2l asymmetry). ALL levers now
-  exhausted (perception + guidance); the fix is a fundamentally BETTER SENSOR (parent-project thesis),
-  not a cheap tweak.
-- **HONEST STATE for "intercept working":** ✅ billboard 72/72 BOTH directions (line+weave, ADR-0064) —
-  the headline, DONE. ✅ realistic quad works l2r (~88% weave). ❌ quad r2l = documented hard
-  perception limit. Deployed v2 + billboard fallback UNTOUCHED.
-- **BUILDER DECISION (surface): keep investing in quad-r2l perception (a big better-sensor build) OR
-  accept the documented limit + consolidate the strong billboard result + move to T25 video / publish?**
+- **DASH-LEAD-VELOCITY fix `--cue-vel-hold` — NULL (cleaned tgt_vn_hat −0.6→−11.7 but r2l unchanged) →
+  lead velocity ruled out.** REVERTED.
+- **⭐ FABLE REVIEW (builder asked "how impossible is it?") REOPENED the arc — add #14's "fundamental
+  sensor limit" was OVERSTATED. r2l IS refinable (ADR-0076 add #15).** Fable caught: the aspect is
+  detectable at 15–18m (add #11 hardened), NOT 3.64m (that's v2 phantom-dominated box-selection); the
+  tracker POSITION was never protected. Tested Fable's TRACKER-CUE-GATE (`--tracker-cue-gate`, built
+  default-off) → NULL/regression but DECISIVE: both dirs collapse to a symmetric **~3.5m = the CUE-ONLY
+  dash floor**; l2r hits 0.94m ONLY via its REAL camera detections; r2l is capped at the cue floor
+  because its camera = the phantom. Tested IMAGE-MASK (blank the prop band) → NULL + regressed l2r →
+  **props OVERLAP the real target in IMAGE space too** → NO spatial separator works. Both REVERTED.
+- **CONVERGED: the only remaining separator is APPEARANCE.** Every spatial/downstream lever is exhausted
+  (range-gate, --track, --fuse, filters, auto-crop, cue-vel-hold, tracker-cue-gate, image-mask — all
+  null/regression). The from-scratch mining PROVED appearance works (suppressed phantom + acquired real
+  target at 15–18m) but regressed precision (unbalanced 36%-neg from-scratch).
+- **🔧 BALANCE-CORRECTED RETRAIN IN FLIGHT (Fable's #2 lever, the fix):** init from v2 (good precision) +
+  ~15% neg (`quad_dataset_rebal`) + gentle lr0 0.002 + 30ep fine-tune → suppress phantom WHILE keeping
+  precision. `train_daemon_quad_rebal.py` setsid-detached (log `train_quad_rebal_20260712T230456Z.log`,
+  sentinel REBAL_TRAIN_EXPORT_DONE, ~3-5h; export best.pt early if saturated). **VALIDATE:**
+  `scripts/quad_seeker_arm.sh scripts/seeker/weights/drone_finetuned_quad_rebal.onnx 123 weave
+  logs/mc_quad_rebal_s123_weave.csv --go` (also `--path line`). Success = r2l Pk@2.5 recovers toward l2r
+  AND l2r holds. If it ALSO regresses/fails → next is native-1280 or camera-mount (props out of FoV),
+  not before.
+- **HONEST STATE for "intercept working":** ✅ billboard 72/72 BOTH dirs (ADR-0064) = headline DONE.
+  ✅ quad l2r ~88%. 🔧 quad r2l = refinable, retrain in flight. Deployed v2 + billboard fallback UNTOUCHED.
 - Harness: `scripts/quad_seeker_arm.sh WEIGHTS SEED PATH OUT --go` (`MARKERLESS_AUTOCROP=1` for crop;
   `QUAD_ARM_EXTRA="..."` appends m4 flags for an A/B).
 
