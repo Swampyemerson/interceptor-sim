@@ -55,6 +55,19 @@ tracked-or-accepted; repo publishable on a remote.
 
 ## 📍 CURRENT (2026-07-11, live)
 
+### 🌙 OVERNIGHT AUTONOMOUS RUN (2026-07-12 ~02:30 PDT → ≥08:00, builder asleep; priority: ACCURACY + CLOSE INTERCEPTION)
+Executing the ADR-0076 fix-#3 build (raise the ~50% NN-coverage ceiling on the quad):
+1. **AUTO-CROP build (ADR-0074)** — worker coding `render_sim_dataset_crop.py` (native-640-crop dataset)
+   + a `MARKERLESS_AUTOCROP` inference mode (crop native-res around the last detection, full-frame
+   fallback when stale; gt only for offline capture labels). Then: capture crop dataset → retrain on
+   crops (imgsz 640, normal cost) → re-validate NN-only Pk. This is the real close-interception lever.
+2. **Honest NN-only 640 baseline Pk** — n=32 batch RUNNING (`mc_quad_nnonly_*`) to nail where the quad
+   really sits (~50%?) with a Wilson CI.
+3. Bank cue (ADR-0073) feasibility gate + higher-n Pk on the winner, if time.
+Config facts: quad = `fpv_quad_enemy` + `drone_finetuned_quad_v2` seeker, NN-only (drop `--track`),
+orient ON offset 0, GPU render (ADR-0075). Standard mc_batch geometry. Resume: `docs/quad_target_retrain.md`.
+NO swap (billboard baseline stands until the quad earns a Pk).
+
 ### 🎯 BUILDER CHALLENGES (2026-07-11) — 3 questions ADJUDICATED (ADR-0072, GO-WITH-CHANGES) → EXECUTING the target-realism fix
 Builder pushback on the demo/video: "we got many sub-1 m intercepts on AprilTag, where's
 the perfect-setup floor claim from? there has to be a better tracking system. The enemy
