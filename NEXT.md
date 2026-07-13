@@ -55,47 +55,50 @@ tracked-or-accepted; repo publishable on a remote.
 
 ## 📍 CURRENT (2026-07-12, live)
 
-### 🎯 SESSION 2026-07-12 (builder directive: "get first straight-line then maneuvering intercept working")
-The realistic-quad r2l failure got a clean re-diagnosis + the last cheap levers closed. State:
-- **Negative-mining CLOSED (ADR-0076 add #13, committed).** The add #11 "mining NULL" was epoch-7
-  UNDER-TRAINING (that flight never engaged, 0 ENGAGE ticks). The CLEAN fully-trained hardened seeker
-  (val mAP50 0.994, leakage-free seed 123, n=16): l2r 0/8 @2.73m (regressed), r2l 2/8 @3.29m (phantom
-  killed, not clean), overall 2/16=13% vs v2 ~44% → hard-neg injection regresses box precision. Both
-  dirs symmetric ~3m → reconfirms guidance symmetric.
-- **PHANTOM IDENTIFIED = the interceptor's OWN prop blades** at the top FoV corners (viewed a mined
-  true-neg frame). Fixed body feature; self-mask misses the inner blade tip.
-- **Why cheap filters can't separate it (pinned from flight data — do NOT re-try):** seeker range is
-  unreliable (real 4m target reads measR 1.57m = SAME as phantom at 15m) + phantom box centers overlap
-  real-target image space. So range-gate/size-cap/position-mask all fail by construction.
-- **AUTO-CROP (ADR-0074) FLOWN (ADR-0076 add #14):** weave l2r 6/8 @2.24m ✓ (PRESERVES precision,
-  unlike hardened) / r2l 1/8 @3.76m ✗; line r2l 0/8 @5.26m. Does NOT fix r2l (acquisition bootstrap,
-  add #6). Exported `drone_finetuned_quad_crop.onnx`.
-- **DASH-LEAD-VELOCITY fix `--cue-vel-hold` — NULL (cleaned tgt_vn_hat −0.6→−11.7 but r2l unchanged) →
-  lead velocity ruled out.** REVERTED.
-- **⭐ FABLE REVIEW (builder asked "how impossible is it?") REOPENED the arc — add #14's "fundamental
-  sensor limit" was OVERSTATED. r2l IS refinable (ADR-0076 add #15).** Fable caught: the aspect is
-  detectable at 15–18m (add #11 hardened), NOT 3.64m (that's v2 phantom-dominated box-selection); the
-  tracker POSITION was never protected. Tested Fable's TRACKER-CUE-GATE (`--tracker-cue-gate`, built
-  default-off) → NULL/regression but DECISIVE: both dirs collapse to a symmetric **~3.5m = the CUE-ONLY
-  dash floor**; l2r hits 0.94m ONLY via its REAL camera detections; r2l is capped at the cue floor
-  because its camera = the phantom. Tested IMAGE-MASK (blank the prop band) → NULL + regressed l2r →
-  **props OVERLAP the real target in IMAGE space too** → NO spatial separator works. Both REVERTED.
-- **CONVERGED: the only remaining separator is APPEARANCE.** Every spatial/downstream lever is exhausted
-  (range-gate, --track, --fuse, filters, auto-crop, cue-vel-hold, tracker-cue-gate, image-mask — all
-  null/regression). The from-scratch mining PROVED appearance works (suppressed phantom + acquired real
-  target at 15–18m) but regressed precision (unbalanced 36%-neg from-scratch).
-- **🔧 BALANCE-CORRECTED RETRAIN IN FLIGHT (Fable's #2 lever, the fix):** init from v2 (good precision) +
-  ~15% neg (`quad_dataset_rebal`) + gentle lr0 0.002 + 30ep fine-tune → suppress phantom WHILE keeping
-  precision. `train_daemon_quad_rebal.py` setsid-detached (log `train_quad_rebal_20260712T230456Z.log`,
-  sentinel REBAL_TRAIN_EXPORT_DONE, ~3-5h; export best.pt early if saturated). **VALIDATE:**
-  `scripts/quad_seeker_arm.sh scripts/seeker/weights/drone_finetuned_quad_rebal.onnx 123 weave
-  logs/mc_quad_rebal_s123_weave.csv --go` (also `--path line`). Success = r2l Pk@2.5 recovers toward l2r
-  AND l2r holds. If it ALSO regresses/fails → next is native-1280 or camera-mount (props out of FoV),
-  not before.
-- **HONEST STATE for "intercept working":** ✅ billboard 72/72 BOTH dirs (ADR-0064) = headline DONE.
-  ✅ quad l2r ~88%. 🔧 quad r2l = refinable, retrain in flight. Deployed v2 + billboard fallback UNTOUCHED.
+### 🎯 SESSION 2026-07-12 — realistic-quad r2l: DIAGNOSED, REFRAMED as fixable, and a validated fix-direction (ADR-0076 add #13–#16)
+Builder: "get straight-line then maneuvering intercept working." The quad's r2l 0% was a muddled,
+half-abandoned overnight thread; this session turned it into a clear, positive engineering story.
+
+**✅ POSITIVE / VALIDATED wins:**
+- **ROOT CAUSE NAILED (was guesswork).** r2l fails because the forward camera sees the interceptor's
+  OWN propeller blades as a "phantom" target (big false box reading ~1.5 m). The GUIDANCE is provably
+  symmetric; the real r2l target IS detectable early (15–18 m) once the phantom is gone. So it was never
+  a fundamental sensor/aspect limit.
+- **⭐ FABLE REVIEW paid off (head-builds/Fable-reviews).** Builder asked Fable "how impossible is it?"
+  — Fable correctly overturned an earlier "needs a better sensor" overclaim, caught a real gap (the
+  tracker POSITION was unprotected, only velocity), and pointed at the two real fixes (appearance
+  retrain / remove the phantom source). r2l is REFINABLE.
+- **⭐ CAMERA-MOUNT FIX VALIDATES THE PHANTOM REMOVAL (builder's instinct).** Moving the seeker camera
+  forward past the props (PX4 model swap, restore-after) puts the props OUT of the FOV: rendered frames
+  confirm empty top corners + target still visible; v2 then detects ONLY the real target (25 px @15 m,
+  correct range vs the old 118–386 px phantom); in flight `first_dash_detection` jumps **3.64 → 12–15 m
+  in BOTH directions**. This is the first lever to get the real r2l target acquired early.
+- **NEW TOOLING (honest, default-off, byte-identical):** `--cam-fwd-offset-m` camera lever-arm
+  correction (transforms the camera-anchored LOS/range into the vehicle frame — own yaw + a static mount
+  constant, no gt); `scripts/quad_seeker_arm.sh` reusable quad-seeker A/B arm; `scripts/experiments/
+  cam_forward*` camera variants; balance-corrected retrain scaffold (`train_daemon_quad_rebal.py`).
+- **DELIVERED CLARITY (negative results, cleanly closed → no more dead-ends to re-try):** negative-mining
+  CLOSED on a clean fully-trained test (add #13); auto-crop preserves l2r but doesn't fix r2l (add #14);
+  every spatial/downstream separator (range-gate, --track, --fuse, size/position filters, cue-vel-hold,
+  tracker-cue-gate, image-mask) is null/regression because the phantom overlaps the real target in BOTH
+  range and image space (add #15). This is why the phantom-SOURCE fix (camera-move) is the right path.
+
+**🔧 CAMERA-MOVE + LEVER-ARM (v1, yaw-only) TESTED → INSUFFICIENT (0/16), fix-direction still open.**
+Built `--cam-fwd-offset-m` (default-off lever-arm, applied to the pro-nav/tracker/fused/handoff-gate).
+Full n=16 (x=0.40, `--cam-fwd-offset-m 0.40`, v2, seed 42, weave-mirror): **l2r 0/8 @3.23 m (still
+regressed), r2l 0/8 @3.96 m, overall 0/16** (handoff rejects dropped 23→0, one 0.66 m flight, but the
+fleet did NOT recover). The phantom IS removed (early detection both dirs) but the yaw-only lever-arm
+leaves a residual parallax through the ~30° dash pitch + the 0.24 m up-offset, AND the NN was trained at
+the STOCK viewpoint (box precision degrades at the moved view). **To land it: a FULL 3-D lever-arm
+(pitch+up) AND/OR an NN re-render/retrain at the moved viewpoint — a bigger build.** `--cam-fwd-offset-m`
+kept as a default-off tool; PX4 stock camera RESTORED. **Lower-surface-area alternative: the
+balance-corrected retrain (add #15, appearance fix — no camera/guidance change).**
+
+**HONEST STATE for "intercept working":** ✅ billboard 72/72 BOTH dirs (ADR-0064) = headline DONE.
+✅ quad l2r ~88%. 🔧 quad r2l = refinable, phantom-removal validated, terminal fix in progress. Deployed
+v2 + billboard fallback UNTOUCHED.
 - Harness: `scripts/quad_seeker_arm.sh WEIGHTS SEED PATH OUT --go` (`MARKERLESS_AUTOCROP=1` for crop;
-  `QUAD_ARM_EXTRA="..."` appends m4 flags for an A/B).
+  `QUAD_ARM_EXTRA="--cam-fwd-offset-m 0.40 ..."` appends m4 flags; camera variant swapped separately).
 
 ### 🌙 OVERNIGHT AUTONOMOUS RUN (2026-07-12 ~02:30 PDT → ≥08:00, builder asleep; priority: ACCURACY + CLOSE INTERCEPTION)
 Executing the ADR-0076 fix-#3 build (raise the ~50% NN-coverage ceiling on the quad):

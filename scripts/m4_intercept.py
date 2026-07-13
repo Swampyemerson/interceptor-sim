@@ -1768,6 +1768,21 @@ def parse_args():
         help="#46: clamp on the commanded up-tilt (deg, default 35.0) — the "
              "gimbal mechanical/FoV limit.")
     parser.add_argument(
+        "--cam-fwd-offset-m", type=float, default=0.0,
+        help="ADR-0076 add #16 CAMERA LEVER-ARM (default 0.0 = OFF, byte-"
+             "identical): the seeker camera's FORWARD offset (m) from base_link "
+             "when a moved-camera airframe variant is fitted (props-out-of-FOV "
+             "phantom fix). The camera measures a camera-anchored range + LOS, "
+             "but the guidance builds the target as own_ned + range*LOS (own_ned "
+             "= base_link EKF pos) -- ignoring the offset. At the stock 0.12 m "
+             "that parallax is negligible; the ~0.4 m needed to clear the props "
+             "corrupts the close-range LOS rate (both dirs collapse to the cue "
+             "floor). This transforms the camera (range, LOS) into the base_link "
+             "frame each fresh tick: target_rel = fwd*(cos psi, sin psi) + "
+             "range*(cos lambda, sin lambda), then range_g=|.|, lambda=atan2. "
+             "Yaw-only lever arm (level flight); honesty: own yaw (EKF) + a "
+             "STATIC mount constant, NO gt_*.")
+    parser.add_argument(
         "--handoff-cue-gate", type=float, default=None,
         help="ADR-0057 attempt-3 ROOT-CAUSE fix (default None = OFF, byte-"
              "identical): the CUE-VALIDATED HANDOFF gate. The root cause of "
@@ -2329,6 +2344,22 @@ async def run_acquire_and_engage(
             lambda_meas = derotate_bearing_lambda(
                 meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad,
                 mount_up_rad=math.radians(cur_mount_up_deg))
+            # ADR-0076 add #16 CAMERA LEVER-ARM: transform the camera-anchored
+            # (range, LOS) into the base_link frame so the pro-nav LOS rate +
+            # range are the VEHICLE's own geometry -- removes the close-range
+            # parallax a big camera forward-offset otherwise injects (own_ned +
+            # range*LOS wrongly anchors at base_link when the camera is 0.4 m
+            # ahead). Default (--cam-fwd-offset-m 0.0) -> range_g = meas.range_m,
+            # lambda_meas unchanged -> byte-identical. Yaw-only lever arm along
+            # the heading; own yaw (EKF) + a static mount constant, no gt_*.
+            range_g = meas.range_m
+            if args.cam_fwd_offset_m and meas.range_m is not None:
+                _cn = args.cam_fwd_offset_m * math.cos(psi_rad)
+                _ce = args.cam_fwd_offset_m * math.sin(psi_rad)
+                _tn = meas.range_m * math.cos(lambda_meas) + _cn
+                _te = meas.range_m * math.sin(lambda_meas) + _ce
+                range_g = math.hypot(_tn, _te)
+                lambda_meas = math.atan2(_te, _tn)
             # ADR-0043 lever B: roll off the bearing-noise throughput in the
             # terminal ONLY (gain 1.0 elsewhere and by default). No-op under
             # --tracker ekf (the channel view ignores gain_scale by design).
@@ -2337,15 +2368,15 @@ async def run_acquire_and_engage(
                 gain_scale=(args.terminal_gain_scale
                             if phase == "ENGAGE" else 1.0),
             )
-            range_filter.correct(meas.range_m, tick_start)
+            range_filter.correct(range_g, tick_start)
             # PIP absolute target track (ADR-0011): own NED position (EKF,
             # own-state) + the camera relative vector in NED. The relative
             # vector uses the SAME full-attitude derotated LOS azimuth (#38,
             # lambda_meas) the pronav command frame uses: north = range*cos(lambda),
             # east = range*sin(lambda). Target info stays camera-only.
             if state.pos_n is not None and state.pos_e is not None:
-                rel_n = meas.range_m * math.cos(lambda_meas)
-                rel_e = meas.range_m * math.sin(lambda_meas)
+                rel_n = range_g * math.cos(lambda_meas)
+                rel_e = range_g * math.sin(lambda_meas)
                 target_tracker.correct(
                     (state.pos_n + rel_n, state.pos_e + rel_e), tick_start
                 )
@@ -2354,7 +2385,7 @@ async def run_acquire_and_engage(
             # is the full-attitude derotated inertial LOS azimuth (#38), exactly
             # as the guidance filter).
             if fused is not None:
-                fused.update_camera(lambda_meas, meas.range_m, tick_start)
+                fused.update_camera(lambda_meas, range_g, tick_start)
 
         # --- S2 (--handoff) external-cue consumption: CAMERA HAS PRIORITY
         # (ADR-0010 #5) -- only feed the shared tracker from the cue on a
@@ -2823,8 +2854,15 @@ async def run_acquire_and_engage(
                         and last_cue_pos is not None
                         and state.pos_n is not None and state.pos_e is not None):
                     lambda_meas_h = psi_rad + meas.bearing_rad
-                    cam_tgt_n = state.pos_n + meas.range_m * math.cos(lambda_meas_h)
-                    cam_tgt_e = state.pos_e + meas.range_m * math.sin(lambda_meas_h)
+                    # ADR-0076 add #16: anchor the camera-implied position at the
+                    # CAMERA (base_link + forward lever arm), matching the
+                    # guidance lever-arm correction, so a moved-camera offset does
+                    # not make a real detection look cue-inconsistent -> spurious
+                    # handoff rejects -> late handoff. Default 0.0 = byte-identical.
+                    cam_tgt_n = (state.pos_n + args.cam_fwd_offset_m * math.cos(psi_rad)
+                                 + meas.range_m * math.cos(lambda_meas_h))
+                    cam_tgt_e = (state.pos_e + args.cam_fwd_offset_m * math.sin(psi_rad)
+                                 + meas.range_m * math.sin(lambda_meas_h))
                     cue_gap = math.hypot(
                         cam_tgt_n - last_cue_pos[0], cam_tgt_e - last_cue_pos[1]
                     )
