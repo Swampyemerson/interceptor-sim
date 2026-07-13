@@ -1783,6 +1783,24 @@ def parse_args():
              "Yaw-only lever arm (level flight); honesty: own yaw (EKF) + a "
              "STATIC mount constant, NO gt_*.")
     parser.add_argument(
+        "--cam-left-offset-m", type=float, default=0.0,
+        help="ADR-0076 add #16 (default 0.0): the seeker camera's LEFT offset (m, "
+             "SDF/model FLU +y) from base_link — part of the FULL 3-D camera "
+             "lever arm (with --cam-fwd/up-offset-m). Tiny for x500_mono_cam "
+             "(~0.03); included for completeness. No effect unless the 3-D "
+             "lever-arm fires (any of fwd/left/up nonzero).")
+    parser.add_argument(
+        "--cam-up-offset-m", type=float, default=0.0,
+        help="ADR-0076 add #16 (default 0.0): the seeker camera's UP offset (m, "
+             "SDF/model FLU +z) from base_link. MATTERS through the ~30 deg dash "
+             "PITCH: the yaw-only lever arm (add #16 v1) missed this — at pitch "
+             "the up-offset gains a forward NED component (~up*sin(pitch)), and "
+             "the forward offset's horizontal component shrinks (~fwd*cos(pitch)). "
+             "The FULL 3-D lever arm rotates the body offset (fwd,-left,-up)_FRD "
+             "by the vehicle attitude quaternion (the SAME quat as the LOS "
+             "derotation) to NED, so the terminal geometry is correct at any "
+             "pitch. Own attitude (EKF) + static mount constants, NO gt_*.")
+    parser.add_argument(
         "--handoff-cue-gate", type=float, default=None,
         help="ADR-0057 attempt-3 ROOT-CAUSE fix (default None = OFF, byte-"
              "identical): the CUE-VALIDATED HANDOFF gate. The root cause of "
@@ -2344,20 +2362,29 @@ async def run_acquire_and_engage(
             lambda_meas = derotate_bearing_lambda(
                 meas.meas_xyz, meas.bearing_rad, state.att_quat, psi_rad,
                 mount_up_rad=math.radians(cur_mount_up_deg))
-            # ADR-0076 add #16 CAMERA LEVER-ARM: transform the camera-anchored
-            # (range, LOS) into the base_link frame so the pro-nav LOS rate +
-            # range are the VEHICLE's own geometry -- removes the close-range
-            # parallax a big camera forward-offset otherwise injects (own_ned +
+            # ADR-0076 add #16 CAMERA LEVER-ARM (FULL 3-D): transform the
+            # camera-anchored (range, LOS) into the base_link frame so the pro-nav
+            # LOS rate + range are the VEHICLE's own geometry -- removes the
+            # close-range parallax that a moved-forward camera injects (own_ned +
             # range*LOS wrongly anchors at base_link when the camera is 0.4 m
-            # ahead). Default (--cam-fwd-offset-m 0.0) -> range_g = meas.range_m,
-            # lambda_meas unchanged -> byte-identical. Yaw-only lever arm along
-            # the heading; own yaw (EKF) + a static mount constant, no gt_*.
+            # ahead). The camera body-frame offset (SDF/model FLU pose -> FRD:
+            # right = -left, down = -up) is rotated to NED by the FULL vehicle
+            # attitude quaternion -- the SAME _quat_rotate + quat the LOS
+            # derotation uses -- so the correction is right through the ~30 deg
+            # dash PITCH and the mount's UP-offset (the yaw-only v1 ignored both
+            # -> 0/16). Take the horizontal (N,E) offset. Default (all offsets
+            # 0.0) -> range_g = meas.range_m, lambda_meas unchanged ->
+            # byte-identical. Own attitude (EKF) + static mount constants, no gt_*.
             range_g = meas.range_m
-            if args.cam_fwd_offset_m and meas.range_m is not None:
-                _cn = args.cam_fwd_offset_m * math.cos(psi_rad)
-                _ce = args.cam_fwd_offset_m * math.sin(psi_rad)
-                _tn = meas.range_m * math.cos(lambda_meas) + _cn
-                _te = meas.range_m * math.sin(lambda_meas) + _ce
+            _cam_off = (args.cam_fwd_offset_m or args.cam_left_offset_m
+                        or args.cam_up_offset_m)
+            if _cam_off and meas.range_m is not None and state.att_quat is not None:
+                _off_ned = _quat_rotate(
+                    state.att_quat,
+                    (args.cam_fwd_offset_m, -args.cam_left_offset_m,
+                     -args.cam_up_offset_m))
+                _tn = meas.range_m * math.cos(lambda_meas) + _off_ned[0]
+                _te = meas.range_m * math.sin(lambda_meas) + _off_ned[1]
                 range_g = math.hypot(_tn, _te)
                 lambda_meas = math.atan2(_te, _tn)
             # ADR-0043 lever B: roll off the bearing-noise throughput in the
