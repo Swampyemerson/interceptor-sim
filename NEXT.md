@@ -89,10 +89,21 @@ Full n=16 (x=0.40, `--cam-fwd-offset-m 0.40`, v2, seed 42, weave-mirror): **l2r 
 regressed), r2l 0/8 @3.96 m, overall 0/16** (handoff rejects dropped 23→0, one 0.66 m flight, but the
 fleet did NOT recover). The phantom IS removed (early detection both dirs) but the yaw-only lever-arm
 leaves a residual parallax through the ~30° dash pitch + the 0.24 m up-offset, AND the NN was trained at
-the STOCK viewpoint (box precision degrades at the moved view). **To land it: a FULL 3-D lever-arm
-(pitch+up) AND/OR an NN re-render/retrain at the moved viewpoint — a bigger build.** `--cam-fwd-offset-m`
-kept as a default-off tool; PX4 stock camera RESTORED. **Lower-surface-area alternative: the
-balance-corrected retrain (add #15, appearance fix — no camera/guidance change).**
+the STOCK viewpoint (box precision degrades at the moved view). PX4 stock camera RESTORED.
+
+**▶ DUAL-PATH EXECUTION (in flight, 2026-07-13):**
+- **PATH B (primary — balance-corrected appearance retrain, add #15): RUNNING.** `train_daemon_quad_rebal.py`
+  setsid (init from v2, ~15% neg `quad_dataset_rebal`, lr0 0.002, 30 ep; log `train_quad_rebal_*.log`,
+  sentinel REBAL_TRAIN_EXPORT_DONE; ~2 h to a saturated best.pt — harvest early). Lower surface area (no
+  camera/guidance change). **VALIDATE:** `scripts/quad_seeker_arm.sh
+  scripts/seeker/weights/drone_finetuned_quad_rebal.onnx 123 weave logs/mc_quad_rebal_s123_weave.csv --go`.
+  Success = r2l Pk@2.5 recovers toward l2r AND l2r holds.
+- **PATH A (fallback — camera-move + FULL 3-D lever-arm): 3-D lever-arm BUILT + math-verified + committed.**
+  `--cam-{fwd,left,up}-offset-m` rotates the camera body offset by the vehicle attitude quaternion (fixes
+  the yaw-only v1's pitch/up blind spot; verified 0.400→0.468 horiz at 30° pitch). SIM-UNTESTED (gated on
+  Path B freeing the sim). To finish A if B fails: (1) re-render the quad dataset from the MOVED camera
+  viewpoint (props-out-of-FOV, clean frames) + retrain; (2) swap x=0.40 camera + fly with
+  `--cam-fwd-offset-m 0.40 --cam-up-offset-m 0.242`; (3) restore camera. Breakoff still on raw range (minor).
 
 **HONEST STATE for "intercept working":** ✅ billboard 72/72 BOTH dirs (ADR-0064) = headline DONE.
 ✅ quad l2r ~88%. 🔧 quad r2l = refinable, phantom-removal validated, terminal fix in progress. Deployed
