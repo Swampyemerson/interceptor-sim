@@ -26,8 +26,10 @@ PYTEST_ARGS=("${@:--q}")
 rc=0
 
 echo "== [1/2] main offline suite  (.venv)  =="
+# flight/tests/ = the portable real-build core (geometry + coded-dash aim); pure
+# math, no onnx/cv2, so it runs in the main suite (ADR-0076 add #18, P0.3).
 if [ -x .venv/bin/python ]; then
-    .venv/bin/python -m pytest tests/ "${PYTEST_ARGS[@]}" || rc=1
+    .venv/bin/python -m pytest tests/ flight/tests/ "${PYTEST_ARGS[@]}" || rc=1
 else
     echo "  SKIP: .venv not found"; rc=1
 fi
