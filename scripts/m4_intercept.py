@@ -291,6 +291,10 @@ ACQUIRE_MIN_S = 1.0  # ... and at least this many seconds must also have elapsed
 ACQUIRE_MAX_BEARING_DEG = 5.0
 ACQUIRE_CENTERED_STREAK = 6  # ~0.4 s of consecutive centered detections
 ACQUIRE_TIMEOUT_S = 20.0
+# --coded-dash (real-build P0.1): consecutive FRESH camera detections during the
+# open-loop dash that trigger the camera-only ENGAGE handoff (no cue to validate
+# against). ~5 at ~14 Hz detection = ~0.35 s of solid detection; tune in P0.2.
+CODED_DASH_ACQUIRE_STREAK = 5
 ENGAGE_TIMEOUT_S = 30.0
 TERMINAL_RANGE_M = 3.0  # inside this: a dropout holds the last command instead of hovering
 TERMINAL_HOLD_MAX_S = 1.0  # max time to hold-last-command through a terminal dropout
@@ -1568,6 +1572,25 @@ def parse_args():
         help="override S2 DASH_SPEED (m/s, default %.1f)" % S2["DASH_SPEED"],
     )
     parser.add_argument(
+        "--coded-dash", action="store_true",
+        help="REAL-BUILD flight architecture (ADR-0076 add #18, P0.1): DROP the "
+             "entire ground-sensor CUE stack (no CUE_WAIT / cue mock / "
+             "--fuse-midcourse / --handoff-cue-gate / coast-search) and fly an "
+             "OPEN-LOOP coded dash pointed the right way, then CAMERA-ONLY pro-nav "
+             "the instant the onboard detector acquires a settled streak (the "
+             "acquire streak IS the handoff). This is what the real interceptor "
+             "flies -- coded dash -> camera-only terminal; the ENGAGE/BREAKOFF "
+             "terminal is UNCHANGED. Mutually exclusive with --handoff.")
+    parser.add_argument(
+        "--dash-heading-deg", type=float, default=None,
+        help="--coded-dash open-loop dash azimuth, NED degrees (0=north, 90=east; "
+             "north=world_y east=world_x, ADR-0013). Default None = auto-compute "
+             "the azimuth from own start (origin) to --target-start.")
+    parser.add_argument(
+        "--coded-dash-max-s", type=float, default=8.0,
+        help="--coded-dash: max open-loop dash time (s) before abort if the camera "
+             "never acquires (default %(default)s).")
+    parser.add_argument(
         "--handoff-range", type=float, default=None,
         help="override S2 HANDOFF_RANGE_M (m, default %.1f)" % S2["HANDOFF_RANGE_M"],
     )
@@ -1906,6 +1929,11 @@ def parse_args():
 
     if args.handoff and not args.fpv:
         parser.error("--handoff requires --fpv (S2 is an FPV-speed sub-step, ADR-0010)")
+    if args.coded_dash and args.handoff:
+        parser.error("--coded-dash and --handoff are mutually exclusive front-ends "
+                     "(coded-dash = the cue-less real-build architecture: open-loop "
+                     "dash -> camera-only terminal; --handoff = the ground-sensor-"
+                     "cued sim path)")
     if args.track and args.seeker != "markerless":
         parser.error("--track requires --seeker markerless (ADR-0058 detect-then-track "
                      "wraps the markerless NN; there is no NN to track otherwise)")
@@ -2064,7 +2092,17 @@ async def run_acquire_and_engage(
         else (FusedTrack() if (args.fuse_midcourse or args.warm_handoff) else None)
     )
 
-    phase = "CUE_WAIT" if args.handoff else "ACQUIRE"
+    phase = ("CODED_DASH" if args.coded_dash
+             else ("CUE_WAIT" if args.handoff else "ACQUIRE"))
+    # --coded-dash open-loop heading (NED deg): explicit, else auto = azimuth from
+    # own start (origin) to the target's initial NED position (north=world_y,
+    # east=world_x per ADR-0013). Real interceptor: a human points the coded dash.
+    coded_dash_heading_deg = args.dash_heading_deg
+    if args.coded_dash and coded_dash_heading_deg is None:
+        _tx, _ty = (float(v) for v in args.target_start.split(",")[:2])
+        coded_dash_heading_deg = math.degrees(math.atan2(_tx, _ty))  # atan2(east, north)
+    coded_dash_start_mono = None
+    coded_dash_speed = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
     acquire_start_mono = time.monotonic()
     consecutive_fresh = 0
     centered_streak = 0
@@ -2656,6 +2694,52 @@ async def run_acquire_and_engage(
             elif acquire_elapsed > ACQUIRE_TIMEOUT_S:
                 aborted = True
                 abort_reason = f"failed to acquire tag within {ACQUIRE_TIMEOUT_S}s"
+
+        elif phase == "CODED_DASH":
+            # --coded-dash (real-build flight architecture, P0.1): fly an
+            # OPEN-LOOP dash at a fixed heading+speed (NO cue / fusion / handoff
+            # gate), nose on the dash direction so the camera looks where it is
+            # going; hand off to the CAMERA-ONLY ENGAGE terminal (UNCHANGED
+            # below) the instant the onboard detector holds a solid streak. The
+            # acquire streak IS the handoff. No "centered" gate (a moving target
+            # drifts off-boresight through an open-loop dash; pro-nav takes any
+            # bearing). Own-prop/phantom rejection is the seeker's job here
+            # (self-mask, or pair with --track) since there is no cue to validate
+            # against -- flagged as P2 hardening. Mover spawned on entry so the
+            # target is moving through the dash.
+            if coded_dash_start_mono is None:
+                coded_dash_start_mono = tick_start
+                if mover_proc is None:
+                    mover_args = [
+                        sys.executable, MOVER_SCRIPT,
+                        f"--start={args.target_start}",
+                        f"--vel={args.target_vel}",
+                        "--duration", str(args.mover_duration),
+                    ]
+                    print(f"[coded-dash] mover: {' '.join(mover_args)}")
+                    mover_proc = subprocess.Popen(mover_args, stdout=None, stderr=None)
+                print(f"[coded-dash] OPEN-LOOP dash heading={coded_dash_heading_deg:.1f} deg "
+                      f"speed={coded_dash_speed:.1f} m/s -> camera-only terminal on acquire "
+                      f"(ADR-0076 add #18)")
+            v_down = (
+                _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                if alt_m is not None else 0.0
+            )
+            _h = math.radians(coded_dash_heading_deg)
+            cmd = (coded_dash_speed * math.cos(_h), coded_dash_speed * math.sin(_h),
+                   v_down, coded_dash_heading_deg)
+            if new_meas:
+                consecutive_fresh = consecutive_fresh + 1 if meas.range_m is not None else 0
+            coded_dash_elapsed = tick_start - coded_dash_start_mono
+            if consecutive_fresh >= CODED_DASH_ACQUIRE_STREAK:
+                print(f"[coded-dash] camera ACQUIRED at t={coded_dash_elapsed:.2f}s "
+                      f"({consecutive_fresh} fresh) -> ENGAGE (camera-only terminal)")
+                phase = "ENGAGE"
+                engage_t0 = tick_start
+            elif coded_dash_elapsed > args.coded_dash_max_s:
+                aborted = True
+                abort_reason = (
+                    f"coded-dash: no camera acquire within {args.coded_dash_max_s}s")
 
         elif phase == "CUE_WAIT":
             # CUE_WAIT (S2, replaces ACQUIRE under --handoff): hover, point
