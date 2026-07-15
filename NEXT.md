@@ -53,6 +53,26 @@ with reproducible, logged numbers. Six steps, in value order:
 correctly scoped/HELD on every surface; audit backlog groomed to
 tracked-or-accepted; repo publishable on a remote.
 
+## 📍 CURRENT (2026-07-15, live)
+
+### 🔧🚁 THE PIVOT — BUILD THE REAL INTERCEPTOR (builder, 2026-07-15)
+Moving from sim-portfolio to a REAL hardware build off `docs/hardware_order_list.md`
+(~$1,089 interceptor: GEPRC Mark5 5" 6S quad, **Pixhawk 6C Mini / PX4 = the exact sim
+stack**, Pi5+Hailo YOLO11n @640, Arducam AR0234 global-shutter color cam + ~100° M12
+lens + fixed ~15° up-tilt). **Real operating model: a CODED open-loop DASH in the right
+direction → CAMERA-ONLY pro-nav terminal** (NO ground-sensor cue, NO datalink mid-course,
+NO cue-fusion/handoff-gate/coast-search). "Gear the code for that." This reframes the r2l
+saga: it was entangled with the CUE-GUIDED DASH + FusedTrack machinery the real build
+won't have; the genuine carry-over concern is CAMERA-ONLY terminal BEARING quality (the
+higher-res global-shutter cam may change it). See memory [[real-build-pivot]].
+- **IN FLIGHT:** a Fable subagent is evaluating methodology + state + deciding the concrete
+  code changes to gear for coded-dash → camera-only. Execute its plan when it returns.
+- **KEEP (transfers):** pro-nav terminal `derotate_bearing_lambda`, PX4/MAVSDK offboard,
+  the fine-tuned YOLO seeker (`drone_finetuned_v2`), the up-tilt geometry. **LIKELY CUT
+  (sim-only):** CUE_WAIT/S2-cue-mock, `--fuse-midcourse`, handoff-cue-gate, coast-search.
+- r2l ARC CONCLUDED (below) — a characterized markerless-bearing limit; reassess its
+  relevance under the coded-dash + camera-only model (much of it was cue/fused-dash).
+
 ## 📍 CURRENT (2026-07-12, live)
 
 ### 🎯 SESSION 2026-07-12 — realistic-quad r2l: DIAGNOSED, REFRAMED as fixable, and a validated fix-direction (ADR-0076 add #13–#16)
