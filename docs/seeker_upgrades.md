@@ -23,6 +23,20 @@ single fixed-forward camera (ADR-0012) and ranks them by **dollars-per-Pk-point*
 - **Therefore every "hold the target through CPA" upgrade is chasing a 2%-of-miss channel:**
   wider-FOV 2nd camera, physical/digital gimbal, higher frame rate, motion-deblur, event/DVS
   camera, terminal range sensing. **All rejected** below with the ZEM math, not on vibes.
+> **⛔ SUPERSEDED for the onboard interceptor by the 2026-07-15 coded-dash pivot
+> (ADR-0076 add #18, `docs/real_build_coded_dash.md`, Fable review 2026-07-15).**
+> The "add a narrower/longer lens first" recommendation below assumed a GROUND CUE
+> placed the target inside a small handoff basket, so trading FoV for focal length
+> was free. The real interceptor has **no cue**: it flies a coded open-loop dash and
+> the camera-only terminal must ACQUIRE a crossing target from a *roughly*-aimed
+> dash. That robustness — validated at **±30° aim error, 48/48 flights still
+> acquired** — *depends on the wide (~100°) FoV*; a narrow lens re-creates the
+> ADR-0024 "fast crosser walks out of frame, 0/12" failure. So on the real build
+> the FoV is a GUARD RAIL, not a lever. The pixels-on-target range problem is
+> instead attacked by **foveated auto-crop on native resolution** (ADR-0074, keeps
+> the wide FoV) + a **real-data fine-tune** — see the Fable review's ranked table.
+> The f_px-vs-HFOV *math* below is still correct; only the RECOMMENDATION is stale.
+
 - **The ONE seeker lever that moves Pk is longer-range ACQUISITION** — detect the tag *earlier*
   so t_go is bigger (capacity scales t_go²: acquiring at 12 m instead of 6.5 m raises capacity
   0.72 → ~4.3 m, above the worst delivered ZEM of 4.0 m). For a real seeker this is **detect
