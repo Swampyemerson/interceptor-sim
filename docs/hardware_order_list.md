@@ -26,9 +26,15 @@ safety F all still needed). The deltas that affect **what to buy**:
   failure.** In sim, the interceptor's own prop blades read as a false target
   ("phantom") the camera-only terminal can lock with no cue to veto it. Mounting the
   camera **forward of / above the prop disc** so the blades sit outside the ~100° FoV
-  designs the phantom out for free. Do the **prop-clearance geometry check** before
-  finalizing the bracket. If some intrusion is unavoidable at 100°, the phantom-free
-  retrained seeker (software) is the backup — but clearance-by-geometry is first.
+  designs the phantom out for free. **Geometry check (audited on the Mark5 Pro):** a
+  mid-deck camera CANNOT clear (prop-disc points ~35–40° off-axis, inside ±50°); only a
+  **nose-cantilever** mount (flush at the front-plate edge + ~20 mm forward) gets the blades
+  outside ~100°, and even then the margin is thin (~11° flush) and real barrel distortion
+  captures *wider* than pinhole math — so **design for the forward overhang, print a spare
+  (it's first into the ground on a bad day), and treat the bench corner-spin check (§3) as a
+  HARD gate.** ⚠️ **There is NO software fallback:** the phantom-free retrained seeker was
+  measured FAILING in flight (0/16 acquisitions, ADR-0076 add #18d — `quad_v2` stays deployed).
+  Clearance-by-geometry + the no-cue handoff hardening are the ONLY mitigations.
 - **③ Add a checkerboard calibration target** (below) — the wide M12 distorts, and every
   range/bearing is wrong until `scripts/calibrate_camera.py` runs. This is the first
   bench gate; it's ~free to print.
@@ -47,6 +53,52 @@ safety F all still needed). The deltas that affect **what to buy**:
 - **AprilTag stays the flight BASELINE seeker** (not just a sim stand-in): first real
   intercepts fly on the tag; YOLO is validated in shadow mode alongside it before it
   ever steers. So the target's AprilTag placard (E) is load-bearing, not optional.
+
+---
+
+## 0b. Pre-purchase audit (2026-07-15, Fable-reviewed + web-verified) — fixes applied + open items
+
+Verdict: **good to order after the items below.** The core interceptor stack (A–D) verified sound
+(6S closes; two-rail power correct; Pi 5 + AI HAT+ + AR0234 coherent, single NPU stream; mount
+patterns consistent; PM02-analog↔6C-Mini right; SiK/Pi UART ports + params correct; AUW/T-W
+arithmetic plausible). **Applied inline** (2 blockers + fixes):
+
+- **[BLOCKER→fixed] Target FC** SpeedyBee F405 **V5 → V4** (V5 has no official ArduPilot target). (E)
+- **[BLOCKER→fixed] Interceptor RC path** ELRS **CRSF-to-UART → SBUS-to-RC-IN**: the 6C Mini has
+  only 4 UARTs (GPS/SiK/Pi spoken for) and stock PX4 has no CRSF driver; SBUS→RC IN needs neither. (B)
+- **[fixed] Compute BEC** Pololu 5.0 V → **Matek BEC12S-PRO 5.2 V** (avoids Pi-5 undervolt throttle). (C)
+- **[fixed] Prop-clearance honesty** §0② now states there is NO software phantom fallback (the
+  retrained seeker fails in flight, add #18d) → nose-cantilever mount + a hard bench gate.
+
+**MISSING — add to the order:**
+| Item | ~Cost | Why / unblocks |
+|---|---|---|
+| **⭐ RTK GNSS pair — u-blox ZED-F9P moving-baseline (2×)** | ~$220–300 | **NON-NEGOTIABLE metrology (roadmap R4f):** the goal is a **<1 m** miss, but `field_score.py` would score CPA from two CONSUMER GNSS (M10 + M10Q) whose relative error is ~1 m — **the same size as the pass/fail bar, so the BOM as-was cannot MEASURE the goal.** An F9P moving-baseline pair (or ground high-fps optical) gets σ ≤ 0.3 m. Without it, every <1 m field claim is unfalsifiable. |
+| **Broadcast Remote ID module ×2** | ~$35–60 ea | **LEGAL:** both aircraft >250 g outdoors (US) need FAA reg + broadcast Remote ID; neither FC provides it. (Alt: a FRIA field.) |
+| **Thrust test rig** (DIY inverted on a scale) | ~$20 | §3 demands a bench T/W re-verify (and roadmap R4e: characterize real max lateral-accel — the one variable that can move the kinematic floor); nothing was listed. |
+| **Interceptor lost-model buzzer** | ~$5 | The 6C Mini has no onboard buzzer; the (E) buzzer is on the TARGET. The interceptor lands out after BREAKOFF. |
+| **M2.5 nylon standoff/screw kit** | ~$8 | Mounts the Pi 5 + AI HAT+ to the printed tray; not in the consumables kit. |
+| **IR-cut filter check on the flight M12 element** | ~$0–8 | Bare M12 kit lenses often lack IR-cut → magenta cast outdoors → hurts a color-trained YOLO. Verify or add. |
+
+*Camera-exposure note (roadmap R4d):* the motion-blur bench gate must be run at **TERMINAL LOS rates
+(≥300°/s, exposure ≤1 ms)**, not the 60°/s mid-course spec — terminal rates are 485–1870°/s and a
+5 ms exposure smears ~23 px. Confirm the AR0234 can hit ≤1 ms exposure outdoors (it's global-shutter,
+so it can — but verify the driver exposes the control).
+
+**⚠️ OPEN DECISION (yours — audit S2): two aircraft, one TX.** One TX + both RX on the same bind
+phrase REQUIRES **Model Match** (else both aircraft answer the same sticks — dangerous). But then the
+*unselected* aircraft is in RC failsafe — so while you hold the interceptor's kill, the **target has no
+independent RC kill.** Choose: **(a)** target ArduPilot continue-in-AUTO on RC-failsafe + tight geofence
+(`FS_OPTIONS`/`FENCE_ACTION`), accept no target kill during runs; or **(b)** add a 2nd cheap TX
+(RadioMaster Pocket ~$65) + a 2nd operator. Pick one before ordering.
+
+**Notes:** the (D) 22↔15-pin CSI adapter is **redundant** (the AR0234/B0353 ships a 150 mm 15→22-pin
+Pi-5 cable — keep the $6 line as a spare/length option). Order the **TX16S MKII internal-ELRS** variant.
+Lens: ~2.5 mm ≈ 98° / ~2.7 mm ≈ 94° on the AR0234 — fit 2.5 mm, calibrate, pick nearest fx≈540@1280.
+Pin the flight Pi's kernel (Arducam Pivariety driver is kernel-fragile).
+
+**Net price delta:** roughly **+$250–400** over the prior ~$1,936 (RTK pair dominates; V4/BEC swaps save
+a little) — the RTK is what makes the <1 m goal *measurable*, so it's load-bearing, not optional.
 
 ---
 
@@ -72,7 +124,7 @@ safety F all still needed). The deltas that affect **what to buy**:
 |---|---|---|---|---|---|
 | Holybro Pixhawk 6C Mini (STM32H743, FMUv6C) | 1 | $131 | $131 | Holybro / GetFPV | **The exact stack the sim validated** — native PX4 + OFFBOARD/MAVLink → params & guidance transfer directly. Buy the kit with the cable set. Vibration-mount it (not a stack board). |
 | Holybro M10 GPS + IST8310 compass | 1 | $45 | $45 | Holybro / GetFPV | GPS + mag for outdoor position hold + the target's box mission. JST-GH to GPS1; mount on a short mast (compass EMI). |
-| RadioMaster RP3 ELRS 2.4GHz diversity nano RX | 1 | $22 | $22 | RadioMaster / RDQ | 2-antenna link holds through hard terminal maneuvers. CRSF to a Pixhawk UART. **Must match the ELRS TX (F) — same firmware + bind phrase.** |
+| RadioMaster RP3 ELRS 2.4GHz diversity nano RX | 1 | $22 | $22 | RadioMaster / RDQ | 2-antenna link holds through hard terminal maneuvers. **Flash it to SBUS output (ELRS ≥3.3.0) and wire to the 6C Mini's dedicated RC IN pin — NOT a UART.** Two verified reasons (Holybro 6C Mini + PX4 docs): the Mini has only 4 UARTs (GPS1=GPS, TELEM1=SiK, TELEM2=Pi → only GPS2 free), and **stock PX4 has no CRSF driver** (CRSF needs a custom firmware build). SBUS → RC IN uses stock PX4, consumes zero UARTs, keeps GPS2 as a spare. Loses CRSF link-stats *in the PX4 logs* only (fine — this link is kill/arm-only, §0⑤). **Must match the ELRS TX (F) — same firmware + bind phrase.** |
 | SanDisk High Endurance 64GB microSD (FC logs) | 1 | $12 | $12 | Amazon / Best Buy | PX4 writes ULog flight logs here — your portfolio proof. High-Endurance survives sustained sequential writes. |
 
 **Subtotal (B): ~$210**
@@ -90,7 +142,7 @@ safety F all still needed). The deltas that affect **what to buy**:
 | Arducam M12 lens set (10 lenses, 20–180°) | 1 | $30 | $30 | Arducam / Amazon | Fit the ~2.5–2.8mm element for the sim's **~100° HFOV** (stock B0353 lens is only ~90°). **Fit ONLY the wide element — the ~100° FoV is a coded-dash REQUIREMENT (§0①), not a tunable; keep the narrow/long lenses as spares, do NOT fly them.** Wide M12 distorts → **checkerboard calibration mandatory** (`scripts/calibrate_camera.py`; `flight/camera.py` undistorts). |
 | 3D-printed up-tilt + **prop-clearance** camera mount (up-tilt 10–30°, detent ~15°; camera fwd/up of the prop disc) | 1 | $0–15 | $0–15 | Self-print, or JLCPCB/Craftcloud print service | Sets the sim's **up15 tilt (ADR-0067)** AND pushes the camera **forward/above the prop disc so the blades sit outside the ~100° FoV** — the $0 fix for the own-prop phantom (§0②). **Run the prop-clearance geometry check before printing final.** PETG/ABS for outdoor heat. $12 buy-bracket if no printer (verify it clears props at 100°). |
 | Checkerboard calibration target (printed 9×6 inner-corner board on rigid backing) | 1 | $0–8 | $0–8 | Copy shop + foamboard, or Amazon calibration board | **Required before any range/bearing transfers** (§0③): feeds `scripts/calibrate_camera.py` → intrinsics + distortion for `flight.camera`. Print flat, mount rigid, known square size. A pre-printed board (~$8) is flatter than home print. |
-| Dedicated compute BEC — Pololu D36V50F5 (6S→5V/5.5A) | 1 | $25 | $25 | Pololu | **Two-rail rule:** powers ONLY the Pi + camera, never off the FC BEC. Pi 5 wants 5.1V → short 16 AWG wire + 1000µF cap + `usb_max_current_enable=1`; if undervolt flags appear, swap to a 5.2V-adjustable UBEC (Matek BEC12S-PRO). |
+| Dedicated compute BEC — **Matek BEC12S-PRO (9–55V→5.2V, 5A cont/9A peak)** | 1 | $16 | $16 | Matek / GetFPV | **Two-rail rule:** powers ONLY the Pi + camera, never off the FC BEC. **Buy the 5.2V Matek up front, NOT the 5.0V Pololu** — measured Pi 5 + Hailo load is only ~2.7A (5.5A was never the risk), but the Pi 5 undervolts at ~4.75V and a flat 5.0V rail loses that margin across wiring/connector resistance → mid-terminal CPU throttle → YOLO FPS collapse. 5.2V default fixes it at the source. Short 16 AWG + 1000µF cap + `usb_max_current_enable=1`. |
 | SanDisk Extreme 128GB A2/U3 microSD (Pi OS + logs) | 1 | $18 | $18 | Amazon / Best Buy | Pi boot + vision stack + telemetry logging. **A2/U3** for OS random-IO (do NOT use an A1 High-Endurance card here). |
 | † Official Pi 27W USB-C PD supply (bench) | 1 | $12 | $12 | PiShop / Adafruit | Bench power for headless dev/flashing before the drone BEC is wired; guarantees full 5A. |
 
@@ -121,7 +173,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 
 | Item | Qty | ~Unit | ~Line | Where | Why + key compatibility |
 |---|---|---|---|---|---|
-| SpeedyBee F405 V5 55A 30×30 FC+ESC stack (flash ArduCopter) | 1 | $75 | $75 | SpeedyBee / GetFPV | Cheapest well-supported GPS autopilot for a box mission. Runs **ArduPilot, not PX4 — fine, it's just a mover.** 3–6S, ELRS via CRSF, GPS via UART. |
+| SpeedyBee F405 **V4** 55A 30×30 FC+ESC stack (flash ArduCopter) | 1 | $65 | $65 | SpeedyBee / GetFPV | Cheapest **officially ArduPilot-supported** GPS autopilot for a box mission (ardupilot.org "SpeedyBee F4 V3/V4" — **the V5 has NO official ArduPilot target as of early 2026, only an unofficial custom build; don't gamble the target's whole job on it**; re-check the V5 hwdef at order time). Runs ArduPilot, not PX4 — fine, it's just a mover. 3–6S, RC via SBUS, GPS via UART. |
 | Emax ECO II 2207 1900KV motors | 4 | $16 | $64 | GetFPV / Amazon | Budget 6S 5" motors; same class as the interceptor so **spares interchange.** |
 | Budget 5" carbon frame (GEPRC Mark4 or equiv ~220mm) | 1 | $40 | $40 | GetFPV / Pyrodrone | Flat top plate for the tag placard standoff. Shares props/motors with the interceptor. |
 | Matek M10Q-5883 GNSS + compass | 1 | $28 | $28 | GetFPV / ReadyMadeRC | Makes the outdoor box repeatable + GPS-aligned to the interceptor. UART to the F405. |
@@ -214,7 +266,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 - **Mount patterns:** frame **30.5×30.5** (ESC/stack) + **20×20**; motors **16×16 M3**; props **M5 T-mount** (buy CW+CCW).
 - **AUW vs thrust:** design AUW ~950 g, static thrust ~6.0 kg → **T/W ≈ 6.3:1** (worst case ~1.1 kg → ≈5.5:1). Meets the **≥5:1** hard target — but **re-verify on a bench thrust stand** at the real loaded weight; if motors/ESC run hot, drop to 1755KV and/or 5×4.3×3 props.
 - **Camera interface:** MIPI CSI-2, global shutter, **~100° HFOV M12 lens (REQUIRED — do not fit a narrow lens, §0①)**, **checkerboard calibration mandatory** before any range number transfers (real lens distorts; the sim is a zero-distortion pinhole — `flight/camera.py` undistorts).
-- **Prop clearance (§0②):** with the camera on its final mount at ~100° FoV, **confirm the prop blades fall OUTSIDE the frame** (bench: point at a plain wall, spin props at idle, check the corners). Blades in-frame = the phantom failure mode; fix by moving the camera forward/up before flight, else ship the phantom-free retrained seeker.
+- **Prop clearance (§0②) — HARD GATE:** with the camera on its final **nose-cantilever** mount at ~100° FoV, **confirm the prop blades fall OUTSIDE the frame** (bench: point at a plain wall, spin props at idle, check the corners). Blades in-frame = the phantom failure mode with **no software fallback** (the phantom-free seeker fails in flight, add #18d) → move the camera further forward/up before flying.
 - **Compute power + cooling:** **dedicated ≥5A / 5.1V BEC, physically separate from the FC BEC (two-rail rule)**; active cooler is mandatory; `usb_max_current_enable=1`.
 - **FC↔Pi UART:** TELEM2 ↔ Pi GPIO14/15, **both 3.3V (no level shifter)**, 921600, TX/RX crossed; set `MAV_1_CONFIG=TELEM2` and free the Pi's serial console.
 - **Power module = analog PM02** (NOT the digital PM02D — that's for the 6X).
