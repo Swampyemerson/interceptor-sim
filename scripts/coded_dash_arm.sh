@@ -26,7 +26,7 @@ export MC_SEEKER="${QUAD_ARM_SEEKER:-markerless}"
 export MC_VENV_PYTHON="$REPO/.venv-seeker/bin/python"
 export MARKERLESS_NN_WEIGHTS="$WEIGHTS"
 # quad banks (orient to velocity, nose +X -> offset 0); fair weave (both cross NEAR)
-export INTERCEPTOR_ORIENT_TO_VEL=1
+export INTERCEPTOR_ORIENT_TO_VEL="${QUAD_ARM_ORIENT:-1}"  # 0 for the AprilTag control (a directional tag goes edge-on/invisible under orient-to-vel)
 export INTERCEPTOR_ORIENT_YAW_OFFSET_DEG=0
 export INTERCEPTOR_WEAVE_MIRROR=1
 # NO cue: mode m4 spawns no cue mock; --coded-dash reads no cue. --dash-unclamp
