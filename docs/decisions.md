@@ -1936,6 +1936,15 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
     | +15° | r2l | 8/8 | **7/8** | **1.60** | **−1.08 (IMPROVES)** |
 
     **Every flight still ACQUIRES at +15°** — the architecture is robust to a large aim error, strong evidence the hand-programmed dash concept is viable. The signed +15° biases r2l's aim EAST, which *compensates* the r2l bearing under-commit-east (Pk 5/8→7/8, mean 2.68→1.60 m) while mildly loosening l2r (still 8/8 @Pk) — so combined Pk@2.5m actually RISES 13/16→15/16. This independently CONFIRMS the r2l residual is an east-aim deficit (add #17/#18 mechanism) and exposes a deliberate east-bias as a genuine r2l lever (asymmetric — would cost l2r). NEXT: bound the tolerance with a larger error (+30° breaks l2r?), then a target-position-error sweep.
+  - **add #18c (2026-07-15) — the FULL heading-error tolerance envelope (48 flights, 0°/+15°/+30°, paired weave/seed-123/quad_v2):**
+
+    | heading err | l2r acquire | l2r Pk@2.5 | l2r miss | r2l acquire | r2l Pk@2.5 | r2l miss |
+    |---|---|---|---|---|---|---|
+    | 0° | 8/8 | 8/8 | 1.37 | 8/8 | 5/8 | 2.68 |
+    | +15° | 8/8 | 8/8 | 2.33 | 8/8 | 7/8 | 1.60 |
+    | +30° | 8/8 | **0/8** | 3.25 | 8/8 | **8/8** | **0.78** |
+
+    Three clean conclusions for the real build: **(1) ACQUISITION is robust to ≥30° aim error — all 48 flights acquired and engaged** regardless of how far off the open-loop dash pointed (the camera terminal locks once the crossing target enters frame; the hand-programmed dash needs only to point roughly right). **(2) l2r's Pk tolerance is ~15–20°** — in-gate through +15°, out by +30° (miss walks 1.37→2.33→3.25 m, a tight 3.20–3.29 cluster = a consistent over-lead, not a scatter). **(3) r2l improves MONOTONICALLY with a clockwise (east) aim bias — 2.68→1.60→0.78 m, Pk 5/8→7/8→8/8** — so the r2l residual is a *systematic, fully-correctable east-aim deficit* (the aspect-biased r2l bearing under-reads the east LOS; the terminal under-commits east; a matching east correction erases it), NOT a stochastic perception floor. **r2l LEVER (real, not yet built):** a deliberate east-ward bias applied ONLY on the r2l aspect (keyed on the known crossing direction, or better on the aspect-biased bearing itself, ADR-0056) recovers r2l to sub-meter without touching l2r. This is the honest remaining lever for the residual; a blind global heading bias trades l2r for r2l (this geometry's +15° nets best, 15/16, but is geometry-specific). Data: `logs/mc_coded_dash_qv2_weave_herr+{15,30}.csv`, `scripts/coded_dash_summary.py`.
 
 ## ADR-0077 — PHANTOM RANGE-PLAUSIBILITY GATE (r2l phantom fix, 2026-07-12 overnight): reject a markerless camera detection whose implied range grossly disagrees with the expected range (S2 cue pre-handoff / alpha-beta r_hat post-handoff). Env `MARKERLESS_PHANTOM_RANGE_GATE`, DEFAULT-OFF, byte-identical. Direct fix for the ADR-0076 r2l 0/16 failure (phantom reads 1.5 m at 15 m true).
 

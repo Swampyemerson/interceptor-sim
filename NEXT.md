@@ -82,6 +82,18 @@ higher-res global-shutter cam may change it). See memory [[real-build-pivot]].
   ADR-0076 add #17 ("no fix reaches r2l"): removing the fused dash — not a lead patch —
   recovers ~1.3 m; the residual r2l gap is the ADR-0056 bearing aspect-bias. **This is the
   number that matters for the hardware (no cue on it).** (`logs/mc_coded_dash_qv2_weave.csv`)
+- **⭐ ROBUSTNESS envelope (ADR-0076 add #18b/c, 48 flights, heading err 0/+15/+30°):**
+  **acquisition survives ≥30° aim error — ALL 48 flights acquire+engage** (the hand-programmed
+  dash only has to point roughly right; the camera terminal does the rest). l2r Pk tolerance
+  ~15–20° (8/8 @+15°, 0/8 @+30°); **r2l improves monotonically with clockwise/east bias →
+  8/8 Pk @0.78 m by +30°**, proving the r2l residual is a *systematic, fully-correctable
+  east-aim deficit*, not a perception floor. **r2l LEVER (real, unbuilt):** a deliberate
+  east-bias on the r2l aspect recovers r2l to sub-meter without touching l2r.
+- **✅ P0.3 flight/ core COMPLETE + WIRED:** portable `flight/` (geometry LOS-derotation +
+  alpha-beta estimator + coded-dash aim + closing-speed + pro-nav law + Brown-Conrady lens
+  undistortion), 25 tests, NO gz/gt/cue deps → runs on the real Pixhawk/Pi. m4's coded-dash
+  aim now CALLS `flight.guidance` (byte-identical). `flight/camera.py` = the honesty-critical
+  wide-M12 undistortion (raw-pixel bearing is wrong toward frame edges).
 - **KEEP (transfers):** pro-nav terminal `derotate_bearing_lambda`, PX4/MAVSDK offboard,
   the fine-tuned YOLO seeker, the up-tilt geometry. **CUT under coded-dash (sim-only):**
   CUE_WAIT/S2-cue-mock, `--fuse-midcourse`, handoff-cue-gate, coast-search.
