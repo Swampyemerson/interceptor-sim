@@ -96,6 +96,35 @@ portable `flight/` core + camera pipeline + the hardware build path).
   undistortion), 25 tests, NO gz/gt/cue deps → runs on the real Pixhawk/Pi. m4's coded-dash
   aim now CALLS `flight.guidance` (byte-identical). `flight/camera.py` = the honesty-critical
   wide-M12 undistortion (raw-pixel bearing is wrong toward frame edges).
+
+### 🔬 SEEKER real-build roadmap (Fable review, 2026-07-15 — NN detection + real drones + range)
+Full review in the session transcript; actionable distillation:
+- **#1 [SIM, RUNNING]** Re-A/B the phantom-free `rebal` seeker vs `quad_v2` UNDER CODED-DASH.
+  KEY INSIGHT: the "phantom-removal regresses l2r" verdict (add #17) was measured under the
+  CUE architecture, where the phantom incidentally helped by delaying handoff onto a cue-made
+  kill. **No cue exists in coded-dash → the phantom is pure liability** (can trigger a false
+  5-streak handoff with nothing to veto it). If rebal ≥ v2 combined Pk here, the HARDWARE
+  ships a phantom-free seeker. (`logs/mc_coded_dash_rebal_weave.csv`)
+- **#2 [SIM, next]** Harden the coded-dash handoff for the no-cue world: require the 5-streak
+  detections to be RANGE-CONSISTENT with each other + a pre-flight range-plausibility window
+  (honest launch-geometry constants, same class as the collision-lead heading). De-risks the
+  #1 TRANSFER RISK: a confident phantom STEERS the airframe (vs acquisition-fail which safely
+  times out). Gate: phantom-seeded false-handoff → 0 without dropping real acquisitions.
+- **#3 [SIM]** Auto-crop under coded-dash (crop weights exist, `drone_finetuned_quad_crop.onnx`)
+  — ADR-0074 range lever; watch the phantom-seeds-the-crop failure (add #14, which #1 removes).
+- **REAL-DRONE PLAN (staged):** A bench (calibrate RMS≤1px → AprilTag detect+motion-blur ramp
+  → Hailo yolo11n compile+fps → hard-negatives from the real mount AFTER the prop-clearance
+  geometry check — design props OUT of FOV = the $0 phantom root-fix). B target-drone data +
+  retrain (init from COCO-pretrained NOT sim weights; ~15-20% negs per the rebal lesson;
+  **validate on held-out FLIGHTS not random frames — the v3-NULL guardrail, ADR-0061**).
+  C live intercepts: AprilTag seeker FIRST, YOLO in SHADOW MODE (log-only) to measure real
+  bearing-σ/phantom-rate/R_acq at zero risk, THEN YOLO-guided.
+- **RANGE ("interceptor distance") levers, ranked:** ① foveated auto-crop on native res
+  (keeps wide FoV, ~1.5-2× R_acq, near-free — DO FIRST); ② real-data fine-tune (the real
+  acquisition lever, unknowable until measured); ③ up-tilt (+2-3m, already bought). **GUARD
+  RAIL: do NOT buy a narrow lens** — the ±30° coded-dash aim tolerance NEEDS the wide FoV
+  (seeker_upgrades.md rec marked SUPERSEDED). Real first target flies STRAIGHT legs ≥2 m/s
+  (the easy ADR-0038/0042 regime), not the 12 m/s weave the sim stress-tested.
 - **KEEP (transfers):** pro-nav terminal `derotate_bearing_lambda`, PX4/MAVSDK offboard,
   the fine-tuned YOLO seeker, the up-tilt geometry. **CUT under coded-dash (sim-only):**
   CUE_WAIT/S2-cue-mock, `--fuse-midcourse`, handoff-cue-gate, coast-search.
