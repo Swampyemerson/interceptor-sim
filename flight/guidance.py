@@ -71,3 +71,28 @@ def collision_lead_heading(target_pos, target_vel, dash_speed, origin=(0.0, 0.0)
         lx, ly = px, py  # uncatchable by pure lead -> aim at initial position
     heading_deg = math.degrees(math.atan2(lx - ox, ly - oy))  # atan2(east, north)
     return heading_deg, t_lead
+
+
+def closing_speed(rdot_hat, floor):
+    """Closing speed Vc for the pro-nav command: -Rdot once it exceeds `floor`,
+    else the floor. Rationale (m4 dev-run T012356Z): the range-rate estimate
+    starts ~0 from hover and lags under sparse detection, so without a floor the
+    pro-nav lead `N*Vc*lambda_dot` builds at a fraction of strength early and the
+    target's LOS walks out of frame before the lead catches up. Measured -Rdot
+    takes over the moment it exceeds the floor. `rdot_hat` may be None (range
+    filter not yet initialized) -> return the floor."""
+    if rdot_hat is None:
+        return floor
+    return max(floor, -rdot_hat)
+
+
+def pronav_lateral_accel(n_gain, vc, los_rate):
+    """Proportional-navigation lateral acceleration command: a = N * Vc * lambda_dot,
+    where N is the navigation gain (typ. 3-5), Vc the closing speed, and lambda_dot
+    the inertial LOS azimuth rate. The classic missile-guidance law: command
+    acceleration proportional to the line-of-sight rotation rate, which drives
+    lambda_dot -> 0 (a collision course). `los_rate` may be None (LOS filter not
+    initialized) -> 0.0."""
+    if los_rate is None:
+        return 0.0
+    return n_gain * vc * los_rate

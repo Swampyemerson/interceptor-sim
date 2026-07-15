@@ -6,7 +6,11 @@ standalone (exit 0/1) or under pytest.
 
 import math
 
-from flight.guidance import collision_lead_heading
+from flight.guidance import (
+    collision_lead_heading,
+    closing_speed,
+    pronav_lateral_accel,
+)
 
 
 def test_flight0_lead():
@@ -57,9 +61,27 @@ def test_explicit_origin_offset():
     assert abs(t - 0.5) < 1e-6, t
 
 
+def test_closing_speed_floor_and_measured():
+    """Vc = floor until -Rdot exceeds it, then -Rdot; None -> floor."""
+    assert closing_speed(None, 1.5) == 1.5           # filter not up
+    assert closing_speed(-0.5, 1.5) == 1.5           # -Rdot=0.5 < floor
+    assert closing_speed(-4.0, 1.5) == 4.0           # -Rdot=4.0 > floor
+    assert closing_speed(3.0, 1.5) == 1.5            # positive Rdot (opening) -> floor
+
+
+def test_pronav_law():
+    """a = N * Vc * lambda_dot; None LOS rate -> 0."""
+    assert pronav_lateral_accel(4.0, 10.0, 0.05) == 4.0 * 10.0 * 0.05
+    assert pronav_lateral_accel(4.0, 10.0, 0.0) == 0.0
+    assert pronav_lateral_accel(4.0, 10.0, None) == 0.0
+    # sign follows lambda_dot (steer to null the LOS rotation)
+    assert pronav_lateral_accel(4.0, 10.0, -0.05) < 0.0
+
+
 ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_north,
        test_uncatchable_falls_back_to_initial, test_lr_rl_mirror_symmetry,
-       test_explicit_origin_offset]
+       test_explicit_origin_offset, test_closing_speed_floor_and_measured,
+       test_pronav_law]
 
 if __name__ == "__main__":
     import sys
