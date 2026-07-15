@@ -90,10 +90,13 @@ at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.
   (4/8 never lock → R3 crop / real-data). Mirror confirmed: l2r optimum −30° → 1.58 m (2/5 @1.5, still
   acq-limited). **✅ BUILT `--dash-crossing-bias-deg` (add #18e): auto-keys the bias sign on the crossing
   direction (dash × --target-vel, a pre-flight constant) → r2l +bias / l2r −bias in one config.
-  VALIDATED seed 123: r2l 8/8 cam-guided, median 0.52 m, Pk@1.0 6/8, best 0.40 m = KILL RANGE; l2r
-  acq-limited 3/8, median 1.40 m; combined median 0.83 m, Pk@1.0 6/11, @2.5 10/11** (vs baseline l2r 2.16
-  / r2l 3.46, Pk@2.5 3/12). So the markerless **r2l kill is demonstrated in sim**; l2r is bottlenecked by
-  ACQUISITION (→ R3). 2nd-seed (777) validation running. (`logs/mc_coded_dash_qv2_line9_xbias30_s123.csv`.)
+  VALIDATED on 2 seeds (123+777, n=16/dir pooled — the single-seed "6/8 @1m" was optimistic, 2nd seed
+  corrected it):** r2l **median 0.72 m, Pk@1.0 9/16 (56%), Pk@1.5 11/16, best 0.37 m** — a big gain off
+  the 3.46 m baseline, best flights make CONTACT, but at the EDGE of kill range, not yet reliable; l2r
+  acq-limited (8/16 lock), median 1.50 m, Pk@1.0 1/8. Combined median 1.27 m, Pk@2.5 23/24. So the
+  per-direction aim fix substantially closes the gap (esp. r2l), but a RELIABLE markerless kill isn't
+  demonstrated yet — r2l borderline, l2r bottlenecked by ACQUISITION (→ R3).
+  (`logs/mc_coded_dash_qv2_line9_xbias30_s{123,777}.csv`.)
   **AprilTag control ABANDONED:** the
   directional ~6 m-range tag is invisible during a 16 m/s crossing dash (0 detections) — a worse seeker
   than the NN here, can't be the "best-bearing" yardstick (reinforces the markerless-NN rationale).
