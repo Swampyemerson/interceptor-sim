@@ -37,7 +37,7 @@ DRYFLAG=""
 [ "$MODE" = "--dry-run" ] && DRYFLAG="--dry-run"
 echo "[coded-dash-arm] weights=$WEIGHTS seed=$SEED path=$PATHMODE out=$OUT mode=$MODE"
 exec scripts/mc_batch.sh \
-    --mode m4 --laws pronav --path "$PATHMODE" --speeds 12.0 --n "${QUAD_ARM_N:-16}" --directions both \
+    --mode m4 --laws pronav --path "$PATHMODE" --speeds "${QUAD_ARM_SPEED:-12.0}" --n "${QUAD_ARM_N:-16}" --directions both \
     --y0-mag 14.0 --x0 6.5 --master-seed "$SEED" \
     --extra-args "$EXTRA_ARGS_STR" \
     --out "$OUT" $DRYFLAG
