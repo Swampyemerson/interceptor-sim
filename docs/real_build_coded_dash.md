@@ -1,0 +1,133 @@
+# The real interceptor: coded-dash → camera-only (build reference)
+
+*Consolidates the 2026-07-15 real-build pivot (ADR-0076 add #18a–c, memory
+`real-build-pivot`). This is the operating model the physical interceptor in
+`docs/hardware_order_list.md` actually flies — it supersedes the cue-guided /
+FusedTrack architecture of `deployment_phases_design_brief.md` and
+`phase2_sim_to_real_plan.md` for the onboard interceptor (those remain the
+reference for the parent project's ground-sensing half).*
+
+## Operating model (one line)
+
+**A CODED, open-loop DASH pointed roughly at the target, then a CAMERA-ONLY
+proportional-navigation terminal to impact.** No ground-sensor cue, no datalink
+mid-course, no cue-fusion / handoff-gate / coast-search. The dash is
+hand-programmed (or fired on a rough ground bearing); the onboard camera does the
+rest.
+
+Phase machine (in `scripts/m4_intercept.py --coded-dash`, and the target of the
+`flight/` port): `TAKEOFF → CODED_DASH → ENGAGE → BREAKOFF → LAND`.
+- **CODED_DASH** — fly a fixed heading + speed. Auto-heading solves the
+  collision-lead azimuth from the *known* launch kinematics (a pre-flight
+  constant, not a live sensor read — honesty boundary intact); `--dash-heading-deg`
+  overrides it (the "human points it" case). Hand off the instant the detector
+  holds 5 consecutive fresh detections.
+- **ENGAGE** — the unchanged camera-only pro-nav terminal: `a = N·Vc·λ̇` on the
+  full-attitude-derotated LOS. `BREAKOFF` past closest approach; `LAND`.
+
+## Why the pivot (what it fixed)
+
+The sim spent weeks on the realistic-quad **r2l** failure inside the cue-guided
+pipeline (ADR-0076 add #13–#17). The real interceptor has **no cue**, so much of
+that debugging was on machinery the hardware won't have. Testing the actual flight
+architecture (coded-dash) both re-scoped the problem and *improved* it.
+
+### Validation — paired A/B (quad_v2, seed 123, weave, n=8/dir, geometry byte-identical)
+
+| architecture | dir | acquire | Pk@2.5 m | miss mean (m) |
+|---|---|---|---|---|
+| cue-guided (full deployment cfg) | l2r | 8/8 | 8/8 | 0.61 |
+| cue-guided | r2l | 8/8 | **0/8** | 3.97 |
+| **coded-dash** | l2r | 8/8 | 8/8 | 1.37 |
+| **coded-dash** | r2l | 8/8 | **5/8** | 2.68 |
+
+The saga's "r2l 0%" was **0/8 inside the 2.5 m Pk gate** (it engaged 8/8 but at
+3.25–4.27 m), *not* a no-engagement null. Dropping the fused dash (which
+under-committed east because the aspect-biased r2l bearing corrupted its aim)
+lifts **r2l 0/8 → 5/8 @Pk, mean 3.97 → 2.68 m**. Cost: l2r loosens 0.61 → 1.37 m
+(the cue genuinely helped l2r) but stays 8/8 @Pk. Net: the 6.5× l2r/r2l asymmetry
+collapses to 2×; combined Pk@2.5 m **8/16 → 13/16**. *This is the number that
+matters for the hardware — no cue exists on it.* Data:
+`logs/mc_coded_dash_qv2_weave.csv` vs `logs/mc_quad_v2_s123_weave.csv`;
+`scripts/coded_dash_summary.py` reproduces the table.
+
+### Robustness — the hand-programmed dash carries operator aim error
+
+Heading-error sweep (`--dash-heading-err-deg`, 48 flights over 0/+15/+30°):
+
+| heading err | l2r Pk@2.5 | l2r miss | r2l Pk@2.5 | r2l miss |
+|---|---|---|---|---|
+| 0° | 8/8 | 1.37 | 5/8 | 2.68 |
+| +15° | 8/8 | 2.33 | 7/8 | 1.60 |
+| +30° | 0/8 | 3.25 | **8/8** | **0.78** |
+
+1. **Acquisition survives ≥30° aim error** — all 48 flights acquired and
+   engaged. The dash only has to point *roughly* right; the camera terminal
+   finds the target once it enters frame. This is the core viability result.
+2. **l2r Pk tolerance ≈ 15–20°.**
+3. **r2l improves monotonically with east bias** → sub-meter 8/8 @0.78 m by +30°.
+   So the r2l residual is a *systematic, fully-correctable east-aim deficit*, not
+   a stochastic perception floor.
+
+## The portable core — `flight/` (runs identically in sim and on the Pi)
+
+Pure Python + `math`, **no gz / ground-truth / cue imports** → the same code
+flies in Gazebo SITL and on the real Pixhawk-6C/PX4 + Pi5. 25 tests
+(`scripts/run_tests.sh`), and `m4_intercept.py` already calls `flight.guidance`
+for its coded-dash aim (byte-identical).
+
+| module | what it is | hardware role |
+|---|---|---|
+| `flight/geometry.py` | camera→body→NED LOS derotation (full attitude + mount tilt), `wrap_pi` | turns a camera bearing + EKF attitude into an inertial LOS azimuth |
+| `flight/estimator.py` | alpha-beta (g-h) tracker for the λ and R channels + Kalata adaptive gains | smooths the noisy, intermittent LOS/range for pro-nav |
+| `flight/guidance.py` | `collision_lead_heading` (coded-dash aim), `closing_speed`, `pronav_lateral_accel` (`a=N·Vc·λ̇`) | the dash aim + the terminal guidance law |
+| `flight/camera.py` | pinhole + Brown-Conrady lens model; `pixel_to_ray` / `pixel_to_bearing` | **undistorts** the wide-M12 pixel before the bearing (see below) |
+
+The perception→guidance chain on hardware:
+`pixel (YOLO/AprilTag) → CameraModel.pixel_to_ray → derotate_bearing_lambda →
+AlphaBetaFilter → pronav_lateral_accel`.
+
+## Camera pipeline (calibrate → model → bearing) — closed and validated
+
+The real Arducam AR0234 + ~100° M12 lens **barrel-distorts**; a bearing from a raw
+pixel is wrong toward the frame edges (>1° at the edge on a representative model)
+→ corrupts the LOS. So the seeker must undistort first.
+
+- `scripts/calibrate_camera.py` — checkerboard → intrinsics + Brown-Conrady
+  distortion (`--live` or `--images`). **`--self-test`** validates the whole
+  calibration math on synthetic data (recovers fx/fy/cx/cy + k1/k2 exactly,
+  rms 0.0 px) and confirms `flight.camera` loads the result — CI-gateable before
+  the hardware exists.
+- `flight.camera.CameraModel.from_json(calib.json)` loads it; zero-distortion is
+  the Gazebo pinhole special case (byte-identical if wired into the sim seeker).
+
+## Hardware mapping (`docs/hardware_order_list.md`, ~$1,089)
+
+| real part | why it transfers |
+|---|---|
+| **Pixhawk 6C Mini / PX4** | the exact stack the sim validated — params + MAVLink/OFFBOARD guidance transfer directly |
+| Pi 5 8GB + Hailo-8L | YOLO11n @640 on the NPU; CPU free for MAVLink |
+| Arducam AR0234 global-shutter + ~100° M12 | the terminal seeker (AprilTag was the sim stand-in); calibrate with `calibrate_camera.py` |
+| ~15° up-tilt bracket | closes the dash-pitch FoV gap (ADR-0060/0067) |
+| ArduPilot GPS quad, AUTO box | the target (straight legs ≥2 m/s) |
+
+## Build path when the hardware arrives (open, largely hardware-gated)
+
+1. **Frame source** — Picamera2/libcamera → the seeker (`Measurement` seam).
+2. **MAVSDK over TELEM2 serial** (921600) + PX4 params + a **safety module**
+   (RC kill live, geofence, dash timeout) + a wall-clock (not sim-clock) audit.
+3. **AprilTag on the Pi** = the flight baseline seeker; then the Hailo YOLO path
+   (needs a real-data retrain). Do the prop-clearance geometry check first.
+4. **`real_flight.py`** — wire `flight/` + MAVSDK + frame source into
+   TAKEOFF → coded dash → camera-terminal ENGAGE → breakoff → land.
+5. **`field_score.py`** — CPA from the two GPS logs, the real-world miss metric.
+
+## Honest open items
+
+- **r2l residual (~2–4 m)** = the ADR-0056 bearing aspect-bias. The east-bias
+  sweep proves it's fully correctable; the honest fix is a bearing/aim correction
+  keyed on the aspect (a blind global heading bias just trades l2r for r2l). Not
+  yet built.
+- **Everything past `flight/` is untested** until the hardware exists — the
+  frame source, serial MAVSDK, and the real seeker are hardware-gated. The
+  guidance core is the part that is validated and transfers.

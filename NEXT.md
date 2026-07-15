@@ -64,7 +64,9 @@ direction → CAMERA-ONLY pro-nav terminal** (NO ground-sensor cue, NO datalink 
 NO cue-fusion/handoff-gate/coast-search). "Gear the code for that." This reframes the r2l
 saga: it was entangled with the CUE-GUIDED DASH + FusedTrack machinery the real build
 won't have; the genuine carry-over concern is CAMERA-ONLY terminal BEARING quality (the
-higher-res global-shutter cam may change it). See memory [[real-build-pivot]].
+higher-res global-shutter cam may change it). See memory [[real-build-pivot]] and the
+consolidated **`docs/real_build_coded_dash.md`** (architecture + validated numbers + the
+portable `flight/` core + camera pipeline + the hardware build path).
 - **✅ Fable plan delivered (P0–P3):** rule "the flight architecture decides / ablate to
   flight config before spending levers." P0.1 build `--coded-dash`, P0.2 re-earn numbers,
   P0.3 extract a `flight/` core, P1–P3 = real HW (frame source, calibration, MAVSDK serial).
