@@ -71,13 +71,17 @@ first at ~5 m/s), **tag-guided <1 m @9 m/s** as the guidance proof (tag = sancti
 at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.5 m metric, not a retreat.
 
 **ROADMAP R1→R7** (each with a measurable gate; [S]=sim [H]=hardware):
-- **R1 [S, THIS WEEK]** Fly the goal condition for the FIRST time: coded-dash + quad_v2, **line @9 m/s**,
-  both dirs, n≥8, 2 disjoint seeds + an AprilTag control. **Pre-register:** predicted combined median
-  1.5–2.5 m, r2l worse. Decision: ≤1.2 m → literal goal live; 1.2–1.5 m → R2 decides; >1.5 m → reframe
-  is the headline. **PREREQ (red-team fix #1, DO FIRST):** the coverage column is BROKEN on coded-dash
-  arms (empty/`no_coverage_line`) — 1 of the +30° r2l "wins" (0.46 m) was a pure open-loop-dash CPA that
-  never handed off (the rebal-mirage mode). **Fix the ENGAGE-tick/coverage audit in coded_dash_summary.py
-  before R1**, else the gate can be tripped by dash-only CPAs. Parameterize `coded_dash_arm.sh` speed (L43).
+- **R1 [S] ✅ FLOWN (seed 123) → FIRES THE REFRAME.** Goal condition coded-dash + quad_v2, **line @9 m/s**,
+  camera-guided only (ENGAGE-tick audit, red-team fix #1 done): **combined median 3.38 m** (l2r 2.16 m /
+  4-of-8 cam-guided; r2l 3.46 m / 8-of-8), **Pk@1.0 = 0/12, Pk@1.5 = 0/12, Pk@2.5 = 3/12.** WORSE than
+  the pre-registered 1.5–2.5 m and worse than weave@12 — and NOT an artifact (recorded miss = true CPA
+  every flight). WHY: the straight line holds the target at a constant east offset (x=6.5 m), which
+  **UNMASKS the markerless east-under-commit** that the weave's near-crossing hid (ADR-0056/add #18c).
+  Per the pre-registered rule (>1.5 m), **the reframe is now the official headline: literal <1 m is not
+  achievable even in the straight-crossing sim regime.** (`logs/mc_coded_dash_qv2_line9_s123.csv`.)
+  REMAINING to firm it: AprilTag control @line9 (does the tag close <1 m? → isolates markerless-perception
+  vs kinematic) + a 2nd disjoint seed. Tool + speed knob committed (`coded_dash_summary.py` ENGAGE audit,
+  `coded_dash_arm.sh` `QUAD_ARM_SPEED`).
 - **R2 [S]** Per-direction dash aim correction (the coarse add-#18c lever, NOT the killed terminal-LOS
   table) + price the outdoor error budget via the built-but-unflown `--dash-target-err` sweep.
 - **R3 [S]** Foveated auto-crop on native res (ADR-0074, crop weights exist) — not a sim-CPA lever but

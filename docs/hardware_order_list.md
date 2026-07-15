@@ -73,7 +73,7 @@ arithmetic plausible). **Applied inline** (2 blockers + fixes):
 **MISSING — add to the order:**
 | Item | ~Cost | Why / unblocks |
 |---|---|---|
-| **⭐ RTK GNSS pair — u-blox ZED-F9P moving-baseline (2×)** | ~$220–300 | **NON-NEGOTIABLE metrology (roadmap R4f):** the goal is a **<1 m** miss, but `field_score.py` would score CPA from two CONSUMER GNSS (M10 + M10Q) whose relative error is ~1 m — **the same size as the pass/fail bar, so the BOM as-was cannot MEASURE the goal.** An F9P moving-baseline pair (or ground high-fps optical) gets σ ≤ 0.3 m. Without it, every <1 m field claim is unfalsifiable. |
+| ~~RTK GNSS pair (u-blox ZED-F9P ×2)~~ **CUT** — see §0c | ~~$220–300~~ **$0** | Was "non-negotiable" ONLY to *measure* a <1 m CPA. The builder re-scoped the criterion to a **BINARY KILL** ("takes the drone out or not", 2026-07-15), which is confirmed by **video (seeker recording + phone slow-mo) + both FCs' ULogs**, not sub-meter RTK. Cut it. (Buy later only if you want a citable sub-meter *number* for the portfolio.) |
 | **Broadcast Remote ID module ×2** | ~$35–60 ea | **LEGAL:** both aircraft >250 g outdoors (US) need FAA reg + broadcast Remote ID; neither FC provides it. (Alt: a FRIA field.) |
 | **Thrust test rig** (DIY inverted on a scale) | ~$20 | §3 demands a bench T/W re-verify (and roadmap R4e: characterize real max lateral-accel — the one variable that can move the kinematic floor); nothing was listed. |
 | **Interceptor lost-model buzzer** | ~$5 | The 6C Mini has no onboard buzzer; the (E) buzzer is on the TARGET. The interceptor lands out after BREAKOFF. |
@@ -99,6 +99,53 @@ Pin the flight Pi's kernel (Arducam Pivariety driver is kernel-fragile).
 
 **Net price delta:** roughly **+$250–400** over the prior ~$1,936 (RTK pair dominates; V4/BEC swaps save
 a little) — the RTK is what makes the <1 m goal *measurable*, so it's load-bearing, not optional.
+
+---
+
+## 0c. Binary-kill COST-CUT re-scope (2026-07-15, Fable-reviewed) — the lean build
+
+Builder re-scoped the success criterion to a **BINARY KILL** ("ideally it either takes the drone
+out or doesn't") and asked to cut cost while keeping the project possible. That moots the precision
+metrology and lets budget-tier parts in (a *ram vehicle* SHOULD use cheap parts — expect to break
+some on both aircraft per successful attempt, so have spares before the first attempt).
+
+**NEW TOTALS:** interceptor **~$740** (was ~$1,300+ with 0b); **everything all-new ~$1,390**
+(was ~$2,200–2,300); **~$1,080 if you own TX/charger/tools/USB.** **Saved ~$850–900.** Evidence
+under binary-kill = the **seeker camera's own recording + phone slow-mo + both ULogs** (target
+attitude/altitude collapse, interceptor accel spike) — $0, and keeps a defensible "camera-only
+intercept, kill confirmed on video + logs" claim (gives up only a citable sub-meter *number*).
+
+**THE CUTS (ranked by $ saved):**
+| Item | From → To | Saved | Note |
+|---|---|---|---|
+| RTK pair (§0b) | $220–300 → **CUT** | **$220–300** | binary-kill needs no sub-meter measurement (above) |
+| RC TX | TX16S $205 → **RadioMaster Pocket** $65 | **$140** | same ELRS/EdgeTX. **Better: 2× Pocket ($130, save $75) — also fixes the §0b S2 two-aircraft-kill hole** (independent target kill) |
+| Camera | AR0234 color + M12 set $150 → **Arducam OV9281 mono GS wide** $36 | **$114** | still global-shutter (the real need) + native libcamera (no Pivariety kernel pain); mono fine for AprilTag. **Flags:** verify HFOV ≥100° on calibration; 1 MP = shorter R_acq + no foveated-crop headroom (re-run the M2 range gate); YOLO later needs a mono retrain (folds into the mandated real-data fine-tune). AR0234 = the upgrade path if range measures short. |
+| Telemetry | SiK pair $75 → **DEFER** | **$75** now | monitoring-only (§0⑤); bench/first-hovers over USB + Pi-5 WiFi→QGC. Buy before long-range autonomy. |
+| **AI HAT+ (Hailo)** | $70 → **DEFER** | **$70** now | first kills use the **AprilTag baseline (30+ FPS on Pi 5 CPU)** — no NPU needed. CPU YOLO (~5–10 FPS) is NOT viable at terminal LOS rates → buy the HAT when you graduate to the *markerless* kill (an upgrade, not the gate). |
+| ESC | Tekko32 65A $88 → 45–55A budget 4-in-1 $42 | **$46** | ample for 2207/6S; watch bench temps |
+| Motors | XING2 $84 → EMAX ECO II 2207 $56 | **$28** | T/W still ≥5:1; **shares a spare pool with the target** |
+| Frame | Mark5 Pro $60 → TBS Source One V5 $33 | **$27** | re-run the §0② nose-cantilever prop-clearance on the new frame (mandatory anyway) |
+| Spares (G) / 3rd LiPo | partial → **DEFER** | **$82** now | keep consumables; buy spare arms/motor/RX + 3rd pack *before* kill attempts |
+
+**DON'T cut:** Pi 5 8GB → 4GB saves only ~$10–30 now (2026 DRAM crisis collapsed the gap — buy 8GB from an official reseller, not Amazon scalp prices).
+
+**KEEP — non-negotiable (project dies without these):** Pixhawk 6C Mini + M10 GPS; a **global-shutter
+camera at ≥100° FoV** + checkerboard + nose-cantilever prop-clearance mount (no software phantom
+fallback, add #18d); Pi 5 8GB + 5.2 V BEC + active cooler; ELRS RC **kill** + the **whole safety
+bundle** (smoke stopper, LiPo bag, fire blanket, glasses, cell checker — never cut safety on a
+vehicle built to hit things); **both microSD cards** (ULogs + onboard video ARE the metrology now);
+the **target drone + AprilTag placard**; the $20 DIY thrust rig + $5 buzzer + $8 standoffs.
+
+**DEFER (buy when the phase needs it):** AI HAT+ $70 (markerless phase) · SiK $40–75 (long-range) ·
+3rd battery $26 · spare arms/motor/RX $56 (before kill attempts) · Remote ID $0–180 (**legal, not
+metrology — $0 at a FRIA field, else 2 modules; decide by field before outdoor flight; FAA reg $5/
+aircraft either way**) · AR0234 upgrade $150 (only if OV9281 range measures short).
+
+> **THE LEAN "camera-only kill on video" BUILD — ~$1,390 all-new / ~$1,080 if-owned:** interceptor
+> **$740** + target **$273** + ground/safety **$343** (Pocket TX, charger, safety, solder, tools) +
+> consumables **$35**. Kill confirmation $0 (video + ULogs). Phasing unchanged (§4): buy target + TX +
+> charger + safety/solder first (~$580), spread the ~$740 interceptor across Phases 1–3.
 
 ---
 
