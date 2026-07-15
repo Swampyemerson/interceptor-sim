@@ -1591,6 +1591,21 @@ def parse_args():
         help="--coded-dash: max open-loop dash time (s) before abort if the camera "
              "never acquires (default %(default)s).")
     parser.add_argument(
+        "--dash-heading-err-deg", type=float, default=0.0,
+        help="--coded-dash ROBUSTNESS sweep: add a FIXED azimuth error (deg) to the "
+             "computed/explicit dash heading -- tests how far off the open-loop aim can "
+             "be and still acquire (the real interceptor's dash is hand-programmed, so "
+             "the aim carries operator error). Default 0.0 = byte-identical.")
+    parser.add_argument(
+        "--dash-target-err-n", type=float, default=0.0,
+        help="--coded-dash ROBUSTNESS sweep: offset (m, north) added to the target "
+             "position USED IN THE LEAD SOLVE ONLY (the real target/mover is unchanged) "
+             "-- models an operator target-position mis-estimate. Default 0.0.")
+    parser.add_argument(
+        "--dash-target-err-e", type=float, default=0.0,
+        help="--coded-dash ROBUSTNESS sweep: offset (m, east) added to the target "
+             "position used in the lead solve only. Default 0.0.")
+    parser.add_argument(
         "--handoff-range", type=float, default=None,
         help="override S2 HANDOFF_RANGE_M (m, default %.1f)" % S2["HANDOFF_RANGE_M"],
     )
@@ -2109,6 +2124,10 @@ async def run_acquire_and_engage(
     if args.coded_dash and coded_dash_heading_deg is None:
         _tx, _ty = (float(v) for v in args.target_start.split(",")[:2])
         _tvx, _tvy = (float(v) for v in args.target_vel.split(",")[:2])
+        # ROBUSTNESS sweep: perturb the ESTIMATED target position used for the
+        # lead (real target/mover unchanged) -> models operator position error.
+        _tx += args.dash_target_err_e   # east = world_x
+        _ty += args.dash_target_err_n   # north = world_y
         _vi = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
         # collision triangle: find smallest t>0 with |R0 + Vt*t| = Vi*t, R0=(tx,ty)
         # from origin. a*t^2 + b*t + c = 0, a=|Vt|^2-Vi^2, b=2 R0.Vt, c=|R0|^2.
@@ -2132,6 +2151,10 @@ async def run_acquire_and_engage(
         else:
             _lx, _ly = _tx, _ty  # uncatchable by pure lead -> fall back to initial pos
         coded_dash_heading_deg = math.degrees(math.atan2(_lx, _ly))  # atan2(east, north)
+    # ROBUSTNESS sweep: add a fixed aim error to the finalized heading (auto or
+    # explicit). Default 0.0 -> byte-identical.
+    if args.coded_dash and args.dash_heading_err_deg:
+        coded_dash_heading_deg += args.dash_heading_err_deg
     coded_dash_start_mono = None
     coded_dash_speed = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
     acquire_start_mono = time.monotonic()
