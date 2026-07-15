@@ -238,6 +238,15 @@ from m3_static_intercept import (  # noqa: E402
     _clamp,
 )
 
+# Portable real-build core: the coded-dash aim from flight/ (repo root; no gz/gt/
+# cue deps -> the SAME function runs on the real Pixhawk/Pi). ADR-0076 add #18,
+# P0.3. m4 calls this rather than duplicating the collision-lead solve. (The
+# audited LOS geometry -- wrap_pi/_quat_rotate/derotate_bearing_lambda -- is
+# deliberately kept local here and MIRRORED in flight/geometry.py, whose tests
+# pin the two to agree, so this wiring does not touch honesty-audited code.)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from flight.guidance import collision_lead_heading  # noqa: E402
+
 # --- Guidance targets / gains (GOALS.md M4; pro-nav mechanization + gain
 # council-decided per CLAUDE.md -- do not retune without an ADR). See the
 # module docstring for the guidance law itself. ---
@@ -2124,33 +2133,14 @@ async def run_acquire_and_engage(
     if args.coded_dash and coded_dash_heading_deg is None:
         _tx, _ty = (float(v) for v in args.target_start.split(",")[:2])
         _tvx, _tvy = (float(v) for v in args.target_vel.split(",")[:2])
-        # ROBUSTNESS sweep: perturb the ESTIMATED target position used for the
-        # lead (real target/mover unchanged) -> models operator position error.
-        _tx += args.dash_target_err_e   # east = world_x
-        _ty += args.dash_target_err_n   # north = world_y
         _vi = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
-        # collision triangle: find smallest t>0 with |R0 + Vt*t| = Vi*t, R0=(tx,ty)
-        # from origin. a*t^2 + b*t + c = 0, a=|Vt|^2-Vi^2, b=2 R0.Vt, c=|R0|^2.
-        _a = _tvx * _tvx + _tvy * _tvy - _vi * _vi
-        _b = 2.0 * (_tx * _tvx + _ty * _tvy)
-        _c = _tx * _tx + _ty * _ty
-        _tlead = None
-        if abs(_a) < 1e-6:
-            if abs(_b) > 1e-9:
-                _troot = -_c / _b
-                _tlead = _troot if _troot > 1e-3 else None
-        else:
-            _disc = _b * _b - 4.0 * _a * _c
-            if _disc >= 0.0:
-                _sq = math.sqrt(_disc)
-                _roots = [(-_b - _sq) / (2.0 * _a), (-_b + _sq) / (2.0 * _a)]
-                _pos = [r for r in _roots if r > 1e-3]
-                _tlead = min(_pos) if _pos else None
-        if _tlead is not None:
-            _lx, _ly = _tx + _tvx * _tlead, _ty + _tvy * _tlead  # lead/collision point
-        else:
-            _lx, _ly = _tx, _ty  # uncatchable by pure lead -> fall back to initial pos
-        coded_dash_heading_deg = math.degrees(math.atan2(_lx, _ly))  # atan2(east, north)
+        # Collision-lead aim from the portable flight/ core (ADR-0076 add #18).
+        # ROBUSTNESS sweep: perturb the ESTIMATED target position fed to the lead
+        # solve (real target/mover unchanged) -> models operator position error
+        # (--dash-target-err-e = east = world_x, -n = north = world_y).
+        coded_dash_heading_deg, _ = collision_lead_heading(
+            (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
+            (_tvx, _tvy), _vi)
     # ROBUSTNESS sweep: add a fixed aim error to the finalized heading (auto or
     # explicit). Default 0.0 -> byte-identical.
     if args.coded_dash and args.dash_heading_err_deg:
