@@ -73,12 +73,15 @@ higher-res global-shutter cam may change it). See memory [[real-build-pivot]].
   stack DROPPED. Auto-heading solves the COLLISION-LEAD azimuth from the pre-flight target
   kinematics (honest constant, not a live gt read); explicit `--dash-heading-deg` overrides.
   Byte-identical without the flag. Harness: `scripts/coded_dash_arm.sh` (mode m4, no cue).
-- **⭐ RETROACTIVE r2l TEST — r2l ENGAGES under coded-dash (n=2 smoke, quad_v2, weave):**
-  l2r acquire 1.63 s → **miss 1.16 m clean**; **r2l acquire 1.73 s → miss 3.23 m clean**
-  (was **0/8 NULL** under the cue-guided pipeline). CONFIRMS the pivot thesis: the r2l
-  failure lived substantially in the CUE/FUSED-DASH machinery, not the camera terminal.
-  Residual 3.2 vs 1.2 m asymmetry = the ADR-0056 perception aspect-bias, not a guidance null.
-  **Full n=16 batch IN FLIGHT for statistics** (`logs/mc_coded_dash_qv2_weave.csv`).
+- **⭐ RETROACTIVE r2l TEST — PAIRED A/B, n=16, quad_v2/seed123/weave (geometry verified
+  byte-identical). Coded-dash HELPS r2l, mildly HURTS l2r:** cue-guided r2l engaged 8/8 but
+  at 3.25–4.27 m = **0/8 within the 2.5 m Pk gate** (that IS the "r2l 0%" of the saga — NOT a
+  no-engagement null; correcting an interim over-claim). Coded-dash lifts **r2l 0/8→5/8 @Pk,
+  mean 3.97→2.68 m**; l2r stays 8/8 @Pk but mean loosens 0.61→1.37 m (the cue helped l2r).
+  Net: the 6.5× l2r/r2l gap collapses to 2×, combined **Pk@2.5m 8/16→13/16**. PARTLY REFUTES
+  ADR-0076 add #17 ("no fix reaches r2l"): removing the fused dash — not a lead patch —
+  recovers ~1.3 m; the residual r2l gap is the ADR-0056 bearing aspect-bias. **This is the
+  number that matters for the hardware (no cue on it).** (`logs/mc_coded_dash_qv2_weave.csv`)
 - **KEEP (transfers):** pro-nav terminal `derotate_bearing_lambda`, PX4/MAVSDK offboard,
   the fine-tuned YOLO seeker, the up-tilt geometry. **CUT under coded-dash (sim-only):**
   CUE_WAIT/S2-cue-mock, `--fuse-midcourse`, handoff-cue-gate, coast-search.
