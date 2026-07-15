@@ -2094,13 +2094,44 @@ async def run_acquire_and_engage(
 
     phase = ("CODED_DASH" if args.coded_dash
              else ("CUE_WAIT" if args.handoff else "ACQUIRE"))
-    # --coded-dash open-loop heading (NED deg): explicit, else auto = azimuth from
-    # own start (origin) to the target's initial NED position (north=world_y,
-    # east=world_x per ADR-0013). Real interceptor: a human points the coded dash.
+    # --coded-dash open-loop heading (NED deg): explicit --dash-heading-deg wins;
+    # else auto = the COLLISION-LEAD azimuth from own start (origin) toward where
+    # the target WILL be, solved from the target's launch kinematics (start +
+    # velocity). Frame: north=world_y, east=world_x per ADR-0013; azimuth =
+    # atan2(east, north). This is a PRE-FLIGHT CONSTANT computed from the "coded"
+    # inputs (--target-start/--target-vel = what a human pre-programs / a ground
+    # cue reports at launch), NOT a live ground-truth read -> honesty boundary
+    # intact. Leading is essential: a naive aim at the STALE initial position
+    # points the nose camera where the target WAS, so a fast crossing target
+    # leaves frame before the seeker can acquire (ADR-0076 add #18: l2r aborted
+    # "no acquire" at 157deg-to-initial; the lead heading keeps it near boresight).
     coded_dash_heading_deg = args.dash_heading_deg
     if args.coded_dash and coded_dash_heading_deg is None:
         _tx, _ty = (float(v) for v in args.target_start.split(",")[:2])
-        coded_dash_heading_deg = math.degrees(math.atan2(_tx, _ty))  # atan2(east, north)
+        _tvx, _tvy = (float(v) for v in args.target_vel.split(",")[:2])
+        _vi = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
+        # collision triangle: find smallest t>0 with |R0 + Vt*t| = Vi*t, R0=(tx,ty)
+        # from origin. a*t^2 + b*t + c = 0, a=|Vt|^2-Vi^2, b=2 R0.Vt, c=|R0|^2.
+        _a = _tvx * _tvx + _tvy * _tvy - _vi * _vi
+        _b = 2.0 * (_tx * _tvx + _ty * _tvy)
+        _c = _tx * _tx + _ty * _ty
+        _tlead = None
+        if abs(_a) < 1e-6:
+            if abs(_b) > 1e-9:
+                _troot = -_c / _b
+                _tlead = _troot if _troot > 1e-3 else None
+        else:
+            _disc = _b * _b - 4.0 * _a * _c
+            if _disc >= 0.0:
+                _sq = math.sqrt(_disc)
+                _roots = [(-_b - _sq) / (2.0 * _a), (-_b + _sq) / (2.0 * _a)]
+                _pos = [r for r in _roots if r > 1e-3]
+                _tlead = min(_pos) if _pos else None
+        if _tlead is not None:
+            _lx, _ly = _tx + _tvx * _tlead, _ty + _tvy * _tlead  # lead/collision point
+        else:
+            _lx, _ly = _tx, _ty  # uncatchable by pure lead -> fall back to initial pos
+        coded_dash_heading_deg = math.degrees(math.atan2(_lx, _ly))  # atan2(east, north)
     coded_dash_start_mono = None
     coded_dash_speed = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
     acquire_start_mono = time.monotonic()
