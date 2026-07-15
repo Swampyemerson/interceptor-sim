@@ -99,12 +99,18 @@ portable `flight/` core + camera pipeline + the hardware build path).
 
 ### 🔬 SEEKER real-build roadmap (Fable review, 2026-07-15 — NN detection + real drones + range)
 Full review in the session transcript; actionable distillation:
-- **#1 [SIM, RUNNING]** Re-A/B the phantom-free `rebal` seeker vs `quad_v2` UNDER CODED-DASH.
-  KEY INSIGHT: the "phantom-removal regresses l2r" verdict (add #17) was measured under the
-  CUE architecture, where the phantom incidentally helped by delaying handoff onto a cue-made
-  kill. **No cue exists in coded-dash → the phantom is pure liability** (can trigger a false
-  5-streak handoff with nothing to veto it). If rebal ≥ v2 combined Pk here, the HARDWARE
-  ships a phantom-free seeker. (`logs/mc_coded_dash_rebal_weave.csv`)
+- **#1 [SIM, TESTED → NULL, do NOT ship rebal].** Re-A/B'd phantom-free `rebal` vs `quad_v2`
+  under coded-dash. **Rebal FAILS in flight:** coverage 0.000–0.019 across ALL 16 flights, every
+  one ABORTED "no camera acquire". The apparent "16/16 Pk@2.5" was a MIRAGE — the coded-dash
+  never acquired, so those were the OPEN-LOOP DASH's CPAs, not camera intercepts (the `clean=0`
+  / `python_exit_1` flag was the tell; the Pk headline alone would have shipped a blind seeker).
+  The rebal retrain killed the phantom by OVER-SUPPRESSING real-target recall in flight — the
+  same "aced-frame-eval, failed-in-flight" trap as the v3 NULL (ADR-0061; its "precision = v2"
+  was a frame metric that didn't transfer). **`quad_v2` stays the working seeker** (coverage
+  ~0.23–0.33, real intercepts, 13/16 @Pk). REDIRECT: the phantom fix for hardware is **geometry
+  (prop-clearance mount, now in the BOM §0②) + the #2 no-cue handoff hardening**, NOT a
+  phantom-free retrain. (Open follow-up: does a lower confidence threshold rescue rebal's flight
+  recall? — a tuning question, not a blocker.) (`logs/mc_coded_dash_rebal_weave.csv`)
 - **#2 [SIM, next]** Harden the coded-dash handoff for the no-cue world: require the 5-streak
   detections to be RANGE-CONSISTENT with each other + a pre-flight range-plausibility window
   (honest launch-geometry constants, same class as the collision-lead heading). De-risks the
