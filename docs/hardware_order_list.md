@@ -6,6 +6,50 @@
 
 ---
 
+## 0. Coded-dash pivot — what the new objective changes (2026-07-15)
+
+This list was drawn up for the older ground-cued design. The objective is now the
+**coded open-loop DASH → CAMERA-ONLY terminal** (`docs/real_build_coded_dash.md`,
+ADR-0076 add #18, Fable review 2026-07-15): no ground-sensor cue, no datalink
+mid-course — a pre-programmed dash, then the onboard camera+NN flies the intercept.
+**Most of the BOM is unchanged** (airframe A, autopilot B, compute+camera C, power,
+safety F all still needed). The deltas that affect **what to buy**:
+
+- **① Wide FoV is now a HARD REQUIREMENT, not a tunable — do NOT buy/fit a narrow or
+  long lens.** The coded-dash acquires a crossing target from a *roughly*-aimed dash;
+  that robustness (validated at ±30° aim error, 48/48 flights still acquired) *depends
+  on* the ~100° FoV. A narrow lens re-creates the "fast crosser walks out of frame,
+  0/12" failure (ADR-0024). The M12 set is fine — fit **only** the ~2.5–2.8 mm (~100°)
+  element and keep the rest as spares. (This supersedes the old "narrow-lens-first"
+  acquisition-range advice.)
+- **② The camera mount must attempt PROP CLEARANCE — the $0 fix for the #1 seeker
+  failure.** In sim, the interceptor's own prop blades read as a false target
+  ("phantom") the camera-only terminal can lock with no cue to veto it. Mounting the
+  camera **forward of / above the prop disc** so the blades sit outside the ~100° FoV
+  designs the phantom out for free. Do the **prop-clearance geometry check** before
+  finalizing the bracket. If some intrusion is unavoidable at 100°, the phantom-free
+  retrained seeker (software) is the backup — but clearance-by-geometry is first.
+- **③ Add a checkerboard calibration target** (below) — the wide M12 distorts, and every
+  range/bearing is wrong until `scripts/calibrate_camera.py` runs. This is the first
+  bench gate; it's ~free to print.
+- **④ The Hailo-8L (single NPU stream) is confirmed correct.** The pivot makes the NN
+  the *sole* single-stream terminal seeker, so the pricier Hailo-8's second stream is
+  not needed — keep the 8L (already the recommended part).
+- **⑤ No guidance datalink is needed** (this is the jam-resistance story). The ELRS link
+  (B) is **safety/kill + arming only**; the SiK radio (D) is **telemetry monitoring
+  only**. Neither carries guidance — the interceptor flies the dash open-loop and the
+  camera finishes it. No cue radio, no ground sensor rig, no second (cue) camera.
+- **⑥ Acquisition range** ("interceptor distance") is bought in **software first** —
+  foveated auto-crop on the AR0234's *native* resolution (we currently downscale
+  1280→640 and throw pixels away) + a real-data fine-tune. **No new hardware** buys more
+  range here; a higher-res sensor is **honesty-gated** (§2). So the AR0234 as-specced is
+  right; spend the range effort on the crop/retrain, not a lens or sensor swap.
+- **AprilTag stays the flight BASELINE seeker** (not just a sim stand-in): first real
+  intercepts fly on the tag; YOLO is validated in shadow mode alongside it before it
+  ever steers. So the target's AprilTag placard (E) is load-bearing, not optional.
+
+---
+
 ## (A) Interceptor airframe & power
 
 | Item | Qty | ~Unit | ~Line | Where | Why + key compatibility |
@@ -43,8 +87,9 @@
 | Raspberry Pi AI HAT+ 13 TOPS (Hailo-8L) | 1 | $70 | $70 | PiShop / SparkFun | YOLO11n @640px at 30+ FPS on the NPU → CPU stays free for MAVLink + guidance. Pi-5-only (single PCIe lane). Stacks over the cooler. |
 | Official Pi 5 Active Cooler | 1 | $5 | $5 | Adafruit / PiShop | **Mandatory** under sustained YOLO load — prop wash alone isn't enough. ~25 g. |
 | Arducam AR0234 2.3MP **color global-shutter** CSI (B0353) | 1 | $120 | $120 | Arducam / UCTRONICS | Global shutter = **no rolling-shutter smear** (your hard requirement). 2.3MP overspecs the sim's 1.2MP; color aids YOLO + demo. Needs Arducam's Pivariety driver (extra setup). |
-| Arducam M12 lens set (10 lenses, 20–180°) | 1 | $30 | $30 | Arducam / Amazon | Fit the ~2.5–2.8mm element to hit the sim's **~100° HFOV** (stock B0353 lens is only ~90°). Wide M12 has real distortion → **checkerboard calibration mandatory** (`scripts/calibrate_camera.py`). |
-| 3D-printed adjustable up-tilt bracket (10–30°, detent ~15°) | 1 | $0–15 | $0–15 | Self-print, or JLCPCB/Craftcloud print service | Sets the sim's **up15 tilt (ADR-0067)** and lets you bench-tune. PETG/ABS for outdoor heat. $12 buy-bracket if no printer. |
+| Arducam M12 lens set (10 lenses, 20–180°) | 1 | $30 | $30 | Arducam / Amazon | Fit the ~2.5–2.8mm element for the sim's **~100° HFOV** (stock B0353 lens is only ~90°). **Fit ONLY the wide element — the ~100° FoV is a coded-dash REQUIREMENT (§0①), not a tunable; keep the narrow/long lenses as spares, do NOT fly them.** Wide M12 distorts → **checkerboard calibration mandatory** (`scripts/calibrate_camera.py`; `flight/camera.py` undistorts). |
+| 3D-printed up-tilt + **prop-clearance** camera mount (up-tilt 10–30°, detent ~15°; camera fwd/up of the prop disc) | 1 | $0–15 | $0–15 | Self-print, or JLCPCB/Craftcloud print service | Sets the sim's **up15 tilt (ADR-0067)** AND pushes the camera **forward/above the prop disc so the blades sit outside the ~100° FoV** — the $0 fix for the own-prop phantom (§0②). **Run the prop-clearance geometry check before printing final.** PETG/ABS for outdoor heat. $12 buy-bracket if no printer (verify it clears props at 100°). |
+| Checkerboard calibration target (printed 9×6 inner-corner board on rigid backing) | 1 | $0–8 | $0–8 | Copy shop + foamboard, or Amazon calibration board | **Required before any range/bearing transfers** (§0③): feeds `scripts/calibrate_camera.py` → intrinsics + distortion for `flight.camera`. Print flat, mount rigid, known square size. A pre-printed board (~$8) is flatter than home print. |
 | Dedicated compute BEC — Pololu D36V50F5 (6S→5V/5.5A) | 1 | $25 | $25 | Pololu | **Two-rail rule:** powers ONLY the Pi + camera, never off the FC BEC. Pi 5 wants 5.1V → short 16 AWG wire + 1000µF cap + `usb_max_current_enable=1`; if undervolt flags appear, swap to a 5.2V-adjustable UBEC (Matek BEC12S-PRO). |
 | SanDisk Extreme 128GB A2/U3 microSD (Pi OS + logs) | 1 | $18 | $18 | Amazon / Best Buy | Pi boot + vision stack + telemetry logging. **A2/U3** for OS random-IO (do NOT use an A1 High-Endurance card here). |
 | † Official Pi 27W USB-C PD supply (bench) | 1 | $12 | $12 | PiShop / Adafruit | Bench power for headless dev/flashing before the drone BEC is wired; guarantees full 5A. |
@@ -168,7 +213,8 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 - **Connectors:** XT60 main power (battery ↔ PM02 ↔ ESC); JST-GH for FC GPS/TELEM; JST-SH 8-pin ESC signal; JST-XH balance leads; **CSI = Pi 5 22-pin ↔ 15-pin camera adapter cable**.
 - **Mount patterns:** frame **30.5×30.5** (ESC/stack) + **20×20**; motors **16×16 M3**; props **M5 T-mount** (buy CW+CCW).
 - **AUW vs thrust:** design AUW ~950 g, static thrust ~6.0 kg → **T/W ≈ 6.3:1** (worst case ~1.1 kg → ≈5.5:1). Meets the **≥5:1** hard target — but **re-verify on a bench thrust stand** at the real loaded weight; if motors/ESC run hot, drop to 1755KV and/or 5×4.3×3 props.
-- **Camera interface:** MIPI CSI-2, global shutter, ~100° HFOV M12 lens, **checkerboard calibration mandatory** before any range number transfers (real lens has distortion; the sim is a zero-distortion pinhole).
+- **Camera interface:** MIPI CSI-2, global shutter, **~100° HFOV M12 lens (REQUIRED — do not fit a narrow lens, §0①)**, **checkerboard calibration mandatory** before any range number transfers (real lens distorts; the sim is a zero-distortion pinhole — `flight/camera.py` undistorts).
+- **Prop clearance (§0②):** with the camera on its final mount at ~100° FoV, **confirm the prop blades fall OUTSIDE the frame** (bench: point at a plain wall, spin props at idle, check the corners). Blades in-frame = the phantom failure mode; fix by moving the camera forward/up before flight, else ship the phantom-free retrained seeker.
 - **Compute power + cooling:** **dedicated ≥5A / 5.1V BEC, physically separate from the FC BEC (two-rail rule)**; active cooler is mandatory; `usb_max_current_enable=1`.
 - **FC↔Pi UART:** TELEM2 ↔ Pi GPIO14/15, **both 3.3V (no level shifter)**, 921600, TX/RX crossed; set `MAV_1_CONFIG=TELEM2` and free the Pi's serial console.
 - **Power module = analog PM02** (NOT the digital PM02D — that's for the 6X).
@@ -182,8 +228,8 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 1. **Phase 0 — Learn to fly + solder, cheap.** Buy the **target drone (E)** + **RC TX** + **charger** + **safety/tools (F)**. Fly the box mission, crash it, learn ArduPilot/QGC + soldering on the drone you don't mind breaking. *Lowest-risk money first.*
 2. **Phase 1 — Brains on the bench.** FC + GPS + RC RX (B). Flash **PX4**, bind the RX, arm on the bench **with props OFF**, verify motor directions + the **kill switch** in QGC.
 3. **Phase 2 — Build the airframe.** Frame + motors + ESC + power (A). Maiden it as a **plain quad, no payload** — confirm T/W and clean flight first.
-4. **Phase 3 — Add the seeker.** Pi + AR0234 + tilt mount + BEC + cables (C, D). **Calibrate the camera**, run AprilTag/YOLO on the bench, wire the UART MAVLink link, confirm the Pi commands OFFBOARD.
-5. **Phase 4 — Full intercept.** Fly the interceptor (pro-nav) against the target flying its box. Compare pursuit vs pro-nav miss distance, log everything — the resume line.
+4. **Phase 3 — Add the seeker (bench, per the Fable Stage-A ladder).** Pi + AR0234 + prop-clearance tilt mount + BEC + cables (C, D). **Calibrate the camera** (checkerboard → `flight.camera`, RMS ≤ 1 px) → **prop-clearance check** (props outside the frame, §0②) → AprilTag detection/Hz/**motion-blur** gate → **compile YOLO11n onto the Hailo, measure real FPS** → grab hard-negative footage from the real mount. Wire the UART MAVLink link; confirm the Pi commands OFFBOARD (`flight/` core + MAVSDK over TELEM2 serial). Safety module: RC kill live, geofence, dash timeout.
+5. **Phase 4 — Coded-dash intercepts, laddered (Stage B/C).** Fly the **coded dash → camera-only terminal** against the target flying its AUTO box (straight legs ≥2 m/s). Order: **(a) AprilTag seeker first** — proves the whole chain on hardware with the strongest perception; **(b) YOLO in SHADOW MODE** (log-only) during those flights → measure real bearing-σ, phantom rate, and acquisition range at zero risk (needs the Stage-B real-data fine-tune, held-out-**flight** validated); **(c) YOLO-guided terminal** only once shadow-mode clears it. Score CPA from dual-GPS logs (`field_score.py`); log everything — the resume line.
 
 ---
 
@@ -191,12 +237,14 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 
 | Sim (validated) | Hardware |
 |---|---|
-| Camera fixed **up15** tilt (ADR-0067) | Adjustable bracket, detent ~15° (tune 10–30°) |
-| **AprilTag tag36h11** target-lock stand-in | Printed tag36h11 placard on the target |
-| PX4 SITL + **MAVSDK offboard over UDP** | Pixhawk PX4 + MAVSDK over UART/USB, **same code** |
-| Onboard seeker (AprilTag + YOLO11n) | Pi 5 + AI HAT+ running the same CV stack |
-| Camera **HFOV 1.74 rad ≈ 100°, fx≈540 @1280** | AR0234 + ~2.5–2.8mm M12 lens, run CV at ~1280 wide to reuse `fx` |
-| **Pro-nav N=5** guidance | PX4 offboard guidance params/code transfer directly |
+| **Coded dash → camera-only terminal** (ADR-0076 add #18, the objective) | Pre-programmed dash heading/speed + onboard camera; **no cue, no guidance datalink** |
+| Portable **`flight/` core** (geometry/estimator/aim/pro-nav law/lens undistort, 26 tests, no gz/gt/cue deps) | Runs **byte-identical** on the Pi 5 — the part that literally transfers |
+| Camera fixed **up15** tilt (ADR-0067) | Up-tilt + **prop-clearance** bracket, detent ~15° (tune 10–30°) |
+| **AprilTag tag36h11** = the flight BASELINE seeker (Stage C) | Printed tag36h11 placard on the target; YOLO validated in shadow mode alongside it |
+| PX4 SITL + **MAVSDK offboard over UDP** | Pixhawk PX4 + MAVSDK over **TELEM2 UART** (921600), **same code** |
+| Onboard seeker (AprilTag + YOLO11n) | Pi 5 + AI HAT+ (Hailo-8L, single stream) running the same CV stack |
+| Camera **HFOV 1.74 rad ≈ 100°, fx≈540 @1280** | AR0234 + ~2.5–2.8mm M12 (**wide REQUIRED**), run CV at ~1280 wide to reuse `fx`; `flight/camera.py` undistorts the real lens |
+| **Pro-nav N=5** terminal | PX4 offboard + `flight/` guidance; the coded-dash front-end replaces the sim's cue/handoff stack |
 
 ---
 
