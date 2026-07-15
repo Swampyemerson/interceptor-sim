@@ -1606,6 +1606,14 @@ def parse_args():
              "be and still acquire (the real interceptor's dash is hand-programmed, so "
              "the aim carries operator error). Default 0.0 = byte-identical.")
     parser.add_argument(
+        "--dash-crossing-bias-deg", type=float, default=0.0,
+        help="--coded-dash PER-DIRECTION aim correction (ADR-0076 add #18e): bias "
+             "MAGNITUDE (deg) toward the aspect the markerless bearing under-reads; the "
+             "SIGN is auto-keyed on the target's crossing direction (dash x --target-vel, "
+             "a PRE-FLIGHT constant) so r2l and l2r each fly their optimum (r2l +bias, "
+             "l2r -bias). Corrects the ADR-0056 aspect-biased under-commit. Default 0.0 "
+             "= byte-identical. Honest: crossing direction is known at launch, no gt.")
+    parser.add_argument(
         "--dash-target-err-n", type=float, default=0.0,
         help="--coded-dash ROBUSTNESS sweep: offset (m, north) added to the target "
              "position USED IN THE LEAD SOLVE ONLY (the real target/mover is unchanged) "
@@ -2145,6 +2153,18 @@ async def run_acquire_and_engage(
     # explicit). Default 0.0 -> byte-identical.
     if args.coded_dash and args.dash_heading_err_deg:
         coded_dash_heading_deg += args.dash_heading_err_deg
+    # PER-DIRECTION aim correction (ADR-0076 add #18e): the aspect-biased markerless
+    # bearing under-reads the cross-range LOS with a sign that flips with the crossing
+    # direction (r2l needs +east, l2r needs -). Apply a bias whose SIGN is keyed on the
+    # 2-D cross product of the dash heading and target velocity (dash x Vt, in E/N) -- a
+    # PRE-FLIGHT constant from --target-vel, so it's the operator's known crossing
+    # direction, not a live gt read. r2l (cross<0) -> +bias, l2r (cross>0) -> -bias.
+    if args.coded_dash and args.dash_crossing_bias_deg:
+        _hh = math.radians(coded_dash_heading_deg)
+        _cvx, _cvy = (float(v) for v in args.target_vel.split(",")[:2])
+        _cross = math.sin(_hh) * _cvy - math.cos(_hh) * _cvx   # (E,N): dash x Vt
+        if _cross != 0.0:
+            coded_dash_heading_deg -= math.copysign(args.dash_crossing_bias_deg, _cross)
     coded_dash_start_mono = None
     coded_dash_speed = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
     acquire_start_mono = time.monotonic()
