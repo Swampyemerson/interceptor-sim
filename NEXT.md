@@ -65,13 +65,26 @@ NO cue-fusion/handoff-gate/coast-search). "Gear the code for that." This reframe
 saga: it was entangled with the CUE-GUIDED DASH + FusedTrack machinery the real build
 won't have; the genuine carry-over concern is CAMERA-ONLY terminal BEARING quality (the
 higher-res global-shutter cam may change it). See memory [[real-build-pivot]].
-- **IN FLIGHT:** a Fable subagent is evaluating methodology + state + deciding the concrete
-  code changes to gear for coded-dash → camera-only. Execute its plan when it returns.
+- **✅ Fable plan delivered (P0–P3):** rule "the flight architecture decides / ablate to
+  flight config before spending levers." P0.1 build `--coded-dash`, P0.2 re-earn numbers,
+  P0.3 extract a `flight/` core, P1–P3 = real HW (frame source, calibration, MAVSDK serial).
+- **✅ P0.1 BUILT + COMMITTED (ADR-0076 add #18/#18b):** new `--coded-dash` mode = the REAL
+  architecture — OPEN-LOOP dash → CAMERA-ONLY ENGAGE terminal, the ENTIRE cue/handoff/fusion
+  stack DROPPED. Auto-heading solves the COLLISION-LEAD azimuth from the pre-flight target
+  kinematics (honest constant, not a live gt read); explicit `--dash-heading-deg` overrides.
+  Byte-identical without the flag. Harness: `scripts/coded_dash_arm.sh` (mode m4, no cue).
+- **⭐ RETROACTIVE r2l TEST — r2l ENGAGES under coded-dash (n=2 smoke, quad_v2, weave):**
+  l2r acquire 1.63 s → **miss 1.16 m clean**; **r2l acquire 1.73 s → miss 3.23 m clean**
+  (was **0/8 NULL** under the cue-guided pipeline). CONFIRMS the pivot thesis: the r2l
+  failure lived substantially in the CUE/FUSED-DASH machinery, not the camera terminal.
+  Residual 3.2 vs 1.2 m asymmetry = the ADR-0056 perception aspect-bias, not a guidance null.
+  **Full n=16 batch IN FLIGHT for statistics** (`logs/mc_coded_dash_qv2_weave.csv`).
 - **KEEP (transfers):** pro-nav terminal `derotate_bearing_lambda`, PX4/MAVSDK offboard,
-  the fine-tuned YOLO seeker (`drone_finetuned_v2`), the up-tilt geometry. **LIKELY CUT
-  (sim-only):** CUE_WAIT/S2-cue-mock, `--fuse-midcourse`, handoff-cue-gate, coast-search.
-- r2l ARC CONCLUDED (below) — a characterized markerless-bearing limit; reassess its
-  relevance under the coded-dash + camera-only model (much of it was cue/fused-dash).
+  the fine-tuned YOLO seeker, the up-tilt geometry. **CUT under coded-dash (sim-only):**
+  CUE_WAIT/S2-cue-mock, `--fuse-midcourse`, handoff-cue-gate, coast-search.
+- r2l ARC (below) REFRAMED: the "markerless-bearing limit" was measured THROUGH the cue/
+  fused-dash machinery; under coded-dash r2l engages and the residual is perception aspect-
+  bias (~2–4 m, the ADR-0056 weave-mirror residual), a refinement target not a null.
 
 ## 📍 CURRENT (2026-07-12, live)
 
