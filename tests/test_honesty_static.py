@@ -403,19 +403,27 @@ def test_cue_wait_and_dash_phases_are_handoff_gated():
     def _phase_string_assigns(literal):
         found = []
         for node in ast.walk(fn):
+            if not (isinstance(node, ast.Assign) and len(node.targets) == 1
+                    and _is_name(node.targets[0], "phase")):
+                continue
             # Direct assign: phase = "DASH"
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 \
-                    and _is_name(node.targets[0], "phase") \
-                    and isinstance(node.value, ast.Constant) and node.value.value == literal:
+            if isinstance(node.value, ast.Constant) and node.value.value == literal:
                 found.append(node)
-            # Ternary assign: phase = "CUE_WAIT" if args.handoff else "ACQUIRE"
-            if isinstance(node, ast.Assign) and len(node.targets) == 1 \
-                    and _is_name(node.targets[0], "phase") \
-                    and isinstance(node.value, ast.IfExp):
-                ifexp = node.value
-                for branch_val in (ifexp.body, ifexp.orelse):
-                    if isinstance(branch_val, ast.Constant) and branch_val.value == literal:
-                        found.append((node, ifexp, branch_val))
+            # Ternary assign, possibly NESTED (ADR-0076 add #18 added a --coded-dash
+            # prefix: phase = "CODED_DASH" if args.coded_dash else ("CUE_WAIT" if
+            # args.handoff else "ACQUIRE")). Descend the IfExp chain and record the
+            # ternary whose OWN direct branch is the literal, so its .test is the
+            # actual guard we assert on -- the CUE_WAIT gate is unchanged, just
+            # nested one level deeper.
+            elif isinstance(node.value, ast.IfExp):
+                stack = [node.value]
+                while stack:
+                    ifexp = stack.pop()
+                    for branch_val in (ifexp.body, ifexp.orelse):
+                        if isinstance(branch_val, ast.Constant) and branch_val.value == literal:
+                            found.append((node, ifexp, branch_val))
+                        elif isinstance(branch_val, ast.IfExp):
+                            stack.append(branch_val)
         return found
 
     cue_wait_sites = _phase_string_assigns("CUE_WAIT")
