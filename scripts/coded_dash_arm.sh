@@ -18,9 +18,11 @@ OUT="${4:?out csv}"
 MODE="${5:---dry-run}"
 [ -f "$WEIGHTS" ] || { echo "MISSING weights: $WEIGHTS"; exit 2; }
 
-export MC_WORLD="quad_enemy"
-export MC_TARGET_MODEL="fpv_quad_enemy"
-export MC_SEEKER="markerless"
+# World/target overridable for the billboard clean-perception baseline (P0.2):
+#   QUAD_ARM_WORLD=apriltag QUAD_ARM_TARGET=<model> QUAD_ARM_SEEKER=apriltag ...
+export MC_WORLD="${QUAD_ARM_WORLD:-quad_enemy}"
+export MC_TARGET_MODEL="${QUAD_ARM_TARGET:-fpv_quad_enemy}"
+export MC_SEEKER="${QUAD_ARM_SEEKER:-markerless}"
 export MC_VENV_PYTHON="$REPO/.venv-seeker/bin/python"
 export MARKERLESS_NN_WEIGHTS="$WEIGHTS"
 # quad banks (orient to velocity, nose +X -> offset 0); fair weave (both cross NEAR)
