@@ -80,7 +80,18 @@ class CameraModel:
 
     @classmethod
     def from_dict(cls, d):
-        """Build from a calibration dict (scripts/calibrate_camera.py output):
-        {fx,fy,cx,cy, dist:[k1,k2,p1,p2,k3]}."""
-        return cls(d["fx"], d["fy"], d["cx"], d["cy"],
-                   tuple(d.get("dist", (0.0, 0.0, 0.0, 0.0, 0.0))))
+        """Build from a calibration dict. Accepts BOTH the clean
+        {fx,fy,cx,cy, dist:[k1,k2,p1,p2,k3]} form AND scripts/calibrate_camera.py's
+        output {fx,fy,cx,cy, dist_coeffs:[...], resolution:{...}} (the format that
+        matches camera_intrinsics.json) -> the calibration tool's JSON loads
+        directly. Only the first 5 distortion terms (Brown-Conrady k1,k2,p1,p2,k3)
+        are used; a higher-order (rational) calibration is truncated to those."""
+        dist = d.get("dist", d.get("dist_coeffs", (0.0, 0.0, 0.0, 0.0, 0.0)))
+        return cls(d["fx"], d["fy"], d["cx"], d["cy"], tuple(dist))
+
+    @classmethod
+    def from_json(cls, path):
+        """Load a calibration JSON file (scripts/calibrate_camera.py output)."""
+        import json
+        with open(path) as f:
+            return cls.from_dict(json.load(f))

@@ -66,6 +66,70 @@ def _calibrate(objpoints, imgpoints, image_size):
     return rms, K, dist
 
 
+def self_test():
+    """Validate the calibration math end-to-end WITHOUT a camera or board:
+    synthesize checkerboard corners from KNOWN intrinsics + Brown-Conrady
+    distortion (cv2.projectPoints bakes the distortion in), re-solve with
+    cv2.calibrateCamera, and assert the recovered parameters match. Exits 0/1 so
+    CI can gate the tool before the hardware exists. Also confirms the result
+    loads into flight.camera.CameraModel (the downstream consumer)."""
+    K_true = np.array([[500.0, 0.0, 640.0],
+                       [0.0, 500.0, 360.0],
+                       [0.0, 0.0, 1.0]])
+    dist_true = np.array([-0.30, 0.10, 0.001, -0.001, 0.0])  # k1,k2,p1,p2,k3 (barrel)
+    cols, rows, sq = 9, 6, 0.025
+    image_size = (1280, 720)
+    objp = _object_points(cols, rows, sq)
+    # Deterministic spread of board poses (tilts + shifts) so corners land across
+    # the frame, where distortion is largest (no Math.random -> reproducible).
+    tilts = [(-0.3, -0.2), (-0.3, 0.2), (0.0, 0.0), (0.3, -0.2), (0.3, 0.2),
+             (-0.4, 0.0), (0.4, 0.0), (0.0, -0.35), (0.0, 0.35), (0.2, 0.2),
+             (-0.2, -0.2), (0.15, -0.3)]
+    shifts = [(-0.05, -0.03, 0.45), (0.05, -0.03, 0.5), (0.0, 0.0, 0.4),
+              (-0.06, 0.02, 0.55), (0.06, 0.03, 0.5), (-0.08, 0.0, 0.6),
+              (0.08, 0.0, 0.6), (0.0, -0.05, 0.45), (0.0, 0.05, 0.5),
+              (0.04, 0.04, 0.48), (-0.04, -0.04, 0.52), (0.03, -0.05, 0.47)]
+    objpoints, imgpoints = [], []
+    for (rx, ry), (tx, ty, tz) in zip(tilts, shifts):
+        rvec = np.array([rx, ry, 0.0])
+        tvec = np.array([tx - (cols - 1) * sq / 2, ty - (rows - 1) * sq / 2, tz])
+        img_pts, _ = cv2.projectPoints(objp, rvec, tvec, K_true, dist_true)
+        objpoints.append(objp)
+        imgpoints.append(img_pts.astype(np.float32))
+    rms, K, dist = _calibrate(objpoints, imgpoints, image_size)
+    d = dist.ravel()
+    ok = True
+    for name, got, want, tol in [
+        ("fx", K[0, 0], 500.0, 2.0), ("fy", K[1, 1], 500.0, 2.0),
+        ("cx", K[0, 2], 640.0, 2.0), ("cy", K[1, 2], 360.0, 2.0),
+        ("k1", d[0], -0.30, 0.02), ("k2", d[1], 0.10, 0.05),
+    ]:
+        hit = abs(got - want) <= tol
+        ok = ok and hit
+        print(f"[self-test] {name:3} recovered {got:+.4f} (true {want:+.4f}, tol {tol})"
+              f"  {'OK' if hit else 'FAIL'}")
+    print(f"[self-test] rms reproj = {rms:.4f} px  ({'OK' if rms < 0.5 else 'FAIL'})")
+    ok = ok and rms < 0.5
+    # Downstream consumer loads it (flight.camera lives at the repo root).
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from flight.camera import CameraModel
+        m = CameraModel.from_dict({
+            "fx": float(K[0, 0]), "fy": float(K[1, 1]),
+            "cx": float(K[0, 2]), "cy": float(K[1, 2]),
+            "dist_coeffs": [float(x) for x in d[:5]],
+        })
+        loads = abs(m.k1 - d[0]) < 1e-9 and m.has_distortion
+        print(f"[self-test] flight.camera.CameraModel loads the result: "
+              f"{'OK' if loads else 'FAIL'}")
+        ok = ok and loads
+    except Exception as e:  # pragma: no cover
+        print(f"[self-test] flight.camera load FAILED: {e}")
+        ok = False
+    print(f"[self-test] {'PASS' if ok else 'FAIL'}")
+    return ok
+
+
 def _write_json(path, K, dist, image_size, n_views, rms):
     w, h = image_size
     out = {
@@ -168,21 +232,28 @@ def calibrate_live(device, cols, rows, square, out_path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    src = ap.add_mutually_exclusive_group(required=True)
+    src = ap.add_mutually_exclusive_group(required=False)
     src.add_argument("--live", metavar="DEVICE",
                      help="camera device (index like 0, /dev/videoN, or a "
                           "GStreamer pipeline) for interactive capture")
     src.add_argument("--images", metavar="GLOB",
                      help="glob of chessboard stills to calibrate from")
-    ap.add_argument("--cols", type=int, required=True,
-                    help="inner corners per row (e.g. 9 for a 10-square row)")
-    ap.add_argument("--rows", type=int, required=True,
-                    help="inner corners per column")
-    ap.add_argument("--square", type=float, required=True,
-                    help="chessboard square size in METRES")
+    ap.add_argument("--self-test", action="store_true",
+                    help="validate the calibration math on synthetic data (no "
+                         "camera/board needed); exit 0/1")
+    ap.add_argument("--cols", type=int, help="inner corners per row (e.g. 9 for a 10-square row)")
+    ap.add_argument("--rows", type=int, help="inner corners per column")
+    ap.add_argument("--square", type=float, help="chessboard square size in METRES")
     ap.add_argument("--out", default="camera_intrinsics_real.json",
                     help="output intrinsics JSON path")
     args = ap.parse_args()
+
+    if args.self_test:
+        return 0 if self_test() else 1
+    if not (args.live or args.images):
+        ap.error("one of --live / --images / --self-test is required")
+    if args.cols is None or args.rows is None or args.square is None:
+        ap.error("--cols, --rows and --square are required for a real calibration")
 
     if args.live:
         return calibrate_live(args.live, args.cols, args.rows, args.square, args.out)

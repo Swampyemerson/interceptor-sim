@@ -59,9 +59,23 @@ def test_from_dict():
     assert m.k1 == -0.3 and m.has_distortion
 
 
+def test_from_dict_calibrate_tool_format():
+    """scripts/calibrate_camera.py's JSON (dist_coeffs + resolution) loads
+    directly -> the calibrate -> CameraModel pipeline connects."""
+    m = CameraModel.from_dict({
+        "resolution": {"width": 1280, "height": 720},
+        "fx": 500.0, "fy": 500.0, "cx": 640.0, "cy": 360.0,
+        "dist_coeffs": [-0.3, 0.1, 0.001, -0.001, 0.0],
+        "rms_reproj_error_px": 0.21, "n_views": 18,
+    })
+    assert m.fx == 500.0 and m.cx == 640.0
+    assert m.k1 == -0.3 and m.p1 == 0.001 and m.has_distortion
+
+
 ALL = [test_pinhole_center_is_boresight, test_pinhole_45_degrees,
        test_pinhole_no_distortion_flag, test_distort_undistort_roundtrip,
-       test_distortion_actually_bends_edge, test_from_dict]
+       test_distortion_actually_bends_edge, test_from_dict,
+       test_from_dict_calibrate_tool_format]
 
 if __name__ == "__main__":
     import sys
