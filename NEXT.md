@@ -82,8 +82,15 @@ at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.
   REMAINING to firm it: AprilTag control @line9 (does the tag close <1 m? → isolates markerless-perception
   vs kinematic) + a 2nd disjoint seed. Tool + speed knob committed (`coded_dash_summary.py` ENGAGE audit,
   `coded_dash_arm.sh` `QUAD_ARM_SPEED`).
-- **R2 [S]** Per-direction dash aim correction (the coarse add-#18c lever, NOT the killed terminal-LOS
-  table) + price the outdoor error budget via the built-but-unflown `--dash-target-err` sweep.
+- **R2 [S] ✅ FIRST READ (line@9, seed123, +30° global east-bias):** the sideways-aim correction WORKS
+  for r2l — cam-guided median **3.46 → 1.02 m**, Pk@1.0 0/8→**3/8**, Pk@1.5 0/8→**7/8**, best **0.43 m
+  (contact range)** — so the r2l straight-crossing miss is a CORRECTABLE aim deficit (same as weave +30°
+  → 0.78 m). But +30° is GLOBAL → it BREAKS l2r (2.16→5.09 m, 6/8 stop acquiring), so the fix must be
+  PER-DIRECTION (r2l +east, l2r opposite/none). l2r line@9 ALSO has an acquisition problem at baseline
+  (4/8 never lock → R3 crop / real-data). NEXT: build a direction-keyed `--dash-crossing-bias`, validate
+  on a 2nd seed. (`logs/mc_coded_dash_qv2_line9_herr+30_s123.csv`.) **AprilTag control ABANDONED:** the
+  directional ~6 m-range tag is invisible during a 16 m/s crossing dash (0 detections) — a worse seeker
+  than the NN here, can't be the "best-bearing" yardstick (reinforces the markerless-NN rationale).
 - **R3 [S]** Foveated auto-crop on native res (ADR-0074, crop weights exist) — not a sim-CPA lever but
   the load-bearing PREREQ for the real 0.35 m target's acquisition range.
 - **R4 [H bench]** Build + calibrate + prop-clearance gate + Hailo ≥14 Hz + **blur gate at TERMINAL LOS
