@@ -55,6 +55,45 @@ tracked-or-accepted; repo publishable on a remote.
 
 ## 📍 CURRENT (2026-07-15, live)
 
+### 🎯 THE ROADMAP — path to the goal (Fable judge-panel workflow + red-team, 2026-07-15)
+**GOAL (builder):** an imprecise coded-dash interceptor hits a moving target flying ≥20 mph
+(~9 m/s), outdoors, camera-only (no AprilTag on target; tag OK for calibration), to **<1 m**.
+**HONEST VERDICT (red-team ENDORSED-with-fixes):** <1 m markerless is regime-split:
+- **9 m/s MANEUVERING: out of reach (MEASURED)** — even the AprilTag (best possible bearing)
+  floors at median 1.64 m @12 m/s weave (ADR-0056); 4+ terminal NULLs close the tighter lane.
+- **9 m/s STRAIGHT-crossing, in sim: genuinely OPEN (coin-flip), decidable THIS WEEK** — but
+  the goal condition (coded-dash + quad_v2 + **line** @9 m/s) has **NEVER been flown** (all our
+  numbers are extrapolated from 12 m/s *weave*). No config is sub-meter in BOTH dirs at once yet.
+- **Hardware outdoors: unlikely (~10–30%) without an acquisition-range win**, AND — the metrology
+  gap — consumer GPS can't even MEASURE <1 m (→ RTK now in the BOM).
+**REFRAME to adopt (keep literal <1 m as a gated stretch):** a **speed ladder** (markerless <1 m
+first at ~5 m/s), **tag-guided <1 m @9 m/s** as the guidance proof (tag = sanctioned calib), and
+at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.5 m metric, not a retreat.
+
+**ROADMAP R1→R7** (each with a measurable gate; [S]=sim [H]=hardware):
+- **R1 [S, THIS WEEK]** Fly the goal condition for the FIRST time: coded-dash + quad_v2, **line @9 m/s**,
+  both dirs, n≥8, 2 disjoint seeds + an AprilTag control. **Pre-register:** predicted combined median
+  1.5–2.5 m, r2l worse. Decision: ≤1.2 m → literal goal live; 1.2–1.5 m → R2 decides; >1.5 m → reframe
+  is the headline. **PREREQ (red-team fix #1, DO FIRST):** the coverage column is BROKEN on coded-dash
+  arms (empty/`no_coverage_line`) — 1 of the +30° r2l "wins" (0.46 m) was a pure open-loop-dash CPA that
+  never handed off (the rebal-mirage mode). **Fix the ENGAGE-tick/coverage audit in coded_dash_summary.py
+  before R1**, else the gate can be tripped by dash-only CPAs. Parameterize `coded_dash_arm.sh` speed (L43).
+- **R2 [S]** Per-direction dash aim correction (the coarse add-#18c lever, NOT the killed terminal-LOS
+  table) + price the outdoor error budget via the built-but-unflown `--dash-target-err` sweep.
+- **R3 [S]** Foveated auto-crop on native res (ADR-0074, crop weights exist) — not a sim-CPA lever but
+  the load-bearing PREREQ for the real 0.35 m target's acquisition range.
+- **R4 [H bench]** Build + calibrate + prop-clearance gate + Hailo ≥14 Hz + **blur gate at TERMINAL LOS
+  rates** + real max-lateral-accel + **RTK metrology σ≤0.3 m (non-negotiable).**
+- **R5 [H field, zero intercept risk]** The **range walk** (target hovering 5–25 m): measure R_acq/σ.
+  KILL NUMBER: R_acq must leave t_go ≥0.5 s post-handoff (≈≥20 m for 9 m/s) — else markerless <1 m is dead.
+- **R6 [H]** Tag-guided **speed ladder 2→5→9 m/s** (the feasibility DECIDER; offset-aim surrogate first),
+  YOLO in shadow every flight (real-data fine-tune validated on held-out FLIGHTS, not frame-eval). Fly BOTH
+  laws (pursuit beat pro-nav at line@9 in sim). Gate: tag median <1.0 m absolute @9 m/s.
+- **R7 [H]** Markerless-guided, only rungs cleared in shadow. Gate: markerless <1.0 m absolute per rung.
+**BIGGEST RISK:** acquisition-range / t_go starvation on the real 0.35 m target (physics: 640-pipeline
+detects at ~9.5 m, streak burns ~7 m → ~0 correction authority). Retire early via R3 (sim) + R5 (1 afternoon).
+**Red-team fixes 2–4 folded in above** (markerless IS sub-meter one-directionally; R1 middle-band defined; R6 adverse prior stated).
+
 ### 🔧🚁 THE PIVOT — BUILD THE REAL INTERCEPTOR (builder, 2026-07-15)
 Moving from sim-portfolio to a REAL hardware build off `docs/hardware_order_list.md`
 (~$1,089 interceptor: GEPRC Mark5 5" 6S quad, **Pixhawk 6C Mini / PX4 = the exact sim
