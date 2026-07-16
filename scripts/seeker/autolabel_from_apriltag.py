@@ -185,7 +185,10 @@ def main():
     ap.add_argument("--calib", help="camera calib JSON (calibrate_camera.py / flight.camera)")
     ap.add_argument("--tag-size", type=float, default=0.10, help="AprilTag black-square edge (m)")
     ap.add_argument("--drone-size", type=float, default=0.35, help="target drone extent (m); 5\" ~0.35")
-    ap.add_argument("--tag-offset-m", default="0,0,0", help="tag->drone-centre offset x,y,z in the TAG frame (m)")
+    ap.add_argument("--tag-offset-m", default="0,0,0",
+                    help="tag->drone-centre offset x,y,z in the TAG frame (m): x right, y down, "
+                         "z INTO the tag away from the camera. E.g. tag mounted 0.05 m below the "
+                         "drone body centre -> '0,-0.05,0'. Rotated by pose_R before use.")
     ap.add_argument("--negatives-from-untagged", action="store_true",
                     help="treat tag-miss frames as YOLO negatives -- ONLY for TARGET-FREE "
                          "footage (empty sky/ground/pre-launch). Default DROPS tag-miss "

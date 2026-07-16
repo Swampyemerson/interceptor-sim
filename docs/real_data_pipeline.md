@@ -26,10 +26,13 @@ fly TAGGED target (APPROACHING passes)  ──►  record frames + tag
 
 This is the real-hardware twin of the sim's `gen_sim_dataset.py` (auto-labels sim frames
 from gt). Built: **`scripts/seeker/autolabel_from_apriltag.py`** (reuses the sim's
-`project_to_bbox`; `--self-test` green). It also does **free hard-negative mining**: any
-frame where the tag doesn't fire (own-prop, sky, ground, glare) gets an empty label file =
-a YOLO negative — exactly the hard negatives the ADR-0040/0042 lesson says you need, at no
-labeling cost.
+`project_to_bbox`; `--self-test` green). **Negatives: only from TARGET-FREE footage.** Run
+the tool with `--negatives-from-untagged` on explicitly target-free segments (empty
+sky/ground, pre-launch) to mine hard negatives (own-prop etc.) for free. On target-PRESENT
+approach footage the tool DROPS tag-miss frames by default — because the tag decodes only to
+a few metres while the drone is visible from ~30 m, so labeling those frames 'background'
+would train the detector to NOT see the approaching target (the exact add-#18h wall). Never
+run `--negatives-from-untagged` on footage where the target is present but the tag failed.
 
 ## Stages
 
@@ -56,7 +59,8 @@ labeling cost.
 ## What minimizes manual effort (the directive)
 
 - **Labels are automatic** (tag pose → box). You fly and record; that's the human effort.
-- **Negatives are free** (tag-miss frames → empty labels).
+- **Negatives are free** — but ONLY from target-free segments (`--negatives-from-untagged`);
+  tag-miss frames on target-present footage are dropped, never labeled background (see above).
 - **No frame-count target to curate** — capture until the held-out approach-recall gate
   passes; stop on the gate, not a number.
 - **Calibration is one-time** (`calibrate_camera.py`, already built + self-tested).

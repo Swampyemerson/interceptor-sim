@@ -28,7 +28,14 @@ def _is_real(mr, gr):
 
 def recall_curve(mc_csv, bin_m, max_m):
     """Aggregate real/phantom detection rate per gt-range bin across all flights
-    in an mc_batch CSV. Returns {bin_lo: (real, phantom, total)}."""
+    in an mc_batch CSV, counting ONLY the APPROACHING (pre-CPA, closing) portion
+    of each flight. Returns {bin_lo: (real, phantom, total)}.
+
+    Why closing-only (Fable round-2 check): the detector sees a RECEDING target
+    (post-CPA, target flying away) far better than an approaching one, so counting
+    post-CPA ticks inflates "approach" recall and makes the metric a mirage
+    generator (any lever touching post-CPA geometry moves it). We find each
+    flight's CPA (min gt_range tick) and count only ticks up to it."""
     bins = {}
     for r in csv.DictReader(open(mc_csv)):
         fp = r.get("flight_csv_path", "")
@@ -36,12 +43,21 @@ def recall_curve(mc_csv, bin_m, max_m):
             frows = list(csv.DictReader(open(fp)))
         except (FileNotFoundError, OSError):
             continue
+        # CPA index = the tick of minimum gt_range; keep only ticks up to it.
+        grs = []
         for x in frows:
             try:
-                gr = float(x["gt_range"])
+                grs.append(float(x["gt_range"]))
             except (KeyError, TypeError, ValueError):
-                continue
-            if gr <= 0 or gr > max_m:
+                grs.append(float("inf"))
+        if not grs or min(grs) == float("inf"):
+            continue
+        cpa_i = grs.index(min(grs))
+        for i, x in enumerate(frows):
+            if i > cpa_i:
+                break  # receding after CPA -- excluded
+            gr = grs[i]
+            if gr <= 0 or gr == float("inf") or gr > max_m:
                 continue
             b = int(gr // bin_m) * bin_m
             real = phantom = 0
