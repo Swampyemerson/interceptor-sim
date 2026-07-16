@@ -81,6 +81,9 @@ any real footage exists. (Follow-up capture task; the projection math is already
 ## Status
 
 - ✅ `autolabel_from_apriltag.py` built + projection self-test green.
+- ✅ **Validated END-TO-END on a real sim tag frame** (`logs/m2_frames_check/tag_at_5m.png`):
+  detects tag id 0, pose z=4.97 m, and emits a box whose normalized width **0.0848 matches the
+  geometry expectation 0.0849** and whose centre tracks the tag's image position. (The test found
+  and fixed a real `pose_t` shape bug the unit self-test missed — the value of end-to-end checks.)
 - ✅ `calibrate_camera.py` + `flight.camera` (calibration → intrinsics) built + self-tested.
 - ⏳ Capture tooling for the Pi camera + the approaching-pass protocol (hardware-gated).
-- ⏳ Sim validation of the auto-labeler (tag-box vs gt-box) — the one cheap pre-hardware check left.

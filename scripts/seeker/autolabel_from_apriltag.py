@@ -65,8 +65,9 @@ def autolabel_frame(gray, detector, cam_params, tag_size, drone_size,
                            camera_params=cam_params, tag_size=tag_size)
     if not dets:
         return None
-    # Nearest tag (smallest z) if several placards are visible.
-    det = min(dets, key=lambda t: float(t.pose_t[2]))
+    # Nearest tag (smallest z) if several placards are visible. pose_t is (3,1),
+    # so reshape before indexing (float() on a 1-element array errors in numpy 2).
+    det = min(dets, key=lambda t: float(t.pose_t.reshape(3)[2]))
     x, y, z = (float(v) for v in det.pose_t.reshape(3))
     # optional: shift from tag placard to drone body centre (camera optical axes)
     x += tag_offset_m[0]
