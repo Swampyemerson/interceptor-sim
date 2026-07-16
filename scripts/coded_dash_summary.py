@@ -23,21 +23,35 @@ def num(x):
         return None
 
 
+def _is_real_target(r):
+    """A detection is the REAL target (not the own-prop phantom) if its implied
+    range agrees with the true range — |meas_range - gt_range| within 50% of
+    gt_range. Uses gt for SCORING/labeling only (scoring-legal), never guidance.
+    The phantom implies ~1.6 m while gt_range is ~16 m -> flagged phantom."""
+    try:
+        mr, gr = float(r.get("meas_range")), float(r.get("gt_range"))
+    except (TypeError, ValueError):
+        return False
+    return gr > 0 and abs(mr - gr) / gr < 0.5
+
+
 def engagement(flight_csv_path):
-    """Open a flight CSV and count how the intercept was ACTUALLY flown, so a
-    camera-guided ENGAGE is separated from a pure open-loop-dash CPA that never
-    handed off (ADR-0076 add #18d rebal-mirage; red-team fix #1: the mc_batch
-    coverage column is empty on coded-dash arms, so a dash-only flight can be
-    silently counted as a Pk 'hit'). Returns (total, engage_ticks, engage_det_ticks)
-    or None if the flight CSV is unreadable."""
+    """Open a flight CSV and count how the intercept was ACTUALLY flown. A flight
+    only counts as CAMERA-GUIDED if its ENGAGE phase has detections of the REAL
+    TARGET (gt-consistent) — NOT phantom detections (add #18g / Fable verification
+    2026-07-15: the prior version counted ANY ENGAGE detection, so a phantom-
+    triggered ENGAGE that flies dash ballistics was mislabeled camera-guided —
+    the rebal-mirage recurring one level up). Returns (total, engage_ticks,
+    engage_det_ticks, engage_REAL_det_ticks) or None if unreadable."""
     try:
         rows = list(csv.DictReader(open(flight_csv_path)))
     except (FileNotFoundError, OSError):
         return None
     eng = sum(1 for r in rows if r.get("phase") == "ENGAGE")
-    eng_det = sum(1 for r in rows if r.get("phase") == "ENGAGE"
-                  and r.get("detected") in ("1", "True", "true"))
-    return len(rows), eng, eng_det
+    engd = [r for r in rows if r.get("phase") == "ENGAGE"
+            and r.get("detected") in ("1", "True", "true")]
+    eng_real = sum(1 for r in engd if _is_real_target(r))
+    return len(rows), eng, len(engd), eng_real
 
 
 def summarize(path, gate):
@@ -56,9 +70,9 @@ def summarize(path, gate):
             e = engagement(r.get("flight_csv_path", ""))
             if e is None:
                 cam_ms.append(m)  # can't tell -> don't silently drop
-            elif e[2] > 0:        # detections during ENGAGE = genuinely camera-guided
+            elif e[3] > 0:        # REAL-target detections during ENGAGE = genuinely camera-guided
                 cam_ms.append(m)
-            else:                 # 0 ENGAGE-detections = open-loop-dash CPA (mirage)
+            else:                 # 0 real ENGAGE dets = dash ballistics / phantom-triggered (mirage)
                 dash_ms.append(m)
         out[d] = {
             "n": len(sub),
