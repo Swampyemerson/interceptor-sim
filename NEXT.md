@@ -56,6 +56,14 @@ tracked-or-accepted; repo publishable on a remote.
 ## 📍 CURRENT (2026-07-15, live)
 
 ### 🎯 THE ROADMAP — path to the goal (Fable judge-panel workflow + red-team, 2026-07-15)
+> **⛔ CORRECTION (ADR-0076 add #18g, Fable adversarial verification 2026-07-15):** the R1–R3
+> "camera-guided r2l kill (0.72 m)" claimed below is RETRACTED — a control arm that never engaged
+> the camera scored the same ~0.54 m, so the sub-meter r2l is OPEN-LOOP DASH BALLISTICS, not camera
+> guidance; no camera-tracked <1 m 3D-quad intercept exists. The real wall = ~0 detector recall on
+> the APPROACHING target (not the phantom). NEXT sim test = **camera-forward × coded-dash** (remove
+> the phantom at source, `scripts/experiments/cam_forward/` + `--cam-fwd-offset-m 0.40`) before any
+> hardware inherits "prop-clearance fixes acquisition" (untested). Read R2/R3 below THROUGH this.
+
 **GOAL (builder):** an imprecise coded-dash interceptor hits a moving target flying ≥20 mph
 (~9 m/s), outdoors, camera-only (no AprilTag on target; tag OK for calibration), to **<1 m**.
 **HONEST VERDICT (red-team ENDORSED-with-fixes):** <1 m markerless is regime-split:

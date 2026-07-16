@@ -122,11 +122,24 @@ pixel is wrong toward the frame edges (>1° at the edge on a representative mode
    TAKEOFF → coded dash → camera-terminal ENGAGE → breakoff → land.
 5. **`field_score.py`** — CPA from the two GPS logs, the real-world miss metric.
 
-## Goal-condition results + where the sim work lands (2026-07-15, ADR-0076 add #18e/f)
+## Goal-condition results + where the sim work lands (2026-07-15, ADR-0076 add #18e/f → CORRECTED by #18g)
+
+> **⛔ RETRACTED (Fable adversarial verification, ADR-0076 add #18g).** An earlier version of
+> this section claimed the guidance was "solved" and the camera terminal produced a sub-meter
+> r2l kill. That was a MIRAGE: the sub-meter r2l numbers are the OPEN-LOOP DASH's own
+> ballistics, NOT camera guidance — a control arm that never engaged the camera scored the same
+> ~0.54 m, and the ENGAGE detections were phantom (LOS error ±120–140°). **No camera-tracked <1 m
+> intercept of the 3D quad exists in the dataset.** What is real: the crossing-bias is a good
+> OPEN-LOOP AIM CALIBRATION (r2l 3.46 → dash 0.54 m). The real wall is that the detector has
+> **~0 recall on the APPROACHING target** (2 real vs 1187 phantom detections on approach across
+> 63 flights); the phantom is the false-handoff hazard, not the acquisition blocker, so
+> "prop-clearance fixes acquisition" is UNTESTED. Next sim test: camera-forward × coded-dash
+> (`scripts/experiments/cam_forward/` + `--cam-fwd-offset-m 0.40`) — see add #18g. The
+> superseded text below is kept only for the audit trail.
 
 The goal crisped to: intercept a **≥20 mph (~9 m/s)** target to **<1 m**, camera-only.
 The sim was pushed hard on the actual goal geometry (a straight line @9 m/s, not the
-easier weave). Honest landing:
+easier weave). ~~Honest landing:~~ *(superseded — see the retraction above)*
 
 - **GUIDANCE / aim is largely SOLVED.** The straight-line baseline missed by ~3.4 m
   because it unmasks a direction-dependent **aspect-biased aim** (ADR-0056). Built
