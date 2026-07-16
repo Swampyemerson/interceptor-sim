@@ -1600,6 +1600,19 @@ def parse_args():
         help="--coded-dash: max open-loop dash time (s) before abort if the camera "
              "never acquires (default %(default)s).")
     parser.add_argument(
+        "--coded-dash-acquire-range-min", type=float, default=None,
+        help="--coded-dash HANDOFF PLAUSIBILITY GATE (ADR-0076 add #18f / red-team no-cue "
+             "hardening): a detection counts toward the acquire streak ONLY if its implied "
+             "range >= this (m). Rejects the own-prop PHANTOM (implies ~1.5 m) so it can't "
+             "form a false handoff streak with no cue to veto it -- the l2r acquisition "
+             "bottleneck (implausible-range false detections). Pre-flight constant from the "
+             "launch geometry, no gt. Default None = ungated (byte-identical).")
+    parser.add_argument(
+        "--coded-dash-acquire-range-max", type=float, default=None,
+        help="--coded-dash handoff plausibility gate: acquire-streak detection must have "
+             "implied range <= this (m) too. Rejects implausibly-far false detections. "
+             "Default None.")
+    parser.add_argument(
         "--dash-heading-err-deg", type=float, default=0.0,
         help="--coded-dash ROBUSTNESS sweep: add a FIXED azimuth error (deg) to the "
              "computed/explicit dash heading -- tests how far off the open-loop aim can "
@@ -2793,7 +2806,17 @@ async def run_acquire_and_engage(
             cmd = (coded_dash_speed * math.cos(_h), coded_dash_speed * math.sin(_h),
                    v_down, coded_dash_heading_deg)
             if new_meas:
-                consecutive_fresh = consecutive_fresh + 1 if meas.range_m is not None else 0
+                # HANDOFF PLAUSIBILITY GATE (add #18f): a detection only advances the
+                # acquire streak if its implied range is inside the pre-flight-plausible
+                # window -- rejects the own-prop phantom (implies ~1.5 m) that otherwise
+                # forms a false handoff with no cue to veto it.
+                _r = meas.range_m
+                _r_ok = _r is not None and (
+                    args.coded_dash_acquire_range_min is None
+                    or _r >= args.coded_dash_acquire_range_min) and (
+                    args.coded_dash_acquire_range_max is None
+                    or _r <= args.coded_dash_acquire_range_max)
+                consecutive_fresh = consecutive_fresh + 1 if _r_ok else 0
             coded_dash_elapsed = tick_start - coded_dash_start_mono
             if consecutive_fresh >= CODED_DASH_ACQUIRE_STREAK:
                 print(f"[coded-dash] camera ACQUIRED at t={coded_dash_elapsed:.2f}s "
