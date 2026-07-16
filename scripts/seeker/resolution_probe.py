@@ -66,9 +66,16 @@ def crop_at(frame, cx, cy, size):
     return frame[y0:y0 + size, x0:x0 + size], x0, y0
 
 
-def box_hits_point(boxes, px, py, tol):
+def box_hits_gt(boxes, gcx, gcy, gw, gh, tol=15):
+    """A detection HITS the real target iff the DETECTED box centre lands inside
+    the gt box (+tol) AND is size-matched (within 3x of the gt extent, both ways)
+    -- so a giant ground-shadow blob that merely CONTAINS the gt point does NOT
+    count (Fable round-3 check: the earlier reverse test scored a 376x368 blob
+    against a 60x60 gt target as a hit)."""
     for score, u, v, bw, bh in boxes:
-        if abs(u - px) <= max(bw / 2, tol) and abs(v - py) <= max(bh / 2, tol):
+        center_in = (abs(u - gcx) <= gw / 2 + tol and abs(v - gcy) <= gh / 2 + tol)
+        size_ok = (gw / 3 <= bw <= 3 * gw) and (gh / 3 <= bh <= 3 * gh)
+        if center_in and size_ok:
             return True
     return False
 
@@ -102,16 +109,16 @@ def main():
         gcx, gcy, gw, gh = gt
         b = int(gr // 2) * 2
         # (a) full frame @640 downscale
-        hit_a = box_hits_point(v2._infer_boxes(frame), gcx, gcy, 15)
+        hit_a = box_hits_gt(v2._infer_boxes(frame), gcx, gcy, gw, gh)
         # (b) v2 native gt-centred crop
         crop, x0, y0 = crop_at(frame, gcx, gcy, CROP)
-        hit_b = box_hits_point(v2._infer_boxes(crop), gcx - x0, gcy - y0, 15)
+        hit_b = box_hits_gt(v2._infer_boxes(crop), gcx - x0, gcy - y0, gw, gh)
         # (c) crop model, same crop
-        hit_c = box_hits_point(cm._infer_boxes(crop), gcx - x0, gcy - y0, 15) if cm else False
+        hit_c = box_hits_gt(cm._infer_boxes(crop), gcx - x0, gcy - y0, gw, gh) if cm else False
         # (d) aim/centre-crop (no gt): crop around image centre; hit if gt is inside + a box lands there
         cropd, xd, yd = crop_at(frame, CX, CY, CROP)
         inside = (xd <= gcx <= xd + CROP) and (yd <= gcy <= yd + CROP)
-        hit_d = inside and box_hits_point(v2._infer_boxes(cropd), gcx - xd, gcy - yd, 15)
+        hit_d = inside and box_hits_gt(v2._infer_boxes(cropd), gcx - xd, gcy - yd, gw, gh)
         for arm, hit in (("a_full640", hit_a), ("b_gtcrop", hit_b),
                          ("c_cropmodel", hit_c), ("d_aimcrop", hit_d)):
             bins[b][arm][0] += int(hit)
