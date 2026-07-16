@@ -106,9 +106,20 @@ at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.
   ~1.5 m) polluting the acquire stream so no clean handoff forms (r2l locks 16/16, l2r only 8/16). So the
   targeted fix is a **handoff RANGE-PLAUSIBILITY gate** (`--coded-dash-acquire-range-min/max`, add #18f,
   = the red-team's #1 no-cue transfer-risk hardening): a detection advances the 5-streak only if its
-  implied range is inside a pre-flight-plausible window → rejects the phantom. TESTING now (line@9,
-  crossing-bias + range-min 4). Foveated auto-crop (ADR-0074) stays the REAL-target acquisition-range
-  lever for hardware (the 0.35 m target), but the sim l2r bottleneck is the phantom, not pixels.
+  implied range is inside a pre-flight-plausible window → rejects the phantom.
+  **RESULT = NULL (add #18f), and it re-confirms the core ADR-0076 finding.** The deeper diagnosis:
+  the l2r detections are median **implied-range 1.6 m while true range is 16.6 m** — i.e. ~48/49 are
+  the PHANTOM and the real target at 16 m is barely detected; the detector locks the prop, not the
+  target. And the range gate (min 4 m) broke BOTH directions (r2l 8/8→0, l2r 3/8→0) — it rejected the
+  very detections the coded-dash relies on, because the phantom (~1.5 m) and the usable detections
+  **OVERLAP in implied range** (exactly ADR-0076 add #13: phantom overlaps real in range AND image
+  space). No range threshold separates them. **So the phantom / l2r-acquisition is NOT software-fixable**
+  (range-gate null, rebal appearance-retrain null add #18d, ~12 prior ADR-0076 levers null): the fix is
+  **HARDWARE prop-clearance (remove the phantom at the source, BOM §0②) + a real-data-trained detector
+  (R6)** — the same conclusion the whole ADR-0076 saga reached. The `--coded-dash-acquire-range-*` flag
+  stays default-off (documented null). **NET SIM LANDING: guidance/aim is SOLVED (crossing-bias → r2l
+  0.72 m kill-edge); the l2r-acquisition + r2l-tightening residuals are the known PERCEPTION walls that
+  need hardware + real data, not more sim levers. The next real progress is BUILDING (R4+).**
 - **R4 [H bench]** Build + calibrate + prop-clearance gate + Hailo ≥14 Hz + **blur gate at TERMINAL LOS
   rates** + real max-lateral-accel + **RTK metrology σ≤0.3 m (non-negotiable).**
 - **R5 [H field, zero intercept risk]** The **range walk** (target hovering 5–25 m): measure R_acq/σ.
