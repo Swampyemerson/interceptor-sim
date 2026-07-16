@@ -100,8 +100,15 @@ at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.
   **AprilTag control ABANDONED:** the
   directional ~6 m-range tag is invisible during a 16 m/s crossing dash (0 detections) — a worse seeker
   than the NN here, can't be the "best-bearing" yardstick (reinforces the markerless-NN rationale).
-- **R3 [S]** Foveated auto-crop on native res (ADR-0074, crop weights exist) — not a sim-CPA lever but
-  the load-bearing PREREQ for the real 0.35 m target's acquisition range.
+- **R3 [S] IN PROGRESS — DIAGNOSIS redirected the lever.** l2r acquisition fails NOT from too few
+  pixels (auto-crop) but from **implausible-range FALSE detections**: the l2r dash-only flights DO detect
+  (45–57/flight) but their first detections are at 95–113 m gt-range = the own-prop PHANTOM (implies
+  ~1.5 m) polluting the acquire stream so no clean handoff forms (r2l locks 16/16, l2r only 8/16). So the
+  targeted fix is a **handoff RANGE-PLAUSIBILITY gate** (`--coded-dash-acquire-range-min/max`, add #18f,
+  = the red-team's #1 no-cue transfer-risk hardening): a detection advances the 5-streak only if its
+  implied range is inside a pre-flight-plausible window → rejects the phantom. TESTING now (line@9,
+  crossing-bias + range-min 4). Foveated auto-crop (ADR-0074) stays the REAL-target acquisition-range
+  lever for hardware (the 0.35 m target), but the sim l2r bottleneck is the phantom, not pixels.
 - **R4 [H bench]** Build + calibrate + prop-clearance gate + Hailo ≥14 Hz + **blur gate at TERMINAL LOS
   rates** + real max-lateral-accel + **RTK metrology σ≤0.3 m (non-negotiable).**
 - **R5 [H field, zero intercept risk]** The **range walk** (target hovering 5–25 m): measure R_acq/σ.
