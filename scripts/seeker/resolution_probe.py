@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Offline RESOLUTION-vs-ASPECT probe (ADR-0076 add #18i / Fable round-2): does
+the markerless detector fire on the APPROACHING quad at 8-25 m when given FULL-RES
+pixels, or not at any resolution? Forks the roadmap:
+  YES on native crop  -> RESOLUTION wall  -> foveated crop / higher-res inference (sim-provable)
+  NO even on crop      -> ASPECT/appearance wall -> only REAL DATA fixes it (shapes R5/R6 capture)
+
+Scores 4 arms on the SAME captured approach frames (scripts/seeker/capture_quad_approach.sh),
+using ALL boxes >= conf (not the seeker's top-1 -> closes the conf-NULL's top-1-masking hole):
+  (a) v2 @ 640 downscale (full 1280 frame letterboxed to 640)  -- must reproduce the wall
+  (b) v2 @ gt-centred 640 NATIVE crop                          -- resolution alone
+  (c) quad_crop model @ gt-centred native crop                 -- in-domain crop model (b confounds
+                                                                  resolution with scale-domain)
+  (d) v2 @ AIM-centred (image-centre) native crop              -- the DEPLOYABLE variant (no gt track
+                                                                  at acquisition; the dash aim ~= boresight)
+A "hit" = a box whose centre lands within the gt box (arm a, full frame) or within the gt's
+mapped position in the crop (b/c/d). Reports hit-rate vs gt-range. gt boxes + gt_range come from
+capture_flight_frames.py's saved labels + filenames. Uses gt for SCORING only.
+
+Usage: scripts/seeker/resolution_probe.py scripts/seeker/data/quad_approach [--conf 0.05]
+Run under .venv-seeker (onnxruntime + cv2).
+"""
+import argparse
+import glob
+import os
+import re
+import sys
+from collections import defaultdict
+
+import cv2
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from finetuned_seeker import FinetunedNNSeeker  # noqa: E402
+
+FX = FY = 539.9363327026367   # sim gz_x500_mono_cam intrinsics @1280x960
+CX, CY = 640.0, 480.0
+W_FULL, H_FULL = 1280, 960
+CROP = 640
+V2 = os.path.join(HERE, "weights", "drone_finetuned_quad_v2.onnx")
+CROP_W = os.path.join(HERE, "weights", "drone_finetuned_quad_crop.onnx")
+
+_RANGE_RE = re.compile(r"_r(\d+\.?\d*)_")
+
+
+def gt_range_of(name):
+    m = _RANGE_RE.search(name)
+    return float(m.group(1)) if m else None
+
+
+def load_gt_box(label_path):
+    """YOLO 'class cx cy w h' (normalized) -> (cx_px, cy_px, w_px, h_px) or None."""
+    try:
+        parts = open(label_path).readline().split()
+    except OSError:
+        return None
+    if len(parts) < 5:
+        return None
+    _, cx, cy, w, h = (float(v) for v in parts[:5])
+    return cx * W_FULL, cy * H_FULL, w * W_FULL, h * H_FULL
+
+
+def crop_at(frame, cx, cy, size):
+    x0 = int(max(0, min(W_FULL - size, cx - size / 2)))
+    y0 = int(max(0, min(H_FULL - size, cy - size / 2)))
+    return frame[y0:y0 + size, x0:x0 + size], x0, y0
+
+
+def box_hits_point(boxes, px, py, tol):
+    for score, u, v, bw, bh in boxes:
+        if abs(u - px) <= max(bw / 2, tol) and abs(v - py) <= max(bh / 2, tol):
+            return True
+    return False
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("data_dir")
+    ap.add_argument("--conf", type=float, default=0.05)
+    ap.add_argument("--rmin", type=float, default=8.0)
+    ap.add_argument("--rmax", type=float, default=25.0)
+    args = ap.parse_args()
+    v2 = FinetunedNNSeeker(FX, FY, CX, CY, V2, conf_thres=args.conf)
+    cm = FinetunedNNSeeker(FX, FY, CX, CY, CROP_W, conf_thres=args.conf) if os.path.exists(CROP_W) else None
+    imgs = sorted(glob.glob(os.path.join(args.data_dir, "images", "*.png")))
+    lbl_dir = os.path.join(args.data_dir, "labels")
+    # per 2 m bin: {arm: [hits, total]}
+    bins = defaultdict(lambda: defaultdict(lambda: [0, 0]))
+    used = 0
+    for ip in imgs:
+        base = os.path.splitext(os.path.basename(ip))[0]
+        gr = gt_range_of(base)
+        if gr is None or not (args.rmin <= gr <= args.rmax):
+            continue
+        gt = load_gt_box(os.path.join(lbl_dir, base + ".txt"))
+        if gt is None:  # negative frame (target not in view) -> skip
+            continue
+        frame = cv2.imread(ip)
+        if frame is None:
+            continue
+        used += 1
+        gcx, gcy, gw, gh = gt
+        b = int(gr // 2) * 2
+        # (a) full frame @640 downscale
+        hit_a = box_hits_point(v2._infer_boxes(frame), gcx, gcy, 15)
+        # (b) v2 native gt-centred crop
+        crop, x0, y0 = crop_at(frame, gcx, gcy, CROP)
+        hit_b = box_hits_point(v2._infer_boxes(crop), gcx - x0, gcy - y0, 15)
+        # (c) crop model, same crop
+        hit_c = box_hits_point(cm._infer_boxes(crop), gcx - x0, gcy - y0, 15) if cm else False
+        # (d) aim/centre-crop (no gt): crop around image centre; hit if gt is inside + a box lands there
+        cropd, xd, yd = crop_at(frame, CX, CY, CROP)
+        inside = (xd <= gcx <= xd + CROP) and (yd <= gcy <= yd + CROP)
+        hit_d = inside and box_hits_point(v2._infer_boxes(cropd), gcx - xd, gcy - yd, 15)
+        for arm, hit in (("a_full640", hit_a), ("b_gtcrop", hit_b),
+                         ("c_cropmodel", hit_c), ("d_aimcrop", hit_d)):
+            bins[b][arm][0] += int(hit)
+            bins[b][arm][1] += 1
+    print(f"=== resolution-vs-aspect probe: {used} approach frames ({args.rmin}-{args.rmax} m), conf {args.conf} ===")
+    print(f"  {'range':<8}{'a_full640':>12}{'b_gtcrop':>12}{'c_cropmodel':>13}{'d_aimcrop':>12}")
+    arms = ["a_full640", "b_gtcrop", "c_cropmodel", "d_aimcrop"]
+    tot = defaultdict(lambda: [0, 0])
+    for b in sorted(bins):
+        cells = []
+        for a in arms:
+            h, t = bins[b][a]
+            tot[a][0] += h
+            tot[a][1] += t
+            cells.append(f"{100*h/t:.0f}% ({h}/{t})" if t else "-")
+        print(f"  {f'{b}-{b+2}':<8}" + "".join(f"{c:>12}" for c in cells[:1]) +
+              f"{cells[1]:>12}{cells[2]:>13}{cells[3]:>12}")
+    print("  " + "-" * 55)
+    tcells = [f"{100*tot[a][0]/tot[a][1]:.0f}%" if tot[a][1] else "-" for a in arms]
+    print(f"  {'ALL':<8}{tcells[0]:>12}{tcells[1]:>12}{tcells[2]:>13}{tcells[3]:>12}")
+    print("\n  READ: a≈0 reproduces the wall. b/c >> a -> RESOLUTION wall (foveated crop is the lever).")
+    print("        b/c ≈ a ≈ 0 -> ASPECT/appearance wall (only real data fixes it). d = deployable ceiling.")
+
+
+if __name__ == "__main__":
+    main()
