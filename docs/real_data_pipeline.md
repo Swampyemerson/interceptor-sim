@@ -80,10 +80,18 @@ any real footage exists. (Follow-up capture task; the projection math is already
 
 ## Status
 
-- ✅ `autolabel_from_apriltag.py` built + projection self-test green.
-- ✅ **Validated END-TO-END on a real sim tag frame** (`logs/m2_frames_check/tag_at_5m.png`):
-  detects tag id 0, pose z=4.97 m, and emits a box whose normalized width **0.0848 matches the
-  geometry expectation 0.0849** and whose centre tracks the tag's image position. (The test found
-  and fixed a real `pose_t` shape bug the unit self-test missed — the value of end-to-end checks.)
+- ✅ `autolabel_from_apriltag.py` built; projection `--self-test` green; **hardened after the
+  Fable round-1 check** — (1) tag-miss frames are now DROPPED by default (only `--negatives-from-
+  untagged` on TARGET-FREE footage makes them negatives) so approach footage can't be poisoned
+  with false 'background' labels beyond the tag's decode range; (2) `--tag-offset-m` applied in
+  the tag frame via `pose_R`; (3) frames undistorted before detect+project.
+- ⚠️ **Partial validation only** (do NOT overclaim): the projection math is self-test-green, the
+  pose is accurate on one frame (`tag_at_5m.png`: z=4.97 m vs the 5 m world placement, 0.7% error),
+  and the end-to-end run caught a real `pose_t` shape bug. But the box-width "match" was circular
+  (the same `fx·s/rng` formula twice), and it's one on-axis ideal-camera frame. **The real
+  validation — tag-box vs gt-box (IoU) and label-rate, both vs RANGE over a full approach pass in
+  the apriltag world — has NOT run yet; it's the next step, and its label-ceiling-vs-range curve
+  decides the placard size / far-band labeling strategy before any hardware flies.**
 - ✅ `calibrate_camera.py` + `flight.camera` (calibration → intrinsics) built + self-tested.
+- ✅ `approach_recall.py` — measures the deployed detector's real-target recall vs range (the wall).
 - ⏳ Capture tooling for the Pi camera + the approaching-pass protocol (hardware-gated).

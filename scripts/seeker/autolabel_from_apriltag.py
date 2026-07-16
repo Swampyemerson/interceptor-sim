@@ -46,20 +46,22 @@ from gen_sim_dataset import project_to_bbox, make_label_line  # noqa: E402
 
 
 def _load_calib(path):
-    """Load fx,fy,cx,cy + resolution from a calib JSON — accepts the
-    flight.camera / calibrate_camera.py format (fx,fy,cx,cy, dist_coeffs,
+    """Load fx,fy,cx,cy + resolution + distortion from a calib JSON — accepts the
+    flight.camera / calibrate_camera.py format (fx,fy,cx,cy, dist_coeffs/dist,
     resolution) and the plain intrinsics format."""
     d = json.loads(open(path).read())
     fx, fy, cx, cy = float(d["fx"]), float(d["fy"]), float(d["cx"]), float(d["cy"])
     res = d.get("resolution", {})
     w = int(res.get("width", d.get("width", 0)))
     h = int(res.get("height", d.get("height", 0)))
-    return fx, fy, cx, cy, w, h
+    dist = d.get("dist_coeffs", d.get("dist", [0.0] * 5))
+    return fx, fy, cx, cy, w, h, np.asarray(dist, dtype=float).ravel()
 
 
 def autolabel_frame(gray, detector, cam_params, tag_size, drone_size,
                     tag_offset_m, w, h):
-    """Detect the tag in one grayscale frame and return a YOLO box (or None).
+    """Detect the tag in one grayscale frame and return a YOLO box, or None if
+    NO TAG WAS DECODED (the caller must NOT treat that as a negative — see run()).
     cam_params = (fx,fy,cx,cy)."""
     dets = detector.detect(gray, estimate_tag_pose=True,
                            camera_params=cam_params, tag_size=tag_size)
@@ -68,11 +70,16 @@ def autolabel_frame(gray, detector, cam_params, tag_size, drone_size,
     # Nearest tag (smallest z) if several placards are visible. pose_t is (3,1),
     # so reshape before indexing (float() on a 1-element array errors in numpy 2).
     det = min(dets, key=lambda t: float(t.pose_t.reshape(3)[2]))
-    x, y, z = (float(v) for v in det.pose_t.reshape(3))
-    # optional: shift from tag placard to drone body centre (camera optical axes)
-    x += tag_offset_m[0]
-    y += tag_offset_m[1]
-    z += tag_offset_m[2]
+    t = det.pose_t.reshape(3)
+    # Placard -> drone body centre: the offset is fixed in the TAG's frame, so
+    # rotate it by the tag orientation (pose_R) before adding to the translation
+    # -- adding it raw in the camera frame is only right when the tag faces the
+    # camera dead-on and systematically mislabels as the aspect changes (Fable
+    # round-1 check, issue 3).
+    off = np.asarray(tag_offset_m, dtype=float)
+    if off.any():
+        t = t + det.pose_R.reshape(3, 3) @ off
+    x, y, z = float(t[0]), float(t[1]), float(t[2])
     rng = math.sqrt(x * x + y * y + z * z)
     fx, fy, cx, cy = cam_params
     return project_to_bbox(x, y, z, rng, fx, fy, cx, cy, drone_size, w, h)
@@ -81,9 +88,18 @@ def autolabel_frame(gray, detector, cam_params, tag_size, drone_size,
 def run(args):
     import cv2
     from pupil_apriltags import Detector
-    fx, fy, cx, cy, w, h = _load_calib(args.calib)
+    fx, fy, cx, cy, w, h, dist = _load_calib(args.calib)
     if not (w and h):
         raise SystemExit("calib JSON needs a resolution (width/height)")
+    # Undistort before detect+project (Fable round-1 check, issue 4): pupil-
+    # apriltags + project_to_bbox assume an ideal pinhole, so a real lens shifts
+    # boxes at the frame edges -- exactly where a crossing target lives. We
+    # rectify to the SAME K (getOptimalNewCameraMatrix alpha=0 would change K).
+    K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=float)
+    undistort = bool(dist.any())
+    map1 = map2 = None
+    if undistort:
+        map1, map2 = cv2.initUndistortRectifyMap(K, dist, None, K, (w, h), cv2.CV_16SC2)
     det = Detector(families="tag36h11")
     off = tuple(float(v) for v in args.tag_offset_m.split(","))
     img_dir = os.path.join(args.out, "images")
@@ -94,32 +110,47 @@ def run(args):
                    glob.glob(os.path.join(args.frames, "*.jpg")))
     if not paths:
         raise SystemExit(f"no frames in {args.frames}")
-    labeled = skipped = 0
+    labeled = untagged = 0
     for p in paths:
         img = cv2.imread(p)
         if img is None:
-            skipped += 1
             continue
+        if undistort:
+            img = cv2.remap(img, map1, map2, cv2.INTER_LINEAR)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         box = autolabel_frame(gray, det, (fx, fy, cx, cy), args.tag_size,
                               args.drone_size, off, w, h)
         base = os.path.splitext(os.path.basename(p))[0]
-        cv2.imwrite(os.path.join(img_dir, base + ".png"), img)
-        if box is None:
-            # NEGATIVE frame (no tag = no confident target) -> empty label file,
-            # which YOLO treats as a hard negative. This is FREE hard-negative
-            # mining (the own-prop / background frames the tag never fires on).
-            open(os.path.join(lbl_dir, base + ".txt"), "w").close()
-            skipped += 1
-        else:
+        if box is not None:
+            cv2.imwrite(os.path.join(img_dir, base + ".png"), img)
             with open(os.path.join(lbl_dir, base + ".txt"), "w") as f:
                 f.write(make_label_line(box, w, h, 0) + "\n")
             labeled += 1
-    print(f"[autolabel] {labeled} positive, {skipped} negative/empty "
-          f"of {len(paths)} frames -> {args.out}")
-    print(f"[autolabel] auto-label rate {100*labeled/max(1,len(paths)):.0f}% "
-          f"(the tag's approach-detection ceiling — compare to the deployed "
-          f"markerless recall on the SAME flights, ADR-0076 add #18h).")
+        elif args.negatives_from_untagged:
+            # ONLY use tag-miss frames as negatives when the caller asserts the
+            # footage is target-FREE (pre-launch / empty sky/ground). Otherwise
+            # DROP them (below): on target-PRESENT approach footage the tag
+            # decodes only to ~2-4 m while the drone is visible from ~30 m, so
+            # labeling those frames 'background' would train the detector to NOT
+            # see the approaching target = baking in the exact add-#18h wall this
+            # pipeline exists to fix, invisibly (Fable round-1 check, issue 1).
+            cv2.imwrite(os.path.join(img_dir, base + ".png"), img)
+            open(os.path.join(lbl_dir, base + ".txt"), "w").close()
+            labeled += 1
+        else:
+            untagged += 1  # DROPPED, not labeled -- never poison with a false negative
+    mode = "target-FREE (tag-miss=negative)" if args.negatives_from_untagged else \
+           "target-PRESENT (tag-miss DROPPED)"
+    print(f"[autolabel] {labeled} labeled, {untagged} tag-miss dropped, "
+          f"of {len(paths)} frames [{mode}] -> {args.out}")
+    if not args.negatives_from_untagged and untagged:
+        print(f"[autolabel] NOTE: {untagged} tag-miss frames DROPPED (not labeled "
+              f"background) -- the tag's decode ceiling is below the drone's "
+              f"visibility range, so far-band labels need a bigger placard / "
+              f"tag-seeded tracking / telemetry boxes (docs/real_data_pipeline.md).")
+    print(f"[autolabel] tag-label rate {100*labeled/max(1,len(paths)):.0f}% "
+          f"(the tag's decode ceiling — measure the deployed markerless recall on "
+          f"the SAME flights with approach_recall.py, ADR-0076 add #18h).")
     return 0
 
 
@@ -154,7 +185,12 @@ def main():
     ap.add_argument("--calib", help="camera calib JSON (calibrate_camera.py / flight.camera)")
     ap.add_argument("--tag-size", type=float, default=0.10, help="AprilTag black-square edge (m)")
     ap.add_argument("--drone-size", type=float, default=0.35, help="target drone extent (m); 5\" ~0.35")
-    ap.add_argument("--tag-offset-m", default="0,0,0", help="tag->drone-centre offset x,y,z (cam optical, m)")
+    ap.add_argument("--tag-offset-m", default="0,0,0", help="tag->drone-centre offset x,y,z in the TAG frame (m)")
+    ap.add_argument("--negatives-from-untagged", action="store_true",
+                    help="treat tag-miss frames as YOLO negatives -- ONLY for TARGET-FREE "
+                         "footage (empty sky/ground/pre-launch). Default DROPS tag-miss "
+                         "frames so target-present approach footage can't poison the set "
+                         "with false 'background' labels beyond the tag decode range.")
     ap.add_argument("--out", help="output YOLO dataset dir")
     ap.add_argument("--self-test", action="store_true", help="projection roundtrip; exit 0/1")
     args = ap.parse_args()
