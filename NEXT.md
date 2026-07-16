@@ -53,7 +53,30 @@ with reproducible, logged numbers. Six steps, in value order:
 correctly scoped/HELD on every surface; audit backlog groomed to
 tracked-or-accepted; repo publishable on a remote.
 
-## 📍 CURRENT (2026-07-15, live)
+## 📍 CURRENT (2026-07-16, live)
+
+> **🔵 ROUND-5 CORRECTION — the "approach-aspect detector wall" was the 5th mirage (ADR-0076 add #18k,
+> Fable strategic-review pass, independently re-scored). The detector is NOT blind.** The controlled
+> set-pose sweep (level camera, target teleported to 8/12/16/20/25 m on boresight, n=527 approach +
+> 558 receding, fixed `box_hits_gt`) shows the DEPLOYED detector scores **100% recall at every range
+> 8–22 m on BOTH the nose-on approach aspect and receding**, static/centred — same detector, same
+> threshold that reads 0.8% IN FLIGHT (#18i). So the in-flight wall is **FLIGHT-DYNAMIC, not a
+> static range/aspect/appearance/resolution deficit**: under the ~40° nose-down dash pitch the target
+> sits at the FRAME-TOP edge (~41° off-axis, #18j-fix) where lens-edge skew + off-boresight + training
+> never-showed-it kill recall. **Corrected levers:** (1) **POINTING/attitude is dominant** — re-centre
+> the target (adaptive tilt #46/ADR-0065; tilt-aware gt now exists, add #18k(2)); (2) real-data
+> detector is **DEMOTED to a hypothesis** for the 8–12 m band (it would ACE a static/hover capture and
+> still fail in flight — the v3/rebal trap) and is really about the OUTDOOR appearance gap, not the
+> sim wall. **#1 thing we're NOT measuring: recall vs POSITION-IN-FRAME & bank-attitude (not range).**
+> NEXT decisive sim probe (cheap, offline-scoreable): re-run the sweep at the frame-top off-axis
+> position × {level, banked} to decompose pointing/attitude/edge-clip and SPEC the real capture.
+> Fable strategic review (acoustics + transfer-bet + Pi5) landed same pass — key calls: acoustics DEAD
+> onboard (own-noise ~40 dB the wrong way) / OK as a ground launch-cue; MIT-NN transfer is hope-past-
+> evidence → validate with a **~$310 tripod + tagged-target afternoon** (measure real approach recall
+> vs range/frame-position BEFORE building); Pi5 CPU runs the **AprilTag baseline real-time**, markerless
+> **REQUIRES the deferred HAT** (BOM §0c already ruled this — first kills fly the tag). Honest resume
+> line = "PN terminal guidance handed off from a no-datalink coded dash, validated by Monte-Carlo miss
+> stats; quantified the perception acquisition envelope and identified the flight-dynamic recall limit."
 
 ### 🎯 THE ROADMAP — path to the goal (Fable judge-panel workflow + red-team, 2026-07-15)
 > **⛔ CORRECTION (ADR-0076 add #18g, Fable adversarial verification 2026-07-15):** the R1–R3
