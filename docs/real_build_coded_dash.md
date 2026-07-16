@@ -122,12 +122,39 @@ pixel is wrong toward the frame edges (>1° at the edge on a representative mode
    TAKEOFF → coded dash → camera-terminal ENGAGE → breakoff → land.
 5. **`field_score.py`** — CPA from the two GPS logs, the real-world miss metric.
 
+## Goal-condition results + where the sim work lands (2026-07-15, ADR-0076 add #18e/f)
+
+The goal crisped to: intercept a **≥20 mph (~9 m/s)** target to **<1 m**, camera-only.
+The sim was pushed hard on the actual goal geometry (a straight line @9 m/s, not the
+easier weave). Honest landing:
+
+- **GUIDANCE / aim is largely SOLVED.** The straight-line baseline missed by ~3.4 m
+  because it unmasks a direction-dependent **aspect-biased aim** (ADR-0056). Built
+  `--dash-crossing-bias-deg` — a per-direction correction whose sign auto-keys on the
+  crossing direction (dash × `--target-vel`, a pre-flight constant, honest, no gt).
+  **Validated on 2 seeds: r2l median 0.72 m, 9/16 within 1 m, best 0.37 m (contact)** —
+  the markerless *aim* can be corrected to the edge of kill range with no perception
+  change. But the correction is **speed/aspect-specific** (the +30° tuned for 9 m/s
+  over-corrects at 5 m/s), which points at a real-data detector — not a hand-tuned
+  bias — as the robust fix.
+- **PERCEPTION is the wall, and it's HARDWARE/real-data-gated (proven, not assumed).**
+  l2r locks only ~half the time because the detector locks the **own-prop phantom**
+  (median implied range 1.6 m) while the real target at 16 m is barely seen. Every
+  software separator fails — a handoff range-plausibility gate is NULL (phantom
+  overlaps the real detections in implied range, ADR-0076 add #13), the phantom-free
+  retrain is NULL in flight (add #18d), ~12 prior levers NULL. **The fix is the
+  hardware prop-clearance mount (§0② of the BOM — remove the phantom at the source)
+  plus a real-data-trained detector** (no aspect-bias, no prop-lock).
+
 ## Honest open items
 
-- **r2l residual (~2–4 m)** = the ADR-0056 bearing aspect-bias. The east-bias
-  sweep proves it's fully correctable; the honest fix is a bearing/aim correction
-  keyed on the aspect (a blind global heading bias just trades l2r for r2l). Not
-  yet built.
+- **The markerless kill is guidance-ready but perception-blocked.** At 9 m/s, r2l
+  reaches contact on the good flights (not reliably); l2r is phantom-blocked. The two
+  remaining walls — l2r phantom-acquisition and r2l bearing-tightening — are the known
+  perception limits that need **hardware (prop-clearance) + real-flight data**, not
+  more sim levers. The sim has extracted the guidance win and named the hardware
+  requirements; the next real progress is BUILDING (R4+).
 - **Everything past `flight/` is untested** until the hardware exists — the
   frame source, serial MAVSDK, and the real seeker are hardware-gated. The
-  guidance core is the part that is validated and transfers.
+  guidance core (incl. `--dash-crossing-bias` mechanism) is validated and transfers;
+  its magnitudes must be re-tuned on real data.
