@@ -146,6 +146,31 @@ CAMERA_LINK_NAME = "camera_link"
 # way. m3/m4 import this name, so the one env read propagates to the whole gt path.
 TAG_MODEL_NAME = os.environ.get("INTERCEPTOR_TARGET_MODEL", "apriltag_target")
 
+# The imager <sensor> can be TILTED inside camera_link (an up-tilt mount, e.g.
+# scripts/experiments/uptilt_mounts/up35/mono_cam/model.sdf, applied via the
+# models/mono_cam shadow in uptilt_run.sh). That tilt is NOT observable from the
+# pose topic -- /world/<w>/pose/info publishes the model and camera_link poses
+# but NOT the sensor's own pose inside camera_link -- so ground_truth_rel_optical
+# would otherwise project every gt box as if the sensor sat LEVEL in camera_link.
+# That silent bug made the up35 capture's gt labels level-projected and unusable
+# (Fable round-4 check, ADR-0076 add #18k). INTERCEPTOR_SENSOR_PITCH_RAD carries
+# the SDF sensor <pose> PITCH (5th number, rad; NEGATIVE = boresight UP, matching
+# the SDF sign) so the transform can rotate gt into the ACTUAL sensor frame.
+SENSOR_PITCH_RAD = float(os.environ.get("INTERCEPTOR_SENSOR_PITCH_RAD", "0") or "0")
+
+
+def _rot_y(theta: float) -> np.ndarray:
+    """Rotation about the +y axis (gz sensor/camera_link y is LEFT)."""
+    c, s = np.cos(theta), np.sin(theta)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+
+
+# Map a camera_link-frame vector into the (possibly tilted) sensor frame. The
+# sensor->camera_link rotation is Rot_y(pitch); its transpose Rot_y(-pitch) takes
+# a camera_link vector to the sensor frame. None (identity) for the level default,
+# so gated callers are byte-identical unless they opt in via the env var.
+_R_CAMLINK_TO_SENSOR = _rot_y(-SENSOR_PITCH_RAD) if SENSOR_PITCH_RAD else None
+
 IMAGE_TOPIC = (
     f"/world/{WORLD_NAME}/model/{DRONE_MODEL}/link/{CAMERA_LINK_NAME}"
     "/sensor/imager/image"
@@ -281,10 +306,18 @@ class PoseTracker:
         gt_rel_world = p_tag_world - p_cam_world
         gt_rel_camlink = R_cam_world.T @ gt_rel_world
 
+        # Apply the imager's own mount tilt inside camera_link (invisible in the
+        # pose topic; injected via INTERCEPTOR_SENSOR_PITCH_RAD) so a tilted
+        # camera's gt boxes are projected in the ACTUAL sensor frame, not as if
+        # it were level (Fable round-4 check, ADR-0076 add #18k). Identity no-op
+        # for the default level mount.
+        gt_rel_sensor = gt_rel_camlink if _R_CAMLINK_TO_SENSOR is None \
+            else _R_CAMLINK_TO_SENSOR @ gt_rel_camlink
+
         # gz sensor frame (x-fwd, y-left, z-up) -> OpenCV optical frame
         # (z-fwd, x-right, y-down). See module docstring.
         gt_rel_optical = np.array(
-            [-gt_rel_camlink[1], -gt_rel_camlink[2], gt_rel_camlink[0]]
+            [-gt_rel_sensor[1], -gt_rel_sensor[2], gt_rel_sensor[0]]
         )
         return gt_rel_optical, True, ""
 

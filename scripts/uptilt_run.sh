@@ -18,5 +18,14 @@ SHADOW="$PWD/models/mono_cam"
 ln -s "$SRC" "$SHADOW"
 restore() { rm -f "$SHADOW"; echo "[uptilt] removed models/mono_cam shadow"; }
 trap restore EXIT
-echo "[uptilt] applied $TILT via models/mono_cam symlink; running: $*"
+# Parse the imager <sensor> <pose> PITCH (5th number, rad; NEGATIVE = boresight
+# UP) from the variant SDF and export it so the gt chain (m2_detect /
+# capture_flight_frames) projects boxes in the ACTUAL tilted sensor frame. WITHOUT
+# this the labeler is tilt-BLIND and every gt box is level-projected -- the bug
+# that invalidated the up35 capture (Fable round-4 check, ADR-0076 add #18k).
+# Take the <pose> INSIDE the <sensor> block (not the model/inertial/visual poses).
+SENSOR_POSE_LINE="$(awk '/<sensor /{ins=1} ins && /<pose>/{print; exit}' "$SRC/model.sdf")"
+SENSOR_PITCH_RAD="$(printf '%s' "$SENSOR_POSE_LINE" | grep -oP '<pose>\s*[-0-9.]+\s+[-0-9.]+\s+[-0-9.]+\s+[-0-9.]+\s+\K[-0-9.]+')"
+export INTERCEPTOR_SENSOR_PITCH_RAD="${SENSOR_PITCH_RAD:-0}"
+echo "[uptilt] applied $TILT via models/mono_cam symlink; sensor pitch=${INTERCEPTOR_SENSOR_PITCH_RAD} rad; running: $*"
 "$@"
