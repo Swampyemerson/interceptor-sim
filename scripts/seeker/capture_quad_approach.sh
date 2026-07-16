@@ -13,7 +13,7 @@ VENV_PY="$REPO_ROOT/.venv-seeker/bin/python"
 WORLD=quad_enemy
 TARGET_MODEL=fpv_quad_enemy
 WEIGHTS="$REPO_ROOT/scripts/seeker/weights/drone_finetuned_quad_v2.onnx"
-OUT_DIR="$REPO_ROOT/scripts/seeker/data/quad_approach"
+OUT_DIR="${QUAD_APPROACH_OUT:-$REPO_ROOT/scripts/seeker/data/quad_approach}"
 LOG_DIR="$REPO_ROOT/logs/quad_approach"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "$LOG_DIR" "$OUT_DIR"
