@@ -109,6 +109,14 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
 - **Keep the project's memory current.** Maintain this `CLAUDE.md`, a `NEXT.md`
   (top of the stack), and `PROGRESS.md` (milestone roll-up) as you learn, so a fresh
   session (after `/compact` or `/clear`) starts smart. Propose the edit and say why.
+- **Project-state contract:** `docs/project_state.json` is the single source of truth
+  for pipeline/stage status (implemented / half-done / idea / rejected / superseded).
+  READ it at session start to know what's actually built vs. hypothesis; when any
+  status, active version, or decision changes, update it **+ run
+  `python3 scripts/render_dashboard.py` the SAME TURN** and commit both (view:
+  `docs/dashboard.html`; ritual: `docs/project_state_readme.md`; `run_tests.sh` fails
+  on drift). This exists to stop decisions evaporating from chat — the drift that bred
+  this session's five mirages.
 - **Numbers trace to a run or a derivation.** No unsourced quantitative claims.
 - **Ask before** downloads over ~2 GB, or changes to the system outside this project
   dir and apt packages.
