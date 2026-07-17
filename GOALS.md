@@ -4,6 +4,12 @@
 > building and *why*. It is self-contained: you do not need the parent project's
 > files to start, though a pointer to them is at the bottom for deep context.
 
+> **STATUS (2026-07-15 real-build pivot):** "Simulation-only" below describes the completed sim
+> phase, not current project scope. The repo now also carries the physical interceptor's build
+> path — the current goal is an OUTDOOR camera-only BINARY KILL of a >=9 m/s target (coded
+> open-loop dash -> camera-only pro-nav terminal, no datalink). Current truth:
+> `docs/real_build_coded_dash.md`, `docs/hardware_order_list.md` (§0c), `docs/project_state.json`.
+
 ## Mission (one line)
 
 Build a **simulation-only** counter-UAS interceptor: a quadcopter that uses its
@@ -41,9 +47,9 @@ fiducial that lets us focus on the *guidance and control* problem instead of the
 - Everything **headless** and **logged** (telemetry + detections + miss distance to CSV/ulog).
 
 **IS NOT (deliberately out of scope):**
-- No hardware, no real flight. Simulation only.
+- No hardware, no real flight. Simulation only. *(superseded 2026-07-15 for project scope — see the STATUS banner above; still true of the sim harness itself)*
 - **No ROS 2.** Camera comes out of Gazebo via `gz-transport` Python bindings; control via MAVSDK. Keep the dependency surface minimal.
-- No ML perception. The AprilTag is the target lock; classical/fiducial only.
+- No ML perception. The AprilTag is the target lock; classical/fiducial only. *(SUPERSEDED post-M5 — ADR-0038/0040: the deployed terminal seeker is now a markerless YOLO NN, `drone_finetuned_v2.onnx`; the AprilTag remains sanctioned only for calibration, training-time auto-labels, and the staged first-kill baseline seeker. Current scope: `docs/project_state.json`.)*
 - No ground stereo rig, no ExpressLRS, no fusion node. Those are parent-project concerns, mocked away here.
 
 ## Parent -> Simulation translation

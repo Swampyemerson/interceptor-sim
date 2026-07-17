@@ -144,6 +144,8 @@ INTERCEPTOR_ORIENT_TO_VEL=1 INTERCEPTOR_ORIENT_YAW_OFFSET_DEG=0 \
   --target-start=6.500,30.025,0.5 --target-vel=0.000,-12.000 --cue-seed 256788 \
   --dash-speed 16 --early-handoff --cue-velocity --dash-unclamp --fuse-midcourse \
   --track --handoff-cue-gate 8
+# SUPERSEDED: the quad config is NN-only — drop --track (ADR-0076 add #2; the add #7 --track
+# win was retracted as a geometry artifact in add #8). Kept verbatim for the record.
 ```
 Note `INTERCEPTOR_ORIENT_YAW_OFFSET_DEG=0` — `fpv_quad_enemy`'s nose is baked **+X**
 (the old billboard needed `-90`). Check **first-det range, handoff range, CPA**;
@@ -190,6 +192,13 @@ One re-validation flight on `quad_enemy` (orient ON, offset 0):
   Pk-gated + NOT done.
 
 ### v2 characterization batch — 6/6 CLEAN (the abort was noise)
+
+> ⚠️ **SUPERSEDED (ADR-0076, 2026-07-12; then add #18g/#18h, 2026-07-15/16):** this 6/6 batch used a
+> NON-STANDARD easy geometry (target 30 m out). On the canonical mc_batch geometry the same pair
+> scored ~2/45 Pk@2.5 (honest n=32 baseline 41%; l2r 81% / r2l 0%) — the retrain does NOT validate,
+> and the quad deployment config is NN-only (drop `--track`, add #2; the add #7 "--track win" was
+> retracted as a geometry artifact, add #8). Later: no camera-guided 3D-quad kill exists at all
+> (add #18g/#18h). See `docs/decisions.md` ADR-0076 + `docs/project_state.json`.
 6 flights, different path-seeds, v2 seeker on `quad_enemy` (orient ON):
 | flight (path/cue seed) | first-det | handoff | miss | result |
 |---|---|---|---|---|
@@ -210,6 +219,15 @@ handoff restored.** NOT yet the n≥8 paired Pk bar (ADR-0064 discipline) → th
 gate; the swap remains Pk-gated + not done, fallback (`fpv_target_markerless`+`drone_finetuned_v2`) live.
 
 ## AUTO-CROP hi-res seeker (ADR-0074, fix #3) — the coverage lever (2026-07-12)
+
+> ⚠️ **SUPERSEDED 2026-07-16 — do NOT resume this arc (ADR-0076 add #18j-fix/#18k;
+> project_state.json graveyard: "Resolution / foveated-crop as the wall lever").** The re-scored
+> resolution probe retracted the crop lever: at the 8–12 m wall band the native crop equals the
+> full frame (33% recall, all four arms); the earlier 47→71% "crop win" was a backwards
+> hit-criterion artifact on ≤6 m edge-clipped targets. The wall is FLIGHT-DYNAMIC pointing, not
+> resolution — current levers: adaptive camera tilt (#46/ADR-0065) + the real-data detector
+> (outdoor-appearance hypothesis). The committed default-OFF code (6db3ed1) stays as-is; the
+> commands below are retained for the record only.
 Raises the ~50% NN-coverage ceiling by running the NN on a NATIVE-640 crop around the target
 (2x pixels-on-target) instead of the downscaled full frame. Committed `6db3ed1` (default-OFF,
 byte-identical). Files: `scripts/seeker/{crop_geom,auto_crop_seeker,render_sim_dataset_crop,

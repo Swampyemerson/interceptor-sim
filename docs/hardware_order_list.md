@@ -1,4 +1,4 @@
-<!-- Generated 2026-07-12 by a research workflow (interceptor-hardware-bom). Parent-project hardware BOM for the counter-UAS interceptor + a programmable test target, anchored to the sim-validated design (PX4/MAVSDK offboard, ~100 deg global-shutter cam, up15 tilt, Pi-class compute, AprilTag target). Prices are estimates — verify at purchase. -->
+<!-- Generated 2026-07-12 by a research workflow (interceptor-hardware-bom). Parent-project hardware BOM for the counter-UAS interceptor + a programmable test target, anchored to the sim-validated design (PX4/MAVSDK offboard, ~100 deg global-shutter cam, up15 tilt [SUPERSEDED — no fixed tilt is sim-validated: ADR-0067 no-adopt + ADR-0068 Stage-1 parity FAIL; adaptive tilt #46/ADR-0065 is the open lever], Pi-class compute, AprilTag target). Prices are estimates — verify at purchase. -->
 
 # Interceptor Hardware — Purchase-Ready Order List
 
@@ -22,8 +22,9 @@ safety F all still needed). The deltas that affect **what to buy**:
   0/12" failure (ADR-0024). The M12 set is fine — fit **only** the ~2.5–2.8 mm (~100°)
   element and keep the rest as spares. (This supersedes the old "narrow-lens-first"
   acquisition-range advice.)
-- **② The camera mount must attempt PROP CLEARANCE — the $0 fix for the #1 seeker
-  failure.** In sim, the interceptor's own prop blades read as a false target
+- **② The camera mount must attempt PROP CLEARANCE — the $0 fix for the false-HANDOFF
+  hazard (own-prop phantom).** *(was "the #1 seeker failure" — superseded, see the bracket at the
+  end of this bullet)* In sim, the interceptor's own prop blades read as a false target
   ("phantom") the camera-only terminal can lock with no cue to veto it. Mounting the
   camera **forward of / above the prop disc** so the blades sit outside the ~100° FoV
   designs the phantom out for free. **Geometry check (audited on the Mark5 Pro):** a
@@ -35,6 +36,12 @@ safety F all still needed). The deltas that affect **what to buy**:
   HARD gate.** ⚠️ **There is NO software fallback:** the phantom-free retrained seeker was
   measured FAILING in flight (0/16 acquisitions, ADR-0076 add #18d — `quad_v2` stays deployed).
   Clearance-by-geometry + the no-cue handoff hardening are the ONLY mitigations.
+  **[SUPERSEDED IN PART 2026-07-16, ADR-0076 add #18g/#18h/#18k: the camera-forward flight removed
+  the phantom (approach-phase phantom detections 1187→1) but acquisition was UNCHANGED — the phantom
+  is the false-handoff hazard, NOT the #1 seeker failure and NOT the acquisition blocker. The mount
+  stays mandatory (all software phantom separators are NULL), but the binding seeker failure is
+  in-flight approach recall ≈0 — a pointing/dash-pitch wall whose levers are adaptive camera tilt
+  (#46/ADR-0065) + the real-data detector hypothesis. See docs/project_state.json.]**
 - **③ Add a checkerboard calibration target** (below) — the wide M12 distorts, and every
   range/bearing is wrong until `scripts/calibrate_camera.py` runs. This is the first
   bench gate; it's ~free to print.
@@ -45,7 +52,13 @@ safety F all still needed). The deltas that affect **what to buy**:
   (B) is **safety/kill + arming only**; the SiK radio (D) is **telemetry monitoring
   only**. Neither carries guidance — the interceptor flies the dash open-loop and the
   camera finishes it. No cue radio, no ground sensor rig, no second (cue) camera.
-- **⑥ Acquisition range** ("interceptor distance") is bought in **software first** —
+- **⑥ ⚠️ SUPERSEDED (2026-07-16, ADR-0076 add #18j-fix/#18k; see docs/project_state.json
+  graveyard):** foveated auto-crop is NOT an acquisition-range lever (crop = full-frame recall at
+  the 8–12 m wall band — the 3rd mirage) and the real-data fine-tune is DEMOTED to an
+  outdoor-appearance hypothesis; the wall is flight-dynamic POINTING (~40° nose-down dash pitch) —
+  spend the range effort on adaptive camera tilt/pointing (#46/ADR-0065). Still true: do NOT buy a
+  lens or higher-res sensor for range (honesty gate unchanged, §2). Original (kept for the record):
+  **Acquisition range** ("interceptor distance") is bought in **software first** —
   foveated auto-crop on the AR0234's *native* resolution (we currently downscale
   1280→640 and throw pixels away) + a real-data fine-tune. **No new hardware** buys more
   range here; a higher-res sensor is **honesty-gated** (§2). So the AR0234 as-specced is
@@ -97,8 +110,13 @@ Pi-5 cable — keep the $6 line as a spare/length option). Order the **TX16S MKI
 Lens: ~2.5 mm ≈ 98° / ~2.7 mm ≈ 94° on the AR0234 — fit 2.5 mm, calibrate, pick nearest fx≈540@1280.
 Pin the flight Pi's kernel (Arducam Pivariety driver is kernel-fragile).
 
-**Net price delta:** roughly **+$250–400** over the prior ~$1,936 (RTK pair dominates; V4/BEC swaps save
-a little) — the RTK is what makes the <1 m goal *measurable*, so it's load-bearing, not optional.
+**Net price delta:** ~~roughly **+$250–400** over the prior ~$1,936 (RTK pair dominates; V4/BEC swaps save
+a little) — the RTK is what makes the <1 m goal *measurable*, so it's load-bearing, not optional.~~
+**[SUPERSEDED 2026-07-15 by the §0c binary-kill re-scope: the RTK is CUT (see the table above + §0c)
+and the <1 m measured-CPA goal is re-scoped to a BINARY KILL on video + both ULogs. Remaining §0b adds
+(rig/buzzer/standoffs/IR-cut, ~$33–41; Remote ID deferred — $0 at a FRIA field) minus the V4/BEC swap
+savings ≈ a small net delta; current totals live in §0c (~$1,390 all-new / ~$740 interceptor). See also
+docs/project_state.json.]**
 
 ---
 
@@ -120,7 +138,7 @@ intercept, kill confirmed on video + logs" claim (gives up only a citable sub-me
 |---|---|---|---|
 | RTK pair (§0b) | $220–300 → **CUT** | **$220–300** | binary-kill needs no sub-meter measurement (above) |
 | RC TX | TX16S $205 → **RadioMaster Pocket** $65 | **$140** | same ELRS/EdgeTX. **Better: 2× Pocket ($130, save $75) — also fixes the §0b S2 two-aircraft-kill hole** (independent target kill) |
-| Camera | AR0234 color + M12 set $150 → **Arducam OV9281 mono GS wide** $36 | **$114** | still global-shutter (the real need) + native libcamera (no Pivariety kernel pain); mono fine for AprilTag. **Flags:** verify HFOV ≥100° on calibration; 1 MP = shorter R_acq + no foveated-crop headroom (re-run the M2 range gate); YOLO later needs a mono retrain (folds into the mandated real-data fine-tune). AR0234 = the upgrade path if range measures short. |
+| Camera | AR0234 color + M12 set $150 → **Arducam OV9281 mono GS wide** $36 | **$114** | still global-shutter (the real need) + native libcamera (no Pivariety kernel pain); mono fine for AprilTag. **Flags:** verify HFOV ≥100° on calibration; 1 MP = shorter R_acq + no foveated-crop headroom (re-run the M2 range gate) *(the "no foveated-crop headroom" con is VOID — crop retracted as a range lever, ADR-0076 add #18j-fix, which weakens the range-grounds case for the AR0234 upgrade)*; YOLO later needs a mono retrain (folds into the mandated real-data fine-tune). AR0234 = the upgrade path if range measures short. |
 | Telemetry | SiK pair $75 → **DEFER** | **$75** now | monitoring-only (§0⑤); bench/first-hovers over USB + Pi-5 WiFi→QGC. Buy before long-range autonomy. |
 | **AI HAT+ (Hailo)** | $70 → **DEFER** | **$70** now | first kills use the **AprilTag baseline (30+ FPS on Pi 5 CPU)** — no NPU needed. CPU YOLO (~5–10 FPS) is NOT viable at terminal LOS rates → buy the HAT when you graduate to the *markerless* kill (an upgrade, not the gate). |
 | ESC | Tekko32 65A $88 → 45–55A budget 4-in-1 $42 | **$46** | ample for 2207/6S; watch bench temps |
@@ -187,7 +205,7 @@ aircraft either way**) · AR0234 upgrade $150 (only if OV9281 range measures sho
 | Official Pi 5 Active Cooler | 1 | $5 | $5 | Adafruit / PiShop | **Mandatory** under sustained YOLO load — prop wash alone isn't enough. ~25 g. |
 | Arducam AR0234 2.3MP **color global-shutter** CSI (B0353) | 1 | $120 | $120 | Arducam / UCTRONICS | Global shutter = **no rolling-shutter smear** (your hard requirement). 2.3MP overspecs the sim's 1.2MP; color aids YOLO + demo. Needs Arducam's Pivariety driver (extra setup). |
 | Arducam M12 lens set (10 lenses, 20–180°) | 1 | $30 | $30 | Arducam / Amazon | Fit the ~2.5–2.8mm element for the sim's **~100° HFOV** (stock B0353 lens is only ~90°). **Fit ONLY the wide element — the ~100° FoV is a coded-dash REQUIREMENT (§0①), not a tunable; keep the narrow/long lenses as spares, do NOT fly them.** Wide M12 distorts → **checkerboard calibration mandatory** (`scripts/calibrate_camera.py`; `flight/camera.py` undistorts). |
-| 3D-printed up-tilt + **prop-clearance** camera mount (up-tilt 10–30°, detent ~15°; camera fwd/up of the prop disc) | 1 | $0–15 | $0–15 | Self-print, or JLCPCB/Craftcloud print service | Sets the sim's **up15 tilt (ADR-0067)** AND pushes the camera **forward/above the prop disc so the blades sit outside the ~100° FoV** — the $0 fix for the own-prop phantom (§0②). **Run the prop-clearance geometry check before printing final.** PETG/ABS for outdoor heat. $12 buy-bracket if no printer (verify it clears props at 100°). |
+| 3D-printed up-tilt + **prop-clearance** camera mount (up-tilt 10–30°, detent ~15°; camera fwd/up of the prop disc) | 1 | $0–15 | $0–15 | Self-print, or JLCPCB/Craftcloud print service | ~~Sets the sim's up15 tilt (ADR-0067)~~ **[SUPERSEDED: no fixed tilt is sim-validated — ADR-0067 adopted NO mount and the ADR-0068 Stage-1 re-fly FAILED parity for up15; a fixed tilt only relocates the in-view window (ADR-0076 add #18j-fix); adaptive tilt #46/ADR-0065 is the open lever — keep the tilt adjustable (10–30°), final angle TBD]**. Bracket retained for PROP-CLEARANCE (§0②, still valid — add #18h): pushes the camera **forward/above the prop disc so the blades sit outside the ~100° FoV** — the $0 fix for the own-prop phantom (§0②). **Run the prop-clearance geometry check before printing final.** PETG/ABS for outdoor heat. $12 buy-bracket if no printer (verify it clears props at 100°). |
 | Checkerboard calibration target (printed 9×6 inner-corner board on rigid backing) | 1 | $0–8 | $0–8 | Copy shop + foamboard, or Amazon calibration board | **Required before any range/bearing transfers** (§0③): feeds `scripts/calibrate_camera.py` → intrinsics + distortion for `flight.camera`. Print flat, mount rigid, known square size. A pre-printed board (~$8) is flatter than home print. |
 | Dedicated compute BEC — **Matek BEC12S-PRO (9–55V→5.2V, 5A cont/9A peak)** | 1 | $16 | $16 | Matek / GetFPV | **Two-rail rule:** powers ONLY the Pi + camera, never off the FC BEC. **Buy the 5.2V Matek up front, NOT the 5.0V Pololu** — measured Pi 5 + Hailo load is only ~2.7A (5.5A was never the risk), but the Pi 5 undervolts at ~4.75V and a flat 5.0V rail loses that margin across wiring/connector resistance → mid-terminal CPU throttle → YOLO FPS collapse. 5.2V default fixes it at the source. Short 16 AWG + 1000µF cap + `usb_max_current_enable=1`. |
 | SanDisk Extreme 128GB A2/U3 microSD (Pi OS + logs) | 1 | $18 | $18 | Amazon / Best Buy | Pi boot + vision stack + telemetry logging. **A2/U3** for OS random-IO (do NOT use an A1 High-Endurance card here). |
@@ -210,7 +228,7 @@ aircraft either way**) · AR0234 upgrade $150 (only if OV9281 range measures sho
 
 **Subtotal (D): ~$124** (≈$87 if you own the USB cables, FTDI, and card reader)
 
-> **Interceptor build so far (A+B+C+D): ~$1,089**
+> **Interceptor build so far (A+B+C+D): ~$1,089** *(pre-§0c full BOM — the lean §0c build-of-record is ~$740)*
 
 ---
 
@@ -279,14 +297,14 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 | (B) Autopilot, GPS & radio link | ~$210 |
 | (C) Onboard compute, camera & tilt mount | ~$400 |
 | (D) Cables & PC connection | ~$124 |
-| **Interceptor (A+B+C+D)** | **~$1,089** |
+| **Interceptor (A+B+C+D)** | **~$1,089** *(pre-§0c; lean §0c build-of-record ≈ $740)* |
 | (E) Target / practice drone + AprilTag *(separable)* | ~$273 |
 | (F) Ground gear & safety | ~$483 |
 | (G) Spares & consumables | ~$91 |
 | **GRAND TOTAL — everything new, own nothing** | **~$1,936** |
 | **If you own TX + charger + soldering/tools + USB cables** | **~$1,505** |
 
-**The target drone (E) and ground gear (F) are separable purchases** — E is a standalone cheap quad you can (and should) buy first; most of F's cost is one-time gear you keep forever. The pure *interceptor bill of materials* is ~$1,089.
+**The target drone (E) and ground gear (F) are separable purchases** — E is a standalone cheap quad you can (and should) buy first; most of F's cost is one-time gear you keep forever. The pure *interceptor bill of materials* is ~$1,089 *(pre-§0c; the lean §0c build-of-record is ~$740)*.
 
 ---
 
@@ -298,7 +316,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 | **Motors** | EMAX ECO II 2207 1900KV — $56/4 | **XING2 2207 1855KV — $84/4** | T-Motor F60 Pro V 2207 — $108/4 |
 | **ESC** | Aikon AK32 45A — $42 | **Tekko32 F4 65A — $88** | (Tekko is already premium) |
 | **Battery** | CNHL 6S 1300 ×3 — $69 | **CNHL 6S 1500 ×3 — $78** | Tattu R-Line 6S 1400 130C ×3 — $120 |
-| **Compute** | Pi 5 4GB, no HAT (CPU-only ~5–10 FPS) — $90, **saves ~$180** | **Pi 5 8GB + AI HAT+ — $190** | Jetson Orin Nano Super — $249 *(needs Jetson AR0234 SKU + driver, heavier → 7" frame)* |
+| **Compute** | ~~Pi 5 4GB, no HAT (CPU-only ~5–10 FPS) — $90, saves ~$180~~ **SUPERSEDED — see §0c:** keep Pi 5 **8GB** (DON'T-cut; 2026 DRAM crisis, 4GB saves only ~$10–30) and the AI HAT+ is **DEFERRED, not omittable** — HAT-less covers the AprilTag-baseline phase only (CPU YOLO is not viable at terminal LOS rates; buy the HAT $70 at the markerless phase) | **Pi 5 8GB + AI HAT+ — $190** | Jetson Orin Nano Super — $249 *(needs Jetson AR0234 SKU + driver, heavier → 7" frame)* |
 | **Camera** | Arducam OV9281 **mono** GS wide — $36 *(native libcamera, simpler; still zero smear; AprilTag fine)* | **AR0234 color GS + M12 set — $150** | AR0234 stays (already overspecced); higher-res is **honesty-gated** — must disclose + re-earn M1/M2 |
 | **FC** | (Pixhawk-class is the floor for PX4) | **Pixhawk 6C Mini — $131** | Full-size Pixhawk 6C — $166 *(more UARTs/IO)* |
 | **RC TX** | RadioMaster Pocket ELRS — $65 | **TX16S MKII — $205** | TX16S MKII MAX — $260 |
@@ -338,7 +356,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 |---|---|
 | **Coded dash → camera-only terminal** (ADR-0076 add #18, the objective) | Pre-programmed dash heading/speed + onboard camera; **no cue, no guidance datalink** |
 | Portable **`flight/` core** (geometry/estimator/aim/pro-nav law/lens undistort, 26 tests, no gz/gt/cue deps) | Runs **byte-identical** on the Pi 5 — the part that literally transfers |
-| Camera fixed **up15** tilt (ADR-0067) | Up-tilt + **prop-clearance** bracket, detent ~15° (tune 10–30°) |
+| Camera tilt: **NOT validated** (fixed up15 rejected — ADR-0067 no-adopt + ADR-0068 Stage-1 parity FAIL; adaptive tilt #46/ADR-0065 = the open lever) | **Prop-clearance** bracket, adjustable 10–30°, angle TBD by the adaptive-tilt outcome |
 | **AprilTag tag36h11** = the flight BASELINE seeker (Stage C) | Printed tag36h11 placard on the target; YOLO validated in shadow mode alongside it |
 | PX4 SITL + **MAVSDK offboard over UDP** | Pixhawk PX4 + MAVSDK over **TELEM2 UART** (921600), **same code** |
 | Onboard seeker (AprilTag + YOLO11n) | Pi 5 + AI HAT+ (Hailo-8L, single stream) running the same CV stack |
@@ -350,7 +368,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 ## 6. Assumptions — tell me these to sharpen the list
 
 - **Honest 2.5"-vs-bigger call:** the parent project's aspirational **2.5" quad is rejected as the airframe.** The onboard stack (Pi + HAT + GS camera + GPS + dedicated BEC ≈ 200–280 g) equals or exceeds a whole 2.5" airframe; loaded T/W collapses below the ≥5:1 agility target. 4" is borderline. **5"/6S is the smallest that carries the full stack and still "makes hard adjustments";** 7" is the payload-margin path only if compute grows to a Jetson.
-- **Essential vs optional:** *Essential* = everything in A/B/C plus the UART pigtail, camera cable, smoke stopper, LiPo bag, and a way to see telemetry. *Optional* = the AI HAT+ (budget runs CPU-only), color-vs-mono camera, the **SiK radio is strongly recommended** but you *can* bring up over USB first, and **FPV goggles/monitor are fully optional** (monitor via QGC over SiK).
+- **Essential vs optional:** *Essential* = everything in A/B/C plus the UART pigtail, camera cable, smoke stopper, LiPo bag, and a way to see telemetry. *Deferred, not optional (see §0c)* = the AI HAT+ (the AprilTag-baseline phase runs CPU-only at 30+ FPS; the markerless kill REQUIRES the HAT), color-vs-mono camera, the **SiK radio is strongly recommended** but you *can* bring up over USB first, and **FPV goggles/monitor are fully optional** (monitor via QGC over SiK).
 
 **Tell me to refine if any of these are wrong:**
 1. **Budget ceiling?** Right now it's ~$1.9k new / ~$1.5k if you own a TX, charger, and soldering/tools.

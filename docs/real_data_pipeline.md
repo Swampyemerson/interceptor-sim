@@ -7,6 +7,16 @@
 > range) — so the whole point of this pipeline is to fix that with real data,
 > captured cheaply.
 
+> ⚠️ **PREMISE SUPERSEDED (ADR-0076 add #18k, 2026-07-16, later the same day):** the #18h
+> "binding wall = approach-aspect recall" diagnosis is retracted — a controlled set-pose sweep
+> shows **100% static recall at 8–22 m on BOTH aspects** (vs 0.8% in flight), so the wall is
+> FLIGHT-DYNAMIC (dash-pitch pointing; adaptive tilt #46/ADR-0065 is the dominant lever). The
+> real-data retrain is **DEMOTED to a hypothesis** addressing the OUTDOOR-appearance gap, not the
+> sim wall. Pipeline mechanics (auto-labeler, calibration, approaching-pass capture) remain valid,
+> but any capture MUST also include off-boresight / frame-edge / banked placements, and the
+> stage-4 gate must score recall vs POSITION-IN-FRAME, not just range. Current truth:
+> `docs/project_state.json` (real_data node) + `docs/decisions.md` ADR-0076 add #18k.
+
 ## The idea (why it's near-zero manual effort)
 
 You are allowed the AprilTag **for calibration**. So put a `tag36h11` placard on the
@@ -52,7 +62,9 @@ run `--negatives-from-untagged` on footage where the target is present but the t
    on a dev box / cheap cloud GPU (the Pi never trains; `.venv-seeker-train` is CPU-only).
 4. **Validate — anti-mirage gate.** Hold out **whole FLIGHTS** (different day/lighting),
    never random frames (the v3-null trap). Gate on **held-out approach-phase recall vs
-   range** + false-positive rate/hour — NOT val mAP. Fly the retrained detector in
+   range** + false-positive rate/hour — NOT val mAP. *(Superseded in part by #18k: ALSO score
+   recall vs POSITION-IN-FRAME, and include off-boresight/frame-edge/banked frames in the
+   held-out set — see the premise note at the top.)* Fly the retrained detector in
    **shadow mode** (log-only, alongside the AprilTag seeker) so you measure real bearing σ,
    phantom rate, and R_acq at zero flight risk before it ever steers.
 
@@ -97,5 +109,5 @@ any real footage exists. (Follow-up capture task; the projection math is already
   the apriltag world — has NOT run yet; it's the next step, and its label-ceiling-vs-range curve
   decides the placard size / far-band labeling strategy before any hardware flies.**
 - ✅ `calibrate_camera.py` + `flight.camera` (calibration → intrinsics) built + self-tested.
-- ✅ `approach_recall.py` — measures the deployed detector's real-target recall vs range (the wall).
+- ✅ `approach_recall.py` — measures the deployed detector's real-target recall vs range (range-indexed; #18k showed the wall is flight-dynamic/position-in-frame, and #18j-fix documents this script's grounded-takeoff bin confound).
 - ⏳ Capture tooling for the Pi camera + the approaching-pass protocol (hardware-gated).

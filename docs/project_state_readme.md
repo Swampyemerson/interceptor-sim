@@ -10,8 +10,8 @@ cannot quietly vanish.*
 
 | layer | file | role |
 |---|---|---|
-| **THE CONTRACT** | `docs/project_state.json` | Machine-readable truth: every pipeline stage, its status, active version, honest note, evidence pointers, per-stage changelog; plus the goal, the current binding wall, hard constraints, and the graveyard of closed nulls. **A fresh Claude session READS this first and UPDATES it when anything changes.** |
-| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme). Flowchart with feed lines + per-stage expanders, constraints cards, graveyard table. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
+| **THE CONTRACT** | `docs/project_state.json` | Machine-readable truth (schema v2): every pipeline stage, its status, active version, honest note, evidence pointers, per-stage changelog; plus the goal, the current binding wall, the **key_numbers** cluster, the per-stage **decisions** records, the **contradictions** flag ledger, hard constraints, and the graveyard of closed nulls. **A fresh Claude session READS this first and UPDATES it when anything changes.** |
+| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling). Title block (REV = git short-sha at render time), binding-wall callout, key-numbers cluster, pipeline flowchart with feed lines + per-stage expanders, nested decision records (stage → decision → each option's full why-choose/pros/cons), the contradiction flag panel, constraints + graveyard tables. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
 
 The bridge: `scripts/render_dashboard.py` validates the JSON (status enum, evidence
 required, edge integrity) and injects it into the HTML between generated-block markers.
@@ -28,6 +28,45 @@ one-liner to the graveyard too) · `superseded` (replaced; name the successor).
 Schema note: "validated" is deliberately NOT a separate status — this project's five
 mirages all lived in the gap between "implemented" and "validated," so the `note`
 field must always say which one a `half-done`/`implemented` claim is, with evidence.
+
+## Schema v2 — decisions, contradictions, key numbers
+
+Three top-level arrays were added 2026-07-17 (all validated by `render_dashboard.py`):
+
+- **`key_numbers`** — the instrument-cluster figures on the dashboard. Each entry:
+  `label / value / note (optional) / provenance`. The provenance is REQUIRED (project
+  rule: numbers trace to a run or a derivation) — an entry without one fails validation.
+- **`decisions`** — the informed-decision aid. Each record: `stage_id` (must match a
+  stage), `question`, `options[]` (each with `name / summary / why_choose / pros /
+  cons / status` where status ∈ `chosen | rejected | deferred | superseded`),
+  `chosen_rationale`, `evidence`. A stage may carry several records. The dashboard
+  nests them stage → decision → option so each option's full case is one click deep.
+  When a decision changes, edit the record (flip option statuses, update the
+  rationale) the SAME TURN — these are living state, not append-only ADRs (the ADRs
+  in `docs/decisions.md` remain the archive of record).
+- **`contradictions`** — the doc-consistency flag ledger. Each entry: `id`, `topic`,
+  `verdict` (CONFIRMED/PARTIAL from the adversarial verification), `severity`
+  (`high | medium | low`), `status` (`open | resolved`), both quotes with locators
+  (`claim_a`/`loc_a` = the stale side, `claim_b`/`loc_b` = the current side),
+  `current_truth`, and (once fixed) `resolution` describing the inline supersession
+  applied. **Resolved entries stay in the ledger** — the fix is auditable, and the
+  panel is the record that the conflict was found and closed.
+
+### The contradiction-flag workflow
+
+1. A contradiction is found (audit pass, Fable review, or mid-work) → add an entry
+   with `status: "open"`, both quotes + locators, and the current truth. Re-render.
+   The panel shows it as an OPEN flag (loud) until it is fixed.
+2. Fix the stale doc CONSERVATIVELY: living docs (NEXT.md, PROGRESS.md, README,
+   hardware_order_list, real_build/real_data/quad_retrain docs, GOALS.md) get the
+   stale line marked **superseded INLINE** with a short pointer to the current truth
+   / `docs/project_state.json` — never delete the historical narrative. Append-only
+   ADRs in `docs/decisions.md` are NEVER rewritten — at most append a dated
+   correction-pointer addendum when one is genuinely missing.
+3. Set the entry's `status` to `"resolved"`, add the `resolution` note, re-render,
+   and commit the JSON + HTML + every doc touched, together.
+4. If a fix is ambiguous or risky, leave it `open` and surface it to the builder —
+   an honest open flag beats a bad edit.
 
 ## The session-start ritual (a fresh Claude session, or the builder returning)
 
@@ -62,9 +101,12 @@ than no contract.
 - Every stage must carry an `evidence` pointer — no unsourced status claims
   (the project-wide "numbers trace to a run or a derivation" rule).
 - The dashboard shows a staleness banner when `updated` is >7 days old.
-- Keep the file SMALL: ~10 stages, notes of 1–3 sentences, changelogs trimmed to
-  the last few entries (the ADRs are the archive). Detail belongs in
-  `docs/decisions.md`; this file is the state, not the story.
+- Keep the STAGE layer small: ~10 stages, notes of 1–3 sentences, changelogs trimmed
+  to the last few entries (the ADRs are the archive). The `decisions` and
+  `contradictions` arrays are allowed to be long (they carry quoted evidence), but
+  each entry must stay hand-editable — one JSON object per decision/flag.
+- The dashboard strips emoji from rendered strings (memo styling carries status via
+  glyph + code); don't rely on emoji in JSON fields to convey state.
 
 ## CLAUDE.md hook (proposed pointer — one bullet under "Working rhythm")
 

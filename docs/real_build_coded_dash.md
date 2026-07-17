@@ -62,12 +62,22 @@ Heading-error sweep (`--dash-heading-err-deg`, 48 flights over 0/+15/+30°):
 | +30° | 0/8 | 3.25 | **8/8** | **0.78** |
 
 1. **Acquisition survives ≥30° aim error** — all 48 flights acquired and
-   engaged. The dash only has to point *roughly* right; the camera terminal
-   finds the target once it enters frame. This is the core viability result.
+   engaged. The dash only has to point *roughly* right~~; the camera terminal
+   finds the target once it enters frame. This is the core viability result~~.
+   **⛔ SUPERSEDED (ADR-0076 add #18g/#18h — see the retraction banner below):**
+   "acquired and engaged" means the handoff state machine fired; the gt-consistent
+   audit showed those ENGAGE detections were overwhelmingly PHANTOM (~0 in-flight
+   approach recall, add #18i; #18k localizes the wall to dash-pitch pointing).
+   The camera terminal did NOT find the target. What this sweep actually shows:
+   the **OPEN-LOOP DASH AIM tolerates ≥30° heading error** — dash-aim robustness,
+   not perception proof (`docs/project_state.json` launch_aim).
 2. **l2r Pk tolerance ≈ 15–20°.**
 3. **r2l improves monotonically with east bias** → sub-meter 8/8 @0.78 m by +30°.
    So the r2l residual is a *systematic, fully-correctable east-aim deficit*, not
-   a stochastic perception floor.
+   a stochastic perception floor. **[⛔ per add #18g/#18h the 0.78 m is open-loop
+   dash ballistics — aim-calibration evidence, not camera-terminal performance;
+   "not a perception floor" is retracted: the flight-dynamic perception wall
+   (add #18k) IS the binding wall.]**
 
 ## The portable core — `flight/` (runs identically in sim and on the Pi)
 
@@ -103,12 +113,17 @@ pixel is wrong toward the frame edges (>1° at the edge on a representative mode
 
 ## Hardware mapping (`docs/hardware_order_list.md`, ~$1,089)
 
+> ⚠️ **SUPERSEDED totals/parts:** this table predates the §0c binary-kill lean re-scope
+> (`docs/hardware_order_list.md` §0c, 2026-07-15) — interceptor **~$740**; camera = **OV9281 mono
+> GS wide** (AR0234 below = upgrade path only); **Hailo HAT DEFERRED** — first kills fly the
+> AprilTag baseline on the Pi 5 CPU. Current state: `docs/project_state.json`.
+
 | real part | why it transfers |
 |---|---|
 | **Pixhawk 6C Mini / PX4** | the exact stack the sim validated — params + MAVLink/OFFBOARD guidance transfer directly |
-| Pi 5 8GB + Hailo-8L | YOLO11n @640 on the NPU; CPU free for MAVLink |
-| Arducam AR0234 global-shutter + ~100° M12 | the terminal seeker (AprilTag was the sim stand-in); calibrate with `calibrate_camera.py` |
-| ~15° up-tilt bracket | closes the dash-pitch FoV gap (ADR-0060/0067) |
+| Pi 5 8GB + Hailo-8L | YOLO11n @640 on the NPU; CPU free for MAVLink *(HAT deferred to the markerless phase, §0c)* |
+| Arducam AR0234 global-shutter + ~100° M12 | the terminal seeker (AprilTag was the sim stand-in); calibrate with `calibrate_camera.py` *(upgrade path; lean build = OV9281 mono, §0c)* |
+| adjustable up-tilt / **prop-clearance** bracket | prop-clearance per §0② (add #18h); a FIXED tilt does NOT close the dash-pitch gap — it only relocates the in-view window (add #18j-fix; no fixed tilt adopted, ADR-0067/0068 — adaptive tilt #46 is the open lever) |
 | ArduPilot GPS quad, AUTO box | the target (straight legs ≥2 m/s) |
 
 ## Build path when the hardware arrives (open, largely hardware-gated)
@@ -134,10 +149,15 @@ pixel is wrong toward the frame edges (>1° at the edge on a representative mode
 > **~0 recall on the APPROACHING target** (2 real vs 1187 phantom detections on approach across
 > 63 flights); the phantom is the false-handoff hazard, not the acquisition blocker, so
 > "prop-clearance fixes acquisition" is UNTESTED. Next sim test: camera-forward × coded-dash
-> (`scripts/experiments/cam_forward/` + `--cam-fwd-offset-m 0.40`) — see add #18g. The
+> (`scripts/experiments/cam_forward/` + `--cam-fwd-offset-m 0.40`) — see add #18g. *(Since FLOWN →
+> add #18h: phantom removed at source, approach recall still ~0 — prop-clearance is NOT the
+> acquisition fix; the wall is flight-dynamic pointing, add #18k.)* The
 > superseded text below is kept only for the audit trail.
 
-The goal crisped to: intercept a **≥20 mph (~9 m/s)** target to **<1 m**, camera-only.
+The goal crisped to: intercept a **≥20 mph (~9 m/s)** target to **<1 m**, camera-only. *(METRIC
+SUPERSEDED same day, 2026-07-15: success re-scoped to a BINARY contact KILL confirmed on seeker
+video + phone slow-mo + both ULogs, NOT a measured <1 m CPA — literal <1 m @9 m/s is graveyarded;
+see `docs/hardware_order_list.md` §0c + `docs/project_state.json`.)*
 The sim was pushed hard on the actual goal geometry (a straight line @9 m/s, not the
 easier weave). ~~Honest landing:~~ *(superseded — see the retraction above)*
 
@@ -161,12 +181,23 @@ easier weave). ~~Honest landing:~~ *(superseded — see the retraction above)*
 
 ## Honest open items
 
-- **The markerless kill is guidance-ready but perception-blocked.** At 9 m/s, r2l
+- **Success criterion (current):** BINARY KILL on video + both ULogs (§0c re-scope,
+  2026-07-15) — not a measured <1 m CPA.
+- ~~**The markerless kill is guidance-ready but perception-blocked.** At 9 m/s, r2l
   reaches contact on the good flights (not reliably); l2r is phantom-blocked. The two
   remaining walls — l2r phantom-acquisition and r2l bearing-tightening — are the known
   perception limits that need **hardware (prop-clearance) + real-flight data**, not
   more sim levers. The sim has extracted the guidance win and named the hardware
-  requirements; the next real progress is BUILDING (R4+).
+  requirements; the next real progress is BUILDING (R4+).~~
+  **⛔ SUPERSEDED (ADR-0076 add #18g/#18h/#18k — see the retraction banner above; current
+  state: `docs/project_state.json`):** no camera-tracked <1 m intercept of the 3D quad
+  exists; the 9 m/s r2l contact-range flights were open-loop dash ballistics (#18g,
+  confirmed by the #18h dash-only control — one hit 0.32 m with ZERO real ENGAGE
+  detections). The binding wall is FLIGHT-DYNAMIC pointing (~40° nose-down dash pitch
+  parks the target at the frame-top edge; detector 100% static 8–22 m, 0.8% in flight —
+  #18k) → adaptive camera tilt (#46/ADR-0065) is the dominant, sim-testable lever; the
+  real-data detector is a HYPOTHESIS for the outdoor-appearance gap; prop-clearance
+  removes the false-handoff phantom hazard only, not acquisition.
 - **Everything past `flight/` is untested** until the hardware exists — the
   frame source, serial MAVSDK, and the real seeker are hardware-gated. The
   guidance core (incl. `--dash-crossing-bias` mechanism) is validated and transfers;

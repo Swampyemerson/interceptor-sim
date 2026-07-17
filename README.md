@@ -1,6 +1,8 @@
 # Counter-UAS Interceptor Sim: Camera-Only Proportional Navigation in PX4/Gazebo
 
-A **simulation-only** counter-UAS interceptor: a quadcopter that uses its own
+A **simulation-only** counter-UAS interceptor *(the sim phase — since the 2026-07-15 pivot the
+repo also carries the real-build path: see `docs/real_build_coded_dash.md` +
+`docs/project_state.json`)*: a quadcopter that uses its own
 forward monocular camera to visually detect an AprilTag riding on a target
 drone, then autonomously intercepts it — first a stationary target, then a
 moving one — using **proportional navigation**, the missile-guidance law that
@@ -237,7 +239,9 @@ no way back to the ground link once it does.
 **Functional block diagram** — the current two-sensor architecture: ground stereo
 cue → jammable link → one-way handoff → onboard camera-only terminal, with the
 markerless seeker, the range/velocity-only fusion, the rejected EKF variant, the
-Pi 5 + Hailo flight compute (ADR-0063), and the `gt_*` honesty boundary marked.
+Pi 5 flight compute (ADR-0063 — since SUPERSEDED IN PART: markerless/Hailo deferred, the
+AprilTag baseline flies first on Pi 5 CPU; see `docs/project_state.json`), and the `gt_*`
+honesty boundary marked.
 
 ![Functional block diagram of the counter-UAS interceptor](docs/images/architecture_block_diagram.png)
 
@@ -347,9 +351,11 @@ is the part of this project that ports to a real interceptor close to as-is.
 - **The perception problem itself.** A real terminal seeker has to *find* a
   small, fast, non-cooperative drone against sky clutter, then hold that lock
   through motion blur and vibration — a much harder problem than fiducial
-  detection. That system is designed, not simulated, in
+  detection. That system was designed in
   [`docs/perception_design.md`](docs/perception_design.md) and ADR-0015 (real
-  ML on a Hailo NPU, detect-then-track, not the AprilTag detector).
+  ML on a Hailo NPU, detect-then-track, not the AprilTag detector) — and has
+  since been flown **in-sim** as the markerless seeker (ADR-0038..0043); only
+  the real clutter/blur/vibration tier remains unsimulated.
 - **EO-only, day-only limits.** The designed ground rig and onboard camera are
   electro-optical and daylight-only in the proof-rig stage; night/all-weather
   needs thermal, staged and disclosed as a later capability, never folded
@@ -521,7 +527,15 @@ Gazebo (see below).
 
 ---
 
-## The perception half (designed, not yet simulated)
+## The perception half (designed 2026-07-05 — since built into the sim; see note)
+
+> **SUPERSEDED IN PART (2026-07-08+):** this section predates the markerless arc — the
+> no-fiducial bearing problem HAS since been built into the sim and flown: the markerless
+> seeker (ADR-0038..0043), the ground-stereo NN spine (ADR-0045..0053), detect-then-track
+> (ADR-0058). The current in-sim open problem is the flight-dynamic pointing wall (ADR-0076
+> add #18k; `docs/project_state.json`). What remains paper-only is the REAL-WORLD tier:
+> outdoor clutter, motion blur, vibration, Hailo hardware. The design docs below still hold
+> the rationale.
 
 Everything above assumes "a bearing to the target exists." The real, unsolved
 half of this project is *how a real interceptor gets that bearing against a

@@ -32,7 +32,11 @@ with reproducible, logged numbers. Six steps, in value order:
    #40 mount-compose (compensate FIX-A derotation for the tilt) → re-fly
    terminal at the chosen angle (up15 = leading candidate, not a choice) →
    tilted+compensated recovery re-test. Adaptive tilt (ADR-0065, #46)
-   gained standing from this result.
+   gained standing from this result. **[SUPERSEDED — #40 FLEW: Stage-1
+   parity FAIL → NO fixed-mount adoption; Stage-2 recovery re-test NULL
+   (ADR-0068 addenda, see the prior-autonomous block below); fixed-tilt
+   adoption is graveyarded (docs/project_state.json) — ADAPTIVE tilt #46
+   is the open pointing lever (ADR-0076 add #18k).]**
 4. **Correctness closure (#44, #40 remainder, #43 remainder).** Drive the
    audited known-bugs list to fixed-or-ADR'd — no silent known defects.
 5. **Honesty hardening (DEEP-H2 handoff-streak tests).** ✅ #42/DEEP-N1 FIXED
@@ -85,7 +89,12 @@ tracked-or-accepted; repo publishable on a remote.
 > guidance; no camera-tracked <1 m 3D-quad intercept exists. The real wall = ~0 detector recall on
 > the APPROACHING target (not the phantom). NEXT sim test = **camera-forward × coded-dash** (remove
 > the phantom at source, `scripts/experiments/cam_forward/` + `--cam-fwd-offset-m 0.40`) before any
-> hardware inherits "prop-clearance fixes acquisition" (untested). Read R2/R3 below THROUGH this.
+> hardware inherits "prop-clearance fixes acquisition" (untested). **[SUPERSEDED 2026-07-16: that
+> test WAS FLOWN — ADR-0076 add #18h: phantom removed at source (approach-phase phantom detections
+> 1187→1) yet approach recall STILL ~0 both directions → "prop-clearance fixes acquisition" is
+> REFUTED; the phantom is the false-handoff hazard only. Current next probe = the ROUND-5 frame-top
+> off-axis sweep (🔵 banner above / docs/project_state.json headline.next_probe).]** Read R2/R3
+> below THROUGH this AND the 🔵 ROUND-5 (#18k) banner above.
 
 **GOAL (builder):** an imprecise coded-dash interceptor hits a moving target flying ≥20 mph
 (~9 m/s), outdoors, camera-only (no AprilTag on target; tag OK for calibration), to **<1 m**.
@@ -96,7 +105,9 @@ tracked-or-accepted; repo publishable on a remote.
   the goal condition (coded-dash + quad_v2 + **line** @9 m/s) has **NEVER been flown** (all our
   numbers are extrapolated from 12 m/s *weave*). No config is sub-meter in BOTH dirs at once yet.
 - **Hardware outdoors: unlikely (~10–30%) without an acquisition-range win**, AND — the metrology
-  gap — consumer GPS can't even MEASURE <1 m (→ RTK now in the BOM).
+  gap — consumer GPS can't even MEASURE <1 m (→ RTK now in the BOM). **[SUPERSEDED 2026-07-15: RTK
+  later CUT by the §0c binary-kill re-scope — success = BINARY KILL on seeker video + both ULogs,
+  not a measured <1 m CPA (docs/hardware_order_list.md §0c, docs/project_state.json).]**
 **REFRAME to adopt (keep literal <1 m as a gated stretch):** a **speed ladder** (markerless <1 m
 first at ~5 m/s), **tag-guided <1 m @9 m/s** as the guidance proof (tag = sanctioned calib), and
 at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.5 m metric, not a retreat.
@@ -151,19 +162,39 @@ at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.
   stays default-off (documented null). **NET SIM LANDING: guidance/aim is SOLVED (crossing-bias → r2l
   0.72 m kill-edge); the l2r-acquisition + r2l-tightening residuals are the known PERCEPTION walls that
   need hardware + real data, not more sim levers. The next real progress is BUILDING (R4+).**
+  **[SUPERSEDED 2026-07-16 by ADR-0076 add #18g/#18h/#18k — read via the 🔵 ROUND-5 banner /
+  docs/project_state.json: "r2l 0.72 m kill-edge" was open-loop dash ballistics (retracted, #18g);
+  prop-clearance survives only as the false-handoff-hazard mitigation, NOT the acquisition fix
+  (#18h flew it — phantom removed, recall still ~0); the real-data detector is DEMOTED to a
+  hypothesis (outdoor appearance gap); the dominant lever is POINTING/adaptive tilt (#46) with a
+  cheap next sim probe — "no more sim levers / next progress is BUILDING" no longer holds.]**
 - **R4 [H bench]** Build + calibrate + prop-clearance gate + Hailo ≥14 Hz + **blur gate at TERMINAL LOS
-  rates** + real max-lateral-accel + **RTK metrology σ≤0.3 m (non-negotiable).**
+  rates** + real max-lateral-accel + **RTK metrology σ≤0.3 m (non-negotiable).** **[SUPERSEDED
+  2026-07-15 by §0c: RTK CUT (binary-kill re-scope — kill evidence = seeker video + phone slow-mo +
+  both ULogs; buy RTK later only for a citable number); the Hailo ≥14 Hz gate is DEFERRED to the
+  markerless phase — first kills fly the AprilTag baseline on Pi 5 CPU (§0c).]**
 - **R5 [H field, zero intercept risk]** The **range walk** (target hovering 5–25 m): measure R_acq/σ.
   KILL NUMBER: R_acq must leave t_go ≥0.5 s post-handoff (≈≥20 m for 9 m/s) — else markerless <1 m is dead.
 - **R6 [H]** Tag-guided **speed ladder 2→5→9 m/s** (the feasibility DECIDER; offset-aim surrogate first),
   YOLO in shadow every flight (real-data fine-tune validated on held-out FLIGHTS, not frame-eval). Fly BOTH
   laws (pursuit beat pro-nav at line@9 in sim). Gate: tag median <1.0 m absolute @9 m/s.
 - **R7 [H]** Markerless-guided, only rungs cleared in shadow. Gate: markerless <1.0 m absolute per rung.
+> ⚠️ **R4–R7 METROLOGY SUPERSEDED (2026-07-15 binary-kill re-scope):** RTK was CUT from the BOM
+> (hardware_order_list.md §0c; project_state.json graveyard), so the R6/R7 "<1.0 m absolute" field
+> gates are unmeasurable as written (line above: consumer GPS can't measure <1 m). Current field
+> gate/evidence = BINARY KILL (seeker video + phone slow-mo + both ULogs); "<1 m" stands only as a
+> sim-side number or an RTK buy-back stretch.
 **BIGGEST RISK:** acquisition-range / t_go starvation on the real 0.35 m target (physics: 640-pipeline
 detects at ~9.5 m, streak burns ~7 m → ~0 correction authority). Retire early via R3 (sim) + R5 (1 afternoon).
 **Red-team fixes 2–4 folded in above** (markerless IS sub-meter one-directionally; R1 middle-band defined; R6 adverse prior stated).
 
 ### 🔧🚁 THE PIVOT — BUILD THE REAL INTERCEPTOR (builder, 2026-07-15)
+> ⛔ **BOM SNAPSHOT BELOW SUPERSEDED by the §0c binary-kill cost-cut (same day, 2026-07-15):**
+> current lean BOM = interceptor **~$740** / ~$1,390 all-new; camera = **OV9281 mono GS wide**
+> (AR0234 = upgrade path); **Hailo HAT DEFERRED** — first kills fly the AprilTag baseline on Pi 5
+> CPU (ROUND-5 banner); **fixed ~15° up-tilt adoption is DEAD** (ADR-0068 Stage-1 parity FAIL —
+> the bracket survives for prop-clearance only). See `docs/hardware_order_list.md` §0c +
+> `docs/project_state.json`. The coded-dash ARCHITECTURE in this block is still current.
 Moving from sim-portfolio to a REAL hardware build off `docs/hardware_order_list.md`
 (~$1,089 interceptor: GEPRC Mark5 5" 6S quad, **Pixhawk 6C Mini / PX4 = the exact sim
 stack**, Pi5+Hailo YOLO11n @640, Arducam AR0234 global-shutter color cam + ~100° M12
@@ -183,6 +214,13 @@ portable `flight/` core + camera pipeline + the hardware build path).
   stack DROPPED. Auto-heading solves the COLLISION-LEAD azimuth from the pre-flight target
   kinematics (honest constant, not a live gt read); explicit `--dash-heading-deg` overrides.
   Byte-identical without the flag. Harness: `scripts/coded_dash_arm.sh` (mode m4, no cue).
+> **⛔ ATTRIBUTION SUPERSEDED (ADR-0076 add #18g/#18h — the ⛔ banner above also governs the two
+> ⭐ bullets below):** the camera-terminal credit is RETRACTED — ENGAGE streaks were phantom and a
+> dash-only control matched the with-terminal CPA (0.30 vs 0.29 m; the camera added ~nothing).
+> Read "ALL 48 flights acquire+engage" as DASH-robustness only; "8/8 Pk @0.78 m" / "13/16" /
+> "recovers r2l to sub-meter" as open-loop dash ballistics + aim calibration; and "not a
+> perception floor" as WRONG — the flight-dynamic perception wall (add #18k) IS the binding wall.
+> Current truth: `docs/project_state.json` (launch_aim / coded_dash / terminal notes).
 - **⭐ RETROACTIVE r2l TEST — PAIRED A/B, n=16, quad_v2/seed123/weave (geometry verified
   byte-identical). Coded-dash HELPS r2l, mildly HURTS l2r:** cue-guided r2l engaged 8/8 but
   at 3.25–4.27 m = **0/8 within the 2.5 m Pk gate** (that IS the "r2l 0%" of the saga — NOT a
@@ -219,13 +257,20 @@ Full review in the session transcript; actionable distillation:
   (prop-clearance mount, now in the BOM §0②) + the #2 no-cue handoff hardening**, NOT a
   phantom-free retrain. (Open follow-up: does a lower confidence threshold rescue rebal's flight
   recall? — a tuning question, not a blocker.) (`logs/mc_coded_dash_rebal_weave.csv`)
-- **#2 [SIM, next]** Harden the coded-dash handoff for the no-cue world: require the 5-streak
+- **#2 [SIM, PARTLY TESTED → NULL — superseded, see R3 / ADR-0076 add #18f + ADR-0077]** Harden
+  the coded-dash handoff for the no-cue world: require the 5-streak
   detections to be RANGE-CONSISTENT with each other + a pre-flight range-plausibility window
   (honest launch-geometry constants, same class as the collision-lead heading). De-risks the
   #1 TRANSFER RISK: a confident phantom STEERS the airframe (vs acquisition-fail which safely
   times out). Gate: phantom-seeded false-handoff → 0 without dropping real acquisitions.
-- **#3 [SIM]** Auto-crop under coded-dash (crop weights exist, `drone_finetuned_quad_crop.onnx`)
-  — ADR-0074 range lever; watch the phantom-seeds-the-crop failure (add #14, which #1 removes).
+  **UPDATE: the pre-flight range-plausibility window WAS built (`--coded-dash-acquire-range-min/max`,
+  add #18f) and NULLed — it aborted BOTH directions; graveyarded with the ADR-0077 gate
+  (docs/project_state.json). Do NOT re-build a range window. Only the streak range-CONSISTENCY
+  variant is untested — and a phantom-only streak is self-consistent (~1.5 m), so it likely
+  cannot meet this gate alone.**
+- **#3 [SIM] ⛔ SUPERSEDED (add #18j-fix — crop is NOT a lever at the wall band; do NOT build):**
+  Auto-crop under coded-dash (crop weights exist, `drone_finetuned_quad_crop.onnx`)
+  — ~~ADR-0074 range lever~~; watch the phantom-seeds-the-crop failure (add #14, which #1 removes).
 - **REAL-DRONE PLAN (staged):** A bench (calibrate RMS≤1px → AprilTag detect+motion-blur ramp
   → Hailo yolo11n compile+fps → hard-negatives from the real mount AFTER the prop-clearance
   geometry check — design props OUT of FOV = the $0 phantom root-fix). B target-drone data +
@@ -233,7 +278,11 @@ Full review in the session transcript; actionable distillation:
   **validate on held-out FLIGHTS not random frames — the v3-NULL guardrail, ADR-0061**).
   C live intercepts: AprilTag seeker FIRST, YOLO in SHADOW MODE (log-only) to measure real
   bearing-σ/phantom-rate/R_acq at zero risk, THEN YOLO-guided.
-- **RANGE ("interceptor distance") levers, ranked:** ① foveated auto-crop on native res
+- **RANGE ("interceptor distance") levers, ranked — ⛔ SUPERSEDED (2026-07-16, ADR-0076 add
+  #18j-fix/#18k; see the ROUND-5 banner + docs/project_state.json graveyard): ① foveated-crop/
+  resolution is NOT a lever (crop = full-frame recall at the 8-12 m wall band — 3rd mirage);
+  ② real-data fine-tune is DEMOTED to an outdoor-appearance hypothesis; the corrected dominant
+  lever is POINTING/adaptive tilt (#46/ADR-0065). Kept for history:** ① foveated auto-crop on native res
   (keeps wide FoV, ~1.5-2× R_acq, near-free — DO FIRST); ② real-data fine-tune (the real
   acquisition lever, unknowable until measured); ③ up-tilt (+2-3m, already bought). **GUARD
   RAIL: do NOT buy a narrow lens** — the ±30° coded-dash aim tolerance NEEDS the wide FoV
@@ -246,7 +295,7 @@ Full review in the session transcript; actionable distillation:
   fused-dash machinery; under coded-dash r2l engages and the residual is perception aspect-
   bias (~2–4 m, the ADR-0056 weave-mirror residual), a refinement target not a null.
 
-## 📍 CURRENT (2026-07-12, live)
+## 🗄 SUPERSEDED (2026-07-12 session — history; the live block is 📍 CURRENT (2026-07-16) above + docs/project_state.json)
 
 ### 🎯 SESSION 2026-07-12 — realistic-quad r2l: DIAGNOSED, REFRAMED as fixable, and a validated fix-direction (ADR-0076 add #13–#16)
 Builder: "get straight-line then maneuvering intercept working." The quad's r2l 0% was a muddled,
@@ -306,7 +355,10 @@ the STOCK viewpoint (box precision degrades at the moved view). PX4 stock camera
 
 **HONEST STATE for "intercept working":** ✅ billboard 72/72 BOTH dirs (ADR-0064) = headline DONE.
 ✅ quad l2r ~88%. 🔧 quad r2l = refinable, phantom-removal validated, terminal fix in progress. Deployed
-v2 + billboard fallback UNTOUCHED.
+v2 + billboard fallback UNTOUCHED. **[SUPERSEDED same-session + 07-15/16: phantom-removal concluded a
+DEAD-END (add #17 above; the rebal retrain is an in-flight NULL — do NOT ship, see the 07-15 seeker
+roadmap #1) and the "terminal fix" is CLOSED by add #18h (no camera-guided 3D-quad intercept in this
+sim; the wall is flight-dynamic pointing, add #18k) — see 📍 CURRENT (2026-07-16) + docs/project_state.json.]**
 - Harness: `scripts/quad_seeker_arm.sh WEIGHTS SEED PATH OUT --go` (`MARKERLESS_AUTOCROP=1` for crop;
   `QUAD_ARM_EXTRA="--cam-fwd-offset-m 0.40 ..."` appends m4 flags; camera variant swapped separately).
 
@@ -664,7 +716,10 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
    and RESTORED Pk@2.5 4/8 → 8/8; the availability win holds (dash-above-FoV
    35% → 0%, first-det +4 m). The residual + fixed-angle compromise STRENGTHEN
    #46 adaptive tilt. Compensation code is validated+shipped.
-   - **[NEXT SIM ITEM] Stage-2 tilted+compensated RECOVERY re-test** — the
+   - **[SUPERSEDED — no longer the next sim item: the 2026-07-15 real-build pivot CUT the
+     coast-search/cue stack this arm would fly (see the PIVOT "CUT under coded-dash" list above +
+     docs/project_state.json); the current next probe is the ROUND-5 frame-top off-axis sweep]
+     Stage-2 tilted+compensated RECOVERY re-test** — the
      headline comms-denied question. Fly the ADR-0059 coast-search jam arm at
      r18, n=16, WITH the up15 shadow + `--cam-mount-up-deg 15` (harness:
      `scripts/stage2_tilt_recovery_arm.sh`); score by `scripts/check_jam_mc.py`
@@ -679,7 +734,11 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
 3. **[conditional, after #40] #46 adaptive camera tilt sim A/B (ADR-0065)**
    — pitch-following schedule vs the best fixed mount; strengthened by
    ADR-0067 (fixed angle buys availability at a terminal price adaptive
-   scheduling would avoid); candidate to un-HOLD ADR-0059 recovery.
+   scheduling would avoid); ~~candidate to un-HOLD ADR-0059 recovery~~
+   **[SUPERSEDED: will NOT un-HOLD ADR-0059 — the #40 Stage-2 NULL proved the recovery limit is
+   far-range NN detection, not FoV pointing (see the #46 revision in the prior-autonomous block);
+   #46's live rationale is now the ADR-0076 add #18k flight-dynamic pointing wall (nominal
+   acquisition), and the no-datalink real-build pivot moots the ADR-0059 recovery question.]**
 4. **[m4 window] #44 ψ/β time-alignment (P-M6)** — detection-latency × yaw
    LOS bias; distinct from FIX-A (time-alignment, not rotation); bites under
    yaw acceleration = exactly the maneuver regime. Then its A/B.
