@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
+  "updated": "2026-07-17",
+  "updated_by": "seeded by Fable dashboard build (sources: NEXT.md ROUND-5 banner, ADR-0076 add #18..#18k, hardware_order_list §0/0b/0c, real_build_coded_dash.md, real_data_pipeline.md)",
+  "goal": {
+    "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
+    "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
+    "evidence": ["NEXT.md ROADMAP R1-R7", "docs/hardware_order_list.md §0b/§0c", "docs/decisions.md ADR-0025"]
+  },
+  "headline": {
+    "date": "2026-07-16",
+    "text": "THE BINDING WALL (5th mirage corrected, ADR-0076 add #18k): the markerless detector is NOT blind — controlled set-pose sweep scores 100% recall static/centred at 8-22 m on BOTH approach and receding aspects, yet 0.8% IN FLIGHT. The wall is FLIGHT-DYNAMIC: the ~40 deg nose-down dash pitch parks the target at the frame-top edge (~41 deg off-axis) where training never showed it. Corrected levers: (1) POINTING/attitude is dominant (adaptive tilt #46/ADR-0065); (2) real-data detector DEMOTED to hypothesis (matters for the outdoor appearance gap, not the sim wall). Resolution/foveated-crop is NOT a lever (add #18j-fix). #1 unmeasured: recall vs POSITION-IN-FRAME and bank attitude (not range).",
+    "next_probe": "Re-run the set-pose sweep at the frame-top off-axis position x {level, banked} attitudes — decomposes pointing/attitude/edge-clip and specs what a real capture must contain. Cheap, offline-scoreable (tilt-aware gt chain exists, add #18k(2)).",
+    "evidence": ["docs/decisions.md ADR-0076 add #18k", "NEXT.md ROUND-5 CORRECTION banner"]
+  },
+  "stages": [
+    {
+      "id": "launch_aim",
+      "name": "Launch & open-loop aim",
+      "pos": [0, 0],
+      "status": "implemented",
+      "active": "Auto collision-lead heading from pre-flight target kinematics (honest constant, no live gt); --dash-heading-deg override ('human points it').",
+      "note": "Aim tolerance measured: all 48 flights still acquired/engaged at up to +/-30 deg heading error (weave) — but #18g showed ENGAGE streaks can be phantom, so read that as dash-robustness, not perception proof. Onboard acoustic tracking REJECTED (own-noise ~40 dB the wrong way); acoustics OK only as a future GROUND launch-cue (idea).",
+      "evidence": ["ADR-0076 add #18b/#18c", "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)"],
+      "changelog": [
+        {"date": "2026-07-15", "note": "Built + validated with --coded-dash (add #18)."},
+        {"date": "2026-07-16", "note": "Onboard acoustics ruled DEAD; ground launch-cue remains an idea."}
+      ]
+    },
+    {
+      "id": "coded_dash",
+      "name": "Coded open-loop dash",
+      "pos": [0, 1],
+      "status": "implemented",
+      "active": "--coded-dash + --dash-crossing-bias-deg (per-direction aim bias auto-keyed on crossing direction); dash-speed 16; cue/FusedTrack/handoff-gate/coast-search stack DROPPED (real hardware has no cue).",
+      "note": "VALIDATED in sim: the architecture A/B beat the cue-guided config on r2l (ADR-0076 add #18), and the crossing-bias is a real open-loop AIM calibration — r2l dash ballistics land ~0.3-0.5 m CPA on line@9. Beware: those dash ballistics are so good they created the mirages (sub-meter CPAs with zero camera guidance). Bias magnitude is speed/aspect-specific — re-tune on real data.",
+      "evidence": ["ADR-0076 add #18/#18e/#18g/#18h", "docs/real_build_coded_dash.md", "flight/guidance.py collision_lead_heading"],
+      "changelog": [
+        {"date": "2026-07-15", "note": "Built (add #18); crossing-bias built + 2-seed validated (add #18e)."},
+        {"date": "2026-07-15", "note": "#18g retraction: crossing-bias survives as OPEN-LOOP AIM only — 'camera-guided sub-meter' claims retracted."}
+      ]
+    },
+    {
+      "id": "detector",
+      "name": "Markerless seeker (NN detector)",
+      "pos": [1, 2],
+      "status": "half-done",
+      "active": "drone_finetuned_quad_v2.onnx @640, conf 0.25 (v3 and rebal are closed NULLs — do NOT resurrect). Static acquisition ceiling ~24 m (conf 0.25, 640 full-frame).",
+      "note": "THE BINDING WALL: 100% recall static/centred 8-22 m BOTH aspects, but 0.8% in flight — a FLIGHT-DYNAMIC deficit (off-boresight frame-top placement under dash pitch), NOT appearance/resolution/range. Conf-threshold lowering NULL (phantom rate doubles). The sweep's featureless-grey world makes 100% a CEILING — real clutter is strictly harder.",
+      "evidence": ["ADR-0076 add #18i/#18k", "ADR-0061 (v3 NULL)", "ADR-0076 add #18d (rebal NULL in flight)"],
+      "changelog": [
+        {"date": "2026-07-16", "note": "approach_recall.py: in-flight approach recall 0.8% >=8 m (the wall quantified)."},
+        {"date": "2026-07-16", "note": "Set-pose sweep: static wall DOES NOT EXIST (100% @8-22 m both aspects) — wall reframed flight-dynamic (5th mirage corrected)."}
+      ]
+    },
+    {
+      "id": "pointing",
+      "name": "Camera pointing / adaptive tilt",
+      "pos": [1, 1],
+      "status": "half-done",
+      "active": "Adaptive gimbal #46 BUILT (committed 8657320, default-off, own-state-only controller + live derotation); tilt-aware gt chain exists (INTERCEPTOR_SENSOR_PITCH_RAD, add #18k(2)). No tilt is adopted in the deployed config.",
+      "note": "Now the DOMINANT lever for the wall: dash pitch swings ~40 deg down (accelerating) to ~34 deg up (terminal brake), so a FIXED tilt only relocates the in-view window (fixed +15 adoption FAILED Stage-1 parity, ADR-0068; +35 capture was INVALID — 4th mirage). Adaptive tilt is NOT yet validated as the wall fix — that A/B is the open build.",
+      "evidence": ["ADR-0065 (#46)", "ADR-0067/0068 (fixed-tilt NO-adopt)", "ADR-0076 add #18j-fix/#18k"],
+      "changelog": [
+        {"date": "2026-07-10", "note": "Fixed up15 mount: mechanism confirmed but NO adoption (terminal cost)."},
+        {"date": "2026-07-16", "note": "Pointing mechanism MEASURED (target at frame top, ~+41 deg off-axis at 11 m); adaptive tilt promoted to dominant lever; gt chain made tilt-aware."}
+      ]
+    },
+    {
+      "id": "handoff",
+      "name": "Acquisition & handoff",
+      "pos": [0, 2],
+      "status": "half-done",
+      "active": "5-consecutive-fresh-detections streak hands the dash to the camera terminal. Planned hardening (unbuilt): streak range-consistency + pre-flight range-plausibility window.",
+      "note": "OPEN HAZARD: the own-prop PHANTOM (reads ~1.5 m) can seed a false handoff — it is the false-handoff hazard, NOT the acquisition blocker (add #18g corrected this). Every software separator is NULL: ADR-0077 range gate, --coded-dash-acquire-range-* gate (phantom and usable detections overlap), rebal retrain, ~12 prior levers. Only mitigation: HARDWARE prop-clearance (no software fallback) + handoff hardening.",
+      "evidence": ["ADR-0076 add #18f/#18g", "ADR-0077 (NULL)", "ADR-0076 add #18d"],
+      "changelog": [
+        {"date": "2026-07-12", "note": "ADR-0077 range gate flown: NULL (l2r regressed 81%->25%)."},
+        {"date": "2026-07-15", "note": "#18g: phantom re-scoped from acquisition-blocker to false-handoff hazard."}
+      ]
+    },
+    {
+      "id": "terminal",
+      "name": "Pro-nav camera-only terminal",
+      "pos": [0, 3],
+      "status": "half-done",
+      "active": "flight/ portable core (geometry LOS-derotation FIX-A + alpha-beta estimator + pro-nav N=5 + Brown-Conrady undistortion), 25 tests, no gz/gt/cue imports — runs unchanged on the real Pi/Pixhawk.",
+      "note": "The guidance LAW and ARCHITECTURE are validated (billboard target: Pk@2.8 m 72/72, ADR-0064; AprilTag regimes M4+). But the camera-guided terminal kill of the 3D QUAD is NOT validated: the 'sub-meter kills' were open-loop dash ballistics MIRAGES (dash-only control matched with-terminal, 0.30 vs 0.29 m; camera added ~nothing). Blocked by detector+pointing upstream, not by guidance.",
+      "evidence": ["ADR-0064 (billboard 72/72)", "ADR-0076 add #18g/#18h (mirage control)", "docs/real_build_coded_dash.md"],
+      "changelog": [
+        {"date": "2026-07-15", "note": "flight/ core extracted + wired (byte-identical); m4 coded-dash aim calls flight.guidance."},
+        {"date": "2026-07-16", "note": "#18h final sim verdict: no camera-guided 3D-quad intercept achievable in this sim — a detector problem, not guidance or mount."}
+      ]
+    },
+    {
+      "id": "kill",
+      "name": "Kill & scoring",
+      "pos": [0, 4],
+      "status": "half-done",
+      "active": "Sim: Pk@2.5 m proximity metric (ADR-0025), CPA from gt (scoring only). Real: BINARY KILL evidence = seeker video + phone slow-mo + both ULogs ($0).",
+      "note": "Criterion re-scoped 2026-07-15 from measured <1 m CPA to binary kill — this is what cut the RTK pair from the BOM. field_score.py (CPA from dual GPS logs) is planned, not built; consumer GPS cannot measure <1 m anyway.",
+      "evidence": ["ADR-0025", "docs/hardware_order_list.md §0b/§0c"],
+      "changelog": [
+        {"date": "2026-07-15", "note": "Binary-kill re-scope adopted; RTK cut (~$220-300 saved)."}
+      ]
+    },
+    {
+      "id": "real_data",
+      "name": "Real-data capture -> retrain pipeline",
+      "pos": [1, 3],
+      "status": "half-done",
+      "active": "autolabel_from_apriltag.py (tag pose -> auto YOLO labels, hardened: tag-miss frames dropped, negatives only from target-free footage) + calibrate_camera.py + approach_recall.py. Retrain recipe: COCO-init (never sim weights), ~15-20% negatives, validate on held-out FLIGHTS.",
+      "note": "Built but only PARTIALLY validated (box-width check was circular; the tag-box-vs-gt-box IoU-vs-range validation in the apriltag world has NOT run). DEMOTED to a HYPOTHESIS for the sim wall (add #18k): a static/hover capture would ace static tests and still fail in flight (the v3/rebal trap). Real value = the OUTDOOR appearance gap. Any capture MUST include approaching passes at speed, off-boresight/frame-edge placements, banked attitudes — scored vs position-in-frame, not just range.",
+      "evidence": ["docs/real_data_pipeline.md", "ADR-0076 add #18k (demotion)", "ADR-0061 (the anti-mirage validation rule)"],
+      "changelog": [
+        {"date": "2026-07-16", "note": "Pipeline built + Fable-hardened; demoted from critical-path-certain to hypothesis by the set-pose sweep."}
+      ]
+    },
+    {
+      "id": "hardware",
+      "name": "Real interceptor build (BOM)",
+      "pos": [2, 3],
+      "status": "idea",
+      "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo AI HAT+ DEFERRED; nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
+      "note": "Nothing ordered yet (builder decision pending). COMPUTE CONSTRAINT: Pi 5 CPU runs the AprilTag baseline real-time, but markerless YOLO REQUIRES the deferred Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates) — so first kills fly the TAG. PRE-BUILD kill-or-validate: ~$310 tripod + tagged-target afternoon measuring real approach-recall-vs-range BEFORE building (the outdoor-NN transfer bet is hope-past-evidence). NOTE: BOM §0⑥ ('acquisition range bought in software first / foveated crop') is STALE — contradicted by add #18j-fix.",
+      "evidence": ["docs/hardware_order_list.md §0/§0b/§0c", "NEXT.md ROUND-5 (Pi5/HAT ruling, tripod test)"],
+      "changelog": [
+        {"date": "2026-07-12", "note": "BOM delivered (~$1,936 full)."},
+        {"date": "2026-07-15", "note": "Pre-purchase audit fixes + binary-kill cost-cut: ~$1,390 lean, RTK/HAT/SiK deferred or cut."}
+      ]
+    },
+    {
+      "id": "sim_harness",
+      "name": "Sim testbed & evidence machine",
+      "pos": [2, 0],
+      "status": "implemented",
+      "active": "PX4 v1.17 SITL + Gazebo Harmonic headless, x500 mono cam (1280x960, ~100 deg), 3D quad target models/fpv_quad_enemy (billboard retired for realism work), mc_batch paired-seed methodology, GPU render ON (ADR-0075, RTF ~0.95).",
+      "note": "The sim STAYS (ADR-0072 — no pivot; a pivot invalidates ~70 measured ADRs). Honesty boundary enforced: gt_* is scoring/logging only. Methodology that caught all five mirages lives here: paired seeds n>=8, control arms, gt-consistent ENGAGE audits, statistics before verdicts.",
+      "evidence": ["ADR-0072", "ADR-0075", "CLAUDE.md standing methodology rules"],
+      "changelog": [
+        {"date": "2026-07-11", "note": "GPU render adopted (RTF 0.336->0.951); 3D quad target replaces billboard for realism work."}
+      ]
+    }
+  ],
+  "edges": [
+    ["launch_aim", "coded_dash"],
+    ["coded_dash", "handoff"],
+    ["handoff", "terminal"],
+    ["terminal", "kill"],
+    ["pointing", "detector"],
+    ["detector", "handoff"],
+    ["detector", "terminal"],
+    ["real_data", "detector"],
+    ["sim_harness", "coded_dash"],
+    ["hardware", "real_data"]
+  ],
+  "constraints": [
+    {
+      "id": "pi5-compute",
+      "text": "Pi 5 CPU runs the AprilTag baseline seeker real-time; markerless YOLO REQUIRES the (deferred) Hailo AI HAT+ — CPU YOLO ~5-10 FPS is not viable at terminal LOS rates. First real kills therefore fly the tag.",
+      "evidence": ["docs/hardware_order_list.md §0c", "NEXT.md ROUND-5"]
+    },
+    {
+      "id": "wide-fov",
+      "text": "The ~100 deg wide FoV is a HARD requirement, not a tunable — the +/-30 deg open-loop aim tolerance depends on it. Never fit/fly a narrow lens.",
+      "evidence": ["docs/hardware_order_list.md §0①", "ADR-0024"]
+    },
+    {
+      "id": "prop-clearance",
+      "text": "The own-prop phantom has NO software fallback (phantom-free retrain fails blind in flight; every gate NULL). Prop clearance must be designed in by geometry (nose-cantilever mount) and verified by the bench corner-spin check — a HARD gate.",
+      "evidence": ["ADR-0076 add #18d/#18f", "docs/hardware_order_list.md §0②/§3"]
+    },
+    {
+      "id": "no-datalink",
+      "text": "No guidance datalink (the jam-resistance story): the dash is open-loop, ELRS is kill/arm only, SiK is telemetry-monitoring only. Nothing mid-course steers the interceptor except its own camera.",
+      "evidence": ["docs/hardware_order_list.md §0⑤", "docs/real_build_coded_dash.md"]
+    },
+    {
+      "id": "honesty-boundary",
+      "text": "gt_* is scoring/logging ONLY; guidance sees camera + own-state EKF only. AprilTag is sanctioned for calibration, training-time auto-labels, and the staged baseline seeker — never as an input to the deployed markerless seeker.",
+      "evidence": ["CLAUDE.md honesty boundary", "docs/real_data_pipeline.md"]
+    },
+    {
+      "id": "transfer-bet",
+      "text": "The MIT-licensed outdoor-drone-NN transfer bet is UNVALIDATED (hope past evidence). Cheapest kill-or-validate: ~$310 tripod + tagged-target afternoon measuring real approach-recall vs range/frame-position BEFORE building the interceptor.",
+      "evidence": ["NEXT.md ROUND-5 (Fable strategic review 2026-07-16)"]
+    },
+    {
+      "id": "anti-mirage",
+      "text": "FIVE mirages were caught in the coded-dash arc alone (rebal 16/16, camera-guided r2l, resolution probe, up35 capture, static-aspect wall). Any new 'win' needs a control arm (dash-only / gt-consistent audit), paired seeds n>=8, and validation on held-out FLIGHTS — never frame-eval or single-seed.",
+      "evidence": ["ADR-0076 add #18d/#18g/#18j-fix/#18k", "ADR-0061"]
+    },
+    {
+      "id": "binary-kill",
+      "text": "Success criterion is a BINARY KILL confirmed on video + both ULogs; a citable sub-meter CPA number is explicitly NOT required (RTK cut — buy later only for a portfolio number).",
+      "evidence": ["docs/hardware_order_list.md §0b/§0c"]
+    }
+  ],
+  "graveyard": [
+    {"what": "Onboard acoustic target tracking", "why": "Own-prop noise ~40 dB the wrong way. (Ground launch-cue variant stays an idea.)", "evidence": "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)"},
+    {"what": "Resolution / foveated-crop as the wall lever", "why": "Crop = full-frame recall at the 8-12 m wall band; the earlier '47->71%' was edge-clipped close targets (3rd mirage).", "evidence": "ADR-0076 add #18j-fix"},
+    {"what": "v3 retrain / rebal retrain", "why": "Both NULL: ace frame-eval, fail in flight (v3 regressed all 10 held-out flights; rebal flies blind, 0/16 acquisitions). Do not resurrect.", "evidence": "ADR-0061; ADR-0076 add #18d"},
+    {"what": "Phantom range-plausibility gates (both variants)", "why": "ADR-0077 gate regressed l2r 81%->25%; --coded-dash-acquire-range-* aborted both directions. Range does not separate phantom from usable detections.", "evidence": "ADR-0077 addendum; ADR-0076 add #18f"},
+    {"what": "Subpixel/centroid bearing", "why": "NULL at n=31 (the n=8 'win' was noise); kept default-off.", "evidence": "ADR-0071"},
+    {"what": "Accel-predictive guidance (APN / Kalman-CA-PIP)", "why": "Kinematic floor + SNR<1 noise wall; even clean-bearing AprilTag floors ~1.64 m at 12 m/s weave.", "evidence": "ADR-0069/0070; ADR-0056"},
+    {"what": "Fixed up-tilt mount adoption", "why": "Stage-1 parity FAIL (worse 7/8 compensated); a fixed tilt only relocates the in-view window under the swinging dash pitch.", "evidence": "ADR-0068; ADR-0076 add #18j-fix follow-up"},
+    {"what": "Sim pivot (Isaac/Pegasus/etc.)", "why": "Invalidates the whole measured evidence base; both realism complaints were fixable in Gazebo.", "evidence": "ADR-0072"},
+    {"what": "RTK metrology pair", "why": "Cut by the binary-kill re-scope; buy later only if a citable sub-meter number is wanted.", "evidence": "docs/hardware_order_list.md §0c"},
+    {"what": "Literal <1 m markerless @9 m/s as the headline goal", "why": "Pre-registered R1 rule fired (line@9 median 3.38 m); reframed to speed ladder + binary kill.", "evidence": "NEXT.md ROADMAP R1; §0c"},
+    {"what": "AprilTag as the terminal seeker in a crossing dash", "why": "The directional ~6 m tag is invisible during a 16 m/s crossing dash (0 detections) — worse than the NN there. (Tag stays the staged first-kill baseline in the easy straight-leg regime.)", "evidence": "ADR-0076 add #18e"},
+    {"what": "Narrow/long lens for acquisition range", "why": "Re-creates the fast-crosser-walks-out-of-frame failure; wide FoV is a hard requirement.", "evidence": "ADR-0024; hardware_order_list §0①"}
+  ]
+}

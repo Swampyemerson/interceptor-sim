@@ -46,6 +46,11 @@ else
 fi
 
 echo ""
+echo "== project-state dashboard sync (docs/project_state.json <-> docs/dashboard.html) =="
+# The state file is the CONTRACT; the dashboard embeds a copy. Drift fails the suite.
+python3 scripts/render_dashboard.py --check || rc=1
+
+echo ""
 if [ "$rc" -eq 0 ]; then
     echo "run_tests: ALL GREEN"
 else
