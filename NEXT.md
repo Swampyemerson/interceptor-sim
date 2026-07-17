@@ -104,6 +104,7 @@ tracked-or-accepted; repo publishable on a remote.
 - **9 m/s STRAIGHT-crossing, in sim: genuinely OPEN (coin-flip), decidable THIS WEEK** — but
   the goal condition (coded-dash + quad_v2 + **line** @9 m/s) has **NEVER been flown** (all our
   numbers are extrapolated from 12 m/s *weave*). No config is sub-meter in BOTH dirs at once yet.
+  *[STALE — ADR-0076 add #18e flew line@9 (fired the reframe: 3.38 m median, 0/12 @1 m) and add #18h closed the camera-guided-sim question; the binding wall is now the FLIGHT-DYNAMIC recall deficit (add #18k). See the ROUND-5 banner + `docs/project_state.json`.]*
 - **Hardware outdoors: unlikely (~10–30%) without an acquisition-range win**, AND — the metrology
   gap — consumer GPS can't even MEASURE <1 m (→ RTK now in the BOM). **[SUPERSEDED 2026-07-15: RTK
   later CUT by the §0c binary-kill re-scope — success = BINARY KILL on seeker video + both ULogs,
@@ -186,7 +187,7 @@ at 9 m/s markerless a **Pk@1.5 m (net-class kill)** — a *tightening* of the 2.
 > sim-side number or an RTK buy-back stretch.
 **BIGGEST RISK:** acquisition-range / t_go starvation on the real 0.35 m target (physics: 640-pipeline
 detects at ~9.5 m, streak burns ~7 m → ~0 correction authority). Retire early via R3 (sim) + R5 (1 afternoon).
-**Red-team fixes 2–4 folded in above** (markerless IS sub-meter one-directionally; R1 middle-band defined; R6 adverse prior stated).
+**Red-team fixes 2–4 folded in above** (~~markerless IS sub-meter one-directionally~~ *[retracted — ADR-0076 add #18g: the sub-meter r2l was open-loop DASH BALLISTICS, not camera-guided]*; R1 middle-band defined; R6 adverse prior stated).
 
 ### 🔧🚁 THE PIVOT — BUILD THE REAL INTERCEPTOR (builder, 2026-07-15)
 > ⛔ **BOM SNAPSHOT BELOW SUPERSEDED by the §0c binary-kill cost-cut (same day, 2026-07-15):**

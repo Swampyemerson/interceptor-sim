@@ -198,7 +198,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->6ea1789<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->626b142<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -1624,6 +1624,45 @@
    "loc_b": "docs/project_state.json graveyard; docs/decisions.md ADR-0068 + add #18j-fix",
    "current_truth": "The ADR-0060 pitch-gap MEASUREMENT stands; the fixed-mount remedy is dead — the pointing lever transferred to adaptive tilt #46/ADR-0065.",
    "resolution": "Inline SUPERSEDED annotation added to the '#35 load-bearing' phrase, leaving the measurement untouched."
+  },
+  {
+   "id": "compute-setup-superseded",
+   "topic": "compute_setup.md presents the ground-cued hybrid architecture (deleted by the pivot) as the live 'real interceptor brains'",
+   "claim_a": "docs/compute_setup.md: 'the real interceptor's brains, end-to-end' — a ground Jetson track node + a ~90-byte cue-radio track message + RTK ($400/pair) + Pi5+Hailo terminal detect, presented as the CURRENT architecture.",
+   "loc_a": "docs/compute_setup.md:1-7, 300-331, 370-387",
+   "claim_b": "project_state.json: no-datalink coded dash, RTK cut, Pi5+AprilTag immediate / Hailo+markerless deferred; real_build_coded_dash.md: the pivot deletes the ground cue.",
+   "loc_b": "docs/project_state.json (goal, constraints); docs/real_build_coded_dash.md",
+   "current_truth": "The onboard interceptor has NO datalink/ground cue and flies a coded open-loop dash; RTK is CUT; immediate air compute is Pi5+AprilTag (CPU), Hailo+markerless deferred. compute_setup.md's ground-rig ARCHITECTURE is parent-project context; its latency-budget METHOD is still reusable.",
+   "verdict": "CONFIRMED",
+   "severity": "high",
+   "status": "resolved",
+   "resolution": "Added a doc-top SUPERSEDED banner scoping compute_setup.md to the parent-project ground-sensing half (same treatment seeker_upgrades.md got). Missed by the hunt; caught by the round-1 completeness critic (P1)."
+  },
+  {
+   "id": "seeker-upgrades-banner-retracted",
+   "topic": "The seeker_upgrades.md pivot banner itself asserts two retracted claims (the ±30°/48-48 acquisition attribution + foveated auto-crop as the range lever)",
+   "claim_a": "docs/seeker_upgrades.md banner: 'validated at ±30° aim error, 48/48 flights still acquired' and 'the pixels-on-target range problem is instead attacked by foveated auto-crop on native resolution (ADR-0074) + a real-data fine-tune'.",
+   "loc_a": "docs/seeker_upgrades.md:26-38",
+   "claim_b": "ADR-0076 add #18g/#18h: the 48/48 ENGAGE streaks were phantom, not camera acquisition, no camera-guided kill; add #18j-fix/#18k: foveated crop NOT a lever, the wall is flight-dynamic pointing, real-data demoted.",
+   "loc_b": "docs/decisions.md ADR-0076 add #18g/#18h/#18j-fix/#18k; docs/project_state.json",
+   "current_truth": "The 48/48 is the coded dash's aim-error robustness (it ENGAGED), NOT real-target camera acquisition (streaks phantom); the range/pointing lever is ADAPTIVE camera pointing, not foveated auto-crop (crop = full-frame at the wall band); the real-data detector attacks the outdoor-appearance gap, not the sim wall. The FoV-as-guardrail conclusion still holds.",
+   "verdict": "CONFIRMED",
+   "severity": "medium",
+   "status": "resolved",
+   "resolution": "Annotated both spots inline inside the banner (correction bracket on the ±30°/48-48 line; strikethrough + SUPERSEDED note on the auto-crop sentence). Missed by the hunt; caught by the round-1 critic (P2)."
+  },
+  {
+   "id": "residual-retracted-echoes",
+   "topic": "Residual un-annotated echoes of retracted claims in already-banner-covered files",
+   "claim_a": "NEXT.md:189 'markerless IS sub-meter one-directionally'; NEXT.md:104-106 '9 m/s straight-crossing genuinely OPEN... NEVER been flown'; real_build_coded_dash.md:44-52 'combined Pk@2.5 8/16->13/16... the number that matters for the hardware'.",
+   "loc_a": "NEXT.md:189; NEXT.md:104-106; docs/real_build_coded_dash.md:44-52",
+   "claim_b": "ADR-0076 add #18e/#18g/#18h/#18k: sub-meter r2l was dash ballistics not camera-guided; line@9 WAS flown and fired the reframe; the 13/16 is dash ballistics (camera terminal added ~nothing).",
+   "loc_b": "docs/decisions.md ADR-0076 add #18e/#18g/#18h/#18k; docs/project_state.json",
+   "current_truth": "These lines restate claims retracted by the #18g/#18h/#18k corrections; their sibling lines already carry brackets but these specific ones were skipped by the auto-fix pass.",
+   "verdict": "CONFIRMED",
+   "severity": "low",
+   "status": "resolved",
+   "resolution": "Each annotated inline (strikethrough + retraction bracket pointing at the relevant ADR + project_state.json). Caught by the round-1 completeness critic (P3)."
   }
  ]
 }</script>

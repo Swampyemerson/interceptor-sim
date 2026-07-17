@@ -6,6 +6,17 @@ link, and — the load-bearing part — a **sourced, three-tier end-to-end laten
 budget** you can later replace 1:1 with bench measurements. Covers NEXT.md items
 **P-3** (compute split), **P-5** (onboard ML chip), **P-7** (latency budget).*
 
+> **⛔ SUPERSEDED for the ONBOARD interceptor by the 2026-07-15 coded-dash pivot
+> (ADR-0076 add #18, `docs/real_build_coded_dash.md`; live state: `docs/project_state.json`).**
+> This doc describes the **parent-project ground-sensing half** — a ground Jetson
+> track node + a cue radio ("~90-byte track message") + RTK ($400/pair) feeding a
+> mid-course cue. The interceptor being built has **NO datalink and NO ground cue**:
+> it flies a coded open-loop dash and the camera-only terminal acquires from a
+> roughly-aimed dash; **RTK is CUT** (§0c binary-kill re-scope); the immediate air
+> compute is **Pi 5 + AprilTag (CPU-real-time)**, with the Hailo HAT + markerless
+> deferred. Read the latency-budget METHOD below as reusable; read the ground-rig
+> ARCHITECTURE as parent-project context, not the current onboard build.
+
 **Read this first if you're new to the terms** (one line each):
 - **NPU** — "neural processing unit," a chip that runs neural-net math fast and
   cheap on power. The Hailo hat is an NPU.

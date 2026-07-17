@@ -30,11 +30,19 @@ single fixed-forward camera (ADR-0012) and ranks them by **dollars-per-Pk-point*
 > was free. The real interceptor has **no cue**: it flies a coded open-loop dash and
 > the camera-only terminal must ACQUIRE a crossing target from a *roughly*-aimed
 > dash. That robustness — validated at **±30° aim error, 48/48 flights still
-> acquired** — *depends on the wide (~100°) FoV*; a narrow lens re-creates the
+> acquired** *[correction — ADR-0076 add #18g/#18h: the 48/48 is the coded DASH's
+> robustness to aim error (it ENGAGED regardless of aim), but the pre-CPA ENGAGE
+> streaks were largely the own-prop PHANTOM, not real-target camera acquisition —
+> no camera-guided 3D-quad kill exists; "acquired" ≠ "camera-guided". The
+> FoV-as-guardrail conclusion still holds.]* — *depends on the wide (~100°) FoV*; a narrow lens re-creates the
 > ADR-0024 "fast crosser walks out of frame, 0/12" failure. So on the real build
 > the FoV is a GUARD RAIL, not a lever. The pixels-on-target range problem is
-> instead attacked by **foveated auto-crop on native resolution** (ADR-0074, keeps
-> the wide FoV) + a **real-data fine-tune** — see the Fable review's ranked table.
+> instead attacked by ~~foveated auto-crop on native resolution~~ + a real-data
+> fine-tune. *[SUPERSEDED — ADR-0076 add #18j-fix/#18k: foveated auto-crop is NOT a
+> lever (crop = full-frame at the 8–12 m wall band); the wall is FLIGHT-DYNAMIC (the
+> ~40° nose-down dash pitch parks the target at the frame-top edge), not resolution/
+> aspect — the real lever is ADAPTIVE camera POINTING (#46/ADR-0065); real-data
+> detector demoted to the outdoor-appearance gap. Source: `docs/project_state.json`.]*
 > The f_px-vs-HFOV *math* below is still correct; only the RECOMMENDATION is stale.
 
 - **The ONE seeker lever that moves Pk is longer-range ACQUISITION** — detect the tag *earlier*

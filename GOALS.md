@@ -49,7 +49,7 @@ fiducial that lets us focus on the *guidance and control* problem instead of the
 **IS NOT (deliberately out of scope):**
 - No hardware, no real flight. Simulation only. *(superseded 2026-07-15 for project scope — see the STATUS banner above; still true of the sim harness itself)*
 - **No ROS 2.** Camera comes out of Gazebo via `gz-transport` Python bindings; control via MAVSDK. Keep the dependency surface minimal.
-- No ML perception. The AprilTag is the target lock; classical/fiducial only. *(SUPERSEDED post-M5 — ADR-0038/0040: the deployed terminal seeker is now a markerless YOLO NN, `drone_finetuned_v2.onnx`; the AprilTag remains sanctioned only for calibration, training-time auto-labels, and the staged first-kill baseline seeker. Current scope: `docs/project_state.json`.)*
+- No ML perception. The AprilTag is the target lock; classical/fiducial only. *(SUPERSEDED post-M5 — ADR-0038/0040: the deployed terminal seeker is now a markerless YOLO NN, `drone_finetuned_quad_v2.onnx` (current weights: `docs/project_state.json`); the AprilTag remains sanctioned only for calibration, training-time auto-labels, and the staged first-kill baseline seeker. Current scope: `docs/project_state.json`.)*
 - No ground stereo rig, no ExpressLRS, no fusion node. Those are parent-project concerns, mocked away here.
 
 ## Parent -> Simulation translation

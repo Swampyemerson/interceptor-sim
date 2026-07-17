@@ -46,8 +46,11 @@ The saga's "r2l 0%" was **0/8 inside the 2.5 m Pk gate** (it engaged 8/8 but at
 under-committed east because the aspect-biased r2l bearing corrupted its aim)
 lifts **r2l 0/8 → 5/8 @Pk, mean 3.97 → 2.68 m**. Cost: l2r loosens 0.61 → 1.37 m
 (the cue genuinely helped l2r) but stays 8/8 @Pk. Net: the 6.5× l2r/r2l asymmetry
-collapses to 2×; combined Pk@2.5 m **8/16 → 13/16**. *This is the number that
-matters for the hardware — no cue exists on it.* Data:
+collapses to 2×; combined Pk@2.5 m **8/16 → 13/16**. *~~This is the number that
+matters for the hardware — no cue exists on it.~~* *[caveat — ADR-0076 add #18g/#18h:
+the 13/16 combined is largely open-loop DASH BALLISTICS; a dash-only control scored
+the same, and no camera-guided 3D-quad intercept exists in sim. The dash AIM is the
+real result; the camera terminal added ~nothing. See `docs/project_state.json`.]* Data:
 `logs/mc_coded_dash_qv2_weave.csv` vs `logs/mc_quad_v2_s123_weave.csv`;
 `scripts/coded_dash_summary.py` reproduces the table.
 
