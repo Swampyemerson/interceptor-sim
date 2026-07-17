@@ -2,7 +2,38 @@
 
 This file auto-loads at the start of every Claude Code session. It defines the
 operating model, the decision protocol, and the conventions. The mission and
-scope are in `GOALS.md` (imported at the bottom) — read it before planning.
+scope are in `GOALS.md` (imported at the bottom) — read it before planning. **The
+project's canonical live state is the contract in `docs/project_state.json` — orient
+from it first (see the next section).**
+
+## The project-state contract — your compass (read first, keep live)
+
+The project's canonical state is **`docs/project_state.json`** — the machine-readable
+CONTRACT: ~10 pipeline stages (each `implemented`/`half-done`/`idea`/`rejected`/`superseded`,
+with its active version), per-stage decision options, hard constraints, a contradiction
+ledger, and a dead-ideas graveyard. It renders to **`docs/dashboard.html`** (the human view)
+and is published as a hosted Artifact:
+**https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc**
+(also stored in the JSON as `artifact_url`). This is the OPERATING CENTER of the project;
+`NEXT.md`, `PROGRESS.md`, and the ADR log are SUBORDINATE views that must stay consistent
+with it (the drift check + the contradiction ledger enforce it).
+
+- **ORIENT (session start):** read `project_state.json` FIRST — before `NEXT.md` or the ADRs —
+  to know what is actually built vs. hypothesis, the active version of each stage, and the
+  current binding wall. Then `render_dashboard.py --check` (also inside `run_tests.sh`).
+- **REFERENCE (while acting):** before re-asserting a claim, check the **contradiction ledger**;
+  before retrying an approach, check the **graveyard**; honor the **constraints**; read a stage's
+  **decision options** for the *why*. The contract is the guard against this project's recurring
+  failure mode — a decision that lived only in chat, evaporated, and let a bad approach bake in
+  unnoticed (the five mirages, ADR-0076).
+- **UPDATE (every positive change — the #1 housekeeping task):** the SAME TURN a status, active
+  version, or decision changes, or a contradiction is found/resolved — edit `project_state.json`
+  → `python3 scripts/render_dashboard.py` (regenerates the view; `run_tests.sh` fails on drift)
+  → **republish the Artifact to the SAME URL** (`render_dashboard.py --artifact <tmp>.html`, then
+  the Artifact tool with `url` = the stored `artifact_url`) → commit both. *An update that isn't
+  in the contract didn't happen.*
+- Schema + full ritual: `docs/project_state_readme.md`. Every stage/number carries an
+  `evidence`/`provenance` pointer (numbers trace to a run or a derivation).
 
 ## Autonomous operation — THE STANDING ORDER (builder's #1 rule; never lose this)
 
@@ -29,6 +60,7 @@ restore it on sight. Concretely:
   "Held for decision" applies ONLY to a genuine one-way door, never to done/tested/
   documented results. The Fable PM audits this so nothing strands uncommitted.
 - Drive every build through its loop autonomously: build → Fable review → sim gate →
+  **update the state contract (`project_state.json` → render → republish the dashboard)** →
   commit → next. Don't wait to be told to continue.
 
 ## Model orchestration — Fable SELECTIVELY, for the high-leverage work (review, hard tasks, planning)
@@ -109,14 +141,10 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
 - **Keep the project's memory current.** Maintain this `CLAUDE.md`, a `NEXT.md`
   (top of the stack), and `PROGRESS.md` (milestone roll-up) as you learn, so a fresh
   session (after `/compact` or `/clear`) starts smart. Propose the edit and say why.
-- **Project-state contract:** `docs/project_state.json` is the single source of truth
-  for pipeline/stage status (implemented / half-done / idea / rejected / superseded).
-  READ it at session start to know what's actually built vs. hypothesis; when any
-  status, active version, or decision changes, update it **+ run
-  `python3 scripts/render_dashboard.py` the SAME TURN** and commit both (view:
-  `docs/dashboard.html`; ritual: `docs/project_state_readme.md`; `run_tests.sh` fails
-  on drift). This exists to stop decisions evaporating from chat — the drift that bred
-  this session's five mirages.
+- **Project-state contract is the housekeeping #1** — see *The project-state contract*
+  section near the top. Keep `docs/project_state.json` current the same turn anything
+  changes and republish the dashboard; an update that isn't in the contract didn't happen.
+  The other memory files below are subordinate to it.
 - **Numbers trace to a run or a derivation.** No unsourced quantitative claims.
 - **Ask before** downloads over ~2 GB, or changes to the system outside this project
   dir and apt packages.

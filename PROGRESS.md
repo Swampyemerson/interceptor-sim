@@ -1,5 +1,7 @@
 # Progress — milestone roll-up
 
+> **Canonical live state → [`docs/project_state.json`](docs/project_state.json)** (view: `docs/dashboard.html` · hosted: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc). This milestone roll-up is a subordinate view of the contract.
+
 | Milestone | What it proves | Gate | Status |
 |---|---|---|---|
 | M0 Toolchain | PX4 SITL + Gazebo boot headless; MAVSDK arms/takes off/lands | `scripts/check_m0.sh` exits 0 | ✅ 2026-07-04 — exit 0; peak alt 1.656 m (bar: ≥1.6 m), landed at 0.014 m; verifier-confirmed (`logs/m0_takeoff_20260704T225304Z.csv`) |

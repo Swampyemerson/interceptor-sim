@@ -1,5 +1,7 @@
 # NEXT — top of the stack
 
+> **Canonical project state → [`docs/project_state.json`](docs/project_state.json)** (view: `docs/dashboard.html` · hosted: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc). That contract is the source of truth; this file is the subordinate work queue — keep them consistent (the drift check + the contradiction ledger enforce it).
+
 *(One PLAN, one CURRENT block, one BUILD QUEUE, one compressed DONE list.
 Detail lives in `docs/decisions.md` (ADRs), `PROGRESS.md` (roll-up), and
 `docs/audit_findings_tracker.md` (the 81-finding audit ledger). Rewritten

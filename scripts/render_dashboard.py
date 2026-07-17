@@ -127,6 +127,22 @@ def extract_embedded_json(html: str) -> dict:
     return json.loads(m.group(1))
 
 
+def emit_artifact(html: str, out: Path) -> None:
+    """Write a claude.ai-Artifact-flavored copy of the rendered dashboard: the
+    Artifact publisher supplies its own <!doctype>/<html>/<head>/<body> skeleton,
+    so strip our wrappers and keep the <style> (from <head>) + the <body> inner
+    (which already holds the embedded state JSON + the render script). Self-
+    contained; only the SVG-namespace URI remains. Publish with the Artifact tool
+    (url = state['artifact_url'] to keep the same link)."""
+    styles = "\n".join(re.findall(r"<style\b.*?</style>", html, re.S))
+    body = re.search(r"<body\b[^>]*>(.*)</body>", html, re.S)
+    if not body:
+        fail("rendered HTML has no <body> to extract for --artifact")
+    tm = re.search(r"<title\b[^>]*>(.*?)</title>", html, re.S)
+    title = f"<title>{tm.group(1)}</title>\n" if tm else ""
+    out.write_text(title + styles + "\n" + body.group(1))
+
+
 def git_short_sha() -> str:
     try:
         r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
@@ -167,6 +183,13 @@ def main() -> None:
     print(f"OK: rendered {HTML.name} from {STATE.name} (updated {state['updated']}, "
           f"{len(state['stages'])} stages, {len(state['decisions'])} decisions, "
           f"{len(state['contradictions'])} contradictions) — commit both files")
+
+    if "--artifact" in sys.argv[1:]:
+        i = sys.argv.index("--artifact")
+        out = Path(sys.argv[i + 1]) if i + 1 < len(sys.argv) else ROOT / "docs" / "dashboard.artifact.html"
+        emit_artifact(html, out)
+        print(f"OK: wrote self-contained Artifact HTML -> {out}\n"
+              f"    publish with the Artifact tool, url={state.get('artifact_url', '<set artifact_url in project_state.json>')}")
 
 
 if __name__ == "__main__":

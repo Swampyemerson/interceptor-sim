@@ -13,6 +13,11 @@ cannot quietly vanish.*
 | **THE CONTRACT** | `docs/project_state.json` | Machine-readable truth (schema v2): every pipeline stage, its status, active version, honest note, evidence pointers, per-stage changelog; plus the goal, the current binding wall, the **key_numbers** cluster, the per-stage **decisions** records, the **contradictions** flag ledger, hard constraints, and the graveyard of closed nulls. **A fresh Claude session READS this first and UPDATES it when anything changes.** |
 | **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling). Title block (REV = git short-sha at render time), binding-wall callout, key-numbers cluster, pipeline flowchart with feed lines + per-stage expanders, nested decision records (stage → decision → each option's full why-choose/pros/cons), the contradiction flag panel, constraints + graveyard tables. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
 
+Plus a **hosted snapshot** — the dashboard published as a claude.ai Artifact (URL in the
+contract's top-level `artifact_url`), regenerated with `render_dashboard.py --artifact` and
+republished to the SAME URL on meaningful changes. The repo files stay the source of truth;
+the Artifact is the shareable-anywhere view.
+
 The bridge: `scripts/render_dashboard.py` validates the JSON (status enum, evidence
 required, edge integrity) and injects it into the HTML between generated-block markers.
 `--check` exits 1 if the two disagree — and **`scripts/run_tests.sh` runs that check**,
@@ -87,7 +92,10 @@ When a decision lands, a build completes, a result flips a status, or a lever di
    (ADR / log / file), and bump the top-level `updated` date. Rejected levers get a
    `graveyard` row. **Never delete** — statuses move, entries don't vanish.
 2. Run `python3 scripts/render_dashboard.py` (re-renders the HTML).
-3. Commit **both files together** (plus the change that motivated them).
+3. **Republish the hosted Artifact** (when the change is user-visible/meaningful — batch
+   trivial edits): `python3 scripts/render_dashboard.py --artifact /tmp/state.html`, then the
+   Artifact tool with `url` = the contract's `artifact_url` — keeps the SAME link.
+4. Commit **both files together** (plus the change that motivated them).
 
 Cost per update: one small JSON edit + one command. If it ever feels heavier than
 that, simplify the schema rather than skip the update — a stale contract is worse
@@ -108,10 +116,8 @@ than no contract.
 - The dashboard strips emoji from rendered strings (memo styling carries status via
   glyph + code); don't rely on emoji in JSON fields to convey state.
 
-## CLAUDE.md hook (proposed pointer — one bullet under "Working rhythm")
+## CLAUDE.md hook (PLACED 2026-07-17 — the operating model is now dashboard-first)
 
-> - **Project state contract:** `docs/project_state.json` is the single source of
->   truth for pipeline/stage status — read it at session start; when any status,
->   active version, or decision changes, update it + `python3
->   scripts/render_dashboard.py` the SAME TURN and commit both (view:
->   `docs/dashboard.html`; ritual: `docs/project_state_readme.md`).
+The contract is the project's compass: see **"The project-state contract — your compass"**
+near the top of `CLAUDE.md` (session-start ORIENT → reference-while-acting → update-every-change
+incl. Artifact republish). This readme is the schema + ritual detail that section points to.

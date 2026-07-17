@@ -17,6 +17,12 @@ line it exists to make true and defensible is
 > intercept in PX4/Gazebo SITL; validated via Monte-Carlo miss-distance
 > analysis."* — [`GOALS.md`](GOALS.md)
 
+The **canonical live project state** is the dashboard — [`docs/dashboard.html`](docs/dashboard.html)
+(hosted, viewable anywhere: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc),
+rendered from the [`docs/project_state.json`](docs/project_state.json) contract: pipeline stages
+(built vs. hypothesis), the per-stage decision rationale, hard constraints, and a live
+contradiction ledger. Start there.
+
 Full mission, scope, and the "what this is / is not" boundary live in
 [`GOALS.md`](GOALS.md). Milestone-by-milestone status is in
 [`PROGRESS.md`](PROGRESS.md); the current working front is

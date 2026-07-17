@@ -1,5 +1,6 @@
 {
   "schema_version": 2,
+  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-07-17",
   "updated_by": "Fable dashboard v2 build (schema v2: per-stage decisions + contradictions ledger + key_numbers; sources: NEXT.md ROUND-5, ADR-0076 add #18..#18k, hardware_order_list §0/0b/0c, real_build_coded_dash.md, real_data_pipeline.md, the 2026-07-17 contradiction audit)",
