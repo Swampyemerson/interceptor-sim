@@ -236,7 +236,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0fe3d87<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ad81ae2<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -363,7 +363,7 @@
  "schema_version": 2,
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-07-17",
+ "updated": "2026-07-18",
  "updated_by": "Fable build-plan pass v4 (schema v2.2: new build_plan block — the IN-PERSON phase ladder P0 pre-order checklist -> P5 kill ladder, rendered as the second flowchart §2.2; gate reconciliation: Tier-2 interceptor gated on the AprilTag envelope curve, NN recall gates ONLY Hailo/markerless; Tier-1 honest first-outdoor-test outlay ~$620-780 stated up front; tilt angle = real-measured dash pitch on an adjustable bracket, never sim-sized; pointing decision rationale synced to the fixed-tilt FINAL; sources: hardware_order_list §0c/§4, real_data_pipeline.md, ADR-0076 add #18h/#18k, NEXT.md R5)",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
@@ -420,7 +420,7 @@
   ]
  },
  "build_plan": {
-  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend.",
+  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. STILL OPEN = P0.3 the two-curve tripod SCORER, P0.5 camera paper-check (HFOV/vertical-FoV), P0.6 run the free-footage NN kill-test, P0.4 link --cam-fwd-offset to the model swap, run qemu (needs Docker/qemu apt), a Pi-side capture script, and field_score ArduPilot-log support (the Tier-1 target is ArduPilot).",
   "phases": [
    {
     "code": "P0",
@@ -690,6 +690,10 @@
     {
      "date": "2026-07-17",
      "note": "FIXED the flight/ lever-arm gap: flight.geometry.camera_to_cg_los added + pinned (test_geometry: zero-offset byte-identical, level geometry, pitch-shrinks-horizontal-offset). The portable core now compensates the camera-CG parallax; the real terminal must call it with the mount constant. Sim inline copy flags the mirror. STILL OPEN: link the offset flag to the model swap."
+    },
+    {
+     "date": "2026-07-18",
+     "note": "DEPLOYMENT seeker loop built: flight/deploy/seeker_loop.py drives the portable flight/ core end-to-end (camera undistort -> full-attitude LOS -> lever-arm -> alpha-beta -> pro-nav N=5 -> MAVSDK NED setpoint). No-cheat AUDITED (camera + own-state EKF only). self-test 7/7 + 72 setpoints over real frames; compute_v_close throttle-band fixed to match m4 (review must-fix). MAVSDK live path written but needs PX4 SITL/hardware to verify."
     }
    ]
   },
@@ -711,6 +715,10 @@
     {
      "date": "2026-07-15",
      "note": "Binary-kill re-scope adopted; RTK cut (~$220-300 saved)."
+    },
+    {
+     "date": "2026-07-18",
+     "note": "scripts/field_score.py built: binary-kill metrology from the two aircraft ULogs (+CSV fallback) -> CPA + KILL/MISS + plot. Honesty: real-log post-hoc scoring (not the gt_* guidance boundary); added a GPS relative-accuracy caveat + verdict_uncertain flag (inter-receiver bias ~1-3 m rivals the kill radius). self-test 3/3. Video stays the primary kill evidence (§0c)."
     }
    ]
   },
@@ -733,6 +741,10 @@
     {
      "date": "2026-07-16",
      "note": "Pipeline built + Fable-hardened; demoted from critical-path-certain to hypothesis by the set-pose sweep."
+    },
+    {
+     "date": "2026-07-18",
+     "note": "Prep tooling built: real_data_pipeline_run.sh (capture->autolabel->train->score, dry-run proven on sim data), domain_gap_eval.py (synthetic blur + background composite -> sim->real recall-penalty ESTIMATE; note: composite augmentation reads ~0% at all strengths = too-harsh synthetic bg, a caveat not a measurement), candidate_nn_shortlist.md + fetch_candidate_nn.py (permissive outdoor drone-NN candidates + free public footage sources for the $0 transfer-bet test)."
     }
    ]
   },
@@ -908,6 +920,24 @@
    "evidence": [
     "ADR-0076 add #16/#18h/#18k",
     "Fable gap-check 2026-07-17 (verified: ~11 deg level margin in §0②; flight/ lever-arm since fixed; m4:2493 sim compensation is honest)"
+   ]
+  },
+  {
+   "id": "qemu-compute-gap",
+   "text": "A QEMU/ARM64 emulation (scripts/deploy/qemu_arm_check.sh) can validate the seeker SOFTWARE STACK RUNS on the Pi's aarch64 (ONNX loads, pipeline imports) but CANNOT give real fps — emulation timing != a real Cortex-A76. Real fps needs the physical Pi 5 (Tier 1) or the Hailo vendor bench. The check is also not-yet-run here: no Docker/qemu-user-static installed (needs an apt install, ask-first). AprilTag ~30 fps CPU; markerless requires the Hailo HAT.",
+   "evidence": [
+    "scripts/deploy/qemu_arm_check.sh + README",
+    "docs/hardware_order_list §0c",
+    "Fable build workflow 2026-07-18"
+   ]
+  },
+  {
+   "id": "target-is-ardupilot",
+   "text": "The Tier-1 target/practice quad is an ArduPilot build (SpeedyBee F405, BOM §E), NOT PX4 — so field_score.py's native ULog path reads the INTERCEPTOR (PX4) log, but the target's ArduPilot .bin log must go through the --csv-a/--csv-b CSV-export fallback (or add a DataFlash/.bin parser). Confirm the target logging + export path before relying on a two-aircraft CPA.",
+   "evidence": [
+    "scripts/field_score.py",
+    "docs/hardware_order_list §E/§0d bom_tiers",
+    "Fable review 2026-07-18"
    ]
   }
  ],
