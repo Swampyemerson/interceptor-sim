@@ -97,6 +97,10 @@
         {
           "date": "2026-07-16",
           "note": "Set-pose sweep: static wall DOES NOT EXIST (100% @8-22 m both aspects) — wall reframed flight-dynamic (5th mirage corrected)."
+        },
+        {
+          "date": "2026-07-17",
+          "note": "Camera-forward mount committed -> phantom is hardware-removed: v2 flies AS-IS (no NN change for the mount); the rejected anti-phantom retrains (rebal/hardened) are fully moot; a future real-data retrain drops phantom hard-negatives (the rebal failure mode). The wall NN lever (real-data for the flight-dynamic edge aspect) is UNCHANGED and orthogonal to the mount."
         }
       ]
     },
@@ -123,6 +127,10 @@
         {
           "date": "2026-07-16",
           "note": "Pointing mechanism MEASURED (target at frame top, ~+41 deg off-axis at 11 m); adaptive tilt promoted to dominant lever; gt chain made tilt-aware."
+        },
+        {
+          "date": "2026-07-17",
+          "note": "Mount committed removes the phantom but NOT the pointing wall — the adaptive-tilt A/B is now the top acquisition build."
         }
       ]
     },
@@ -135,7 +143,7 @@
       ],
       "status": "half-done",
       "active": "5-consecutive-fresh-detections streak hands the dash to the camera terminal. Planned hardening (unbuilt): streak range-consistency ONLY (untested — a phantom-only streak is self-consistent at ~1.5 m, so suspect); the pre-flight range-plausibility window was built (--coded-dash-acquire-range-min/max) and NULLed (add #18f; see graveyard).",
-      "note": "OPEN HAZARD: the own-prop PHANTOM (reads ~1.5 m) can seed a false handoff — it is the false-handoff hazard, NOT the acquisition blocker (add #18g corrected this). Every software separator is NULL: ADR-0077 range gate, --coded-dash-acquire-range-* gate (NULL because approach recall ~0 — nothing real to gate; real vs phantom ranges DO separate, 18.7 vs 1.6 m median, add #18g corrected the earlier overlap claim), rebal retrain, ~12 prior levers. Only mitigation: HARDWARE prop-clearance (no software fallback) + handoff hardening.",
+      "note": "MOUNT COMMITTED (builder 2026-07-17: 3D-print the nose-cantilever forward-of-props extension) — the phantom is designed OUT of the FoV, so the range-plausibility gates (ADR-0077 + --coded-dash-acquire-range-*, both NULL) are RETIRED and the handoff reduces to the clean 5-consecutive-detection streak. HONEST: the mount removes the false-HANDOFF hazard, it is NOT the acquisition fix (add #18h: real recall still ~0 at range) — acquisition still needs pointing + real-data. New mount risks (see forward-camera-boom constraint): verify props+arms out of the ~100° FoV; boom vibration/CG/parallax.",
       "evidence": [
         "ADR-0076 add #18f/#18g",
         "ADR-0077 (NULL)",
@@ -153,6 +161,10 @@
         {
           "date": "2026-07-17",
           "note": "Contradiction audit: node text corrected to the #18g mechanism (range window built+NULL, not unbuilt; ranges separate, recall was the abort cause)."
+        },
+        {
+          "date": "2026-07-17",
+          "note": "Builder COMMITTED to 3D-printing the forward camera extension — cam-forward is the assumption from here; handoff simplifies (range-gate machinery retired)."
         }
       ]
     },
@@ -377,6 +389,11 @@
       "evidence": [
         "docs/hardware_order_list.md §0b/§0c"
       ]
+    },
+    {
+      "id": "forward-camera-boom",
+      "text": "The committed nose-cantilever camera mount (forward of props) carries NEW design considerations beyond phantom-removal: (a) boom VIBRATION/jello can add motion blur -> could WORSEN the flight-dynamic recall wall it is meant to help (needs a stiff/damped soft-mount); (b) forward CG + added pitch inertia can change the nose-down dash pitch that ejects the target from frame (add #18k); (c) the camera sits ~0.4 m forward of the CG/IMU — at a few-metre terminal range that lever arm is a real LOS parallax the guidance MUST compensate (verify --cam-fwd-offset-m corrects the LOS, not just moves the sim camera); (d) the camera LEADS the contact kill -> sacrificial each shot (cost per test iteration); (e) verify props AND arms fully outside the ~100° FoV by a bench corner-spin check.",
+      "evidence": "ADR-0076 add #16/#18h/#18k; Fable gap-check 2026-07-17 (pending refinement)."
     }
   ],
   "graveyard": [
@@ -878,7 +895,7 @@
         },
         {
           "name": "HARDWARE prop-clearance (nose-cantilever camera mount)",
-          "summary": "Design the props out of the camera's FoV by geometry; verified by a bench corner-spin check — a HARD gate on the real build (BOM §0②).",
+          "summary": "Design the props out of the camera's FoV by geometry; verified by a bench corner-spin check — a HARD gate on the real build (BOM §0②). [COMMITTED 2026-07-17: builder will 3D-print the forward extension.]",
           "why_choose": "Choose hardware because it removes the phantom at the SOURCE: the camera-forward sim test dropped approach-phase phantom detections from 1187 to 1 (add #18h), and after ~12 software levers all returned NULL, the honest conclusion is that no software separator exists. A phantom that never renders cannot seed a handoff.",
           "pros": "Eliminates the false-handoff hazard structurally; verifiable on the bench before flight; no recall trade-off.",
           "cons": "It is NOT the acquisition fix — with the phantom gone, approach recall stayed ~0 (the wall is pointing/recall, add #18h), so expectations must stay scoped: the phantom is the false-HANDOFF hazard, not the acquisition blocker. Adds a mechanical design constraint to the airframe.",
