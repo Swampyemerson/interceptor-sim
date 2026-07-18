@@ -12,6 +12,9 @@ Schema v2 adds (all validated here):
   key_numbers    — the instrument-cluster figures (label/value/provenance; numbers trace to a run)
   decisions      — per-stage decision records (stage_id/question/options[]/chosen_rationale/evidence)
   contradictions — the doc-consistency flag ledger (id/topic/severity/status open|resolved/claims/locs/current_truth)
+Schema v2.1 adds (2026-07-17 clarity pass, all validated here):
+  architecture   — the at-a-glance data-flow strip (summary + steps[] of code/name/role + evidence)
+  bom_tiers      — the staged buy list (tier/name/purpose/gate/total/items[] of item/qty/price/why)
 
 The renderer also stamps the live git short-sha into the title block between
 REV:BEGIN/END markers (--check ignores the REV stamp; only the state block is compared).
@@ -42,6 +45,10 @@ SEVERITIES = {"high", "medium", "low"}
 FLAG_STATUSES = {"open", "resolved"}
 CONTRA_KEYS = {"id", "topic", "severity", "status", "claim_a", "loc_a", "claim_b", "loc_b", "current_truth"}
 KEYNUM_KEYS = {"label", "value", "provenance"}
+ARCH_KEYS = {"summary", "steps", "evidence"}
+ARCH_STEP_KEYS = {"code", "name", "role"}
+BOM_TIER_KEYS = {"tier", "name", "purpose", "total", "items"}
+BOM_ITEM_KEYS = {"item", "qty", "price", "why"}
 
 
 def fail(msg: str) -> None:
@@ -50,10 +57,30 @@ def fail(msg: str) -> None:
 
 
 def validate(state: dict) -> None:
-    for key in ("schema_version", "updated", "goal", "headline", "stages", "edges",
-                "constraints", "graveyard", "key_numbers", "decisions", "contradictions"):
+    for key in ("schema_version", "updated", "goal", "headline", "architecture", "stages", "edges",
+                "constraints", "graveyard", "key_numbers", "bom_tiers", "decisions", "contradictions"):
         if key not in state:
             fail(f"missing top-level key: {key}")
+    arch = state["architecture"]
+    missing = ARCH_KEYS - set(arch)
+    if missing:
+        fail(f"architecture missing keys: {sorted(missing)}")
+    if not arch["steps"]:
+        fail("architecture has no steps")
+    for st in arch["steps"]:
+        missing = ARCH_STEP_KEYS - set(st)
+        if missing:
+            fail(f"architecture step {st.get('code', '?')!r} missing keys: {sorted(missing)}")
+    for t in state["bom_tiers"]:
+        missing = BOM_TIER_KEYS - set(t)
+        if missing:
+            fail(f"bom_tier {t.get('name', '?')!r} missing keys: {sorted(missing)}")
+        if not t["items"]:
+            fail(f"bom_tier {t.get('name', '?')!r} has no items")
+        for it in t["items"]:
+            missing = BOM_ITEM_KEYS - set(it)
+            if missing:
+                fail(f"bom item {it.get('item', '?')!r} missing keys: {sorted(missing)}")
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", state["updated"]):
         fail(f"'updated' must be YYYY-MM-DD, got {state['updated']!r}")
     ids = []
@@ -77,6 +104,9 @@ def validate(state: dict) -> None:
     for c in state["constraints"]:
         if not {"id", "text", "evidence"} <= set(c):
             fail(f"constraint {c.get('id', '?')!r} needs id/text/evidence")
+        if not isinstance(c["evidence"], list) or not c["evidence"]:
+            fail(f"constraint {c['id']!r} evidence must be a non-empty LIST "
+                 "(a bare string broke the rendered constraints table, caught 2026-07-17)")
     for g in state["graveyard"]:
         if not {"what", "why", "evidence"} <= set(g):
             fail("graveyard entries need what/why/evidence")

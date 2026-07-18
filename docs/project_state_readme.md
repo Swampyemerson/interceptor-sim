@@ -11,7 +11,7 @@ cannot quietly vanish.*
 | layer | file | role |
 |---|---|---|
 | **THE CONTRACT** | `docs/project_state.json` | Machine-readable truth (schema v2): every pipeline stage, its status, active version, honest note, evidence pointers, per-stage changelog; plus the goal, the current binding wall, the **key_numbers** cluster, the per-stage **decisions** records, the **contradictions** flag ledger, hard constraints, and the graveyard of closed nulls. **A fresh Claude session READS this first and UPDATES it when anything changes.** |
-| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling). Title block (REV = git short-sha at render time), binding-wall callout, key-numbers cluster, pipeline flowchart with feed lines + per-stage expanders, nested decision records (stage → decision → each option's full why-choose/pros/cons), the contradiction flag panel, constraints + graveyard tables. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
+| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling). Title block (REV = git short-sha at render time), binding-wall callout, the §1.0 architecture data-flow strip, key-numbers cluster, pipeline flowchart with feed lines + per-stage expanders, nested decision records (stage → decision → each option's full why-choose/pros/cons), the §3.0 staged buy list (two-tier BOM), the contradiction flag panel, constraints + graveyard tables. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
 
 Plus a **hosted snapshot** — the dashboard published as a claude.ai Artifact (URL in the
 contract's top-level `artifact_url`), regenerated with `render_dashboard.py --artifact` and
@@ -33,6 +33,27 @@ one-liner to the graveyard too) · `superseded` (replaced; name the successor).
 Schema note: "validated" is deliberately NOT a separate status — this project's five
 mirages all lived in the gap between "implemented" and "validated," so the `note`
 field must always say which one a `half-done`/`implemented` claim is, with evidence.
+
+## Schema v2.1 — architecture + staged buy list (2026-07-17 clarity pass)
+
+Two more top-level keys, both REQUIRED and validated by `render_dashboard.py`:
+
+- **`architecture`** — the at-a-glance answer to "what is the pipeline shape?"
+  (`summary` + `steps[]` of `code / name / role` + `evidence`). Rendered as the
+  §1.0 data-flow strip: DETECT (NN, every frame) → MEASURE (box → bearing+range) →
+  ESTIMATE (LOS derotation + alpha-beta — physics, not a learned tracker) →
+  GUIDE (pro-nav N=5) → ACT (MAVSDK setpoint). Keep each `role` to ONE sentence —
+  this block exists so the shape reads without opening anything.
+- **`bom_tiers`** — the staged buy list (§3.0). Each tier:
+  `tier / name / purpose / total / items[]` (+ optional `gate`, `evidence`);
+  each item: `item / qty / price / why`. Tier 1 = the cheap NN-validation +
+  Pi-5-compute-de-risk buy; Tier 2 = the lean §0c interceptor, GATED on Tier 1's
+  tripod approach-recall test. Prices come from `docs/hardware_order_list.md` —
+  update both together.
+
+Validation hardening from the same pass: constraint `evidence` must be a non-empty
+LIST (a bare string silently broke the rendered constraints/graveyard sections —
+the renderer now also tolerates strings defensively, but the validator rejects them).
 
 ## Schema v2 — decisions, contradictions, key numbers
 

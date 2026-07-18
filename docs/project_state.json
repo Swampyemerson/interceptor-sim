@@ -3,7 +3,7 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-07-17",
-  "updated_by": "Fable dashboard v2 build (schema v2: per-stage decisions + contradictions ledger + key_numbers; sources: NEXT.md ROUND-5, ADR-0076 add #18..#18k, hardware_order_list §0/0b/0c, real_build_coded_dash.md, real_data_pipeline.md, the 2026-07-17 contradiction audit)",
+  "updated_by": "Fable clarity pass v3 (schema v2.1: at-a-glance architecture block + staged bom_tiers buy list + pi5-emulation-gap constraint; auto-crop rejection surfaced; stage notes restructured conclusion-first; sources: NEXT.md ROUND-5, ADR-0076 add #18..#18k, hardware_order_list §0c/§A-§G, the 2026-07-17 builder fixed-tilt + mount decisions)",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -14,12 +14,48 @@
     ]
   },
   "headline": {
-    "date": "2026-07-16",
-    "text": "THE BINDING WALL (5th mirage corrected, ADR-0076 add #18k): the markerless detector is NOT blind — controlled set-pose sweep scores 100% recall static/centred at 8-22 m on BOTH approach and receding aspects, yet 0.8% IN FLIGHT. The wall is FLIGHT-DYNAMIC: the ~40 deg nose-down dash pitch parks the target at the frame-top edge (~41 deg off-axis) where training never showed it. Corrected levers: (1) POINTING/attitude is dominant (adaptive tilt #46/ADR-0065); (2) real-data detector DEMOTED to hypothesis (matters for the outdoor appearance gap, not the sim wall). Resolution/foveated-crop is NOT a lever (add #18j-fix). #1 unmeasured: recall vs POSITION-IN-FRAME and bank attitude (not range).",
+    "date": "2026-07-17",
+    "text": "THE WALL IS FLIGHT-DYNAMIC POINTING, NOT THE DETECTOR (5th mirage corrected, ADR-0076 add #18k): recall is 100% static/centred at 8-22 m on BOTH aspects, yet 0.8% IN FLIGHT — the ~40 deg nose-down dash pitch parks the target at the frame-top edge (~41 deg off-axis) where training never showed it. LEVERS: (1) POINTING is dominant — builder-FINAL 2026-07-17: a FIXED up-tilt mount sized to the measured dash pitch (adaptive tilt rejected for simplicity; see the pointing stage); (2) real-data retrain = OUTDOOR-appearance hypothesis only. NOT a lever: resolution/foveated-crop (tested, rejected — add #18j-fix). #1 unmeasured: recall vs POSITION-IN-FRAME and bank attitude (not range).",
     "next_probe": "Re-run the set-pose sweep at the frame-top off-axis position x {level, banked} attitudes — decomposes pointing/attitude/edge-clip and specs what a real capture must contain. Cheap, offline-scoreable (tilt-aware gt chain exists, add #18k(2)).",
     "evidence": [
       "docs/decisions.md ADR-0076 add #18k",
-      "NEXT.md ROUND-5 CORRECTION banner"
+      "NEXT.md ROUND-5 CORRECTION banner",
+      "pointing stage changelog 2026-07-17 (fixed-tilt FINAL)"
+    ]
+  },
+  "architecture": {
+    "summary": "ONE NN, THE WHOLE FLIGHT: the detector runs on EVERY camera frame — there is no learned tracker (detect-then-track, NN acquire + CSRT follow, was TRIED and DROPPED: every tracker slips on the banking quad, NN-only won the paired A/B, ADR-0076 add #2). The 'tracking' that flies the intercept is PHYSICS — an alpha-beta filter plus proportional navigation — not a second network. Flight shape: coded open-loop dash (no datalink) -> 5-consecutive-detection streak hands off -> the closed loop below runs every frame to contact.",
+    "steps": [
+      {
+        "code": "DETECT",
+        "name": "NN, every frame",
+        "role": "Markerless YOLO drone_finetuned_quad_v2 @640 (conf 0.25) finds the target box in each camera frame; the AprilTag is only the staged first-kill baseline, never the markerless seeker's input."
+      },
+      {
+        "code": "MEASURE",
+        "name": "box -> bearing + range",
+        "role": "Box centre + camera intrinsics (Brown-Conrady undistort) -> bearing; calibrated box WIDTH -> range."
+      },
+      {
+        "code": "ESTIMATE",
+        "name": "physics filter",
+        "role": "Full-attitude LOS derotation (FIX-A) + fixed-gain alpha-beta filters on angle/range: predict at 20 Hz, correct on each fresh detection (~14 Hz stream), coast through dropouts. PHYSICS, not a learned tracker."
+      },
+      {
+        "code": "GUIDE",
+        "name": "pro-nav, N=5",
+        "role": "Lateral accel = N x closing-speed x LOS-rate — the classic missile law; pursuit kept in-tree as the A/B baseline."
+      },
+      {
+        "code": "ACT",
+        "name": "MAVSDK setpoint",
+        "role": "Accel command -> velocity/attitude setpoint to PX4 OFFBOARD (the portable flight/ core — runs unchanged on the real Pi/Pixhawk)."
+      }
+    ],
+    "evidence": [
+      "detector + terminal stages (this file)",
+      "ADR-0058 -> ADR-0076 add #2 (tracker tried, dropped — NN-only)",
+      "flight/guidance.py · flight/estimator.py · flight/geometry.py"
     ]
   },
   "stages": [
@@ -82,8 +118,8 @@
         2
       ],
       "status": "half-done",
-      "active": "drone_finetuned_quad_v2.onnx @640, conf 0.25 (v3 and rebal are closed NULLs — do NOT resurrect). Static acquisition ceiling ~24 m (conf 0.25, 640 full-frame).",
-      "note": "THE BINDING WALL: 100% recall static/centred 8-22 m BOTH aspects, but 0.8% in flight — a FLIGHT-DYNAMIC deficit (off-boresight frame-top placement under dash pitch), NOT appearance/resolution/range. Conf-threshold lowering NULL (phantom rate doubles). The sweep's featureless-grey world makes 100% a CEILING — real clutter is strictly harder.",
+      "active": "drone_finetuned_quad_v2.onnx @640, conf 0.25, NN-only on EVERY frame — no visual tracker (detect-then-track/CSRT dropped for the quad, add #2; v3 and rebal are closed NULLs — do NOT resurrect). Static acquisition ceiling ~24 m (conf 0.25, 640 full-frame).",
+      "note": "THE BINDING WALL IS FLIGHT-DYNAMIC POINTING, NOT THE DETECTOR: 100% recall static/centred 8-22 m BOTH aspects, but 0.8% in flight — off-boresight frame-top placement under dash pitch, NOT appearance/resolution/range. TESTED AND REJECTED as levers: auto-crop/foveated-crop (crop = full-frame recall at the 8-12 m wall band, add #18j-fix — see graveyard); conf-threshold lowering (phantom rate doubles); CSRT/ViT trackers (NN-only won, add #2). Caveat: the sweep's featureless-grey world makes 100% a CEILING — real clutter is strictly harder.",
       "evidence": [
         "ADR-0076 add #18i/#18k",
         "ADR-0061 (v3 NULL)",
@@ -116,8 +152,8 @@
         1
       ],
       "status": "half-done",
-      "active": "DECISION FINALIZED 2026-07-17 (builder): FIXED up-tilt mount (chose fixed over adaptive for simplicity — no servo). Angle = the airframe's steady DASH PITCH so the boresight points at the horizon (where a same-altitude crossing target sits) during the dash. Sim dash-accel pitch ~35° (target sits at +40° in-frame at 11 m, LOS near-horizontal). BUILD/VALIDATE pending: measure the REAL airframe's dash pitch + print wedge + bench-clear + validation flight.",
-      "note": "FINALIZED as a FIXED up-tilt (builder 2026-07-17, fixed over adaptive for simplicity). ANGLE = the airframe's steady DASH PITCH (boresight->horizon during the dash): sim ~35°, but MEASURE it on the REAL airframe (mean nose-down pitch during a steady dash, straight from the ULog) — it is build-specific (dash speed / thrust-to-weight), the sim can't predict it, expect ~25-40°. TWO honest limits: (a) a fixed tilt CANNOT track the pitch swing (accel ~+40° -> brake ~-35°), so it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (target is large + the streak coasts); (b) COUPLED to the mount — a >~15° tilt exceeds the flush ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry (the tilt and the mount are ONE decision).",
+      "active": "FINAL (builder 2026-07-17): FIXED up-tilt mount — no servo, adaptive tilt REJECTED for simplicity. Angle = the REAL airframe's measured steady DASH PITCH (sim ~35°, expect ~25-40°) so the boresight sits on the horizon (where a same-altitude crossing target is) during the dash. BUILD/VALIDATE pending: measure real dash pitch from the ULog -> print wedge -> bench prop-clearance at loaded throttle -> validation flight.",
+      "note": "TWO HONEST LIMITS of the chosen fixed tilt: (a) it CANNOT track the pitch swing (accel ~+40° -> brake ~-35°) — it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (acceptable: target is large close-in + the streak coasts); (b) tilt and mount are ONE decision — a >~15° tilt exceeds the flush mount's ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry. The prior up15 NULL (ADR-0068) was a different context (cue-era terminal parity, guessed +15°); this is acquisition-first, sized to the measured dash pitch.",
       "evidence": [
         "ADR-0065 (#46)",
         "ADR-0067/0068 (fixed-tilt NO-adopt)",
@@ -155,7 +191,7 @@
       ],
       "status": "half-done",
       "active": "5-consecutive-fresh-detections streak hands the dash to the camera terminal. Planned hardening (unbuilt): streak range-consistency ONLY (untested — a phantom-only streak is self-consistent at ~1.5 m, so suspect); the pre-flight range-plausibility window was built (--coded-dash-acquire-range-min/max) and NULLed (add #18f; see graveyard).",
-      "note": "MOUNT COMMITTED (builder 2026-07-17: 3D-print the nose-cantilever forward-of-props extension) — the phantom is designed OUT of the FoV, so the range-plausibility gates (ADR-0077 + --coded-dash-acquire-range-*, both NULL) are RETIRED and the handoff reduces to the clean 5-consecutive-detection streak. HONEST: the mount removes the false-HANDOFF hazard, it is NOT the acquisition fix (add #18h: real recall still ~0 at range) — acquisition still needs pointing + real-data. New mount risks (see forward-camera-boom constraint): verify props+arms out of the ~100° FoV; boom vibration/CG/parallax.",
+      "note": "HANDOFF = THE CLEAN 5-DETECTION STREAK, nothing else: the committed mount (builder 2026-07-17, 3D-printed nose-cantilever) designs the phantom OUT of the FoV, so the range-gate machinery (ADR-0077 + --coded-dash-acquire-range-*, both NULL) is RETIRED. HONEST SCOPE: the mount kills the false-HANDOFF hazard only — it is NOT the acquisition fix (add #18h: real recall still ~0 with the phantom gone); acquisition lives in pointing + real-data. Mount risks live in the forward-camera-boom constraint (FoV clearance, boom vibration/CG/parallax).",
       "evidence": [
         "ADR-0076 add #18f/#18g",
         "ADR-0077 (NULL)",
@@ -189,7 +225,7 @@
       ],
       "status": "half-done",
       "active": "flight/ portable core (geometry LOS-derotation FIX-A + alpha-beta estimator + pro-nav N=5 + Brown-Conrady undistortion), 25 tests, no gz/gt/cue imports — runs unchanged on the real Pi/Pixhawk.",
-      "note": "The guidance LAW and ARCHITECTURE are validated (billboard target: Pk@2.8 m 72/72, ADR-0064; AprilTag regimes M4+). But the camera-guided terminal kill of the 3D QUAD is NOT validated: the 'sub-meter kills' were open-loop dash ballistics MIRAGES (dash-only control matched with-terminal, 0.30 vs 0.29 m; camera added ~nothing). Blocked by detector+pointing upstream, not by guidance.",
+      "note": "GUIDANCE IS VALIDATED; THE CAMERA-GUIDED 3D-QUAD KILL IS NOT. Validated: the law + architecture (billboard: Pk@2.8 m 72/72, ADR-0064; AprilTag regimes M4+). Not validated: every 'sub-meter 3D-quad kill' was an open-loop dash-ballistics MIRAGE (dash-only control 0.30 m ≈ with-terminal 0.29 m — the camera added ~nothing, add #18h). The block is UPSTREAM (detector recall + pointing), not guidance.",
       "evidence": [
         "ADR-0064 (billboard 72/72)",
         "ADR-0076 add #18g/#18h (mirage control)",
@@ -266,7 +302,7 @@
       ],
       "status": "idea",
       "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo AI HAT+ DEFERRED; nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
-      "note": "Nothing ordered yet (builder decision pending). COMPUTE CONSTRAINT: Pi 5 CPU runs the AprilTag baseline real-time, but markerless YOLO REQUIRES the deferred Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates) — so first kills fly the TAG. PRE-BUILD kill-or-validate: ~$310 tripod + tagged-target afternoon measuring real approach-recall-vs-range BEFORE building (the outdoor-NN transfer bet is hope-past-evidence). NOTE: BOM §0⑥ ('acquisition range bought in software first / foveated crop') is STALE — contradicted by add #18j-fix.",
+      "note": "NOTHING ORDERED YET — the staged buy plan is the bom_tiers table on this dashboard (Tier 1 validation buy first; Tier 2 interceptor GATED on Tier 1's tripod test). COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the deferred Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates) — first kills fly the TAG; and fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the ~$310 tripod + tagged-target afternoon measuring real approach-recall-vs-range BEFORE interceptor money (the outdoor-NN transfer bet is hope-past-evidence). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.)",
       "evidence": [
         "docs/hardware_order_list.md §0/§0b/§0c",
         "NEXT.md ROUND-5 (Pi5/HAT ruling, tripod test)"
@@ -361,6 +397,15 @@
       ]
     },
     {
+      "id": "pi5-emulation-gap",
+      "text": "Pi 5 performance CANNOT be pre-validated in emulation: a QEMU/ARM64 VM proves the SOFTWARE stack (ONNX loads, the pipeline runs end-to-end) but NOT real fps — emulated throughput is not representative of real Cortex-A76 performance. Real numbers need the physical Pi 5 (the Tier-1 buy, bom_tiers) or the Hailo vendor benchmark. Anchors: AprilTag ~30 fps CPU-real-time; markerless YOLO ~5-10 fps CPU (measured ~13 fps YOLOv8n on desktop-class CPU, ADR-0015) — not viable at terminal LOS rates, REQUIRES the Hailo HAT.",
+      "evidence": [
+        "docs/hardware_order_list.md §0c",
+        "NEXT.md ROUND-5 (Pi5 ruling)",
+        "docs/decisions.md ADR-0015"
+      ]
+    },
+    {
       "id": "wide-fov",
       "text": "The ~100 deg wide FoV is a HARD requirement, not a tunable — the +/-30 deg open-loop aim tolerance depends on it. Never fit/fly a narrow lens.",
       "evidence": [
@@ -416,8 +461,11 @@
     },
     {
       "id": "forward-camera-boom",
-      "text": "Committed nose-cantilever mount — NEW considerations (Fable gap-check 2026-07-17, biggest-bite first): (1) COLLISION with the adaptive-tilt lever: the mount clears the props by only ~11° at LEVEL (§0②), and the dominant wall-lever is UP-tilt — tilting rotates the FoV edge toward the prop disc and can eat that margin; verify clearance across the FULL tilt sweep under LOADED throttle (not idle+level) and clamp --adaptive-tilt-max-deg to the bench angle. (2) Boom VIBRATION: tip flex (bending mode plausibly in the 40-150 Hz prop band) injects bearing noise AFTER derotation (~17-35 mrad per +-1-2 deg, same order as the ADR-0056 aspect bias) + motion blur on the recall wall -> the mount can undercut its own benefit; fix by STIFFNESS (short, gusseted, carbon insert), NOT a soft-mount (which trades blur for worse low-freq extrinsic wobble). (3) LEVER-ARM: the camera is forward of the CG/IMU -> a real terminal LOS parallax; the sim harness compensates (m4:2493, honest 3-D) but the portable flight/ core NOW carries it (flight.geometry.camera_to_cg_los, tested) — the real terminal must CALL it with the mount constant; and LINK the offset flag to the model swap so it can't silently fly uncompensated. (4) The camera LEADS the contact kill -> sacrificial each shot (BOM spares line + breakaway boom). (5) CSI-2 ribbon on a vibrating boom -> flex-fatigue/EMI frame-drops that MIMIC detection dropouts; log camera frame-arrival rate SEPARATELY from detection rate. NOT a factor: forward CG does NOT change the dash pitch (pitch attitude = atan(a/g), commanded-accel-set, not CG).",
-      "evidence": "ADR-0076 add #16/#18h/#18k; Fable gap-check 2026-07-17 (verified: ~11 deg level margin in §0②; flight/ has no lever-arm; m4:2493 sim compensation is honest)."
+      "text": "MOUNT RISK CHECKLIST — five checks before the committed nose-cantilever mount flies (Fable gap-check 2026-07-17, biggest-bite first): (1) TILT/CLEARANCE COLLISION: the mount clears the props by only ~11° at LEVEL (§0②), and the chosen fixed up-tilt (~dash pitch, 25-40°) far exceeds that — tilting rotates the FoV edge toward the prop disc; verify clearance AT the chosen tilt under LOADED throttle (not idle+level), and the bench-verified angle CAPS the printable tilt. (2) Boom VIBRATION: tip flex (bending mode plausibly in the 40-150 Hz prop band) injects bearing noise AFTER derotation (~17-35 mrad per +-1-2 deg, same order as the ADR-0056 aspect bias) + motion blur on the recall wall -> the mount can undercut its own benefit; fix by STIFFNESS (short, gusseted, carbon insert), NOT a soft-mount (which trades blur for worse low-freq extrinsic wobble). (3) LEVER-ARM: the camera is forward of the CG/IMU -> a real terminal LOS parallax; the sim harness compensates (m4:2493, honest 3-D) but the portable flight/ core NOW carries it (flight.geometry.camera_to_cg_los, tested) — the real terminal must CALL it with the mount constant; and LINK the offset flag to the model swap so it can't silently fly uncompensated. (4) The camera LEADS the contact kill -> sacrificial each shot (BOM spares line + breakaway boom). (5) CSI-2 ribbon on a vibrating boom -> flex-fatigue/EMI frame-drops that MIMIC detection dropouts; log camera frame-arrival rate SEPARATELY from detection rate. NOT a factor: forward CG does NOT change the dash pitch (pitch attitude = atan(a/g), commanded-accel-set, not CG).",
+      "evidence": [
+        "ADR-0076 add #16/#18h/#18k",
+        "Fable gap-check 2026-07-17 (verified: ~11 deg level margin in §0②; flight/ lever-arm since fixed; m4:2493 sim compensation is honest)"
+      ]
     }
   ],
   "graveyard": [
@@ -427,9 +475,9 @@
       "evidence": "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)"
     },
     {
-      "what": "Resolution / foveated-crop as the wall lever",
-      "why": "Crop = full-frame recall at the 8-12 m wall band; the earlier '47->71%' was edge-clipped close targets (3rd mirage).",
-      "evidence": "ADR-0076 add #18j-fix"
+      "what": "Auto-crop / foveated-crop (resolution) as the acquisition lever",
+      "why": "TESTED AND REJECTED: crop gives IDENTICAL recall to full-frame at the 8-12 m wall band (33%/33%, 0%/0%) — the earlier '47->71% crop win' was edge-clipped <=6 m targets (3rd mirage). Resolution matters only past ~24 m static, irrelevant to the wall. Do not build crops or buy sensors for range.",
+      "evidence": "ADR-0076 add #18j-fix; ADR-0074 addendum #3"
     },
     {
       "what": "v3 retrain / rebal retrain",
@@ -518,6 +566,148 @@
       "value": "~$740",
       "note": "binary-kill re-scope; ~$1,390 everything-new",
       "provenance": "hardware_order_list.md §0c"
+    }
+  ],
+  "bom_tiers": [
+    {
+      "tier": 1,
+      "name": "First steps — NN validation + compute de-risk",
+      "purpose": "Prove the two riskiest bets CHEAPLY before any interceptor money: (1) the outdoor-NN transfer bet — fly the target on AUTO passes and shoot REAL approach footage from a tripod, measuring approach recall vs range AND position-in-frame (the ~$310 kill-or-validate); (2) the compute bet — benchmark the REAL Pi 5 (AprilTag fps, CPU YOLO fps), which emulation cannot do (constraint pi5-emulation-gap). Every item carries into the final system. (Flying the target also needs the keep-forever ground/safety gear — Pocket TX, charger, LiPo-safety bundle, ~$343 all-new, mostly skip-if-owned — BOM §4 Phase 0, not counted in this tier.)",
+      "gate": "Buy FIRST — no gate. Lowest-risk money; useful regardless of the test outcome.",
+      "total": "~$475 all-new (~$455 if USB bits owned); the ~$310 tripod-test core = target + tag + camera",
+      "evidence": "docs/hardware_order_list.md §E/§C/§0c; NEXT.md ROUND-5 (tripod kill-or-validate)",
+      "items": [
+        {
+          "item": "Target/practice drone — ArduPilot GPS 5\" quad (SpeedyBee F405 V4 stack, EMAX ECO II motors, budget frame, M10Q GPS, ELRS RX, props)",
+          "qty": "1",
+          "price": "~$241",
+          "why": "The thing to detect now, the thing to intercept later; flies repeatable AUTO box legs >=2 m/s — the exact regime the sim validated."
+        },
+        {
+          "item": "AprilTag tag36h11 placard (~0.3 m print, rigid) + mount misc",
+          "qty": "1",
+          "price": "~$32",
+          "why": "Auto-labels the real footage (tag pose -> YOLO labels, autolabel_from_apriltag.py) AND is the staged first-kill baseline lock."
+        },
+        {
+          "item": "Arducam OV9281 mono global-shutter wide camera",
+          "qty": "1",
+          "price": "~$36",
+          "why": "The seeker eye; global shutter = no motion smear. VERIFY >=100° HFOV at calibration (hard constraint wide-fov); AR0234 = upgrade path only if range measures short."
+        },
+        {
+          "item": "Raspberry Pi 5, 8 GB",
+          "qty": "1",
+          "price": "~$120",
+          "why": "Buys the compute answer EARLY (builder's worry): real AprilTag fps + real CPU-YOLO fps on the actual Cortex-A76 — emulation can't measure fps. 8 GB is a §0c DON'T-cut."
+        },
+        {
+          "item": "Checkerboard calibration board (9x6 inner corners, rigid backing)",
+          "qty": "1",
+          "price": "~$8",
+          "why": "Intrinsics + distortion via calibrate_camera.py — every range/bearing number is wrong until this runs (first bench gate)."
+        },
+        {
+          "item": "USB/power bits — official 27 W USB-C PD supply, A2/U3 microSD, card reader",
+          "qty": "1 set",
+          "price": "~$39",
+          "why": "Bench-powers and boots the Pi for the benchmark; †skip-if-owned."
+        }
+      ]
+    },
+    {
+      "tier": 2,
+      "name": "Full budget-friendly initial seeker — the lean §0c interceptor",
+      "purpose": "Everything the airframe needs that Tier 1 didn't buy; Tier 1's Pi 5 + camera + checkerboard carry over, landing the interceptor at ~$740 all-in (§0c lean binary-kill build). Deferred past this tier, buy at the phase that needs it: Hailo AI HAT+ $70 (markerless phase), SiK telemetry $75 (long-range), spare arms/motor/RX + 3rd LiPo ~$82 (before kill attempts).",
+      "gate": "ORDER ONLY AFTER Tier 1's tripod test shows the detector acquires the APPROACHING target at useful range — R_acq must leave t_go >=0.5 s post-handoff (~>=20 m at 9 m/s closing, the NEXT.md R5 kill-number). A dead transfer bet stops this spend before it happens.",
+      "total": "~$510 this tier (-> interceptor ~$740 all-in with the Tier-1 carry-overs)",
+      "evidence": "docs/hardware_order_list.md §0c/§A/§B/§C/§D; NEXT.md R5",
+      "items": [
+        {
+          "item": "Frame — TBS Source One V5 5\"",
+          "qty": "1",
+          "price": "~$33",
+          "why": "§0c budget swap; re-run the §0② nose-cantilever prop-clearance geometry on this frame (mandatory)."
+        },
+        {
+          "item": "Motors — EMAX ECO II 2207 1900KV",
+          "qty": "4",
+          "price": "~$56",
+          "why": "Keeps T/W >=5:1; shares a spare pool with the target's motors."
+        },
+        {
+          "item": "ESC — 45-55A budget 4-in-1",
+          "qty": "1",
+          "price": "~$42",
+          "why": "Ample for 2207/6S; watch bench temps."
+        },
+        {
+          "item": "FC — Holybro Pixhawk 6C Mini (PX4)",
+          "qty": "1",
+          "price": "~$131",
+          "why": "The EXACT stack the sim validated — params + the portable flight/ guidance core transfer directly."
+        },
+        {
+          "item": "GPS — Holybro M10 + compass",
+          "qty": "1",
+          "price": "~$45",
+          "why": "Outdoor position hold + the dash's waypoint frame."
+        },
+        {
+          "item": "RC — RadioMaster RP3 ELRS diversity RX",
+          "qty": "1",
+          "price": "~$22",
+          "why": "KILL/ARM ONLY — no guidance datalink (constraint no-datalink); flash SBUS -> RC IN (stock PX4 has no CRSF driver)."
+        },
+        {
+          "item": "Battery — CNHL 6S 1500 mAh LiPo",
+          "qty": "3",
+          "price": "~$78",
+          "why": "A full test day; 6S packs shared with the target."
+        },
+        {
+          "item": "Power — PM02 analog module + straps/XT60/wire",
+          "qty": "1",
+          "price": "~$29",
+          "why": "FC power + V/I telemetry; must be ANALOG PM02 for the 6C Mini."
+        },
+        {
+          "item": "Compute power — Matek BEC12S-PRO 5.2 V",
+          "qty": "1",
+          "price": "~$16",
+          "why": "Two-rail rule: dedicated Pi rail; 5.2 V removes the Pi-5 undervolt-throttle risk at the source."
+        },
+        {
+          "item": "Props — 5.1\" tri-blade CW+CCW",
+          "qty": "4 sets",
+          "price": "~$16",
+          "why": "1 flight set + 3 spares — you WILL break props."
+        },
+        {
+          "item": "Camera mount — 3D-printed nose-cantilever prop-clearance boom + FIXED up-tilt at measured dash pitch",
+          "qty": "1 (+spare)",
+          "price": "~$0-15",
+          "why": "Designs the own-prop phantom OUT of the FoV (no software fallback) + carries the builder-final fixed tilt; bench corner-spin at LOADED throttle across the tilt = HARD gate (constraint forward-camera-boom); sacrificial on contact."
+        },
+        {
+          "item": "Storage — SanDisk High Endurance microSD (FC ULogs)",
+          "qty": "1",
+          "price": "~$12",
+          "why": "ULogs + onboard video ARE the kill metrology under binary-kill."
+        },
+        {
+          "item": "Cables — CSI 22->15-pin + TELEM2 UART pigtail",
+          "qty": "1 set",
+          "price": "~$12",
+          "why": "Pi 5 narrow-CSI bridge; FC<->Pi MAVLink at 921600 (3.3 V, TX/RX crossed)."
+        },
+        {
+          "item": "Cooling — official Pi 5 active cooler",
+          "qty": "1",
+          "price": "~$5",
+          "why": "Mandatory under sustained CV load — prop wash is not enough."
+        }
+      ]
     }
   ],
   "decisions": [
