@@ -100,6 +100,38 @@ def derotate_bearing_lambda(meas_xyz, bearing_rad, quat, psi_rad,
     return math.atan2(n_e_d[1], n_e_d[0])
 
 
+def camera_to_cg_los(range_m, lambda_rad, quat, cam_offset_body):
+    """Re-anchor a camera range/LOS from the CAMERA to the vehicle CG/IMU
+    (base_link) -- the lever-arm a forward/elevated camera mount injects.
+
+    WHY (ADR-0076 add #18k / Fable gap-check 2026-07-17): pro-nav commands the
+    vehicle about its CG, so it wants the CG->target LOS, but the camera measures
+    from the CAMERA. Anchoring `own_ned + range*LOS` at base_link while the ray
+    started 0.1-0.4 m ahead biases the terminal azimuth by several degrees at a
+    few-metre range -- largest exactly when it matters (contact). The m4 SIM
+    harness compensated inline (m4_intercept.py ~2493); this is the SAME math in
+    the PORTABLE core so the real Pi/Pixhawk terminal is honest too. The forward
+    mount (prop-clearance) makes this load-bearing, not optional.
+
+    cam_offset_body = (fwd, left, up) metres: the camera position relative to the
+    CG in the vehicle BODY frame. Rotated to NED by the FULL attitude quaternion
+    (the SAME quat + quat_rotate the LOS derotation uses -> correct through the
+    dash PITCH and any mount up-tilt; a yaw-only version ignored both and scored
+    0/16, add #16). Only the horizontal (N,E) offset moves the azimuth.
+
+    Returns (range_cg, lambda_cg). Zero offset (or missing range/quat) -> the
+    inputs unchanged, so a CG-mounted camera is byte-identical. Own attitude (EKF)
+    + static mount constants, no gt_*.
+    """
+    fwd, left, up = cam_offset_body
+    if (not (fwd or left or up)) or range_m is None or quat is None:
+        return range_m, lambda_rad
+    off_n, off_e, _off_d = quat_rotate(quat, (fwd, -left, -up))
+    tn = range_m * math.cos(lambda_rad) + off_n
+    te = range_m * math.sin(lambda_rad) + off_e
+    return math.hypot(tn, te), math.atan2(te, tn)
+
+
 # --- Legacy aliases: the exact private names scripts/m4_intercept.py used, so it
 #     can `from flight.geometry import _quat_rotate, _euler_to_quat_body_to_ned`
 #     as a drop-in replacement for its local copies. ---

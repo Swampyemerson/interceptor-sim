@@ -2490,6 +2490,9 @@ async def run_acquire_and_engage(
             # -> 0/16). Take the horizontal (N,E) offset. Default (all offsets
             # 0.0) -> range_g = meas.range_m, lambda_meas unchanged ->
             # byte-identical. Own attitude (EKF) + static mount constants, no gt_*.
+            # PORTABLE MIRROR: flight.geometry.camera_to_cg_los is the SAME math for
+            # the real Pi/Pixhawk terminal (Fable gap-check 2026-07-17) -- the sim
+            # kept this inline copy; keep the two in sync (test_geometry pins flight/).
             range_g = meas.range_m
             _cam_off = (args.cam_fwd_offset_m or args.cam_left_offset_m
                         or args.cam_up_offset_m)

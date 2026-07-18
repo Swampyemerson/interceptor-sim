@@ -203,6 +203,10 @@
         {
           "date": "2026-07-17",
           "note": "LATENT HARDWARE BUG (Fable-verified): the 3-D camera lever-arm exists in the m4 SIM harness (m4:2493, honest) but NOT in the portable flight/ core -> port it into flight/ (mount constant as config) BEFORE any camera terminal flies, else hardware flies uncompensated (real 5in offset ~0.10-0.13 m = several deg LOS at 1-2 m terminal)."
+        },
+        {
+          "date": "2026-07-17",
+          "note": "FIXED the flight/ lever-arm gap: flight.geometry.camera_to_cg_los added + pinned (test_geometry: zero-offset byte-identical, level geometry, pitch-shrinks-horizontal-offset). The portable core now compensates the camera-CG parallax; the real terminal must call it with the mount constant. Sim inline copy flags the mirror. STILL OPEN: link the offset flag to the model swap."
         }
       ]
     },
@@ -408,7 +412,7 @@
     },
     {
       "id": "forward-camera-boom",
-      "text": "Committed nose-cantilever mount — NEW considerations (Fable gap-check 2026-07-17, biggest-bite first): (1) COLLISION with the adaptive-tilt lever: the mount clears the props by only ~11° at LEVEL (§0②), and the dominant wall-lever is UP-tilt — tilting rotates the FoV edge toward the prop disc and can eat that margin; verify clearance across the FULL tilt sweep under LOADED throttle (not idle+level) and clamp --adaptive-tilt-max-deg to the bench angle. (2) Boom VIBRATION: tip flex (bending mode plausibly in the 40-150 Hz prop band) injects bearing noise AFTER derotation (~17-35 mrad per +-1-2 deg, same order as the ADR-0056 aspect bias) + motion blur on the recall wall -> the mount can undercut its own benefit; fix by STIFFNESS (short, gusseted, carbon insert), NOT a soft-mount (which trades blur for worse low-freq extrinsic wobble). (3) LEVER-ARM: the camera is forward of the CG/IMU -> a real terminal LOS parallax; the sim harness compensates (m4:2493, honest 3-D) but the portable flight/ core does NOT -> port it into flight/ (mount constant as config) before any camera terminal flies; and LINK the offset flag to the model swap so it can't silently fly uncompensated. (4) The camera LEADS the contact kill -> sacrificial each shot (BOM spares line + breakaway boom). (5) CSI-2 ribbon on a vibrating boom -> flex-fatigue/EMI frame-drops that MIMIC detection dropouts; log camera frame-arrival rate SEPARATELY from detection rate. NOT a factor: forward CG does NOT change the dash pitch (pitch attitude = atan(a/g), commanded-accel-set, not CG).",
+      "text": "Committed nose-cantilever mount — NEW considerations (Fable gap-check 2026-07-17, biggest-bite first): (1) COLLISION with the adaptive-tilt lever: the mount clears the props by only ~11° at LEVEL (§0②), and the dominant wall-lever is UP-tilt — tilting rotates the FoV edge toward the prop disc and can eat that margin; verify clearance across the FULL tilt sweep under LOADED throttle (not idle+level) and clamp --adaptive-tilt-max-deg to the bench angle. (2) Boom VIBRATION: tip flex (bending mode plausibly in the 40-150 Hz prop band) injects bearing noise AFTER derotation (~17-35 mrad per +-1-2 deg, same order as the ADR-0056 aspect bias) + motion blur on the recall wall -> the mount can undercut its own benefit; fix by STIFFNESS (short, gusseted, carbon insert), NOT a soft-mount (which trades blur for worse low-freq extrinsic wobble). (3) LEVER-ARM: the camera is forward of the CG/IMU -> a real terminal LOS parallax; the sim harness compensates (m4:2493, honest 3-D) but the portable flight/ core NOW carries it (flight.geometry.camera_to_cg_los, tested) — the real terminal must CALL it with the mount constant; and LINK the offset flag to the model swap so it can't silently fly uncompensated. (4) The camera LEADS the contact kill -> sacrificial each shot (BOM spares line + breakaway boom). (5) CSI-2 ribbon on a vibrating boom -> flex-fatigue/EMI frame-drops that MIMIC detection dropouts; log camera frame-arrival rate SEPARATELY from detection rate. NOT a factor: forward CG does NOT change the dash pitch (pitch attitude = atan(a/g), commanded-accel-set, not CG).",
       "evidence": "ADR-0076 add #16/#18h/#18k; Fable gap-check 2026-07-17 (verified: ~11 deg level margin in §0②; flight/ has no lever-arm; m4:2493 sim compensation is honest)."
     }
   ],
@@ -960,6 +964,38 @@
       ],
       "chosen_rationale": "The coded pre-flight aim wins because the measured aim-error envelope (+/-30 deg) makes launch precision a non-problem — the wide-FoV camera and crossing-bias calibration absorb it. Onboard acoustics died on own-noise physics; the ground acoustic cue survives only as a future idea because it sidesteps that physics and needs only the coarse accuracy the envelope already tolerates.",
       "evidence": "ADR-0076 add #18b/#18c/#18g, NEXT.md ROUND-5 (Fable strategic review 2026-07-16), project_state.json launch_aim"
+    },
+    {
+      "stage_id": "pointing",
+      "question": "Camera mount GEOMETRY to resolve the adaptive-tilt vs prop-clearance collision — flush-forward + tilt clamp, a longer forward boom, or an elevated centre-mast tilted up?",
+      "options": [
+        {
+          "name": "Flush-forward + tilt clamp (committed baseline)",
+          "summary": "The current committed nose-cantilever (~20 mm forward), with --adaptive-tilt-max-deg clamped to the bench-verified clearance (~11° level margin).",
+          "why_choose": "Simplest, lightest, stiffest (shortest boom = least vibration + smallest parallax). Removes the phantom for free.",
+          "pros": "Least vibration/CG/parallax; already committed.",
+          "cons": "Caps the up-tilt lever at the clearance angle — may be TOO LITTLE tilt to re-centre the frame-top target and recover recall (the open risk).",
+          "status": "chosen"
+        },
+        {
+          "name": "Longer forward boom",
+          "summary": "Extend the overhang: moving the camera further forward pushes the props to a larger off-axis angle -> more clearance margin -> more tilt budget.",
+          "why_choose": "Buys tilt budget by geometry if the flush clamp proves too tight, without changing the basic mount concept.",
+          "pros": "More clearance/tilt headroom; incremental.",
+          "cons": "Rising VIBRATION/flex at reach (attacks the very recall wall it's meant to help), forward CG shift, larger camera-CG parallax, more sacrificial material + drag. Not free — there's a sweet spot.",
+          "status": "deferred"
+        },
+        {
+          "name": "Elevated centre-mast, forward + tilted up (builder idea)",
+          "summary": "A mast rising from the vehicle centre, cantilevering forward and pitched up, so the camera sits ABOVE the rotor plane and looks up-and-forward OVER the props.",
+          "why_choose": "Geometrically the strongest: props sit BELOW the up-tilted FoV so up-tilt looks AWAY from them — it can dissolve the tilt/clearance collision AND serve the pointing wall (up-tilt re-centres the frame-top target) in ONE structure.",
+          "pros": "Resolves the collision + helps the dominant pointing lever simultaneously; the up-tilt is 'free' clearance-wise.",
+          "cons": "Worst structure for VIBRATION/flex (tall + forward cantilever = longest lever = most blur + extrinsic wobble, the #2 risk), raises CG (stability, top-heavy), more windage; needs a genuinely stiff/light build (carbon) to be viable.",
+          "status": "deferred"
+        }
+      ],
+      "chosen_rationale": "Flush-forward is committed for phantom removal; whether it SUFFICES is an open, measurable question. The deciding inputs: (a) the sim adaptive-tilt sweep — how much up-tilt is needed to re-centre the target and recover recall — vs the mount's clearance budget; and (b) vibration-at-reach (a bench modal test). If the needed tilt exceeds the flush clearance, escalate toward the elevated mast (it buys tilt AND pointing at once) provided it can be made stiff; the longer boom is the incremental middle. Common enemy across all three: flex/vibration per unit clearance+tilt — minimise that.",
+      "evidence": "ADR-0076 add #18k (pointing is the dominant lever); hardware_order_list §0② (~11° level margin); Fable gap-check 2026-07-17 (tilt/clearance collision); builder mount-geometry ideas 2026-07-17."
     }
   ],
   "contradictions": [

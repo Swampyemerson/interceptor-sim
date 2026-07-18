@@ -12,9 +12,43 @@ from flight.geometry import (
     quat_rotate,
     euler_to_quat_body_to_ned,
     derotate_bearing_lambda,
+    camera_to_cg_los,
 )
 
 TOL = math.radians(0.05)
+
+
+def test_lever_arm_zero_offset_identity():
+    """No camera offset -> range/LOS returned unchanged (a CG-mounted camera is
+    byte-identical; guards every gated M3/M4/S1/S2 path that sets no offset)."""
+    q = euler_to_quat_body_to_ned(0.0, math.radians(25.0), math.radians(40.0))
+    for rng, lam in ((5.0, 0.2), (12.0, -0.5), (2.0, 1.1)):
+        assert camera_to_cg_los(rng, lam, q, (0.0, 0.0, 0.0)) == (rng, lam)
+    # missing range/quat also passes through
+    assert camera_to_cg_los(None, 0.3, q, (0.4, 0, 0)) == (None, 0.3)
+    assert camera_to_cg_los(5.0, 0.3, None, (0.4, 0, 0)) == (5.0, 0.3)
+
+
+def test_lever_arm_level_geometry():
+    """Level camera 0.4 m forward: a target 5 m dead-ahead of the CAMERA is
+    5.4 m ahead of the CG; a target due-east of the camera reads slightly
+    forward-of-east from the CG (which sits 0.4 m behind)."""
+    q = euler_to_quat_body_to_ned(0.0, 0.0, 0.0)  # level, yaw 0 -> body==NED
+    r, lam = camera_to_cg_los(5.0, 0.0, q, (0.4, 0.0, 0.0))
+    assert abs(r - 5.4) < 1e-9 and abs(lam) < 1e-12
+    r2, lam2 = camera_to_cg_los(5.0, math.radians(90.0), q, (0.4, 0.0, 0.0))
+    assert abs(r2 - math.hypot(5.0, 0.4)) < 1e-9
+    assert math.radians(84.0) < lam2 < math.radians(90.0)  # pulled forward of due-east
+
+
+def test_lever_arm_pitch_shrinks_horizontal_offset():
+    """Under a 30 deg dash pitch the forward body offset tilts down, so its
+    NORTH (horizontal) contribution shrinks by cos(pitch) -- the exact reason a
+    yaw-only correction is wrong through the dash."""
+    pitch = math.radians(30.0)
+    q = euler_to_quat_body_to_ned(0.0, pitch, 0.0)
+    r, _ = camera_to_cg_los(5.0, 0.0, q, (0.4, 0.0, 0.0))
+    assert abs(r - (5.0 + 0.4 * math.cos(pitch))) < 1e-9
 
 
 def test_identity_level():
