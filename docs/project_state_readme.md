@@ -11,7 +11,7 @@ cannot quietly vanish.*
 | layer | file | role |
 |---|---|---|
 | **THE CONTRACT** | `docs/project_state.json` | Machine-readable truth (schema v2): every pipeline stage, its status, active version, honest note, evidence pointers, per-stage changelog; plus the goal, the current binding wall, the **key_numbers** cluster, the per-stage **decisions** records, the **contradictions** flag ledger, hard constraints, and the graveyard of closed nulls. **A fresh Claude session READS this first and UPDATES it when anything changes.** |
-| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling). Title block (REV = git short-sha at render time), binding-wall callout, the §1.0 architecture data-flow strip, key-numbers cluster, pipeline flowchart with feed lines + per-stage expanders, nested decision records (stage → decision → each option's full why-choose/pros/cons), the §3.0 staged buy list (two-tier BOM), the contradiction flag panel, constraints + graveyard tables. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
+| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling). Title block (REV = git short-sha at render time), binding-wall callout, the §1.0 architecture data-flow strip, key-numbers cluster, pipeline flowchart with feed lines + per-stage expanders, nested decision records (stage → decision → each option's full why-choose/pros/cons), the **§2.2 build-plan ladder (the SECOND flow chart — the in-person phase/gate sequence)**, the §3.0 staged buy list (two-tier BOM), the contradiction flag panel, constraints + graveyard tables. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
 
 Plus a **hosted snapshot** — the dashboard published as a claude.ai Artifact (URL in the
 contract's top-level `artifact_url`), regenerated with `render_dashboard.py --artifact` and
@@ -34,6 +34,28 @@ Schema note: "validated" is deliberately NOT a separate status — this project'
 mirages all lived in the gap between "implemented" and "validated," so the `note`
 field must always say which one a `half-done`/`implemented` claim is, with evidence.
 
+## Schema v2.2 — the build plan, the SECOND flow chart (2026-07-17 build-plan pass)
+
+One more top-level key, REQUIRED and validated by `render_dashboard.py`:
+
+- **`build_plan`** — the IN-PERSON build-and-validate ladder: what the builder physically
+  does, in order, with the go/no-go gates. This is deliberately a SECOND, DISTINCT flow
+  chart (§2.2): §1.0/§2.0 answer "how does the code work?"; §2.2 answers "what do I do
+  next, and what unlocks the money?". Shape: `summary` + `phases[]` (each
+  `code / name / cost / tasks[]` + optional `gate`) + `evidence`. Rules:
+  - Each task is ONE short line (scannable checklist, not prose); the renderer numbers
+    them `P0.1, P0.2, …` so other blocks can cross-reference tasks precisely.
+  - A `gate` on a phase renders as a loud GATE bar after that phase. **At least one phase
+    must carry a gate** (validator-enforced) — the money logic must be explicit. The
+    standing money logic (keep the BOM §3.0 gates in agreement): the tripod session's
+    **AprilTag decode-envelope curve gates the Tier-2 interceptor order** (first kills fly
+    the tag on Pi 5 CPU); the **NN recall curve gates ONLY the Hailo HAT + markerless
+    phase** — never gate the interceptor on NN acquisition.
+  - Gate FAILs loop BACK to the cheapest upstream fix (bigger placard / retrain / mount
+    re-print), never forward to more spend.
+  - Costs are phase-level honesty: Tier 1 states the realistic first-outdoor-test outlay
+    (~$620–780 all-new incl. ground/safety gear), not just the hardware-only subtotal.
+
 ## Schema v2.1 — architecture + staged buy list (2026-07-17 clarity pass)
 
 Two more top-level keys, both REQUIRED and validated by `render_dashboard.py`:
@@ -46,10 +68,11 @@ Two more top-level keys, both REQUIRED and validated by `render_dashboard.py`:
   this block exists so the shape reads without opening anything.
 - **`bom_tiers`** — the staged buy list (§3.0). Each tier:
   `tier / name / purpose / total / items[]` (+ optional `gate`, `evidence`);
-  each item: `item / qty / price / why`. Tier 1 = the cheap NN-validation +
+  each item: `item / qty / price / why`. Tier 1 = the cheap validation +
   Pi-5-compute-de-risk buy; Tier 2 = the lean §0c interceptor, GATED on Tier 1's
-  tripod approach-recall test. Prices come from `docs/hardware_order_list.md` —
-  update both together.
+  tripod **AprilTag decode-envelope** curve (the NN recall curve gates only the
+  Hailo/markerless phase — see the v2.2 money logic above). Prices come from
+  `docs/hardware_order_list.md` — update both together.
 
 Validation hardening from the same pass: constraint `evidence` must be a non-empty
 LIST (a bare string silently broke the rendered constraints/graveyard sections —

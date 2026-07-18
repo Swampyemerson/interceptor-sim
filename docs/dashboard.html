@@ -110,6 +110,22 @@
     font-family: ui-monospace, monospace; }
   #arch-summary { max-width: 90ch; }
 
+  /* ---- build plan — the in-person phase ladder (the SECOND flow chart) ---- */
+  #buildplan { max-width: 94ch; }
+  .bp-phase { border: 1px solid var(--hair2); padding: 7px 11px 9px; }
+  .bp-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .bp-code { font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    font-size: 13px; font-weight: 600; letter-spacing: .06em; color: var(--accent); }
+  .bp-cost { margin-left: auto; font-size: 11.5px; white-space: nowrap; }
+  .bp-tasks { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; }
+  .bp-tasks li { margin: 3px 0; padding-left: 3.6em; text-indent: -3.6em; }
+  .bp-tasks .d { color: var(--ink2); font-family: ui-monospace, monospace; font-size: 11px; margin-right: 7px; }
+  .bp-arrow { color: var(--hair2); font-family: ui-monospace, monospace; font-size: 14px; line-height: 1; padding: 3px 0 3px 18px; }
+  .bp-gate { border: 1px solid var(--hair2); border-left: 4px solid var(--part); background: var(--inset);
+    padding: 6px 11px 7px; max-width: 94ch; font-size: 13px; }
+  .bp-gate .stamp { color: var(--part); margin-right: 6px; }
+  @media (max-width: 800px) { .bp-cost { margin-left: 0; } }
+
   /* ---- staged buy list (bom tiers) ---- */
   .bomtier { margin-bottom: 20px; }
   .bomtier h3 { font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
@@ -220,7 +236,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->bf171eb<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0fe3d87<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -278,7 +294,17 @@
   </section>
 
   <section class="sec">
-    <div class="rail"><span class="num">3.0</span>STAGED BUY LIST<br>tier 1 first; tier 2<br>gated on the tripod test</div>
+    <div class="rail"><span class="num">2.2</span>BUILD PLAN<br>the in-person sequence<br>gates carry the money</div>
+    <div class="body">
+      <h2>2.2 &nbsp;Build plan — the in-person sequence (phases &amp; go/no-go gates)</h2>
+      <p class="secnote" id="bp-summary"></p>
+      <div id="buildplan"></div>
+      <p class="mono acc" id="bp-ev" style="margin-top:8px"></p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail"><span class="num">3.0</span>STAGED BUY LIST<br>tier 1 first; tier 2 gated<br>on the TAG envelope (P2)</div>
     <div class="body">
       <h2>3.0 &nbsp;Staged parts list — buy in two tiers</h2>
       <p class="secnote">Items/prices from <code>docs/hardware_order_list.md</code> (§0c lean build;
@@ -338,7 +364,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-17",
- "updated_by": "Fable clarity pass v3 (schema v2.1: at-a-glance architecture block + staged bom_tiers buy list + pi5-emulation-gap constraint; auto-crop rejection surfaced; stage notes restructured conclusion-first; sources: NEXT.md ROUND-5, ADR-0076 add #18..#18k, hardware_order_list §0c/§A-§G, the 2026-07-17 builder fixed-tilt + mount decisions)",
+ "updated_by": "Fable build-plan pass v4 (schema v2.2: new build_plan block — the IN-PERSON phase ladder P0 pre-order checklist -> P5 kill ladder, rendered as the second flowchart §2.2; gate reconciliation: Tier-2 interceptor gated on the AprilTag envelope curve, NN recall gates ONLY Hailo/markerless; Tier-1 honest first-outdoor-test outlay ~$620-780 stated up front; tilt angle = real-measured dash pitch on an adjustable bracket, never sim-sized; pointing decision rationale synced to the fixed-tilt FINAL; sources: hardware_order_list §0c/§4, real_data_pipeline.md, ADR-0076 add #18h/#18k, NEXT.md R5)",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -351,7 +377,7 @@
  "headline": {
   "date": "2026-07-17",
   "text": "THE WALL IS FLIGHT-DYNAMIC POINTING, NOT THE DETECTOR (5th mirage corrected, ADR-0076 add #18k): recall is 100% static/centred at 8-22 m on BOTH aspects, yet 0.8% IN FLIGHT — the ~40 deg nose-down dash pitch parks the target at the frame-top edge (~41 deg off-axis) where training never showed it. LEVERS: (1) POINTING is dominant — builder-FINAL 2026-07-17: a FIXED up-tilt mount sized to the measured dash pitch (adaptive tilt rejected for simplicity; see the pointing stage); (2) real-data retrain = OUTDOOR-appearance hypothesis only. NOT a lever: resolution/foveated-crop (tested, rejected — add #18j-fix). #1 unmeasured: recall vs POSITION-IN-FRAME and bank attitude (not range).",
-  "next_probe": "Re-run the set-pose sweep at the frame-top off-axis position x {level, banked} attitudes — decomposes pointing/attitude/edge-clip and specs what a real capture must contain. Cheap, offline-scoreable (tilt-aware gt chain exists, add #18k(2)).",
+  "next_probe": "Re-run the set-pose sweep at the frame-top off-axis position x {level, banked} attitudes — decomposes pointing/attitude/edge-clip and specs what a real capture must contain. Cheap, offline-scoreable (tilt-aware gt chain exists, add #18k(2)). Now scheduled as build_plan task P0.1 — the first item on the $0 pre-order checklist (§2.2).",
   "evidence": [
    "docs/decisions.md ADR-0076 add #18k",
    "NEXT.md ROUND-5 CORRECTION banner",
@@ -391,6 +417,88 @@
    "detector + terminal stages (this file)",
    "ADR-0058 -> ADR-0076 add #2 (tracker tried, dropped — NN-only)",
    "flight/guidance.py · flight/estimator.py · flight/geometry.py"
+  ]
+ },
+ "build_plan": {
+  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend.",
+  "phases": [
+   {
+    "code": "P0",
+    "name": "Sim & desk — the $0 pre-order checklist",
+    "cost": "$0",
+    "tasks": [
+     "Fly the frame-top off-axis set-pose sweep x {level, banked} — decides if the fixed-tilt mechanism is even real + specs what the tripod capture must contain (the headline next_probe).",
+     "Validate the auto-labeler in the apriltag world (tag-box vs gt-box IoU + label-rate vs range) — its curve SIZES the AprilTag placard BEFORE ordering it (real_data_pipeline.md: not yet run).",
+     "Build the tripod scoring harness: recall vs range x position-in-frame, tag-truthed (approach_recall.py + resolution_probe.py are ~90% of it).",
+     "Plumbing: link --cam-fwd-offset-m to the camera-forward model swap (terminal changelog: still open).",
+     "Camera paper-checks BEFORE purchase: HFOV >=100°; VERTICAL FoV (OV9281 is 1280x800 vs the sim's 1280x960 — and the wall is a VERTICAL pointing problem); <=1 ms exposure control; mono-vs-color-trained-NN confound.",
+     "$0 kill-test: run the candidate NN on existing public outdoor drone footage — a free first read on the transfer bet.",
+     "Settle FAA registration + broadcast Remote ID / find a FRIA field — the >250 g target flies OUTDOORS at the tripod step.",
+     "OPTIONAL after P0.1: a re-sequenced fixed-tilt sim A/B, falsification-only — paired seeds n>=8 + dash-only control, gated on approach recall + handoff rate, NEVER Pk (a sim PASS is necessary-not-sufficient)."
+    ],
+    "gate": "Desk checks done and none falsified the plan (tilt mechanism real; placard sized; camera specs verified; legal path clear) -> spend the first dollar."
+   },
+   {
+    "code": "P1",
+    "name": "Order the Tier-1 validation kit",
+    "cost": "~$475 hw; ~$620-780 realistic if no RC/safety gear owned",
+    "tasks": [
+     "Order Tier 1 (§3.0): target quad, AprilTag placard (size from P0.2), OV9281 camera (paper-checked in P0.5), Pi 5 8GB, checkerboard, USB bits.",
+     "If unowned, order the fly-the-target set too: Pocket TX + charger + LiPo-safety/solder basics — the honest first-outdoor-test outlay; all keep-forever gear."
+    ]
+   },
+   {
+    "code": "P2",
+    "name": "Tripod afternoon — TWO curves from one session",
+    "cost": "uses Tier 1",
+    "tasks": [
+     "Calibrate the camera (checkerboard -> intrinsics), then shoot from the FINAL mount geometry (position + tilt) — never a bench pose (add #16 viewpoint degradation).",
+     "Fly the tagged target on repeatable AUTO passes INCLUDING full-speed approaches — the sim has NO motion-blur model, so blur is only measurable here.",
+     "Curve (a): AprilTag decode range/rate envelope — the INTERCEPTOR gate.",
+     "Curve (b): NN approach recall vs range x position-in-frame (the P0.3 harness) — the Hailo/markerless gate.",
+     "Bench the real Pi 5 the same day: AprilTag fps + CPU-YOLO fps (emulation cannot measure this — constraint pi5-emulation-gap)."
+    ],
+    "gate": "MONEY GATE — two curves, two different doors: (a) the TAG envelope must support the staged first kill (decode leaves t_go >=0.5 s post-handoff at the straight-leg closing speed, the NEXT.md R5 kill-number applied to the tag) -> unlocks the ~$740 Tier-2 interceptor order; (b) the NN recall curve gates ONLY the Hailo HAT + the markerless phase. NEVER hold the interceptor hostage to NN acquisition. FAIL(a) -> bigger placard / camera upgrade; FAIL(b) -> real-data retrain — neither spends interceptor money."
+   },
+   {
+    "code": "P3",
+    "name": "Order Tier 2 + build the interceptor",
+    "cost": "~$510 (-> ~$740 all-in)",
+    "tasks": [
+     "Order the lean Tier-2 kit (§3.0); assemble; maiden as a plain quad, no payload.",
+     "First hover + dash: measure the REAL steady dash pitch from the ULog — that number IS the tilt spec.",
+     "Print the nose-cantilever prop-clearance boom + ADJUSTABLE up-tilt bracket (10-30°); set tilt = the measured dash pitch (real-measured, never sim-sized)."
+    ]
+   },
+   {
+    "code": "P4",
+    "name": "Bench gates — before any intercept flight",
+    "cost": "$0",
+    "tasks": [
+     "HARD gate: prop-clearance corner-spin at LOADED throttle across the FULL tilt range (blade coning; the flush mount clears only ~11° level).",
+     "Compute bench: sustained end-to-end AprilTag Hz on the Pi 5 through a thermal soak (+ Hailo NN Hz if bought).",
+     "Camera on the final boom: re-check calibration + log frame-arrival rate SEPARATELY from detection rate (vibration / CSI-ribbon dropouts mimic detection dropouts).",
+     "Grab prop-in-frame + bench hard-negative footage for the future real-data retrain."
+    ],
+    "gate": "All bench gates green -> fly. Clearance FAIL at the chosen tilt -> re-print the mount geometry (longer boom / elevated mast) — do not fly."
+   },
+   {
+    "code": "P5",
+    "name": "Validation flights — the kill ladder",
+    "cost": "field time + spares",
+    "tasks": [
+     "Static intercept: hovering tagged target -> first binary-kill attempt (seeker video + phone slow-mo + both ULogs = the evidence, §0c).",
+     "Moving straight-line target >=2 m/s, then the speed ladder toward 9 m/s.",
+     "Score every flight with the P0.3 harness; shadow-log the NN alongside the tag — builds the markerless case at zero flight risk.",
+     "Loop back on failure: tag envelope short -> bigger placard / camera upgrade; NN recall short -> real-data retrain; clearance/vibration -> mount geometry."
+    ]
+   }
+  ],
+  "evidence": [
+   "docs/hardware_order_list.md §0c/§4",
+   "docs/real_data_pipeline.md (auto-labeler validation pending)",
+   "ADR-0076 add #18h/#18k",
+   "NEXT.md R5 (t_go >=0.5 s kill-number)"
   ]
  },
  "stages": [
@@ -637,7 +745,7 @@
    ],
    "status": "idea",
    "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo AI HAT+ DEFERRED; nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
-   "note": "NOTHING ORDERED YET — the staged buy plan is the bom_tiers table on this dashboard (Tier 1 validation buy first; Tier 2 interceptor GATED on Tier 1's tripod test). COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the deferred Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates) — first kills fly the TAG; and fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the ~$310 tripod + tagged-target afternoon measuring real approach-recall-vs-range BEFORE interceptor money (the outdoor-NN transfer bet is hope-past-evidence). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.)",
+   "note": "NOTHING ORDERED YET — the staged buy plan is the bom_tiers table (§3.0) and the human sequence is build_plan (§2.2). GATING (corrected 2026-07-17): the Tier-2 interceptor order is gated on the tripod session's APRILTAG decode-envelope curve (first kills fly the tag on Pi 5 CPU); the NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — never the interceptor. COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates); fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the tripod + tagged-target afternoon yields BOTH curves in one session (the transfer bet is hope-past-evidence, but its verdict only moves the markerless phase). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.)",
    "evidence": [
     "docs/hardware_order_list.md §0/§0b/§0c",
     "NEXT.md ROUND-5 (Pi5/HAT ruling, tripod test)"
@@ -774,7 +882,7 @@
   },
   {
    "id": "transfer-bet",
-   "text": "The MIT-licensed outdoor-drone-NN transfer bet is UNVALIDATED (hope past evidence). Cheapest kill-or-validate: ~$310 tripod + tagged-target afternoon measuring real approach-recall vs range/frame-position BEFORE building the interceptor.",
+   "text": "The MIT-licensed outdoor-drone-NN transfer bet is UNVALIDATED (hope past evidence). Cheapest kill-or-validate: the ~$310 tripod + tagged-target afternoon measuring real approach-recall vs range/frame-position. Its verdict gates ONLY the Hailo HAT + the markerless phase — the interceptor order is gated on the SAME session's AprilTag envelope curve instead (first kills fly the tag, §0c), so a dead transfer bet delays markerless, not the build.",
    "evidence": [
     "NEXT.md ROUND-5 (Fable strategic review 2026-07-16)"
    ]
@@ -835,9 +943,9 @@
    "evidence": "ADR-0069/0070; ADR-0056"
   },
   {
-   "what": "Fixed up-tilt mount adoption",
-   "why": "Stage-1 parity FAIL (worse 7/8 compensated); a fixed tilt only relocates the in-view window under the swinging dash pitch.",
-   "evidence": "ADR-0068; ADR-0076 add #18j-fix follow-up"
+   "what": "Fixed up-tilt mount adoption (cue-era up15 terminal-parity context)",
+   "why": "Stage-1 parity FAIL (worse 7/8 compensated); a fixed tilt only relocates the in-view window under the swinging dash pitch. SCOPE: this buried the cue-era, guessed-+15°, terminal-parity adoption — the 2026-07-17 acquisition-first fixed tilt sized to the MEASURED dash pitch is a NEW decision in a different context (see the pointing stage), not a resurrection.",
+   "evidence": "ADR-0068; ADR-0076 add #18j-fix follow-up; pointing decision 2026-07-17"
   },
   {
    "what": "Sim pivot (Isaac/Pegasus/etc.)",
@@ -907,9 +1015,9 @@
   {
    "tier": 1,
    "name": "First steps — NN validation + compute de-risk",
-   "purpose": "Prove the two riskiest bets CHEAPLY before any interceptor money: (1) the outdoor-NN transfer bet — fly the target on AUTO passes and shoot REAL approach footage from a tripod, measuring approach recall vs range AND position-in-frame (the ~$310 kill-or-validate); (2) the compute bet — benchmark the REAL Pi 5 (AprilTag fps, CPU YOLO fps), which emulation cannot do (constraint pi5-emulation-gap). Every item carries into the final system. (Flying the target also needs the keep-forever ground/safety gear — Pocket TX, charger, LiPo-safety bundle, ~$343 all-new, mostly skip-if-owned — BOM §4 Phase 0, not counted in this tier.)",
-   "gate": "Buy FIRST — no gate. Lowest-risk money; useful regardless of the test outcome.",
-   "total": "~$475 all-new (~$455 if USB bits owned); the ~$310 tripod-test core = target + tag + camera",
+   "purpose": "Prove the riskiest bets CHEAPLY before any interceptor money — the tripod afternoon (build_plan P2) yields TWO curves in one session: (1) the AprilTag decode envelope, the curve that GATES the Tier-2 interceptor order (first kills fly the tag); (2) NN approach recall vs range AND position-in-frame — the outdoor-NN transfer-bet read, which gates ONLY the Hailo/markerless phase; plus (3) the compute bet — benchmark the REAL Pi 5 (AprilTag fps, CPU YOLO fps), which emulation cannot do (constraint pi5-emulation-gap). Every item carries into the final system. HONEST FIRST-TEST COST: flying the target also needs the ground/safety set (Pocket TX + charger + LiPo-safety/solder, keep-forever gear, BOM §4 Phase 0) — so the realistic first-outdoor-test outlay is ~$620-780 all-new if none is owned; the tier subtotal below is hardware-only.",
+   "gate": "Buy FIRST (after the P0 desk checklist) — no result gate. Lowest-risk money; useful regardless of the test outcome.",
+   "total": "~$475 all-new hardware (~$455 if USB bits owned) + ~$145-305 ground/safety if unowned -> ~$620-780 realistic first-outdoor-test outlay; the ~$310 tripod-test core = target + tag + camera",
    "evidence": "docs/hardware_order_list.md §E/§C/§0c; NEXT.md ROUND-5 (tripod kill-or-validate)",
    "items": [
     {
@@ -922,13 +1030,13 @@
      "item": "AprilTag tag36h11 placard (~0.3 m print, rigid) + mount misc",
      "qty": "1",
      "price": "~$32",
-     "why": "Auto-labels the real footage (tag pose -> YOLO labels, autolabel_from_apriltag.py) AND is the staged first-kill baseline lock."
+     "why": "Auto-labels the real footage (tag pose -> YOLO labels, autolabel_from_apriltag.py) AND is the staged first-kill baseline lock. SIZE it from the P0.2 auto-labeler label-range curve (apriltag-world validation, not yet run) before ordering."
     },
     {
      "item": "Arducam OV9281 mono global-shutter wide camera",
      "qty": "1",
      "price": "~$36",
-     "why": "The seeker eye; global shutter = no motion smear. VERIFY >=100° HFOV at calibration (hard constraint wide-fov); AR0234 = upgrade path only if range measures short."
+     "why": "The seeker eye; global shutter = no motion smear. Paper-check BEFORE purchase (P0.5): HFOV >=100° (hard constraint wide-fov); VERTICAL FoV — 1280x800 vs the sim's 1280x960, and the wall is a vertical pointing problem; <=1 ms exposure control; mono-vs-color-trained-NN confound. AR0234 = upgrade path only if range measures short."
     },
     {
      "item": "Raspberry Pi 5, 8 GB",
@@ -954,7 +1062,7 @@
    "tier": 2,
    "name": "Full budget-friendly initial seeker — the lean §0c interceptor",
    "purpose": "Everything the airframe needs that Tier 1 didn't buy; Tier 1's Pi 5 + camera + checkerboard carry over, landing the interceptor at ~$740 all-in (§0c lean binary-kill build). Deferred past this tier, buy at the phase that needs it: Hailo AI HAT+ $70 (markerless phase), SiK telemetry $75 (long-range), spare arms/motor/RX + 3rd LiPo ~$82 (before kill attempts).",
-   "gate": "ORDER ONLY AFTER Tier 1's tripod test shows the detector acquires the APPROACHING target at useful range — R_acq must leave t_go >=0.5 s post-handoff (~>=20 m at 9 m/s closing, the NEXT.md R5 kill-number). A dead transfer bet stops this spend before it happens.",
+   "gate": "ORDER ONLY AFTER the Tier-1 tripod afternoon's APRILTAG decode-envelope curve supports the staged first kill — the tag (the Pi-5-CPU baseline seeker, §0c) must decode the approaching placard early enough to leave t_go >=0.5 s post-handoff at the straight-leg closing speed (the NEXT.md R5 kill-number, applied to the tag). The NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — do NOT gate this order on NN acquisition; a dead transfer bet delays markerless, not the interceptor.",
    "total": "~$510 this tier (-> interceptor ~$740 all-in with the Tier-1 carry-overs)",
    "evidence": "docs/hardware_order_list.md §0c/§A/§B/§C/§D; NEXT.md R5",
    "items": [
@@ -1022,7 +1130,7 @@
      "item": "Camera mount — 3D-printed nose-cantilever prop-clearance boom + FIXED up-tilt at measured dash pitch",
      "qty": "1 (+spare)",
      "price": "~$0-15",
-     "why": "Designs the own-prop phantom OUT of the FoV (no software fallback) + carries the builder-final fixed tilt; bench corner-spin at LOADED throttle across the tilt = HARD gate (constraint forward-camera-boom); sacrificial on contact."
+     "why": "Designs the own-prop phantom OUT of the FoV (no software fallback) + carries the builder-final fixed tilt — print the bracket ADJUSTABLE (10-30°): the angle is set by the REAL measured dash pitch (first-dash ULog, build_plan P3), never sim-sized. Bench corner-spin at LOADED throttle across the tilt = HARD gate (constraint forward-camera-boom); sacrificial on contact."
     },
     {
      "item": "Storage — SanDisk High Endurance microSD (FC ULogs)",
@@ -1243,8 +1351,8 @@
      "status": "rejected"
     },
     {
-     "name": "Fixed up-tilt mount (+15/+25/+35 deg)",
-     "summary": "A fixed wedge canting the camera UP by the airframe's steady DASH PITCH so the boresight tracks the horizon (the crossing target) during the dash. Builder-CHOSEN 2026-07-17.",
+     "name": "Fixed up-tilt mount (angle = measured dash pitch, printed adjustable 10-30°)",
+     "summary": "A fixed wedge canting the camera UP by the airframe's steady DASH PITCH so the boresight tracks the horizon (the crossing target) during the dash. Builder-CHOSEN 2026-07-17; the angle is real-measured (first-dash ULog), never sim-sized — hence the adjustable bracket.",
      "why_choose": "Simplest possible pointing fix — a printed wedge, no servo/gimbal/power/failure-mode. Sized to the dash pitch it re-centres the acquisition-band target that a level camera loses off the top. Angle = the REAL airframe's measured dash pitch (~25-40°; sim ~35°). NOTE the prior up15 NULL (ADR-0068) was an S2-CUE-era terminal-PARITY test; this is a different context — acquisition-first, under the coded-dash + camera-forward architecture, sized to the dash pitch not a guessed +15.",
      "pros": "Closes the dash FoV gap; no actuator; trivially cheap.",
      "cons": "Cannot track the pitch swing (accel->brake), so it trades terminal centring for acquisition; and a dash-pitch-sized tilt exceeds the flush mount's ~11° prop clearance -> forces the boom/elevated-mast mount.",
@@ -1259,7 +1367,7 @@
      "status": "rejected"
     }
    ],
-   "chosen_rationale": "Level remains deployed only because neither alternative has cleared its bar — not because pointing doesn't matter. The evidence arc inverted the priority twice: first tilt was demoted (ADR-0070: availability didn't tighten the miss), then the set-pose sweep re-promoted pointing to the #1 lever by proving the detector is NOT blind (100% static recall 8–22 m both aspects) and the in-flight 0.8% is a pointing/attitude artifact of the dash pitch (add #18k). The fixed mount is definitively dead (parity FAIL + the swing-relocates-the-window physics); the adaptive-tilt A/B against the frame-top off-axis condition is the open, decisive experiment.",
+   "chosen_rationale": "FINAL (builder 2026-07-17): the FIXED up-tilt wedge is chosen, sized to the REAL airframe's measured dash pitch (adjustable 10-30° bracket, angle from the first-dash ULog — build_plan P3; never sim-sized). Level is rejected because it leaves the acquisition-band target above the frame top during the dash (the binding wall, add #18k); adaptive tilt is rejected for simplicity (servo/gimbal weight, power, latency, failure mode — not worth it for an acquisition-first fix). The evidence arc that got here inverted twice: ADR-0070 demoted tilt (availability didn't tighten the miss), then the set-pose sweep re-promoted pointing to the #1 lever (100% static recall vs 0.8% in flight). Honest caveats stand: the prior up15 NULL (ADR-0068) was a cue-era terminal-PARITY test, not this acquisition context; a dash-pitch tilt exceeds the flush mount's ~11° clearance (forces the boom/mast geometry, bench-gated at loaded throttle); and the P0.1 frame-top off-axis sweep is the cheap falsification check that runs BEFORE any of it is bought.",
    "evidence": "ADR-0060, ADR-0065, ADR-0067 (+addendum), ADR-0068, ADR-0070, ADR-0076 add #18j-fix/#18k"
   },
   {
@@ -2206,6 +2314,28 @@
       stg.innerHTML = inner;
       dwrap.appendChild(stg);
     });
+
+    // ---- 2.2 build plan — the in-person phase ladder (the second flow chart) ----
+    var bp = state.build_plan;
+    document.getElementById("bp-summary").innerHTML = T(bp.summary);
+    var pwrap = document.getElementById("buildplan");
+    bp.phases.forEach(function (ph, i) {
+      if (i) pwrap.appendChild(el("div", "bp-arrow", "&darr;"));
+      var tasks = ph.tasks.map(function (t, j) {
+        return '<li><span class="d">' + T(ph.code) + "." + (j + 1) + "</span>" + T(t) + "</li>";
+      }).join("");
+      pwrap.appendChild(el("div", "bp-phase",
+        '<div class="bp-head"><span class="bp-code">' + T(ph.code) + "</span>" +
+        '<span class="stage-name" style="display:inline;margin-top:0">' + T(ph.name) + "</span>" +
+        '<span class="bp-cost mono dim">' + T(ph.cost) + "</span></div>" +
+        '<ul class="bp-tasks">' + tasks + "</ul>"));
+      if (ph.gate) {
+        pwrap.appendChild(el("div", "bp-arrow", "&darr;"));
+        pwrap.appendChild(el("div", "bp-gate",
+          '<span class="stamp">Gate</span><span>' + T(ph.gate) + "</span>"));
+      }
+    });
+    document.getElementById("bp-ev").textContent = (bp.evidence || []).map(strip).join(" · ");
 
     // ---- 3.0 staged buy list (bom tiers) ----
     var bwrap = document.getElementById("bomtiers");

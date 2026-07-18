@@ -15,6 +15,10 @@ Schema v2 adds (all validated here):
 Schema v2.1 adds (2026-07-17 clarity pass, all validated here):
   architecture   — the at-a-glance data-flow strip (summary + steps[] of code/name/role + evidence)
   bom_tiers      — the staged buy list (tier/name/purpose/gate/total/items[] of item/qty/price/why)
+Schema v2.2 adds (2026-07-17 build-plan pass, validated here):
+  build_plan     — the IN-PERSON build/validate ladder rendered as the SECOND flowchart (§2.2):
+                   summary + phases[] of code/name/cost/tasks[] (+ optional gate = the go/no-go
+                   money logic; at least one phase MUST carry a gate) + evidence
 
 The renderer also stamps the live git short-sha into the title block between
 REV:BEGIN/END markers (--check ignores the REV stamp; only the state block is compared).
@@ -49,6 +53,8 @@ ARCH_KEYS = {"summary", "steps", "evidence"}
 ARCH_STEP_KEYS = {"code", "name", "role"}
 BOM_TIER_KEYS = {"tier", "name", "purpose", "total", "items"}
 BOM_ITEM_KEYS = {"item", "qty", "price", "why"}
+BUILD_PLAN_KEYS = {"summary", "phases", "evidence"}
+BP_PHASE_KEYS = {"code", "name", "cost", "tasks"}
 
 
 def fail(msg: str) -> None:
@@ -57,10 +63,25 @@ def fail(msg: str) -> None:
 
 
 def validate(state: dict) -> None:
-    for key in ("schema_version", "updated", "goal", "headline", "architecture", "stages", "edges",
-                "constraints", "graveyard", "key_numbers", "bom_tiers", "decisions", "contradictions"):
+    for key in ("schema_version", "updated", "goal", "headline", "architecture", "build_plan",
+                "stages", "edges", "constraints", "graveyard", "key_numbers", "bom_tiers",
+                "decisions", "contradictions"):
         if key not in state:
             fail(f"missing top-level key: {key}")
+    bp = state["build_plan"]
+    missing = BUILD_PLAN_KEYS - set(bp)
+    if missing:
+        fail(f"build_plan missing keys: {sorted(missing)}")
+    if not bp["phases"]:
+        fail("build_plan has no phases")
+    for ph in bp["phases"]:
+        missing = BP_PHASE_KEYS - set(ph)
+        if missing:
+            fail(f"build_plan phase {ph.get('code', '?')!r} missing keys: {sorted(missing)}")
+        if not ph["tasks"] or not all(isinstance(t, str) and t for t in ph["tasks"]):
+            fail(f"build_plan phase {ph.get('code', '?')!r} needs a non-empty list of task strings")
+    if not any(ph.get("gate") for ph in bp["phases"]):
+        fail("build_plan has no gates — the go/no-go money logic must be explicit")
     arch = state["architecture"]
     missing = ARCH_KEYS - set(arch)
     if missing:
