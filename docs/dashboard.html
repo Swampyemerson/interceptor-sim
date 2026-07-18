@@ -198,7 +198,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->284029c<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c67583d<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -409,8 +409,8 @@
     1
    ],
    "status": "half-done",
-   "active": "Adaptive gimbal #46 BUILT (committed 8657320, default-off, own-state-only controller + live derotation); tilt-aware gt chain exists (INTERCEPTOR_SENSOR_PITCH_RAD, add #18k(2)). No tilt is adopted in the deployed config.",
-   "note": "Now the DOMINANT lever for the wall: dash pitch swings ~40 deg down (accelerating) to ~34 deg up (terminal brake), so a FIXED tilt only relocates the in-view window (fixed +15 adoption FAILED Stage-1 parity, ADR-0068; +35 capture was INVALID — 4th mirage). Adaptive tilt is NOT yet validated as the wall fix — that A/B is the open build. MOUNT TENSION: adaptive-tilt max is geometry-limited — up-tilt vs the ~11 deg prop-clearance margin is an UNTESTED collision; clamp tilt-max to the bench-verified clearance across a loaded tilt sweep (forward-camera-boom constraint).",
+   "active": "DECISION FINALIZED 2026-07-17 (builder): FIXED up-tilt mount (chose fixed over adaptive for simplicity — no servo). Angle = the airframe's steady DASH PITCH so the boresight points at the horizon (where a same-altitude crossing target sits) during the dash. Sim dash-accel pitch ~35° (target sits at +40° in-frame at 11 m, LOS near-horizontal). BUILD/VALIDATE pending: measure the REAL airframe's dash pitch + print wedge + bench-clear + validation flight.",
+   "note": "FINALIZED as a FIXED up-tilt (builder 2026-07-17, fixed over adaptive for simplicity). ANGLE = the airframe's steady DASH PITCH (boresight->horizon during the dash): sim ~35°, but MEASURE it on the REAL airframe (mean nose-down pitch during a steady dash, straight from the ULog) — it is build-specific (dash speed / thrust-to-weight), the sim can't predict it, expect ~25-40°. TWO honest limits: (a) a fixed tilt CANNOT track the pitch swing (accel ~+40° -> brake ~-35°), so it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (target is large + the streak coasts); (b) COUPLED to the mount — a >~15° tilt exceeds the flush ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry (the tilt and the mount are ONE decision).",
    "evidence": [
     "ADR-0065 (#46)",
     "ADR-0067/0068 (fixed-tilt NO-adopt)",
@@ -432,6 +432,10 @@
     {
      "date": "2026-07-17",
      "note": "Fable gap-check: adaptive-tilt (dominant lever) geometrically COLLIDES with the committed prop-clearance mount (~11 deg level margin) — bench gate must sweep tilt under load; tilt-max becomes a mount-derived clamp."
+    },
+    {
+     "date": "2026-07-17",
+     "note": "FINALIZED: builder chose a FIXED up-tilt over adaptive (simplicity). Angle = dash pitch (sim ~35°; measure real). Adaptive tilt REJECTED. Fixed tilt is acquisition-tuned (can't track the pitch swing) and mount-coupled (>~15° needs the boom/mast). Supersedes 'adaptive-tilt A/B is the open build'."
     }
    ]
   },
@@ -1003,24 +1007,24 @@
      "summary": "Boresight = body forward, zero mount angle. The current deployed configuration — every validated number was flown on it.",
      "why_choose": "Keep level because nothing else has earned adoption: it is the simplest mount, all guidance math and gates are validated on it, and both tilt alternatives measurably failed their adoption bars. On hardware it is zero weight, zero moving parts.",
      "pros": "Simplicity; the validated baseline; no derotation composition needed.",
-     "cons": "The dash pitches 27–52 deg nose-down, throwing the horizon-level target to the frame TOP: ~35% of dash ticks it is entirely above the FoV, and first in-range detection threads a 0–6 deg sliver with ~zero vertical margin (ADR-0060). This is now measured as the DOMINANT cause of the in-flight recall wall — the target sits ~+41 deg off-axis at 11 m, where training never showed it (ADR-0076 add #18k). The sim UNDER-states the gap for real drag-limited hardware.",
-     "status": "chosen"
+     "cons": "The dash pitches 27–52 deg nose-down, throwing the horizon-level target to the frame TOP: ~35% of dash ticks it is entirely above the FoV, and first in-range detection threads a 0–6 deg sliver with ~zero vertical margin (ADR-0060). This is now measured as the DOMINANT cause of the in-flight recall wall — the target sits ~+41 deg off-axis at 11 m, where training never showed it (ADR-0076 add #18k). The sim UNDER-states the gap for real drag-limited hardware. [2026-07-17] Rejected: leaves the acquisition-band target above the frame top during the dash (exits >~11 m); the binding wall.",
+     "status": "rejected"
     },
     {
      "name": "Fixed up-tilt mount (+15/+25/+35 deg)",
-     "summary": "The FPV-quad convention: cant the camera up to counter cruise pitch. A/B'd at 4 angles with compensation (#40 mount-compose), rejected.",
-     "why_choose": "The case: cheap, passive, robust — and the mechanism genuinely works: dash-above-FoV went 32% -> 0% at every tilt angle (ADR-0067), directly closing the ADR-0060 gap.",
+     "summary": "A fixed wedge canting the camera UP by the airframe's steady DASH PITCH so the boresight tracks the horizon (the crossing target) during the dash. Builder-CHOSEN 2026-07-17.",
+     "why_choose": "Simplest possible pointing fix — a printed wedge, no servo/gimbal/power/failure-mode. Sized to the dash pitch it re-centres the acquisition-band target that a level camera loses off the top. Angle = the REAL airframe's measured dash pitch (~25-40°; sim ~35°). NOTE the prior up15 NULL (ADR-0068) was an S2-CUE-era terminal-PARITY test; this is a different context — acquisition-first, under the coded-dash + camera-forward architecture, sized to the dash pitch not a guessed +15.",
      "pros": "Closes the dash FoV gap; no actuator; trivially cheap.",
-     "cons": "The paired acquisition gain is SMALL (+2–3 m; the interim '+7.6 m' was baseline-confounded), the terminal cost is dose-dependent (Pk@2.5 8/8 -> 2/8 uncompensated at 35 deg), and even COMPENSATED it failed Stage-1 parity (worse on 7/8 seeds, ADR-0068). The deeper physics: the dash pitch SWINGS from ~40 deg down (accelerating) to ~34 deg up (terminal brake), so any fixed angle only relocates the in-view window (add #18j-fix). ADR-0070 additionally showed tilt made the weave miss WORSE (+0.48 m, 8/8), and the +35 capture 'data' was invalid (tilt-blind gt labeler — the 4th mirage).",
-     "status": "rejected"
+     "cons": "Cannot track the pitch swing (accel->brake), so it trades terminal centring for acquisition; and a dash-pitch-sized tilt exceeds the flush mount's ~11° prop clearance -> forces the boom/elevated-mast mount.",
+     "status": "chosen"
     },
     {
      "name": "Adaptive / active camera tilt (#46, ADR-0065)",
      "summary": "A servo/gimbal that schedules camera pitch against the vehicle's actual pitch: up in the dash, back toward horizon at dash-end. Built (committed 8657320, default-off, own-state-only controller + live derotation); the A/B is the open build.",
      "why_choose": "Pick adaptive tilt because it is the only pointing scheme that can hold the target through the measured 40-down -> 34-up pitch swing — exactly what dooms any fixed angle — and pointing/attitude is now the DOMINANT lever for the flight-dynamic recall wall (add #18k). It is also the live candidate to un-HOLD comms-denied recovery, whose NULL was perception-availability (camera never reacquired), not guidance.",
      "pros": "Tracks the real pitch profile; attacks both the acquisition wall and the recovery NULL; sim-testable now (tilt-aware gt chain exists via INTERCEPTOR_SENSOR_PITCH_RAD).",
-     "cons": "Hardware cost: servo/gimbal weight, power, actuation latency, a control loop, and a mechanical failure mode. NOT yet validated as the wall fix — and be honest about the ceiling: ADR-0070 showed availability alone does not tighten the CPA (the bearing-noise floor is insensitive to more time-in-view), so its value is acquisition/recall/handoff, not a smaller miss.",
-     "status": "deferred"
+     "cons": "Hardware cost: servo/gimbal weight, power, actuation latency, a control loop, and a mechanical failure mode. NOT yet validated as the wall fix — and be honest about the ceiling: ADR-0070 showed availability alone does not tighten the CPA (the bearing-noise floor is insensitive to more time-in-view), so its value is acquisition/recall/handoff, not a smaller miss. [2026-07-17] REJECTED by the builder in favour of a fixed wedge (servo/gimbal complexity + power + failure mode not worth it; a fixed tilt sized to the dash pitch is good enough for the acquisition wall).",
+     "status": "rejected"
     }
    ],
    "chosen_rationale": "Level remains deployed only because neither alternative has cleared its bar — not because pointing doesn't matter. The evidence arc inverted the priority twice: first tilt was demoted (ADR-0070: availability didn't tighten the miss), then the set-pose sweep re-promoted pointing to the #1 lever by proving the detector is NOT blind (100% static recall 8–22 m both aspects) and the in-flight 0.8% is a pointing/attitude artifact of the dash pitch (add #18k). The fixed mount is definitively dead (parity FAIL + the swing-relocates-the-window physics); the adaptive-tilt A/B against the frame-top off-axis condition is the open, decisive experiment.",
@@ -1287,7 +1291,7 @@
      "status": "deferred"
     }
    ],
-   "chosen_rationale": "Flush-forward is committed for phantom removal; whether it SUFFICES is an open, measurable question. The deciding inputs: (a) the sim adaptive-tilt sweep — how much up-tilt is needed to re-centre the target and recover recall — vs the mount's clearance budget; and (b) vibration-at-reach (a bench modal test). If the needed tilt exceeds the flush clearance, escalate toward the elevated mast (it buys tilt AND pointing at once) provided it can be made stiff; the longer boom is the incremental middle. Common enemy across all three: flex/vibration per unit clearance+tilt — minimise that.",
+   "chosen_rationale": "Now DRIVEN by the fixed-tilt decision (2026-07-17): the tilt must ~= the dash pitch (~25-40°) to fix acquisition, and that FAR exceeds the flush mount's ~11° prop clearance — so the flush baseline can only deliver a partial ~10-15° tilt. A dash-pitch tilt REQUIRES the boom (longer overhang) or the elevated centre-mast (which also naturally clears an up-tilted FoV). Decide by: (1) the real airframe's measured dash pitch = the target tilt; (2) the clearance each geometry gives at that tilt (bench corner-spin across the tilt); (3) vibration-at-reach (bench modal). The elevated mast is the strongest if it can be built stiff; the flush+small-tilt is the fallback if the real dash pitch turns out small.",
    "evidence": "ADR-0076 add #18k (pointing is the dominant lever); hardware_order_list §0② (~11° level margin); Fable gap-check 2026-07-17 (tilt/clearance collision); builder mount-geometry ideas 2026-07-17."
   }
  ],
