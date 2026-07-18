@@ -13,7 +13,10 @@
 > FLIGHT-DYNAMIC (dash-pitch pointing; adaptive tilt #46/ADR-0065 is the dominant lever). The
 > real-data retrain is **DEMOTED to a hypothesis** addressing the OUTDOOR-appearance gap, not the
 > sim wall. Pipeline mechanics (auto-labeler, calibration, approaching-pass capture) remain valid,
-> but any capture MUST also include off-boresight / frame-edge / banked placements, and the
+> but any capture MUST also include off-boresight / frame-edge / banked placements, be shot
+> from the FINAL committed mount geometry (camera-forward position + tilt, not a bench pose —
+> add #16 measured v2 box-precision degrading at the moved viewpoint), and grab prop-in-frame
+> hard-negatives during the bench spin. The
 > stage-4 gate must score recall vs POSITION-IN-FRAME, not just range. Current truth:
 > `docs/project_state.json` (real_data node) + `docs/decisions.md` ADR-0076 add #18k.
 

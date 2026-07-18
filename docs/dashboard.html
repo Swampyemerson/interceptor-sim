@@ -198,7 +198,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c4c21f5<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->43c21f9<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -394,6 +394,10 @@
     {
      "date": "2026-07-17",
      "note": "Camera-forward mount committed -> phantom is hardware-removed: v2 flies AS-IS (no NN change for the mount); the rejected anti-phantom retrains (rebal/hardened) are fully moot; a future real-data retrain drops phantom hard-negatives (the rebal failure mode). The wall NN lever (real-data for the flight-dynamic edge aspect) is UNCHANGED and orthogonal to the mount."
+    },
+    {
+     "date": "2026-07-17",
+     "note": "Fable gap-check: real-data capture MUST be shot from the FINAL mount geometry (position + tilt), not a bench pose (add #16 viewpoint precision degradation); grab prop-in-frame hard-negatives during the bench spin."
     }
    ]
   },
@@ -406,7 +410,7 @@
    ],
    "status": "half-done",
    "active": "Adaptive gimbal #46 BUILT (committed 8657320, default-off, own-state-only controller + live derotation); tilt-aware gt chain exists (INTERCEPTOR_SENSOR_PITCH_RAD, add #18k(2)). No tilt is adopted in the deployed config.",
-   "note": "Now the DOMINANT lever for the wall: dash pitch swings ~40 deg down (accelerating) to ~34 deg up (terminal brake), so a FIXED tilt only relocates the in-view window (fixed +15 adoption FAILED Stage-1 parity, ADR-0068; +35 capture was INVALID — 4th mirage). Adaptive tilt is NOT yet validated as the wall fix — that A/B is the open build.",
+   "note": "Now the DOMINANT lever for the wall: dash pitch swings ~40 deg down (accelerating) to ~34 deg up (terminal brake), so a FIXED tilt only relocates the in-view window (fixed +15 adoption FAILED Stage-1 parity, ADR-0068; +35 capture was INVALID — 4th mirage). Adaptive tilt is NOT yet validated as the wall fix — that A/B is the open build. MOUNT TENSION: adaptive-tilt max is geometry-limited — up-tilt vs the ~11 deg prop-clearance margin is an UNTESTED collision; clamp tilt-max to the bench-verified clearance across a loaded tilt sweep (forward-camera-boom constraint).",
    "evidence": [
     "ADR-0065 (#46)",
     "ADR-0067/0068 (fixed-tilt NO-adopt)",
@@ -424,6 +428,10 @@
     {
      "date": "2026-07-17",
      "note": "Mount committed removes the phantom but NOT the pointing wall — the adaptive-tilt A/B is now the top acquisition build."
+    },
+    {
+     "date": "2026-07-17",
+     "note": "Fable gap-check: adaptive-tilt (dominant lever) geometrically COLLIDES with the committed prop-clearance mount (~11 deg level margin) — bench gate must sweep tilt under load; tilt-max becomes a mount-derived clamp."
     }
    ]
   },
@@ -484,6 +492,10 @@
     {
      "date": "2026-07-16",
      "note": "#18h final sim verdict: no camera-guided 3D-quad intercept achievable in this sim — a detector problem, not guidance or mount."
+    },
+    {
+     "date": "2026-07-17",
+     "note": "LATENT HARDWARE BUG (Fable-verified): the 3-D camera lever-arm exists in the m4 SIM harness (m4:2493, honest) but NOT in the portable flight/ core -> port it into flight/ (mount constant as config) BEFORE any camera terminal flies, else hardware flies uncompensated (real 5in offset ~0.10-0.13 m = several deg LOS at 1-2 m terminal)."
     }
    ]
   },
@@ -552,6 +564,10 @@
     {
      "date": "2026-07-15",
      "note": "Pre-purchase audit fixes + binary-kill cost-cut: ~$1,390 lean, RTK/HAT/SiK deferred or cut."
+    },
+    {
+     "date": "2026-07-17",
+     "note": "Camera-forward mount (Fable gap-check): §3 bench gate must UPGRADE to loaded-throttle + full adaptive-tilt sweep (idle+level misses blade coning + the tilt/clearance collision); add camera/boom SPARES (sacrificial on contact) + a boom modal/vibration check."
     }
    ]
   },
@@ -685,8 +701,8 @@
   },
   {
    "id": "forward-camera-boom",
-   "text": "The committed nose-cantilever camera mount (forward of props) carries NEW design considerations beyond phantom-removal: (a) boom VIBRATION/jello can add motion blur -> could WORSEN the flight-dynamic recall wall it is meant to help (needs a stiff/damped soft-mount); (b) forward CG + added pitch inertia can change the nose-down dash pitch that ejects the target from frame (add #18k); (c) the camera sits ~0.4 m forward of the CG/IMU — at a few-metre terminal range that lever arm is a real LOS parallax the guidance MUST compensate (verify --cam-fwd-offset-m corrects the LOS, not just moves the sim camera); (d) the camera LEADS the contact kill -> sacrificial each shot (cost per test iteration); (e) verify props AND arms fully outside the ~100° FoV by a bench corner-spin check.",
-   "evidence": "ADR-0076 add #16/#18h/#18k; Fable gap-check 2026-07-17 (pending refinement)."
+   "text": "Committed nose-cantilever mount — NEW considerations (Fable gap-check 2026-07-17, biggest-bite first): (1) COLLISION with the adaptive-tilt lever: the mount clears the props by only ~11° at LEVEL (§0②), and the dominant wall-lever is UP-tilt — tilting rotates the FoV edge toward the prop disc and can eat that margin; verify clearance across the FULL tilt sweep under LOADED throttle (not idle+level) and clamp --adaptive-tilt-max-deg to the bench angle. (2) Boom VIBRATION: tip flex (bending mode plausibly in the 40-150 Hz prop band) injects bearing noise AFTER derotation (~17-35 mrad per +-1-2 deg, same order as the ADR-0056 aspect bias) + motion blur on the recall wall -> the mount can undercut its own benefit; fix by STIFFNESS (short, gusseted, carbon insert), NOT a soft-mount (which trades blur for worse low-freq extrinsic wobble). (3) LEVER-ARM: the camera is forward of the CG/IMU -> a real terminal LOS parallax; the sim harness compensates (m4:2493, honest 3-D) but the portable flight/ core does NOT -> port it into flight/ (mount constant as config) before any camera terminal flies; and LINK the offset flag to the model swap so it can't silently fly uncompensated. (4) The camera LEADS the contact kill -> sacrificial each shot (BOM spares line + breakaway boom). (5) CSI-2 ribbon on a vibrating boom -> flex-fatigue/EMI frame-drops that MIMIC detection dropouts; log camera frame-arrival rate SEPARATELY from detection rate. NOT a factor: forward CG does NOT change the dash pitch (pitch attitude = atan(a/g), commanded-accel-set, not CG).",
+   "evidence": "ADR-0076 add #16/#18h/#18k; Fable gap-check 2026-07-17 (verified: ~11 deg level margin in §0②; flight/ has no lever-arm; m4:2493 sim compensation is honest)."
   }
  ],
  "graveyard": [

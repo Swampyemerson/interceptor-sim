@@ -31,9 +31,14 @@ safety F all still needed). The deltas that affect **what to buy**:
   mid-deck camera CANNOT clear (prop-disc points ~35–40° off-axis, inside ±50°); only a
   **nose-cantilever** mount (flush at the front-plate edge + ~20 mm forward) gets the blades
   outside ~100°, and even then the margin is thin (~11° flush) and real barrel distortion
-  captures *wider* than pinhole math — so **design for the forward overhang, print a spare
-  (it's first into the ground on a bad day), and treat the bench corner-spin check (§3) as a
-  HARD gate.** ⚠️ **There is NO software fallback:** the phantom-free retrained seeker was
+  captures *wider* than pinhole math — so **design for the forward overhang, BOM a spare
+  camera+boom (it's first into the ground on a bad day AND first into the *target* on a good
+  one — sacrificial each contact kill), and treat the bench corner-spin check (§3) as a HARD
+  gate — run it at LOADED throttle across the FULL adaptive-tilt sweep (0→tilt-max), NOT
+  idle+level: up-tilt (the dominant wall-lever, #46) rotates the FoV toward the thin ~11° prop
+  margin and blade coning under load pushes tips forward, so the bench-verified clearance angle
+  CLAMPS `--adaptive-tilt-max-deg` (Fable gap-check 2026-07-17; contract `forward-camera-boom`).**
+  ⚠️ **There is NO software fallback:** the phantom-free retrained seeker was
   measured FAILING in flight (0/16 acquisitions, ADR-0076 add #18d — `quad_v2` stays deployed).
   Clearance-by-geometry + the no-cue handoff hardening are the ONLY mitigations.
   **[SUPERSEDED IN PART 2026-07-16, ADR-0076 add #18g/#18h/#18k: the camera-forward flight removed
