@@ -236,7 +236,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ad81ae2<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->da4e891<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -377,7 +377,7 @@
  "headline": {
   "date": "2026-07-17",
   "text": "THE WALL IS FLIGHT-DYNAMIC POINTING, NOT THE DETECTOR (5th mirage corrected, ADR-0076 add #18k): recall is 100% static/centred at 8-22 m on BOTH aspects, yet 0.8% IN FLIGHT — the ~40 deg nose-down dash pitch parks the target at the frame-top edge (~41 deg off-axis) where training never showed it. LEVERS: (1) POINTING is dominant — builder-FINAL 2026-07-17: a FIXED up-tilt mount sized to the measured dash pitch (adaptive tilt rejected for simplicity; see the pointing stage); (2) real-data retrain = OUTDOOR-appearance hypothesis only. NOT a lever: resolution/foveated-crop (tested, rejected — add #18j-fix). #1 unmeasured: recall vs POSITION-IN-FRAME and bank attitude (not range).",
-  "next_probe": "Re-run the set-pose sweep at the frame-top off-axis position x {level, banked} attitudes — decomposes pointing/attitude/edge-clip and specs what a real capture must contain. Cheap, offline-scoreable (tilt-aware gt chain exists, add #18k(2)). Now scheduled as build_plan task P0.1 — the first item on the $0 pre-order checklist (§2.2).",
+  "next_probe": "Repeat the set-pose sweep with a PITCHED-DOWN camera + a level in-frame target (GROUND background, nose-on flight aspect) — the frame-top sweep (P0.1) viewed the belly against clean SKY and found NO edge/bank detection loss, so the un-eliminated in-view mechanisms are GROUND-CLUTTER background (the detector is background-sensitive: 0% on the horizon vs 76-100% on sky at the same range) + PHANTOM COMPETITION (5-25 boxes/frame in-flight vs 0 static). Both sim-testable. Fix box_hits_gt first (scoring debt).",
   "evidence": [
    "docs/decisions.md ADR-0076 add #18k",
    "NEXT.md ROUND-5 CORRECTION banner",
@@ -562,7 +562,7 @@
    ],
    "status": "half-done",
    "active": "drone_finetuned_quad_v2.onnx @640, conf 0.25, NN-only on EVERY frame — no visual tracker (detect-then-track/CSRT dropped for the quad, add #2; v3 and rebal are closed NULLs — do NOT resurrect). Static acquisition ceiling ~24 m (conf 0.25, 640 full-frame).",
-   "note": "THE BINDING WALL IS FLIGHT-DYNAMIC POINTING, NOT THE DETECTOR: 100% recall static/centred 8-22 m BOTH aspects, but 0.8% in flight — off-boresight frame-top placement under dash pitch, NOT appearance/resolution/range. TESTED AND REJECTED as levers: auto-crop/foveated-crop (crop = full-frame recall at the 8-12 m wall band, add #18j-fix — see graveyard); conf-threshold lowering (phantom rate doubles); CSRT/ViT trackers (NN-only won, add #2). Caveat: the sweep's featureless-grey world makes 100% a CEILING — real clutter is strictly harder.",
+   "note": "THE BINDING WALL is FLIGHT-DYNAMIC but the mechanism is NOT edge-position/bank/appearance/resolution and NOT motion-blur (sim has none). The frame-top sweep (2026-07-18, Fable-verified) showed the deployed detector localizes the target at 100% at the frame-top edge AND banked (8-22 m) against clean sky. The un-eliminated in-view mechanisms are (1) GROUND-CLUTTER BACKGROUND under the nose-down pitch (detector is background-sensitive: 0% on the horizon line vs 76-100% on sky, same range) and (2) PHANTOM COMPETITION (top-1 masking amid a 5-25 box/frame in-flight phantom storm). The real-data detector's value is re-scoped to THESE (ground background + phantom robustness), plus the outdoor-appearance/blur gap.",
    "evidence": [
     "ADR-0076 add #18i/#18k",
     "ADR-0061 (v3 NULL)",
@@ -584,6 +584,10 @@
     {
      "date": "2026-07-17",
      "note": "Fable gap-check: real-data capture MUST be shot from the FINAL mount geometry (position + tilt), not a bench pose (add #16 viewpoint precision degradation); grab prop-in-frame hard-negatives during the bench spin."
+    },
+    {
+     "date": "2026-07-18",
+     "note": "Frame-top sweep (P0.1) + Fable verify: edge-position/bank/projection-skew do NOT impair detection vs clean sky (100% localized 8-22 m). RETRACT the #18j-fix 'aspect wall @10-12 m' detector-failure claim — re-exam shows target-sized conf-0.56-0.78 boxes rejected on the box_hits_gt CENTRE/SIZE gate amid a phantom storm, not a detector miss. Real in-view mechanisms = ground-background + phantom-competition (both sim-testable). Motion blur is a real-world risk, NOT a sim mechanism (mono_cam has no blur)."
     }
    ]
   },
@@ -622,6 +626,10 @@
     {
      "date": "2026-07-17",
      "note": "FINALIZED: builder chose a FIXED up-tilt over adaptive (simplicity). Angle = dash pitch (sim ~35°; measure real). Adaptive tilt REJECTED. Fixed tilt is acquisition-tuned (can't track the pitch swing) and mount-coupled (>~15° needs the boom/mast). Supersedes 'adaptive-tilt A/B is the open build'."
+    },
+    {
+     "date": "2026-07-18",
+     "note": "Frame-top sweep: fixed-tilt decision STANDS, mechanism = FOV COVERAGE (keep the fast target in-frame; the detector sees it anywhere in-frame, need not re-centre perfectly). Forward note: an up-tilt on a level dash puts a co-altitude target on the HORIZON line -> expect the horizon/ground-background ceiling; fine for the 8-12 m band."
     }
    ]
   },
@@ -924,11 +932,10 @@
   },
   {
    "id": "qemu-compute-gap",
-   "text": "A QEMU/ARM64 emulation (scripts/deploy/qemu_arm_check.sh) can validate the seeker SOFTWARE STACK RUNS on the Pi's aarch64 (ONNX loads, pipeline imports) but CANNOT give real fps — emulation timing != a real Cortex-A76. Real fps needs the physical Pi 5 (Tier 1) or the Hailo vendor bench. The check is also not-yet-run here: no Docker/qemu-user-static installed (needs an apt install, ask-first). AprilTag ~30 fps CPU; markerless requires the Hailo HAT.",
+   "text": "RAN + PASSED (2026-07-18): scripts/deploy/qemu_arm_check.sh under Docker --platform linux/arm64 confirmed the seeker stack RUNS on real aarch64 -- flight/ core imports+math, onnxruntime loads drone_finetuned_quad_v2.onnx + runs 1 inference (6 dets), OpenCV frame source decodes. So NO ARM-incompatibility surprises. But emulation timing is NOT fps: real fps still needs the physical Pi 5 (Tier 1) or the Hailo bench. AprilTag ~30 fps CPU; markerless requires the Hailo HAT.",
    "evidence": [
-    "scripts/deploy/qemu_arm_check.sh + README",
-    "docs/hardware_order_list §0c",
-    "Fable build workflow 2026-07-18"
+    "logs/deploy_checks/qemu_arm_check_20260718T095424Z.json",
+    "scripts/deploy/qemu_arm_check.sh"
    ]
   },
   {
@@ -938,6 +945,15 @@
     "scripts/field_score.py",
     "docs/hardware_order_list §E/§0d bom_tiers",
     "Fable review 2026-07-18"
+   ]
+  },
+  {
+   "id": "box-hits-gt-scoring-debt",
+   "text": "box_hits_gt (resolution_probe.py:69) FALSE-REJECTS off-axis/edge detections: the detected-box/gt-box size ratio drifts 2.9->3.6 with range and straddles the 3x gate because (a) capture_flight_frames.classify() labels off-axis targets at BORESIGHT scale (no sec^2(theta)/aspect correction; true silhouette ~1.7-1.9x the label) and (b) v2 over-boxes ~2x everywhere. It only false-REJECTS (safe for the #18k 100%s), but it created the frametop/banked '0%' near-mirage and corrupts #18j-fix's in-view numbers. FIX before the next recall probe: off-axis-aware or silhouette-derived gt extent, UNIFY --extent-m (sweep 0.35 vs quad_approach 0.9 are not comparable), and add centre-lag tolerance for MOVING captures.",
+   "evidence": [
+    "scripts/seeker/resolution_probe.py:69-80",
+    "scripts/seeker/capture_flight_frames.py:149-150",
+    "Fable frame-top verify 2026-07-18"
    ]
   }
  ],
