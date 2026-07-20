@@ -2,6 +2,28 @@
 
 > **Canonical project state → [`docs/project_state.json`](docs/project_state.json)** (view: `docs/dashboard.html` · hosted: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc). That contract is the source of truth; this file is the subordinate work queue — keep them consistent (the drift check + the contradiction ledger enforce it).
 
+## ⬜ REMAINING SIM PREP — todo (2026-07-20; canonical = the dashboard `build_plan` P0 + constraints)
+
+**Hardware is ORDERED** (2026-07-20, Fable GO-WITH-FIXES — target-drone stack + seeker kit + interceptor brain; see `bom_tiers`). While parts ship, the remaining **sim/desk prep**, all decision-relevant to the tripod test / the build:
+
+**Prereq (do first):**
+- [ ] **Fix `box_hits_gt`** (constraint `box-hits-gt-scoring-debt`) — off-axis-aware / silhouette-derived gt extent; **UNIFY `--extent-m`** (sweep 0.35 vs quad_approach 0.9 aren't comparable); add centre-lag tolerance for MOVING captures. Its size gate false-rejected the frame-top sweep (near-6th-mirage) and corrupted #18j-fix's in-view numbers — fix before any recall probe.
+
+**The two un-eliminated in-view mechanisms (the corrected `headline.next_probe`):**
+- [ ] **Pitched-down + ground-background sweep** — reproduce the REAL in-flight scene (nose-on quad vs GROUND with its shadow, not the frame-top sweep's belly-vs-sky). Tests the ground-clutter mechanism (detector was 0% on the horizon vs 76–100% on sky). Score with the fixed scorer.
+- [ ] **Phantom-competition test** (8–11 m band) — top-1 masking amid the 5–25 box/frame in-flight phantom storm (0 static).
+
+**P0 software (for the tripod day + the parallel bench):**
+- [ ] **P0.2 placard-sizing auto-labeler validation** (apriltag world) — sets the AprilTag placard size; still un-run.
+- [ ] **P0.3 two-curve tripod SCORER** — recall-vs-range × position-in-frame, tag/ULog-truthed (produces both money-gate curves).
+- [ ] **P0.4 link `--cam-fwd-offset` to the model swap** — no silent uncompensated sim runs.
+- [ ] **P0.5 camera paper-check write-up** — 118° HFoV clears ≥100° (verify H-vs-diagonal); vertical-FoV 800 vs sim 960 (~30% less px/deg → shorter range); ≤1 ms exposure.
+- [ ] **Pi-side capture script** (rpicam/Picamera2 → frames + synced tag-pose) — flagged "not built" in `tripod_test_protocol.md`.
+- [ ] **`field_score` ArduPilot-log support** — .bin parser or the CSV-export path (target is ArduPilot, constraint `target-is-ardupilot`).
+- [ ] **Validate `deploy_seeker` MAVSDK OFFBOARD path** against the LOCAL PX4 SITL — the front-loaded 6C Mini de-risks this on the props-off bench; the live path is currently unverified.
+
+Full detail/status: the dashboard `build_plan` (P0–P5) + the constraints in `docs/project_state.json`. **The "THE PLAN (2026-07-10)" below is the pre-pivot Phase-2 plan — superseded by the real-build pivot + the dashboard; kept for history.**
+
 *(One PLAN, one CURRENT block, one BUILD QUEUE, one compressed DONE list.
 Detail lives in `docs/decisions.md` (ADRs), `PROGRESS.md` (roll-up), and
 `docs/audit_findings_tracker.md` (the 81-finding audit ledger). Rewritten
