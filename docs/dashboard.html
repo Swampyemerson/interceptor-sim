@@ -236,7 +236,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->da916b8<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->6bb5d8f<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -376,7 +376,7 @@
  },
  "headline": {
   "date": "2026-07-17",
-  "text": "THE WALL IS FLIGHT-DYNAMIC POINTING, NOT THE DETECTOR (5th mirage corrected, ADR-0076 add #18k): recall is 100% static/centred at 8-22 m on BOTH aspects, yet 0.8% IN FLIGHT — the ~40 deg nose-down dash pitch parks the target at the frame-top edge (~41 deg off-axis) where training never showed it. LEVERS: (1) POINTING is dominant — builder-FINAL 2026-07-17: a FIXED up-tilt mount sized to the measured dash pitch (adaptive tilt rejected for simplicity; see the pointing stage); (2) real-data retrain = OUTDOOR-appearance hypothesis only. NOT a lever: resolution/foveated-crop (tested, rejected — add #18j-fix). #1 unmeasured: recall vs POSITION-IN-FRAME and bank attitude (not range).",
+  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. Binding wall unchanged — in-view detection (ground-background + phantom-competition, both sim-testable) + the acquisition/blur gap the tripod test measures. Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel.",
   "next_probe": "Repeat the set-pose sweep with a PITCHED-DOWN camera + a level in-frame target (GROUND background, nose-on flight aspect) — the frame-top sweep (P0.1) viewed the belly against clean SKY and found NO edge/bank detection loss, so the un-eliminated in-view mechanisms are GROUND-CLUTTER background (the detector is background-sensitive: 0% on the horizon vs 76-100% on sky at the same range) + PHANTOM COMPETITION (5-25 boxes/frame in-flight vs 0 static). Both sim-testable. Fix box_hits_gt first (scoring debt).",
   "evidence": [
    "docs/decisions.md ADR-0076 add #18k",
@@ -420,7 +420,7 @@
   ]
  },
  "build_plan": {
-  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. STILL OPEN = P0.3 the two-curve tripod SCORER, P0.5 camera paper-check (HFOV/vertical-FoV), P0.6 run the free-footage NN kill-test, P0.4 link --cam-fwd-offset to the model swap, run qemu (needs Docker/qemu apt), a Pi-side capture script, and field_score ArduPilot-log support (the Tier-1 target is ArduPilot).",
+  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. STILL OPEN = P0.3 the two-curve tripod SCORER, P0.5 camera paper-check (HFOV/vertical-FoV), P0.6 run the free-footage NN kill-test, P0.4 link --cam-fwd-offset to the model swap, run qemu (needs Docker/qemu apt), a Pi-side capture script, and field_score ArduPilot-log support (the Tier-1 target is ArduPilot). [ORDERED 2026-07-20] Cart placed (Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor BRAIN (6C Mini + M10, front-loaded past the money gate — acceptable, logged). FORWARD: (P1) build+flash the ArduPilot target + assemble the OV9281->Pi seeker rig; IN PARALLEL bench the 6C Mini (props-off Pi<->TELEM2 OFFBOARD bring-up — de-risks the deploy loop's unverified MAVSDK path). (P0 software still open) Pi capture script, two-curve scorer, field_score ArduPilot-log support, placard-sizing. (P2) tripod day -> curve (a) tag range gates the interceptor airframe, curve (b) NN recall gates the Hailo. Then P3+ airframe. ADD the must-add build/field layer + re-source Pi/SD BEFORE building.",
   "phases": [
    {
     "code": "P0",
@@ -1063,14 +1063,14 @@
    "name": "First steps — NN validation + compute de-risk",
    "purpose": "Prove the riskiest bets CHEAPLY before any interceptor money — the tripod afternoon (build_plan P2) yields TWO curves in one session: (1) the AprilTag decode envelope, the curve that GATES the Tier-2 interceptor order (first kills fly the tag); (2) NN approach recall vs range AND position-in-frame — the outdoor-NN transfer-bet read, which gates ONLY the Hailo/markerless phase; plus (3) the compute bet — benchmark the REAL Pi 5 (AprilTag fps, CPU YOLO fps), which emulation cannot do (constraint pi5-emulation-gap). Every item carries into the final system. HONEST FIRST-TEST COST: flying the target also needs the ground/safety set (Pocket TX + charger + LiPo-safety/solder, keep-forever gear, BOM §4 Phase 0) — so the realistic first-outdoor-test outlay is ~$620-780 all-new if none is owned; the tier subtotal below is hardware-only.",
    "gate": "Buy FIRST (after the P0 desk checklist) — no result gate. Lowest-risk money; useful regardless of the test outcome.",
-   "total": "~$544 all-new hardware (~$524 if USB bits owned) + ~$145-305 ground/safety if unowned -> ~$689-849 realistic first-outdoor-test outlay; the ~$310 tripod-test core = target + tag + camera",
+   "total": "~$650 ordered hardware (Kakute stack + target + seeker kit + TX/charger) + ~$220-360 must-add build/field layer = ~$870-1010 to actually FLY + run the field test. Re-source Pi+SD to recover ~$120.",
    "evidence": "docs/hardware_order_list.md §E/§C/§0c; NEXT.md ROUND-5 (tripod kill-or-validate)",
    "items": [
     {
-     "item": "Target/practice drone — ArduPilot GPS 5\" quad (Matek H743 FC + 4-in-1 ESC, EMAX ECO II motors, budget frame, M10Q GPS, ELRS RX, props)",
+     "item": "Target/practice drone (ORDERED 2026-07-20) — Kakute H7 V1.5 FC + Tekko32 F4 Metal 65A ESC + EMAX ECOII 2207 1900KV x4 + TBS Source One V6 5in + Matek M10Q GPS + RadioMaster RP1 V2 RX + Pocket M2 ELRS TX + CNHL 6S 1500 + 1-6S charger + HQ V2S 5in props",
      "qty": "1",
-     "price": "~$310",
-     "why": "The thing to detect now, the thing to intercept later; flies repeatable AUTO box legs >=2 m/s — the exact regime the sim validated. [2026-07-20] SpeedyBee path DEAD (F405 V4 discontinued, V5 OUT OF STOCK everywhere reachable) -> SETTLED on Matek H743 (SLIM/WLITE ~$96-113) + a 45-55A 6S 4-in-1 ESC (~$42); cheaper if in stock = a current Matek F405 board + ESC (~$80). Matek = ArduPilot-native, LONG-STANDING official support (not a fresh merge), broadly stocked (GetFPV/Pyrodrone/RDQ/Amazon). +$35-75 vs the SpeedyBee stack; standalone FC so add the ESC. Alt: Holybro Kakute H7 + Tekko32 stack (~$110-130)."
+     "price": "~$570",
+     "why": "Fable-verified compatible (matched Holybro Kakute H7 + Tekko32 stack; ArduPilot target `KakuteH7` — flash THAT not v2; ICM-42688-P supported; Tekko battery-monitor defaults preset). RX wired CRSF (not the interceptor's SBUS). Logs DataFlash .BIN to the Kakute's onboard microSD -> NEEDS a card (see must-add). WPNAV_SPEED>=900 for the >=9 m/s AUTO legs."
     },
     {
      "item": "AprilTag tag36h11 placard (~0.3 m print, rigid) + mount misc",
@@ -1079,28 +1079,40 @@
      "why": "Auto-labels the real footage (tag pose -> YOLO labels, autolabel_from_apriltag.py) AND is the staged first-kill baseline lock. SIZE it from the P0.2 auto-labeler label-range curve (apriltag-world validation, not yet run) before ordering."
     },
     {
-     "item": "Arducam OV9281 mono global-shutter wide camera",
+     "item": "innomaker OV9281 mono global-shutter MIPI camera (~118 deg HFoV, 1280x800) — ORDERED",
      "qty": "1",
-     "price": "~$36",
-     "why": "The seeker eye; global shutter = no motion smear. Paper-check BEFORE purchase (P0.5): HFOV >=100° (hard constraint wide-fov); VERTICAL FoV — 1280x800 vs the sim's 1280x960, and the wall is a vertical pointing problem; <=1 ms exposure control; mono-vs-color-trained-NN confound. AR0234 = upgrade path only if range measures short."
+     "price": "~$30",
+     "why": "CAM-MIPIOV9281V2 + a Wonrabai 22->15-pin Pi-5 CSI cable (ordered). Clears >=100 deg wide-fov. VERIFY 118 deg is HORIZONTAL not diagonal (if diagonal HFoV~109, still ok). ~30% fewer px/deg than the sim camera -> proportionally shorter tag/NN range = what tripod curve (a) measures; log it."
     },
     {
      "item": "Raspberry Pi 5, 8 GB",
      "qty": "1",
-     "price": "~$120",
-     "why": "Buys the compute answer EARLY (builder's worry): real AprilTag fps + real CPU-YOLO fps on the actual Cortex-A76 — emulation can't measure fps. 8 GB is a §0c DON'T-cut."
+     "price": "~$80 (RE-SOURCE)",
+     "why": "Cart shows $175 = Amazon SCALP (§0c: buy 8GB from PiShop/CanaKit ~$80). Also on hand: a Pi 3 (capture-only fallback — records OV9281 frames fine, useless for the compute benchmark: A53 vs A76, no PCIe for Hailo)."
     },
     {
      "item": "Checkerboard calibration board (9x6 inner corners, rigid backing)",
      "qty": "1",
-     "price": "~$8",
+     "price": "~$8 (PRINT — not in cart)",
      "why": "Intrinsics + distortion via calibrate_camera.py — every range/bearing number is wrong until this runs (first bench gate)."
     },
     {
-     "item": "USB/power bits — official 27 W USB-C PD supply, A2/U3 microSD, card reader",
+     "item": "USB/power bits (ORDERED) — Pi 27W USB-C PSU + SanDisk 128GB microSD + SABRENT reader + Wonrabai Pi-5 22->15 CSI cable",
      "qty": "1 set",
-     "price": "~$39",
-     "why": "Bench-powers and boots the Pi for the benchmark; †skip-if-owned."
+     "price": "~$88",
+     "why": "Ordered. NOTE SanDisk 128GB ~$45 = ~2x street (~$20). Pi wall PSU is useless in the FIELD -> add a USB-C PD power bank (must-add)."
+    },
+    {
+     "item": "MUST-ADD build layer (NOT in cart) — solder iron+solder+flux, XT60 pigtails+14-16AWG+heatshrink+zipties+straps, smoke stopper, LiPo safety (fireproof bag+cell checker+glasses+blanket), hex drivers+8mm prop wrench+multimeter, a 32-64 GB microSD for the KAKUTE (target position LOG field_score needs), 2x 18650 for the Pocket TX, lost-model buzzer",
+     "qty": "1 set",
+     "price": "~$120-180",
+     "why": "Cart cannot become a flying quad without these (Fable GO-WITH-FIXES). Fund via re-sourcing Pi+SD (~$120 recovered)."
+    },
+    {
+     "item": "MUST-ADD field layer (NOT in cart) — Pi 5 active cooler (~$5), USB-C PD power bank >=27W (field power), tripod/mast + ball head + inclinometer, 2 more CNHL 6S packs (the ~28-pass matrix needs 3+), tape measure/cones + laptop, FAA reg $5 + Remote-ID/FRIA decision",
+     "qty": "1 set",
+     "price": "~$100-180",
+     "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above."
     }
    ]
   },
@@ -1131,16 +1143,16 @@
      "why": "Ample for 2207/6S; watch bench temps."
     },
     {
-     "item": "FC — Holybro Pixhawk 6C Mini (PX4)",
+     "item": "FC — Holybro Pixhawk 6C Mini (PX4) [PURCHASED EARLY 2026-07-20]",
      "qty": "1",
      "price": "~$131",
-     "why": "The EXACT stack the sim validated — params + the portable flight/ guidance core transfer directly."
+     "why": "Bought with the Tier-1 order (+ PM02 V3 analog module) — front-loaded PAST the money gate. Fable: ACCEPTABLE — survives every FAIL loop-back (bigger placard/camera keep the 6C Mini) and enables PARALLEL bench OFFBOARD bring-up (Pi<->TELEM2, props-off) during the tripod campaign. Logged as an ADR-lite gate deviation. Confirm the box includes a microSD (ULogs=metrology)."
     },
     {
-     "item": "GPS — Holybro M10 + compass",
+     "item": "GPS — Holybro M10 + compass [PURCHASED EARLY 2026-07-20]",
      "qty": "1",
      "price": "~$45",
-     "why": "Outdoor position hold + the dash's waypoint frame."
+     "why": "Bought with the Tier-1 order (IST8310, 10-pin GPS1). TWO GPS is CORRECT not redundant — one per aircraft (target M10Q AUTO+compass; interceptor M10 position-hold/failsafe)."
     },
     {
      "item": "RC — RadioMaster RP3 ELRS diversity RX",
