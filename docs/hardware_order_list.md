@@ -81,7 +81,7 @@ Verdict: **good to order after the items below.** The core interceptor stack (A�
 patterns consistent; PM02-analog↔6C-Mini right; SiK/Pi UART ports + params correct; AUW/T-W
 arithmetic plausible). **Applied inline** (2 blockers + fixes):
 
-- **[BLOCKER→fixed] Target FC** SpeedyBee F405 **V5 → V4** (V5 has no official ArduPilot target). (E)
+- **[UPDATED 2026-07-20 — reversed] Target FC** SpeedyBee F405 **V4 → V5**: the V4 is now DISCONTINUED (unbuyable, replaced by SpeedyBee), AND the V5's blocker is resolved — the ArduPilot `SpeedyBeeF405V5` target was **MERGED upstream ~2026-01-28**. So the V5 ($74.99, +$9) is the pick; verify a flashable build is posted at firmware.ardupilot.org at order time (stable or `latest`). Guaranteed-stable fallback: **Matek H743 + a 4-in-1 ESC** (~$100). (E)
 - **[BLOCKER→fixed] Interceptor RC path** ELRS **CRSF-to-UART → SBUS-to-RC-IN**: the 6C Mini has
   only 4 UARTs (GPS/SiK/Pi spoken for) and stock PX4 has no CRSF driver; SBUS→RC IN needs neither. (B)
 - **[fixed] Compute BEC** Pololu 5.0 V → **Matek BEC12S-PRO 5.2 V** (avoids Pi-5 undervolt throttle). (C)
@@ -257,7 +257,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 
 | Item | Qty | ~Unit | ~Line | Where | Why + key compatibility |
 |---|---|---|---|---|---|
-| SpeedyBee F405 **V4** 55A 30×30 FC+ESC stack (flash ArduCopter) | 1 | $65 | $65 | SpeedyBee / GetFPV | Cheapest **officially ArduPilot-supported** GPS autopilot for a box mission (ardupilot.org "SpeedyBee F4 V3/V4" — **the V5 has NO official ArduPilot target as of early 2026, only an unofficial custom build; don't gamble the target's whole job on it**; re-check the V5 hwdef at order time). Runs ArduPilot, not PX4 — fine, it's just a mover. 3–6S, RC via SBUS, GPS via UART. |
+| SpeedyBee F405 **V5** OX32 55A 30×30 FC+ESC stack (flash ArduCopter) | 1 | $75 | $75 | SpeedyBee / GetFPV | **V4 DISCONTINUED → V5 is the successor** (+$9). The V5's ArduPilot target `SpeedyBeeF405V5` was **MERGED upstream ~2026-01-28** — this resolves the blocker that previously picked V4. **Verify a flashable build at firmware.ardupilot.org at order time** (merge → in `latest`/master; check if it reached `stable` for your version; a `latest` build is OK for a mover). Fallback if you won't depend on release timing: **Matek H743 + 4-in-1 ESC (~$100), long-standing stable support**. OX32 ESC is closed-source (irrelevant for a target). Runs ArduPilot, not PX4 — fine, it's just a mover. 3–6S, RC via SBUS, GPS via UART. |
 | Emax ECO II 2207 1900KV motors | 4 | $16 | $64 | GetFPV / Amazon | Budget 6S 5" motors; same class as the interceptor so **spares interchange.** |
 | Budget 5" carbon frame (GEPRC Mark4 or equiv ~220mm) | 1 | $40 | $40 | GetFPV / Pyrodrone | Flat top plate for the tag placard standoff. Shares props/motors with the interceptor. |
 | Matek M10Q-5883 GNSS + compass | 1 | $28 | $28 | GetFPV / ReadyMadeRC | Makes the outdoor box repeatable + GPS-aligned to the interceptor. UART to the F405. |
