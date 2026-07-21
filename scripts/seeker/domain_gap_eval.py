@@ -65,6 +65,13 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from finetuned_seeker import FinetunedNNSeeker  # noqa: E402
+# Single source of truth for the hit gate (was a local copy). The off-axis
+# sec^2 fix is inherited automatically; extent unification (gt_scale) is left at
+# 1.0 here because domain_gap_eval mixes frames from several capture dirs (each
+# with its own --extent-m) into one list, so a single global scale would be
+# wrong -- this tool is a bracketing ESTIMATE, and the primary scoring-debt fix
+# lands in resolution_probe.py where each dataset's capture extent is known.
+from box_scoring import box_hits_gt  # noqa: E402,F401
 
 FX = FY = 539.9363327026367   # sim gz_x500_mono_cam intrinsics @1280x960
 CX, CY = 640.0, 480.0
@@ -95,19 +102,6 @@ def load_gt_box(label_path):
         return None
     _, cx, cy, w, h = (float(v) for v in parts[:5])
     return cx * W_FULL, cy * H_FULL, w * W_FULL, h * H_FULL
-
-
-def box_hits_gt(boxes, gcx, gcy, gw, gh, tol=15):
-    """A detection HITS the real target iff the detected box centre lands
-    inside the gt box (+tol) AND is size-matched (within 3x of the gt extent,
-    both ways) — guards against a giant blob merely containing the gt point
-    (resolution_probe.py's Fable round-3 fix, reused verbatim here)."""
-    for score, u, v, bw, bh in boxes:
-        center_in = (abs(u - gcx) <= gw / 2 + tol and abs(v - gcy) <= gh / 2 + tol)
-        size_ok = (gw / 3 <= bw <= 3 * gw) and (gh / 3 <= bh <= 3 * gh)
-        if center_in and size_ok:
-            return True
-    return False
 
 
 def collect_frames(data_dir, max_frames=None):

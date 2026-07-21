@@ -1,0 +1,6 @@
+dataset,capture_extent_m,unified_extent_m,n,old_hits,new_hits,total,flips_to_hit
+frametop_centered,0.35,0.52,542,442,442,542,0
+frametop,0.35,0.52,534,102,507,534,405
+frametop_banked,0.35,0.52,536,0,536,536,536
+quad_approach,0.9,0.52,33,12,8,33,0
+neg_control,0.35,0.52,692,0,0,692,
