@@ -9,9 +9,10 @@
 **Prereq (do first):**
 - [x] **Fix `box_hits_gt`** — DONE 2026-07-21 (`b0a947e`): `scripts/seeker/box_scoring.py` is the one gate (sec² off-axis widening, unified TARGET_EXTENT_M=0.52 mesh-measured, centre-lag helper). Re-score: frametop 19→95%, banked 0→100%, negative control unchanged 0/692 — the near-6th-mirage quantified. 17 unit tests; adversarially verified.
 
-**The two un-eliminated in-view mechanisms (the corrected `headline.next_probe`):**
-- [ ] **Pitched-down + ground-background sweep** — reproduce the REAL in-flight scene (nose-on quad vs GROUND with its shadow, not the frame-top sweep's belly-vs-sky). Tests the ground-clutter mechanism (detector was 0% on the horizon vs 76–100% on sky). Score with the fixed scorer.
-- [ ] **Phantom-competition test** (8–11 m band) — top-1 masking amid the 5–25 box/frame in-flight phantom storm (0 static).
+**The two in-view mechanisms — SETTLED 2026-07-21 (`docs/inview_probe_results.md`); the binding wall is POINTING:**
+- [x] **Ground-background sweep** — REFUTED in sim: recall GROUND 100/99% ~ HORIZON 100% ~ SKY 92% at every 6–20 m bin (the old "0% on horizon" was the box_hits_gt scoring artifact). Caveat: sim ground is flat gray, not terrain → the outdoor terrain-clutter gap is the real-data detector's remaining job.
+- [x] **Phantom-competition test** — CONFIRMED but MODEST + mount-removable: a phantom masks the real target in only ~12% of in-view frames; top-3 recovers 89%, a conf-margin gate flips 80% of masked; the camera-forward mount removes it at source.
+- **⇒ THE BINDING WALL IS POINTING** — in the 8–12 m band only ~25% of ticks have the target in frame (75% out under the ~35–40° dash pitch); in-view the detector hits 70%. The fixed up-tilt (angle = measured dash pitch) is the fix; the real-data detector is re-scoped onto the outdoor appearance/terrain gap.
 
 **P0 software (for the tripod day + the parallel bench) — [2026-07-20 push: all but P0.2 DONE, each adversarially verified]:**
 - [x] **P0.2 placard-sizing auto-labeler validation** — DONE 2026-07-21: labeler VALIDATED (IoU 0.965 vs gt, min 0.951); **PLACARD = 0.35 m edge** (carry limit; only size clearing the t_go gate under realistic OV9281 scaling — `docs/placard_sizing.md`); PRINT UNBLOCKED. Find: GPU render corrupts fiducial decode at range → tag sweeps use `SIM_GPU_RENDER=0`.
