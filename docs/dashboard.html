@@ -310,7 +310,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e73f447<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->d34b390<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -485,7 +485,7 @@
  },
  "headline": {
   "date": "2026-07-17",
-  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. Binding wall unchanged — in-view detection (ground-background + phantom-competition, both sim-testable) + the acquisition/blur gap the tripod test measures. Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel. [2026-07-20 late] The Tier-1 SOFTWARE layer landed (all adversarially verified): pi_capture.py session recorder, tripod_score.py two-curve money-gate scorer, field_score ArduPilot .BIN, the cam-offset/model-swap guard, deploy seeker loop SITL-validated (3 real MAVSDK defects fixed), camera paper-check CLEARS (118 deg HORIZONTAL; px/deg penalty corrected ~30%->~15%); the dashboard grew the Build tab (Tier-1 workbench view). [2026-07-20b] Must-add TOP-UP ORDERED (~$116 Amazon + ~$300 vendor): solder consumables/wiring/tools/jumpers/data-cable/18650s/smoke-stopper/LiPo-checker + 2 more 6S packs. Still missing before build: soldering IRON, Kakute microSD, LiPo bag/glasses/blanket, Pi cooler, PD power bank, tripod+head, buzzer. DUPLICATE FLAG: 6C Mini + PM02 appear in BOTH orders — verify, return one pair if doubled.",
+  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. Binding wall unchanged — in-view detection (ground-background + phantom-competition, both sim-testable) + the acquisition/blur gap the tripod test measures. Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel. [2026-07-20 late] The Tier-1 SOFTWARE layer landed (all adversarially verified): pi_capture.py session recorder, tripod_score.py two-curve money-gate scorer, field_score ArduPilot .BIN, the cam-offset/model-swap guard, deploy seeker loop SITL-validated (3 real MAVSDK defects fixed), camera paper-check CLEARS (118 deg HORIZONTAL; px/deg penalty corrected ~30%->~15%); the dashboard grew the Build tab (Tier-1 workbench view). [2026-07-20b] Must-add TOP-UP ORDERED (~$116 Amazon + ~$300 vendor): solder consumables/wiring/tools/jumpers/data-cable/18650s/smoke-stopper/LiPo-checker + 2 more 6S packs. Builder 2026-07-20: no duplicate order (verified); remaining TOOLS owned (iron, multimeter, prop wrench, zip ties); FAA registration good to go. Still missing before build: Kakute microSD, LiPo bag/glasses/blanket, Pi cooler, PD power bank, tripod+head (unless owned), buzzer.",
   "next_probe": "Repeat the set-pose sweep with a PITCHED-DOWN camera + a level in-frame target (GROUND background, nose-on flight aspect) — the frame-top sweep (P0.1) viewed the belly against clean SKY and found NO edge/bank detection loss, so the un-eliminated in-view mechanisms are GROUND-CLUTTER background (the detector is background-sensitive: 0% on the horizon vs 76-100% on sky at the same range) + PHANTOM COMPETITION (5-25 boxes/frame in-flight vs 0 static). Both sim-testable. Fix box_hits_gt first (scoring debt).",
   "evidence": [
    "docs/decisions.md ADR-0076 add #18k",
@@ -1233,7 +1233,7 @@
      "item": "MUST-ADD field layer (NOT in cart) — Pi 5 active cooler (~$5), USB-C PD power bank >=27W (field power), tripod/mast + ball head + inclinometer, 2 more CNHL 6S packs (the ~28-pass matrix needs 3+), tape measure/cones + laptop, FAA reg $5 + Remote-ID/FRIA decision",
      "qty": "1 set",
      "price": "~$100-180",
-     "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2). [2026-07-20b TOP-UP: +2 CNHL 6S packs ORDERED (3 total). STILL MISSING: Pi 5 active cooler, >=27 W USB-C PD power bank, tripod + ball head (+ inclinometer app), cones/tape measure; FAA reg + Remote-ID/FRIA decision still open. DUPLICATE FLAG: the top-up carts ALSO contain a Pixhawk 6C Mini ($177) + PM02 V3 ($19) — both recorded as ordered in the FIRST cart; verify order confirmations, cancel/return one pair if doubled (~$196).]"
+     "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2). [2026-07-20b TOP-UP: +2 CNHL 6S packs ORDERED (3 total). STILL MISSING: Pi 5 active cooler, >=27 W USB-C PD power bank, tripod + ball head (+ inclinometer app), cones/tape measure; FAA reg + Remote-ID/FRIA decision still open. Duplicate flag RESOLVED (builder checked 2026-07-20: NOT doubled — the 6C Mini + PM02 were ordered once, in the top-up).]"
     }
    ]
   },
@@ -1714,15 +1714,15 @@
      },
      {
       "name": "Solder/build layer — iron, 63/37 solder + flux, XT60 pigtails, 14-16 AWG, heatshrink, zip ties, straps",
-      "status": "must-add",
+      "status": "ordered",
       "role": "The cart cannot become a flying quad without it.",
-      "notes": "PARTIAL 2026-07-20b: 63/37 solder, flux pen, 3x XT60 pigtails, 14 AWG wire, 650pc heatshrink, battery straps ALL ORDERED. STILL NEEDED: the soldering IRON itself (Pinecil V2 class + a 60 W+ USB-C PD brick — the whole layer is unusable without it) + zip ties."
+      "notes": "COVERED 2026-07-20: solder, flux pen, 3x XT60 pigtails, 14 AWG wire, 650pc heatshrink, straps ORDERED; iron + zip ties OWNED (builder confirmed)."
      },
      {
       "name": "Tool layer — 1.5/2.0/2.5 mm hex, 8 mm prop wrench, multimeter",
-      "status": "must-add",
+      "status": "ordered",
       "role": "Continuity checks before power; generic driver sets strip FPV hardware.",
-      "notes": "PARTIAL 2026-07-20b: Hobbypark 1.5/2.0/2.5/3.0 hex set ORDERED. VERIFY the kit includes an 8 mm socket for the M5 prop nuts (listing ambiguous). STILL NEEDED if unowned: multimeter (continuity check before every first power-up)."
+      "notes": "COVERED 2026-07-20: Hobbypark hex set ORDERED; prop wrench + multimeter OWNED (builder confirmed)."
      },
      {
       "name": "Lost-model buzzer",
@@ -1740,7 +1740,7 @@
       "name": "FAA registration + Remote ID decision",
       "status": "must-add",
       "role": "$5/aircraft registration (the target is >250 g), number displayed on the airframe; fly at a FRIA field ($0) or fit a broadcast module. A legal blocker, not a data blocker.",
-      "notes": ""
+      "notes": "Builder 2026-07-20: registration good to go. STILL OPEN: the field choice — FRIA field ($0) vs a broadcast Remote-ID module; decide before the first outdoor flight."
      }
     ],
     "connections": [
