@@ -20,28 +20,46 @@ video verdict has a number behind it.
 
 INPUTS
 ------
-Primary path -- two PX4 ULogs (one per aircraft):
-    --ulog-a INTERCEPTOR.ulg --ulog-b TARGET.ulg
-Parsed with pyulog (deps_needed: pyulog -- already present in .venv here).
-Position is read from `vehicle_global_position` (preferred: EKF-fused lat/lon/
-alt, already in degrees/metres) or `vehicle_gps_position` (raw GPS, int32
-1e-7 deg / mm -- auto-scaled). Two INDEPENDENT flight controllers do not share
-a boot-time clock, so naive boot-relative timestamps from the two logs are NOT
-directly comparable. This script derives a boot-clock -> UTC offset per log
-from `vehicle_gps_position.time_utc_usec` (when GPS had a time fix) and shifts
-that log's samples onto a common UTC axis before comparing the two aircraft.
-If no GPS UTC fix is present in a log, it falls back to boot-relative time and
-flags the run as `utc_synced: false` in the report (the two aircraft's boot
-clocks are then assumed already aligned, e.g. a common trigger event -- treat
-that report's CPA time as approximate).
+Each aircraft's track is supplied INDEPENDENTLY -- one source flag per side --
+so a mixed engagement (PX4-ULog interceptor vs ArduPilot-.BIN target, the
+actual Tier-1 hardware pairing, constraint `target-is-ardupilot`) is a
+first-class case, not a workaround. The three per-side sources:
 
-Fallback path -- pre-exported CSV (e.g. from `ulog2csv`, hand-built, or a
-non-PX4 log converted externally):
-    --csv-a INTERCEPTOR.csv --csv-b TARGET.csv
+PX4 ULog (`--ulog-a` / `--ulog-b`) -- parsed with pyulog (deps_needed: pyulog,
+already present in .venv). Position is read from `vehicle_global_position`
+(preferred: EKF-fused lat/lon/alt, already degrees/metres) or
+`vehicle_gps_position` (raw GPS, int32 1e-7 deg / mm -- auto-scaled).
+
+ArduPilot DataFlash .BIN (`--bin-a` / `--bin-b`) -- the Tier-1 target/practice
+quad is an ArduPilot build (Kakute H7 / Matek H743, BOM Sec.E) that logs a
+DataFlash .BIN to onboard SD, NOT a PX4 ULog. Parsed with pymavlink's DFReader
+(deps_needed: pymavlink -- `pip install pymavlink` into the .venv). Position is
+read from the `POS` message (PREFERRED: the EKF-fused vehicle position estimate,
+ArduPilot's analog of PX4 `vehicle_global_position` -- lower noise, and the FC's
+own best position) and falls back to the raw `GPS` message (receiver fix, analog
+of `vehicle_gps_position`) if no POS is logged. DataFlash `Lat`/`Lng` are int32
+1e-7 deg and DFReader applies that scaling for us; `Alt` is metres.
+
+Cross-aircraft time base: two INDEPENDENT flight controllers do not share a
+boot-time clock, so naive boot-relative timestamps from the two logs are NOT
+directly comparable. Both native paths recover a common UTC axis when GPS had a
+time fix: pyulog from `vehicle_gps_position.time_utc_usec`; DFReader from the
+DataFlash `GPS` message's GPS-week/ms fields (`GWk`/`GMS`) -- the modern-usec
+clock then stamps every message as seconds-since-1970. If a log has no GPS UTC
+fix its samples come out boot-relative; the tool detects that (timestamps < the
+year-2001 epoch), falls back to boot-relative time, and flags the run as
+`utc_synced: false` (the two aircraft's boot clocks are then assumed already
+aligned, e.g. a common trigger event -- treat that report's CPA time as
+approximate).
+
+Fallback path -- pre-exported CSV (`--csv-a` / `--csv-b`; e.g. from `ulog2csv`,
+a Mission Planner "Convert .bin to .csv" / DFReader dump for the ArduPilot side
+when pymavlink is NOT installed, hand-built, or any log converted externally):
 Columns: a time column (`t_utc_s` preferred, `t_s` accepted with a
 same-caveat warning) plus EITHER `lat_deg,lon_deg,alt_m` OR
 `east_m,north_m[,up_m]` (already in one shared local frame -- your
-responsibility to guarantee that if you hand-build this).
+responsibility to guarantee that if you hand-build this). This is the
+zero-dependency escape hatch for the ArduPilot log if pymavlink is unavailable.
 
 OUTPUT
 ------
@@ -51,11 +69,20 @@ CPA marked; top-down East-North trajectory with CPA marked) written to
 
 SELF-TEST
 ---------
-`--self-test` runs entirely offline on two synthetic crossing trajectories
-with an analytically-known CPA (closed-form straight-line minimum-distance,
-computed independently of the interpolation/argmin code path under test) and
-asserts the tool's computed CPA distance and time match to within a tight
-tolerance. No PX4/Gazebo, no real log files, no network. Run:
+`--self-test` runs entirely offline (no PX4/Gazebo, no real log files, no
+network, no hardware). It covers:
+  1-3. Two synthetic crossing trajectories with an analytically-known CPA
+       (closed-form straight-line minimum-distance, computed independently of
+       the interpolation/argmin code path under test); a wide miss, an
+       exact-by-construction kill, and a no-overlap error case.
+  4.   A REAL synthetic ArduPilot DataFlash .BIN (written byte-for-byte to a
+       temp file and parsed back through pymavlink's DFReader -- the actual
+       .BIN code path, not a mock) exercised END-TO-END: .BIN target vs a
+       synthetic lat/lon interceptor, CPA asserted against the analytic ground
+       truth. Also asserts POS-preferred extraction, UTC recovery, and the
+       boot-relative `utc_synced: false` fallback when the log has no GPS fix.
+If pymavlink is not installed the .BIN cases print SKIP (they do not fail the
+suite) -- but on the .venv here pymavlink is present and they run for real. Run:
     .venv/bin/python scripts/field_score.py --self-test
 """
 from __future__ import annotations
@@ -228,6 +255,99 @@ def load_track_from_ulog(path: Path, label: str) -> Track:
     return Track(
         label=label,
         t_utc_s=t_utc_s,
+        latlon=np.column_stack([lat, lon, alt]),
+        utc_synced=utc_synced,
+        source=source,
+        warnings=warnings,
+    )
+
+
+# A UTC epoch-seconds timestamp is >> the year-2001 mark (~9.78e8); a
+# boot-relative timestamp starts near 0. Same idea as the ULog path's
+# `utc > 1e15` microsecond test, one thousand-thousandth the scale because
+# DFReader hands us SECONDS not microseconds.
+_UTC_EPOCH_FLOOR_S = 1.0e9
+
+
+def load_track_from_bin(path: Path, label: str) -> Track:
+    """Load an ArduPilot DataFlash .BIN track (constraint target-is-ardupilot).
+
+    Prefers the EKF-fused POS message over raw GPS (see module docstring). The
+    timestamps DFReader returns are seconds-since-1970 when the log had a GPS
+    UTC fix (its modern-usec clock derives the base from the GPS week/ms), or
+    boot-relative seconds otherwise -- we detect which by magnitude and set
+    `utc_synced` accordingly, mirroring the ULog path's UTC/boot-relative logic.
+    """
+    try:
+        from pymavlink import DFReader  # deps_needed: pymavlink (pip into .venv)
+    except ImportError as e:
+        raise ImportError(
+            f"pymavlink is required to read ArduPilot .BIN logs ({e}). Install "
+            f"it into the venv (`.venv/bin/pip install pymavlink`), or export "
+            f"the .BIN to CSV (Mission Planner 'Convert .bin to .csv', columns "
+            f"t_utc_s/lat_deg/lon_deg/alt_m) and use --csv-{label[:1] or 'a'}."
+        )
+
+    reader = DFReader.DFReader_binary(str(path))
+
+    # Collect POS and GPS series in one pass. Real flight logs are tens of MB;
+    # recv_match filters to just these two types, so this stays cheap. Each
+    # sample is (utc_or_boot_seconds, lat_deg, lon_deg, alt_m).
+    pos_rows, gps_rows = [], []
+
+    def _row(m):
+        lat = getattr(m, "Lat", None)
+        lon = getattr(m, "Lng", None)
+        alt = getattr(m, "Alt", None)
+        if lat is None or lon is None or alt is None:
+            return None
+        return (float(m._timestamp), float(lat), float(lon), float(alt))
+
+    while True:
+        m = reader.recv_match(type=["POS", "GPS"])
+        if m is None:
+            break
+        row = _row(m)
+        if row is None:
+            continue
+        (pos_rows if m.get_type() == "POS" else gps_rows).append(row)
+
+    warnings = []
+    if pos_rows:
+        rows, source = pos_rows, "dataflash:POS"
+    elif gps_rows:
+        rows, source = gps_rows, "dataflash:GPS"
+        warnings.append(
+            "position source is raw DataFlash GPS (no POS/EKF-fused message in "
+            "this log) -- unfiltered receiver fix, noisier than the POS estimate."
+        )
+    else:
+        raise ValueError(
+            f"{path}: no POS or GPS position messages found in this DataFlash "
+            f".BIN -- cannot recover a global position track. Check the "
+            f"ArduPilot LOG_BITMASK includes POS/GPS, or use --csv instead."
+        )
+
+    arr = np.asarray(rows, dtype=np.float64)
+    t, lat, lon, alt = arr[:, 0], arr[:, 1], arr[:, 2], arr[:, 3]
+
+    # utc_synced iff DFReader resolved a real UTC clock (timestamps land in the
+    # 21st century, not near boot-zero). The floor is compared on the median so
+    # a stray early sample can't flip the decision.
+    utc_synced = bool(np.median(t) > _UTC_EPOCH_FLOOR_S)
+    if not utc_synced:
+        warnings.append(
+            "no GPS UTC time fix found in this DataFlash log -- falling back to "
+            "boot-relative timestamps. Cross-aircraft alignment then assumes the "
+            "two flight controllers' boot clocks are already synchronized (NOT "
+            "generally true for two independent FCs); treat the CPA time as "
+            "approximate."
+        )
+
+    t, lat, lon, alt = _sorted_by_time(t, lat, lon, alt)
+    return Track(
+        label=label,
+        t_utc_s=t,
         latlon=np.column_stack([lat, lon, alt]),
         utc_synced=utc_synced,
         source=source,
@@ -496,6 +616,84 @@ def _synthetic_track(label, pos0, vel, duration, hz, t0_utc, lat0, lon0, alt0):
                  utc_synced=True, source="synthetic")
 
 
+# --- Synthetic ArduPilot DataFlash .BIN writer (self-test fixture only) -------
+# Writes a byte-for-byte real DataFlash log so the self-test drives the ACTUAL
+# pymavlink DFReader parse path (not a monkeypatch). Format reference:
+# DFReader.FORMAT_TO_STRUCT and the message framing (HEAD1=0xA3, HEAD2=0x95,
+# type byte, little-endian body). Only the handful of format chars this fixture
+# uses are mapped; the reader itself supports the full set.
+_DF_HEAD1, _DF_HEAD2, _DF_FMT_TYPE = 0xA3, 0x95, 0x80
+# DataFlash format char -> python struct char (subset; mirrors FORMAT_TO_STRUCT:
+# L is a *signed* int32 scaled 1e-7, hence 'i' not 'L').
+_DF_TO_STRUCT = {"Q": "Q", "L": "i", "f": "f", "B": "B", "H": "H", "I": "I",
+                 "i": "i", "n": "4s", "N": "16s", "Z": "64s"}
+
+
+def _df_struct_fmt(fmt: str) -> str:
+    return "<" + "".join(_DF_TO_STRUCT[c] for c in fmt)
+
+
+def _df_fmt_msg(type_id, name, fmt, columns) -> bytes:
+    import struct
+    length = 3 + struct.calcsize(_df_struct_fmt(fmt))  # incl. 3-byte header
+    body = struct.pack("<BB4s16s64s", type_id, length,
+                       name.encode(), fmt.encode(), columns.encode())
+    return bytes([_DF_HEAD1, _DF_HEAD2, _DF_FMT_TYPE]) + body
+
+
+def _df_data_msg(type_id, fmt, values) -> bytes:
+    import struct
+    return bytes([_DF_HEAD1, _DF_HEAD2, type_id]) + struct.pack(
+        _df_struct_fmt(fmt), *values)
+
+
+def _utc_to_gps_week_ms(utc_s: float):
+    """Invert DFReaderClock._gpsTimeToTime so a synthetic GPS message anchors the
+    reader's clock to a chosen UTC epoch (18 leap seconds, matching DFReader)."""
+    gps_epoch = 86400 * (10 * 365 + int((1980 - 1969) / 4) + 1 + 6 - 2)  # 315964800
+    s = utc_s - gps_epoch + 18.0
+    week = int(s // (86400 * 7))
+    ms = (s - week * 86400 * 7) * 1000.0
+    return week, ms
+
+
+def _write_synthetic_bin(path, pos, t_rel, base_utc, lat0, lon0, alt0,
+                         with_gps_utc=True):
+    """Write a minimal valid ArduPilot DataFlash .BIN: FMT(FMT), FMT(GPS),
+    FMT(POS), one anchoring GPS message, then a POS sample per row. `pos` is an
+    (N,3) ENU array; converted to lat/lon/alt via the same enu_to_latlon the
+    other synthetic tracks use. with_gps_utc=False writes GWk=0 (no fix) so the
+    reader falls back to boot-relative time -- exercises the utc_synced=False leg.
+    """
+    GPS_ID, POS_ID = 0x81, 0x82
+    GPS_FMT = "QBIHBfLLf"
+    GPS_COLS = "TimeUS,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt"
+    POS_FMT = "QLLfff"
+    POS_COLS = "TimeUS,Lat,Lng,Alt,RelHomeAlt,RelOriginAlt"
+
+    lat, lon, alt = enu_to_latlon(pos[:, 0], pos[:, 1], pos[:, 2], lat0, lon0, alt0)
+    gwk, gms = _utc_to_gps_week_ms(base_utc)
+
+    out = bytearray()
+    out += _df_fmt_msg(_DF_FMT_TYPE, "FMT", "BBnNZ", "Type,Length,Name,Format,Columns")
+    out += _df_fmt_msg(GPS_ID, "GPS", GPS_FMT, GPS_COLS)
+    out += _df_fmt_msg(POS_ID, "POS", POS_FMT, POS_COLS)
+    if with_gps_utc:
+        out += _df_data_msg(GPS_ID, GPS_FMT, (
+            0, 3, int(round(gms)), int(gwk), 12, 0.8,
+            int(round(lat[0] * 1e7)), int(round(lon[0] * 1e7)), float(alt[0])))
+    else:
+        out += _df_data_msg(GPS_ID, GPS_FMT, (
+            0, 1, 0, 0, 5, 5.0,
+            int(round(lat[0] * 1e7)), int(round(lon[0] * 1e7)), float(alt[0])))
+    for i in range(len(t_rel)):
+        out += _df_data_msg(POS_ID, POS_FMT, (
+            int(round(t_rel[i] * 1e6)),
+            int(round(lat[i] * 1e7)), int(round(lon[i] * 1e7)),
+            float(alt[i]), 0.0, 0.0))
+    Path(path).write_bytes(bytes(out))
+
+
 def self_test() -> bool:
     ok = True
     lat0, lon0, alt0 = 34.05, -118.25, 100.0  # arbitrary reference point
@@ -555,6 +753,69 @@ def self_test() -> bool:
     except ValueError as e:
         print(f"[self-test] case3_no_overlap: PASS (raised ValueError: {e})")
 
+    # Case 4: ArduPilot DataFlash .BIN, END-TO-END through the real DFReader.
+    # A synthetic .BIN target vs a synthetic lat/lon interceptor, scored against
+    # the analytic CPA -- plus POS-preferred/UTC-recovery and the boot-relative
+    # utc_synced=False fallback. Skips (does NOT fail) if pymavlink is absent.
+    try:
+        import pymavlink  # noqa: F401
+        have_pymavlink = True
+    except ImportError:
+        have_pymavlink = False
+
+    if not have_pymavlink:
+        print("[self-test] case4_bin_end_to_end: SKIP (pymavlink not installed "
+              "-- .BIN path untested here; `pip install pymavlink` to run it)")
+    else:
+        import tempfile
+
+        # Interceptor A (synthetic lat/lon) and target B (real .BIN), both on the
+        # shared UTC axis; stationary-target geometry -> analytic CPA = 2.0 m @ 5s.
+        duration = 10.0
+        posA0, vA = np.array([-30.0, 5.0, 2.0]), np.array([6.0, -1.0, 0.0])
+        posB0, vB = np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.0, 0.0])
+        t_star, cpa_true = _analytic_straight_line_cpa(
+            posA0 - posB0, vA - vB, 0.0, duration)
+
+        track_a = _synthetic_track("interceptor", posA0, vA, duration, 20.0,
+                                   base_utc, lat0, lon0, alt0)
+        n_b = int(round(duration * 25.0)) + 1
+        t_rel_b = np.linspace(0.0, duration, n_b)
+        pos_b = posB0[None, :] + t_rel_b[:, None] * vB[None, :]
+
+        with tempfile.TemporaryDirectory() as td:
+            bin_path = Path(td) / "target_ardupilot.BIN"
+            _write_synthetic_bin(bin_path, pos_b, t_rel_b, base_utc,
+                                 lat0, lon0, alt0, with_gps_utc=True)
+            track_b = load_track_from_bin(bin_path, "target")
+
+            src_ok = track_b.source == "dataflash:POS"
+            utc_ok = track_b.utc_synced is True
+            n_ok = len(track_b.t_utc_s) == n_b
+            result = score_engagement(track_a, track_b, lethal_radius_m=3.0, dt=0.01)
+            err_m = abs(result.cpa_m - cpa_true)
+            err_t = abs(result.cpa_t_utc_s - (base_utc + t_star))
+            pass_e2e = (src_ok and utc_ok and n_ok and err_m <= 0.05
+                        and err_t <= 0.05 and result.verdict == "KILL")
+            print(f"[self-test] case4_bin_end_to_end: cpa_true={cpa_true:.4f} m  "
+                  f"cpa_got={result.cpa_m:.4f} m  err={err_m:.4f} m (tol 0.05)  "
+                  f"t_err={err_t:.4f}s (tol 0.05)  source={track_b.source}  "
+                  f"utc_synced={track_b.utc_synced}  n={len(track_b.t_utc_s)}  "
+                  f"verdict={result.verdict}  {'PASS' if pass_e2e else 'FAIL'}")
+            ok = ok and pass_e2e
+
+            # Boot-relative leg: no GPS UTC fix -> utc_synced must be False + warn.
+            bin_boot = Path(td) / "target_noutc.BIN"
+            _write_synthetic_bin(bin_boot, pos_b, t_rel_b, base_utc,
+                                 lat0, lon0, alt0, with_gps_utc=False)
+            track_boot = load_track_from_bin(bin_boot, "target")
+            boot_ok = (track_boot.utc_synced is False
+                       and any("boot-relative" in w for w in track_boot.warnings))
+            print(f"[self-test] case4b_bin_boot_relative: "
+                  f"utc_synced={track_boot.utc_synced} (expect False)  "
+                  f"warned={boot_ok}  {'PASS' if boot_ok else 'FAIL'}")
+            ok = ok and boot_ok
+
     print(f"[self-test] {'PASS' if ok else 'FAIL'}")
     return ok
 
@@ -567,10 +828,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--ulog-a", type=Path, help="interceptor PX4 ULog (.ulg)")
-    ap.add_argument("--ulog-b", type=Path, help="target PX4 ULog (.ulg)")
-    ap.add_argument("--csv-a", type=Path, help="interceptor track CSV (fallback)")
-    ap.add_argument("--csv-b", type=Path, help="target track CSV (fallback)")
+    ap.add_argument("--ulog-a", type=Path, help="side-A PX4 ULog (.ulg) [interceptor]")
+    ap.add_argument("--ulog-b", type=Path, help="side-B PX4 ULog (.ulg) [target]")
+    ap.add_argument("--bin-a", type=Path,
+                     help="side-A ArduPilot DataFlash log (.bin) [needs pymavlink]")
+    ap.add_argument("--bin-b", type=Path,
+                     help="side-B ArduPilot DataFlash log (.bin) -- the Tier-1 "
+                          "target is ArduPilot (constraint target-is-ardupilot)")
+    ap.add_argument("--csv-a", type=Path, help="side-A track CSV (zero-dep fallback)")
+    ap.add_argument("--csv-b", type=Path,
+                     help="side-B track CSV fallback -- for the ArduPilot .bin "
+                          "when pymavlink is absent, export via Mission Planner "
+                          "'Convert .bin to .csv' (columns t_utc_s,lat_deg,lon_deg,alt_m)")
     ap.add_argument("--label-a", default="interceptor")
     ap.add_argument("--label-b", default="target")
     ap.add_argument("--lethal-radius", type=float, default=DEFAULT_LETHAL_RADIUS_M,
@@ -590,20 +859,32 @@ def main() -> int:
     if args.self_test:
         return 0 if self_test() else 1
 
-    have_ulog = args.ulog_a and args.ulog_b
-    have_csv = args.csv_a and args.csv_b
-    if not (have_ulog or have_csv):
-        ap.error("provide --ulog-a/--ulog-b, or --csv-a/--csv-b, or --self-test")
-    if have_ulog and have_csv:
-        ap.error("provide either the ULog pair or the CSV pair, not both")
+    # Each side takes exactly ONE source (ULog | .bin | CSV), chosen
+    # independently -- so a PX4-ULog interceptor + ArduPilot-.bin target (the
+    # real Tier-1 pairing, constraint target-is-ardupilot) is a first-class
+    # combination, not a special case.
+    def _select_side(side, ulog, bin_, csv):
+        given = [(ulog, load_track_from_ulog), (bin_, load_track_from_bin),
+                 (csv, load_track_from_csv)]
+        given = [(p, fn) for p, fn in given if p]
+        if len(given) == 0:
+            ap.error(f"side {side}: provide one of --ulog-{side} / --bin-{side} "
+                     f"/ --csv-{side}")
+        if len(given) > 1:
+            ap.error(f"side {side}: provide only ONE source "
+                     f"(--ulog-{side} / --bin-{side} / --csv-{side})")
+        return given[0]
+
+    if not (args.ulog_a or args.bin_a or args.csv_a or
+            args.ulog_b or args.bin_b or args.csv_b):
+        ap.error("provide one source per side (--ulog-* / --bin-* / --csv-*), "
+                 "or --self-test")
+    path_a, load_a = _select_side("a", args.ulog_a, args.bin_a, args.csv_a)
+    path_b, load_b = _select_side("b", args.ulog_b, args.bin_b, args.csv_b)
 
     try:
-        if have_ulog:
-            track_a = load_track_from_ulog(args.ulog_a, args.label_a)
-            track_b = load_track_from_ulog(args.ulog_b, args.label_b)
-        else:
-            track_a = load_track_from_csv(args.csv_a, args.label_a)
-            track_b = load_track_from_csv(args.csv_b, args.label_b)
+        track_a = load_a(path_a, args.label_a)
+        track_b = load_b(path_b, args.label_b)
 
         for t in (track_a, track_b):
             for w in t.warnings:

@@ -54,12 +54,17 @@ bench task (§7.3) — it does not need the target flying.
       day (`build_plan.P0` task 6).
 - [ ] **FAA registration + Remote ID / FRIA field settled** — see §9. Do this
       BEFORE the field day; it's a legal blocker, not a data blocker.
-- [ ] **Capture tooling exists**: a Pi-side frame-dump script (picamera2 or
-      `rpicam-vid` + offline frame extraction) that writes timestamped frames to
-      the SD card. **GAP as of this writing** — `real_data_pipeline.md` marks Pi
-      capture tooling "⏳ hardware-gated / not built." Write and bench-test this
-      BEFORE the field day (indoors, on a static scene) so the first time it runs
-      isn't during the one flight session.
+- [x] **Capture tooling exists**: `scripts/seeker/pi_capture.py` — BUILT. Records a
+      session as `SESSION_DIR/frames/*.png` + `index.csv` (per-frame path, monotonic
+      timestamp, exposure/gain actually applied) + `meta.json` + optional `tags.csv`
+      (live tag36h11 decode). Backends: `--source picamera2` (real Pi OV9281, requests
+      the ≤1 ms exposure of §3.3 and logs the ACTUAL applied value into `meta.json`),
+      `--source v4l2` (UVC fallback), `--source dir=PATH` (replay, for dev). The
+      layout is exactly what `autolabel_from_apriltag.py` (§7.1) and the two-curve
+      tripod scorer (§7.2) consume — point them at `SESSION_DIR/frames`. Bench it
+      before the field day with `pi_capture.py --self-test` (offline, no hardware,
+      exits 0/1) and a real indoor `--source picamera2` static-scene pass to confirm
+      the sensor actually hits ≤1 ms (check `meta.json` `exposure_meets_spec`).
 - [ ] **Field power for the Pi 5 solved**: a USB-C PD source (≥27 W) that isn't the
       flight LiPo — a power bank or a car inverter. Not in the Tier-1 BOM; bring one.
 
