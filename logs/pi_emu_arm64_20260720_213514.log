@@ -1,0 +1,87 @@
+======================================================================
+ Pi 5 ARM64 software-stack emulation check
+ date=2026-07-20T21:35:14-06:00   host_arch=x86_64   emulated_target=aarch64
+ NOTE: SOFTWARE-STACK PROOF ONLY. fps/throughput NOT measured -- qemu
+       emulation is not representative of the Cortex-A76. Wall times
+       below are meaningless for performance.
+======================================================================
+
+--- [pre] qemu-aarch64 binfmt registration ---
+enabled
+interpreter /usr/libexec/qemu-binfmt/aarch64-binfmt-P
+flags: POF
+offset 0
+magic 7f454c460201010000000000000000000200b700
+mask ffffffffffffff00fffffffffffffffffeffffff
+
+--- [pre] arm64 hello (uname -m must print aarch64) ---
+arm64 container reports: aarch64
+
+--- [build] reusing existing arm64 image pi5-arm64-check:latest ---
+
+--- [run] three end-to-end checks inside the arm64 container ---
+    (repo mounted read-only at /work)
+######################################################################
+# ARM64 SOFTWARE-STACK CHECK (emulated; correctness only, NOT fps)
+# arch=aarch64  python=Python 3.11.15
+######################################################################
+
+=== [0] import-level checks ===
+onnxruntime cpuid_info warning: Unknown CPU vendor. cpuinfo_vendor value: 0
+  [OK]   import numpy            version=2.4.6
+  [OK]   import cv2              version=5.0.0
+  [OK]   import pupil_apriltags  version=?
+  [OK]   import mavsdk           version=?
+  [NOTE] pupil_apriltags provider: pyapriltags-shim (pyapriltags ? at /usr/local/lib/python3.11/site-packages/pyapriltags/__init__.py)
+  [OK]   import onnxruntime     version=1.27.0
+  [EXPECTED-GAP] picamera2 unavailable (ModuleNotFoundError) -- Pi-OS/libcamera only; real Pi validates the camera path
+
+=== [1] flight.deploy.seeker_loop --self-test (expect 7/7) ===
+  [PASS] a setpoint is produced from a synthetic detection
+  [PASS] setpoint is finite: (4.275, 7.2, 0.0, 13.738)
+  [PASS] horizontal closing speed is non-zero (8.37 m/s)
+  [PASS] setpoint respects the total-velocity clamp
+  [PASS] the LOS-rate (lambda_dot) channel produced a non-zero rate
+  [PASS] the pro-nav lateral term (v_perp) integrated into a live setpoint
+  [PASS] CameraModel undistort changes an edge bearing (pin=40.43 vs lens=47.53 deg)
+
+[self-test] PASS
+CHECK1_RC=0
+
+=== [2] scripts/seeker/pi_capture.py --self-test (dir-replay + tag decode) ===
+[pi_capture] wrote 4 frames -> /tmp/pi_capture_selftest_8uvqpln2/session
+[pi_capture]   index.csv + meta.json + tags.csv (4 frames with a tag)
+[pi_capture]   exposure: replay-unknown (requested 1000 us)
+[self-test] OK   capture() returned 0
+[self-test] OK   frames/ holds 4 png (expected 4)
+[self-test] OK   frames zero-padded from 000000.png
+[self-test] OK   index.csv header == ['frame_idx', 'frame_path', 't_mono_s', 't_wall_unix', 'exposure_us', 'gain']
+[self-test] OK   index.csv has 4 rows (expected 4)
+[self-test] OK   every index frame_path points at a real file
+[self-test] OK   t_mono_s strictly increasing
+[self-test] OK   dir backend leaves exposure_us blank (no real exposure)
+[self-test] OK   meta.json has all required keys ['source', 'resolution', 'n_frames', 'family', 'requested_exposure_us', 'applied_exposure_us', 'exposure_source', 'exposure_spec_us', 'tag_decode', 'git_rev', 'note']
+[self-test] OK   meta.source == dir and n_frames matches
+[self-test] OK   meta.family == tag36h11
+[self-test] OK   meta records requested exposure 1000 us + spec 1000 us
+[self-test] OK   dir backend: applied exposure null, source=replay-unknown
+[self-test] OK   tags.csv header == ['frame_idx', 'frame_path', 'n_tags', 'tag_id', 'decision_margin', 'hamming', 'center_u', 'center_v', 'corners_px', 'range_m']
+[self-test] OK   tags.csv covers every frame (4/4)
+[self-test] OK   pupil-apriltags decoded >=1 composited tag (4 frames)
+[self-test] OK   decoded tag range_m populated + sane (['4.02', '5.05', '6.04', '7.06'])
+[self-test] PASS
+CHECK2_RC=0
+
+=== [3] pytest flight/tests/ ===
+................................                                         [100%]
+32 passed in 0.52s
+CHECK3_RC=0
+
+######################################################################
+# OVERALL: PASS  (software stack runs on aarch64; fps NOT tested)
+######################################################################
+
+======================================================================
+ RESULT: PASS -- Pi 5 software stack runs on aarch64 (fps NOT tested)
+ log: /home/emerson/interceptor-sim/logs/pi_emu_arm64_20260720_213514.log
+======================================================================

@@ -132,7 +132,13 @@ TAGS_HEADER = ["frame_idx", "frame_path", "n_tags", "tag_id", "decision_margin",
 # --------------------------------------------------------------------------
 
 def _make_detector():
-    from pupil_apriltags import Detector  # lazy: only when --decode-tags
+    try:
+        from pupil_apriltags import Detector  # lazy: only when --decode-tags
+    except ImportError:
+        # aarch64/Pi: pupil-apriltags ships no ARM wheel; pyapriltags is the
+        # API-identical drop-in but does NOT alias the module name (proven on
+        # real pixels under qemu — docs/pi_emulation_check.md, 2026-07-20).
+        from pyapriltags import Detector
     return Detector(families=TAG_FAMILY)
 
 

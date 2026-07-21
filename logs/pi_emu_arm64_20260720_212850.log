@@ -1,0 +1,218 @@
+======================================================================
+ Pi 5 ARM64 software-stack emulation check
+ date=2026-07-20T21:28:50-06:00   host_arch=x86_64   emulated_target=aarch64
+ NOTE: SOFTWARE-STACK PROOF ONLY. fps/throughput NOT measured -- qemu
+       emulation is not representative of the Cortex-A76. Wall times
+       below are meaningless for performance.
+======================================================================
+
+--- [pre] qemu-aarch64 binfmt registration ---
+enabled
+interpreter /usr/libexec/qemu-binfmt/aarch64-binfmt-P
+flags: POF
+offset 0
+magic 7f454c460201010000000000000000000200b700
+mask ffffffffffffff00fffffffffffffffffeffffff
+
+--- [pre] arm64 hello (uname -m must print aarch64) ---
+arm64 container reports: aarch64
+
+--- [build] building arm64 image pi5-arm64-check:latest (qemu-slow; be patient) ---
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+Sending build context to Docker daemon   12.8kB
+Step 1/4 : FROM python:3.11-slim-bookworm
+3.11-slim-bookworm: Pulling from library/python
+d0784a65d0e7: Pulling fs layer
+b82dea5b8ca0: Pulling fs layer
+a093584883a7: Pulling fs layer
+b82dea5b8ca0: Download complete
+a093584883a7: Download complete
+ef49a9ae0409: Download complete
+d0784a65d0e7: Download complete
+c3bc0636a4b4: Download complete
+a093584883a7: Pull complete
+b82dea5b8ca0: Pull complete
+d0784a65d0e7: Pull complete
+Digest: sha256:b18992999dbe963a45a8a4da40ac2b1975be1a776d939d098c647482bcad5cba
+Status: Downloaded newer image for python:3.11-slim-bookworm
+ ---> b18992999dbe
+Step 2/4 : RUN apt-get update  && apt-get install -y --no-install-recommends libglib2.0-0  && rm -rf /var/lib/apt/lists/*
+ ---> [Warning] The requested image's platform (linux/arm64/v8) does not match the detected host platform (linux/amd64/v4) and no specific platform was requested
+ ---> Running in 66675af79ccb
+Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [34.8 kB]
+Get:4 http://deb.debian.org/debian bookworm/main arm64 Packages [8689 kB]
+Get:5 http://deb.debian.org/debian bookworm-updates/main arm64 Packages [6936 B]
+Get:6 http://deb.debian.org/debian-security bookworm-security/main arm64 Packages [315 kB]
+Fetched 9252 kB in 5s (1734 kB/s)
+Reading package lists...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Suggested packages:
+  low-memory-monitor
+Recommended packages:
+  libglib2.0-data shared-mime-info xdg-user-dirs
+The following NEW packages will be installed:
+  libglib2.0-0
+0 upgraded, 1 newly installed, 0 to remove and 0 not upgraded.
+Need to get 1316 kB of archives.
+After this operation, 4709 kB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian bookworm/main arm64 libglib2.0-0 arm64 2.74.6-2+deb12u9 [1316 kB]
+[91mdebconf: delaying package configuration, since apt-utils is not installed
+[0mFetched 1316 kB in 0s (4107 kB/s)
+Selecting previously unselected package libglib2.0-0:arm64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6689 files and directories currently installed.)
+Preparing to unpack .../libglib2.0-0_2.74.6-2+deb12u9_arm64.deb ...
+Unpacking libglib2.0-0:arm64 (2.74.6-2+deb12u9) ...
+Setting up libglib2.0-0:arm64 (2.74.6-2+deb12u9) ...
+No schema files found: doing nothing.
+Processing triggers for libc-bin (2.36-9+deb12u14) ...
+ ---> Removed intermediate container 66675af79ccb
+ ---> 992f462d12e5
+Step 3/4 : RUN pip install --no-cache-dir       numpy       opencv-python-headless       pyapriltags       mavsdk==3.15.3       pytest
+ ---> [Warning] The requested image's platform (linux/arm64) does not match the detected host platform (linux/amd64/v4) and no specific platform was requested
+ ---> Running in dda4b25e23ca
+Collecting numpy
+  Downloading numpy-2.4.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (6.6 kB)
+Collecting opencv-python-headless
+  Downloading opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_aarch64.whl.metadata (19 kB)
+Collecting pyapriltags
+  Downloading pyapriltags-3.4.3.1-py3-none-manylinux_2_31_aarch64.whl.metadata (12 kB)
+Collecting mavsdk==3.15.3
+  Downloading mavsdk-3.15.3-py3-none-manylinux2014_aarch64.whl.metadata (7.7 kB)
+Collecting pytest
+  Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+Collecting protobuf>=6.32.1 (from mavsdk==3.15.3)
+  Downloading protobuf-7.35.1-cp310-abi3-manylinux2014_aarch64.whl.metadata (595 bytes)
+Collecting grpcio>=1.64.1 (from mavsdk==3.15.3)
+  Downloading grpcio-1.82.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (3.7 kB)
+Collecting iniconfig>=1.0.1 (from pytest)
+  Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+Requirement already satisfied: packaging>=22 in /usr/local/lib/python3.11/site-packages (from pytest) (26.2)
+Collecting pluggy<2,>=1.5 (from pytest)
+  Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting pygments>=2.7.2 (from pytest)
+  Downloading pygments-2.20.0-py3-none-any.whl.metadata (2.5 kB)
+Collecting typing-extensions~=4.12 (from grpcio>=1.64.1->mavsdk==3.15.3)
+  Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+Downloading mavsdk-3.15.3-py3-none-manylinux2014_aarch64.whl (18.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 18.2/18.2 MB 33.6 MB/s eta 0:00:00
+Downloading numpy-2.4.6-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (16.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.0/16.0 MB 42.9 MB/s eta 0:00:00
+Downloading opencv_python_headless-5.0.0.93-cp37-abi3-manylinux_2_28_aarch64.whl (39.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 39.6/39.6 MB 44.4 MB/s eta 0:00:00
+Downloading pyapriltags-3.4.3.1-py3-none-manylinux_2_31_aarch64.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 10.5 MB/s eta 0:00:00
+Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 386.5/386.5 kB 56.3 MB/s eta 0:00:00
+Downloading grpcio-1.82.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (6.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.8/6.8 MB 45.6 MB/s eta 0:00:00
+Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+Downloading protobuf-7.35.1-cp310-abi3-manylinux2014_aarch64.whl (328 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 328.8/328.8 kB 35.0 MB/s eta 0:00:00
+Downloading pygments-2.20.0-py3-none-any.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 65.1 MB/s eta 0:00:00
+Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.6/45.6 kB 27.2 MB/s eta 0:00:00
+Installing collected packages: typing-extensions, pygments, protobuf, pluggy, numpy, iniconfig, pytest, pyapriltags, opencv-python-headless, grpcio, mavsdk
+Successfully installed grpcio-1.82.1 iniconfig-2.3.0 mavsdk-3.15.3 numpy-2.4.6 opencv-python-headless-5.0.0.93 pluggy-1.6.0 protobuf-7.35.1 pyapriltags-3.4.3.1 pygments-2.20.0 pytest-9.1.1 typing-extensions-4.16.0
+[91mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+[0m[91m
+[notice] A new release of pip is available: 24.0 -> 26.1.2
+[notice] To update, run: pip install --upgrade pip
+[0m ---> Removed intermediate container dda4b25e23ca
+ ---> 9b74642262c2
+Step 4/4 : RUN pip install --no-cache-dir onnxruntime==1.27.0  || pip install --no-cache-dir "onnxruntime>=1.20,<1.28"  || echo "WARN: no aarch64 onnxruntime wheel resolved; NN-seeker import unavailable"
+ ---> [Warning] The requested image's platform (linux/arm64) does not match the detected host platform (linux/amd64/v4) and no specific platform was requested
+ ---> Running in ba2ad46feeae
+Collecting onnxruntime==1.27.0
+  Downloading onnxruntime-1.27.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (5.4 kB)
+Collecting flatbuffers (from onnxruntime==1.27.0)
+  Downloading flatbuffers-25.12.19-py2.py3-none-any.whl.metadata (1.0 kB)
+Requirement already satisfied: numpy>=1.21.6 in /usr/local/lib/python3.11/site-packages (from onnxruntime==1.27.0) (2.4.6)
+Requirement already satisfied: packaging in /usr/local/lib/python3.11/site-packages (from onnxruntime==1.27.0) (26.2)
+Requirement already satisfied: protobuf>=4.25.8 in /usr/local/lib/python3.11/site-packages (from onnxruntime==1.27.0) (7.35.1)
+Downloading onnxruntime-1.27.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (16.4 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.4/16.4 MB 54.7 MB/s eta 0:00:00
+Downloading flatbuffers-25.12.19-py2.py3-none-any.whl (26 kB)
+Installing collected packages: flatbuffers, onnxruntime
+Successfully installed flatbuffers-25.12.19 onnxruntime-1.27.0
+[91mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+[0m[91m
+[notice] A new release of pip is available: 24.0 -> 26.1.2
+[notice] To update, run: pip install --upgrade pip
+[0m ---> Removed intermediate container ba2ad46feeae
+ ---> a1e860fd5384
+Successfully built a1e860fd5384
+Successfully tagged pi5-arm64-check:latest
+
+--- [run] three end-to-end checks inside the arm64 container ---
+    (repo mounted read-only at /work)
+######################################################################
+# ARM64 SOFTWARE-STACK CHECK (emulated; correctness only, NOT fps)
+# arch=aarch64  python=Python 3.11.15
+######################################################################
+
+=== [0] import-level checks ===
+onnxruntime cpuid_info warning: Unknown CPU vendor. cpuinfo_vendor value: 0
+  [OK]   import numpy            version=2.4.6
+  [OK]   import cv2              version=5.0.0
+  [FAIL] import pupil_apriltags  ModuleNotFoundError: No module named 'pupil_apriltags'
+  [OK]   import mavsdk           version=?
+  [OK]   import onnxruntime     version=1.27.0
+  [EXPECTED-GAP] picamera2 unavailable (ModuleNotFoundError) -- Pi-OS/libcamera only; real Pi validates the camera path
+
+=== [1] flight.deploy.seeker_loop --self-test (expect 7/7) ===
+  [PASS] a setpoint is produced from a synthetic detection
+  [PASS] setpoint is finite: (4.275, 7.2, 0.0, 13.738)
+  [PASS] horizontal closing speed is non-zero (8.37 m/s)
+  [PASS] setpoint respects the total-velocity clamp
+  [PASS] the LOS-rate (lambda_dot) channel produced a non-zero rate
+  [PASS] the pro-nav lateral term (v_perp) integrated into a live setpoint
+  [PASS] CameraModel undistort changes an edge bearing (pin=40.43 vs lens=47.53 deg)
+
+[self-test] PASS
+CHECK1_RC=0
+
+=== [2] scripts/seeker/pi_capture.py --self-test (dir-replay + tag decode) ===
+Traceback (most recent call last):
+  File "/work/scripts/seeker/pi_capture.py", line 653, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/work/scripts/seeker/pi_capture.py", line 646, in main
+    return 0 if self_test() else 1
+                ^^^^^^^^^^^
+  File "/work/scripts/seeker/pi_capture.py", line 532, in self_test
+    rc = capture(ns)
+         ^^^^^^^^^^^
+  File "/work/scripts/seeker/pi_capture.py", line 465, in capture
+    meta = record_session(
+           ^^^^^^^^^^^^^^^
+  File "/work/scripts/seeker/pi_capture.py", line 343, in record_session
+    detector = _make_detector() if decode_tags else None
+               ^^^^^^^^^^^^^^^^
+  File "/work/scripts/seeker/pi_capture.py", line 135, in _make_detector
+    from pupil_apriltags import Detector  # lazy: only when --decode-tags
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'pupil_apriltags'
+CHECK2_RC=1
+
+=== [3] pytest flight/tests/ ===
+................................                                         [100%]
+32 passed in 0.55s
+CHECK3_RC=0
+
+######################################################################
+# OVERALL: FAIL  (see [FAIL] lines above -- an ARM64 finding)
+######################################################################
+
+======================================================================
+ RESULT: FAIL -- an ARM64 finding surfaced (exit 1). See above.
+ log: /home/emerson/interceptor-sim/logs/pi_emu_arm64_20260720_212850.log
+======================================================================

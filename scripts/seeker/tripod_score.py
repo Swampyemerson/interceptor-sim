@@ -227,7 +227,10 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False):
         return results
 
     import cv2
-    from pupil_apriltags import Detector
+    try:
+        from pupil_apriltags import Detector
+    except ImportError:  # aarch64: pyapriltags drop-in (docs/pi_emulation_check.md)
+        from pyapriltags import Detector
     undistort = bool(np.asarray(dist).any()) and w and h
     map1 = map2 = None
     if undistort:

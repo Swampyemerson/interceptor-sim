@@ -87,7 +87,10 @@ def autolabel_frame(gray, detector, cam_params, tag_size, drone_size,
 
 def run(args):
     import cv2
-    from pupil_apriltags import Detector
+    try:
+        from pupil_apriltags import Detector
+    except ImportError:  # aarch64: pyapriltags drop-in (docs/pi_emulation_check.md)
+        from pyapriltags import Detector
     fx, fy, cx, cy, w, h, dist = _load_calib(args.calib)
     if not (w and h):
         raise SystemExit("calib JSON needs a resolution (width/height)")
