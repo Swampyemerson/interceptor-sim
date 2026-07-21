@@ -1,0 +1,40 @@
+{
+  "band": [
+    6.0,
+    16.0
+  ],
+  "conf": 0.25,
+  "n": 181,
+  "boxes_per_frame_median": 16,
+  "any_hit_rate": 55.8,
+  "top1_raw_rate": 41.4,
+  "deployed_rate": 46.4,
+  "masked_frames": 17,
+  "masked_pct_of_all": 9.4,
+  "masked_pct_of_localizable": 16.8,
+  "rank_hist": {
+    "1": 75,
+    "6": 5,
+    "3": 6,
+    "7": 2,
+    "2": 5,
+    "9": 1,
+    "10": 1,
+    "4": 2,
+    "5": 2,
+    "8": 1,
+    "24": 1
+  },
+  "topk": {
+    "1": 75,
+    "2": 80,
+    "3": 86,
+    "4": 88,
+    "5": 90
+  },
+  "loss_reason": {
+    "phantom_outscores": 7,
+    "self_mask_rejects_target": 10
+  },
+  "score_margin_median": 0.016
+}
