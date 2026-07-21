@@ -1,0 +1,53 @@
+# Pi-side Python deps for the seeker rig (Raspberry Pi OS Bookworm, aarch64).
+# ---------------------------------------------------------------------------
+# Installed by scripts/pi_setup/provision.sh INTO a `--system-site-packages`
+# venv, so the venv can also see the apt-provided stack (picamera2, libcamera,
+# opencv, numpy). Only the packages that are NOT available (or NOT safe to
+# pip-install) on the Pi live here — see the "apt, not pip" note below.
+#
+# Derived from the actual imports of the code that runs on the Pi:
+#   scripts/seeker/pi_capture.py  -> cv2, numpy, pupil_apriltags (lazy), picamera2 (lazy)
+#   flight/deploy/seeker_loop.py  -> numpy, cv2, onnxruntime, mavsdk (lazy), picamera2 (lazy)
+#   scripts/seeker/finetuned_seeker.py -> numpy, cv2, onnxruntime
+#
+# Pins that ARE pinned are justified against a tested source; anything not
+# safely justifiable is left unpinned (CLAUDE.md: numbers/pins trace to a source).
+# Install:  <venv>/bin/pip install -r requirements-pi.txt
+
+# --- MAVLink offboard link (flight/deploy over TELEM2 UART) ---------------
+# Pinned to the exact version the repo runs on x86 (requirements.txt line 6 and
+# the .venv-seeker install) so the same MAVSDK API the sim validated transfers.
+# mavsdk ships aarch64 wheels.
+mavsdk==3.15.3
+
+# --- ONNX inference for the markerless NN seeker + curve-(b) shadow scoring -
+# Pinned to the version in .venv-seeker (onnxruntime-1.27.0.dist-info) so bench
+# scoring (drone_finetuned_quad_v2 @640, tripod_test_protocol.md §7.3 / skr-08)
+# matches the desk. CPU wheel; the Hailo NPU path is a separate, deferred stack.
+# If pip finds no aarch64 wheel for this exact version on the Pi, relax to the
+# nearest onnxruntime 1.2x aarch64 wheel and re-note it here.
+onnxruntime==1.27.0
+
+# --- AprilTag decode (capture-time QC + auto-labels + baseline seeker) -----
+# UNPINNED on purpose: on aarch64 the repo mandates pyapriltags in place of
+# pupil-apriltags (requirements.txt lines 10-11, ADR-0012) — pupil-apriltags has
+# no reliable aarch64 wheel. The repo never pins pyapriltags, so pinning a
+# version here would be an unjustified guess; take whatever aarch64 wheel pip
+# resolves. CORRECTED 2026-07-21 (qemu proof, docs/pi_emulation_check.md):
+# pyapriltags does NOT alias the `pupil_apriltags` module name — the old "same
+# module name, no code change" rider is FALSE. The decode sites (pi_capture,
+# autolabel_from_apriltag, tripod_score) now carry a pyapriltags import
+# fallback, proven on real pixels under ARM64 emulation.
+pyapriltags
+
+# --- apt, NOT pip (do not add these here) ---------------------------------
+# numpy      -> apt python3-numpy. Pinning a venv numpy SHADOWS the one libcamera
+#               / picamera2 were built against and breaks the camera stack — the
+#               standard picamera2 gotcha. The --system-site-packages venv reuses
+#               the apt numpy for cv2/onnxruntime/mavsdk alike.
+# opencv     -> apt python3-opencv (cv2). Provisioned via apt; avoids a heavy
+#               aarch64 source build and matches how picamera2 ships cv2.
+# picamera2  -> apt python3-picamera2 (+ python3-libcamera). NOT pip-installable;
+#               it is the libcamera binding for the OV9281 (docs/camera_paper_check.md
+#               §5: dtoverlay=ov9281, mainline libcamera, no vendor driver).
+# All three are installed by provision.sh's apt step.

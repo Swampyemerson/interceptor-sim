@@ -1,0 +1,52 @@
+# interceptor-sim seeker tripod capture — OPTIONAL systemd unit.
+# ---------------------------------------------------------------------------
+# Starts ONE scripts/seeker/pi_capture.py session ON DEMAND (start it by hand;
+# do NOT `enable` it — this is not a boot service):
+#     sudo cp scripts/pi_setup/capture.service /etc/systemd/system/
+#     sudo systemctl daemon-reload
+#     sudo systemctl start  capture.service        # begin a capture session
+#     journalctl -u capture -f                      # watch it
+#     sudo systemctl stop   capture.service        # end early
+#
+# EDIT BEFORE FIRST USE if your flashed username / repo path differ from the
+# `pi` / /home/pi defaults below (Bookworm lets you pick the user at flash time):
+#   - User=  and the two /home/pi paths (WorkingDirectory + REPO/VENV Environment)
+# Tunables (session name, frame count, exposure, extra pi_capture flags) live in
+# the optional EnvironmentFile so you never have to edit this unit for them:
+#     /etc/default/interceptor-capture   e.g.
+#         SESSION=sessions/pass01
+#         NFRAMES=300
+#         EXPOSURE_US=1000
+#         EXTRA_ARGS=--calib calib.json --tag-size 0.30
+#
+# The <=1 ms EXPOSURE_US default is the motion-blur spec target
+# (docs/tripod_test_protocol.md §3.3/§4.4; docs/camera_paper_check.md item 3).
+# Confirm meta.json exposure_meets_spec=true after the run (skr-03/skr-05).
+
+[Unit]
+Description=interceptor-sim seeker capture (pi_capture.py, OV9281 mono GS)
+Documentation=file:/home/pi/interceptor-sim/docs/tripod_test_protocol.md
+After=multi-user.target
+
+[Service]
+Type=simple
+User=pi
+# Optional tunables; the leading '-' makes the file optional (no error if absent).
+EnvironmentFile=-/etc/default/interceptor-capture
+Environment=REPO=/home/pi/interceptor-sim
+Environment=VENV=/home/pi/interceptor-sim/.venv-pi
+Environment=SESSION=sessions/capture
+Environment=NFRAMES=300
+Environment=EXPOSURE_US=1000
+Environment=EXTRA_ARGS=
+WorkingDirectory=/home/pi/interceptor-sim
+ExecStart=/bin/bash -lc '"$VENV/bin/python" scripts/seeker/pi_capture.py \
+    --source picamera2 --out "$SESSION" --n-frames "$NFRAMES" \
+    --exposure-us "$EXPOSURE_US" $EXTRA_ARGS'
+Nice=-5
+Restart=no
+
+[Install]
+# Present so `enable` works if you ever want it, but on-demand `start` is the
+# intended use — do not enable it for boot.
+WantedBy=multi-user.target

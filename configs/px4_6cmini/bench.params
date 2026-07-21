@@ -1,0 +1,138 @@
+# =====================================================================
+#  bench.params  --  PX4 params for the Pixhawk 6C Mini PROPS-OFF BENCH
+#  (interceptor "brain bench", build_tab subsystem `brain`, steps brn-01..brn-06)
+# =====================================================================
+#
+#  PURPOSE
+#  -------
+#  Bring up the Pi 5 <-> Pixhawk 6C Mini MAVLink/OFFBOARD path on the desk,
+#  BEFORE any airframe exists, so the deploy loop's one sim-unvalidated link
+#  (flight/deploy/seeker_loop.py MAVSDK over a REAL serial port) is retired
+#  while the tripod campaign runs in parallel. See:
+#    - docs/project_state.json build_tab.subsystems[brain] (steps brn-01..06)
+#    - docs/hardware_order_list.md  §3 (compatibility checklist) + §B (RC path)
+#    - flight/deploy/seeker_loop.py + scripts/check_deploy_bench.sh
+#
+#  SCOPE / SAFETY POSTURE
+#  ----------------------
+#  Bench = FC on the desk, NO ESC, NO motors, NO airframe -- NOTHING can spin.
+#  This profile deliberately keeps arming HARD (safety switch required + GPS
+#  required + strict default checks) and maps an RC kill switch, so the ONLY
+#  way the vehicle arms is a deliberate, physical, operator action. The bench
+#  OFFBOARD check itself (check_deploy_bench.sh) does NOT arm -- it verifies the
+#  MAVLink connect, own-state stream, OFFBOARD mode switch, and setpoint stream
+#  with the vehicle DISARMED.
+#
+#  HOW TO LOAD (see configs/px4_6cmini/README.md for the full procedure)
+#  ---------------------------------------------------------------------
+#    0. FIRST set the airframe in QGC (Vehicle Setup > Airframe):
+#       select "Generic Quadcopter" (SYS_AUTOSTART = 4001) and reboot.
+#       (SYS_AUTOSTART is set from the Airframe tab, NOT this file, on purpose --
+#        loading SYS_AUTOSTART via a params file triggers an airframe-default
+#        reset on reboot that would clobber other tweaks. Airframe first, then
+#        this file. The 4001 generic quad only exists to light up the multicopter
+#        control + OFFBOARD stack for the plumbing test; the REAL airframe ID,
+#        geometry, motors and tuning are set when the physical frame is built.)
+#    1. QGC > Vehicle Setup > Parameters > Tools > "Load from file" > this file.
+#    2. Reboot the FC. Re-open Parameters and confirm each value below.
+#
+#  FILE FORMAT (QGroundControl parameter file)
+#  -------------------------------------------
+#  TAB-separated columns:  <sysid> <compid> <PARAM_NAME> <VALUE> <MAV_PARAM_TYPE>
+#    MAV_PARAM_TYPE: 6 = INT32,  9 = REAL32 (float).
+#  Lines beginning with '#' are comments (ignored by the loader).
+#  Every data line below is a NON-DEFAULT change; each has a WHY + a doc source.
+#  Params that must WAIT for the airframe are listed (commented) at the bottom.
+#
+# Onboard parameters for Vehicle 1
+#
+# Stack: PX4
+# Vehicle: Multirotor
+#
+# -----------------------------------------------------------------------------
+#  (1) TELEM2 companion-computer MAVLink link  (Pi 5 GPIO14/15 <-> TELEM2)
+# -----------------------------------------------------------------------------
+#  Put a 2nd MAVLink instance (index 1) on TELEM2 in the "Onboard" profile at
+#  921600 baud -- the exact link the deploy loop rides. TELEM2 is UART5 on the
+#  6C Mini. Wire ONLY 3 leads (TX/RX crossed + GND); do NOT wire TELEM2 pin-1
+#  (+5V) to the Pi -- the Pi is on its own rail (two-rail rule) and +5V would
+#  destroy the 3.3V GPIO. Flow control (CTS/RTS) is unused on a 3-wire link;
+#  PX4 auto-probes and falls back to no-flow-control, so no extra param needed.
+#  Source: docs.px4.io Serial Port Config + MAVLink Peripherals + RPi Companion
+#          (MAV_1_CONFIG=102=TELEM2, MAV_1_MODE=2=Onboard, SER_TEL2_BAUD=921600);
+#          project baud fixed at 921600 by hardware_order_list.md §3/§B + build_tab.
+#
+#  MAV_1_CONFIG = 102 -> assign MAVLink instance 1 to the TELEM2 serial port.
+1	1	MAV_1_CONFIG	102	6
+#  MAV_1_MODE = 2 -> "Onboard": the companion-computer message set (attitude,
+#                    local position, etc.) the seeker loop reads as own-state.
+1	1	MAV_1_MODE	2	6
+#  MAV_1_FORWARD = 1 -> forward messages between this companion link and the GCS
+#                       link (USB / TELEM1) so QGC can watch the Pi's traffic
+#                       during bring-up. (Bench convenience; safe to leave on.)
+1	1	MAV_1_FORWARD	1	6
+#  SER_TEL2_BAUD = 921600 -> TELEM2 line rate; MUST match the Pi side + the
+#                            --mavsdk-url baud (serial:///dev/ttyAMA0:921600).
+1	1	SER_TEL2_BAUD	921600	6
+#
+# -----------------------------------------------------------------------------
+#  (2) SBUS RC in + kill switch + arming kept HARD  (brn-05 "kill switch honored")
+# -----------------------------------------------------------------------------
+#  RC path (hardware_order_list.md §B, constraint no-datalink): the ELRS RX is
+#  flashed to SBUS OUTPUT and wired to the 6C Mini's DEDICATED RC IN pad (NOT a
+#  UART -- stock PX4 has no CRSF driver, and the Mini's 4 UARTs are spoken for by
+#  GPS1/TELEM1-SiK/TELEM2-Pi). SBUS on the dedicated RC IN is AUTO-DETECTED, so
+#  RC_INPUT_PROTO stays at its default (0 = auto) -- no param line needed. After
+#  binding, run QGC Radio calibration; that is where the kill-switch channel below
+#  gets its real number. ELRS is kill/ARM ONLY -- it carries NO guidance.
+#
+#  RC_MAP_KILL_SW -> RC channel used as an emergency motor-kill. VALUE IS AN
+#     EXAMPLE (channel 5); AFTER Radio calibration, set it to the channel your
+#     RadioMaster Pocket switch actually lands on, and confirm in QGC that
+#     flipping the switch reads as "Kill switch" active. Kill is instant + does
+#     not need a healthy vehicle. Source: docs.px4.io Arm/Disarm/Prearm.
+1	1	RC_MAP_KILL_SW	5	6
+#  COM_KILL_DISARM = 5.0 s -> auto-DISARM 5 s after a kill, so a killed vehicle
+#     cannot be silently re-activated by releasing the switch. Default 0 = never
+#     auto-disarm. Source: docs.px4.io Arm/Disarm/Prearm (COM_KILL_DISARM).
+1	1	COM_KILL_DISARM	5.000000	9
+#  COM_ARM_WO_GPS = 0 -> REQUIRE a GPS/position fix before arming. Default is 1
+#     (arm allowed without GPS). We force 0 because (a) it blocks casual indoor
+#     arming, and (b) the deploy loop commands OFFBOARD *velocity-NED*, which PX4
+#     only accepts with a valid local-position (EKF horizontal) estimate anyway
+#     -- so a fix is a real precondition of the bench test (M10 by a window /
+#     outdoors). Source: docs.px4.io Arm/Disarm/Prearm (COM_ARM_WO_GPS).
+1	1	COM_ARM_WO_GPS	0	6
+#
+#  NOTE (no param line -- a deliberate NON-action): we KEEP the safety switch
+#  active (do NOT set CBRK_IO_SAFETY=22027). Arming then requires a physical
+#  press of the M10's safety button -- the deliberate operator action that gates
+#  the props-off arm test. Only set CBRK_IO_SAFETY if your GPS has no safety
+#  switch AND you must arm for a deliberate bench test. COM_RC_IN_MODE also stays
+#  default (0 = RC transmitter) so the mapped kill switch is live.
+#
+# -----------------------------------------------------------------------------
+#  (3) Log the disarmed bench session (ULogs are the metrology, brn-01)
+# -----------------------------------------------------------------------------
+#  SDLOG_MODE = 2 -> log "from boot until shutdown". The bench runs DISARMED, and
+#     the default (0 = only while armed) would capture NOTHING -- so we log from
+#     boot to get the OFFBOARD-disarmed session on the microSD as bench evidence.
+#     Confirm a microSD is inserted (brn-01). Source: docs.px4.io Logging (SDLOG_MODE).
+1	1	SDLOG_MODE	2	6
+#
+# =============================================================================
+#  WAITS FOR THE AIRFRAME -- do NOT set on the bench (no ESC/motors/battery yet)
+# =============================================================================
+#  These are set when the physical Tier-2 frame is built + tuned; setting them
+#  now is meaningless-to-dangerous on a bare FC. Listed so the boundary is explicit:
+#    - SYS_AUTOSTART           final airframe ID + its motor geometry (bench uses
+#                              the generic 4001 via the Airframe tab, see header).
+#    - CA_* / actuator outputs motor mixing + geometry (control allocation).
+#    - DSHOT_CONFIG / PWM_*    ESC protocol + PWM ranges (no ESC on the bench).
+#    - BAT1_N_CELLS, BAT1_*    battery cell count + capacity + V/I calibration
+#                              (bench runs on USB, not the PM02 pack).
+#    - MC_* (rate/att PIDs)    flight tuning -- only meaningful on the real frame.
+#    - MPC_* limits, MIS/NAV   flight limits + missions -- airframe/flight phase.
+#  SENSORS-ONLY tasks that ARE done on the bench are QGC procedures, not params:
+#  accel/gyro/mag/level calibration + Radio calibration (after ELRS bind).
+# =============================================================================

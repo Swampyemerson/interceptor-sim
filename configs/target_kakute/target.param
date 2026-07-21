@@ -1,0 +1,261 @@
+# ============================================================================
+# target.param  --  ArduPilot Copter parameters for the TARGET / practice quad
+# ----------------------------------------------------------------------------
+# Board / firmware target : KakuteH7   (Holybro Kakute H7 V1.5, the ORDERED FC)
+#   Flash the ArduCopter build for board name "KakuteH7"  --  NOT "KakuteH7v2"
+#   and NOT the -bdshot / -Wing variants.  This is the V1 board.
+#   src: https://ardupilot.org/copter/docs/common-holybro-kakuteh7.html
+#   src (bom): docs/project_state.json bom_tiers[0] ("ArduPilot target KakuteH7
+#              -- flash THAT not v2"); docs/hardware_order_list.md (E)
+#
+# Airframe (ORDERED 2026-07-20, bom_tiers Tier-1):
+#   TBS Source One V6 5" frame | EMAX ECOII 2207 1900KV x4 | Tekko32 F4 Metal
+#   65A 4-in-1 ESC (DShot) | Matek M10Q-5883 GPS+compass | RadioMaster RP1 V2
+#   ELRS nano RX wired CRSF | RadioMaster Pocket M2 ELRS TX (bind as MODEL 1) |
+#   CNHL 6S 1500 mAh LiPo.
+#
+# ROLE: MOVER ONLY. This quad flies a scripted AUTO box/line for the tripod
+#   field test (docs/tripod_test_protocol.md). It is NOT the interceptor.
+#   This file sets the target-specific WIRING + LOGGING + AUTO SPEED + FAILSAFES
+#   + flight-mode/kill switch mapping. It deliberately does NOT contain a flight
+#   TUNE -- maiden as a plain quad, then run AUTOTUNE (see README.md). PID gains,
+#   filter, and notch params are left at the KakuteH7 firmware defaults.
+#
+# FORMAT: Mission Planner "Full Parameter List -> Load" file.
+#   * Lines beginning with "#" are comments.
+#   * Every data line is exactly   PARAM_NAME,VALUE
+#   * Each param is preceded by a one-line WHY + doc source.
+#   * "(firmware default, stated)" marks a value equal to the KakuteH7 hwdef or
+#     the Copter default, written explicitly so build day is copy-paste, not
+#     guesswork. All OTHER lines are non-default and are cited.
+#
+# AFTER LOADING: reboot the FC (BATT_MONITOR, BRD_ALT_CONFIG, and serial protocol
+#   changes only take effect after a reboot), then do accel + compass cal and the
+#   RC/motor-order/kill-switch verification in README.md before the first arm.
+# ============================================================================
+
+
+# ---------------------------------------------------------------------------
+# FRAME
+# ---------------------------------------------------------------------------
+# Quad. Sets FRAME_CLASS so the 4 motor outputs get MotorN functions.
+# src: https://ardupilot.org/copter/docs/frame-type-configuration.html
+FRAME_CLASS,1
+# X layout (TBS Source One V6 is an X frame). Verify actual motor ORDER and
+# spin DIRECTION in Mission Planner Motor Test before flight (Betaflight numbering
+# differs from ArduPilot). src: frame-type-configuration.html
+FRAME_TYPE,1
+
+
+# ---------------------------------------------------------------------------
+# MOTORS / ESC  --  Tekko32 F4 Metal 65A 4-in-1, DShot
+# ---------------------------------------------------------------------------
+# DShot600. The Tekko32 is a digital BLHeli32 ESC -> DShot needs no ESC
+# calibration and has no PWM pulse jitter. MOT_PWM_TYPE 4..7 = DShot150..1200.
+# src: https://ardupilot.org/copter/docs/common-dshot-escs.html
+MOT_PWM_TYPE,6
+# Auto-enable BLHeli passthrough + ESC telemetry on every DShot output so the
+# Tekko32 can be configured from Mission Planner (Setup > Optional HW > BLHeli).
+# src: https://ardupilot.org/copter/docs/common-dshot-escs.html
+SERVO_BLH_AUTO,1
+# 6S thrust-vs-voltage scaling upper bound (4.20 V x 6 = 25.2 V). Keeps hover
+# thrust consistent across the pack. src: https://ardupilot.org/copter/docs/motor-thrust-scaling.html
+MOT_BAT_VOLT_MAX,25.2
+# 6S scaling lower bound (3.30 V x 6 = 19.8 V). src: motor-thrust-scaling.html
+MOT_BAT_VOLT_MIN,19.8
+
+
+# ---------------------------------------------------------------------------
+# BATTERY MONITOR  --  onboard voltage + 4-in-1 ESC current sense
+# ---------------------------------------------------------------------------
+# Analog Voltage AND Current. KakuteH7 has an onboard voltage divider (B+) and
+# reads the Tekko32's current signal on the "Cur" pad. Default is 0 (disabled),
+# so this MUST be set. Takes effect after a reboot.
+# src: https://ardupilot.org/copter/docs/common-holybro-kakuteh7.html (Battery Monitor)
+BATT_MONITOR,4
+# Voltage ADC pin -- KakuteH7 hwdef HAL_BATT_VOLT_PIN. (firmware default, stated)
+BATT_VOLT_PIN,10
+# Current ADC pin -- KakuteH7 hwdef HAL_BATT_CURR_PIN. (firmware default, stated)
+BATT_CURR_PIN,11
+# Voltage divider multiplier -- KakuteH7 hwdef HAL_BATT_VOLT_SCALE 11.0.
+# Sanity-check reported pack voltage against a cell checker; nudge if it reads off.
+# src: common-holybro-kakuteh7.html
+BATT_VOLT_MULT,11.0
+# Amps-per-volt for the current sensor -- KakuteH7 hwdef default 59.5. The ACTUAL
+# scale depends on the Tekko32 shunt, so CALIBRATE it: fly/hover a known load,
+# compare logged Ah drawn to the charger's replaced mAh, scale this value.
+# src: common-holybro-kakuteh7.html ; https://ardupilot.org/copter/docs/common-power-module-configuration-in-mission-planner.html
+BATT_AMP_PERVLT,59.5
+
+
+# ---------------------------------------------------------------------------
+# BATTERY FAILSAFE  (6S)
+# ---------------------------------------------------------------------------
+# Low-battery threshold 3.60 V/cell (21.6 V) sustained >10 s -> low action.
+# src: https://ardupilot.org/copter/docs/failsafe-battery.html
+BATT_LOW_VOLT,21.6
+# Critical threshold 3.30 V/cell (19.8 V) -> critical action.
+# src: failsafe-battery.html
+BATT_CRT_VOLT,19.8
+# Low action = RTL (mover flies home rather than dropping). 0:None 1:Land 2:RTL.
+# src: failsafe-battery.html
+BATT_FS_LOW_ACT,2
+# Critical action = Land immediately (can't make it home). 1:Land.
+# src: failsafe-battery.html
+BATT_FS_CRT_ACT,1
+
+
+# ---------------------------------------------------------------------------
+# RC LINK  --  RadioMaster RP1 V2 ELRS receiver on CRSF (SERIAL6 / UART6)
+# ---------------------------------------------------------------------------
+# The Kakute H7 R6 pad is a TIMER-based RC input by default (good for SBUS/PPM,
+# one-way only). ELRS CRSF is a full-duplex UART protocol (RC + link-stats
+# telemetry), so R6/T6 must be remapped to USART6. BRD_ALT_CONFIG=1 does exactly
+# that on this board. Takes effect after a reboot.
+# src: https://ardupilot.org/copter/docs/common-holybro-kakuteh7.html (RC Input / CRSF note)
+BRD_ALT_CONFIG,1
+# RCIN protocol on SERIAL6 (= UART6, the remapped R6/T6). CRSF is auto-detected
+# among the serial RC protocols; baud is set automatically by the firmware.
+# src: https://ardupilot.org/copter/docs/common-tbs-rc.html ; common-holybro-kakuteh7.html
+SERIAL6_PROTOCOL,23
+# No inversion / half-duplex -- ELRS CRSF is plain full-duplex UART. (default, stated)
+# src: common-holybro-kakuteh7.html
+SERIAL6_OPTIONS,0
+# RSSI / link-quality taken from the receiver protocol (CRSF LinkStatistics).
+# 3 = "Receiver Protocol". src: https://www.expresslrs.org/quick-start/ardupilot-setup/
+# ; https://ardupilot.org/copter/docs/common-rssi-received-signal-strength-indication.html
+RSSI_TYPE,3
+
+
+# ---------------------------------------------------------------------------
+# GPS + COMPASS  --  Matek M10Q-5883 on SERIAL3 (UART3)
+# ---------------------------------------------------------------------------
+# GPS protocol on UART3. (firmware default, stated -- KakuteH7 GPS pad is UART3.)
+# src: common-holybro-kakuteh7.html
+SERIAL3_PROTOCOL,5
+# Auto-detect the u-blox M10 receiver. (firmware default, stated)
+# src: https://ardupilot.org/copter/docs/common-gps-for-position.html
+GPS_TYPE,1
+
+
+# ---------------------------------------------------------------------------
+# AUTO LEG SPEED  --  tripod matrix needs >=9 m/s passes
+# ---------------------------------------------------------------------------
+# 10 m/s horizontal AUTO speed (cm/s). The protocol's full-speed passes push
+# toward >=9 m/s (docs/tripod_test_protocol.md 4.4); 1000 clears that with margin.
+# This equals the firmware default but is set explicitly to make the >=9 m/s
+# requirement unmistakable on build day. A per-leg DO_CHANGE_SPEED in the mission
+# (gen_tripod_mission.py) can still slow individual "control" passes.
+# src: https://ardupilot.org/copter/docs/parameters.html (WPNAV_SPEED, default 1000)
+WPNAV_SPEED,1000
+# Horizontal AUTO acceleration (cm/s/s). Default 250 is sluggish -> a short
+# ~30 m leg may never reach 9-10 m/s. 350 lets the target hit speed on the leg.
+# Verify actual leg speed in the log on the maiden AUTO run. src: parameters.html
+WPNAV_ACCEL,350
+# Max lean angle (centidegrees, 35 deg). Default 3000 (30 deg) can cap top speed;
+# 3500 gives the lean headroom to hold 9-10 m/s. src: parameters.html (ANGLE_MAX)
+ANGLE_MAX,3500
+
+
+# ---------------------------------------------------------------------------
+# DATAFLASH LOGGING  --  field_score.py needs POS + GPS on the onboard microSD
+# ---------------------------------------------------------------------------
+# Copter default log set (176126): logs GPS, ATTITUDE, IMU, CTUN/NTUN, MOTBATT,
+# and the POS vehicle-position estimate. scripts/field_score.py reads the .BIN's
+# POS message (preferred) and falls back to GPS -- both are present in this set.
+# Written to the Kakute's microSD (see README.md -- NO card = NO scored pass).
+# src: https://ardupilot.org/copter/docs/common-logs.html (LOG_BITMASK, default 176126)
+LOG_BITMASK,176126
+# Do not log on the bench while disarmed -- log from arm. (firmware default, stated)
+# src: common-logs.html
+LOG_DISARMED,0
+# Rotate to a fresh .BIN on each disarm -> one file per flight/pass, which is
+# exactly what field_score.py + the session log (protocol 11) want.
+# src: common-logs.html (LOG_FILE_DSRMROT)
+LOG_FILE_DSRMROT,1
+
+
+# ---------------------------------------------------------------------------
+# FLIGHT MODES + RC KILL  (RadioMaster Pocket M2)
+# ---------------------------------------------------------------------------
+# 6-position mode switch on RC channel 5. (firmware default, stated)
+# src: https://ardupilot.org/copter/docs/flight-modes.html (FLTMODE_CH)
+FLTMODE_CH,5
+# Mode-switch map. Numbers: 0 Stabilize, 2 AltHold, 5 Loiter, 6 RTL, 3 Auto.
+# Take off / land in Loiter (GPS hold); flip to Auto to run the tripod mission;
+# RTL is the manual bail-out. src: flight-modes.html
+FLTMODE1,0
+FLTMODE2,2
+FLTMODE3,5
+FLTMODE4,5
+FLTMODE5,6
+FLTMODE6,3
+# RC channel 6 switch = Motor Emergency Stop -- the target's independent RC KILL
+# (see the FAILSAFE note re: the two-aircraft / one-TX decision). 31 = Motor
+# Emergency Stop. Map this switch on the Pocket M2 (README.md).
+# src: https://ardupilot.org/copter/docs/channel-7-and-8-options.html (RCx_OPTION 31)
+RC6_OPTION,31
+
+
+# ---------------------------------------------------------------------------
+# ARMING
+# ---------------------------------------------------------------------------
+# ALL pre-arm checks ON. Left ON per the build spec -- do NOT disable checks to
+# "get it flying"; fix the flagged cause instead. 1 = all checks.
+# src: https://ardupilot.org/copter/docs/prearm_safety_check.html (ARMING_CHECK)
+ARMING_CHECK,1
+
+
+# ============================================================================
+# FAILSAFE / GEOFENCE  --  OPEN DECISION: "two aircraft, one TX"
+# ----------------------------------------------------------------------------
+# docs/hardware_order_list.md 0b (audit S2): one ELRS TX + both receivers on the
+# same bind phrase REQUIRES Model Match, else both aircraft answer the same
+# sticks. But with Model Match the UNSELECTED aircraft is in RC failsafe -- so
+# while you hold the INTERCEPTOR's kill, the TARGET has no independent RC kill.
+# You must pick ONE of the two options below BEFORE flying.
+#
+# This file ships OPTION A ACTIVE because the tripod passes ARE an AUTO mission
+# and you generally want a pass to FINISH rather than RTL mid-leg on a brief RC
+# dropout, with a TIGHT geofence as the hard safety bound. Switch to OPTION B if
+# you fly the target as the SELECTED (kill-live) aircraft with a 2nd TX/operator.
+# src: docs/hardware_order_list.md 0b ; https://ardupilot.org/copter/docs/radio-failsafe.html
+# ============================================================================
+
+# ---- OPTION A (ACTIVE): continue the AUTO pass on RC-loss + TIGHT geofence ----
+# RC failsafe armed. On its own this = "Always RTL", but FS_OPTIONS below
+# overrides it for AUTO. 1 = Enabled Always RTL. src: radio-failsafe.html
+FS_THR_ENABLE,1
+# bit0 (=1): CONTINUE if in AUTO mode on RC failsafe -> a pass completes instead
+# of RTL-ing mid-leg. The geofence below is the safety net. src: radio-failsafe.html (FS_OPTIONS)
+FS_OPTIONS,1
+# Geofence ON -- bounds a continue-in-AUTO target. src: https://ardupilot.org/copter/docs/common-ac2_simple_geofence.html
+FENCE_ENABLE,1
+# Fence type = Altitude + Circle + Polygon (bitmask 1+2+4). src: common-ac2_simple_geofence.html
+FENCE_TYPE,7
+# TIGHT 80 m circular fence around home. **TUNE to your actual field / COA.** metres.
+# src: common-ac2_simple_geofence.html (FENCE_RADIUS)
+FENCE_RADIUS,80
+# 50 m altitude ceiling. **TUNE to your field / airspace authorization.** metres.
+# src: common-ac2_simple_geofence.html (FENCE_ALT_MAX)
+FENCE_ALT_MAX,50
+# Breach action = RTL or Land (fires even mid-AUTO if the target leaves the box).
+# 0:Report 1:RTL/Land 2:Land 3:SmartRTL 4:Brake. src: common-ac2_simple_geofence.html (FENCE_ACTION)
+FENCE_ACTION,1
+# GCS failsafe disabled -- the target has no companion/telemetry link on it (SiK
+# deferred, bom 0c). (firmware default, stated) src: https://ardupilot.org/copter/docs/gcs-failsafe.html
+FS_GCS_ENABLE,0
+
+# ---- OPTION B: plain RTL on RC-loss (target flown SELECTED, kill live) --------
+# To use OPTION B: comment out the OPTION-A block above (FS_THR_ENABLE..FS_GCS_ENABLE)
+# and uncomment the block below. Keep the geofence either way as a backstop.
+#   FS_THR_ENABLE,1     # Enabled Always RTL on RC failsafe. src: radio-failsafe.html
+#   FS_OPTIONS,0        # Do NOT continue in AUTO -> RTL immediately on RC-loss. src: radio-failsafe.html
+#   FENCE_ENABLE,1      # geofence backstop. src: common-ac2_simple_geofence.html
+#   FENCE_TYPE,7
+#   FENCE_RADIUS,80
+#   FENCE_ALT_MAX,50
+#   FENCE_ACTION,1
+#   FS_GCS_ENABLE,0
+# ============================================================================
+# End target.param
