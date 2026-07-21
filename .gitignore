@@ -96,3 +96,7 @@ scripts/seeker/weights/yolo11n.pt
 !logs/mc_uptilt_*.csv
 !logs/uptilt_ab_analysis_20260710.txt
 settings.local.json
+
+# nn_tier real-media corpus + raw downloads (regenerable via fetch/prepare scripts; multi-GB)
+scripts/seeker/nn_tier/data/
+scripts/seeker/nn_tier/runs/
