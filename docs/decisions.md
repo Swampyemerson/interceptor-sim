@@ -1976,3 +1976,59 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date.** 2026-07-12.
 
 - **Addendum (2026-07-12) — ADR-0077 range-gate A/B: FAILED (NULL, stays default-OFF).** v2 640 NN-only + `MARKERLESS_PHANTOM_RANGE_GATE=1`, n=16: **l2r REGRESSED 81% → 2/8 (25%), r2l unchanged 0/8, overall 2/16 (worse than the 41% baseline).** The gate fired heavily (13–26 rejects/flight) but rejected REAL detections. Root cause: (1) the box-width range (`meas_range`) is too NOISY to gate on (real detections' implied range swings widely); (2) post-handoff a phantom SEEDS the alpha-beta `r_hat` wrong, so the gate then rejects the true closing detections that disagree with the phantom-seeded expected — it reinforces the phantom. So range-plausibility is the wrong discriminator. Kept default-OFF (reversible). The r2l phantom fix is now the AUTO-CROP (crop out the phantom background) and/or NEGATIVE-MINING (hard-negative the phantom-triggering region — likely the own-airframe/background at the r2l attitude; ADR-0038 lever). Investigating the phantom's frame location next to pick between them.
+
+---
+
+## ADR-0078 — Camera modality: keep the ordered MONO OV9281 (do not reorder color) — 2026-07-21
+
+- **Context.** The interceptor's seeker camera is the ordered **innomaker OV9281**:
+  MONOCHROME global-shutter, 1280x800, ~118° HFoV, ~$30, native mainline libcamera
+  (`dtoverlay=ov9281`). The builder noticed the mono nature late and asked whether it hurts
+  detection/tracking, offering to cancel/reorder a "better" camera (the documented upgrade
+  path is the Arducam **AR0234** color GS, 1920x1200, ~$120-150, Pivariety kernel driver).
+  Decided by a Fable case-for/case-against + adjudication workflow (`wf_3cc65b51`) on measured
+  repo evidence + web sensor physics.
+- **Options considered.**
+  - **Keep mono OV9281 (CHOSEN).**
+  - Reorder AR0234 color GS now (swap-and-wait).
+  - Reorder a color GS *as a second body* for an on-site A/B (IMX296, native libcamera).
+- **Decision. KEEP THE MONO OV9281 (high confidence).** The "mono penalty" everyone fears was
+  a TRAINING-domain confound, not a sensor deficiency, and it is already refunded: the
+  color-sim-trained v2 fed gray is blind (AP50 0.0003, 88.5% false-fire), but the **mono-native
+  retrain n-mono scores AP50 0.442 / recall 44.2% / precision 71.4% / false-fire 4.9%** on the
+  source-disjoint held-out set (n=4175) — the repo's best numbers, in grayscale
+  (`logs/nn_tier/heldout_scores.txt`). The retrain was mandated for real data anyway, so mono's
+  marginal software cost is ~zero. Literature bounds native-gray vs native-color at ~0-3 mAP.
+- **Why (the physics favor mono for THIS job).**
+  - **Motion blur, not resolution, is the terminal limiter** (LOS 485-1870°/s; 5 ms smears
+    ~23 px — hardware_order_list §0b). Removing the Bayer CFA buys ~1 stop (~2x) more light on
+    identical 3µm silicon → equal-SNR exposure halves → **terminal blur halves** (~20 px→~10 px
+    at 1870°/s worst case). Color would accept 2x blur or ~1 stop worse SNR on a dark few-px target.
+  - The target at 6-20 m is **3.4-18 px at the 640 NN input** — a luminance/silhouette problem;
+    Bayer chroma (R,B at 1/4 of sites) is demosaic mush at that scale.
+  - **First real kills fly the AprilTag baseline, whose decode is 8-bit grayscale in every
+    library** — mono is the tag's native modality; the bird/chroma risk doesn't touch the
+    first-kill phase.
+  - The AR0234's one real edge (~1.8x px/deg) **can't reach the deployed 640-input NN**, is
+    **honesty-gated** (must re-earn M1/M2), and resolution is **formally retracted as the range
+    lever** (ADR-0076 add #18j-fix: "do NOT buy a lens or higher-res sensor for range"). Its
+    documented 2.5mm lens plan is ~98° — BELOW the ≥100° hard wide-fov constraint.
+  - Integration risk is asymmetric: OV9281 = mainline driver; AR0234 = Pivariety kernel-pin
+    fragility + an IR-cut filter check.
+- **The one honest open cell + how it's being closed (free, no purchase).** Chroma is genuinely
+  forfeited for drone-vs-BIRD discrimination, and the site has resident raptors/ravens. Both
+  measured bird-gray regressions were color-trained-fed-gray OOD artifacts, NOT proof chroma is
+  load-bearing. This is measurable THIS WEEK for $0: score n-mono in gray on the on-disk DVB
+  bird negatives + train a ~1-GPU-hr n-color A/B arm on the color-sourced corpus (launched
+  2026-07-21, `docs/nn_tier/mono_vs_color_bird_ab.md`).
+- **Two-way door — what would change the call later.** (a) n-mono's gray bird false-fire on DVB
+  comes back high AND the n-color arm shows a large bird-specific chroma advantage → add (not
+  swap) a native-libcamera color GS (Arducam IMX296 ~$60-75 + a ≥100° M12 element) as a SECOND
+  body for an on-site A/B; (b) the tripod range-walk measures tag R_acq < ~6 m (t_go < 0.5 s at
+  9 m/s) → the AR0234 upgrade path activates, with its own unsolved ≥100°-lens problem + the
+  honesty-gate M1/M2 re-earn; (c) tripod-day shadow mode shows bird false-fires dominating
+  handoff-streak attempts. Keeping the $30 ordered part forecloses none of these.
+- **Evidence.** `logs/nn_tier/heldout_scores.txt`, `docs/nn_tier/PLAN.md`,
+  `docs/nn_tier/baseline_scoreboard.md` §5, `docs/camera_paper_check.md`, hardware_order_list
+  §0/§2/§0b, ADR-0076 add #18j-fix, Fable workflow `wf_3cc65b51`.
+- **Date.** 2026-07-21.

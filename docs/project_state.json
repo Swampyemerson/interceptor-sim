@@ -3,7 +3,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-21",
- "updated_by": "2026-07-21 burn-down + IN-VIEW PROBES SETTLED: the binding wall re-decomposed to POINTING (ground-clutter REFUTED in sim, phantom-competition CONFIRMED-modest+mount-removable, 75% of terminal ticks out-of-frame -> headline.next_probe RESOLVED, detector/pointing notes rewritten, docs/inview_probe_results.md). Earlier same day: P0 SOFTWARE CLOSED (box_hits_gt fix + rescore; P0.2 placard 0.35 m; P0.6 transfer-bet; config packs; DEEP-H2; ARM64 proof + pyapriltags fix); repo PUSHED to private GitHub, first CI GREEN; ledger 36 (+ov9281-pxdeg, +target-fc). NEXT sim = T25 demo; NN tier-refine workflow (Fable-routed) in flight",
+ "updated_by": "2026-07-21 (late) CAMERA MODALITY DECIDED — ADR-0078 KEEP MONO OV9281 (Fable case-for/against workflow: mono retrain works n-mono 0.442/4.9%FF + blur physics favor mono + AprilTag grayscale + AR0234 honesty-gated/Pivariety-fragile/98deg-lens-fails-100); free bird A/B in flight to close the one open cell; GPU env gitignore-protected (persists). Earlier same day: NN SWEEP (n-mono wins, bigger doesn't help) + IN-VIEW PROBES (binding wall = POINTING). Full history in changelogs.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -453,6 +453,10 @@
     {
      "date": "2026-07-17",
      "note": "Camera-forward mount (Fable gap-check): §3 bench gate must UPGRADE to loaded-throttle + full adaptive-tilt sweep (idle+level misses blade coning + the tilt/clearance collision); add camera/boom SPARES (sacrificial on contact) + a boom modal/vibration check."
+    },
+    {
+     "date": "2026-07-21",
+     "note": "CAMERA MODALITY DECIDED (ADR-0078, Fable case-for/against workflow): KEEP the ordered MONO OV9281, do NOT reorder color (high confidence). The mono 'penalty' was a training confound already refunded by the mono-native retrain (n-mono AP50 0.442 / 4.9% false-fire in gray = the repo's best); motion-blur physics FAVOR mono (~1 stop more light -> halves terminal blur at 485-1870 deg/s); the AprilTag first-kill baseline is grayscale-only; the AR0234 color upgrade is honesty-gated + Pivariety-kernel-fragile + its documented 98-deg lens FAILS the >=100-deg hard req. Two-way door preserved (AR0234/IMX296 = upgrade path if the tripod range-walk measures short or the free bird A/B — in flight — shows chroma is load-bearing for the raptor site). Open cell being closed for $0 (no purchase): gray bird false-fire eval + a ~1-GPU-hr n-color arm."
     }
    ]
   },
@@ -759,7 +763,7 @@
      "item": "innomaker OV9281 mono global-shutter MIPI camera (~118 deg HFoV, 1280x800) — ORDERED",
      "qty": "1",
      "price": "~$30",
-     "why": "CAM-MIPIOV9281V2 + a Wonrabai 22->15-pin Pi-5 CSI cable (ordered). Clears >=100 deg wide-fov — PAPER-VERIFIED 2026-07-20: vendor states FoV(H)=118 explicitly (docs/camera_paper_check.md). px/deg penalty vs the sim camera is ~15% (the earlier ~30% was the 148-deg DIAGONAL misread — contradiction ov9281-pxdeg-30-vs-15) -> proportionally shorter tag/NN range = what tripod curve (a) measures; log it."
+     "why": "CAM-MIPIOV9281V2 + a Wonrabai 22->15-pin Pi-5 CSI cable (ordered). Clears >=100 deg wide-fov — PAPER-VERIFIED 2026-07-20: vendor states FoV(H)=118 explicitly (docs/camera_paper_check.md). px/deg penalty vs the sim camera is ~15% (the earlier ~30% was the 148-deg DIAGONAL misread — contradiction ov9281-pxdeg-30-vs-15) -> proportionally shorter tag/NN range = what tripod curve (a) measures; log it. MONO CONFIRMED, do NOT reorder color (ADR-0078, 2026-07-21): the mono-native retrain works (n-mono AP50 0.442 / 4.9% false-fire in gray), motion-blur physics FAVOR mono (~1 stop more light -> halves terminal blur), the AprilTag baseline is grayscale-only, and the AR0234 color upgrade is honesty-gated + Pivariety-fragile + its 98-deg lens fails the >=100-deg hard req. Two-way door: AR0234/IMX296 remain the upgrade path IF the tripod range-walk measures short OR a free bird A/B (in flight) shows chroma is load-bearing for the raptor site."
     },
     {
      "item": "Raspberry Pi 5, 8 GB",
