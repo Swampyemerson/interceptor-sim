@@ -1,0 +1,65 @@
+clean=293 excluded_leaked=68
+2026-07-21T18:32:35.966471 nmono_bird_ab n_mono/gray 0/293
+2026-07-21T18:32:37.570916 nmono_bird_ab n_mono/gray 50/293
+2026-07-21T18:32:39.225497 nmono_bird_ab n_mono/gray 100/293
+2026-07-21T18:32:40.847174 nmono_bird_ab n_mono/gray 150/293
+2026-07-21T18:32:42.434530 nmono_bird_ab n_mono/gray 200/293
+2026-07-21T18:32:44.073626 nmono_bird_ab n_mono/gray 250/293
+{"model": "n_mono", "mode": "gray", "n_images": 293, "false_fire_rate@25": 0.0341, "n_fired": 10, "fires_per_image": 0.034, "top_score_mean": 0.3513, "top_score_median": 0.3311, "top_score_p25": 0.2812, "top_score_p75": 0.4133, "top_score_min": 0.259, "top_score_max": 0.5216, "latency_ms_cpu": 30.2, "hist[0.25-0.40]": 7, "hist[0.40-0.60]": 3, "hist[0.60-0.80]": 0, "hist[0.80-1.00]": 0, "subset": "clean_holdout", "wall_s": 9.6}
+2026-07-21T18:32:45.551656 nmono_bird_ab_incl_leak n_mono/gray 0/361
+2026-07-21T18:32:46.901264 nmono_bird_ab_incl_leak n_mono/gray 50/361
+2026-07-21T18:32:48.220728 nmono_bird_ab_incl_leak n_mono/gray 100/361
+2026-07-21T18:32:49.569778 nmono_bird_ab_incl_leak n_mono/gray 150/361
+2026-07-21T18:32:50.902427 nmono_bird_ab_incl_leak n_mono/gray 200/361
+2026-07-21T18:32:52.270099 nmono_bird_ab_incl_leak n_mono/gray 250/361
+2026-07-21T18:32:53.633522 nmono_bird_ab_incl_leak n_mono/gray 300/361
+2026-07-21T18:32:55.046323 nmono_bird_ab_incl_leak n_mono/gray 350/361
+{"model": "n_mono", "mode": "gray", "n_images": 361, "false_fire_rate@25": 0.0305, "n_fired": 11, "fires_per_image": 0.03, "top_score_mean": 0.3601, "top_score_median": 0.3569, "top_score_p25": 0.2835, "top_score_p75": 0.4278, "top_score_min": 0.259, "top_score_max": 0.5216, "latency_ms_cpu": 25.6, "hist[0.25-0.40]": 7, "hist[0.40-0.60]": 4, "hist[0.60-0.80]": 0, "hist[0.80-1.00]": 0, "subset": "leak_included_DO_NOT_USE_AS_VERDICT", "wall_s": 9.8}
+2026-07-21T18:32:55.391096 nmono_bird_ab n_mono/color 0/293
+2026-07-21T18:32:56.772896 nmono_bird_ab n_mono/color 50/293
+2026-07-21T18:32:58.095731 nmono_bird_ab n_mono/color 100/293
+2026-07-21T18:32:59.435055 nmono_bird_ab n_mono/color 150/293
+2026-07-21T18:33:00.773083 nmono_bird_ab n_mono/color 200/293
+2026-07-21T18:33:02.097866 nmono_bird_ab n_mono/color 250/293
+{"model": "n_mono", "mode": "color", "n_images": 293, "false_fire_rate@25": 0.0546, "n_fired": 16, "fires_per_image": 0.055, "top_score_mean": 0.3462, "top_score_median": 0.3347, "top_score_p25": 0.2577, "top_score_p75": 0.4118, "top_score_min": 0.2506, "top_score_max": 0.5072, "latency_ms_cpu": 25.8, "hist[0.25-0.40]": 10, "hist[0.40-0.60]": 6, "hist[0.60-0.80]": 0, "hist[0.80-1.00]": 0, "subset": "clean_holdout", "wall_s": 7.9}
+2026-07-21T18:33:03.315051 nmono_bird_ab_incl_leak n_mono/color 0/361
+2026-07-21T18:33:04.686510 nmono_bird_ab_incl_leak n_mono/color 50/361
+2026-07-21T18:33:06.047300 nmono_bird_ab_incl_leak n_mono/color 100/361
+2026-07-21T18:33:07.346260 nmono_bird_ab_incl_leak n_mono/color 150/361
+2026-07-21T18:33:08.690968 nmono_bird_ab_incl_leak n_mono/color 200/361
+2026-07-21T18:33:10.020071 nmono_bird_ab_incl_leak n_mono/color 250/361
+2026-07-21T18:33:11.354892 nmono_bird_ab_incl_leak n_mono/color 300/361
+2026-07-21T18:33:12.694654 nmono_bird_ab_incl_leak n_mono/color 350/361
+{"model": "n_mono", "mode": "color", "n_images": 361, "false_fire_rate@25": 0.0499, "n_fired": 18, "fires_per_image": 0.05, "top_score_mean": 0.3463, "top_score_median": 0.3347, "top_score_p25": 0.2612, "top_score_p75": 0.4104, "top_score_min": 0.2506, "top_score_max": 0.5072, "latency_ms_cpu": 25.7, "hist[0.25-0.40]": 11, "hist[0.40-0.60]": 7, "hist[0.60-0.80]": 0, "hist[0.80-1.00]": 0, "subset": "leak_included_DO_NOT_USE_AS_VERDICT", "wall_s": 9.7}
+2026-07-21T18:33:13.043871 nmono_bird_ab v2_deployed/gray 0/293
+2026-07-21T18:33:14.444169 nmono_bird_ab v2_deployed/gray 50/293
+2026-07-21T18:33:15.825593 nmono_bird_ab v2_deployed/gray 100/293
+2026-07-21T18:33:17.157013 nmono_bird_ab v2_deployed/gray 150/293
+2026-07-21T18:33:18.509090 nmono_bird_ab v2_deployed/gray 200/293
+2026-07-21T18:33:19.874283 nmono_bird_ab v2_deployed/gray 250/293
+{"model": "v2_deployed", "mode": "gray", "n_images": 293, "false_fire_rate@25": 0.9522, "n_fired": 279, "fires_per_image": 2.362, "top_score_mean": 0.4715, "top_score_median": 0.4225, "top_score_p25": 0.3432, "top_score_p75": 0.5882, "top_score_min": 0.2548, "top_score_max": 0.8331, "latency_ms_cpu": 26.0, "hist[0.25-0.40]": 125, "hist[0.40-0.60]": 87, "hist[0.60-0.80]": 65, "hist[0.80-1.00]": 2, "subset": "clean_holdout", "wall_s": 8.1}
+2026-07-21T18:33:21.100911 nmono_bird_ab_incl_leak v2_deployed/gray 0/361
+2026-07-21T18:33:22.479930 nmono_bird_ab_incl_leak v2_deployed/gray 50/361
+2026-07-21T18:33:23.890220 nmono_bird_ab_incl_leak v2_deployed/gray 100/361
+2026-07-21T18:33:25.250711 nmono_bird_ab_incl_leak v2_deployed/gray 150/361
+2026-07-21T18:33:26.630597 nmono_bird_ab_incl_leak v2_deployed/gray 200/361
+2026-07-21T18:33:28.027933 nmono_bird_ab_incl_leak v2_deployed/gray 250/361
+2026-07-21T18:33:29.424092 nmono_bird_ab_incl_leak v2_deployed/gray 300/361
+2026-07-21T18:33:30.840292 nmono_bird_ab_incl_leak v2_deployed/gray 350/361
+{"model": "v2_deployed", "mode": "gray", "n_images": 361, "false_fire_rate@25": 0.9584, "n_fired": 346, "fires_per_image": 2.402, "top_score_mean": 0.4658, "top_score_median": 0.4162, "top_score_p25": 0.3429, "top_score_p75": 0.5806, "top_score_min": 0.2501, "top_score_max": 0.8331, "latency_ms_cpu": 26.5, "hist[0.25-0.40]": 162, "hist[0.40-0.60]": 105, "hist[0.60-0.80]": 77, "hist[0.80-1.00]": 2, "subset": "leak_included_DO_NOT_USE_AS_VERDICT", "wall_s": 10.1}
+2026-07-21T18:33:31.197178 nmono_bird_ab v2_deployed/color 0/293
+2026-07-21T18:33:32.555863 nmono_bird_ab v2_deployed/color 50/293
+2026-07-21T18:33:33.937767 nmono_bird_ab v2_deployed/color 100/293
+2026-07-21T18:33:35.255788 nmono_bird_ab v2_deployed/color 150/293
+2026-07-21T18:33:36.609001 nmono_bird_ab v2_deployed/color 200/293
+2026-07-21T18:33:37.975076 nmono_bird_ab v2_deployed/color 250/293
+{"model": "v2_deployed", "mode": "color", "n_images": 293, "false_fire_rate@25": 0.6519, "n_fired": 191, "fires_per_image": 1.034, "top_score_mean": 0.4251, "top_score_median": 0.3651, "top_score_p25": 0.3018, "top_score_p75": 0.5202, "top_score_min": 0.2524, "top_score_max": 0.8175, "latency_ms_cpu": 26.1, "hist[0.25-0.40]": 112, "hist[0.40-0.60]": 39, "hist[0.60-0.80]": 39, "hist[0.80-1.00]": 1, "subset": "clean_holdout", "wall_s": 8.0}
+2026-07-21T18:33:39.215302 nmono_bird_ab_incl_leak v2_deployed/color 0/361
+2026-07-21T18:33:40.569131 nmono_bird_ab_incl_leak v2_deployed/color 50/361
+2026-07-21T18:33:41.920149 nmono_bird_ab_incl_leak v2_deployed/color 100/361
+2026-07-21T18:33:43.225976 nmono_bird_ab_incl_leak v2_deployed/color 150/361
+2026-07-21T18:33:44.608720 nmono_bird_ab_incl_leak v2_deployed/color 200/361
+2026-07-21T18:33:46.004938 nmono_bird_ab_incl_leak v2_deployed/color 250/361
+2026-07-21T18:33:47.380683 nmono_bird_ab_incl_leak v2_deployed/color 300/361
+2026-07-21T18:33:48.732657 nmono_bird_ab_incl_leak v2_deployed/color 350/361
+{"model": "v2_deployed", "mode": "color", "n_images": 361, "false_fire_rate@25": 0.651, "n_fired": 235, "fires_per_image": 1.0, "top_score_mean": 0.4176, "top_score_median": 0.3586, "top_score_p25": 0.2996, "top_score_p75": 0.4822, "top_score_min": 0.2521, "top_score_max": 0.8175, "latency_ms_cpu": 26.1, "hist[0.25-0.40]": 142, "hist[0.40-0.60]": 47, "hist[0.60-0.80]": 45, "hist[0.80-1.00]": 1, "subset": "leak_included_DO_NOT_USE_AS_VERDICT", "wall_s": 9.9}
