@@ -19,3 +19,13 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+Scope note (not part of the MIT license text above): this license covers the
+repository's own code and documentation. Fine-tuned neural-network detector
+WEIGHTS (e.g. drone_finetuned_v2.onnx and successors) are NOT distributed in
+this repository and are NOT covered by this MIT grant — they descend from
+AGPL-3.0-licensed upstream tooling and are plausibly derivative works. See
+docs/license_notice_weights.md before committing, releasing, or
+redistributing any weights file.
