@@ -3,7 +3,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-21",
- "updated_by": "2026-07-21 (late) CAMERA MODALITY DECIDED — ADR-0078 KEEP MONO OV9281 (Fable case-for/against workflow: mono retrain works n-mono 0.442/4.9%FF + blur physics favor mono + AprilTag grayscale + AR0234 honesty-gated/Pivariety-fragile/98deg-lens-fails-100); free bird A/B in flight to close the one open cell; GPU env gitignore-protected (persists). Earlier same day: NN SWEEP (n-mono wins, bigger doesn't help) + IN-VIEW PROBES (binding wall = POINTING). Full history in changelogs.",
+ "updated_by": "2026-07-21 LAUNCH-MECH OPTIONS logged (decision launch_mech + graveyard, docs/launch_mechanism_options.md) — recommend B-core (manual coded dash) + an honesty-clean launch-time aim stack (static-bearing latch + optional no-radio one-shot spotter, both pre-flight constants); autonomous auto-fire + live-datalink cue REJECTED; design exploration, NOT ratified; launch choice orthogonal to the POINTING wall. Prior 2026-07-21 (late) CAMERA MODALITY DECIDED — ADR-0078 KEEP MONO OV9281 (Fable case-for/against workflow: mono retrain works n-mono 0.442/4.9%FF + blur physics favor mono + AprilTag grayscale + AR0234 honesty-gated/Pivariety-fragile/98deg-lens-fails-100); free bird A/B in flight to close the one open cell; GPU env gitignore-protected (persists). Earlier same day: NN SWEEP (n-mono wins, bigger doesn't help) + IN-VIEW PROBES (binding wall = POINTING). Full history in changelogs.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -150,10 +150,11 @@
    ],
    "status": "implemented",
    "active": "Auto collision-lead heading from pre-flight target kinematics (honest constant, no live gt); --dash-heading-deg override ('human points it').",
-   "note": "Aim tolerance measured: all 48 flights still acquired/engaged at up to +/-30 deg heading error (weave) — but #18g showed ENGAGE streaks can be phantom, so read that as dash-robustness, not perception proof. Onboard acoustic tracking REJECTED (own-noise ~40 dB the wrong way); acoustics OK only as a future GROUND launch-cue (idea).",
+   "note": "Aim tolerance measured: all 48 flights still acquired/engaged at up to +/-30 deg heading error (weave) — but #18g showed ENGAGE streaks can be phantom, so read that as dash-robustness, not perception proof. Onboard acoustic tracking REJECTED (own-noise ~40 dB the wrong way); acoustics OK only as a future GROUND launch-cue (idea). RELEASE/LAUNCH-MECHANISM options evaluated 2026-07-21 (decision launch_mech, docs/launch_mechanism_options.md): recommend B-core (manual trigger + coded dash) + an honesty-clean launch-time aim stack — a static-camera bearing latch and an OPTIONAL no-radio one-shot ground spotter, both latched as pre-flight constants; autonomous launch-on-detect (auto-fire) and a live-datalink cue are REJECTED (graveyard + constraint no-datalink). The launch choice is largely orthogonal to the binding wall (POINTING); the aim-stack extension is validation-gated on the fixed-tilt re-fly, NOT ratified.",
    "evidence": [
     "ADR-0076 add #18b/#18c",
-    "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)"
+    "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)",
+    "docs/launch_mechanism_options.md (4-lens eval 2026-07-21)"
    ],
    "changelog": [
     {
@@ -163,6 +164,10 @@
     {
      "date": "2026-07-16",
      "note": "Onboard acoustics ruled DEAD; ground launch-cue remains an idea."
+    },
+    {
+     "date": "2026-07-21",
+     "note": "Release/launch-mechanism options (auto-fire perch / manual coded dash / smart live-cue launcher) evaluated -> recommend B-core + honesty-clean launch-time aim stack; auto-fire + live datalink REJECTED. Design exploration, not ratified (decision launch_mech, docs/launch_mechanism_options.md)."
     }
    ]
   },
@@ -637,6 +642,16 @@
    "what": "Onboard acoustic target tracking",
    "why": "Own-prop noise ~40 dB the wrong way. (Ground launch-cue variant stays an idea.)",
    "evidence": "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)"
+  },
+  {
+   "what": "Live mid-course datalink cue from a 'smart launcher' (Option C as-stated)",
+   "why": "REJECTED as-stated: a persistent launcher->interceptor cue VIOLATES the no-datalink jam-resistance constraint (it IS the link an adversary jams) and was MEASURED to hurt aim (cue-guided r2l 0/8 vs coded-dash 5/8 @Pk2.5, aspect-biased bearing). Survives ONLY recast as a zero-radio ONE-SHOT pre-launch spotter that latches a single pre-flight constant and lets the link die at launch. Do not add a live guidance datalink.",
+   "evidence": "docs/launch_mechanism_options.md; ADR-0076 add #18; constraint no-datalink"
+  },
+  {
+   "what": "Autonomous launch-on-detect (auto-fire a spinning-prop ram on an NN lock)",
+   "why": "REJECTED as a standalone/auto-fire path: zero added acquisition range + reaction-time-starved (~1.8 s vs 9 m/s inbound), does not touch the pointing wall, and auto-firing a RAM on an unmeasured outdoor false-positive rate (ADR-0078 bird/clutter) is the least-defensible ROE. The salvageable half — latching the reliable STATIC camera bearing as a pre-flight-constant launch heading — is kept, but the human keeps the fire decision.",
+   "evidence": "docs/launch_mechanism_options.md; project_state.json decision launch_mech; ADR-0078"
   },
   {
    "what": "Auto-crop / foveated-crop (resolution) as the acquisition lever",
@@ -1887,6 +1902,38 @@
    ],
    "chosen_rationale": "The coded pre-flight aim wins because the measured aim-error envelope (+/-30 deg) makes launch precision a non-problem — the wide-FoV camera and crossing-bias calibration absorb it. Onboard acoustics died on own-noise physics; the ground acoustic cue survives only as a future idea because it sidesteps that physics and needs only the coarse accuracy the envelope already tolerates.",
    "evidence": "ADR-0076 add #18b/#18c/#18g, NEXT.md ROUND-5 (Fable strategic review 2026-07-16), project_state.json launch_aim"
+  },
+  {
+   "stage_id": "launch_aim",
+   "question": "RELEASE / LAUNCH MECHANISM: how is the interceptor deployed and the engagement triggered, and how (if at all) is a launch-time aim cue folded in without breaking jam-resistance — (A) an autonomous hand/loosely-mounted launcher that auto-fires on an NN lock, (B) a manual human-triggered coded dash, or (C) a smart launcher with a higher-res/zoom camera that transmits a live intercept cue? (Distinct from the sibling 'how is the launch AIMED' decision; this is the deployment + trigger + cue-plumbing question.)",
+   "options": [
+    {
+     "name": "A — Autonomous launch-on-detect from a hand/loosely-mounted perch (auto-fire)",
+     "summary": "The interceptor sits on the launcher, camera live + NN running; the operator points it roughly at the inbound; it AUTO-LAUNCHES the instant the NN holds a lock and dashes at the detected bearing.",
+     "why_choose": "Its real appeal: the STATIC-mounted detector works ~100% at 8-22 m (vs ~0.8% in flight), so it launches with a confirmed lock and a machine-measured bearing (~0.1 deg/px) — tighter than a human eyeball can point, and inside the ~15-20 deg kill tolerance.",
+     "pros": "Machine-accurate launch bearing from the reliable static regime; no radio in the loop (jam-proof); the bearing-latch payload is ~$0 software.",
+     "cons": "Dominated as a standalone: ZERO added acquisition range (same ~16 m cam) and reaction-time-starved (~1.8 s vs a 9 m/s inbound before takeoff+dash); does NOT touch the elevation/pointing wall; the pre-launch lock is unproven to survive the ~40 deg dash-pitch transient; and auto-firing a spinning-prop RAM on an unmeasured outdoor false-positive rate (ADR-0078 bird/clutter) is the least-defensible ROE. Salvageable half = the static-bearing latch, folded into B with the human keeping the fire decision.",
+     "status": "rejected"
+    },
+    {
+     "name": "B — Manual human-triggered launch + coded open-loop dash -> camera-only pro-nav terminal (committed baseline)",
+     "summary": "The human sees the drone, pulls the trigger, and the interceptor dashes on a pre-flight-constant heading until the onboard camera acquires and pro-nav takes over. This IS the current committed real design (coded_dash + launch_aim stages).",
+     "why_choose": "Cheapest (~$0), the only fully-instrumented option, jam-proof, and a human owns weapons release (most defensible ROE). Recommended EXTENSION (exploration, NOT ratified): fold in an honesty-clean launch-time aim stack — a static-camera bearing latch (A's payload) and an OPTIONAL no-radio one-shot ground spotter (C recast), both latched as SINGLE pre-flight constants; plus a $0 phone-gunsight / red-dot to hand-aim to the ram tolerance.",
+     "pros": "No new sensor path or radio in the guidance loop; the dash aim is validated to >=30 deg acquisition tolerance; every onboard-perception fix (the fixed-tilt re-fly) is built and validated here.",
+     "cons": "Kill-grade aim (~15-20 deg) rests on a human point unless the aim stack is added; and, like every option, the camera terminal is unproven until the fixed-tilt wedge is validated (today's kills are open-loop dash ballistics).",
+     "status": "chosen"
+    },
+    {
+     "name": "C — Smart launcher: higher-res/zoom camera + LIVE datalink cue (as stated)",
+     "summary": "The launcher's better camera acquires first (farther than the drone's wide cam), computes an estimated intercept point/lead, and TRANSMITS it to the interceptor mid-course, before its own camera can see the target.",
+     "why_choose": "The reach physics is real (R_acq linear in fx -> a zoom launcher cam could acquire at 30-65 m), and a launcher is the safe home for a narrow FOV (the ADR-0024 crosser backfire hits only the onboard terminal seeker, not a human-pointed spotter).",
+     "pros": "Real 2-4x acquisition-range physics (sim upper bound); narrow FOV is backfire-safe on a human-pointed launcher; zero parallax at the launch instant; and the ONE-SHOT recast (no radio, latch a single pre-flight constant, link dies at launch) keeps the reach benefit while staying honesty-clean and jam-proof.",
+     "cons": "Worst as stated: a persistent live datalink VIOLATES the no-datalink constraint (it IS the link an adversary jams — the whole jam-resistance headline), was already MEASURED to hurt aim (cue-guided r2l 0/8 vs coded-dash 5/8 @Pk2.5, from an aspect-biased bearing, ADR-0076 add #18), and re-imports the ground cue the sim deliberately mocked away. Reach numbers are pinhole UPPER BOUNDS (Stage-0-bench-gated). Survives ONLY recast as a zero-radio ONE-SHOT pre-launch spotter that latches a single pre-flight constant and lets the link die at launch — folded into B.",
+     "status": "rejected"
+    }
+   ],
+   "chosen_rationale": "RECOMMENDED (design exploration 2026-07-21, NOT ratified): B-core + an honesty-clean, jam-proof launch-time aim stack — keep the committed human-triggered coded dash, and pull ONLY the pre-flight-constant pieces off A (the static-camera bearing latch) and C (an OPTIONAL no-radio one-shot ground spotter), both baked in at trigger so nothing enters the guidance loop after launch, with a mandatory link-DENIED test arm to DEMONSTRATE the camera terminal finishing unaided. Discard exactly the parts the evidence punishes: A's auto-fire (reaction-starved + unmeasured outdoor false-fire on a ram) and C's live datalink (self-refuting for the headline; measurably corrupted aim). Crucial sequencing: NO launch mechanism moves the binding wall (POINTING, owned by the still-unvalidated fixed-tilt wedge) or the real bar (~0.3-0.5 m RAM, not Pk@2.5 m) — so the fixed-tilt x coded-dash re-fly vs a dash-only-ballistics control is the ONE experiment that decides whether a camera terminal exists at all; build and prove that on B BEFORE buying A's or C's hardware. Higher-leverage than any launch option, left open for the builder: a 2-axis seeker gimbal (the only full elevation-decoupler, revives lock-carry), dual ONBOARD cameras (C's reach, jam-proof), or a forgiving NET kill (~1.5-2 m radius dissolves the pointing bar).",
+   "evidence": "docs/launch_mechanism_options.md (4-lens eval -> adversarial critic -> synthesis, 2026-07-21); constraint no-datalink; real_build_coded_dash.md #18g/#18h (dash ballistics); seeker_acquisition_range_note.md (R_acq=fx*W/w_floor); kill_mechanism.md §1-2 (ram vs net); inview_probe_results.md (pointing wall); project_state.json pointing (fixed-tilt FINAL 2026-07-17)"
   },
   {
    "stage_id": "pointing",
