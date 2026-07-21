@@ -1,0 +1,146 @@
+{
+ "subset": "full",
+ "tag": "heldout",
+ "n_mono": {
+  "breakdown": {
+   "neg_by_source": {
+    "dut": {
+     "n": 1,
+     "fired": 0,
+     "fires": 0
+    },
+    "nps": {
+     "n": 51,
+     "fired": 4,
+     "fires": 4
+    },
+    "plates": {
+     "n": 417,
+     "fired": 19,
+     "fires": 19
+    }
+   },
+   "recall25_by_scale": {
+    "0-12px": {
+     "matched": 6,
+     "total": 75,
+     "recall": 0.08
+    },
+    "12-24px": {
+     "matched": 655,
+     "total": 1541,
+     "recall": 0.425
+    },
+    "24-40px": {
+     "matched": 737,
+     "total": 1544,
+     "recall": 0.4773
+    },
+    "40-80px": {
+     "matched": 199,
+     "total": 507,
+     "recall": 0.3925
+    },
+    "80+px": {
+     "matched": 309,
+     "total": 648,
+     "recall": 0.4769
+    }
+   },
+   "by_position": {
+    "center<0.33": {
+     "iou_hit25": 588,
+     "gate_hit25": 642,
+     "total": 1334,
+     "recall_iou": 0.4408,
+     "recall_gate": 0.4813
+    },
+    "mid0.33-0.66": {
+     "iou_hit25": 693,
+     "gate_hit25": 796,
+     "total": 1726,
+     "recall_iou": 0.4015,
+     "recall_gate": 0.4612
+    },
+    "edge>0.66": {
+     "iou_hit25": 625,
+     "gate_hit25": 825,
+     "total": 1255,
+     "recall_iou": 0.498,
+     "recall_gate": 0.6574
+    }
+   }
+  }
+ },
+ "v2_deployed": {
+  "breakdown": {
+   "neg_by_source": {
+    "dut": {
+     "n": 1,
+     "fired": 1,
+     "fires": 7
+    },
+    "nps": {
+     "n": 51,
+     "fired": 43,
+     "fires": 59
+    },
+    "plates": {
+     "n": 417,
+     "fired": 371,
+     "fires": 972
+    }
+   },
+   "recall25_by_scale": {
+    "0-12px": {
+     "matched": 0,
+     "total": 75,
+     "recall": 0.0
+    },
+    "12-24px": {
+     "matched": 0,
+     "total": 1541,
+     "recall": 0.0
+    },
+    "24-40px": {
+     "matched": 6,
+     "total": 1544,
+     "recall": 0.0039
+    },
+    "40-80px": {
+     "matched": 9,
+     "total": 507,
+     "recall": 0.0178
+    },
+    "80+px": {
+     "matched": 33,
+     "total": 648,
+     "recall": 0.0509
+    }
+   },
+   "by_position": {
+    "center<0.33": {
+     "iou_hit25": 23,
+     "gate_hit25": 394,
+     "total": 1334,
+     "recall_iou": 0.0172,
+     "recall_gate": 0.2954
+    },
+    "mid0.33-0.66": {
+     "iou_hit25": 19,
+     "gate_hit25": 337,
+     "total": 1726,
+     "recall_iou": 0.011,
+     "recall_gate": 0.1952
+    },
+    "edge>0.66": {
+     "iou_hit25": 6,
+     "gate_hit25": 105,
+     "total": 1255,
+     "recall_iou": 0.0048,
+     "recall_gate": 0.0837
+    }
+   }
+  }
+ }
+}

@@ -32,7 +32,7 @@ random frames (ADR-0061 anti-mirage rule); verifier-confirmed zero group/uid ove
 | model (gray) | AP50 | recall@25 | precision@25 | false-fire rate (drone-free) | provenance |
 |---|---|---|---|---|---|
 | **v2_deployed** (sim-trained, currently deployed) | **0.0003** | **0.0111** | 0.0051 | **0.8849** (2.21 fires/neg-frame) | `logs/nn_tier/eval_s-mono_summary_cmp1.csv`, n=4175 |
-| **n-mono** | **[PENDING — training in flight]** | [PENDING] | [PENDING] | [PENDING] | `eval_n_mono.py`, same split |
+| **n-mono** | **0.4421** | **0.4417** | **0.7141** | **0.049** (0.049 fires/neg-frame) | `logs/nn_tier/eval_n-mono_heldout.csv`, n=4175, same split |
 | yolo11x_mit (56.9 M, teacher only) | 0.2076* | 0.46* | 0.22* | 0.62* | *DVB corpus n=350, `logs/nn_tier/baseline_scoreboard_recon1.csv`; held-out-split subset run in flight |
 
 **The measured non-performance of the deployed v2 is the headline result already in hand:**
@@ -48,7 +48,16 @@ recall delta ≥ ~2 percentage points vs v2's 1.11% at p < 0.001; against v2's n
 AP50 the comparison is not a close call in either direction — either n-mono clears by a
 wide, significant margin or it fails outright. The v2 bar is measured on the FULL split
 (not a subsample), same grayscale mode, same conf 0.25 operating point.
-[PENDING: exact n-mono deltas + z once the run lands.]
+**LANDED (2026-07-21, n-mono, source-disjoint held-out n=4175, grayscale):** AP50
+0.0003 → **0.4421**, recall@25 1.11% → **44.17%**, precision@25 0.51% → **71.41%**,
+false-fire on drone-free frames 88.49% → **4.9%** — all four move the right way by
+margins far past the z-test resolution floor (Δrecall ≈ +43 pts on n=4,315 boxes,
+p ≪ 0.001). The real-media fine-tune decisively beats the blind sim net. **Honest
+absolute read:** 44% recall @conf.25 is *moderate*, not "solved" — small fast drones
+are hard, and this is a PUBLIC-media frame/video metric, NOT our-target/our-camera/
+our-site. The held-out-**FLIGHT** gate on the real target (tripod day) still governs
+deployment; this is the head-start, and it is a strong one. (s-mono / n-mono-aug land
+next via `eval_on_export.sh`.)
 
 **Arbitration among the three arms** (pre-registered so this plan doesn't rot):
 - `n-mono` vs `n-mono-aug` (geometric-aug arm, hsv zeroed): pick by held-out AP50 and

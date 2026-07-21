@@ -310,7 +310,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ba0116c<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->687b8ec<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -889,7 +889,7 @@
     },
     {
      "date": "2026-07-21",
-     "note": "TIER-NN real-data pipeline BUILT (workflow wf_2f332408, Fable-routed judgment / Sonnet training). GPU TRAINING UNLOCKED: .venv-seeker-train-gpu (torch 2.12.1+cu126 on the RTX 4070) ~23x over CPU (~2.8 vs ~65 s/epoch/300img); WSL2 silent-spill trap documented (no hard OOM; batch>8GB spills to RAM 4x slower — batch32/imgsz640 safe). REAL-MEDIA CORPUS: 15,391 images, source/video/scene-DISJOINT split (DUT held out whole, NPS by clip), GRAYSCALE (OV9281 track) + color A/B, 20% negatives incl. curated high-desert plates, BSD/MIT/CC0/CC-BY only; 'MIT drone NN' = doguilmak YOLOv11x (teacher/benchmark, not deployed). MEASURED BAR: the deployed SIM-TRAINED v2 is BLIND on real held-out imagery — AP50 0.0003, recall 1.1% @conf.25, false-fires on 88.5% of drone-free desert frames (n=4175, source-disjoint) => sim->real is a CONFIRMED NULL, the honest justification for real-data training. SCALE-DOWN VERDICT (answers the builder): NO scale-down needed — yolo11n @640 INT8 on Hailo-8L est. 40-80 e2e fps > ~30 threshold; yolo11n stays the anchor; Pi 5 CPU alone 5-10 fps not viable. Docs under docs/nn_tier/. Training IN FLIGHT (setsid daemons, one-at-a-time GPU): n-mono ~ep35/60, s-mono + n-mono-aug queued; held-out scores PENDING (eval_on_export.sh scores each on export) — NOT fabricated (anti-mirage rule)."
+     "note": "TIER-NN real-data pipeline BUILT (workflow wf_2f332408, Fable-routed judgment / Sonnet training). GPU TRAINING UNLOCKED: .venv-seeker-train-gpu (torch 2.12.1+cu126 on the RTX 4070) ~23x over CPU (~2.8 vs ~65 s/epoch/300img); WSL2 silent-spill trap documented (no hard OOM; batch>8GB spills to RAM 4x slower — batch32/imgsz640 safe). REAL-MEDIA CORPUS: 15,391 images, source/video/scene-DISJOINT split (DUT held out whole, NPS by clip), GRAYSCALE (OV9281 track) + color A/B, 20% negatives incl. curated high-desert plates, BSD/MIT/CC0/CC-BY only; 'MIT drone NN' = doguilmak YOLOv11x (teacher/benchmark, not deployed). MEASURED BAR: the deployed SIM-TRAINED v2 is BLIND on real held-out imagery — AP50 0.0003, recall 1.1% @conf.25, false-fires on 88.5% of drone-free desert frames (n=4175, source-disjoint) => sim->real is a CONFIRMED NULL, the honest justification for real-data training. SCALE-DOWN VERDICT (answers the builder): NO scale-down needed — yolo11n @640 INT8 on Hailo-8L est. 40-80 e2e fps > ~30 threshold; yolo11n stays the anchor; Pi 5 CPU alone 5-10 fps not viable. Docs under docs/nn_tier/. FIRST HELD-OUT RESULT LANDED (n-mono, source-disjoint test n=4175, GRAYSCALE, eval_n-mono_heldout.csv): AP50 0.0003->0.442 (~1400x), recall@.25 1.1%->44.2%, precision 0.5%->71.4%, false-fire on drone-free frames 88.5%->4.9% vs the deployed v2 in the SAME run — the real-data fine-tune decisively beats the blind sim model. HONEST BOUNDS: 44% recall @.25 is a moderate absolute on hard small-drone imagery, and this is PUBLIC-media held-out (frame/video metric), still gated by the held-out-FLIGHT rule on OUR target/camera/site (the tripod day). s-mono + n-mono-aug still training (setsid, one-at-a-time GPU); their held-out scores land via eval_on_export.sh — NOT fabricated."
     },
     {
      "date": "2026-07-20",
@@ -1196,6 +1196,12 @@
    "value": "~$740",
    "note": "binary-kill re-scope; ~$1,390 everything-new",
    "provenance": "hardware_order_list.md §0c"
+  },
+  {
+   "label": "Real-data NN vs deployed sim-NN (held-out, mono)",
+   "value": "AP50 0.44 vs 0.0003; false-fire 4.9% vs 88.5%",
+   "note": "n-mono (real-data grayscale YOLO11n) vs v2_deployed on a source-disjoint held-out test (n=4175, conf .25); recall 44.2% vs 1.1%. PUBLIC-media metric — held-out-FLIGHT on the real target is the tripod day.",
+   "provenance": "logs/nn_tier/eval_n-mono_heldout.csv; docs/nn_tier/PLAN.md"
   }
  ],
  "bom_tiers": [
