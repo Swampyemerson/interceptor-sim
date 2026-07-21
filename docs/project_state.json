@@ -2,8 +2,8 @@
   "schema_version": 2,
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-07-20",
-  "updated_by": "Fable Tier-1 build-push pass + 2026-07-20b top-up-order reconciliation (build_tab part statuses + bom_tiers must-add rows updated from the builder's screenshots: consumables/tools/jumpers/cables/18650s/smoke-stopper/checker/+2 packs ordered; missing list = iron, Kakute microSD, LiPo bag/glasses/blanket, cooler, PD bank, tripod, buzzer; 6C Mini + PM02 possible-duplicate flagged; prior pass: schema v2.3 build_tab, Tier-1 software layer, ov9281-pxdeg-30-vs-15 ledger entry)",
+  "updated": "2026-07-21",
+  "updated_by": "2026-07-21 overnight burn-down: P0 SOFTWARE CLOSED (box_hits_gt fixed + rescore quantifies the near-6th-mirage; P0.2 placard=0.35 m; P0.6 transfer-bet NOT-DEAD smoke read; config packs target/pi/6C; DEEP-H2 streak tests; ARM64 proof + pyapriltags landmine fix); repo PUSHED to private GitHub (Swampyemerson/interceptor-sim), first CI GREEN; ledger +2 resolved (ov9281-pxdeg-30-vs-15, target-fc-matek-vs-kakute); GPU-fiducial render caveat on sim_harness; next = the two in-view probes with the fixed scorer",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -59,7 +59,7 @@
     ]
   },
   "build_plan": {
-    "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. [2026-07-20 UPDATE — the Tier-1 SOFTWARE layer landed, all adversarially verified] NOW ALSO DONE: P0.3 two-curve tripod scorer (scripts/seeker/tripod_score.py), P0.5 camera paper-check (docs/camera_paper_check.md — CLEARS; px/deg penalty corrected ~30%->~15%), P0.4 cam-offset/model-swap guard (m4 exits 2 on mismatch), the Pi-side capture script (scripts/seeker/pi_capture.py), field_score ArduPilot .BIN support, and the deploy_seeker MAVSDK OFFBOARD path (SITL-validated, 3 real defects fixed). [2026-07-21] P0.2 DONE (auto-labeler VALIDATED, IoU 0.965; PLACARD = 0.35 m, print unblocked — docs/placard_sizing.md) + qemu DONE (ARM64 stack proof PASS, pupil-apriltags wheel landmine found+fixed — docs/pi_emulation_check.md) + repo PUSHED to the private GitHub remote, first CI run GREEN. STILL OPEN = P0.6 the free-footage NN kill-test, and the box_hits_gt scoring fix + the two in-view probes (ground-background, phantom-competition) — all in flight in the desk-pack workflow. [ORDERED 2026-07-20] Cart placed (Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor BRAIN (6C Mini + M10, front-loaded past the money gate — acceptable, logged). FORWARD: (P1) build+flash the ArduPilot target + assemble the OV9281->Pi seeker rig; IN PARALLEL bench the 6C Mini (props-off Pi<->TELEM2 OFFBOARD bring-up — de-risks the deploy loop's unverified MAVSDK path). (P0 software remaining) placard-sizing (P0.2), free-footage NN kill-test (P0.6), box_hits_gt fix + the two in-view probes. (P2) tripod day -> curve (a) tag range gates the interceptor airframe, curve (b) NN recall gates the Hailo. Then P3+ airframe. ADD the must-add build/field layer + re-source Pi/SD BEFORE building.",
+    "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. [2026-07-20 UPDATE — the Tier-1 SOFTWARE layer landed, all adversarially verified] NOW ALSO DONE: P0.3 two-curve tripod scorer (scripts/seeker/tripod_score.py), P0.5 camera paper-check (docs/camera_paper_check.md — CLEARS; px/deg penalty corrected ~30%->~15%), P0.4 cam-offset/model-swap guard (m4 exits 2 on mismatch), the Pi-side capture script (scripts/seeker/pi_capture.py), field_score ArduPilot .BIN support, and the deploy_seeker MAVSDK OFFBOARD path (SITL-validated, 3 real defects fixed). [2026-07-21] P0.2 DONE (auto-labeler VALIDATED, IoU 0.965; PLACARD = 0.35 m, print unblocked — docs/placard_sizing.md) + qemu DONE (ARM64 stack proof PASS, pupil-apriltags wheel landmine found+fixed — docs/pi_emulation_check.md) + repo PUSHED to the private GitHub remote, first CI run GREEN. [2026-07-21b — desk-pack landed, all verified] box_hits_gt FIXED (frametop 19->95%, banked 0->100%, negative control unchanged — constraint closed), P0.6 transfer-bet smoke read DONE (NOT-DEAD; streak-gate-on-real-clutter is the open variable), the three hardware config packs (configs/target_kakute, scripts/pi_setup, configs/px4_6cmini) + DEEP-H2 streak tests DONE. **P0 SOFTWARE IS CLOSED.** Remaining sim work: the two in-view probes (ground-background, phantom-competition) — the headline next_probe, now unblocked by the fixed scorer. [ORDERED 2026-07-20] Cart placed (Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor BRAIN (6C Mini + M10, front-loaded past the money gate — acceptable, logged). FORWARD: (P1) build+flash the ArduPilot target + assemble the OV9281->Pi seeker rig; IN PARALLEL bench the 6C Mini (props-off Pi<->TELEM2 OFFBOARD bring-up — de-risks the deploy loop's unverified MAVSDK path). (P0 software remaining) placard-sizing (P0.2), free-footage NN kill-test (P0.6), box_hits_gt fix + the two in-view probes. (P2) tripod day -> curve (a) tag range gates the interceptor airframe, curve (b) NN recall gates the Hailo. Then P3+ airframe. ADD the must-add build/field layer + re-source Pi/SD BEFORE building.",
     "phases": [
       {
         "code": "P0",
@@ -227,6 +227,10 @@
         {
           "date": "2026-07-18",
           "note": "Frame-top sweep (P0.1) + Fable verify: edge-position/bank/projection-skew do NOT impair detection vs clean sky (100% localized 8-22 m). RETRACT the #18j-fix 'aspect wall @10-12 m' detector-failure claim — re-exam shows target-sized conf-0.56-0.78 boxes rejected on the box_hits_gt CENTRE/SIZE gate amid a phantom storm, not a detector miss. Real in-view mechanisms = ground-background + phantom-competition (both sim-testable). Motion blur is a real-world risk, NOT a sim mechanism (mono_cam has no blur)."
+        },
+        {
+          "date": "2026-07-21",
+          "note": "The 2026-07-18 retraction is now QUANTIFIED by the fixed scorer (box_scoring.py re-score): frametop 19%->95% hit rate (405 false-rejections flip), frametop_banked 0%->100% (536), centred control unchanged 82%, clean-negative control unchanged 0/692 — the 'frame-top blindness' was overwhelmingly a SCORING artifact, confirming the detector localizes fine at the edge vs sky. The two un-eliminated in-view mechanisms (ground-background, phantom-competition) are now probe-ready with a trustworthy scorer."
         }
       ]
     },
@@ -557,7 +561,7 @@
     },
     {
       "id": "transfer-bet",
-      "text": "The MIT-licensed outdoor-drone-NN transfer bet is UNVALIDATED (hope past evidence). Cheapest kill-or-validate: the ~$310 tripod + tagged-target afternoon measuring real approach-recall vs range/frame-position. Its verdict gates ONLY the Hailo HAT + the markerless phase — the interceptor order is gated on the SAME session's AprilTag envelope curve instead (first kills fly the tag, §0c), so a dead transfer bet delays markerless, not the build.",
+      "text": "The MIT-licensed outdoor-drone-NN transfer bet is UNVALIDATED (hope past evidence). Cheapest kill-or-validate: the ~$310 tripod + tagged-target afternoon measuring real approach-recall vs range/frame-position. Its verdict gates ONLY the Hailo HAT + the markerless phase — the interceptor order is gated on the SAME session's AprilTag envelope curve instead (first kills fly the tag, §0c), so a dead transfer bet delays markerless, not the build. [SMOKE READ 2026-07-21, P0.6 — docs/transfer_bet_kill_test.md: NOT DEAD (quad_v2 boxes a real DJI 2/3 clean photos — the sim->real generalization exists) but NOT alive-and-well (raw per-frame discrimination ~zero: 0.71 drone-frames vs 0.65 drone-FREE — clutter fires); the deciding variable is the 5-streak handoff gate on real clutter, which only tripod curve (b) can measure.]",
       "evidence": [
         "NEXT.md ROUND-5 (Fable strategic review 2026-07-16)"
       ]
@@ -604,7 +608,7 @@
     },
     {
       "id": "box-hits-gt-scoring-debt",
-      "text": "box_hits_gt (resolution_probe.py:69) FALSE-REJECTS off-axis/edge detections: the detected-box/gt-box size ratio drifts 2.9->3.6 with range and straddles the 3x gate because (a) capture_flight_frames.classify() labels off-axis targets at BORESIGHT scale (no sec^2(theta)/aspect correction; true silhouette ~1.7-1.9x the label) and (b) v2 over-boxes ~2x everywhere. It only false-REJECTS (safe for the #18k 100%s), but it created the frametop/banked '0%' near-mirage and corrupts #18j-fix's in-view numbers. FIX before the next recall probe: off-axis-aware or silhouette-derived gt extent, UNIFY --extent-m (sweep 0.35 vs quad_approach 0.9 are not comparable), and add centre-lag tolerance for MOVING captures.",
+      "text": "[FIXED 2026-07-21 — scripts/seeker/box_scoring.py is now the ONE gate: sec^2 off-axis widening (boresight no-op), unified TARGET_EXTENT_M=0.52 (mesh-measured), centre-lag helper; re-score flipped frametop 19%->95% / banked 0%->100% with the clean-negative control unchanged 0/692; 17 unit tests; kept for the record:] box_hits_gt (resolution_probe.py:69) FALSE-REJECTS off-axis/edge detections: the detected-box/gt-box size ratio drifts 2.9->3.6 with range and straddles the 3x gate because (a) capture_flight_frames.classify() labels off-axis targets at BORESIGHT scale (no sec^2(theta)/aspect correction; true silhouette ~1.7-1.9x the label) and (b) v2 over-boxes ~2x everywhere. It only false-REJECTS (safe for the #18k 100%s), but it created the frametop/banked '0%' near-mirage and corrupts #18j-fix's in-view numbers. FIX before the next recall probe: off-axis-aware or silhouette-derived gt extent, UNIFY --extent-m (sweep 0.35 vs quad_approach 0.9 are not comparable), and add centre-lag tolerance for MOVING captures.",
       "evidence": [
         "scripts/seeker/resolution_probe.py:69-80",
         "scripts/seeker/capture_flight_frames.py:149-150",
@@ -2239,6 +2243,19 @@
       "severity": "low",
       "status": "resolved",
       "resolution": "Paper-check derivation adopted; bom_tiers row, build_tab note, and the NEXT.md P0.5 line rewritten to ~15% citing camera_paper_check.md; found the same day the paper-check ran, so no decision ever consumed the wrong 30%."
+    },
+    {
+      "id": "target-fc-matek-vs-kakute",
+      "topic": "Which target FC was settled: Matek H743 (§0b/§E 'SETTLED') vs the ordered Kakute H7 V1.5",
+      "claim_a": "'SETTLED 2026-07-20 — Matek H743 (SLIM/WLITE) + 45-55 A ESC' (§0b bullet + the §E table row)",
+      "loc_a": "docs/hardware_order_list.md §0b + §E (pre-annotation)",
+      "claim_b": "The ORDERED cart carries the Holybro Kakute H7 V1.5 + Tekko32 F4 65A (the §E row's own 'one-purchase alt'), per the §0d ORDERED banner, bom_tiers, and the builder's screenshots.",
+      "loc_b": "docs/hardware_order_list.md §0d; docs/project_state.json bom_tiers[0]; git 20ff234",
+      "current_truth": "The Kakute H7 V1.5 is the target FC of record (ArduPilot firmware target `KakuteH7`; config pack configs/target_kakute/). The Matek 'SETTLED' was the pre-checkout analysis, superseded the same day when the one-purchase alt won at checkout. Both §0b and §E annotated 2026-07-21.",
+      "verdict": "CONFIRMED",
+      "severity": "low",
+      "status": "resolved",
+      "resolution": "Superseded-at-checkout brackets added to §0b and the §E table row, both pointing here; caught by the target_pack verifier 2026-07-21."
     }
   ]
 }

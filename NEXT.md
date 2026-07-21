@@ -7,7 +7,7 @@
 **Hardware is ORDERED** (2026-07-20, Fable GO-WITH-FIXES — target-drone stack + seeker kit + interceptor brain; see `bom_tiers`). While parts ship, the remaining **sim/desk prep**, all decision-relevant to the tripod test / the build:
 
 **Prereq (do first):**
-- [ ] **Fix `box_hits_gt`** (constraint `box-hits-gt-scoring-debt`) — off-axis-aware / silhouette-derived gt extent; **UNIFY `--extent-m`** (sweep 0.35 vs quad_approach 0.9 aren't comparable); add centre-lag tolerance for MOVING captures. Its size gate false-rejected the frame-top sweep (near-6th-mirage) and corrupted #18j-fix's in-view numbers — fix before any recall probe.
+- [x] **Fix `box_hits_gt`** — DONE 2026-07-21 (`b0a947e`): `scripts/seeker/box_scoring.py` is the one gate (sec² off-axis widening, unified TARGET_EXTENT_M=0.52 mesh-measured, centre-lag helper). Re-score: frametop 19→95%, banked 0→100%, negative control unchanged 0/692 — the near-6th-mirage quantified. 17 unit tests; adversarially verified.
 
 **The two un-eliminated in-view mechanisms (the corrected `headline.next_probe`):**
 - [ ] **Pitched-down + ground-background sweep** — reproduce the REAL in-flight scene (nose-on quad vs GROUND with its shadow, not the frame-top sweep's belly-vs-sky). Tests the ground-clutter mechanism (detector was 0% on the horizon vs 76–100% on sky). Score with the fixed scorer.
