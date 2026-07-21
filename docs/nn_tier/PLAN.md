@@ -33,6 +33,7 @@ random frames (ADR-0061 anti-mirage rule); verifier-confirmed zero group/uid ove
 |---|---|---|---|---|---|
 | **v2_deployed** (sim-trained, currently deployed) | **0.0003** | **0.0111** | 0.0051 | **0.8849** (2.21 fires/neg-frame) | `logs/nn_tier/eval_s-mono_summary_cmp1.csv`, n=4175 |
 | **n-mono** | **0.4421** | **0.4417** | **0.7141** | **0.049** (0.049 fires/neg-frame) | `logs/nn_tier/eval_n-mono_heldout.csv`, n=4175, same split |
+| n-mono-aug (heavy augmentation) | 0.3875 | 0.4137 | 0.6688 | 0.0512 | `logs/nn_tier/heldout_scores.txt`, n=4175, same split — slightly BELOW plain n-mono ⇒ augmentation did not help on this held-out public set |
 | yolo11x_mit (56.9 M, teacher only) | 0.2076* | 0.46* | 0.22* | 0.62* | *DVB corpus n=350, `logs/nn_tier/baseline_scoreboard_recon1.csv`; held-out-split subset run in flight |
 
 **The measured non-performance of the deployed v2 is the headline result already in hand:**
