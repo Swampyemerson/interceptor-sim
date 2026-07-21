@@ -1,0 +1,3 @@
+model,mode,n_images,false_fire_rate@25,n_fired,fires_per_image,top_score_mean,top_score_median,top_score_p25,top_score_p75,top_score_min,top_score_max,latency_ms_cpu,hist[0.25-0.40],hist[0.40-0.60],hist[0.60-0.80],hist[0.80-1.00],subset,wall_s
+n_color,color,293,0.0307,9,0.031,0.3416,0.3055,0.2643,0.4294,0.2516,0.5358,31.0,6,3,0,0,clean_holdout,9.6
+n_color,color,361,0.0249,9,0.025,0.3416,0.3055,0.2643,0.4294,0.2516,0.5358,26.8,6,3,0,0,leak_included_DO_NOT_USE_AS_VERDICT,10.2

@@ -1,0 +1,2 @@
+model,subset_n,n_gt_boxes,ap50,precision@25,recall@25,f1@25,neg_images,false_fire_rate@25,false_fires_per_neg_img,latency_ms_cpu,subset,wall_s
+n_color,4175,4315,0.4373,0.6925,0.4269,0.5282,469,0.1343,0.158,26.9,full,130.7
