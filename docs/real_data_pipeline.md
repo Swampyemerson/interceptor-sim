@@ -104,13 +104,17 @@ any real footage exists. (Follow-up capture task; the projection math is already
   untagged` on TARGET-FREE footage makes them negatives) so approach footage can't be poisoned
   with false 'background' labels beyond the tag's decode range; (2) `--tag-offset-m` applied in
   the tag frame via `pose_R`; (3) frames undistorted before detect+project.
-- ⚠️ **Partial validation only** (do NOT overclaim): the projection math is self-test-green, the
-  pose is accurate on one frame (`tag_at_5m.png`: z=4.97 m vs the 5 m world placement, 0.7% error),
-  and the end-to-end run caught a real `pose_t` shape bug. But the box-width "match" was circular
-  (the same `fx·s/rng` formula twice), and it's one on-axis ideal-camera frame. **The real
-  validation — tag-box vs gt-box (IoU) and label-rate, both vs RANGE over a full approach pass in
-  the apriltag world — has NOT run yet; it's the next step, and its label-ceiling-vs-range curve
-  decides the placard size / far-band labeling strategy before any hardware flies.**
+- ✅ **VALIDATED in the apriltag sim world (2026-07-20, `docs/placard_sizing.md`).** The real
+  check has now run: over a 2–30 m set-pose range ladder (+ off-boresight) the auto-label box
+  agrees with the gt box at **mean IoU 0.965 / min 0.951**, tag-pose range error **+0.13 m mean /
+  0.25 m max**, and the shipped CLI labels **132/252** frames (= the per-frame decode count). The
+  earlier "partial only / circular `fx·s/rng` twice" caveat is retired — the IoU is now non-circular
+  (both boxes share the projector + 0.35 m extent, so IoU isolates decoded-vs-gt pose). **Label
+  ceiling / placard sizing:** the sim 0.5 m tag decodes to **R_decode90 = 12 m** (deployed
+  `quad_decimate=2.0`; 18 m at full-res), which scaled to the OV9281 sizes the placard →
+  **recommended 0.35 m carry-limit edge** (sim-scaled estimate; tripod day measures the real curve).
+  Two findings logged: use software render for fiducial decode (GPU mip washes the tag at range),
+  and the envelope is set by `quad_decimate`. Tooling: `scripts/seeker/validate_autolabel_sim.{py,sh}`.
 - ✅ `calibrate_camera.py` + `flight.camera` (calibration → intrinsics) built + self-tested.
 - ✅ `approach_recall.py` — measures the deployed detector's real-target recall vs range (range-indexed; #18k showed the wall is flight-dynamic/position-in-frame, and #18j-fix documents this script's grounded-takeoff bin confound).
 - ⏳ Capture tooling for the Pi camera + the approaching-pass protocol (hardware-gated).

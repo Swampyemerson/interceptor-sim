@@ -1,0 +1,231 @@
+{
+  "n_frames_boresight": 180,
+  "n_frames_offaxis": 72,
+  "bin_m": 2.0,
+  "R_decode_any_sim_m": 12.0,
+  "R_decode90_sim_m": 12.0,
+  "decode_rate_at_R90": 1.0,
+  "tag_size_sim_m": 0.5,
+  "mean_iou_decoded": 0.9653,
+  "median_iou_decoded": 0.9641,
+  "min_iou_decoded": 0.9513,
+  "mean_range_err_m": 0.1273,
+  "max_abs_range_err_m": 0.25,
+  "per_bin": {
+    "0-2": {
+      "n": 12,
+      "decoded": 12,
+      "rate": 1.0,
+      "mean_iou": 0.988,
+      "mean_range_err": 0.011
+    },
+    "2-4": {
+      "n": 12,
+      "decoded": 12,
+      "rate": 1.0,
+      "mean_iou": 0.971,
+      "mean_range_err": 0.058
+    },
+    "4-6": {
+      "n": 12,
+      "decoded": 12,
+      "rate": 1.0,
+      "mean_iou": 0.961,
+      "mean_range_err": 0.118
+    },
+    "6-8": {
+      "n": 12,
+      "decoded": 12,
+      "rate": 1.0,
+      "mean_iou": 0.954,
+      "mean_range_err": 0.19
+    },
+    "8-10": {
+      "n": 12,
+      "decoded": 12,
+      "rate": 1.0,
+      "mean_iou": 0.951,
+      "mean_range_err": 0.25
+    },
+    "10-12": {
+      "n": 12,
+      "decoded": 12,
+      "rate": 1.0,
+      "mean_iou": 0.967,
+      "mean_range_err": 0.137
+    },
+    "12-14": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "14-16": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "16-18": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "18-20": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "20-22": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "22-24": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "24-26": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "26-28": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    },
+    "28-30": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null,
+      "mean_range_err": null
+    }
+  },
+  "offaxis": {
+    "18deg": {
+      "n": 12,
+      "decoded": 0,
+      "rate": 0.0,
+      "mean_iou": null
+    },
+    "19deg": {
+      "n": 24,
+      "decoded": 24,
+      "rate": 1.0,
+      "mean_iou": 0.955
+    },
+    "21deg": {
+      "n": 24,
+      "decoded": 24,
+      "rate": 1.0,
+      "mean_iou": 0.944
+    },
+    "33deg": {
+      "n": 12,
+      "decoded": 12,
+      "rate": 1.0,
+      "mean_iou": 0.945
+    }
+  },
+  "placard": {
+    "sim_fx": 539.936,
+    "sim_hfov_deg": 99.69,
+    "sim_pxdeg": 12.839,
+    "ov9281_pxdeg": 10.847,
+    "ov9281_fx_px": 384.55,
+    "scale_fx_conservative": 0.7122,
+    "scale_pxdeg_middle": 0.8449,
+    "R_decode90_sim_m": 12.0,
+    "R_decode_any_sim_m": 12.0,
+    "candidates": [
+      {
+        "edge_m": 0.2,
+        "edge_ratio": 0.4,
+        "R_decode90_real_conservative_m": 3.42,
+        "R_decode90_real_middle_m": 4.06,
+        "R_decode_any_real_conservative_m": 3.42,
+        "t_go_conservative_s": 0.213,
+        "gate_conservative": "FAIL",
+        "t_go_middle_s": 0.284,
+        "gate_middle": "FAIL",
+        "R_streak_burn_m": 1.5,
+        "R_decode90_real_hires_conservative_m": 5.13,
+        "R_decode90_real_hires_middle_m": 6.08,
+        "gate_hires_conservative": "FAIL"
+      },
+      {
+        "edge_m": 0.25,
+        "edge_ratio": 0.5,
+        "R_decode90_real_conservative_m": 4.27,
+        "R_decode90_real_middle_m": 5.07,
+        "R_decode_any_real_conservative_m": 4.27,
+        "t_go_conservative_s": 0.308,
+        "gate_conservative": "FAIL",
+        "t_go_middle_s": 0.397,
+        "gate_middle": "FAIL",
+        "R_streak_burn_m": 1.5,
+        "R_decode90_real_hires_conservative_m": 6.41,
+        "R_decode90_real_hires_middle_m": 7.6,
+        "gate_hires_conservative": "PASS"
+      },
+      {
+        "edge_m": 0.3,
+        "edge_ratio": 0.6,
+        "R_decode90_real_conservative_m": 5.13,
+        "R_decode90_real_middle_m": 6.08,
+        "R_decode_any_real_conservative_m": 5.13,
+        "t_go_conservative_s": 0.403,
+        "gate_conservative": "FAIL",
+        "t_go_middle_s": 0.509,
+        "gate_middle": "PASS",
+        "R_streak_burn_m": 1.5,
+        "R_decode90_real_hires_conservative_m": 7.69,
+        "R_decode90_real_hires_middle_m": 9.12,
+        "gate_hires_conservative": "PASS"
+      },
+      {
+        "edge_m": 0.35,
+        "edge_ratio": 0.7,
+        "R_decode90_real_conservative_m": 5.98,
+        "R_decode90_real_middle_m": 7.1,
+        "R_decode_any_real_conservative_m": 5.98,
+        "t_go_conservative_s": 0.498,
+        "gate_conservative": "FAIL",
+        "t_go_middle_s": 0.622,
+        "gate_middle": "PASS",
+        "R_streak_burn_m": 1.5,
+        "R_decode90_real_hires_conservative_m": 8.97,
+        "R_decode90_real_hires_middle_m": 10.65,
+        "gate_hires_conservative": "PASS"
+      }
+    ],
+    "gate_R90_threshold_m": 6.0,
+    "R_decode90_sim_hires_m": 18.0,
+    "hires_note": "quad_decimate=1.0 (full-res) sim envelope; the deployed detector uses the library default 2.0 -- full-res buys ~1.5x range at a Pi-CPU/fps cost (bench \u00a77.3).",
+    "recommended_edge_m": 0.35,
+    "recommended_reason": "sim decode envelope is SHORT -- no candidate clears the conservative gate with margin at the deployed quad_decimate=2.0 config, so size to the CARRY LIMIT (0.35 m): decode range scales linearly with edge, 0.35 m clears the gate under the realistic (px/deg) camera scaling and comfortably at quad_decimate=1.0, and every un-modeled real penalty pushes range shorter. Tripod day measures the real curve."
+  },
+  "plots": [
+    "docs/images/autolabel_label_rate_vs_range.png",
+    "docs/images/autolabel_iou_vs_range.png",
+    "docs/images/autolabel_range_error_vs_range.png",
+    "docs/images/placard_sizing.png"
+  ]
+}
