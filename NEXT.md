@@ -13,14 +13,14 @@
 - [ ] **Pitched-down + ground-background sweep** — reproduce the REAL in-flight scene (nose-on quad vs GROUND with its shadow, not the frame-top sweep's belly-vs-sky). Tests the ground-clutter mechanism (detector was 0% on the horizon vs 76–100% on sky). Score with the fixed scorer.
 - [ ] **Phantom-competition test** (8–11 m band) — top-1 masking amid the 5–25 box/frame in-flight phantom storm (0 static).
 
-**P0 software (for the tripod day + the parallel bench):**
-- [ ] **P0.2 placard-sizing auto-labeler validation** (apriltag world) — sets the AprilTag placard size; still un-run.
-- [ ] **P0.3 two-curve tripod SCORER** — recall-vs-range × position-in-frame, tag/ULog-truthed (produces both money-gate curves).
-- [ ] **P0.4 link `--cam-fwd-offset` to the model swap** — no silent uncompensated sim runs.
-- [ ] **P0.5 camera paper-check write-up** — 118° HFoV clears ≥100° (verify H-vs-diagonal); vertical-FoV 800 vs sim 960 (~30% less px/deg → shorter range); ≤1 ms exposure.
-- [ ] **Pi-side capture script** (rpicam/Picamera2 → frames + synced tag-pose) — flagged "not built" in `tripod_test_protocol.md`.
-- [ ] **`field_score` ArduPilot-log support** — .bin parser or the CSV-export path (target is ArduPilot, constraint `target-is-ardupilot`).
-- [ ] **Validate `deploy_seeker` MAVSDK OFFBOARD path** against the LOCAL PX4 SITL — the front-loaded 6C Mini de-risks this on the props-off bench; the live path is currently unverified.
+**P0 software (for the tripod day + the parallel bench) — [2026-07-20 push: all but P0.2 DONE, each adversarially verified]:**
+- [ ] **P0.2 placard-sizing auto-labeler validation** (apriltag world) — sets the AprilTag placard size; still un-run (needs the sim).
+- [x] **P0.3 two-curve tripod SCORER** — DONE: `scripts/seeker/tripod_score.py` (curve (a) tag decode envelope → Tier-2 money gate with explicit t_go≥0.5 s arithmetic incl. the 5-streak burn; curve (b) NN recall vs range × position-in-frame → Hailo gate only; NN half no-ops cleanly without onnxruntime). Advisory: R_decode90 reports the bin UPPER edge (documented, ±one 2 m bin).
+- [x] **P0.4 link `--cam-fwd-offset` to the model swap** — DONE (`4272fdf`): m4 startup parses the ACTIVE model SDF and exits 2 on a compensation mismatch (`--allow-cam-offset-mismatch` escape hatch); pure guard logic in `flight.geometry` + guard-matrix unit tests; byte-identical stock default.
+- [x] **P0.5 camera paper-check** — DONE: `docs/camera_paper_check.md`. 118° is HORIZONTAL (clears ≥100° with margin); **px/deg penalty ~15%, NOT ~30%** (the 30% was the 148° diagonal misread — ledger `ov9281-pxdeg-30-vs-15`); ≤1 ms exposure clears (~40 µs floor; set `FrameDurationLimits` alongside); mono-vs-color NN confound UNVERIFIED-ON-PAPER (real-data mono retrain is the sanctioned fix); 22→15 CSI cable correct; `dtoverlay=ov9281` is mainline.
+- [x] **Pi-side capture script** — DONE: `scripts/seeker/pi_capture.py` (picamera2/v4l2/dir-replay backends; session = frames/ + index.csv + meta.json + tags.csv; logs the ACTUAL applied exposure vs the ≤1 ms spec; autolabel consumes the layout directly, 100% label-rate verified). Bench-test on the real Pi when it arrives (build_tab `skr-05`).
+- [x] **`field_score` ArduPilot-log support** — DONE: DataFlash .BIN via pymavlink DFReader (POS preferred over GPS, GWk/GMS UTC sync, per-side `--ulog/--bin/--csv`); self-test 5/5 incl. an end-to-end synthetic .BIN byte stream.
+- [x] **Validate `deploy_seeker` MAVSDK OFFBOARD path** — DONE against local PX4 SITL (`1bdd310`): 3 real defects fixed (assumed-airborne offboard start, no connect timeout, no clean shutdown); `scripts/check_deploy_sitl.sh` boots+runs+kills, exit 0; evidence `logs/deploy_seeker_sitl_20260720T*.log`. Re-run on the 6C Mini props-off bench when it arrives (build_tab `brn-05`).
 
 Full detail/status: the dashboard `build_plan` (P0–P5) + the constraints in `docs/project_state.json`. **The "THE PLAN (2026-07-10)" below is the pre-pivot Phase-2 plan — superseded by the real-build pivot + the dashboard; kept for history.**
 

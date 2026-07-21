@@ -69,10 +69,10 @@
     font-size: 12.5px; font-variant-numeric: tabular-nums slashed-zero; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   @media (max-width: 800px) { #titleblock { grid-template-columns: 1fr 1fr 1fr; } #titleblock .cell { border-top: 1px solid var(--hair2); } }
 
-  #stale, #error { display: none; margin-top: 10px; padding: 6px 0; border-top: 1px solid var(--hair);
+  #stale, #error, #bt-error { display: none; margin-top: 10px; padding: 6px 0; border-top: 1px solid var(--hair);
     border-bottom: 1px solid var(--hair); font-family: ui-monospace, monospace; font-size: 12px; }
   #stale { color: var(--part); }
-  #error { color: var(--rejd); font-weight: 600; }
+  #error, #bt-error { color: var(--rejd); font-weight: 600; }
 
   /* ---- binding-wall memo callout ---- */
   #wall { border-top: 2px solid var(--accent); border-bottom: 1px solid var(--hair); margin-top: 18px; padding: 8px 0 10px; }
@@ -229,14 +229,88 @@
 
   .st-impl { color: var(--impl); } .st-part { color: var(--part); } .st-idea { color: var(--idea); }
   .st-rejd { color: var(--rejd); } .st-sups { color: var(--sups); } .st-accent { color: var(--accent); }
+
+  /* ---- sheet tabs (State | Build) — drawing-set index tabs; #build in the hash bookmarks the bench sheet ---- */
+  #tabbar { display: flex; align-items: flex-end; gap: 6px; border-bottom: 2px solid var(--hair2); margin-bottom: 20px; }
+  #tabbar a.tab { font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600;
+    color: var(--ink2); background: var(--inset); border: 1px solid var(--hair2);
+    border-bottom: 2px solid var(--hair2); margin-bottom: -2px; padding: 6px 14px; }
+  #tabbar a.tab:hover { text-decoration: none; color: var(--ink); }
+  #tabbar a.tab[aria-current="page"] { color: var(--ink); background: var(--bg); border-bottom-color: var(--bg); }
+  #tabbar .tabnote { margin-left: auto; font-family: ui-monospace, monospace; font-size: 10.5px;
+    color: var(--ink2); padding-bottom: 5px; }
+  @media (max-width: 800px) { #tabbar .tabnote { display: none; } }
+
+  /* ---- build sheet (schema v2.3 build_tab — the Tier-1 workbench view) ---- */
+  #btitleblock { border: 2px solid var(--hair2); display: grid; grid-template-columns: 2fr 1.7fr 1fr 1.1fr; }
+  #btitleblock .cell { border-right: 1px solid var(--hair2); background: var(--inset); padding: 6px 9px 7px; min-width: 0; }
+  #btitleblock .cell:last-child { border-right: 0; }
+  #btitleblock .v { display: block; margin-top: 3px; font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    font-size: 12.5px; font-variant-numeric: tabular-nums slashed-zero; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 800px) { #btitleblock { grid-template-columns: 1fr 1fr; } #btitleblock .cell { border-top: 1px solid var(--hair2); } }
+
+  #bt-scopebox { border-top: 2px solid var(--accent); border-bottom: 1px solid var(--hair); margin-top: 18px; padding: 8px 0 10px; }
+  #bt-scopebox p { margin: 5px 0 0; max-width: 88ch; }
+  #bt-legend { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink2); }
+
+  #bt-ladder { max-width: 94ch; }
+  .rung-goal { margin: 6px 0 0; max-width: 84ch; font-size: 13px; }
+  .rung-refs { margin: 4px 0 0; font-size: 11px; }
+  .rung-refs a { color: var(--accent); }
+
+  .bh { font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+    font-size: 10px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600;
+    color: var(--ink2); margin: 16px 0 4px; }
+  .btparts td:first-child { white-space: nowrap; }
+  .btparts td.what { max-width: 250px; }
+
+  .wires { display: grid; grid-template-columns: max-content minmax(16ch, 1fr) max-content;
+    gap: 7px 0; min-width: 540px; padding: 2px 0 4px; }
+  .wnode { border: 1px solid var(--hair2); background: var(--inset); padding: 3px 9px 4px; align-self: center;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    font-size: 11.5px; white-space: nowrap; }
+  .wlink { position: relative; align-self: center; text-align: center; padding: 0 16px 9px;
+    font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--ink2); }
+  .wlink::after { content: ""; position: absolute; left: 2px; right: 8px; bottom: 4px; border-bottom: 1px solid var(--hair2); }
+  .wlink::before { content: ""; position: absolute; right: 7px; bottom: 1.5px; width: 5px; height: 5px;
+    border-top: 1px solid var(--hair2); border-right: 1px solid var(--hair2); transform: rotate(45deg); }
+
+  .steps { list-style: none; margin: 6px 0 0; padding: 0; max-width: 96ch; }
+  .steps li { border-top: 1px dotted var(--hair); padding: 5px 2px 6px; }
+  .steps li.gate { border-top: 1px solid var(--hair2); border-left: 4px solid var(--part); background: var(--inset); padding-left: 9px; }
+  .steps label { display: grid; grid-template-columns: 15px 4.6em 1fr; gap: 1px 8px; align-items: baseline; cursor: pointer; }
+  .steps input[type="checkbox"] { width: 13px; height: 13px; margin: 2px 0 0; align-self: start; accent-color: var(--accent); }
+  .steps .sid { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink2); }
+  .steps .stx { font-size: 13px; }
+  .steps .why { grid-column: 3; font-size: 12px; color: var(--ink2); max-width: 74ch; }
+  .steps li.done .stx { color: var(--ink2); }
+  .gstamp { color: var(--part); margin-right: 6px; }
+  .bt-count { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink2); white-space: nowrap; }
+  .bt-reset { font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--ink2);
+    background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  .bt-reset:hover { color: var(--rejd); }
+
+  @media print {
+    #tabbar, .bt-reset { display: none; }
+    [hidden] { display: none !important; }
+    section.sec, .bp-phase, .bp-gate { break-inside: avoid; }
+  }
 </style>
 </head>
 <body>
 <main>
+  <nav id="tabbar" aria-label="Dashboard sheets">
+    <a class="tab" id="tab-state" href="#state" aria-current="page">Sheet 1 &mdash; State</a>
+    <a class="tab" id="tab-build" href="#build" aria-current="false">Sheet 2 &mdash; Build</a>
+    <span class="tabnote">the bench sheet bookmarks as #build</span>
+  </nav>
+
+  <div id="view-state">
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->20ff234<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1bdd310<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -356,6 +430,41 @@
     state block (<code>--check</code> catches drift; wired into <code>scripts/run_tests.sh</code>).
     Ritual: <code>docs/project_state_readme.md</code>.</p>
   </footer>
+  </div><!-- /#view-state -->
+
+  <div id="view-build" hidden>
+    <div id="btitleblock">
+      <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
+      <div class="cell"><span class="lbl">Doc</span><span class="v">TIER-1 BUILD / BENCH SHEET</span></div>
+      <div class="cell"><span class="lbl">State date</span><span class="v" id="bt-tb-date">&mdash;</span></div>
+      <div class="cell"><span class="lbl">Progress</span><span class="v" id="bt-tb-progress">&mdash;</span></div>
+    </div>
+    <div id="bt-error"></div>
+
+    <div id="bt-scopebox">
+      <span class="lbl">Scope &mdash; Tier 1 only</span>
+      <p id="bt-scope"></p>
+      <p id="bt-legend"></p>
+    </div>
+
+    <section class="sec">
+      <div class="rail"><span class="num">1.0</span>WORK ORDER<br>B0 &rarr; B4, ends at<br>the P2 money gate</div>
+      <div class="body">
+        <h2>1.0 &nbsp;Work order &mdash; the Tier-1 ladder</h2>
+        <p class="secnote" id="bt-ladder-summary"></p>
+        <div id="bt-ladder"></div>
+      </div>
+    </section>
+
+    <div id="bt-subs"></div>
+
+    <footer>
+      <p>CHECKBOXES ARE LOCAL: progress lives in this browser's storage (per device/browser), not in
+      the contract. The steps themselves live in <code>docs/project_state.json</code>
+      (<code>build_tab</code>, schema v2.3) &mdash; edit there, re-render, republish. Facts trace to:
+      <span id="bt-ev" class="acc"></span></p>
+    </footer>
+  </div><!-- /#view-build -->
 </main>
 
 <!-- PROJECT_STATE_JSON:BEGIN (generated - edit docs/project_state.json and run scripts/render_dashboard.py; never hand-edit this block) -->
@@ -364,7 +473,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-20",
- "updated_by": "Fable build-plan pass v4 (schema v2.2: new build_plan block — the IN-PERSON phase ladder P0 pre-order checklist -> P5 kill ladder, rendered as the second flowchart §2.2; gate reconciliation: Tier-2 interceptor gated on the AprilTag envelope curve, NN recall gates ONLY Hailo/markerless; Tier-1 honest first-outdoor-test outlay ~$620-780 stated up front; tilt angle = real-measured dash pitch on an adjustable bracket, never sim-sized; pointing decision rationale synced to the fixed-tilt FINAL; sources: hardware_order_list §0c/§4, real_data_pipeline.md, ADR-0076 add #18h/#18k, NEXT.md R5)",
+ "updated_by": "Fable Tier-1 build-push pass (schema v2.3: new build_tab block — the workbench Build sheet, Tier-1 only, rendered as the dashboard's second tab with localStorage checklists; Tier-1 SOFTWARE layer landed + logged in terminal/kill/real_data changelogs + build_plan P0 status: pi_capture, tripod_score, field_score .BIN, cam-offset guard, deploy-loop SITL validation, camera paper-check; px/deg 30->15% correction in the ledger as ov9281-pxdeg-30-vs-15; sources: docs/camera_paper_check.md, logs/deploy_seeker_sitl_20260720T*.log, workflow verify verdicts 2026-07-20)",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -376,7 +485,7 @@
  },
  "headline": {
   "date": "2026-07-17",
-  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. Binding wall unchanged — in-view detection (ground-background + phantom-competition, both sim-testable) + the acquisition/blur gap the tripod test measures. Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel.",
+  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. Binding wall unchanged — in-view detection (ground-background + phantom-competition, both sim-testable) + the acquisition/blur gap the tripod test measures. Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel. [2026-07-20 late] The Tier-1 SOFTWARE layer landed (all adversarially verified): pi_capture.py session recorder, tripod_score.py two-curve money-gate scorer, field_score ArduPilot .BIN, the cam-offset/model-swap guard, deploy seeker loop SITL-validated (3 real MAVSDK defects fixed), camera paper-check CLEARS (118 deg HORIZONTAL; px/deg penalty corrected ~30%->~15%); the dashboard grew the Build tab (Tier-1 workbench view).",
   "next_probe": "Repeat the set-pose sweep with a PITCHED-DOWN camera + a level in-frame target (GROUND background, nose-on flight aspect) — the frame-top sweep (P0.1) viewed the belly against clean SKY and found NO edge/bank detection loss, so the un-eliminated in-view mechanisms are GROUND-CLUTTER background (the detector is background-sensitive: 0% on the horizon vs 76-100% on sky at the same range) + PHANTOM COMPETITION (5-25 boxes/frame in-flight vs 0 static). Both sim-testable. Fix box_hits_gt first (scoring debt).",
   "evidence": [
    "docs/decisions.md ADR-0076 add #18k",
@@ -420,7 +529,7 @@
   ]
  },
  "build_plan": {
-  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. STILL OPEN = P0.3 the two-curve tripod SCORER, P0.5 camera paper-check (HFOV/vertical-FoV), P0.6 run the free-footage NN kill-test, P0.4 link --cam-fwd-offset to the model swap, run qemu (needs Docker/qemu apt), a Pi-side capture script, and field_score ArduPilot-log support (the Tier-1 target is ArduPilot). [ORDERED 2026-07-20] Cart placed (Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor BRAIN (6C Mini + M10, front-loaded past the money gate — acceptable, logged). FORWARD: (P1) build+flash the ArduPilot target + assemble the OV9281->Pi seeker rig; IN PARALLEL bench the 6C Mini (props-off Pi<->TELEM2 OFFBOARD bring-up — de-risks the deploy loop's unverified MAVSDK path). (P0 software still open) Pi capture script, two-curve scorer, field_score ArduPilot-log support, placard-sizing. (P2) tripod day -> curve (a) tag range gates the interceptor airframe, curve (b) NN recall gates the Hailo. Then P3+ airframe. ADD the must-add build/field layer + re-source Pi/SD BEFORE building.",
+  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. [2026-07-20 UPDATE — the Tier-1 SOFTWARE layer landed, all adversarially verified] NOW ALSO DONE: P0.3 two-curve tripod scorer (scripts/seeker/tripod_score.py), P0.5 camera paper-check (docs/camera_paper_check.md — CLEARS; px/deg penalty corrected ~30%->~15%), P0.4 cam-offset/model-swap guard (m4 exits 2 on mismatch), the Pi-side capture script (scripts/seeker/pi_capture.py), field_score ArduPilot .BIN support, and the deploy_seeker MAVSDK OFFBOARD path (SITL-validated, 3 real defects fixed). STILL OPEN = P0.6 the free-footage NN kill-test, P0.2 placard-sizing auto-labeler validation, run qemu (needs Docker/qemu apt), and the box_hits_gt scoring fix + the two in-view probes (ground-background, phantom-competition). [ORDERED 2026-07-20] Cart placed (Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor BRAIN (6C Mini + M10, front-loaded past the money gate — acceptable, logged). FORWARD: (P1) build+flash the ArduPilot target + assemble the OV9281->Pi seeker rig; IN PARALLEL bench the 6C Mini (props-off Pi<->TELEM2 OFFBOARD bring-up — de-risks the deploy loop's unverified MAVSDK path). (P0 software remaining) placard-sizing (P0.2), free-footage NN kill-test (P0.6), box_hits_gt fix + the two in-view probes. (P2) tripod day -> curve (a) tag range gates the interceptor airframe, curve (b) NN recall gates the Hailo. Then P3+ airframe. ADD the must-add build/field layer + re-source Pi/SD BEFORE building.",
   "phases": [
    {
     "code": "P0",
@@ -702,6 +811,10 @@
     {
      "date": "2026-07-18",
      "note": "DEPLOYMENT seeker loop built: flight/deploy/seeker_loop.py drives the portable flight/ core end-to-end (camera undistort -> full-attitude LOS -> lever-arm -> alpha-beta -> pro-nav N=5 -> MAVSDK NED setpoint). No-cheat AUDITED (camera + own-state EKF only). self-test 7/7 + 72 setpoints over real frames; compute_v_close throttle-band fixed to match m4 (review must-fix). MAVSDK live path written but needs PX4 SITL/hardware to verify."
+    },
+    {
+     "date": "2026-07-20",
+     "note": "MAVSDK live path SITL-VALIDATED (P0 closed): 3 real defects fixed — run_mavsdk assumed an already-airborne vehicle (offboard.start fails on a grounded SITL), had no connection timeout, and no clean shutdown (OFFBOARD left active). New --sitl-smoke mode gates all arm/takeoff/land; scripts/check_deploy_sitl.sh boots+runs+kills end-to-end (exit 0); evidence logs/deploy_seeker_sitl_20260720T*.log. ALSO: the camera lever-arm GUARD landed (flight.geometry parse_cam_fwd_from_sdf + check_cam_offset_consistency; m4 startup exits 2 on a model/offset mismatch, --allow-cam-offset-mismatch escape hatch) — closes the 'link the offset flag to the model swap' debt. Functional checks, not measured gates."
     }
    ]
   },
@@ -727,6 +840,10 @@
     {
      "date": "2026-07-18",
      "note": "scripts/field_score.py built: binary-kill metrology from the two aircraft ULogs (+CSV fallback) -> CPA + KILL/MISS + plot. Honesty: real-log post-hoc scoring (not the gt_* guidance boundary); added a GPS relative-accuracy caveat + verdict_uncertain flag (inter-receiver bias ~1-3 m rivals the kill radius). self-test 3/3. Video stays the primary kill evidence (§0c)."
+    },
+    {
+     "date": "2026-07-20",
+     "note": "field_score speaks ArduPilot (constraint target-is-ardupilot closed for scoring): DataFlash .BIN support via pymavlink DFReader — POS (EKF-fused) preferred over raw GPS, GWk/GMS UTC recovery for cross-aircraft sync, per-side --ulog/--bin/--csv source selection so a PX4-interceptor + ArduPilot-target engagement is first-class. Self-test 5/5 incl. an end-to-end synthetic .BIN byte stream through the real DFReader; Mission Planner CSV export documented as the no-pymavlink fallback."
     }
    ]
   },
@@ -753,6 +870,10 @@
     {
      "date": "2026-07-18",
      "note": "Prep tooling built: real_data_pipeline_run.sh (capture->autolabel->train->score, dry-run proven on sim data), domain_gap_eval.py (synthetic blur + background composite -> sim->real recall-penalty ESTIMATE; note: composite augmentation reads ~0% at all strengths = too-harsh synthetic bg, a caveat not a measurement), candidate_nn_shortlist.md + fetch_candidate_nn.py (permissive outdoor drone-NN candidates + free public footage sources for the $0 transfer-bet test)."
+    },
+    {
+     "date": "2026-07-20",
+     "note": "Tripod-day capture+scoring toolchain BUILT + adversarially verified: scripts/seeker/pi_capture.py (Pi 5/OV9281 session recorder — frames/ + index.csv + meta.json + tags.csv; picamera2/v4l2/dir-replay backends; logs the ACTUAL applied exposure vs the <=1 ms spec; autolabel_from_apriltag consumes the layout directly, verified 100% label rate) + scripts/seeker/tripod_score.py (P0.3 two-curve scorer: curve (a) tag decode envelope -> Tier-2 money gate with explicit t_go>=0.5 s arithmetic incl. the 5-streak burn; curve (b) NN recall vs range x position-in-frame -> Hailo gate only; NN half no-ops cleanly without onnxruntime). Camera paper-check (P0.5, docs/camera_paper_check.md): 118 deg HORIZONTAL clears wide-fov; px/deg penalty ~15% not ~30% (ledger ov9281-pxdeg-30-vs-15); <=1 ms exposure clears (~40 us floor); mono-vs-color NN confound stays UNVERIFIED-ON-PAPER — the real-data mono retrain is the sanctioned fix."
     }
    ]
   },
@@ -1082,7 +1203,7 @@
      "item": "innomaker OV9281 mono global-shutter MIPI camera (~118 deg HFoV, 1280x800) — ORDERED",
      "qty": "1",
      "price": "~$30",
-     "why": "CAM-MIPIOV9281V2 + a Wonrabai 22->15-pin Pi-5 CSI cable (ordered). Clears >=100 deg wide-fov. VERIFY 118 deg is HORIZONTAL not diagonal (if diagonal HFoV~109, still ok). ~30% fewer px/deg than the sim camera -> proportionally shorter tag/NN range = what tripod curve (a) measures; log it."
+     "why": "CAM-MIPIOV9281V2 + a Wonrabai 22->15-pin Pi-5 CSI cable (ordered). Clears >=100 deg wide-fov — PAPER-VERIFIED 2026-07-20: vendor states FoV(H)=118 explicitly (docs/camera_paper_check.md). px/deg penalty vs the sim camera is ~15% (the earlier ~30% was the 148-deg DIAGONAL misread — contradiction ov9281-pxdeg-30-vs-15) -> proportionally shorter tag/NN range = what tripod curve (a) measures; log it."
     },
     {
      "item": "Raspberry Pi 5, 8 GB",
@@ -1211,6 +1332,553 @@
    ]
   }
  ],
+ "build_tab": {
+  "scope": "Tier 1 ONLY — the four hardware groups of the 2026-07-20 order (target drone, seeker rig, brain bench, ground & safety). This sheet ends at the P2 tripod MONEY GATE: curve (a), the AprilTag decode envelope, unlocks the ~$740 Tier-2 interceptor build; curve (b), NN approach recall, gates only the deferred Hailo/markerless phase. No Tier-2 build content lives here.",
+  "subsystems": [
+   {
+    "id": "target",
+    "name": "Target drone",
+    "role": "The thing we intercept: a cheap ArduPilot 5-inch quad that flies repeatable AUTO waypoint legs (up to the >=9 m/s regime) with an AprilTag placard on top, logging its own position to DataFlash .BIN so every pass can be scored.",
+    "parts": [
+     {
+      "name": "TBS Source One V6 5in frame",
+      "status": "ordered",
+      "role": "Airframe; the flat top plate carries the tag placard.",
+      "notes": "Shares the 5-inch prop/motor class with the future interceptor — one spare pool."
+     },
+     {
+      "name": "Kakute H7 V1.5 flight controller",
+      "status": "ordered",
+      "role": "Runs ArduPilot; flies the AUTO legs and writes the DataFlash .BIN log.",
+      "notes": "Flash ArduPilot target `KakuteH7`, NOT the v2 target. ICM-42688-P IMU supported. Needs its own microSD (must-add row) — field_score reads the target's position from this log."
+     },
+     {
+      "name": "Tekko32 F4 Metal 65A 4-in-1 ESC",
+      "status": "ordered",
+      "role": "Four motor drives + battery V/I sense on one 30.5x30.5 stack board.",
+      "notes": "ArduPilot ships battery-monitor defaults for the Tekko — start from those, don't hand-derive."
+     },
+     {
+      "name": "EMAX ECO II 2207 1900KV motors (x4)",
+      "status": "ordered",
+      "role": "6S propulsion.",
+      "notes": "Same class the Tier-2 interceptor will use — spares interchange."
+     },
+     {
+      "name": "Matek M10Q-5883 GPS + compass",
+      "status": "ordered",
+      "role": "Makes the waypoint legs GPS-repeatable pass to pass.",
+      "notes": "GPS over UART, compass over I2C; mast-mount away from power wiring (compass EMI)."
+     },
+     {
+      "name": "RadioMaster RP1 V2 ELRS RX",
+      "status": "ordered",
+      "role": "Arming, manual override, failsafe.",
+      "notes": "Wired CRSF on a UART here — unlike the interceptor's SBUS-to-RC-IN plan (stock PX4 has no CRSF driver; ArduPilot speaks CRSF natively)."
+     },
+     {
+      "name": "HQ V2S 5in props (CW+CCW)",
+      "status": "ordered",
+      "role": "Consumables — the target takes the hard landings.",
+      "notes": ""
+     },
+     {
+      "name": "CNHL 6S 1500 mAh LiPo (1 in cart)",
+      "status": "ordered",
+      "role": "Flight power; 6S everywhere so packs and charger are shared across aircraft.",
+      "notes": "+2 more packs are a must-add (ground kit) — the ~28-pass tripod matrix needs 3 with mid-session recharges."
+     },
+     {
+      "name": "AprilTag tag36h11 placard (rigid)",
+      "status": "print",
+      "role": "The seeker's target lock + the auto-labeler's truth source.",
+      "notes": "SIZE TBD BY P0.2 — the apriltag-world auto-labeler validation that sizes it has NOT run yet. Decode range scales ~linearly with tag size; fall back to the ~0.3 m BOM default only if P0.2 is still unrun by field day."
+     },
+     {
+      "name": "microSD 32-64 GB for the Kakute",
+      "status": "must-add",
+      "role": "The DataFlash .BIN lives here — no card, no target track, no scored pass.",
+      "notes": ""
+     }
+    ],
+    "connections": [
+     {
+      "from": "CNHL 6S pack",
+      "to": "Tekko32 ESC",
+      "medium": "XT60 main power"
+     },
+     {
+      "from": "Tekko32 ESC",
+      "to": "Kakute H7",
+      "medium": "8-pin stack harness — DShot out + battery V/I back"
+     },
+     {
+      "from": "Tekko32 ESC",
+      "to": "ECO II motors x4",
+      "medium": "3-phase motor leads (solder)"
+     },
+     {
+      "from": "Kakute H7",
+      "to": "M10Q GPS/compass",
+      "medium": "UART (GPS) + I2C (compass)"
+     },
+     {
+      "from": "RP1 V2 RX",
+      "to": "Kakute H7",
+      "medium": "CRSF on a UART (TX/RX crossed)"
+     },
+     {
+      "from": "AprilTag placard",
+      "to": "frame top plate",
+      "medium": "rigid standoffs, tag facing the approach"
+     }
+    ],
+    "steps": [
+     {
+      "id": "tgt-01",
+      "text": "Flash ArduPilot on the Kakute H7 V1.5 over a USB-C DATA cable — firmware target `KakuteH7`, NOT the v2 target."
+     },
+     {
+      "id": "tgt-02",
+      "text": "Fit the 32-64 GB microSD in the Kakute and confirm DataFlash .BIN logging on the bench.",
+      "why": "field_score reads the target's position from this log, via CSV export (its native ULog reader is PX4-only) — prove the export path now, not after a burned field day."
+     },
+     {
+      "id": "tgt-03",
+      "text": "Assemble + solder: motors to arms, Tekko32 + Kakute stacked, motor leads and XT60 pigtail soldered; multimeter continuity check across the pads before any power.",
+      "why": "A solder-bridge short is found free with a meter, expensively with smoke."
+     },
+     {
+      "id": "tgt-04",
+      "gate": true,
+      "text": "FIRST POWER-UP THROUGH THE SMOKE STOPPER, props OFF.",
+      "why": "The inline fused XT60 turns a wiring short into a beep instead of a dead ESC/FC — required at every first power-up after soldering."
+     },
+     {
+      "id": "tgt-05",
+      "gate": true,
+      "text": "Props-off bench setup: bind the RP1 to the Pocket M2, verify motor order + directions, set and TEST the kill switch and RC failsafe. Props stay off until every check passes.",
+      "why": "6S tri-blades draw blood; motor-direction and kill-switch checks are exactly when a quad tries to jump."
+     },
+     {
+      "id": "tgt-06",
+      "text": "Configure the mover: outdoor compass calibration (M10Q), WPNAV_SPEED >= 900 (cm/s — the >=9 m/s AUTO legs), battery-monitor sanity vs the Tekko defaults, geofence + failsafe behavior."
+     },
+     {
+      "id": "tgt-07",
+      "text": "Maiden at the legal field: manual hover first, then the AUTO waypoint box; pull the .BIN afterwards and confirm the whole flight is in it."
+     },
+     {
+      "id": "tgt-08",
+      "text": "Mount the AprilTag placard (rigid, facing the approach) and re-check hover + AUTO with it on — drag and CG shift. Placard SIZE is TBD by P0.2 (not yet run)."
+     }
+    ]
+   },
+   {
+    "id": "seeker",
+    "name": "Seeker rig (tripod)",
+    "role": "The interceptor's eye, tripod-mounted for Tier 1: mono global-shutter camera into the Pi 5 running calibration, capture, AprilTag decode and NN shadow scoring — the rig that produces BOTH money-gate curves on the tripod day.",
+    "parts": [
+     {
+      "name": "innomaker OV9281 mono global-shutter camera",
+      "status": "ordered",
+      "role": "1280x800 global shutter — no rolling-shutter smear at terminal LOS rates.",
+      "notes": "118 deg FoV PAPER-VERIFIED HORIZONTAL (vendor states H=118/D=148 — docs/camera_paper_check.md, 2026-07-20); clears the >=100 deg hard floor with margin. px/deg penalty vs the sim camera is ~15% (the earlier ~30% was the diagonal misread), so expect proportionally shorter tag/NN range; that is what curve (a) measures. Re-measure the delivered adjustable lens at calibration."
+     },
+     {
+      "name": "Wonrabai 22-to-15-pin CSI cable",
+      "status": "ordered",
+      "role": "Bridges the camera's 15-pin ribbon to the Pi 5's narrow 22-pin CSI port.",
+      "notes": ""
+     },
+     {
+      "name": "Raspberry Pi 5, 8 GB",
+      "status": "ordered",
+      "role": "Runs the same stack the flight Pi will: capture, calibration, tag decode, NN shadow scoring.",
+      "notes": "Cart price $175 = Amazon scalp — re-source from PiShop/CanaKit ~$80 (recovers ~$120 toward the must-adds). The Pi 3 on hand is a capture-only fallback: records frames fine, useless for the fps bench (A53 vs A76, no PCIe)."
+     },
+     {
+      "name": "SanDisk 128 GB microSD + reader",
+      "status": "ordered",
+      "role": "Pi OS + captured frames.",
+      "notes": "$45 in cart is ~2x street (~$20) — re-source with the Pi."
+     },
+     {
+      "name": "Pi 27 W USB-C PSU",
+      "status": "ordered",
+      "role": "Bench power rail for the Pi.",
+      "notes": "Useless at the field — the >=27 W USB-C PD power bank (must-add, ground kit) is the field rail."
+     },
+     {
+      "name": "Pi 5 active cooler",
+      "status": "must-add",
+      "role": "Mandatory under sustained CV load — the fps benchmark is a thermal-soak test, not a sprint.",
+      "notes": ""
+     },
+     {
+      "name": "Checkerboard 9x6 calibration board (rigid)",
+      "status": "print",
+      "role": "Feeds calibrate_camera.py — intrinsics + distortion.",
+      "notes": "A pre-printed rigid board (~$8) beats a home print — flatness is signal here."
+     }
+    ],
+    "connections": [
+     {
+      "from": "OV9281",
+      "to": "Pi 5 CSI",
+      "medium": "MIPI CSI-2 over the 22-to-15-pin ribbon"
+     },
+     {
+      "from": "27 W PSU (bench) / PD bank (field)",
+      "to": "Pi 5",
+      "medium": "USB-C PD"
+     },
+     {
+      "from": "Pi 5",
+      "to": "microSD",
+      "medium": "Pi OS + timestamped raw frames (PNG, not compressed video)"
+     },
+     {
+      "from": "laptop",
+      "to": "Pi 5",
+      "medium": "SSH over a phone hotspot — spot-check frames between passes; NTP time sync rides the same hotspot"
+     }
+    ],
+    "steps": [
+     {
+      "id": "skr-01",
+      "text": "Flash Pi OS to the microSD, boot the Pi 5, fit the active cooler."
+     },
+     {
+      "id": "skr-02",
+      "text": "Seat the CSI ribbon (narrow 22-pin end at the Pi) and prove live frames at 1280x800 (rpicam/libcamera)."
+     },
+     {
+      "id": "skr-03",
+      "text": "Verify the driver exposes exposure control down to <=1 ms.",
+      "why": "The tripod day's motion-blur read — the ONE thing the field can measure that the sim cannot — depends on short exposure at full-speed passes."
+     },
+     {
+      "id": "skr-04",
+      "text": "Paper-check the FoV (P0.5) — DONE 2026-07-20, docs/camera_paper_check.md: 118 deg is HORIZONTAL (vendor states H=118/D=148; clears >=100 with margin); px/deg penalty vs the sim is ~15%, NOT the assumed ~30% (that was the diagonal misread). Residual: re-measure the delivered adjustable lens at calibration (skr-06)."
+     },
+     {
+      "id": "skr-05",
+      "text": "Bench-test the Pi-side capture script (scripts/seeker/pi_capture.py — BUILT + self-tested 2026-07-20) indoors on a static scene: real picamera2 backend, timestamped frames to SD, confirm meta.json shows exposure <=1 ms actually applied.",
+      "why": "The script is dir-replay-verified off-Pi; the picamera2 backend and the real exposure floor only prove out on the actual Pi 5 — the first live run must not be at the field."
+     },
+     {
+      "id": "skr-06",
+      "gate": true,
+      "text": "Calibrate: >=15 checkerboard views in the final tripod geometry into scripts/calibrate_camera.py; acceptance RMS reprojection <= 1.0 px. Re-shoot a short set at end-of-session to catch drift.",
+      "why": "Every range/bearing number is wrong until intrinsics + distortion are solved — the wide lens distorts. This is the first bench gate."
+     },
+     {
+      "id": "skr-07",
+      "text": "Bench the REAL Pi 5: sustained AprilTag decode fps + CPU-YOLO fps through a thermal soak.",
+      "why": "Emulation cannot measure this (pi5-emulation-gap) — it is why the physical Pi is a Tier-1 buy. Anchors: tag ~30 fps CPU; CPU YOLO ~5-10 fps (not viable at terminal rates, hence the deferred Hailo)."
+     },
+     {
+      "id": "skr-08",
+      "text": "Run the NN shadow-scoring path end-to-end on bench frames (drone_finetuned_quad_v2 @640, conf 0.25) so curve (b)'s scoring works before the field day."
+     }
+    ]
+   },
+   {
+    "id": "brain",
+    "name": "Interceptor brain bench (props-off)",
+    "role": "The future interceptor's flight-computer pair, bench-wired with no airframe and nothing that can spin — front-loaded past the money gate (logged deviation) so the Pi-to-Pixhawk MAVSDK OFFBOARD path, the deploy loop's one unverified link, is proven before Tier-2 money.",
+    "parts": [
+     {
+      "name": "Pixhawk 6C Mini",
+      "status": "ordered",
+      "role": "The interceptor's PX4 autopilot — the exact stack the sim validated.",
+      "notes": "Front-loaded PAST the P2 money gate — acceptable (survives every gate FAIL loop-back), logged as an ADR-lite deviation. Confirm the box includes a microSD: ULogs are the metrology."
+     },
+     {
+      "name": "Holybro PM02 V3 power module (analog)",
+      "status": "ordered",
+      "role": "FC battery power + V/I telemetry when it flies; on the bench it is just the wiring dry-run.",
+      "notes": "Must be the ANALOG PM02 — the digital PM02D pairs with the 6X, not the 6C Mini."
+     },
+     {
+      "name": "Holybro M10 GPS + IST8310 compass",
+      "status": "ordered",
+      "role": "Position-hold / failsafe GPS for the future interceptor.",
+      "notes": "10-pin plug into GPS1. Two GPS units across the project is one per aircraft — correct, not redundant."
+     },
+     {
+      "name": "Pi-to-TELEM2 UART jumper leads",
+      "status": "must-add",
+      "role": "The three wires the whole deploy path rides on.",
+      "notes": ""
+     },
+     {
+      "name": "USB-C DATA cable",
+      "status": "must-add",
+      "role": "Flashes PX4 + the Pi; must be data-capable, not charge-only.",
+      "notes": ""
+     }
+    ],
+    "connections": [
+     {
+      "from": "Pi 5 GPIO14/15",
+      "to": "6C Mini TELEM2",
+      "medium": "UART — both 3.3 V (no level shifter), TX/RX crossed, 921600 baud; MAV_1_CONFIG=TELEM2"
+     },
+     {
+      "from": "PC",
+      "to": "6C Mini",
+      "medium": "USB-C — flash PX4, QGC, bench power"
+     },
+     {
+      "from": "M10 GPS",
+      "to": "6C Mini GPS1",
+      "medium": "10-pin JST-GH (GPS UART + compass I2C)"
+     },
+     {
+      "from": "PM02 V3",
+      "to": "6C Mini POWER1",
+      "medium": "power + analog V/I sense (flight config; the bench runs on USB)"
+     },
+     {
+      "from": "27 W USB-C PSU",
+      "to": "Pi 5",
+      "medium": "own rail — never powered from the FC's rail (two-rail rule)"
+     }
+    ],
+    "steps": [
+     {
+      "id": "brn-01",
+      "text": "Flash PX4 on the 6C Mini over USB; confirm a microSD is present and ULog logging is on."
+     },
+     {
+      "id": "brn-02",
+      "text": "Connect the M10 to GPS1; verify GPS + compass appear in QGC."
+     },
+     {
+      "id": "brn-03",
+      "text": "Wire Pi GPIO14/15 to TELEM2: both 3.3 V (no level shifter), TX/RX crossed, 921600; set MAV_1_CONFIG=TELEM2 and free the Pi's serial console."
+     },
+     {
+      "id": "brn-04",
+      "text": "MAVSDK heartbeat from the Pi over the serial link — the deploy path's first hardware proof."
+     },
+     {
+      "id": "brn-05",
+      "gate": true,
+      "text": "Props-off OFFBOARD bring-up: run the deployment seeker loop (flight/deploy/seeker_loop.py) against the bench FC — OFFBOARD accepted, setpoints streaming, kill switch honored. Nothing can spin; no airframe exists.",
+      "why": "Retires the one link the sim never exercised (MAVSDK over a real serial port) while the tripod campaign runs in parallel."
+     },
+     {
+      "id": "brn-06",
+      "text": "Keep the two-rail pattern on the bench: Pi on its own 27 W PSU, FC on USB/PM02.",
+      "why": "Mirrors the flight design's two-rail rule — a compute brownout must never share a cause with the FC's rail."
+     }
+    ]
+   },
+   {
+    "id": "ground",
+    "name": "Ground & safety",
+    "role": "Everything that keeps the build and the field day safe, legal, and powered: RC, charging, the solder/safety layer, and the field kit. The NEED rows are NOT in the 2026-07-20 cart — they block the build.",
+    "parts": [
+     {
+      "name": "RadioMaster Pocket M2 ELRS TX",
+      "status": "ordered",
+      "role": "Flies the target; later the hardware kill for both aircraft.",
+      "notes": "Ships without cells — needs 2x 18650 (must-add). Forward flag (Tier-2, not a Tier-1 blocker): one TX + two aircraft needs ELRS Model Match, and the unselected model sits in RC failsafe — the open two-TX decision from the pre-purchase audit."
+     },
+     {
+      "name": "1-6S balance charger",
+      "status": "ordered",
+      "role": "Charges the shared 6S packs.",
+      "notes": "Verify AC wall input (2026-07-20 inventory check) — if DC-only, add a supply brick."
+     },
+     {
+      "name": "2x 18650 cells (for the TX)",
+      "status": "must-add",
+      "role": "The Pocket M2's power.",
+      "notes": ""
+     },
+     {
+      "name": "LiPo safety set — fireproof bag, cell checker + LV alarm, safety glasses, fire blanket",
+      "status": "must-add",
+      "role": "Never cut safety on a vehicle built to hit things; glasses on any time props are on and a pack is in.",
+      "notes": ""
+     },
+     {
+      "name": "Smoke stopper (VIFLY ShortSaver 2 class)",
+      "status": "must-add",
+      "role": "Inline fused XT60 for every first power-up after soldering.",
+      "notes": ""
+     },
+     {
+      "name": "Solder/build layer — iron, 63/37 solder + flux, XT60 pigtails, 14-16 AWG, heatshrink, zip ties, straps",
+      "status": "must-add",
+      "role": "The cart cannot become a flying quad without it.",
+      "notes": ""
+     },
+     {
+      "name": "Tool layer — 1.5/2.0/2.5 mm hex, 8 mm prop wrench, multimeter",
+      "status": "must-add",
+      "role": "Continuity checks before power; generic driver sets strip FPV hardware.",
+      "notes": ""
+     },
+     {
+      "name": "Lost-model buzzer",
+      "status": "must-add",
+      "role": "Recovers a target that lands out in the grass.",
+      "notes": ""
+     },
+     {
+      "name": "Field layer — tripod + ball head + inclinometer, >=27 W USB-C PD power bank, cones + tape measure, +2 CNHL 6S packs",
+      "status": "must-add",
+      "role": "Makes the tripod day decision-grade (protocol sections 1-2); the inclinometer records the exact tilt every downstream number depends on.",
+      "notes": ""
+     },
+     {
+      "name": "FAA registration + Remote ID decision",
+      "status": "must-add",
+      "role": "$5/aircraft registration (the target is >250 g), number displayed on the airframe; fly at a FRIA field ($0) or fit a broadcast module. A legal blocker, not a data blocker.",
+      "notes": ""
+     }
+    ],
+    "connections": [
+     {
+      "from": "Pocket M2 TX",
+      "to": "RP1 V2 RX (target)",
+      "medium": "2.4 GHz ELRS — same firmware major version + bind phrase"
+     },
+     {
+      "from": "Charger",
+      "to": "CNHL 6S packs",
+      "medium": "XT60 + JST-XH balance lead — always inside the fireproof bag, never unattended"
+     },
+     {
+      "from": "PD power bank",
+      "to": "Pi 5 (field)",
+      "medium": "USB-C PD >=27 W"
+     }
+    ],
+    "steps": [
+     {
+      "id": "gnd-01",
+      "text": "Order the must-add BUILD layer (solder/XT60/heatshrink, smoke stopper, LiPo safety, tools, Kakute microSD, 18650s, buzzer, USB-C data cable, UART jumpers) — ~$120-180; fund it by re-sourcing the Pi + SD (~$120 back)."
+     },
+     {
+      "id": "gnd-02",
+      "text": "Order/print the FIELD layer: +2 CNHL packs, active cooler, PD power bank, tripod + ball head + inclinometer, cones + tape measure; print the checkerboard; hold the placard print for P0.2 sizing."
+     },
+     {
+      "id": "gnd-03",
+      "text": "Verify the charger takes AC input; first balance-charge inside the fireproof bag, attended."
+     },
+     {
+      "id": "gnd-04",
+      "text": "Fit the 18650s, set up the Pocket M2 (ELRS firmware version matched to the RXs), create the target model + bind phrase."
+     },
+     {
+      "id": "gnd-05",
+      "gate": true,
+      "text": "Settle FAA + Remote ID BEFORE any outdoor flight: register ($5/aircraft), display the number, pick a FRIA field or buy a broadcast module.",
+      "why": "A legal blocker, not a data blocker — nothing outdoors flies until this is settled."
+     },
+     {
+      "id": "gnd-06",
+      "text": "Stage the bench: glasses + fire blanket + cell checker within reach; practice a solder joint on scrap before the first ESC pad."
+     },
+     {
+      "id": "gnd-07",
+      "text": "Plan the tripod day from docs/tripod_test_protocol.md: range stations 8-30 m, the ~28-pass capture matrix (sky cells first), session-log sheets printed, a sync event per pass."
+     },
+     {
+      "id": "gnd-08",
+      "text": "Pack the day before: all 3 packs charged, the protocol section-2 list packed (incl. power bank + laptop + full safety kit)."
+     }
+    ]
+   }
+  ],
+  "ladder": {
+   "summary": "The work order across the four groups. B0 unblocks everything; B1-B3 run in PARALLEL once the kit is in hand; B4 is the field day. Boxes are checked in the subsystem cards below — these counts follow them.",
+   "rungs": [
+    {
+     "code": "B0",
+     "name": "Bench prep & safety",
+     "goal": "Must-add layers ordered + staged, charger/TX proven, legal path settled — nothing downstream starts without this.",
+     "refs": [
+      "gnd-01",
+      "gnd-02",
+      "gnd-03",
+      "gnd-04",
+      "gnd-05",
+      "gnd-06"
+     ]
+    },
+    {
+     "code": "B1",
+     "name": "Target build + maiden",
+     "goal": "A repeatable ArduPilot mover that logs .BIN — the aircraft every later curve is flown against.",
+     "refs": [
+      "tgt-01",
+      "tgt-02",
+      "tgt-03",
+      "tgt-04",
+      "tgt-05",
+      "tgt-06",
+      "tgt-07",
+      "tgt-08"
+     ]
+    },
+    {
+     "code": "B2",
+     "name": "Seeker rig bring-up",
+     "goal": "Calibrated camera + proven capture path + real Pi 5 fps numbers.",
+     "refs": [
+      "skr-01",
+      "skr-02",
+      "skr-03",
+      "skr-04",
+      "skr-05",
+      "skr-06",
+      "skr-07",
+      "skr-08"
+     ]
+    },
+    {
+     "code": "B3",
+     "name": "Brain bench (parallel)",
+     "goal": "MAVSDK OFFBOARD proven over TELEM2, props-off — Tier-2's riskiest software link retired early.",
+     "refs": [
+      "brn-01",
+      "brn-02",
+      "brn-03",
+      "brn-04",
+      "brn-05",
+      "brn-06"
+     ]
+    },
+    {
+     "code": "B4",
+     "name": "Tripod-day prep, then P2",
+     "goal": "Fly the ~28-pass matrix and score both curves per the protocol — the one session both money gates hang on.",
+     "refs": [
+      "tgt-08",
+      "skr-05",
+      "skr-06",
+      "skr-08",
+      "gnd-07",
+      "gnd-08"
+     ]
+    }
+   ],
+   "gate": "P2 MONEY GATE (end of this sheet): curve (a), the AprilTag decode envelope, must leave t_go >= 0.5 s post-handoff at the 9 m/s closing scenario — that unlocks the ~$740 Tier-2 interceptor order. Curve (b), NN approach recall, gates ONLY the deferred Hailo HAT + the markerless phase, never the interceptor. FAIL(a) = bigger placard / camera upgrade; FAIL(b) = real-data retrain. Neither spends interceptor money."
+  },
+  "evidence": [
+   "docs/hardware_order_list.md §0d (ordered cart 2026-07-20) / §3 / §4 / §E",
+   "docs/tripod_test_protocol.md",
+   "bom_tiers[0] + build_plan P0-P2 (this file)"
+  ]
+ },
  "decisions": [
   {
    "stage_id": "terminal",
@@ -2135,6 +2803,19 @@
    "severity": "low",
    "status": "resolved",
    "resolution": "Each annotated inline (strikethrough + retraction bracket pointing at the relevant ADR + project_state.json). Caught by the round-1 completeness critic (P3)."
+  },
+  {
+   "id": "ov9281-pxdeg-30-vs-15",
+   "topic": "OV9281 px/deg penalty vs the sim camera: ~30% (BOM/NEXT expectation) vs ~15% (paper-check)",
+   "claim_a": "'~30% fewer px/deg than the sim camera' / 'vertical-FoV 800 vs sim 960 (~30% less px/deg -> shorter range)'",
+   "loc_a": "bom_tiers Tier-1 OV9281 row + build_tab seeker part note (pre-2026-07-20 text); NEXT.md P0.5 line",
+   "claim_b": "Horizontal px/deg: sim 1280/100 = 12.8 vs OV9281 1280/118 = 10.85 -> ~15% penalty; the ~30% figure reproduces only by misreading the 148-deg DIAGONAL as HFoV (1280/148 = 8.65 -> 32%). Vendor states FoV(H)=118 explicitly; vertical works out ~5-15% too.",
+   "loc_b": "docs/camera_paper_check.md items 1-2",
+   "current_truth": "~15% fewer px/deg (H; V similar) -> ~15% shorter decode/acquisition range at a fixed min-pixel threshold. Absolute tag/NN range remains tripod-measured, not a paper number. All three claim sites corrected 2026-07-20 with pointers here.",
+   "verdict": "CONFIRMED",
+   "severity": "low",
+   "status": "resolved",
+   "resolution": "Paper-check derivation adopted; bom_tiers row, build_tab note, and the NEXT.md P0.5 line rewritten to ~15% citing camera_paper_check.md; found the same day the paper-check ran, so no decision ever consumed the wrong 30%."
   }
  ]
 }</script>
@@ -2165,6 +2846,31 @@
     box.style.display = "block";
     box.textContent = "DASHBOARD BROKEN (fail-loud): " + msg;
   }
+  function showBuildError(msg) {
+    var box = document.getElementById("bt-error");
+    box.style.display = "block";
+    box.textContent = "BUILD SHEET BROKEN (fail-loud): " + msg;
+  }
+
+  // ---- sheet tabs (State | Build). Only #build / #state / step anchors switch sheets;
+  // in-sheet anchors (#dec-…) leave the current sheet alone. #build in a bookmark opens
+  // straight to the bench view.
+  var onShowState = null; // pipeline-edge redraw hook, set once the chart exists
+  function tabFromHash(h) {
+    if (h === "#build" || h.indexOf("#step-") === 0 || h.indexOf("#bsub-") === 0) return "build";
+    if (h === "" || h === "#" || h === "#state") return "state";
+    return null;
+  }
+  function applyTab(t) {
+    if (!t) return;
+    document.getElementById("view-state").hidden = t !== "state";
+    document.getElementById("view-build").hidden = t !== "build";
+    document.getElementById("tab-state").setAttribute("aria-current", t === "state" ? "page" : "false");
+    document.getElementById("tab-build").setAttribute("aria-current", t === "build" ? "page" : "false");
+    if (t === "state" && onShowState) onShowState();
+  }
+  window.addEventListener("hashchange", function () { applyTab(tabFromHash(location.hash)); });
+  applyTab(tabFromHash(location.hash) || "state");
 
   // 8x8 crispEdges glyphs, ink via currentColor on the wrapping code span.
   var GLYPHS = {
@@ -2337,6 +3043,7 @@
     }
     window.addEventListener("resize", scheduleDraw);
     if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", scheduleDraw);
+    onShowState = scheduleDraw; // re-measure edges when the State sheet un-hides (rects are 0 while hidden)
     scheduleDraw();
 
     // ---- 2.1 decision records (stage -> decision -> option, all expandable) ----
@@ -2474,6 +3181,137 @@
       "GENERATED from docs/project_state.json (state " + state.updated +
       ") — sources: PROGRESS.md / NEXT.md / docs/decisions.md / docs/hardware_order_list.md. REV = git short-sha at render time (title block).";
   } catch (e) { showError(e.message + (e.stack ? " @ " + e.stack.split("\n")[1] : "")); }
+
+  // ---- BUILD sheet (schema v2.3 build_tab — Tier-1 workbench view). Own try/catch:
+  // a bench-sheet bug must not take down the State sheet, and vice versa. ----
+  try {
+    (function renderBuild() {
+      var bt = state.build_tab;
+      if (!bt) { showBuildError("state has no build_tab — stale embed? edit docs/project_state.json and re-run scripts/render_dashboard.py"); return; }
+      var PART_ST = {
+        "ordered":  { code: "ORDR", g: "filled",  cls: "st-impl" },
+        "must-add": { code: "NEED", g: "outline", cls: "st-rejd" },
+        "print":    { code: "PRNT", g: "half",    cls: "st-part" }
+      };
+      var LSP = "buildtab:"; // localStorage keys: stable per step id — survives reloads, per-browser
+      function lsGet(id) { try { return localStorage.getItem(LSP + id) === "1"; } catch (e) { return false; } }
+      function lsSet(id, v) { try { if (v) localStorage.setItem(LSP + id, "1"); else localStorage.removeItem(LSP + id); } catch (e) {} }
+
+      document.getElementById("bt-tb-date").textContent = state.updated;
+      document.getElementById("bt-scope").innerHTML = T(bt.scope);
+      document.getElementById("bt-legend").innerHTML =
+        codeSpan(PART_ST, "ordered") + " ordered &nbsp;&middot;&nbsp; " +
+        codeSpan(PART_ST, "must-add") + " must-add, NOT in the cart yet &mdash; blocks the build &nbsp;&middot;&nbsp; " +
+        codeSpan(PART_ST, "print") + " print / DIY";
+
+      var allSteps = [], stepSub = {};
+      var subsWrap = document.getElementById("bt-subs");
+      bt.subsystems.forEach(function (ss, i) {
+        var secnum = "2." + (i + 1);
+        var parts = ss.parts.map(function (p) {
+          return "<tr><td>" + codeSpan(PART_ST, p.status) + "</td>" +
+            '<td class="what">' + T(p.name) + "</td>" +
+            "<td>" + T(p.role) + "</td>" +
+            "<td>" + (p.notes ? T(p.notes) : "") + "</td></tr>";
+        }).join("");
+        var wires = ss.connections.map(function (c) {
+          return '<div class="wnode">' + T(c.from) + '</div><div class="wlink">' + T(c.medium) +
+            '</div><div class="wnode">' + T(c.to) + "</div>";
+        }).join("");
+        var steps = ss.steps.map(function (st) {
+          var done = lsGet(st.id);
+          allSteps.push(st.id);
+          stepSub[st.id] = ss.id;
+          return '<li id="step-' + esc(st.id) + '" class="' + (st.gate ? "gate" : "") + (done ? " done" : "") + '">' +
+            '<label><input type="checkbox" data-sid="' + esc(st.id) + '"' + (done ? " checked" : "") + ">" +
+            '<span class="sid">' + T(st.id) + "</span>" +
+            '<span class="stx">' + (st.gate ? '<span class="stamp gstamp">Gate</span>' : "") + T(st.text) + "</span>" +
+            (st.why ? '<span class="why">' + T(st.why) + "</span>" : "") +
+            "</label></li>";
+        }).join("");
+        var sec = el("section", "sec");
+        sec.id = "bsub-" + ss.id;
+        sec.innerHTML =
+          '<div class="rail"><span class="num">' + secnum + "</span>" + T(ss.name).toUpperCase() + "<br>" +
+          '<span class="bt-count" data-sub="' + esc(ss.id) + '">&mdash;</span><br>' +
+          '<button type="button" class="bt-reset" data-sub="' + esc(ss.id) + '">reset</button></div>' +
+          '<div class="body"><h2>' + secnum + " &nbsp;" + T(ss.name) + "</h2>" +
+          '<p class="secnote">' + T(ss.role) + "</p>" +
+          '<h3 class="bh">Parts</h3>' +
+          '<div class="table-scroll"><table class="btparts"><thead><tr><th></th><th>Part</th><th>Role</th><th>Watch-outs</th></tr></thead>' +
+          "<tbody>" + parts + "</tbody></table></div>" +
+          '<h3 class="bh">How it connects</h3><div class="table-scroll"><div class="wires">' + wires + "</div></div>" +
+          '<h3 class="bh">Checklist</h3><ul class="steps">' + steps + "</ul></div>";
+        subsWrap.appendChild(sec);
+      });
+
+      document.getElementById("bt-ladder-summary").innerHTML = T(bt.ladder.summary);
+      var lwrap = document.getElementById("bt-ladder");
+      bt.ladder.rungs.forEach(function (r, i) {
+        if (i) lwrap.appendChild(el("div", "bp-arrow", "&darr;"));
+        var refs = r.refs.map(function (id) {
+          return '<a href="#step-' + esc(id) + '">' + esc(id) + "</a>";
+        }).join(" &middot; ");
+        lwrap.appendChild(el("div", "bp-phase",
+          '<div class="bp-head"><span class="bp-code">' + T(r.code) + "</span>" +
+          '<span class="stage-name" style="display:inline;margin-top:0">' + T(r.name) + "</span>" +
+          '<span class="bp-cost bt-count" data-rung="' + i + '">&mdash;</span></div>' +
+          '<p class="rung-goal">' + T(r.goal) + "</p>" +
+          '<p class="rung-refs mono">' + refs + "</p>"));
+      });
+      lwrap.appendChild(el("div", "bp-arrow", "&darr;"));
+      lwrap.appendChild(el("div", "bp-gate",
+        '<span class="stamp">Money gate</span><span> ' + T(bt.ladder.gate) + "</span>"));
+      document.getElementById("bt-ev").textContent = (bt.evidence || []).map(strip).join(" · ");
+
+      function recount() {
+        var total = 0, done = 0, perSub = {};
+        allSteps.forEach(function (id) {
+          var d = lsGet(id), s = stepSub[id];
+          total++; if (d) done++;
+          perSub[s] = perSub[s] || { t: 0, d: 0 };
+          perSub[s].t++; if (d) perSub[s].d++;
+        });
+        document.getElementById("bt-tb-progress").textContent = done + " / " + total + " steps";
+        Array.prototype.forEach.call(document.querySelectorAll("#bt-subs .bt-count[data-sub]"), function (n) {
+          var c = perSub[n.getAttribute("data-sub")] || { t: 0, d: 0 };
+          n.textContent = c.d + " / " + c.t + " done";
+        });
+        Array.prototype.forEach.call(document.querySelectorAll("#bt-ladder .bt-count[data-rung]"), function (n) {
+          var refs = bt.ladder.rungs[+n.getAttribute("data-rung")].refs, d = 0;
+          refs.forEach(function (id) { if (lsGet(id)) d++; });
+          n.textContent = d + " / " + refs.length;
+        });
+      }
+      document.getElementById("view-build").addEventListener("change", function (ev) {
+        var t = ev.target;
+        if (!t || !t.getAttribute || !t.getAttribute("data-sid")) return;
+        var id = t.getAttribute("data-sid");
+        lsSet(id, t.checked);
+        var li = document.getElementById("step-" + id);
+        if (li) li.classList.toggle("done", t.checked);
+        recount();
+      });
+      document.getElementById("view-build").addEventListener("click", function (ev) {
+        var t = ev.target;
+        if (!t || !t.classList || !t.classList.contains("bt-reset")) return;
+        var sub = t.getAttribute("data-sub"), n = 0;
+        allSteps.forEach(function (id) { if (stepSub[id] === sub && lsGet(id)) n++; });
+        if (!n) return;
+        if (!window.confirm("Reset " + n + " checked step" + (n > 1 ? "s" : "") + " in this card?")) return;
+        allSteps.forEach(function (id) {
+          if (stepSub[id] !== sub) return;
+          lsSet(id, false);
+          var box = document.querySelector('input[data-sid="' + id + '"]');
+          if (box) box.checked = false;
+          var li = document.getElementById("step-" + id);
+          if (li) li.classList.remove("done");
+        });
+        recount();
+      });
+      recount();
+    })();
+  } catch (e) { showBuildError(e.message + (e.stack ? " @ " + e.stack.split("\n")[1] : "")); }
 })();
 </script>
 </body>

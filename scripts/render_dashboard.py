@@ -19,6 +19,15 @@ Schema v2.2 adds (2026-07-17 build-plan pass, validated here):
   build_plan     — the IN-PERSON build/validate ladder rendered as the SECOND flowchart (§2.2):
                    summary + phases[] of code/name/cost/tasks[] (+ optional gate = the go/no-go
                    money logic; at least one phase MUST carry a gate) + evidence
+Schema v2.3 adds (2026-07-20 Tier-1 order pass, validated here):
+  build_tab      — the workbench Build sheet (dashboard tab bar State|Build; #build in the
+                   URL hash bookmarks it): scope + subsystems[] (id/name/role + parts[] of
+                   name/status/role/notes with status ordered|must-add|print + connections[]
+                   of from/to/medium + steps[] of id/text with optional gate/why) + ladder
+                   (summary/rungs[]/gate; rung refs point at step ids) + evidence.
+                   Step ids are UNIQUE across ALL subsystems — they key the Build sheet's
+                   localStorage checkboxes — and at least one step MUST carry gate=true
+                   (the hard stop-points: smoke stopper, props-off, calibration, legal).
 
 The renderer also stamps the live git short-sha into the title block between
 REV:BEGIN/END markers (--check ignores the REV stamp; only the state block is compared).
@@ -55,6 +64,14 @@ BOM_TIER_KEYS = {"tier", "name", "purpose", "total", "items"}
 BOM_ITEM_KEYS = {"item", "qty", "price", "why"}
 BUILD_PLAN_KEYS = {"summary", "phases", "evidence"}
 BP_PHASE_KEYS = {"code", "name", "cost", "tasks"}
+BUILD_TAB_KEYS = {"scope", "subsystems", "ladder", "evidence"}
+BT_SUB_KEYS = {"id", "name", "role", "parts", "connections", "steps"}
+BT_PART_KEYS = {"name", "status", "role"}
+BT_PART_STATUSES = {"ordered", "must-add", "print"}
+BT_CONN_KEYS = {"from", "to", "medium"}
+BT_STEP_KEYS = {"id", "text"}
+BT_LADDER_KEYS = {"summary", "rungs", "gate"}
+BT_RUNG_KEYS = {"code", "name", "goal", "refs"}
 
 
 def fail(msg: str) -> None:
@@ -65,9 +82,62 @@ def fail(msg: str) -> None:
 def validate(state: dict) -> None:
     for key in ("schema_version", "updated", "goal", "headline", "architecture", "build_plan",
                 "stages", "edges", "constraints", "graveyard", "key_numbers", "bom_tiers",
-                "decisions", "contradictions"):
+                "build_tab", "decisions", "contradictions"):
         if key not in state:
             fail(f"missing top-level key: {key}")
+    bt = state["build_tab"]
+    missing = BUILD_TAB_KEYS - set(bt)
+    if missing:
+        fail(f"build_tab missing keys: {sorted(missing)}")
+    if not bt["subsystems"]:
+        fail("build_tab has no subsystems")
+    bt_sub_ids, bt_step_ids, bt_any_gate = [], [], False
+    for ss in bt["subsystems"]:
+        missing = BT_SUB_KEYS - set(ss)
+        if missing:
+            fail(f"build_tab subsystem {ss.get('id', '?')!r} missing keys: {sorted(missing)}")
+        bt_sub_ids.append(ss["id"])
+        if not ss["parts"] or not ss["connections"] or not ss["steps"]:
+            fail(f"build_tab subsystem {ss['id']!r} needs non-empty parts, connections and steps")
+        for p in ss["parts"]:
+            missing = BT_PART_KEYS - set(p)
+            if missing:
+                fail(f"build_tab part {p.get('name', '?')!r} missing keys: {sorted(missing)}")
+            if p["status"] not in BT_PART_STATUSES:
+                fail(f"build_tab part {p['name']!r} has status {p['status']!r}; allowed: {sorted(BT_PART_STATUSES)}")
+        for c in ss["connections"]:
+            missing = BT_CONN_KEYS - set(c)
+            if missing:
+                fail(f"build_tab connection in {ss['id']!r} missing keys: {sorted(missing)}")
+        for st in ss["steps"]:
+            missing = BT_STEP_KEYS - set(st)
+            if missing:
+                fail(f"build_tab step {st.get('id', '?')!r} ({ss['id']}) missing keys: {sorted(missing)}")
+            bt_step_ids.append(st["id"])
+            if st.get("gate"):
+                bt_any_gate = True
+    if len(bt_sub_ids) != len(set(bt_sub_ids)):
+        fail("duplicate build_tab subsystem ids")
+    if len(bt_step_ids) != len(set(bt_step_ids)):
+        fail("duplicate build_tab step ids (they key the Build sheet's localStorage checkboxes)")
+    if not bt_any_gate:
+        fail("build_tab has no gate step — the hard stop-points (smoke stopper, props-off, calibration) must be explicit")
+    ladder = bt["ladder"]
+    missing = BT_LADDER_KEYS - set(ladder)
+    if missing:
+        fail(f"build_tab ladder missing keys: {sorted(missing)}")
+    if not ladder["rungs"]:
+        fail("build_tab ladder has no rungs")
+    bt_sid_set = set(bt_step_ids)
+    for r in ladder["rungs"]:
+        missing = BT_RUNG_KEYS - set(r)
+        if missing:
+            fail(f"build_tab ladder rung {r.get('code', '?')!r} missing keys: {sorted(missing)}")
+        if not r["refs"]:
+            fail(f"build_tab ladder rung {r['code']!r} has no step refs")
+        for ref in r["refs"]:
+            if ref not in bt_sid_set:
+                fail(f"build_tab ladder rung {r['code']!r} references unknown step id {ref!r}")
     bp = state["build_plan"]
     missing = BUILD_PLAN_KEYS - set(bp)
     if missing:
