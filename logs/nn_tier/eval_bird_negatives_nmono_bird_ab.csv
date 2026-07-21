@@ -1,0 +1,9 @@
+model,mode,n_images,false_fire_rate@25,n_fired,fires_per_image,top_score_mean,top_score_median,top_score_p25,top_score_p75,top_score_min,top_score_max,latency_ms_cpu,hist[0.25-0.40],hist[0.40-0.60],hist[0.60-0.80],hist[0.80-1.00],subset,wall_s
+n_mono,gray,293,0.0341,10,0.034,0.3513,0.3311,0.2812,0.4133,0.259,0.5216,30.2,7,3,0,0,clean_holdout,9.6
+n_mono,gray,361,0.0305,11,0.03,0.3601,0.3569,0.2835,0.4278,0.259,0.5216,25.6,7,4,0,0,leak_included_DO_NOT_USE_AS_VERDICT,9.8
+n_mono,color,293,0.0546,16,0.055,0.3462,0.3347,0.2577,0.4118,0.2506,0.5072,25.8,10,6,0,0,clean_holdout,7.9
+n_mono,color,361,0.0499,18,0.05,0.3463,0.3347,0.2612,0.4104,0.2506,0.5072,25.7,11,7,0,0,leak_included_DO_NOT_USE_AS_VERDICT,9.7
+v2_deployed,gray,293,0.9522,279,2.362,0.4715,0.4225,0.3432,0.5882,0.2548,0.8331,26.0,125,87,65,2,clean_holdout,8.1
+v2_deployed,gray,361,0.9584,346,2.402,0.4658,0.4162,0.3429,0.5806,0.2501,0.8331,26.5,162,105,77,2,leak_included_DO_NOT_USE_AS_VERDICT,10.1
+v2_deployed,color,293,0.6519,191,1.034,0.4251,0.3651,0.3018,0.5202,0.2524,0.8175,26.1,112,39,39,1,clean_holdout,8.0
+v2_deployed,color,361,0.651,235,1.0,0.4176,0.3586,0.2996,0.4822,0.2521,0.8175,26.1,142,47,45,1,leak_included_DO_NOT_USE_AS_VERDICT,9.9

@@ -2032,3 +2032,5 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   `docs/nn_tier/baseline_scoreboard.md` §5, `docs/camera_paper_check.md`, hardware_order_list
   §0/§2/§0b, ADR-0076 add #18j-fix, Fable workflow `wf_3cc65b51`.
 - **Date.** 2026-07-21.
+
+- **Addendum (2026-07-21) — the open bird cell, MONO side MEASURED: reassuring, confirms keep-mono.** The grayscale-native `n-mono` scored on drone-free BIRD negatives (DVB BT partition, clean holdout n=293): **false-fire 3.4% (10/293), all LOW confidence** (max 0.52, none >0.6; `logs/nn_tier/eval_bird_negatives_nmono_bird_ab.csv`). So a mono-NATIVE net does NOT have a bird problem — the earlier 0.667→0.967 regression was purely the color-trained-fed-gray OOD artifact, not a chroma-information deficit. The `n-color` A/B arm (~1 GPU-hr, `dataset_color.yaml`) is training to quantify any native color advantage; even a modest n-color bird number cannot beat 3.4% by enough to justify a reorder. `docs/nn_tier/mono_vs_color_bird_ab.md` completes when it lands. Camera decision UNCHANGED: keep mono.
