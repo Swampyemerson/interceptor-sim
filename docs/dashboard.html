@@ -310,7 +310,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e08e1a4<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ba0116c<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -886,6 +886,10 @@
     {
      "date": "2026-07-21",
      "note": "P0.2 CLOSED — auto-labeler VALIDATED in the apriltag world (set-pose 2-30 m + off-boresight, software render): auto-label box vs gt box IoU mean 0.965 / min 0.951, range error +0.13 m mean, CLI labels = decode count exactly. PLACARD SIZED: R_decode90 = 12 m @ the deployed quad_decimate=2.0 (18 m @ qd=1.0 full-res); scaled to the OV9281 vs the t_go>=0.5 s gate, ONLY 0.35 m edge (the carry limit) clears realistically -> RECOMMENDED 0.35 m, print unblocked (docs/placard_sizing.md; sim-scaled estimate, tripod day measures real). Methodology find: GPU render corrupts fiducial decode at range -> tag sweeps use SIM_GPU_RENDER=0 (sim_harness caveat). ALSO: ARM64 emulation proof PASS (all Pi deps as aarch64 wheels; seeker_loop 7/7 + pi_capture 17/17 + flight tests 32 on qemu; software-stack only, no fps). THE FIND: pupil-apriltags has no ARM wheel and pyapriltags does not alias the module name — import fallback added at all three decode sites (would have crashed the Pi on hardware day)."
+    },
+    {
+     "date": "2026-07-21",
+     "note": "TIER-NN real-data pipeline BUILT (workflow wf_2f332408, Fable-routed judgment / Sonnet training). GPU TRAINING UNLOCKED: .venv-seeker-train-gpu (torch 2.12.1+cu126 on the RTX 4070) ~23x over CPU (~2.8 vs ~65 s/epoch/300img); WSL2 silent-spill trap documented (no hard OOM; batch>8GB spills to RAM 4x slower — batch32/imgsz640 safe). REAL-MEDIA CORPUS: 15,391 images, source/video/scene-DISJOINT split (DUT held out whole, NPS by clip), GRAYSCALE (OV9281 track) + color A/B, 20% negatives incl. curated high-desert plates, BSD/MIT/CC0/CC-BY only; 'MIT drone NN' = doguilmak YOLOv11x (teacher/benchmark, not deployed). MEASURED BAR: the deployed SIM-TRAINED v2 is BLIND on real held-out imagery — AP50 0.0003, recall 1.1% @conf.25, false-fires on 88.5% of drone-free desert frames (n=4175, source-disjoint) => sim->real is a CONFIRMED NULL, the honest justification for real-data training. SCALE-DOWN VERDICT (answers the builder): NO scale-down needed — yolo11n @640 INT8 on Hailo-8L est. 40-80 e2e fps > ~30 threshold; yolo11n stays the anchor; Pi 5 CPU alone 5-10 fps not viable. Docs under docs/nn_tier/. Training IN FLIGHT (setsid daemons, one-at-a-time GPU): n-mono ~ep35/60, s-mono + n-mono-aug queued; held-out scores PENDING (eval_on_export.sh scores each on export) — NOT fabricated (anti-mirage rule)."
     },
     {
      "date": "2026-07-20",
