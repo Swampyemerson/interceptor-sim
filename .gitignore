@@ -95,3 +95,4 @@ scripts/seeker/weights/yolo11n.pt
 # #35 up-tilt A/B evidence (ADR-0067)
 !logs/mc_uptilt_*.csv
 !logs/uptilt_ab_analysis_20260710.txt
+settings.local.json
