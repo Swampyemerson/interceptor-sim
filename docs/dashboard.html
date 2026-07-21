@@ -310,7 +310,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1bdd310<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e73f447<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 1</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -473,7 +473,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-20",
- "updated_by": "Fable Tier-1 build-push pass (schema v2.3: new build_tab block — the workbench Build sheet, Tier-1 only, rendered as the dashboard's second tab with localStorage checklists; Tier-1 SOFTWARE layer landed + logged in terminal/kill/real_data changelogs + build_plan P0 status: pi_capture, tripod_score, field_score .BIN, cam-offset guard, deploy-loop SITL validation, camera paper-check; px/deg 30->15% correction in the ledger as ov9281-pxdeg-30-vs-15; sources: docs/camera_paper_check.md, logs/deploy_seeker_sitl_20260720T*.log, workflow verify verdicts 2026-07-20)",
+ "updated_by": "Fable Tier-1 build-push pass + 2026-07-20b top-up-order reconciliation (build_tab part statuses + bom_tiers must-add rows updated from the builder's screenshots: consumables/tools/jumpers/cables/18650s/smoke-stopper/checker/+2 packs ordered; missing list = iron, Kakute microSD, LiPo bag/glasses/blanket, cooler, PD bank, tripod, buzzer; 6C Mini + PM02 possible-duplicate flagged; prior pass: schema v2.3 build_tab, Tier-1 software layer, ov9281-pxdeg-30-vs-15 ledger entry)",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -485,7 +485,7 @@
  },
  "headline": {
   "date": "2026-07-17",
-  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. Binding wall unchanged — in-view detection (ground-background + phantom-competition, both sim-testable) + the acquisition/blur gap the tripod test measures. Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel. [2026-07-20 late] The Tier-1 SOFTWARE layer landed (all adversarially verified): pi_capture.py session recorder, tripod_score.py two-curve money-gate scorer, field_score ArduPilot .BIN, the cam-offset/model-swap guard, deploy seeker loop SITL-validated (3 real MAVSDK defects fixed), camera paper-check CLEARS (118 deg HORIZONTAL; px/deg penalty corrected ~30%->~15%); the dashboard grew the Build tab (Tier-1 workbench view).",
+  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. Binding wall unchanged — in-view detection (ground-background + phantom-competition, both sim-testable) + the acquisition/blur gap the tripod test measures. Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel. [2026-07-20 late] The Tier-1 SOFTWARE layer landed (all adversarially verified): pi_capture.py session recorder, tripod_score.py two-curve money-gate scorer, field_score ArduPilot .BIN, the cam-offset/model-swap guard, deploy seeker loop SITL-validated (3 real MAVSDK defects fixed), camera paper-check CLEARS (118 deg HORIZONTAL; px/deg penalty corrected ~30%->~15%); the dashboard grew the Build tab (Tier-1 workbench view). [2026-07-20b] Must-add TOP-UP ORDERED (~$116 Amazon + ~$300 vendor): solder consumables/wiring/tools/jumpers/data-cable/18650s/smoke-stopper/LiPo-checker + 2 more 6S packs. Still missing before build: soldering IRON, Kakute microSD, LiPo bag/glasses/blanket, Pi cooler, PD power bank, tripod+head, buzzer. DUPLICATE FLAG: 6C Mini + PM02 appear in BOTH orders — verify, return one pair if doubled.",
   "next_probe": "Repeat the set-pose sweep with a PITCHED-DOWN camera + a level in-frame target (GROUND background, nose-on flight aspect) — the frame-top sweep (P0.1) viewed the belly against clean SKY and found NO edge/bank detection loss, so the un-eliminated in-view mechanisms are GROUND-CLUTTER background (the detector is background-sensitive: 0% on the horizon vs 76-100% on sky at the same range) + PHANTOM COMPETITION (5-25 boxes/frame in-flight vs 0 static). Both sim-testable. Fix box_hits_gt first (scoring debt).",
   "evidence": [
    "docs/decisions.md ADR-0076 add #18k",
@@ -1227,13 +1227,13 @@
      "item": "MUST-ADD build layer (NOT in cart) — solder iron+solder+flux, XT60 pigtails+14-16AWG+heatshrink+zipties+straps, smoke stopper, LiPo safety (fireproof bag+cell checker+glasses+blanket), hex drivers+8mm prop wrench+multimeter, a 32-64 GB microSD for the KAKUTE (target position LOG field_score needs), 2x 18650 for the Pocket TX, lost-model buzzer + a USB-C DATA cable (flash the FCs+Pi, not charge-only) + a LiPo LV alarm/cell-checker + Pi<->TELEM2 UART jumper leads for the 6C-Mini bench bring-up",
      "qty": "1 set",
      "price": "~$120-180",
-     "why": "Cart cannot become a flying quad without these (Fable GO-WITH-FIXES). Fund via re-sourcing Pi+SD (~$120 recovered)."
+     "why": "Cart cannot become a flying quad without these (Fable GO-WITH-FIXES). Fund via re-sourcing Pi+SD (~$120 recovered). [2026-07-20b TOP-UP ORDER — MOSTLY COVERED: solder+flux, XT60 pigtails, 14 AWG, heatshrink, straps, hex set, Dupont UART jumpers, USB-C data cable, 18650x2, smoke stopper, LiPo checker/LV-alarm all ORDERED (~$116 Amazon + ~$300 vendor). STILL MISSING: the soldering IRON itself, the KAKUTE microSD (no card = no target log = no scored pass), fireproof bag + glasses + fire blanket, lost-model buzzer, zip ties, multimeter if unowned; VERIFY the hex kit has an 8 mm prop socket.]"
     },
     {
      "item": "MUST-ADD field layer (NOT in cart) — Pi 5 active cooler (~$5), USB-C PD power bank >=27W (field power), tripod/mast + ball head + inclinometer, 2 more CNHL 6S packs (the ~28-pass matrix needs 3+), tape measure/cones + laptop, FAA reg $5 + Remote-ID/FRIA decision",
      "qty": "1 set",
      "price": "~$100-180",
-     "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2)."
+     "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2). [2026-07-20b TOP-UP: +2 CNHL 6S packs ORDERED (3 total). STILL MISSING: Pi 5 active cooler, >=27 W USB-C PD power bank, tripod + ball head (+ inclinometer app), cones/tape measure; FAA reg + Remote-ID/FRIA decision still open. DUPLICATE FLAG: the top-up carts ALSO contain a Pixhawk 6C Mini ($177) + PM02 V3 ($19) — both recorded as ordered in the FIRST cart; verify order confirmations, cancel/return one pair if doubled (~$196).]"
     }
    ]
   },
@@ -1609,15 +1609,15 @@
      },
      {
       "name": "Pi-to-TELEM2 UART jumper leads",
-      "status": "must-add",
+      "status": "ordered",
       "role": "The three wires the whole deploy path rides on.",
-      "notes": ""
+      "notes": "ORDERED 2026-07-20b: ELEGOO 120pc Dupont M-F/M-M/F-F kit — covers the bench jumpers (GND + TX/RX crossed, 3.3 V logic, no level shifter)."
      },
      {
       "name": "USB-C DATA cable",
-      "status": "must-add",
+      "status": "ordered",
       "role": "Flashes PX4 + the Pi; must be data-capable, not charge-only.",
-      "notes": ""
+      "notes": "ORDERED 2026-07-20b: Silkland 2-in-1 10 Gbps USB-A->C + C->C — genuinely data-capable."
      }
     ],
     "connections": [
@@ -1696,33 +1696,33 @@
      },
      {
       "name": "2x 18650 cells (for the TX)",
-      "status": "must-add",
+      "status": "ordered",
       "role": "The Pocket M2's power.",
-      "notes": ""
+      "notes": "ORDERED 2026-07-20b: RadioMaster 18650 3200 mAh 2-pack."
      },
      {
       "name": "LiPo safety set — fireproof bag, cell checker + LV alarm, safety glasses, fire blanket",
       "status": "must-add",
       "role": "Never cut safety on a vehicle built to hit things; glasses on any time props are on and a pack is in.",
-      "notes": ""
+      "notes": "PARTIAL 2026-07-20b: cell checker + LV alarm ORDERED. STILL NEEDED: fireproof charge bag, safety glasses (ANSI Z87), fire blanket — never charge a 6S pack without the bag."
      },
      {
       "name": "Smoke stopper (VIFLY ShortSaver 2 class)",
-      "status": "must-add",
+      "status": "ordered",
       "role": "Inline fused XT60 for every first power-up after soldering.",
-      "notes": ""
+      "notes": "ORDERED 2026-07-20b: ViFly Short Saver 2 (XT30/XT60)."
      },
      {
       "name": "Solder/build layer — iron, 63/37 solder + flux, XT60 pigtails, 14-16 AWG, heatshrink, zip ties, straps",
       "status": "must-add",
       "role": "The cart cannot become a flying quad without it.",
-      "notes": ""
+      "notes": "PARTIAL 2026-07-20b: 63/37 solder, flux pen, 3x XT60 pigtails, 14 AWG wire, 650pc heatshrink, battery straps ALL ORDERED. STILL NEEDED: the soldering IRON itself (Pinecil V2 class + a 60 W+ USB-C PD brick — the whole layer is unusable without it) + zip ties."
      },
      {
       "name": "Tool layer — 1.5/2.0/2.5 mm hex, 8 mm prop wrench, multimeter",
       "status": "must-add",
       "role": "Continuity checks before power; generic driver sets strip FPV hardware.",
-      "notes": ""
+      "notes": "PARTIAL 2026-07-20b: Hobbypark 1.5/2.0/2.5/3.0 hex set ORDERED. VERIFY the kit includes an 8 mm socket for the M5 prop nuts (listing ambiguous). STILL NEEDED if unowned: multimeter (continuity check before every first power-up)."
      },
      {
       "name": "Lost-model buzzer",
@@ -1734,7 +1734,7 @@
       "name": "Field layer — tripod + ball head + inclinometer, >=27 W USB-C PD power bank, cones + tape measure, +2 CNHL 6S packs",
       "status": "must-add",
       "role": "Makes the tripod day decision-grade (protocol sections 1-2); the inclinometer records the exact tilt every downstream number depends on.",
-      "notes": ""
+      "notes": "PARTIAL 2026-07-20b: +2 CNHL 6S packs ORDERED (3 total — meets the 3+ the pass matrix needs). STILL NEEDED: tripod + ball head (+ inclinometer, a phone app is fine), >=27 W USB-C PD power bank (the wall PSU is useless at the field), cones + tape measure."
      },
      {
       "name": "FAA registration + Remote ID decision",
