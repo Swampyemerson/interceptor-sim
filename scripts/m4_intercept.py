@@ -866,6 +866,54 @@ def update_range_increase_streak(streak, last_fresh_range, streak_start_range,
     return 0, meas_range, None
 
 
+def update_coded_dash_streak(streak, new_meas, meas_range_m,
+                             acquire_range_min=None, acquire_range_max=None):
+    """Advance / reset / hold the --coded-dash camera-acquire streak by one
+    control tick -- the pure core of the CODED_DASH-phase handoff state machine
+    in main() (DEEP-H2: makes the handoff contract unit-testable off-sim).
+
+    HANDOFF = CODED_DASH_ACQUIRE_STREAK (5) consecutive FRESH in-window camera
+    detections hand the open-loop coded dash to the camera-only ENGAGE terminal.
+    'FRESH' here is exactly what the loop computes:
+      * new_meas -- the detector produced a NEW result since the last tick
+        (caller: new_meas = last_meas_t_mono is None or meas.t_mono !=
+        last_meas_t_mono; m4_intercept.py:2407). A repeated/duplicate frame
+        timestamp is new_meas=False, so it can NEVER advance the streak.
+      * meas_range_m is not None -- that new frame actually detected a target
+        (a no-target frame has range_m=None; m3_static_intercept.py detection_loop).
+      * inside the optional pre-flight plausibility window
+        [acquire_range_min, acquire_range_max] (add #18f; both NULLed by
+        ADR-0077, so normally None -> the window is always open).
+
+    Contract (byte-identical to the pre-extraction inline block,
+    m4_intercept.py CODED_DASH phase):
+      - NO new detector result this tick (new_meas=False) -> HOLD the streak
+        untouched (the 20 Hz control loop outpaces the ~14 Hz detector, so
+        'no new result this tick' is normal cadence, not a miss).
+      - NEW result in-window -> streak + 1.
+      - NEW result out-of-window, or a new frame that detected no target
+        (meas_range_m is None) -> RESET to 0 (the gap resets the streak).
+    The caller fires the one-way HANDOFF the tick the returned streak first
+    reaches CODED_DASH_ACQUIRE_STREAK, then leaves CODED_DASH for good (the
+    branch never runs again -> no re-handoff churn).
+
+    KNOWN RESIDUAL (ADR-0076 add #18g / the handoff stage note in
+    docs/project_state.json): a self-consistent own-prop PHANTOM that reports a
+    plausible range every frame advances this streak exactly like a real target
+    and DOES fire handoff -- the streak logic cannot tell them apart (the
+    range/appearance gates were all flown NULL). The false-handoff hazard is
+    designed OUT in HARDWARE (the forward-camera mount puts the prop out of FoV,
+    add #18h), NOT in this function. Its job is the clean 5-detection streak;
+    documenting that boundary honestly is the point of DEEP-H2.
+    """
+    if not new_meas:
+        return streak
+    range_ok = meas_range_m is not None and (
+        acquire_range_min is None or meas_range_m >= acquire_range_min) and (
+        acquire_range_max is None or meas_range_m <= acquire_range_max)
+    return streak + 1 if range_ok else 0
+
+
 # --- Kalata-derived alpha-beta gains (tracking-refinement PORT 1, --kalata).
 # Ported VERBATIM (formula + variable names) from scripts/guidance_lab.py's
 # kalata_alpha_beta() -- see that function's docstring for the full
@@ -2851,18 +2899,18 @@ async def run_acquire_and_engage(
             _h = math.radians(coded_dash_heading_deg)
             cmd = (coded_dash_speed * math.cos(_h), coded_dash_speed * math.sin(_h),
                    v_down, coded_dash_heading_deg)
-            if new_meas:
-                # HANDOFF PLAUSIBILITY GATE (add #18f): a detection only advances the
-                # acquire streak if its implied range is inside the pre-flight-plausible
-                # window -- rejects the own-prop phantom (implies ~1.5 m) that otherwise
-                # forms a false handoff with no cue to veto it.
-                _r = meas.range_m
-                _r_ok = _r is not None and (
-                    args.coded_dash_acquire_range_min is None
-                    or _r >= args.coded_dash_acquire_range_min) and (
-                    args.coded_dash_acquire_range_max is None
-                    or _r <= args.coded_dash_acquire_range_max)
-                consecutive_fresh = consecutive_fresh + 1 if _r_ok else 0
+            # HANDOFF PLAUSIBILITY GATE (add #18f): a NEW detector result only
+            # advances the acquire streak if its implied range is inside the
+            # pre-flight-plausible window -- rejects the own-prop phantom (implies
+            # ~1.5 m) that otherwise forms a false handoff with no cue to veto it.
+            # A no-new-result tick HOLDS the streak (the 20 Hz loop outpaces the
+            # ~14 Hz detector). Pure logic in update_coded_dash_streak() so the
+            # handoff contract is unit-testable off-sim (DEEP-H2); behavior is
+            # byte-identical to the pre-extraction inline block.
+            consecutive_fresh = update_coded_dash_streak(
+                consecutive_fresh, new_meas, meas.range_m,
+                args.coded_dash_acquire_range_min,
+                args.coded_dash_acquire_range_max)
             coded_dash_elapsed = tick_start - coded_dash_start_mono
             if consecutive_fresh >= CODED_DASH_ACQUIRE_STREAK:
                 print(f"[coded-dash] camera ACQUIRED at t={coded_dash_elapsed:.2f}s "
