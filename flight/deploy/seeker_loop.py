@@ -439,6 +439,56 @@ class StubSeeker:
             range_m=rng, box_xywh=(u - bw / 2.0, self.v0 - bw / 2.0, bw, bw))
 
 
+class SmokeSeeker:
+    """Synthetic detector for the --sitl-smoke MAVSDK check: a target box that
+    oscillates gently about frame centre at a CONSTANT range, so the deploy loop
+    stays in the GUIDED pro-nav regime for the whole run (bounded bearing + a
+    realistic, bounded LOS rate) and continuously exercises the
+    guidance -> setpoint -> MAVSDK path -- with NO camera / weights / onnxruntime.
+
+    Distinct from StubSeeker on purpose: StubSeeker SHRINKS range into terminal
+    coast (freezing the velocity vector), which is right for the offline self-test
+    but would make the live setpoint stream a single frozen vector plus a drifting
+    yaw. Holding a constant range > terminal_freeze keeps every tick a live
+    pro-nav command, which is what we want to push through the MAVLink plumbing.
+    Range is keyed to t_mono, so the box motion is deterministic and frame-content
+    independent (the paired SyntheticSource yields blank frames)."""
+
+    def __init__(self, fx, span, cx=640.0, cy=480.0, range_m=8.0,
+                 amp_px=60.0, period_s=6.0):
+        self.fx, self.span = fx, span
+        self.cx, self.cy = cx, cy
+        self.range_m = range_m
+        self.amp = amp_px
+        self.w = 2.0 * math.pi / period_s
+
+    def detect(self, frame_bgr, t_mono=0.0):
+        from types import SimpleNamespace
+        t = 0.0 if t_mono is None else t_mono
+        u = self.cx + self.amp * math.sin(self.w * t)
+        bw = self.fx * self.span / self.range_m   # box width consistent with range
+        return SimpleNamespace(
+            range_m=self.range_m,
+            box_xywh=(u - bw / 2.0, self.cy - bw / 2.0, bw, bw))
+
+
+class SyntheticSource:
+    """A bounded stream of blank frames for the --sitl-smoke MAVSDK check. The
+    smoke validates the MAVLink plumbing, NOT perception, so the frame content is
+    irrelevant (the paired SmokeSeeker fabricates the box). Yielding a FINITE
+    number of frames is also what bounds the offboard setpoint stream, so the
+    check terminates and lands cleanly on its own."""
+
+    def __init__(self, n_frames: int, size=(960, 1280)):
+        self.n_frames = int(n_frames)
+        self.size = size
+
+    def frames(self):
+        blank = np.zeros((self.size[0], self.size[1], 3), dtype=np.uint8)
+        for i in range(self.n_frames):
+            yield blank, f"synth{i:05d}"
+
+
 # ------------------------------------------------------------------ config load
 
 
@@ -583,27 +633,65 @@ def self_test() -> int:
 # ------------------------------------------------------------------ MAVSDK driver
 
 
-async def run_mavsdk(args, cam, detector, guidance, source):  # pragma: no cover
+# Timeouts / thresholds for the MAVSDK driver. Mirror the sim gate constants in
+# scripts/m0_takeoff.py / scripts/m3_static_intercept.py (same PX4 SITL boot);
+# no unsourced magic. All in wall seconds unless noted.
+_CONNECT_TIMEOUT_S = 30.0    # m0_takeoff.CONNECT_TIMEOUT_S regime
+_HEALTH_TIMEOUT_S = 60.0     # EKF global+home position ok after boot (m0/m3)
+_TAKEOFF_TIMEOUT_S = 40.0    # climb to the takeoff altitude
+_TAKEOFF_ALT_FRAC = 0.8      # "airborne" once at 80% of the target altitude (m0)
+_LAND_TIMEOUT_S = 60.0       # land + disarm after the stream
+
+
+async def run_mavsdk(args, cam, detector, guidance, source,
+                     smoke: bool = False):  # pragma: no cover
     """Real-vehicle driver: connect over MAVLink, stream own-state EKF, and send
     the terminal's NED velocity+yaw setpoints via PX4 OFFBOARD. GUARDED mavsdk
-    import so the desk/dry-run path never needs it. Not exercised in the sim-free
-    self-test (no flight controller on the desk) -- kept minimal and explicit."""
+    import so the desk/dry-run path never needs it.
+
+    Returns 0 on success, 1 on a failure worth failing a gate over.
+
+    Two modes, ONE shared setpoint-streaming body (this is the code the real Pi
+    runs, so the SITL check exercises the real path -- not a copy):
+      * TERMINAL (`smoke=False`, the vehicle path): the coded open-loop dash has
+        already delivered an airborne, armed interceptor; this loop just connects,
+        reads own-state, enters OFFBOARD, and streams pro-nav setpoints until the
+        (infinite, live-camera) source ends -- unchanged behaviour, no arm/takeoff/
+        land here (props-spinning autonomy is the dash's job, not the seeker's).
+      * SITL SMOKE (`smoke=True`, the desk-gate path): there is no dash in SITL, so
+        we SYNTHESISE the airborne precondition -- health-gate, arm, takeoff -- then
+        run the SAME OFFBOARD stream, then land + disarm cleanly. Every flight
+        bookend is gated behind `smoke`, so the vehicle path is untouched.
+
+    Honesty: the only inputs remain camera pixels + own-state EKF (attitude quat,
+    yaw, relative altitude). arm/takeoff/land are actuation, not guidance inputs;
+    health/armed/landed are own status. No gt_* anywhere (grep-clean)."""
+    import asyncio
+
     from mavsdk import System
     from mavsdk.offboard import OffboardError, VelocityNedYaw
+    from mavsdk.telemetry import LandedState
 
     drone = System()
-    await drone.connect(system_address=args.mavsdk_url)
     print(f"[mavsdk] connecting {args.mavsdk_url} ...")
-    async for st in drone.core.connection_state():
-        if st.is_connected:
-            print("[mavsdk] connected")
-            break
+    await drone.connect(system_address=args.mavsdk_url)
 
-    # OWN-STATE EKF streams (attitude quaternion + euler yaw + altitude). These
-    # are the vehicle's own estimate -- the only non-camera input, no gt_*.
-    state = {"quat": None, "psi": None, "alt": None}
+    async def _wait_connected():
+        async for st in drone.core.connection_state():
+            if st.is_connected:
+                return
 
-    import asyncio
+    try:
+        await asyncio.wait_for(_wait_connected(), timeout=_CONNECT_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        print(f"[mavsdk] FAIL: no connection within {_CONNECT_TIMEOUT_S}s")
+        return 1
+    print("[mavsdk] connected")
+
+    # OWN-STATE EKF streams (attitude quaternion + euler yaw + altitude) plus the
+    # armed/landed STATUS used only to shut down cleanly. These are the vehicle's
+    # own estimate/status -- the only non-camera inputs, no gt_*.
+    state = {"quat": None, "psi": None, "alt": None, "armed": None, "landed": None}
 
     async def _att_q():
         async for q in drone.telemetry.attitude_quaternion():
@@ -617,32 +705,149 @@ async def run_mavsdk(args, cam, detector, guidance, source):  # pragma: no cover
         async for p in drone.telemetry.position():
             state["alt"] = p.relative_altitude_m
 
-    for coro in (_att_q, _att_e, _pos):
-        asyncio.ensure_future(coro())
+    async def _armed():
+        async for a in drone.telemetry.armed():
+            state["armed"] = a
 
-    await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
+    async def _landed():
+        async for ls in drone.telemetry.landed_state():
+            state["landed"] = ls
+
+    tasks = [asyncio.ensure_future(c())
+             for c in (_att_q, _att_e, _pos, _armed, _landed)]
+
+    rc = 0
+    offboard_ok = False
+    n_frame = n_sp = 0
     try:
-        await drone.offboard.start()
-    except OffboardError as e:
-        print(f"[mavsdk] offboard start failed: {e}; aborting")
-        return
+        if smoke:
+            # SITL only: synthesise the "already airborne" precondition the real
+            # dash provides on the vehicle. Gated behind `smoke` so the vehicle
+            # terminal path (which must NOT arm/takeoff) is untouched.
+            print(f"[mavsdk] waiting for health "
+                  f"(global+home position ok), timeout {_HEALTH_TIMEOUT_S}s ...")
 
-    t0 = time.monotonic()
-    for frame, name in source.frames():
-        t = time.monotonic() - t0
-        det = detector.detect(frame, t)
-        box = getattr(det, "box_xywh", None)
-        if getattr(det, "range_m", None) is None:
-            box = None
-        own = OwnState(quat=state["quat"], psi_rad=state["psi"], alt_m=state["alt"])
-        sp, tel = guidance.step(box, own, t)
-        if sp is not None:
-            if args.dry_run:
-                print(f"[dry-run] {name} SETPOINT {sp.as_tuple()}")
-            else:
-                await drone.offboard.set_velocity_ned(
-                    VelocityNedYaw(sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg))
-        await asyncio.sleep(1.0 / args.fps)
+            async def _wait_health():
+                async for h in drone.telemetry.health():
+                    if h.is_global_position_ok and h.is_home_position_ok:
+                        return
+
+            try:
+                await asyncio.wait_for(_wait_health(), timeout=_HEALTH_TIMEOUT_S)
+            except asyncio.TimeoutError:
+                print(f"[mavsdk] FAIL: health not OK within {_HEALTH_TIMEOUT_S}s")
+                return 1
+            print("[mavsdk] health OK")
+
+            alt = guidance.cfg.alt_ref_m
+            print(f"[mavsdk] set takeoff altitude {alt:.1f} m; arming; takeoff ...")
+            await drone.action.set_takeoff_altitude(alt)
+            await drone.action.arm()
+            await drone.action.takeoff()
+            deadline = time.monotonic() + _TAKEOFF_TIMEOUT_S
+            while time.monotonic() < deadline:
+                if state["alt"] is not None and state["alt"] >= _TAKEOFF_ALT_FRAC * alt:
+                    break
+                await asyncio.sleep(0.2)
+            alt_now = state["alt"]
+            alt_str = "None" if alt_now is None else f"{alt_now:.2f}"
+            print(f"[mavsdk] airborne at rel_alt={alt_str} m")
+
+        # OFFBOARD: PX4 needs a setpoint STREAM established before it will accept
+        # the mode switch, so prime one zero setpoint, then start (m3 pattern).
+        await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
+        try:
+            await drone.offboard.start()
+            offboard_ok = True
+            print("[mavsdk] OFFBOARD active; streaming setpoints ...")
+        except OffboardError as e:
+            print(f"[mavsdk] FAIL: offboard start failed: {e}")
+            rc = 1
+
+        if offboard_ok:
+            t0 = time.monotonic()
+            t_first = t_last = None
+            for frame, name in source.frames():
+                t = time.monotonic() - t0
+                det = detector.detect(frame, t)
+                box = getattr(det, "box_xywh", None)
+                if getattr(det, "range_m", None) is None:
+                    box = None
+                own = OwnState(quat=state["quat"], psi_rad=state["psi"],
+                               alt_m=state["alt"])
+                sp, tel = guidance.step(box, own, t)
+                n_frame += 1
+                if sp is not None:
+                    if args.dry_run:
+                        print(f"[dry-run] {name} SETPOINT {sp.as_tuple()}")
+                    else:
+                        await drone.offboard.set_velocity_ned(VelocityNedYaw(
+                            sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg))
+                    n_sp += 1
+                    t_last = t
+                    if t_first is None:
+                        t_first = t
+                    if n_sp % 20 == 0:
+                        print(f"[mavsdk] t={t:5.1f}s frames={n_frame} "
+                              f"setpoints={n_sp} last vN={sp.v_north:+.2f} "
+                              f"vE={sp.v_east:+.2f} vD={sp.v_down:+.2f} "
+                              f"yaw={sp.yaw_deg:+.1f}"
+                              + ("  [COAST]" if tel.terminal_coast else ""))
+                await asyncio.sleep(1.0 / args.fps)
+
+            span = (t_last - t_first) if (t_first is not None
+                                          and t_last is not None) else 0.0
+            cadence = (n_sp - 1) / span if (span > 0 and n_sp > 1) else 0.0
+            print(f"[mavsdk] stream complete: {n_frame} frames, {n_sp} setpoints "
+                  f"over {span:.1f}s wall, mean cadence {cadence:.1f} Hz "
+                  f"({'DRY-RUN, nothing sent' if args.dry_run else 'sent over MAVLink'})")
+            if n_sp == 0:
+                print("[mavsdk] FAIL: no setpoints were produced")
+                rc = 1
+    finally:
+        # Clean shutdown regardless of how we got here: stop offboard, (smoke)
+        # land + wait for disarm, and cancel the own-state stream tasks so the
+        # event loop can exit without orphaned generators.
+        if offboard_ok:
+            try:
+                await drone.offboard.stop()
+                print("[mavsdk] offboard stopped")
+            except Exception as e:  # noqa: BLE001 -- best-effort teardown
+                print(f"[mavsdk] offboard.stop skipped: {e}")
+        if smoke:
+            try:
+                await drone.action.land()
+                print(f"[mavsdk] landing; waiting up to {_LAND_TIMEOUT_S}s "
+                      f"for touchdown + disarm ...")
+                deadline = time.monotonic() + _LAND_TIMEOUT_S
+                touch_t = None
+                forced = False
+                while time.monotonic() < deadline:
+                    if state["armed"] is False:     # fully disarmed -> clean stop
+                        break
+                    if state["landed"] == LandedState.ON_GROUND and touch_t is None:
+                        touch_t = time.monotonic()
+                    # PX4 auto-disarms ~2 s after touchdown (COM_DISARM_LAND); if
+                    # it lags, force a disarm so the shutdown is unambiguously clean.
+                    if touch_t is not None and not forced \
+                            and time.monotonic() - touch_t > 5.0:
+                        forced = True
+                        try:
+                            await drone.action.disarm()
+                            print("[mavsdk] forced disarm (auto-disarm lagged)")
+                        except Exception as e:  # noqa: BLE001
+                            print(f"[mavsdk] disarm request skipped: {e}")
+                    await asyncio.sleep(0.5)
+                print(f"[mavsdk] landed_state={state['landed']} "
+                      f"armed={state['armed']}")
+            except Exception as e:  # noqa: BLE001 -- best-effort teardown
+                print(f"[mavsdk] land skipped: {e}")
+        for tk in tasks:
+            tk.cancel()
+
+    print(f"[sitl-smoke] {'PASS' if rc == 0 else 'FAIL'}" if smoke else
+          f"[mavsdk] done rc={rc}")
+    return rc
 
 
 # ------------------------------------------------------------------ CLI
@@ -661,6 +866,16 @@ def main(argv=None) -> int:
         description="Real-hardware camera-only pro-nav terminal seeker loop.")
     ap.add_argument("--self-test", action="store_true",
                     help="synthetic end-to-end check (no sim/weights/camera); exits 0/1")
+    ap.add_argument("--sitl-smoke", action="store_true",
+                    help="drive the LIVE MAVSDK OFFBOARD path against a local PX4 "
+                         "SITL with a synthetic detector (no camera/weights/onnx): "
+                         "health-gate, arm, takeoff, stream setpoints, land+disarm. "
+                         "Needs --mavsdk-url. Exits 0/1. (Do NOT pass --dry-run: PX4 "
+                         "fail-safes out of OFFBOARD without a live setpoint stream.)")
+    ap.add_argument("--smoke-duration", type=float, default=45.0,
+                    help="--sitl-smoke: wall seconds of setpoint streaming. Default "
+                         "45 s clears the >=30 s sim-time bar even if RTF sags to "
+                         "~0.67 (GPU render holds RTF ~0.95, ADR-0075).")
     ap.add_argument("--source",
                     help="frame source: an image dir, a video file, or 'picamera'")
     ap.add_argument("--weights",
@@ -689,6 +904,34 @@ def main(argv=None) -> int:
 
     if args.self_test:
         return self_test()
+
+    if args.sitl_smoke:
+        # Validate the LIVE MAVSDK OFFBOARD path (flight/deploy/README.md item 4)
+        # against a local PX4 SITL, with a synthetic detector so NO camera /
+        # weights / onnxruntime are needed -- the point is the MAVLink plumbing
+        # (connect, mode switch, setpoint cadence, clean land), not perception.
+        if not args.mavsdk_url:
+            ap.error("--sitl-smoke requires --mavsdk-url "
+                     "(e.g. udpin://0.0.0.0:14540)")
+        cfg = GuidanceConfig(
+            n_pronav=args.n_pronav,
+            mount_fwd_m=args.mount_fwd_m, mount_left_m=args.mount_left_m,
+            mount_up_m=args.mount_up_m,
+            mount_up_rad=math.radians(args.mount_tilt_deg))
+        cam = (load_camera(args.intrinsics) if os.path.exists(args.intrinsics)
+               else CameraModel(539.936, 539.936, 640.0, 480.0))  # sim pinhole
+        span_m = cfg.target_span_m
+        n_frames = max(1, int(args.smoke_duration * args.fps))
+        print(f"[sitl-smoke] LIVE MAVSDK OFFBOARD check | url={args.mavsdk_url} | "
+              f"fx={cam.fx:.1f} cx={cam.cx:.1f} span={span_m:.2f}m N={cfg.n_pronav} "
+              f"| fps={args.fps} duration~{args.smoke_duration:.0f}s "
+              f"({n_frames} frames)")
+        guidance = SeekerGuidance(cfg, cam, span_m)
+        detector = SmokeSeeker(cam.fx, span_m, cx=cam.cx, cy=cam.cy)
+        source = SyntheticSource(n_frames)
+        import asyncio
+        return asyncio.run(
+            run_mavsdk(args, cam, detector, guidance, source, smoke=True))
 
     if not args.source:
         ap.error("need --source <image-dir|video|picamera> (or --self-test)")
@@ -721,8 +964,7 @@ def main(argv=None) -> int:
     # Real MAVLink vs desk dry-run.
     if args.mavsdk_url and not args.dry_run:
         import asyncio
-        asyncio.run(run_mavsdk(args, cam, detector, guidance, source))
-        return 0
+        return asyncio.run(run_mavsdk(args, cam, detector, guidance, source))
     run_over_source(source, detector, guidance, dry_run=True,
                     max_frames=args.max_frames, fps=args.fps)
     return 0

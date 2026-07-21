@@ -1,0 +1,68 @@
+=== deploy_seeker SITL smoke @ 20260720T235404Z (UTC) ===
+host: Linux 6.18.33.2-microsoft-standard-WSL2  |  python: /home/emerson/interceptor-sim/.venv/bin/python
+note: FUNCTIONAL check (not a measured gate); cadence is WALL time.
+      GPU render (ADR-0075) holds RTF ~0.95, so 45s wall >= 30s sim time.
+sim boot log: /home/emerson/interceptor-sim/logs/check_deploy_sitl_sim_20260720T235404Z.log
+----------------------------------------------------------------
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+[sitl-smoke] LIVE MAVSDK OFFBOARD check | url=udpin://0.0.0.0:14540 | fx=539.9 cx=640.0 span=1.00m N=5.0 | fps=20.0 duration~45s (900 frames)
+[mavsdk] connecting udpin://0.0.0.0:14540 ...
+[mavsdk] connected
+[mavsdk] waiting for health (global+home position ok), timeout 60.0s ...
+[mavsdk] health OK
+[mavsdk] set takeoff altitude 5.0 m; arming; takeoff ...
+[mavsdk] airborne at rel_alt=4.06 m
+[mavsdk] OFFBOARD active; streaming setpoints ...
+[mavsdk] t=  1.0s frames=20 setpoints=20 last vN=-5.08 vE=+8.00 vD=-0.12 yaw=+103.7
+[mavsdk] t=  2.0s frames=40 setpoints=40 last vN=-11.89 vE=+1.91 vD=+0.04 yaw=+130.5
+[mavsdk] t=  3.1s frames=60 setpoints=60 last vN=-11.83 vE=+0.98 vD=-0.09 yaw=+134.4
+[mavsdk] t=  4.1s frames=80 setpoints=80 last vN=-8.23 vE=+5.28 vD=-0.10 yaw=+124.1
+[mavsdk] t=  5.2s frames=100 setpoints=100 last vN=-0.55 vE=+9.30 vD=+0.05 yaw=+107.8
+[mavsdk] t=  6.2s frames=120 setpoints=120 last vN=+4.12 vE=+9.89 vD=+0.09 yaw=+100.7
+[mavsdk] t=  7.3s frames=140 setpoints=140 last vN=-1.82 vE=+8.96 vD=+0.05 yaw=+111.6
+[mavsdk] t=  8.3s frames=160 setpoints=160 last vN=-9.27 vE=+4.22 vD=+0.11 yaw=+128.2
+[mavsdk] t=  9.4s frames=180 setpoints=180 last vN=-10.27 vE=+3.17 vD=-0.09 yaw=+129.3
+[mavsdk] t= 10.4s frames=200 setpoints=200 last vN=-4.51 vE=+7.81 vD=-0.07 yaw=+115.6
+[mavsdk] t= 11.4s frames=220 setpoints=220 last vN=+3.85 vE=+9.86 vD=+0.01 yaw=+99.8
+[mavsdk] t= 12.5s frames=240 setpoints=240 last vN=+3.89 vE=+9.91 vD=-0.19 yaw=+101.1
+[mavsdk] t= 13.5s frames=260 setpoints=260 last vN=-3.49 vE=+8.30 vD=-0.07 yaw=+115.3
+[mavsdk] t= 14.6s frames=280 setpoints=280 last vN=-10.07 vE=+3.34 vD=+0.01 yaw=+130.0
+[mavsdk] t= 15.6s frames=300 setpoints=300 last vN=-9.08 vE=+4.48 vD=-0.16 yaw=+126.4
+[mavsdk] t= 16.7s frames=320 setpoints=320 last vN=-2.10 vE=+8.84 vD=-0.02 yaw=+110.6
+[mavsdk] t= 17.7s frames=340 setpoints=340 last vN=+5.50 vE=+9.81 vD=-0.01 yaw=+97.5
+[mavsdk] t= 18.8s frames=360 setpoints=360 last vN=+2.29 vE=+9.83 vD=-0.20 yaw=+103.8
+[mavsdk] t= 19.8s frames=380 setpoints=380 last vN=-5.68 vE=+7.13 vD=-0.01 yaw=+120.1
+[mavsdk] t= 20.9s frames=400 setpoints=400 last vN=-10.55 vE=+2.77 vD=-0.02 yaw=+130.8
+[mavsdk] t= 21.9s frames=420 setpoints=420 last vN=-7.64 vE=+5.78 vD=-0.15 yaw=+122.9
+[mavsdk] t= 23.0s frames=440 setpoints=440 last vN=+0.38 vE=+9.51 vD=+0.04 yaw=+105.9
+[mavsdk] t= 24.0s frames=460 setpoints=460 last vN=+5.88 vE=+9.80 vD=-0.01 yaw=+97.4
+[mavsdk] t= 25.0s frames=480 setpoints=480 last vN=+0.52 vE=+9.58 vD=-0.13 yaw=+107.2
+[mavsdk] t= 26.1s frames=500 setpoints=500 last vN=-7.44 vE=+5.88 vD=+0.04 yaw=+124.1
+[mavsdk] t= 27.1s frames=520 setpoints=520 last vN=-10.49 vE=+2.88 vD=-0.02 yaw=+130.1
+[mavsdk] t= 28.2s frames=540 setpoints=540 last vN=-5.99 vE=+6.96 vD=-0.07 yaw=+118.9
+[mavsdk] t= 29.2s frames=560 setpoints=560 last vN=+2.59 vE=+9.81 vD=+0.08 yaw=+101.9
+[mavsdk] t= 30.3s frames=580 setpoints=580 last vN=+5.28 vE=+9.87 vD=-0.02 yaw=+98.8
+[mavsdk] t= 31.3s frames=600 setpoints=600 last vN=-1.46 vE=+9.07 vD=-0.05 yaw=+111.2
+[mavsdk] t= 32.3s frames=620 setpoints=620 last vN=-8.98 vE=+4.51 vD=+0.08 yaw=+127.5
+[mavsdk] t= 33.4s frames=640 setpoints=640 last vN=-9.83 vE=+3.68 vD=-0.06 yaw=+128.2
+[mavsdk] t= 34.4s frames=660 setpoints=660 last vN=-3.94 vE=+8.09 vD=-0.00 yaw=+114.5
+[mavsdk] t= 35.5s frames=680 setpoints=680 last vN=+4.57 vE=+9.86 vD=+0.10 yaw=+98.7
+[mavsdk] t= 36.5s frames=700 setpoints=700 last vN=+4.25 vE=+9.92 vD=-0.07 yaw=+100.5
+[mavsdk] t= 37.6s frames=720 setpoints=720 last vN=-3.22 vE=+8.42 vD=+0.02 yaw=+114.8
+[mavsdk] t= 38.6s frames=740 setpoints=740 last vN=-9.76 vE=+3.70 vD=+0.10 yaw=+129.1
+[mavsdk] t= 39.7s frames=760 setpoints=760 last vN=-8.46 vE=+5.07 vD=-0.07 yaw=+124.9
+[mavsdk] t= 40.7s frames=780 setpoints=780 last vN=-1.26 vE=+9.11 vD=+0.08 yaw=+108.9
+[mavsdk] t= 41.7s frames=800 setpoints=800 last vN=+6.26 vE=+9.74 vD=+0.12 yaw=+96.1
+[mavsdk] t= 42.8s frames=820 setpoints=820 last vN=+2.95 vE=+9.88 vD=-0.06 yaw=+102.6
+[mavsdk] t= 43.8s frames=840 setpoints=840 last vN=-5.12 vE=+7.47 vD=+0.10 yaw=+118.9
+[mavsdk] t= 44.9s frames=860 setpoints=860 last vN=-10.17 vE=+3.25 vD=+0.10 yaw=+129.7
+[mavsdk] t= 45.9s frames=880 setpoints=880 last vN=-6.98 vE=+6.28 vD=-0.03 yaw=+121.4
+[mavsdk] t= 47.0s frames=900 setpoints=900 last vN=+1.27 vE=+9.66 vD=+0.15 yaw=+104.1
+[mavsdk] stream complete: 900 frames, 900 setpoints over 47.0s wall, mean cadence 19.1 Hz (sent over MAVLink)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for landed/disarm ...
+[mavsdk] landed_state=ON_GROUND armed=True
+[sitl-smoke] PASS
+----------------------------------------------------------------
+[check_deploy_sitl] PASS (see /home/emerson/interceptor-sim/logs/deploy_seeker_sitl_20260720T235404Z.log)
