@@ -100,3 +100,13 @@ settings.local.json
 # nn_tier real-media corpus + raw downloads (regenerable via fetch/prepare scripts; multi-GB)
 scripts/seeker/nn_tier/data/
 scripts/seeker/nn_tier/runs/
+
+# GPU training env (2026-07-21) — torch cu126 on the RTX 4070; ~6.7 GB, regenerable
+# via docs/nn_tier/compute_notes.md. MUST stay ignored so it is never swept into a
+# commit and persists on disk across sessions. Do NOT `git clean -fdx` (wipes it).
+.venv-seeker-train-gpu/
+# Root-level COCO base weights auto-downloaded by ultralytics to CWD (never stage)
+/yolo11s.pt
+/yolo26n.pt
+# In-view-probe downtilt mount SDF scratch (regenerable)
+scripts/experiments/downtilt_mounts/
