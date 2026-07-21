@@ -246,6 +246,12 @@ from m3_static_intercept import (  # noqa: E402
 # pin the two to agree, so this wiring does not touch honesty-audited code.)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flight.guidance import collision_lead_heading  # noqa: E402
+# P0.4 camera lever-arm guard (pure, no gz/gt): tie --cam-fwd-offset-m to the
+# ACTIVE airframe geometry so a moved-camera model can't fly uncompensated.
+from flight.geometry import (  # noqa: E402
+    check_cam_offset_consistency,
+    parse_cam_fwd_from_sdf,
+)
 
 # --- Guidance targets / gains (GOALS.md M4; pro-nav mechanization + gain
 # council-decided per CLAUDE.md -- do not retune without an ADR). See the
@@ -658,6 +664,32 @@ BENCH_PASS_MEAN_DEG_S = 3.0
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGS_DIR = os.path.join(REPO_ROOT, "logs")
 MOVER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "m4_target_mover.py")
+
+
+def active_px4_cam_sdf_path():
+    """Path to the model.sdf PX4 will actually spawn. PX4 hardcodes
+    file://${PX4_GZ_MODELS}/x500_mono_cam/model.sdf (bypasses
+    GZ_SIM_RESOURCE_PATH, see scripts/adaptive_tilt_arm.sh), so whatever variant
+    a swap script (cam_forward_run.sh / adaptive_tilt_arm.sh) copied into THIS
+    file is the flying airframe. Honors $PX4_DIR, else ~/PX4-Autopilot (the
+    default every boot script uses)."""
+    px4_dir = os.environ.get("PX4_DIR") or os.path.join(
+        os.path.expanduser("~"), "PX4-Autopilot")
+    return os.path.join(px4_dir, "Tools", "simulation", "gz", "models",
+                        "x500_mono_cam", "model.sdf")
+
+
+def resolve_active_cam_fwd_m():
+    """(sdf_path, cam_fwd_m|None) for the active airframe -- None if the model
+    file can't be read/parsed (guard then warns and proceeds rather than adding
+    a filesystem-shaped failure mode to every run)."""
+    path = active_px4_cam_sdf_path()
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return path, None
+    return path, parse_cam_fwd_from_sdf(data)
 
 CSV_HEADER = [
     # t = wall-clock elapsed since script start (time.monotonic() - started);
@@ -1868,6 +1900,17 @@ def parse_args():
              "by the vehicle attitude quaternion (the SAME quat as the LOS "
              "derotation) to NED, so the terminal geometry is correct at any "
              "pitch. Own attitude (EKF) + static mount constants, NO gt_*.")
+    parser.add_argument(
+        "--allow-cam-offset-mismatch", action="store_true",
+        help="P0.4 ESCAPE HATCH (default OFF): permit a deliberate mismatch "
+             "between the ACTIVE airframe's camera forward offset (read from the "
+             "PX4 model.sdf PX4 spawns) and --cam-fwd-offset-m. By default a "
+             "mismatch (e.g. the moved-camera model flown with offset 0, or the "
+             "stock model flown with a large offset) FAILS the run before flight "
+             "-- that silent uncompensated-parallax class is how this project's "
+             "mirages happened (ADR-0076). Pass this ONLY for an intentional A/B "
+             "arm; the resolved (model variant + applied offset) pair is logged "
+             "either way.")
     parser.add_argument(
         "--handoff-cue-gate", type=float, default=None,
         help="ADR-0057 attempt-3 ROOT-CAUSE fix (default None = OFF, byte-"
@@ -3778,6 +3821,39 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
 async def main():
     started = time.monotonic()
     args = parse_args()
+
+    # P0.4 CAMERA LEVER-ARM GUARD (runs first, before any sim work): the active
+    # airframe's camera forward offset -- read straight from the model.sdf PX4
+    # spawns -- must agree with --cam-fwd-offset-m, else the run is a silent
+    # uncompensated parallax (the mirage class ADR-0076 exists to stop). The
+    # resolved (model variant + applied offset) pair is ALWAYS logged for
+    # post-hoc audits; a mismatch FAILS before flight unless
+    # --allow-cam-offset-mismatch. Reading the SDF is a no-op for guidance math.
+    _cam_sdf_path, _cam_fwd_sdf = resolve_active_cam_fwd_m()
+    if _cam_fwd_sdf is None:
+        print(
+            "[m4] camera lever-arm guard: UNVERIFIED (could not read "
+            f"{_cam_sdf_path}); applied(fwd={args.cam_fwd_offset_m:.3f} "
+            f"left={args.cam_left_offset_m:.3f} up={args.cam_up_offset_m:.3f}) m "
+            "-- guard SKIPPED"
+        )
+    else:
+        _cam_chk = check_cam_offset_consistency(
+            _cam_fwd_sdf, args.cam_fwd_offset_m,
+            allow_mismatch=args.allow_cam_offset_mismatch)
+        if _cam_chk.mismatch and _cam_chk.ok:
+            _verdict = "OK (MISMATCH ALLOWED via --allow-cam-offset-mismatch)"
+        else:
+            _verdict = "MISMATCH" if _cam_chk.mismatch else "OK"
+        print(
+            f"[m4] camera lever-arm guard: model={_cam_chk.variant} "
+            f"cam_fwd_sdf={_cam_fwd_sdf:.3f} m applied(fwd={args.cam_fwd_offset_m:.3f} "
+            f"left={args.cam_left_offset_m:.3f} up={args.cam_up_offset_m:.3f}) m "
+            f"-> {_verdict}"
+        )
+        if not _cam_chk.ok:
+            print(f"[m4] FAILED (P0.4 camera lever-arm guard): {_cam_chk.detail}")
+            return 2
 
     # ADR-0023 Tier-1 lever B (--split-freeze): move the freeze later BEFORE
     # apply_fpv_profile() reads the dict, so the coast latch AND

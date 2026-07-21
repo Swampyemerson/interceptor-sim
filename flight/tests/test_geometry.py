@@ -13,9 +13,71 @@ from flight.geometry import (
     euler_to_quat_body_to_ned,
     derotate_bearing_lambda,
     camera_to_cg_los,
+    parse_cam_fwd_from_sdf,
+    check_cam_offset_consistency,
+    STOCK_CAM_FWD_M,
 )
 
 TOL = math.radians(0.05)
+
+# --- P0.4 camera lever-arm guard fixtures (mirror the real model.sdf format,
+#     incl. the encoding=UTF-8 declaration + a comment before <sdf>). ---
+_STOCK_SDF = """<?xml version="1.0" encoding="UTF-8"?>
+<sdf version='1.9'>
+  <model name='x500_mono_cam'>
+    <include merge='true'><uri>x500</uri></include>
+    <include merge='true'>
+      <uri>model://mono_cam</uri>
+      <pose>.12 .03 .242 0 0 0</pose>
+    </include>
+    <joint name="CameraJoint" type="fixed">
+      <parent>base_link</parent>
+      <child>camera_link</child>
+      <pose relative_to="base_link">.12 .03 .242 0 0 0</pose>
+    </joint>
+  </model>
+</sdf>"""
+_MOVED_SDF = _STOCK_SDF.replace(".12 .03", ".40 .03")   # props-clearance variant
+
+
+def test_parse_cam_fwd_from_sdf():
+    """The active camera forward-x is read from the CameraJoint pose, through the
+    encoding declaration + comment (ElementTree rejects a str with an encoding
+    decl -- the parser must bytes-encode). Garbage -> None (guard then skips)."""
+    assert abs(parse_cam_fwd_from_sdf(_STOCK_SDF) - 0.12) < 1e-9
+    assert abs(parse_cam_fwd_from_sdf(_MOVED_SDF) - 0.40) < 1e-9
+    assert abs(parse_cam_fwd_from_sdf(_STOCK_SDF.encode("utf-8")) - 0.12) < 1e-9
+    assert parse_cam_fwd_from_sdf("not xml at all") is None
+    assert parse_cam_fwd_from_sdf("<sdf><model/></sdf>") is None  # no CameraJoint
+
+
+def test_cam_offset_guard_matrix():
+    """The mismatch matrix (P0.4): stock+0 OK, moved+matching OK, moved+0 FAIL,
+    stock+offset FAIL, and the escape hatch forces OK while still reporting the
+    raw mismatch."""
+    # stock camera (0.12) + no offset -> the sanctioned negligible default -> OK
+    c = check_cam_offset_consistency(STOCK_CAM_FWD_M, 0.0)
+    assert c.ok and not c.mismatch and c.variant == "stock"
+    # moved camera (0.40) + matching offset -> compensated -> OK
+    c = check_cam_offset_consistency(0.40, 0.40)
+    assert c.ok and not c.mismatch and "moved" in c.variant
+    # moved camera (0.40) flown with offset 0 -> uncompensated parallax -> FAIL
+    c = check_cam_offset_consistency(0.40, 0.0)
+    assert (not c.ok) and c.mismatch and c.detail
+    # stock camera (0.12) flown with a large offset -> over-compensation -> FAIL
+    c = check_cam_offset_consistency(STOCK_CAM_FWD_M, 0.40)
+    assert (not c.ok) and c.mismatch and c.detail
+    # escape hatch: the same moved+0 mismatch is ALLOWED but still flagged
+    c = check_cam_offset_consistency(0.40, 0.0, allow_mismatch=True)
+    assert c.ok and c.mismatch  # ok forced True, mismatch still visible
+
+
+def test_cam_offset_guard_intermediate_variant():
+    """A 0.28 props-clearance variant: matched offset OK, a 0.40 offset (meant
+    for the 0.40 model) is a FAIL -- the guard is not stock-vs-one-model only."""
+    assert check_cam_offset_consistency(0.28, 0.28).ok
+    assert not check_cam_offset_consistency(0.28, 0.40).ok
+    assert not check_cam_offset_consistency(0.28, 0.0).ok
 
 
 def test_lever_arm_zero_offset_identity():
@@ -129,7 +191,9 @@ def test_fallback_no_quat():
 
 
 ALL = [test_identity_level, test_pitch_inflates_azimuth,
-       test_roll_cross_couples_vertical, test_mount_compose, test_fallback_no_quat]
+       test_roll_cross_couples_vertical, test_mount_compose, test_fallback_no_quat,
+       test_parse_cam_fwd_from_sdf, test_cam_offset_guard_matrix,
+       test_cam_offset_guard_intermediate_variant]
 
 if __name__ == "__main__":
     import sys

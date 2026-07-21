@@ -11,7 +11,9 @@ measurements; `quat`/`psi_rad` are the vehicle's own attitude EKF -- the same
 own-state basis as position. Nothing here reads gt_*.
 """
 
+import collections
 import math
+import xml.etree.ElementTree as ET
 
 
 def wrap_pi(angle):
@@ -130,6 +132,101 @@ def camera_to_cg_los(range_m, lambda_rad, quat, cam_offset_body):
     tn = range_m * math.cos(lambda_rad) + off_n
     te = range_m * math.sin(lambda_rad) + off_e
     return math.hypot(tn, te), math.atan2(te, tn)
+
+
+# --- P0.4 CAMERA LEVER-ARM GUARD: tie --cam-fwd-offset-m to the active airframe --
+#     the moved-camera model (props-clearance, cam_fwd 0.12 -> 0.40) and the
+#     guidance compensation (camera_to_cg_los / --cam-fwd-offset-m) must agree, or
+#     a run is a SILENT uncompensated parallax (several deg of terminal LOS error) --
+#     exactly the mirage class ADR-0076 exists to stop. PX4 spawns the airframe from
+#     a HARDCODED file://.../x500_mono_cam/model.sdf (bypasses GZ_SIM_RESOURCE_PATH,
+#     see scripts/adaptive_tilt_arm.sh), so whatever variant a swap script copied
+#     into that file IS what flies -- reading its CameraJoint forward offset is the
+#     ground truth of the active geometry, with no marker file to drift. These are
+#     PURE (no filesystem): parse SDF text, then compare -- unit-tested in
+#     flight/tests/test_geometry.py. ---
+
+STOCK_CAM_FWD_M = 0.12          # stock x500_mono_cam camera forward-x (base_link +x)
+CAM_OFFSET_MATCH_TOL_M = 0.05   # |applied - active| within this = compensated
+
+CamOffsetCheck = collections.namedtuple(
+    "CamOffsetCheck", ["ok", "mismatch", "variant", "detail"])
+
+
+def parse_cam_fwd_from_sdf(sdf):
+    """Forward (base_link +x) offset of the seeker camera, in metres, parsed from
+    an x500_mono_cam `model.sdf`. Returns None if it can't be found/parsed.
+
+    Prefers the authoritative `CameraJoint` `<pose relative_to="base_link">`
+    (which places camera_link); falls back to the `mono_cam` `<include>` pose
+    (same forward x in every variant here). Pure text/bytes in, float out -- no
+    filesystem, so it is unit-testable. `sdf` may be str or bytes; a str carrying
+    an `encoding=` XML declaration is encoded to bytes first (ElementTree rejects
+    a str with an encoding declaration)."""
+    try:
+        data = sdf.encode("utf-8") if isinstance(sdf, str) else sdf
+        root = ET.fromstring(data)
+    except (ET.ParseError, ValueError, AttributeError):
+        return None
+
+    def _first_float(pose_elem):
+        if pose_elem is not None and pose_elem.text:
+            try:
+                return float(pose_elem.text.split()[0])
+            except (ValueError, IndexError):
+                return None
+        return None
+
+    for joint in root.iter("joint"):
+        if joint.get("name") == "CameraJoint":
+            val = _first_float(joint.find("pose"))
+            if val is not None:
+                return val
+    for inc in root.iter("include"):
+        uri = inc.find("uri")
+        if uri is not None and uri.text and "mono_cam" in uri.text:
+            val = _first_float(inc.find("pose"))
+            if val is not None:
+                return val
+    return None
+
+
+def check_cam_offset_consistency(sdf_fwd_m, applied_fwd_m, allow_mismatch=False,
+                                 stock_fwd_m=STOCK_CAM_FWD_M,
+                                 match_tol_m=CAM_OFFSET_MATCH_TOL_M):
+    """Is the applied `--cam-fwd-offset-m` consistent with the ACTIVE camera
+    forward offset read from the airframe SDF? Returns CamOffsetCheck(ok,
+    mismatch, variant, detail).
+
+    Consistent (mismatch=False) when EITHER:
+      * the applied offset matches the active camera forward-x within
+        `match_tol_m` (properly compensated -- e.g. moved 0.40 + flag 0.40), OR
+      * the active camera is the stock mount (~`stock_fwd_m`) AND the applied
+        offset is ~0 (the sanctioned negligible-parallax default -- stock 0.12
+        + flag 0.0, which is byte-identical to every prior run).
+
+    The two DANGEROUS classes are caught: a moved camera flown with offset 0
+    (uncompensated parallax) and a stock camera flown with a large offset
+    (over-compensation). `allow_mismatch=True` forces ok=True (deliberate A/B)
+    but still reports mismatch=True so the override is visible. Forward axis only
+    -- the axis the model swap changes; left/up don't move with the swap."""
+    is_stock = abs(sdf_fwd_m - stock_fwd_m) <= match_tol_m
+    variant = "stock" if is_stock else ("moved(cam_fwd=%.3fm)" % sdf_fwd_m)
+    compensated = abs(applied_fwd_m - sdf_fwd_m) <= match_tol_m
+    stock_default = is_stock and abs(applied_fwd_m) <= match_tol_m
+    mismatch = not (compensated or stock_default)
+    detail = ""
+    if mismatch:
+        need = 0.0 if is_stock else sdf_fwd_m
+        detail = (
+            "active camera cam_fwd=%.3f m (%s) but --cam-fwd-offset-m=%.3f m -- "
+            "uncompensated parallax. This geometry needs --cam-fwd-offset-m "
+            "~%.3f m (within %.2f m); fly the matching model, fix the flag, or "
+            "pass --allow-cam-offset-mismatch for a deliberate A/B."
+            % (sdf_fwd_m, variant, applied_fwd_m, need, match_tol_m))
+    return CamOffsetCheck(
+        ok=(not mismatch) or allow_mismatch, mismatch=mismatch,
+        variant=variant, detail=detail)
 
 
 # --- Legacy aliases: the exact private names scripts/m4_intercept.py used, so it
