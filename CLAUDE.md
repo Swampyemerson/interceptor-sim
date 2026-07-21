@@ -178,8 +178,11 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
   Every new guidance path re-earns the numeric no-cheat audit.
 - **Git with background workers.** Stage specific paths — never `git add -A` while
   any background agent may be mid-edit (swept partial work into commits once,
-  ADR-0011 3rd addendum). Worktree jobs: symlink the main `.venv`; no remote exists,
-  so merge = local `git merge --ff-only` from the main checkout.
+  ADR-0011 3rd addendum). Worktree jobs: symlink the main `.venv`; merge = local
+  `git merge --ff-only` from the main checkout. **A remote EXISTS as of 2026-07-21**
+  (private `Swampyemerson/interceptor-sim`; the gh credential helper is wired) —
+  push main after committing milestones; going PUBLIC stays a builder decision
+  (docs/publish_runbook.md).
 
 ## Environment note
 
