@@ -11,7 +11,7 @@ cannot quietly vanish.*
 | layer | file | role |
 |---|---|---|
 | **THE CONTRACT** | `docs/project_state.json` | Machine-readable truth (schema v2): every pipeline stage, its status, active version, honest note, evidence pointers, per-stage changelog; plus the goal, the current binding wall, the **key_numbers** cluster, the per-stage **decisions** records, the **contradictions** flag ledger, hard constraints, and the graveyard of closed nulls. **A fresh Claude session READS this first and UPDATES it when anything changes.** |
-| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling). Title block (REV = git short-sha at render time), binding-wall callout, the §1.0 architecture data-flow strip, key-numbers cluster, pipeline flowchart with feed lines + per-stage expanders, nested decision records (stage → decision → each option's full why-choose/pros/cons), the **§2.2 build-plan ladder (the SECOND flow chart — the in-person phase/gate sequence)**, the §3.0 staged buy list (two-tier BOM), the contradiction flag panel, constraints + graveyard tables. It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
+| **THE HUMAN VIEW** | `docs/dashboard.html` | Self-contained page (no network, opens from `file://`, light+dark theme; "RANGE LOG" technical-memo styling), **narrative-first since 2026-07-21**: a sticky jump-link nav, then title block (REV = git short-sha at render time), then the **§0 STORY layer** (§0.1 the situation — reframe stat tiles, the biggest-lever pointing diagram, the ZEM-caveat bar meter, live rulings, the full log-entry fold; §0.2 the A→D program stepper + DO-FIRST levers table, all rendered from the v2.4 `narrative` block), then the detail: the §1.0 architecture data-flow strip, §1.1 key-numbers cluster, §2.0 pipeline flowchart with feed lines + per-stage expanders, §2.1 nested decision records (stage → decision → each option's full why-choose/pros/cons), the **§2.2 build-plan ladder (the SECOND flow chart — the in-person phase/gate sequence)**, the §3.0 staged buy list (two-tier BOM), §4.0 contradiction flags, §5.0 constraints + §6.0 graveyard (the heavy sections fold closed; anchors/print auto-open). It renders ONLY the JSON embedded by the renderer — it cannot say anything the contract doesn't. |
 
 Plus a **hosted snapshot** — the dashboard published as a claude.ai Artifact (URL in the
 contract's top-level `artifact_url`), regenerated with `render_dashboard.py --artifact` and
@@ -33,6 +33,27 @@ one-liner to the graveyard too) · `superseded` (replaced; name the successor).
 Schema note: "validated" is deliberately NOT a separate status — this project's five
 mirages all lived in the gap between "implemented" and "validated," so the `note`
 field must always say which one a `half-done`/`implemented` claim is, with evidence.
+
+## Schema v2.4 — the narrative story layer (2026-07-21 narrative-first redesign)
+
+One more top-level key, REQUIRED and validated by `render_dashboard.py`:
+
+- **`narrative`** — the §0 STORY layer the dashboard now LEADS with, **presentation-only**:
+  a distillation of findings that already live in the stages/decisions/docs — it must
+  never contradict them, and editing it never changes a stage or decision's meaning.
+  Shape: `lede` + `reframe` (headline/text/`stats[]` of `label/value/provenance`
+  [+ optional `note/tone/stamp`] + evidence) + `big_lever` (headline/text/evidence) +
+  `caveat` (headline/text/`meter` of `unit/max/reference{value,label}/bars[]{label,value}/
+  provenance` + evidence — rendered as the ZEM bar meter) + `rulings[]`
+  (`date/text/evidence` — the builder's live calls) + `program` (headline/summary/
+  `phases[]` of `code/name/status/tone/what/test` — the A→D roadmap stepper) +
+  `levers` (headline/`rows[]` of `lever/category/what/test` + note — the DO-FIRST table).
+  Every stat/meter value carries provenance (numbers trace to a run). Rendered as
+  §0.1 (situation: reframe → biggest lever → honest caveat → live rulings → the full
+  log-entry fold) and §0.2 (program + levers). The legacy sections keep their §1.0-§6.0
+  numbers so existing cross-references stay valid. The dashboard also gained a sticky
+  jump-link nav and collapsible detail sections (§2.1/§2.2/§3.0-§6.0 fold closed by
+  default; anchors and print auto-open them).
 
 ## Schema v2.2 — the build plan, the SECOND flow chart (2026-07-17 build-plan pass)
 

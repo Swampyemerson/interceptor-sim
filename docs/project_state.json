@@ -3,7 +3,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-21",
- "updated_by": "2026-07-21 INTERCEPT-ACCURACY RESEARCH synthesized (decision intercept_accuracy on pointing; docs/intercept_accuracy_levers.md; workflow 34 ideas -> 27 survived, 59 sources) — the intercept is POINTING-limited not sensor-limited; biggest lever = loft-then-dive + accel-capped constant-pitch dash co-sized with the wedge; 4-phase program A pointing -> B FOV-hold guidance -> C size-range fusion -> D terminal IMU-coast; 9 m/s is ZEM-hard (ADR-0027) so the win is earlier framing/more t_go not terminal tricks; 3 ideas graveyarded (porpoise, impact-angle ram, observability weave). Prior: BUILDER RULING — RAM kill CONFIRMED (net parked as a fallback only); LAUNCH MECHANISM PARKED until real flight; near-term effort pivots to IMPROVING THE INTERCEPT (acquire earlier + hit to ram range), heavy research launched. Prior: LAUNCH-MECH OPTIONS logged (decision launch_mech + graveyard, docs/launch_mechanism_options.md) — recommend B-core (manual coded dash) + an honesty-clean launch-time aim stack (static-bearing latch + optional no-radio one-shot spotter, both pre-flight constants); autonomous auto-fire + live-datalink cue REJECTED; design exploration, NOT ratified; launch choice orthogonal to the POINTING wall. Prior 2026-07-21 (late) CAMERA MODALITY DECIDED — ADR-0078 KEEP MONO OV9281 (Fable case-for/against workflow: mono retrain works n-mono 0.442/4.9%FF + blur physics favor mono + AprilTag grayscale + AR0234 honesty-gated/Pivariety-fragile/98deg-lens-fails-100); free bird A/B in flight to close the one open cell; GPU env gitignore-protected (persists). Earlier same day: NN SWEEP (n-mono wins, bigger doesn't help) + IN-VIEW PROBES (binding wall = POINTING). Full history in changelogs.",
+ "updated_by": "2026-07-21 (latest) EXECUTION RESULTS folded in (4 Fable instances): Phase A in-frame A/B DONE -> ACCEL-CAP is the primary pointing lever (theta~20 centers the 8-12 m band 100% vs 0% at the +39 deg frame-top edge today); wedge must stay MODEST ~10-15 deg (>=20 dumps the terminal out the bottom -> new OPEN contradiction wedge-sizing-vs-accel-cap); loft-dive = complement; cost = slower closing (Gazebo confirmation next, serialized). Phases B/C/D PRE-CODED+tested (flight/fov_guidance,range_fusion,terminal_coast; 68 flight tests). Dark horses pre-coded: TBD ready(markerless), IMU-deblur bench-ready, bank-as-accel MEASURED DEAD->graveyard, event-cam bench-plan. Narrative big_lever/program/levers updated. Prior same day (later) DASHBOARD REDESIGNED narrative-first: new PRESENTATION-ONLY top-level `narrative` block (§0 story layer — reframe / biggest lever / ZEM caveat / live rulings / 4-phase program / DO-FIRST levers, all distilled from docs/intercept_accuracy_levers.md + docs/inview_probe_results.md + the 2026-07-21 rulings; no stage/decision semantics changed); dashboard.html restructured (story+program lead, sticky nav with jump links, collapsible detail sections, ZEM meter + pointing diagram); render_dashboard.py schema v2.4 validates the block. Same day, earlier: INTERCEPT-ACCURACY RESEARCH synthesized (decision intercept_accuracy on pointing; docs/intercept_accuracy_levers.md; workflow 34 ideas -> 27 survived, 59 sources) — the intercept is POINTING-limited not sensor-limited; biggest lever = loft-then-dive + accel-capped constant-pitch dash co-sized with the wedge; 4-phase program A pointing -> B FOV-hold guidance -> C size-range fusion -> D terminal IMU-coast; 9 m/s is ZEM-hard (ADR-0027) so the win is earlier framing/more t_go not terminal tricks; 3 ideas graveyarded (porpoise, impact-angle ram, observability weave). Prior: BUILDER RULING — RAM kill CONFIRMED (net parked as a fallback only); LAUNCH MECHANISM PARKED until real flight; near-term effort pivots to IMPROVING THE INTERCEPT (acquire earlier + hit to ram range), heavy research launched. Prior: LAUNCH-MECH OPTIONS logged (decision launch_mech + graveyard, docs/launch_mechanism_options.md) — recommend B-core (manual coded dash) + an honesty-clean launch-time aim stack (static-bearing latch + optional no-radio one-shot spotter, both pre-flight constants); autonomous auto-fire + live-datalink cue REJECTED; design exploration, NOT ratified; launch choice orthogonal to the POINTING wall. Prior 2026-07-21 (late) CAMERA MODALITY DECIDED — ADR-0078 KEEP MONO OV9281 (Fable case-for/against workflow: mono retrain works n-mono 0.442/4.9%FF + blur physics favor mono + AprilTag grayscale + AR0234 honesty-gated/Pivariety-fragile/98deg-lens-fails-100); free bird A/B in flight to close the one open cell; GPU env gitignore-protected (persists). Earlier same day: NN SWEEP (n-mono wins, bigger doesn't help) + IN-VIEW PROBES (binding wall = POINTING). Full history in changelogs.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -22,6 +22,193 @@
    "NEXT.md ROUND-5 CORRECTION banner",
    "pointing stage changelog 2026-07-17 (fixed-tilt FINAL)"
   ]
+ },
+ "narrative": {
+  "as_of": "2026-07-21",
+  "lede": "Read this first — the current shape of the project in four findings: the REFRAME (what the wall actually is), the one BIGGEST LEVER, the honest CAVEAT that bounds every claim, and the builder's LIVE RULINGS. The 4-phase program in §0.2 follows from them; everything below §0 is the detail. Every number traces to a run or a derivation (provenance on each tile).",
+  "reframe": {
+   "headline": "The intercept is POINTING-limited, not sensor-limited.",
+   "text": "To dash forward the quad pitches ~35-40° nose-DOWN, so the fixed camera stares at the ground and a co-altitude target rides the top edge of the frame — or leaves it entirely. The detector was never the problem: the same network reads ~100% with the camera static at 8-22 m but 0.8% in flight, and in the decisive 8-12 m band ~75% of terminal ticks have the target OUT of frame altogether (when it IS in frame, the deployed detector hits 70%). The target simply is not in the picture — which is why every sensor-side lever (retrains, resolution/crop, color) returned NULL, and why the fix is geometry, not weights.",
+   "stats": [
+    {
+     "label": "in-flight approach recall",
+     "value": "0.8%",
+     "note": "2 real vs 1187 phantom detections across 63 flights",
+     "tone": "bad",
+     "stamp": "THE WALL",
+     "provenance": "ADR-0076 add #18i/#18k · approach_recall.py"
+    },
+    {
+     "label": "same detector, camera static",
+     "value": "~100%",
+     "note": "8-22 m, both aspects (set-pose sweep) — the sensor is fine",
+     "tone": "good",
+     "stamp": "NOT THE SENSOR",
+     "provenance": "ADR-0076 add #18k · set-pose sweep 2026-07-16"
+    },
+    {
+     "label": "target OUT of frame, 8-12 m band",
+     "value": "75%",
+     "note": "of terminal ticks under the dash pitch; when in view, detection is 70%",
+     "tone": "bad",
+     "stamp": "THE MECHANISM",
+     "provenance": "docs/inview_probe_results.md (probes flown 2026-07-21)"
+    },
+    {
+     "label": "nose-down dash pitch",
+     "value": "35-40°",
+     "note": "full-accel dash attitude — the geometry that points the camera at the ground",
+     "tone": "warn",
+     "stamp": "THE GEOMETRY",
+     "provenance": "ADR-0060 · docs/intercept_accuracy_levers.md"
+    }
+   ],
+   "evidence": [
+    "docs/inview_probe_results.md",
+    "ADR-0076 add #18k",
+    "docs/intercept_accuracy_levers.md"
+   ]
+  },
+  "big_lever": {
+   "headline": "Fix the dash GEOMETRY — and the sim says the ACCEL-CAP is the primary knob (not loft or the wedge).",
+   "text": "The decisive in-frame A/B (analytical, pure geometry) is IN, and it re-ranked the lever. Today's flat dash at ~40° pitch is 100% 'in-frame' across the 8-12 m band but 0% CENTERED — the target is pinned at +39°, the frame-TOP edge, exactly where a center-biased detector fails; THAT is the honest geometry of the 0.8%-in-flight wall. Capping the dash accel so the body holds θ≈20° CENTERS the band (100%, vert_med +19°) with no maneuver and no terminal dump — the single cleanest lever. Loft-then-dive (climb 2-3 m, then dive) is the COMPLEMENT, worth a few more degrees. A hard warning surfaced: a fixed wedge ≥20° centers the mid-band but DUMPS the <5 m terminal target out the frame BOTTOM (the quad brakes nose-UP there) — so keep the wedge MODEST (~10-15°) and size it to the CAPPED pitch, not the full ~35-40° dash pitch. The cost to watch: the cap keeps the dash from reaching 16 m/s → longer time-of-flight / staler open-loop lead, which the serialized Gazebo confirmation must show the pointing win beats. Pure-geometry UPPER BOUND — Gazebo decides.",
+   "evidence": [
+    "scripts/experiments/loft_dive/inframe_ab.py + inframe_ab_results.csv (80 rows, 2026-07-21)",
+    "docs/intercept_accuracy_levers.md (Execution results 2026-07-21)",
+    "decision intercept_accuracy (pointing stage) · contradiction wedge-sizing-vs-accel-cap"
+   ]
+  },
+  "caveat": {
+   "headline": "9 m/s is ZEM-hard — no terminal-only trick makes it sub-meter.",
+   "text": "At a 9 m/s crossing, the delivered zero-effort-miss (ZEM) at handoff is ~4 m against ~0.27 m of terminal correction capacity from today's geometry — a perfect collision course exists at handoff; the interceptor just doesn't fly it. Correction capacity is ½·a·t_go², growing with time-to-go SQUARED, so the win comes from getting the target IN FRAME during the dash and onto a converged collision course EARLIER, with more t_go: measured, pushing handoff from ~6.5 m out to ~12 m lifts capacity 0.72 m → ~4.3 m, past the ~4 m bar. Earlier framing IS the win; terminal polish (Phases C/D) only harvests it.",
+   "meter": {
+    "unit": "m",
+    "max": 4.6,
+    "reference": {
+     "value": 4.0,
+     "label": "delivered ZEM at a 9 m/s handoff (~4 m) — the correction the terminal must be able to make"
+    },
+    "bars": [
+     {
+      "label": "correction capacity, today's geometry",
+      "value": 0.27
+     },
+     {
+      "label": "capacity with handoff pushed ~6.5 m → ~12 m out",
+      "value": 4.3
+     }
+    ],
+    "provenance": "ADR-0027 (ZEM r²=0.99; capacity = ½·a·t_go²; measured 0.72 m → ~4.3 m)"
+   },
+   "evidence": [
+    "ADR-0027",
+    "docs/intercept_accuracy_levers.md (honest gates)"
+   ]
+  },
+  "rulings": [
+   {
+    "date": "2026-07-21",
+    "text": "RAM kill CONFIRMED — the success bar is a ~0.3-0.5 m contact (much tighter than the sim's Pk@2.5 m proxy); the net is parked as a fallback, revisited only if the ram bar proves impossible.",
+    "evidence": "launch_aim changelog 2026-07-21 · docs/kill_mechanism.md"
+   },
+   {
+    "date": "2026-07-21",
+    "text": "LAUNCH MECHANISM PARKED until real flights inform it. The standing recommendation for when it is revisited: B-core (manual trigger + coded dash) + an honesty-clean pre-flight aim stack; auto-fire and any live datalink cue are REJECTED.",
+    "evidence": "decision launch_mech (§2.1) · docs/launch_mechanism_options.md"
+   },
+   {
+    "date": "2026-07-21",
+    "text": "KEEP MONO — the ordered OV9281 stands (ADR-0078): the bird A/B closed at parity, color measured 3x WORSE on desert clutter, and blur physics favor mono.",
+    "evidence": "ADR-0078 · bom_tiers Tier-1 OV9281 row"
+   },
+   {
+    "date": "2026-07-17",
+    "text": "FIXED up-tilt wedge over adaptive tilt (simplicity), angle = the REAL measured dash pitch — now explicitly co-sized with the Phase-A dash profile, never frozen in isolation.",
+    "evidence": "pointing stage (FINAL 2026-07-17) · docs/intercept_accuracy_levers.md"
+   }
+  ],
+  "program": {
+   "headline": "The 4-phase intercept-accuracy program — a causal stack; pointing gates everything",
+   "summary": "Not a menu: each phase only pays off once the one before it lands, and NONE is ratified — all four are ranked hypotheses, each with a pre-registered sim/bench test (full option-by-option detail: decision intercept_accuracy under the pointing stage, §2.1). Sim numbers are UPPER BOUNDS (the sim has no motion-blur model); the Stage-0 bench confirms. First kills fly the AprilTag — some levers are markerless-only.",
+   "phases": [
+    {
+     "code": "A",
+     "name": "POINTING",
+     "status": "ANALYTICAL A/B DONE — accel-cap centers the band; Gazebo confirmation next",
+     "tone": "next",
+     "what": "Accel-capped constant-pitch dash (PRIMARY, sim-confirmed: θ≈20° centers the 8-12 m band 100% vs 0% today at the +39° frame-top edge) + loft-then-dive (complement) + a MODEST wedge (~10-15°, sized to the capped pitch — a wedge ≥20° dumps the <5 m terminal out the bottom). Puts the target IN FRAME during the dash; unblocks everything downstream. Watch the closing-speed cost of the cap.",
+     "test": "DONE (analytical, upper bound): scripts/experiments/loft_dive/inframe_ab.py. NEXT: the serialized Gazebo confirmation (gazebo_run_recipe.md) — must show the pointing win beats the slower closing."
+    },
+    {
+     "code": "B",
+     "name": "FOV-HOLD GUIDANCE",
+     "status": "PRE-CODED + tested (flight/fov_guidance.py) — GATED ON A",
+     "tone": "gated",
+     "what": "Look-angle-constrained PN + IBVS pixel-centering: absorbs the +40°→−35° pitch swing the static wedge cannot track, working in pixel space — no noisy bearing differentiation (the thing that sank APN/PIP). Blind if the target is already out of frame — hence gated on A.",
+     "test": "After A frames the target: paired A/B, wedge-only PN vs +look-angle+centering; score detection density through the pitch swing + miss."
+    },
+    {
+     "code": "C",
+     "name": "SIZE-RANGE FUSION",
+     "status": "PRE-CODED + tested (flight/range_fusion.py) — GATED ON DETECTIONS",
+     "tone": "gated",
+     "what": "Fuse the monocular size-based range prior (R = fx·W/w_px from the bbox already computed) into the existing range channel to sharpen t_go — which squares into the ~96%-of-miss ZEM budget. Cheapest software lever; NOT a resolution lever.",
+     "test": "guidance_lab A/B (n≥8): size-R prior vs geometry-only with W-foreshortening injected as noise; measure miss + t_go error."
+    },
+    {
+     "code": "D",
+     "name": "TERMINAL IMU-COAST",
+     "status": "PRE-CODED + tested (flight/terminal_coast.py) — pays off after A",
+     "tone": "prep",
+     "what": "At the sub-1 m camera blackout (camera dies inside ~1 m on 20/20 flights; terminal LOS 485-1870°/s), freeze the last good LOS-rate and fly the final ~0.15 s on the own-state EKF, armed by a tau (time-to-contact) clock — carries the commanded correction through impact.",
+     "test": "On flights with a real terminal track: A/B freeze-and-propagate vs hold-last-command; compare CPA."
+    }
+   ],
+   "evidence": [
+    "docs/intercept_accuracy_levers.md (34 ideas → 27 survived, 59 sources)",
+    "decision intercept_accuracy (§2.1, pointing)",
+    "ADR-0027"
+   ]
+  },
+  "levers": {
+   "headline": "DO-FIRST levers — sim-cheap, honesty-clean, each with its decisive experiment already specified",
+   "rows": [
+    {
+     "lever": "Loft-then-dive dash",
+     "category": "pointing / kinematics",
+     "what": "Climb 2-3 m early, dive on the co-altitude target so the nose-down pitch aims the camera AT it. The COMPLEMENT to the accel-cap (worth a few more degrees of LOS depression); over-loft flips the target out the bottom.",
+     "test": "Replay canonical mc_batch geometry, lofted-dive vs flat; log fraction-of-ticks-in-frame across 8-12 m. (Analytical A/B done — inframe_ab.py.)"
+    },
+    {
+     "lever": "Accel-capped constant-pitch dash",
+     "category": "kinematics / pointing",
+     "what": "THE PRIMARY LEVER (sim-confirmed): cap forward accel so body pitch holds one bounded value (θ≈20° centers the 8-12 m band 100% vs 0% today); keep the wedge MODEST (~10-15°, ≥20° dumps the terminal out the bottom) + thrust headroom for terminal lateral correction. Cost: slower closing.",
+     "test": "Paired-seed A/B (n≥8) sweeping the accel cap, wedge co-chosen; log in-frame fraction, miss, closing-speed penalty. (Analytical A/B done; Gazebo next.)"
+    },
+    {
+     "lever": "Terminal IMU-coast",
+     "category": "endgame",
+     "what": "Freeze-and-propagate the last good LOS-rate through the sub-1 m blind window, armed by a tau clock. Highest-confidence terminal lever.",
+     "test": "A/B freeze-and-propagate vs hold-last-command on flights with a real terminal track; compare CPA."
+    },
+    {
+     "lever": "Size-based range → filter fusion",
+     "category": "sensing",
+     "what": "R = fx·W/w_px from the existing bbox, fused as a coarse prior into the range channel to sharpen t_go (squares into the ZEM budget).",
+     "test": "guidance_lab A/B (n≥8) vs geometry-only with W-foreshortening noise; miss + t_go error."
+    },
+    {
+     "lever": "FOV-holding guidance term",
+     "category": "guidance law",
+     "what": "Look-angle-constrained PN + IBVS pixel-centering; wedge = static bias, this = the dynamic residual; prototype on the 30 fps AprilTag baseline.",
+     "test": "After pointing frames the target: A/B wedge-only vs +look-angle+centering; detection density through the pitch swing + miss."
+    }
+   ],
+   "note": "Hardware escalations (2-axis gimbal, dual onboard cameras, event camera, motor cant) are gated BEHIND Phase-A validation; research dark-horses (track-before-detect, FOV-constrained RL guidance, bank-as-accel APN, IMU-deblur) are spikes, not commitments. Three ideas were vetted straight into the graveyard (porpoise pulses, impact-angle ram, observability weave) — §6.0.",
+   "evidence": [
+    "docs/intercept_accuracy_levers.md (DO FIRST table + hardware bets + dark horses)"
+   ]
+  }
  },
  "architecture": {
   "summary": "ONE NN, THE WHOLE FLIGHT: the detector runs on EVERY camera frame — there is no learned tracker (detect-then-track, NN acquire + CSRT follow, was TRIED and DROPPED: every tracker slips on the banking quad, NN-only won the paired A/B, ADR-0076 add #2). The 'tracking' that flies the intercept is PHYSICS — an alpha-beta filter plus proportional navigation — not a second network. Flight shape: coded open-loop dash (no datalink) -> 5-consecutive-detection streak hands off -> the closed loop below runs every frame to contact.",
@@ -646,6 +833,11 @@
    "what": "Onboard acoustic target tracking",
    "why": "Own-prop noise ~40 dB the wrong way. (Ground launch-cue variant stays an idea.)",
    "evidence": "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)"
+  },
+  {
+   "what": "Bank-as-accel predictive cue / APN augmentation (read target bank -> feed-forward a_lat)",
+   "why": "MEASURED DEAD 2026-07-21 (pre-code feasibility gate on the real quad_dataset_banked): under the terminal ~23 px motion smear (which spans the whole 8-15 px target) bank-SNR collapses to ~1-2 and sigma_a = 6-12 m/s^2 -- LARGER than the ~4.7 m/s^2 jink signal it would feed forward, so it injects more error than signal. Independently: on the STRAIGHT-LINE mission target the APN augmentation term is identically zero (== plain PN), so it buys nothing on the actual mission. Reading bank off a few-px blurred silhouette is optically implausible, as predicted (ADR-0073). Do not build it as guidance; the tool experiments/darkhorse/bank_feasibility.py stays as the audit.",
+   "evidence": "experiments/darkhorse/bank_feasibility.py (sigma_a 6-12 vs 4.7 signal); docs/intercept_accuracy_levers.md; ADR-0073"
   },
   {
    "what": "Live mid-course datalink cue from a 'smart launcher' (Option C as-stated)",
@@ -2036,6 +2228,19 @@
   }
  ],
  "contradictions": [
+  {
+   "id": "wedge-sizing-vs-accel-cap",
+   "verdict": "CONFIRMED",
+   "severity": "medium",
+   "status": "open",
+   "topic": "Fixed up-tilt WEDGE ANGLE: committed 'size to the full dash pitch (~25-40°)' vs the Phase A in-frame result 'keep it MODEST (~10-15°)'",
+   "claim_a": "Pointing decision (committed 2026-07-17): the fixed up-tilt wedge angle = the airframe's measured steady DASH PITCH (~25-40°, sim ~35°), to re-centre the frame-top target for acquisition.",
+   "loc_a": "project_state.json decision 'Camera pointing / adaptive tilt' (chosen: FINAL fixed wedge = dash pitch); docs/real_build_coded_dash.md",
+   "claim_b": "Phase A analytical in-frame A/B (2026-07-21): once the dash is ACCEL-CAPPED to ~20° pitch, only a MODEST wedge is needed; a wedge >=20° centres the mid-band but DUMPS the <5 m terminal target out the frame BOTTOM (the quad brakes nose-UP there). So the wedge must be ~10-15° and sized to the CAPPED pitch, not the uncapped ~35-40°.",
+   "loc_b": "scripts/experiments/loft_dive/inframe_ab.py + inframe_ab_results.csv; docs/intercept_accuracy_levers.md (Execution results)",
+   "current_truth": "Not a flat contradiction — a coupling the committed decision did not price: 'wedge = dash pitch' was premised on an UNCAPPED flat dash. Adopt the accel-cap (which caps the pitch to ~20°) and the wedge must shrink to ~10-15° or it dumps the terminal. The two levers (accel-cap + wedge) must be co-sized JOINTLY; a full-pitch-sized wedge on a capped dash is wrong.",
+   "resolution": "OPEN — the serialized Gazebo confirmation of the accel-capped dash (gazebo_run_recipe.md) settles the joint accel-cap + wedge sizing; update the pointing decision's wedge angle once the real dash pitch + the Gazebo in-frame/miss result are in. Do NOT freeze the wedge at the full dash pitch before then."
+  },
   {
    "id": "rtk-roadmap-gates",
    "verdict": "CONFIRMED",

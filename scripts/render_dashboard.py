@@ -28,6 +28,17 @@ Schema v2.3 adds (2026-07-20 Tier-1 order pass, validated here):
                    Step ids are UNIQUE across ALL subsystems — they key the Build sheet's
                    localStorage checkboxes — and at least one step MUST carry gate=true
                    (the hard stop-points: smoke stopper, props-off, calibration, legal).
+Schema v2.4 adds (2026-07-21 narrative-first redesign, validated here):
+  narrative      — the §0 STORY layer the dashboard leads with (PRESENTATION-ONLY — a
+                   distillation of findings that live in the stages/decisions/docs; it must
+                   never contradict them): lede + reframe (headline/text/stats[] of
+                   label/value/provenance — numbers trace to a run — + optional
+                   note/tone/stamp) + big_lever (headline/text/evidence) + caveat
+                   (headline/text/meter of unit/max/reference{value,label}/bars[]{label,
+                   value}/provenance) + rulings[] (date/text/evidence — the builder's live
+                   calls) + program (headline/summary/phases[] of code/name/status/tone/
+                   what/test — the 4-phase A→D roadmap) + levers (headline/rows[] of
+                   lever/category/what/test + note).
 
 The renderer also stamps the live git short-sha into the title block between
 REV:BEGIN/END markers (--check ignores the REV stamp; only the state block is compared).
@@ -72,6 +83,11 @@ BT_CONN_KEYS = {"from", "to", "medium"}
 BT_STEP_KEYS = {"id", "text"}
 BT_LADDER_KEYS = {"summary", "rungs", "gate"}
 BT_RUNG_KEYS = {"code", "name", "goal", "refs"}
+NARR_KEYS = {"lede", "reframe", "big_lever", "caveat", "rulings", "program", "levers"}
+NARR_STAT_KEYS = {"label", "value", "provenance"}
+NARR_PHASE_KEYS = {"code", "name", "status", "tone", "what", "test"}
+NARR_RULING_KEYS = {"date", "text", "evidence"}
+NARR_LEVER_KEYS = {"lever", "category", "what", "test"}
 
 
 def fail(msg: str) -> None:
@@ -80,11 +96,54 @@ def fail(msg: str) -> None:
 
 
 def validate(state: dict) -> None:
-    for key in ("schema_version", "updated", "goal", "headline", "architecture", "build_plan",
-                "stages", "edges", "constraints", "graveyard", "key_numbers", "bom_tiers",
-                "build_tab", "decisions", "contradictions"):
+    for key in ("schema_version", "updated", "goal", "headline", "narrative", "architecture",
+                "build_plan", "stages", "edges", "constraints", "graveyard", "key_numbers",
+                "bom_tiers", "build_tab", "decisions", "contradictions"):
         if key not in state:
             fail(f"missing top-level key: {key}")
+    narr = state["narrative"]
+    missing = NARR_KEYS - set(narr)
+    if missing:
+        fail(f"narrative missing keys: {sorted(missing)}")
+    for blk in ("reframe", "big_lever", "caveat"):
+        for k in ("headline", "text", "evidence"):
+            if not narr[blk].get(k):
+                fail(f"narrative.{blk} needs a non-empty {k!r}")
+    if not narr["reframe"].get("stats"):
+        fail("narrative.reframe has no stats tiles")
+    for s in narr["reframe"]["stats"]:
+        missing = NARR_STAT_KEYS - set(s)
+        if missing:
+            fail(f"narrative stat {s.get('label', '?')!r} missing keys: {sorted(missing)} (numbers trace to a run)")
+    meter = narr["caveat"].get("meter") or {}
+    if not ({"unit", "max", "reference", "bars", "provenance"} <= set(meter)):
+        fail("narrative.caveat.meter needs unit/max/reference/bars/provenance")
+    if not ({"value", "label"} <= set(meter["reference"])):
+        fail("narrative.caveat.meter.reference needs value+label")
+    if not meter["bars"] or not all({"label", "value"} <= set(b) for b in meter["bars"]):
+        fail("narrative.caveat.meter.bars need label+value each")
+    if not narr["rulings"]:
+        fail("narrative has no rulings")
+    for r in narr["rulings"]:
+        missing = NARR_RULING_KEYS - set(r)
+        if missing:
+            fail(f"narrative ruling {r.get('date', '?')!r} missing keys: {sorted(missing)}")
+    prog = narr["program"]
+    for k in ("headline", "summary", "phases", "evidence"):
+        if not prog.get(k):
+            fail(f"narrative.program needs a non-empty {k!r}")
+    for p in prog["phases"]:
+        missing = NARR_PHASE_KEYS - set(p)
+        if missing:
+            fail(f"narrative program phase {p.get('code', '?')!r} missing keys: {sorted(missing)}")
+    lev = narr["levers"]
+    for k in ("headline", "rows", "evidence"):
+        if not lev.get(k):
+            fail(f"narrative.levers needs a non-empty {k!r}")
+    for row in lev["rows"]:
+        missing = NARR_LEVER_KEYS - set(row)
+        if missing:
+            fail(f"narrative lever {row.get('lever', '?')!r} missing keys: {sorted(missing)}")
     bt = state["build_tab"]
     missing = BUILD_TAB_KEYS - set(bt)
     if missing:
