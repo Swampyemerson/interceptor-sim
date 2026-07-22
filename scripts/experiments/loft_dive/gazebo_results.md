@@ -139,6 +139,33 @@ Two follow-ups, in priority:
    is the lever that turns "framed" into "hit" at 9 m/s
    (`docs/intercept_accuracy_levers.md`, `flight/fov_guidance.py`).
 
+## Audit addendum (2026-07-22, head) — the "camera-tracked" claim is NOT confirmed
+
+The `audit_per_tick.py` phase-name bug (check (a)/(b) greps `"DASH"`; coded-dash
+emits `"CODED_DASH"`) is FIXED (DASH_PHASES = ("DASH","CODED_DASH")), so the
+no-cheat audit now actually runs on these flights. Re-run on both arms:
+
+- **Checks (a) + (b) PASS on ALL 16 flights.** (a) = zero post-handoff `ext_*`
+  (no cue/gt leak) AND every non-detected ENGAGE tick held/hovered exactly; (b) =
+  the coded dash ran before ENGAGE. **The honesty core is clean — no cheating.**
+- **Check (c) — cmd-velocity-azimuth vs camera `lambda_deg` correlation ≥ 0.7 —
+  is WEAK or FAILING on most flights** (ARM A 7/8 overall pass, run 4 fails (c);
+  ARM B only 3/8 pass, 5/8 fail (c): corr 0.02–0.69). (c) is the check that says
+  the command is actually STEERED BY THE CAMERA LOS, not coincidentally near it.
+
+**Honest correction:** the earlier "multiple sub-1 m genuinely camera-tracked
+intercepts" line OVER-CLAIMS. What is established: (1) real (gt-consistent)
+detections rose sharply and ENGAGE fired on them, and (2) no honesty violation
+(a/b clean). What is NOT established: that the miss was DRIVEN by the camera. (c)
+is advisory-quality on these short engagements, but it does not support a
+camera-guided claim — and per the project's anti-mirage method (ADR-0076 #18g/#18h,
+which caught the identical "camera-guided r2l" mirage), the decisive test is a
+**dash-only control arm** (camera terminal disabled): if it scores the same CPA,
+the camera added nothing. That control was NOT run here. So: **pointing/recall
+CONFIRMED; camera-DRIVEN intercept UNCONFIRMED — treat with mirage caution until a
+dash-only control settles it.** This does not change the two headline results
+(recall lift + miss regression); it scopes the "camera-tracked" wording honestly.
+
 ## Reproduce
 
 ```bash

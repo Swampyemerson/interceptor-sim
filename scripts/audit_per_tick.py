@@ -205,6 +205,15 @@ REQUIRED_COLUMNS_C = ["lambda_deg"]
 # advisory-only, so this just means "no advisory number this flight").
 REQUIRED_COLUMNS_D = ["gt_cam_x", "gt_cam_y", "gt_tag_x", "gt_tag_y"]
 
+# Phase labels that count as the running-start "dash" for checks (a)/(b).
+# check_s2.sh's S2/--handoff pipeline emits "DASH"; the coded-dash flight path
+# (scripts/m4_intercept.py --coded-dash, the real-build architecture) emits
+# "CODED_DASH" for the same running-start phase. Both must satisfy (b) "a dash
+# ran before ENGAGE" and grant the (a) one-tick DASH->ENGAGE transition grace,
+# else every coded-dash flight FAILs (b) spuriously on a phase-name mismatch,
+# not a real honesty violation (tool-scope fix, 2026-07-22).
+DASH_PHASES = ("DASH", "CODED_DASH")
+
 
 def audit_flight_csv(csv_path, law):
     """Faithful port of check_s2.sh's audit_csv() embedded python heredoc.
@@ -311,7 +320,7 @@ def audit_flight_csv(csv_path, law):
         if r.get("phase") != "ENGAGE" or r.get("detected") == "1":
             continue
         prev = rows[i - 1]
-        if prev.get("phase") == "DASH":
+        if prev.get("phase") in DASH_PHASES:
             n_transition_grace += 1
             continue
         try:
@@ -367,7 +376,7 @@ def audit_flight_csv(csv_path, law):
         }
 
     # ---- (b) >= 1 DASH row precedes the first ENGAGE row -------------------
-    n_dash_before = sum(1 for r in rows[:engage_idx] if r.get("phase") == "DASH")
+    n_dash_before = sum(1 for r in rows[:engage_idx] if r.get("phase") in DASH_PHASES)
     if n_dash_before < 1:
         ok = False
         detail = (
