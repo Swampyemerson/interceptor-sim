@@ -52,6 +52,58 @@ terminal track *at all* — the precondition every other lever needs. **The wedg
 must be chosen JOINTLY with the dash profile; freezing the wedge in isolation locks in
 the wrong angle** (loft flips the sign of the pointing error the wedge is sized against).
 
+## Execution results (2026-07-21) — what the sim/pre-code actually showed
+
+Four Fable instances executed the plan in parallel. Headline refinement: **the
+accel-cap, not loft or the wedge, is the primary pointing lever.**
+
+**Phase A — decisive in-frame A/B** (analytical, pure-geometry upper bound; no detector,
+no blur, perfect aim — `scripts/experiments/loft_dive/inframe_ab.py`, 80 rows):
+- **Baseline flat dash (~40° pitch):** the 8–12 m band is 100% *in-frame* but **0%
+  CENTERED** — the target is pinned at **+39°, the frame-top edge**. That is the honest
+  geometric translation of the measured ~0.8%-in-flight wall (a center-biased detector
+  fails at the extreme edge, even though the target is technically "in frame").
+- **Accel-cap alone is the cleanest single lever:** capping forward accel so the body
+  holds **θ≈20°** centers the band (**vert_med +19°, 100% centered**) with no maneuver
+  and no terminal dump. θ≈15° also centers (+14°).
+- **Fixed-wedge trap (confirmed with a number):** a wedge ≥20° centers the mid-band but
+  **dumps the <5 m terminal target out the frame BOTTOM** (the quad brakes nose-*up*
+  there) — the quantified form of "a fixed tilt only relocates the window." **Keep the
+  wedge modest (~10–15°).**
+- **Loft-dive is the complement:** loft 2–3 m shaves a further ~5–8° of LOS depression;
+  over-loft flips the target out the bottom. Costs ~1.8–2.8 m/s descent.
+- **The cost to watch:** the accel-cap keeps the dash from reaching 16 m/s in ~2 s →
+  **longer time-of-flight / staler open-loop lead.** Gazebo must confirm the pointing
+  win nets positive against the closing-speed penalty. *(Pure geometry ranks this;
+  Gazebo decides.)*
+- **Re-ranked Phase A:** accel-cap primary → loft-dive complement → wedge modest &
+  co-sized. Implemented behind `--dash-accel-cap` / `--dash-loft-m` / `--dash-loft-dive-s`
+  / `--dash-vvert-max` (default OFF, byte-identical). Gazebo confirmation recipe:
+  `scripts/experiments/loft_dive/gazebo_run_recipe.md` (serialized, pending).
+
+**Phases B/C/D — pre-coded, tested, ready to A/B after Phase A lands:** `flight/
+fov_guidance.py`, `flight/range_fusion.py`, `flight/terminal_coast.py` — opt-in,
+flag-gated, 32 new unit tests (64→68 total in `flight/tests/`), honesty verified clean,
+Fable-reviewed. Wiring: `docs/phase_bcd_wiring.md` (Phase C needs a defaulted `box_w_px`
+on `Measurement` at wiring time).
+
+**Dark-horse verdicts** (`experiments/darkhorse/`, self-tests pass, `README_testing.md`):
+- **Track-before-detect — READY (markerless-only):** ~√N SNR proven (slope 0.58, 15× vs
+  a motion-blind stack); with the bench noise model, raw-frame stacking recovers
+  acquisition at 8/12 m (N=4) and 16 m (N=16); 20–25 m stay resolution-floored.
+  Integrating detector *confidence* fails — it must act **pre-detection**. (Clean sim
+  frames saturate the detector, so the no-blur sim can't show this lever — bench/real
+  frames needed.)
+- **IMU motion-deblur — READY (Stage-0 bench tool):** matched-Wiener holds the target to
+  ~16 DN; a naive inverse fails (the "deconv amplifies noise" catastrophe). Neither
+  invents SNR above the wall — a residual-chaser, as predicted.
+- **Bank-as-accel — DEAD (measured):** on the real `quad_dataset_banked`, under the
+  terminal ~23 px smear bank-SNR collapses to ~1–2 and **σ_a = 6–12 m/s², larger than
+  the ~4.7 m/s² jink signal** it would feed forward. Plus the term is identically zero on
+  a straight-line target. → graveyard.
+- **Event camera — NEEDS-DATA (bench/HIL only):** full GenX320-vs-OV9281 test plan
+  written; Gazebo has no event model, so it's bench-gated behind the pointing fix.
+
 ## The combined program — a causal 4-phase stack (pointing gates everything)
 
 - **Phase A — POINTING (unblocks everything).** Loft-then-dive + accel-capped
