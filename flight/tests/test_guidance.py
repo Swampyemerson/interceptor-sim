@@ -10,6 +10,9 @@ from flight.guidance import (
     collision_lead_heading,
     closing_speed,
     pronav_lateral_accel,
+    dash_forward_speed,
+    dash_loft_alt_ref,
+    GRAVITY_MS2,
 )
 
 
@@ -78,10 +81,55 @@ def test_pronav_law():
     assert pronav_lateral_accel(4.0, 10.0, -0.05) < 0.0
 
 
+def test_dash_forward_speed_default_byte_identical():
+    """accel_cap None or <=0 -> the plain dash speed at every t (byte-identical)."""
+    for t in (0.0, 0.5, 2.0, 10.0):
+        assert dash_forward_speed(16.0, None, t) == 16.0
+        assert dash_forward_speed(16.0, 0.0, t) == 16.0
+        assert dash_forward_speed(16.0, -3.0, t) == 16.0
+
+
+def test_dash_forward_speed_ramps_and_clamps():
+    """Capped: speed ramps at accel_cap then clamps to dash_speed. theta20 =>
+    a_cap = g*tan(20) ~ 3.57 m/s^2, so 16 m/s is reached at ~4.48 s (NOT within a
+    ~2 s engagement -- the documented closing-speed cost)."""
+    a = GRAVITY_MS2 * math.tan(math.radians(20))     # ~3.569
+    assert dash_forward_speed(16.0, a, 0.0) == 0.0
+    assert abs(dash_forward_speed(16.0, a, 1.0) - a) < 1e-9
+    assert abs(dash_forward_speed(16.0, a, 2.0) - 2 * a) < 1e-9   # ~7.1 m/s at 2 s
+    assert dash_forward_speed(16.0, a, 10.0) == 16.0             # clamped
+    assert dash_forward_speed(16.0, a, -1.0) == 0.0             # pre-start guard
+
+
+def test_dash_loft_alt_ref_default_byte_identical():
+    """loft 0 (or dive_dur 0) -> the base altitude at every t (byte-identical)."""
+    for t in (0.0, 1.0, 5.0):
+        assert dash_loft_alt_ref(0.5, 0.0, t, 2.5) == 0.5
+        assert dash_loft_alt_ref(0.5, 3.0, t, 0.0) == 0.5
+
+
+def test_dash_loft_alt_ref_dives_from_loft_to_base():
+    """Raised-cosine DIVE: +loft at entry, base at dive_dur, monotone between, and
+    holds base after (clamped frac)."""
+    base, loft, dur = 0.5, 3.0, 2.0
+    assert abs(dash_loft_alt_ref(base, loft, 0.0, dur) - (base + loft)) < 1e-9
+    mid = dash_loft_alt_ref(base, loft, dur / 2, dur)
+    assert abs(mid - (base + loft / 2)) < 1e-9                  # half-way down at mid
+    assert abs(dash_loft_alt_ref(base, loft, dur, dur) - base) < 1e-9
+    assert abs(dash_loft_alt_ref(base, loft, 5.0, dur) - base) < 1e-9   # past dive: base
+    # strictly descending across the dive
+    a = dash_loft_alt_ref(base, loft, 0.4, dur)
+    b = dash_loft_alt_ref(base, loft, 0.8, dur)
+    assert a > b > base
+
+
 ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_north,
        test_uncatchable_falls_back_to_initial, test_lr_rl_mirror_symmetry,
        test_explicit_origin_offset, test_closing_speed_floor_and_measured,
-       test_pronav_law]
+       test_pronav_law, test_dash_forward_speed_default_byte_identical,
+       test_dash_forward_speed_ramps_and_clamps,
+       test_dash_loft_alt_ref_default_byte_identical,
+       test_dash_loft_alt_ref_dives_from_loft_to_base]
 
 if __name__ == "__main__":
     import sys

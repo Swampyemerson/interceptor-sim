@@ -245,7 +245,11 @@ from m3_static_intercept import (  # noqa: E402
 # deliberately kept local here and MIRRORED in flight/geometry.py, whose tests
 # pin the two to agree, so this wiring does not touch honesty-audited code.)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from flight.guidance import collision_lead_heading  # noqa: E402
+from flight.guidance import (  # noqa: E402
+    collision_lead_heading,
+    dash_forward_speed,
+    dash_loft_alt_ref,
+)
 # P0.4 camera lever-arm guard (pure, no gz/gt): tie --cam-fwd-offset-m to the
 # ACTIVE airframe geometry so a moved-camera model can't fly uncompensated.
 from flight.geometry import (  # noqa: E402
@@ -1693,6 +1697,38 @@ def parse_args():
              "implied range <= this (m) too. Rejects implausibly-far false detections. "
              "Default None.")
     parser.add_argument(
+        "--dash-loft-m", type=float, default=0.0,
+        help="--coded-dash POINTING lever (Phase A, docs/intercept_accuracy_levers.md): "
+             "loft-then-dive. Climb this many metres ABOVE the target's altitude BEFORE "
+             "the dash (the takeoff altitude is raised to ALT_REF+loft), then DIVE back to "
+             "co-altitude over --dash-loft-dive-s during the dash, so the nose-down dash "
+             "pitch aims the fixed camera AT the target instead of over it (restores "
+             "in-frame detection; ADR-0076 add #18k). Size JOINTLY with --cam-mount-up-deg "
+             "and --dash-accel-cap (over-loft dumps the target out the frame BOTTOM). "
+             "Needs a raised --dash-vvert-max so the dive fits the ~2 s engagement. "
+             "Default 0.0 = FLAT dash (byte-identical).")
+    parser.add_argument(
+        "--dash-loft-dive-s", type=float, default=2.5,
+        help="--coded-dash loft-then-dive: SIM-clock seconds over which the raised-cosine "
+             "dive descends from ALT_REF+--dash-loft-m back to ALT_REF. Only used when "
+             "--dash-loft-m > 0. Default %(default)s (~the dash duration).")
+    parser.add_argument(
+        "--dash-accel-cap", type=float, default=None,
+        help="--coded-dash POINTING lever (Phase A): accel-capped constant-pitch dash. "
+             "Cap the commanded forward acceleration (m/s^2) by RAMPING the dash speed "
+             "instead of stepping it, so the body pitch holds ONE known value "
+             "theta ~ arctan(cap/g) for the whole run-in (size the wedge to it). "
+             "e.g. 3.57 => theta ~20 deg. Cost: gentler accel reaches --dash-speed later "
+             "(or not within ~2 s) -> lower closing speed / longer t_go. Default None = "
+             "uncapped step (byte-identical). Recommend also lowering MPC_ACC_HOR_MAX to "
+             "the same value in Gazebo for a hard physical cap (see the run recipe).")
+    parser.add_argument(
+        "--dash-vvert-max", type=float, default=None,
+        help="--coded-dash: override the vertical-speed clamp (m/s) during the CODED_DASH "
+             "phase ONLY -- needed so the loft-then-dive descent fits the short dash "
+             "(stock V_VERT_MAX 0.5 m/s is too slow to dive 2-4 m in ~2 s). Ignored unless "
+             "--dash-loft-m > 0. Default None = stock V_VERT_MAX (byte-identical).")
+    parser.add_argument(
         "--dash-heading-err-deg", type=float, default=0.0,
         help="--coded-dash ROBUSTNESS sweep: add a FIXED azimuth error (deg) to the "
              "computed/explicit dash heading -- tests how far off the open-loop aim can "
@@ -2270,6 +2306,9 @@ async def run_acquire_and_engage(
         if _cross != 0.0:
             coded_dash_heading_deg -= math.copysign(args.dash_crossing_bias_deg, _cross)
     coded_dash_start_mono = None
+    coded_dash_start_sim = None   # sim-clock t at dash entry -- drives the Phase-A
+    #  pointing levers (accel-cap ramp + loft dive) so RTF sag can't distort them
+    #  (CLAUDE.md: durations are sim-clock, never wall). Falls back to wall if no clock.
     coded_dash_speed = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
     acquire_start_mono = time.monotonic()
     consecutive_fresh = 0
@@ -2880,6 +2919,8 @@ async def run_acquire_and_engage(
             # target is moving through the dash.
             if coded_dash_start_mono is None:
                 coded_dash_start_mono = tick_start
+                coded_dash_start_sim = (sim_clock.t if sim_clock is not None
+                                        and sim_clock.t is not None else None)
                 if mover_proc is None:
                     mover_args = [
                         sys.executable, MOVER_SCRIPT,
@@ -2892,12 +2933,38 @@ async def run_acquire_and_engage(
                 print(f"[coded-dash] OPEN-LOOP dash heading={coded_dash_heading_deg:.1f} deg "
                       f"speed={coded_dash_speed:.1f} m/s -> camera-only terminal on acquire "
                       f"(ADR-0076 add #18)")
+                if args.dash_accel_cap or args.dash_loft_m:
+                    print(f"[coded-dash] Phase-A POINTING levers: accel_cap="
+                          f"{args.dash_accel_cap} m/s^2 loft={args.dash_loft_m} m "
+                          f"(dive {args.dash_loft_dive_s}s, vvert_max="
+                          f"{args.dash_vvert_max or V_VERT_MAX} m/s) "
+                          f"(docs/intercept_accuracy_levers.md Phase A)")
+            # SIM-CLOCK elapsed drives BOTH pointing levers (never wall time, so
+            # RTF sag can't distort the ramp/dive). Falls back to the wall-based
+            # elapsed only if the sim clock is unavailable (matches the phase's
+            # existing coded_dash_elapsed basis in that degraded case).
+            if coded_dash_start_sim is not None and sim_clock is not None \
+                    and sim_clock.t is not None:
+                _dash_elapsed = sim_clock.t - coded_dash_start_sim
+            else:
+                _dash_elapsed = tick_start - coded_dash_start_mono
+            # ACCEL-CAP: ramp the commanded speed so body pitch holds ~arctan(cap/g)
+            # (default None -> returns coded_dash_speed unchanged, byte-identical).
+            _dash_v = dash_forward_speed(coded_dash_speed, args.dash_accel_cap,
+                                         _dash_elapsed)
+            # LOFT-THEN-DIVE: hold +loft then dive to co-altitude; a raised vertical
+            # clamp lets the dive fit the short dash (default loft 0 -> ALT_REF,
+            # stock clamp -> byte-identical).
+            _alt_ref = dash_loft_alt_ref(ALT_REF_M, args.dash_loft_m,
+                                         _dash_elapsed, args.dash_loft_dive_s)
+            _vvert = (args.dash_vvert_max if (args.dash_loft_m and args.dash_vvert_max)
+                      else V_VERT_MAX)
             v_down = (
-                _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                _clamp(KP_ALT * (alt_m - _alt_ref), -_vvert, _vvert)
                 if alt_m is not None else 0.0
             )
             _h = math.radians(coded_dash_heading_deg)
-            cmd = (coded_dash_speed * math.cos(_h), coded_dash_speed * math.sin(_h),
+            cmd = (_dash_v * math.cos(_h), _dash_v * math.sin(_h),
                    v_down, coded_dash_heading_deg)
             # HANDOFF PLAUSIBILITY GATE (add #18f): a NEW detector result only
             # advances the acquire streak if its implied range is inside the
@@ -4198,8 +4265,15 @@ async def main():
                         f"PX4 param {name} did not take (got {got}, wanted {value})"
                     )
 
-        print(f"[m4] Setting takeoff altitude to {ALT_REF_M} m...")
-        await drone.action.set_takeoff_altitude(ALT_REF_M)
+        # LOFT-THEN-DIVE (Phase A): pre-climb to ALT_REF+loft BEFORE the dash so the
+        # CODED_DASH phase can DIVE onto the co-altitude target (the ~2 s dash is too
+        # short to also climb at the stock vertical rate). Default loft 0 -> ALT_REF
+        # (byte-identical takeoff).
+        takeoff_alt = ALT_REF_M + (args.dash_loft_m if args.coded_dash else 0.0)
+        print(f"[m4] Setting takeoff altitude to {takeoff_alt} m..."
+              + (f" (ALT_REF {ALT_REF_M} + loft {args.dash_loft_m})"
+                 if takeoff_alt != ALT_REF_M else ""))
+        await drone.action.set_takeoff_altitude(takeoff_alt)
 
         print("[m4] Arming...")
         await drone.action.arm()
@@ -4211,7 +4285,7 @@ async def main():
         # altitude may wobble a bit above target during takeoff itself --
         # that's fine, the altitude P-loop takes over once we're in
         # OFFBOARD (same note as M3).
-        success_altitude = ALT_REF_M * ALTITUDE_SUCCESS_FRACTION
+        success_altitude = takeoff_alt * ALTITUDE_SUCCESS_FRACTION
         print(
             f"[m4] Waiting for relative_altitude_m >= {success_altitude:.2f} m, "
             f"timeout {ALTITUDE_TIMEOUT_S}s..."

@@ -96,3 +96,61 @@ def pronav_lateral_accel(n_gain, vc, los_rate):
     if los_rate is None:
         return 0.0
     return n_gain * vc * los_rate
+
+
+# --- POINTING levers for the coded dash (Phase A, docs/intercept_accuracy_levers.md).
+# Both are PURE own-state trajectory shaping -- no camera, no gt (honesty boundary
+# intact) -- and default OFF (byte-identical). The wall they attack: to dash forward
+# the quad pitches nose-DOWN by theta = arctan(a_forward / g), tipping the body-fixed
+# camera down so a co-altitude target sits at/above the frame-TOP edge (detector ~100%
+# static 8-22 m, ~0.8% in flight; ADR-0076 add #18k). The analytical A/B is
+# scripts/experiments/loft_dive/inframe_ab.py. -----------------------------------
+
+GRAVITY_MS2 = 9.80665
+
+
+def dash_forward_speed(dash_speed, accel_cap_ms2, t_since_dash_start):
+    """Forward speed setpoint for the ACCEL-CAPPED constant-pitch dash.
+
+    The plain coded dash commands `dash_speed` as a STEP from t=0, so PX4 pitches
+    to whatever accel MPC_ACC_HOR_MAX allows -- ~40 deg nose-down at full accel,
+    which points the fixed camera over the co-altitude target. Ramping the
+    commanded speed at `accel_cap_ms2` instead bounds the demanded forward accel,
+    so the body pitch holds ONE known value theta ~ arctan(accel_cap/g) for the
+    whole run-in -- the value the fixed wedge can then be sized to (instead of the
+    +40 -> -35 deg swing a fixed wedge cannot track). Cost: a gentler accel reaches
+    `dash_speed` later (or never within a ~2 s engagement), so closing speed / t_go
+    suffer -- the documented tradeoff (intercept_accuracy_levers.md).
+
+    accel_cap_ms2 None or <= 0 -> return `dash_speed` unchanged (byte-identical
+    default). Otherwise the linearly-ramped speed, clamped to `dash_speed`.
+    `t_since_dash_start` is SIM-clock seconds since CODED_DASH entry (never wall
+    time -- the RTF-sag rule)."""
+    if accel_cap_ms2 is None or accel_cap_ms2 <= 0.0:
+        return dash_speed
+    return min(dash_speed, accel_cap_ms2 * max(0.0, t_since_dash_start))
+
+
+def dash_loft_alt_ref(base_alt_m, loft_m, t_since_dash_start, dive_dur_s):
+    """Altitude REFERENCE for the loft-then-dive dash: hold +loft at dash entry,
+    then a raised-cosine DIVE to co-altitude over `dive_dur_s`.
+
+    The interceptor is expected to already be lofted to `base_alt_m + loft_m` when
+    the dash begins (climbed during takeoff/positioning -- see the caller; at the
+    stock V_VERT_MAX 0.5 m/s it CANNOT climb 2-4 m inside the ~2 s dash, so the
+    climb must precede it). Diving from +loft onto the co-altitude target puts the
+    interceptor ABOVE it, so the LOS points DOWN -- toward where the nose-down dash
+    pitch already aims the camera -- restoring in-frame detection through the
+    acquisition band. Raised cosine: reference = base + loft at t=0, = base at
+    t=dive_dur_s, smooth (bounded vertical rate/accel) at both ends.
+
+    OVERSHOOT WARNING (intercept_accuracy_levers.md): too much loft drives the LOS
+    depression past the nose-down pitch and the target exits the frame BOTTOM. Size
+    `loft_m` jointly with the wedge + accel-cap, per the analytical sweep.
+
+    loft_m <= 0 -> return `base_alt_m` unchanged (byte-identical flat dash).
+    `t_since_dash_start` is SIM-clock seconds."""
+    if loft_m <= 0.0 or dive_dur_s <= 0.0:
+        return base_alt_m
+    frac = min(max(t_since_dash_start / dive_dur_s, 0.0), 1.0)
+    return base_alt_m + loft_m * 0.5 * (1.0 + math.cos(math.pi * frac))
