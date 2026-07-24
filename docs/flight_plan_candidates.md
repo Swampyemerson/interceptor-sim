@@ -583,3 +583,35 @@ median. Fold this into `parse_ab.py` when the next arm lands.
   `docs/intercept_accuracy_levers.md`, `docs/phase_bcd_wiring.md`, ADR-0027 (ZEM),
   ADR-0056 (aspect-biased bearing), ADR-0076 add #18e/#18g/#18h/#18k,
   `docs/project_state.json` (contradiction `wedge-sizing-vs-accel-cap`, graveyard).
+
+---
+
+## RESULTS (live — head, 2026-07-24)
+
+### G20dash — CONFIRMED. Correct aim alone ~halves the open-loop dash miss.
+
+First decomposition arm flown (`logs/mc_fp_armG20dash_line9_s123.csv`, n=8 paired,
+seed 123, level camera, **dash-only** control via `--coded-dash-acquire-range-min 999`).
+Tests the aim-mis-sizing hypothesis: bias **20°** (near the ballistic model's optimum for
+the baseline accel a≈10) vs the previously-flown **Adash** at bias 30°.
+
+| dir | G20dash (bias 20) median | Adash (bias 30) median | G20 better / paired |
+|-----|-------------------------:|-----------------------:|:-------------------:|
+| l2r | **0.73 m** (0.41–0.85)   | 2.05 m                 | **4/4** |
+| r2l | 0.81 m (0.60–1.19)       | 0.77 m                 | 3/4 |
+| **combined** | **0.75 m**      | 1.37 m                 | **7/8** |
+
+**Pre-registered criterion:** CONFIRM iff ≥6/8 paired better AND median ≤0.90 m.
+**Result: 7/8 better AND median 0.75 m → CONFIRMED.**
+
+**Reading.** The +30° crossing-bias was mis-sized (the collision-lead solves a
+constant-speed triangle; the dash accelerates from rest). Correcting it to +20° for the
+baseline accel drops the open-loop **dash-only ballistic** combined median **1.37 → 0.75 m**
+— almost entirely from the **l2r** side (2.05 → 0.73 m), which the wrong aim had been
+throwing wide; r2l was already near-optimal at 30° and is unchanged. The aim constant is a
+**free, honest, pre-flight lever** (a launch-time constant, no gt, no live cue) — the single
+cheapest miss-reduction found for the coded dash. **Caveat:** 0.75 m is the DASH-ONLY
+ballistic floor (camera disabled); the point-mass model predicted ~0.14 m, so it correctly
+ranked the aim but over-predicted the achievable absolute (real quad dynamics + the 0.5 m
+ALT_REF terminal). Whether the camera terminal improves on 0.75 m at correct aim is the next
+arm (**G20**, camera-live bias 20). Contract stage `launch_aim` updated.
