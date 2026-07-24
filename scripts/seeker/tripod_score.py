@@ -111,8 +111,23 @@ DEFAULT_STREAM_FPS = 30.0
 DEFAULT_TAG_SIZE_M = 0.3
 # Target drone extent for the NN truth box (5" quad ~0.35 m; autolabel default).
 DEFAULT_DRONE_SIZE_M = 0.35
-# Deployed markerless detector (curve b) -- ADR-0058/0061, project_state.json.
-DEFAULT_WEIGHTS = os.path.join(HERE, "weights", "drone_finetuned_quad_v2.onnx")
+# Markerless detector for curve (b). TWO models are scored on the SAME frames:
+#
+#   PRIMARY (the candidate)  n-mono -- YOLO11n, COCO-init, GRAYSCALE-native, trained
+#     on the 15,391-image real-media corpus. On a source-disjoint REAL held-out set
+#     (n=4175): AP50 0.442 / recall 44.2% / precision 71.4% / false-fire 4.9%
+#     (logs/nn_tier/eval_n-mono_heldout.csv, docs/nn_tier/PLAN.md).
+#   BAR (historical)  drone_finetuned_quad_v2 -- the SIM-trained deployed model, which
+#     on that same real held-out set is BLIND: AP50 0.0003 / recall 1.1% / false-fire
+#     88.5% (logs/nn_tier/eval_s-mono_summary_cmp1.csv).
+#
+# WHY BOTH: scoring curve (b) with quad_v2 ALONE produces a near-zero recall curve on
+# real frames that, read naively, would wrongly damn the markerless phase (and the
+# $70 Hailo HAT it gates) when what it actually measures is the already-known
+# sim->real NULL. Reporting both makes the sim-vs-real delta explicit on OUR frames.
+# Curve (b) gates ONLY the Hailo/markerless phase -- never the interceptor order.
+DEFAULT_WEIGHTS = os.path.join(HERE, "weights", "nn_tier", "n-mono.onnx")
+DEFAULT_WEIGHTS_BAR = os.path.join(HERE, "weights", "drone_finetuned_quad_v2.onnx")
 DEFAULT_NN_CONF = 0.25  # ADR-0058 deployed conf (project_state.json)
 
 # Data-presence floor for the verdict -- NOT a statistical bar. A field
@@ -123,6 +138,13 @@ DEFAULT_MIN_DECODED = 5
 
 _RANGE_RE = re.compile(r"_r(\d+\.?\d*)_")   # synth_tag_frames / resolution_probe convention
 _TRUE = ("1", "true", "yes", "t")
+_REPO_ROOT_TS = os.path.dirname(os.path.dirname(HERE))
+
+
+def _stem(path):
+    """Filesystem-safe model label from a weights path ('.../n-mono.onnx' -> 'n-mono')."""
+    return re.sub(r"[^A-Za-z0-9._-]", "_",
+                  os.path.splitext(os.path.basename(str(path)))[0]) or "model"
 
 
 # --------------------------------------------------------------------------
@@ -339,7 +361,38 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     GO (PASS) iff t_go >= tgo_min at the conservative closing speed. Returns a
     dict with the verdict, every intermediate, and a human-readable arithmetic
     string. UNCERTAIN when the data can't decide (no truth ranges, no sustained
-    handoff-quality band, or below the data-presence floor)."""
+    handoff-quality band, or below the data-presence floor).
+
+    ---------------------------------------------------------------------------
+    TODO (flagged 2026-07-24, docs/detection_tracking_methods.md §A.4 -- NOT applied
+    here because it CHANGES THIS GATE'S SEMANTICS and this gate decides the ~$740
+    interceptor order; the head/builder must adopt it deliberately):
+
+    The burn above is the MEAN-RATE model: it charges streak_n detections at the
+    average decode rate, i.e. E[frames] ~ streak_n / p. But the handoff needs
+    streak_n CONSECUTIVE fresh detections, and the expected number of Bernoulli
+    trials to a first RUN of k successes is
+
+        E[T] = (1 - p^k) / (p^k * (1 - p))          [classic run-length result]
+        R_streak_burn_corrected = (E[T] / stream_fps) * V_closing
+
+    Mean-rate UNDERSTATES the burn, and the gap grows fast as p falls (k=5):
+        p=0.9 -> 5.6 frames (mean-rate) vs  6.9 (run-length),  1.2x
+        p=0.7 -> 7.1                   vs 16.5,                2.3x
+        p=0.5 -> 10.0                  vs 62.0,                6.2x
+    So a marginal PASS at a low decode rate may be a FAIL under the correct model
+    -- the direction of the error is always OPTIMISTIC, which is the dangerous
+    direction for a purchase gate.
+
+    Adopting it is ~2 lines here plus a re-word of `arithmetic`, but it can flip a
+    published verdict, so it must be a logged decision (ADR-lite), not a quiet
+    patch. Honest caveats to carry into that decision: (a) real decodes are
+    temporally CORRELATED, not independent Bernoulli, so both models are
+    approximations and the empirical streak-formation range from a real session
+    beats both; (b) if adopted, re-score any already-published gate result.
+    Reproduce the table: scripts/seeker/streak_burn_derivation.py
+    ---------------------------------------------------------------------------
+    """
     decode_hz = decode_rate * stream_fps
     if decode_hz > 0:
         r_streak_burn = (streak_n / decode_hz) * v_closing
@@ -469,6 +522,37 @@ def curve_b(frames, decode, calib, weights, conf, drone_size_m, bin_m, max_m,
     note = (f"NN half: scored {n_scored} tag-truthed frames "
             f"(recall bounded by curve (a)'s decode ceiling -- protocol §7.2)")
     return bins, note
+
+
+def bins_overall(bins):
+    """(hits, total, recall) rolled up over all range x position cells."""
+    if not bins:
+        return 0, 0, None
+    h = sum(c[0] for c in bins.values())
+    t = sum(c[1] for c in bins.values())
+    return h, t, (h / t if t else None)
+
+
+def curve_b_multi(frames, decode, calib, models, conf, drone_size_m, bin_m, max_m,
+                  n_bands=3):
+    """Score curve (b) for SEVERAL models on the SAME frames (2026-07-24).
+
+    `models` = [(label, weights_path), ...]; the FIRST entry is the primary
+    (candidate) model and keeps the canonical output filenames. Returns
+    [(label, weights, bins_or_None, note), ...] in the given order.
+
+    Rationale (see DEFAULT_WEIGHTS above): the sim-trained quad_v2 is measured
+    BLIND on real imagery, so a single-model curve (b) run with it would look like
+    a markerless failure rather than the known sim->real NULL. Each model is loaded
+    with its OWN input modality (finetuned_seeker.resolve_input_modality: gray for
+    the gray-native nn_tier weights, color for the sim weights) -- the frames are
+    read once per model, never converted globally."""
+    out = []
+    for label, w in models:
+        bins, note = curve_b(frames, decode, calib, w, conf, drone_size_m,
+                             bin_m, max_m, n_bands=n_bands)
+        out.append((label, w, bins, note))
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -634,7 +718,8 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
              f"camera upgrade; UNCERTAIN -> re-shoot / more data)")
     L.append("")
     L.append("--- CURVE (b): NN approach recall (gates ONLY the Hailo/markerless phase) ---")
-    L.append(f"  {curve_b_note}")
+    for line in str(curve_b_note).splitlines() or [""]:
+        L.append(f"  {line}")
     L.append("")
     L.append(SMALL_N_CAVEAT)
     return "\n".join(L)
@@ -682,13 +767,44 @@ def run(args):
     write_curve_a_csv(os.path.join(outp, "curve_a_decode.csv"), bins, args.range_bin)
     plot_curve_a(os.path.join(outp, "curve_a.png"), bins, acc, gate, args.range_bin)
 
-    # Curve (b)
-    b_bins, b_note = curve_b(frames, decode, calib, args.weights, args.nn_conf,
-                             drone_size, args.range_bin, args.max_range,
-                             n_bands=args.pos_bands)
-    if b_bins is not None:
-        write_curve_b_csv(os.path.join(outp, "curve_b_recall.csv"), b_bins)
-        plot_curve_b(os.path.join(outp, "curve_b.png"), b_bins)
+    # Curve (b) -- PRIMARY (real-data candidate) + the historical SIM bar, same frames.
+    # getattr-guarded so any programmatic caller predating --weights-bar (e.g. the
+    # self-test namespace) keeps the old single-model behaviour exactly.
+    bar_w = None if getattr(args, "no_weights_bar", False) else getattr(args, "weights_bar", None)
+    models = [(_stem(args.weights), args.weights)]
+    if bar_w and os.path.abspath(bar_w) != os.path.abspath(args.weights):
+        models.append((_stem(bar_w), bar_w))
+    b_results = curve_b_multi(frames, decode, calib, models, args.nn_conf,
+                              drone_size, args.range_bin, args.max_range,
+                              n_bands=args.pos_bands)
+    b_note_lines, b_written = [], []
+    for i, (label, w, bins_i, note_i) in enumerate(b_results):
+        role = "PRIMARY (candidate)" if i == 0 else "BAR (historical/sim)"
+        b_note_lines.append(f"[{role}] {label}  ({os.path.relpath(w, _REPO_ROOT_TS)})")
+        b_note_lines.append(f"    {note_i}")
+        if bins_i is None:
+            continue
+        if i == 0:
+            # PRIMARY keeps the canonical filenames (backward compatible).
+            csv_name, png_name = "curve_b_recall.csv", "curve_b.png"
+        else:
+            csv_name, png_name = f"curve_b_recall_{label}.csv", f"curve_b_{label}.png"
+        write_curve_b_csv(os.path.join(outp, csv_name), bins_i)
+        plot_curve_b(os.path.join(outp, png_name), bins_i)
+        b_written.append(csv_name)
+        h, t, rec = bins_overall(bins_i)
+        b_note_lines.append(
+            f"    overall recall {100 * rec:.1f}% ({h}/{t}) -> {csv_name}"
+            if rec is not None else f"    no scorable cells -> {csv_name}")
+    if len(b_results) > 1 and all(r[2] is not None for r in b_results):
+        r0 = bins_overall(b_results[0][2])[2]
+        r1 = bins_overall(b_results[1][2])[2]
+        if r0 is not None and r1 is not None:
+            b_note_lines.append(
+                f"  DELTA (primary - bar) = {100 * (r0 - r1):+.1f} pts overall. A LOW bar "
+                f"number is the EXPECTED sim->real NULL, not a markerless verdict; read the "
+                f"PRIMARY row against the §8.2 threshold.")
+    b_note = "\n".join(b_note_lines)
 
     summary = build_summary(gate, gate_hi, bins, b_note, meta, n_binnable,
                             n_unbinnable, args.range_bin)
@@ -697,10 +813,22 @@ def run(args):
     with open(os.path.join(outp, "gate.json"), "w") as f:
         json.dump({"conservative": gate, "aggressive": gate_hi,
                    "tag_size_m": tag_size, "drone_size_m": drone_size,
-                   "n_decoded": n_decoded, "n_binnable": n_binnable}, f, indent=2)
+                   "n_decoded": n_decoded, "n_binnable": n_binnable,
+                   # curve (b) provenance: which model produced which recall number.
+                   # Curve (b) gates ONLY the Hailo/markerless phase (protocol §8.2).
+                   "curve_b_models": [
+                       {"role": "primary" if i == 0 else "bar",
+                        "label": lab, "weights": os.path.relpath(w, _REPO_ROOT_TS),
+                        "scored": bins_i is not None,
+                        "hits": bins_overall(bins_i)[0] if bins_i else None,
+                        "total": bins_overall(bins_i)[1] if bins_i else None,
+                        "overall_recall": bins_overall(bins_i)[2] if bins_i else None}
+                       for i, (lab, w, bins_i, _n) in enumerate(b_results)]},
+                  f, indent=2)
     print(summary)
+    extra = ("" if not b_written else ", " + ", ".join(b_written))
     print(f"\n[tripod] outputs -> {outp}/  (curve_a_decode.csv, curve_a.png, "
-          f"verdict.txt, gate.json{', curve_b_recall.csv/curve_b.png' if b_bins else ''})")
+          f"verdict.txt, gate.json{extra})")
     return 0
 
 
@@ -845,6 +973,21 @@ def self_test():
         print(f"[self-test] NN no-op path: {b_note[:70]}... : {'OK' if c6 else 'FAIL'}")
         ok = ok and c6
 
+        # (iv-b) DUAL-MODEL curve (b) plumbing (2026-07-24): two models are scored
+        # on the same frames, in order, each no-opping cleanly on missing weights.
+        multi = curve_b_multi(frames, decode, calib,
+                              [("primary", "/no/such/a.onnx"), ("bar", "/no/such/b.onnx")],
+                              DEFAULT_NN_CONF, DEFAULT_DRONE_SIZE_M, 2.0, 40.0)
+        c6b = (len(multi) == 2
+               and [m[0] for m in multi] == ["primary", "bar"]
+               and all(m[2] is None and "SKIP" in m[3] for m in multi)
+               and _stem("/x/weights/nn_tier/n-mono.onnx") == "n-mono"
+               and bins_overall({(8.0, "mid"): [3, 4]}) == (3, 4, 0.75)
+               and bins_overall({})[2] is None)
+        print(f"[self-test] dual-model curve (b) plumbing + label/rollup helpers : "
+              f"{'OK' if c6b else 'FAIL'}")
+        ok = ok and c6b
+
         # (v) full run() writes the expected artifacts under logs-style out dir.
         import types
         a = types.SimpleNamespace(
@@ -852,7 +995,8 @@ def self_test():
             tag_size=None, drone_size=None, stream_fps=None, closing_speed=None,
             closing_speed_hi=DEFAULT_V_CLOSING_HI_MPS, handoff_streak=DEFAULT_HANDOFF_STREAK,
             tgo_min=DEFAULT_TGO_MIN_S, range_bin=2.0, max_range=40.0, pos_bands=3,
-            weights="/no/such/weights.onnx", nn_conf=DEFAULT_NN_CONF,
+            weights="/no/such/weights.onnx", weights_bar=None, no_weights_bar=True,
+            nn_conf=DEFAULT_NN_CONF,
             min_decoded=DEFAULT_MIN_DECODED, out_dir=os.path.join(td, "out"), tag="synthA")
         run(a)
         want = ["curve_a_decode.csv", "curve_a.png", "verdict.txt", "gate.json"]
@@ -871,7 +1015,17 @@ def main():
     ap.add_argument("session_dir", nargs="?", help="capture-session dir (frames/ + index.csv + meta.json [+ tags.csv])")
     ap.add_argument("--calib", help="camera intrinsics JSON (calibrate_camera.py output)")
     ap.add_argument("--weights", default=DEFAULT_WEIGHTS,
-                    help="markerless NN .onnx for curve (b); NN half no-ops if absent/unrunnable")
+                    help="PRIMARY markerless NN .onnx for curve (b). Default = the "
+                         "real-data n-mono model (AP50 0.442 / recall 44.2%% on real "
+                         "held-out imagery, n=4175). NN half no-ops if absent/unrunnable.")
+    ap.add_argument("--weights-bar", default=DEFAULT_WEIGHTS_BAR,
+                    help="HISTORICAL bar model, scored on the SAME frames for contrast "
+                         "(default = the sim-trained drone_finetuned_quad_v2, which is "
+                         "measured BLIND on real imagery: AP50 0.0003 / recall 1.1%%). "
+                         "Skipped automatically if it resolves to --weights.")
+    ap.add_argument("--no-weights-bar", action="store_true",
+                    help="score curve (b) with the PRIMARY model only (single-model, "
+                         "pre-2026-07-24 behaviour)")
     ap.add_argument("--nn-conf", type=float, default=DEFAULT_NN_CONF,
                     help=f"NN confidence threshold (default {DEFAULT_NN_CONF}, ADR-0058 deployed)")
     ap.add_argument("--tag-size", type=float, default=None,

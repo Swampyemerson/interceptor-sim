@@ -21,7 +21,7 @@ scores TWO curves, which gate TWO different purchases:**
 | Curve | What it measures | Gates | Does NOT gate |
 |---|---|---|---|
 | **(a) AprilTag decode envelope** | Range/rate the tag `tag36h11` decodes at, on the deployed camera+lens | The **~$740 Tier-2 interceptor order** (first real kills fly the tag on Pi 5 CPU) | — |
-| **(b) NN approach recall vs range × position-in-frame** | The markerless detector's (`drone_finetuned_quad_v2`) real-target recall on the SAME footage | ONLY the **deferred $70 Hailo AI HAT+ / markerless phase** | The interceptor order — never |
+| **(b) NN approach recall vs range × position-in-frame** | The markerless detector's real-target recall on the SAME footage — scored with the **real-data `n-mono`** model (primary) AND the sim-trained `drone_finetuned_quad_v2` (historical bar); see §7.2 | ONLY the **deferred $70 Hailo AI HAT+ / markerless phase** | The interceptor order — never |
 
 A weak curve (b) delays markerless, nothing else. A weak curve (a) is the one that
 stops you spending $740 — go back to a bigger placard or a camera upgrade instead.
@@ -289,12 +289,37 @@ bin — keep sync error well under that):
 
 ### 7.2 Curve (b) — NN approach recall vs range × position-in-frame
 
-The dedicated harness (`build_plan.P0` task 3) is **not yet built** — it is ~90%
-`approach_recall.py` (range-binning + real/phantom classification logic) +
-`resolution_probe.py` (conf-threshold + range-window scoring), tag-truthed instead
-of gt-truthed:
-1. Run the deployed detector (`drone_finetuned_quad_v2.onnx @640, conf 0.25`) on
-   every captured frame.
+The dedicated harness (`build_plan.P0` task 3) is **BUILT**:
+`scripts/seeker/tripod_score.py` (it reuses `approach_recall.py`'s range-binning and
+`resolution_probe.py`'s box-hit test, tag-truthed instead of gt-truthed). Point it at
+the session dir; it scores curve (a) and curve (b) in one pass.
+
+1. **Score curve (b) with TWO models on the same frames** — this is the default and
+   you should not override it:
+   - **PRIMARY (the candidate): `scripts/seeker/weights/nn_tier/n-mono.onnx` @640,
+     conf 0.25** — YOLO11n, COCO-init, **grayscale-native** (matches the mono OV9281).
+     On source-disjoint REAL held-out imagery it scores **AP50 0.442 / recall 44.2% /
+     precision 71.4% / false-fire 4.9%** (`logs/nn_tier/eval_n-mono_heldout.csv`,
+     n=4175). **This is the number curve (b) is about.**
+   - **BAR (historical): `drone_finetuned_quad_v2.onnx`** — the sim-trained model.
+     ⚠️ It is **measured BLIND on real imagery**: AP50 **0.0003**, recall **1.1%**,
+     false-firing on **88.5%** of drone-free frames. Scoring curve (b) with quad_v2
+     *alone* (as this protocol originally said, before the 2026-07-21 nn_tier result)
+     would produce a near-zero curve that reads like a markerless failure when it is
+     really the already-known sim→real NULL. Keep it only as the contrast row.
+
+   ```
+   .venv-seeker/bin/python scripts/seeker/tripod_score.py SESSION_DIR \
+       --calib calib.json --out-dir logs/tripod_score
+   # -> curve_b_recall.csv (n-mono, PRIMARY) + curve_b_recall_drone_finetuned_quad_v2.csv (BAR)
+   #    plus the primary-minus-bar delta in verdict.txt and gate.json:curve_b_models
+   # (--no-weights-bar scores the primary only; --weights / --weights-bar override either)
+   ```
+   Input modality is resolved **per model** (gray for the gray-native nn_tier weights,
+   color for the sim weights) — on the mono OV9281 the gray step is a bit-exact no-op,
+   so no flag is needed in the field.
+   **Read the PRIMARY row against §8.2's threshold; a low BAR row is expected and gates
+   nothing.**
 2. Ground-truth each frame's range/position with the tag pose where the tag
    decoded, and with the ULog-derived range beyond that (§6) — this is the one
    place curve (a)'s decode ceiling matters for scoring curve (b): don't drop

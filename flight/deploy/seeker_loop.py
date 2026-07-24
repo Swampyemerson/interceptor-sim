@@ -11,6 +11,15 @@ PIPELINE (each stage is a thin wrapper over an already-tested piece):
 
   FRAME SOURCE                Picamera2 (real cam) | video file | image dir | stub
     -> ONNX NN DETECT         scripts/seeker/finetuned_seeker.FinetunedNNSeeker
+                              DEFAULT WEIGHTS = the REAL-DATA n-mono model
+                              (scripts/seeker/weights/nn_tier/n-mono.onnx, YOLO11n
+                              COCO-init, grayscale-native). The sim-trained
+                              drone_finetuned_quad_v2 is BLIND on real imagery
+                              (AP50 0.0003 / recall 1.1% / false-fire 88.5% on a
+                              source-disjoint held-out set, n=4175) and must never
+                              be the default on hardware -- it stays selectable via
+                              --weights as the historical bar. Modality is resolved
+                              per-model (--gray-input auto).
     -> BEARING + RANGE        box centre + intrinsics via flight.camera.CameraModel
                               (UNDISTORTS -- honesty-critical for the real wide lens);
                               range = fx*span/box_width_px (span from calib sidecar)
@@ -855,10 +864,17 @@ async def run_mavsdk(args, cam, detector, guidance, source,
 
 def build_detector(args, cam: CameraModel, span_m: float):
     """The ONNX fine-tuned seeker (scripts/seeker/finetuned_seeker.py), fed the
-    SAME intrinsics as the LOS math so bearing/range are self-consistent."""
+    SAME intrinsics as the LOS math so bearing/range are self-consistent.
+
+    `--gray-input auto` (the default) resolves the input modality PER MODEL:
+    gray for the gray-native real-data nn_tier weights, color for the older
+    color-trained sim weights (finetuned_seeker.resolve_input_modality). Real
+    OV9281 frames are already mono, so the gray step is a bit-exact no-op there."""
     from finetuned_seeker import FinetunedNNSeeker
+    gray = {"auto": "auto", "on": True, "off": False}[getattr(args, "gray_input", "auto")]
     return FinetunedNNSeeker(cam.fx, cam.fy, cam.cx, cam.cy, args.weights,
-                             conf_thres=args.conf, target_span_m=span_m)
+                             conf_thres=args.conf, target_span_m=span_m,
+                             gray_input=gray)
 
 
 def main(argv=None) -> int:
@@ -879,9 +895,22 @@ def main(argv=None) -> int:
     ap.add_argument("--source",
                     help="frame source: an image dir, a video file, or 'picamera'")
     ap.add_argument("--weights",
-                    default=os.path.join(_SEEKER_DIR, "weights",
-                                         "drone_finetuned_quad_v2.onnx"),
-                    help="ONNX detector weights")
+                    default=os.path.join(_SEEKER_DIR, "weights", "nn_tier",
+                                         "n-mono.onnx"),
+                    help="ONNX detector weights. DEFAULT = the REAL-DATA model "
+                         "n-mono (YOLO11n, COCO-init, grayscale-native): on "
+                         "source-disjoint real held-out imagery it scores AP50 "
+                         "0.442 / recall 44.2%% / false-fire 4.9%% vs the "
+                         "sim-trained quad_v2's 0.0003 / 1.1%% / 88.5%% "
+                         "(logs/nn_tier/eval_n-mono_heldout.csv, n=4175). The sim "
+                         "model stays selectable: --weights "
+                         "scripts/seeker/weights/drone_finetuned_quad_v2.onnx")
+    ap.add_argument("--gray-input", choices=("auto", "on", "off"), default="auto",
+                    help="feed the detector 3-channel GRAYSCALE. 'auto' (default) "
+                         "picks per-model: gray for the gray-native nn_tier "
+                         "weights, color for the color-trained sim weights. On the "
+                         "real OV9281 (mono sensor) the conversion is a bit-exact "
+                         "no-op; it only bites on COLOR bench/sim replay.")
     ap.add_argument("--intrinsics",
                     default=os.path.join(_REPO_ROOT, "camera_intrinsics.json"),
                     help="camera_intrinsics.json / calibrate_camera.py output")

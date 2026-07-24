@@ -35,6 +35,70 @@ from nn_seeker import SeekerDetection  # reuse the exact dataclass / interface
 # ~1.0 m tip-to-tip; nn_seeker uses the same 1.0 m, ~15-30% range sigma disclosed).
 TARGET_SPAN_M = 1.0
 
+# ---------------------------------------------------------------- input modality
+# GRAY-NATIVE MODELS (docs/nn_tier/PLAN.md, ADR-0078). The real-data nn_tier track
+# trains and evaluates in GRAYSCALE because the ordered seeker camera is the MONO
+# global-shutter OV9281; the older sim-trained weights (drone_finetuned_quad_v2 and
+# friends) were fine-tuned on COLOR Gazebo renders. Feeding a model the modality it
+# did NOT train on is a measured, one-directional harm -- the color-trained v2 fed
+# gray false-fires on 88.5% of drone-free frames (logs/nn_tier/eval_s-mono_summary_cmp1.csv)
+# -- so the conversion must be MODEL-APPROPRIATE, never a global switch.
+#
+# On the real OV9281 the frames are already monochrome (a 1-channel PNG loads through
+# cv2.imread as three IDENTICAL channels), and BGR2GRAY of B==G==R is exactly the
+# identity (0.114+0.587+0.299 = 1.0), so the gray step is a NO-OP on real capture and
+# only bites on sim/bench COLOR replay -- which is precisely where it is needed.
+#
+# Resolution order (first hit wins):
+#   1. explicit `gray_input=True/False` argument,
+#   2. env MARKERLESS_GRAY_INPUT (1/0/true/false),
+#   3. a `<weights>.modality.json` sidecar: {"input": "gray"|"color"}  <- for future
+#      tripod-day models, so a new fine-tune declares its own modality,
+#   4. the built-in stem table below,
+#   5. default COLOR (byte-identical to the pre-2026-07-24 behaviour).
+GRAY_NATIVE_STEMS = {"n-mono", "n-mono-aug", "s-mono"}
+_TRUEISH = ("1", "true", "yes", "on", "t")
+_FALSEISH = ("0", "false", "no", "off", "f")
+
+
+def resolve_input_modality(weights, gray_input="auto"):
+    """-> (gray: bool, source: str). See the resolution order above."""
+    if gray_input is not True and gray_input is not False and gray_input != "auto":
+        raise ValueError(f"gray_input must be True/False/'auto', got {gray_input!r}")
+    if gray_input is True or gray_input is False:
+        return gray_input, "explicit argument"
+    env = os.environ.get("MARKERLESS_GRAY_INPUT")
+    if env is not None:
+        e = env.strip().lower()
+        if e in _TRUEISH:
+            return True, f"env MARKERLESS_GRAY_INPUT={env}"
+        if e in _FALSEISH:
+            return False, f"env MARKERLESS_GRAY_INPUT={env}"
+    sidecar = str(weights) + ".modality.json"
+    if os.path.exists(sidecar):
+        try:
+            with open(sidecar) as fh:
+                mode = str(json.load(fh)["input"]).strip().lower()
+            if mode in ("gray", "grey", "grayscale", "mono"):
+                return True, f"sidecar {os.path.basename(sidecar)}"
+            if mode in ("color", "colour", "rgb", "bgr"):
+                return False, f"sidecar {os.path.basename(sidecar)}"
+        except Exception:
+            pass
+    stem = os.path.splitext(os.path.basename(str(weights)))[0]
+    if stem in GRAY_NATIVE_STEMS:
+        return True, f"gray-native model table ({stem})"
+    return False, "default (color-trained weights)"
+
+
+def to_gray3(frame_bgr):
+    """BGR (or already-replicated-gray) -> 3-channel grayscale, the EXACT
+    convention every nn_tier eval used (`nn_tier/baseline_eval.to_gray3`), so a
+    live detection matches the offline held-out numbers. Identity on a frame whose
+    channels are already equal (real mono capture)."""
+    g = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+    return cv2.merge([g, g, g])
+
 
 def _letterbox(img, new_size):
     """Resize to a square new_size keeping aspect (gray pad). Returns
@@ -55,7 +119,8 @@ class FinetunedNNSeeker:
     def __init__(self, fx, fy, cx, cy, weights: str,
                  conf_thres: float = 0.25, imgsz: int = 640,
                  target_span_m: float = TARGET_SPAN_M,
-                 max_bearing_deg: float = 30.0, edge_margin_px: float = 40.0):
+                 max_bearing_deg: float = 30.0, edge_margin_px: float = 40.0,
+                 gray_input="auto"):
         import onnxruntime as ort
         self.fx, self.fy, self.cx, self.cy = fx, fy, cx, cy
         self.conf = conf_thres
@@ -81,8 +146,11 @@ class FinetunedNNSeeker:
             self.imgsz = int(shp[-1]) if isinstance(shp[-1], int) else imgsz
         except Exception:
             pass
+        # Input modality (gray-native nn_tier models vs color-trained sim models).
+        self.gray_input, gray_source = resolve_input_modality(weights, gray_input)
         print(f"[finetuned] loaded {os.path.basename(weights)} imgsz={self.imgsz} "
-              f"conf={self.conf}")
+              f"conf={self.conf} input={'gray' if self.gray_input else 'color'} "
+              f"({gray_source})")
 
         # RANGE CALIBRATION (ADR-0040 addendum): the known-size range formula
         # (range = FX * span / box_width_px) underestimates badly (meas/gt
@@ -159,7 +227,15 @@ class FinetunedNNSeeker:
         FULL frame's own coordinate space, see detect() vs. raw_boxes_crop()
         below). Split out of detect() so both callers share ONE inference
         path; detect()'s own control flow / outputs are unchanged by this
-        split (pure extraction, verified equivalent)."""
+        split (pure extraction, verified equivalent).
+
+        MODALITY: if these weights are gray-native (see resolve_input_modality)
+        the frame is converted to 3-channel grayscale FIRST, so the live input
+        matches the modality the model was trained and held-out-scored in. When
+        gray_input is False this branch is skipped entirely -- byte-identical to
+        the pre-2026-07-24 path for every color-trained sim model."""
+        if self.gray_input:
+            frame_bgr = to_gray3(frame_bgr)
         img, r, (pad_l, pad_t) = _letterbox(frame_bgr, self.imgsz)
         blob = img[:, :, ::-1].transpose(2, 0, 1)[None].astype(np.float32) / 255.0
         out = self.sess.run(None, {self.iname: np.ascontiguousarray(blob)})[0]
@@ -237,14 +313,83 @@ class FinetunedNNSeeker:
             box_xywh=(u - bw / 2, v - bh / 2, bw, bh), class_name="drone")
 
 
+def _self_test_modality() -> int:
+    """Offline check of the input-modality plumbing (NO onnxruntime, NO weights
+    file needed): resolution order + the two properties the design leans on --
+    gray3 is the IDENTITY on already-mono frames, and it really does strip chroma
+    from a color frame. Exits 0/1."""
+    import tempfile
+    ok = True
+
+    def check(name, cond, detail=""):
+        nonlocal ok
+        print(f"  [{'PASS' if cond else 'FAIL'}] {name}{(' -- ' + detail) if detail else ''}")
+        ok = ok and bool(cond)
+
+    print("[self-test] --- part 1: modality resolution order ---")
+    os.environ.pop("MARKERLESS_GRAY_INPUT", None)
+    g, src = resolve_input_modality("/w/drone_finetuned_quad_v2.onnx")
+    check("color-trained sim weights default to COLOR", g is False, src)
+    g, src = resolve_input_modality("/w/nn_tier/n-mono.onnx")
+    check("n-mono resolves to GRAY via the stem table", g is True, src)
+    g, src = resolve_input_modality("/w/nn_tier/n-color.onnx")
+    check("n-color resolves to COLOR", g is False, src)
+    g, src = resolve_input_modality("/w/nn_tier/n-mono.onnx", gray_input=False)
+    check("explicit argument overrides the table", g is False, src)
+    os.environ["MARKERLESS_GRAY_INPUT"] = "0"
+    g, src = resolve_input_modality("/w/nn_tier/n-mono.onnx")
+    check("env overrides the table", g is False, src)
+    g, src = resolve_input_modality("/w/nn_tier/n-mono.onnx", gray_input=True)
+    check("explicit argument overrides the env", g is True, src)
+    os.environ.pop("MARKERLESS_GRAY_INPUT", None)
+    with tempfile.TemporaryDirectory() as td:
+        wp = os.path.join(td, "tripod_day1.onnx")
+        with open(wp + ".modality.json", "w") as fh:
+            json.dump({"input": "gray"}, fh)
+        g, src = resolve_input_modality(wp)
+        check("a future model declares GRAY via its modality sidecar", g is True, src)
+    try:
+        resolve_input_modality("/w/x.onnx", gray_input="grey")
+        check("bad gray_input value raises", False)
+    except ValueError:
+        check("bad gray_input value raises", True)
+
+    print("[self-test] --- part 2: to_gray3 properties ---")
+    rng = np.random.default_rng(0)
+    color = rng.integers(0, 256, size=(48, 64, 3), dtype=np.uint8)
+    g3 = to_gray3(color)
+    check("gray3 keeps 3 channels + shape", g3.shape == color.shape, str(g3.shape))
+    check("gray3 channels are identical",
+          bool((g3[:, :, 0] == g3[:, :, 1]).all() and (g3[:, :, 1] == g3[:, :, 2]).all()))
+    check("gray3 actually changes a COLOR frame", bool((g3 != color).any()))
+    # The real-capture case: an OV9281 mono PNG loads as 3 identical channels.
+    mono = np.repeat(rng.integers(0, 256, size=(48, 64, 1), dtype=np.uint8), 3, axis=2)
+    check("gray3 is BIT-EXACT IDENTITY on an already-mono frame (real OV9281 no-op)",
+          bool((to_gray3(mono) == mono).all()))
+    print(f"[self-test] RESULT: {'PASS' if ok else 'FAIL'}")
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="Full-frame fine-tuned seeker (offline).")
-    ap.add_argument("--weights", required=True)
-    ap.add_argument("--frame", required=True, help="a PNG to run once")
+    ap.add_argument("--weights")
+    ap.add_argument("--frame", help="a PNG to run once")
     ap.add_argument("--conf", type=float, default=0.25)
+    ap.add_argument("--gray-input", choices=("auto", "on", "off"), default="auto",
+                    help="feed the net 3-channel GRAYSCALE. 'auto' (default) picks "
+                         "per-model: gray for the gray-native nn_tier weights, color "
+                         "for the color-trained sim weights.")
+    ap.add_argument("--self-test", action="store_true",
+                    help="offline modality-plumbing check (no weights/onnx); exits 0/1")
     a = ap.parse_args()
-    s = FinetunedNNSeeker(539.936, 539.936, 640.0, 480.0, a.weights, conf_thres=a.conf)
+    if a.self_test:
+        raise SystemExit(_self_test_modality())
+    if not a.weights or not a.frame:
+        ap.error("--weights and --frame are required (or use --self-test)")
+    gray = {"auto": "auto", "on": True, "off": False}[a.gray_input]
+    s = FinetunedNNSeeker(539.936, 539.936, 640.0, 480.0, a.weights,
+                          conf_thres=a.conf, gray_input=gray)
     d = s.detect(cv2.imread(a.frame))
     if d.range_m:
         print(f"DETECT bearing={d.bearing_rad*180/math.pi:+.1f} deg "

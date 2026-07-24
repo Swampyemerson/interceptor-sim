@@ -122,9 +122,13 @@ t_go = (R_acq − R_streak_burn) / V_closing         [tripod_score.gate_verdict]
 R_streak_burn = (frames_to_confirm / fps) × V_closing
 ```
 
-The project's money-gate table assumes **perfect back-to-back detections** (frames_to_confirm
-= 5). That is optimistic. For a per-frame recall `p`, the expected number of frames to first
-complete a run of k successes is the standard result
+**Correction (2026-07-24, from reading the code — this doc's first draft overstated it).**
+`tripod_score.gate_verdict` does **not** assume p = 1.0: it uses a **mean-rate** model,
+charging the 5 detections at the measured decode rate (`decode_Hz = p × stream_fps`, so
+`frames_to_confirm ≈ k/p`). The spec derivation in `viewpoint_and_deploy_spec.md` B4 *is* the
+p = 1.0 form (5 frames at 30 fps → 1.5 m). **Both are still optimistic**, because the handoff
+needs k **consecutive** detections, not k detections on average. For a per-frame recall `p`,
+the expected number of frames to first complete a run of k successes is the standard result
 
 ```
 E[T] = (1 − p^k) / (p^k · (1 − p))                  [DERIVED — classic Bernoulli run length]
@@ -132,15 +136,21 @@ E[T] = (1 − p^k) / (p^k · (1 − p))                  [DERIVED — classic Be
 
 **[DERIVED]** k = 5, V = 9 m/s, 30 fps (so 0.30 m of closure per frame):
 
-| per-frame recall p | E[frames] to a 5-streak | streak burn @30 fps, 9 m/s | R_acq needed for t_go ≥ 0.5 s |
-|---:|---:|---:|---:|
-| 1.00 (the gate's assumption) | 5.0 | 1.5 m | **6.0 m** |
-| 0.90 | 6.9 | 2.1 m | 6.6 m |
-| 0.80 | 10.3 | 3.1 m | 7.6 m |
-| **0.70** (measured in-view sim recall) | **16.5** | **4.95 m** | **9.5 m** |
-| 0.60 | 29.7 | 8.9 m | 13.4 m |
-| 0.50 | 62.0 | 18.6 m | 23.1 m |
-| **0.4417** (n-mono held-out recall on real public imagery) | **104.7** | **31.4 m** | **35.9 m** — unformable |
+| per-frame recall p | E[frames], run-length | streak burn @30 fps, 9 m/s | R_acq needed for t_go ≥ 0.5 s | mean-rate model (k/p) | optimism factor |
+|---:|---:|---:|---:|---:|---:|
+| 1.00 (B4's assumption) | 5.0 | 1.5 m | **6.0 m** | 5.0 | 1.00× |
+| 0.90 | 6.9 | 2.1 m | 6.6 m | 5.6 | 1.25× |
+| 0.80 | 10.3 | 3.1 m | 7.6 m | 6.2 | 1.64× |
+| **0.70** (measured in-view sim recall) | **16.5** | **4.95 m** | **9.5 m** | 7.1 | **2.31×** |
+| 0.60 | 29.7 | 8.9 m | 13.4 m | 8.3 | 3.56× |
+| 0.50 | 62.0 | 18.6 m | 23.1 m | 10.0 | 6.20× |
+| **0.4417** (n-mono held-out recall on real public imagery) | **104.7** | **31.4 m** | **35.9 m** — unformable | 11.3 | **9.25×** |
+
+The last two columns are the honest size of the correction: the gate's mean-rate model is
+**optimistic by 2.3× at p = 0.7 and 9× at p = 0.44**, always in the dangerous direction for a
+purchase gate. A TODO carrying this formula is now attached to `gate_verdict` itself; it is
+**not** applied, because changing it can flip a published PASS/FAIL on the ~$740 order and
+that must be a logged decision, not a quiet patch.
 
 *(Reproduce: `python3 scripts/seeker/streak_burn_derivation.py`; output archived at
 `logs/streak_burn_derivation_20260724.txt`. Pure arithmetic — no sim, no data.)*
@@ -493,7 +503,7 @@ Stage-2 (guiding) only when, **on held-out FLIGHTS** (never frames):
 1. **Recall vs range × position-in-frame** beats the n-mono bar in the ≤40 px @1280-eq bins,
    *and* is reported per position band (top/middle/bottom third at minimum).
 2. **Effective acquisition clears the money gate at the deployed frame rate**, computed with
-   §A.4's *measured* p (not the p = 1.0 assumption):
+   §A.4's *measured* p under the **run-length** model (not the gate's mean-rate model):
    `R_acq,effective = R_acq,first-detect − (E[frames to confirm]/fps)·V_closing`, scored at
    both V = 9 m/s (conservative) and ~20 m/s (head-on aggressive), needing **t_go ≥ 0.5 s**.
 3. **False-fire cannot steal the handoff.** The bar is **not** the per-frame rate — clutter
