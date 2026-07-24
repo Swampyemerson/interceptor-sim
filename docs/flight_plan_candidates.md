@@ -705,3 +705,27 @@ BEFORE spending more sim — the "readable null for free" the tool exists for):
 terminal error. Gate: GL-777 beats the G20-777 baseline (combined 1.32 m) → the lag is a real,
 transferable terminal lever. Non-improvement = honest null (the in-flight lag isn't the offline
 regression's 190 ms, or α-β already absorbs it).
+
+### GL — lag knob on the level arm: NULL on the primary gate.
+
+`logs/mc_fp_armGL_line9_s777.csv` (level, bias 20, `--terminal-los-lag-ms 190`) vs the
+G20-777 uncompensated baseline (1.32 m):
+
+| dir | GL (lag) median | G20-777 median | GL better / paired |
+|-----|----------------:|---------------:|:------------------:|
+| l2r | 0.78 (0.62–1.58) | 0.61 | 2/4 (lag HURTS the already-tight side) |
+| r2l | 1.80 (1.29–2.40) | 2.13 | 3/4 (lag HELPS the aspect-biased side) |
+| **combined** | **1.44** | **1.32** | **5/8** |
+
+**Verdict: NULL on the pre-registered gate** (combined 1.44 > 1.32, 5/8 < 6/8). The fixed
+190 ms shifts error from r2l (helped, 2.13→1.80) to l2r (hurt, 0.61→0.78) — too much for
+l2r, not enough for r2l — so the in-flight lag is not a clean direction-agnostic constant
+(the α-β filter already absorbs a direction-varying share). Both terminal-precision
+compensations are now nulls at the level (constant = regime-confounded, lag = this).
+
+**Honest bottom line for smallest-miss:** the terminal-bearing wall (ADR-0056) does not yield
+to a simple constant or lag correction — consistent with the prior terminal-precision nulls
+(subpixel ADR-0071). **Correct AIM is the dominant, proven lever** (0.75 m open-loop dash-only,
+now DERIVED by the accel-aware lead ADR-0080); the camera's role is defending imperfect
+real-world aim, not beating a well-aimed dash. Keep the terminal simple; spend the effort on
+aim (auto-corrected) + real-data detection (the outdoor acquisition gap), not terminal tricks.

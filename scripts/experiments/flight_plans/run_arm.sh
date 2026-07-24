@@ -90,6 +90,9 @@ case "$ARM" in
   # LEVEL + root-cause LOS-rate lag (direction-agnostic, self-signing) on the BEST arm.
   # G20-level is fast-closing where the ~190 ms lag dominates the terminal error.
   GL)      EXTRA="$BASE --dash-crossing-bias-deg 20 --terminal-los-lag-ms 190"; N=8; DIRS=both;;
+  # Accel-aware collision-lead (ADR-0080): DERIVES the aim instead of the hand-set +20.
+  # Dash-only -> tests that auto-aim reproduces G20dash's 0.75 m WITHOUT a manual bias.
+  AAL)     EXTRA="$BASE --dash-accel-aware-lead $DASHONLY"; N=8; DIRS=both;;
   G25)     EXTRA="$BASE --dash-crossing-bias-deg 25"; N=8; DIRS=both;;
   G25dash) EXTRA="$BASE --dash-crossing-bias-deg 25 $DASHONLY"; N=8; DIRS=both;;
   # ---- Track 2: pointing without the accel cap ----------------------------
