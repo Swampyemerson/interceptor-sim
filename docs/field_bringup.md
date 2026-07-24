@@ -1,0 +1,387 @@
+# Field bring-up — "the parts arrived, now what?"
+
+This is the plug-it-in-and-go runbook. One command per piece of gear, a clear
+PASS/FAIL, and the two things most likely to go wrong with each.
+
+You do not need to remember any of it. Start here:
+
+```bash
+cd ~/interceptor-sim
+scripts/field/bringup.sh
+```
+
+That runs the four laptop-side checks in order and prints one summary table.
+Run it today with nothing plugged in — it will tell you what is missing instead
+of crashing. Run it again each time a box arrives.
+
+---
+
+## 0. What the checks are
+
+| Step | Command | Question it answers |
+|---|---|---|
+| 00 | `scripts/field/00_detect_devices.sh` | What does my laptop actually see? |
+| 01 | `scripts/field/01_camera_live_check.sh` | Is the camera making good frames? |
+| 02 | `scripts/field/02_apriltag_desk_check.sh` | Does the tag decoder see the placard? |
+| 03 | `scripts/field/03_fc_bench_check.sh` | Can I talk to the flight controller? |
+| 04 | `scripts/field/04_pull_logs.sh` | Get the logs + video off after a flight |
+| all | `scripts/field/bringup.sh` | 00 → 03 in one go |
+| — | `scripts/field/selftest.sh` | Are the check scripts themselves healthy? (no hardware, exits 0/1) |
+
+Every script prints one of three verdicts:
+
+- **PASS** — checked, all good.
+- **FAIL** — the gear is there and something is wrong. Follow the `->` hints.
+- **NOT CONNECTED** — that piece is not plugged in yet. Not an error today.
+
+Exit codes, if you ever script around them: `0` pass, `1` fail, `2` bad
+arguments, `3` not connected. Add `--require` to any script (or to
+`bringup.sh`) to make "not connected" count as a failure — use that on field
+day, when everything *is* supposed to be attached.
+
+Every run writes a folder under `logs/field/` with the full text output, a
+sample frame, and a small `verdict.json`. Nothing is lost.
+
+---
+
+## 1. The gear map — what plugs where
+
+| Part | Plugs into | How the laptop reaches it |
+|---|---|---|
+| **Pixhawk 6C Mini** (interceptor brain, runs PX4) | laptop **USB‑C** | a serial port, `/dev/ttyACM0` — **needs the WSL step in §2** |
+| **Kakute H7** (target drone, runs ArduPilot) | laptop **USB‑C** | same as above |
+| **innomaker OV9281 camera** | the **Raspberry Pi 5**, by ribbon cable | **not the laptop.** The laptop talks to the Pi over Wi‑Fi |
+| **Raspberry Pi 5** (seeker rig) | its own USB‑C power | over the network: `ssh pi@interceptor-seeker.local` |
+| **microSD log cards** | a card reader in the laptop | a Windows drive under `/mnt/d`, `/mnt/e`, … |
+
+Two things worth saying once, because they cause most of the confusion:
+
+- **The camera cannot plug into your laptop.** It is a *CSI* camera — a ribbon
+  cable that only fits the Pi. It will never show up as a camera on the laptop.
+  (Source: `docs/camera_paper_check.md` item 5.)
+- **A "charge-only" USB‑C cable will do nothing.** The flight controllers need a
+  **data** cable. If nothing at all appears when you plug in, try another cable
+  before debugging anything else.
+
+---
+
+## 2. The WSL2 USB step (the #1 gotcha)
+
+You run Ubuntu inside Windows (that is what WSL is). **Windows keeps USB devices
+to itself.** Until you hand a device over, Ubuntu — and therefore every script in
+this repo — cannot see your Pixhawk at all. The tool that hands it over is
+**usbipd-win**. Official instructions:
+<https://learn.microsoft.com/en-us/windows/wsl/connect-usb>
+
+### One-time install (Windows side)
+
+Open **PowerShell as Administrator** and run:
+
+```powershell
+winget install --interactive --exact dorssel.usbipd-win
+```
+
+### Every time you plug a flight controller in
+
+1. Keep an Ubuntu/WSL terminal open (this keeps the Linux VM alive).
+2. In **PowerShell (Administrator)**, list the devices and find the one you just
+   plugged in. Copy its **BUSID** (looks like `4-4`):
+
+   ```powershell
+   usbipd list
+   ```
+
+3. Share it (first time per device, needs Administrator):
+
+   ```powershell
+   usbipd bind --busid 4-4
+   ```
+
+4. Attach it to Ubuntu (no Administrator needed):
+
+   ```powershell
+   usbipd attach --wsl --busid 4-4
+   ```
+
+5. Back in Ubuntu, confirm:
+
+   ```bash
+   scripts/field/00_detect_devices.sh
+   ```
+
+   You want a line under *Flight-controller serial ports* naming your board.
+
+6. When you are done — or when you want to use **QGroundControl on Windows** —
+   give the device back:
+
+   ```powershell
+   usbipd detach --busid 4-4
+   ```
+
+**Important:** while a device is attached to WSL, **Windows cannot use it**. So
+QGroundControl (which you run on Windows to flash firmware and calibrate
+sensors) will not find the board until you `detach`. Rule of thumb: *QGC first,
+detached; then attach for the Linux scripts.*
+
+Convenience: `usbipd attach --wsl --busid 4-4 --auto-attach` keeps re-attaching
+the device on that bus ID if you unplug and replug it. Leave that command
+running in its own PowerShell window.
+
+### If the port appears but the scripts say "no permission"
+
+Linux guards serial ports. One-time fix, then close and reopen your WSL
+terminal:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+Or, just for this session: `sudo chmod 666 /dev/ttyACM0`.
+
+---
+
+## 3. Raspberry Pi 5 + the OV9281 camera
+
+The Pi is the seeker: it holds the camera and records the frames. It is a small
+separate computer, so you set it up once and then reach it over Wi‑Fi.
+
+### 3.1 Prepare the microSD card (once)
+
+1. Install **Raspberry Pi Imager** on Windows.
+2. Choose **Raspberry Pi OS (64‑bit)**, Bookworm.
+3. Open the Imager's **advanced/settings** gear **before** writing and set:
+   **hostname `interceptor-seeker`**, a username + password, your **Wi‑Fi**, and
+   **enable SSH**. This is what lets you log in with no monitor or keyboard.
+4. Write the card, put it in the Pi, fit the **active cooler**, connect the
+   camera ribbon (see below), then power the Pi from its own 27 W USB‑C supply.
+
+**Camera ribbon:** the camera board has a **15‑pin** connector; the Pi 5 has a
+**22‑pin** one. The included **22→15 adapter cable** is required — the *narrow
+22‑pin end goes into the Pi*. Push the latch down until it clicks.
+
+### 3.2 Set the Pi up (once)
+
+From your laptop:
+
+```bash
+ssh pi@interceptor-seeker.local        # use the username you set in the Imager
+git clone <this repo> ~/interceptor-sim && cd ~/interceptor-sim
+bash scripts/pi_setup/provision.sh --dry-run          # shows the plan, changes nothing
+sudo bash scripts/pi_setup/provision.sh --hostname interceptor-seeker
+sudo reboot
+```
+
+Full detail (what it changes and why) is in `scripts/pi_setup/README.md`.
+
+### 3.3 Check the camera — one command, from the laptop
+
+```bash
+scripts/field/01_camera_live_check.sh --pi pi@interceptor-seeker.local
+```
+
+**What a PASS looks like:** `frames: 30`, `resolution: 1280x800`, and
+`exposure: applied ~<something ≤1000> us … -> OK`, then `PASS`. Open the saved
+`sample_frame.png` it points at and check the picture is sharp and well lit.
+
+Why 1280×800 and why ≤1 ms: that is the sensor's native size, and a very short
+exposure is the whole reason we bought a *global shutter* camera — it freezes a
+fast-moving target instead of smearing it. The script does not assume the
+exposure worked; it reads back what the sensor actually applied.
+
+**Top failure modes**
+
+| Symptom | Fix |
+|---|---|
+| The command fails on the Pi, or `rpicam-hello --list-cameras` shows nothing | Ribbon is in backwards or not latched, or the overlay is missing. Re-seat the cable (22‑pin end at the Pi), then re-run `provision.sh` (it adds `dtoverlay=ov9281`) and reboot. |
+| `exposure … OVER SPEC` or the picture is nearly black | Not enough light for a 1 ms exposure. Do this check in daylight or under a bright lamp, and raise `--gain` if needed. |
+
+**No Pi yet?** Just run `scripts/field/01_camera_live_check.sh`. With no camera
+anywhere it replays frames from the repo through the exact same recorder, tells
+you the pipeline is healthy, and reports NOT CONNECTED.
+
+---
+
+## 4. The AprilTag placard check
+
+An **AprilTag** is the black-and-white square marker on the target drone. It is
+not a toy: the first real intercepts fly on the *tag*, because the tag decoder
+runs fast enough on the Pi's own processor while the neural-net seeker needs the
+add-on accelerator we deliberately deferred.
+
+Print the tag first: **tag36h11, id 0, 0.35 m black-square edge**, glued to
+something rigid and flat (`docs/placard_sizing.md`).
+
+Then: capture with step 01, and score it:
+
+```bash
+scripts/field/01_camera_live_check.sh --pi pi@interceptor-seeker.local
+scripts/field/02_apriltag_desk_check.sh --expect-range 3.0     # 3.0 m tape-measured
+```
+
+**What a PASS looks like:** `decoded: 30 (100.0% of frames)`, a tag id, a
+`tag in frame: ~NNN px per edge` line, and `PASS`.
+
+About **range**: the tool prints the distance implied by the tag's pose, but it
+marks it *INDICATIVE ONLY* until you have calibrated **this** camera. Camera
+calibration means measuring the lens's real focal length from photos of a
+checkerboard — without it, every distance is wrong by an unknown factor:
+
+```bash
+# on the Pi, photograph the printed checkerboard from ~15 angles, then:
+scripts/calibrate_camera.py --images 'calib/*.png' --cols 9 --rows 6 --square 0.025 \
+    --out camera_intrinsics_real.json
+```
+
+Once `camera_intrinsics_real.json` exists in the repo root, step 02 picks it up
+automatically and starts *grading* range against your tape measure.
+
+**Top failure modes**
+
+| Symptom | Fix |
+|---|---|
+| `only 0 frame(s) decoded` | Get closer, or print a bigger tag; make sure the tag is sharp and in focus (turn the lens ring), evenly lit, not glossy, not curled. |
+| Decodes fine but the range is way off | You are using someone else's camera numbers. Run the calibration above. Also check you passed the real printed size with `--tag-size`. |
+
+This is a sanity check, not the real measurement. The proper decode-range curve
+— the one that decides whether to order the interceptor airframe — is
+`scripts/seeker/tripod_score.py`, run on a tripod session.
+
+---
+
+## 5. Flight controller on the bench (props OFF)
+
+Two boards, same procedure: the **Pixhawk 6C Mini** (interceptor, PX4) and the
+**Kakute H7** (target, ArduPilot).
+
+### 5.1 First, on Windows: flash and calibrate
+
+Do this in **QGroundControl** with the board **detached** from WSL (§2):
+
+- **Pixhawk 6C Mini:** *Vehicle Setup → Firmware →* **PX4 Flight Stack (stable)**.
+  QGC detects the board as **FMUv6C**. Then *Airframe →* **Generic Quadcopter**,
+  Apply & reboot. Put a **microSD** in it — the flight logs are our evidence.
+  Step-by-step: `configs/px4_6cmini/README.md`.
+- **Kakute H7 (target):** ArduPilot, firmware target **`KakuteH7`** — *not* the
+  v2 target. It also needs its own microSD or there is no target log.
+
+### 5.2 Then, in Ubuntu: the link check
+
+```bash
+scripts/field/03_fc_bench_check.sh
+```
+
+**Props off. This script cannot arm the vehicle** — it only reads. That is not a
+promise in a comment: at startup it inspects its own code and refuses to run if
+it contains a single call that could command the aircraft.
+
+**What a PASS looks like:**
+
+```
+[fc-link] safety audit OK: ... -- this tool CANNOT arm the vehicle
+[fc-link] connected -- heartbeat is alive
+[fc-link] armed         : False   <- this tool never changes it
+[fc-link] attitude      : roll +0.3 deg  pitch -1.1 deg  yaw +87.0 deg
+[fc-link] health readout (read-only):
+[fc-link]   OK   gyrometer calibration
+...
+[03-fc] PASS
+```
+
+Tilt the board while it runs — the attitude numbers must move sensibly. That is
+your proof the sensors are alive, not just the cable.
+
+`--  global position` will be missing indoors. That is normal: no GPS lock in
+the house.
+
+**Top failure modes**
+
+| Symptom | Fix |
+|---|---|
+| `no serial port found` | The WSL hand-over (§2) has not been done, or the cable is charge-only. |
+| `no MAVLink came back` | Something else already owns the port — usually **QGroundControl still open on Windows**. Close it (and `usbipd detach`/`attach` again). Or the board has no firmware yet: flash it in QGC first. |
+
+### 5.3 The next gate after this one
+
+This step proves the *link*. The gate that proves the **autonomy path** —
+PX4 accepting streamed guidance commands, still props-off and disarmed — is:
+
+```bash
+scripts/check_deploy_bench.sh --check-only     # no hardware: validates the plumbing
+scripts/check_deploy_bench.sh                  # the real props-off run
+```
+
+Load `configs/px4_6cmini/bench.params` in QGC first, and run it near a window —
+that check needs a GPS fix. The pure-software rehearsal of the same code against
+the simulator is `scripts/check_deploy_sitl.sh`.
+
+---
+
+## 6. After a flight — collect everything
+
+```bash
+scripts/field/04_pull_logs.sh
+```
+
+Put both microSD cards in the reader (they appear as Windows drives, so no
+usbipd needed) and have the Pi powered on. The script copies:
+
+- the interceptor's PX4 log (`.ulg`) from its card,
+- the target's ArduPilot log (`.BIN`) from its card,
+- the newest camera session from the Pi,
+
+into one folder under `logs/field/`, and — when both flight logs are present —
+runs `scripts/field_score.py`, which computes how close the two aircraft got and
+calls KILL or MISS against a lethal radius.
+
+Point it at things explicitly if the auto-scan misses:
+
+```bash
+scripts/field/04_pull_logs.sh --px4 /mnt/d --ardupilot /mnt/e \
+    --pi pi@interceptor-seeker.local --session tripod_pass01
+```
+
+The **video is still the verdict** (the project's success test is a binary kill
+you can see); the score is the number behind it.
+
+---
+
+## 7. Order of operations when the boxes land
+
+1. `scripts/field/bringup.sh` on the laptop — proves the software half. (Works
+   today, with nothing attached.)
+2. Flash the Pi card, provision it, check the camera → **step 01**.
+3. Print the tag, check the decode → **step 02**. Calibrate the camera.
+4. Flash the flight controllers in QGC, then the link check → **step 03**.
+5. Props-off OFFBOARD gate → `scripts/check_deploy_bench.sh`.
+6. Build, bench, fly (`docs/project_state.json` → `build_tab` has the full
+   step list per subsystem, including the safety gates).
+7. After every flight → **step 04**.
+
+Safety, non-negotiable: props off for every bench test; first power-up of a
+soldered board through the smoke stopper; batteries charged inside the fireproof
+bag, attended; glasses on. The build tab lists these as hard gates for a reason.
+
+---
+
+## 8. Where the numbers in this doc come from
+
+- Camera part, 1280×800, ~118° horizontal field of view, ≤1 ms exposure:
+  `docs/camera_paper_check.md`; recorder + spec constant:
+  `scripts/seeker/pi_capture.py`.
+- Placard 0.35 m, tag36h11: `docs/placard_sizing.md`.
+- Boards, cards, wiring, and the per-subsystem step lists:
+  `docs/project_state.json` (`build_tab`), `docs/hardware_order_list.md` §0c/§0d.
+- PX4 flashing, bench parameters, and the OFFBOARD gate:
+  `configs/px4_6cmini/README.md`, `scripts/check_deploy_bench.sh`.
+- Pi provisioning: `scripts/pi_setup/README.md`.
+- WSL USB pass-through commands:
+  <https://learn.microsoft.com/en-us/windows/wsl/connect-usb>
+  (verified 2026‑07‑24; `usbipd` 5.x command set: `list` / `bind` / `attach
+  --wsl` / `detach`).
+- Scoring a real flight: `scripts/field_score.py`.
+
+One thing this doc deliberately does **not** state: the exact USB
+vendor/product IDs of the two flight controllers. Nothing in the repo records
+them yet, so the scripts identify boards by their USB *name* strings instead.
+When you first plug each board in, run `lsusb` (`sudo apt install usbutils`) and
+paste the two lines here — after that the detection can be exact.
