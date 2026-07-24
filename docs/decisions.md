@@ -2038,3 +2038,36 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Addendum (2026-07-21) — the open bird cell CLOSED, both sides: PARITY, keep-mono confirmed.** Native-modality A/B on the same DVB BT bird negatives (n=293): **n-mono (gray) 3.4% (10/293)** vs **n-color (RGB) 3.07% (9/293)** — a 0.3-point / one-image difference = noise, both all low-confidence (none >0.6). Training natively on color buys ZERO bird-discrimination advantage, refuting the reorder case's strongest argument (raptor-site birds). The camera decision (KEEP MONO) is now fully evidenced end-to-end. `docs/nn_tier/mono_vs_color_bird_ab.md`.
 
 - **Addendum (2026-07-21) — the A/B went further and STRENGTHENED keep-mono.** Beyond bird parity, the agent ran the fair native held-out A/B (n-color scored on COLOR images, not gray) and found: (1) held-out AP50 n-color 0.437 ≈ n-mono 0.442 (color ties-or-loses on general detection); (2) on DESERT CLUTTER — the sagebrush/juniper/basalt plate negatives that stand in for the real Oregon site — **color is 3× WORSE: 14.6% false-fire (61/417) vs mono 4.6% (19/417), p<1e-6 (significant)**. So color is not merely a no-op for this application; it is *actively worse* on the deployment-relevant clutter. Also a data-hygiene finding: `prepare_nn_tier_dataset.py` POOLS all three DVB splits when sampling bird train-negatives, leaking 68/361 DVB-test birds into training; the scorer excludes them (clean n=293 headline) — a minor future-retrain hygiene item, does NOT affect the DUT/NPS-held-out drone numbers. Net: keep-mono is not just confirmed, it is the better sensor on the measured clutter axis. `docs/nn_tier/mono_vs_color_bird_ab.md`.
+
+## ADR-0079 — Tripod curve-(a) "money gate": adopt the run-length streak-burn model (conservative), not mean-rate
+
+- **Context.** `scripts/seeker/tripod_score.py:gate_verdict` is the curve-(a) money gate: it
+  turns a real tripod session's AprilTag decode envelope into a GO/NO-GO on the interceptor
+  order by checking that the post-handoff time-to-go clears a floor
+  (`t_go = (R_decode90 − R_streak_burn) / V_closing ≥ 0.5 s`). The handoff needs `k`=5
+  CONSECUTIVE fresh detections. The original gate sized `R_streak_burn` with a MEAN-RATE
+  model (`k / (p·fps)` frames), which charges the 5 detections at the average decode rate.
+- **Problem (Opus 5 review, 2026-07-24).** Mean-rate UNDERSTATES the burn for a *consecutive*
+  streak — the expected trials to a first run of `k` successes is the run-length result
+  `E[T] = (1 − p^k)/(p^k·(1−p))`. The error is always OPTIMISTIC, the dangerous direction for
+  a purchase gate, and grows fast as `p` falls (k=5: p=0.9 ~1.2×, p=0.7 ~2.3×, p=0.5 ~6.2×,
+  p=0.44 ~9.25×; `scripts/seeker/streak_burn_derivation.py`).
+- **Options.** (a) keep mean-rate (optimistic, can green-light a ~$740 order that shouldn't be);
+  (b) adopt the run-length model as the gating burn (conservative); (c) bracket both and gate on
+  the pessimistic bound.
+- **Decision.** (b) — gate on the **run-length** burn; still REPORT the mean-rate burn
+  (`R_streak_burn_meanrate_m`) for transparency. Rationale: it is the correct model for a
+  k-consecutive streak under the independence approximation, it always errs conservative, and in
+  this gate's intended regime (`p` at `R_decode90` is ≥0.9 by construction) it costs only ~1.2×
+  while protecting the marginal/low-p case. This was the SAFE time to change it — no gate verdict
+  has been published yet, so nothing is invalidated.
+- **Caveat carried forward.** Real decodes are temporally CORRELATED, not independent Bernoulli,
+  so BOTH analytic models are surrogates. The EMPIRICAL per-session streak-formation range
+  (protocol §8.1) is the PREFERRED input when a real tripod session provides it; this analytic
+  gate is the fallback. If a real session's measured streak range is available, use it over either
+  formula.
+- **Verification.** `tripod_score.py --self-test` PASS (exit 0): the run-length burn (2.081 m at
+  p=0.9,k=5,9 m/s) is ≥ the mean-rate burn (1.667 m); the contrived PASS/FAIL verdicts are
+  preserved; end-to-end curve (a) still PASSes at p=1.0 (E[T]=k=5 exactly). `gate.json` now carries
+  `streak_burn_model`, `E_streak_frames`, and both burns.
+- **Date.** 2026-07-24.

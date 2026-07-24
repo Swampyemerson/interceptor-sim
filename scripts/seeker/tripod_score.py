@@ -349,13 +349,30 @@ def decode_rate_near(bins, r90, bin_m):
 # --------------------------------------------------------------------------
 # The money gate (pure arithmetic -- unit-testable independent of the pipeline)
 # --------------------------------------------------------------------------
+def _streak_burn_frames(p, k):
+    """Expected #frames to the FIRST RUN of `k` consecutive successes, each with
+    probability `p` (independent-Bernoulli approximation):
+
+        E[T] = (1 - p^k) / (p^k * (1 - p))        [classic run-length result]
+
+    Guards: p>=1 -> exactly k (a certain run of k needs k trials); p<=0 -> inf
+    (the run never forms). This is the GATING model (ADR-0079) -- see gate_verdict.
+    """
+    if p >= 1.0:
+        return float(k)
+    if p <= 0.0:
+        return float("inf")
+    pk = p ** k
+    return (1.0 - pk) / (pk * (1.0 - p))
+
+
 def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
                  tgo_min, n_decoded=None, min_decoded=DEFAULT_MIN_DECODED,
                  have_truth=True):
     """Apply the curve-(a) money gate (protocol §8.1 / NEXT.md R5):
 
-        R_streak_burn = (streak_n / decode_Hz) × V_closing
-        decode_Hz     = decode_rate × stream_fps
+        R_streak_burn = (E[T] / stream_fps) × V_closing   [run-length, ADR-0079]
+        E[T]          = (1 - p^k) / (p^k * (1 - p)),  p=decode_rate, k=streak_n
         t_go          = (R_decode90 − R_streak_burn) / V_closing
 
     GO (PASS) iff t_go >= tgo_min at the conservative closing speed. Returns a
@@ -363,39 +380,28 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     string. UNCERTAIN when the data can't decide (no truth ranges, no sustained
     handoff-quality band, or below the data-presence floor).
 
-    ---------------------------------------------------------------------------
-    TODO (flagged 2026-07-24, docs/detection_tracking_methods.md §A.4 -- NOT applied
-    here because it CHANGES THIS GATE'S SEMANTICS and this gate decides the ~$740
-    interceptor order; the head/builder must adopt it deliberately):
-
-    The burn above is the MEAN-RATE model: it charges streak_n detections at the
-    average decode rate, i.e. E[frames] ~ streak_n / p. But the handoff needs
-    streak_n CONSECUTIVE fresh detections, and the expected number of Bernoulli
-    trials to a first RUN of k successes is
-
-        E[T] = (1 - p^k) / (p^k * (1 - p))          [classic run-length result]
-        R_streak_burn_corrected = (E[T] / stream_fps) * V_closing
-
-    Mean-rate UNDERSTATES the burn, and the gap grows fast as p falls (k=5):
-        p=0.9 -> 5.6 frames (mean-rate) vs  6.9 (run-length),  1.2x
-        p=0.7 -> 7.1                   vs 16.5,                2.3x
-        p=0.5 -> 10.0                  vs 62.0,                6.2x
-    So a marginal PASS at a low decode rate may be a FAIL under the correct model
-    -- the direction of the error is always OPTIMISTIC, which is the dangerous
-    direction for a purchase gate.
-
-    Adopting it is ~2 lines here plus a re-word of `arithmetic`, but it can flip a
-    published verdict, so it must be a logged decision (ADR-lite), not a quiet
-    patch. Honest caveats to carry into that decision: (a) real decodes are
-    temporally CORRELATED, not independent Bernoulli, so both models are
-    approximations and the empirical streak-formation range from a real session
-    beats both; (b) if adopted, re-score any already-published gate result.
-    Reproduce the table: scripts/seeker/streak_burn_derivation.py
-    ---------------------------------------------------------------------------
+    GATING MODEL (ADR-0079, adopted 2026-07-24 -- docs/decisions.md): the handoff
+    needs `streak_n` CONSECUTIVE fresh detections, so the burn is the run-length
+    expectation E[T], NOT the earlier MEAN-RATE burn (streak_n / decode_Hz). The
+    mean-rate model is OPTIMISTIC -- it understates the burn, always in the
+    dangerous direction for a ~$740 purchase gate -- and the gap grows fast as the
+    decode rate falls (k=5: p=0.9 ~1.2×, p=0.7 ~2.3×, p=0.5 ~6.2×). In this gate's
+    intended regime (p at R_decode90 is >=0.9 by construction) the two nearly
+    agree, so adopting run-length costs ~1.2× in-regime while protecting the
+    marginal/low-p case. The mean-rate burn is still REPORTED (R_streak_burn_meanrate_m)
+    for transparency. CAVEAT: real decodes are temporally CORRELATED, not
+    independent Bernoulli, so BOTH analytic models are surrogates -- the EMPIRICAL
+    per-session streak-formation range (protocol §8.1) is the preferred input when
+    a real session provides it; this analytic gate is the fallback.
+    Reproduce the comparison: scripts/seeker/streak_burn_derivation.py
     """
     decode_hz = decode_rate * stream_fps
-    if decode_hz > 0:
-        r_streak_burn = (streak_n / decode_hz) * v_closing
+    # Mean-rate burn: optimistic, reported for transparency only (not gating).
+    r_burn_meanrate = (streak_n / decode_hz) * v_closing if decode_hz > 0 else float("inf")
+    # Run-length burn: the GATING model (ADR-0079), conservative for the purchase gate.
+    e_frames = _streak_burn_frames(decode_rate, streak_n)
+    if stream_fps > 0 and math.isfinite(e_frames):
+        r_streak_burn = (e_frames / stream_fps) * v_closing
     else:
         r_streak_burn = float("inf")
     t_go = (r90 - r_streak_burn) / v_closing if v_closing > 0 else float("-inf")
@@ -416,18 +422,25 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
         verdict, reason = "FAIL", "t_go below the pre-registered floor"
 
     arithmetic = (
-        f"decode_Hz = {decode_rate:.3f} × {stream_fps:.1f} fps = {decode_hz:.2f} Hz\n"
-        f"R_streak_burn = ({streak_n} / {decode_hz:.2f} Hz) × {v_closing:.1f} m/s = "
-        f"{r_streak_burn:.2f} m\n"
+        f"decode_rate p = {decode_rate:.3f}  (streak k = {streak_n})\n"
+        f"E[T] run-length = (1 − p^k)/(p^k·(1−p)) = {e_frames:.2f} frames "
+        f"(mean-rate {streak_n}/p = {streak_n / decode_rate:.2f} frames)\n"
+        f"R_streak_burn = ({e_frames:.2f} / {stream_fps:.1f} fps) × {v_closing:.1f} m/s = "
+        f"{r_streak_burn:.2f} m   (mean-rate burn {r_burn_meanrate:.2f} m)\n"
         f"t_go = (R_decode90 {r90:.2f} m − R_streak_burn {r_streak_burn:.2f} m) / "
         f"{v_closing:.1f} m/s = {t_go:.3f} s\n"
         f"gate: t_go {t_go:.3f} s {'>=' if t_go >= tgo_min else '<'} {tgo_min:.2f} s -> {verdict}"
+    ) if decode_rate > 0 else (
+        f"decode_rate p = 0 -> streak never forms (R_streak_burn = inf) -> {verdict}"
     )
     return {
         "verdict": verdict, "reason": reason,
         "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
         "decode_rate": round(decode_rate, 4), "decode_Hz": round(decode_hz, 3),
+        "streak_burn_model": "run-length (ADR-0079)",
+        "E_streak_frames": round(e_frames, 3) if math.isfinite(e_frames) else None,
         "R_streak_burn_m": round(r_streak_burn, 3) if math.isfinite(r_streak_burn) else None,
+        "R_streak_burn_meanrate_m": round(r_burn_meanrate, 3) if math.isfinite(r_burn_meanrate) else None,
         "t_go_s": round(t_go, 4) if math.isfinite(t_go) else None,
         "V_closing_mps": v_closing, "tgo_min_s": tgo_min,
         "handoff_streak": streak_n, "stream_fps": stream_fps,
@@ -885,21 +898,25 @@ def self_test():
     ok = True
     print("[self-test] --- part 1: gate arithmetic (pure function) ---")
 
-    # Contrived PASS: R90=8, rate=0.9, 30 fps, streak 5, 9 m/s.
-    #   decode_Hz=27, burn=(5/27)*9=1.6667, t_go=(8-1.6667)/9=0.7037 -> PASS
+    # Contrived PASS: R90=8, p=0.9, 30 fps, streak 5, 9 m/s. RUN-LENGTH gate (ADR-0079):
+    #   E[T]=(1-0.9^5)/(0.9^5*0.1)=6.935 fr, burn=(6.935/30)*9=2.080, t_go=(8-2.080)/9=0.658 -> PASS
     g = gate_verdict(8.0, 8.0, 0.9, 30.0, 5, 9.0, 0.5, n_decoded=40)
-    exp_burn = (5 / (0.9 * 30.0)) * 9.0
+    exp_burn = (_streak_burn_frames(0.9, 5) / 30.0) * 9.0
     exp_tgo = (8.0 - exp_burn) / 9.0
     c1 = (abs(g["R_streak_burn_m"] - exp_burn) < 1e-3 and
           abs(g["t_go_s"] - exp_tgo) < 1e-3 and g["verdict"] == "PASS")
     print(f"[self-test] PASS-case: burn={g['R_streak_burn_m']} (exp {exp_burn:.4f}) "
           f"t_go={g['t_go_s']} (exp {exp_tgo:.4f}) verdict={g['verdict']} : {'OK' if c1 else 'FAIL'}")
     ok = ok and c1
+    # Run-length must be >= mean-rate (conservative direction).
+    c1b = g["R_streak_burn_m"] >= g["R_streak_burn_meanrate_m"]
+    print(f"[self-test] run-length {g['R_streak_burn_m']} >= mean-rate "
+          f"{g['R_streak_burn_meanrate_m']} : {'OK' if c1b else 'FAIL'}")
+    ok = ok and c1b
 
-    # Contrived FAIL: aggressive 20 m/s, R90=6.
-    #   decode_Hz=27, burn=(5/27)*20=3.7037, t_go=(6-3.7037)/20=0.1148 -> FAIL
+    # Contrived FAIL: aggressive 20 m/s, R90=6. burn=(6.935/30)*20=4.623, t_go=(6-4.623)/20=0.069 -> FAIL
     g2 = gate_verdict(6.0, 6.0, 0.9, 30.0, 5, 20.0, 0.5, n_decoded=40)
-    exp_tgo2 = (6.0 - (5 / 27.0) * 20.0) / 20.0
+    exp_tgo2 = (6.0 - (_streak_burn_frames(0.9, 5) / 30.0) * 20.0) / 20.0
     c2 = abs(g2["t_go_s"] - exp_tgo2) < 1e-3 and g2["verdict"] == "FAIL"
     print(f"[self-test] FAIL-case: t_go={g2['t_go_s']} (exp {exp_tgo2:.4f}) "
           f"verdict={g2['verdict']} : {'OK' if c2 else 'FAIL'}")
