@@ -2,6 +2,22 @@
 
 > **Canonical project state → [`docs/project_state.json`](docs/project_state.json)** (view: `docs/dashboard.html` · hosted: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc). That contract is the source of truth; this file is the subordinate work queue — keep them consistent (the drift check + the contradiction ledger enforce it).
 
+## 🟢 SESSION 2026-07-24 — Opus 5 landed; intercept-distance + flight-plan + launch-mech + field-prep push
+
+**Model routing UPDATED (Opus 5 released 2026-07-24, `claude-opus-5`).** Builder directive: **NO work on Opus 4.8.** Opus 5 ≈ near-Fable capability at half price, classifiers fire ~85% less than Fable's → it is now the **substantive workhorse lane + all defense-sim-flagged work**. GOTCHA (verified live this session): the Agent tool's bare `opus` alias still resolves to `claude-opus-4-8` in a session started on release day — so spawn via **`subagent_type: opus5-worker`** (`.claude/agents/opus5-worker.md`, pinned `model: claude-opus-5`, reports `claude-opus-5[1m]`). Fable head/subagents stay the planning/review/gap-spotting seat. (memory [[model-orchestration-policy]] + CLAUDE.md §Model orchestration updated; committed `8575abf`.)
+
+**Builder goals this session:** (1) drive the **intercept distance as small as possible** under the ordered-hardware constraints — deeper research + more thoughtful code now that Opus 5 exists; (2) keep iterating **flight plans / detection+tracking / the best launch mechanism**, all runnable on ordered hardware; (3) **field-prep** so plugging parts into his laptop is as close to plug-and-play as possible; (4) **artifact/dashboard stays live** as the current-flow reference (top priority).
+
+**IN FLIGHT this session:**
+- [ ] **Bdash dash-only control arm** (sim, `bgiofmap6`) — resumes the interrupted anti-mirage test. Phase A (`5670499`) left the **camera-DRIVEN** intercept UNCONFIRMED (check (c) LOS-coupling weak; ADR-0076 #18g/#18h method demands a dash-only control). Adash already flew (r2l med 0.77 m dash-only vs A r2l 2.08 m — the control is NOT obviously worse, which is exactly the mirage signal). Bdash closes the 2×2. Verdict → gazebo_results.md + contract + artifact.
+- [ ] **Field bring-up kit** (opus5-worker) — `scripts/field/` + `docs/field_bringup.md`: one-command laptop bring-up per component (device detect / camera live / AprilTag desk / props-off FC bench / log pull), wiring the DONE P0 tools (pi_capture.py, check_deploy_sitl.sh, field_score). WSL2 usbipd USB-passthrough is the likely #1 gotcha.
+- [ ] **Flight-plan + launch-mech design refresh** (opus5-worker) — `docs/flight_plan_candidates.md` (pre-registered lighter-cap θ30° / loft-only / wedge / per-direction-bias sweep with kill-criteria + anti-mirage controls) + `docs/launch_mechanism_plan.md` (B-core manual trigger + honesty-clean aim latch on the ordered stack).
+- [ ] **Contract + artifact** kept live each turn (this file's #1 housekeeping rule).
+
+**QUEUED (sim, serial after Bdash):** lighter-accel-cap sweep (recover closing speed, keep centering) → Phase B FOV-hold guidance Gazebo A/B (`flight/fov_guidance.py` pre-coded). See the flight-plan doc for arms/seeds/criteria.
+
+---
+
 ## ⬜ REMAINING SIM PREP — todo (2026-07-20; canonical = the dashboard `build_plan` P0 + constraints)
 
 **Hardware is ORDERED** (2026-07-20, Fable GO-WITH-FIXES — target-drone stack + seeker kit + interceptor brain; see `bom_tiers`). While parts ship, the remaining **sim/desk prep**, all decision-relevant to the tripod test / the build:
