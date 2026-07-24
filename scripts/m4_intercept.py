@@ -2432,11 +2432,15 @@ async def run_acquire_and_engage(
     # PRE-FLIGHT constant from --target-vel, so it's the operator's known crossing
     # direction, not a live gt read. r2l (cross<0) -> +bias, l2r (cross>0) -> -bias.
     if args.coded_dash and args.dash_crossing_bias_deg:
-        _hh = math.radians(coded_dash_heading_deg)
         _cvx, _cvy = (float(v) for v in args.target_vel.split(",")[:2])
-        _cross = math.sin(_hh) * _cvy - math.cos(_hh) * _cvx   # (E,N): dash x Vt
-        if _cross != 0.0:
-            coded_dash_heading_deg -= math.copysign(args.dash_crossing_bias_deg, _cross)
+        # crossing_sign keys on dash x Vt (E/N) EXACTLY like the old inline
+        # `sin*cvy - cos*cvx`, but with a relative dead-band so a near-HEAD-ON
+        # geometry (cross == float dust ~1e-17, sign meaningless) returns 0 and
+        # applies NO bias, instead of the old `_cross != 0.0` which applied the
+        # full +/-bias with a dust-determined sign. Byte-identical on crossings.
+        _cs = crossing_sign(coded_dash_heading_deg, (_cvx, _cvy))
+        if _cs != 0.0:
+            coded_dash_heading_deg -= math.copysign(args.dash_crossing_bias_deg, _cs)
 
     # --- TERMINAL LOS BEARING-BIAS COMPENSATION: resolve the PRE-FLIGHT constant
     # ONCE, here, from launch-known numbers only (the programmed dash aim + the
