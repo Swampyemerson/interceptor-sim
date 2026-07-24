@@ -434,7 +434,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1b70103<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->74004f1<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 2</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -1110,7 +1110,7 @@
    ],
    "status": "implemented",
    "active": "--coded-dash + --dash-crossing-bias-deg (per-direction aim bias auto-keyed on crossing direction); dash-speed 16; cue/FusedTrack/handoff-gate/coast-search stack DROPPED (real hardware has no cue).",
-   "note": "VALIDATED in sim: the architecture A/B beat the cue-guided config on r2l (ADR-0076 add #18), and the crossing-bias is a real open-loop AIM calibration — r2l dash ballistics land ~0.3-0.5 m CPA on line@9. Beware: those dash ballistics are so good they created the mirages (sub-meter CPAs with zero camera guidance). Bias magnitude is speed/aspect-specific — re-tune on real data.",
+   "note": "VALIDATED in sim: the architecture A/B beat the cue-guided config on r2l (ADR-0076 add #18), and the crossing-bias is a real open-loop AIM calibration — r2l dash ballistics land ~0.3-0.5 m CPA on line@9. Beware: those dash ballistics are so good they created the mirages (sub-meter CPAs with zero camera guidance). Bias magnitude is speed/aspect-specific — re-tune on real data. | CAP CONFOUND RESOLVED 2026-07-24 (EAL, cap at correct aim): the accel-cap costs ~0.34 m of closing speed EVEN correctly aimed (EAL 1.05 vs uncapped AAL 0.71); ARM B's 2.01 m regression = aim-mis-sizing (~1.3 m, fixed by the accel-aware lead) + the real cap cost (~0.34 m). ⇒ don't cap; auto-correct aim (ADR-0080); ~0.71 m dash-only is the open-loop line-9 floor at 9 m/s.",
    "evidence": [
     "ADR-0076 add #18/#18e/#18g/#18h",
     "docs/real_build_coded_dash.md",
@@ -1124,6 +1124,10 @@
     {
      "date": "2026-07-15",
      "note": "#18g retraction: crossing-bias survives as OPEN-LOOP AIM only — 'camera-guided sub-meter' claims retracted."
+    },
+    {
+     "date": "2026-07-24",
+     "note": "EAL resolved the cap confound: cap costs ~0.34 m at correct aim; ARM B regression was mostly aim-mis-sizing. Decomposition complete — floor ~0.71 m dash-only, don't cap."
     }
    ]
   },

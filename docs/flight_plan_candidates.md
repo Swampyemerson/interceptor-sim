@@ -756,3 +756,26 @@ run logged `crossing-bias-equivalent +21.30° … PRE-FLIGHT constants only`. Ti
 not fitted on. **ADR-0080 is fully sim-validated** (123 reproduces hand-tuned, 777 generalizes,
 +21.3° matches the confirmed +20°, honesty-clean). The dominant lever is now automated and
 carries to hardware with no per-airframe aim tuning.
+
+### EAL — accel-cap at CORRECT aim: the cap costs ~0.34 m (confound RESOLVED).
+
+`logs/mc_fp_armEAL_line9_s123.csv` (cap 3.57 + `--dash-accel-aware-lead --dash-lead-accel-ms2 4.0`,
+auto-derived +61.35°, dash-only) vs AAL-123 (uncapped, correct aim):
+
+| dir | EAL (capped, correct aim) | AAL (uncapped, correct aim) |
+|-----|--------------------------:|----------------------------:|
+| l2r | 0.84 (0.58–1.04) | 0.74 |
+| r2l | 1.30 (1.06–1.59) | 0.69 |
+| **combined** | **1.05** | **0.71** (Δ +0.34) |
+
+**The confound is RESOLVED — both earlier claims were true.** At CORRECT aim the accel-cap still
+costs **~0.34 m** vs uncapped → the cap has a GENUINE closing-speed cost (my original Bdash verdict).
+But the flown ARM B's far larger 2.01 m dash-only regression was MOSTLY the aim mis-sizing (it flew
++30° when the capped trajectory needs ~+61°; the worker's correction). Cleanly decoupled:
+**ARM B regression ≈ aim-mis-sizing (~1.3 m) + real cap cost (~0.34 m).**
+
+**⇒ Decomposition COMPLETE.** Don't use the accel-cap (real closing-speed cost + framing also hurts
+at correct aim). Get the aim right — now AUTOMATIC via the accel-aware lead (ADR-0080). The floor for
+the open-loop line-crossing dash at 9 m/s is **~0.71 m dash-only**, and the camera's value is
+defending the imperfect aim of the real world, not beating this. The remaining lever for a tighter
+REAL intercept is outdoor real-data detection (acquisition), a hardware/field task.
