@@ -615,3 +615,34 @@ ballistic floor (camera disabled); the point-mass model predicted ~0.14 m, so it
 ranked the aim but over-predicted the achievable absolute (real quad dynamics + the 0.5 m
 ALT_REF terminal). Whether the camera terminal improves on 0.75 m at correct aim is the next
 arm (**G20**, camera-live bias 20). Contract stage `launch_aim` updated.
+
+### G20 — camera-live at correct aim: the terminal does NOT beat the well-aimed dash.
+
+`logs/mc_fp_armG20_line9_s123.csv` (n=8 paired, camera LIVE, bias 20, level) vs the
+G20dash dash-only control (same aim). The camera engaged genuinely on 7/8 (clean=1).
+
+| dir | G20 camera median | G20dash dash-only median | camera tighter / paired |
+|-----|------------------:|-------------------------:|:-----------------------:|
+| l2r | 0.93 m (0.71–1.13) | 0.73 m                  | 0/4 |
+| r2l | 1.08 m (0.64–2.43) | 0.81 m                  | 2/4 |
+| **combined** | **1.02 m** | **0.75 m**             | **2/8** |
+Pk@2.5 = 8/8, Pk@1.0 = 4/8.
+
+**Reading — the key decomposition result.** With the aim CORRECT, letting the camera
+terminal take over makes the median miss WORSE (0.75 → 1.02 m), tighter on only 2/8. The
+measured terminal aspect bias (ADR-0056: λ−gtLOS +9..+17° l2r / −17..−21° r2l) steers a
+trajectory that correct pre-flight aim had already put near-optimal. So in THIS regime —
+line-crossing at 9 m/s, aim known — the well-aimed **open-loop coded dash is the strongest
+performer**, and the camera as currently built is a slight liability.
+
+**Scope / honesty (important).** This does NOT mean the camera is useless. The sim's
+open-loop dash computes its collision-lead from the target's known pre-flight kinematics —
+i.e. it assumes the aim IS right. In the real world the pre-flight aim will be WRONG (target
+motion uncertainty, wind), and the camera's job is to correct that residual (the ±30° aim-error
+acquisition envelope, ADR-0076 #18b, is where it earns its keep). So the correct reading is:
+**at correct aim the camera can't beat the dash and its aspect bias hurts; its value is
+aim-ERROR robustness + the two levers that would let it actually improve on 0.75 m are (1)
+aspect-bias COMPENSATION (`--terminal-bearing-bias-deg`, direction-keyed pre-flight constant,
+honesty-legal, UNBUILT) and (2) the aim-error-recovery test (camera vs dash at a DELIBERATELY
+wrong bias — the real-world case, not yet flown).** These two are now the highest-value next steps,
+above finishing the cap/loft characterization arms.
