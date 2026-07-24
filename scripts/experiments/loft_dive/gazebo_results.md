@@ -222,6 +222,46 @@ scripts/experiments/loft_dive/run_arm.sh Bdash --go   # lever, camera OFF
     Bdash=logs/mc_loftdive_armBdash_line9_s123.csv
 ```
 
+### CORRECTION (2026-07-24, independent Opus 5 review) — the "closing-speed cost" attribution is CONFOUNDED
+
+An independent analysis (`docs/flight_plan_candidates.md` + a validated ballistic
+CPA model, `scripts/experiments/flight_plans/dash_cpa_model.py`, MAE 0.29 m vs the
+dash-only arms) reproduced the 2×2 above and then found a confound I had under-weighted.
+**What still stands, what was over-attributed:**
+
+- **STANDS (within-arm deltas, aim error is common-mode):** baseline A l2r is
+  camera-DRIVEN (−1.18 m, 4/4); and with the lever ON, camera-ON is worse than
+  dash-only on 8/8 (B vs Bdash — both fly the same +30° bias, so the camera's
+  effect is isolated cleanly).
+- **CONFOUNDED / softened:** my headline "the lever is net-negative at 9 m/s
+  *because the accel-cap's closing-speed cost dominates*." Two problems: **(1)** the
+  aim constant is **mis-sized**. `flight.guidance.collision_lead_heading` solves a
+  *constant-speed* intercept triangle at `--dash-speed 16`, but the coded dash
+  ACCELERATES from rest (`dash_forward_speed`, guidance.py:112), so the flown +30°
+  bias is wrong for the real trajectory — the model's optimal bias is ~64° at the
+  cap's a≈3.57 and ~20° at the baseline's a≈10. Comparing B (capped, a≈3.57) to A
+  (uncapped, a≈10) therefore conflates the cap's effect with a *different aim error*
+  at each accel. **(2)** decomposing Phase A's measured +22.1° centring, the accel-cap
+  contributed the LEAST (+5.0°; wedge +10.0°, loft +7.1°) while carrying all the cost
+  (handoff speed 4.7→3.0 m/s + the aim confound). So "loft-only" (drop the cap) may
+  keep most of the framing without the toll.
+- **Why the camera hurts is now MEASURED (not inferred):** on Arm B's real-detection
+  ENGAGE ticks, `lambda_deg` − gt LOS = **+9…+17° (l2r, 4/4)** and **−17…−21° (r2l,
+  3/3)** — the ADR-0056 aspect bias, quantified. The terminal builds its velocity in
+  the LOS frame, so that angular error rotates the whole command → ~0.8–1.7 m induced
+  miss. **Consequence: Phase B (FOV-hold) is the WRONG next lever** — Arm B was already
+  centred at −3.6° and still lost; the failure is bearing BIAS, not the target leaving
+  frame. The right lever is aspect-bias compensation (`--terminal-bearing-bias-deg`,
+  code-gated), not FOV-hold.
+
+**Decomposition arms now pre-registered** (`docs/flight_plan_candidates.md`,
+`scripts/experiments/flight_plans/run_arm.sh`), fly-first order: **G20dash** (bias 20,
+dash-only, level) vs Adash isolates the aim-mis-sizing; **C/Cdash** (loft-only) isolates
+the cap; **E/Edash** (bias 64) tests the model's cap-optimal aim. Adoption needs pooled
+≥13/16 paired (6/8 is explicitly *not* significant). This CORRECTION is the anti-mirage
+method working as designed: a committed attribution, an independent check, a fix before
+it baked in.
+
 ## Reproduce
 
 ```bash
