@@ -677,3 +677,31 @@ recover aim error on BOTH aspects instead of hurting r2l — the lever that make
 reliable corrector, not just an l2r one. Build + validate on a DISJOINT seed (calibrate the bias
 on seed 123, test on 777 — no fitting to the test flights). This, not more cap/loft
 characterization, is the path to a sub-0.75 m camera-guided kill.
+
+### Aspect-bias COMPENSATION validation (seed 777, disjoint from the seed-123 calibration)
+
+The `--terminal-bearing-bias`/`--terminal-los-lag` compensation was built and calibrated on
+ARM B seed 123 (framed, LOO −79% stable, +11.0/−17.8). Validating on the disjoint seed 777:
+
+**Uncompensated framed baseline — CG-777** (bias 20 + loft + up10, camera-live):
+combined median **1.92 m** (l2r 1.68, r2l 2.35), Pk@2.5 6/8, Pk@1.0 0/8.
+
+Two findings that redirect the validation (both from `measure_aspect_bias.py --loo`, offline,
+BEFORE spending more sim — the "readable null for free" the tool exists for):
+1. **Framing HURTS at correct aim.** CG framed (1.92 m) is WORSE than G20 level (1.32 m) on the
+   same seed 777. The loft + up10 wedge degrades the terminal geometry once the aim is already
+   correct — reinforcing that correct aim is the dominant lever and the framing levers are
+   net-negative at 9 m/s.
+2. **CG's own aspect bias is NOT STABLE** (l2r spread 74° sign-flipping, r2l spread 20°,
+   LOO **+1%** — compensation makes it WORSE). The STABLE, calibratable bias existed only in
+   ARM B, whose **accel-cap** slowed the approach → many stable ENGAGE ticks. Without the cap
+   (CG), the fast approach is dominated by the **LOS-rate LAG** (finding A), which is large and
+   flight-varying → no fixed constant fits it. **⇒ CH (the direction-keyed constant on CG) is a
+   predicted NULL — SKIPPED** per the offline tool's "do not spend the arm."
+
+**Redirect:** the decisive remaining test is the **lag knob on the BEST (level) arm** —
+**GL = G20 + `--terminal-los-lag-ms 190`** — because the lag is direction-agnostic + self-signing
+(needs no stable constant) and the level arm is fast-closing where the ~190 ms lag dominates the
+terminal error. Gate: GL-777 beats the G20-777 baseline (combined 1.32 m) → the lag is a real,
+transferable terminal lever. Non-improvement = honest null (the in-flight lag isn't the offline
+regression's 190 ms, or α-β already absorbs it).

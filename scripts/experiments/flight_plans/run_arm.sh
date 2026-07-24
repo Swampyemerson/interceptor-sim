@@ -87,6 +87,9 @@ case "$ARM" in
   # ---- Track 1: accel-consistent AIM (no pointing change) -----------------
   G20)     EXTRA="$BASE --dash-crossing-bias-deg 20"; N=8; DIRS=both;;
   G20dash) EXTRA="$BASE --dash-crossing-bias-deg 20 $DASHONLY"; N=8; DIRS=both;;
+  # LEVEL + root-cause LOS-rate lag (direction-agnostic, self-signing) on the BEST arm.
+  # G20-level is fast-closing where the ~190 ms lag dominates the terminal error.
+  GL)      EXTRA="$BASE --dash-crossing-bias-deg 20 --terminal-los-lag-ms 190"; N=8; DIRS=both;;
   G25)     EXTRA="$BASE --dash-crossing-bias-deg 25"; N=8; DIRS=both;;
   G25dash) EXTRA="$BASE --dash-crossing-bias-deg 25 $DASHONLY"; N=8; DIRS=both;;
   # ---- Track 2: pointing without the accel cap ----------------------------
