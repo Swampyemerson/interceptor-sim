@@ -93,6 +93,11 @@ case "$ARM" in
   # Accel-aware collision-lead (ADR-0080): DERIVES the aim instead of the hand-set +20.
   # Dash-only -> tests that auto-aim reproduces G20dash's 0.75 m WITHOUT a manual bias.
   AAL)     EXTRA="$BASE --dash-accel-aware-lead $DASHONLY"; N=8; DIRS=both;;
+  # Accel-CAP at CORRECT aim (never flown): cap 3.57 + accel-aware lead sized to the
+  # ACHIEVED a=4.0. Decouples the cap's closing-speed cost from the aim confound
+  # (the 2026-07-24 Bdash correction). Compare to AAL (uncapped, correct aim, 0.71).
+  EAL)     EXTRA="$BASE --dash-accel-cap 3.57 --dash-accel-aware-lead --dash-lead-accel-ms2 4.0 $DASHONLY"
+           N=8; DIRS=both;;
   G25)     EXTRA="$BASE --dash-crossing-bias-deg 25"; N=8; DIRS=both;;
   G25dash) EXTRA="$BASE --dash-crossing-bias-deg 25 $DASHONLY"; N=8; DIRS=both;;
   # ---- Track 2: pointing without the accel cap ----------------------------

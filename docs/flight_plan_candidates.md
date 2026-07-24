@@ -746,3 +746,13 @@ aim reproduces — and marginally beats — the hand-tuned constant, with NO per
 validates ADR-0080's auto-correction in flight: the crossing-bias is a derived kinematic constant,
 not a knob to hand-set per airframe/speed. It removes the aim-tuning burden from the real build and
 generalizes across the sweep. Disjoint seed 777 replication in flight.
+
+### AAL-777 — accel-aware lead GENERALIZES to the disjoint seed.
+
+`logs/mc_fp_armAAL_line9_s777.csv` (`--dash-accel-aware-lead`, dash-only, seed 777 — disjoint
+from the a=10 fit's seed-123 origin): l2r 0.72, r2l 0.52, **combined 0.57 m**, Pk@2.5 8/8. The
+run logged `crossing-bias-equivalent +21.30° … PRE-FLIGHT constants only`. Tighter than seed 123
+(0.71) and the hand-tuned floor (0.75) — the physics-derived aim GENERALIZES to a seed it was
+not fitted on. **ADR-0080 is fully sim-validated** (123 reproduces hand-tuned, 777 generalizes,
++21.3° matches the confirmed +20°, honesty-clean). The dominant lever is now automated and
+carries to hardware with no per-airframe aim tuning.
