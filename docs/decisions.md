@@ -2103,3 +2103,40 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   (+68°, never flown) to finally decouple the cap's closing-speed cost from the aim confound
   (ADR-0056/the 2026-07-24 Bdash correction).
 - **Date.** 2026-07-24.
+
+## ADR-0081 — real_flight.py: the onboard flight state machine (SITL-verified skeleton)
+
+- **Context.** seeker_loop.py implemented only the terminal; there was no coded-dash executor or
+  launch/standby logic on the real airframe. docs/launch_mechanism_plan.md L1 names this the plan's
+  one real build item, fully SITL-testable with zero new hardware. Built this session (Opus 5 worker).
+- **State machine.** STANDBY -> (operator GO edge) -> CODED_DASH -> (5 consecutive fresh detections)
+  -> ENGAGE -> BREAKOFF -> SAFE (absorbing). Every transition guarded + logged; a setpoint is emitted
+  on EVERY tick in EVERY state (PX4 drops OFFBOARD on a ~0.5 s stream gap). Composes seeker_loop's
+  terminal + flight.guidance's accel-aware lead (ADR-0080) -- imports, does not duplicate.
+- **Key decisions:** (1) Trigger = ELRS aux via MAVLink RC_CHANNELS through MAVSDK mavlink_direct
+  (rc_status has no per-channel accessor in MAVSDK-Python; verified). (2) GO bit edge-triggered +
+  hysteretic + REFUSES a switch already HIGH at boot (no boot-dash). (3) FAILSAFE ASYMMETRY -- link
+  monitored in STANDBY ONLY; post-GO link loss is deliberately IGNORED. This IS the jam-resistance
+  claim (constraint no-datalink): kill the TX right after GO and the camera-only terminal must finish
+  unaided. Both halves tested. (4) A GO with a failed arm gate ABORTS to SAFE (not silently dropped).
+  (5) Dash bound = time (mirrors the sim's max-s) + optional dead-reckoned distance; timeout -> SAFE,
+  never a blind continue. (6) Aim = accel-aware lead (ADR-0080) default, --dash-heading-deg override;
+  bearing latch built but default OFF (gated on bench intrinsics + measured 1-sigma bearing). (7)
+  Latch-once ENFORCED (raises on 2nd write) + an --audit that proves from the AST exactly one
+  dash-heading set site.
+- **Honesty.** --audit (AST, not text): 0 ground-truth identifiers, 0 simulator imports, dash heading
+  latched at exactly 1 site; inputs are camera pixels (ENGAGE only), own-state EKF, pre-flight
+  constants, and ONE arm/kill bit (TriggerState cannot carry target info). Wall clock is
+  time.monotonic() only (a GPS time-sync step would corrupt the dash ramp).
+- **Verification.** Offline: 47 unit tests + a parity test that imports m4_intercept.py and asserts the
+  handoff streak agrees case-for-case; full suite 311 passed / 2 skipped. SITL (this session): the gate
+  scripts/check_real_flight_sitl.sh booted headless PX4 + gz_x500 and drove STANDBY->CODED_DASH->ENGAGE
+  ->BREAKOFF->SAFE, 327 setpoints, OFFBOARD entered, heading latched, clean land+disarm, 0 orphans --
+  PASS (logs/real_flight_sitl_20260724T233259Z.log).
+- **NOT flight-ready -- builder review needed.** All safety-critical HW constants are tagged
+  TODO-BUILDER (RC channel index/PWM endpoints/link timeout; standby alt/tol + hover endurance; real
+  dash speed/accel; terminal/breakoff ranges; PX4 geofence + kill-switch + battery failsafe, which this
+  module does NOT touch). Two honest scope gaps: update_recede_streak omits m4's streak_start_range
+  magnitude check (slow-drift past-CPA risk, port-before-flight); the own-prop phantom-streak residual
+  is inherited from the sim and is designed out in HARDWARE (nose-cantilever mount), not here.
+- **Date.** 2026-07-24.

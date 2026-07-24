@@ -1,4 +1,49 @@
-# `flight/deploy` — the real-hardware terminal seeker loop
+# `flight/deploy` — the real-hardware onboard flight code
+
+Two modules, and the split matters:
+
+| module | what it owns | status |
+|---|---|---|
+| [`seeker_loop.py`](seeker_loop.py) | the **terminal** only — camera → pro-nav → OFFBOARD setpoint. Deliberately does **not** arm, take off or land. | validated against SITL (`scripts/check_deploy_sitl.sh`) |
+| [`real_flight.py`](real_flight.py) | the **flight state machine** that delivers the aircraft to that terminal: `STANDBY → CODED_DASH → ENGAGE → BREAKOFF → SAFE`, with the ELRS GO trigger and every failsafe. | **SKELETON FOR REVIEW — NOT FLIGHT-READY** |
+
+## `real_flight.py` — the onboard flight state machine (skeleton)
+
+Implements `docs/launch_mechanism_plan.md` §5 (build item **L1**): ground takeoff
+→ standby hover at the loft altitude on the commanded aim yaw → human trigger on
+an ELRS aux channel (arm/kill class, **no target data**) → open-loop coded dash →
+camera-only terminal on the 5-detection streak → breakoff → safe.
+
+```bash
+.venv/bin/python -m flight.deploy.real_flight --audit      # AST honesty audit,  exits 0/1
+.venv/bin/python -m flight.deploy.real_flight --self-test  # pure-logic scenarios, exits 0/1
+.venv/bin/python -m flight.deploy.real_flight --dry-run    # fake vehicle + stub seeker, prints transitions
+scripts/check_real_flight_sitl.sh                          # the SITL gate (boots PX4, exits 0/1)
+```
+
+It **composes** rather than duplicates: the terminal is `seeker_loop.SeekerGuidance`,
+the dash aim is `flight.guidance.collision_lead_heading_accel` (ADR-0080), the
+speed ramp and loft dive are `dash_forward_speed` / `dash_loft_alt_ref`, and the
+handoff streak is contract-identical to the flown `m4_intercept.update_coded_dash_streak`
+(pinned by a parity test). The state machine itself is a **pure step function** —
+inject a fake vehicle, clock and RC source — so all 47 tests in
+`flight/tests/test_real_flight.py` run offline in <1 s.
+
+**Two honesty properties are machine-checked, not promised** (`--audit`, AST not
+text): no ground-truth identifier is read anywhere, and the dash heading is
+written at **exactly one call site** — the GO edge — after which a second write
+raises. That is the enforceable form of "nothing re-steers the dash after
+launch" (plan L2 / ADR-lite #5).
+
+**What is NOT ready:** every constant tagged `TODO-BUILDER` in `MissionConfig`
+(RC channel map + PWM endpoints, link timeout, altitude/yaw tolerances, dash
+speed/accel, all terminal/breakoff ranges), the geofence and kill-switch
+interlocks, and the optional trigger-instant bearing latch (default **off** until
+bench items L4/L5 land). Do not fly it.
+
+---
+
+# The terminal seeker loop (`seeker_loop.py`)
 
 This is the code the **physical interceptor's Pi 5 will run**. It is the same
 camera-only pro-nav terminal the Gazebo sim validates (`scripts/m4_intercept.py`
