@@ -646,3 +646,34 @@ aspect-bias COMPENSATION (`--terminal-bearing-bias-deg`, direction-keyed pre-fli
 honesty-legal, UNBUILT) and (2) the aim-error-recovery test (camera vs dash at a DELIBERATELY
 wrong bias — the real-world case, not yet flown).** These two are now the highest-value next steps,
 above finishing the cap/loft characterization arms.
+
+### SYNTHESIS (cross-arm, existing data — the decomposition payoff)
+
+Reading A/Adash (bias 30) and G20/G20dash (bias 20) together isolates what the camera
+terminal actually DOES. Δ = dash_only_miss − camera_miss (paired medians; Δ>0 = camera
+tightens/recovers, Δ<0 = camera hurts):
+
+| condition | l2r dash | l2r cam | l2r Δ | r2l dash | r2l cam | r2l Δ |
+|-----------|---------:|--------:|------:|---------:|--------:|------:|
+| bias 30 — l2r WRONG aim, r2l ~ok | 2.05 | 0.68 | **+1.36** | 0.77 | 2.08 | −1.32 |
+| bias 20 — l2r CORRECT aim, r2l ~ok | 0.73 | 0.93 | −0.20 | 0.81 | 1.08 | −0.27 |
+
+**The camera is an AIM-ERROR CORRECTOR, gated by the aspect bias.**
+- When the open-loop dash is MIS-aimed (l2r @ bias 30), the camera recovers it hugely
+  (2.05 → 0.68 m). This is the camera architecture's whole premise validated: real pre-flight
+  aim is never perfect (the sim's is, because it reads the target's true kinematics to size the
+  lead), and the camera pulls the residual out.
+- When the dash is ALREADY well-aimed (l2r @ bias 20), the camera's aspect bias has nothing to
+  fix and costs a little (−0.20 m).
+- On **r2l the camera HURTS at both biases** (worst 0.77 → 2.08) because the ADR-0056 aspect bias
+  there is large and opposite-signed (λ−gtLOS −17..−21° vs l2r's +9..+17°) — it steers a
+  well-aimed r2l dash off.
+
+**Consequence for "smallest intercept distance":** the two honest levers are now sharp.
+(1) **Correct the aim** (a free pre-flight constant / an accel-aware collision-lead) → gets the
+open-loop dash to ~0.75 m and is what the camera then defends. (2) **Compensate the aspect bias**
+(`--terminal-bearing-bias-deg`, direction-keyed pre-flight constant) → would let the camera
+recover aim error on BOTH aspects instead of hurting r2l — the lever that makes the camera a
+reliable corrector, not just an l2r one. Build + validate on a DISJOINT seed (calibrate the bias
+on seed 123, test on 777 — no fitting to the test flights). This, not more cap/loft
+characterization, is the path to a sub-0.75 m camera-guided kill.
