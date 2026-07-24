@@ -247,8 +247,11 @@ from m3_static_intercept import (  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flight.guidance import (  # noqa: E402
     collision_lead_heading,
+    compensate_terminal_los,
+    crossing_sign,
     dash_forward_speed,
     dash_loft_alt_ref,
+    resolve_terminal_bearing_bias_deg,
 )
 # P0.4 camera lever-arm guard (pure, no gz/gt): tie --cam-fwd-offset-m to the
 # ACTIVE airframe geometry so a moved-camera model can't fly uncompensated.
@@ -1742,6 +1745,46 @@ def parse_args():
              "a PRE-FLIGHT constant) so r2l and l2r each fly their optimum (r2l +bias, "
              "l2r -bias). Corrects the ADR-0056 aspect-biased under-commit. Default 0.0 "
              "= byte-identical. Honest: crossing direction is known at launch, no gt.")
+    # --- TERMINAL LOS bearing-bias compensation (flight.guidance.
+    #     compensate_terminal_los; docs/flight_plan_candidates.md Sec 1.4 + arm H).
+    #     ALL default off -> byte-identical. See the flight/ module for the measured
+    #     numbers, the two mechanisms, and the honesty argument. ---
+    parser.add_argument(
+        "--terminal-bearing-bias-l2r-deg", type=float, default=None,
+        help="ENGAGE terminal: SIGNED LOS-azimuth bias constant (deg) to remove when "
+             "the target crosses LEFT-TO-RIGHT. Paste the number "
+             "scripts/experiments/flight_plans/measure_aspect_bias.py prints (it is "
+             "median(lambda - gt_LOS); measured +11.0 deg on ARM B seed 123). The "
+             "terminal builds its velocity in the LOS frame, so this un-rotates the "
+             "whole command vector. HONEST: a PRE-FLIGHT calibration constant (same "
+             "class as camera intrinsics, measured OFFLINE on past logs) plus the "
+             "launch-known crossing direction -- no gt is read in flight. CALIBRATE "
+             "AND FLY ON DISJOINT SEEDS. Default None = no correction.")
+    parser.add_argument(
+        "--terminal-bearing-bias-r2l-deg", type=float, default=None,
+        help="As --terminal-bearing-bias-l2r-deg, for a RIGHT-TO-LEFT crossing "
+             "(measured -17.8 deg on ARM B seed 123). Separate flags because the "
+             "measured bias is ASYMMETRIC (+11 vs -18, factor 1.6) -- a single "
+             "magnitude cannot express it. Default None = no correction.")
+    parser.add_argument(
+        "--terminal-bearing-bias-deg", type=float, default=0.0,
+        help="ENGAGE terminal: SYMMETRIC LOS-bias MAGNITUDE (deg) whose SIGN is "
+             "auto-keyed on the crossing direction (dash x --target-vel, a PRE-FLIGHT "
+             "constant -- the identical key --dash-crossing-bias-deg uses): l2r -> "
+             "+B, r2l -> -B, matching the measured sign pattern. One knob to sweep "
+             "(flight_plan_candidates.md arm H pre-registers B=15). Overridden per "
+             "direction by --terminal-bearing-bias-{l2r,r2l}-deg. Default 0.0 = "
+             "byte-identical.")
+    parser.add_argument(
+        "--terminal-los-lag-ms", type=float, default=0.0,
+        help="ENGAGE terminal: seeker+filter transport LAG (ms) to LEAD out of the "
+             "LOS azimuth -- lambda += lag * lambda_dot_hat, using the filter's OWN "
+             "rate estimate (the pro-nav input), so it needs no direction key and "
+             "self-signs. Attacks the OTHER half of the measured LOS error: the "
+             "estimate is old, and against a 40-500 deg/s terminal LOS that alone is "
+             "tens of degrees (measured tau ~190 ms over 147 REAL ENGAGE ticks; "
+             "removing it cut median |LOS error| 15.7 -> 5.8 deg). Own-state only, "
+             "no gt. Default 0.0 = byte-identical.")
     parser.add_argument(
         "--dash-target-err-n", type=float, default=0.0,
         help="--coded-dash ROBUSTNESS sweep: offset (m, north) added to the target "
@@ -2305,6 +2348,56 @@ async def run_acquire_and_engage(
         _cross = math.sin(_hh) * _cvy - math.cos(_hh) * _cvx   # (E,N): dash x Vt
         if _cross != 0.0:
             coded_dash_heading_deg -= math.copysign(args.dash_crossing_bias_deg, _cross)
+
+    # --- TERMINAL LOS BEARING-BIAS COMPENSATION: resolve the PRE-FLIGHT constant
+    # ONCE, here, from launch-known numbers only (the programmed dash aim + the
+    # operator's known target track) -- nothing in the tick loop reads anything new.
+    # The camera terminal builds its velocity command in the LOS frame, so a
+    # constant LOS-azimuth error rotates the whole command vector; the flown arms
+    # measure exactly such an offset, sign-flipped by crossing direction (ARM B
+    # seed 123: l2r +11.0 deg, r2l -17.8 deg -- docs/flight_plan_candidates.md
+    # Sec 1.4). The magnitude is a CALIBRATION constant measured OFFLINE by
+    # scripts/experiments/flight_plans/measure_aspect_bias.py (gt used there, and
+    # ONLY there, exactly as a human labeller or a checkerboard intrinsics fit is
+    # used); the direction key is the operator's launch geometry. No gt_* is read
+    # in flight -- see flight/guidance.py for the full honesty argument, which
+    # this path re-earns via scripts/audit_per_tick.py like every guidance path.
+    # ALL of these default off -> terminal_bias_deg 0.0 and terminal_los_lag_s 0.0
+    # -> compensate_terminal_los returns its input object -> byte-identical.
+    terminal_bias_deg = 0.0
+    terminal_los_lag_s = (args.terminal_los_lag_ms or 0.0) / 1000.0
+    terminal_comp_logged = False
+    if (args.terminal_bearing_bias_deg
+            or args.terminal_bearing_bias_l2r_deg is not None
+            or args.terminal_bearing_bias_r2l_deg is not None):
+        # Reference heading for the crossing key: the coded dash's programmed aim
+        # when there is one, else the pre-flight bearing to the target's start
+        # position (both launch-time constants).
+        if coded_dash_heading_deg is not None:
+            _ref_heading_deg = coded_dash_heading_deg
+        else:
+            _rx, _ry = (float(v) for v in args.target_start.split(",")[:2])
+            _ref_heading_deg = math.degrees(math.atan2(_rx, _ry))
+        _tv = tuple(float(v) for v in args.target_vel.split(",")[:2])
+        _csign = crossing_sign(_ref_heading_deg, _tv)
+        terminal_bias_deg = resolve_terminal_bearing_bias_deg(
+            _csign, args.terminal_bearing_bias_deg,
+            args.terminal_bearing_bias_l2r_deg, args.terminal_bearing_bias_r2l_deg)
+        _dirname = {1: "l2r", -1: "r2l", 0: "head-on/none"}[_csign]
+        print(f"[m4] Terminal LOS bias compensation: crossing={_dirname} "
+              f"(ref heading {_ref_heading_deg:.1f} deg, target_vel {_tv}) -> "
+              f"subtracting {terminal_bias_deg:+.2f} deg from the camera LOS "
+              f"azimuth in ENGAGE (PRE-FLIGHT calibration constant, no gt)",
+              flush=True)
+        if _csign == 0:
+            print("[m4] WARNING: crossing direction is degenerate (dash x Vt == 0) "
+                  "-- terminal bearing-bias compensation is INERT this run",
+                  flush=True)
+    if terminal_los_lag_s:
+        print(f"[m4] Terminal LOS lag compensation: leading lambda by "
+              f"{args.terminal_los_lag_ms:.0f} ms x lambda_dot_hat (own-state "
+              f"filter rate, no gt)", flush=True)
+
     coded_dash_start_mono = None
     coded_dash_start_sim = None   # sim-clock t at dash entry -- drives the Phase-A
     #  pointing levers (accel-cap ramp + loft dive) so RTF sag can't distort them
@@ -3408,6 +3501,38 @@ async def run_acquire_and_engage(
                 if not in_terminal_coast:
                     v_close = compute_v_close(r_hat, args.fpv)  # two-speed under --fpv
 
+                    # TERMINAL LOS BIAS COMPENSATION (flight.guidance, default
+                    # OFF). Applied HERE -- to the COMMAND's LOS basis, not to
+                    # lambda_meas upstream -- for two deliberate reasons:
+                    #  (a) NO FILTER TRANSIENT. Correcting the measurement would
+                    #      step lambda by ~15 deg the instant ENGAGE latches; the
+                    #      alpha-beta filter would read that step as a huge
+                    #      lambda_dot and pro-nav (a = N*Vc*lambda_dot) would
+                    #      saturate v_perp on the first terminal tick.
+                    #  (b) lambda_dot IS ALREADY UNBIASED. A constant offset has
+                    #      zero derivative, so the pro-nav RATE input is correct
+                    #      as-is; the only thing the bias corrupts is the
+                    #      ORIENTATION of the (u, p) frame the command is built
+                    #      in -- which is exactly what this corrects.
+                    # The CSV keeps logging the RAW lambda_hat, so a compensated
+                    # flight can still be re-calibrated honestly (measure_aspect_
+                    # bias.py --applied-l2r/--applied-r2l reads the residual).
+                    # terminal_bias_deg / terminal_los_lag_s are PRE-FLIGHT
+                    # constants resolved once before the loop -- no gt_*, no new
+                    # sensor read. Both zero (the default) -> lambda_cmd IS
+                    # lambda_hat (same object) -> byte-identical.
+                    lambda_cmd = compensate_terminal_los(
+                        lambda_hat, terminal_bias_deg,
+                        lambda_dot_hat, terminal_los_lag_s)
+                    if (lambda_cmd is not lambda_hat) and not terminal_comp_logged:
+                        terminal_comp_logged = True
+                        print(
+                            f"[m4] Terminal LOS compensation ACTIVE (first ENGAGE "
+                            f"command tick): lambda_hat={math.degrees(lambda_hat):+.2f}"
+                            f" -> lambda_cmd={math.degrees(lambda_cmd):+.2f} deg "
+                            f"(bias {terminal_bias_deg:+.2f} deg, lag "
+                            f"{terminal_los_lag_s * 1000.0:.0f} ms)", flush=True)
+
                     if args.law == "pip":
                         # Predicted Intercept Point (ADR-0011): aim the whole
                         # closing velocity at the LEAD point where we and the
@@ -3432,12 +3557,12 @@ async def run_acquire_and_engage(
                                 vh0, vh1 = last_cmd[0], last_cmd[1]
                         else:
                             # Tracker not ready -> aim up the LOS at v_close.
-                            vh0 = v_close * math.cos(lambda_hat)
-                            vh1 = v_close * math.sin(lambda_hat)
+                            vh0 = v_close * math.cos(lambda_cmd)
+                            vh1 = v_close * math.sin(lambda_cmd)
                         v_perp = 0.0  # not used by PIP; kept for the CSV column
                     else:
-                        u = (math.cos(lambda_hat), math.sin(lambda_hat))
-                        p = (-math.sin(lambda_hat), math.cos(lambda_hat))
+                        u = (math.cos(lambda_cmd), math.sin(lambda_cmd))
+                        p = (-math.sin(lambda_cmd), math.cos(lambda_cmd))
                         if args.law == "pronav":
                             if not split_frozen:
                                 v_perp = _clamp(v_perp + a_cmd * dt, -V_PERP_MAX, V_PERP_MAX)

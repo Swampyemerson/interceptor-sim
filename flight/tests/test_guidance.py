@@ -9,9 +9,12 @@ import math
 from flight.guidance import (
     collision_lead_heading,
     closing_speed,
+    compensate_terminal_los,
+    crossing_sign,
     pronav_lateral_accel,
     dash_forward_speed,
     dash_loft_alt_ref,
+    resolve_terminal_bearing_bias_deg,
     GRAVITY_MS2,
 )
 
@@ -123,13 +126,152 @@ def test_dash_loft_alt_ref_dives_from_loft_to_base():
     assert a > b > base
 
 
+# --- TERMINAL LOS bearing-bias compensation (docs/flight_plan_candidates.md
+#     Sec 1.4 + arm H). ------------------------------------------------------
+
+def test_crossing_sign_matches_the_flown_dash_bias_key():
+    """crossing_sign must return the SIGN of the quantity scripts/m4_intercept.py
+    computes inline for --dash-crossing-bias-deg (`sin(h)*vy - cos(h)*vx`), on the
+    canonical line-9 geometries -- so the terminal bias and the dash bias key off
+    ONE convention. (m4's flown inline block is deliberately not refactored; this
+    test is what pins the two together.)"""
+    for (tx, ty), (vx, vy) in (((6.5, -16.686), (0.0, 9.0)),      # canonical l2r
+                               ((6.5, 16.150), (0.0, -9.0)),      # canonical r2l
+                               ((6.5, -15.343), (0.0, 12.0)),     # flight-0 l2r
+                               ((-6.5, -15.343), (0.0, 12.0))):   # mirrored
+        h, _ = collision_lead_heading((tx, ty), (vx, vy), 16.0)
+        inline = math.sin(math.radians(h)) * vy - math.cos(math.radians(h)) * vx
+        expect = 1 if inline > 0 else (-1 if inline < 0 else 0)
+        assert crossing_sign(h, (vx, vy)) == expect, (h, vx, vy, inline)
+    # And the canonical directions map the way the mc_batch labels do:
+    # l2r = target_vy > 0 -> +1, r2l = target_vy < 0 -> -1.
+    hl, _ = collision_lead_heading((6.5, -16.686), (0.0, 9.0), 16.0)
+    hr, _ = collision_lead_heading((6.5, 16.150), (0.0, -9.0), 16.0)
+    assert crossing_sign(hl, (0.0, 9.0)) == 1
+    assert crossing_sign(hr, (0.0, -9.0)) == -1
+
+
+def test_crossing_sign_degenerate_is_zero():
+    """A target flying straight down the dash line (or standing still) has no
+    crossing sense -> 0, so the caller applies NO correction instead of a
+    coin-flip sign."""
+    assert crossing_sign(0.0, (0.0, 0.0)) == 0
+    assert crossing_sign(0.0, (0.0, 5.0)) == 0        # receding along the aim
+    assert crossing_sign(90.0, (5.0, 0.0)) == 0       # aim east, target east
+
+
+def test_resolve_bias_symmetric_sign_keying():
+    """One MAGNITUDE, sign auto-keyed: l2r -> +B, r2l -> -B (the measured sign
+    pattern), degenerate -> 0."""
+    assert resolve_terminal_bearing_bias_deg(1, 15.0) == 15.0
+    assert resolve_terminal_bearing_bias_deg(-1, 15.0) == -15.0
+    assert resolve_terminal_bearing_bias_deg(0, 15.0) == 0.0
+
+
+def test_resolve_bias_per_direction_overrides_and_asymmetry():
+    """Signed per-direction constants win where given, and can express the
+    measured ASYMMETRY (+11.0 l2r vs -17.8 r2l on ARM B seed 123) that a single
+    magnitude cannot."""
+    assert resolve_terminal_bearing_bias_deg(1, 0.0, 11.0, -17.8) == 11.0
+    assert resolve_terminal_bearing_bias_deg(-1, 0.0, 11.0, -17.8) == -17.8
+    # a per-direction value given for ONE direction only: the other falls back
+    # to the symmetric magnitude
+    assert resolve_terminal_bearing_bias_deg(1, 15.0, 11.0, None) == 11.0
+    assert resolve_terminal_bearing_bias_deg(-1, 15.0, 11.0, None) == -15.0
+    # an explicit 0.0 is a real value, not "unset" -- it must NOT fall back
+    assert resolve_terminal_bearing_bias_deg(1, 15.0, 0.0, None) == 0.0
+
+
+def test_compensate_default_is_exact_identity():
+    """Both knobs off -> the SAME object back: no wrap, no float round-trip, so
+    an unflagged run is byte-identical (the standing requirement)."""
+    for lam in (0.0, 0.3, -2.9, math.pi, 1e-9):
+        assert compensate_terminal_los(lam) is lam
+        assert compensate_terminal_los(lam, 0.0, 1.234, 0.0) is lam
+        assert compensate_terminal_los(lam, 0.0, None, 0.0) is lam
+    assert compensate_terminal_los(None, 11.0, 1.0, 0.2) is None
+
+
+def test_compensate_known_angle_and_sign():
+    """A known case: lambda_hat = 100 deg with a +11 deg measured bias must be
+    commanded as 89 deg (the bias is SUBTRACTED, because it was measured as
+    estimate-minus-truth); a -17.8 deg bias must ADD."""
+    lam = math.radians(100.0)
+    assert abs(math.degrees(compensate_terminal_los(lam, 11.0)) - 89.0) < 1e-9
+    assert abs(math.degrees(compensate_terminal_los(lam, -17.8)) - 117.8) < 1e-9
+    # end-to-end through the resolver, both crossing directions:
+    for csign, want in ((1, 100.0 - 11.0), (-1, 100.0 + 17.8)):
+        b = resolve_terminal_bearing_bias_deg(csign, 0.0, 11.0, -17.8)
+        assert abs(math.degrees(compensate_terminal_los(lam, b)) - want) < 1e-9
+
+
+def test_compensate_wraps_across_pi():
+    """Near +-180 deg the correction must WRAP, not run off the branch cut --
+    the canonical l2r terminal sits at lambda ~ +150..+175 deg."""
+    lam = math.radians(175.0)
+    out = math.degrees(compensate_terminal_los(lam, -17.8))   # 175 + 17.8 = 192.8
+    assert -180.0 < out <= 180.0, out
+    assert abs(out - (-167.2)) < 1e-9, out
+
+
+def test_compensate_lag_lead_self_signs():
+    """The lag term LEADS the estimate by lag_s * lambda_dot and needs no
+    direction key: an l2r terminal (lambda_dot < 0) is pushed negative, an r2l
+    one (lambda_dot > 0) positive -- automatically the opposite signs the raw
+    bias shows. 190 ms x -75 deg/s ~ -14.3 deg (the measured l2r case)."""
+    lam = math.radians(100.0)
+    l2r = math.degrees(compensate_terminal_los(lam, 0.0, math.radians(-75.0), 0.190))
+    r2l = math.degrees(compensate_terminal_los(lam, 0.0, math.radians(+42.0), 0.190))
+    assert abs(l2r - (100.0 - 0.190 * 75.0)) < 1e-9, l2r
+    assert abs(r2l - (100.0 + 0.190 * 42.0)) < 1e-9, r2l
+    # a missing rate estimate must be inert, not a crash
+    assert compensate_terminal_los(lam, 0.0, None, 0.190) is lam
+
+
+def test_compensate_bias_and_lag_compose():
+    """Both knobs together: lambda - bias + lag*lambda_dot, one wrap."""
+    lam = math.radians(100.0)
+    got = math.degrees(compensate_terminal_los(lam, 11.0, math.radians(-75.0), 0.190))
+    assert abs(got - (100.0 - 11.0 - 0.190 * 75.0)) < 1e-9, got
+
+
+def test_compensate_rotates_the_command_frame_by_the_bias():
+    """The POINT of the correction: the terminal builds v = v_close*u + v_perp*p
+    from (cos lambda, sin lambda), so removing a +11 deg LOS bias rotates the
+    commanded velocity vector by exactly 11 deg -- and at 4 m/s over 1 s that is
+    the ~0.8 m of induced miss the flown arms measured."""
+    lam = math.radians(100.0)
+    v_close, v_perp, dt = 4.0, 1.0, 1.0
+    def cmd(l):
+        u = (math.cos(l), math.sin(l))
+        p = (-math.sin(l), math.cos(l))
+        return (v_close * u[0] + v_perp * p[0], v_close * u[1] + v_perp * p[1])
+    a = cmd(lam)
+    b = cmd(compensate_terminal_los(lam, 11.0))
+    ang = math.degrees(math.atan2(a[0] * b[1] - a[1] * b[0], a[0] * b[0] + a[1] * b[1]))
+    assert abs(ang - (-11.0)) < 1e-9, ang                       # rotated by -11 deg
+    assert abs(math.hypot(*a) - math.hypot(*b)) < 1e-12         # speed preserved
+    disp = math.hypot(a[0] - b[0], a[1] - b[1]) * dt
+    assert 0.7 < disp < 0.9, disp                               # ~0.79 m at 4.12 m/s
+
+
 ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_north,
        test_uncatchable_falls_back_to_initial, test_lr_rl_mirror_symmetry,
        test_explicit_origin_offset, test_closing_speed_floor_and_measured,
        test_pronav_law, test_dash_forward_speed_default_byte_identical,
        test_dash_forward_speed_ramps_and_clamps,
        test_dash_loft_alt_ref_default_byte_identical,
-       test_dash_loft_alt_ref_dives_from_loft_to_base]
+       test_dash_loft_alt_ref_dives_from_loft_to_base,
+       test_crossing_sign_matches_the_flown_dash_bias_key,
+       test_crossing_sign_degenerate_is_zero,
+       test_resolve_bias_symmetric_sign_keying,
+       test_resolve_bias_per_direction_overrides_and_asymmetry,
+       test_compensate_default_is_exact_identity,
+       test_compensate_known_angle_and_sign,
+       test_compensate_wraps_across_pi,
+       test_compensate_lag_lead_self_signs,
+       test_compensate_bias_and_lag_compose,
+       test_compensate_rotates_the_command_frame_by_the_bias]
 
 if __name__ == "__main__":
     import sys
