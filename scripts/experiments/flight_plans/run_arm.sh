@@ -104,6 +104,13 @@ case "$ARM" in
            N=8; DIRS=both; WEDGE=10;;
   CGdash)  EXTRA="$BASE --dash-crossing-bias-deg 20 $LOFT --cam-mount-up-deg 10 $DASHONLY"
            N=8; DIRS=both; WEDGE=10;;
+  # Aspect-bias compensation on the FRAMED regime (CG + comp). Constants +11.0/-17.8
+  # calibrated on ARM B seed 123 (LOO -79% stable); validate on DISJOINT seed 777.
+  CH)      EXTRA="$BASE --dash-crossing-bias-deg 20 $LOFT --cam-mount-up-deg 10 --terminal-bearing-bias-l2r-deg 11.0 --terminal-bearing-bias-r2l-deg -17.8"
+           N=8; DIRS=both; WEDGE=10;;
+  # Root-cause LOS-rate lag variant (direction-agnostic, self-signing, ~190 ms).
+  CHL)     EXTRA="$BASE --dash-crossing-bias-deg 20 $LOFT --cam-mount-up-deg 10 --terminal-los-lag-ms 190"
+           N=8; DIRS=both; WEDGE=10;;
   # ---- Track 3: re-aimed accel cap ----------------------------------------
   E)       EXTRA="$BASE --dash-crossing-bias-deg 64 --dash-accel-cap 3.57 $LOFT --cam-mount-up-deg 10"
            N=8; DIRS=both; WEDGE=10;;
