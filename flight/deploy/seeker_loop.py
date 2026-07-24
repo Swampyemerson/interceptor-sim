@@ -682,8 +682,29 @@ async def run_mavsdk(args, cam, detector, guidance, source,
     from mavsdk.telemetry import LandedState
 
     drone = System()
+
+    def _kill_server():
+        # MAVSDK-Python spawns a `mavsdk_server` child per System(); if we bail out
+        # on a timeout it would otherwise linger. Kill it so a failed connect never
+        # leaks a server (mirrors scripts/field/fc_link_check.py, measured 2026-07-24).
+        proc = getattr(drone, "_server_process", None)
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+
     print(f"[mavsdk] connecting {args.mavsdk_url} ...")
-    await drone.connect(system_address=args.mavsdk_url)
+    # THE TRAP (measured 2026-07-24): mavsdk_server does not open its gRPC port until
+    # it discovers a vehicle, and connect() awaits channel_ready() -- so on a DEAD
+    # link connect() ITSELF blocks forever, before the connection_state() timeout
+    # below can ever fire. The timeout must wrap connect(), not just _wait_connected.
+    try:
+        await asyncio.wait_for(
+            drone.connect(system_address=args.mavsdk_url),
+            timeout=_CONNECT_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        print(f"[mavsdk] FAIL: connect() did not return within {_CONNECT_TIMEOUT_S}s "
+              f"(no mavsdk_server/vehicle on {args.mavsdk_url})")
+        _kill_server()
+        return 1
 
     async def _wait_connected():
         async for st in drone.core.connection_state():
@@ -694,6 +715,7 @@ async def run_mavsdk(args, cam, detector, guidance, source,
         await asyncio.wait_for(_wait_connected(), timeout=_CONNECT_TIMEOUT_S)
     except asyncio.TimeoutError:
         print(f"[mavsdk] FAIL: no connection within {_CONNECT_TIMEOUT_S}s")
+        _kill_server()
         return 1
     print("[mavsdk] connected")
 
