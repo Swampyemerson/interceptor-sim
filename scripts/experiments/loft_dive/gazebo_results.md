@@ -166,6 +166,62 @@ CONFIRMED; camera-DRIVEN intercept UNCONFIRMED — treat with mirage caution unt
 dash-only control settles it.** This does not change the two headline results
 (recall lift + miss regression); it scopes the "camera-tracked" wording honestly.
 
+## Anti-mirage VERDICT (2026-07-24, head) — the dash-only controls settle it
+
+The two dash-only control arms the addendum above asked for are now flown:
+**Adash** (baseline + camera terminal disabled) and **Bdash** (lever + camera
+disabled), both via `--coded-dash-acquire-range-min 999` so the acquire streak
+never closes -> ENGAGE never fires -> the recorded `miss_m` is the pure
+open-loop coded-dash CPA (these flights exit `clean=0` / `python_exit_1`; the
+CPA is still valid). Paired by `run_idx` (seed-matched geometry) against the
+camera-ON arms via `antimirage_verdict.py`. delta = miss(cam ON) − miss(dash-only):
+
+| arm | dir | cam-ON med | dash-only med | paired Δmed | tighter/worse/same | verdict |
+|-----|-----|-----------:|--------------:|------------:|:------------------:|---------|
+| **A** baseline | l2r | 0.68 | 2.05 | **−1.18** | 4/0/0 | **CAMERA-DRIVEN** (not a mirage) |
+| **A** baseline | r2l | 2.08 | 0.77 | +1.31 | 1/2/1 | MIXED (camera worse on 2/4 — aspect bias) |
+| **B** lever | l2r | 2.53 | 1.76 | **+0.86** | 0/4/0 | **CAMERA STEERS WRONG** |
+| **B** lever | r2l | 3.92 | 2.38 | **+1.54** | 0/4/0 | **CAMERA STEERS WRONG** |
+
+**The two things this settles:**
+
+1. **The camera terminal is REAL, not a mirage — but only when the dash delivers
+   a fast approach.** On the flat baseline (Arm A) l2r, the camera terminal
+   tightens the miss on 4/4 paired flights (median −1.18 m vs open-loop dash).
+   That is a genuine camera-DRIVEN intercept — it REFUTES the pure-mirage worry
+   for the baseline l2r and is a stronger result than the weak check-(c)
+   correlation could show.
+
+2. **The loft-dive + accel-cap LEVER breaks the camera terminal.** With the lever
+   on (Arm B), the camera-ON miss is WORSE than dash-only on **8/8 paired flights**
+   (l2r +0.86, r2l +1.54). So the Phase A "sub-1 m camera-tracked intercepts"
+   wording for Arm B is **REFUTED**: the lever's dash ballistics alone (Bdash
+   1.76/2.38 m) beat the lever's camera intercept (B 2.53/3.92 m) everywhere.
+   The accel-cap slows the close so much that once the (now well-framed) target
+   is engaged, the terminal converges to a WORSE CPA than just letting the dash
+   fly through. The framing win (recall 3%→35%) is real; it does **not** convert
+   to a terminal win at 9 m/s because the closing-speed toll dominates.
+
+**Corrected headline for Phase A:** pointing/framing CONFIRMED (Arm A l2r proves
+the camera terminal genuinely drives the intercept when closing speed is high);
+the loft-dive+accel-cap lever is **NET-NEGATIVE at 9 m/s** — it centers the
+target but its closing-speed cost makes the camera terminal worse than the dash
+alone. r2l additionally carries the ADR-0056 aspect bias (camera hurts even at
+baseline). **This directly motivates the next experiment: a LIGHTER accel-cap
+(θ≈30°) / loft-only** that keeps some centering while recovering the closing
+speed the terminal needs — see `docs/flight_plan_candidates.md`.
+
+Reproduce the verdict:
+```bash
+scripts/experiments/loft_dive/run_arm.sh Adash --go   # baseline, camera OFF
+scripts/experiments/loft_dive/run_arm.sh Bdash --go   # lever, camera OFF
+.venv/bin/python scripts/experiments/loft_dive/antimirage_verdict.py \
+    A=logs/mc_loftdive_armA_line9_s123.csv \
+    Adash=logs/mc_loftdive_armAdash_line9_s123.csv \
+    B=logs/mc_loftdive_armB_line9_s123.csv \
+    Bdash=logs/mc_loftdive_armBdash_line9_s123.csv
+```
+
 ## Reproduce
 
 ```bash
