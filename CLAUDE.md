@@ -95,8 +95,14 @@ don't spawn a subagent where doing the thing inline is cheaper.
 3. **SONNET subagents for genuinely low-reasoning VOLUME** — installs, boilerplate, sim
    batches, log/CSV greps, wide read-only searches, mechanical spec'd edits. `.claude/agents/`
    (sonnet-worker, verifier, council-member) are Sonnet-pinned; a `model:` override bumps up.
-4. **OPUS subagents ONLY for what Fable can't do because the safeguard blocks it** — the
-   flagged defense-framed guidance / jam / honesty builds and their reviews.
+4. **OPUS 5 subagents (`opus5-worker`) = the substantive WORKHORSE lane + everything the
+   safeguard blocks** — released 2026-07-24 (`claude-opus-5`, near-Fable capability, half
+   Fable's price, classifiers intervene ~85% less): substantial builds/analyses AND the
+   flagged defense-framed guidance / targeting / honesty work and their reviews. **Builder
+   directive 2026-07-24: NO work on Opus 4.8.** GOTCHA: in sessions started on/before
+   release day the Agent tool's bare `opus` alias still resolves to 4.8 — always spawn via
+   `subagent_type: opus5-worker` (pinned `model: claude-opus-5`, verified live), and in a
+   fresh session re-verify what `opus` resolves to before trusting the alias.
 
 Balance: parallelize for SPEED when there is genuinely independent work in flight (keep the
 sim busy while sim-free work proceeds), but let each spawn EARN its tokens — a targeted Fable

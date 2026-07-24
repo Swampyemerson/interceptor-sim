@@ -8,8 +8,17 @@
 #   A       n=8 both ARM A BASELINE (flat dash control)
 #   B       n=8 both ARM B LEVER (accel-cap 3.57 + loft 2 m + dive 2.5 s +
 #                                 vvert 3.0 + 10 deg wedge)
+#   Adash   n=8 both ARM A + CAMERA TERMINAL DISABLED (anti-mirage dash-only
+#   Bdash   n=8 both ARM B + control, ADR-0076 add #18h mechanism:
+#                 --coded-dash-acquire-range-min gates the acquire streak shut
+#                 so handoff NEVER fires -> pure coded-dash ballistics through
+#                 CPA. #18h used min=10 (that geometry's detections all implied
+#                 <10 m); HERE min=999 because ARM B by design gets real 8-18 m
+#                 implied-range detections that min=10 would NOT block. Same
+#                 flag, same code path (update_coded_dash_streak), threshold
+#                 chosen to guarantee the documented no-handoff behavior.)
 #
-# Usage: scripts/experiments/loft_dive/run_arm.sh {smokeB|A|B} [--dry-run|--go]
+# Usage: scripts/experiments/loft_dive/run_arm.sh {smokeB|A|B|Adash|Bdash} [--dry-run|--go]
 #        (default --dry-run: mc_batch plan print, boots nothing)
 #
 # DEVIATIONS from the recipe text (disclosed):
@@ -53,6 +62,9 @@ export INTERCEPTOR_WEAVE_MIRROR=1
 
 BASE_EXTRA="--coded-dash --fpv --dash-unclamp --dash-speed 16 --dash-crossing-bias-deg 30"
 LEVER_EXTRA="--dash-accel-cap 3.57 --dash-loft-m 2 --dash-loft-dive-s 2.5 --dash-vvert-max 3.0 --cam-mount-up-deg 10"
+# Anti-mirage dash-only control (ADR-0076 add #18h): acquire gate shut ->
+# handoff never fires -> ENGAGE never runs -> pure dash ballistics through CPA.
+DASHONLY_EXTRA="--coded-dash-acquire-range-min 999"
 
 SHADOW="$REPO/models/mono_cam"
 UP10="$REPO/scripts/experiments/uptilt_mounts/up10/mono_cam"
@@ -65,7 +77,11 @@ case "$ARM" in
             OUT="logs/mc_loftdive_armA_line9_s123.csv";;
     B)      EXTRA="$BASE_EXTRA $LEVER_EXTRA"; N=8; DIRS=both
             OUT="logs/mc_loftdive_armB_line9_s123.csv"; NEED_SHADOW=1;;
-    *) echo "[loft-arm] FAIL: unknown arm '$ARM' (smokeB|A|B)" >&2; exit 2;;
+    Adash)  EXTRA="$BASE_EXTRA $DASHONLY_EXTRA"; N=8; DIRS=both
+            OUT="logs/mc_loftdive_armAdash_line9_s123.csv";;
+    Bdash)  EXTRA="$BASE_EXTRA $LEVER_EXTRA $DASHONLY_EXTRA"; N=8; DIRS=both
+            OUT="logs/mc_loftdive_armBdash_line9_s123.csv"; NEED_SHADOW=1;;
+    *) echo "[loft-arm] FAIL: unknown arm '$ARM' (smokeB|A|B|Adash|Bdash)" >&2; exit 2;;
 esac
 
 CMD=(scripts/mc_batch.sh
