@@ -6,8 +6,12 @@ standalone (exit 0/1) or under pytest.
 
 import math
 
+import os
+
 from flight.guidance import (
     collision_lead_heading,
+    collision_lead_heading_accel,
+    dash_ramp_distance,
     closing_speed,
     compensate_terminal_los,
     crossing_sign,
@@ -124,6 +128,212 @@ def test_dash_loft_alt_ref_dives_from_loft_to_base():
     a = dash_loft_alt_ref(base, loft, 0.4, dur)
     b = dash_loft_alt_ref(base, loft, 0.8, dur)
     assert a > b > base
+
+
+# --- ACCEL-AWARE COLLISION LEAD (docs/flight_plan_candidates.md Sec 1.3 +
+#     the G20dash RESULT). ---------------------------------------------------
+
+# The canonical line-9 seed-123 geometries the flown arms use: target start
+# (east 6.5, north start_y) and velocity (0, vy).  Extracted from the flown
+# batch CSVs (logs/mc_fp_armG20dash_line9_s123.csv == the same 8 in
+# logs/mc_loftdive_armAdash_line9_s123.csv), so tests are PAIRED with the runs.
+CANON_X0 = 6.5
+CANON_DASH_SPEED = 16.0
+CANON_GEOM = ((-16.686, 9.0), (16.150, -9.0), (-16.520, 9.0), (16.467, -9.0),
+              (-15.234, 9.0), (14.865, -9.0), (-16.364, 9.0), (15.526, -9.0))
+# Fitted effective accel of the UNCAPPED dash (scripts/experiments/flight_plans/
+# dash_cpa_model.py --validate against the dash-only ARM A control).
+CANON_FIT_ACCEL = 10.0
+
+
+def _bias_equivalent_deg(start_y, vy, accel, dash_speed=CANON_DASH_SPEED):
+    """How much crossing bias the accel-aware lead supplies by itself, in the
+    EXACT sign convention scripts/m4_intercept.py's --dash-crossing-bias-deg
+    uses (h -= copysign(bias, dash x Vt))."""
+    pos, vel = (CANON_X0, start_y), (0.0, vy)
+    h_const, _ = collision_lead_heading(pos, vel, dash_speed)
+    h_acc, _ = collision_lead_heading_accel(pos, vel, dash_speed, accel)
+    return (h_const - h_acc) * crossing_sign(h_const, vel)
+
+
+def _ballistic_cpa(heading_deg, accel, start, vel, dash_speed=CANON_DASH_SPEED,
+                   t_max=8.0, dt=0.0005):
+    """SLOW REFERENCE (independent of the solver): closest approach of a
+    fixed-heading ramped dash from the origin to a constant-velocity target,
+    by brute-force time sampling.  Mirrors scripts/experiments/flight_plans/
+    dash_cpa_model.py's model."""
+    hx, hy = math.sin(math.radians(heading_deg)), math.cos(math.radians(heading_deg))
+    best, t = float("inf"), 0.0
+    while t <= t_max:
+        s = dash_ramp_distance(dash_speed, accel, t)
+        best = min(best, math.hypot(s * hx - (start[0] + vel[0] * t),
+                                    s * hy - (start[1] + vel[1] * t)))
+        t += dt
+    return best
+
+
+def test_dash_ramp_distance_is_the_integral_of_dash_forward_speed():
+    """The closed form must BE the integral of the flown ramp function -- that
+    is what ties the aim to the actual commanded speed profile."""
+    for v, a, t in ((16.0, 10.0, 0.7), (16.0, 3.57, 2.0), (16.0, 10.0, 3.0),
+                    (16.0, 4.0, 4.0), (16.0, 12.0, 1.0)):
+        n = 20000
+        num = sum(dash_forward_speed(v, a, (i + 0.5) * t / n) for i in range(n)) * (t / n)
+        assert abs(dash_ramp_distance(v, a, t) - num) < 1e-6, (v, a, t)
+    # no ramp (accel None/<=0) -> the constant-speed distance; t<=0 -> 0
+    assert dash_ramp_distance(16.0, None, 2.0) == 32.0
+    assert dash_ramp_distance(16.0, 0.0, 2.0) == 32.0
+    assert dash_ramp_distance(16.0, 10.0, 0.0) == 0.0
+    assert dash_ramp_distance(16.0, 10.0, -1.0) == 0.0
+    # clamp: a=10 reaches 16 m/s at 1.6 s; after that the speed is constant
+    assert abs(dash_ramp_distance(16.0, 10.0, 1.6) - 0.5 * 10 * 1.6 ** 2) < 1e-12
+    assert abs(dash_ramp_distance(16.0, 10.0, 2.6)
+               - (dash_ramp_distance(16.0, 10.0, 1.6) + 16.0)) < 1e-12
+
+
+def test_accel_lead_infinite_accel_limit():
+    """The reduction that makes this a strict generalisation: an INSTANTANEOUS
+    ramp is the constant-speed triangle.  accel None/<=0 delegates (exact, bit
+    for bit); a large finite accel converges to it."""
+    for pos, vel in (((6.5, -16.686), (0.0, 9.0)), ((6.5, 16.150), (0.0, -9.0)),
+                     ((0.0, 20.0), (0.0, -5.0))):
+        h_c, t_c = collision_lead_heading(pos, vel, 16.0)
+        for a in (None, 0.0, -3.0):
+            h_a, t_a = collision_lead_heading_accel(pos, vel, 16.0, a)
+            assert h_a == h_c and t_a == t_c, (a, h_a, h_c)      # EXACT
+        for a, tol in ((1e4, 1e-1), (1e6, 1e-3), (1e8, 1e-5)):
+            h_a, t_a = collision_lead_heading_accel(pos, vel, 16.0, a)
+            assert abs(h_a - h_c) < tol, (a, h_a, h_c)
+            assert abs(t_a - t_c) < tol, (a, t_a, t_c)
+
+
+def test_accel_lead_hand_solved_cases():
+    """Two cases solved BY HAND (closed form), head-on and crossing.
+
+    (1) a=4, v_max huge, target (0,20) closing south at 6 m/s.  At t=2 s the
+        ramp has covered 0.5*4*4 = 8 m and the target is at (0,8): an exact
+        intercept due north at t=2 -- and it is the FIRST root (f<0 before).
+    (2) a=8, v_max huge, target (0,10) crossing east at 3 m/s.  |R(t)| = s(t)
+        gives 16t^4 - 9t^2 - 100 = 0 -> t^2 = (9 + sqrt(81+6400))/32, so the
+        lead point is (3t, 10) and the heading is atan2(3t, 10)."""
+    h, t = collision_lead_heading_accel((0.0, 20.0), (0.0, -6.0), 1e3, 4.0)
+    assert abs(t - 2.0) < 1e-9, t
+    assert abs(h - 0.0) < 1e-9, h
+    t2 = math.sqrt((9.0 + math.sqrt(81.0 + 6400.0)) / 32.0)
+    h2, t2_got = collision_lead_heading_accel((0.0, 10.0), (3.0, 0.0), 1e3, 8.0)
+    assert abs(t2_got - t2) < 1e-9, (t2_got, t2)
+    assert abs(h2 - math.degrees(math.atan2(3.0 * t2, 10.0))) < 1e-9, h2
+    # and the hand cases are NOT what the constant-speed solve returns
+    assert abs(collision_lead_heading((0.0, 10.0), (3.0, 0.0), 1e3)[0] - h2) > 1.0
+
+
+def test_accel_lead_hits_where_the_constant_speed_lead_misses():
+    """MECHANISM: fly each solved heading through the independent brute-force
+    ballistic model at the SAME accel.  The accel-aware aim intercepts (CPA ~ 0);
+    the constant-speed aim -- the one the flown arms used -- misses by metres,
+    which is the aim error the hand-tuned crossing bias was absorbing."""
+    worst_acc, best_const = 0.0, float("inf")
+    for start_y, vy in CANON_GEOM:
+        start, vel = (CANON_X0, start_y), (0.0, vy)
+        h_a, _ = collision_lead_heading_accel(start, vel, CANON_DASH_SPEED,
+                                              CANON_FIT_ACCEL)
+        h_c, _ = collision_lead_heading(start, vel, CANON_DASH_SPEED)
+        worst_acc = max(worst_acc, _ballistic_cpa(h_a, CANON_FIT_ACCEL, start, vel))
+        best_const = min(best_const, _ballistic_cpa(h_c, CANON_FIT_ACCEL, start, vel))
+    assert worst_acc < 0.02, worst_acc            # exact intercept by construction
+    assert best_const > 2.0, best_const           # every constant-speed aim misses
+
+
+def test_accel_lead_matches_the_slow_reference_minimiser():
+    """The solver's heading must also be the CPA-minimising heading found by a
+    dense independent scan (0.02 deg grid) -- not just a root of its own solve."""
+    for start_y, vy in ((-16.686, 9.0), (16.150, -9.0)):
+        start, vel = (CANON_X0, start_y), (0.0, vy)
+        h_a, _ = collision_lead_heading_accel(start, vel, CANON_DASH_SPEED,
+                                              CANON_FIT_ACCEL)
+        best_h, best_d = None, float("inf")
+        for i in range(-250, 251):                # +-5 deg at 0.02 deg
+            hh = h_a + 0.02 * i
+            d = _ballistic_cpa(hh, CANON_FIT_ACCEL, start, vel, dt=0.002)
+            if d < best_d:
+                best_h, best_d = hh, d
+        assert abs(best_h - h_a) < 0.15, (best_h, h_a)
+
+
+def test_accel_lead_monotone_toward_the_constant_speed_answer():
+    """MONOTONICITY: the more accel, the less extra lead is needed, and in the
+    limit the accel-aware answer IS the constant-speed one.  (This is why the
+    hand-tuned --dash-crossing-bias-deg is an ACCELERATION-dependent constant.)"""
+    for start_y, vy in ((-16.686, 9.0), (16.150, -9.0)):
+        biases = [_bias_equivalent_deg(start_y, vy, a)
+                  for a in (3.57, 4.5, 5.66, 7.0, 9.0, 10.0, 12.0, 16.0, 20.0, 1e4)]
+        assert all(b > 0.0 for b in biases[:-1]), biases      # always MORE lead
+        assert all(x > y for x, y in zip(biases, biases[1:])), biases
+        assert biases[-1] < 0.05, biases[-1]                  # -> 0 at huge accel
+
+
+def test_accel_lead_reproduces_the_confirmed_20deg_bias():
+    """THE OFFLINE SANITY NUMBER.  On the 8 canonical seed-123 geometries at the
+    fitted baseline accel (10 m/s^2), the accel-aware lead supplies +20.3 deg of
+    crossing bias all by itself -- i.e. it DERIVES the +20 deg that the G20dash
+    arm CONFIRMED empirically (combined median miss 1.37 m at the flown 30 deg
+    -> 0.75 m at 20 deg, 7/8 paired better), and NOT the mis-sized +30.
+
+    It also reproduces the two other rows of dash_cpa_model.py --sweep: ~16 deg
+    at PX4's commanded 12 m/s^2 ceiling, ~68 deg at the ARM B cap of 3.57."""
+    b10 = [_bias_equivalent_deg(sy, vy, 10.0) for sy, vy in CANON_GEOM]
+    mean10 = sum(b10) / len(b10)
+    assert 19.0 < mean10 < 22.0, mean10
+    assert abs(mean10 - 20.32) < 0.1, mean10          # pinned value
+    assert all(18.0 < b < 23.5 for b in b10), b10     # per-flight spread
+    assert abs(sum(_bias_equivalent_deg(sy, vy, 12.0)
+                   for sy, vy in CANON_GEOM) / 8.0 - 16.35) < 0.1
+    assert abs(sum(_bias_equivalent_deg(sy, vy, 3.57)
+                   for sy, vy in CANON_GEOM) / 8.0 - 68.32) < 0.1
+    # the flown +30 deg is NOT what the baseline accel asks for
+    assert mean10 < 25.0, mean10
+
+
+def test_accel_lead_mirror_symmetry_and_fallback():
+    """Same invariants the constant-speed lead is pinned to: mirroring across
+    the north axis flips the heading exactly, and an uncatchable target falls
+    back to aiming at its initial position with t_lead None."""
+    hl, tl = collision_lead_heading_accel((6.5, -15.343), (0.0, 12.0), 16.0, 10.0)
+    hr, tr = collision_lead_heading_accel((-6.5, -15.343), (0.0, 12.0), 16.0, 10.0)
+    assert abs(hl + hr) < 1e-9, (hl, hr)
+    assert abs(tl - tr) < 1e-12, (tl, tr)
+    h, t = collision_lead_heading_accel((0.0, 10.0), (0.0, 20.0), 10.0, 10.0)
+    assert t is None and abs(h - 0.0) < 1e-9, (h, t)
+    # stationary target: pure ramp range solve, 0.5*a*t^2 = 10 -> t = sqrt(2)
+    h, t = collision_lead_heading_accel((0.0, 10.0), (0.0, 0.0), 100.0, 10.0)
+    assert abs(h) < 1e-9 and abs(t - math.sqrt(2.0)) < 1e-9, (h, t)
+
+
+def test_m4_no_flag_aim_is_byte_identical():
+    """The flag is OPT-IN: with --dash-accel-aware-lead absent, m4's aim block
+    must still make the SAME constant-speed call and get the SAME headings.
+
+    Pinned two ways: (a) the exact float headings the flag-off path produces on
+    the 8 canonical seed-123 geometries (regression pins captured from the
+    pre-change code), and (b) the flag-off branch of scripts/m4_intercept.py
+    still containing the verbatim original call."""
+    pins = (146.93541781404898, 34.04722024241256, 146.63687802249333,
+            33.45951532978071, 144.13999640537585, 36.6423369189113,
+            146.35164073083027, 35.26277678623344)
+    for (start_y, vy), want in zip(CANON_GEOM, pins):
+        h, _ = collision_lead_heading((CANON_X0, start_y), (0.0, vy),
+                                      CANON_DASH_SPEED)
+        assert h == want, (start_y, vy, h, want)
+        # the accel-aware path is a REAL change when it IS enabled
+        h_a, _ = collision_lead_heading_accel((CANON_X0, start_y), (0.0, vy),
+                                              CANON_DASH_SPEED, CANON_FIT_ACCEL)
+        assert abs(h_a - h) > 15.0, (h_a, h)
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "scripts", "m4_intercept.py")).read()
+    flat = " ".join(src.split())
+    assert ("else: coded_dash_heading_deg, _ = collision_lead_heading( "
+            "(_tx + args.dash_target_err_e, _ty + args.dash_target_err_n), "
+            "(_tvx, _tvy), _vi)") in flat, "m4 flag-off aim call changed"
 
 
 # --- TERMINAL LOS bearing-bias compensation (docs/flight_plan_candidates.md
@@ -262,6 +472,15 @@ ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_nort
        test_dash_forward_speed_ramps_and_clamps,
        test_dash_loft_alt_ref_default_byte_identical,
        test_dash_loft_alt_ref_dives_from_loft_to_base,
+       test_dash_ramp_distance_is_the_integral_of_dash_forward_speed,
+       test_accel_lead_infinite_accel_limit,
+       test_accel_lead_hand_solved_cases,
+       test_accel_lead_hits_where_the_constant_speed_lead_misses,
+       test_accel_lead_matches_the_slow_reference_minimiser,
+       test_accel_lead_monotone_toward_the_constant_speed_answer,
+       test_accel_lead_reproduces_the_confirmed_20deg_bias,
+       test_accel_lead_mirror_symmetry_and_fallback,
+       test_m4_no_flag_aim_is_byte_identical,
        test_crossing_sign_matches_the_flown_dash_bias_key,
        test_crossing_sign_degenerate_is_zero,
        test_resolve_bias_symmetric_sign_keying,

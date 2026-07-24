@@ -247,6 +247,7 @@ from m3_static_intercept import (  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from flight.guidance import (  # noqa: E402
     collision_lead_heading,
+    collision_lead_heading_accel,
     compensate_terminal_los,
     crossing_sign,
     dash_forward_speed,
@@ -524,6 +525,19 @@ ACCEL_BOOST_MPC_TILTMAX_AIR = 70.0
 # headroom to spare, without touching V_PERP_MAX (unrelated -- that's the
 # terminal pro-nav lateral clamp, not the dash's total-speed clamp).
 DASH_UNCLAMP_V_TOTAL_MAX = 18.0
+
+# --- ACCEL-AWARE COLLISION LEAD (--dash-accel-aware-lead; default OFF ->
+# byte-identical).  The effective forward acceleration to assume for the dash
+# ramp when the run is NOT accel-capped, i.e. when PX4's own MPC_ACC_HOR_MAX
+# (12 m/s^2 under --fpv) is what limits the ramp.  10.0, not 12.0, because the
+# x500 does not achieve the commanded ceiling: fitting the ballistic model to
+# the flown DASH-ONLY arm (logs/mc_loftdive_armAdash_line9_s123.csv, camera
+# gated shut so the logged miss IS the open-loop ballistic CPA) picks
+# a = 10 m/s^2 as the best-MAE effective accel -- scripts/experiments/
+# flight_plans/dash_cpa_model.py --validate.  Provenance class: an OFFLINE
+# vehicle-spec fit from past logs (same class as camera intrinsics), NOT a live
+# read; override per run with --dash-lead-accel-ms2.
+DASH_LEAD_EFFECTIVE_ACCEL_MS2 = 10.0
 
 # ADR-0015 --coast-search (link-loss-before-lock dead-reckon + bounded seeker
 # search; docs/decisions.md ADR-0015 "Handoff continuity"). All sim-time.
@@ -1738,6 +1752,31 @@ def parse_args():
              "be and still acquire (the real interceptor's dash is hand-programmed, so "
              "the aim carries operator error). Default 0.0 = byte-identical.")
     parser.add_argument(
+        "--dash-accel-aware-lead", action="store_true",
+        help="--coded-dash AIM fix (docs/flight_plan_candidates.md Sec 1.3): solve the "
+             "collision lead against the dash's ACCELERATING profile instead of a "
+             "constant --dash-speed. The quad starts at REST and needs ~1.3 s to reach "
+             "16 m/s, so the constant-speed triangle UNDER-LEADS and the shortfall has "
+             "been absorbed by a hand-tuned --dash-crossing-bias-deg (an accel-dependent "
+             "constant). This derives it instead: at the baseline accel it reproduces "
+             "+20.3 deg of crossing bias on the canonical geometries -- the value the "
+             "G20dash arm CONFIRMED (miss 1.37 -> 0.75 m). Use INSTEAD of a hand-set "
+             "--dash-crossing-bias-deg (they compose, so setting both double-counts). "
+             "Accel assumed: --dash-accel-cap if capped, else --dash-lead-accel-ms2 / "
+             "the fitted %.1f m/s^2. PRE-FLIGHT only, no gt. Default OFF = "
+             "byte-identical." % DASH_LEAD_EFFECTIVE_ACCEL_MS2)
+    parser.add_argument(
+        "--dash-lead-accel-ms2", type=float, default=None,
+        help="--dash-accel-aware-lead: override the forward acceleration (m/s^2) the "
+             "lead solve assumes the dash will fly. Default None = auto "
+             "(--dash-accel-cap when set, else %.1f, the effective accel fitted offline "
+             "to the flown uncapped dash-only arm by dash_cpa_model.py --validate). The "
+             "aim is SENSITIVE to this: ~2-4 deg per 1 m/s^2 of error (~0.3 m of modelled "
+             "CPA), so pass the ACHIEVED accel when it is known to differ from the "
+             "command -- the flown 3.57 cap measured an effective 4.0, and --accel-boost "
+             "raises MPC_ACC_HOR_MAX to %.0f. Ignored unless --dash-accel-aware-lead."
+             % (DASH_LEAD_EFFECTIVE_ACCEL_MS2, ACCEL_BOOST_MPC_ACC_HOR_MAX))
+    parser.add_argument(
         "--dash-crossing-bias-deg", type=float, default=0.0,
         help="--coded-dash PER-DIRECTION aim correction (ADR-0076 add #18e): bias "
              "MAGNITUDE (deg) toward the aspect the markerless bearing under-reads; the "
@@ -2329,9 +2368,59 @@ async def run_acquire_and_engage(
         # ROBUSTNESS sweep: perturb the ESTIMATED target position fed to the lead
         # solve (real target/mover unchanged) -> models operator position error
         # (--dash-target-err-e = east = world_x, -n = north = world_y).
-        coded_dash_heading_deg, _ = collision_lead_heading(
-            (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
-            (_tvx, _tvy), _vi)
+        if args.dash_accel_aware_lead:
+            # ACCEL-AWARE lead (docs/flight_plan_candidates.md Sec 1.3): the same
+            # triangle, but the interceptor side uses the dash's RAMP (the exact
+            # integral of dash_forward_speed) instead of _vi*t, because the quad
+            # starts at rest. Accel assumed = the commanded cap when capped, else
+            # the offline-fitted effective accel (see DASH_LEAD_EFFECTIVE_ACCEL_MS2)
+            # -- both PRE-FLIGHT vehicle specs, no live read, no gt.
+            _lead_accel = (
+                args.dash_lead_accel_ms2 if args.dash_lead_accel_ms2 is not None
+                else (args.dash_accel_cap
+                      if (args.dash_accel_cap and args.dash_accel_cap > 0.0)
+                      else DASH_LEAD_EFFECTIVE_ACCEL_MS2))
+            _lead_src = ("--dash-lead-accel-ms2" if args.dash_lead_accel_ms2 is not None
+                         else ("--dash-accel-cap"
+                               if (args.dash_accel_cap and args.dash_accel_cap > 0.0)
+                               else "fitted uncapped effective accel"))
+            _lead_pos = (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n)
+            coded_dash_heading_deg, _t_lead = collision_lead_heading_accel(
+                _lead_pos, (_tvx, _tvy), _vi, _lead_accel)
+            # Log-only: what the OLD constant-speed solve would have aimed, and the
+            # crossing-bias-equivalent this fix supplies automatically (signed by the
+            # same pre-flight crossing key --dash-crossing-bias-deg uses).
+            _h_const, _ = collision_lead_heading(_lead_pos, (_tvx, _tvy), _vi)
+            _csign_lead = crossing_sign(_h_const, (_tvx, _tvy))
+            _bias_equiv = ((_h_const - coded_dash_heading_deg) * _csign_lead
+                           if _csign_lead else 0.0)
+            print(f"[m4] Accel-aware collision lead ON: a={_lead_accel:.2f} m/s^2 "
+                  f"({_lead_src}), v_max={_vi:.1f} m/s -> heading "
+                  f"{coded_dash_heading_deg:.2f} deg, t_lead="
+                  + (f"{_t_lead:.3f} s" if _t_lead is not None else "None (uncatchable)")
+                  + f"; constant-speed solve would aim {_h_const:.2f} deg "
+                  f"(crossing-bias-equivalent {_bias_equiv:+.2f} deg). PRE-FLIGHT "
+                  "constants only, no gt.", flush=True)
+            if args.dash_crossing_bias_deg:
+                print("[m4] WARNING: --dash-accel-aware-lead AND "
+                      f"--dash-crossing-bias-deg {args.dash_crossing_bias_deg:.1f} are "
+                      "BOTH set -- the accel-aware lead already supplies "
+                      f"{_bias_equiv:+.2f} deg of lead correction, so the hand-set bias "
+                      "DOUBLE-COUNTS it. Intended use is one or the other.", flush=True)
+            if args.accel_boost and args.dash_lead_accel_ms2 is None:
+                print("[m4] WARNING: --accel-boost raises MPC_ACC_HOR_MAX to "
+                      f"{ACCEL_BOOST_MPC_ACC_HOR_MAX:.0f} m/s^2 but the lead solve is "
+                      f"using the un-boosted fitted {DASH_LEAD_EFFECTIVE_ACCEL_MS2:.1f} "
+                      "m/s^2 -- pass --dash-lead-accel-ms2 to match the flown accel.",
+                      flush=True)
+        else:
+            coded_dash_heading_deg, _ = collision_lead_heading(
+                (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
+                (_tvx, _tvy), _vi)
+    elif args.coded_dash and args.dash_accel_aware_lead:
+        print("[m4] NOTE: --dash-accel-aware-lead is INERT this run -- an explicit "
+              f"--dash-heading-deg {coded_dash_heading_deg} overrides the lead solve.",
+              flush=True)
     # ROBUSTNESS sweep: add a fixed aim error to the finalized heading (auto or
     # explicit). Default 0.0 -> byte-identical.
     if args.coded_dash and args.dash_heading_err_deg:

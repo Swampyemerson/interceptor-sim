@@ -2071,3 +2071,35 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   preserved; end-to-end curve (a) still PASSes at p=1.0 (E[T]=k=5 exactly). `gate.json` now carries
   `streak_burn_model`, `E_streak_frames`, and both burns.
 - **Date.** 2026-07-24.
+
+## ADR-0080 — The coded-dash crossing-bias is an acceleration-dependent kinematic constant: DERIVE it, don't tune it
+
+- **Context.** `flight/guidance.collision_lead_heading` sizes the open-loop dash aim by solving a
+  CONSTANT-SPEED intercept triangle (launch at `dash_speed`, hit the target). But the real coded
+  dash ACCELERATES from rest (`dash_forward_speed`), so the constant-speed solution aims too far
+  ahead. The decomposition sweep MEASURED this: the flown +30° `--dash-crossing-bias-deg` was wrong;
+  +20° halved the open-loop dash-only miss (1.37 → 0.75 m, G20dash CONFIRMED). Until now the fix was
+  a hand-tuned per-config constant.
+- **Decision.** Add `collision_lead_heading_accel` (opt-in via `--dash-accel-aware-lead`) that solves
+  the intercept against the actual dash speed RAMP (exact integral of `dash_forward_speed`,
+  deterministic ≤320-eval scan+bisect, delegates bit-exactly to the constant-speed solve in the
+  infinite-accel limit). It DERIVES the crossing-bias instead of tuning it.
+- **Validation of the model (offline, independent).** The solver's crossing-bias-equivalent is
+  **+20.3° at the fitted effective accel a=10 m/s²** — matching the empirically CONFIRMED +20°, NOT
+  the flown +30° — and +68° at the cap's a=3.57, +16° at PX4's commanded 12, 0° as a→∞. Per-flight
+  headings sit within 1.24° mean of the flown bias-20 headings. So the hand-tuned answer falls out of
+  the physics.
+- **Why a=10, not 12.** The commanded accel cap is not achieved; 10 m/s² is the effective accel fitted
+  offline to the dash-only CPAs (`dash_cpa_model.py --validate`). Sensitivity: ±1 m/s² wrong ≈ 2–4°
+  aim ≈ ±0.3 m modelled CPA. For an accel-capped arm, pass the ACHIEVED accel (e.g.
+  `--dash-lead-accel-ms2 4.0` for a 3.57 cap), not the commanded value.
+- **Honesty.** Inputs are the operator's pre-flight target kinematics + one own-vehicle spec (accel,
+  or an offline-fitted constant — the camera-intrinsics class); runs ONCE before launch, no gt in the
+  loop (28 honesty tests pass; grep-clean).
+- **Status.** Built, default-off byte-identical (headings pinned to exact floats + a source assertion),
+  31 guidance / 264 repo tests pass. Sim validation PENDING: fly `--dash-accel-aware-lead` (no manual
+  bias) dash-only on seeds 123+777 → predicted combined median 0.75 m ±0.15 (auto-correction, not a
+  further reduction). Higher-value follow-on it unlocks: re-fly the accel-cap arm with CORRECT aim
+  (+68°, never flown) to finally decouple the cap's closing-speed cost from the aim confound
+  (ADR-0056/the 2026-07-24 Bdash correction).
+- **Date.** 2026-07-24.
