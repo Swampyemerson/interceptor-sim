@@ -729,3 +729,20 @@ to a simple constant or lag correction — consistent with the prior terminal-pr
 now DERIVED by the accel-aware lead ADR-0080); the camera's role is defending imperfect
 real-world aim, not beating a well-aimed dash. Keep the terminal simple; spend the effort on
 aim (auto-corrected) + real-data detection (the outdoor acquisition gap), not terminal tricks.
+
+### AAL — accel-aware lead (ADR-0080) VALIDATED: auto-aim reproduces the hand-tuned 0.75 m.
+
+`logs/mc_fp_armAAL_line9_s123.csv` (`--dash-accel-aware-lead`, NO manual `--dash-crossing-bias-deg`,
+dash-only) vs G20dash-123 (hand-tuned +20):
+
+| dir | AAL (auto-aim) median | G20dash (+20 hand) median | within 0.2 m of pair |
+|-----|----------------------:|--------------------------:|:--------------------:|
+| l2r | 0.74 (0.64–0.82) | 0.73 | 3/4 |
+| r2l | 0.69 (0.57–0.81) | 0.81 | 3/4 |
+| **combined** | **0.71** | 0.75 | **6/8** |
+
+**Pre-registered gate MET** (median 0.71 in 0.75±0.15 AND 6/8 within 0.2 m). The physics-derived
+aim reproduces — and marginally beats — the hand-tuned constant, with NO per-config tuning. This
+validates ADR-0080's auto-correction in flight: the crossing-bias is a derived kinematic constant,
+not a knob to hand-set per airframe/speed. It removes the aim-tuning burden from the real build and
+generalizes across the sweep. Disjoint seed 777 replication in flight.
