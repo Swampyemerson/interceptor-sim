@@ -817,3 +817,61 @@ not the camera, is the lever that could get the open-loop dash inside the kill e
 costs pre-flight arithmetic, not hardware. Next: a residual-bias sweep around the accel-aware
 solution (±2.5/5/7.5°, dash-only, both directions) to find and then DERIVE the true optimum, rather
 than leaving a hand-found 5° offset sitting on top of a "derived" aim.
+
+### AE15 + SWEEP VERDICT — the camera never earns its handoff in sim, and the reason is the r2l aspect bias
+
+Final cell (15° deliberate heading error), camera vs its dash-only twin, n=8 paired, seed 123:
+
+| run | dir | camera | dash-only | Δ |
+|----:|:---:|-------:|----------:|--:|
+| 0 | l2r | 1.52 | 1.58 | −0.06 |
+| 2 | l2r | 1.35 | 1.43 | −0.08 |
+| 4 | l2r | 0.99 | 1.42 | **−0.43** |
+| 6 | l2r | 2.07 | 1.64 | +0.43 |
+| 1 | r2l | 3.57 | 1.42 | **+2.15** |
+| 5 | r2l | 3.46 | 1.34 | **+2.12** |
+| 3 | r2l | 1.42 | 1.42 | +0.00 |
+| 7 | r2l | 1.50 | 1.45 | +0.05 |
+| **median** | | **1.51** | **1.43** | **+0.03** |
+
+Camera tighter on **3/8** — pre-registered gate was ≥6/8 → **NULL at 15°.**
+
+**But do NOT read the pooled number** (pooling l2r/r2l has produced retractions here before):
+- **l2r: the camera IS starting to earn it — tighter on 3/4**, once by −0.43 m. This is the first
+  aim-error cell where the camera helps at all, i.e. the hypothesised mechanism is real on the
+  favourable aspect.
+- **r2l: the camera is catastrophic — +2.15 and +2.12 m on two of four flights.** That is the
+  ADR-0056 aspect bias (λ−gtLOS −17..−21° on r2l), and it single-handedly drags the pooled result
+  to null.
+
+### THE SWEEP, COMPLETE (camera vs its own dash-only twin, every cell paired n=8, seed 123)
+
+| aim error | camera median | dash-only median | camera tighter | verdict |
+|---:|---:|---:|:--:|---|
+| 0° | 1.02 | 0.71 | 2/8 | camera WORSE |
+| 5° | 0.58 | **0.43** | **0/8** | camera WORSE |
+| 15° | 1.51 | 1.43 | 3/8 | NULL (l2r 3/4 helps, r2l ruins it) |
+
+**VERDICT — the review's last open sim question is answered: the camera terminal NEVER earns its
+handoff in this sim, at any tested aim error.** The claim "the camera defends imperfect aim" is
+**REFUTED in sim** and must not be carried as settled. The binding reason is not the guidance and
+not the aim — it is the **r2l markerless bearing aspect bias**, the same ADR-0056 wall that has now
+defeated: a direction-keyed bias constant (regime-confounded), a LOS-lag correction (GL null),
+subpixel bearing (ADR-0071 null), and now the entire aim-error rationale.
+
+**SCOPE (important, do not over-read):** this indicts the *sim's markerless seeker on the r2l
+aspect*, not the camera-terminal architecture in general. The real first kills fly the **AprilTag**,
+a different seeker with different (and separately characterised) aspect behaviour, and the real
+remaining perception lever is the **outdoor real-data detector** — measured at 44.2% recall vs the
+sim model's 1.1% on real imagery. If real data fixes the aspect bias, this question genuinely
+reopens; the sweep is the pre-registered harness to re-ask it with.
+
+**CONSEQUENCE FOR THE BUILD:** as currently built, ENGAGE firing on the markerless seeker is not
+justified by any sim evidence — it should be gated to the favourable aspect, run in SHADOW (log-only)
+until real data earns it, or held behind the tag baseline. This is a genuine architectural input,
+not a tuning note.
+
+**And the actionable lever is the other one:** the dash-only column shows the open-loop ballistics
+minimising at **0.43 m at +5°** — better than the 0.71 m the "derived" aim produces. Aim refinement
+is worth ~0.28 m, needs no perception at all, and is the only measured path toward the ~0.36 m
+5-inch ram envelope. The AE2/AE7/AE10 bracketing arms are staged to derive that optimum.
