@@ -2,6 +2,22 @@
 
 > **Canonical project state → [`docs/project_state.json`](docs/project_state.json)** (view: `docs/dashboard.html` · hosted: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc). That contract is the source of truth; this file is the subordinate work queue — keep them consistent (the drift check + the contradiction ledger enforce it).
 
+## 🔬 REVIEW-2 (2026-07-24/25) — silent-failure audit + fixes + PREVENTION. Plan: [`docs/review2_action_plan.md`]; all 73: [`docs/review2_silent_failure_findings.md`]
+
+Two full multi-agent reviews. The dominant defect class = **silent failure** (confident, plausible, WRONG output, green checks pass). 73 verified gaps (8 blocker / 31 high). State:
+
+**✅ DONE + committed + gated (the code side of both reviews is closed):**
+- **Prevention infrastructure** (`8e10b12`) — producer→consumer contract tests (fixture from the real producer), NO-VACUOUS-VERDICTS (audit_per_tick VACUOUS/exit-3 on n=0), GREEN≠RAN (run_tests fail-on-skip + stage-4 self-tests, CI), a drift number-traceability guard over the hand-authored dashboard layer, `docs/error_handling_policy.md`. **`run_tests.sh` now green through all 4 stages WITH teeth.**
+- **Flight-code** (`49e4281`) — 3 blockers fixed (coast-freeze latch, dropout yaw-chase, offboard-latched-constant + RC clock), stand-in-steering refused, audit widened. **BOTH SITL gates PASS** (check_real_flight 152/154 guided; check_deploy 900 sp @19.2 Hz).
+- **Evidence-chain** (`8cdbc77`) — field_score CPA analytic (1.24m-MISS→0.30m-KILL blocker), R_decode90 UNCERTAIN on unsampled bins, curve_b real-optics + geometry blocker (33%→100%), pi_capture crash-safe meta, antimirage geometry guard.
+- **Standing prevention rules** in CLAUDE.md + memory [[silent-failure-prevention-strategy]]: "instruments are evidence" (no-vacuous/fail-closed/contract-test) + "a fix isn't done until its effect is observed; sweep drift the same turn" (my own 2 errors of 2026-07-24).
+
+**⏳ IN FLIGHT:** field-tools + protocol range-truth chain (task #23, worker) — 04_pull_logs exit contract, tripod §7 scoring sequence (BLOCKER: §7.2 as written yields UNCERTAIN), laptop↔Pi networking SPOF, station-list reconciliation.
+
+**⬜ REMAINING:** the **10 findings the review's session limit left UNVERIFIED** (flagged in the findings doc — re-verify before acting); **builder DECISIONS**: #16 vertical channel + altitude datum, #17 ram-radius/Tier-2, #22 post-GO OFFBOARD-loss (my rec: add FAILSAFE 7), and "may a desk-rehearsal capture feed the money-gate fps?" (rec: NO).
+
+---
+
 ## 🟢 SESSION 2026-07-24 — Opus 5 landed; intercept-distance + flight-plan + launch-mech + field-prep push
 
 **Model routing UPDATED (Opus 5 released 2026-07-24, `claude-opus-5`).** Builder directive: **NO work on Opus 4.8.** Opus 5 ≈ near-Fable capability at half price, classifiers fire ~85% less than Fable's → it is now the **substantive workhorse lane + all defense-sim-flagged work**. GOTCHA (verified live this session): the Agent tool's bare `opus` alias still resolves to `claude-opus-4-8` in a session started on release day — so spawn via **`subagent_type: opus5-worker`** (`.claude/agents/opus5-worker.md`, pinned `model: claude-opus-5`, reports `claude-opus-5[1m]`). Fable head/subagents stay the planning/review/gap-spotting seat. (memory [[model-orchestration-policy]] + CLAUDE.md §Model orchestration updated; committed `8575abf`.)
