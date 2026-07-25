@@ -386,10 +386,22 @@ def crossing_sign(dash_heading_deg, target_vel):
     operator's known target track), so the returned key is a launch-time
     constant, never a live sensor read.
 
-    MIRRORS the sign key that scripts/m4_intercept.py computes inline for
-    --dash-crossing-bias-deg (`sin(h)*vy - cos(h)*vx`); that flown code path is
-    deliberately left untouched (byte-identity), and flight/tests/test_guidance.py
-    pins this function to agree with it on the canonical geometries.
+    THIS IS NOW THE FLOWN SIGN KEY (corrected 2026-07-25). It began as a MIRROR
+    of the key scripts/m4_intercept.py computed inline for --dash-crossing-bias-deg
+    (`sin(h)*vy - cos(h)*vx`, no dead-band), and that inline path was deliberately
+    left untouched for byte-identity. Commit 1911ce9 (2026-07-24) REVERSED that:
+    m4_intercept.py now imports and calls this function at all three sign-key
+    sites -- the collision-lead heading (`_csign_lead`), --dash-crossing-bias-deg
+    (`_cs`), and the terminal bearing-bias (`_csign`); find them with
+    `grep -n crossing_sign scripts/m4_intercept.py` -- so the float-dust bug below
+    is fixed in the flown sim path too and there is no longer a separate inline
+    copy to mirror. (Deliberately NO line numbers: the first version of this note
+    pinned :2409/:2464/:2498, they drifted the same day, and a stale pointer in
+    THIS docstring is what manufactured the false "the bug is still live" finding
+    it was written to retire.)
+    flight/tests/test_guidance.py still pins this function against the old inline
+    expression on the canonical crossing geometries (byte-identical there; the ONLY
+    intended divergence is the near-head-on dead-band).
     """
     h = math.radians(float(dash_heading_deg))
     vx, vy = float(target_vel[0]), float(target_vel[1])

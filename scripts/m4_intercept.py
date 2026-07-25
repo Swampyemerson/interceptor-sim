@@ -332,6 +332,12 @@ TERMINAL_HOLD_MAX_S = 1.0  # max time to hold-last-command through a terminal dr
 # stop chasing the singular LOS rate and fly the established collision
 # course straight through the intercept.
 TERMINAL_FREEZE_RANGE_M = 2.0  # inside this: coast -- hold the frozen velocity vector
+# A latched coast vector under this horizontal speed is a BRAKE, not an intercept
+# (review-2 BLOCKER, 2026-07-25): it warns loudly and sets the CSV coast_zero
+# column. 0.5 m/s is ~9% of the FPV terminal closing speed (5.5 m/s) and ~6% of
+# the run-in speed -- far below anything a real collision course can command, far
+# above float noise.
+COAST_ZERO_WARN_MS = 0.5
 BREAKOFF_ARM_RANGE_M = 2.5  # past-CPA breakoff logic arms only after R_hat dips below this
 BREAKOFF_RANGE_INCREASES = 3  # consecutive FRESH detections w/ increasing range -> breakoff
 BREAKOFF_HARD_FLOOR_M = 0.5  # measured range below this -> immediate breakoff
@@ -714,9 +720,12 @@ def resolve_active_cam_fwd_m():
 
 CSV_HEADER = [
     # t = wall-clock elapsed since script start (time.monotonic() - started);
-    # t_sim = SIM time from /clock (SimClockHolder.t), ONLY populated under
-    # --handoff (the only mode that subscribes to /clock -- see
-    # SimClockHolder). Blank otherwise. Demo-tooling need (docs/demo_plan.md):
+    # t_sim = SIM time from /clock (SimClockHolder.t), populated under --handoff
+    # AND (since 2026-07-25) under --coded-dash -- the two modes that subscribe
+    # to /clock, see SimClockHolder. Blank otherwise. Every coded-dash log written
+    # before that date has a BLANK t_sim column: that blank IS the tell that the
+    # dash schedule ran on wall time (see dash_clock, appended at the end).
+    # Demo-tooling need (docs/demo_plan.md):
     # RTF sag makes wall != sim, so HUD/video time-sync must key off t_sim,
     # not t.
     "t", "t_sim", "phase", "law", "detected",
@@ -759,6 +768,21 @@ CSV_HEADER = [
     # AprilTag path / no detection / plain markerless (appended at the END so
     # every existing by-name DictReader consumer is unaffected).
     "meas_source",
+    # --- 2026-07-25 review-2 remediation. Both appended at the END so every
+    #     existing by-name DictReader consumer is unaffected.
+    # dash_clock: WHICH CLOCK measured this tick's CODED_DASH schedule --
+    #   "sim" (correct, ADR-0009) or "wall" (degraded, RTF-dependent; the
+    #   --dash-accel-cap ramp, the --dash-loft-dive-s dive and the
+    #   --coded-dash-max-s abort window are then all distorted by 1/RTF).
+    #   Blank outside CODED_DASH. Every coded-dash flight before this date ran
+    #   "wall" and could not say so -- that is exactly what this column fixes.
+    # coast_zero: 1 on every ENGAGE tick flown under a terminal-coast latch
+    #   whose frozen horizontal velocity is < COAST_ZERO_WARN_MS (i.e. the
+    #   terminal is BRAKING, not steering), blank otherwise. Pre-fix the latch
+    #   captured a never-assigned 0.0 whenever ENGAGE began inside
+    #   TERMINAL_FREEZE_RANGE_M, so the whole ENGAGE phase re-issued (0, 0) --
+    #   and nothing in the log said so.
+    "dash_clock", "coast_zero",
 ]
 
 
@@ -933,6 +957,127 @@ def update_coded_dash_streak(streak, new_meas, meas_range_m,
         acquire_range_min is None or meas_range_m >= acquire_range_min) and (
         acquire_range_max is None or meas_range_m <= acquire_range_max)
     return streak + 1 if range_ok else 0
+
+
+# --- TERMINAL COAST: the three pure decisions, extracted so the branch that
+#     silently zeroed the camera terminal is unit-testable off-sim (the
+#     update_coded_dash_streak / DEEP-H2 pattern). ------------------------------
+
+def terminal_coast_active(frozen_vworld, r_hat, freeze_range_m):
+    """Is this ENGAGE tick flying the terminal COAST? (byte-identical to the
+    pre-extraction inline expression.)
+
+    True once the latch is set (one-way, ADR-0023 -- split-freeze measured
+    worse), or the first time the estimated range dips inside the freeze range,
+    where lambda_dot goes singular and chasing it un-flies the intercept."""
+    return (frozen_vworld is not None
+            or (r_hat is not None and r_hat < freeze_range_m))
+
+
+def terminal_must_build_command(in_terminal_coast, vh_cmd_valid):
+    """Must the guidance-law block run this tick?
+
+    THE FIX (review-2 BLOCKER, 2026-07-25). This used to be plain
+    `not in_terminal_coast`. When ENGAGE STARTED already inside the freeze
+    range -- the NORMAL --coded-dash --fpv case, because the markerless NN
+    reports r_hat ~1.5-3.5 m against a true ~10-12 m -- the law block never ran
+    even once, and the latch below captured the module-scope initialisers
+    `vh0 = vh1 = 0.0`. The whole ENGAGE phase then re-issued a zero horizontal
+    command: the interceptor BRAKED instead of steering, on 29 of 44 engaged
+    flights of the published camera-arm sweep.
+
+    `or not vh_cmd_valid` guarantees a REAL command exists before anything can
+    be frozen -- the same guarantee flight/deploy/seeker_loop.py gets by
+    CONSTRUCTING its frozen vector at arm time rather than capturing a local.
+    On any flight where ENGAGE begins outside the freeze range vh_cmd_valid is
+    already True by the time the range dips, so this is a no-op there."""
+    return (not in_terminal_coast) or (not vh_cmd_valid)
+
+
+def latch_coast_vector(vh0, vh1, r_hat, warn_below_ms=None):
+    """Freeze the collision-course velocity vector. Returns
+    `(frozen_vworld, coast_zero, messages)`.
+
+    `coast_zero` is True when the latched horizontal speed is below
+    `warn_below_ms` (default COAST_ZERO_WARN_MS): the terminal is braking, not
+    steering, and that flight's miss distance measures PX4's deceleration
+    rather than guidance. It is returned (not just printed) so the caller can
+    stamp the CSV / RESULT line -- a defect visible only in a mid-run stdout
+    line is what let this fly 29 times."""
+    if warn_below_ms is None:
+        warn_below_ms = COAST_ZERO_WARN_MS
+    speed = math.hypot(vh0, vh1)
+    msgs = [f"[m4] Terminal coast: velocity vector frozen at "
+            f"r_hat={r_hat:.2f} m (({vh0:.2f}, {vh1:.2f}) world)"]
+    coast_zero = speed < warn_below_ms
+    if coast_zero:
+        msgs.append(
+            f"[m4] *** COAST-ZERO WARNING: the terminal latched a horizontal "
+            f"velocity of only {speed:.3f} m/s (< {warn_below_ms} m/s). The "
+            f"camera terminal is BRAKING, NOT STEERING, for the rest of "
+            f"ENGAGE -- this flight's miss distance measures PX4's "
+            f"deceleration, not guidance. CSV column coast_zero=1 marks every "
+            f"affected row; do NOT pool this flight into an arm median.")
+    return (vh0, vh1), coast_zero, msgs
+
+
+# --- THE DASH CLOCK (ADR-0009, CLAUDE.md's oldest standing rule: "sim time,
+#     never wall time"). Extracted as a PURE function so the one thing that
+#     silently broke every flown --coded-dash arm is unit-testable off-sim.
+DASH_CLOCK_SIM = "sim"
+DASH_CLOCK_WALL = "wall"
+
+
+def dash_elapsed_s(sim_now, sim_start, wall_now, wall_start):
+    """Seconds since CODED_DASH entry, plus WHICH CLOCK produced them.
+
+    Returns `(elapsed_s, basis)` where basis is "sim" or "wall".
+
+    WHY THIS EXISTS (the defect it pins, 2026-07-25). Everything the coded dash
+    SCHEDULES -- the --dash-accel-cap speed ramp, the --dash-loft-dive-s raised-
+    cosine dive, and the --coded-dash-max-s acquisition/abort window -- is a
+    DURATION, and durations must be measured on the SIM clock: Gazebo's RTF sags
+    to ~0.3-0.85 under load, so a wall-timed ramp of C m/s^2 actually commands
+    C/RTF m/s^2 in sim seconds. Measured on the flown ARM B logs (RTF 0.80-0.84):
+    a commanded 3.57 cap flew ~4.35 m/s^2, i.e. a 23.9 deg body pitch instead of
+    the designed 20.0 deg, and a 2.5 s dive completed in ~2.05 sim s. The sim
+    branch existed in main() but was UNREACHABLE, because the /clock subscription
+    was gated on `if args.handoff:` and --coded-dash forbids --handoff.
+
+    FAIL-LOUD, NOT FAIL-SILENT: the wall basis is still returned (a run with no
+    /clock must not simply die mid-flight), but the caller MUST announce it once
+    -- see `warn_dash_clock_basis` -- and every flight CSV row carries the
+    `dash_clock` column, so a log can self-identify which clock produced it
+    instead of a human having to notice that `t_sim` is blank.
+    """
+    if sim_now is not None and sim_start is not None:
+        return sim_now - sim_start, DASH_CLOCK_SIM
+    if wall_now is None or wall_start is None:
+        return 0.0, DASH_CLOCK_WALL
+    return wall_now - wall_start, DASH_CLOCK_WALL
+
+
+def warn_dash_clock_basis(basis, already_warned, levers_active,
+                          printer=print):
+    """One-shot LOUD warning when any dash SCHEDULING quantity is being measured
+    on the wall clock. Returns the new `already_warned` flag.
+
+    `levers_active` (accel-cap / loft / a finite abort window) only changes the
+    wording -- the warning fires either way, because --coded-dash-max-s always
+    schedules on this basis. Pure + injectable printer so the test asserts the
+    warning actually fires rather than assuming it does."""
+    if basis != DASH_CLOCK_WALL or already_warned:
+        return already_warned
+    printer(
+        "[coded-dash] *** WALL-CLOCK WARNING (ADR-0009 violation): no sim "
+        "/clock available, so the dash schedule is running on WALL time. "
+        + ("The --dash-accel-cap ramp and --dash-loft-dive-s dive are "
+           "RTF-DEPENDENT (at RTF r a cap C flies C/r m/s^2 in sim seconds) "
+           if levers_active else
+           "The --coded-dash-max-s abort window is RTF-DEPENDENT ")
+        + "-- these numbers are NOT comparable across runs or arms. "
+          "CSV column dash_clock=wall marks every affected row.", flush=True)
+    return True
 
 
 # --- Kalata-derived alpha-beta gains (tracking-refinement PORT 1, --kalata).
@@ -1451,6 +1596,7 @@ def write_row_m4(
     vc_m_s, a_cmd_m_s2, v_perp_m_s, cmd, alt_m, gt_cam, gt_tag, gt_range,
     ext_xyz=None, ext_fresh=None, tgt_state=None, ext_age_s=None,
     cue_stale=None, coast_phase=None, t_sim=None, ekf_state=None,
+    dash_clock=None, coast_zero=None,
 ):
     def fmt(value, spec="{:.4f}"):
         return "" if value is None else spec.format(value)
@@ -1524,6 +1670,10 @@ def write_row_m4(
         # meas_source (ADR-0058 provenance): getattr default keeps the AprilTag
         # Measurement (no source field written by m3's detection_loop) blank.
         (getattr(meas, "source", "") or "") if (meas is not None and detected) else "",
+        # dash_clock / coast_zero (2026-07-25): see CSV_HEADER. Blank = not
+        # applicable this tick (m4's existing empty-field convention).
+        dash_clock or "",
+        "" if not coast_zero else 1,
     ]
     writer.writerow(row)
     log_file.flush()
@@ -1813,13 +1963,16 @@ def parse_args():
              "whole command vector. HONEST: a PRE-FLIGHT calibration constant (same "
              "class as camera intrinsics, measured OFFLINE on past logs) plus the "
              "launch-known crossing direction -- no gt is read in flight. CALIBRATE "
-             "AND FLY ON DISJOINT SEEDS. Default None = no correction.")
+             "AND FLY ON DISJOINT SEEDS. Default None = no correction. "
+             "PRONAV/PURSUIT ONLY -- PIP aims via the raw-LOS tracker, so "
+             "--law pip REFUSES this flag (review-2 row #6).")
     parser.add_argument(
         "--terminal-bearing-bias-r2l-deg", type=float, default=None,
         help="As --terminal-bearing-bias-l2r-deg, for a RIGHT-TO-LEFT crossing "
              "(measured -17.8 deg on ARM B seed 123). Separate flags because the "
              "measured bias is ASYMMETRIC (+11 vs -18, factor 1.6) -- a single "
-             "magnitude cannot express it. Default None = no correction.")
+             "magnitude cannot express it. Default None = no correction. "
+             "PRONAV/PURSUIT ONLY (--law pip refuses it).")
     parser.add_argument(
         "--terminal-bearing-bias-deg", type=float, default=0.0,
         help="ENGAGE terminal: SYMMETRIC LOS-bias MAGNITUDE (deg) whose SIGN is "
@@ -1828,7 +1981,7 @@ def parse_args():
              "+B, r2l -> -B, matching the measured sign pattern. One knob to sweep "
              "(flight_plan_candidates.md arm H pre-registers B=15). Overridden per "
              "direction by --terminal-bearing-bias-{l2r,r2l}-deg. Default 0.0 = "
-             "byte-identical.")
+             "byte-identical. PRONAV/PURSUIT ONLY (--law pip refuses it).")
     parser.add_argument(
         "--terminal-los-lag-ms", type=float, default=0.0,
         help="ENGAGE terminal: seeker+filter transport LAG (ms) to LEAD out of the "
@@ -1838,7 +1991,8 @@ def parse_args():
              "estimate is old, and against a 40-500 deg/s terminal LOS that alone is "
              "tens of degrees (measured tau ~190 ms over 147 REAL ENGAGE ticks; "
              "removing it cut median |LOS error| 15.7 -> 5.8 deg). Own-state only, "
-             "no gt. Default 0.0 = byte-identical.")
+             "no gt. Default 0.0 = byte-identical. PRONAV/PURSUIT ONLY "
+             "(--law pip refuses it).")
     parser.add_argument(
         "--dash-target-err-n", type=float, default=0.0,
         help="--coded-dash ROBUSTNESS sweep: offset (m, north) added to the target "
@@ -2234,6 +2388,25 @@ def parse_args():
     if args.split_freeze and args.law != "pronav":
         parser.error("--split-freeze requires --law pronav (it freezes the pro-nav v_perp "
                      "term specifically; the lab A/B was pure_pn-only)")
+    # SILENTLY-INERT-FLAG GUARD (review-2 Wave-1 row #6, landed 2026-07-25). The
+    # terminal LOS compensations rotate the (u, p) LOS basis the pursuit/pronav
+    # command is BUILT in. --law pip does not use that basis: it aims at
+    # target_tracker.pos_hat (corrected off the RAW LOS azimuth), and consumes
+    # lambda_cmd ONLY in the tracker-not-ready fallback. So under pip the knob is
+    # ~inert while the run still PRINTS "Terminal LOS compensation ACTIVE" -- the
+    # exact recipe for recording a fourth phantom terminal-compensation NULL.
+    # Refuse the combination loudly rather than fly a knob that is not in the loop.
+    if args.law == "pip" and (args.terminal_bearing_bias_deg
+                              or args.terminal_bearing_bias_l2r_deg is not None
+                              or args.terminal_bearing_bias_r2l_deg is not None
+                              or args.terminal_los_lag_ms):
+        parser.error(
+            "--terminal-bearing-bias-*/--terminal-los-lag-ms require "
+            "--law pursuit|pronav: PIP builds its command from "
+            "target_tracker.pos_hat, which is corrected off the RAW LOS "
+            "azimuth, so lambda_cmd is consumed only in PIP's "
+            "tracker-not-ready fallback -- the compensation would be "
+            "SILENTLY INERT while the run logs it ACTIVE (review-2 row #6)")
     if args.accel_boost and not args.fpv:
         parser.error("--accel-boost requires --fpv (it retunes the FPV PX4 param bundle)")
     if args.dash_unclamp and not args.fpv:
@@ -2516,8 +2689,12 @@ async def run_acquire_and_engage(
 
     coded_dash_start_mono = None
     coded_dash_start_sim = None   # sim-clock t at dash entry -- drives the Phase-A
-    #  pointing levers (accel-cap ramp + loft dive) so RTF sag can't distort them
-    #  (CLAUDE.md: durations are sim-clock, never wall). Falls back to wall if no clock.
+    #  pointing levers (accel-cap ramp + loft dive) AND the --coded-dash-max-s abort
+    #  window, so RTF sag can't distort them (CLAUDE.md: durations are sim-clock,
+    #  never wall). Falls back to wall ONLY with no /clock, and then it warns loudly
+    #  once and stamps every CSV row dash_clock=wall (see dash_elapsed_s).
+    dash_clock_basis = None       # "sim" | "wall" | None (dash not entered yet)
+    dash_clock_warned = False
     coded_dash_speed = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
     acquire_start_mono = time.monotonic()
     consecutive_fresh = 0
@@ -2527,6 +2704,12 @@ async def run_acquire_and_engage(
 
     v_perp = 0.0
     vh0 = vh1 = 0.0
+    # vh_cmd_valid: has the guidance-law block ever produced a REAL (vh0, vh1)
+    # this run? Until it has, `vh0/vh1` are the placeholder zeros above and MUST
+    # NOT be latched as a terminal-coast vector (review-2 BLOCKER -- see the
+    # guard at the `if (not in_terminal_coast) or not vh_cmd_valid:` branch).
+    vh_cmd_valid = False
+    coast_zero_flag = False       # the coast latched a ~zero horizontal velocity
     frozen_vworld = None
     # --split-freeze (Tier-1 lever B) one-way latch state: once r_hat first
     # dips under the (relocated) freeze range, the v_perp MAGNITUDE freezes
@@ -3148,15 +3331,16 @@ async def run_acquire_and_engage(
                           f"(dive {args.dash_loft_dive_s}s, vvert_max="
                           f"{args.dash_vvert_max or V_VERT_MAX} m/s) "
                           f"(docs/intercept_accuracy_levers.md Phase A)")
-            # SIM-CLOCK elapsed drives BOTH pointing levers (never wall time, so
-            # RTF sag can't distort the ramp/dive). Falls back to the wall-based
-            # elapsed only if the sim clock is unavailable (matches the phase's
-            # existing coded_dash_elapsed basis in that degraded case).
-            if coded_dash_start_sim is not None and sim_clock is not None \
-                    and sim_clock.t is not None:
-                _dash_elapsed = sim_clock.t - coded_dash_start_sim
-            else:
-                _dash_elapsed = tick_start - coded_dash_start_mono
+            # SIM-CLOCK elapsed drives BOTH pointing levers AND the abort window
+            # (never wall time, so RTF sag can't distort the ramp/dive/timeout).
+            # Falls back to wall ONLY if there is no /clock -- and then it says so,
+            # loudly, once, and stamps every row (dash_clock=wall).
+            _dash_elapsed, dash_clock_basis = dash_elapsed_s(
+                sim_clock.t if sim_clock is not None else None,
+                coded_dash_start_sim, tick_start, coded_dash_start_mono)
+            dash_clock_warned = warn_dash_clock_basis(
+                dash_clock_basis, dash_clock_warned,
+                bool(args.dash_accel_cap or args.dash_loft_m))
             # ACCEL-CAP: ramp the commanded speed so body pitch holds ~arctan(cap/g)
             # (default None -> returns coded_dash_speed unchanged, byte-identical).
             _dash_v = dash_forward_speed(coded_dash_speed, args.dash_accel_cap,
@@ -3187,16 +3371,21 @@ async def run_acquire_and_engage(
                 consecutive_fresh, new_meas, meas.range_m,
                 args.coded_dash_acquire_range_min,
                 args.coded_dash_acquire_range_max)
-            coded_dash_elapsed = tick_start - coded_dash_start_mono
+            # ACQUISITION / ABORT WINDOW -- same basis as the pointing levers
+            # (ADR-0009). Was `tick_start - coded_dash_start_mono` (wall), which
+            # at RTF 0.8 made a nominal 6.0 s window ~4.8 SIM seconds of dash.
+            coded_dash_elapsed = _dash_elapsed
             if consecutive_fresh >= CODED_DASH_ACQUIRE_STREAK:
                 print(f"[coded-dash] camera ACQUIRED at t={coded_dash_elapsed:.2f}s "
-                      f"({consecutive_fresh} fresh) -> ENGAGE (camera-only terminal)")
+                      f"({dash_clock_basis} clock, {consecutive_fresh} fresh) "
+                      f"-> ENGAGE (camera-only terminal)")
                 phase = "ENGAGE"
                 engage_t0 = tick_start
             elif coded_dash_elapsed > args.coded_dash_max_s:
                 aborted = True
                 abort_reason = (
-                    f"coded-dash: no camera acquire within {args.coded_dash_max_s}s")
+                    f"coded-dash: no camera acquire within "
+                    f"{args.coded_dash_max_s}s ({dash_clock_basis} clock)")
 
         elif phase == "CUE_WAIT":
             # CUE_WAIT (S2, replaces ACQUIRE under --handoff): hover, point
@@ -3610,11 +3799,36 @@ async def run_acquire_and_engage(
                             "v_close/yaw/lambda_hat stay live through CPA"
                         )
                 else:
-                    in_terminal_coast = (
-                        frozen_vworld is not None
-                        or (r_hat is not None and r_hat < TERMINAL_FREEZE_RANGE_M)
-                    )
-                if not in_terminal_coast:
+                    in_terminal_coast = terminal_coast_active(
+                        frozen_vworld, r_hat, TERMINAL_FREEZE_RANGE_M)
+                # ZERO-COMMAND TERMINAL GUARD (review-2 BLOCKER, fixed 2026-07-25).
+                # `or not vh_cmd_valid` is the whole fix. Pre-fix this read
+                # `if not in_terminal_coast:` alone, so when ENGAGE STARTED inside
+                # TERMINAL_FREEZE_RANGE_M -- which the markerless NN's short r_hat
+                # (~1.5-3.5 m against a true ~10-12 m) makes the NORMAL coded-dash
+                # case, not a corner case -- this block never ran, and the latch
+                # below captured the module-scope initialisers `vh0 = vh1 = 0.0`.
+                # The entire ENGAGE phase then re-issued cmd=(0, 0, v_down, yaw):
+                # the vehicle BRAKED instead of steering, on 29 of 44 engaged
+                # flights of the published camera-arm sweep, while the log printed
+                # a cheerful "velocity vector frozen at ((0.00, 0.00) world)".
+                #
+                # PORTED, NOT INVENTED: flight/deploy/seeker_loop.py's arm block
+                # CONSTRUCTS the frozen vector from that tick's own
+                # (v_close, lambda, v_perp) rather than capturing whatever the
+                # previous tick left in a local. Running the real command block
+                # once before latching gives m4 the same property through the
+                # SAME law-aware code (so PIP still aims via pos_hat and pursuit
+                # still gets v_perp=0 -- a literal copy of seeker_loop's pro-nav
+                # basis would have silently changed both).
+                #
+                # SCOPE OF BEHAVIOUR CHANGE (honest): for a flight whose ENGAGE
+                # begins OUTSIDE the freeze range (every AprilTag/S2 arm) this is
+                # a no-op -- vh_cmd_valid is already True by the time r_hat dips
+                # under the freeze range, so the latch captures exactly the same
+                # previous-tick vector as before. It changes ONLY the flights that
+                # were commanding zero.
+                if terminal_must_build_command(in_terminal_coast, vh_cmd_valid):
                     v_close = compute_v_close(r_hat, args.fpv)  # two-speed under --fpv
 
                     # TERMINAL LOS BIAS COMPENSATION (flight.guidance, default
@@ -3640,15 +3854,6 @@ async def run_acquire_and_engage(
                     lambda_cmd = compensate_terminal_los(
                         lambda_hat, terminal_bias_deg,
                         lambda_dot_hat, terminal_los_lag_s)
-                    if (lambda_cmd is not lambda_hat) and not terminal_comp_logged:
-                        terminal_comp_logged = True
-                        print(
-                            f"[m4] Terminal LOS compensation ACTIVE (first ENGAGE "
-                            f"command tick): lambda_hat={math.degrees(lambda_hat):+.2f}"
-                            f" -> lambda_cmd={math.degrees(lambda_cmd):+.2f} deg "
-                            f"(bias {terminal_bias_deg:+.2f} deg, lag "
-                            f"{terminal_los_lag_s * 1000.0:.0f} ms)", flush=True)
-
                     if args.law == "pip":
                         # Predicted Intercept Point (ADR-0011): aim the whole
                         # closing velocity at the LEAD point where we and the
@@ -3677,6 +3882,19 @@ async def run_acquire_and_engage(
                             vh1 = v_close * math.sin(lambda_cmd)
                         v_perp = 0.0  # not used by PIP; kept for the CSV column
                     else:
+                        # The "ACTIVE" print lives HERE, inside the ONLY branch
+                        # that consumes lambda_cmd (review-2 row #6, belt-and-
+                        # braces behind the parse-time --law pip refusal): a
+                        # false-affirmative "compensation ACTIVE" on a law that
+                        # ignores it is how a phantom NULL gets manufactured.
+                        if (lambda_cmd is not lambda_hat) and not terminal_comp_logged:
+                            terminal_comp_logged = True
+                            print(
+                                f"[m4] Terminal LOS compensation ACTIVE (first ENGAGE "
+                                f"command tick): lambda_hat={math.degrees(lambda_hat):+.2f}"
+                                f" -> lambda_cmd={math.degrees(lambda_cmd):+.2f} deg "
+                                f"(bias {terminal_bias_deg:+.2f} deg, lag "
+                                f"{terminal_los_lag_s * 1000.0:.0f} ms)", flush=True)
                         u = (math.cos(lambda_cmd), math.sin(lambda_cmd))
                         p = (-math.sin(lambda_cmd), math.cos(lambda_cmd))
                         if args.law == "pronav":
@@ -3695,17 +3913,24 @@ async def run_acquire_and_engage(
                         scale = V_TOTAL_MAX / norm
                         vh0 *= scale
                         vh1 *= scale
-                else:
+                    vh_cmd_valid = True   # a REAL command now exists to latch
+
+                if in_terminal_coast:
                     # TERMINAL COAST (see TERMINAL_FREEZE_RANGE_M comment):
                     # lock the collision-course velocity vector on entry and
                     # fly it straight through CPA -- lambda_dot is singular
                     # here and chasing it un-flies the intercept.
                     if frozen_vworld is None:
-                        frozen_vworld = (vh0, vh1)
-                        print(
-                            f"[m4] Terminal coast: velocity vector frozen at "
-                            f"r_hat={r_hat:.2f} m (({vh0:.2f}, {vh1:.2f}) world)"
-                        )
+                        # LOUD AND UNAVERAGEABLE (review-2 decision item 2): a
+                        # coast carrying essentially no horizontal velocity is a
+                        # BRAKE, not an intercept, and it must never again be
+                        # discoverable only by reading stdout -- latch_coast_vector
+                        # RETURNS the flag, which reaches the CSV + RESULT line.
+                        frozen_vworld, _cz, _msgs = latch_coast_vector(
+                            vh0, vh1, r_hat)
+                        coast_zero_flag = coast_zero_flag or _cz
+                        for _m in _msgs:
+                            print(_m, flush=True)
                     vh0, vh1 = frozen_vworld
 
                 v_down = (
@@ -3863,6 +4088,10 @@ async def run_acquire_and_engage(
             cue_stale=cue_stale_flag, coast_phase=coast_phase_tick,
             t_sim=sim_clock.t if sim_clock is not None else None,
             ekf_state=ekf_row_state,
+            # dash_clock only means anything inside CODED_DASH (blank elsewhere);
+            # coast_zero marks every ENGAGE tick flown under a ~zero coast latch.
+            dash_clock=dash_clock_basis if phase == "CODED_DASH" else None,
+            coast_zero=coast_zero_flag if phase == "ENGAGE" else None,
         )
 
         if aborted:
@@ -3919,6 +4148,13 @@ async def run_acquire_and_engage(
         "ekf_camera_gated_post_handoff": (
             ekf_tracker.camera_gated_post_handoff if ekf_tracker is not None else None
         ),
+        # 2026-07-25 review-2 remediation, both surfaced on the RESULT line so
+        # batch stdout carries them (a defect visible only in a mid-run print is
+        # what let the zero-command terminal fly 29 of 44 published flights):
+        #   coast_zero      -- the terminal-coast latch captured < COAST_ZERO_WARN_MS
+        #   dash_clock      -- "sim" (ADR-0009-correct) | "wall" (RTF-distorted)
+        "coast_zero": coast_zero_flag,
+        "dash_clock": dash_clock_basis,
     }
 
 
@@ -4382,15 +4618,25 @@ async def main():
         node.unsubscribe(POSE_TOPIC)
         return 1
 
-    # Tracking-refinement PORT 2 (--cue-latency-comp): sim time, only
-    # subscribed under --handoff (SimClockHolder's docstring explains why
-    # this subscription is safe -- this process makes zero gz service
-    # calls). Logged/used by the ext-cue consumption block regardless of
-    # --cue-latency-comp (ext_age_s is informative on its own); only the
-    # actual position advancement is gated by that flag.
+    # Tracking-refinement PORT 2 (--cue-latency-comp): sim time. SimClockHolder's
+    # docstring explains why this subscription is safe -- this process makes zero
+    # gz service calls. Logged/used by the ext-cue consumption block regardless of
+    # --cue-latency-comp (ext_age_s is informative on its own); only the actual
+    # position advancement is gated by that flag.
+    #
+    # ALSO SUBSCRIBED UNDER --coded-dash (fixed 2026-07-25, review-2 / ADR-0009).
+    # It was `if args.handoff:` alone, and --coded-dash is MUTUALLY EXCLUSIVE with
+    # --handoff (see parse_args), so on every coded-dash flight ever flown
+    # sim_clock was None, coded_dash_start_sim never populated, the already-written
+    # sim branch below was unreachable, and BOTH Phase-A pointing levers plus the
+    # --coded-dash-max-s abort window ran on WALL monotonic. At the measured
+    # RTF 0.80-0.84 of the flown ARM B logs a commanded 3.57 m/s^2 cap actually
+    # flew ~4.35 m/s^2 in sim seconds (theta 23.9 deg, not the designed 20.0) and a
+    # 2.5 s dive completed in ~2.05 sim s. That is a direct violation of the
+    # project's oldest standing rule (CLAUDE.md: sim time, never wall time).
     sim_clock = None
     clock_sub = False
-    if args.handoff:
+    if args.handoff or args.coded_dash:
         sim_clock = SimClockHolder()
         clock_sub = node.subscribe(Clock, CLOCK_TOPIC, sim_clock.on_clock)
         if not clock_sub:
@@ -4634,10 +4880,26 @@ async def main():
                     f"aborted={result['aborted']} log={log_path}"
                 )
                 engaged = mover_proc is not None
+                # coast_zero / dash_clock appended LAST so every existing
+                # lookbehind grep for law=/miss=/clean=/engaged= is unaffected.
                 print(
                     f"M4_RESULT law={args.law} miss={miss_distance:.3f} "
-                    f"clean={int(clean)} engaged={int(engaged)}"
+                    f"clean={int(clean)} engaged={int(engaged)} "
+                    f"coast_zero={int(bool(result.get('coast_zero')))} "
+                    f"dash_clock={result.get('dash_clock') or 'n/a'}"
                 )
+                if result.get("coast_zero"):
+                    print(
+                        "[m4] *** THIS FLIGHT'S MISS DISTANCE IS NOT A GUIDANCE "
+                        "RESULT: the terminal coast latched a ~zero horizontal "
+                        "velocity (coast_zero=1). Exclude it from any arm "
+                        "median / A-B verdict.", flush=True)
+                if result.get("dash_clock") == DASH_CLOCK_WALL:
+                    print(
+                        "[m4] *** THIS FLIGHT'S DASH SCHEDULE RAN ON WALL TIME "
+                        "(dash_clock=wall): the accel-cap ramp, the loft dive and "
+                        "the acquisition window are all RTF-scaled. Not comparable "
+                        "with sim-clock arms (ADR-0009).", flush=True)
 
                 if args.handoff:
                     handoff_t = result["handoff_t"]

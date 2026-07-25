@@ -27,6 +27,19 @@ same thresholds, same pass/fail semantics:
   (c) commanded-velocity-azimuth vs camera lambda_deg correlation, on ENGAGE
       rows carrying a camera detection, >= a law-aware bound (pip 0.55, else
       0.7 -- ADR-0013) -- FAIL-able.
+  (e) THE TERMINAL ACTUALLY ACTUATED: of the detected, pre-CPA (vc > 0)
+      ENGAGE ticks, at most half may have commanded ZERO horizontal velocity
+      -- FAIL-able. NOT a port from check_s2.sh; added 2026-07-25 because
+      this tool was ANTI-CORRELATED with the defect it should have caught.
+      scripts/m4_intercept.py's terminal freeze latched an unset (0.0, 0.0)
+      whenever ENGAGE began inside the freeze range (the normal markerless
+      case), so the whole ENGAGE phase commanded zero horizontal velocity --
+      braking, not steering -- across 29/44 engaged flights of five arms.
+      Check (c) MUST drop zero-command rows (a zero vector has no azimuth),
+      so on exactly those flights it dropped nearly every row, fell under its
+      "n < 10, underpowered" branch, stopped gating, and this tool printed
+      "PASS: N/N audited flights passed (a)/(b)/(c)". Check (e) gates on the
+      discarded denominator, and every report now prints it (ZEROCMD column).
   (d) residual-leak correlation corr(d_cmd, d_gt) -- ADVISORY ONLY, never
       gates pass/fail. check_s2.sh's own calibration (offline over every
       historical S2 flight) found honest flights span roughly -0.99..+0.92
@@ -83,9 +96,17 @@ USAGE:
     # from the CSV's own `law` column unless --law overrides it:
     python3 scripts/audit_per_tick.py --flight-csv logs/m4_intercept_pip_20260708T005935Z.csv
 
-Exit code: 0 if every audited flight passes checks (a)-(c) (SKIPPED flights
-don't count either way, (d) never gates); 1 if any audited flight fails
-(a)/(b)/(c) (only in --strict mode, the default); 2 on a usage error or a
+FLIGHT STATUS has THREE non-error outcomes, not two (2026-07-25): PASS (every
+gating check actually ran and passed), PASS_PARTIAL (failed nothing, but at
+least one gating check WARN-skipped and therefore verified nothing -- the run
+banner then refuses to claim it), and FAIL. The banner is built by COUNTING
+what each check returned, so "N/N passed (a)/(b)/(c)" can no longer be printed
+for a run in which (c) gated on zero flights.
+
+Exit code: 0 if every audited flight passes the gating checks it could run
+((a)/(b)/(c)/(e); SKIPPED flights don't count either way, (d) never gates) --
+a PASS_PARTIAL run still exits 0 but says so in the banner; 1 if any audited
+flight FAILS (a)/(b)/(c)/(e) (only in --strict mode, the default); 2 on a usage error or a
 missing/unreadable arm CSV / flight CSV (a file-existence problem, as
 distinct from an audit finding a dishonest flight); 3 if any arm's verdict
 is VACUOUS -- zero flights were actually scored (every flight SKIPPED, or
@@ -195,6 +216,23 @@ def infer_law_from_flight_csv(csv_path):
 
 HOLD_TOL = 1e-6
 
+# --- check (e) "the terminal actually ACTUATED" ----------------------------
+# A commanded horizontal velocity whose magnitude is below this is ZERO: not a
+# small steering command, an absent one. Same 1e-6 the (c)/(d) loops already
+# used to drop such rows -- named here because it is now a MEASURED quantity,
+# not a silent filter.
+ZERO_CMD_TOL = 1e-6
+# FAIL when MORE THAN this fraction of the (e) population commanded zero.
+# Rationale for 0.5: the frozen_vworld defect (m4_intercept.py, found
+# 2026-07-25) put 29/44 engaged flights above 75% zero-command and several at
+# 99%, while an honest terminal steers on essentially every detected tick --
+# the two populations are nowhere near this boundary, so the threshold is not
+# load-bearing to a tenth.
+ZERO_CMD_FAIL_FRAC = 0.5
+# ... and only when the population is big enough to mean anything. Below this
+# the check REPORTS and refuses to gate (WARN) -- it never silently passes.
+ZERO_CMD_MIN_N = 10
+
 # Columns required to run checks (a)/(b) at all. If entirely absent from the
 # CSV's header, this is a schema mismatch this tool cannot audit -- reported
 # as ERROR rather than a false PASS (check_s2.sh never hits this path since
@@ -218,6 +256,12 @@ REQUIRED_COLUMNS_D = ["gt_cam_x", "gt_cam_y", "gt_tag_x", "gt_tag_y"]
 # not a real honesty violation (tool-scope fix, 2026-07-22).
 DASH_PHASES = ("DASH", "CODED_DASH")
 
+# The checks that may gate a flight's pass/fail. (d) is advisory BY DESIGN
+# (no bound separates honest from leaking at this sample size) and is
+# deliberately absent. Anything listed here that did not return PASS/FAIL on a
+# given flight makes that flight PASS_PARTIAL, never PASS.
+GATING_CHECKS = ("a", "b", "c", "e")
+
 
 def audit_flight_csv(csv_path, law):
     """Faithful port of check_s2.sh's audit_csv() embedded python heredoc.
@@ -229,11 +273,18 @@ def audit_flight_csv(csv_path, law):
     Returns:
         {
           "csv_path": str, "law": str,
-          "status": "PASS" | "FAIL" | "SKIPPED" | "ERROR",
+          "status": "PASS" | "PASS_PARTIAL" | "FAIL" | "SKIPPED" | "ERROR",
           "engage_idx": int | None, "n_rows": int | None,
-          "checks": {"a": {...}, "b": {...}, "c": {...}, "d": {...}},
+          "checks": {"a": {...}, "b": {...}, "c": {...}, "d": {...},
+                     "e": {...}},
           "fail_reasons": [str, ...],   # non-advisory failure detail lines
+          "notes": [str, ...],          # PASS_PARTIAL: what was NOT enforced
+          "counts": {...},              # (e) denominators (n_e_pop, n_zerocmd, ...)
+          "gated_checks": [...], "ungated_checks": [...],
         }
+
+    PASS_PARTIAL means "did not fail anything, but at least one gating check
+    never ran" -- see the status block at the end of this function.
     """
     result = {
         "csv_path": csv_path,
@@ -243,6 +294,10 @@ def audit_flight_csv(csv_path, law):
         "n_rows": None,
         "checks": {},
         "fail_reasons": [],
+        "notes": [],            # non-failing things the reader MUST still see
+        "counts": {},           # (e) denominators -- never absorbed silently
+        "gated_checks": [],     # which of GATING_CHECKS actually returned PASS/FAIL
+        "ungated_checks": [],
     }
 
     if not csv_path or not os.path.exists(csv_path):
@@ -398,6 +453,46 @@ def audit_flight_csv(csv_path, law):
             ),
         }
 
+    # ---- (e) POPULATION: did the terminal actually ACTUATE? ---------------
+    # Computed BEFORE (c) because (c) reports the same denominator, and
+    # computed INDEPENDENTLY of lambda_deg so it still runs when (c)
+    # WARN-skips on a missing column (the two blind spots were independent).
+    #
+    # vc_m_s absent entirely -> fall back to every detected ENGAGE row rather
+    # than scoring zero rows (a check that silently evaluates an empty
+    # population is the vacuous verdict this tool exists to prevent).
+    have_vc = "vc_m_s" in cols
+    n_det_engage = 0        # detected ENGAGE rows (any closing geometry)
+    n_e_pop = 0             # (e) population: detected + pre-CPA (vc > 0)
+    n_zerocmd = 0           # ... of which commanded ZERO horizontal velocity
+    n_zerocmd_all = 0       # ... over every detected ENGAGE row
+    for r in rows[engage_idx:]:
+        if r.get("phase") != "ENGAGE":
+            continue
+        if (r.get("detected") != "1" or not r.get("cmd_vn")
+                or not r.get("cmd_ve")):
+            continue
+        try:
+            vn = float(r["cmd_vn"])
+            ve = float(r["cmd_ve"])
+        except ValueError:
+            continue
+        is_zero = abs(vn) < ZERO_CMD_TOL and abs(ve) < ZERO_CMD_TOL
+        n_det_engage += 1
+        if is_zero:
+            n_zerocmd_all += 1
+        pre_cpa = True
+        if have_vc:
+            try:
+                pre_cpa = float(r.get("vc_m_s") or 0.0) > 0.0
+            except ValueError:
+                pre_cpa = False
+        if pre_cpa:
+            n_e_pop += 1
+            if is_zero:
+                n_zerocmd += 1
+    zerocmd_frac = (n_zerocmd / n_e_pop) if n_e_pop else None
+
     # ---- (c) cmd-velocity-azimuth vs camera lambda_deg correlation --------
     missing_c = [c for c in REQUIRED_COLUMNS_C if c not in cols]
     if missing_c:
@@ -433,7 +528,13 @@ def audit_flight_csv(csv_path, law):
             lam = float(r["lambda_deg"])
             vn = float(r["cmd_vn"])
             ve = float(r["cmd_ve"])
-            if abs(vn) < 1e-6 and abs(ve) < 1e-6:
+            if abs(vn) < ZERO_CMD_TOL and abs(ve) < ZERO_CMD_TOL:
+                # A ZERO horizontal command has NO azimuth (atan2(0,0) is a
+                # meaningless 0.0), so it cannot enter the correlation -- but
+                # it is NOT nothing, and dropping it silently is exactly how
+                # this check went blind. THE DENOMINATOR IS COUNTED AND
+                # REPORTED (docs/error_handling_policy.md), and check (e)
+                # below gates on it. See the (e) comment for the defect.
                 continue
             az = math.degrees(math.atan2(ve, vn))
             # Normalize away atan2's +-180 branch cut relative to lambda_deg
@@ -447,12 +548,32 @@ def audit_flight_csv(csv_path, law):
             ys.append(az)
 
         n = len(xs)
-        if n < 10:
+        if n_e_pop and zerocmd_frac > ZERO_CMD_FAIL_FRAC:
+            # THE SHRINKING DENOMINATOR, MADE VISIBLE. (c) can only be
+            # computed over ticks that carried a command; when most ticks
+            # carried none, a high correlation over the surviving few is not
+            # evidence that the terminal was camera-driven -- it is evidence
+            # about the handful of ticks that happened to steer. Refuse to
+            # gate and point at (e), which does gate on this.
+            result["checks"]["c"] = {
+                "result": "WARN",
+                "detail": (
+                    f"computed over only {n} of {n_e_pop} detected pre-CPA "
+                    f"ENGAGE ticks -- the other {n_zerocmd} "
+                    f"({100.0 * zerocmd_frac:.0f}%) commanded ZERO horizontal "
+                    "velocity and have no azimuth. A correlation over the "
+                    "few ticks that DID steer cannot certify a terminal that "
+                    "mostly did not: NOT gating, see (e)"
+                ),
+            }
+        elif n < 10:
             result["checks"]["c"] = {
                 "result": "WARN",
                 "detail": (
                     f"only {n} pre-CPA ENGAGE rows with a camera detection "
-                    "(< 10) -- correlation underpowered, not gating "
+                    f"and a nonzero command (< 10; {n_zerocmd} of the "
+                    f"{n_e_pop} detected pre-CPA ticks were zero-command) -- "
+                    "correlation underpowered, not gating "
                     "(deployment-profile calibration 2026-07-08)"
                 ),
             }
@@ -501,6 +622,78 @@ def audit_flight_csv(csv_path, law):
                             f"correlation {corr:.3f} >= {bound} over {n} rows"
                         ),
                     }
+
+    # ---- (e) the terminal actually ACTUATED -- FAIL-able -------------------
+    # WHY THIS CHECK EXISTS (2026-07-25). scripts/m4_intercept.py's terminal
+    # freeze latched `frozen_vworld = (vh0, vh1)` off the module-scope
+    # initialisers `vh0 = vh1 = 0.0` whenever ENGAGE began already inside
+    # TERMINAL_FREEZE_RANGE_M -- which the markerless seeker's short r_hat at
+    # handoff makes the NORMAL case. The whole ENGAGE phase then re-issued
+    # cmd=(0, 0, v_down, yaw): the terminal was BRAKING, not steering, and
+    # every camera-arm conclusion measured through it was measuring a
+    # non-actuating terminal.
+    #
+    # THIS AUDIT WAS ANTI-CORRELATED WITH THAT DEFECT. Check (c) drops
+    # zero-command rows (it must -- they have no azimuth), so on exactly the
+    # broken flights it dropped nearly every row, fell under its n < 10
+    # underpowered branch, stopped gating, and the run still printed
+    # "PASS: N/N audited flights passed (a)/(b)/(c)". The instrument could not
+    # see the failure it was pointed at -- the silent-failure rule in
+    # CLAUDE.md: a bug in the SCORER invalidates every run that passed
+    # through it, and a paired control cannot catch it because both arms
+    # share the instrument.
+    #
+    # A detected, pre-CPA ENGAGE tick is a tick where the seeker HAS the
+    # target and the geometry is still closing. A camera-only terminal that
+    # commands exactly (0, 0) there is not guiding, whatever else it logs.
+    if n_e_pop == 0:
+        result["checks"]["e"] = {
+            "result": "WARN",
+            "detail": (
+                f"no detected pre-CPA ENGAGE ticks ({n_det_engage} detected "
+                f"ENGAGE rows total"
+                + ("" if have_vc else "; no vc_m_s column, so 'pre-CPA' could "
+                                      "not be applied")
+                + ") -- terminal actuation UNVERIFIED, not gating"
+            ),
+        }
+    elif zerocmd_frac > ZERO_CMD_FAIL_FRAC and n_e_pop >= ZERO_CMD_MIN_N:
+        ok = False
+        detail = (
+            f"terminal commanded ZERO horizontal velocity on {n_zerocmd}/"
+            f"{n_e_pop} ({100.0 * zerocmd_frac:.0f}%) detected pre-CPA ENGAGE "
+            f"ticks (|cmd_vn|,|cmd_ve| < {ZERO_CMD_TOL:g}) -- the terminal was "
+            f"not steering. Known cause: the m4_intercept.py frozen_vworld "
+            f"latch capturing an unset (0,0); check the run's 'velocity vector "
+            f"frozen at ... ((0.00, 0.00) world)' line"
+        )
+        result["checks"]["e"] = {"result": "FAIL", "detail": detail}
+        result["fail_reasons"].append("(e) " + detail)
+    elif n_e_pop < ZERO_CMD_MIN_N:
+        result["checks"]["e"] = {
+            "result": "WARN",
+            "detail": (
+                f"only {n_e_pop} detected pre-CPA ENGAGE ticks "
+                f"(< {ZERO_CMD_MIN_N}) -- {n_zerocmd} zero-command; "
+                "underpowered, reported but not gating"
+            ),
+        }
+    else:
+        result["checks"]["e"] = {
+            "result": "PASS",
+            "detail": (
+                f"terminal actuated on {n_e_pop - n_zerocmd}/{n_e_pop} "
+                f"detected pre-CPA ENGAGE ticks "
+                f"({100.0 * zerocmd_frac:.0f}% zero-command <= "
+                f"{100.0 * ZERO_CMD_FAIL_FRAC:.0f}%)"
+            ),
+        }
+    result["counts"] = {
+        "n_det_engage": n_det_engage,
+        "n_e_pop": n_e_pop,
+        "n_zerocmd": n_zerocmd,
+        "n_zerocmd_all": n_zerocmd_all,
+    }
 
     # ---- (d) residual-leak, ADVISORY ONLY -- never gates pass/fail --------
     # See check_s2.sh's own comment block above its (d) for the full
@@ -588,7 +781,32 @@ def audit_flight_csv(csv_path, law):
                     ),
                 }
 
-    result["status"] = "PASS" if ok else "FAIL"
+    # ---- flight STATUS: name what was actually ENFORCED --------------------
+    # THE THIRD STATUS (2026-07-25). Before this, any flight that did not FAIL
+    # was "PASS", and the run-level banner then claimed "passed (a)/(b)/(c)"
+    # -- even when (c) had WARN-skipped (missing lambda_deg column, or an
+    # underpowered / variance-starved / zero-command-dominated window) and had
+    # gated NOTHING. That is a vacuous verdict: a claim about a check that
+    # never ran. PASS_PARTIAL says exactly which checks were enforced; the
+    # summary is built from these counts, so the printed claim cannot drift
+    # from the enforcement again.
+    gated = [k for k in GATING_CHECKS
+             if result["checks"].get(k, {}).get("result") in ("PASS", "FAIL")]
+    ungated = [k for k in GATING_CHECKS if k not in gated]
+    result["gated_checks"] = gated
+    result["ungated_checks"] = ungated
+    if not ok:
+        result["status"] = "FAIL"
+    elif ungated:
+        result["status"] = "PASS_PARTIAL"
+        result["notes"].append(
+            "enforced (" + ")/(".join(gated) + ") only; NOT enforced: "
+            + ", ".join(
+                f"({k}) {result['checks'].get(k, {}).get('detail', 'not run')}"
+                for k in ungated)
+        )
+    else:
+        result["status"] = "PASS"
     return result
 
 
@@ -604,15 +822,22 @@ def _check_symbol(checks, key):
 def print_flight_table(records):
     """records: list of dicts with keys arm, run_idx, law, miss_m, clean,
     handoff, flight_csv, result (audit_flight_csv() output)."""
-    headers = ["ARM", "RUN", "LAW", "STATUS", "A", "B", "C", "D", "MISS_M",
-               "CLEAN", "HANDOFF", "FLIGHT_CSV"]
+    headers = ["ARM", "RUN", "LAW", "STATUS", "A", "B", "C", "E", "D",
+               "ZEROCMD", "MISS_M", "CLEAN", "HANDOFF", "FLIGHT_CSV"]
     rows_out = []
     for rec in records:
         res = rec["result"]
+        cnt = res.get("counts") or {}
+        # ZEROCMD is printed for EVERY flight, passing or not: the denominator
+        # that check (c) silently discarded is now always on the face of the
+        # report (zero-command / detected-pre-CPA-ENGAGE ticks).
+        zc = ("-" if not cnt.get("n_e_pop")
+              else f"{cnt['n_zerocmd']}/{cnt['n_e_pop']}")
         rows_out.append([
             rec["arm"], str(rec["run_idx"]), rec["law"] or "-", res["status"],
             _check_symbol(res["checks"], "a"), _check_symbol(res["checks"], "b"),
-            _check_symbol(res["checks"], "c"), _check_symbol(res["checks"], "d"),
+            _check_symbol(res["checks"], "c"), _check_symbol(res["checks"], "e"),
+            _check_symbol(res["checks"], "d"), zc,
             rec.get("miss_m", "") or "-", rec.get("clean", "") or "-",
             rec.get("handoff", "") or "-",
             os.path.basename(res["csv_path"]) if res["csv_path"] else "-",
@@ -631,12 +856,14 @@ def print_flight_table(records):
     # column truncation.
     for rec in records:
         res = rec["result"]
-        if res["status"] in ("FAIL", "ERROR", "SKIPPED"):
+        if res["status"] in ("FAIL", "ERROR", "SKIPPED", "PASS_PARTIAL"):
             print(f"\n[audit_per_tick] {rec['arm']} run_idx={rec['run_idx']} "
                   f"law={rec['law'] or '-'} -> {res['status']} "
                   f"({res['csv_path']})")
             for reason in res["fail_reasons"]:
                 print(f"    {reason}")
+            for note in res.get("notes", []):
+                print(f"    {note}")
         # Always surface (d), since it never shows in the table's own detail.
         d = res["checks"].get("d")
         if d and d["result"] == "INFO":
@@ -646,7 +873,11 @@ def print_flight_table(records):
 
 def arm_verdict(records_for_arm):
     """PASS only if every non-SKIPPED, non-ERROR flight in the arm PASSed
-    (a)/(b)/(c) AND at least one flight was actually scored. SKIPPED flights
+    EVERY gating check -- (a)/(b)/(c)/(e) -- AND at least one flight was
+    actually scored. A flight that failed nothing but had a gating check
+    WARN-skip is PASS_PARTIAL and makes the ARM PASS_PARTIAL: the arm did not
+    fail, and it also was not fully checked, and those are different facts.
+    Returns (verdict, n_pass, n_fail, n_skip, n_error, n_partial). SKIPPED flights
     (legitimate aborts) are excluded from both the pass and fail tallies.
     ERROR flights (couldn't be read/audited at all) count as failures -- a
     flight this tool cannot verify does not get the benefit of the doubt.
@@ -658,11 +889,13 @@ def arm_verdict(records_for_arm):
     printed "PASS (pass=0 fail=0 skipped=8)" and exited 0 -- a green audit
     that never audited anything. Same class as the CODED_DASH phase-name bug
     (the anti-mirage audit silently ran over zero ticks)."""
-    n_pass = n_fail = n_skip = n_error = 0
+    n_pass = n_fail = n_skip = n_error = n_partial = 0
     for rec in records_for_arm:
         status = rec["result"]["status"]
         if status == "PASS":
             n_pass += 1
+        elif status == "PASS_PARTIAL":
+            n_partial += 1
         elif status == "FAIL":
             n_fail += 1
         elif status == "SKIPPED":
@@ -671,11 +904,16 @@ def arm_verdict(records_for_arm):
             n_error += 1
     if n_fail or n_error:
         verdict = "FAIL"
-    elif n_pass == 0:
+    elif n_pass + n_partial == 0:
         verdict = "VACUOUS"  # zero units scored -> not PASS, ever
+    elif n_partial:
+        # Not a FAIL (nothing was caught) and not a PASS (not everything was
+        # checked). Naming it is the whole point: an arm whose (c) never gated
+        # on any flight used to print the same "PASS" as a fully-checked arm.
+        verdict = "PASS_PARTIAL"
     else:
         verdict = "PASS"
-    return verdict, n_pass, n_fail, n_skip, n_error
+    return verdict, n_pass, n_fail, n_skip, n_error, n_partial
 
 
 def main(argv=None):
@@ -798,21 +1036,51 @@ def main(argv=None):
     print("[audit_per_tick] ================ Arm verdicts ================")
     any_fail = False
     any_vacuous = False
-    n_pass_total = n_skip_total = 0
+    n_pass_total = n_skip_total = n_partial_total = 0
     for arm_label in arm_names_in_order:
         recs = per_arm_records[arm_label]
-        verdict, n_pass, n_fail, n_skip, n_error = arm_verdict(recs)
+        verdict, n_pass, n_fail, n_skip, n_error, n_partial = arm_verdict(recs)
         if verdict == "FAIL":
             any_fail = True
         elif verdict == "VACUOUS":
             any_vacuous = True
         n_pass_total += n_pass
         n_skip_total += n_skip
+        n_partial_total += n_partial
         print(
             f"[audit_per_tick] {arm_label}: {verdict}  "
-            f"(pass={n_pass} fail={n_fail} skipped={n_skip} error={n_error} "
-            f"total={len(recs)})"
+            f"(pass={n_pass} partial={n_partial} fail={n_fail} "
+            f"skipped={n_skip} error={n_error} total={len(recs)})"
         )
+
+    # PER-CHECK ENFORCEMENT TALLY -- the claim the banner is allowed to make.
+    # Built by COUNTING what each check actually returned, so "N/N passed
+    # (a)/(b)/(c)" can never again be printed for a run where (c) gated on
+    # nothing.
+    # (loop variable is `rec`, never `r`: these are RECORD dicts, not CSV rows
+    # -- tests/test_flight_csv_contract.py's source sweep reads any `r[...]`
+    # as a producer-column read, and it is right to.)
+    scored = [rec for rec in records
+              if rec["result"]["status"] in ("PASS", "PASS_PARTIAL", "FAIL")]
+    enforced = {}
+    for k in GATING_CHECKS:
+        enforced[k] = sum(
+            1 for rec in scored
+            if rec["result"]["checks"].get(k, {}).get("result") in ("PASS", "FAIL"))
+    n_zerocmd_total = sum((rec["result"].get("counts") or {}).get("n_zerocmd", 0)
+                          for rec in scored)
+    n_epop_total = sum((rec["result"].get("counts") or {}).get("n_e_pop", 0)
+                       for rec in scored)
+    if scored:
+        print("[audit_per_tick] checks ENFORCED over the "
+              f"{len(scored)} scored flights: "
+              + ", ".join(f"({k}) on {enforced[k]}/{len(scored)}"
+                          for k in GATING_CHECKS))
+        print(f"[audit_per_tick] terminal actuation (e): {n_zerocmd_total}/"
+              f"{n_epop_total} detected pre-CPA ENGAGE ticks commanded ZERO "
+              f"horizontal velocity"
+              + (" -- see the (e) FAIL detail above"
+                 if any_fail else ""))
 
     if missing_file_errors:
         print()
@@ -837,7 +1105,7 @@ def main(argv=None):
 
     if any_fail:
         print("[audit_per_tick] FAIL: at least one arm has a flight that "
-              "failed (a)/(b)/(c).")
+              "failed a gating check (a)/(b)/(c)/(e).")
         return 1
 
     if any_vacuous:
@@ -846,8 +1114,22 @@ def main(argv=None):
               "as PASS).")
         return 3
 
-    print(f"[audit_per_tick] PASS: {n_pass_total}/{n_pass_total} audited "
-          f"flights passed (a)/(b)/(c) "
+    # THE BANNER STATES ONLY WHAT WAS ENFORCED (2026-07-25). It used to read
+    # "PASS: N/N audited flights passed (a)/(b)/(c)" unconditionally -- printed
+    # verbatim on runs where (c) WARN-skipped on every flight and gated
+    # nothing, including the frozen_vworld zero-command flights (c) is blind
+    # to by construction. The counts above are the enforcement record.
+    n_scored = n_pass_total + n_partial_total
+    if n_partial_total:
+        print(f"[audit_per_tick] PASS_PARTIAL: {n_scored}/{n_scored} audited "
+              f"flights failed NO gating check, but {n_partial_total} of them "
+              f"had at least one check that never gated (see the PASS_PARTIAL "
+              f"detail above) -- this run did NOT verify (a)/(b)/(c)/(e) on "
+              f"every flight ({n_skip_total} SKIPPED aborts excluded, "
+              f"(d) advisory-only).")
+        return 0
+    print(f"[audit_per_tick] PASS: {n_scored}/{n_scored} audited "
+          f"flights passed every gating check (a)/(b)/(c)/(e) "
           f"({n_skip_total} SKIPPED aborts excluded, (d) advisory-only).")
     return 0
 
