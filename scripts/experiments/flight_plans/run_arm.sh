@@ -102,6 +102,13 @@ case "$ARM" in
   AE5dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY"; N=8; DIRS=both;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
   AE15dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY"; N=8; DIRS=both;;
+  # RESIDUAL-BIAS fine sweep (dash-only): the aim curve measured 0 deg -> 0.71 m,
+  # +5 -> 0.43, +15 -> 1.43, so the accel-aware lead sits ~5 deg off a real optimum
+  # worth ~0.28 m. These bracket it so the optimum can be DERIVED, not hand-found.
+  # (Matters because the 5-inch ram envelope is ~0.36 m -- see contract stage `kill`.)
+  AE2dash)  EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 2.5 $DASHONLY"; N=8; DIRS=both;;
+  AE7dash)  EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 7.5 $DASHONLY"; N=8; DIRS=both;;
+  AE10dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 10 $DASHONLY"; N=8; DIRS=both;;
   # Accel-CAP at CORRECT aim (never flown): cap 3.57 + accel-aware lead sized to the
   # ACHIEVED a=4.0. Decouples the cap's closing-speed cost from the aim confound
   # (the 2026-07-24 Bdash correction). Compare to AAL (uncapped, correct aim, 0.71).
