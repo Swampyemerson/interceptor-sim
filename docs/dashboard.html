@@ -434,7 +434,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->aa4b6a1<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->f56f9dc<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 2</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -1421,7 +1421,7 @@
    ],
    "status": "half-done",
    "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo AI HAT+ DEFERRED; nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
-   "note": "ORDERED 2026-07-20 (~$1,000 shipped: target-drone stack + seeker kit + interceptor BRAIN 6C Mini/PM02/M10) + the must-add top-up. The interceptor AIRFRAME is Tier-2 and still gated on the tripod AprilTag decode curve. [CORRECTED 2026-07-24: this note previously read 'NOTHING ORDERED YET' four days after the cart was placed — a contract-drift miss found by the full project review.] the staged buy plan is the bom_tiers table (§3.0) and the human sequence is build_plan (§2.2). GATING (corrected 2026-07-17): the Tier-2 interceptor order is gated on the tripod session's APRILTAG decode-envelope curve (first kills fly the tag on Pi 5 CPU); the NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — never the interceptor. COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates); fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the tripod + tagged-target afternoon yields BOTH curves in one session (the transfer bet is hope-past-evidence, but its verdict only moves the markerless phase). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.) | Onboard flight software READY (skeleton): real_flight.py state machine SITL-verified (ADR-0081) + field bring-up kit (scripts/field/) -- so when parts arrive the software side is built; remaining is the physical build + bench tuning of the TODO-BUILDER constants + the tripod test.",
+   "note": "BUILDER UNBLOCKED 2026-07-24: the two external-lead-time blockers the full review raised are RESOLVED — the builder confirms he HAS the regulatory basis AND a site. (Specifics — which regime, which site, and whether a deliberate two-aircraft mid-air is permitted IN WRITING — are not yet captured here; capture them when convenient, since the kill-day venue question is separate from the tripod-day one.) The critical path is therefore now BUILD + BENCH + tripod, not permissions. | ORDERED 2026-07-20 (~$1,000 shipped: target-drone stack + seeker kit + interceptor BRAIN 6C Mini/PM02/M10) + the must-add top-up. The interceptor AIRFRAME is Tier-2 and still gated on the tripod AprilTag decode curve. [CORRECTED 2026-07-24: this note previously read 'NOTHING ORDERED YET' four days after the cart was placed — a contract-drift miss found by the full project review.] the staged buy plan is the bom_tiers table (§3.0) and the human sequence is build_plan (§2.2). GATING (corrected 2026-07-17): the Tier-2 interceptor order is gated on the tripod session's APRILTAG decode-envelope curve (first kills fly the tag on Pi 5 CPU); the NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — never the interceptor. COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates); fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the tripod + tagged-target afternoon yields BOTH curves in one session (the transfer bet is hope-past-evidence, but its verdict only moves the markerless phase). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.) | Onboard flight software READY (skeleton): real_flight.py state machine SITL-verified (ADR-0081) + field bring-up kit (scripts/field/) -- so when parts arrive the software side is built; remaining is the physical build + bench tuning of the TODO-BUILDER constants + the tripod test.",
    "evidence": [
     "docs/hardware_order_list.md §0/§0b/§0c",
     "NEXT.md ROUND-5 (Pi5/HAT ruling, tripod test)"
@@ -1446,6 +1446,10 @@
     {
      "date": "2026-07-24",
      "note": "Status idea->half-done: parts ORDERED 2026-07-20; the stale 'NOTHING ORDERED YET' note corrected (full-review finding)."
+    },
+    {
+     "date": "2026-07-24",
+     "note": "Builder confirms FAA regime + site are IN HAND — both external-lead-time blockers from the full review are cleared; the critical path is build/bench/tripod."
     }
    ]
   },
