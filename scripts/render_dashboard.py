@@ -22,7 +22,7 @@ Schema v2.2 adds (2026-07-17 build-plan pass, validated here):
 Schema v2.3 adds (2026-07-20 Tier-1 order pass, validated here):
   build_tab      — the workbench Build sheet (dashboard tab bar State|Build; #build in the
                    URL hash bookmarks it): scope + subsystems[] (id/name/role + parts[] of
-                   name/status/role/notes with status ordered|must-add|print + connections[]
+                   name/status/role/notes with status ordered|must-add|print|in hand|built + connections[]
                    of from/to/medium + steps[] of id/text with optional gate/why) + ladder
                    (summary/rungs[]/gate; rung refs point at step ids) + evidence.
                    Step ids are UNIQUE across ALL subsystems — they key the Build sheet's
@@ -79,7 +79,7 @@ BP_PHASE_KEYS = {"code", "name", "cost", "tasks"}
 BUILD_TAB_KEYS = {"scope", "subsystems", "ladder", "evidence"}
 BT_SUB_KEYS = {"id", "name", "role", "parts", "connections", "steps"}
 BT_PART_KEYS = {"name", "status", "role"}
-BT_PART_STATUSES = {"ordered", "must-add", "print"}
+BT_PART_STATUSES = {"ordered", "must-add", "print", "in hand", "built"}
 BT_CONN_KEYS = {"from", "to", "medium"}
 BT_STEP_KEYS = {"id", "text"}
 BT_LADDER_KEYS = {"summary", "rungs", "gate"}
