@@ -594,13 +594,18 @@ def audit_flight_csv(csv_path, law):
                 # below gates on it. See the (e) comment for the defect.
                 continue
             az = math.degrees(math.atan2(ve, vn))
-            # Normalize away atan2's +-180 branch cut relative to lambda_deg
-            # (a pure +-360 artifact, not a real angular difference).
-            diff = az - lam
-            if diff > 180.0:
-                az -= 360.0
-            elif diff < -180.0:
-                az += 360.0
+            # Lift az to the coterminal angle nearest lambda_deg. lambda_deg
+            # is the filter's UNWRAPPED state -- through the near-CPA
+            # singularity it accumulates full windings (measured 874 deg on a
+            # re-fly flight, 2026-07-25) -- while atan2 is bounded to
+            # (-180, 180], so the single branch-cut shift this used to apply
+            # cannot reach past one winding and the correlation compared
+            # incompatible representations (measured: corr 0.607 -> 0.998 on
+            # the same 10 rows once lifted; the 0.607 read as a gating FAIL).
+            # A mod-360 lift is pure representation, never a real angular
+            # difference, and reduces to the old branch-cut shift whenever
+            # |az - lam| <= 540.
+            az += 360.0 * round((lam - az) / 360.0)
             xs.append(lam)
             ys.append(az)
 

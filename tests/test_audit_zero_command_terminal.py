@@ -325,3 +325,38 @@ def test_exclusion_does_not_blind_c_to_a_genuinely_decorrelated_terminal(tmp_pat
     res = audit_per_tick.audit_flight_csv(fp, "pronav")
     assert res["checks"]["c"]["result"] == "FAIL", res["checks"]["c"]
     assert res["status"] == "FAIL"
+
+
+def test_c_lifts_azimuth_across_multiple_lambda_windings(tmp_path):
+    """The filter's lambda_deg is UNWRAPPED (874 deg measured through the
+    near-CPA singularity on a 2026-07-25 re-fly flight) while atan2 is bounded
+    to (-180, 180]. A perfectly-tracking terminal must PASS (c) even when
+    lambda has wound past +-540, where the old single branch-cut shift could
+    not reach (measured: corr 0.607 -> 0.998 on the same rows once lifted)."""
+    fp = write_coast_flight(str(tmp_path / "wind.csv"), n_live=0, n_coast=0,
+                            n_dropout=0)
+    rows = list(csv.DictReader(open(fp)))
+    t = float(rows[-1]["t"]) if rows and rows[-1]["t"] else 2.0
+    import math as _m
+    for k in range(12):
+        lam = 100.0 + 70.0 * k          # unwrapped: 100 .. 870 deg
+        t += 0.2
+        gt = 16.0 - 0.5 * k
+        rows.append({"t": f"{t:.2f}", "phase": "ENGAGE", "law": "pronav",
+                     "detected": "1", "meas_range": f"{gt * 1.05:.3f}",
+                     "gt_range": f"{gt:.3f}", "lambda_deg": f"{lam:.3f}",
+                     "cmd_vn": f"{8.0 * _m.cos(_m.radians(lam)):.6f}",
+                     "cmd_ve": f"{8.0 * _m.sin(_m.radians(lam)):.6f}",
+                     "cmd_vd": "0.0", "vc_m_s": "6.0", "alt_m": "12.0",
+                     "gt_cam_x": "0.0", "gt_cam_y": "0.0", "gt_cam_z": "12.0",
+                     "gt_tag_x": f"{gt * _m.sin(_m.radians(lam)):.3f}",
+                     "gt_tag_y": f"{gt * _m.cos(_m.radians(lam)):.3f}",
+                     "gt_tag_z": "12.0"})
+    with open(fp, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CSV_HEADER, restval="")
+        w.writeheader()
+        w.writerows(rows)
+    res = audit_per_tick.audit_flight_csv(fp, "pronav")
+    c = res["checks"]["c"]
+    assert c["result"] == "PASS", c
+    assert "0.99" in c["detail"] or "1.000" in c["detail"], c["detail"]
