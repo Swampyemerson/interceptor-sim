@@ -26,7 +26,14 @@ same thresholds, same pass/fail semantics:
       phase actually ran) -- FAIL-able.
   (c) commanded-velocity-azimuth vs camera lambda_deg correlation, on ENGAGE
       rows carrying a camera detection, >= a law-aware bound (pip 0.55, else
-      0.7 -- ADR-0013) -- FAIL-able.
+      0.7 -- ADR-0013) -- FAIL-able. Rows inside the LATCHED terminal coast
+      (identified by the trailing run of byte-identical nonzero cmd_vn/cmd_ve
+      -- the frozen vector re-issued verbatim) are EXCLUDED and counted:
+      during the ADR-0023 one-way freeze the command is frozen by design
+      while lambda keeps evolving, so correlating it tests the freeze, not
+      the camera coupling (found 2026-07-25 on the first re-fly arm through
+      the fixed zero-command latch; check (e) still gates that the latched
+      vector is nonzero).
   (e) THE TERMINAL ACTUALLY ACTUATED: of the detected, pre-CPA (vc > 0)
       ENGAGE ticks, at most half may have commanded ZERO horizontal velocity
       -- FAIL-able. NOT a port from check_s2.sh; added 2026-07-25 because
@@ -513,12 +520,62 @@ def audit_flight_csv(csv_path, law):
         # either way, so (c) GATES only when powered: pre-CPA rows (vc > 0),
         # n >= 10, command-azimuth std >= 2 deg; otherwise WARN with full
         # diagnostics. PASS still reported whenever corr >= bound.
+        # TERMINAL-COAST EXCLUSION (2026-07-25, found on the first re-fly arm
+        # through the FIXED zero-command latch). Once the one-way terminal
+        # freeze latches (ADR-0023 -- the sanctioned near-CPA behaviour, kept
+        # because split-freeze measured worse), every remaining ENGAGE tick
+        # re-issues the SAME frozen (cmd_vn, cmd_ve) verbatim while lambda
+        # keeps evolving off fresh detections through the near-CPA singularity
+        # -- so a correlation over those rows tests a vector that is FROZEN BY
+        # DESIGN, not whether guidance was camera-driven. Pre-fix this was
+        # invisible: the latch held (0,0), and the zero-command skip below
+        # dropped those rows. Post-fix the latch holds a REAL vector, so
+        # without this exclusion (c) FAILs exactly the flights the fix
+        # repaired (measured: 13 of 14 correlated rows az==71.00 deg while
+        # lambda swept -10..+107 deg, corr 0.614). The latch is identified by
+        # its own signature -- the maximal TRAILING run of ENGAGE rows whose
+        # cmd_vn/cmd_ve strings are byte-identical to the final row's (a live
+        # law never repeats a command to full float precision for >=2
+        # consecutive ticks) -- and the excluded rows are COUNTED AND
+        # REPORTED, never silently dropped (docs/error_handling_policy.md).
+        # Check (e) still gates that the latched vector is not zero.
+        # The latch's offline signature, precisely: the frozen vector is the
+        # LAST NONZERO command of the flight (dropout ticks interleave (0,0)
+        # holds, so the coast is NOT one contiguous trailing run), it first
+        # appears at the latch tick (the latch freezes the vector computed on
+        # that very tick), and every later detected tick re-issues it
+        # byte-identically. So: take the last nonzero (cmd_vn, cmd_ve); if it
+        # occurs >= 2 times, every occurrence from its first onward is coast.
+        engage_rows = [r for r in rows[engage_idx:] if r.get("phase") == "ENGAGE"]
+        coast_ids = set()
+        fk = None
+        for r in reversed(engage_rows):
+            k = (r.get("cmd_vn"), r.get("cmd_ve"))
+            if not k[0] or not k[1]:
+                continue
+            try:
+                if (abs(float(k[0])) < ZERO_CMD_TOL
+                        and abs(float(k[1])) < ZERO_CMD_TOL):
+                    continue
+            except ValueError:
+                continue
+            fk = k
+            break
+        if fk is not None:
+            matches = [r for r in engage_rows
+                       if (r.get("cmd_vn"), r.get("cmd_ve")) == fk]
+            if len(matches) >= 2:
+                coast_ids = {id(r) for r in matches}
+        n_coast = 0
         xs, ys = [], []
         for r in rows[engage_idx:]:
             if r.get("phase") != "ENGAGE":
                 continue
             if (r.get("detected") != "1" or not r.get("lambda_deg")
                     or not r.get("cmd_vn") or not r.get("cmd_ve")):
+                continue
+            if id(r) in coast_ids:
+                n_coast += 1
                 continue
             try:
                 if float(r.get("vc_m_s") or 0.0) <= 0.0:
@@ -570,10 +627,12 @@ def audit_flight_csv(csv_path, law):
             result["checks"]["c"] = {
                 "result": "WARN",
                 "detail": (
-                    f"only {n} pre-CPA ENGAGE rows with a camera detection "
-                    f"and a nonzero command (< 10; {n_zerocmd} of the "
-                    f"{n_e_pop} detected pre-CPA ticks were zero-command) -- "
-                    "correlation underpowered, not gating "
+                    f"only {n} pre-CPA ENGAGE rows with a camera detection, "
+                    f"a nonzero command, and a LIVE (pre-latch) law (< 10; "
+                    f"{n_zerocmd} of the {n_e_pop} detected pre-CPA ticks "
+                    f"were zero-command, {n_coast} were the latched terminal "
+                    "coast re-issuing its frozen vector) -- correlation "
+                    "underpowered, not gating "
                     "(deployment-profile calibration 2026-07-08)"
                 ),
             }
@@ -610,7 +669,9 @@ def audit_flight_csv(csv_path, law):
                     ok = False
                     detail = (
                         f"cmd-velocity-azimuth vs camera lambda_deg "
-                        f"correlation {corr:.3f} < {bound} over {n} rows"
+                        f"correlation {corr:.3f} < {bound} over {n} live "
+                        f"pre-latch rows ({n_coast} latched-coast rows "
+                        "excluded)"
                     )
                     result["checks"]["c"] = {"result": "FAIL", "detail": detail}
                     result["fail_reasons"].append("(c) " + detail)
@@ -619,7 +680,9 @@ def audit_flight_csv(csv_path, law):
                         "result": "PASS",
                         "detail": (
                             f"cmd-velocity-azimuth vs camera lambda_deg "
-                            f"correlation {corr:.3f} >= {bound} over {n} rows"
+                            f"correlation {corr:.3f} >= {bound} over {n} live "
+                            f"pre-latch rows ({n_coast} latched-coast rows "
+                            "excluded)"
                         ),
                     }
 
