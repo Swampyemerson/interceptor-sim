@@ -34,8 +34,8 @@ APKWS, Fortem's net drone — **never** try for a zero-miss hit. They kill withi
 few-meter lethal radius (ram, net, or small proximity charge) (ADR-0021/0022). Two
 consequences:
 
-1. **At 2-3 m/s we already win.** Our pro-nav miss (~0.37 m) is inside even a bare
-   kinetic ram's ~0.5 m radius → that intercept is already a kill. Part of the
+1. **At 2-3 m/s we already win.** Our pro-nav miss (~0.37 m) is at the edge of a bare
+   kinetic ram's 0.35 m radius (ADR-0084) → that intercept is a kill/near-kill. Part of the
    "problem" was grading against a hit-to-kill bar only a warhead-less ram requires.
 2. **You cannot buy out the perception gap with a bigger warhead.** The one mechanism
    that would forgive a 2 m miss at speed (a proximity charge) has to *detect* the
@@ -77,8 +77,9 @@ a near-R=0 regression so we don't break the M4 gate. "Lab ranks, Gazebo decides.
 ### Tier 3 — the metric decision (RATIFIED by the builder, 2026-07-06, ADR-0025)
 5. **Proximity/lethal-radius Pk is now the headline metric.** Report the full Pk-vs-radius
    curve (the ADR-0014 plan) and headline the radius a chosen cheap kill mechanism actually
-   delivers — ram ~0.5 m (wins the slow regime outright, already Pk ~95-100% at 2-3 m/s),
-   net ~1.5 m (lifts the fast regime, salvo-stacked). Radius set by the mechanism's physics,
+   delivers — ram 0.35 m (ADR-0084, 5-inch pair; the slow regime's ~0.37 m pro-nav miss is
+   now at the edge of this bar, not comfortably inside it — re-check against 0.35 m, don't
+   assume the old 0.5 m margin), net ~1.5 m (lifts the fast regime, salvo-stacked). Radius set by the mechanism's physics,
    never reverse-engineered to a threshold. M0-M4 gates stand; this reframes M5's headline.
 
 ## What we are explicitly NOT doing (and why)

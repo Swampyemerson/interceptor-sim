@@ -44,7 +44,7 @@ orthogonal to the actual hard problem*, for two reasons the options framing hide
    `project_state.json` `pointing`), and it is **not yet validated**. No launch
    mechanism changes airframe pitch or camera elevation — A, B, and C are all
    downstream of that wedge.
-2. **"Kill" means a ~0.3–0.5 m RAM contact** (hit-to-kill, $0 payload; `kill_mechanism.md`
+2. **"Kill" means a ~0.35 m RAM contact** (ADR-0084, the ordered 5-inch pair; hit-to-kill, $0 payload; `kill_mechanism.md`
    §1) — the least-forgiving mechanism. Every miss/Pk number the options were first
    ranked on used a **Pk@2.5 m** proximity gate, a bar ~3–5× looser than a ram. A
    0.78 m "Pk@2.5 win" is a ram **miss**. The camera-guided 3D-quad kill is **not yet
@@ -136,7 +136,7 @@ headline is earned, not asserted.
 - The camera-only terminal is **currently unproven**: today's "kills" are open-loop
   dash ballistics. The headline ("datalink denied → the camera finishes it") is an
   honest *architecture* claim, not yet a *demonstrated* result.
-- The kill is a **ram (~0.3–0.5 m)**. Re-score existing batches against the ram radius,
+- The kill is a **ram (0.35 m, ADR-0084)**. Re-score existing batches against the ram radius,
   not Pk@2.5 m, before claiming progress toward a kill.
 - The **fixed up-tilt wedge is committed-in-direction but NOT validated**
   (`project_state.json` `pointing` = half-done, active_version None); adaptive tilt is
@@ -163,8 +163,8 @@ headline is earned, not asserted.
    on paired seeds (n≥8/dir), scored with the tilt-aware gt labeler. Also logs A's
    lock-survival-through-the-transient as a free column. **Highest evidence per token.**
 2. **Ram-bar re-scoring of existing batches** (sim analysis, $0). Re-tally every batch
-   against ~0.3–0.5 m to establish the true accuracy gap and whether onboard t_go²
-   capacity can ever net < 0.5 m — i.e. whether a forgiving net kill is warranted.
+   against the ratified 0.35 m (ADR-0084) to establish the true accuracy gap and whether
+   onboard t_go² capacity can ever net < 0.35 m — i.e. whether a forgiving net kill is warranted.
 3. **Lock-then-launch AIM A/B** (sim). Dash heading from a scripted "perch detection"
    bearing vs the human-error sweep arms — quantifies how much a machine-accurate launch
    azimuth tightens the miss, no hardware.
@@ -188,7 +188,7 @@ headline is earned, not asserted.
 - **ROE / weapons-release autonomy** — human-triggered (recommended) vs autonomous
   launch-on-detect. The one-way ethical/safety door: an auto-spun-up spinning-prop ram
   firing on an NN lock outdoors with an unmeasured false-positive rate.
-- **Kill mechanism / accuracy bar** — keep the RAM (~0.3–0.5 m, forgives nothing) vs a
+- **Kill mechanism / accuracy bar** — keep the RAM (0.35 m, ADR-0084; forgives nothing) vs a
   forgiving NET (~1.5–2 m, but ~370 g → a 7-inch airframe + one-shot payload). Sets how
   hard the whole acquisition problem is. **Decide before optimizing the launcher.**
 - **Buy the ground zoom spotter at all?** — only if the field aim-error test says humans

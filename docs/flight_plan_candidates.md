@@ -160,7 +160,7 @@ penalty. *(DERIVED; mechanism consistent with the measurement.)*
 
 The ZEM caveat still governs (ADR-0027): at 9 m/s the delivered zero-effort-miss is
 ~4 m against ~0.27 m of terminal correction capacity, so **no terminal trick alone
-gets to the 0.3–0.5 m ram bar**. Tracks 1 and 2 both work by *reducing the ZEM the
+gets to the 0.35 m ram bar** (ADR-0084). Tracks 1 and 2 both work by *reducing the ZEM the
 terminal is handed* — which is exactly what that caveat says the win must be.
 
 ---
@@ -534,8 +534,10 @@ Resolution of the contradiction stays with the head + the real ULog dash pitch.
 3. **The terminal LOS bias is tested before Phase B.** *Why:* the measured failure in
    the framed arm is a 15–20° signed LOS bias, not FOV loss; Phase B holds a target
    in frame that is *already* in frame.
-4. **Pk@2.5 m is reported but never celebrated.** The ram bar is 0.3–0.5 m; every
-   table carries the ≤0.5 m column.
+4. **Pk@2.5 m is reported but never celebrated.** The ratified ram bar is 0.35 m
+   (ADR-0084); every table carries a ≤0.5 m column — those counts are MEASURED at
+   0.5 m and are therefore optimistic against the 0.35 m bar (read them as an upper
+   bound; the data was not re-binned at 0.35 m).
 
 ---
 

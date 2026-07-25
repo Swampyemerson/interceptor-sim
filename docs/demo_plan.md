@@ -45,7 +45,7 @@ Aerospace glass-cockpit look (near-black, monospace, green/amber/red):
   (the live pro-nav signal), **law** (pursuit/pronav).
 - **Top-down mini-map** (East-North): own ship + heading (`gt_cam_*`, `psi_deg`),
   target track, the intercept triangle, and at closest approach a **lethal-radius
-  ring** (ADR-0025: ram ~0.5 m / net ~1.5 m) + closest-approach marker + miss.
+  ring** (ram ~0.35 m, ADR-0084 / net ~1.5 m) + closest-approach marker + miss.
 - *Gotcha: NaN-parse blank cells (TAKEOFF/CUE_WAIT have blanks) — a 0-fill would
   draw a false "0 m range / LOCK".*
 

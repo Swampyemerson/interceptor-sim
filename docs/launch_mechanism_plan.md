@@ -14,8 +14,9 @@
 > (`scripts/experiments/flight_plans/dash_cpa_model.py`,
 > `docs/flight_plan_candidates.md` §1.3). The old note could only say "a human
 > point may not be accurate enough". We can now say **how accurate it has to be**:
-> **±3° for a 0.5 m ram**, and **±0.1 s of trigger timing** — numbers that decide
-> the mechanism rather than leaving it to taste.
+> **±2.4° for the 0.35 m ram** (ADR-0084 ratified the 5-inch-airframe radius;
+> was ±3° at the retired 7-inch 0.5 m), and **±0.1 s of trigger timing** — numbers
+> that decide the mechanism rather than leaving it to taste.
 
 ---
 
@@ -163,16 +164,21 @@ arms to 0.29–0.58 m MAE — it **ranks**, it does not conclude).
 | ±5° | 0.69 m | 0.43 m |
 | ±10° | 1.38 m | 0.63 m |
 | ±20° | 2.22 m | 1.17 m |
-| **tolerance for a 0.5 m RAM** | **±3.0°** | **±4.5°** |
+| **tolerance for the 0.35 m RAM** (ADR-0084) | **±2.4°** | **±3.0°** |
 | tolerance for 1.0 m | ±6.5° | ±13.0° |
 | tolerance for 2.5 m (Pk proxy) | ±18.0° | ±36.5° |
 
+*(The ram row is interpolated from THIS table's model output at the ratified
+0.35 m radius — ADR-0084, the ordered 5-inch pair — not naive geometry. It was
+±3.0° / ±4.5° at the retired 7-inch 0.5 m; the tighter airframe tightens the aim
+budget ~20%.)*
+
 Read against the aiming methods:
 
-| method | typical error | 0.5 m ram? | 2.5 m Pk? |
+| method | typical error | 0.35 m ram? | 2.5 m Pk? |
 |---|---|---|---|
 | Human eyeball / hand-launch | 5–10° | **no** | yes |
-| Boresighted red-dot or phone gunsight | 1–2° | marginal | yes |
+| Boresighted red-dot or phone gunsight | 1–2° | **marginal** (edge of the ±2.4° budget) | yes |
 | **Static camera bearing latch** | **~0.1–0.5°** | **yes** | yes |
 | Magnetometer/EKF yaw (map-referenced aim) | 2–5° | **no** on its own | yes |
 
@@ -185,8 +191,9 @@ the only listed method that clears the budget by a comfortable margin.
 
 At launch the target sits ~16.7 m away crossing at 9 m/s, so the line-of-sight
 sweeps at **v/R ≈ 0.54 rad/s ≈ 31°/s**. With a **pre-computed** heading, every
-**100 ms** of trigger latency/jitter is therefore worth **~3° of aim error — the
-entire 0.5 m ram budget.** Human press-latency jitter alone is ±100–200 ms.
+**100 ms** of trigger latency/jitter is worth **~3° of aim error — which now
+EXCEEDS the entire ±2.4° / 0.35 m ram budget (ADR-0084); ~80 ms consumes it.**
+Human press-latency jitter alone is ±100–200 ms, i.e. 1.5–2.5× the whole budget.
 
 *Mitigation (and the reason the latch is the primary path):* compute C1 **at the
 trigger instant from the latched bearing**. Then trigger jitter no longer rotates
@@ -385,7 +392,7 @@ buzzer, zip ties, multimeter (if unowned).
   rotates the airframe (moving where the fixed wedge points) — it degrades the two
   things this entire plan depends on. First outdoor sessions must log wind and
   correlate it with aim error.
-- **The ram bar (0.3–0.5 m) is 3–5× tighter than the Pk@2.5 m sim proxy.** Every
+- **The ram bar (0.35 m, ADR-0084) is ~7× tighter than the Pk@2.5 m sim proxy.** Every
   "kill" number quoted from the sim must be re-read against the ram bar before it is
   used to justify launcher hardware.
 - **Compass/EKF yaw** is a first-order aim error source for the map-referenced

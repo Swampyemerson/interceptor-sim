@@ -245,7 +245,7 @@ mechanism story is the project's standing bar (CLAUDE.md; ADR-0023 discipline). 
 | **Bearing σ (deg)** | Pro-nav steers on β → λ̇; this is the quality that dominates (§3) | Fiducial sub-deg; ML ~1–2° (ADR-0015 rows 9) |
 | **Range σ (% of R)** | Only scales Vc/gates; carry the realism | Tag 5–8% → ML 15–30% (ADR-0015 row 8) |
 | **Track continuity at high LOS rate** | Detection drops as \|λ̇\| and blur rise; λ̇ hits 485–1870°/s near CPA (ADR-0023, row 7) | Tag holds to ~1.7 m / 0.07 s pre-CPA (ADR-0023) |
-| **End-to-end miss / Pk-vs-radius** | The bottom line | ratified metric ram ~0.5 m / net ~1.5 m (ADR-0025) |
+| **End-to-end miss / Pk-vs-radius** | The bottom line | ratified metric ram 0.35 m (ADR-0084, 5-inch pair) / net ~1.5 m |
 
 **WORST-tier mandate (CLAUDE.md "simulate worse than ideal").** Three tiers
 BEST/EXPECTED/WORST; the decision must survive **WORST**, and every seeker knob must map

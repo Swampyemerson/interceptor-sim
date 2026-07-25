@@ -112,13 +112,14 @@ import cv2
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# ADR-0025 lethal-radius candidates (ratified 2026-07-06): kinetic ram
-# ~0.5 m (headline kill) and net ~1.5 m (FPV-speed forgiveness). --radius
-# overrides; default is the net figure (the more forgiving/likely demo-reel
-# number), a disclosed narrative assumption per ADR-0014 -- there is no
-# collision volume in the sim.
+# Lethal-radius candidates: kinetic ram 0.35 m (headline kill, RATIFIED
+# 2026-07-25 ADR-0084 from the ordered 5-inch pair's contact envelope -- was
+# 0.5 m, the retired 7-inch number) and net ~1.5 m (FPV-speed forgiveness).
+# --radius overrides; default is the net figure (the more forgiving/likely
+# demo-reel number), a disclosed narrative assumption per ADR-0014 -- there is
+# no collision volume in the sim.
 LETHAL_RADIUS_NET_M = 1.5
-LETHAL_RADIUS_RAM_M = 0.5
+LETHAL_RADIUS_RAM_M = 0.35
 DEFAULT_RADIUS_M = LETHAL_RADIUS_NET_M
 
 # Sidebar canvas geometry (the default tall panel; unchanged).

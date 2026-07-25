@@ -103,21 +103,24 @@ EARTH_RADIUS_M = 6371000.0  # mean Earth radius; flat-earth (equirectangular)
                              # about (error grows with range^3/R^2, negligible
                              # here). Documented approximation, not a bug.
 
-# Mechanism-anchored kill radii referenced in docs/decisions.md (ADR-0025)
-# and docs/hardware_order_list.md Sec.0c: ~0.5 m for a kinetic ram, ~1.5 m for
+# Mechanism-anchored kill radii referenced in docs/decisions.md and
+# docs/hardware_order_list.md Sec.0c: ~0.35 m for a kinetic ram, ~1.5 m for
 # a net/frag-style kill radius.
 #
 # DEFAULT CORRECTED 2026-07-24 (full project review): the default was 1.5 m -- the
 # NET number -- but the net was PARKED by builder ruling (RAM confirmed, contract
 # stage `kill`). Scoring a ram attempt against a net radius scores the wrong
-# mechanism and flatters the result by 3x. The ram number is the default now;
-# pass --lethal-radius 1.5 explicitly if a net claim is ever revived.
+# mechanism and flatters the result by 3x.
 #
-# HONEST CEILING (raised to the builder, contract stage `kill`): even 0.5 m is a
-# 7-INCH-airframe number. BOTH ordered aircraft are 5-INCH, so the pair's true
-# maximum tip-to-tip contact envelope is ~0.36 m. Treat 0.5 m as an upper bound
-# on the claimable radius, not a measured one.
-DEFAULT_LETHAL_RADIUS_M = 0.5
+# RATIFIED 2026-07-25 (ADR-0084): the ram radius is 0.35 m, DERIVED from the
+# ordered 5-INCH pair, not the retired 7-inch 0.5 m. Arithmetic: interceptor
+# Mark5 Pro half-span (226 mm wheelbase + 129.5 mm 5.1" prop)/2 = 177.8 mm;
+# target Source One V6 half-span (220+129.5)/2 = 174.8 mm; contact envelope
+# = sum of half-spans = 352.5 mm -> 0.35 m (rounded down, conservative). The
+# old 0.5 m = two 7-inch aircraft (2 x 238.9 mm half-span = 0.48 m). Pass
+# --lethal-radius 1.5 explicitly for a net-class claim; 0.5 only to reproduce
+# a historical 7-inch-anchored table.
+DEFAULT_LETHAL_RADIUS_M = 0.35
 
 
 # --------------------------------------------------------------------------
@@ -745,12 +748,11 @@ def _lethal_radius_help() -> str:
     but the help kept calling 0.5 'the net radius', and every self-test case
     passed an explicit radius so nothing could catch it)."""
     return (f"kill classification threshold, metres (default "
-            f"{DEFAULT_LETHAL_RADIUS_M} m = the ADR-0025 kinetic-RAM radius, the "
-            f"parked-net correction of 2026-07-24; pass 1.5 explicitly for a "
-            f"net-class claim. The mechanism labels are canonically defined in "
-            f"scripts/render_hud.py. NB the contract's kill stage flags even "
-            f"{DEFAULT_LETHAL_RADIUS_M} m as a 7-inch number: the ordered 5-inch "
-            f"pair's true contact envelope is ~0.36 m.)")
+            f"{DEFAULT_LETHAL_RADIUS_M} m = the ADR-0084 kinetic-RAM radius, "
+            f"DERIVED from the ordered 5-inch pair's contact envelope (sum of "
+            f"half-spans, 177.8 + 174.8 mm); pass 1.5 explicitly for a net-class "
+            f"claim, or 0.5 to reproduce a historical 7-inch-anchored table. The "
+            f"mechanism labels are canonically defined in scripts/render_hud.py.)")
 
 
 def _analytic_straight_line_cpa(p0_rel, v_rel, t_lo, t_hi):
@@ -1060,7 +1062,7 @@ def self_test() -> bool:
         dt=None, t0_b_offset=0.15, expect="KILL",
     )
     # Case 2c: the THRESHOLD case. The analytic CPA (1.050 m) sits STRICTLY
-    # between the ram radius (0.5 m) and the net radius (1.5 m), and the expected
+    # between the ram radius (0.35 m, ADR-0084) and the net radius (1.5 m), and the expected
     # verdict is pinned to MISS while the radius is passed as the module CONSTANT
     # -- so if DEFAULT_LETHAL_RADIUS_M ever regresses to the net number this case
     # flips to KILL and FAILS. Same off-grid phase, same auto-dt path.
@@ -1076,8 +1078,8 @@ def self_test() -> bool:
     # and its help were untestable-by-construction -- which is how the 1.5 -> 0.5
     # correction left contradicting prose behind a green 5/5 PASS.
     _help = _lethal_radius_help()
-    c_default = (DEFAULT_LETHAL_RADIUS_M == 0.5 and "net radius" not in _help.lower()
-                 and "0.36" in _help)
+    c_default = (DEFAULT_LETHAL_RADIUS_M == 0.35 and "net radius" not in _help.lower()
+                 and "0.35" in _help and "adr-0084" in _help.lower())
     print(f"[self-test] case2d_default_radius: DEFAULT_LETHAL_RADIUS_M="
           f"{DEFAULT_LETHAL_RADIUS_M} help mislabels 'net radius'="
           f"{'net radius' in _help.lower()}  {'PASS' if c_default else 'FAIL'}")

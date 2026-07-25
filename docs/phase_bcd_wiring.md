@@ -232,7 +232,7 @@ if args.terminal_coast and coast.on_track_loss(tick_start):
 - Coast is a **sim-time** window (`max_coast_s`, default 0.25 s > measured
   0.1–0.2 s); an RTF sag cannot stretch it (ADR-0009).
 - **A/B:** on flights with a real terminal track, freeze-and-propagate (this) vs
-  hold-last-command (`frozen_vworld`); metric = **CPA** (the ram bar, ~0.3–0.5 m
+  hold-last-command (`frozen_vworld`); metric = **CPA** (the ram bar, 0.35 m, ADR-0084
   contact, not the 2.5 m Pk proxy).
 
 ---

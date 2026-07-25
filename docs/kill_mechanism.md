@@ -67,12 +67,24 @@ edge-pass often doesn't disable — reliable prop-on-prop / prop-on-motor contac
 real overlap. This is exactly ADR-0014's "0.5 m aggressive kinetic point
 (two-small-quad body/prop half-span)."
 
-- **BEST** ~0.5 m (full prop extent + prop-wash upset of a light target)
+- **BEST** ~0.5 m (full prop extent + prop-wash upset of a light target) — NOTE this
+  BEST was a 7-inch-airframe figure; see the ratification below.
 - **EXPECTED** ~0.30–0.35 m (disc-overlap, a prop reliably catches the target)
 - **WORST-CREDIBLE** ~0.15 m (need a near-central strike; glancing passes miss). Note
   the FPV literature stresses the ram is the *least forgiving* option — attackers had
   to descend precisely onto the target's rotors, "sometimes resulting in mutual
   destruction" [forbes/webslingers].
+
+> **⚖️ RATIFIED 2026-07-25 (ADR-0084) — the go-forward ram radius is 0.35 m, from the
+> ORDERED 5-inch pair.** The BEST ~0.5 m above was the 7-inch heritage number (two 7"
+> aircraft = 2 × 238.9 mm half-span = 0.48 m). Both ordered aircraft are 5-inch:
+> interceptor Mark5 Pro half-span (226 mm wheelbase + 129.5 mm 5.1" prop)/2 = 177.8 mm;
+> target Source One V6 half-span = 174.8 mm; **contact envelope = sum = 352.5 mm → 0.35 m**
+> (rounded down). This lands exactly on the old "EXPECTED" tier — i.e. for the 5-inch
+> pair the disc-overlap figure IS the whole-envelope figure. `field_score.py`
+> `DEFAULT_LETHAL_RADIUS_M` is 0.35 m. The only physical way to widen it is a bigger
+> airframe (a 7" would restore ~0.48 m, heavier/slower — a Tier-2 airframe-class call,
+> NOT payload-driven: the 5-inch carries the full seeker with T/W ~6:1, ADR-0084).
 
 **Cost $0 payload. Weight $0. Complexity: LOW payload, HIGHEST guidance burden** (all
 the accuracy must come from the guidance loop — the mechanism forgives nothing).
