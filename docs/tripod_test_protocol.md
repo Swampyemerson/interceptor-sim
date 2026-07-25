@@ -109,6 +109,23 @@ the ~$620–780 realistic first-outdoor-test outlay, not just the ~$310 tripod c
   science data — see §6).
 - Full safety kit — see §10; do not skip items to save a trip to the car.
 
+**Placard-specific kit (merged 2026-07-25 from `docs/placard_mount.md` §11 item 2
+— this list was written and never folded in):**
+- [ ] **Handheld anemometer (~$20).** It is in **no BOM tier**. Without it §4.7's
+      wind validity limits are *unenforceable* and crosswind becomes an
+      uncontrolled variable in curve (a) — an 18° crab at a 3 m/s crosswind on a
+      9 m/s leg spends **half** the placard's whole incidence cone
+      (`placard_mount.md` §4.5). Buy one with the rest of the parts order.
+- [ ] **3 spare printed frangible shoes + 1 spare pre-printed panel.** The shoe is
+      designed to release at 60–80 N on a hard landing; the day's landings are
+      what consumes them. A broken shoe with no spare ends the placard passes.
+- [ ] **M3 nylon hardware + spare rubber bands** (the frangible link) and the
+      **paint-pen-marked index disc**.
+- [ ] **A way to read the index angle**: the disc is 15°-indexable and the index
+      angle must go on **every** pass card (§4.2b/§11) — without it no frame's
+      incidence can be reconstructed offline and §7.1's incidence scoring is
+      impossible after the fact.
+
 ---
 
 ## 3. Camera setup — the FINAL mount geometry, as best as it can be known pre-airframe
@@ -125,6 +142,12 @@ the ~$620–780 realistic first-outdoor-test outlay, not just the ~$310 tripod c
   during passes (co-altitude with the target, matching the terminal engagement
   geometry the fixed tilt is sized for). Coordinate with the pilot to fly level
   passes at a fixed, briefed AGL so the tripod and the target line up.
+- **For the tag-decode block (curve (a)) the tripod must be ABEAM the target's leg,
+  not on its extension** (added 2026-07-25 from `docs/placard_mount.md` §11 item 3).
+  The placard is **beam-facing** (§4.2), so the tripod has to sit off to the side of
+  the flight line at the briefed **5–6 m standoff** — a tripod placed on the leg's
+  extension sees the tag edge-on and records structural zeros. State the intended
+  standoff explicitly in the brief, and mark it on the ground before pass 1.
 - No prop-clearance geometry applies here (no airframe/props yet) — that HARD gate
   is a P4 bench item once Tier 2 is built. Don't spend field-day time on it.
 
@@ -211,15 +234,49 @@ a max range that matches the grid you actually shot:
 
 ### 4.2 Aspects
 
-- **Approach** — target flies straight at the camera boresight (mirrors the sim's
-  head-on regime).
-- **Crossing** — target flies a lateral leg at a fixed standoff that transects the
-  FOV (mirrors the sim's l2r/r2l crossing regime — the regime where the AprilTag goes
-  *invisible* in sim, ADR-0076 add #18e; this is exactly the aspect worth checking for
-  real). **Use a ~5–6 m standoff for the dedicated tag-envelope crossing block**
-  (inside the predicted decode envelope); the old ~15–20 m standoff is retained ONLY
-  for the NN/curve-(b) crossing passes, where detection is not envelope-limited the
-  same way.
+> ⛔ **RE-BRIEFED 2026-07-25 — WHICH ASPECT THE TAG LIVES IN IS THE OPPOSITE OF
+> WHAT THIS SECTION USED TO IMPLY** (`docs/placard_mount.md` §11 item 5, §3.6).
+> DECISION 1 committed a **single vertical panel held EDGE-ON to flight** (tag
+> normal points out the left and right beams) because nose-on it makes **11.8 N**
+> of drag at 9 m/s against **0.28 N** edge-on — the target cannot fly its briefed
+> ≥9 m/s leg at all with a nose-on panel. Consequences you must brief before pass 1:
+>
+> - **CROSSING is the tag's PRIMARY aspect.** The tag-decode block — i.e. **curve
+>   (a), the ~$740 gate** — is a crossing block.
+> - **APPROACH is the tag's ~90° incidence NULL.** A straight-in approach presents
+>   the beam-facing tag edge-on to the camera and yields **zero decodes BY
+>   GEOMETRY**. A zero on an approach pass is *not* a tag failure and must never be
+>   read as one — it is the expected structural zero.
+> - Approach passes still earn their place: they are the **NN / curve-(b)** aspect
+>   (the NN sees the airframe, not the tag) and the **documented null-aspect
+>   control** that proves the null is real. They are just not where curve (a) lives.
+
+- **Crossing (PRIMARY for curve (a))** — target flies a lateral leg at a fixed
+  standoff that transects the FOV (mirrors the sim's l2r/r2l crossing regime — the
+  regime where the AprilTag goes *invisible* in sim, ADR-0076 add #18e; this is
+  exactly the aspect worth checking for real, and `docs/placard_mount.md` §12
+  finding 5 notes the sim's tag was WORLD-fixed, so that sim result is not a model
+  of this mount). **Use a ~5–6 m standoff for the dedicated tag-envelope crossing
+  block** (inside the predicted decode envelope); the old ~15–20 m standoff is
+  retained ONLY for the NN/curve-(b) crossing passes, where detection is not
+  envelope-limited the same way. A crossing leg at a 5–6 m standoff sweeps **range
+  and incidence together**, which is exactly what §4.2b needs.
+- **Approach (curve (b) + the NULL-ASPECT CONTROL)** — target flies straight at the
+  camera boresight (mirrors the sim's head-on regime). Expect ~zero tag decodes at
+  the 0° (beam) index; that is the control result.
+- **Nose-on block (the ONLY approach-aspect tag decodes)** — index the placard to
+  **90°** and fly approach passes at **≤4 m/s, HARD** (§4.7). This is the only way
+  to get approach-aspect *decoded* frames, and therefore the only source of
+  approach-aspect training labels for `autolabel_from_apriltag.py`
+  (`docs/placard_mount.md` §11 item 6 / §12 finding 7).
+
+**The mission generator emits this geometry for you:**
+`configs/target_kakute/gen_tripod_mission.py` writes the AUTO `.waypoints` file
+(approach 4→20 m, crossing at the 5–6 m tag standoff) and **REFUSES to emit a
+mission that violates §4.1/§4.2** — flying the old 8/17/30 m defaults is now a
+hard error, not a silent option (`--off-protocol` is the deliberate escape for the
+curve-(b)/NN crossing block). Run `configs/target_kakute/selftest.sh` before you
+leave.
 
 ### 4.2b Incidence is a variable, not a nuisance — record and score it
 
@@ -237,18 +294,51 @@ pass flown at 0° are **different experiments** — pooling them smears the curv
   `qd=1.0` is the unexercised range/incidence-widening lever (~1.5× range, ±48–56°
   cone) and costs only Pi fps — so if the gate is marginal at `qd=2.0`, this is the
   first reclaim lever and it needs no second field day.
-  > ⛔ **NOT EXECUTABLE WITH THE SHIPPED TOOLS (verified 2026-07-25).** Every decode
-  > path in the repo constructs `Detector(families="tag36h11")` with **no**
-  > `quad_decimate` argument (`pi_capture.py`, `tripod_score.py`,
-  > `autolabel_from_apriltag.py`), so all of them run the pupil-apriltags default
-  > **2.0**, and no CLI flag exists to change it. The comparison this bullet asks
-  > for therefore cannot be run today, and `meta.json` does not record which value
-  > produced a session. It costs ~nothing at the desk to add (`--quad-decimate` on
-  > `pi_capture` + `tripod_score`, recorded into `meta.json`) — **do it BEFORE the
-  > field day** or strike this bullet, because "re-score the same frames at qd=1.0"
-  > is the whole no-second-field-day reclaim lever. Field-day consequence if it is
-  > not added: you still capture normally (the frames are raw PNGs, the lever stays
-  > available later), you simply cannot exercise it that evening.
+
+> ✅ **NOW EXECUTABLE (shipped 2026-07-25).** The ⛔ banner that stood here — every
+> decode site constructing a bare `Detector(families="tag36h11")` at the silent
+> library default 2.0, with no flag and no record — is closed:
+>
+> - `pi_capture.py --quad-decimate`, `tripod_score.py --quad-decimate` and
+>   `autolabel_from_apriltag.py --quad-decimate` all exist; the default is stated
+>   explicitly as the library's **2.0**, and **ADR-0082 PLANS 1.0 for this day**.
+> - The value is **STAMPED into `meta.json`** (`quad_decimate` +
+>   `quad_decimate_source`) on every session, so after the field day you can still
+>   tell what produced the frames — the thing that used to be lost with the session.
+> - `tripod_score` **REFUSES** to score a session at a decimate other than the one
+>   its `meta.json` records. The §4.2b comparison is therefore a *deliberate* act:
+>   ```
+>   # (1) the like-for-like re-score, at whatever the session recorded
+>   tripod_score.py SESSION --calib calib.json --redecode ...
+>   # (2) the RECLAIM read on the SAME frames
+>   tripod_score.py SESSION --calib calib.json --redecode \
+>       --quad-decimate 1.0 --allow-decimate-mismatch \
+>       --stream-fps <the §7.3 bench AT qd=1.0>   # NOT the qd=2.0 bench
+>   ```
+>   The mismatch is stamped into `gate.json`/`verdict.txt`. **Use the fps bench for
+>   the decimate you scored** — qd=1.0 buys range but costs fps, and the burn model
+>   goes as 1/fps, so quoting the qd=2.0 rate against a qd=1.0 envelope is the
+>   flattering-direction error the gate cannot afford.
+
+**How incidence is actually scored (read this before quoting an incidence number):**
+
+`tripod_score` writes `curve_a_incidence.csv` + a `curve_a_incidence` block in
+`gate.json`, and there are **two different things it can produce**:
+
+| Situation | What you get | Why |
+|---|---|---|
+| `index.csv` carries a per-frame `incidence_deg` for EVERY binnable frame | a real **decode-rate vs (range × incidence)** curve | the misses have an incidence too, so each cell has an honest denominator |
+| only the tag's own pose is available (the default today) | an **ANNOTATION**: the incidence *distribution of the decodes* (median/p90/max), and NO rate cells | incidence is recovered FROM the decode, so a rate computed on it would have a denominator of "frames that decoded" — identically 100%, and meaningless |
+
+The tool says which one it produced and refuses to dress the second up as the
+first. To get the rate curve, the per-frame incidence must come from the target
+log's attitude + the surveyed tripod position + the mount index angle — which is
+why **the index angle on the pass card is not optional** (§11): without it no
+frame's incidence can be reconstructed after the day.
+
+Also record the index angle into the score with `--mount-index-deg` so it lands in
+`gate.json`, and state the engagement aspect the GO is meant to cover with
+`--engagement-incidence-deg` (§8.1).
 
 ### 4.3 Backgrounds
 
@@ -280,24 +370,69 @@ tripod, even without a full sweep, is the cheapest real check of that hypothesis
 
 ### 4.6 Capture matrix (target pass counts)
 
-| Aspect | Background | Speed | Passes | Notes |
-|---|---|---|---|---|
-| Approach | Sky | Full-speed | 4 | primary decode-envelope + recall data |
-| Approach | Sky | Slow (control) | 2 | sim-regime baseline |
-| Approach | Horizon | Full-speed | 3 | best-effort ordering — do first if field allows |
-| Approach | Ground clutter | Full-speed | 3 | best-effort |
-| Approach | Sky | Full-speed, 0° tilt | 2 | tilt cross-check (§3.2) |
-| Approach | Sky | Full-speed, banked | 2 | attitude factor (§4.5) |
-| Crossing | Sky | Full-speed | 4 | AprilTag-invisible-in-sim check |
-| Crossing | Horizon | Full-speed | 3 | best-effort |
-| Crossing | Ground clutter | Full-speed | 3 | best-effort |
-| Crossing | Sky | Full-speed, banked | 2 | attitude factor |
+> ⛔ **RE-BRIEFED 2026-07-25 — THE OLD MATRIX SPENT 16 OF ~28 PASSES ON THE TAG'S
+> NULL ASPECT.** It scheduled approach-heavy flying and labelled it *"primary
+> decode-envelope + recall data"*, which was written before the placard mount was
+> designed. With the adopted **beam-facing** panel (§4.2), a straight-in approach
+> at the 0° index yields **zero decodes by geometry** — so more than half the day's
+> passes would have produced structural zeros that read as a tag failure, on the
+> curve that gates $740. The matrix is now organised by **BLOCK**, because each
+> block answers a different question and each has its own placard index and its own
+> speed cap.
 
-**~28 passes total** (sky-background cells are the must-get; horizon/clutter/tilt/
-banked cells are ordered by priority — do sky first, drop the "best-effort" rows
-if batteries/daylight run out). With 3× 6S 1500 mAh packs and the HOTA D6 Pro
-charger in the BOM, plan on mid-session recharge cycles rather than trying to fly
-all packs back-to-back.
+**BLOCK A — TAG-ENVELOPE CROSSING (placard index 0°, beam). This block IS curve
+(a); it is the block that decides the ~$740 order. Fly it FIRST, on the best
+battery, in the calmest air.** Standoff **5–6 m** (§4.2), which sweeps range
+*and* incidence together along the leg (§4.2b).
+
+| # | Background | Speed / attitude | Passes | What it buys |
+|---|---|---|---|---|
+| A1 | Sky | Full-speed ≥9 m/s | **5** | **the decode envelope — `R_decode90`, the money number** |
+| A2 | Sky | Slow control 3–4 m/s | **3** | motion-blur delta vs A1 (the one thing sim cannot model, §4.4) |
+| A3 | Sky | Full-speed, index **15° / 30° / 45°** (one pass each) | **3** | the `cos θ` law **past 32.6°**, where it is currently only a HYPOTHESIS (`placard_mount.md` §13) — the single largest information gain available |
+| A4 | Sky | Full-speed, banked | **2** | bank = incidence φ (§4.5); a 20° bank costs 6% of range |
+| A5 | Sky | Full-speed, camera at **0° tilt** | **2** | tilt cross-check (§3.2) |
+| A6 | Horizon | Full-speed | **2** | best-effort |
+| A7 | Ground clutter | Full-speed | **2** | best-effort |
+
+**BLOCK B — NOSE-ON APPROACH (placard index 90°). ≤4 m/s, HARD CAP (§4.7).**
+The only approach-aspect *decoded* frames in the whole day, and therefore the only
+source of approach-aspect training labels for `autolabel_from_apriltag.py`
+(`placard_mount.md` §11 item 6).
+
+| # | Background | Speed / attitude | Passes | What it buys |
+|---|---|---|---|---|
+| B1 | Sky | **≤4 m/s** approach, 20→4 m continuous | **3** | approach-aspect decodes + NN training labels |
+| B2 | Horizon or clutter | **≤4 m/s** approach | **2** | best-effort |
+
+**BLOCK C — NN / CURVE (b) (placard index 0°; the NN sees the airframe, the tag is
+irrelevant to it). Gates only the $70 Hailo phase — never the interceptor.**
+
+| # | Aspect | Background | Speed | Passes | What it buys |
+|---|---|---|---|---|---|
+| C1 | Approach, 20→4 m continuous | Sky | Full-speed | **3** | curve (b) approach recall × position-in-frame |
+| C2 | Crossing at the **15–20 m** NN standoff | Sky | Full-speed | **2** | curve (b) crossing (`--off-protocol` on the mission generator) |
+| C3 | Approach | Horizon / clutter | Full-speed | **2** | best-effort background sweep |
+
+**BLOCK D — the CLOCK-SYNC pass, §4.6b: one per battery segment, non-negotiable.**
+It is a low, close crossing through a CPA — i.e. Block A geometry — so fly it as
+the first pass of every segment and it costs almost nothing extra.
+
+**~29 passes + one sync pass per battery segment.** Priority if daylight or packs
+run out: **A1 → A2 → D → A3 → B1 → C1 → everything else.** A1+A2+D alone still
+produce a defensible curve (a); dropping A1 produces nothing.
+
+> **Also record, per pass:** the placard **index angle** and the **measured wind**
+> (§4.7 / §11). A pass flown outside §4.7's wind limits is **not invalid data — it
+> is data with an uncontrolled variable**; write the wind down and let the scoring
+> decide, rather than discovering at 9 pm that half the curve was flown in a 5 m/s
+> crosswind you never measured.
+
+**PACK BUDGET — plan 4–5 packs, not 3** (merged from `placard_mount.md` §11 item 7
+/ §4.6): the fitted placard costs a **derived 25–35% endurance loss** (`T^1.5`
+induced-power scaling), so a 3-pack plan is ~one full block short. With the HOTA
+D6 Pro charger in the BOM, plan mid-session recharge cycles rather than flying all
+packs back-to-back.
 
 #### 4.6b THE CLOCK-SYNC PASS — one per battery segment, non-negotiable
 
@@ -322,6 +457,37 @@ only recovery if the sync pass itself is dropped.
 This is intentionally **not** n≥8 paired-seed statistics (CLAUDE.md's sim standard)
 — a field afternoon can't buy that. Treat curve (a)/(b) as a first honest read, not
 a statistically tight one; note the small-n caveat explicitly when reporting results.
+
+### 4.7 Placard configuration and wind limits — VALIDITY LIMITS, not suggestions
+
+> Imported wholesale 2026-07-25 from `docs/placard_mount.md` §8 (recommended as
+> "NEW §4.7" in its §11 item 8 and never merged). These are the conditions under
+> which a pass **counts**. They are derived numbers, not vibes — the derivations
+> are in `placard_mount.md` §4.3–§4.5/§5.5 and reproducible from its §14.
+
+| Limit | Value | Why (basis) |
+|---|---|---|
+| Target airspeed, **0° index (beam)** | **no aerodynamic cap** — 9 m/s and beyond is fine | added drag 0.28 N, trim 7.0° |
+| Target airspeed, **90° index (nose-on)** | **≤ 4 m/s. HARD.** | nose-on the panel makes 11.8 N of drag; `ANGLE_MAX` is hit at 5.83 m/s and the decode gate fails at ~6.0 m/s — both fail together, and the 48° trim pitch at 9 m/s throws the tag outside its own incidence cone |
+| **Steady crosswind component** | **≤ 3 m/s** for a *valid* pass | 9.4° bank + 18° crab already spends **half** the ±32° incidence cone |
+| Gust / peak crosswind | **≤ 5 m/s** | 24.7° bank; track hold is lost at 5.6 m/s |
+| Total wind, hard no-fly | **> 6 m/s steady or > 8 m/s gusting** | compounding of the above (judgment call, flagged as an assumption) |
+| Aircraft **on the ground**, placard fitted | **≤ 3 m/s** wind — or lay it down / hold it. **Fit the panel last.** | calculated tip-over at **4.3 m/s** — the tightest wind limit on this list |
+| Briefed bank angle in a turn | **≤ 20°** | costs 6% of decode range; past 30° it eats the cone |
+| Leg heading | brief **within ±30° of the wind line** where the field allows | minimises the crosswind component, which is the optically expensive one |
+| Packs per session | **4–5**, not 3 | 25–35% endurance loss with the placard fitted |
+| PID tune | **Autotune with the placard fitted**, calm air, before any AUTO mission | the CG crosses the rotor plane with the panel on |
+
+**Index setting per block (§4.6):** Block A + C = **0° (beam)**; Block B = **90°
+(nose-on), ≤4 m/s**. Re-index on the ground only, with the props stopped; it is a
+2-minute change on the 15°-indexable disc. **Write the index angle on the pass
+card every time** — §7.1's incidence scoring is impossible to reconstruct without
+it, and `configs/target_kakute/gen_tripod_mission.py --placard-index-deg 90`
+will refuse to emit a nose-on mission above the 4 m/s cap.
+
+**You need a way to measure wind (§2): a ~$20 handheld anemometer, in no BOM
+tier.** Without it every limit in this table is unenforceable and crosswind
+becomes an uncontrolled variable in curve (a).
 
 ---
 
@@ -395,13 +561,21 @@ laptop, or from an ssh app on the phone). Size the pass with `--duration` or
 ~/interceptor-sim/.venv-pi/bin/python ~/interceptor-sim/scripts/seeker/pi_capture.py \
     --source picamera2 --out ~/interceptor-sim/sessions/pass01 \
     --duration 20 --exposure-us 1000 --width 1280 --height 800 \
-    --calib ~/interceptor-sim/calib.json --tag-size 0.35 --run-tag pass01
+    --calib ~/interceptor-sim/calib.json --tag-size 0.35 \
+    --quad-decimate 1.0 --run-tag pass01
 ```
 
 - `--calib` + `--tag-size 0.35` are **not optional**: they put `tag_size_m` and a
   ranged `tags.csv` into the session. Without them the capture-time `tags.csv` is
   presence-only, `--auto-sync` (§7.0 step (b)) has nothing to align, and any later scorer
   that has to guess a tag size shortens every tag-derived range.
+- **`--quad-decimate 1.0` is the ADR-0082 planned setting for this day** (§4.2b).
+  It is the only configuration that clears `t_go ≥ 0.5 s` at every credible frame
+  rate; the library default 2.0 fails the gate at both 20 Hz and 14 Hz. The value
+  is stamped into `meta.json`, so if you *do* capture at 2.0 the session still
+  says so and the frames can be re-decoded at 1.0 afterwards — but the **Pi 5 fps
+  bench (§7.3) must then be run at whichever decimate you intend to claim**,
+  because the burn model goes as `1/fps`.
 - Ctrl-C still works (`pi_capture` writes `meta.json` from a `finally` and marks
   `terminated_early`), but a sized pass is cleaner and self-documenting.
 - **Per-pass check, on the Pi, before you fly the next one:**
@@ -465,11 +639,39 @@ bin — keep sync error well under that). Two independent things to do, in this 
 > **REFUSES a constant-closing-rate geometry**, because with a constant range rate a
 > clock error is mathematically indistinguishable from a constant range bias
 > (`range_truth_join.py`, the `UNIDENTIFIABLE` refusal; its own self-test pins this).
-> **The capture matrix (§4.6) is approach-heavy — i.e. it is mostly exactly that
-> geometry.** Auto-sync can only resolve a pass whose range rate REVERSES: one that
+> **CORRECTED 2026-07-25 (this used to say "the capture matrix is approach-heavy —
+> i.e. it is mostly exactly that geometry").** The §4.6 re-brief made the matrix
+> CROSSING-majority, and a 5–6 m crossing leg *does* fly through a CPA, so
+> auto-sync is now identifiable on most Block A passes rather than refusing them.
+> The plan does **not** change: the hand-marked §6.1 event stays PRIMARY (it is
+> free, it survives a pass with no decodes, and it does not depend on the tag), and
+> the §4.6b sync pass + `--clock-offset-s` reuse stays the routine. What changes is
+> that auto-sync is now a *usable* cross-check on more passes — run it on one and
+> compare it against the hand offset; a disagreement is a real finding.
+> Auto-sync still only resolves a pass whose range rate REVERSES: one that
 > flies through a CPA (see the dedicated sync pass in §4.6). Every other pass needs
 > the hand-marked offset above. A pass with neither is unrecoverable: no clock, no
 > range truth, no curve — permanently.
+
+> ✅ **THE EXPLICIT-OFFSET PATH IS NOW CHECKED TOO (2026-07-25).** Until today every
+> survey / altitude-datum / bias / residual test in `range_truth_join.py` lived
+> inside `if do_auto_sync:` — so the path this protocol tells you to *actually use*
+> (`--clock-offset-s`, on most passes) had **no integrity checks at all**. A 1.1 km
+> survey error, an AMSL-vs-AGL datum blunder and a 3 s clock error each exited 0
+> with empty warnings. Now, whichever way the offset was chosen, the tool checks the
+> tag-derived range against the log-derived range **at the offset actually used**
+> and REFUSES (exit 2) on an implausible residual or constant bias. Two things
+> follow for the field:
+>
+> 1. **A wrong hand-marked offset is now caught**, because on a closing pass a
+>    `dt`-second clock error becomes a `|dR/dt|·dt` constant range error — a 3 s slip
+>    at 4.5 m/s is 13.5 m of bias against a 5 m ceiling. That is a refusal, not a
+>    silently wrong curve.
+> 2. **A pass with no tag decodes at all cannot be cross-checked**, and an un-run
+>    check is not a passed check — so it REFUSES unless you pass
+>    `--allow-unverified-survey` (legitimate on the far NN-only crossing block,
+>    where the survey is inherited from that battery segment's §4.6b sync pass). The
+>    override is stamped into `range_truth.json:integrity`.
 
 ---
 
@@ -524,15 +726,38 @@ exists to make the tag ranges, not a verdict.
 - `--tags-csv` is what `--auto-sync` aligns against; point it at step (a)'s OFFLINE
   re-decode rather than the capture-time file. (Harmless but unused when you supply
   `--clock-offset-s` without `--auto-sync`.)
-- **Add `--auto-sync` ONLY on the close-crossing sync pass (§4.6b).** Auto-sync
-  refuses a constant-closing-rate approach as *unidentifiable* **by design**, and
-  the capture matrix is approach-heavy — so on most passes it will refuse, and that
-  refusal is correct behaviour. Reuse the sync pass's offset for the rest of the
-  battery segment via `--clock-offset-s`.
+- **`--auto-sync` is the CROSS-CHECK; the §6.1 hand offset is the plan.** Auto-sync
+  refuses a constant-closing-rate APPROACH as *unidentifiable* **by design**, so it
+  will (correctly) refuse the Block C/D approach passes. Since the §4.6 re-brief the
+  crossing blocks DO fly through a CPA, so it can now resolve most Block A passes —
+  use that: run it on one pass per segment and compare against the hand offset
+  (§4.6b). Then reuse the segment's offset via `--clock-offset-s`.
 - It writes `true_range_m` + `range_quality` / `range_sigma_m` back into
   `index.csv`, atomically, keeping a pristine `index.csv.bak`. Exit `2` = REFUSED
   (an unsafe join) — read the reason, it names which of {wrong log, bad survey,
-  datum blunder, unidentifiable clock} it caught. **A refusal is the tool working.**
+  datum blunder, wrong clock offset, unidentifiable clock, implausible geometry}
+  it caught. **A refusal is the tool working.**
+- **`--tags-csv` is now load-bearing on the explicit path too**: the tag ranges are
+  what the survey/datum/bias cross-check compares against (see the ✅ box in §6.1).
+  Point it at step (a)'s offline re-decode on *every* pass, not just sync passes.
+- Two deliberate overrides, both stamped into `range_truth.json:integrity`:
+  `--allow-unverified-survey` (a pass with <8 tag-ranged frames — the cross-check
+  cannot run) and `--allow-implausible-geometry` (median target height >150 m above
+  the tripod, which is otherwise refused as an altitude-datum blunder).
+  > ⚠️ **You WILL need `--allow-unverified-survey`, and it is not free.** With the
+  > beam-facing placard, an **approach pass decodes nothing** (§4.2) — so every
+  > Block B/C approach pass legitimately has zero tag ranges and the cross-check
+  > genuinely cannot run there. Two consequences:
+  > 1. **Get the survey right on a pass that CAN check it.** The Block A/D
+  >    crossing passes have tag ranges; if their join is clean, the same survey
+  >    and the same battery-segment offset are what you carry to the approach
+  >    passes. Never let the FIRST join of a session be an overridden one.
+  > 2. **The override tightens the other guard.** With the cross-check off, the
+  >    tool refuses a median target height above the **30 m advisory** (not the
+  >    150 m ceiling), because an AMSL-vs-AGL blunder lands at ~100 m and would
+  >    otherwise sail through unverified. Forcing past that needs **both**
+  >    overrides, and both are recorded. If you hit it, the answer is almost
+  >    always that `--tripod-alt` was given AGL.
 - Repeat per pass directory.
 
 **(c) RE-SCORE — the real verdict.**
@@ -542,11 +767,19 @@ exists to make the tag ranges, not a verdict.
     --calib calib.json --tag-size 0.35 --redecode \
     --range-bin 2 --max-range 20 \
     --stream-fps <the §7.3 Pi 5 bench number> \
+    --mount-index-deg <this pass's placard index, §4.2b> \
     --out-dir logs/tripod_score
 ```
 
 Same command as (a) — the session now carries the ranges, so curve (a), curve (b)
 and the money gate all resolve. Two additions:
+
+- `--quad-decimate` is **not** passed here on purpose: with no flag the scorer uses
+  the value the session's `meta.json` recorded, and REFUSES if you ask for a
+  different one (`--allow-decimate-mismatch` is the §4.2b reclaim comparison).
+- `--mount-index-deg` puts the pass card's index angle into `gate.json`, and
+  `--engagement-incidence-deg` states the aspect the GO is meant to cover (§8.1).
+  Left at 0° the verdict carries a printed warning that it is a **dead-on** GO.
 
 - `--stream-fps` is the **§7.3 bench** number (sustained end-to-end decode Hz on the
   real Pi 5 at the flying `quad_decimate`), not the capture rate. The scorer refuses
@@ -585,6 +818,20 @@ then cleanly no-ops (no `onnxruntime`), which is fine: the plots are for curve (
    successful decode) and `R_decode90` (farthest range where the decode rate
    *sustains* ≥90% inward) — the streak needs a sustained rate, not a lucky single
    frame, to actually form a handoff.
+4. **Score decode against `(range × INCIDENCE)`, not range alone** (§4.2b;
+   `placard_mount.md` §11 item 9). Two passes at 0° and 30° incidence are
+   *different experiments* and pooling them smears the curve. The tool writes
+   `curve_a_incidence.csv` and a `curve_a_incidence` block in `gate.json`; pass
+   `--mount-index-deg <the pass card's index>` and `--incidence-bin-deg 15`
+   (15° = the mount's own index step). Read §4.2b's table first — with only the
+   tag's own pose available, the tool honestly reports the incidence
+   *distribution of the decodes*, **not** a rate curve, because a rate needs the
+   MISSES to have an incidence too.
+5. **Re-decode the same frames at `quad_decimate ∈ {2.0, 1.0}`** (§4.2b) and
+   report both envelopes. Zero field time; it is the whole no-second-field-day
+   reclaim lever, and it is now runnable (`--quad-decimate` +
+   `--allow-decimate-mismatch`). Use the §7.3 fps bench **for the decimate you
+   scored**.
 
 ### 7.2 Curve (b) — NN approach recall vs range × position-in-frame
 
@@ -663,13 +910,21 @@ CPU YOLO ~5–10 fps (not viable at terminal LOS rates, hence the deferred Hailo
 **t_go ≥ 0.5 s post-handoff** at the real closing speed. Documented anchor:
 **R_acq ≈ ≥20 m for a 9 m/s closing speed.**
 
-General relation to apply to this session's numbers:
+General relation to apply to this session's numbers — stated in the
+**INCIDENCE-AWARE** form (merged 2026-07-25 from `placard_mount.md` §11 item 10):
 
 ```
-t_go = (R_decode90 - R_streak_burn) / V_closing
+t_go = (R_decode90(0°) · cos θ_eng  -  R_streak_burn) / V_closing
 ```
 
-- `R_decode90` — measured this session (§7.1).
+- `θ_eng` — the **worst-case tag incidence the REAL engagement will present**, not
+  the incidence this session happened to fly. **A GO measured at θ = 0° and applied
+  to a θ = 30° engagement is not a GO** (`R_decode(θ) = R_decode(0°)·cos θ`,
+  `placard_mount.md` §3.2 — DERIVED, and validated in sim only to **32.6°**;
+  beyond that it is a listed HYPOTHESIS, which is what §4.6 Block A3/B exists to
+  test). Pass it with `--engagement-incidence-deg`; at the default 0° the scorer
+  prints a warning on the verdict saying the GO is dead-on only.
+- `R_decode90` — measured this session (§7.1), at the incidence the session flew.
 - `R_streak_burn` — range consumed forming the 5-consecutive-detection handoff
   streak (not the sim's ~7 m NN figure — that's a different pipeline). **Use the
   RUN-LENGTH form (ADR-0079, what the scorer gates on):**
@@ -698,11 +953,36 @@ t_go = (R_decode90 - R_streak_burn) / V_closing
   NEXT.md anchor) and aggressive (interceptor's own dash speed ~16 m/s combined
   with the target, ~20–25 m/s head-on).
 
-**GO:** `t_go ≥ 0.5 s` under the conservative (9 m/s) scenario at minimum → unlock
-the Tier-2 order. **NO-GO:** loop back to a bigger placard or a camera upgrade
-(AR0234, `hardware_order_list.md` §2) — never spend the interceptor money on a
-failed curve (a) hoping it'll work out; that's the whole point of running this
-session first.
+**STATE THE GATE IN INCIDENCE-AWARE FORM (added 2026-07-25 —
+`placard_mount.md` §11 item 10).** The relation above is the **θ = 0°** case. The
+placard is a flat fiducial, so decode range falls as `cos θ`, and the real
+engagement will not be dead-on:
+
+```
+t_go = (R_decode90(0°)·cos θ_eng − R_streak_burn) / V_closing  ≥  0.5 s
+```
+
+where `θ_eng` is the **worst-case incidence the real engagement will present**.
+Score it with `--engagement-incidence-deg θ_eng`; `verdict.txt` prints both the
+θ=0 number and the incidence-derated one.
+
+> ⚠️ **A GO measured at θ = 0° and applied to a θ = 30° engagement is NOT a GO.**
+> `cos 30° = 0.866`, i.e. a 13% haircut straight off `R_decode90` — and the
+> derated budget is tight: at the pessimistic corner (`qd = 2.0` + conservative
+> camera scaling) the usable cone is **θ_max = 0°**, i.e. **no incidence budget at
+> all** (`placard_mount.md` §3.3). Under realistic scaling it is ±32°, which
+> ordinary flight attitudes can consume by themselves (target bank in a gust ±10°,
+> interceptor elevation from the 2–4 m loft +12–17°, crab in a crosswind 18°).
+> If the day comes back marginal, `quad_decimate = 1.0` is the first reclaim
+> lever (±48–56° cone) and it costs no field time — §4.2b.
+
+**GO:** `t_go ≥ 0.5 s` under the conservative (9 m/s) scenario at minimum, **at
+the engagement incidence you intend to claim**, and with `r90_stop_reason ==
+rate_below_90` (a measured cutoff — a band bounded by missing data is UNCERTAIN,
+never PASS) → unlock the Tier-2 order. **NO-GO:** loop back to a bigger placard or
+a camera upgrade (AR0234, `hardware_order_list.md` §2) — never spend the
+interceptor money on a failed curve (a) hoping it'll work out; that's the whole
+point of running this session first.
 
 ### 8.2 Curve (b) — gates ONLY the $70 Hailo HAT + markerless phase
 
@@ -724,8 +1004,13 @@ band (roughly ±20° off-axis) across the 10–25 m operational band.**
 
 ## 9. FAA / Remote ID / FRIA checklist
 
-- [ ] Target quad is **>250 g** (it is, ~700–900 g class) → FAA registration
-      required (Part 107 or recreational, per how you're flying it) — $5/aircraft.
+- [ ] Target quad is **>250 g** → FAA registration required (Part 107 or
+      recreational, per how you're flying it) — $5/aircraft.
+      **Mass corrected 2026-07-25** (`docs/placard_mount.md` §4.2 component
+      roll-up, via its §11 item 12): **~610 g bare / ~805 g with the placard
+      fitted**, not the "~700–900 g class" this line used to carry. The
+      >250 g ⇒ register conclusion is unchanged; the number is corrected so it
+      is not cited elsewhere as if measured.
 - [ ] **Broadcast Remote ID** solved one of two ways: (a) fly at a **FRIA**
       (FAA-Recognized Identification Area) field — $0, no module needed; or
       (b) fit a broadcast Remote ID module (~$35–60) if no FRIA is available near
@@ -769,9 +1054,13 @@ Hotspot up + Pi NTP-synced (05_pi_link_check offset, s): ______
 **Per pass:**
 
 ```
-Pass #: ___   Time: ___   Aspect: approach / crossing   Background: sky / horizon / clutter
-Speed: full / slow   Attitude: level / banked   Tilt (deg, measured): ___
-Placard mount index angle (deg): ___        Battery: pack # ___   Range stations confirmed: Y/N
+Pass #: ___   Time: ___   Block (§4.6): A_ / B_ / C_ / D(sync)
+Aspect: approach / crossing   Background: sky / horizon / clutter   Standoff (m): ____
+Speed: full / slow (___ m/s)   Attitude: level / banked   Tilt (deg, measured): ___
+Placard mount index angle (deg): ___   <- MANDATORY (§4.2b): no index, no incidence, ever
+WIND: steady ____ m/s from ____   gust ____ m/s   -> inside §4.7 limits? Y/N
+quad_decimate used at capture: ____   (pi_capture --quad-decimate; also in meta.json)
+Battery: pack # ___   Range stations confirmed: Y/N
 SYNC EVENT -- log timestamp t_ULog: ____________   frame index: ______
   (offset_s = t_ULog - index.csv t_wall_unix of that frame; §6.1. WRITE BOTH RAW NUMBERS.)
 Is this the battery's CLOCK-SYNC pass (close crossing through a CPA, §4.6b)? Y/N
@@ -798,6 +1087,15 @@ reconstructed afterwards: without them that pass has no range truth, permanently
 - [ ] Curve (a) `R_decode90` / `R_decode_any` computed, t_go scenarios run (§8.1),
       GO/NO-GO recorded with the numbers — and the `r90_stop_reason` recorded with
       them: only `rate_below_90` is a measured cutoff that may PASS.
+- [ ] **The GO/NO-GO is recorded WITH the incidence it is claimed at** (§8.1's
+      `cos θ_eng` form) and with the `quad_decimate` it was measured at — a
+      verdict quoted without both is not consumable by the money gate.
+- [ ] **The `quad_decimate ∈ {2.0, 1.0}` re-score run on the same frames** (§4.2b)
+      and both envelopes recorded. It is free and it is the only reclaim lever
+      that does not need a second field day.
+- [ ] Per-pass **index angle + measured wind** transcribed off the pass cards into
+      the session record (§4.7/§11) — they are the two variables that decide
+      whether a pass is a valid data point, and neither is reconstructable later.
 - [ ] Curve (b) recall-vs-range × position-in-frame computed (§7.2), PASS/FAIL
       against §8.2's working threshold recorded, with the honest small-n caveat
       (§4.6).

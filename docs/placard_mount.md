@@ -730,6 +730,11 @@ and right prop pairs.
 - [ ] 2 × copy-shop prints, **A1 or 24"×36", MATTE toner**, of `tag36h11` id 0 rendered so the
       **black square measures exactly 350.0 mm** (the full 10-cell image is 437.5 mm; centre it
       on the sheet). Verify with a ruler on the print before you cut anything.
+      **✅ THE FILE NOW EXISTS — you no longer render this yourself:**
+      `hardware/prints/placard_tag36h11_id0_poster_a1.pdf` (or `…_arch24x36.pdf`), generated
+      and dimension-verified by `scripts/print_artifacts/gen_placard_pdf.py`. A tiled
+      home-printer version (`…_tiled_a4.pdf` / `…_tiled_letter.pdf`, 1 instructions page +
+      6 tiles) is there too. Full runsheet in **§15**.
 - [ ] 1 sheet 5 mm paper-faced foamboard ≥500 × 500 mm (+1 spare) — $22 misc bag
 - [ ] Spray mount adhesive — $22 misc bag
 - [ ] 2 × Ø4 × 0.5 mm carbon tube, 500 mm (**BOM gap, ~$4**)
@@ -741,6 +746,40 @@ and right prop pairs.
 - [ ] `placard_index_disc.stl` × 1
 - [ ] `placard_shoe.stl` × **4** (1 flight + 3 spares — this is the crash part)
 - [ ] `placard_spar_cap.stl` × 4
+
+> **⚠️ CAD STATUS (2026-07-25) — parametric SOURCE exists, NO STL EXISTS.** The three parts
+> above are now written as parametric OpenSCAD sources —
+> `scripts/print_artifacts/placard_index_disc.scad`, `placard_shoe.scad`,
+> `placard_spar_cap.scad`, sharing `placard_mount_params.scad` (every dimension tagged
+> `[DOC L<n>]` = taken from this file, or `[CHOSEN]` = not specified here, chosen
+> conservatively and listed in that file's **DIMENSIONS TO CONFIRM**).
+> **`openscad` is not installed on the dev machine, so none of them has been rendered and
+> no `.stl` is committed — nothing was fabricated by any other means.** Render with
+> `bash scripts/print_artifacts/render_stls.sh` (it refuses, loudly, if openscad is
+> missing), or open the `.scad` in the OpenSCAD GUI / openscad.cloud and export.
+> `.venv/bin/python scripts/print_artifacts/check_scad.py` statically checks brackets,
+> identifiers and the derived dimensions — it is a typo net, **not** a render. **LOOK at
+> the render before printing.**
+>
+> **Two things that must be settled before these parts are printed:**
+> 1. **`web_t = 1.5 mm` does not close against §5.4's own numbers.** In bending
+>    (`σ = M/Z`, `Z = b·t²/6`, `b` = 110 mm, PETG ≈ 50 MPa [ESTIMATE]) a 1.5 mm web breaks
+>    at **2.06 N·m ≡ 4.6 N applied at the panel's top edge** — *below* §5.4's own worst
+>    flight load (19 N at the panel area centre, +235 mm ⇒ **4.46 N·m ≡ 9.9 N at the top
+>    edge**), and ~14× below the stated **60–80 N** release target. The mismatch is that
+>    §5.4 compares two forces applied at **different lever arms**: the 19 N inertial load
+>    acts at the area centre (+235 mm) while §9 item 7's luggage-scale pull acts at the top
+>    edge (+450 mm). Reaching 60–80 N at the top edge needs `t ≈ 5.5–6.0 mm` — i.e. a solid
+>    base with no frangible feature left. A self-consistent target (2–3× the worst flight
+>    moment, 9–13 N·m) lands at **`web_t ≈ 3.2–3.7 mm` ≡ 20–30 N at the top edge**.
+>    The `.scad` keeps the documented 1.5 mm — a generator does not silently rewrite a
+>    documented dimension — and parameterises it. **Print one shoe at 1.5 mm and one at
+>    3.5 mm and run the §9 item 7 pull test on both; that test, not this doc, sets it.**
+> 2. **The top-plate standoff BOLT PATTERN is recorded nowhere.** §1 records standoff
+>    *lengths* (30/22 mm); no vendor drawing for the Source One V6's top-plate hole pattern
+>    is cited anywhere in the repo. The disc defaults to a 30 × 30 mm square M3 pattern —
+>    **measure the real frame with calipers before printing the disc.** Everything else on
+>    the disc (Ø75 × 4, 24 holes on Ø56 at 15°) is doc-fixed.
 
 **Build**
 - [ ] Cut the panel to **450 × 450 mm**, square to ≤1 mm.
@@ -855,6 +894,31 @@ Everything in §3–§5 that is not marked [MEASURED] lands here. In rough prior
 I am not the writer of that file. These are the specific edits I recommend; item 4 is the
 money-relevant one.
 
+> ✅ **MERGE STATUS (updated 2026-07-25 — cross-reference only; the authoritative text
+> now lives in the protocol).** The 2026-07-24 protocol fix merged items **1, 3, 4, 9
+> (partial), 11**. The 2026-07-25 sweep (what's-left audit, Reader 4 / RANK 3) merged the
+> remaining five plus the rest of 9:
+>
+> | item | what | where it landed |
+> |---|---|---|
+> | 2 | anemometer + spare shoes/panel + M3 nylon + index disc | protocol §2 "Placard-specific kit" |
+> | 3 | tripod **abeam** the leg for curve (a) + state the standoff | protocol §3.1 (this landed 2026-07-**25**, not 07-24 — §3.1 had no abeam text until then) |
+> | 5 | aspect re-brief: CROSSING is primary, APPROACH is the null | protocol §4.2 (⛔ box) |
+> | 6 | the 90°-index nose-on block at ≤4 m/s | protocol §4.2 + §4.6 Block B |
+> | 7 | pack budget 4–5, not 3 | protocol §4.6 |
+> | 8 | NEW §4.7 operating/wind limits | protocol §4.7 |
+> | 9 | decode vs (range × incidence) **and** the qd ∈ {2.0, 1.0} re-decode | protocol §4.2b + §7.1; **both are now RUNNABLE** — `tripod_score --incidence-bin-deg/--mount-index-deg` and `--quad-decimate/--allow-decimate-mismatch` (ADR-0082) |
+> | 10 | §8.1 in the incidence-aware form | protocol §8.1 + `tripod_score --engagement-incidence-deg` |
+> | 11 | per-pass **wind speed + direction** (the index angle half was already there) | protocol §11 session-log template |
+> | 12 | target mass ~610 g bare / ~805 g fitted | protocol §9 |
+>
+> Two honesty notes carried into the code, not just the prose: (a) with only the tag's own
+> pose available, incidence exists ONLY on frames that decoded, so the scorer reports the
+> incidence **distribution of the decodes** and refuses to present it as a decode-RATE
+> curve — a rate needs the misses to carry an incidence too (protocol §4.2b table); and
+> (b) `quad_decimate` is now STAMPED into every session's `meta.json`, because an
+> unrecorded decimation makes item 9's reclaim lever unrecoverable after the field day.
+
 1. **§1 pre-session checklist — item 2 is STALE.** It still says the auto-labeler validation is
    *"NOT yet run"* and to use *"the BOM default placard (~0.3 m)"*. Superseded by
    `docs/placard_sizing.md` (2026-07-21): edge = **0.35 m**, print UNBLOCKED. Replace with a
@@ -875,8 +939,15 @@ money-relevant one.
    (keep 15–20 m for curve (b), where it is correct).
    *Worked example at a 6 m standoff:* along-track offset `s` gives range `√(36+s²)` and
    incidence `atan(s/6)`; the predicted decode window (`R/cos θ ≤ 7.10 m`) closes at
-   `s ≈ ±2.6 m` = **0.58 s at 9 m/s ≈ 17 frames** — usable but tight, so fly several passes
-   and include slow (3–4 m/s) repeats for dwell.
+   `s ≈ ±2.6 m` = **0.58 s at 9 m/s ≈ 11.6 frames at the 20 Hz the deployed loop runs**
+   (≈ 8.1 frames at the only measured AprilTag cadence in the repo, ~14 Hz) — usable but
+   tight, so fly several passes and include slow (3–4 m/s) repeats for dwell.
+   > ⛔ **CORRECTED 2026-07-25.** This line said "≈ 17 frames", which silently
+   > re-introduced the **invented 30 fps** that ADR-0082 removed — the same unsourced
+   > constant that once flipped the $740 gate. The frame count depends on the decode
+   > cadence, which is a §7.3 BENCH MEASUREMENT on the real Pi 5 at the flying
+   > `quad_decimate`, not a number this doc may assume. Quote it as "0.58 s of dwell"
+   > and multiply by the measured rate.
 5. **§4.2 Aspects — re-brief which aspect the tag lives in.** With the beam mount, **CROSSING
    is the tag's primary aspect** and **APPROACH is its null aspect** (90° incidence, zero
    decodes). Say this explicitly so a zero on an approach pass is not misread as a tag failure.
@@ -992,3 +1063,90 @@ def trim(V):
 
 Incidence cone: `theta_max = acos(6.0 / R90_0)` with `R90_0` from §1's table.
 Crosswind: `S = 0.5*rho*Vc^2 * 1.17 * 0.2025`, `phi = atan(S/7.90)`.
+
+---
+
+## 15. Print & purchase runsheet (added 2026-07-25)
+
+> **Why this section exists.** The 2026-07-25 what's-left audit (`docs/audit_2026-07-25_whats_left.md`,
+> RANK 4 / "No print-ready artifacts exist") found the placard sized and the mount fully
+> engineered but **nothing printable in the repo**: the only tag asset was a 512 px Gazebo
+> texture, there was no checkerboard file at all, and the mount existed only as §6's ASCII
+> sketch. All three are lead-time items and one of them (the checkerboard) blocks the FIRST
+> bench gate. This is the do-it-today list.
+
+### 15.1 What now exists (all generated + dimension-verified this session)
+
+| file (`hardware/prints/`) | what | how it was verified |
+|---|---|---|
+| `placard_tag36h11_id0_poster_a1.pdf` | **the copy-shop order** — A1 594×841 mm, crop marks, 200 mm scale bar | black square measured **350.0000 × 350.0000 mm** by re-reading the emitted PDF |
+| `placard_tag36h11_id0_poster_arch24x36.pdf` | US 24″×36″ engineering print, same content | same, 350.0000 mm |
+| `placard_tag36h11_id0_poster_bleed480.pdf` | 480 × 512 mm sheet, 15 mm bleed | same, 350.0000 mm |
+| `placard_tag36h11_id0_poster_exact450.pdf` | exactly 450 × 450 mm, **artwork only** (for a shop that wants a trim-size PDF) | same, 350.0000 mm |
+| `placard_tag36h11_id0_tiled_a4.pdf` | **home printer** — 1 instructions page + 6 A4 tiles (3 × 2), 10 mm overlap | every tile's black extent matched its expected clipped extent to **0.0 µm**; tiles reassemble to the full 350 mm square |
+| `placard_tag36h11_id0_tiled_letter.pdf` | same on US Letter | same |
+| `checkerboard_9x6_25mm_a4.pdf` | **the calibration board** — 9×6 inner corners, 25 mm squares, A4 landscape; page 1 instructions + bars, page 2 the board alone | all 35 black squares **25.000 mm**, board **250.0000 × 175.0000 mm**, inner-corner span **200.0000 × 125.0000 mm** |
+| `checkerboard_9x6_25mm_letter.pdf`, `…_a3.pdf`, `checkerboard_9x6_20mm_a4.pdf` | Letter / roomier A3 / small-square A4 variants | same checks |
+
+Regenerate + re-verify at any time (both exit non-zero on any dimension miss):
+
+```bash
+.venv/bin/python scripts/print_artifacts/gen_placard_pdf.py
+.venv/bin/python scripts/print_artifacts/gen_checkerboard_pdf.py
+.venv/bin/python scripts/print_artifacts/check_scad.py      # the mount sources
+```
+
+### 15.2 Where to print each thing
+
+| item | route | cost | notes |
+|---|---|---|---|
+| **Placard, ×2** (one per panel face) | **Copy shop / print bureau** — hand them `…_poster_a1.pdf`. Say: *"A1, print at 100 %, do not scale to fit, MATTE toner/laser, plain bond."* | ~$10 for the pair (the `$22 misc` line's own print allowance, §5.2 P3) | **This is the preferred route.** One sheet per face, no seams under the tag, and a laser bureau's scale is reliable. Trim to 450 × 450 on the crop marks. |
+| **Placard, ×2** (fallback) | **Home A4/Letter** — `…_tiled_a4.pdf`, 7 pages, ×2 sets | paper only | Only if the shop trip is the blocker. Follow page 1 exactly; the seams sit *inside* the tag, so a 1 mm assembly error is a 1 mm tag error. Measure the black square afterwards. |
+| **Checkerboard, ×1** | **BUY the ~$8 rigid pre-printed board** (already in `bom_tiers`) — *and* print `checkerboard_9x6_25mm_a4.pdf` today as the no-lead-time fallback | ~$8 | Buy **9×6 inner corners** and read the vendor's **actual** square size; pass that to `--square`, do not assume 25 mm. Flatness is the dominant error after scale, which is why the bought board wins — but the printed one unblocks the bench gate on day one. |
+| **Mount parts** (disc ×1, shoe ×4, spar cap ×4) | 3D print in **PETG** from the `.scad` sources — **render to STL first** (see the CAD STATUS box in §7) | ~$1 of filament | 3D-printer access is itself an unconfirmed **[ASSUMPTION]** (`hardware_order_list.md` §399). If there is no printer, a print service is ~$15–25 for the set; the shoe is the one you need spares of. |
+
+### 15.3 Print settings that are not optional
+
+1. **100 % / "Actual size". Never "fit to page" / "shrink oversized pages".** This is the
+   single most common way to get a silently wrong artifact: the tag still decodes, and every
+   tag-recovered range is wrong by the scale factor.
+2. **MATTE toner/laser on plain bond. No gloss, no lamination, no photo paper.** A specular
+   sheet reflects the sun straight into the camera and wipes out the contrast the decode
+   depends on. Gazebo has no glare model, so **no sim result covers this** (§2, §10 item 7).
+   Toner is also more humidity-stable than inkjet.
+3. **Print the tag TWICE, both right-reading. Do NOT photocopy one and flip it** — a mirrored
+   `tag36h11` is not a member of the family and will simply never decode (§3.6).
+4. **Measure before you cut.** Every generated PDF carries printed scale bars (200.0 mm /
+   150.0 mm / 100.0 mm). Then measure the **black square** itself: **350.0 ± 1.0 mm on both
+   axes**, diagonals equal within 2 mm. On the checkerboard, measure outermost-inner-corner
+   to outermost-inner-corner: **200.0 mm** long axis, **125.0 mm** short axis.
+5. **Keep the quiet zone clean.** Nothing is printed inside the 450 mm sheet but the tag —
+   no crop marks, no ruler, no pen marks, no tape on the front face. The 50 mm white ring is
+   what the quad detector uses to find the tag's outer edge.
+
+### 15.4 The purchase list this section touches
+
+Buy today — these are pure shipping latency and one of them gates the first bench gate:
+
+- [ ] **~$8 rigid 9×6 checkerboard** (`bom_tiers`; still status `print`) — gates `skr-06`
+      camera calibration, and **every range and bearing number in the campaign is wrong
+      until that runs**.
+- [ ] **2 × Ø4 × 0.5 mm carbon tube, 500 mm** (~$4) — §5.2 P4, a known **BOM gap**.
+- [ ] **PETG filament** if not on hand — §5.2, also not in the $22 misc bag.
+- [ ] **Handheld anemometer** (~$20) — in **no BOM tier at all**; without it §8's ≤3 m/s
+      crosswind / ≤5 m/s gust validity limits are unenforceable and crosswind becomes an
+      uncontrolled variable in curve (a).
+- [ ] The §7 misc bag items (foamboard + spare, spray adhesive, M3 nylon hardware, #64
+      bands, hook-and-loop strap, epoxy, paint pen, TPU offcut).
+
+### 15.5 Honesty notes on this section
+
+- The PDFs are verified **as files** — the generators re-open their own output, walk the PDF
+  drawing operators and measure the ink in millimetres, and the placard artwork was also
+  rasterised and decoded by the real `pupil_apriltags` detector (**family `tag36h11`, id 0,
+  hamming 0, decision margin 120**, detector-recovered black-square edges
+  **350.05–350.08 mm**). That proves the **file**. It says nothing about **your printer** —
+  which is what §15.3 item 4 is for.
+- **No STL exists and none was fabricated.** See the CAD STATUS box in §7.
+- Nothing in this section has been printed, cut, or fitted to hardware. It is a runsheet,
+  not a result.

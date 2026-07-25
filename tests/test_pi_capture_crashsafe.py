@@ -61,8 +61,14 @@ def _frames(n, interrupt_after=None, exc=KeyboardInterrupt):
         t += FRAME_DT
 
 
-def _record(out_dir, gen, requested=None):
-    return PC.record_session(gen, str(out_dir), "v4l2", {}, 16, 16,
+def _record(out_dir, gen, requested=None, source="picamera2"):
+    """`source` defaults to picamera2 (2026-07-25): tripod_score's fps resolver
+    now WHITELISTS the capture sources that may feed the money gate's 1/fps
+    divisor, and only the real Pi 5 path qualifies. The fixture must therefore
+    say which capture it is standing in for -- the interrupt/truncation
+    behaviour under test is backend-independent, while the fps assertions are
+    specifically about a session whose rate the gate is ALLOWED to consume."""
+    return PC.record_session(gen, str(out_dir), source, {}, 16, 16,
                              PC.DEF_EXPOSURE_US, 1.0, False, None, 0.35,
                              "pytest", requested_n_frames=requested)
 
@@ -164,7 +170,7 @@ def test_decode_loop_fps_is_recorded_separately_from_stream_fps(tmp_path):
     DECODE cadence. Recording one number and consuming it as the other is the
     'measured number of the wrong quantity' defect."""
     pytest.importorskip("pupil_apriltags")
-    meta = PC.record_session(_frames(20), str(tmp_path), "v4l2", {}, 16, 16,
+    meta = PC.record_session(_frames(20), str(tmp_path), "picamera2", {}, 16, 16,
                              PC.DEF_EXPOSURE_US, 1.0, True, None, 0.35,
                              "pytest", requested_n_frames=20)
     assert meta["decode_loop_fps"] is not None and meta["decode_loop_fps"] > 0
@@ -186,6 +192,54 @@ def test_a_decode_free_session_is_flagged_as_the_wrong_quantity(tmp_path):
     _fps, src = TS.resolve_stream_fps(type("A", (), {"stream_fps": None})(), meta)
     assert "WRONG QUANTITY" in src
     assert "tag decode OFF" in src
+
+
+def test_a_desk_rehearsal_may_not_supply_the_money_gates_fps(tmp_path):
+    """BUILDER RULING 2026-07-25 (review 2's open question, answered NO): a
+    `--local`/v4l2 DESK REHEARSAL -- a laptop webcam on a desk -- must never
+    supply the ~$740 gate's 1/fps divisor.
+
+    THE DEFECT: tripod_score's source check was a BLACKLIST (it rejected only
+    `stream_fps_source` strings containing "replay") and never looked at
+    `meta["source"]`, which pi_capture already writes. So a v4l2 desk session
+    with tag decode ON produced a `decode_loop_fps` the gate consumed as the
+    modelled quantity -- a rate measured on a different CPU, driver and sensor
+    from the Pi 5 the burn model is about. It is now a WHITELIST."""
+    meta = _record(tmp_path, _frames(20), requested=20, source="v4l2")
+    assert meta["source"] == "v4l2" and meta["stream_fps"] is not None, (
+        "the recorder still MEASURES the rate -- the refusal is the scorer's job")
+
+    fps, src = TS.resolve_stream_fps(type("A", (), {"stream_fps": None})(), meta)
+    assert fps is None, "a desk-rehearsal rate must not reach the gate"
+    assert "REFUSED" in src and "v4l2" in src
+
+    # ...and the refusal reaches the VERDICT: UNCERTAIN, never a PASS/FAIL.
+    g = TS.gate_verdict(7.10, 7.10, 0.9, fps, 5, 9.0, 0.5, n_decoded=40)
+    assert g["verdict"] == "UNCERTAIN" and "stream_fps" in g["reason"]
+
+    # The sanctioned override is the protocol §7.3 bench, passed explicitly.
+    fps2, src2 = TS.resolve_stream_fps(type("A", (), {"stream_fps": 20.0})(), meta)
+    assert fps2 == 20.0 and "--stream-fps" in src2
+
+
+def test_the_fps_source_check_is_a_whitelist_not_a_blacklist():
+    """Pins the SHAPE of the guard, not just one rejected value: an unknown or
+    absent `source` must fail closed. A blacklist is wrong the moment a new
+    capture backend appears; this enumerates the one sanctioned case."""
+    A = type("A", (), {"stream_fps": None})
+    assert TS.ALLOWED_FPS_CAPTURE_SOURCES == ("picamera2",)
+    ok, _ = TS.capture_source_allowed({"source": "picamera2"})
+    assert ok
+    for bad in ({"source": "v4l2"}, {"source": "dir"}, {"source": "libcamera-vid"},
+                {"source": ""}, {}):
+        ok, detail = TS.capture_source_allowed(bad)
+        assert not ok, f"{bad} must not be a sanctioned gate-fps source"
+        assert detail
+    # a rate attached to a non-whitelisted source is refused, with the number
+    # still visible in the message so the operator can see what was rejected
+    fps, src = TS.resolve_stream_fps(A(), {"source": "libcamera-vid",
+                                           "decode_loop_fps": 41.0})
+    assert fps is None and "REFUSED" in src
 
 
 def test_replay_sessions_still_publish_no_stream_fps(tmp_path):

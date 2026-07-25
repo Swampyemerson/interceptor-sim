@@ -103,7 +103,16 @@ def run(args):
     map1 = map2 = None
     if undistort:
         map1, map2 = cv2.initUndistortRectifyMap(K, dist, None, K, (w, h), cv2.CV_16SC2)
-    det = Detector(families="tag36h11")
+    # quad_decimate is EXPLICIT (2026-07-25, ADR-0082): it used to be the silent
+    # library default 2.0 here, so the auto-labels' decode ceiling -- which is the
+    # far edge of the whole training set -- was set by an unrecorded constant. At
+    # 1.0 the tag decodes ~1.5x farther and over a +-48-56 deg incidence cone
+    # instead of +-32 deg (docs/placard_mount.md §3.3), i.e. MORE labelled frames
+    # from the same footage. It is printed so the label run is self-documenting.
+    det = Detector(families="tag36h11", quad_decimate=float(args.quad_decimate))
+    print(f"[autolabel] detector: tag36h11, quad_decimate={args.quad_decimate}"
+          + ("" if float(args.quad_decimate) != 1.0 else
+             "  (full-res: the ADR-0082 tripod-day setting)"))
     off = tuple(float(v) for v in args.tag_offset_m.split(","))
     img_dir = os.path.join(args.out, "images")
     lbl_dir = os.path.join(args.out, "labels")
@@ -188,6 +197,16 @@ def main():
     ap.add_argument("--calib", help="camera calib JSON (calibrate_camera.py / flight.camera)")
     ap.add_argument("--tag-size", type=float, default=0.10, help="AprilTag black-square edge (m)")
     ap.add_argument("--drone-size", type=float, default=0.35, help="target drone extent (m); 5\" ~0.35")
+    ap.add_argument("--quad-decimate", type=float, default=2.0,
+                    help="AprilTag detector quad_decimate (default 2.0 = the "
+                         "pupil-apriltags LIBRARY default, stated explicitly). "
+                         "1.0 decodes at full resolution: ~1.5x range and a "
+                         "+-48-56 deg incidence cone instead of +-32 deg, at a "
+                         "CPU cost that does not matter for an OFFLINE label "
+                         "pass -- so 1.0 buys more labelled frames from the same "
+                         "footage (ADR-0082, docs/placard_mount.md §3.3). Match "
+                         "the value stamped in the session's meta.json when "
+                         "re-labelling a scored capture.")
     ap.add_argument("--tag-offset-m", default="0,0,0",
                     help="tag->drone-centre offset x,y,z in the TAG frame (m): x right, y down, "
                          "z INTO the tag away from the camera. E.g. tag mounted 0.05 m below the "

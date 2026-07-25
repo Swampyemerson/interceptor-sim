@@ -294,15 +294,28 @@ def test_meta_fps_resolution_rejects_replay_synthetic(tmp_path):
     fps, src = TS.resolve_stream_fps(cli_none, {})
     assert fps is None and "NOT SUPPLIED" in src
 
+    # `source` is now part of every case: the capture-source WHITELIST added
+    # 2026-07-25 decides whether a session's own rate may feed the gate AT ALL
+    # (builder ruling: a desk rehearsal may not), and the replay-mark check below
+    # is the SECOND belt that fires inside an otherwise-sanctioned session.
     fps, src = TS.resolve_stream_fps(cli_none, {
+        "source": "picamera2",
         "stream_fps": 30.0,
         "stream_fps_source": "replay-synthetic (NOT a capture-rate measurement)"})
     assert fps is None and "REJECTED" in src
 
     fps, src = TS.resolve_stream_fps(cli_none, {
+        "source": "picamera2",
         "stream_fps": 18.5,
         "stream_fps_source": "measured: median inter-frame dt (t_mono_s)"})
     assert fps == 18.5 and "meta.json" in src
+
+    # the SAME measured number, from a desk-rehearsal capture, is refused
+    fps, src = TS.resolve_stream_fps(cli_none, {
+        "source": "v4l2",
+        "stream_fps": 18.5,
+        "stream_fps_source": "measured: median inter-frame dt (t_mono_s)"})
+    assert fps is None and "REFUSED" in src
 
     fps, src = TS.resolve_stream_fps(type("A", (), {"stream_fps": 22.0})(),
                                      {"stream_fps": 30.0})

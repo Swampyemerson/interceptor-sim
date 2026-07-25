@@ -214,10 +214,32 @@ python3 gen_tripod_mission.py \
     --out tripod_mission.waypoints
 ```
 
-Useful flags (`--help` for all): `--leg-length` (far station, default 30 m),
-`--near-range` (near station, 8 m), `--standoff` (crossing standoff, 17 m),
-`--cross-halfwidth` (20 m). **Negative offsets need the `=` form**
+Useful flags (`--help` for all): `--leg-length` (far station, default **20 m**),
+`--near-range` (near station, **4 m**), `--standoff` (crossing standoff,
+**5.5 m**), `--cross-halfwidth` (20 m), `--placard-index-deg` (the mount index
+for this block — checked against the HARD ≤4 m/s nose-on cap),
+`--off-protocol`. **Negative offsets need the `=` form**
 (`--lateral-offset=-5,0,5`) or argparse reads the `-` as a flag.
+
+> ⛔ **DEFAULTS SWEPT 2026-07-25 — they used to manufacture a FALSE NO-GO.** This
+> generator shipped `30 / 8 / 17 m`, the geometry `docs/tripod_test_protocol.md`
+> §4.1 **superseded on 2026-07-24**: the whole 8–30 m ladder sits *outside* the
+> 7.10 m predicted `R_decode90`, so curve (a) would read all-zero and the money
+> gate would return **FAIL → do not buy the ~$740 interceptor** for a purely
+> geometric reason. Defaults are now the corrected contiguous **4–20 m** grid
+> with a **5–6 m tag-envelope crossing standoff**, and the tool now **REFUSES
+> (exit 2)** to emit a mission that cannot answer curve (a).
+> The one legitimate exception — the curve-(b)/NN crossing block at a 15–20 m
+> standoff, which is not envelope-limited the same way — needs `--off-protocol`:
+>
+> ```bash
+> python3 gen_tripod_mission.py --home-lat .. --home-lon .. \
+>     --passes crossing --standoff 17 --off-protocol --out nn_crossing.waypoints
+> ```
+>
+> `--self-test` now asserts the **emitted** waypoints against the protocol's
+> stations (it previously checked structure + round-trip only, which is why the
+> stale defaults passed green for weeks).
 
 The emitted file is **QGC WPL 110** (tab-separated: TAKEOFF → per-pass
 `DO_CHANGE_SPEED` + waypoints → RTL). Load it in **Mission Planner** (*Plan → Load

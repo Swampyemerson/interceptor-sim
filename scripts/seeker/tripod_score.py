@@ -101,6 +101,7 @@ Usage:
     scripts/seeker/tripod_score.py --self-test    # synthetic session, no hardware; exit 0/1
 """
 import argparse
+import collections
 import csv
 import glob
 import json
@@ -112,6 +113,17 @@ import sys
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+# ONE implementation of the two capture-side primitives (CLAUDE.md "fix root
+# cause", one code path): the recorder OWNS the detector's quad_decimate default
+# and the tag-incidence geometry, and the scorer must not fork either. pi_capture
+# imports only the stdlib at module scope, so this is safe under .venv-seeker too.
+from pi_capture import (  # noqa: E402
+    DEFAULT_QUAD_DECIMATE,
+    tag_incidence_deg,
+)
 
 # --------------------------------------------------------------------------
 # Sourced constants -- every number traces to a doc/ADR (CLAUDE.md rule).
@@ -143,8 +155,28 @@ DEFAULT_HANDOFF_STREAK = 5
 PI5_APRILTAG_FPS_PAPER_ANCHOR = 30.0
 # meta.json `stream_fps_source` values containing this substring are NOT a
 # capture-rate measurement (pi_capture's dir-replay backend stamps synthetic
-# timestamps) and are refused as a gate input.
+# timestamps) and are refused as a gate input. RETAINED as a second belt behind
+# the source WHITELIST below -- it catches a replay-flavoured rate even inside an
+# otherwise-sanctioned session.
 FPS_SOURCE_REJECT_MARK = "replay"
+# CAPTURE-SOURCE WHITELIST for the gate's fps divisor (BUILDER RULING 2026-07-25:
+# "may a --local/v4l2 desk rehearsal ever supply the gate's fps?" -> NO).
+#
+# These are pi_capture's `meta.json:source` values that MAY feed the money gate's
+# 1/fps divisor. `picamera2` is the real Pi 5 + libcamera + OV9281 path -- the
+# only capture in this project whose cadence is a property of the hardware that
+# will actually fly. Everything else is refused BY DEFAULT, including:
+#   v4l2  a laptop/USB webcam desk rehearsal -- a different CPU, a different
+#         driver, a different sensor; its rate says nothing about the Pi 5
+#   dir    replay of stored frames -- synthetic timestamps
+#   (absent) an unidentified or hand-written meta.json -- unknown provenance
+# WHY A WHITELIST AND NOT A BLACKLIST: the check this replaces enumerated the BAD
+# case ("replay") and accepted everything else, so a v4l2 desk session with decode
+# on silently supplied the divisor for a ~$740 verdict. Enumerating the ONE good
+# case fails closed when a new source appears.
+# The sanctioned override is the protocol's own: bench the Pi 5 (§7.3) and pass
+# --stream-fps explicitly.
+ALLOWED_FPS_CAPTURE_SOURCES = ("picamera2",)
 # ADOPTED placard: tag36h11 black-square edge 0.350 m on a 0.450 m sheet
 # (docs/placard_mount.md §2 table "Tag black-square edge = 0.350 m"; the carry
 # limit from docs/placard_sizing.md §4). This is the AprilTag black-square edge
@@ -200,6 +232,19 @@ R90_STOP_ABSENT = "bin_absent"
 R90_STOP_UNDERPOPULATED = "bin_underpopulated"
 R90_STOP_END = "end_of_data"
 R90_DATA_BOUNDED = (R90_STOP_ABSENT, R90_STOP_UNDERPOPULATED, R90_STOP_END)
+
+# INCIDENCE (2026-07-25, protocol §4.2b + docs/placard_mount.md §11 item 9).
+# The adopted placard is a single BEAM-FACING panel (placard_mount DECISION 1), so
+# decode range falls as R(0)*cos(theta) with theta = the angle between the tag
+# normal and the line of sight. A pass flown at 30 deg incidence and a pass flown
+# at 0 deg are DIFFERENT EXPERIMENTS -- pooling them smears curve (a), and a GO
+# measured at 0 deg does not transfer to a 30 deg engagement (§8.1).
+# 15 deg bins because the mount is 15-deg-INDEXABLE (placard_mount §3.6), so the
+# bin edges line up with the settings the operator can actually fly.
+DEFAULT_INCIDENCE_BIN_DEG = 15.0
+# The sim evidence for the cos-theta law stops at 32.6 deg; above 33 deg it is a
+# listed HYPOTHESIS (placard_mount §13). Cells beyond it are FLAGGED, not dropped.
+COS_LAW_VALIDATED_TO_DEG = 32.6
 
 _RANGE_RE = re.compile(r"_r(\d+\.?\d*)_")   # synth_tag_frames / resolution_probe convention
 _TRUE = ("1", "true", "yes", "t")
@@ -385,8 +430,79 @@ def quality_summary(frames, index_map):
 # --------------------------------------------------------------------------
 # AprilTag decode (curve a raw input)
 # --------------------------------------------------------------------------
+# Per-frame decode record. It IS a 6-tuple, so every legacy `decode[base][0]`
+# index still works, and a caller that hand-builds the historical 5-tuple
+# (decoded, range, u, v, n_tags) still binds through as_obs() with
+# incidence_deg=None. New code should read the NAMED fields.
+TagObs = collections.namedtuple(
+    "TagObs", "decoded range_m u v n_tags incidence_deg")
+
+
+def as_obs(value):
+    """Coerce a decode-map value to TagObs. Accepts TagObs, the historical
+    5-tuple, or any short tuple (missing fields become None -- never 0.0, which
+    would be a fabricated measurement)."""
+    if isinstance(value, TagObs):
+        return value
+    t = tuple(value)
+    if len(t) > 6:
+        t = t[:6]
+    return TagObs(*(t + (None,) * (6 - len(t))))
+
+
+def check_decimate_consistency(values, allow_mismatch=False):
+    """REFUSE to pool decodes produced at DIFFERENT quad_decimate settings
+    (2026-07-25, ADR-0082).
+
+    `values` = {label: quad_decimate or None}. Returns a dict describing what was
+    compared; raises SystemExit when two RECORDED values disagree and
+    `allow_mismatch` is False.
+
+    WHY THIS IS A REFUSAL AND NOT A WARNING. quad_decimate is a RANGE MULTIPLIER:
+    qd=1.0 decodes ~1.5x farther and over a +-48-56 deg incidence cone vs +-32 deg
+    at qd=2.0 (docs/placard_mount.md §3.3). Curve (a) is a decode-vs-range curve,
+    so mixing two decimations inside one curve -- or scoring a session at a
+    decimate other than the one that produced its tags.csv -- silently reports an
+    envelope no single configuration ever flew, and the ~$740 gate reads it as
+    optical truth. Protocol §4.2b's legitimate qd in {2.0, 1.0} comparison is a
+    DELIBERATE re-decode of the same frames: run it with --allow-decimate-mismatch,
+    which stamps the divergence into gate.json + verdict.txt.
+
+    A value of None means the session predates the stamp (or was captured by a
+    tool that does not record it). That is UNKNOWN, not equal: it cannot trigger a
+    mismatch refusal (there is nothing to compare), and the caller must surface it
+    as unknown provenance rather than as agreement."""
+    known = {k: float(v) for k, v in values.items() if v is not None}
+    unknown = sorted(k for k, v in values.items() if v is None)
+    distinct = sorted(set(known.values()))
+    mismatch = len(distinct) > 1
+    info = {
+        "values": {k: float(v) if v is not None else None
+                   for k, v in values.items()},
+        "unknown_sources": unknown,
+        "distinct_recorded": distinct,
+        "mismatch": mismatch,
+        "mismatch_allowed": bool(allow_mismatch),
+    }
+    if mismatch and not allow_mismatch:
+        detail = ", ".join(f"{k}={known[k]}" for k in sorted(known))
+        raise SystemExit(
+            f"[tripod] REFUSED: quad_decimate MISMATCH ({detail}). quad_decimate "
+            f"is a range multiplier (~1.5x range and a +-48-56 deg vs +-32 deg "
+            f"incidence cone at 1.0 -- docs/placard_mount.md §3.3), so decodes "
+            f"produced at different settings do not belong on one curve (a) and "
+            f"the ~$740 gate would read an envelope no configuration ever flew. "
+            f"Re-run at the value the session recorded, or -- for protocol §4.2b's "
+            f"deliberate qd in {{2.0, 1.0}} reclaim comparison -- pass "
+            f"--allow-decimate-mismatch (it is stamped into gate.json/verdict.txt "
+            f"and the --stream-fps you supply must be the §7.3 Pi 5 bench AT THE "
+            f"SCORED DECIMATE, not at the flying one).")
+    return info
+
+
 def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
-                  allow_partial_tags=False):
+                  allow_partial_tags=False,
+                  quad_decimate=DEFAULT_QUAD_DECIMATE):
     """Per-frame AprilTag decode -> {basename: (decoded, tag_range_m, u, v, n)}.
     Reuses a provided tags.csv (tags_map) verbatim; otherwise decodes the frames
     with pupil-apriltags (undistorting first, like autolabel_from_apriltag).
@@ -416,7 +532,7 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
         for _, base in frames:
             row = tags_map.get(base)
             if row is None:
-                results[base] = (False, None, None, None, 0)
+                results[base] = TagObs(False, None, None, None, 0, None)
                 continue
             # BOTH tags.csv schemas (see load_session's docstring): this
             # scorer's `decoded` boolean, or pi_capture's `n_tags`/`tag_id`
@@ -435,7 +551,10 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
                 u = _pf(row.get("center_u"))
             if v is None:
                 v = _pf(row.get("center_v"))
-            results[base] = (dec, _tag_row_range(row), u, v, n_tags)
+            # incidence_deg is pi_capture's capture-time pose record (2026-07-25);
+            # absent in a legacy tags.csv, which stays None (unknown), never 0.
+            results[base] = TagObs(dec, _tag_row_range(row), u, v, n_tags,
+                                   _pf(row.get("incidence_deg")))
         if not quiet:
             n_dec = sum(1 for r in results.values() if r[0])
             # Disambiguate: "row absent" must never read as "tag not decoded".
@@ -453,11 +572,15 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
     if undistort:
         K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=float)
         map1, map2 = cv2.initUndistortRectifyMap(K, dist, None, K, (w, h), cv2.CV_16SC2)
-    det = Detector(families="tag36h11")
+    # quad_decimate is EXPLICIT (ADR-0082): it used to be the silent library
+    # default 2.0, which is the configuration placard_sizing predicts FAILS the
+    # money gate at 20/14 Hz. It is a range multiplier, so it belongs on the
+    # record next to the curve it produced -- see check_decimate_consistency.
+    det = Detector(families="tag36h11", quad_decimate=float(quad_decimate))
     for p, base in frames:
         img = cv2.imread(p)
         if img is None:
-            results[base] = (False, None, None, None, 0)
+            results[base] = TagObs(False, None, None, None, 0, None)
             continue
         if undistort:
             img = cv2.remap(img, map1, map2, cv2.INTER_LINEAR)
@@ -465,16 +588,18 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
         dets = det.detect(gray, estimate_tag_pose=True,
                           camera_params=(fx, fy, cx, cy), tag_size=tag_size_m)
         if not dets:
-            results[base] = (False, None, None, None, 0)
+            results[base] = TagObs(False, None, None, None, 0, None)
             continue
         d = min(dets, key=lambda t: float(t.pose_t.reshape(3)[2]))  # nearest
         rng = float(np.linalg.norm(d.pose_t.reshape(3)))
         u, v = float(d.center[0]), float(d.center[1])
-        results[base] = (True, rng, u, v, len(dets))
+        results[base] = TagObs(True, rng, u, v, len(dets),
+                               tag_incidence_deg(d.pose_R, d.pose_t))
     if not quiet:
         n_dec = sum(1 for r in results.values() if r[0])
         print(f"[tripod] curve(a): decoded {n_dec}/{len(frames)} frames "
-              f"(pupil-apriltags, tag_size={tag_size_m:.3f} m)")
+              f"(pupil-apriltags, tag_size={tag_size_m:.3f} m, "
+              f"quad_decimate={float(quad_decimate)})")
     return results
 
 
@@ -567,7 +692,7 @@ def curve_a(frames, decode, index_map, bin_m, max_m, accept_quality=None,
             n_unbinnable += 1
             continue
         n_binnable += 1
-        dec, drange, _u, _v, _n = decode[base]
+        dec, drange, _u, _v, _n, _inc = as_obs(decode[base])
         b = int(gr // bin_m) * bin_m
         cell = bins.setdefault(b, [0, 0, []])
         cell[1] += 1
@@ -609,6 +734,159 @@ def decode_rate_near(bins, r90, bin_m):
 
 
 # --------------------------------------------------------------------------
+# Curve (a) x INCIDENCE (protocol §4.2b; placard_mount §11 item 9)
+# --------------------------------------------------------------------------
+def frame_incidence_deg(basename, index_map, obs):
+    """(incidence_deg, source) for ONE frame. Source order matters:
+
+      1. `index.csv:incidence_deg` -- computable for EVERY frame (decoded or not)
+         from the target log's attitude + the surveyed tripod position + the
+         mount index angle (protocol §4.2b: "compute per-frame incidence
+         offline... this costs ZERO field time"). This is the ONLY source that
+         can support a decode-RATE-vs-incidence curve, because a rate needs a
+         DENOMINATOR that includes the frames where the tag did NOT decode.
+      2. the tag's own recovered pose -- available on DECODED FRAMES ONLY, so it
+         can annotate the decodes but can never furnish that denominator.
+
+    Returns (None, "none") when neither exists -- never a substituted 0.0."""
+    if index_map:
+        row = index_map.get(basename)
+        if row is not None:
+            v = _pf(row.get("incidence_deg"))
+            if v is not None:
+                return v, "index"
+    inc = as_obs(obs).incidence_deg if obs is not None else None
+    if inc is not None:
+        return inc, "tag_pose"
+    return None, "none"
+
+
+def curve_a_incidence(frames, decode, index_map, bin_m, max_m,
+                      inc_bin_deg=DEFAULT_INCIDENCE_BIN_DEG,
+                      accept_quality=None):
+    """Score curve (a) against (range x INCIDENCE) instead of range alone.
+
+    THE HONESTY PROBLEM THIS ENCODES (and does not paper over). The tag's
+    incidence is recovered FROM THE TAG POSE, which exists only on frames where
+    the tag DECODED. So with tag-pose incidence alone, every cell's denominator
+    is "frames that decoded", the rate is identically 1.0, and a decode-rate-vs-
+    incidence curve is NOT COMPUTABLE -- printing one would be exactly the
+    confident-but-vacuous verdict class this project keeps retracting. Only a
+    per-frame incidence written into index.csv (from the target log's attitude +
+    the surveyed tripod position + the mount index, protocol §4.2b) covers the
+    misses too.
+
+    So: `rate_computable` is True ONLY when every binnable frame carries an
+    index-supplied incidence. Otherwise the return value is an ANNOTATION -- the
+    incidence distribution of the DECODES, which still answers "what aspects did
+    this session actually sample?" and is what tells you whether a GO was measured
+    at 0 deg (§8.1) -- and it says so in `note`.
+
+    Returns a dict (cells keyed (range_lo, incidence_lo))."""
+    cells = {}
+    n_binnable = 0
+    n_with_axis = 0
+    sources = {"index": 0, "tag_pose": 0, "none": 0}
+    decoded_inc = []
+    for _p, base in frames:
+        gr = truth_range_for(base, index_map, accept_quality=accept_quality)
+        if gr is None or gr <= 0 or gr > max_m:
+            continue
+        n_binnable += 1
+        obs = as_obs(decode[base])
+        th, src = frame_incidence_deg(base, index_map, obs)
+        sources[src] += 1
+        if th is None:
+            continue
+        n_with_axis += 1
+        if obs.decoded:
+            decoded_inc.append(th)
+        if src != "index":
+            continue          # cannot form an honest denominator -- see docstring
+        key = (int(gr // bin_m) * bin_m,
+               int(abs(th) // inc_bin_deg) * inc_bin_deg)
+        cell = cells.setdefault(key, [0, 0])
+        cell[1] += 1
+        cell[0] += int(bool(obs.decoded))
+
+    rate_computable = bool(n_binnable > 0 and sources["index"] == n_binnable)
+    axis_source = ("index.csv incidence_deg (ALL frames -- rate is a measurement)"
+                   if rate_computable else
+                   ("tag pose (DECODED frames only -- annotation, NOT a rate)"
+                    if sources["tag_pose"] else
+                    ("none -- NO BINNABLE FRAMES (run range_truth_join.py first)"
+                     if n_binnable == 0 else "none (no incidence on any frame)")))
+    if rate_computable:
+        note = (f"decode rate binned by range x incidence over {n_binnable} "
+                f"frames ({inc_bin_deg:.0f} deg bins = the mount's index step).")
+    elif sources["tag_pose"]:
+        note = (
+            f"NOT A RATE CURVE: only {sources['index']} of {n_binnable} binnable "
+            f"frames carry a per-frame incidence from index.csv, so the misses "
+            f"have no incidence and no cell has an honest DENOMINATOR. What is "
+            f"reported below is the incidence DISTRIBUTION OF THE DECODES "
+            f"(n={len(decoded_inc)}), which answers 'what aspects did this session "
+            f"sample' but NOT 'what is the decode rate at 30 deg'. To get the rate "
+            f"curve protocol §4.2b asks for, write a per-frame `incidence_deg` "
+            f"column into index.csv from the target log attitude + the surveyed "
+            f"tripod position + the mount index angle.")
+    elif n_binnable == 0:
+        # DISTINGUISH THE TWO ZEROS. "No incidence" because nothing was BINNABLE
+        # (range_truth_join has not run) is a missing PIPELINE STEP, not an
+        # optical result -- saying "the tag never decoded" there would be a
+        # confident wrong diagnosis from the instrument itself.
+        note = ("not evaluated: ZERO frames carry a TRUE range, so nothing is "
+                "binnable. This is the missing-step case, NOT an aspect result -- "
+                "run scripts/seeker/range_truth_join.py first (protocol §7.0 "
+                "step (b)), then re-score.")
+    else:
+        note = (f"no incidence available on any of the {n_binnable} binnable "
+                f"frames: no frame decoded a tag pose AND index.csv carries no "
+                f"incidence_deg column.")
+    stats = None
+    if decoded_inc:
+        arr = np.asarray(decoded_inc, dtype=float)
+        stats = {
+            "n": int(arr.size),
+            "median_deg": round(float(np.median(arr)), 2),
+            "p90_deg": round(float(np.percentile(arr, 90)), 2),
+            "max_deg": round(float(arr.max()), 2),
+            "n_beyond_validated_cos_law": int((arr > COS_LAW_VALIDATED_TO_DEG).sum()),
+        }
+    return {
+        "cells": cells,
+        "incidence_bin_deg": inc_bin_deg,
+        "range_bin_m": bin_m,
+        "n_binnable": n_binnable,
+        "n_with_incidence": n_with_axis,
+        "incidence_source_counts": sources,
+        "axis_source": axis_source,
+        "rate_computable": rate_computable,
+        "decoded_incidence": stats,
+        "cos_law_validated_to_deg": COS_LAW_VALIDATED_TO_DEG,
+        "note": note,
+    }
+
+
+def write_curve_a_incidence_csv(path, inc):
+    """One row per (range x incidence) cell. `rate_is_measured` is per-row and
+    false when the cell came from decoded-only incidence -- a reader must never
+    have to infer that from prose."""
+    with open(path, "w", newline="") as f:
+        wr = csv.writer(f)
+        wr.writerow(["range_lo_m", "range_hi_m", "incidence_lo_deg",
+                     "incidence_hi_deg", "n_decoded", "n_total", "decode_rate",
+                     "rate_is_measured", "beyond_validated_cos_law"])
+        bm, ib = inc["range_bin_m"], inc["incidence_bin_deg"]
+        for (rlo, ilo) in sorted(inc["cells"]):
+            n_dec, n_tot = inc["cells"][(rlo, ilo)]
+            wr.writerow([rlo, rlo + bm, ilo, ilo + ib, n_dec, n_tot,
+                         round(n_dec / n_tot, 4) if n_tot else "",
+                         int(bool(inc["rate_computable"])),
+                         int(ilo + ib > COS_LAW_VALIDATED_TO_DEG)])
+
+
+# --------------------------------------------------------------------------
 # The money gate (pure arithmetic -- unit-testable independent of the pipeline)
 # --------------------------------------------------------------------------
 def _streak_burn_frames(p, k):
@@ -631,12 +909,23 @@ def _streak_burn_frames(p, k):
 def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
                  tgo_min, n_decoded=None, min_decoded=DEFAULT_MIN_DECODED,
                  have_truth=True, r90_stop_reason=R90_STOP_RATE,
-                 r90_stop_lo=None, n_at_r90_bin=None):
+                 r90_stop_lo=None, n_at_r90_bin=None,
+                 engagement_incidence_deg=0.0):
     """Apply the curve-(a) money gate (protocol §8.1 / NEXT.md R5):
 
+        R_eff         = R_decode90 · cos(theta_eng)       [incidence-aware form]
         R_streak_burn = (E[T] / stream_fps) × V_closing   [run-length, ADR-0079]
         E[T]          = (1 - p^k) / (p^k * (1 - p)),  p=decode_rate, k=streak_n
-        t_go          = (R_decode90 − R_streak_burn) / V_closing
+        t_go          = (R_eff − R_streak_burn) / V_closing
+
+    INCIDENCE-AWARE (2026-07-25, docs/placard_mount.md §11 item 10). The placard
+    is a flat fiducial on a BEAM-FACING mount, and decode range falls as
+    `R(theta) = R(0)·cos theta` (placard_mount §3.2). `engagement_incidence_deg`
+    is the worst-case incidence the REAL engagement will present; it DEFAULTS TO
+    0.0, which reproduces the pre-2026-07-25 arithmetic exactly, and the caller is
+    responsible for saying so out loud — a GO measured at 0 deg and applied to a
+    30 deg engagement is not a GO. NOTE the measured law is only validated to
+    32.6 deg in sim (placard_mount §13, HYPOTHESIS beyond).
 
     GO (PASS) iff t_go >= tgo_min at the conservative closing speed. Returns a
     dict with the verdict, every intermediate, and a human-readable arithmetic
@@ -679,6 +968,9 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     hand-built r90 (the self-tests, the pure-arithmetic unit tests) keeps the
     pre-2026-07-25 behaviour.
     """
+    th_eng = float(engagement_incidence_deg or 0.0)
+    cos_eng = math.cos(math.radians(th_eng))
+    r90_eff = r90 * cos_eng
     fps_ok = stream_fps is not None and stream_fps > 0
     decode_hz = decode_rate * stream_fps if fps_ok else None
     # Mean-rate burn: optimistic, reported for transparency only (not gating).
@@ -690,7 +982,7 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
         r_streak_burn = (e_frames / stream_fps) * v_closing
     else:
         r_streak_burn = float("inf")
-    t_go = ((r90 - r_streak_burn) / v_closing
+    t_go = ((r90_eff - r_streak_burn) / v_closing
             if (fps_ok and v_closing > 0) else float("-inf"))
 
     data_bounded = r90_stop_reason in R90_DATA_BOUNDED
@@ -759,6 +1051,8 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
         return {
             "verdict": verdict, "reason": reason,
             "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
+            "engagement_incidence_deg": round(th_eng, 3),
+            "R_decode90_eff_m": round(r90_eff, 3),
             "r90_stop_reason": r90_stop_reason,
             "r90_stop_lo_m": r90_stop_lo,
             "r90_data_bounded": bool(data_bounded),
@@ -773,13 +1067,19 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
             "arithmetic": arithmetic,
         }
 
+    _inc_line = (
+        f"R_eff = R_decode90 {r90:.2f} m x cos(theta_eng {th_eng:.1f} deg) = "
+        f"{r90_eff:.2f} m   [incidence-aware, placard_mount §11 item 10]\n"
+        if th_eng else "")
     arithmetic = (
         f"decode_rate p = {decode_rate:.3f}  (streak k = {streak_n})\n"
+        + _inc_line +
         f"E[T] run-length = (1 − p^k)/(p^k·(1−p)) = {e_frames:.2f} frames "
         f"(mean-rate {streak_n}/p = {streak_n / decode_rate:.2f} frames)\n"
         f"R_streak_burn = ({e_frames:.2f} / {stream_fps:.1f} fps) × {v_closing:.1f} m/s = "
         f"{r_streak_burn:.2f} m   (mean-rate burn {r_burn_meanrate:.2f} m)\n"
-        f"t_go = (R_decode90 {r90:.2f} m − R_streak_burn {r_streak_burn:.2f} m) / "
+        f"t_go = ({'R_eff' if th_eng else 'R_decode90'} {r90_eff:.2f} m − "
+        f"R_streak_burn {r_streak_burn:.2f} m) / "
         f"{v_closing:.1f} m/s = {t_go:.3f} s\n"
         f"gate: t_go {t_go:.3f} s {'>=' if t_go >= tgo_min else '<'} {tgo_min:.2f} s -> {verdict}"
     ) if decode_rate > 0 else (
@@ -788,6 +1088,8 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     return {
         "verdict": verdict, "reason": reason,
         "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
+        "engagement_incidence_deg": round(th_eng, 3),
+        "R_decode90_eff_m": round(r90_eff, 3),
         "r90_stop_reason": r90_stop_reason,
         "r90_stop_lo_m": r90_stop_lo,
         "r90_data_bounded": bool(data_bounded),
@@ -859,7 +1161,7 @@ def curve_b(frames, decode, calib, weights, conf, drone_size_m, bin_m, max_m,
     n_offframe = 0        # truth box projected outside the image
     n_unreadable = 0      # frame file unreadable
     for p, base in frames:
-        dec, drange, _u, _v, _n = decode[base]
+        dec, drange, _u, _v, _n, _inc = as_obs(decode[base])
         if not dec or drange is None:
             continue  # no tag truth box on this frame
         gr = drange
@@ -1100,13 +1402,17 @@ def plot_curve_b(path, bins):
 def write_tags_csv(path, frames, decode):
     with open(path, "w", newline="") as f:
         wr = csv.writer(f)
-        wr.writerow(["frame", "decoded", "tag_range_m", "u_px", "v_px", "n_tags"])
+        # incidence_deg (2026-07-25): carried through so a re-decode's own
+        # tags.csv is a superset of pi_capture's, not a lossy copy.
+        wr.writerow(["frame", "decoded", "tag_range_m", "u_px", "v_px", "n_tags",
+                     "incidence_deg"])
         for _, base in frames:
-            dec, dr, u, v, n = decode[base]
+            dec, dr, u, v, n, inc = as_obs(decode[base])
             wr.writerow([base + ".png", int(dec),
                          round(dr, 4) if dr is not None else "",
                          round(u, 2) if u is not None else "",
-                         round(v, 2) if v is not None else "", n])
+                         round(v, 2) if v is not None else "", n,
+                         round(inc, 2) if inc is not None else ""])
 
 
 SMALL_N_CAVEAT = (
@@ -1119,7 +1425,8 @@ SMALL_N_CAVEAT = (
 def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
                   n_unbinnable, bin_m, fps_source=None, quality=None,
                   range_truth=None, param_provenance=None, coverage_gaps=None,
-                  min_bin_n=DEFAULT_MIN_BIN_N, band_coverage=None):
+                  min_bin_n=DEFAULT_MIN_BIN_N, band_coverage=None,
+                  incidence=None, decimate_info=None):
     L = []
     L.append("=" * 70)
     L.append("TRIPOD TWO-CURVE SCORE — build_plan P2 / docs/tripod_test_protocol.md")
@@ -1172,7 +1479,58 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
     if gate.get("n_at_r90_bin") is not None and 0 < gate["n_at_r90_bin"] < min_bin_n:
         L.append(f"  [WARN] R_decode90 was set by a bin with n={gate['n_at_r90_bin']} "
                  f"(< --min-bin-n {min_bin_n})")
+    if decimate_info is not None and decimate_info.get("mismatch"):
+        L.append(f"  >>> quad_decimate MISMATCH ACCEPTED via --allow-decimate-mismatch: "
+                 f"{decimate_info['values']}. This curve pools/compares decodes made "
+                 f"at DIFFERENT decimations (a range multiplier). Read it as the "
+                 f"§4.2b reclaim comparison, and make sure --stream-fps is the Pi 5 "
+                 f"bench AT THE SCORED DECIMATE. <<<")
+    if decimate_info is not None and decimate_info.get("unknown_sources"):
+        L.append(f"  [WARN] quad_decimate UNRECORDED by: "
+                 f"{', '.join(decimate_info['unknown_sources'])} -- that decode's "
+                 f"decimation is UNKNOWN, not assumed equal. Capture with "
+                 f"pi_capture (it stamps meta.json) so the §4.2b reclaim lever "
+                 f"survives the session.")
     L.append("")
+    # --- CURVE (a) x INCIDENCE (protocol §4.2b) ---------------------------
+    if incidence is not None:
+        L.append("--- CURVE (a) x INCIDENCE (protocol §4.2b; the beam-facing placard) ---")
+        L.append(f"  axis source: {incidence['axis_source']}")
+        for line in str(incidence["note"]).split(". "):
+            if line.strip():
+                L.append(f"  {line.strip().rstrip('.')}.")
+        if incidence["rate_computable"] and incidence["cells"]:
+            ib, bm = incidence["incidence_bin_deg"], incidence["range_bin_m"]
+            L.append(f"  {'range(m)':<10}{'incid(deg)':>12}{'decode%':>9}"
+                     f"{'n_dec':>8}{'n_tot':>8}")
+            for (rlo, ilo) in sorted(incidence["cells"]):
+                n_dec, n_tot = incidence["cells"][(rlo, ilo)]
+                rate = 100 * n_dec / n_tot if n_tot else 0
+                flag = ("  <- beyond the cos-law's validated "
+                        f"{COS_LAW_VALIDATED_TO_DEG} deg (HYPOTHESIS)"
+                        if ilo + ib > COS_LAW_VALIDATED_TO_DEG else "")
+                L.append(f"  {f'{rlo:.0f}-{rlo+bm:.0f}':<10}"
+                         f"{f'{ilo:.0f}-{ilo+ib:.0f}':>12}{rate:>8.0f}%"
+                         f"{n_dec:>8}{n_tot:>8}{flag}")
+        d = incidence.get("decoded_incidence")
+        if d:
+            L.append(f"  DECODED-frame incidence: median {d['median_deg']:.1f} deg, "
+                     f"p90 {d['p90_deg']:.1f} deg, max {d['max_deg']:.1f} deg "
+                     f"(n={d['n']}; {d['n_beyond_validated_cos_law']} beyond the "
+                     f"{COS_LAW_VALIDATED_TO_DEG} deg the cos-law is validated to)")
+        else:
+            L.append("  DECODED-frame incidence: none (no decoded frame carried a pose)")
+        th = gate.get("engagement_incidence_deg") or 0.0
+        if th:
+            L.append(f"  gate applied at theta_eng = {th:.1f} deg -> R_eff = "
+                     f"{gate.get('R_decode90_eff_m')} m (§8.1 incidence-aware form)")
+        else:
+            L.append("  [WARN] the gate above was computed at theta_eng = 0 deg. A GO "
+                     "measured dead-on is NOT a GO at the incidence the real "
+                     "engagement presents -- re-run with --engagement-incidence-deg "
+                     "(placard_mount §11 item 10; the cos-law is a HYPOTHESIS "
+                     f"above {COS_LAW_VALIDATED_TO_DEG} deg).")
+        L.append("")
     L.append("--- MONEY GATE (curve a -> the ~$740 Tier-2 interceptor order) ---")
     L.append(f"  conservative closing speed = {gate['V_closing_mps']:.1f} m/s (NEXT.md R5)")
     for line in gate["arithmetic"].splitlines():
@@ -1216,6 +1574,38 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
 # --------------------------------------------------------------------------
 # Driver
 # --------------------------------------------------------------------------
+def capture_source_allowed(meta):
+    """(ok, detail) -- may THIS session's own recorded rate feed the money gate?
+
+    BUILDER RULING 2026-07-25 (review 2's open question, answered NO): a
+    `--local`/v4l2 DESK REHEARSAL -- a laptop webcam on a desk -- must never
+    supply the ~$740 gate's 1/fps divisor. Its cadence is a property of a USB UVC
+    webcam and a laptop CPU; the modelled quantity is the sustained AprilTag
+    decode cadence of a Raspberry Pi 5 at the flying quad_decimate (protocol
+    §7.3). Substituting one for the other is exactly the "measured number of the
+    wrong quantity" defect that already flipped this gate once (the invented
+    30 fps).
+
+    WHITELIST, NOT BLACKLIST (the fix this replaces). The old check rejected only
+    `stream_fps_source` strings containing "replay", so EVERY other source --
+    v4l2 webcam, an absent `source` key, a hand-written meta.json -- was accepted
+    by default. A guard that enumerates the bad cases is wrong the moment a new
+    one appears; this one enumerates the ONE sanctioned case and refuses the rest.
+
+    The escape hatch is the correct one and is already the protocol's instruction:
+    pass the bench number explicitly with `--stream-fps` (§7.3). That is a
+    deliberate, recorded act by the operator, not a silent substitution.
+    """
+    src = str(meta.get("source") or "").strip()
+    if not src:
+        return False, ("meta.json records NO `source` -- provenance unknown, so "
+                       "the rate cannot be attributed to a sanctioned capture")
+    if src in ALLOWED_FPS_CAPTURE_SOURCES:
+        return True, f"meta.json source='{src}' (sanctioned Pi-5 capture)"
+    return False, (f"meta.json source='{src}' is NOT a sanctioned Pi-5 capture "
+                   f"source (allowed: {', '.join(ALLOWED_FPS_CAPTURE_SOURCES)})")
+
+
 def resolve_stream_fps(args, meta):
     """(stream_fps or None, human-readable source). NO DEFAULT -- see the module
     docstring: the burn scales as 1/fps and the verdict flips across ~24 fps at
@@ -1228,6 +1618,13 @@ def resolve_stream_fps(args, meta):
     it came from pi_capture's dir-REPLAY backend, whose timestamps are synthetic
     and therefore not a capture-rate measurement.
 
+    (2) AND (3) ARE BOTH GATED ON THE CAPTURE-SOURCE WHITELIST (2026-07-25,
+    builder ruling -- see capture_source_allowed). A rate the session measured on
+    a laptop webcam, or on an unidentified source, is REFUSED outright; the gate
+    then returns UNCERTAIN naming the missing measurement, which is the correct
+    fail-closed answer for a desk rehearsal. `--stream-fps` is unaffected: an
+    explicit bench number is the sanctioned path.
+
     WRONG-QUANTITY WARNING (2026-07-25, review 2). `stream_fps` is the RECORDER
     LOOP rate: it pays a per-frame PNG write the flight loop never pays, and with
     --no-decode-tags it pays no AprilTag decode cost at all, while the burn model
@@ -1239,6 +1636,16 @@ def resolve_stream_fps(args, meta):
     """
     if getattr(args, "stream_fps", None) is not None:
         return float(args.stream_fps), "--stream-fps (explicit; bench-measured, protocol §7.3)"
+    # THE SOURCE WHITELIST comes FIRST: it decides whether this session's own
+    # numbers may be consumed at all, before which of them is preferred.
+    src_ok, src_detail = capture_source_allowed(meta)
+    if not src_ok and (_pf(meta.get("decode_loop_fps")) or _pf(meta.get("stream_fps"))):
+        return None, (
+            f"REFUSED (capture-source whitelist): {src_detail}. A desk-rehearsal "
+            f"or unidentified capture may NOT supply the money gate's 1/fps "
+            f"divisor -- the modelled quantity is the SUSTAINED Pi 5 AprilTag "
+            f"decode cadence at the flying quad_decimate (protocol §7.3). Bench "
+            f"it and pass --stream-fps.")
     dec_fps = _pf(meta.get("decode_loop_fps"))
     if dec_fps is not None and dec_fps > 0:
         return dec_fps, ("meta.json decode_loop_fps (grab+decode, PNG-write "
@@ -1297,11 +1704,55 @@ def run(args):
     drone_size, drone_size_src = _resolve(args.drone_size, "drone_size_m",
                                           DEFAULT_DRONE_SIZE_M, "drone-size")
     min_bin_n = getattr(args, "min_bin_n", DEFAULT_MIN_BIN_N)
+
+    # ---- quad_decimate (ADR-0082): the decode setting is a RECORDED, CHECKED
+    # parameter, not a silent library default. The session's own value comes from
+    # pi_capture's meta.json stamp; --quad-decimate overrides it for an offline
+    # re-decode (the §4.2b reclaim lever), and the two must agree unless the
+    # operator says otherwise.
+    session_qd = _pf(meta.get("quad_decimate"))
+    if getattr(args, "quad_decimate", None) is not None:
+        scoring_qd = float(args.quad_decimate)
+        scoring_qd_src = "--quad-decimate (explicit)"
+    elif session_qd is not None:
+        scoring_qd, scoring_qd_src = session_qd, "meta.json quad_decimate"
+    else:
+        scoring_qd = DEFAULT_QUAD_DECIMATE
+        scoring_qd_src = (f"DEFAULT {DEFAULT_QUAD_DECIMATE} -- the session does "
+                          f"NOT record one (capture with pi_capture, which stamps it)")
+    decimate_info = check_decimate_consistency(
+        {"session meta.json (capture)": session_qd,
+         "this scoring pass": scoring_qd},
+        allow_mismatch=getattr(args, "allow_decimate_mismatch", False))
+    if session_qd is None:
+        print(f"[tripod] [WARN] this session does NOT record quad_decimate -- the "
+              f"decimation that produced its frames/tags.csv is UNKNOWN. Scoring at "
+              f"{scoring_qd}; capture with pi_capture (>=2026-07-25) so meta.json "
+              f"stamps it (ADR-0082 / protocol §4.2b).")
+    if decimate_info["mismatch"]:
+        print(f"[tripod] [WARN] quad_decimate MISMATCH accepted: "
+              f"{decimate_info['values']} -- this is the §4.2b reclaim comparison, "
+              f"not a like-for-like re-score; --stream-fps must be the §7.3 bench "
+              f"AT THE SCORED DECIMATE.")
+
+    mount_index = _pf(getattr(args, "mount_index_deg", None))
+    if mount_index is None:
+        mount_index = _pf(meta.get("mount_index_deg"))
+    th_eng = float(getattr(args, "engagement_incidence_deg", 0.0) or 0.0)
+    inc_bin = float(getattr(args, "incidence_bin_deg", DEFAULT_INCIDENCE_BIN_DEG))
+
     param_provenance = {
         "tag_size_m": (f"{tag_size:.3f} m", tag_size_src),
         "drone_size_m": (f"{drone_size:.3f} m", drone_size_src),
         "V_closing_mps": (f"{v_close:.1f} m/s", v_close_src),
         "stream_fps": (f"{stream_fps}", fps_source),
+        "quad_decimate": (f"{scoring_qd}", scoring_qd_src),
+        "theta_eng_deg": (f"{th_eng:.1f}", "--engagement-incidence-deg (§8.1)"
+                          if th_eng else "DEFAULT 0 deg -- gate measured DEAD-ON"),
+        "mount_index_deg": (f"{mount_index}",
+                            "--mount-index-deg / meta.json (protocol §4.2b pass card)"
+                            if mount_index is not None else
+                            "NOT RECORDED -- §4.2b wants it on every pass card"),
     }
     accept_quality = ({"ok"} if getattr(args, "require_quality", "any") == "ok"
                       else None)
@@ -1328,7 +1779,8 @@ def run(args):
               "--redecode.")
     decode = decode_frames(
         frames, calib, tag_size, tags_map=tags_map,
-        allow_partial_tags=getattr(args, "allow_partial_tags", False))
+        allow_partial_tags=getattr(args, "allow_partial_tags", False),
+        quad_decimate=scoring_qd)
     if tags_map is None:
         write_tags_csv(os.path.join(outp, "tags.csv"), frames, decode)
     bins, r_any, r90, acc, n_binnable, n_unbinnable = curve_a(
@@ -1341,10 +1793,21 @@ def run(args):
     have_truth = n_binnable > 0
     quality = quality_summary(frames, index_map)
 
+    incidence = curve_a_incidence(frames, decode, index_map, args.range_bin,
+                                  args.max_range, inc_bin_deg=inc_bin,
+                                  accept_quality=accept_quality)
+    if not incidence["rate_computable"]:
+        print(f"[tripod] [WARN] curve (a) x INCIDENCE is an ANNOTATION, not a rate: "
+              f"{incidence['incidence_source_counts']['index']} of "
+              f"{incidence['n_binnable']} binnable frames carry a per-frame "
+              f"incidence_deg in index.csv, so the NON-decodes have no incidence "
+              f"and no cell has an honest denominator (protocol §4.2b)")
+
     d_rate = decode_rate_near(bins, r90, args.range_bin)
     _gate_kw = dict(n_decoded=n_decoded, min_decoded=args.min_decoded,
                     have_truth=have_truth, r90_stop_reason=r90_stop,
-                    r90_stop_lo=r90_stop_lo, n_at_r90_bin=n_at_r90)
+                    r90_stop_lo=r90_stop_lo, n_at_r90_bin=n_at_r90,
+                    engagement_incidence_deg=th_eng)
     gate = gate_verdict(r90, r_any, d_rate, stream_fps, args.handoff_streak,
                         v_close, args.tgo_min, **_gate_kw)
     gate_hi = gate_verdict(r90, r_any, d_rate, stream_fps, args.handoff_streak,
@@ -1361,6 +1824,8 @@ def run(args):
               f"n={n_at_r90} frames (< --min-bin-n {min_bin_n})")
 
     write_curve_a_csv(os.path.join(outp, "curve_a_decode.csv"), bins, args.range_bin)
+    write_curve_a_incidence_csv(os.path.join(outp, "curve_a_incidence.csv"),
+                                incidence)
     plot_curve_a(os.path.join(outp, "curve_a.png"), bins, acc, gate, args.range_bin)
 
     # Curve (b) -- PRIMARY (real-data candidate) + the historical SIM bar, same frames.
@@ -1418,7 +1883,8 @@ def run(args):
                             quality=quality, range_truth=range_truth,
                             param_provenance=param_provenance,
                             coverage_gaps=coverage_gaps, min_bin_n=min_bin_n,
-                            band_coverage=band_cov)
+                            band_coverage=band_cov, incidence=incidence,
+                            decimate_info=decimate_info)
     with open(os.path.join(outp, "verdict.txt"), "w") as f:
         f.write(summary + "\n")
     with open(os.path.join(outp, "gate.json"), "w") as f:
@@ -1431,6 +1897,22 @@ def run(args):
                    "tag_size_source": tag_size_src,
                    "drone_size_source": drone_size_src,
                    "V_closing_source": v_close_src,
+                   # THE DECODE SETTING (ADR-0082) + its consistency check, and
+                   # the incidence axis protocol §4.2b mandates.
+                   "quad_decimate": scoring_qd,
+                   "quad_decimate_source": scoring_qd_src,
+                   "quad_decimate_check": decimate_info,
+                   "mount_index_deg": mount_index,
+                   "engagement_incidence_deg": th_eng,
+                   "curve_a_incidence": {
+                       k: v for k, v in incidence.items() if k != "cells"},
+                   "curve_a_incidence_cells": [
+                       {"range_lo_m": rlo, "range_hi_m": rlo + args.range_bin,
+                        "incidence_lo_deg": ilo,
+                        "incidence_hi_deg": ilo + inc_bin,
+                        "n_decoded": incidence["cells"][(rlo, ilo)][0],
+                        "n_total": incidence["cells"][(rlo, ilo)][1]}
+                       for (rlo, ilo) in sorted(incidence["cells"])],
                    # curve (a) walk provenance: the per-bin counts the >=90%
                    # envelope was walked over, the stop reason, and every
                    # coverage hole between the nearest and farthest bin.
@@ -1533,7 +2015,15 @@ def _build_synth_session(out_dir):
         json.dump(dict(tag_size_m=tag_size, drone_size_m=DEFAULT_DRONE_SIZE_M,
                        stream_fps=PI5_APRILTAG_FPS_PAPER_ANCHOR,
                        stream_fps_source="self-test stand-in (protocol §7.3 paper anchor)",
-                       tag_decode=True, aspect="approach"), f)
+                       # source: the fixture stands in for a REAL Pi capture so
+                       # the capture-source WHITELIST's accept path is exercised
+                       # end-to-end (2026-07-25 builder ruling). The refuse path
+                       # is pinned separately, on explicit metas, in self_test().
+                       source=ALLOWED_FPS_CAPTURE_SOURCES[0],
+                       tag_decode=True, aspect="approach",
+                       # the ADR-0082 stamp: the fixture decodes at the library
+                       # default, and run() must agree with it, not assume it.
+                       quad_decimate=DEFAULT_QUAD_DECIMATE), f)
     return near, far
 
 
@@ -1602,6 +2092,36 @@ def self_test():
           f"{'OK' if c6c else 'FAIL'}")
     ok = ok and c6c
 
+    # CAPTURE-SOURCE WHITELIST (2026-07-25 builder ruling: a desk rehearsal may
+    # NOT supply the money gate's 1/fps divisor). The old check was a BLACKLIST
+    # of stream_fps_source strings containing "replay", so a v4l2 laptop-webcam
+    # session with decode on -- a different CPU, driver and sensor from the Pi 5
+    # the burn model is about -- fed the ~$740 verdict silently.
+    _A = lambda v=None: type("A", (), {"stream_fps": v})()
+    _pi = {"source": "picamera2", "tag_decode": True, "decode_loop_fps": 18.0}
+    _desk = {"source": "v4l2", "tag_decode": True, "decode_loop_fps": 31.0,
+             "stream_fps": 29.0}
+    _nosrc = {"tag_decode": True, "stream_fps": 18.5,
+              "stream_fps_source": "measured: median inter-frame dt"}
+    f_pi, s_pi = resolve_stream_fps(_A(), _pi)
+    f_desk, s_desk = resolve_stream_fps(_A(), _desk)
+    f_nosrc, _s_nosrc = resolve_stream_fps(_A(), _nosrc)
+    f_ovr, s_ovr = resolve_stream_fps(_A(22.0), _desk)
+    c6d = (f_pi == 18.0 and "picamera2" not in s_desk.lower().split("source='")[0]
+           and f_desk is None and "REFUSED" in s_desk
+           and f_nosrc is None and f_ovr == 22.0 and "--stream-fps" in s_ovr)
+    print(f"[self-test] fps capture-source WHITELIST: picamera2 -> {f_pi}, "
+          f"v4l2 desk rehearsal -> {f_desk} (REFUSED), no `source` -> {f_nosrc}, "
+          f"explicit --stream-fps still {f_ovr} : {'OK' if c6d else 'FAIL'}")
+    ok = ok and c6d
+    # ...and the REFUSAL reaches the VERDICT: a desk session cannot produce a
+    # PASS/FAIL, only UNCERTAIN naming the missing measurement.
+    g_desk = gate_verdict(7.10, 7.10, 0.9, f_desk, 5, 9.0, 0.5, n_decoded=40)
+    c6e = g_desk["verdict"] == "UNCERTAIN" and "stream_fps" in g_desk["reason"]
+    print(f"[self-test] a desk-rehearsal session's rate cannot decide the gate "
+          f"-> {g_desk['verdict']} : {'OK' if c6e else 'FAIL'}")
+    ok = ok and c6e
+
     print("[self-test] --- part 1b: R_decode90 walk refuses missing data ---")
     # A MID-BAND HOLE (no 8-10 m frames at all). The old `for lo in sorted(bins)`
     # walk jumped the hole and reported 14 m; the stepped walk must stop AT it.
@@ -1656,6 +2176,80 @@ def self_test():
     print(f"[self-test] §8.2 answerable: near-only={cov_near['answerable']} "
           f"with-far={cov_far['answerable']} : {'OK' if ch5 else 'FAIL'}")
     ok = ok and ch5
+
+    print("[self-test] --- part 1c: quad_decimate is checked, not assumed ---")
+    # A recorded capture decimate that disagrees with the scoring decimate is a
+    # REFUSAL (the curve would pool two different range multipliers), and
+    # --allow-decimate-mismatch is the explicit §4.2b escape hatch. An UNRECORDED
+    # value is unknown, not "equal" -- it must not manufacture a mismatch.
+    try:
+        check_decimate_consistency({"capture": 2.0, "scoring": 1.0})
+        cq1 = False
+    except SystemExit as e:
+        cq1 = "MISMATCH" in str(e) and "--allow-decimate-mismatch" in str(e)
+    ok_i = check_decimate_consistency({"capture": 2.0, "scoring": 1.0},
+                                      allow_mismatch=True)
+    same = check_decimate_consistency({"capture": 1.0, "scoring": 1.0})
+    unk = check_decimate_consistency({"capture": None, "scoring": 2.0})
+    three = check_decimate_consistency({"pass01": 2.0, "pass02": 2.0,
+                                        "pass03": 1.0}, allow_mismatch=True)
+    cq1 = (cq1 and ok_i["mismatch"] and ok_i["mismatch_allowed"]
+           and not same["mismatch"] and not unk["mismatch"]
+           and unk["unknown_sources"] == ["capture"]
+           and three["distinct_recorded"] == [1.0, 2.0])
+    print(f"[self-test] quad_decimate mismatch REFUSED (and allowed only "
+          f"explicitly); unrecorded stays UNKNOWN : {'OK' if cq1 else 'FAIL'}")
+    ok = ok and cq1
+    # The incidence primitive, on synthetic poses (shared with pi_capture).
+    c30, s30 = math.cos(math.radians(30.0)), math.sin(math.radians(30.0))
+    R30 = np.array([[c30, 0.0, s30], [0.0, 1.0, 0.0], [-s30, 0.0, c30]])
+    ci = (abs(tag_incidence_deg(np.eye(3), np.array([0.0, 0.0, 5.0]))) < 1e-9
+          and abs(tag_incidence_deg(R30, np.array([0.0, 0.0, 5.0])) - 30.0) < 1e-9
+          # a tag FACING the camera but seen off-axis is still oblique to the LOS
+          and tag_incidence_deg(np.eye(3), np.array([5.0, 0.0, 5.0])) > 44.0
+          and tag_incidence_deg(np.eye(3), np.zeros(3)) is None)
+    print(f"[self-test] tag_incidence_deg on synthetic poses (0 / 30 / off-axis / "
+          f"degenerate) : {'OK' if ci else 'FAIL'}")
+    ok = ok and ci
+    # The incidence AXIS rule: a rate needs a denominator that includes MISSES,
+    # so tag-pose incidence (decoded frames only) may annotate but never rate.
+    fr = [("/x/a.png", "a"), ("/x/b.png", "b")]
+    dec_ann = {"a": TagObs(True, 5.0, 640.0, 400.0, 1, 12.0),
+               "b": TagObs(False, None, None, None, 0, None)}
+    imap_ann = {"a": {"true_range_m": "5.0"}, "b": {"true_range_m": "5.5"}}
+    ann = curve_a_incidence(fr, dec_ann, imap_ann, 2.0, 40.0)
+    imap_rate = {"a": {"true_range_m": "5.0", "incidence_deg": "12.0"},
+                 "b": {"true_range_m": "5.5", "incidence_deg": "40.0"}}
+    rate = curve_a_incidence(fr, dec_ann, imap_rate, 2.0, 40.0)
+    ci2 = (ann["rate_computable"] is False and ann["cells"] == {}
+           and ann["decoded_incidence"]["n"] == 1
+           and "NOT A RATE CURVE" in ann["note"]
+           and rate["rate_computable"] is True
+           and rate["cells"] == {(4.0, 0.0): [1, 1], (4.0, 30.0): [0, 1]}
+           and rate["decoded_incidence"]["n_beyond_validated_cos_law"] == 0)
+    print(f"[self-test] incidence axis: tag-pose-only = ANNOTATION (no cells), "
+          f"index.csv-supplied = a real rate curve : {'OK' if ci2 else 'FAIL'}")
+    ok = ok and ci2
+    # The incidence-aware gate (placard_mount §11 item 10): cos(theta_eng) derates
+    # R_decode90, and theta_eng=0 must reproduce the old arithmetic EXACTLY.
+    g_0 = gate_verdict(8.0, 8.0, 0.9, 30.0, 5, 9.0, 0.5, n_decoded=40)
+    g_30 = gate_verdict(8.0, 8.0, 0.9, 30.0, 5, 9.0, 0.5, n_decoded=40,
+                        engagement_incidence_deg=30.0)
+    # theta=45 is past the cos-law's validated 32.6 deg -- used here only to prove
+    # the ARITHMETIC flips the verdict, which is the whole point of §11 item 10.
+    g_45 = gate_verdict(8.0, 8.0, 0.9, 30.0, 5, 9.0, 0.5, n_decoded=40,
+                        engagement_incidence_deg=45.0)
+    ci3 = (g_0["R_decode90_eff_m"] == 8.0 and g_0["verdict"] == "PASS"
+           and abs(g_30["R_decode90_eff_m"] - 8.0 * math.cos(math.radians(30))) < 1e-3
+           and g_30["t_go_s"] < g_0["t_go_s"] and g_30["verdict"] == "PASS"
+           and g_45["verdict"] == "FAIL"
+           and "cos(theta_eng" in g_45["arithmetic"])
+    print(f"[self-test] incidence-aware gate: theta=0 -> t_go {g_0['t_go_s']} "
+          f"{g_0['verdict']} | theta=30 -> R_eff {g_30['R_decode90_eff_m']} m, "
+          f"t_go {g_30['t_go_s']} {g_30['verdict']} | theta=45 -> t_go "
+          f"{g_45['t_go_s']} {g_45['verdict']} (the SAME optics, a different "
+          f"engagement aspect) : {'OK' if ci3 else 'FAIL'}")
+    ok = ok and ci3
 
     print("[self-test] --- part 2: end-to-end curve (a) on a synthetic session ---")
     with tempfile.TemporaryDirectory() as td:
@@ -1755,11 +2349,49 @@ def self_test():
             nn_conf=DEFAULT_NN_CONF,
             min_decoded=DEFAULT_MIN_DECODED, out_dir=os.path.join(td, "out"), tag="synthA")
         run(a)
-        want = ["curve_a_decode.csv", "curve_a.png", "verdict.txt", "gate.json"]
+        want = ["curve_a_decode.csv", "curve_a_incidence.csv", "curve_a.png",
+                "verdict.txt", "gate.json"]
         made = [os.path.exists(os.path.join(td, "out", "synthA", w)) for w in want]
         c7 = all(made)
         print(f"[self-test] run() artifacts {dict(zip(want, made))} : {'OK' if c7 else 'FAIL'}")
         ok = ok and c7
+        # END-TO-END: gate.json carries the decode setting + the incidence block,
+        # and the fixture's stamp AGREES with the scoring pass (no mismatch).
+        with open(os.path.join(td, "out", "synthA", "gate.json")) as f:
+            gj = json.load(f)
+        c7b = (gj["quad_decimate"] == DEFAULT_QUAD_DECIMATE
+               and gj["quad_decimate_check"]["mismatch"] is False
+               and gj["curve_a_incidence"]["rate_computable"] is False
+               and gj["curve_a_incidence"]["decoded_incidence"]["n"] > 0
+               and gj["engagement_incidence_deg"] == 0.0)
+        print(f"[self-test] gate.json records quad_decimate="
+              f"{gj['quad_decimate']} (check {gj['quad_decimate_check']['mismatch']}) "
+              f"+ the incidence block (rate_computable="
+              f"{gj['curve_a_incidence']['rate_computable']}, decoded n="
+              f"{gj['curve_a_incidence']['decoded_incidence']['n']}) : "
+              f"{'OK' if c7b else 'FAIL'}")
+        ok = ok and c7b
+        # ...and a scoring decimate that disagrees with the session's stamp is
+        # REFUSED end-to-end, not merely inside the pure function.
+        import types as _t
+        a_bad = _t.SimpleNamespace(**{**vars(a), "quad_decimate": 1.0,
+                                      "tag": "synthA_qd1"})
+        try:
+            run(a_bad)
+            c7c = False
+        except SystemExit as e:
+            c7c = "quad_decimate MISMATCH" in str(e)
+        a_ok = _t.SimpleNamespace(**{**vars(a), "quad_decimate": 1.0,
+                                     "allow_decimate_mismatch": True,
+                                     "tag": "synthA_qd1"})
+        run(a_ok)
+        with open(os.path.join(td, "out", "synthA_qd1", "gate.json")) as f:
+            gj1 = json.load(f)
+        c7c = c7c and gj1["quad_decimate"] == 1.0 and gj1["quad_decimate_check"]["mismatch"]
+        print(f"[self-test] run() REFUSES a decimate that disagrees with the "
+              f"session stamp, and --allow-decimate-mismatch records it "
+              f"(scored qd={gj1['quad_decimate']}) : {'OK' if c7c else 'FAIL'}")
+        ok = ok and c7c
 
         # (vi) THE SCHEMA JOIN (2026-07-24 defect): a REAL pi_capture index.csv
         # keys frames by `frame_path` / `frame_idx`, not `frame`/`filename`/
@@ -1843,6 +2475,41 @@ def main():
                          f"{PI5_APRILTAG_FPS_PAPER_ANCHOR:.0f} fps in protocol §7.3 is a "
                          "PAPER anchor to be bench-measured, and the flight loop runs "
                          "20 Hz). Without it the gate returns UNCERTAIN.")
+    ap.add_argument("--quad-decimate", type=float, default=None,
+                    help=f"AprilTag detector quad_decimate for the OFFLINE decode. "
+                         f"Default: the value the session's meta.json recorded, "
+                         f"else {DEFAULT_QUAD_DECIMATE} (the pupil-apriltags LIBRARY "
+                         f"default, stated explicitly). 1.0 = full resolution, "
+                         f"~1.5x range and a +-48-56 deg incidence cone vs +-32 deg "
+                         f"(ADR-0082 / docs/placard_mount.md §3.3) -- protocol "
+                         f"§4.2b's reclaim lever. A value that DISAGREES with the "
+                         f"session's stamp is REFUSED unless "
+                         f"--allow-decimate-mismatch.")
+    ap.add_argument("--allow-decimate-mismatch", action="store_true",
+                    help="score even when the decode's quad_decimate differs from "
+                         "the one the session recorded (default: REFUSE). This is "
+                         "the DELIBERATE protocol §4.2b qd in {2.0, 1.0} reclaim "
+                         "comparison; the mismatch is stamped into gate.json and "
+                         "verdict.txt, and --stream-fps must then be the §7.3 Pi 5 "
+                         "bench AT THE SCORED DECIMATE.")
+    ap.add_argument("--incidence-bin-deg", type=float,
+                    default=DEFAULT_INCIDENCE_BIN_DEG,
+                    help=f"incidence bin width for the curve-(a) x incidence table "
+                         f"(default {DEFAULT_INCIDENCE_BIN_DEG:.0f} deg = the "
+                         f"placard mount's INDEX step, docs/placard_mount.md §3.6)")
+    ap.add_argument("--mount-index-deg", type=float, default=None,
+                    help="the placard mount's index angle for this pass (0 = beam / "
+                         "90 = nose-on). Protocol §4.2b requires it on every pass "
+                         "card; recorded into gate.json so a frame's incidence can "
+                         "be reconstructed after the day. Falls back to meta.json "
+                         "`mount_index_deg`.")
+    ap.add_argument("--engagement-incidence-deg", type=float, default=0.0,
+                    help="theta_eng: the WORST-CASE tag incidence the real "
+                         "engagement will present. The gate is then stated in the "
+                         "incidence-aware form t_go = (R_decode90(0)*cos theta_eng "
+                         "- R_streak_burn)/V (docs/placard_mount.md §11 item 10). "
+                         "Default 0 = the dead-on gate; a GO at 0 deg is NOT a GO "
+                         "at 30 deg, and verdict.txt says so.")
     ap.add_argument("--require-quality", choices=("any", "ok"), default="any",
                     help="which range_truth_join `range_quality` flags may be binned: "
                          "'any' (default: ok+gap+low_fix; extrapolated/no_frame_time are "

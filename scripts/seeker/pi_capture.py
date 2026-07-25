@@ -84,9 +84,17 @@ layout, so keep it stable):
 
     tags.csv columns (only written when --decode-tags):
       frame_idx, frame_path, n_tags, tag_id, decision_margin, hamming,
-      center_u, center_v, corners_px, range_m
-      (range_m is filled only when BOTH --calib and --tag-size were given;
-       corners_px is "x0:y0;x1:y1;x2:y2;x3:y3")
+      center_u, center_v, corners_px, range_m, incidence_deg
+      (range_m and incidence_deg are filled only when BOTH --calib and
+       --tag-size were given -- both come from the recovered POSE;
+       corners_px is "x0:y0;x1:y1;x2:y2;x3:y3". incidence_deg is the angle
+       between the tag normal and the line of sight, the `theta` in
+       R_decode(theta)=R_decode(0)*cos theta -- protocol §4.2b.)
+
+    meta.json records `quad_decimate` (+ `quad_decimate_source`): the detector
+    setting that PRODUCED the session. ADR-0082 makes this a decision variable
+    (qd=1.0 is the planned tripod-day setting), and an unrecorded value cannot be
+    recovered from the PNGs afterwards -- so it is stamped on every session.
 
 autolabel_from_apriltag.py consumes it directly:
     scripts/seeker/autolabel_from_apriltag.py --frames SESSION_DIR/frames \
@@ -123,6 +131,7 @@ import argparse
 import csv
 import glob
 import json
+import math
 import os
 import subprocess
 import sys
@@ -146,17 +155,55 @@ DEF_EXPOSURE_US = EXPOSURE_SPEC_US
 # autolabel re-decodes with these defaults, so a capture-time record must match.
 TAG_FAMILY = "tag36h11"
 
+# quad_decimate — the pupil-apriltags/pyapriltags LIBRARY DEFAULT, made EXPLICIT
+# here (2026-07-25). It downsamples the frame before quad detection: 2.0 halves
+# the working resolution (fast, ~half the decode range), 1.0 decodes at full res
+# (~1.5x range and a +-48-56 deg incidence cone instead of +-32 deg, at a real
+# Pi-5 fps cost -- docs/placard_mount.md §3.3, docs/placard_sizing.md §CORRECTION).
+#
+# WHY IT IS A FIRST-CLASS, RECORDED PARAMETER: ADR-0082 promoted quad_decimate=1.0
+# from "reclaim lever" to the PLANNED tripod-day capture setting, because at the
+# adopted 0.35 m placard qd=2.0 FAILS the t_go money gate at both 20 Hz (0.442 s)
+# and 14 Hz (0.294 s). Every decode site in this repo used to construct
+# Detector(families=...) with no quad_decimate and no CLI flag, so all of them ran
+# 2.0 silently AND meta.json did not record which value produced a session -- the
+# reclaim comparison of protocol §4.2b ("re-decode the same frames at qd in
+# {2.0, 1.0}") was therefore unrunnable, and after the field day it would have been
+# unrecoverable, because the value that produced the frames was nowhere on record.
+DEFAULT_QUAD_DECIMATE = 2.0
+
 INDEX_HEADER = ["frame_idx", "frame_path", "t_mono_s", "t_wall_unix",
                 "exposure_us", "gain"]
+# incidence_deg (2026-07-25): the angle between the tag's surface NORMAL and the
+# camera->tag line of sight, recovered from the SAME pose the range comes from.
+# Protocol §4.2b makes incidence a scored variable, not a nuisance -- decode range
+# falls as R(0)*cos(theta) (docs/placard_mount.md §3.2) and the adopted BEAM-facing
+# placard makes crossing the tag's primary aspect. It costs nothing to record here
+# and cannot be reconstructed later from a PNG alone.
 TAGS_HEADER = ["frame_idx", "frame_path", "n_tags", "tag_id", "decision_margin",
-               "hamming", "center_u", "center_v", "corners_px", "range_m"]
+               "hamming", "center_u", "center_v", "corners_px", "range_m",
+               "incidence_deg"]
 
 
 # --------------------------------------------------------------------------
 # AprilTag decode (optional, capture-time QC) — reused across every backend
 # --------------------------------------------------------------------------
 
-def _make_detector():
+# Detector objects are CACHED per quad_decimate and never destroyed for the
+# life of the process. pupil_apriltags' C Detector.__del__ frees native state
+# that SIGSEGVs when construction/destruction churns in one process (measured:
+# building+dropping a Detector in a loop dies at ~cycle 3, reproduced with zero
+# repo code). The field builds one Detector per capture process, so a cache is
+# a no-op there; it only matters when a test (or a batch tool) makes many in one
+# process. Keyed by float(quad_decimate) so the flag still selects the pyramid.
+_DETECTOR_CACHE = {}
+
+
+def _make_detector(quad_decimate=DEFAULT_QUAD_DECIMATE):
+    key = float(quad_decimate)
+    det = _DETECTOR_CACHE.get(key)
+    if det is not None:
+        return det
     try:
         from pupil_apriltags import Detector  # lazy: only when --decode-tags
     except ImportError:
@@ -164,7 +211,36 @@ def _make_detector():
         # API-identical drop-in but does NOT alias the module name (proven on
         # real pixels under qemu — docs/pi_emulation_check.md, 2026-07-20).
         from pyapriltags import Detector
-    return Detector(families=TAG_FAMILY)
+    det = Detector(families=TAG_FAMILY, quad_decimate=key)
+    _DETECTOR_CACHE[key] = det
+    return det
+
+
+def tag_incidence_deg(pose_R, pose_t):
+    """Angle (deg, 0-90) between the tag's surface NORMAL and the camera->tag
+    LINE OF SIGHT — the `theta` in `R_decode(theta) = R_decode(0)*cos theta`
+    (docs/placard_mount.md §3.2, DERIVED; measured in sim to 32.6 deg, a
+    HYPOTHESIS above 33 deg).
+
+    pupil-apriltags returns the tag pose in the camera optical frame with the tag
+    lying in its own x-y plane, so the tag's outward normal is the third column of
+    `pose_R`. The LOS is `pose_t / |pose_t|`. `|cos|` is used because the recovered
+    normal's SIGN flips with the classic near-frontal planar-pose ambiguity and the
+    foreshortening cost is symmetric: what shortens the decode range is the
+    obliquity, not which way the normal points.
+
+    Returns None when the pose is degenerate (zero translation/rotation), never a
+    fabricated 0.0 -- an unknown incidence must stay unknown (error policy §5)."""
+    import numpy as np
+    R = np.asarray(pose_R, dtype=float).reshape(3, 3)
+    t = np.asarray(pose_t, dtype=float).reshape(3)
+    n = R[:, 2]
+    nt = float(np.linalg.norm(t))
+    nn = float(np.linalg.norm(n))
+    if not (nt > 0.0 and nn > 0.0) or not math.isfinite(nt) or not math.isfinite(nn):
+        return None
+    c = abs(float(np.dot(n, t)) / (nt * nn))
+    return math.degrees(math.acos(min(1.0, max(0.0, c))))
 
 
 def _decode(detector, gray, cam_params, tag_size):
@@ -184,7 +260,7 @@ def _tag_rows(frame_idx, rel_path, dets):
     each extra tag adds a row."""
     import numpy as np
     if not dets:
-        return [[frame_idx, rel_path, 0, "", "", "", "", "", "", ""]]
+        return [[frame_idx, rel_path, 0, "", "", "", "", "", "", "", ""]]
     rows = []
     n = len(dets)
     for det in dets:
@@ -192,11 +268,15 @@ def _tag_rows(frame_idx, rel_path, dets):
         corners = ";".join(f"{float(x):.2f}:{float(y):.2f}"
                            for x, y in np.asarray(det.corners))
         rng = ""
+        inc = ""
         if getattr(det, "pose_t", None) is not None:
             rng = f"{float(np.linalg.norm(det.pose_t.reshape(3))):.4f}"
+            if getattr(det, "pose_R", None) is not None:
+                th = tag_incidence_deg(det.pose_R, det.pose_t)
+                inc = "" if th is None else f"{th:.2f}"
         rows.append([frame_idx, rel_path, n, int(det.tag_id),
                      f"{float(det.decision_margin):.3f}", int(det.hamming),
-                     f"{cu:.2f}", f"{cv:.2f}", corners, rng])
+                     f"{cu:.2f}", f"{cv:.2f}", corners, rng, inc])
     return rows
 
 
@@ -387,7 +467,8 @@ def _git_rev():
 
 def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                    requested_exposure_us, requested_gain, decode_tags,
-                   cam_params, tag_size, run_tag, requested_n_frames=None):
+                   cam_params, tag_size, run_tag, requested_n_frames=None,
+                   quad_decimate=DEFAULT_QUAD_DECIMATE):
     """Drive a backend's Frame stream to disk in the documented layout. Returns
     the meta dict.
 
@@ -409,7 +490,7 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
     index_path = os.path.join(out_dir, "index.csv")
     tags_path = os.path.join(out_dir, "tags.csv") if decode_tags else None
 
-    detector = _make_detector() if decode_tags else None
+    detector = _make_detector(quad_decimate) if decode_tags else None
     applied_exps, applied_gains = [], []
     t_monos = []   # for the MEASURED stream_fps (see _fps_stats)
     decode_loop_dts = []   # grab->decode-done, PNG write EXCLUDED (see below)
@@ -475,7 +556,8 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
             fps_out=fps_out, fps_src=fps_src, fps_slow=fps_slow, dt_med=dt_med,
             dec_fps=dec_fps, dec_dt_med=dec_dt_med, cam_params=cam_params,
             tag_size=tag_size, requested_n_frames=requested_n_frames,
-            terminated_early=terminated_early, early_reason=early_reason)
+            terminated_early=terminated_early, early_reason=early_reason,
+            quad_decimate=quad_decimate)
 
     meta = None
     try:
@@ -545,7 +627,8 @@ def _make_meta_dict(*, run_tag, source, backend_detail, actual_w, actual_h, w, h
                     applied_exp_med, applied_exps, requested_gain,
                     applied_gain_med, fps_out, fps_src, fps_slow, dt_med,
                     dec_fps, dec_dt_med, cam_params, tag_size,
-                    requested_n_frames, terminated_early, early_reason):
+                    requested_n_frames, terminated_early, early_reason,
+                    quad_decimate=DEFAULT_QUAD_DECIMATE):
     meta = {
         "session": run_tag,
         "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -555,6 +638,18 @@ def _make_meta_dict(*, run_tag, source, backend_detail, actual_w, actual_h, w, h
         "requested_resolution": {"width": int(w), "height": int(h)},
         "n_frames": n,
         "family": TAG_FAMILY,
+        # THE DETECTOR SETTING THAT PRODUCED THIS SESSION (2026-07-25, ADR-0082).
+        # Stamped ALWAYS -- including when tag decode was off, because the value
+        # a later OFFLINE re-decode must match/deliberately-diverge-from is a
+        # property of the session, and tripod_score REFUSES to score a session
+        # at a decimate other than the one on record (--allow-decimate-mismatch
+        # is the explicit §4.2b reclaim-lever escape hatch).
+        "quad_decimate": float(quad_decimate),
+        "quad_decimate_source": (
+            "--quad-decimate (explicit)"
+            if float(quad_decimate) != DEFAULT_QUAD_DECIMATE else
+            f"DEFAULT {DEFAULT_QUAD_DECIMATE} (the pupil-apriltags library "
+            f"default, made explicit; ADR-0082 PLANS 1.0 for the tripod day)"),
         "tag_decode": bool(decode_tags),
         "n_tag_frames": n_tag_frames if decode_tags else None,
         "requested_exposure_us": int(requested_exposure_us),
@@ -670,13 +765,21 @@ def capture(args):
               f"--tag-size 0.35.", file=sys.stderr)
     os.makedirs(args.out, exist_ok=True)
     _install_sigterm_handler()
+    qd = float(getattr(args, "quad_decimate", DEFAULT_QUAD_DECIMATE))
+    if args.decode_tags and qd != DEFAULT_QUAD_DECIMATE:
+        print(f"[pi_capture] quad_decimate = {qd} (NOT the library default "
+              f"{DEFAULT_QUAD_DECIMATE}) -- stamped into meta.json; the scorer "
+              f"must be run at the same value (ADR-0082 / protocol §4.2b)",
+              file=sys.stderr)
     meta = record_session(
         backend, args.out, source, detail, args.width, args.height,
         args.exposure_us, args.gain, args.decode_tags,
         cam_params if args.tag_size else None, args.tag_size, args.run_tag,
-        requested_n_frames=args.n_frames)
+        requested_n_frames=args.n_frames, quad_decimate=qd)
 
     print(f"[pi_capture] wrote {meta['n_frames']} frames -> {args.out}")
+    print(f"[pi_capture]   quad_decimate={meta['quad_decimate']} "
+          f"[{meta['quad_decimate_source']}]")
     print(f"[pi_capture]   index.csv + meta.json"
           + (f" + tags.csv ({meta['n_tag_frames']} frames with a tag)"
              if args.decode_tags else " (tag decode OFF)"))
@@ -752,7 +855,7 @@ def self_test():
         source=f"dir={raw_dir}", out=session, n_frames=None, replay_fps=30.0,
         device="0", width=stf.W, height=stf.H, exposure_us=DEF_EXPOSURE_US,
         gain=1.0, duration=None, decode_tags=True, calib=calib_path,
-        tag_size=0.5, run_tag="selftest")
+        tag_size=0.5, run_tag="selftest", quad_decimate=DEFAULT_QUAD_DECIMATE)
     rc = capture(ns)
 
     ok = True
@@ -800,7 +903,11 @@ def self_test():
                 # capture_truncated / terminated_early make a short or
                 # interrupted pass self-labelling instead of merely incomplete.
                 "tag_size_m", "decode_loop_fps", "requested_n_frames",
-                "capture_truncated", "terminated_early"]
+                "capture_truncated", "terminated_early",
+                # 2026-07-25 (ADR-0082): the detector setting that produced the
+                # session. Unrecorded, the §4.2b qd=1.0-vs-2.0 reclaim lever is
+                # lost WITH the session -- the value cannot be read off a PNG.
+                "quad_decimate", "quad_decimate_source"]
     check(all(k in meta for k in required),
           f"meta.json has all required keys {required}")
     check(meta["source"] == "dir" and meta["n_frames"] == n_expected,
@@ -838,6 +945,42 @@ def self_test():
     ranged = [float(r["range_m"]) for r in decoded if r["range_m"]]
     check(ranged and all(1.0 < v < 12.0 for v in ranged),
           f"decoded tag range_m populated + sane ({['%.2f' % v for v in ranged]})")
+    # INCIDENCE (2026-07-25, protocol §4.2b): recovered from the same pose as the
+    # range. The synth composite places the tag dead-centre and FRONTO-PARALLEL,
+    # so a correct computation must come back near 0 deg -- a bug that returned
+    # the off-boresight BEARING, or 90-theta, would show up here immediately.
+    incs = [float(r["incidence_deg"]) for r in decoded if r["incidence_deg"]]
+    check(len(incs) == len(decoded) and all(0.0 <= v < 25.0 for v in incs),
+          f"decoded tag incidence_deg populated + near-frontal "
+          f"({['%.1f' % v for v in incs]}) for a fronto-parallel composite")
+    # The pure function, on SYNTHETIC poses (no pixels): identity pose = 0 deg;
+    # a 30 deg rotation about the camera y-axis = 30 deg; a degenerate pose is
+    # None, never a fabricated 0.
+    import numpy as _np
+    _c30, _s30 = math.cos(math.radians(30.0)), math.sin(math.radians(30.0))
+    _R30 = _np.array([[_c30, 0.0, _s30], [0.0, 1.0, 0.0], [-_s30, 0.0, _c30]])
+    _i0 = tag_incidence_deg(_np.eye(3), _np.array([0.0, 0.0, 5.0]))
+    _i30 = tag_incidence_deg(_R30, _np.array([0.0, 0.0, 5.0]))
+    _ideg = tag_incidence_deg(_np.eye(3), _np.zeros(3))
+    check(abs(_i0) < 1e-9 and abs(_i30 - 30.0) < 1e-9 and _ideg is None,
+          f"tag_incidence_deg on synthetic poses: identity={_i0:.3f} deg, "
+          f"R_y(30)={_i30:.3f} deg, degenerate={_ideg}")
+
+    # --- quad_decimate IS STAMPED (2026-07-25, ADR-0082) ---------------------
+    check(meta["quad_decimate"] == DEFAULT_QUAD_DECIMATE
+          and "DEFAULT" in meta["quad_decimate_source"],
+          f"meta.json stamps quad_decimate={meta['quad_decimate']} "
+          f"[{meta['quad_decimate_source']}]")
+    ns_qd = argparse.Namespace(**{**vars(ns), "out": os.path.join(work, "session_qd1"),
+                                  "quad_decimate": 1.0, "run_tag": "selftest-qd1"})
+    rc_qd = capture(ns_qd)
+    with open(os.path.join(work, "session_qd1", "meta.json")) as f:
+        meta_qd = json.load(f)
+    check(rc_qd == 0 and meta_qd["quad_decimate"] == 1.0
+          and "explicit" in meta_qd["quad_decimate_source"],
+          f"a --quad-decimate 1.0 capture records 1.0 "
+          f"[{meta_qd['quad_decimate_source']}] -- the §4.2b reclaim lever is "
+          f"now recoverable after the field day")
     # decode_loop_fps is the WRITE-EXCLUSIVE grab+decode cadence -- the quantity
     # the money gate models. It must exist (decode ran) and be a plausible rate.
     check(isinstance(meta["decode_loop_fps"], (int, float))
@@ -925,6 +1068,15 @@ def main():
     ap.add_argument("--tag-size", type=float, default=None,
                     help="AprilTag black-square edge (m) for pose/range; without "
                          "it decode is presence-only")
+    ap.add_argument("--quad-decimate", type=float, default=DEFAULT_QUAD_DECIMATE,
+                    help=f"AprilTag detector quad_decimate (default "
+                         f"{DEFAULT_QUAD_DECIMATE} = the pupil-apriltags LIBRARY "
+                         f"default, stated explicitly). 1.0 decodes at full "
+                         f"resolution: ~1.5x range and a +-48-56 deg incidence "
+                         f"cone instead of +-32 deg, at a real Pi-5 fps cost -- "
+                         f"ADR-0082 PLANS 1.0 for the tripod day because 2.0 does "
+                         f"not clear the t_go money gate at 20/14 Hz. The value is "
+                         f"STAMPED into meta.json so the session records what it ran.")
     ap.add_argument("--run-tag", default="session",
                     help="session label recorded in meta.json")
     ap.add_argument("--self-test", action="store_true",

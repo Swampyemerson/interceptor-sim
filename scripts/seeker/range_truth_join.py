@@ -55,10 +55,26 @@ worse. Protocol §6.1's own bound: one 2 m range bin is 0.22 s of flight at
                      minimize MAD(R_tag - R_log(t+off)) about its own median, so
                      a constant bias (tag placard vs GPS antenna, camera vs
                      survey point) shifts the reported bias, not the offset.
+INTEGRITY CHECKS RUN ON BOTH CLOCK PATHS (2026-07-25 -- they used to live ONLY
+inside `if do_auto_sync:`). Protocol §6.1/§7.0 make `--clock-offset-s` THE PLAN
+and `--auto-sync` a per-battery-segment cross-check (auto-sync REFUSES a
+constant-closing-rate approach by design), so the field day's dominant geometry
+was running the ONE path with no survey, no datum and no bias test: a 1.1 km
+survey error, an AMSL-vs-AGL datum blunder and a 3 s clock error each exited 0
+with empty warnings. Now, whichever way the offset was chosen, the tool checks
+(1) the altitude/geometry datum -- FAIL-CLOSED above IMPLAUSIBLE_UP_M, advisory
+above ADVISORY_UP_M -- and (2) the tag-vs-log residual and constant bias AT THE
+OFFSET ACTUALLY USED. On a closing pass a dt-second clock error appears there as
+a |dR/dt|*dt constant bias, so a wrong `--clock-offset-s` is caught too. An
+un-runnable check is NOT a passed check: too few tag-ranged frames REFUSES
+(`--allow-unverified-survey` is the explicit escape hatch, stamped into the
+provenance), and `range_truth.json:integrity` records which checks actually ran.
+
 It REFUSES (non-zero exit) rather than emitting a silently-bad join when: the
 log does not overlap the frame span, too few tag ranges to sync on, the residual
 is too large (wrong log / wrong tripod position), the constant bias is
-implausible (survey or altitude-datum blunder), or the offset is UNIDENTIFIABLE
+implausible (survey, altitude-datum or clock-offset blunder), the tripod->target
+geometry is implausible, or the offset is UNIDENTIFIABLE
 -- meaning the range RATE barely varies across the tag window. Because the
 objective absorbs a constant bias, a straight-in ramp at a constant closing rate
 makes a clock error mathematically indistinguishable from a range bias; only a
@@ -169,7 +185,18 @@ DEFAULT_MAX_HDOP = 3.0
 # Sanity ceiling on the target's height above the tripod for a tripod test
 # (protocol §4 layout: passes at a few tens of metres). A larger median means a
 # vertical-datum mismatch, which would corrupt every 3-D range.
+#
+# FAIL-CLOSED SINCE 2026-07-25 (audit RANK 6 / docs/error_handling_policy.md): a
+# median height above this REFUSES the join (exit 2) instead of appending a
+# warning nobody reads at 9 pm. It used to only set `warn_alt`, and the tool
+# exited 0 with a confidently wrong true_range_m on every frame.
 IMPLAUSIBLE_UP_M = 150.0
+# ADVISORY band, below the refusal. Protocol §4.1 marks stations at 4-20 m and
+# §4.6b wants the sync pass within ~2 m of the tripod's height, so the target is
+# flown LOW and close; a median height above this is not necessarily a blunder
+# (a high pass, a mast) but it is worth naming, because an AMSL-vs-AGL datum
+# error of a few tens of metres lands here rather than above the 150 m ceiling.
+ADVISORY_UP_M = 30.0
 
 _QUALITY_OK = "ok"
 _QUALITY_GAP = "gap"
@@ -528,6 +555,139 @@ def auto_sync(t_frames, r_tag, t_track, enu_track, rng_track,
 
 
 # --------------------------------------------------------------------------
+# SHARED integrity checks -- they run on BOTH clock paths (2026-07-25)
+# --------------------------------------------------------------------------
+# THE DEFECT THIS CLOSES (audit 2026-07-25 RANK 6; review-2 finding at :601).
+# Every residual / bias / survey / datum test used to live inside
+# `if do_auto_sync:`. But protocol §6.1 + §7.0 make `--clock-offset-s` THE PLAN
+# and `--auto-sync` a cross-check usable on ONE pass per battery segment (it
+# refuses a constant-closing-rate approach BY DESIGN), so the field day's dominant
+# geometry ran the path with NO integrity checks at all: a 1.1 km survey error, an
+# AMSL-vs-AGL datum blunder and a 3 s clock error each exited 0 with empty
+# warnings. These functions are the same tests, hoisted onto the shared path and
+# applied at whatever offset was FINALLY used, whoever chose it.
+
+def altitude_datum_check(med_up_m, allow_implausible=False):
+    """Geometry plausibility of the tripod->target vertical. Raises Refuse when
+    the median height is beyond IMPLAUSIBLE_UP_M (fail-closed), warns in the
+    ADVISORY band. Returns (info dict, [warnings])."""
+    warnings = []
+    info = {"median_target_up_m": round(float(med_up_m), 3),
+            "advisory_up_m": ADVISORY_UP_M, "implausible_up_m": IMPLAUSIBLE_UP_M,
+            "refused": False, "override": bool(allow_implausible)}
+    if abs(med_up_m) > IMPLAUSIBLE_UP_M:
+        info["refused"] = True
+        msg = (f"median target height above the tripod is {med_up_m:.1f} m "
+               f"(> {IMPLAUSIBLE_UP_M:.0f} m) -- IMPLAUSIBLE for a tripod pass "
+               f"(protocol §4.1 stations are 4-20 m). The overwhelmingly likely "
+               f"cause is an ALTITUDE DATUM mismatch: --tripod-alt must be in the "
+               f"LOG's datum (ArduPilot POS/GPS Alt is AMSL), not height above "
+               f"ground. Every true_range_m would inherit that constant error. "
+               f"REFUSING. (Deliberate high-pass geometry: "
+               f"--allow-implausible-geometry.)")
+        if not allow_implausible:
+            raise Refuse(msg)
+        warnings.append("OVERRIDDEN (--allow-implausible-geometry): " + msg)
+    elif abs(med_up_m) > ADVISORY_UP_M:
+        warnings.append(
+            f"median target height above the tripod is {med_up_m:.1f} m "
+            f"(> the {ADVISORY_UP_M:.0f} m advisory for a 4-20 m station grid) -- "
+            f"check the ALTITUDE DATUM (--tripod-alt in the log's datum, AMSL).")
+    return info, warnings
+
+
+def survey_bias_check(t_frames, r_tag, t_track, enu_track, clock_offset_s,
+                      offset_source, min_samples=DEFAULT_MIN_SYNC_SAMPLES,
+                      max_residual_m=DEFAULT_MAX_RESIDUAL_M,
+                      max_bias_m=DEFAULT_MAX_BIAS_M,
+                      allow_unverified=False):
+    """Compare the TAG-derived range against the LOG-derived range AT THE OFFSET
+    ACTUALLY USED. Two independent measurements of one physical quantity:
+
+      * robust residual (MAD about the median) > max_residual_m  -> the two series
+        are not the same engagement: wrong log, wrong pass, bad survey.
+      * |constant bias| > max_bias_m -> a survey or ALTITUDE-DATUM blunder. A
+        metre-scale bias (placard vs GPS antenna, camera vs survey point) is
+        expected and absorbed.
+
+    ON THE EXPLICIT-OFFSET PATH THIS ALSO CATCHES A WRONG --clock-offset-s: with a
+    closing target, a clock error of dt seconds displaces the log range by
+    ~|dR/dt|*dt, which shows up here as exactly that much constant BIAS (a 3 s
+    error at 4.5 m/s = 13.5 m, far past the 5 m ceiling). It cannot say WHICH of
+    {clock, survey, datum} is wrong -- and does not pretend to -- but it refuses
+    to write a range that two independent sources disagree about by metres.
+
+    NO VACUOUS PASS: with fewer than `min_samples` tag-ranged frames the check
+    CANNOT RUN, and an un-run check is not a passed check. That REFUSES by default
+    (`--allow-unverified-survey` is the deliberate escape hatch, e.g. a far
+    NN-only crossing pass where the tag never decodes). Returns (info, warnings)."""
+    n = int(len(t_frames))
+    info = {"ran": False, "n_tag_ranged_frames": n,
+            "min_samples": int(min_samples),
+            "offset_used_s": round(float(clock_offset_s), 4),
+            "offset_source": offset_source,
+            "max_residual_m": max_residual_m, "max_bias_m": max_bias_m,
+            "residual_m": None, "bias_m": None, "n_used": 0,
+            "override": bool(allow_unverified)}
+    warnings = []
+    if n < min_samples:
+        msg = (f"the survey/datum/bias integrity check COULD NOT RUN: only {n} "
+               f"frame(s) carry BOTH a tag range and a t_wall_unix (need "
+               f">={min_samples}). Nothing independent cross-checks the tripod "
+               f"survey, the altitude datum or the clock offset "
+               f"({offset_source}), so a metres-wrong true_range_m would be "
+               f"written silently. An UN-RUN check is not a PASSED check. "
+               f"REFUSING. Fixes: point --tags-csv at the offline re-decode "
+               f"(protocol §7.0 step (a)); or, for a pass where the tag genuinely "
+               f"never decodes (a far NN-only crossing leg), pass "
+               f"--allow-unverified-survey -- it is stamped into range_truth.json "
+               f"and the survey must then be trusted from that battery segment's "
+               f"§4.6b sync pass.")
+        info["reason"] = "insufficient tag-ranged frames"
+        if not allow_unverified:
+            raise Refuse(msg)
+        warnings.append("OVERRIDDEN (--allow-unverified-survey): " + msg)
+        return info, warnings
+
+    resid, bias, n_used = _sync_objective(float(clock_offset_s), t_frames, r_tag,
+                                          t_track, enu_track, min_samples)
+    info.update(ran=True, n_used=int(n_used),
+                residual_m=(round(float(resid), 4) if math.isfinite(resid) else None),
+                bias_m=(round(float(bias), 4) if not math.isnan(bias) else None))
+    if not math.isfinite(resid):
+        msg = (f"fewer than {min_samples} tag-ranged frames land inside the log's "
+               f"span at the offset actually used ({clock_offset_s:+.3f} s, "
+               f"{offset_source}) -- the tag-vs-log cross-check cannot be "
+               f"evaluated, so the survey/datum/clock are UNVERIFIED. REFUSING "
+               f"(--allow-unverified-survey to override).")
+        info["reason"] = "no overlap at the chosen offset"
+        if not allow_unverified:
+            raise Refuse(msg)
+        warnings.append("OVERRIDDEN (--allow-unverified-survey): " + msg)
+        return info, warnings
+    if resid > max_residual_m:
+        raise Refuse(
+            f"tag-vs-log range residual {resid:.2f} m > --max-residual-m "
+            f"{max_residual_m:.2f} m at the offset actually used "
+            f"({clock_offset_s:+.3f} s, {offset_source}). The tag-derived and "
+            f"log-derived ranges do not describe the same engagement -- wrong log "
+            f"file, wrong pass, or a bad tripod survey. REFUSING to write a join. "
+            f"(bias {bias:+.2f} m, n={n_used})")
+    if abs(bias) > max_bias_m:
+        raise Refuse(
+            f"tag-vs-log CONSTANT BIAS {bias:+.2f} m exceeds --max-bias-m "
+            f"{max_bias_m:.2f} m at the offset actually used "
+            f"({clock_offset_s:+.3f} s, {offset_source}). A metre-scale bias is "
+            f"expected (tag placard vs GPS antenna, camera vs survey point); THIS "
+            f"is a survey blunder, an ALTITUDE-DATUM mismatch (tripod alt given "
+            f"AGL while the log logs AMSL), or a WRONG CLOCK OFFSET -- with a "
+            f"closing target a dt-second clock error becomes a |dR/dt|*dt constant "
+            f"range error, which is what this number is. REFUSING. "
+            f"(residual {resid:.2f} m, n={n_used})")
+    return info, warnings
+
+
+# --------------------------------------------------------------------------
 # The join
 # --------------------------------------------------------------------------
 def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
@@ -535,7 +695,11 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
                  max_gap_s=DEFAULT_MAX_GAP_S, min_coverage=DEFAULT_MIN_COVERAGE,
                  gps_sigma_m=DEFAULT_GPS_SIGMA_M, gps_quality=None,
                  min_nsats=DEFAULT_MIN_NSATS, max_hdop=DEFAULT_MAX_HDOP,
-                 sync_kwargs=None, dry_run=False, quiet=False):
+                 sync_kwargs=None, dry_run=False, quiet=False,
+                 allow_implausible_geometry=False, allow_unverified_survey=False,
+                 max_residual_m=DEFAULT_MAX_RESIDUAL_M,
+                 max_bias_m=DEFAULT_MAX_BIAS_M,
+                 min_sync_samples=DEFAULT_MIN_SYNC_SAMPLES):
     """Join `track` to the session's frames and write true_range_m back.
     Returns the provenance dict (also written to range_truth.json)."""
     fieldnames, rows = read_index(session_dir)
@@ -561,17 +725,23 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
             "boot-relative; here one side is a wall clock.) Supply an exported "
             "CSV with a real t_utc_s column, or a log with a GPS time fix.")
 
-    med_up = float(np.median(up_track))
-    warn_alt = abs(med_up) > IMPLAUSIBLE_UP_M
+    # ---- INTEGRITY (1/2): geometry / altitude datum. Offset-independent, so it
+    # runs FIRST and on BOTH paths -- a datum blunder must be diagnosed as a datum
+    # blunder, not as a downstream UNIDENTIFIABLE clock.
+    integrity_warnings = []
+    alt_info, w = altitude_datum_check(
+        med_up := float(np.median(up_track)),
+        allow_implausible=allow_implausible_geometry)
+    integrity_warnings += w
 
     # ---- clock offset ----
     sync_info = None
     tag_ranges = read_tag_ranges(session_dir, rows, tags_csv=tags_csv)
+    idx = [i for i in sorted(tag_ranges)
+           if i < n_rows and np.isfinite(t_frames_all[i])]
+    tf = t_frames_all[idx]
+    rt = np.asarray([tag_ranges[i] for i in idx], dtype=float)
     if do_auto_sync:
-        idx = [i for i in sorted(tag_ranges)
-               if i < n_rows and np.isfinite(t_frames_all[i])]
-        tf = t_frames_all[idx]
-        rt = np.asarray([tag_ranges[i] for i in idx], dtype=float)
         sync_info = auto_sync(tf, rt, t_track, enu_track, rng_track,
                               seed_offset=float(clock_offset_s),
                               **(sync_kwargs or {}))
@@ -600,6 +770,51 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
             f"(< --min-coverage {100 * min_coverage:.0f}%). A partial log cannot "
             f"truth this session; trim the session, fix the offset, or lower "
             f"--min-coverage deliberately.")
+
+    # ---- INTEGRITY (2/2): the tag-vs-log survey/bias/residual cross-check, at
+    # the offset ACTUALLY USED -- on BOTH paths. On the auto-sync path this
+    # re-confirms what auto_sync already vetted; on the explicit-offset path (the
+    # field day's dominant geometry, protocol §7.0) it is the ONLY such check, and
+    # it did not exist before 2026-07-25. It runs AFTER the span/coverage refusals
+    # so the most diagnostic message wins on a wrong-log session ("ZERO frames
+    # inside the log span" beats "too few tag-ranged frames").
+    bias_info, w = survey_bias_check(
+        tf, rt, t_track, enu_track, clock_offset_s,
+        offset_source=("--auto-sync (estimated)" if do_auto_sync
+                       else "explicit --clock-offset-s"),
+        min_samples=min_sync_samples, max_residual_m=max_residual_m,
+        max_bias_m=max_bias_m, allow_unverified=allow_unverified_survey)
+    integrity_warnings += w
+
+    # THE OVERRIDE MUST NOT ALSO DISABLE THE LAST REMAINING GUARD (2026-07-25).
+    # The tag-vs-log bias test is what actually catches a decametre-scale
+    # ALTITUDE-DATUM blunder: the reproduced AMSL-vs-AGL case puts med_up at
+    # ~106 m, which sits UNDER the 150 m geometry refusal and would leave only a
+    # 30 m ADVISORY. That is fine while the bias test runs -- and it is a hole
+    # the moment --allow-unverified-survey turns it off, which the field day WILL
+    # do: with the adopted BEAM-facing placard an approach pass decodes nothing,
+    # so a tag-null pass legitimately has zero tag ranges.
+    # So when the cross-check did NOT run, the vertical guard TIGHTENS from
+    # IMPLAUSIBLE_UP_M to ADVISORY_UP_M: an unverifiable survey AND an
+    # out-of-advisory geometry is exactly the silent-datum-blunder shape, and it
+    # takes BOTH overrides to proceed.
+    if not bias_info.get("ran") and abs(med_up) > ADVISORY_UP_M:
+        msg = (f"the tag-vs-log cross-check DID NOT RUN (--allow-unverified-survey) "
+               f"AND the median target height above the tripod is {med_up:.1f} m "
+               f"(> the {ADVISORY_UP_M:.0f} m advisory for a 4-20 m station grid). "
+               f"With the cross-check off, that advisory is the ONLY remaining "
+               f"guard on the altitude datum -- and an AMSL-vs-AGL blunder lands "
+               f"right here (~100 m), UNDER the {IMPLAUSIBLE_UP_M:.0f} m refusal. "
+               f"Two unverified things at once is not a join. REFUSING. Fixes: "
+               f"supply --tags-csv from the offline re-decode so the cross-check "
+               f"can run; re-derive --tripod-alt in the LOG's datum (AMSL); or, if "
+               f"this geometry is genuinely intended, pass BOTH "
+               f"--allow-unverified-survey AND --allow-implausible-geometry.")
+        alt_info["refused_unverified"] = True
+        if not allow_implausible_geometry:
+            raise Refuse(msg)
+        integrity_warnings.append(
+            "OVERRIDDEN (--allow-implausible-geometry): " + msg)
 
     rate_track = np.abs(range_rate_series(t_track, rng_track))
     rate_q = np.interp(np.clip(t_q, t_track[0], t_track[-1]), t_track, rate_track)
@@ -681,10 +896,12 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
                           round(float(np.nanmax(rng_q[inside])), 3)] if inside.any() else None),
         "honesty": ("OFFLINE post-flight scoring/calibration (field_score class). "
                     "No flight path reads this; not the sim's gt_* boundary."),
-        "warnings": ([] if not warn_alt else [
-            f"median target height above the tripod is {med_up:.1f} m -- "
-            f"implausible for a tripod pass; check the ALTITUDE DATUM "
-            f"(--tripod-alt must match the log's alt datum, typically AMSL)."]),
+        # WHICH INTEGRITY CHECKS ACTUALLY RAN (2026-07-25). Both entries are
+        # written on BOTH clock paths, so a reader can tell a check that PASSED
+        # from a check that never executed -- the distinction the pre-2026-07-25
+        # tool erased by keeping every test inside `if do_auto_sync:`.
+        "integrity": {"altitude_datum": alt_info, "survey_bias": bias_info},
+        "warnings": list(integrity_warnings),
         "dry_run": bool(dry_run),
     }
 
@@ -720,6 +937,24 @@ def _print_report(prov):
               f"(median |dR/dt| {s['median_abs_range_rate_mps']:.3f} m/s) -> "
               f"offset sigma {s['offset_sigma_s']} s  "
               f"(grid-median residual {s['grid_median_residual_m']:.3f} m)")
+    ig = prov.get("integrity") or {}
+    sb = ig.get("survey_bias") or {}
+    ad = ig.get("altitude_datum") or {}
+    if sb.get("ran"):
+        print(f"  integrity     : tag-vs-log residual {sb['residual_m']:.3f} m "
+              f"(<= {sb['max_residual_m']}), constant bias {sb['bias_m']:+.3f} m "
+              f"(<= {sb['max_bias_m']}), n={sb['n_used']} -- checked at the offset "
+              f"ACTUALLY USED [{sb['offset_source']}]")
+    else:
+        print(f"  integrity     : survey/datum/bias cross-check DID NOT RUN "
+              f"({sb.get('reason', 'unknown')}; n={sb.get('n_tag_ranged_frames')} "
+              f"tag-ranged frames, need >={sb.get('min_samples')})"
+              + ("  [OVERRIDDEN --allow-unverified-survey]"
+                 if sb.get("override") else ""))
+    print(f"                  median target height above the tripod "
+          f"{ad.get('median_target_up_m')} m "
+          f"(advisory {ad.get('advisory_up_m')} m / refuse "
+          f"{ad.get('implausible_up_m')} m)")
     print(f"  frames        : {prov['n_frames']} total, {prov['n_frames_timed']} timed, "
           f"{prov['n_true_range_written']} given a true_range_m "
           f"({100 * prov['coverage_frac']:.1f}% inside the log span)")
@@ -767,11 +1002,14 @@ def _synth_session(dirpath, t_wall, tag_ranges=None, index_header=None,
             wr.writerow(list(tags_header))
             for i, r in enumerate(tag_ranges):
                 rel = os.path.join("frames", f"{i:06d}.png")
+                # Row WIDTH tracks pi_capture.TAGS_HEADER exactly (incidence_deg
+                # was appended 2026-07-25) -- a fixture that is narrower than the
+                # producer's real writer is how a schema break hides.
                 if r is None:
-                    wr.writerow([i, rel, 0, "", "", "", "", "", "", ""])
+                    wr.writerow([i, rel, 0] + [""] * (len(tags_header) - 3))
                 else:
                     wr.writerow([i, rel, 1, 7, "42.000", 0, "640.0", "400.0",
-                                 "0:0;1:0;1:1;0:1", f"{r:.4f}"])
+                                 "0:0;1:0;1:1;0:1", f"{r:.4f}", "4.20"])
     return dirpath
 
 
@@ -956,12 +1194,110 @@ def self_test():
             check("t_wall_unix" in str(e),
                   f"replay session (blank t_wall_unix) REFUSED ({str(e)[:60]}...)")
 
+        # ---- 3b. THE SHARED PATH (2026-07-25, audit RANK 6). The field day's
+        # dominant geometry uses --clock-offset-s, which had ZERO integrity
+        # checks. Each of these three exited 0 with a confidently-wrong join
+        # before the hoist; each must now REFUSE.
+        # (e) a WRONG --clock-offset-s: 3 s of error at ~4.5 m/s closing shows up
+        #     as a ~13 m constant tag-vs-log bias.
+        s8 = _synth_session(os.path.join(td, "s8"), t_wall_frames, tag_r,
+                            INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s8, track, tripod_llh=(lat0, lon0, alt0),
+                         clock_offset_s=TRUE_OFFSET + 3.0, quiet=True)
+            check(False, "a 3 s WRONG --clock-offset-s must REFUSE on the "
+                         "explicit path")
+        except Refuse as e:
+            check("CONSTANT BIAS" in str(e) or "residual" in str(e),
+                  f"explicit path: a 3 s clock error REFUSED ({str(e)[:58]}...)")
+        # (f) the AMSL-vs-AGL DATUM BLUNDER the 150 m guard misses: a tripod alt
+        #     106 m low puts med_up ~114 m -- UNDER IMPLAUSIBLE_UP_M, so only the
+        #     hoisted BIAS check can catch it, and it must.
+        s9 = _synth_session(os.path.join(td, "s9"), t_wall_frames, tag_r,
+                            INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s9, track, tripod_llh=(lat0, lon0, alt0 - 106.0),
+                         clock_offset_s=TRUE_OFFSET, quiet=True)
+            check(False, "a 106 m altitude-datum blunder must REFUSE")
+        except Refuse as e:
+            check("CONSTANT BIAS" in str(e) or "residual" in str(e),
+                  f"explicit path: a 106 m AMSL-vs-AGL datum error REFUSED "
+                  f"(it slips UNDER the {IMPLAUSIBLE_UP_M:.0f} m geometry guard) "
+                  f"({str(e)[:48]}...)")
+        # (g) a gross geometry/datum error is caught by the FAIL-CLOSED height
+        #     ceiling itself (it only warned before 2026-07-25).
+        s10 = _synth_session(os.path.join(td, "s10"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s10, track, tripod_llh=(lat0, lon0, alt0 - 300.0),
+                         clock_offset_s=TRUE_OFFSET, quiet=True)
+            check(False, "an implausible tripod->target height must REFUSE")
+        except Refuse as e:
+            check("IMPLAUSIBLE" in str(e) and "DATUM" in str(e),
+                  f"implausible geometry (med_up ~308 m) REFUSED, not warned "
+                  f"({str(e)[:50]}...)")
+        # (h) ...and the checks that DID run are recorded, so a reader can tell a
+        #     PASSED check from one that never executed.
+        s11 = _synth_session(os.path.join(td, "s11"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        prov11 = join_session(s11, track, tripod_llh=(lat0, lon0, alt0),
+                              clock_offset_s=TRUE_OFFSET, quiet=True)
+        sb = prov11["integrity"]["survey_bias"]
+        check(sb["ran"] is True and sb["offset_source"] == "explicit --clock-offset-s"
+              and abs(sb["bias_m"] - 0.25) < 0.15 and sb["residual_m"] < 0.5,
+              f"explicit path RECORDS the integrity it ran (residual "
+              f"{sb['residual_m']} m, bias {sb['bias_m']:+.3f} m vs the injected "
+              f"+0.25 m, n={sb['n_used']})")
+
         # ---- 4. partial coverage -> gap/extrapolated flags, no fabricated range ----
+        # NOTE this session has NO tags.csv, so the survey/bias cross-check cannot
+        # run -- which is itself a REFUSAL now (an un-run check is not a passed
+        # check). Prove that, then opt out deliberately.
         t_wall_wide = np.concatenate([t_wall_frames - 20.0, t_wall_frames])
         s7 = _synth_session(os.path.join(td, "s7"), t_wall_wide, None,
                             INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s7, track, tripod_llh=(lat0, lon0, alt0),
+                         clock_offset_s=TRUE_OFFSET, min_coverage=0.4, quiet=True)
+            check(False, "a session with no tag ranges must REFUSE (unverified survey)")
+        except Refuse as e:
+            check("COULD NOT RUN" in str(e) and "allow-unverified-survey" in str(e),
+                  f"no tag ranges -> the cross-check CANNOT RUN -> REFUSED, and the "
+                  f"message names the escape hatch ({str(e)[:44]}...)")
         prov7 = join_session(s7, track, tripod_llh=(lat0, lon0, alt0),
-                             clock_offset_s=TRUE_OFFSET, min_coverage=0.4, quiet=True)
+                             clock_offset_s=TRUE_OFFSET, min_coverage=0.4,
+                             allow_unverified_survey=True, quiet=True)
+        check(prov7["integrity"]["survey_bias"]["ran"] is False
+              and prov7["integrity"]["survey_bias"]["override"] is True
+              and any("OVERRIDDEN" in w for w in prov7["warnings"]),
+              "--allow-unverified-survey proceeds but STAMPS the un-run check "
+              "into range_truth.json + warnings")
+
+        # ...but that override must NOT also switch off the LAST guard. The
+        # AMSL-vs-AGL blunder lands at med_up ~100 m, UNDER the 150 m geometry
+        # refusal, so with the tag cross-check overridden the only thing left is
+        # the 30 m advisory. Field-day realism: a BEAM-facing placard means an
+        # approach pass decodes nothing, so tag-null passes ARE the common case
+        # and this override WILL be used. Datum blunder + no cross-check must
+        # refuse, and take BOTH overrides to force through.
+        try:
+            join_session(s7, track, tripod_llh=(lat0, lon0, alt0 - 106.0),
+                         clock_offset_s=TRUE_OFFSET, min_coverage=0.4,
+                         allow_unverified_survey=True, quiet=True)
+            check(False, "unverified survey + a 106 m datum error must REFUSE")
+        except Refuse as e:
+            check("DID NOT RUN" in str(e) and "advisory" in str(e),
+                  f"unverified survey + AMSL-vs-AGL datum (~114 m) REFUSED -- the "
+                  f"override does not disable the last guard ({str(e)[:46]}...)")
+        prov7b = join_session(s7, track, tripod_llh=(lat0, lon0, alt0 - 106.0),
+                              clock_offset_s=TRUE_OFFSET, min_coverage=0.4,
+                              allow_unverified_survey=True,
+                              allow_implausible_geometry=True, quiet=True)
+        check(any("OVERRIDDEN" in w and "advisory" in w
+                  for w in prov7b["warnings"]),
+              "both overrides together proceed, and the doubly-unverified join is "
+              "STAMPED into range_truth.json's warnings")
+
         with open(os.path.join(s7, "index.csv"), newline="") as f:
             rows7 = list(csv.DictReader(f))
         extrap = [r for r in rows7 if r[COL_QUALITY] == _QUALITY_EXTRAP]
@@ -1023,10 +1359,31 @@ def main():
     ap.add_argument("--sync-window-s", type=float, default=DEFAULT_SYNC_WINDOW_S,
                     help=f"--auto-sync search half-window (default {DEFAULT_SYNC_WINDOW_S} s)")
     ap.add_argument("--max-residual-m", type=float, default=DEFAULT_MAX_RESIDUAL_M,
-                    help=f"--auto-sync robust residual ceiling (default {DEFAULT_MAX_RESIDUAL_M} m)")
+                    help=f"tag-vs-log robust residual ceiling (default "
+                         f"{DEFAULT_MAX_RESIDUAL_M} m). Applies on BOTH clock "
+                         f"paths since 2026-07-25 -- it is checked at the offset "
+                         f"actually used, whether --auto-sync estimated it or you "
+                         f"supplied --clock-offset-s.")
     ap.add_argument("--max-bias-m", type=float, default=DEFAULT_MAX_BIAS_M,
-                    help=f"--auto-sync constant-bias ceiling (default {DEFAULT_MAX_BIAS_M} m; "
-                         f"catches a survey / altitude-datum blunder)")
+                    help=f"tag-vs-log constant-bias ceiling (default "
+                         f"{DEFAULT_MAX_BIAS_M} m; catches a survey blunder, an "
+                         f"altitude-datum mismatch, and -- on a closing pass -- a "
+                         f"WRONG --clock-offset-s, which becomes a |dR/dt|*dt "
+                         f"constant range error). BOTH clock paths.")
+    ap.add_argument("--allow-implausible-geometry", action="store_true",
+                    help=f"proceed even when the median target height above the "
+                         f"tripod exceeds {IMPLAUSIBLE_UP_M:.0f} m (default: "
+                         f"REFUSE -- that is an altitude-DATUM blunder, and every "
+                         f"true_range_m would inherit it). Stamped into "
+                         f"range_truth.json when used.")
+    ap.add_argument("--allow-unverified-survey", action="store_true",
+                    help=f"proceed when there are too few tag-ranged frames to run "
+                         f"the tag-vs-log survey/datum/bias cross-check at all "
+                         f"(default: REFUSE -- an UN-RUN check is not a PASSED "
+                         f"check). Legitimate on a far NN-only pass where the tag "
+                         f"never decodes; the survey must then be trusted from "
+                         f"that battery segment's §4.6b sync pass. Stamped into "
+                         f"range_truth.json.")
     ap.add_argument("--max-offset-sigma-s", type=float, default=DEFAULT_MAX_OFFSET_SIGMA_S,
                     help=f"--auto-sync offset-uncertainty ceiling (default "
                          f"{DEFAULT_MAX_OFFSET_SIGMA_S} s; protocol §6.1 wants << 0.22 s)")
@@ -1086,6 +1443,10 @@ def main():
                              max_residual_m=args.max_residual_m,
                              max_bias_m=args.max_bias_m,
                              max_offset_sigma_s=args.max_offset_sigma_s),
+            allow_implausible_geometry=args.allow_implausible_geometry,
+            allow_unverified_survey=args.allow_unverified_survey,
+            max_residual_m=args.max_residual_m, max_bias_m=args.max_bias_m,
+            min_sync_samples=args.min_sync_samples,
             dry_run=args.dry_run)
     except Refuse as e:
         print(f"[range_truth_join] REFUSED: {e}", file=sys.stderr)
