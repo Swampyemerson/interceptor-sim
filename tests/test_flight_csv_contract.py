@@ -202,7 +202,8 @@ def test_audit_per_tick_passes_an_honest_producer_schema_flight(tmp_path):
     assert res["checks"]["a"]["result"] == "PASS"
     assert res["checks"]["b"]["result"] == "PASS"   # CODED_DASH counts as dash
     assert res["checks"]["c"]["result"] == "PASS", res["checks"]["c"]
-    assert "20 rows" in res["checks"]["c"]["detail"]
+    assert "20 live pre-latch rows" in res["checks"]["c"]["detail"]
+    assert "0 latched-coast rows excluded" in res["checks"]["c"]["detail"]
 
 
 def test_audit_reports_error_not_pass_when_a_required_column_vanishes(tmp_path):

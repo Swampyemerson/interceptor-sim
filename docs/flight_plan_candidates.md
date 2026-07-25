@@ -915,3 +915,53 @@ characterised per-airframe constant. **The measured-accel defect (a=10 vs ~3.1) 
 a real finding about ADR-0080's parameterization and must be re-measured on the real airframe from
 the first dash ULog — but it is NOT the aim fix, and shipping it as one would have been a mirage
 with physics-flavoured packaging.**
+
+## RESULTS — CAMERA-ARM RE-FLY on the fixed terminal (head, 2026-07-25 eve)
+
+**Why:** every camera-arm number above was measured through the `frozen_vworld` zero-command
+latch (the review-2 blocker: the ENGAGE phase commanded (0,0) on most engaged flights — the
+terminal BRAKED instead of steering). The latch fix (`0c80454`), the negative-r_hat coast-arm
+inhibit (`86d60b3`, the sim↔hw broken-track parity port), and two auditor repairs the re-fly
+itself surfaced (latched-coast exclusion `cdffe12`, lambda-winding azimuth lift `51d3441`)
+all landed BEFORE these arms. The 5 published camera arms were re-flown serially at idle load,
+same master seeds, same canonical geometry; **dash-only twins reused** (zero ENGAGE ticks —
+unaffected by a terminal fix — so the pairing survives byte-identical). Pre-fix evidence
+archived at `logs/prefix_zerocmd_terminal_20260725/`.
+
+**Instrument verification first:** `audit_per_tick` check (e) across all 5 arms:
+**0/674 detected pre-CPA ENGAGE ticks commanded zero horizontal velocity** (pre-fix: up to
+99% of ticks on the same arms). The fixed terminal demonstrably steers. Two flights carry an
+adjudicated (c) marginal, both mechanism-explained and honest: AE15 run7 corr 0.691 (lead
+railed at V_PERP_MAX=8 → the ±41.6° = atan(8/9) residual plateau; a_cmd swings ±1683 m/s²
+through the near-CPA singularity) and GL run3 corr 0.607 (the 190 ms lag comp deliberately
+commands off the instantaneous LOS). (a)/(b)/(e) clean and (d) in the honest range on both —
+the same legitimate-lead-decorrelation class ADR-0013 already recognises for PIP.
+
+**Paired verdicts (camera arm vs its dash-only twin, by run_idx; pre-registered bar ≥6/8):**
+
+| arm | camera med | twin med | cam beats twin | pre-fix cam med | verdict |
+|---|---|---|---|---|---|
+| G20 s123 (correct aim) | 0.895 m | 0.752 m | 3/8 | 1.016 m | no earn; ~parity |
+| G20 s777 (replication) | **0.750 m** | (no s777 twin; dash floor 0.75) | — | 1.316 m | at the dash floor |
+| AE5 s123 (+5° aim err) | 0.662 m | 0.427 m | 1/8 | 0.577 m | no earn — the +5° twin IS near-optimal (ADR-0083) |
+| AE15 s123 (+15° err) | 1.526 m | 1.425 m | 4/8 | 1.506 m | coin-flip; camera does NOT rescue 15° |
+| GL s777 (190 ms LOS-lag comp) | 1.213 m | G20 s777 0.750 m | 2/8 | 1.438 m | lag comp CONFIRMED negative |
+
+(All n=8; none of 3/8, 1/8, 4/8, 2/8 approaches the 6/8 bar, and 6/8 itself is p=0.289 —
+direction is consistent across arms, which is the evidential weight here, not any single cell.)
+
+**NET — the PENDING RE-FLY downgrades RESOLVE to a CONFIRMATION, with one honest softening:**
+1. **"The camera terminal does not earn its handoff at 0/5/15° aim error" is CONFIRMED on a
+   terminal that provably steers.** The pre-fix conclusion survives re-measurement; the defect
+   changed the numbers (both G20 medians improved: 1.016→0.895, 1.316→0.750) but not the verdict.
+2. **Softening:** at correct aim the camera arm is now ≈ PARITY with the open-loop dash
+   (0.895/0.750 vs the 0.75 floor), not the pre-fix "slight liability". The r2l residual
+   (2.5–2.6 m worst flights) remains the ADR-0056 aspect bias, now visible on a steering terminal.
+3. **The LOS-lag compensation is not just null — it is negative** (1.213 vs 0.750, 2/8).
+4. Everything dash-only (ADR-0080 accel-aware lead, ADR-0083 +5° trim, the 0.71/0.43 m floor)
+   was never affected and stands unchanged.
+5. The camera's sim-validated role is unchanged: defending a BADLY-aimed dash (the aim-error
+   sweep's original motivation) is where it acts — and the real world never gets sim-perfect aim.
+
+Arm CSVs: `logs/mc_fp_arm{G20_s123,G20_s777,AE5_s123,AE15_s123,GL_s777 → *_line9_*}.csv`
+(re-flown 2026-07-25T22:01–22:41Z, `logs/refly_camera_arms_20260725.log`).
