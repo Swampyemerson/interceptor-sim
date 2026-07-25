@@ -103,6 +103,13 @@ don't spawn a subagent where doing the thing inline is cheaper.
    release day the Agent tool's bare `opus` alias still resolves to 4.8 — always spawn via
    `subagent_type: opus5-worker` (pinned `model: claude-opus-5`, verified live), and in a
    fresh session re-verify what `opus` resolves to before trusting the alias.
+   **HOOK-ENFORCED 2026-07-25 (builder: "I don't want it accidentally used"; alias re-verified
+   still 4.8 in a fresh session):** a PreToolUse hook (`scripts/hooks/block_opus48.py`, wired
+   in `.claude/settings.json`) DENIES any Agent spawn with model `opus`/`claude-opus-4*` and
+   any Workflow script pinning those — proven live with a refused test spawn. Not
+   hook-coverable: the head-session safeguard auto-switch to 4.8 on flagged turns (product
+   behavior, the sanctioned fallback — `/model` back when noticed) and the user-facing
+   `/fast` toggle (fast mode runs on Opus 4.8 — leave it off).
 
 Balance: parallelize for SPEED when there is genuinely independent work in flight (keep the
 sim busy while sim-free work proceeds), but let each spawn EARN its tokens — a targeted Fable

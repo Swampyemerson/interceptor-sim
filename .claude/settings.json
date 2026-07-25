@@ -1,3 +1,18 @@
 {
-  "model": "claude-fable-5"
+  "model": "claude-fable-5",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Agent|Workflow",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/hooks/block_opus48.py",
+            "timeout": 15,
+            "statusMessage": "Checking subagent model (Opus 4.8 block)"
+          }
+        ]
+      }
+    ]
+  }
 }
