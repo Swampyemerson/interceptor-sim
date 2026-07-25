@@ -2,6 +2,8 @@
 
 > **Canonical project state → [`docs/project_state.json`](docs/project_state.json)** (view: `docs/dashboard.html` · hosted: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc). That contract is the source of truth; this file is the subordinate work queue — keep them consistent (the drift check + the contradiction ledger enforce it).
 
+> **🗺️ 2026-07-25 WHAT'S-LEFT AUDIT → [`docs/audit_2026-07-25_whats_left.md`]** (8-agent workflow, 106 items + 2 critics, ranked execution order). Headlines: the tripod day has 6 desk-fixable P0s (quad-decimate unplumbed, stale mission geometry, capture-matrix/placard-aspect clash, no print artifacts, unordered microSD, range_truth_join unchecked path); frozen_vworld sim-terminal defect + its blind auditor; CI 73/73 red (never green — headline's "first CI GREEN" is false); contract 4 commits stale; ram-radius ratification gates Tier-2. Fold items into the contract as actioned.
+
 ## 🔬 REVIEW-2 (2026-07-24/25) — silent-failure audit + fixes + PREVENTION. Plan: [`docs/review2_action_plan.md`]; all 73: [`docs/review2_silent_failure_findings.md`]
 
 Two full multi-agent reviews. The dominant defect class = **silent failure** (confident, plausible, WRONG output, green checks pass). 73 verified gaps (8 blocker / 31 high). State:
