@@ -434,7 +434,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->759e9b0<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->fc51f44<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 2</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
@@ -740,7 +740,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-25",
- "updated_by": "2026-07-25 T25 push: demo re-rendered (ram-radius caption + ADR-0066 claims scrub, verified in-pixels); ADR-0064 median corrected 1.784->1.752 (median_high off-by-one); kill_mechanism.md §7 swept to the ratified 0.35 m; camera-arm re-fly + incidence producer + build-started earlier today.",
+ "updated_by": "2026-07-25 builder challenge logged: the launch aim is derived from the exactly-known target track while aim is the dominant lever and the camera adds ~nothing at correct aim (contradiction launch-aim-derived-from-ground-truth, OPEN, high) — the honesty boundary polices mid-flight reads only, not pre-flight cue QUALITY. Resolution is the builder's call.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -3512,6 +3512,18 @@
    "severity": "low",
    "status": "resolved",
    "resolution": "Superseded-at-checkout brackets added to §0b and the §E table row, both pointing here; caught by the target_pack verifier 2026-07-21."
+  },
+  {
+   "id": "launch-aim-derived-from-ground-truth",
+   "verdict": "CONFIRMED",
+   "severity": "high",
+   "status": "open",
+   "topic": "The launch AIM is computed from the target's EXACTLY KNOWN track, while aim is the dominant lever and the camera adds ~nothing at correct aim — so the demo risks reducing to a ballistic solution of a fully-specified problem (builder challenge, 2026-07-25)",
+   "claim_a": "Honesty is enforced: constraint honesty-boundary ('gt_* is scoring/logging ONLY; guidance sees camera + own-state EKF only') + no-datalink. The launch aim stack is declared honesty-CLEAN because its constants are latched at-or-before the trigger: 'The AUTO leg is programmed by us, so target start/velocity are known inputs, not a live sensor read (identical status to the sim's --target-start/--target-vel).'",
+   "loc_a": "docs/launch_mechanism_plan.md §2 (C1/C2 table + 'honesty-clean launch-time AIM stack'); project_state.json constraints no-datalink + honesty-boundary",
+   "claim_b": "The honesty boundary polices only MID-FLIGHT reads; it has NO rule on the quality of the PRE-FLIGHT cue. C1-fallback and C2 are derived from the true target start/velocity, i.e. a cue with ZERO error — the one thing a real ground cue never has. Combined with two measured results this is load-bearing: (1) AIM is the dominant lever (correct aim alone: 1.37 -> 0.75 m, ADR-0080/0083, floor 0.71/0.43 m); (2) the 2026-07-25 re-fly showed the camera terminal does NOT beat a well-aimed open-loop dash (3/8, 1/8, 4/8 vs its dash-only twins at 0/5/15 deg aim error). If a perfect cue supplies the dominant lever and the seeker adds ~nothing on top, the seeker is decoration and the headline collapses to 'a ballistic solution to a known trajectory'.",
+   "loc_b": "docs/flight_plan_candidates.md RESULTS 2026-07-25 (re-fly table); ADR-0080/0083; project_state.json stage 'terminal' note",
+   "current_truth": "UNRESOLVED — raised by the builder 2026-07-25, logged same turn, resolution is his call. The split: (a) DEFENSIBLE — an external cue is ARCHITECTURAL, not cheating (GOALS.md: 'cheap, sensor-agnostic interceptors CUED BY SMARTER SENSORS'), and the no-datalink property (nothing steers the interceptor mid-course but its own camera) is real and audit-enforced; the trigger-instant CAMERA BEARING LATCH is a genuine onboard measurement and is already C1-PRIMARY. (b) NOT DEFENSIBLE — a cue with zero error. The target's VELOCITY (for the lead solve) is currently ground truth by construction. CANDIDATE RESOLUTIONS, none adopted: (1) report performance over a realistic CUE-ERROR DISTRIBUTION instead of headlining the perfect-aim number (the AE5/AE15 aim-error arms are already this experiment, and the project ALREADY had cue-error machinery — modeled sigma/latency tiers — that the coded-dash pivot dropped as sim-only); (2) estimate the target's cross-track velocity ONBOARD pre-launch (two camera bearings over a short static observation window + the box-size range => bearing rate => velocity) so the lead is measured, not typed; (3) accept the operator-entered ROUGH cue (speed/heading to the nearest ~10-20%) as the honest ground-cue analogue and budget its error explicitly in §3. Whichever is chosen, the perfect-aim 0.71 m must be reported as a BEST-CASE UPPER BOUND, not the headline claim."
   }
  ]
 }</script>
