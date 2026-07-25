@@ -101,6 +101,8 @@ def _make_detector(quad_decimate):
         from pupil_apriltags import Detector
     except ImportError:  # aarch64: pyapriltags drop-in (docs/pi_emulation_check.md)
         from pyapriltags import Detector
+    from pi_capture import _neutralize_detector_del
+    _neutralize_detector_del(Detector)
     det = Detector(families="tag36h11", quad_decimate=key)
     _DETECTOR_CACHE[key] = det
     return det

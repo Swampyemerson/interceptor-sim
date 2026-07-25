@@ -211,9 +211,32 @@ def _make_detector(quad_decimate=DEFAULT_QUAD_DECIMATE):
         # API-identical drop-in but does NOT alias the module name (proven on
         # real pixels under qemu — docs/pi_emulation_check.md, 2026-07-20).
         from pyapriltags import Detector
+    _neutralize_detector_del(Detector)
     det = Detector(families=TAG_FAMILY, quad_decimate=key)
     _DETECTOR_CACHE[key] = det
     return det
+
+
+_DEL_NEUTRALIZED = False
+
+
+def _neutralize_detector_del(Detector):
+    """Stop the native Detector.__del__ from ever running. pupil_apriltags'
+    C destructor (bindings.py) SIGSEGV/SIGABRTs when it runs — mid-process on
+    lifecycle churn AND at interpreter shutdown when a cached Detector is torn
+    down (measured on CI: the offline suite aborts at teardown even with the
+    cache). The detector then leaks its native handle, which is harmless: our
+    processes are short-lived (one detector per flight / CLI run; pytest exits
+    immediately after). Idempotent; a C type that refuses the assignment falls
+    back to cache-only (still a large improvement)."""
+    global _DEL_NEUTRALIZED
+    if _DEL_NEUTRALIZED:
+        return
+    try:
+        Detector.__del__ = lambda self: None
+    except (AttributeError, TypeError):
+        pass
+    _DEL_NEUTRALIZED = True
 
 
 def tag_incidence_deg(pose_R, pose_t):

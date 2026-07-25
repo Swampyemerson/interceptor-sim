@@ -122,6 +122,7 @@ if HERE not in sys.path:
 # imports only the stdlib at module scope, so this is safe under .venv-seeker too.
 from pi_capture import (  # noqa: E402
     DEFAULT_QUAD_DECIMATE,
+    _neutralize_detector_del,
     tag_incidence_deg,
 )
 
@@ -519,6 +520,7 @@ def _make_detector(quad_decimate=DEFAULT_QUAD_DECIMATE):
         from pupil_apriltags import Detector
     except ImportError:  # aarch64: pyapriltags drop-in (docs/pi_emulation_check.md)
         from pyapriltags import Detector
+    _neutralize_detector_del(Detector)
     det = Detector(families="tag36h11", quad_decimate=key)
     _DETECTOR_CACHE[key] = det
     return det
