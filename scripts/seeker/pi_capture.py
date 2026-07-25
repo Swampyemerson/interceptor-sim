@@ -70,6 +70,18 @@ layout, so keep it stable):
     the predicted decode range), so this measurement is load-bearing. A
     dir-replay session publishes NO stream_fps — its timestamps are synthetic.
 
+    TWO RATES, NOT ONE (2026-07-25). `stream_fps` is the RECORDER LOOP rate: it
+    includes a per-frame PNG write the flight loop never pays, and with tag
+    decode off it pays no decode cost at all. The gate's burn model wants the
+    ONBOARD DECODE cadence, so `decode_loop_fps` is recorded separately as the
+    WRITE-EXCLUSIVE grab+decode rate whenever --decode-tags is on. Neither is the
+    flying Pi 5 at the flight quad_decimate — that is the protocol §7.3 bench,
+    passed to the scorer explicitly with --stream-fps.
+
+    CRASH-SAFE: meta.json is written from a `finally`, so a Ctrl-C'd (or
+    SIGTERM'd) pass is still scorable and self-labels `terminated_early` /
+    `capture_truncated`.
+
     tags.csv columns (only written when --decode-tags):
       frame_idx, frame_path, n_tags, tag_id, decision_margin, hamming,
       center_u, center_v, corners_px, range_m
@@ -78,7 +90,7 @@ layout, so keep it stable):
 
 autolabel_from_apriltag.py consumes it directly:
     scripts/seeker/autolabel_from_apriltag.py --frames SESSION_DIR/frames \
-        --calib calib.json --tag-size 0.30 --drone-size 0.35 --out DATASET
+        --calib calib.json --tag-size 0.35 --drone-size 0.35 --out DATASET
 ============================================================================
 
 BACKENDS (--source):
@@ -97,7 +109,7 @@ BACKENDS (--source):
 Usage:
     # real field capture on the Pi (300 frames at <=1 ms exposure, tag decode on)
     scripts/seeker/pi_capture.py --source picamera2 --out sessions/pass01 \
-        --n-frames 300 --exposure-us 1000 --calib calib.json --tag-size 0.30
+        --n-frames 300 --exposure-us 1000 --calib calib.json --tag-size 0.35
     # replay dev frames through the exact same pipeline (no hardware)
     scripts/seeker/pi_capture.py --source dir=/path/to/frames --out /tmp/sess
     scripts/seeker/pi_capture.py --self-test   # offline, exits 0/1, no hardware
@@ -375,9 +387,21 @@ def _git_rev():
 
 def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                    requested_exposure_us, requested_gain, decode_tags,
-                   cam_params, tag_size, run_tag):
+                   cam_params, tag_size, run_tag, requested_n_frames=None):
     """Drive a backend's Frame stream to disk in the documented layout. Returns
-    the meta dict."""
+    the meta dict.
+
+    CRASH-SAFE FINALIZATION (2026-07-25, review 2 BLOCKER). meta.json used to be
+    written only AFTER the frame loop completed, and nothing caught
+    KeyboardInterrupt -- yet Ctrl-C is the DOCUMENTED way to end a live capture
+    (see main()'s --n-frames help). A Ctrl-C'd pass therefore left frames/ and
+    index.csv but NO meta.json, which destroys the measured stream_fps (the money
+    gate's divisor), tag_size_m (every tag-recovered range scales linearly in
+    it), the exposure verification and n_frames -- for a capture whose pixels are
+    sitting right there. camera_session_summary then exits 2 ("not a pi_capture
+    session") and tripod_score falls back to defaults. meta.json is now written
+    from a `finally`, so SIGINT, SIGTERM, SystemExit and normal exit all produce
+    a scorable session, self-labelled with `terminated_early`."""
     import cv2  # for imwrite; already imported by the backend, cheap re-import
 
     frames_dir = os.path.join(out_dir, "frames")
@@ -388,9 +412,12 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
     detector = _make_detector() if decode_tags else None
     applied_exps, applied_gains = [], []
     t_monos = []   # for the MEASURED stream_fps (see _fps_stats)
+    decode_loop_dts = []   # grab->decode-done, PNG write EXCLUDED (see below)
     n = 0
     n_tag_frames = 0
     actual_w, actual_h = w, h  # overwritten with the real saved-frame shape below
+    terminated_early = False
+    early_reason = None
 
     idx_f = open(index_path, "w", newline="")
     idx_w = csv.writer(idx_f)
@@ -401,11 +428,65 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
         tag_w = csv.writer(tag_f)
         tag_w.writerow(TAGS_HEADER)
 
+    def _median(xs):
+        if not xs:
+            return None
+        s = sorted(xs)
+        m = len(s) // 2
+        return s[m] if len(s) % 2 else 0.5 * (s[m - 1] + s[m])
+
+    def _build_meta():
+        applied_exp_med = _median(applied_exps)
+        fps_med, fps_slow, dt_med = _fps_stats(t_monos)
+        live = source in ("picamera2", "v4l2")
+        if live and fps_med:
+            fps_out, fps_src = fps_med, (
+                "measured: median inter-frame dt (t_mono_s) -- RECORDER LOOP, "
+                "INCLUDES the per-frame PNG write the flight loop never pays")
+        elif fps_med:
+            # The dir-REPLAY backend stamps SYNTHETIC timestamps (frame_idx /
+            # --replay-fps), so its cadence is not a capture-rate measurement.
+            # Report it, but never as `stream_fps` -- the tripod gate refuses a
+            # `replay` source outright (tripod_score.resolve_stream_fps).
+            fps_out, fps_src = None, ("replay-synthetic (NOT a capture-rate "
+                                      f"measurement; synthetic {fps_med:.2f} fps)")
+        else:
+            fps_out, fps_src = None, "unavailable (too few timestamped frames)"
+        # decode_loop_fps: the WRITE-EXCLUSIVE grab+decode cadence -- the quantity
+        # the money gate's burn model actually needs (review 2). stream_fps is a
+        # DIFFERENT experiment: it is disk-bound. Only meaningful when the decode
+        # really ran in the loop.
+        dec_dt_med = _median(decode_loop_dts) if decode_tags else None
+        dec_fps = (round(1.0 / dec_dt_med, 3)
+                   if dec_dt_med and dec_dt_med > 0 else None)
+        meta = _meta_dict(fps_out, fps_src, fps_slow, dt_med, dec_fps, dec_dt_med,
+                          applied_exp_med, _median(applied_gains))
+        return meta
+
+    def _meta_dict(fps_out, fps_src, fps_slow, dt_med, dec_fps, dec_dt_med,
+                   applied_exp_med, applied_gain_med):
+        return _make_meta_dict(
+            run_tag=run_tag, source=source, backend_detail=backend_detail,
+            actual_w=actual_w, actual_h=actual_h, w=w, h=h, n=n,
+            decode_tags=decode_tags, n_tag_frames=n_tag_frames,
+            requested_exposure_us=requested_exposure_us,
+            applied_exp_med=applied_exp_med, applied_exps=applied_exps,
+            requested_gain=requested_gain, applied_gain_med=applied_gain_med,
+            fps_out=fps_out, fps_src=fps_src, fps_slow=fps_slow, dt_med=dt_med,
+            dec_fps=dec_fps, dec_dt_med=dec_dt_med, cam_params=cam_params,
+            tag_size=tag_size, requested_n_frames=requested_n_frames,
+            terminated_early=terminated_early, early_reason=early_reason)
+
+    meta = None
     try:
         for fr in frames_iter:
             if fr.gray is None:
                 continue
             rel = os.path.join("frames", f"{n:06d}.png")
+            t_loop0 = time.perf_counter()
+            if decode_tags:
+                dets = _decode(detector, fr.gray, cam_params, tag_size)
+                decode_loop_dts.append(time.perf_counter() - t_loop0)
             if not cv2.imwrite(os.path.join(out_dir, rel), fr.gray):
                 raise SystemExit(f"[pi_capture] failed to write {rel}")
             actual_h, actual_w = fr.gray.shape[:2]  # honest: report what was saved
@@ -423,38 +504,48 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
             if fr.gain is not None:
                 applied_gains.append(float(fr.gain))
             if decode_tags:
-                dets = _decode(detector, fr.gray, cam_params, tag_size)
                 if dets:
                     n_tag_frames += 1
                 for row in _tag_rows(n, rel, dets):
                     tag_w.writerow(row)
             n += 1
+            # Flush every 30 rows: a hard kill then costs at most one row of
+            # index.csv/tags.csv instead of a whole buffer (measured 25).
+            if n % 30 == 0:
+                idx_f.flush()
+                if tag_f is not None:
+                    tag_f.flush()
+    except KeyboardInterrupt:
+        terminated_early, early_reason = True, "KeyboardInterrupt (Ctrl-C/SIGINT)"
+        print(f"\n[pi_capture] interrupted after {n} frames -- finalizing the "
+              f"session (meta.json IS written)", file=sys.stderr)
+    except BaseException as e:   # SystemExit, backend death, anything
+        terminated_early = True
+        early_reason = f"{type(e).__name__}: {e}"
+        raise
     finally:
         idx_f.close()
         if tag_f is not None:
             tag_f.close()
+        # THE FIX: meta.json is written on EVERY exit path (normal, Ctrl-C,
+        # SIGTERM-turned-KeyboardInterrupt, exception) so an interrupted pass is
+        # still scorable. Never let a meta-write failure mask the real error.
+        try:
+            meta = _build_meta()
+            with open(os.path.join(out_dir, "meta.json"), "w") as f:
+                json.dump(meta, f, indent=2)
+        except Exception as e:   # pragma: no cover - last-ditch
+            print(f"[pi_capture] WARNING: could not write meta.json: {e}",
+                  file=sys.stderr)
+    return meta
 
-    def _median(xs):
-        if not xs:
-            return None
-        s = sorted(xs)
-        m = len(s) // 2
-        return s[m] if len(s) % 2 else 0.5 * (s[m - 1] + s[m])
 
-    applied_exp_med = _median(applied_exps)
-    fps_med, fps_slow, dt_med = _fps_stats(t_monos)
-    live = source in ("picamera2", "v4l2")
-    if live and fps_med:
-        fps_out, fps_src = fps_med, "measured: median inter-frame dt (t_mono_s)"
-    elif fps_med:
-        # The dir-REPLAY backend stamps SYNTHETIC timestamps (frame_idx /
-        # --replay-fps), so its cadence is not a capture-rate measurement. Report
-        # it, but never as `stream_fps` -- the tripod gate refuses a `replay`
-        # source outright (tripod_score.resolve_stream_fps).
-        fps_out, fps_src = None, ("replay-synthetic (NOT a capture-rate "
-                                  f"measurement; synthetic {fps_med:.2f} fps)")
-    else:
-        fps_out, fps_src = None, "unavailable (too few timestamped frames)"
+def _make_meta_dict(*, run_tag, source, backend_detail, actual_w, actual_h, w, h,
+                    n, decode_tags, n_tag_frames, requested_exposure_us,
+                    applied_exp_med, applied_exps, requested_gain,
+                    applied_gain_med, fps_out, fps_src, fps_slow, dt_med,
+                    dec_fps, dec_dt_med, cam_params, tag_size,
+                    requested_n_frames, terminated_early, early_reason):
     meta = {
         "session": run_tag,
         "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -471,20 +562,43 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
         "exposure_source": ("sensor-metadata" if applied_exps else
                             ("replay-unknown" if source == "dir" else "unavailable")),
         "requested_gain": float(requested_gain),
-        "applied_gain": _median(applied_gains),
-        # MEASURED capture rate -- the tripod money gate consumes this
+        "applied_gain": applied_gain_med,
+        # MEASURED RECORDER-LOOP rate -- the tripod money gate consumes this
         # (tripod_score.resolve_stream_fps) and REFUSES to invent one, because
         # R_streak_burn = (E[T]/stream_fps) x V_closing flips the ~$740 verdict
         # across ~24 fps at the predicted R_decode90 (tripod_score docstring).
+        # HONEST SCOPE (2026-07-25): this is the DISK-BOUND recorder throughput
+        # -- it pays a per-frame PNG write the flight loop never pays. It is NOT
+        # the onboard decode cadence. Use decode_loop_fps below, or better, the
+        # protocol §7.3 Pi 5 bench at the flying quad_decimate.
         "stream_fps": fps_out,
         "stream_fps_source": fps_src,
         "stream_fps_p10_slow_tail": fps_slow,   # conservative rate for the gate
         "frame_dt_median_s": dt_med,
+        # WRITE-EXCLUSIVE grab+decode cadence: the quantity the burn model
+        # actually models. Only present when the decode really ran in the loop.
+        "decode_loop_fps": dec_fps,
+        "decode_loop_dt_median_s": (round(dec_dt_med, 6)
+                                    if dec_dt_med is not None else None),
+        "decode_loop_fps_source": (
+            "measured: median AprilTag decode wall-time per frame, PNG WRITE "
+            "EXCLUDED (the modelled handoff cadence; still this rig's CPU, not "
+            "the flying Pi 5 -- protocol §7.3)" if dec_fps else
+            "not measured (tag decode was OFF in this capture)"),
         "exposure_spec_us": EXPOSURE_SPEC_US,
         "exposure_meets_spec": (None if applied_exp_med is None
                                 else bool(applied_exp_med <= EXPOSURE_SPEC_US)),
         "calib": cam_params is not None,
         "tag_size_m": tag_size,
+        # Request-vs-delivered for the FRAME COUNT (meta already does this for
+        # resolution/exposure/gain). A pass that died 12 frames into a 300-frame
+        # request must be self-labelling AFTER the field window closes.
+        "requested_n_frames": requested_n_frames,
+        "capture_truncated": bool(
+            (requested_n_frames is not None and n < requested_n_frames)
+            or terminated_early),
+        "terminated_early": bool(terminated_early),
+        "terminated_early_reason": early_reason,
         "git_rev": _git_rev(),
         "frames_dir": "frames",
         "index_csv": "index.csv",
@@ -493,9 +607,24 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                  "(sanctioned: calibration/auto-labels/baseline seeker), not a "
                  "guidance input (CLAUDE.md honesty boundary)."),
     }
-    with open(os.path.join(out_dir, "meta.json"), "w") as f:
-        json.dump(meta, f, indent=2)
     return meta
+
+
+def _install_sigterm_handler():
+    """Turn SIGTERM into KeyboardInterrupt so `systemctl stop` / `kill` unwinds
+    through record_session's finally and STILL writes meta.json, instead of hard-
+    killing the process and destroying the session's metadata (review 2). SIGINT
+    already raises KeyboardInterrupt. Best-effort: a non-main thread cannot
+    install handlers, and that is not a reason to fail a capture."""
+    import signal
+
+    def _raise(_signum, _frame):
+        raise KeyboardInterrupt("SIGTERM")
+
+    try:
+        signal.signal(signal.SIGTERM, _raise)
+    except (ValueError, AttributeError, OSError):   # pragma: no cover
+        pass
 
 
 def _load_cam_params(calib_path):
@@ -530,11 +659,22 @@ def capture(args):
     if args.tag_size and cam_params is None and args.decode_tags:
         print("[pi_capture] NOTE: --tag-size given without --calib; decode is "
               "presence-only (no range_m in tags.csv)", file=sys.stderr)
+    # Only for a LIVE capture: a dir-replay desk rehearsal has no placard, so
+    # warning there would be noise the operator learns to ignore.
+    if args.decode_tags and not args.tag_size and source in ("picamera2", "v4l2"):
+        print(f"[pi_capture] WARNING: live capture with tag decode but no "
+              f"--tag-size. tags.csv will carry NO range_m and meta.json's "
+              f"tag_size_m will be null, so the scorer falls back to a default "
+              f"and every tag-recovered range scales by the wrong edge. The "
+              f"ADOPTED placard is 0.350 m (docs/placard_mount.md §2) -- pass "
+              f"--tag-size 0.35.", file=sys.stderr)
     os.makedirs(args.out, exist_ok=True)
+    _install_sigterm_handler()
     meta = record_session(
         backend, args.out, source, detail, args.width, args.height,
         args.exposure_us, args.gain, args.decode_tags,
-        cam_params if args.tag_size else None, args.tag_size, args.run_tag)
+        cam_params if args.tag_size else None, args.tag_size, args.run_tag,
+        requested_n_frames=args.n_frames)
 
     print(f"[pi_capture] wrote {meta['n_frames']} frames -> {args.out}")
     print(f"[pi_capture]   index.csv + meta.json"
@@ -547,6 +687,21 @@ def capture(args):
     else:
         print(f"[pi_capture]   exposure: {meta['exposure_source']} "
               f"(requested {meta['requested_exposure_us']} us)")
+    if meta.get("decode_loop_fps"):
+        print(f"[pi_capture]   rates: stream_fps={meta['stream_fps']} "
+              f"(recorder loop, PNG write INCLUDED) | "
+              f"decode_loop_fps={meta['decode_loop_fps']} (grab+decode, write "
+              f"EXCLUDED -- the quantity the money gate models)")
+    if meta["capture_truncated"]:
+        # A short capture is an ERROR, not a success with fewer frames: the
+        # camera wedging 12 frames into a 300-frame pass used to print "wrote 12
+        # frames" and exit 0, and the field check graded --min-frames 1.
+        print(f"[pi_capture] TRUNCATED: {meta['n_frames']} frames of "
+              f"{meta['requested_n_frames']} requested"
+              + (f" ({meta['terminated_early_reason']})"
+                 if meta["terminated_early_reason"] else "")
+              + f" -- backend {source} ended early", file=sys.stderr)
+        return 1
     return 0 if meta["n_frames"] > 0 else 1
 
 
@@ -639,7 +794,13 @@ def self_test():
         meta = json.load(f)
     required = ["source", "resolution", "n_frames", "family",
                 "requested_exposure_us", "applied_exposure_us", "exposure_source",
-                "exposure_spec_us", "tag_decode", "git_rev", "note"]
+                "exposure_spec_us", "tag_decode", "git_rev", "note",
+                # 2026-07-25: tag_size_m is what every tag-recovered range scales
+                # by; decode_loop_fps is the quantity the money gate models;
+                # capture_truncated / terminated_early make a short or
+                # interrupted pass self-labelling instead of merely incomplete.
+                "tag_size_m", "decode_loop_fps", "requested_n_frames",
+                "capture_truncated", "terminated_early"]
     check(all(k in meta for k in required),
           f"meta.json has all required keys {required}")
     check(meta["source"] == "dir" and meta["n_frames"] == n_expected,
@@ -677,6 +838,55 @@ def self_test():
     ranged = [float(r["range_m"]) for r in decoded if r["range_m"]]
     check(ranged and all(1.0 < v < 12.0 for v in ranged),
           f"decoded tag range_m populated + sane ({['%.2f' % v for v in ranged]})")
+    # decode_loop_fps is the WRITE-EXCLUSIVE grab+decode cadence -- the quantity
+    # the money gate models. It must exist (decode ran) and be a plausible rate.
+    check(isinstance(meta["decode_loop_fps"], (int, float))
+          and meta["decode_loop_fps"] > 0
+          and meta["decode_loop_fps"] != meta["stream_fps"],
+          f"decode_loop_fps measured separately from stream_fps "
+          f"({meta['decode_loop_fps']} vs {meta['stream_fps']})")
+    check(meta["capture_truncated"] is False and meta["terminated_early"] is False,
+          "a complete capture is NOT flagged truncated")
+
+    # --- CRASH-SAFE FINALIZATION (2026-07-25, review 2 BLOCKER) --------------
+    # Ctrl-C is the DOCUMENTED way to end a live capture, and it used to kill the
+    # session before meta.json existed -- destroying stream_fps (the money gate's
+    # divisor), tag_size_m, and the exposure verification for a capture whose
+    # pixels were already on disk. A KeyboardInterrupt mid-stream must still
+    # produce a scorable, self-labelling session.
+    def _interrupting_frames(k):
+        t = 0.0
+        for i in range(k):
+            gray = np.zeros((16, 16), dtype=np.uint8)
+            yield Frame(gray, t, 1_752_700_000.0 + t, None, None)
+            t += 0.05
+        raise KeyboardInterrupt("simulated Ctrl-C")
+
+    sess_ki = os.path.join(work, "session_ctrlc")
+    os.makedirs(sess_ki, exist_ok=True)
+    meta_ki = record_session(_interrupting_frames(4), sess_ki, "v4l2", {}, 16, 16,
+                             DEF_EXPOSURE_US, 1.0, False, None, None, "ctrlc",
+                             requested_n_frames=300)
+    ki_path = os.path.join(sess_ki, "meta.json")
+    check(os.path.exists(ki_path),
+          "Ctrl-C mid-capture STILL writes meta.json (the money gate's inputs "
+          "survive an interrupted pass)")
+    if os.path.exists(ki_path):
+        with open(ki_path) as f:
+            m2 = json.load(f)
+        check(m2["n_frames"] == 4 and m2["terminated_early"] is True
+              and m2["capture_truncated"] is True
+              and m2["requested_n_frames"] == 300
+              and "KeyboardInterrupt" in str(m2["terminated_early_reason"]),
+              f"interrupted session self-labels (n={m2['n_frames']}/300, "
+              f"terminated_early={m2['terminated_early']})")
+        check(m2["stream_fps"] == 20.0,
+              f"interrupted session still carries the MEASURED stream_fps "
+              f"({m2['stream_fps']} from 0.05 s frame dt)")
+        n_idx = len(open(os.path.join(sess_ki, "index.csv")).readlines()) - 1
+        check(n_idx == 4, f"index.csv holds every captured frame ({n_idx}/4)")
+    check(meta_ki is not None and meta_ki["terminated_early"] is True,
+          "record_session RETURNS the meta dict on the interrupted path")
 
     shutil.rmtree(work, ignore_errors=True)
     print(f"[self-test] {'PASS' if ok else 'FAIL'}")

@@ -113,6 +113,10 @@ HANDOFF_STREAK = 5
 # refuses to invent one.
 STREAM_FPS = 30.0                      # legacy single-point (kept for provenance)
 STREAM_FPS_BAND = (30.0, 20.0, 14.0)   # 30 = as-published, 20 = deployed loop, 14 = measured tag rate
+# Per-BIN sample floor for the >=90% walk -- mirrors tripod_score.DEFAULT_MIN_BIN_N.
+# A bin holding fewer frames than this may not EXTEND the envelope: its rate is
+# not a measurement (one lucky far decode would read 1.00 on n=1).
+MIN_BIN_N = 5
 
 
 # ==========================================================================
@@ -400,15 +404,51 @@ def analyze(args):
         b = bins[lo]
         if b["dec"] > 0:
             r_any = max(r_any, lo + bin_m)   # farthest bin's upper edge with ANY decode
-    # sustained-90 walk from nearest bin outward
+    # sustained-90 walk from nearest bin outward -- STEPPED (2026-07-25, mirrors
+    # tripod_score.r90_walk). The old `for lo in los` walked only the bins that
+    # EXIST, so an unsampled range (a bin with zero frames is simply absent from
+    # `bins`) was JUMPED and the >=90% envelope kept extending into ranges the
+    # sweep never rendered; and one lucky far decode in a 1-frame bin read rate
+    # 1.00 and extended the band by a whole bin. This is the walk that produced
+    # the PUBLISHED 12 m placard-sizing number, so the stop reason is now
+    # reported next to it.
     r90 = 0.0
-    for lo in los:
-        b = bins[lo]
-        rate = b["dec"] / b["n"] if b["n"] else 0.0
-        if rate >= 0.9:
+    r90_stop = "end_of_data"
+    r90_stop_lo = None
+    n_at_r90 = 0
+    coverage_gaps = []
+    if los:
+        by_step = {int(round((lo - los[0]) / bin_m)): lo for lo in los}
+        k_max = int(round((los[-1] - los[0]) / bin_m))
+        coverage_gaps = [round(los[0] + k * bin_m, 6)
+                         for k in range(k_max + 1) if k not in by_step]
+        for k in range(k_max + 2):
+            lo = los[0] + k * bin_m
+            key = by_step.get(k)
+            if key is None:
+                r90_stop = "end_of_data" if k > k_max else "bin_absent"
+                r90_stop_lo = round(lo, 6)
+                break
+            b = bins[key]
+            if b["n"] < MIN_BIN_N:
+                r90_stop, r90_stop_lo = "bin_underpopulated", round(lo, 6)
+                break
+            rate = b["dec"] / b["n"] if b["n"] else 0.0
+            if rate < 0.9:
+                r90_stop, r90_stop_lo = "rate_below_90", round(lo, 6)
+                break
             r90 = lo + bin_m
-        else:
-            break
+            n_at_r90 = b["n"]
+    if r90_stop != "rate_below_90":
+        print(f"[validate] WARNING: R_decode90_sim = {r90:.2f} m is bounded by "
+              f"MISSING DATA ({r90_stop}"
+              + (f" at {r90_stop_lo:.1f} m" if r90_stop_lo is not None else "")
+              + ") -- it is a LOWER BOUND set by what the sweep did not sample, "
+                "not by a measured decode failure. Any placard number derived "
+                "from it inherits that caveat.")
+    for g in coverage_gaps:
+        print(f"[validate] WARNING: coverage gap at {g:.1f}-{g + bin_m:.1f} m "
+              f"(no frames) -- the >=90% walk stops at a hole, it does not jump it")
     # decode rate sustained in the R_decode90 boundary bin (for streak burn)
     r90_lo = r90 - bin_m
     rate_at_r90 = (bins[r90_lo]["dec"] / bins[r90_lo]["n"]) if r90_lo in bins and bins[r90_lo]["n"] else 0.0
@@ -424,6 +464,15 @@ def analyze(args):
         "bin_m": bin_m,
         "R_decode_any_sim_m": r_any,
         "R_decode90_sim_m": r90,
+        # Provenance of the >=90% walk (2026-07-25): only `rate_below_90` is a
+        # MEASURED cutoff; the others mean the envelope is bounded by ranges the
+        # sweep never sampled, so R_decode90_sim_m is a LOWER BOUND.
+        "R_decode90_stop_reason": r90_stop,
+        "R_decode90_stop_lo_m": r90_stop_lo,
+        "R_decode90_data_bounded": bool(r90_stop != "rate_below_90"),
+        "n_at_R_decode90_bin": n_at_r90,
+        "min_bin_n": MIN_BIN_N,
+        "coverage_gaps_m": coverage_gaps,
         "decode_rate_at_R90": round(rate_at_r90, 3),
         "tag_size_sim_m": TAG_SIZE_M,
         "mean_iou_decoded": round(float(np.mean(all_ious)), 4) if all_ious else None,

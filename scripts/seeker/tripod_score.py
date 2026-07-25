@@ -145,11 +145,19 @@ PI5_APRILTAG_FPS_PAPER_ANCHOR = 30.0
 # capture-rate measurement (pi_capture's dir-replay backend stamps synthetic
 # timestamps) and are refused as a gate input.
 FPS_SOURCE_REJECT_MARK = "replay"
-# BOM default placard: tag36h11 printed AS LARGE as the quad carries, ~0.25-0.35 m
-# (hardware_order_list.md §E line 268). 0.3 m default; a real session overrides
-# via meta.json / --tag-size. This is the AprilTag black-square edge that
-# pupil-apriltags' `tag_size` measures.
-DEFAULT_TAG_SIZE_M = 0.3
+# ADOPTED placard: tag36h11 black-square edge 0.350 m on a 0.450 m sheet
+# (docs/placard_mount.md §2 table "Tag black-square edge = 0.350 m"; the carry
+# limit from docs/placard_sizing.md §4). This is the AprilTag black-square edge
+# that pupil-apriltags' `tag_size` measures -- NOT the printed sheet.
+#
+# CORRECTED 2026-07-25 (review 2, MEDIUM "silently substitutes defaults"): this
+# constant was 0.3 while the adopted placard is 0.35, so any session whose
+# meta.json lacked tag_size_m had EVERY tag-recovered range read ~14% short
+# (range scales linearly in the assumed tag edge) -- which feeds curve (a)'s
+# accuracy column, curve (b)'s truth boxes and range_truth_join's bias test.
+# Falling back at all is still second-best: run() now also names the SOURCE of
+# the number (see tag_size_source in gate.json / the PARAMETER PROVENANCE block).
+DEFAULT_TAG_SIZE_M = 0.35
 # Target drone extent for the NN truth box (5" quad ~0.35 m; autolabel default).
 DEFAULT_DRONE_SIZE_M = 0.35
 # Markerless detector for curve (b). TWO models are scored on the SAME frames:
@@ -176,6 +184,22 @@ DEFAULT_NN_CONF = 0.25  # ADR-0058 deployed conf (project_state.json)
 # so this only guards against "essentially no data"; the small-n caveat is
 # ALWAYS printed regardless.
 DEFAULT_MIN_DECODED = 5
+
+# Per-BIN sample floor for the R_decode90 walk (2026-07-25, review 2 HIGH).
+# A range bin may not EXTEND the >=90% envelope on fewer than this many binnable
+# frames: one lucky far decode reads rate 1.00 and would push the envelope (and
+# therefore the ~$740 gate) a whole bin outward on n=1. Mirrors
+# DEFAULT_MIN_DECODED's spirit, applied per bin instead of per session.
+DEFAULT_MIN_BIN_N = 5
+
+# R_decode90 walk stop reasons. Only `rate_below_90` is a MEASURED cutoff; the
+# other three mean the envelope is bounded by MISSING DATA, which gate_verdict
+# turns into UNCERTAIN rather than PASS/FAIL (see r90_walk / gate_verdict).
+R90_STOP_RATE = "rate_below_90"
+R90_STOP_ABSENT = "bin_absent"
+R90_STOP_UNDERPOPULATED = "bin_underpopulated"
+R90_STOP_END = "end_of_data"
+R90_DATA_BOUNDED = (R90_STOP_ABSENT, R90_STOP_UNDERPOPULATED, R90_STOP_END)
 
 _RANGE_RE = re.compile(r"_r(\d+\.?\d*)_")   # synth_tag_frames / resolution_probe convention
 _TRUE = ("1", "true", "yes", "t")
@@ -361,13 +385,34 @@ def quality_summary(frames, index_map):
 # --------------------------------------------------------------------------
 # AprilTag decode (curve a raw input)
 # --------------------------------------------------------------------------
-def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False):
+def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
+                  allow_partial_tags=False):
     """Per-frame AprilTag decode -> {basename: (decoded, tag_range_m, u, v, n)}.
     Reuses a provided tags.csv (tags_map) verbatim; otherwise decodes the frames
-    with pupil-apriltags (undistorting first, like autolabel_from_apriltag)."""
+    with pupil-apriltags (undistorting first, like autolabel_from_apriltag).
+
+    PARTIAL-COVERAGE REFUSAL (2026-07-25, review 2). A frame with no tags.csv row
+    scores as NOT DECODED, so a tags.csv truncated by an interrupted capture or a
+    partial copy silently converts its missing (typically NEAR, high-rate) frames
+    into decode FAILURES -- deflating curve (a), collapsing R_decode90 and moving
+    the ~$740 gate, with no error. The join is now held to range_truth_join's
+    standard: refuse unless every frame is covered. `--allow-partial-tags` is the
+    deliberate escape hatch and stamps the count into the summary."""
     fx, fy, cx, cy, w, h, dist = calib
     results = {}
     if tags_map is not None:
+        missing = [b for _, b in frames if b not in tags_map]
+        if missing and not allow_partial_tags:
+            raise SystemExit(
+                f"[tripod] REFUSED: tags.csv covers {len(frames) - len(missing)} of "
+                f"{len(frames)} frames (first missing: {missing[0]}). Uncovered "
+                f"frames would score as decode FAILURES and silently deflate curve "
+                f"(a). Re-copy the session, re-run with --redecode, or accept the "
+                f"deflation explicitly with --allow-partial-tags.")
+        if missing and not quiet:
+            print(f"[tripod] [WARN] --allow-partial-tags: {len(missing)} of "
+                  f"{len(frames)} frames have NO tags.csv row and are scored as "
+                  f"decode FAILURES")
         for _, base in frames:
             row = tags_map.get(base)
             if row is None:
@@ -393,8 +438,9 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False):
             results[base] = (dec, _tag_row_range(row), u, v, n_tags)
         if not quiet:
             n_dec = sum(1 for r in results.values() if r[0])
+            # Disambiguate: "row absent" must never read as "tag not decoded".
             print(f"[tripod] curve(a): reused provided tags.csv "
-                  f"({n_dec}/{len(frames)} frames decoded)")
+                  f"({n_dec} decoded / {len(missing)} no-row / {len(frames)} frames)")
         return results
 
     import cv2
@@ -435,7 +481,70 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False):
 # --------------------------------------------------------------------------
 # Curve (a): decode envelope
 # --------------------------------------------------------------------------
-def curve_a(frames, decode, index_map, bin_m, max_m, accept_quality=None):
+def r90_walk(bins, bin_m, min_bin_n=DEFAULT_MIN_BIN_N):
+    """STEPPED >=90% walk outward from the nearest bin. Returns
+    (r90, stop_reason, stop_lo, n_at_r90_bin, coverage_gaps).
+
+    DEFECT THIS REPLACES (found 2026-07-25, review 2 HIGH; it flips the ~$740
+    gate FAIL->PASS on real data). The old walk was `for lo in sorted(bins)`,
+    which iterates only the bins that EXIST. A range bin with zero binnable
+    frames is simply ABSENT from the dict -- a coverage hole (a GPS/telemetry
+    dropout whose frames are all range_quality=gap, an occluded mid-band, or two
+    passes shot at different stations) -- so the walk JUMPED the hole and kept
+    extending R_decode90 into ranges that were never sampled. There was also no
+    per-bin sample floor, so ONE lucky far decode read rate 1.00 and extended the
+    envelope by a whole bin on n=1.
+
+    The walk now STEPS `lo += bin_m` and stops on:
+      rate_below_90        a MEASURED cutoff (the only reason that may PASS/FAIL)
+      bin_absent           coverage hole -- the next bin has no binnable frames
+      bin_underpopulated   the next bin has < min_bin_n binnable frames
+      end_of_data          walked past the farthest sampled bin
+    The last three mean the envelope is bounded by MISSING DATA, not by measured
+    decode failure -- gate_verdict returns UNCERTAIN for them (never PASS).
+
+    `coverage_gaps` lists every absent bin `lo` between the nearest and farthest
+    PRESENT bin, so verdict.txt can name the stations that need re-shooting.
+    """
+    if not bins or bin_m <= 0:
+        return 0.0, R90_STOP_END, None, 0, []
+    los = sorted(bins)
+    lo_min, lo_max = los[0], los[-1]
+    # Step index k = (lo - lo_min)/bin_m, so the walk is integer-stepped and
+    # float error in `lo_min + k*bin_m` can never fake a hole.
+    by_step = {int(round((lo - lo_min) / bin_m)): lo for lo in los}
+    k_max = int(round((lo_max - lo_min) / bin_m))
+    coverage_gaps = [round(lo_min + k * bin_m, 6)
+                     for k in range(k_max + 1) if k not in by_step]
+
+    r90 = 0.0
+    n_at_r90 = 0
+    stop_reason = R90_STOP_END
+    stop_lo = None
+    for k in range(k_max + 2):
+        lo = lo_min + k * bin_m
+        key = by_step.get(k)
+        if key is None:
+            stop_reason = R90_STOP_END if k > k_max else R90_STOP_ABSENT
+            stop_lo = round(lo, 6)
+            break
+        n_dec, n_tot, _ = bins[key]
+        if n_tot < min_bin_n:
+            # Underpopulated BEFORE rate: a rate measured on n<min_bin_n is not
+            # a measurement, so it may neither extend the envelope (the old n=1
+            # inflation) nor stand as the measured cutoff that permits PASS/FAIL.
+            stop_reason, stop_lo = R90_STOP_UNDERPOPULATED, round(lo, 6)
+            break
+        if not n_tot or (n_dec / n_tot) < 0.9:
+            stop_reason, stop_lo = R90_STOP_RATE, round(lo, 6)
+            break
+        r90 = lo + bin_m
+        n_at_r90 = n_tot
+    return r90, stop_reason, stop_lo, n_at_r90, coverage_gaps
+
+
+def curve_a(frames, decode, index_map, bin_m, max_m, accept_quality=None,
+            min_bin_n=DEFAULT_MIN_BIN_N):
     """Bin decode success by TRUE range. Returns (bins, R_decode_any,
     R_decode90, accuracy_rows, n_binnable, n_unbinnable).
 
@@ -444,7 +553,9 @@ def curve_a(frames, decode, index_map, bin_m, max_m, accept_quality=None):
       R_decode90    farthest range where the decode rate SUSTAINS >=90% inward
                     (protocol §7.1) -- the outer edge of the contiguous
                     >=90% region starting from the nearest bin (0.0 if even the
-                    nearest bin is <90%).
+                    nearest bin is <90%). See r90_walk() for the stop rules and
+                    for the coverage-hole defect they close; call r90_walk()
+                    directly when the stop REASON is needed (run() does).
     """
     bins = {}
     acc = []
@@ -467,14 +578,9 @@ def curve_a(frames, decode, index_map, bin_m, max_m, accept_quality=None):
                 cell[2].append(drange)
                 acc.append((gr, drange))
 
-    # R_decode90: walk bins from nearest outward while rate >= 0.9.
-    r90 = 0.0
-    for lo in sorted(bins):
-        n_dec, n_tot, _ = bins[lo]
-        if n_tot and (n_dec / n_tot) >= 0.9:
-            r90 = lo + bin_m
-        else:
-            break
+    # R_decode90: STEPPED walk outward -- stops on a coverage hole or an
+    # underpopulated bin instead of jumping them (r90_walk docstring).
+    r90 = r90_walk(bins, bin_m, min_bin_n=min_bin_n)[0]
     return bins, r_any, r90, acc, n_binnable, n_unbinnable
 
 
@@ -524,7 +630,8 @@ def _streak_burn_frames(p, k):
 
 def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
                  tgo_min, n_decoded=None, min_decoded=DEFAULT_MIN_DECODED,
-                 have_truth=True):
+                 have_truth=True, r90_stop_reason=R90_STOP_RATE,
+                 r90_stop_lo=None, n_at_r90_bin=None):
     """Apply the curve-(a) money gate (protocol §8.1 / NEXT.md R5):
 
         R_streak_burn = (E[T] / stream_fps) × V_closing   [run-length, ADR-0079]
@@ -561,6 +668,16 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     per-session streak-formation range (protocol §8.1) is the preferred input when
     a real session provides it; this analytic gate is the fallback.
     Reproduce the comparison: scripts/seeker/streak_burn_derivation.py
+
+    R_decode90 MUST BE MEASURED, NOT MISSING (2026-07-25, review 2 HIGH).
+    `r90_stop_reason` says WHY the >=90% walk stopped (see r90_walk). Only
+    `rate_below_90` is a measured cutoff -- the tag was tried at that range and
+    failed. `bin_absent` / `bin_underpopulated` / `end_of_data` mean the band
+    ends where the SESSION ends, so R_decode90 is a lower bound set by what was
+    never shot, and the honest verdict is UNCERTAIN ("re-shoot that station"),
+    never PASS. Default is `rate_below_90` so a programmatic caller passing a
+    hand-built r90 (the self-tests, the pure-arithmetic unit tests) keeps the
+    pre-2026-07-25 behaviour.
     """
     fps_ok = stream_fps is not None and stream_fps > 0
     decode_hz = decode_rate * stream_fps if fps_ok else None
@@ -576,17 +693,43 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     t_go = ((r90 - r_streak_burn) / v_closing
             if (fps_ok and v_closing > 0) else float("-inf"))
 
+    data_bounded = r90_stop_reason in R90_DATA_BOUNDED
+    _where = f"{r90_stop_lo:.2f} m" if r90_stop_lo is not None else f"{r90:.2f} m"
+    _bounded_reason = {
+        R90_STOP_ABSENT: (
+            f"the >=90% band ends at a COVERAGE HOLE: the bin starting {_where} "
+            f"holds ZERO binnable frames, so R_decode90={r90:.2f} m is bounded by "
+            f"what was never shot, not by a measured decode failure. RE-SHOOT that "
+            f"station (or re-run with --max-range at the last sampled bin)."),
+        R90_STOP_UNDERPOPULATED: (
+            f"the >=90% band ends at an UNDERPOPULATED bin starting {_where} "
+            f"(< the --min-bin-n floor), so its rate is not a measurement and "
+            f"R_decode90={r90:.2f} m is a lower bound. RE-SHOOT that station."),
+        R90_STOP_END: (
+            f"the >=90% band ran off the END OF THE DATA at {_where} -- every "
+            f"sampled bin sustained >=90%, so R_decode90={r90:.2f} m is a lower "
+            f"bound set by the farthest station shot, not by the tag's ceiling. "
+            f"Shoot a FARTHER station to find the real cutoff."),
+    }.get(r90_stop_reason, "")
+
     if not have_truth:
         verdict, reason = "UNCERTAIN", "no TRUE ranges in the session (index.csv true_range_m / filename _r_) -- cannot bin curve (a). Run scripts/seeker/range_truth_join.py first (target log + surveyed tripod position -> true_range_m)."
     elif n_decoded is not None and n_decoded < min_decoded:
         verdict, reason = "UNCERTAIN", (f"only {n_decoded} decoded frame(s) < data floor {min_decoded} -- too thin to decide")
-    elif r90 <= 0:
+    elif r90 <= 0 and not data_bounded:
         # No bin sustained >=90%: the tag never forms a handoff-quality stream.
         # This leg is fps-INDEPENDENT, so it is decided before the fps check.
         verdict = "FAIL" if r_any > 0 else "UNCERTAIN"
         reason = ("no range bin sustains >=90% decode (R_decode90=0) -- "
                   + ("sparse decodes exist but no clean handoff band"
                      if r_any > 0 else "the tag never decoded"))
+    elif data_bounded:
+        # MISSING DATA, not a measured cutoff -> never PASS (review 2 HIGH).
+        # This leg is fps-INDEPENDENT and is decided before the fps check: no
+        # frame rate can rescue an envelope whose outer edge was never sampled.
+        verdict, reason = "UNCERTAIN", _bounded_reason
+        if n_at_r90_bin is not None:
+            reason += f" [n at the last sustaining bin = {n_at_r90_bin}]"
     elif not fps_ok:
         verdict, reason = "UNCERTAIN", (
             "MISSING MEASUREMENT: capture/decode stream_fps. The streak burn is "
@@ -609,12 +752,17 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
             f"UNKNOWN -- stream_fps NOT SUPPLIED\n"
             f"t_go = (R_decode90 {r90:.2f} m - R_streak_burn ?) / {v_closing:.1f} m/s "
             f"= UNCOMPUTABLE\n"
-            f"gate: -> {verdict} ({'fps-independent' if r90 <= 0 else 'needs the fps measurement'})"
+            f"gate: -> {verdict} "
+            f"({'fps-independent' if (r90 <= 0 or data_bounded) else 'needs the fps measurement'})"
         ) if math.isfinite(e_frames) else (
             f"decode_rate p = {decode_rate:.3f} -> streak never forms -> {verdict}")
         return {
             "verdict": verdict, "reason": reason,
             "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
+            "r90_stop_reason": r90_stop_reason,
+            "r90_stop_lo_m": r90_stop_lo,
+            "r90_data_bounded": bool(data_bounded),
+            "n_at_r90_bin": n_at_r90_bin,
             "decode_rate": round(decode_rate, 4), "decode_Hz": None,
             "streak_burn_model": "run-length (ADR-0079)",
             "E_streak_frames": round(e_frames, 3) if math.isfinite(e_frames) else None,
@@ -640,6 +788,10 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     return {
         "verdict": verdict, "reason": reason,
         "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
+        "r90_stop_reason": r90_stop_reason,
+        "r90_stop_lo_m": r90_stop_lo,
+        "r90_data_bounded": bool(data_bounded),
+        "n_at_r90_bin": n_at_r90_bin,
         "decode_rate": round(decode_rate, 4), "decode_Hz": round(decode_hz, 3),
         "streak_burn_model": "run-length (ADR-0079)",
         "E_streak_frames": round(e_frames, 3) if math.isfinite(e_frames) else None,
@@ -692,16 +844,14 @@ def curve_b(frames, decode, calib, weights, conf, drone_size_m, bin_m, max_m,
     except Exception as e:  # onnxruntime import / session load failure
         return None, f"NN half SKIPPED: could not load the ONNX runtime/weights ({e})"
 
-    # Reuse resolution_probe's verified box-hit test (centre-in-gt + size-match).
-    try:
-        from resolution_probe import box_hits_gt
-    except ImportError:
-        def box_hits_gt(boxes, gcx, gcy, gw, gh, tol=15):
-            for _s, u, v, bw, bh in boxes:
-                if (abs(u - gcx) <= gw / 2 + tol and abs(v - gcy) <= gh / 2 + tol
-                        and gw / 3 <= bw <= 3 * gw and gh / 3 <= bh <= 3 * gh):
-                    return True
-            return False
+    # THE one box-hit gate (box_scoring is PURE -- no cv2, no onnxruntime -- so
+    # this import cannot fail for env reasons; let an ImportError be fatal).
+    # 2026-07-25: this used to import from resolution_probe (which needlessly
+    # drags in cv2 + finetuned_seeker) behind a LOCAL FALLBACK that was the
+    # pre-2026-07-21 gate verbatim -- no sec^2 widening, no gt_scale, tol=15.
+    # A silent fallback to a known-wrong scorer is exactly this file's failure
+    # class, so the fallback is deleted.
+    from box_scoring import box_hits_gt
 
     import cv2
     bins = {}
@@ -746,7 +896,21 @@ def curve_b(frames, decode, calib, weights, conf, drone_size_m, bin_m, max_m,
         if frame is None:
             n_unreadable += 1
             continue
-        hit = box_hits_gt(seeker._infer_boxes(frame), gcx, gcy, gw, gh)
+        # SESSION intrinsics, not box_scoring's SIM defaults (2026-07-25, review
+        # 2 HIGH). box_hits_gt widens the truth box by sec^2(theta) off-axis with
+        # tan(theta_x) = (gcx - cx)/fx; defaulted, that ran fx=fy=539.936,
+        # cx=640, cy=480 (the gz_x500_mono_cam @1280x960) on a REAL 1280x800
+        # 118-deg OV9281 frame (fx~=385, cy=400), under-widening the gt box by up
+        # to ~1.46x horizontally / ~1.48x vertically at the edges -- i.e. real,
+        # correctly-placed detections scored MISS on exactly the
+        # position-in-frame axis curve (b) exists to measure.
+        # gt_scale=1.0 is CORRECT here and is passed explicitly: the truth box
+        # was just projected at `drone_size_m` (the REAL target's extent, from
+        # meta.json/--drone-size), so it is already at the scoring extent --
+        # box_scoring.TARGET_EXTENT_M=0.52 is the SIM fpv_quad_enemy silhouette
+        # and must NOT be applied to real imagery of the real 5" quad.
+        hit = box_hits_gt(seeker._infer_boxes(frame), gcx, gcy, gw, gh,
+                          fx=fx, fy=fy, cx=cx, cy=cy, gt_scale=1.0)
         band = _pos_band(gcy, h or frame.shape[0], n_bands)
         key = (int(gr // bin_m) * bin_m, band)
         cell = bins.setdefault(key, [0, 0])
@@ -768,6 +932,41 @@ def bins_overall(bins):
     h = sum(c[0] for c in bins.values())
     t = sum(c[1] for c in bins.values())
     return h, t, (h / t if t else None)
+
+
+# Protocol §8.2's working threshold: ">=50% recall across the 10-25 m
+# operational band". Curve (b) can only truth frames where the TAG decoded, and
+# the tag's predicted ceiling is 7.10 m (docs/placard_sizing.md §4) -- so on a
+# real session the §8.2 cells come back EMPTY and `overall_recall` is measured
+# on a completely different (near) band.
+SECTION_8_2_BAND_M = (10.0, 25.0)
+
+
+def curve_b_band_coverage(bins, bin_m, band=SECTION_8_2_BAND_M):
+    """Is protocol §8.2 ANSWERABLE from these curve-(b) cells? (2026-07-25,
+    review 2.)
+
+    Returns a dict: n_in_band / n_total / answerable / scored_lo_m / scored_hi_m.
+    `answerable` is True only when at least one scored cell OVERLAPS the §8.2
+    band. When it is False the caller must NOT hand `overall_recall` over as the
+    §8.2 answer -- it is a number for a different range band, which is the
+    "confident, plausible, wrong" shape this whole review hunts.
+    """
+    lo_b, hi_b = band
+    n_total = sum(c[1] for c in bins.values()) if bins else 0
+    n_in = 0
+    los = []
+    for (lo, _band), cell in (bins or {}).items():
+        los.append(lo)
+        if lo < hi_b and (lo + bin_m) > lo_b:      # cell overlaps the band
+            n_in += cell[1]
+    return {
+        "band_lo_m": lo_b, "band_hi_m": hi_b,
+        "n_frames_in_band": n_in, "n_frames_scored": n_total,
+        "scored_lo_m": (min(los) if los else None),
+        "scored_hi_m": (max(los) + bin_m if los else None),
+        "answerable": bool(n_in > 0),
+    }
 
 
 def curve_b_multi(frames, decode, calib, models, conf, drone_size_m, bin_m, max_m,
@@ -919,7 +1118,8 @@ SMALL_N_CAVEAT = (
 
 def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
                   n_unbinnable, bin_m, fps_source=None, quality=None,
-                  range_truth=None):
+                  range_truth=None, param_provenance=None, coverage_gaps=None,
+                  min_bin_n=DEFAULT_MIN_BIN_N, band_coverage=None):
     L = []
     L.append("=" * 70)
     L.append("TRIPOD TWO-CURVE SCORE — build_plan P2 / docs/tripod_test_protocol.md")
@@ -942,15 +1142,36 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
         for w in range_truth.get("warnings", []):
             L.append(f"  [WARN] {w}")
     L.append(f"stream fps source: {fps_source or 'NOT SUPPLIED'}")
+    # PARAMETER PROVENANCE: absence of a line must never be the only signal that
+    # a load-bearing number came from a DEFAULT rather than from the session.
+    if param_provenance:
+        L.append("PARAMETER PROVENANCE:")
+        for k, (val, src) in sorted(param_provenance.items()):
+            L.append(f"  {k:<16} {val}   [{src}]")
     L.append("")
     L.append("--- CURVE (a): AprilTag decode envelope ---")
     L.append(f"  {'range(m)':<10}{'decode%':>9}{'n_dec':>8}{'n_tot':>8}")
     for lo in sorted(curve_a_bins):
         n_dec, n_tot, _ = curve_a_bins[lo]
         rate = 100 * n_dec / n_tot if n_tot else 0
-        L.append(f"  {f'{lo:.0f}-{lo+bin_m:.0f}':<10}{rate:>8.0f}%{n_dec:>8}{n_tot:>8}")
+        thin = "  <- n < min-bin-n, cannot extend the band" if n_tot < min_bin_n else ""
+        L.append(f"  {f'{lo:.0f}-{lo+bin_m:.0f}':<10}{rate:>8.0f}%{n_dec:>8}{n_tot:>8}{thin}")
+    for g in (coverage_gaps or []):
+        L.append(f"  [WARN] coverage gap at {g:.0f}-{g + bin_m:.0f} m "
+                 f"(no binnable frames) -- the >=90% walk STOPS at a hole, it "
+                 f"does not jump it")
     L.append(f"  R_decode_any = {gate['R_decode_any_m']:.2f} m (farthest ANY decode)")
     L.append(f"  R_decode90   = {gate['R_decode90_m']:.2f} m (farthest sustained >=90% inward)")
+    L.append(f"  R_decode90 walk stopped: {gate.get('r90_stop_reason')}"
+             + (f" at {gate['r90_stop_lo_m']:.0f} m" if gate.get("r90_stop_lo_m") is not None else "")
+             + (f"; n at the last sustaining bin = {gate['n_at_r90_bin']}"
+                if gate.get("n_at_r90_bin") is not None else ""))
+    if gate.get("r90_data_bounded"):
+        L.append("  [WARN] R_decode90 is bounded by MISSING DATA, not by a measured "
+                 "decode failure -- it is a LOWER BOUND and the gate cannot PASS on it.")
+    if gate.get("n_at_r90_bin") is not None and 0 < gate["n_at_r90_bin"] < min_bin_n:
+        L.append(f"  [WARN] R_decode90 was set by a bin with n={gate['n_at_r90_bin']} "
+                 f"(< --min-bin-n {min_bin_n})")
     L.append("")
     L.append("--- MONEY GATE (curve a -> the ~$740 Tier-2 interceptor order) ---")
     L.append(f"  conservative closing speed = {gate['V_closing_mps']:.1f} m/s (NEXT.md R5)")
@@ -969,6 +1190,24 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
     L.append("--- CURVE (b): NN approach recall (gates ONLY the Hailo/markerless phase) ---")
     for line in str(curve_b_note).splitlines() or [""]:
         L.append(f"  {line}")
+    # §8.2 ANSWERABILITY (2026-07-25, review 2): curve (b) truths only frames
+    # where the TAG decoded (ceiling ~7.10 m predicted), while §8.2's threshold
+    # is ">=50% recall across the 10-25 m band". Say so, loudly, instead of
+    # letting a reader quote overall_recall as the §8.2 answer.
+    if band_coverage is not None:
+        lo_b, hi_b = band_coverage["band_lo_m"], band_coverage["band_hi_m"]
+        if band_coverage["answerable"]:
+            L.append(f"  §8.2 answerable: {band_coverage['n_frames_in_band']} of "
+                     f"{band_coverage['n_frames_scored']} scored frames fall in the "
+                     f"{lo_b:.0f}-{hi_b:.0f} m band.")
+        else:
+            span = ("no cells scored" if band_coverage["scored_lo_m"] is None else
+                    f"{band_coverage['scored_lo_m']:.0f}-{band_coverage['scored_hi_m']:.0f} m only")
+            L.append(f"  >>> §8.2 UNANSWERABLE: 0 of {band_coverage['n_frames_scored']} "
+                     f"scored frames fall in the {lo_b:.0f}-{hi_b:.0f} m threshold band "
+                     f"({span}). The recall above is NOT the §8.2 answer -- curve (b) "
+                     f"truths only tag-decoded frames, so its far edge is curve (a)'s "
+                     f"decode ceiling. Do NOT quote overall_recall against §8.2. <<<")
     L.append("")
     L.append(SMALL_N_CAVEAT)
     return "\n".join(L)
@@ -983,18 +1222,45 @@ def resolve_stream_fps(args, meta):
     the predicted R_decode90, so an invented rate would decide ~$740.
 
     Accepted, in order: (1) an explicit --stream-fps (the one-line override for a
-    bench-measured number, protocol §7.3); (2) meta.json `stream_fps` -- UNLESS
-    `stream_fps_source` says it came from pi_capture's dir-REPLAY backend, whose
-    timestamps are synthetic and therefore not a capture-rate measurement."""
+    bench-measured number, protocol §7.3); (2) meta.json `decode_loop_fps` -- the
+    WRITE-EXCLUSIVE grab+decode cadence, which is the quantity the burn model
+    actually wants; (3) meta.json `stream_fps` -- UNLESS `stream_fps_source` says
+    it came from pi_capture's dir-REPLAY backend, whose timestamps are synthetic
+    and therefore not a capture-rate measurement.
+
+    WRONG-QUANTITY WARNING (2026-07-25, review 2). `stream_fps` is the RECORDER
+    LOOP rate: it pays a per-frame PNG write the flight loop never pays, and with
+    --no-decode-tags it pays no AprilTag decode cost at all, while the burn model
+    `R_streak_burn = (E[T]/stream_fps) x V_closing` needs the ONBOARD DECODE
+    cadence at flight time. pi_capture now records `decode_loop_fps` for exactly
+    this (write-exclusive), so it is preferred; when only `stream_fps` is
+    available the returned source string NAMES the discrepancy rather than
+    presenting a differently-measured number as the modelled one.
+    """
     if getattr(args, "stream_fps", None) is not None:
         return float(args.stream_fps), "--stream-fps (explicit; bench-measured, protocol §7.3)"
+    dec_fps = _pf(meta.get("decode_loop_fps"))
+    if dec_fps is not None and dec_fps > 0:
+        return dec_fps, ("meta.json decode_loop_fps (grab+decode, PNG-write "
+                         "EXCLUDED -- the modelled quantity; still a TRIPOD-rig "
+                         "rate, not the flying Pi 5 at the flight quad_decimate)")
     fps = _pf(meta.get("stream_fps"))
     src = str(meta.get("stream_fps_source") or "").strip()
     if fps is not None and fps > 0:
         if FPS_SOURCE_REJECT_MARK in src.lower():
             return None, (f"REJECTED meta.json stream_fps={fps} — stream_fps_source="
                           f"'{src}' is not a capture-rate measurement")
-        return fps, f"meta.json stream_fps ({src or 'source unspecified'})"
+        warn = ""
+        if not meta.get("tag_decode"):
+            warn = (" [WRONG QUANTITY: this session captured with tag decode OFF, "
+                    "so the rate carries NO decode cost -- it is a recorder "
+                    "throughput, not a decode cadence. Prefer --stream-fps <§7.3 "
+                    "Pi 5 bench at the flying quad_decimate>]")
+        elif meta.get("decode_loop_fps") is None:
+            warn = (" [DOWNGRADED: recorder-loop rate, INCLUDES the per-frame PNG "
+                    "write the flight loop never pays -> pessimistic; no "
+                    "decode_loop_fps in this session]")
+        return fps, f"meta.json stream_fps ({src or 'source unspecified'}){warn}"
     return None, ("NOT SUPPLIED — no --stream-fps and no meta.json stream_fps "
                   "(pi_capture records it from real capture timestamps; bench it "
                   "per protocol §7.3)")
@@ -1005,13 +1271,38 @@ def run(args):
         args.session_dir, ignore_tags_csv=getattr(args, "redecode", False))
     calib = load_calib(args.calib)
 
-    tag_size = args.tag_size if args.tag_size is not None else \
-        _pf(meta.get("tag_size_m")) or DEFAULT_TAG_SIZE_M
+    # PARAMETER PROVENANCE (2026-07-25, review 2): every load-bearing scalar
+    # resolves to (value, SOURCE) so verdict.txt/gate.json can say when a number
+    # came from a DEFAULT rather than from the session. `_pf(...) or DEFAULT`
+    # also silently swallowed a legitimate 0.
+    def _resolve(cli_val, meta_key, default, label):
+        if cli_val is not None:
+            return float(cli_val), f"--{label} (explicit)"
+        mv = _pf(meta.get(meta_key))
+        if mv is not None:
+            return mv, f"meta.json {meta_key}"
+        return default, "DEFAULT -- not in meta.json"
+
+    tag_size, tag_size_src = _resolve(args.tag_size, "tag_size_m",
+                                      DEFAULT_TAG_SIZE_M, "tag-size")
+    if tag_size_src.startswith("DEFAULT"):
+        print(f"[tripod] [WARN] tag_size not supplied (meta.json missing/null) -- "
+              f"using DEFAULT {tag_size:.3f} m. Capture with --tag-size so the "
+              f"session records it: every tag-recovered range scales LINEARLY in "
+              f"this number (docs/placard_mount.md §2: the ADOPTED tag edge is "
+              f"0.350 m on a 0.450 m sheet).")
     stream_fps, fps_source = resolve_stream_fps(args, meta)
-    v_close = args.closing_speed if args.closing_speed is not None else \
-        _pf(meta.get("closing_speed_mps")) or DEFAULT_V_CLOSING_MPS
-    drone_size = args.drone_size if args.drone_size is not None else \
-        _pf(meta.get("drone_size_m")) or DEFAULT_DRONE_SIZE_M
+    v_close, v_close_src = _resolve(args.closing_speed, "closing_speed_mps",
+                                    DEFAULT_V_CLOSING_MPS, "closing-speed")
+    drone_size, drone_size_src = _resolve(args.drone_size, "drone_size_m",
+                                          DEFAULT_DRONE_SIZE_M, "drone-size")
+    min_bin_n = getattr(args, "min_bin_n", DEFAULT_MIN_BIN_N)
+    param_provenance = {
+        "tag_size_m": (f"{tag_size:.3f} m", tag_size_src),
+        "drone_size_m": (f"{drone_size:.3f} m", drone_size_src),
+        "V_closing_mps": (f"{v_close:.1f} m/s", v_close_src),
+        "stream_fps": (f"{stream_fps}", fps_source),
+    }
     accept_quality = ({"ok"} if getattr(args, "require_quality", "any") == "ok"
                       else None)
 
@@ -1035,24 +1326,39 @@ def run(args):
               "pi_capture's CAPTURE-TIME decode, protocol §6 asks for an OFFLINE "
               "re-decode instead (decouples capture from detector) -- use "
               "--redecode.")
-    decode = decode_frames(frames, calib, tag_size, tags_map=tags_map)
+    decode = decode_frames(
+        frames, calib, tag_size, tags_map=tags_map,
+        allow_partial_tags=getattr(args, "allow_partial_tags", False))
     if tags_map is None:
         write_tags_csv(os.path.join(outp, "tags.csv"), frames, decode)
     bins, r_any, r90, acc, n_binnable, n_unbinnable = curve_a(
         frames, decode, index_map, args.range_bin, args.max_range,
-        accept_quality=accept_quality)
+        accept_quality=accept_quality, min_bin_n=min_bin_n)
+    r90w, r90_stop, r90_stop_lo, n_at_r90, coverage_gaps = r90_walk(
+        bins, args.range_bin, min_bin_n=min_bin_n)
+    assert abs(r90w - r90) < 1e-9, "curve_a and r90_walk disagree"
     n_decoded = sum(1 for _, b in frames if decode[b][0])
     have_truth = n_binnable > 0
     quality = quality_summary(frames, index_map)
 
     d_rate = decode_rate_near(bins, r90, args.range_bin)
+    _gate_kw = dict(n_decoded=n_decoded, min_decoded=args.min_decoded,
+                    have_truth=have_truth, r90_stop_reason=r90_stop,
+                    r90_stop_lo=r90_stop_lo, n_at_r90_bin=n_at_r90)
     gate = gate_verdict(r90, r_any, d_rate, stream_fps, args.handoff_streak,
-                        v_close, args.tgo_min, n_decoded=n_decoded,
-                        min_decoded=args.min_decoded, have_truth=have_truth)
+                        v_close, args.tgo_min, **_gate_kw)
     gate_hi = gate_verdict(r90, r_any, d_rate, stream_fps, args.handoff_streak,
-                           args.closing_speed_hi, args.tgo_min,
-                           n_decoded=n_decoded, min_decoded=args.min_decoded,
-                           have_truth=have_truth)
+                           args.closing_speed_hi, args.tgo_min, **_gate_kw)
+    for g in coverage_gaps:
+        print(f"[tripod] [WARN] coverage gap at {g:.0f}-{g + args.range_bin:.0f} m: "
+              f"NO binnable frames -- the >=90% walk stops at a hole, it does not "
+              f"jump it (re-shoot that station)")
+    if gate.get("r90_data_bounded"):
+        print(f"[tripod] [WARN] R_decode90 = {r90:.2f} m is bounded by MISSING DATA "
+              f"({r90_stop}) -- a LOWER BOUND, so the gate returns UNCERTAIN, never PASS")
+    if 0 < n_at_r90 < min_bin_n:
+        print(f"[tripod] [WARN] R_decode90 was set by a bin holding only "
+              f"n={n_at_r90} frames (< --min-bin-n {min_bin_n})")
 
     write_curve_a_csv(os.path.join(outp, "curve_a_decode.csv"), bins, args.range_bin)
     plot_curve_a(os.path.join(outp, "curve_a.png"), bins, acc, gate, args.range_bin)
@@ -1096,9 +1402,23 @@ def run(args):
                 f"PRIMARY row against the §8.2 threshold.")
     b_note = "\n".join(b_note_lines)
 
+    # §8.2 band coverage is read off the PRIMARY model's cells (the candidate
+    # the threshold is about); None when the NN half did not run at all.
+    primary_bins = b_results[0][2] if b_results else None
+    band_cov = (curve_b_band_coverage(primary_bins, args.range_bin)
+                if primary_bins is not None else None)
+    if band_cov is not None and not band_cov["answerable"]:
+        print(f"[tripod] [WARN] §8.2 UNANSWERABLE: 0 of {band_cov['n_frames_scored']} "
+              f"scored curve-(b) frames fall in the "
+              f"{band_cov['band_lo_m']:.0f}-{band_cov['band_hi_m']:.0f} m threshold "
+              f"band -- do NOT quote overall_recall as the §8.2 answer")
+
     summary = build_summary(gate, gate_hi, bins, b_note, meta, n_binnable,
                             n_unbinnable, args.range_bin, fps_source=fps_source,
-                            quality=quality, range_truth=range_truth)
+                            quality=quality, range_truth=range_truth,
+                            param_provenance=param_provenance,
+                            coverage_gaps=coverage_gaps, min_bin_n=min_bin_n,
+                            band_coverage=band_cov)
     with open(os.path.join(outp, "verdict.txt"), "w") as f:
         f.write(summary + "\n")
     with open(os.path.join(outp, "gate.json"), "w") as f:
@@ -1106,6 +1426,30 @@ def run(args):
                    "tag_size_m": tag_size, "drone_size_m": drone_size,
                    "n_decoded": n_decoded, "n_binnable": n_binnable,
                    "stream_fps": stream_fps, "stream_fps_source": fps_source,
+                   # PARAMETER PROVENANCE: which numbers came from the session
+                   # and which from a DEFAULT (review 2).
+                   "tag_size_source": tag_size_src,
+                   "drone_size_source": drone_size_src,
+                   "V_closing_source": v_close_src,
+                   # curve (a) walk provenance: the per-bin counts the >=90%
+                   # envelope was walked over, the stop reason, and every
+                   # coverage hole between the nearest and farthest bin.
+                   "curve_a_bins": [
+                       {"lo_m": lo, "hi_m": lo + args.range_bin,
+                        "n_decoded": bins[lo][0], "n_total": bins[lo][1]}
+                       for lo in sorted(bins)],
+                   "min_bin_n": min_bin_n,
+                   "coverage_gaps_m": coverage_gaps,
+                   "r90_stop_reason": r90_stop,
+                   "r90_stop_lo_m": r90_stop_lo,
+                   "n_at_r90_bin": n_at_r90,
+                   # §8.2 answerability: False means NO scored cell overlaps the
+                   # 10-25 m threshold band, so overall_recall is NOT the §8.2
+                   # answer (review 2; the six 15-20 m NN passes score zero
+                   # tag-truthed frames because the tag's ceiling is ~7 m).
+                   "section_8_2_answerable": (band_cov["answerable"]
+                                              if band_cov is not None else None),
+                   "curve_b_band_coverage": band_cov,
                    "range_quality_counts": quality,
                    "range_truth_provenance": range_truth,
                    # curve (b) provenance: which model produced which recall number.
@@ -1123,6 +1467,13 @@ def run(args):
     extra = ("" if not b_written else ", " + ", ".join(b_written))
     print(f"\n[tripod] outputs -> {outp}/  (curve_a_decode.csv, curve_a.png, "
           f"verdict.txt, gate.json{extra})")
+    # EXIT CODE. Default stays 0 for EVERY verdict so no existing manual/doc
+    # invocation changes. With --gate the code CARRIES the verdict, because
+    # "could not decide" and "passed" must not be the same signal to a wrapper
+    # (review 2 HIGH: a FAIL and a PASS were indistinguishable to any script
+    # that ever automates the ~$740 order on this tool's exit code).
+    if getattr(args, "gate", False):
+        return {"PASS": 0, "FAIL": 1}.get(gate["verdict"], 2)
     return 0
 
 
@@ -1144,7 +1495,12 @@ def _build_synth_session(out_dir):
     frames_dir = os.path.join(out_dir, "frames")
     os.makedirs(frames_dir, exist_ok=True)
     tag_size = 0.5  # plumbing fixture size (matches synth default); clean falloff
-    near = [4.0, 5.0, 6.0, 7.0, 8.0]      # 42-84 px -> decode ~100%
+    # 9.0 m added 2026-07-25 so the 8-10 m bin carries 6 frames instead of 3 and
+    # therefore clears DEFAULT_MIN_BIN_N. Without it the stepped walk stops one
+    # bin EARLIER (bin_underpopulated at 8 m) and R_decode90 would move 10 -> 8 m
+    # for a fixture reason rather than an optical one. 30 px at 9 m still decodes
+    # 3/3 (measured), so the near band stays a clean 100%.
+    near = [4.0, 5.0, 6.0, 7.0, 8.0, 9.0]  # 30-84 px -> decode ~100%
     far = [24.0, 28.0, 32.0]              # 10-14 px -> ~0 after quad_decimate 2.0
     offsets = (-1.0, 0.0, 1.0)
     idx_rows = []
@@ -1172,10 +1528,12 @@ def _build_synth_session(out_dir):
         # stream_fps is a MEASUREMENT in a real session; the self-test stands in
         # the protocol §7.3 paper anchor and LABELS it as a stand-in, so the
         # no-invented-fps rule stays visible here too.
+        # tag_decode=True: the §7.3 paper anchor IS a decode-inclusive AprilTag
+        # cadence, so resolve_stream_fps must not flag it as the wrong quantity.
         json.dump(dict(tag_size_m=tag_size, drone_size_m=DEFAULT_DRONE_SIZE_M,
                        stream_fps=PI5_APRILTAG_FPS_PAPER_ANCHOR,
                        stream_fps_source="self-test stand-in (protocol §7.3 paper anchor)",
-                       aspect="approach"), f)
+                       tag_decode=True, aspect="approach"), f)
     return near, far
 
 
@@ -1244,6 +1602,61 @@ def self_test():
           f"{'OK' if c6c else 'FAIL'}")
     ok = ok and c6c
 
+    print("[self-test] --- part 1b: R_decode90 walk refuses missing data ---")
+    # A MID-BAND HOLE (no 8-10 m frames at all). The old `for lo in sorted(bins)`
+    # walk jumped the hole and reported 14 m; the stepped walk must stop AT it.
+    holed = {4.0: [10, 10, []], 6.0: [10, 10, []],
+             10.0: [10, 10, []], 12.0: [10, 10, []]}
+    r, why, lo_stop, n_at, gaps = r90_walk(holed, 2.0)
+    ch1 = (r == 8.0 and why == R90_STOP_ABSENT and lo_stop == 8.0 and gaps == [8.0])
+    gh = gate_verdict(r, 12.0, 1.0, 30.0, 5, 9.0, 0.5, n_decoded=40,
+                      r90_stop_reason=why, r90_stop_lo=lo_stop, n_at_r90_bin=n_at)
+    ch1 = ch1 and gh["verdict"] == "UNCERTAIN" and "HOLE" in gh["reason"]
+    print(f"[self-test] mid-band hole: r90={r} (not 14.0) stop={why} gaps={gaps} "
+          f"gate={gh['verdict']} : {'OK' if ch1 else 'FAIL'}")
+    ok = ok and ch1
+    # ONE lucky far decode (n=1) must not extend the envelope or feed the gate.
+    thin = {4.0: [10, 10, []], 6.0: [10, 10, []], 8.0: [1, 1, []]}
+    r2, why2, lo2, n_at2, _g2 = r90_walk(thin, 2.0)
+    g_thin = gate_verdict(r2, 8.5, decode_rate_near(thin, r2, 2.0), 30.0, 5, 9.0,
+                          0.5, n_decoded=40, r90_stop_reason=why2,
+                          r90_stop_lo=lo2, n_at_r90_bin=n_at2)
+    ch2 = (r2 == 8.0 and why2 == R90_STOP_UNDERPOPULATED
+           and g_thin["verdict"] == "UNCERTAIN")
+    print(f"[self-test] n=1 far bin: r90={r2} (not 10.0) stop={why2} "
+          f"gate={g_thin['verdict']} : {'OK' if ch2 else 'FAIL'}")
+    ok = ok and ch2
+    # Walking off the END of the data is also missing data, not a measured cutoff.
+    full = {4.0: [10, 10, []], 6.0: [10, 10, []], 8.0: [10, 10, []]}
+    r3, why3, lo3, n3, _g3 = r90_walk(full, 2.0)
+    g_end = gate_verdict(r3, 10.0, 1.0, 30.0, 5, 9.0, 0.5, n_decoded=40,
+                         r90_stop_reason=why3, r90_stop_lo=lo3, n_at_r90_bin=n3)
+    ch3 = r3 == 10.0 and why3 == R90_STOP_END and g_end["verdict"] == "UNCERTAIN"
+    print(f"[self-test] end-of-data: r90={r3} stop={why3} gate={g_end['verdict']} "
+          f": {'OK' if ch3 else 'FAIL'}")
+    ok = ok and ch3
+    # A MEASURED cutoff still decides PASS/FAIL as before.
+    meas = {4.0: [10, 10, []], 6.0: [10, 10, []], 8.0: [2, 10, []]}
+    r4, why4, lo4, n4, _g4 = r90_walk(meas, 2.0)
+    g_meas = gate_verdict(r4, 9.0, decode_rate_near(meas, r4, 2.0), 30.0, 5, 9.0,
+                          0.5, n_decoded=40, r90_stop_reason=why4,
+                          r90_stop_lo=lo4, n_at_r90_bin=n4)
+    ch4 = r4 == 8.0 and why4 == R90_STOP_RATE and g_meas["verdict"] in ("PASS", "FAIL")
+    print(f"[self-test] measured cutoff: r90={r4} stop={why4} "
+          f"gate={g_meas['verdict']} : {'OK' if ch4 else 'FAIL'}")
+    ok = ok and ch4
+    # §8.2 answerability: a tag-decode-limited curve (b) cannot answer 10-25 m.
+    near_cells = {(4.0, "middle"): [3, 4], (6.0, "middle"): [1, 4]}
+    far_cells = {(4.0, "middle"): [3, 4], (12.0, "middle"): [1, 4]}
+    cov_near = curve_b_band_coverage(near_cells, 2.0)
+    cov_far = curve_b_band_coverage(far_cells, 2.0)
+    ch5 = (cov_near["answerable"] is False and cov_near["n_frames_in_band"] == 0
+           and cov_near["n_frames_scored"] == 8
+           and cov_far["answerable"] is True and cov_far["n_frames_in_band"] == 4)
+    print(f"[self-test] §8.2 answerable: near-only={cov_near['answerable']} "
+          f"with-far={cov_far['answerable']} : {'OK' if ch5 else 'FAIL'}")
+    ok = ok and ch5
+
     print("[self-test] --- part 2: end-to-end curve (a) on a synthetic session ---")
     with tempfile.TemporaryDirectory() as td:
         sess = os.path.join(td, "synthA")
@@ -1279,19 +1692,34 @@ def self_test():
         ok = ok and falls
 
         # (iii) end-to-end gate arithmetic matches the pure function on this
-        # session, and R_decode90 landed at the near/far boundary (~8 m).
+        # session, and R_decode90 landed at the near/far boundary (10 m = the
+        # outer edge of the last sustaining bin, UNCHANGED by the 2026-07-25
+        # stepped walk -- what changed is that the walk now STOPS at the 10-24 m
+        # coverage hole and says so, instead of silently jumping it).
         d_rate = decode_rate_near(bins, r90, 2.0)
+        w90, why90, lo90, n90, gaps90 = r90_walk(bins, 2.0)
         g5 = gate_verdict(r90, r_any, d_rate, PI5_APRILTAG_FPS_PAPER_ANCHOR,
                           DEFAULT_HANDOFF_STREAK, DEFAULT_V_CLOSING_MPS,
-                          DEFAULT_TGO_MIN_S, n_decoded=sum(1 for _, b in frames if decode[b][0]))
+                          DEFAULT_TGO_MIN_S, n_decoded=sum(1 for _, b in frames if decode[b][0]),
+                          r90_stop_reason=why90, r90_stop_lo=lo90, n_at_r90_bin=n90)
         ref = gate_verdict(r90, r_any, d_rate, PI5_APRILTAG_FPS_PAPER_ANCHOR,
                            DEFAULT_HANDOFF_STREAK, DEFAULT_V_CLOSING_MPS,
                            DEFAULT_TGO_MIN_S, n_decoded=999)
-        c5 = (r90 >= 6.0 and abs(g5["t_go_s"] - ref["t_go_s"]) < 1e-9 and
+        c5 = (abs(r90 - 10.0) < 1e-9 and w90 == r90 and
+              abs(g5["t_go_s"] - ref["t_go_s"]) < 1e-9 and
               g5["verdict"] in ("PASS", "UNCERTAIN"))
         print(f"[self-test] R_decode90={r90:.1f} m R_decode_any={r_any:.1f} m "
               f"t_go={g5['t_go_s']} s verdict={g5['verdict']} : {'OK' if c5 else 'FAIL'}")
         ok = ok and c5
+        # (iii-b) ...and the hole IS reported, so the verdict is UNCERTAIN, not
+        # the pre-2026-07-25 PASS on a session with a 14 m unsampled gap.
+        c5b = (why90 == R90_STOP_ABSENT and lo90 == 10.0
+               and g5["verdict"] == "UNCERTAIN" and g5["r90_data_bounded"] is True
+               and [g for g in gaps90 if 10.0 <= g < 24.0])
+        print(f"[self-test] synth session's 10-24 m coverage hole is REPORTED "
+              f"(stop={why90} at {lo90} m, {len(gaps90)} gap bins) -> "
+              f"{g5['verdict']} : {'OK' if c5b else 'FAIL'}")
+        ok = ok and c5b
 
         # (iv) NN half no-ops cleanly (onnxruntime absent in the main .venv, or
         # weights missing) -- returns None + a message, never crashes.
@@ -1432,6 +1860,19 @@ def main():
     ap.add_argument("--pos-bands", type=int, default=3, help="position-in-frame bands for curve (b) (default 3: top/mid/bottom)")
     ap.add_argument("--min-decoded", type=int, default=DEFAULT_MIN_DECODED,
                     help=f"data-presence floor for the verdict (default {DEFAULT_MIN_DECODED}; not a statistical bar)")
+    ap.add_argument("--min-bin-n", type=int, default=DEFAULT_MIN_BIN_N,
+                    help=f"per-BIN sample floor for the R_decode90 walk (default "
+                         f"{DEFAULT_MIN_BIN_N}): a bin with fewer binnable frames may "
+                         f"not extend the >=90% envelope, and stopping there returns "
+                         f"UNCERTAIN (the band is bounded by missing data, not by a "
+                         f"measured decode failure)")
+    ap.add_argument("--allow-partial-tags", action="store_true",
+                    help="score even when the reused tags.csv does not cover every "
+                         "frame (default: REFUSE -- uncovered frames would count as "
+                         "decode FAILURES and silently deflate curve (a))")
+    ap.add_argument("--gate", action="store_true",
+                    help="exit 0=PASS / 1=FAIL / 2=UNCERTAIN so a wrapper can read "
+                         "the verdict from the exit code (default: always 0)")
     ap.add_argument("--out-dir", default="logs/tripod_score", help="output dir (default logs/tripod_score)")
     ap.add_argument("--tag", default=None, help="output subdir name (default: session dir basename)")
     ap.add_argument("--self-test", action="store_true", help="synthetic session, no hardware; exit 0/1")

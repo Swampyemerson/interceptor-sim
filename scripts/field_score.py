@@ -457,6 +457,76 @@ def compute_range_track(t_a, pos_a, t_b, pos_b, dt: Optional[float] = None):
     return t_grid, pos_a_i, pos_b_i, rng, dt
 
 
+VERDICT_TRUNCATED = "INCONCLUSIVE_LOG_TRUNCATED"
+
+
+def analytic_cpa(t_a, pos_a, t_b, pos_b, lo: float, hi: float):
+    """EXACT closest approach of the two piecewise-linear tracks over [lo, hi].
+
+    Returns (t_cpa, cpa_m, pos_a_at_cpa, pos_b_at_cpa, at_edge, edge_side).
+
+    WHY THIS EXISTS (defect fixed 2026-07-25, review 2 BLOCKER). The CPA used to
+    be `min(range)` over a UNIFORM RESAMPLE GRID whose step was the finer log's
+    median sample interval clamped to <=0.2 s. The quantization error of a grid
+    argmin is ~v_rel*dt/2 -- 1-2 m at a 20 m/s closing speed, i.e. 2-4x the 0.5 m
+    lethal radius -- so KILL/MISS was decided by the LOG RATE, not by geometry.
+    PX4's default logger writes vehicle_global_position (the topic this scorer
+    PREFERS) at 200 ms = 5 Hz, and no caller passes --dt, so this was the
+    production path. Measured on the old code: a true 0.30 m KILL at 5/5 Hz
+    reported 2.022 m MISS.
+
+    The fix removes the quantization TERM, it does not shrink it. Both tracks are
+    linear between their OWN samples, so on the UNION of both sample-time sets
+    the relative motion is exactly linear inside every knot interval, and the
+    minimum of |p0 + v*(t-t0)| on an interval is the closed form
+    t* = t0 - (p0.v)/(v.v) clamped to the interval. Taking the best over all
+    intervals is therefore the exact CPA of the interpolated tracks -- no residual
+    grid error at any log rate.
+
+    at_edge is True only when the winning interval's UNCLAMPED minimum lies
+    OUTSIDE the observed overlap window, i.e. the aircraft were still closing
+    when the logs stopped overlapping. That is not a CPA, it is a truncation, and
+    score_engagement turns it into INCONCLUSIVE_LOG_TRUNCATED rather than a
+    confident MISS/KILL at the boundary sample.
+    """
+    knots = np.unique(np.concatenate([
+        np.asarray(t_a, dtype=np.float64), np.asarray(t_b, dtype=np.float64),
+        np.array([lo, hi], dtype=np.float64)]))
+    knots = knots[(knots >= lo - 1e-12) & (knots <= hi + 1e-12)]
+    if len(knots) < 2:
+        raise ValueError("overlapping window too short for an analytic CPA")
+    a_i = np.column_stack([np.interp(knots, t_a, pos_a[:, k]) for k in range(3)])
+    b_i = np.column_stack([np.interp(knots, t_b, pos_b[:, k]) for k in range(3)])
+    rel = a_i - b_i
+
+    best = (float("inf"), float(knots[0]), False, None)
+    for i in range(len(knots) - 1):
+        t0, t1 = float(knots[i]), float(knots[i + 1])
+        seg = t1 - t0
+        if seg <= 0:
+            continue
+        p0 = rel[i]
+        v = (rel[i + 1] - p0) / seg
+        vv = float(np.dot(v, v))
+        t_raw = t0 if vv == 0.0 else t0 - float(np.dot(p0, v)) / vv
+        t_star = min(max(t_raw, t0), t1)
+        d = float(np.linalg.norm(p0 + v * (t_star - t0)))
+        if d < best[0]:
+            # Edge-clamped only if the true (unclamped) minimum is OUTSIDE the
+            # whole observed window -- an interior clamp just means the minimum
+            # sits in a neighbouring interval, which is not a truncation.
+            side = None
+            if i == 0 and t_raw < lo - 1e-9:
+                side = "start"
+            elif i == len(knots) - 2 and t_raw > hi + 1e-9:
+                side = "end"
+            best = (d, t_star, side is not None, side)
+    cpa_m, t_cpa, at_edge, side = best
+    pa = np.array([float(np.interp(t_cpa, t_a, pos_a[:, k])) for k in range(3)])
+    pb = np.array([float(np.interp(t_cpa, t_b, pos_b[:, k])) for k in range(3)])
+    return t_cpa, cpa_m, pa, pb, at_edge, side
+
+
 @dataclass
 class ScoreResult:
     t_grid: np.ndarray
@@ -472,6 +542,22 @@ class ScoreResult:
     overlap_s: float
     track_a: Track
     track_b: Track
+    # Analytic-CPA provenance (2026-07-25). cpa_m/cpa_t_utc_s above are the
+    # ANALYTIC values; these expose what the old grid argmin would have said and
+    # whether the minimum is real or a log truncation.
+    cpa_grid_m: float = float("nan")
+    cpa_grid_t_utc_s: float = float("nan")
+    cpa_at_window_edge: bool = False
+    cpa_edge_side: Optional[str] = None
+    cpa_pos_a: Optional[np.ndarray] = None
+    cpa_pos_b: Optional[np.ndarray] = None
+
+    @property
+    def cpa_grid_quantization_m(self) -> float:
+        """How far the pre-2026-07-25 grid argmin was from the true CPA on this
+        engagement -- the error term the analytic CPA removes. One-sided: a grid
+        minimum can only ever be too LARGE."""
+        return abs(self.cpa_grid_m - self.cpa_m)
 
 
 def score_engagement(track_a: Track, track_b: Track, lethal_radius_m: float,
@@ -480,16 +566,30 @@ def score_engagement(track_a: Track, track_b: Track, lethal_radius_m: float,
     t_grid, pos_a, pos_b, rng, used_dt = compute_range_track(
         track_a.t_utc_s, pos_a_full, track_b.t_utc_s, pos_b_full, dt=dt
     )
-    cpa_idx = int(np.argmin(rng))
-    cpa_m = float(rng[cpa_idx])
-    cpa_t = float(t_grid[cpa_idx])
-    verdict = "KILL" if cpa_m <= lethal_radius_m else "MISS"
+    # The resample grid is kept for the range PLOT and the report; the VERDICT
+    # number comes from the exact per-segment closed form (analytic_cpa).
+    grid_idx = int(np.argmin(rng))
+    cpa_grid_m = float(rng[grid_idx])
+    cpa_grid_t = float(t_grid[grid_idx])
+
+    lo, hi = float(t_grid[0]), float(t_grid[-1])
+    cpa_t, cpa_m, pa, pb, at_edge, side = analytic_cpa(
+        track_a.t_utc_s, pos_a_full, track_b.t_utc_s, pos_b_full, lo, hi)
+
+    if at_edge:
+        verdict = VERDICT_TRUNCATED
+    else:
+        verdict = "KILL" if cpa_m <= lethal_radius_m else "MISS"
+    cpa_idx = int(np.argmin(np.abs(t_grid - cpa_t)))
     return ScoreResult(
         t_grid=t_grid, pos_a=pos_a, pos_b=pos_b, range_m=rng, dt_s=used_dt,
         cpa_idx=cpa_idx, cpa_m=cpa_m, cpa_t_utc_s=cpa_t,
         lethal_radius_m=lethal_radius_m, verdict=verdict,
         overlap_s=float(t_grid[-1] - t_grid[0]),
         track_a=track_a, track_b=track_b,
+        cpa_grid_m=cpa_grid_m, cpa_grid_t_utc_s=cpa_grid_t,
+        cpa_at_window_edge=at_edge, cpa_edge_side=side,
+        cpa_pos_a=pa, cpa_pos_b=pb,
     )
 
 
@@ -505,9 +605,28 @@ def write_report(result: ScoreResult, out_dir: Path, video_a: Optional[str],
         "verdict": result.verdict,
         "cpa_m": round(result.cpa_m, 3),
         "cpa_t_utc_s": result.cpa_t_utc_s,
+        "cpa_method": ("analytic per-segment closed form on the UNION of both "
+                       "logs' sample times (exact for piecewise-linear tracks; "
+                       "no resample-grid quantization)"),
+        # What the pre-2026-07-25 grid argmin would have reported, and the error
+        # it carried. At PX4's default 5 Hz global-position logging this term was
+        # 1-2 m at a 20 m/s closing speed -- 2-4x the lethal radius.
+        "cpa_grid_argmin_m": round(result.cpa_grid_m, 3),
+        "cpa_grid_quantization_error_m": round(
+            abs(result.cpa_grid_m - result.cpa_m), 3),
+        "cpa_at_window_edge": bool(result.cpa_at_window_edge),
+        "cpa_edge_side": result.cpa_edge_side,
         "lethal_radius_m": result.lethal_radius_m,
         "time_overlap_s": round(result.overlap_s, 3),
         "resample_dt_s": result.dt_s,
+        "median_sample_dt_s": {
+            result.track_a.label: (
+                round(float(np.median(np.diff(result.track_a.t_utc_s))), 4)
+                if len(result.track_a.t_utc_s) > 1 else None),
+            result.track_b.label: (
+                round(float(np.median(np.diff(result.track_b.t_utc_s))), 4)
+                if len(result.track_b.t_utc_s) > 1 else None),
+        },
         "track_a": {
             "label": result.track_a.label, "source": result.track_a.source,
             "utc_synced": result.track_a.utc_synced,
@@ -542,6 +661,16 @@ def write_report(result: ScoreResult, out_dir: Path, video_a: Optional[str],
         ),
         "verdict_uncertain": bool(abs(result.cpa_m - result.lethal_radius_m) < 2.0),
     }
+    if result.cpa_at_window_edge:
+        report["honesty_note"] = (
+            f"LOG TRUNCATED: the two tracks were still closing at the "
+            f"{result.cpa_edge_side} of their overlap window, so the minimum "
+            f"range observed ({result.cpa_m:.3f} m) is NOT a closest approach -- "
+            f"the real CPA lies outside the logged overlap. Verdict is "
+            f"{VERDICT_TRUNCATED}, not KILL/MISS. Recover the missing log span "
+            f"(both cards) or score from video. "
+        ) + report["honesty_note"]
+        report["verdict_uncertain"] = True
     if not (result.track_a.utc_synced and result.track_b.utc_synced):
         report["honesty_note"] += (
             " WARNING: at least one track had no GPS UTC fix, so the two "
@@ -559,12 +688,20 @@ def write_report(result: ScoreResult, out_dir: Path, video_a: Optional[str],
     fig, (ax_range, ax_traj) = plt.subplots(2, 1, figsize=(9, 10))
 
     t_rel = result.t_grid - result.t_grid[0]
+    # The marker is drawn at the ANALYTIC CPA (t, range), not at the grid argmin
+    # -- otherwise the plot would contradict the printed/reported number.
+    t_cpa_rel = result.cpa_t_utc_s - result.t_grid[0]
     ax_range.plot(t_rel, result.range_m, lw=1.5, label="inter-aircraft range")
     ax_range.axhline(result.lethal_radius_m, color="crimson", ls="--", lw=1,
                       label=f"lethal radius = {result.lethal_radius_m:.2f} m")
-    ax_range.axvline(t_rel[result.cpa_idx], color="grey", ls=":", lw=1)
-    ax_range.plot(t_rel[result.cpa_idx], result.cpa_m, "o", color="crimson", ms=8,
+    ax_range.axvline(t_cpa_rel, color="grey", ls=":", lw=1)
+    ax_range.plot(t_cpa_rel, result.cpa_m, "o", color="crimson", ms=8,
                   label=f"CPA = {result.cpa_m:.2f} m  [{result.verdict}]")
+    if abs(result.cpa_grid_m - result.cpa_m) > 1e-6:
+        ax_range.plot(result.cpa_grid_t_utc_s - result.t_grid[0],
+                      result.cpa_grid_m, "x", color="grey", ms=8,
+                      label=(f"grid argmin = {result.cpa_grid_m:.2f} m "
+                             f"(quantization the analytic CPA removes)"))
     ax_range.set_xlabel("time since window start (s)")
     ax_range.set_ylabel("range (m)")
     ax_range.set_title(f"field_score: {result.track_a.label} vs {result.track_b.label}")
@@ -575,12 +712,11 @@ def write_report(result: ScoreResult, out_dir: Path, video_a: Optional[str],
                  label=result.track_a.label, color="tab:blue")
     ax_traj.plot(result.pos_b[:, 0], result.pos_b[:, 1], lw=1.5,
                  label=result.track_b.label, color="tab:orange")
-    ax_traj.plot(result.pos_a[result.cpa_idx, 0], result.pos_a[result.cpa_idx, 1],
-                 "o", color="tab:blue", ms=9, mec="k")
-    ax_traj.plot(result.pos_b[result.cpa_idx, 0], result.pos_b[result.cpa_idx, 1],
-                 "o", color="tab:orange", ms=9, mec="k")
-    ax_traj.plot([result.pos_a[result.cpa_idx, 0], result.pos_b[result.cpa_idx, 0]],
-                 [result.pos_a[result.cpa_idx, 1], result.pos_b[result.cpa_idx, 1]],
+    pa_c = result.cpa_pos_a if result.cpa_pos_a is not None else result.pos_a[result.cpa_idx]
+    pb_c = result.cpa_pos_b if result.cpa_pos_b is not None else result.pos_b[result.cpa_idx]
+    ax_traj.plot(pa_c[0], pa_c[1], "o", color="tab:blue", ms=9, mec="k")
+    ax_traj.plot(pb_c[0], pb_c[1], "o", color="tab:orange", ms=9, mec="k")
+    ax_traj.plot([pa_c[0], pb_c[0]], [pa_c[1], pb_c[1]],
                  "k--", lw=1, label=f"CPA link ({result.cpa_m:.2f} m)")
     ax_traj.set_xlabel("east (m)")
     ax_traj.set_ylabel("north (m)")
@@ -602,6 +738,20 @@ def write_report(result: ScoreResult, out_dir: Path, video_a: Optional[str],
 # --------------------------------------------------------------------------
 # Self-test: synthetic crossing trajectories, analytic CPA ground truth
 # --------------------------------------------------------------------------
+
+def _lethal_radius_help() -> str:
+    """The --lethal-radius help text, factored out so the self-test can assert it
+    does not mislabel the mechanism (review 2: the default flipped 1.5 -> 0.5 m
+    but the help kept calling 0.5 'the net radius', and every self-test case
+    passed an explicit radius so nothing could catch it)."""
+    return (f"kill classification threshold, metres (default "
+            f"{DEFAULT_LETHAL_RADIUS_M} m = the ADR-0025 kinetic-RAM radius, the "
+            f"parked-net correction of 2026-07-24; pass 1.5 explicitly for a "
+            f"net-class claim. The mechanism labels are canonically defined in "
+            f"scripts/render_hud.py. NB the contract's kill stage flags even "
+            f"{DEFAULT_LETHAL_RADIUS_M} m as a 7-inch number: the ordered 5-inch "
+            f"pair's true contact envelope is ~0.36 m.)")
+
 
 def _analytic_straight_line_cpa(p0_rel, v_rel, t_lo, t_hi):
     """Closed-form closest-approach of two constant-velocity straight lines,
@@ -704,29 +854,166 @@ def _write_synthetic_bin(path, pos, t_rel, base_utc, lat0, lon0, alt0,
     Path(path).write_bytes(bytes(out))
 
 
+class _StubULogDataset:
+    def __init__(self, data):
+        self.data = data
+
+
+class _StubULog:
+    """Minimal stand-in for pyulog.ULog: only .get_dataset(name).data is used by
+    load_track_from_ulog. Raises KeyError for absent topics, like the real one."""
+
+    def __init__(self, datasets):
+        self._d = datasets
+
+    def get_dataset(self, name):
+        if name not in self._d:
+            raise KeyError(name)
+        return _StubULogDataset(self._d[name])
+
+
+def _install_stub_pyulog(datasets):
+    """Put a fake `pyulog` module on sys.modules so load_track_from_ulog's
+    function-level `from pyulog import ULog` picks it up. Returns the previous
+    entry (or None) so the caller can restore it."""
+    import types
+    prev = sys.modules.get("pyulog")
+    mod = types.ModuleType("pyulog")
+    mod.ULog = lambda _path: _StubULog(datasets)
+    sys.modules["pyulog"] = mod
+    return prev
+
+
+def _self_test_ulog_reader(lat0, lon0, alt0, base_utc) -> bool:
+    ok = True
+    n = 50
+    t_boot_us = np.arange(n, dtype=np.float64) * 200_000.0     # 5 Hz, PX4 default
+    utc_us = t_boot_us + base_utc * 1e6
+    east = np.linspace(0.0, 40.0, n)
+    north = np.full(n, 5.0)
+    up = np.full(n, 3.0)                                       # LOW-AMSL site
+    lat, lon, alt = enu_to_latlon(east, north, up, lat0, lon0, alt0)
+
+    prev = _install_stub_pyulog({
+        "vehicle_gps_position": {"timestamp": t_boot_us, "time_utc_usec": utc_us,
+                                 "lat": (lat * 1e7), "lon": (lon * 1e7),
+                                 "alt": (alt * 1e3)},
+        "vehicle_global_position": {"timestamp": t_boot_us, "lat": lat,
+                                    "lon": lon, "alt": alt},
+    })
+    try:
+        tr = load_track_from_ulog(Path("stub.ulg"), "interceptor")
+        e, nn, u = latlon_to_enu(*tr.latlon.T, lat0, lon0, alt0)
+        c_a = (tr.source == "vehicle_global_position" and tr.utc_synced is True
+               and len(tr.t_utc_s) == n
+               and abs(tr.t_utc_s[0] - base_utc) < 1e-3
+               and float(np.max(np.abs(e - east))) < 0.05
+               and float(np.max(np.abs(u - up))) < 0.05)
+        print(f"[self-test] case5a_ulog_globalpos_preferred: source={tr.source} "
+              f"utc_synced={tr.utc_synced} n={len(tr.t_utc_s)} "
+              f"max_pos_err={float(np.max(np.abs(e - east))):.4f} m  "
+              f"{'PASS' if c_a else 'FAIL'}")
+        ok = ok and c_a
+
+        # (b/c) raw-GPS fallback, OLD field names, int-scaled -- at a 3 m AMSL
+        # site, where a missed /1e3 would read 3000 m and turn a kill into a
+        # kilometres-wide MISS with a clean exit 0.
+        _install_stub_pyulog({
+            "vehicle_gps_position": {"timestamp": t_boot_us, "time_utc_usec": utc_us,
+                                     "lat": np.round(lat * 1e7), "lon": np.round(lon * 1e7),
+                                     "alt": np.round(alt * 1e3)}})
+        tr2 = load_track_from_ulog(Path("stub.ulg"), "interceptor")
+        _e2, _n2, u2 = latlon_to_enu(*tr2.latlon.T, lat0, lon0, alt0)
+        c_b = (tr2.source == "vehicle_gps_position"
+               and float(np.max(np.abs(u2 - up))) < 0.05
+               and any("raw vehicle_gps_position" in w for w in tr2.warnings))
+        print(f"[self-test] case5b_ulog_rawgps_scaling: alt_err="
+              f"{float(np.max(np.abs(u2 - up))):.4f} m (mm-scaled at a "
+              f"{alt0 + up[0]:.0f} m AMSL site) warned={bool(tr2.warnings)}  "
+              f"{'PASS' if c_b else 'FAIL'}")
+        ok = ok and c_b
+
+        # (b') NEW PX4 v1.17 SensorGps field names, already in degrees/metres.
+        _install_stub_pyulog({
+            "vehicle_gps_position": {"timestamp": t_boot_us, "time_utc_usec": utc_us,
+                                     "latitude_deg": lat, "longitude_deg": lon,
+                                     "altitude_msl_m": alt}})
+        tr3 = load_track_from_ulog(Path("stub.ulg"), "interceptor")
+        _e3, _n3, u3 = latlon_to_enu(*tr3.latlon.T, lat0, lon0, alt0)
+        c_c = float(np.max(np.abs(u3 - up))) < 0.05
+        print(f"[self-test] case5c_ulog_v117_fieldnames: alt_err="
+              f"{float(np.max(np.abs(u3 - up))):.4f} m  {'PASS' if c_c else 'FAIL'}")
+        ok = ok and c_c
+
+        # (d) no GPS UTC fix -> boot-relative time + a LOUD warning.
+        _install_stub_pyulog({
+            "vehicle_gps_position": {"timestamp": t_boot_us,
+                                     "time_utc_usec": np.zeros(n),
+                                     "lat": lat * 1e7, "lon": lon * 1e7,
+                                     "alt": alt * 1e3},
+            "vehicle_global_position": {"timestamp": t_boot_us, "lat": lat,
+                                        "lon": lon, "alt": alt}})
+        tr4 = load_track_from_ulog(Path("stub.ulg"), "interceptor")
+        c_d = (tr4.utc_synced is False
+               and any("boot-relative" in w for w in tr4.warnings)
+               and abs(tr4.t_utc_s[0]) < 1e-6)
+        print(f"[self-test] case5d_ulog_no_utc_fix: utc_synced={tr4.utc_synced} "
+              f"warned={any('boot-relative' in w for w in tr4.warnings)}  "
+              f"{'PASS' if c_d else 'FAIL'}")
+        ok = ok and c_d
+
+        # (e) neither topic present -> ValueError, never a silent empty track.
+        _install_stub_pyulog({})
+        try:
+            load_track_from_ulog(Path("stub.ulg"), "interceptor")
+            print("[self-test] case5e_ulog_no_topics: FAIL (expected ValueError)")
+            ok = False
+        except ValueError:
+            print("[self-test] case5e_ulog_no_topics: PASS (raised ValueError)")
+    finally:
+        if prev is None:
+            sys.modules.pop("pyulog", None)
+        else:
+            sys.modules["pyulog"] = prev
+    return ok
+
+
 def self_test() -> bool:
     ok = True
     lat0, lon0, alt0 = 34.05, -118.25, 100.0  # arbitrary reference point
     base_utc = 1_752_700_000.0  # arbitrary common UTC epoch shared by both a/c
 
-    def run_case(name, posA0, vA, posB0, vB, duration, hzA, hzB, radius, tol_m, tol_t):
+    def run_case(name, posA0, vA, posB0, vB, duration, hzA, hzB, radius, tol_m, tol_t,
+                 dt=0.01, t0_b_offset=0.0, expect=None):
         nonlocal ok
+        # Ground truth is computed on the SHARED time axis; a t0 offset on B only
+        # changes the sample PHASE (both tracks are linear), never the geometry.
         t_star, cpa_true = _analytic_straight_line_cpa(
             np.array(posA0) - np.array(posB0), np.array(vA) - np.array(vB), 0.0, duration
         )
         track_a = _synthetic_track("interceptor", np.array(posA0, dtype=np.float64),
                                     np.array(vA, dtype=np.float64), duration, hzA,
                                     base_utc, lat0, lon0, alt0)
-        track_b = _synthetic_track("target", np.array(posB0, dtype=np.float64),
-                                    np.array(vB, dtype=np.float64), duration, hzB,
-                                    base_utc, lat0, lon0, alt0)
-        result = score_engagement(track_a, track_b, lethal_radius_m=radius, dt=0.01)
+        # Sample B on its own phase-shifted grid over the SAME world line, so its
+        # samples land off A's grid (the adversarial phase the old grid argmin
+        # needed to be caught).
+        n_b = max(int(round(duration * hzB)) + 1, 2)
+        t_rel_b = np.linspace(0.0, duration, n_b) + t0_b_offset
+        pos_b = np.array(posB0, dtype=np.float64)[None, :] + \
+            t_rel_b[:, None] * np.array(vB, dtype=np.float64)[None, :]
+        lat_b, lon_b, alt_b = enu_to_latlon(pos_b[:, 0], pos_b[:, 1], pos_b[:, 2],
+                                            lat0, lon0, alt0)
+        track_b = Track(label="target", t_utc_s=base_utc + t_rel_b,
+                        latlon=np.column_stack([lat_b, lon_b, alt_b]),
+                        utc_synced=True, source="synthetic")
+        result = score_engagement(track_a, track_b, lethal_radius_m=radius, dt=dt)
         err_m = abs(result.cpa_m - cpa_true)
         err_t = abs(result.cpa_t_utc_s - (base_utc + t_star))
-        expect_verdict = "KILL" if cpa_true <= radius else "MISS"
+        expect_verdict = expect or ("KILL" if cpa_true <= radius else "MISS")
         pass_ = err_m <= tol_m and err_t <= tol_t and result.verdict == expect_verdict
         print(f"[self-test] {name}: cpa_true={cpa_true:.4f} m  cpa_got={result.cpa_m:.4f} m  "
               f"err={err_m:.4f} m (tol {tol_m})  t_err={err_t:.4f}s (tol {tol_t})  "
+              f"grid_argmin={result.cpa_grid_m:.4f} m (dt={result.dt_s:.3f})  "
               f"verdict={result.verdict} (expect {expect_verdict})  "
               f"{'PASS' if pass_ else 'FAIL'}")
         ok = ok and pass_
@@ -751,6 +1038,69 @@ def self_test() -> bool:
         radius=3.0, tol_m=0.02, tol_t=0.02,
     )
 
+    # Case 2b: THE PRODUCTION dt PATH (dt=None) at PX4's real logging rate, with
+    # the CPA deliberately OFF-GRID (2026-07-25, review 2). Every pre-existing
+    # case pinned dt=0.01, so the auto-dt path the field actually runs (no caller
+    # passes --dt; 04_pull_logs.sh never has) was never exercised -- and its CPA
+    # was a grid argmin whose quantization is ~v_rel*dt/2. Geometry: A closes on
+    # a stationary B at 12 m/s with a true 0.300 m CPA at t=5.05 s; BOTH log at
+    # PX4's default 5 Hz (vehicle_global_position, 200 ms), and B's start is
+    # phase-shifted 0.15 s so the CPA lands exactly HALFWAY between resample-grid
+    # points -- the adversarial phase. Grid argmin then reads
+    # sqrt(0.30^2 + (12*0.1)^2) = 1.237 m = a confident MISS at the ram radius;
+    # the analytic CPA returns 0.300 m = KILL, from the same samples.
+    #
+    # The verdict is asserted against DEFAULT_LETHAL_RADIUS_M (the module
+    # constant, never a literal), so a radius regression fails here too.
+    run_case(
+        "case2b_autodt_offgrid_KILL", posA0=(-60.6, 0.30, 0.0), vA=(12.0, 0.0, 0.0),
+        posB0=(0.0, 0.0, 0.0), vB=(0.0, 0.0, 0.0),
+        duration=10.0, hzA=5.0, hzB=5.0,
+        radius=DEFAULT_LETHAL_RADIUS_M, tol_m=0.01, tol_t=0.02,
+        dt=None, t0_b_offset=0.15, expect="KILL",
+    )
+    # Case 2c: the THRESHOLD case. The analytic CPA (1.050 m) sits STRICTLY
+    # between the ram radius (0.5 m) and the net radius (1.5 m), and the expected
+    # verdict is pinned to MISS while the radius is passed as the module CONSTANT
+    # -- so if DEFAULT_LETHAL_RADIUS_M ever regresses to the net number this case
+    # flips to KILL and FAILS. Same off-grid phase, same auto-dt path.
+    run_case(
+        "case2c_autodt_offgrid_MISS", posA0=(-60.6, 1.05, 0.0), vA=(12.0, 0.0, 0.0),
+        posB0=(0.0, 0.0, 0.0), vB=(0.0, 0.0, 0.0),
+        duration=10.0, hzA=5.0, hzB=5.0,
+        radius=DEFAULT_LETHAL_RADIUS_M, tol_m=0.01, tol_t=0.02,
+        dt=None, t0_b_offset=0.15, expect="MISS",
+    )
+    # Case 2d: the DEFAULT is the RAM radius and its help text does not mislabel
+    # the mechanism. Every other case passes an explicit radius, so the default
+    # and its help were untestable-by-construction -- which is how the 1.5 -> 0.5
+    # correction left contradicting prose behind a green 5/5 PASS.
+    _help = _lethal_radius_help()
+    c_default = (DEFAULT_LETHAL_RADIUS_M == 0.5 and "net radius" not in _help.lower()
+                 and "0.36" in _help)
+    print(f"[self-test] case2d_default_radius: DEFAULT_LETHAL_RADIUS_M="
+          f"{DEFAULT_LETHAL_RADIUS_M} help mislabels 'net radius'="
+          f"{'net radius' in _help.lower()}  {'PASS' if c_default else 'FAIL'}")
+    ok = ok and c_default
+
+    # Case 2e: TRUNCATED LOG. A is still closing when the overlap window ends
+    # (the true CPA is 2 s beyond it). The minimum range INSIDE the window is a
+    # boundary value, not a closest approach, so the verdict must be
+    # INCONCLUSIVE_LOG_TRUNCATED -- never a confident MISS at the last sample.
+    tr_a = _synthetic_track("interceptor", np.array([-60.0, 0.3, 0.0]),
+                            np.array([12.0, 0.0, 0.0]), 4.0, 5.0,
+                            base_utc, lat0, lon0, alt0)
+    tr_b = _synthetic_track("target", np.zeros(3), np.zeros(3), 4.0, 10.0,
+                            base_utc, lat0, lon0, alt0)
+    res_tr = score_engagement(tr_a, tr_b, lethal_radius_m=DEFAULT_LETHAL_RADIUS_M)
+    c_trunc = (res_tr.verdict == VERDICT_TRUNCATED and res_tr.cpa_at_window_edge
+               and res_tr.cpa_edge_side == "end")
+    print(f"[self-test] case2e_truncated_log: verdict={res_tr.verdict} "
+          f"(expect {VERDICT_TRUNCATED}) edge={res_tr.cpa_edge_side} "
+          f"min_range_in_window={res_tr.cpa_m:.3f} m  "
+          f"{'PASS' if c_trunc else 'FAIL'}")
+    ok = ok and c_trunc
+
     # Case 3: no time overlap -> must raise, not silently produce a number.
     try:
         track_a = _synthetic_track("a", np.zeros(3), np.array([1.0, 0, 0]),
@@ -762,6 +1112,14 @@ def self_test() -> bool:
         ok = False
     except ValueError as e:
         print(f"[self-test] case3_no_overlap: PASS (raised ValueError: {e})")
+
+    # Case 5: THE ULog READER -- the interceptor's own log, i.e. half the binary
+    # kill verdict, which had NO test anywhere (review 2). Driven through a stub
+    # `pyulog.ULog` (a .get_dataset(name).data dict), so no byte-level ULog
+    # writer is needed. Covers (a) vehicle_global_position PREFERRED, (b) the
+    # vehicle_gps_position fallback under BOTH PX4 field generations, (c) the
+    # 1e-7 deg / mm scaling, and (d) the no-UTC-fix boot-relative leg.
+    ok = ok and _self_test_ulog_reader(lat0, lon0, alt0, base_utc)
 
     # Case 4: ArduPilot DataFlash .BIN, END-TO-END through the real DFReader.
     # A synthetic .BIN target vs a synthetic lat/lon interceptor, scored against
@@ -853,12 +1211,15 @@ def main() -> int:
     ap.add_argument("--label-a", default="interceptor")
     ap.add_argument("--label-b", default="target")
     ap.add_argument("--lethal-radius", type=float, default=DEFAULT_LETHAL_RADIUS_M,
-                     help=f"kill classification threshold, metres "
-                          f"(default {DEFAULT_LETHAL_RADIUS_M} m, the ADR-0025 "
-                          f"'net' radius; use ~0.5 m for a ram-only claim)")
+                     help=_lethal_radius_help())
     ap.add_argument("--dt", type=float, default=None,
-                     help="resample grid step, seconds (default: auto from "
-                          "the coarser log's sample rate)")
+                     help="resample grid step, seconds, for the range PLOT and "
+                          "the reported range history only (default: auto from "
+                          "the finer log's sample rate, clamped to <=0.2 s). "
+                          "Since 2026-07-25 the CPA itself is ANALYTIC (exact "
+                          "per-segment closed form on the union of both logs' "
+                          "sample times), so the verdict no longer depends on "
+                          "this at all.")
     ap.add_argument("--video-a", default=None, help="path to interceptor seeker/onboard video (metadata only)")
     ap.add_argument("--video-b", default=None, help="path to chase/phone slow-mo video (metadata only)")
     ap.add_argument("--out-dir", type=Path, default=Path("logs/field_score"))
@@ -910,11 +1271,23 @@ def main() -> int:
     report = write_report(result, args.out_dir, args.video_a, args.video_b, tag)
 
     print(f"verdict          : {result.verdict}")
-    print(f"CPA              : {result.cpa_m:.3f} m  @ t_utc={result.cpa_t_utc_s:.3f}")
+    print(f"CPA              : {result.cpa_m:.3f} m  @ t_utc={result.cpa_t_utc_s:.3f}"
+          f"   [analytic, exact for the interpolated tracks]")
     print(f"lethal radius    : {result.lethal_radius_m:.3f} m")
     print(f"time overlap     : {result.overlap_s:.3f} s  (resample dt={result.dt_s:.3f} s)")
-    print(f"report           : {report['json_path']}")
-    print(f"plot             : {report['png_path']}")
+    # These two lines used to exist only inside the JSON, where nobody reads
+    # them on a field day (review 2). verdict_uncertain is what stops a wrong
+    # reading being packed up and driven home.
+    print(f"grid argmin      : {result.cpa_grid_m:.3f} m  "
+          f"(quantization removed by the analytic CPA: "
+          f"{abs(result.cpa_grid_m - result.cpa_m):.3f} m)")
+    print(f"verdict_uncertain: {report['verdict_uncertain']}  "
+          f"(|CPA - lethal radius| < 2 m -> the ~1-3 m GPS inter-receiver bias "
+          f"dominates; trust the VIDEO)")
+    if result.cpa_at_window_edge:
+        print(f"** {VERDICT_TRUNCATED}: still closing at the "
+              f"{result.cpa_edge_side} of the logged overlap -- the true CPA is "
+              f"OUTSIDE the window. This is not a MISS.", file=sys.stderr)
     return 0
 
 
