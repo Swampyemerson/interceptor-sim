@@ -45,7 +45,7 @@ Two full multi-agent reviews. The dominant defect class = **silent failure** (co
 
 **⬜ REMAINING (small):**
 - [ ] **EAL** (sim, FLYING) — accel-cap 3.57 at CORRECT aim (accel-aware lead a=4.0), dash-only, seed 123. Last experiment: decouples the cap's closing-speed cost from the aim confound. If EAL ≈ AAL (0.71) → the cap was neutral (all aim); if worse → the cap genuinely costs closing speed.
-- [ ] **`crossing_sign` float-dust latent bug** (task 11, LOW urgency) — the flown inline `--dash-crossing-bias-deg` key returns ±1 on near-head-on off float dust (could apply full ±30° on head-on); didn't affect crossing arms. Refactor to call `flight.guidance.crossing_sign` (dead-band fixed there) + SITL byte-identity check. Needs a SITL slot.
+- [x] **`crossing_sign` float-dust latent bug** — ✅ ALREADY DONE (`1911ce9`, 2026-07-24; this checkbox was stale — swept 2026-07-25): m4 imports and calls `flight.guidance.crossing_sign` (relative dead-band) at all three sign-key sites (collision-lead, `--dash-crossing-bias-deg`, terminal bearing-bias); byte-identity on the canonical crossing geometries pinned by `flight/tests/test_guidance.py` (only intended divergence = the near-head-on dead-band).
 - **The sim intercept exploration is essentially COMPLETE.** Next real progress is the **hardware/field arc**: build the ordered stack, the tripod AprilTag test (curve gate), and real-data detection capture→retrain (the outdoor acquisition wall). BOM note: the interceptor AIRFRAME is NOT ordered (Tier-2, gated on the tripod); ordered = target stack + seeker kit + interceptor BRAIN (6C Mini + PM02 + M10).
 
 ---
