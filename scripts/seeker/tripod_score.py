@@ -832,16 +832,31 @@ def curve_a_incidence(frames, decode, index_map, bin_m, max_m,
         cell[0] += int(bool(obs.decoded))
 
     rate_computable = bool(n_binnable > 0 and sources["index"] == n_binnable)
+    # PARTIAL index coverage: SOME frames carry an index incidence and some do
+    # not. The cells above are then built from that SUBSET, so their denominator
+    # is not the session's -- a SHRUNKEN denominator, which this project's error
+    # policy says must be COUNTED and reported, never absorbed. Two things used
+    # to go wrong here (fixed 2026-07-25, alongside the incidence PRODUCER
+    # `range_truth_join --incidence`, which refuses to emit a partial column in
+    # the first place): (1) with tag_pose == 0 the note fell through to "index.csv
+    # carries no incidence_deg column", which is a CONFIDENT WRONG DIAGNOSIS when
+    # some frames plainly do carry one; (2) nothing said that non-empty cells were
+    # computed on a subset. `cells_are_partial` now says so in gate.json, and
+    # write_curve_a_incidence_csv already stamps rate_is_measured=0 per row.
+    cells_are_partial = bool(cells and not rate_computable)
     axis_source = ("index.csv incidence_deg (ALL frames -- rate is a measurement)"
                    if rate_computable else
-                   ("tag pose (DECODED frames only -- annotation, NOT a rate)"
-                    if sources["tag_pose"] else
-                    ("none -- NO BINNABLE FRAMES (run range_truth_join.py first)"
-                     if n_binnable == 0 else "none (no incidence on any frame)")))
+                   (f"index.csv incidence_deg on only {sources['index']} of "
+                    f"{n_binnable} binnable frames -- PARTIAL, cells are a subset, "
+                    f"NOT a rate" if sources["index"] else
+                    ("tag pose (DECODED frames only -- annotation, NOT a rate)"
+                     if sources["tag_pose"] else
+                     ("none -- NO BINNABLE FRAMES (run range_truth_join.py first)"
+                      if n_binnable == 0 else "none (no incidence on any frame)"))))
     if rate_computable:
         note = (f"decode rate binned by range x incidence over {n_binnable} "
                 f"frames ({inc_bin_deg:.0f} deg bins = the mount's index step).")
-    elif sources["tag_pose"]:
+    elif sources["tag_pose"] or sources["index"]:
         note = (
             f"NOT A RATE CURVE: only {sources['index']} of {n_binnable} binnable "
             f"frames carry a per-frame incidence from index.csv, so the misses "
@@ -851,7 +866,14 @@ def curve_a_incidence(frames, decode, index_map, bin_m, max_m,
             f"sample' but NOT 'what is the decode rate at 30 deg'. To get the rate "
             f"curve protocol §4.2b asks for, write a per-frame `incidence_deg` "
             f"column into index.csv from the target log attitude + the surveyed "
-            f"tripod position + the mount index angle.")
+            f"tripod position + the mount index angle "
+            f"(scripts/seeker/range_truth_join.py --incidence --mount-index-deg)."
+            + (f" WARNING: {len(cells)} cell(s) ARE shown, but they are built from "
+               f"the {sources['index']} frames that DO carry an index incidence -- "
+               f"a SHRUNKEN denominator missing "
+               f"{n_binnable - sources['index']} binnable frame(s). Every row is "
+               f"stamped rate_is_measured=0; do not read those rates as the "
+               f"session's decode rate." if cells_are_partial else ""))
     elif n_binnable == 0:
         # DISTINGUISH THE TWO ZEROS. "No incidence" because nothing was BINNABLE
         # (range_truth_join has not run) is a missing PIPELINE STEP, not an
@@ -884,10 +906,60 @@ def curve_a_incidence(frames, decode, index_map, bin_m, max_m,
         "incidence_source_counts": sources,
         "axis_source": axis_source,
         "rate_computable": rate_computable,
+        "cells_are_partial": cells_are_partial,
         "decoded_incidence": stats,
         "cos_law_validated_to_deg": COS_LAW_VALIDATED_TO_DEG,
         "note": note,
     }
+
+
+def read_join_mount_index(session_dir):
+    """The placard index angle the per-frame `incidence_deg` column was actually
+    built with, from `range_truth.json` (written by range_truth_join
+    --incidence). None when the session was never joined with an aspect."""
+    p = os.path.join(session_dir or "", "range_truth.json")
+    if not os.path.exists(p):
+        return None
+    try:
+        prov = json.loads(open(p).read())
+    except (ValueError, OSError):
+        return None
+    return _pf((prov.get("incidence") or {}).get("mount_index_deg"))
+
+
+def resolve_mount_index(cli_value, meta, session_dir):
+    """(mount_index_deg, source, warning) -- with the PRODUCER cross-check.
+
+    `range_truth_join --incidence` stamps the index angle it used into
+    `range_truth.json`, and EVERY incidence cell is binned on the aspect that
+    angle produced. If this scoring pass names a DIFFERENT index, gate.json would
+    record an angle that contradicts its own axis -- a silent producer/consumer
+    disagreement, the failure class the contract-test rule exists for. So:
+      * no index here + a joined one -> ADOPT the join's (never record None
+        beside a populated aspect axis);
+      * both present and different -> a LOUD warning, and the mismatch is written
+        into the provenance string, not just printed."""
+    value, source = cli_value, "--mount-index-deg (protocol §4.2b pass card)"
+    if value is None:
+        value = _pf((meta or {}).get("mount_index_deg"))
+        source = "meta.json mount_index_deg"
+    join_index = read_join_mount_index(session_dir)
+    warning = None
+    if join_index is not None:
+        if value is None:
+            value, source = join_index, (
+                "range_truth.json -- the index the per-frame incidence_deg "
+                "column was actually built with")
+        elif abs(value - join_index) > 1e-6:
+            warning = (
+                f"MOUNT INDEX MISMATCH: this score says {value:.1f} deg but the "
+                f"per-frame incidence_deg column was built at {join_index:.1f} "
+                f"deg (range_truth.json). Every incidence cell is binned on the "
+                f"JOIN's angle; one of the two is wrong -- check the pass card "
+                f"before quoting an aspect.")
+            source += (f" -- MISMATCH vs range_truth.json ({join_index:.1f} deg, "
+                       f"which built the column)")
+    return value, source, warning
 
 
 def write_curve_a_incidence_csv(path, inc):
@@ -1757,9 +1829,10 @@ def run(args):
               f"not a like-for-like re-score; --stream-fps must be the §7.3 bench "
               f"AT THE SCORED DECIMATE.")
 
-    mount_index = _pf(getattr(args, "mount_index_deg", None))
-    if mount_index is None:
-        mount_index = _pf(meta.get("mount_index_deg"))
+    mount_index, mount_index_src, mount_warn = resolve_mount_index(
+        _pf(getattr(args, "mount_index_deg", None)), meta, args.session_dir)
+    if mount_warn:
+        print(f"[tripod] [WARN] {mount_warn}")
     th_eng = float(getattr(args, "engagement_incidence_deg", 0.0) or 0.0)
     inc_bin = float(getattr(args, "incidence_bin_deg", DEFAULT_INCIDENCE_BIN_DEG))
 
@@ -1772,7 +1845,7 @@ def run(args):
         "theta_eng_deg": (f"{th_eng:.1f}", "--engagement-incidence-deg (§8.1)"
                           if th_eng else "DEFAULT 0 deg -- gate measured DEAD-ON"),
         "mount_index_deg": (f"{mount_index}",
-                            "--mount-index-deg / meta.json (protocol §4.2b pass card)"
+                            mount_index_src
                             if mount_index is not None else
                             "NOT RECORDED -- §4.2b wants it on every pass card"),
     }
@@ -1824,6 +1897,12 @@ def run(args):
               f"{incidence['n_binnable']} binnable frames carry a per-frame "
               f"incidence_deg in index.csv, so the NON-decodes have no incidence "
               f"and no cell has an honest denominator (protocol §4.2b)")
+        if incidence.get("cells_are_partial"):
+            print(f"[tripod] [WARN] ...and the {len(incidence['cells'])} cell(s) "
+                  f"below come from that SUBSET only -- a shrunken denominator "
+                  f"missing {incidence['n_binnable'] - incidence['incidence_source_counts']['index']} "
+                  f"binnable frame(s). Re-join with range_truth_join.py "
+                  f"--incidence --mount-index-deg so EVERY frame has an aspect.")
 
     d_rate = decode_rate_near(bins, r90, args.range_bin)
     _gate_kw = dict(n_decoded=n_decoded, min_decoded=args.min_decoded,

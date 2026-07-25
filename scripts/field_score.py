@@ -788,7 +788,13 @@ _DF_HEAD1, _DF_HEAD2, _DF_FMT_TYPE = 0xA3, 0x95, 0x80
 # DataFlash format char -> python struct char (subset; mirrors FORMAT_TO_STRUCT:
 # L is a *signed* int32 scaled 1e-7, hence 'i' not 'L').
 _DF_TO_STRUCT = {"Q": "Q", "L": "i", "f": "f", "B": "B", "H": "H", "I": "I",
-                 "i": "i", "n": "4s", "N": "16s", "Z": "64s"}
+                 "i": "i", "n": "4s", "N": "16s", "Z": "64s",
+                 # ATT's angle fields: 'c' = int16 centidegrees (x0.01),
+                 # 'C' = uint16 centidegrees. The READER applies the 0.01 scale,
+                 # so the fixture must write the raw scaled ints -- writing
+                 # floats here would build a log ArduPilot never produces and
+                 # would hide a units bug in anything that reads ATT.
+                 "c": "h", "C": "H"}
 
 
 def _df_struct_fmt(fmt: str) -> str:
@@ -820,18 +826,30 @@ def _utc_to_gps_week_ms(utc_s: float):
 
 
 def _write_synthetic_bin(path, pos, t_rel, base_utc, lat0, lon0, alt0,
-                         with_gps_utc=True):
+                         with_gps_utc=True, att=None, att_t_rel=None):
     """Write a minimal valid ArduPilot DataFlash .BIN: FMT(FMT), FMT(GPS),
     FMT(POS), one anchoring GPS message, then a POS sample per row. `pos` is an
     (N,3) ENU array; converted to lat/lon/alt via the same enu_to_latlon the
     other synthetic tracks use. with_gps_utc=False writes GWk=0 (no fix) so the
     reader falls back to boot-relative time -- exercises the utc_synced=False leg.
+
+    `att` (added 2026-07-25) optionally writes ATT records too: an (M,3) array of
+    (roll_deg, pitch_deg, yaw_deg), timestamped by `att_t_rel` (defaults to
+    `t_rel`, i.e. one ATT per POS). This is what lets the incidence producer
+    (scripts/seeker/placard_incidence.py) be tested against a REAL DFReader parse
+    instead of a hand-typed attitude fixture -- the pattern that hid two schema
+    breaks before (docs/error_handling_policy.md: the fixture must come from the
+    producer's own writer). ATT is written with ArduPilot's real field types
+    ('c'/'C' centidegrees), so the reader's 0.01 scaling is exercised and Yaw
+    comes back in the 0..360 convention a real log uses.
     """
-    GPS_ID, POS_ID = 0x81, 0x82
+    GPS_ID, POS_ID, ATT_ID = 0x81, 0x82, 0x83
     GPS_FMT = "QBIHBfLLf"
     GPS_COLS = "TimeUS,Status,GMS,GWk,NSats,HDop,Lat,Lng,Alt"
     POS_FMT = "QLLfff"
     POS_COLS = "TimeUS,Lat,Lng,Alt,RelHomeAlt,RelOriginAlt"
+    ATT_FMT = "QccccCCff"
+    ATT_COLS = "TimeUS,DesRoll,Roll,DesPitch,Pitch,DesYaw,Yaw,ErrRP,ErrYaw"
 
     lat, lon, alt = enu_to_latlon(pos[:, 0], pos[:, 1], pos[:, 2], lat0, lon0, alt0)
     gwk, gms = _utc_to_gps_week_ms(base_utc)
@@ -840,6 +858,8 @@ def _write_synthetic_bin(path, pos, t_rel, base_utc, lat0, lon0, alt0,
     out += _df_fmt_msg(_DF_FMT_TYPE, "FMT", "BBnNZ", "Type,Length,Name,Format,Columns")
     out += _df_fmt_msg(GPS_ID, "GPS", GPS_FMT, GPS_COLS)
     out += _df_fmt_msg(POS_ID, "POS", POS_FMT, POS_COLS)
+    if att is not None:
+        out += _df_fmt_msg(ATT_ID, "ATT", ATT_FMT, ATT_COLS)
     if with_gps_utc:
         out += _df_data_msg(GPS_ID, GPS_FMT, (
             0, 3, int(round(gms)), int(gwk), 12, 0.8,
@@ -853,6 +873,19 @@ def _write_synthetic_bin(path, pos, t_rel, base_utc, lat0, lon0, alt0,
             int(round(t_rel[i] * 1e6)),
             int(round(lat[i] * 1e7)), int(round(lon[i] * 1e7)),
             float(alt[i]), 0.0, 0.0))
+    if att is not None:
+        att = np.asarray(att, dtype=float).reshape(-1, 3)
+        att_t = np.asarray(t_rel if att_t_rel is None else att_t_rel, dtype=float)
+        if len(att_t) != len(att):
+            raise ValueError("att and att_t_rel must have the same length")
+        for i in range(len(att)):
+            roll, pitch, yaw = att[i]
+            out += _df_data_msg(ATT_ID, ATT_FMT, (
+                int(round(att_t[i] * 1e6)),
+                0, int(round(roll * 100.0)),          # DesRoll, Roll   ('c')
+                0, int(round(pitch * 100.0)),         # DesPitch, Pitch ('c')
+                0, int(round((yaw % 360.0) * 100.0)),  # DesYaw, Yaw    ('C')
+                0.0, 0.0))                            # ErrRP, ErrYaw
     Path(path).write_bytes(bytes(out))
 
 

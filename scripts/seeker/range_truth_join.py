@@ -91,6 +91,30 @@ PER-FRAME QUALITY (written into index.csv so tripod_score can see it):
 by construction, because a fabricated range on those frames is exactly the
 silent-bad-join failure this tool exists to prevent.
 
+PER-FRAME INCIDENCE (--incidence, added 2026-07-25 -- the RATE-CURVE ENABLER).
+Protocol §4.2b names two possible curve-(a) products and only one was reachable:
+with only the tag's own recovered pose, incidence exists ONLY on frames that
+DECODED, so a "rate" computed on it has the denominator "frames that decoded" --
+identically 100%, and meaningless. The real decode-RATE vs (range x incidence)
+curve needs an incidence on the MISSES too, which the protocol says must come
+from the target log's ATTITUDE + the surveyed tripod position + the pass card's
+placard INDEX ANGLE. Nothing implemented that; `--incidence` does. It reuses this
+join's own interpolated target position (the line of sight) and adds an ATT
+series, writing:
+  incidence_deg        the angle between the placard normal and the placard->
+                       camera line of sight (the column tripod_score reads)
+  incidence_quality    ok | gap | no_attitude | no_position | no_frame_time
+  incidence_src_dt_s   seconds to the nearest real ATT sample
+  incidence_sigma_deg  per-frame 1-sigma (ATT gap x slew rate, clock-offset x
+                       slew rate, and the LOS bearing error the GPS sigma implies
+                       at that range -- which at 10 m with sigma 2 m is ~11 deg,
+                       comparable to a 15 deg bin, so it is reported not buried)
+Geometry + the yaw-only bound: scripts/seeker/placard_incidence.py.
+FAIL-CLOSED: no default mount index, no assumed level attitude, no extrapolated
+attitude; ZERO aspected frames REFUSES (an empty incidence column is not a
+curve), and a ranged-but-aspectless frame is COUNTED and refuses by default
+because the consumer needs an incidence on EVERY binnable frame.
+
 Usage:
     # ArduPilot target log + surveyed tripod lat/lon/alt, estimate the clock offset
     scripts/seeker/range_truth_join.py --session-dir sessions/pass01 \\
@@ -103,6 +127,13 @@ Usage:
     # already-local ENU CSV track + tripod in the same ENU frame
     scripts/seeker/range_truth_join.py --session-dir S --csv track.csv \\
         --tripod-enu 0,0,1.5
+    # + the per-frame INCIDENCE that makes tripod_score's curve (a) x incidence a
+    #   RATE curve instead of an annotation (protocol §4.2b). ATT comes from the
+    #   same .BIN; the index angle comes from THIS pass's card.
+    scripts/seeker/range_truth_join.py --session-dir sessions/pass01 \\
+        --bin target_flight.BIN --tripod-lat 34.0501 --tripod-lon -118.2502 \\
+        --tripod-alt 104.0 --clock-offset-s -0.42 \\
+        --incidence --mount-index-deg 0
     scripts/seeker/range_truth_join.py --self-test   # synthetic .BIN + session, no hardware
 
 Exit codes: 0 = joined, 1 = usage/IO error, 2 = REFUSED (unsafe join).
@@ -138,6 +169,24 @@ from field_score import (  # noqa: E402
     load_track_from_ulog,
 )
 
+# The placard geometry lives in its own module (one file, one job) but is only
+# ever driven from here -- the join already holds the target position at each
+# frame time and the surveyed tripod position, which are two of incidence's
+# three ingredients (the third is the pass card's --mount-index-deg).
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+from placard_incidence import (  # noqa: E402
+    COS_LAW_VALIDATED_TO_DEG,
+    MOUNT_INDEX_STEP_DEG,
+    NoAttitude,
+    incidence_deg_from,
+    interp_normals,
+    load_attitude_from_bin,
+    load_attitude_from_csv,
+    normal_rate_deg_s,
+    normals_enu,
+)
+
 # --------------------------------------------------------------------------
 # Sourced constants -- every number traces to a doc (CLAUDE.md rule).
 # --------------------------------------------------------------------------
@@ -148,6 +197,23 @@ COL_QUALITY = "range_quality"
 COL_DT = "range_src_dt_s"
 COL_SIGMA = "range_sigma_m"
 ADDED_COLUMNS = [COL_RANGE, COL_QUALITY, COL_DT, COL_SIGMA]
+
+# INCIDENCE columns (--incidence, 2026-07-25). `incidence_deg` is the name
+# tripod_score.frame_incidence_deg already reads out of index.csv, and it is the
+# ONLY source that can support a decode-RATE-vs-incidence curve, because it
+# exists on the MISSES too (protocol §4.2b table, row 1). The other three are its
+# quality view, the same shape as the range columns above.
+COL_INC = "incidence_deg"
+COL_INC_QUALITY = "incidence_quality"
+COL_INC_DT = "incidence_src_dt_s"
+COL_INC_SIGMA = "incidence_sigma_deg"
+INCIDENCE_COLUMNS = [COL_INC, COL_INC_QUALITY, COL_INC_DT, COL_INC_SIGMA]
+
+_INC_OK = "ok"
+_INC_GAP = "gap"
+_INC_NOATT = "no_attitude"
+_INC_NOTIME = "no_frame_time"
+_INC_NOPOS = "no_position"
 
 # An interpolation gap wider than this flags the frame `gap`. 0.25 s ~= half of
 # protocol §6.1's one-bin time-of-flight (2 m bin / 9 m/s = 0.22 s), i.e. a gap
@@ -198,6 +264,15 @@ IMPLAUSIBLE_UP_M = 150.0
 # error of a few tens of metres lands here rather than above the 150 m ceiling.
 ADVISORY_UP_M = 30.0
 
+# Fraction of RANGED frames that may lack an incidence before --incidence
+# refuses. It is 0.0 -- not slack -- because the consumer is ALL-OR-NOTHING:
+# tripod_score.curve_a_incidence sets `rate_computable` only when
+# sources["index"] == n_binnable, so a single ranged-but-aspectless frame
+# silently costs the whole session its RATE curve and drops it back to the
+# annotation. Raise it deliberately (and the join stamps that you did) if you
+# would rather have the annotation than no join.
+DEFAULT_MAX_INCIDENCE_GAP_FRAC = 0.0
+
 _QUALITY_OK = "ok"
 _QUALITY_GAP = "gap"
 _QUALITY_EXTRAP = "extrapolated"
@@ -217,6 +292,14 @@ def _pf(v):
     except (TypeError, ValueError):
         return None
     return None if math.isnan(f) else f
+
+
+def _count_flags(flags):
+    """{flag: n} -- the counted denominator, never an absorbed one."""
+    out = {}
+    for f in flags or []:
+        out[f] = out.get(f, 0) + 1
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -345,19 +428,30 @@ def track_range_series(track: Track, tripod_llh=None, tripod_enu=None):
     return np.asarray(track.t_utc_s, dtype=float), enu, rng, enu[:, 2]
 
 
-def interp_positions(t_query, t_track, enu_track):
-    """Interpolate the ENU track (component-wise, then norm -- not the range
-    directly) at the query times. Returns (range_m, nearest_sample_dt_s,
-    inside_span_mask)."""
+def interp_enu(t_query, t_track, enu_track):
+    """Interpolate the tripod-relative ENU VECTOR at the query times
+    (component-wise). Returns (enu_Nx3, nearest_sample_dt_s, inside_span_mask).
+
+    Split out of interp_positions (2026-07-25) because the incidence path needs
+    the VECTOR (it is the line of sight), and both must use ONE interpolation
+    rule -- a second, subtly different interpolation is how a producer and its
+    own consumer drift apart."""
     t_query = np.asarray(t_query, dtype=float)
     inside = (t_query >= t_track[0]) & (t_query <= t_track[-1]) & np.isfinite(t_query)
     comps = [np.interp(t_query, t_track, enu_track[:, k]) for k in range(3)]
-    rng = np.linalg.norm(np.column_stack(comps), axis=1)
     idx = np.searchsorted(t_track, t_query)
     idx = np.clip(idx, 1, len(t_track) - 1)
     dt = np.minimum(np.abs(t_query - t_track[idx - 1]),
                     np.abs(t_track[idx] - t_query))
-    return rng, dt, inside
+    return np.column_stack(comps), dt, inside
+
+
+def interp_positions(t_query, t_track, enu_track):
+    """Interpolate the ENU track (component-wise, then norm -- not the range
+    directly) at the query times. Returns (range_m, nearest_sample_dt_s,
+    inside_span_mask)."""
+    enu, dt, inside = interp_enu(t_query, t_track, enu_track)
+    return np.linalg.norm(enu, axis=1), dt, inside
 
 
 def range_rate_series(t_track, rng):
@@ -688,6 +782,137 @@ def survey_bias_check(t_frames, r_tag, t_track, enu_track, clock_offset_s,
 
 
 # --------------------------------------------------------------------------
+# INCIDENCE: the per-frame aspect that makes the RATE curve computable
+# --------------------------------------------------------------------------
+# THE DEFECT THIS CLOSES (2026-07-25). docs/tripod_test_protocol.md §4.2b names
+# two possible curve-(a) products and only one of them was REACHABLE:
+#   row 1 -- index.csv carries a per-frame incidence for EVERY binnable frame ->
+#            a real decode-RATE vs (range x incidence) curve;
+#   row 2 -- only the tag's own pose -> an ANNOTATION (the incidence DISTRIBUTION
+#            of the decodes), because incidence recovered FROM a decode cannot
+#            furnish a denominator that includes the misses.
+# The protocol spelled out the recipe for row 1 (target-log attitude + surveyed
+# tripod + the pass card's mount index) and NOTHING implemented it, so the money
+# gate's aspect axis could only ever be an annotation. `--incidence` implements
+# exactly that recipe, and refuses every shortcut that would fake it.
+def compute_incidence(t_q, enu_q, inside_pos, have_time, attitude,
+                      mount_index_deg, yaw_only=False, both_faces=True,
+                      max_gap_s=DEFAULT_MAX_GAP_S, offset_sigma_s=0.0,
+                      gps_sigma_m=DEFAULT_GPS_SIGMA_M,
+                      attitude_sigma_deg=None):
+    """Per-frame placard incidence (deg) at the ALREADY clock-corrected frame
+    times `t_q`, with the target's tripod-relative ENU position `enu_q`.
+
+    Returns (theta, quality, dt_att, sigma, info). `theta` is NaN wherever the
+    frame could not be honestly given an aspect -- never a substituted 0.
+
+    A frame earns an incidence only if it is inside BOTH the position span (it
+    needs the line of sight) and the ATTITUDE span. Nothing is extrapolated: an
+    attitude extrapolated past the end of the log is a fabricated aspect, and the
+    aspect is the axis the $740 curve is binned on."""
+    n_all = len(t_q)
+    # Normals at the LOG's own attitude samples, then interpolated to the frames
+    # the same component-wise way positions are (placard_incidence.interp_normals).
+    n_full = normals_enu(attitude.roll_deg, attitude.pitch_deg,
+                         attitude.yaw_deg, mount_index_deg, yaw_only=False)
+    n_yaw = normals_enu(attitude.roll_deg, attitude.pitch_deg,
+                        attitude.yaw_deg, mount_index_deg, yaw_only=True)
+    n_use = n_yaw if yaw_only else n_full
+
+    nq_use, dt_att, inside_att = interp_normals(t_q, attitude.t_s, n_use)
+    nq_full, _d, _i = interp_normals(t_q, attitude.t_s, n_full)
+    nq_yaw, _d2, _i2 = interp_normals(t_q, attitude.t_s, n_yaw)
+    rate = np.interp(np.clip(t_q, attitude.t_s[0], attitude.t_s[-1]),
+                     attitude.t_s, normal_rate_deg_s(attitude.t_s, n_use))
+
+    los = -np.asarray(enu_q, dtype=float)          # placard -> camera (tripod)
+    rng = np.linalg.norm(los, axis=1)
+    th_use = np.asarray(incidence_deg_from(nq_use, los, both_faces=both_faces),
+                        dtype=float).reshape(n_all)
+    th_full = np.asarray(incidence_deg_from(nq_full, los, both_faces=both_faces),
+                         dtype=float).reshape(n_all)
+    th_yaw = np.asarray(incidence_deg_from(nq_yaw, los, both_faces=both_faces),
+                        dtype=float).reshape(n_all)
+
+    usable = have_time & inside_pos & inside_att & np.isfinite(th_use)
+    theta = np.where(usable, th_use, np.nan)
+
+    # 1-sigma aspect uncertainty, from the pieces that ARE traceable:
+    #   attitude interpolation gap x the normal's angular rate,
+    #   clock-offset sigma x the same rate,
+    #   the LINE OF SIGHT's own direction error from the position sigma at range
+    #   R (a sigma_p metre position error swings the bearing by ~sigma_p/R rad --
+    #   at R = 10 m and sigma_p = 2 m that is 11 deg, comparable to the 15 deg
+    #   incidence bin, and the reader must be told).
+    # NOT included: the EKF's own attitude error, unless attitude_sigma_deg is
+    # supplied. ArduPilot's ATT record carries no covariance and inventing one is
+    # exactly what the fail-closed rule forbids; the omission is stamped.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        sig_los = np.degrees(np.arctan2(gps_sigma_m, np.maximum(rng, 1e-6)))
+    sig = np.sqrt((rate * dt_att) ** 2 + (rate * float(offset_sigma_s)) ** 2
+                  + sig_los ** 2
+                  + (float(attitude_sigma_deg) ** 2
+                     if attitude_sigma_deg is not None else 0.0))
+    sigma = np.where(usable, sig, np.nan)
+
+    quality = []
+    for i in range(n_all):
+        if not have_time[i]:
+            quality.append(_INC_NOTIME)
+        elif not inside_pos[i]:
+            quality.append(_INC_NOPOS)
+        elif not inside_att[i]:
+            quality.append(_INC_NOATT)
+        elif dt_att[i] > max_gap_s:
+            quality.append(_INC_GAP)
+        else:
+            quality.append(_INC_OK)
+
+    # BOUND THE YAW-ONLY APPROXIMATION WITH DATA, not with a claim: report the
+    # measured full-attitude vs yaw-only difference over the usable frames.
+    d = np.abs(th_full - th_yaw)[usable]
+    approx = {
+        "n": int(d.size),
+        "median_deg": (round(float(np.median(d)), 3) if d.size else None),
+        "p90_deg": (round(float(np.percentile(d, 90)), 3) if d.size else None),
+        "max_deg": (round(float(d.max()), 3) if d.size else None),
+    }
+    th_ok = theta[usable]
+    info = {
+        "mount_index_deg": float(mount_index_deg),
+        "mount_index_step_deg": MOUNT_INDEX_STEP_DEG,
+        "attitude_source": attitude.source,
+        "attitude_n_samples": int(attitude.n),
+        "attitude_span_utc_s": [float(attitude.t_s[0]), float(attitude.t_s[-1])],
+        "attitude_warnings": list(attitude.warnings),
+        "yaw_only": bool(yaw_only),
+        "both_faces": bool(both_faces),
+        "faces_note": ("tag printed on BOTH faces (placard_mount §3.6 DECISION 1) "
+                       "-> incidence is the NEAR face, range [0,90] deg"
+                       if both_faces else
+                       "SINGLE-sided panel -> a back-lit frame reports > 90 deg"),
+        "yaw_only_vs_full_attitude_deg": approx,
+        "attitude_sigma_deg": attitude_sigma_deg,
+        "sigma_excludes": ("the EKF's own attitude error (ArduPilot ATT carries no "
+                           "covariance; supply --attitude-sigma-deg to fold in a "
+                           "measured value)" if attitude_sigma_deg is None else None),
+        "n_with_incidence": int(usable.sum()),
+        "incidence_span_deg": ([round(float(th_ok.min()), 2),
+                                round(float(th_ok.max()), 2)]
+                               if th_ok.size else None),
+        "incidence_median_deg": (round(float(np.median(th_ok)), 2)
+                                 if th_ok.size else None),
+        "n_beyond_validated_cos_law": int((th_ok > COS_LAW_VALIDATED_TO_DEG).sum()),
+        "cos_law_validated_to_deg": COS_LAW_VALIDATED_TO_DEG,
+        "sigma_median_deg": (round(float(np.median(sigma[usable])), 2)
+                             if th_ok.size else None),
+        "sigma_p90_deg": (round(float(np.percentile(sigma[usable], 90)), 2)
+                          if th_ok.size else None),
+    }
+    return theta, quality, dt_att, sigma, info
+
+
+# --------------------------------------------------------------------------
 # The join
 # --------------------------------------------------------------------------
 def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
@@ -699,9 +924,18 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
                  allow_implausible_geometry=False, allow_unverified_survey=False,
                  max_residual_m=DEFAULT_MAX_RESIDUAL_M,
                  max_bias_m=DEFAULT_MAX_BIAS_M,
-                 min_sync_samples=DEFAULT_MIN_SYNC_SAMPLES):
+                 min_sync_samples=DEFAULT_MIN_SYNC_SAMPLES,
+                 attitude=None, mount_index_deg=None, incidence_yaw_only=False,
+                 placard_both_faces=True, attitude_sigma_deg=None,
+                 max_incidence_gap_frac=DEFAULT_MAX_INCIDENCE_GAP_FRAC):
     """Join `track` to the session's frames and write true_range_m back.
-    Returns the provenance dict (also written to range_truth.json)."""
+    Returns the provenance dict (also written to range_truth.json).
+
+    When `attitude` is supplied (an AttitudeTrack), ALSO writes the per-frame
+    `incidence_deg` that turns tripod_score's curve-(a) x incidence product from
+    an ANNOTATION into a decode-RATE curve (protocol §4.2b). `mount_index_deg` is
+    then REQUIRED -- there is no default index angle, because the pass card's
+    index is the only record of which way the placard faced."""
     fieldnames, rows = read_index(session_dir)
     t_frames_all = frame_wall_times(rows)
     n_rows = len(rows)
@@ -752,7 +986,11 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
 
     # ---- interpolate ----
     t_q = t_frames_all + float(clock_offset_s)
-    rng_q, dt_q, inside = interp_positions(t_q, t_track, enu_track)
+    # The ENU VECTOR at each frame time, not just its norm: the range is |enu|
+    # and the LINE OF SIGHT the incidence needs is -enu (placard -> tripod), so
+    # both come from ONE interpolation.
+    enu_q, dt_q, inside = interp_enu(t_q, t_track, enu_track)
+    rng_q = np.linalg.norm(enu_q, axis=1)
     have_time = np.isfinite(t_frames_all)
     inside = inside & have_time
     coverage = float(inside.sum()) / float(n_timed)
@@ -826,6 +1064,40 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
         nsats = _nearest(np.clip(t_q, tq[0], tq[-1]), tq, ns)
         hdop = _nearest(np.clip(t_q, tq[0], tq[-1]), tq, hd)
 
+    # ---- INCIDENCE (optional, --incidence) ----
+    # Computed BEFORE the write-back so a refusal here leaves index.csv untouched
+    # (the same rule the range path follows: never a half-written join).
+    inc_info = None
+    theta = inc_qual = inc_dt = inc_sigma = None
+    if attitude is not None:
+        if mount_index_deg is None:
+            raise Refuse(
+                "--incidence needs --mount-index-deg: the placard's index angle "
+                "(0 = beam, 90 = nose-on, 15 deg steps -- docs/placard_mount.md "
+                "§3.6) is on the pass card for exactly this reason (protocol §11 "
+                "item 11: 'without the index angle, no frame's incidence can be "
+                "reconstructed'). There is no default; a guessed index would "
+                "rotate EVERY frame's aspect by the guess.")
+        theta, inc_qual, inc_dt, inc_sigma, inc_info = compute_incidence(
+            t_q, enu_q, inside, have_time, attitude, mount_index_deg,
+            yaw_only=incidence_yaw_only, both_faces=placard_both_faces,
+            max_gap_s=max_gap_s, offset_sigma_s=offset_sigma_s,
+            gps_sigma_m=gps_sigma_m, attitude_sigma_deg=attitude_sigma_deg)
+        # NO VACUOUS CURVE (docs/error_handling_policy.md). Zero frames with an
+        # aspect is not "an empty incidence column"; it is a failed join, and
+        # tripod_score would report it as "no incidence on any binnable frame"
+        # long after the field day is over.
+        if inc_info["n_with_incidence"] == 0:
+            raise Refuse(
+                f"--incidence produced ZERO frames with an aspect. The attitude "
+                f"log spans [{attitude.t_s[0]:.3f}, {attitude.t_s[-1]:.3f}] "
+                f"({attitude.t_s[-1] - attitude.t_s[0]:.1f} s) while the "
+                f"clock-corrected frames span "
+                f"[{np.nanmin(t_q):.3f}, {np.nanmax(t_q):.3f}] -- wrong log, wrong "
+                f"pass, or an unresolved clock offset. An EMPTY incidence column "
+                f"is not a curve; REFUSING rather than writing one "
+                f"(quality: {_count_flags(inc_qual)}).")
+
     # ---- per-frame write-back ----
     counts = {_QUALITY_OK: 0, _QUALITY_GAP: 0, _QUALITY_EXTRAP: 0,
               _QUALITY_NOTIME: 0, _QUALITY_LOWFIX: 0}
@@ -867,6 +1139,54 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
     out_fields = list(fieldnames) + [c for c in ADDED_COLUMNS if c not in fieldnames]
     n_written = counts[_QUALITY_OK] + counts[_QUALITY_GAP] + counts[_QUALITY_LOWFIX]
 
+    # ---- incidence write-back (same atomic rewrite, extra columns) ----
+    if inc_info is not None:
+        n_ranged = n_ranged_no_inc = 0
+        for i, r in enumerate(rows):
+            has_th = bool(np.isfinite(theta[i]))
+            r[COL_INC] = f"{theta[i]:.3f}" if has_th else ""
+            r[COL_INC_QUALITY] = inc_qual[i]
+            r[COL_INC_DT] = (f"{inc_dt[i]:.4f}"
+                             if inc_qual[i] not in (_INC_NOTIME, _INC_NOATT) else "")
+            r[COL_INC_SIGMA] = (f"{inc_sigma[i]:.3f}"
+                                if has_th and np.isfinite(inc_sigma[i]) else "")
+            if (r.get(COL_RANGE) or "") != "":
+                n_ranged += 1
+                if not has_th:
+                    n_ranged_no_inc += 1
+        out_fields += [c for c in INCIDENCE_COLUMNS if c not in out_fields]
+        frac = (n_ranged_no_inc / n_ranged) if n_ranged else 1.0
+        inc_info.update(quality_counts=_count_flags(inc_qual),
+                        n_frames_ranged=n_ranged,
+                        n_ranged_without_incidence=n_ranged_no_inc,
+                        ranged_without_incidence_frac=round(frac, 4),
+                        max_incidence_gap_frac=float(max_incidence_gap_frac))
+        # THE SHRINKING DENOMINATOR MUST BE COUNTED, NEVER ABSORBED. The consumer
+        # is all-or-nothing (tripod_score sets rate_computable only when EVERY
+        # binnable frame carries an index incidence), so any ranged-but-aspectless
+        # frame costs the session its rate curve. Refuse loudly here -- where the
+        # log is still in hand -- rather than let the scorer quietly emit the
+        # annotation weeks later.
+        if frac > float(max_incidence_gap_frac) + 1e-12:
+            raise Refuse(
+                f"{n_ranged_no_inc} of {n_ranged} range-truthed frames "
+                f"({100 * frac:.1f}%) could NOT be given an incidence "
+                f"({_count_flags(inc_qual)}) -- above --max-incidence-gap-frac "
+                f"{max_incidence_gap_frac:.3f}. tripod_score computes a decode-RATE "
+                f"vs incidence curve ONLY when EVERY binnable frame carries an "
+                f"incidence_deg (protocol §4.2b): one aspectless frame drops the "
+                f"whole session back to the ANNOTATION. Fixes: supply an attitude "
+                f"log that covers the whole capture; trim the session to the "
+                f"attitude span; or raise --max-incidence-gap-frac deliberately "
+                f"(then the annotation is what you will get, and range_truth.json "
+                f"records that you chose it).")
+        if n_ranged_no_inc:
+            integrity_warnings.append(
+                f"{n_ranged_no_inc}/{n_ranged} range-truthed frames have NO "
+                f"incidence (allowed by --max-incidence-gap-frac "
+                f"{max_incidence_gap_frac:.3f}) -- tripod_score will report the "
+                f"curve-(a) x incidence product as an ANNOTATION, not a rate.")
+
     prov = {
         "tool": "scripts/seeker/range_truth_join.py",
         "session_dir": os.path.abspath(session_dir),
@@ -901,6 +1221,10 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
         # from a check that never executed -- the distinction the pre-2026-07-25
         # tool erased by keeping every test inside `if do_auto_sync:`.
         "integrity": {"altitude_datum": alt_info, "survey_bias": bias_info},
+        # The per-frame ASPECT axis (protocol §4.2b row 1). None means this join
+        # wrote NO incidence, and tripod_score will honestly degrade curve (a) x
+        # incidence to the decodes-only ANNOTATION.
+        "incidence": inc_info,
         "warnings": list(integrity_warnings),
         "dry_run": bool(dry_run),
     }
@@ -965,6 +1289,34 @@ def _print_report(prov):
     print(f"  uncertainty   : median sigma {prov['range_sigma_median_m']} m, "
           f"p90 {prov['range_sigma_p90_m']} m "
           f"(GPS sigma {prov['gps_sigma_m']} m + gap*rate + offset_sigma*rate)")
+    inc = prov.get("incidence")
+    if inc:
+        print(f"  INCIDENCE     : {inc['n_with_incidence']} frames given an aspect "
+              f"from {inc['attitude_source']} ({inc['attitude_n_samples']} ATT "
+              f"samples), mount index {inc['mount_index_deg']:.1f} deg "
+              f"({'yaw-only' if inc['yaw_only'] else 'roll+pitch+yaw'}, "
+              f"{'both faces' if inc['both_faces'] else 'SINGLE face'})")
+        print(f"                  incidence {inc['incidence_span_deg']} deg, median "
+              f"{inc['incidence_median_deg']} deg, sigma median "
+              f"{inc['sigma_median_deg']} deg / p90 {inc['sigma_p90_deg']} deg; "
+              f"{inc['n_beyond_validated_cos_law']} frames beyond the "
+              f"{inc['cos_law_validated_to_deg']:.0f} deg cos-law evidence "
+              f"(placard_mount §3.2 -- HYPOTHESIS above it)")
+        a = inc["yaw_only_vs_full_attitude_deg"]
+        print(f"                  yaw-only vs full-attitude aspect: median "
+              f"{a['median_deg']} deg, p90 {a['p90_deg']} deg, max {a['max_deg']} "
+              f"deg (n={a['n']}) -- MEASURED bound on the approximation")
+        print(f"                  quality {inc['quality_counts']}; "
+              f"{inc['n_ranged_without_incidence']}/{inc['n_frames_ranged']} "
+              f"range-truthed frames without an aspect "
+              f"(limit --max-incidence-gap-frac "
+              f"{inc['max_incidence_gap_frac']:.3f})")
+        if inc.get("sigma_excludes"):
+            print(f"                  sigma EXCLUDES {inc['sigma_excludes']}")
+    else:
+        print("  INCIDENCE     : NOT COMPUTED (no --incidence) -- tripod_score's "
+              "curve (a) x incidence will be the decodes-only ANNOTATION, not a "
+              "rate curve (protocol §4.2b)")
     for w in prov["warnings"]:
         print(f"  [WARN] {w}")
     if prov.get("dry_run"):
@@ -1311,6 +1663,114 @@ def self_test():
               f"GPS fix quality read from the .BIN (NSats={q[1][0] if q else '?'}, "
               f"HDop={q[2][0] if q else '?'})")
 
+        # ---- 6. INCIDENCE (--incidence): the RATE-curve enabler, protocol §4.2b
+        # The target flies SOUTH (north decreasing) with a beam placard, so the
+        # panel normal points WEST and the analytic incidence is
+        #   theta = arccos(east_offset / R)   [pure geometry, no code reused]
+        # PITCH is deliberately non-zero (10 deg) to prove placard_mount §3.4's
+        # claim in the pipeline: a beam placard's aspect does not move with pitch.
+        att = np.column_stack([np.zeros(n), np.full(n, 10.0), np.full(n, 180.0)])
+        bin_att = os.path.join(td, "target_att.BIN")
+        _write_synthetic_bin(bin_att, pos, t_rel, base_utc, lat0, lon0, alt0,
+                             True, att=att)
+        track_att = load_track_from_bin(Path(bin_att), "target")
+        attitude = load_attitude_from_bin(bin_att)
+        check(attitude.n == n and abs(attitude.yaw_deg[0] - 180.0) < 0.01
+              and abs(attitude.pitch_deg[0] - 10.0) < 0.01,
+              f"ATT parsed through the REAL DFReader ({attitude.n} samples, "
+              f"yaw {attitude.yaw_deg[0]:.2f} deg, pitch {attitude.pitch_deg[0]:.2f} deg)")
+
+        s12 = _synth_session(os.path.join(td, "s12"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        prov12 = join_session(s12, track_att, tripod_llh=(lat0, lon0, alt0),
+                              clock_offset_s=TRUE_OFFSET, attitude=attitude,
+                              mount_index_deg=0.0, quiet=True)
+        with open(os.path.join(s12, "index.csv"), newline="") as f:
+            rows12 = list(csv.DictReader(f))
+        th_got = np.asarray([float(r[COL_INC]) for r in rows12 if r[COL_INC]])
+        th_want = np.degrees(np.arccos(8.0 / rng_at_frames))
+        err = float(np.max(np.abs(th_got - th_want[:len(th_got)])))
+        check(len(th_got) == n_fr and err < 0.05,
+              f"incidence_deg matches the analytic aspect on all {len(th_got)} "
+              f"frames (max err {err:.4f} deg < 0.05; span "
+              f"{prov12['incidence']['incidence_span_deg']} deg) -- and it is "
+              f"UNMOVED by the 10 deg of pitch (placard_mount §3.4)")
+        check(prov12["incidence"]["n_ranged_without_incidence"] == 0,
+              "every RANGE-TRUTHED frame also carries an incidence (the "
+              "all-or-nothing condition tripod_score needs for a RATE curve)")
+        check(all(r[COL_INC_QUALITY] == _INC_OK for r in rows12),
+              "per-frame incidence_quality written for every row")
+
+        # index 90 deg = NOSE-ON: same flight, aspect must swing to the
+        # complement (normal along the flight direction).
+        s13 = _synth_session(os.path.join(td, "s13"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        prov13 = join_session(s13, track_att, tripod_llh=(lat0, lon0, alt0),
+                              clock_offset_s=TRUE_OFFSET, attitude=attitude,
+                              mount_index_deg=90.0, quiet=True)
+        check(prov13["incidence"]["incidence_median_deg"]
+              != prov12["incidence"]["incidence_median_deg"],
+              f"the MOUNT INDEX is load-bearing: 0 deg (beam) median "
+              f"{prov12['incidence']['incidence_median_deg']} deg vs 90 deg "
+              f"(nose-on) median {prov13['incidence']['incidence_median_deg']} deg")
+
+        # REFUSAL: incidence without the pass card's index angle.
+        s14 = _synth_session(os.path.join(td, "s14"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s14, track_att, tripod_llh=(lat0, lon0, alt0),
+                         clock_offset_s=TRUE_OFFSET, attitude=attitude,
+                         mount_index_deg=None, quiet=True)
+            check(False, "incidence without --mount-index-deg must REFUSE")
+        except Refuse as e:
+            check("mount-index-deg" in str(e),
+                  f"no index angle -> REFUSED, never a guessed 0 deg "
+                  f"({str(e)[:50]}...)")
+
+        # REFUSAL: attitude that does not cover the frames -> NOT an empty
+        # incidence column (a vacuous curve), a refusal.
+        att_short = attitude._replace(t_s=attitude.t_s - 500.0)
+        s15 = _synth_session(os.path.join(td, "s15"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s15, track_att, tripod_llh=(lat0, lon0, alt0),
+                         clock_offset_s=TRUE_OFFSET, attitude=att_short,
+                         mount_index_deg=0.0, quiet=True)
+            check(False, "attitude that misses the frames must REFUSE")
+        except Refuse as e:
+            check("ZERO frames with an aspect" in str(e),
+                  f"attitude/frames disjoint -> REFUSED as a VACUOUS curve, not "
+                  f"written as an empty column ({str(e)[:46]}...)")
+
+        # REFUSAL: partial attitude coverage. Half the frames keep a range but
+        # lose their aspect -> the whole session would lose its rate curve.
+        att_half = attitude._replace(
+            t_s=attitude.t_s[attitude.t_s <= t_utc_frames[n_fr // 2]],
+            roll_deg=attitude.roll_deg[:int((attitude.t_s <= t_utc_frames[n_fr // 2]).sum())],
+            pitch_deg=attitude.pitch_deg[:int((attitude.t_s <= t_utc_frames[n_fr // 2]).sum())],
+            yaw_deg=attitude.yaw_deg[:int((attitude.t_s <= t_utc_frames[n_fr // 2]).sum())])
+        s16 = _synth_session(os.path.join(td, "s16"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s16, track_att, tripod_llh=(lat0, lon0, alt0),
+                         clock_offset_s=TRUE_OFFSET, attitude=att_half,
+                         mount_index_deg=0.0, quiet=True)
+            check(False, "partial attitude coverage must REFUSE by default")
+        except Refuse as e:
+            check("max-incidence-gap-frac" in str(e) and "ANNOTATION" in str(e),
+                  f"partial attitude coverage -> REFUSED, and the message names "
+                  f"the consumer consequence ({str(e)[:44]}...)")
+        prov16 = join_session(s16, track_att, tripod_llh=(lat0, lon0, alt0),
+                              clock_offset_s=TRUE_OFFSET, attitude=att_half,
+                              mount_index_deg=0.0, max_incidence_gap_frac=1.0,
+                              quiet=True)
+        check(prov16["incidence"]["n_ranged_without_incidence"] > 0
+              and any("ANNOTATION" in w for w in prov16["warnings"]),
+              f"the deliberate override proceeds but COUNTS the loss "
+              f"({prov16['incidence']['n_ranged_without_incidence']} of "
+              f"{prov16['incidence']['n_frames_ranged']} ranged frames without an "
+              f"aspect) and warns that the curve degrades to an annotation")
+
     print(f"[self-test] {'PASS' if ok else 'FAIL'}")
     return ok
 
@@ -1398,6 +1858,60 @@ def main():
     ap.add_argument("--gps-sigma-m", type=float, default=DEFAULT_GPS_SIGMA_M,
                     help=f"absolute GPS position sigma feeding range_sigma_m "
                          f"(default {DEFAULT_GPS_SIGMA_M} m, field_score accuracy_caveat)")
+    # ---- INCIDENCE (protocol §4.2b: what makes the RATE curve computable) ----
+    g = ap.add_argument_group(
+        "per-frame INCIDENCE (the decode-RATE-vs-aspect curve, protocol §4.2b)")
+    g.add_argument("--incidence", action="store_true",
+                   help="ALSO write a per-frame `incidence_deg` into index.csv, "
+                        "reconstructed from the target log's ATTITUDE + the "
+                        "surveyed tripod position + the placard's mount index. "
+                        "This is what turns tripod_score's curve (a) x incidence "
+                        "from an ANNOTATION (decoded frames only) into a real "
+                        "decode-RATE curve -- the misses get an aspect too, so "
+                        "each cell has an honest denominator. Requires "
+                        "--mount-index-deg.")
+    g.add_argument("--mount-index-deg", type=float, default=None,
+                   help=f"REQUIRED with --incidence: the placard's index angle "
+                        f"from THIS pass's card -- 0 = beam (default mount), "
+                        f"90 = nose-on, in {MOUNT_INDEX_STEP_DEG:.0f} deg steps "
+                        f"(docs/placard_mount.md §3.6). There is NO default: a "
+                        f"guessed index rotates every frame's aspect by the guess "
+                        f"(protocol §11 item 11).")
+    g.add_argument("--attitude-bin", default=None,
+                   help="ArduPilot .BIN carrying ATT for the attitude "
+                        "(default: the --bin target log, when one was given)")
+    g.add_argument("--attitude-csv", default=None,
+                   help="attitude as CSV: t_utc_s + yaw_deg [+ roll_deg, "
+                        "pitch_deg]. Roll/pitch are NOT defaulted to level -- "
+                        "without them the tool refuses unless you also pass "
+                        "--incidence-yaw-only.")
+    g.add_argument("--incidence-yaw-only", action="store_true",
+                   help="compute the placard normal from YAW alone (neglect "
+                        "roll/pitch). For a BEAM mount, pitch costs exactly zero "
+                        "incidence and roll costs 1:1 (placard_mount §3.4), so "
+                        "this is usually small -- but the join MEASURES the "
+                        "difference against the full-attitude solution and prints "
+                        "it either way, so the approximation is bounded by data.")
+    g.add_argument("--placard-single-face", action="store_true",
+                   help="score a SINGLE-sided placard (default: BOTH faces, the "
+                        "adopted double-sided print, placard_mount §3.6). With "
+                        "both faces the incidence is the near face's, in "
+                        "[0,90] deg; single-sided, a back-lit frame honestly "
+                        "reports > 90 deg.")
+    g.add_argument("--attitude-sigma-deg", type=float, default=None,
+                   help="fold a MEASURED attitude-estimate 1-sigma into "
+                        "incidence_sigma_deg. Default: omitted and stamped as "
+                        "omitted -- ArduPilot's ATT record carries no covariance "
+                        "and inventing one is forbidden (error policy §5).")
+    g.add_argument("--max-incidence-gap-frac", type=float,
+                   default=DEFAULT_MAX_INCIDENCE_GAP_FRAC,
+                   help=f"fraction of RANGE-TRUTHED frames allowed to lack an "
+                        f"incidence before the join refuses (default "
+                        f"{DEFAULT_MAX_INCIDENCE_GAP_FRAC}). It is zero because "
+                        f"tripod_score needs an incidence on EVERY binnable frame "
+                        f"to call the curve a RATE; one aspectless frame costs the "
+                        f"session its rate curve.")
+
     ap.add_argument("--min-nsats", type=int, default=DEFAULT_MIN_NSATS)
     ap.add_argument("--max-hdop", type=float, default=DEFAULT_MAX_HDOP)
     ap.add_argument("--dry-run", action="store_true",
@@ -1426,6 +1940,39 @@ def main():
         ap.error("the surveyed tripod position is required: --tripod-lat/--tripod-lon/"
                  "--tripod-alt (lat/lon track) or --tripod-enu (local-ENU track)")
 
+    # ---- attitude source resolution (fail-closed; nothing is defaulted) ----
+    attitude = None
+    if args.attitude_bin or args.attitude_csv or args.incidence:
+        if not args.incidence:
+            ap.error("--attitude-bin/--attitude-csv only do something with "
+                     "--incidence; add it (and --mount-index-deg) or drop them")
+        if args.mount_index_deg is None:
+            ap.error("--incidence requires --mount-index-deg (the pass card's "
+                     "placard index: 0 = beam, 90 = nose-on). There is no "
+                     "default -- protocol §11 item 11.")
+        if args.attitude_bin and args.attitude_csv:
+            ap.error("give ONE attitude source: --attitude-bin or --attitude-csv")
+        att_bin = args.attitude_bin or (args.bin_path if not args.attitude_csv else None)
+        try:
+            if args.attitude_csv:
+                attitude = load_attitude_from_csv(
+                    args.attitude_csv, allow_yaw_only=args.incidence_yaw_only)
+            elif att_bin:
+                attitude = load_attitude_from_bin(att_bin)
+            else:
+                raise NoAttitude(
+                    "--incidence needs an attitude source: --attitude-bin (an "
+                    "ArduPilot .BIN with ATT) or --attitude-csv "
+                    "(t_utc_s,yaw_deg[,roll_deg,pitch_deg]). The target's --ulog "
+                    "/ --csv position track alone does NOT carry attitude, and "
+                    "assuming level flight would invent the aspect this curve is "
+                    "binned on.")
+        except NoAttitude as e:
+            print(f"[range_truth_join] REFUSED: {e}", file=sys.stderr)
+            return 2
+        for w in attitude.warnings:
+            print(f"[warn] attitude: {w}", file=sys.stderr)
+
     try:
         track = loader(Path(path), "target")
         for w in track.warnings:
@@ -1447,6 +1994,11 @@ def main():
             allow_unverified_survey=args.allow_unverified_survey,
             max_residual_m=args.max_residual_m, max_bias_m=args.max_bias_m,
             min_sync_samples=args.min_sync_samples,
+            attitude=attitude, mount_index_deg=args.mount_index_deg,
+            incidence_yaw_only=args.incidence_yaw_only,
+            placard_both_faces=not args.placard_single_face,
+            attitude_sigma_deg=args.attitude_sigma_deg,
+            max_incidence_gap_frac=args.max_incidence_gap_frac,
             dry_run=args.dry_run)
     except Refuse as e:
         print(f"[range_truth_join] REFUSED: {e}", file=sys.stderr)

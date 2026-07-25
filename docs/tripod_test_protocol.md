@@ -325,16 +325,54 @@ pass flown at 0° are **different experiments** — pooling them smears the curv
 `tripod_score` writes `curve_a_incidence.csv` + a `curve_a_incidence` block in
 `gate.json`, and there are **two different things it can produce**:
 
-| Situation | What you get | Why |
-|---|---|---|
-| `index.csv` carries a per-frame `incidence_deg` for EVERY binnable frame | a real **decode-rate vs (range × incidence)** curve | the misses have an incidence too, so each cell has an honest denominator |
-| only the tag's own pose is available (the default today) | an **ANNOTATION**: the incidence *distribution of the decodes* (median/p90/max), and NO rate cells | incidence is recovered FROM the decode, so a rate computed on it would have a denominator of "frames that decoded" — identically 100%, and meaningless |
+| Situation | What you get | Why | How you get there |
+|---|---|---|---|
+| `index.csv` carries a per-frame `incidence_deg` for EVERY binnable frame | a real **decode-rate vs (range × incidence)** curve | the misses have an incidence too, so each cell has an honest denominator | **RUN THE PRODUCER** — `range_truth_join.py … --incidence --mount-index-deg <the pass card's index>` (see the box below) |
+| only the tag's own pose is available (the fallback, and what you get if you skip `--incidence`) | an **ANNOTATION**: the incidence *distribution of the decodes* (median/p90/max), and NO rate cells | incidence is recovered FROM the decode, so a rate computed on it would have a denominator of "frames that decoded" — identically 100%, and meaningless | nothing to do — this is what the join writes when no attitude is supplied, and it says so |
 
 The tool says which one it produced and refuses to dress the second up as the
 first. To get the rate curve, the per-frame incidence must come from the target
 log's attitude + the surveyed tripod position + the mount index angle — which is
 why **the index angle on the pass card is not optional** (§11): without it no
 frame's incidence can be reconstructed after the day.
+
+> ✅ **THE RATE ROW IS NOW REACHABLE (shipped 2026-07-25).** That recipe used to be
+> prose with no code behind it — the protocol told you to score `(range × incidence)`
+> while nothing in the repo could write a per-frame `incidence_deg`, so the aspect
+> axis of the $740 curve could only ever be the annotation. The producer is
+> `scripts/seeker/range_truth_join.py --incidence` (geometry in
+> `scripts/seeker/placard_incidence.py`; contract test
+> `tests/test_incidence_rate_curve_contract.py`). Run it in §7.0 step (b):
+>
+> ```
+> scripts/seeker/range_truth_join.py --session-dir SESSION \
+>     --bin target_flight.BIN \
+>     --tripod-lat .. --tripod-lon .. --tripod-alt ..  --clock-offset-s -0.42 \
+>     --incidence --mount-index-deg 0        # 0 = beam, 90 = nose-on, 15° steps
+> ```
+>
+> - Attitude comes from the target `.BIN`'s **ATT** records (same log, same clock as
+>   the POS track it is already joining); `--attitude-bin` / `--attitude-csv`
+>   (`t_utc_s,roll_deg,pitch_deg,yaw_deg`) override the source.
+> - **`--mount-index-deg` is mandatory with `--incidence`** — there is no default,
+>   because a guessed index rotates *every* frame's aspect by the guess.
+> - It is **fail-closed**: no assumed level attitude (a yaw-only attitude export is
+>   refused unless you pass `--incidence-yaw-only` by name), no extrapolation past the
+>   attitude span, **zero aspected frames REFUSES** (an empty incidence column is not a
+>   curve), and a range-truthed frame that could not be given an aspect is **counted**
+>   and refuses by default (`--max-incidence-gap-frac`) — because `tripod_score` needs
+>   an incidence on **every** binnable frame to call the result a rate, so one
+>   aspectless frame costs the whole session its rate curve.
+> - It reports a **measured** bound on the yaw-only approximation and a per-frame
+>   `incidence_sigma_deg`. Read that sigma before quoting a 15° bin: at 10 m range a
+>   2 m GPS sigma alone is ~11° of line-of-sight bearing, comparable to the bin width.
+>   Roll/pitch are used by default; for the **beam** mount pitch costs exactly 0°
+>   (`placard_mount.md` §3.4) and roll costs 1:1, so the yaw-only difference is
+>   normally the bank angle's worth — but it is measured per session, not assumed.
+> - Other flags: `--placard-single-face` (default is the adopted **double-sided**
+>   print, so incidence is the near face's and stays in 0–90°), `--attitude-sigma-deg`
+>   (fold in a MEASURED attitude 1-σ; omitted and stamped as omitted by default,
+>   because ArduPilot's ATT record carries no covariance).
 
 Also record the index angle into the score with `--mount-index-deg` so it lands in
 `gate.json`, and state the engagement aspect the GO is meant to cover with
@@ -717,7 +755,8 @@ exists to make the tag ranges, not a verdict.
     --session-dir SESSION_DIR --bin target_flight.BIN \
     --tripod-lat <§6.0> --tripod-lon <§6.0> --tripod-alt <§6.0, AMSL> \
     --clock-offset-s <from the §6.1 sync card> \
-    --tags-csv logs/tripod_score/<session>/tags.csv
+    --tags-csv logs/tripod_score/<session>/tags.csv \
+    --incidence --mount-index-deg <this pass's placard index, §4.2b>
 ```
 
 - `--tripod-lat/lon/alt` are the §6.0 survey. All three or none; the altitude must
@@ -735,8 +774,15 @@ exists to make the tag ranges, not a verdict.
 - It writes `true_range_m` + `range_quality` / `range_sigma_m` back into
   `index.csv`, atomically, keeping a pristine `index.csv.bak`. Exit `2` = REFUSED
   (an unsafe join) — read the reason, it names which of {wrong log, bad survey,
-  datum blunder, wrong clock offset, unidentifiable clock, implausible geometry}
-  it caught. **A refusal is the tool working.**
+  datum blunder, wrong clock offset, unidentifiable clock, implausible geometry,
+  no attitude / no aspected frames} it caught. **A refusal is the tool working.**
+- **`--incidence --mount-index-deg <index>` is what makes §4.2b's decode-RATE vs
+  incidence curve possible** — it also writes `incidence_deg` (+ `incidence_quality`
+  / `incidence_src_dt_s` / `incidence_sigma_deg`) from the log's **ATT** attitude,
+  the surveyed tripod position and the pass card's index angle. Skip it and
+  `tripod_score` honestly degrades that curve to the decodes-only ANNOTATION (the
+  §4.2b table). The index angle has **no default**; see the ✅ box in §4.2b for the
+  fail-closed rules and the `incidence_sigma_deg` caveat.
 - **`--tags-csv` is now load-bearing on the explicit path too**: the tag ranges are
   what the survey/datum/bias cross-check compares against (see the ✅ box in §6.1).
   Point it at step (a)'s offline re-decode on *every* pass, not just sync passes.
@@ -823,10 +869,15 @@ then cleanly no-ops (no `onnxruntime`), which is fine: the plots are for curve (
    *different experiments* and pooling them smears the curve. The tool writes
    `curve_a_incidence.csv` and a `curve_a_incidence` block in `gate.json`; pass
    `--mount-index-deg <the pass card's index>` and `--incidence-bin-deg 15`
-   (15° = the mount's own index step). Read §4.2b's table first — with only the
-   tag's own pose available, the tool honestly reports the incidence
-   *distribution of the decodes*, **not** a rate curve, because a rate needs the
-   MISSES to have an incidence too.
+   (15° = the mount's own index step). Read §4.2b's table first.
+   **To get a RATE curve rather than an annotation, §7.0 step (b) must have been
+   run with `--incidence --mount-index-deg`** — that is what puts a per-frame
+   `incidence_deg` on the MISSES as well as the decodes. Check
+   `gate.json:curve_a_incidence.rate_computable`: `true` = a measured rate;
+   `false` = the incidence *distribution of the decodes* only. If some frames
+   carry an aspect and some do not, the scorer still shows cells but flags them
+   `cells_are_partial` / `rate_is_measured=0` — a **shrunken denominator**, not
+   the session's decode rate; re-join so every binnable frame has an aspect.
 5. **Re-decode the same frames at `quad_decimate ∈ {2.0, 1.0}`** (§4.2b) and
    report both envelopes. Zero field time; it is the whole no-second-field-day
    reclaim lever, and it is now runnable (`--quad-decimate` +
