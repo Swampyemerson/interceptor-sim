@@ -43,6 +43,11 @@ the mini-map, de-cringe the OSD, drop the outro. Beats (~20 s total):
    rings), captioned **"CPA 0.63 m < 1.5 m lethal radius (ADR-0025 criterion — not a
    modeled blast)"**. No collision/blast volume in the sim (ADR-0014). The old
    outro/metrics card was REMOVED (builder feedback #4); the reel ends here.
+   > ⚠️ **2026-07-25 (ADR-0084):** the RAM/kill radius was ratified to **0.35 m** for the
+   > ordered 5-inch pair. The 0.63 m CPA in this caption is a **net-class** kill (1.5 m),
+   > NOT a ram kill (0.35 m). A T25 re-render must relabel the criterion ring (net vs ram)
+   > so the demo does not read as a ram kill it was not — this is the ADR-0066 claims-scrub
+   > applied to the reel.
 
 **SECONDARY = the CHASE (wide) cut** — the same intercept from the world chase
 camera + a compact HUD, ~3.8 s, a brief B-roll wide angle. Deliberately short; the

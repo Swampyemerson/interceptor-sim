@@ -126,7 +126,7 @@ pixel is wrong toward the frame edges (>1° at the edge on a representative mode
 | **Pixhawk 6C Mini / PX4** | the exact stack the sim validated — params + MAVLink/OFFBOARD guidance transfer directly |
 | Pi 5 8GB + Hailo-8L | YOLO11n @640 on the NPU; CPU free for MAVLink *(HAT deferred to the markerless phase, §0c)* |
 | Arducam AR0234 global-shutter + ~100° M12 | the terminal seeker (AprilTag was the sim stand-in); calibrate with `calibrate_camera.py` *(upgrade path; lean build = OV9281 mono, §0c)* |
-| adjustable up-tilt / **prop-clearance** bracket | prop-clearance per §0② (add #18h); a FIXED tilt does NOT close the dash-pitch gap — it only relocates the in-view window (add #18j-fix; no fixed tilt adopted, ADR-0067/0068 — adaptive tilt #46 is the open lever) |
+| adjustable up-tilt / **prop-clearance** bracket | prop-clearance per §0②. **A FIXED up-tilt IS the committed pointing decision (builder 2026-07-17; adaptive tilt REJECTED for simplicity)** — the tilt attacks the ACQUISITION wall (75% of terminal ticks have the target out-of-frame under the dash pitch), sized to the airframe's measured steady dash pitch (~25-40°, from the first real dash ULog → print an adjustable 10-30° bracket and lock it). The prior up15 NULL (ADR-0067/0068) was a cue-era terminal-PARITY test, a different context. Since a dash-pitch tilt exceeds the flush mount's ~11° prop clearance, the tilt requires the nose-cantilever/boom geometry (ADR-0088; constraint `forward-camera-boom`). See the `pointing` stage in `docs/project_state.json`. |
 | ArduPilot GPS quad, AUTO box | the target (straight legs ≥2 m/s) |
 
 ## Build path when the hardware arrives (open, largely hardware-gated)

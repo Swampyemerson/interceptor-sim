@@ -181,9 +181,21 @@ statically (AST scans over every live seeker module, mutation-calibrated).
 
 ## The real build (Tier-1, in progress)
 
-Status 2026-07-20 — hardware **ordered** (target-drone stack, seeker kit,
-interceptor flight controller; plus the build/field consumables top-up), and
-the Tier-1 software layer landed the same day, all adversarially reviewed:
+**Status 2026-07-25** — **Tier-1 is fully ordered** (target-drone stack, seeker
+kit, interceptor flight controller, and the build/field consumables top-up).
+The 2026-07-25 what's-left build push
+([`docs/audit_2026-07-25_whats_left.md`](docs/audit_2026-07-25_whats_left.md))
+closed the desk backlog before the parts land: the **ram/kill radius is
+ratified at 0.35 m** (ADR-0084 — the ordered 5-inch pair's contact envelope, so
+every Pk figure is now quoted against a radius the hardware can actually
+deliver; the 5-inch carries the full seeker at T/W ~6:1); the field-day P0s are
+closed (`--quad-decimate` plumbed, tripod mission geometry corrected, capture
+matrix re-briefed for the beam-facing placard, range-truth integrity hardened);
+the print artifacts (placard, checkerboard, mount) are built and dimensionally
+verified; `FAILSAFE 7` (post-GO offboard loss → SAFE) and the kill-day protocol
+are written; a sim-terminal zero-command bug was fixed (the coded-dash camera-arm
+verdicts are re-flying); and **CI is green** (it had been red since the first
+push). The Tier-1 software layer, all adversarially reviewed:
 
 - `scripts/seeker/pi_capture.py` — Pi 5 / OV9281 session recorder (frames +
   index + metadata; logs the actual applied exposure vs the ≤1 ms spec).
