@@ -310,7 +310,9 @@ The 2 m/s and 6 m/s columns trace to real Gazebo runs (M4 gate, ADR-0014 addendu
 
 ## 7. Recommendation (cost-first)
 
-1. **Headline mechanism = kinetic ram, R_lethal ≈ 0.5 m (0.3 m expected).** $0, 0 g,
+1. **Headline mechanism = kinetic ram, R_lethal = 0.35 m (RATIFIED, ADR-0084 — supersedes this
+   section's original "≈ 0.5 m (0.3 m expected)", which was the 7-inch heritage figure; see the
+   ⚖️ banner in §2).** $0, 0 g,
    matches the committed 2.5–7 in airframe and GOALS.md's "< 1 m" bar, and is what
    ~70% of real interceptor kills already do. **Report the ram Pk-vs-R curve as the
    honest headline.** Under it, **the 2–3 m/s intercept is already a validated kill

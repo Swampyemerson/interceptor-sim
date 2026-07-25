@@ -1,5 +1,34 @@
 # T25 Demo Video — Shot-by-Shot Storyboard
 
+> **🔁 RE-RENDERED 2026-07-25 — ram-radius caption pass + ADR-0066 claims-scrub
+> (captions only; no shot was added, removed, re-cut, or re-shot).** Output
+> `demo_out/t25/t25_demo.mp4` — 30.4 s / 912 frames / 1920×1080 / 30 fps, the same
+> 7 shots (0, 1, 2, 3, 3b, 6, 8; shot 7 chase still un-rendered). What changed, in
+> the rendered pixels:
+> - **Ram radius (ADR-0084).** The RANGE-bar tick is now named by mechanism —
+>   `R_lethal 1.5` → **`R_net 1.5`** (`render_hud.radius_label`/`fmt_radius`), and the
+>   shot-6 CPA close-out reads *"NET-CLASS criterion R=1.5 m (ADR-0025); ram/contact
+>   radius 0.35 m (ADR-0084) — not a modeled collision; GT, scoring only"*. The
+>   0.5 m ram figure was NEVER in this cut (it is the retired 7-inch number); the
+>   defect was that a net-class criterion was labelled only "lethal radius", which
+>   post-ADR-0084 reads as a ram kill it is not.
+> - **Comms-denied HELD (tracker FWD-A1 / DEEP-H3).** End-card disclosure was stale
+>   ("jam-denial validation in progress") — the ADR-0059 MC FLEW: the config fails
+>   closed and the staleness fix is fail-SAFE, **not** recovery. Now stated as such,
+>   claim still HELD.
+> - **Superseded numbers (tracker FWD-A2).** The n=16 arm alone supports only a
+>   79.4% CP lower bound; the end card now also carries the RATIFIED **ADR-0064**
+>   claim (Pk ≥ 95% at R=2.8 m, 95% CI, n=72; 98.6%/92.5% at 2.5 m), recomputed and
+>   asserted from `logs/mc_pk72_weave_s*.csv` + `mc_fixA_on_weave.csv` at card-build.
+> - **Target-model scoping (ADR-0072 add #2 / ADR-0076).** Title + end card now state
+>   the target is the legacy markerless stand-in (flat billboard) and that the
+>   realistic 3-D quad built later is harder — these numbers do NOT transfer to it.
+> - **Tilt card (ADR-0068).** "terminal Pk@2.5 restored to 8/8" now carries the
+>   mandated honest note: strict parity NOT met, NO fixed mount adopted, tilt does
+>   NOT enable comms-denied recovery.
+> The frame audit below re-ran clean (`hud_overlay` honesty check: 0 frames with a
+> live cue element after the latch; slow-mo watermark on every retimed frame).
+
 *Builder's spec (2026-07-09): show BOTH ground stereo cameras detecting the
 threat first, from near max range, with a HUD element marking the detection
 instant; a few seconds later cut to the interceptor's own camera as it takes

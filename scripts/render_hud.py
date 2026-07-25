@@ -26,7 +26,7 @@ OSD FIELDS (overlay) and the exact CSV column driving each:
   APRILTAG LOCK lamp         <- detected           (see parse_flag01())
   HEADING tape (attitude)    <- psi_deg
   T_GO (time-to-intercept)   <- r_hat_m / vc_m_s   (camera firing solution)
-  RANGE bar + readout        <- r_hat_m            (R_lethal tick = --radius)
+  RANGE bar + readout        <- r_hat_m            (R_net/R_ram tick = --radius)
   CLOSING SPEED readout       <- vc_m_s
   LOS RATE readout            <- lambda_dot_deg_s   (the live pro-nav signal)
   GND SPD gauge               <- d/dt of gt_cam_x/y (GT-derived, scoring ref;
@@ -121,6 +121,23 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LETHAL_RADIUS_NET_M = 1.5
 LETHAL_RADIUS_RAM_M = 0.35
 DEFAULT_RADIUS_M = LETHAL_RADIUS_NET_M
+
+
+def radius_label(r):
+    """Short on-screen NAME for a criterion radius, so a HUD tick/ring can never
+    be read as the WRONG kill mechanism (ADR-0084 claims-scrub, 2026-07-25: the
+    ram radius is 0.35 m from the ordered 5-inch pair; the 1.5 m net-class
+    radius is a different, more forgiving mechanism and is unchanged)."""
+    if abs(r - LETHAL_RADIUS_RAM_M) < 1e-6:
+        return "R_ram"
+    if abs(r - LETHAL_RADIUS_NET_M) < 1e-6:
+        return "R_net"
+    return "R_crit"
+
+
+def fmt_radius(r):
+    """Radius as text with enough precision to distinguish 0.35 from 1.5."""
+    return f"{r:.2f}" if r < 1.0 else f"{r:.1f}"
 
 # Sidebar canvas geometry (the default tall panel; unchanged).
 FIG_W_IN, FIG_H_IN = 6.4, 10.8
@@ -480,7 +497,8 @@ def draw_minimap(map_ax, ctx, i, transparent=False, compact=False):
             if compact:
                 txt = f"CPA {fmt_num(miss, ' m')}"
             else:
-                txt = (f"CPA {fmt_num(miss, ' m')} (R_lethal={ctx.radius_m:.1f} m,\n"
+                txt = (f"CPA {fmt_num(miss, ' m')} "
+                       f"({radius_label(ctx.radius_m)}={fmt_radius(ctx.radius_m)} m,\n"
                        "criterion, not a modeled collision)")
             map_ax.text(cx, cy - ctx.radius_m * 1.35, txt, color=COLOR_RED,
                         fontsize=(6 if compact else 7), family=MONO, ha="center", va="top")
@@ -529,7 +547,8 @@ def _vgauge(ax, x, y, w, h, value, vmax, label, valtext, transparent, fs, tick_v
 
 def _range_bar(ax, x, y, w, h, r, r0, r_lethal, transparent, fs):
     """Horizontal RANGE bar that DEPLETES as range closes (full=r0, empty=0),
-    with a red R_lethal tick. Value in white ink; label in gray."""
+    with a red criterion-radius tick, NAMED by mechanism (R_net / R_ram / R_crit
+    -- ADR-0084). Value in white ink; label in gray."""
     _plate(ax, x, y, w, h, transparent, z=2)
     if r is not None and not math.isnan(r) and r > 0:
         frac = max(0.0, min(1.0, r / r0))
@@ -541,7 +560,8 @@ def _range_bar(ax, x, y, w, h, r, r0, r_lethal, transparent, fs):
     if r0 > 0:
         tx = x + w * max(0.0, min(1.0, r_lethal / r0))
         ax.plot([tx, tx], [y, y + h], color=COLOR_RED, linewidth=1.4, zorder=4)
-        ax.text(tx, y - 0.008, f"R_lethal {r_lethal:.1f}", color=COLOR_RED,
+        ax.text(tx, y - 0.008,
+                f"{radius_label(r_lethal)} {fmt_radius(r_lethal)}", color=COLOR_RED,
                 fontsize=fs * 0.62, family=MONO, ha="center", va="top", zorder=4)
     ax.text(x, y + h + 0.008, "RANGE", color=COLOR_GRAY, fontsize=fs * 0.8,
             family=MONO, ha="left", va="bottom", zorder=3)

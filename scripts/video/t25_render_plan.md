@@ -9,6 +9,35 @@ what is the exact command?** Offline tooling is already built
 sequenced by the builder (idle machine, ONE sim at a time, RTF ≈ 1 — no
 `PX4_SIM_SPEED_FACTOR` on render passes; batch-hygiene rules apply).
 
+> **🔁 2026-07-25 CAPTION-ONLY RE-RENDER — exact reproduction recipe.** No sim was
+> booted; the flown hero flight is
+> `logs/m4_intercept_pronav_20260710T232121Z.csv` (CPA 2.076 m, handoff latch
+> t=32.936 s), whose captured frames are `demo_out/t25/onboard_frames/`
+> (+ `onboard_frames_up15/` for the tilt A/B). Steps, in order:
+> ```bash
+> .venv/bin/python scripts/video/hud_overlay.py \
+>     logs/m4_intercept_pronav_20260710T232121Z.csv \
+>     --out demo_out/t25/shot36_frames \
+>     --frames demo_out/t25/onboard_frames/manifest.csv --rt-label   # 1097 frames
+> # per-shot cuts (frame ranges recovered by pixel-matching the shipped clips;
+> # they are UNCHANGED from the 2026-07-11 cut -- this is a caption pass):
+> #   shot3 start=645 count=38 | shot4 start=683 count=9
+> #   shot5 start=692 count=7  | shot6 start=680 count=23   (retimed x8 at assembly)
+> ffmpeg -y -framerate 30 -start_number 645 -i demo_out/t25/shot36_frames/frame_%06d.png \
+>     -frames:v 38 -vf format=yuv420p -c:v libx264 -crf 19 demo_out/t25/shot3_launch_dash.mp4
+> #   ... same pattern for shot4/shot5/shot6
+> .venv/bin/python scripts/video/make_t25_cards.py
+> .venv/bin/python scripts/video/make_tilt_ab_card.py \
+>     --level demo_out/t25/onboard_frames/frame_000678.png \
+>     --tilt  demo_out/t25/onboard_frames_up15/frame_000669.png \
+>     --range-m 15.0 --out demo_out/t25/shot3b_tilt_ab.png
+> scripts/video/assemble_t25.sh          # -> demo_out/t25/t25_demo.mp4 (30.4 s, 7 shots)
+> ```
+> Shots 1/2 (ground stereo) were NOT regenerated — they carry no radius or
+> claim-scoped text. Shot 7 (chase) is still un-rendered and is skipped by the
+> assembler. What the captions now say + why: the 🔁 block at the top of
+> `docs/t25_storyboard.md`.
+
 **Sequencing gate (storyboard):** render AFTER the v3 detector evaluation
 completes — the demo flies the best detector. A guidance-fix build is
 touching `m4_intercept.py`/`detect_track.py` at the time of writing; renders

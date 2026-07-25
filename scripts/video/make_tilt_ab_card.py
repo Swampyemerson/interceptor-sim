@@ -10,9 +10,12 @@ HONESTY (bound by docs/t25_storyboard.md + ADR-0068):
   * The caption cites the ARM-LEVEL ADR-0067 result (dash-above-FoV 32% -> 0%,
     n=8 paired), NOT the single demo flight's numbers — one flight is an
     illustration, the arm is the evidence.
-  * It is a NOMINAL-AVAILABILITY claim ONLY. The #40 Stage-2 recovery re-test was
-    a NULL (ADR-0068) — this card must NOT imply the tilt enables comms-denied
-    recovery. No such wording appears here.
+  * It is a NOMINAL-AVAILABILITY claim ONLY. The #40 Stage-1 nominal-terminal
+    re-fly FAILED strict parity and Stage-2 (comms-jam recovery) was a NULL
+    (ADR-0068) — so NO fixed up-tilt mount is adopted (the fixed-tilt adoption
+    is graveyarded in docs/project_state.json; adaptive tilt #46/ADR-0065 is the
+    live pointing lever). The card states both explicitly and must NOT imply
+    either an adopted mount or comms-denied recovery.
 
 Usage:
   .venv/bin/python scripts/video/make_tilt_ab_card.py \
@@ -92,8 +95,12 @@ def main():
     centered(d, W / 2, cap_y + 34,
              "target above field-of-view 32% → 0% of dash  (ADR-0067, n=8 paired)",
              f_cap, ACCENT)
-    centered(d, W / 2, cap_y + 74,
-             "guidance composes the mount (#40) — terminal Pk@2.5 restored to 8/8",
+    centered(d, W / 2, cap_y + 72,
+             "compensated arm restores terminal Pk@2.5 to 8/8 — but strict parity was NOT met:",
+             f_sub, DIM)
+    centered(d, W / 2, cap_y + 100,
+             "NO fixed up-tilt mount is adopted, and the tilt does NOT enable comms-denied "
+             "recovery (ADR-0068)",
              f_sub, DIM)
 
     canvas.save(a.out)

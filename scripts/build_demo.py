@@ -16,9 +16,12 @@ HOW IT STAYS HONEST (project non-negotiables, docs/demo_plan.md rules):
     "REAL-TIME" / "SLOW-MO" tag, and slow-mo in-betweens are honest cross-
     dissolves of adjacent captured frames, never invented motion.
   - The proximity-fuse close-out cites the REAL trigger number: CPA (minimum
-    ground-truth range) 0.632 m < the 1.5 m net lethal radius (ADR-0025), and
-    is explicitly labelled a CRITERION, not a modeled blast -- the sim has no
-    collision/blast volume (ADR-0014). The ring/flash is a stylised graphic.
+    ground-truth range) 0.632 m < the 1.5 m NET-CLASS lethal radius (ADR-0025),
+    and is explicitly labelled a CRITERION, not a modeled blast -- the sim has
+    no collision/blast volume (ADR-0014). The banner also NAMES the mechanism
+    and states it is NOT a ram kill: the ram/contact radius is 0.35 m (ADR-0084,
+    ratified 2026-07-25 from the ordered 5-inch pair; it retires the old 7-inch
+    0.5 m figure), and 0.632 m does NOT clear it. The ring is a stylised graphic.
   - gt_* (used only for the CPA number + the map's reference markers) is
     scoring-only and never fed to guidance (CLAUDE.md honesty boundary).
 
@@ -155,9 +158,17 @@ def fuse_banner(W, H, cpa_m):
          "plate_ec": rh.COLOR_RED, "plate_lw": 2.0},
         {"x": 0.5, "y": 0.792, "text": "PROXIMITY FUSE  —  DETONATE",
          "color": rh.COLOR_RED, "size": 22, "weight": "bold"},
-        {"x": 0.5, "y": 0.737, "text": f"CPA {cpa_m:.2f} m  <  {RADIUS:.1f} m lethal radius",
+        {"x": 0.5, "y": 0.737,
+         "text": (f"CPA {cpa_m:.2f} m  <  {RADIUS:.1f} m NET-CLASS lethal radius"),
          "color": rh.COLOR_AMBER, "size": 14, "weight": "bold"},
-        {"x": 0.5, "y": 0.710, "text": "ADR-0025 criterion  --  not a modeled blast (no collision volume in sim)",
+        # Name the mechanism: this is the FORGIVING net-class criterion, NOT the
+        # ram/contact envelope (0.35 m, ratified ADR-0084 from the ordered
+        # 5-inch pair -- it retires the old 7-inch 0.5 m figure). Without this
+        # line a 0.63 m CPA reads as a ram kill it is not (demo_out/README.md).
+        {"x": 0.5, "y": 0.710,
+         "text": (f"ADR-0025 criterion  --  NOT a ram kill "
+                  f"(ram/contact radius {rh.LETHAL_RADIUS_RAM_M:.2f} m, ADR-0084)  --  "
+                  "not a modeled blast (no collision volume in sim)"),
          "color": rh.COLOR_GRAY, "size": 9.5},
     ]
     return text_layer(items, W, H)

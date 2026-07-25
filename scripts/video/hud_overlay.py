@@ -29,7 +29,9 @@ WHAT'S NEW vs render_hud.py's overlay layout (the T25 storyboard needs):
     "GROUND LINK CLOSED -- structurally unreadable from this tick". This is
     the storyboard's honesty beat (shot 5). Deliberately NOT worded as
     "jam-proof"/"jamming-proven": mid-dash jam-denial is a HELD claim
-    (ADR-0059 validation in progress; honesty constraint #2).
+    (ADR-0059 MC FLEW 2026-07-10 -- the config fails closed under a
+    pre-acquisition jam and the staleness fix is fail-SAFE, not recovery; the
+    claim stays HELD. Honesty constraint #2).
   * Seeker track box: the CSRT/NN measurement (meas_x/y/z, camera frame,
     OpenCV convention: x right, y down, z forward) projected through the
     logged camera intrinsics (fx=fy=539.936, cx=640, cy=480 @1280x960 -- the
@@ -40,8 +42,10 @@ WHAT'S NEW vs render_hud.py's overlay layout (the T25 storyboard needs):
     (honesty constraint #4: disclose retiming on screen, on EVERY retimed
     frame). --rt-label stamps "REAL-TIME 1x" on the others.
   * CPA close-out (>= the CPA tick only, no foreknowledge): "CLOSEST APPROACH
-    X.XX m -- lethal-radius criterion, not a modeled collision", labeled GT/
-    scoring-only (honesty constraints #4/#5).
+    X.XX m" + `cpa_criterion_line()`, which NAMES the kill mechanism the
+    criterion radius belongs to (NET-CLASS 1.5 m, ADR-0025) and states the
+    other (ram/contact 0.35 m, ADR-0084) so a net-class CPA can never read as
+    a ram kill -- labeled GT/scoring-only (honesty constraints #4/#5).
   * Standing footnote every frame (honesty constraint #3): the cue that
     steered these validated flights is the calibrated MOCK ground-stereo
     stand-in (real maneuvering stereo caches not built; T20/T21 pending).
@@ -120,6 +124,25 @@ FOOTNOTE_CUE = "flown cue = calibrated MOCK ground-stereo stand-in (maneuvering 
 FOOTNOTE_GT = "GT RNG / GS / CPA = ground truth, scoring only, never fed to guidance"
 SLOWMO_TEXT = "SLOW MOTION (retimed)"
 RT_TEXT = "REAL-TIME 1x"
+
+
+def cpa_criterion_line(radius_m):
+    """The CPA close-out sub-caption. NAMES the kill mechanism the criterion
+    radius belongs to, and states the OTHER one, so a viewer can never read a
+    net-class CPA as a ram/contact kill (ADR-0066 claims-scrub applied to the
+    reel, ADR-0084: the ram radius is 0.35 m from the ordered 5-inch pair's
+    contact envelope -- it RETIRES the old 7-inch 0.5 m figure; the 1.5 m
+    net-class radius is a different mechanism and is unchanged)."""
+    net = f"{rh.LETHAL_RADIUS_NET_M:.1f}"
+    ram = f"{rh.LETHAL_RADIUS_RAM_M:.2f}"
+    if abs(radius_m - rh.LETHAL_RADIUS_RAM_M) < 1e-6:
+        shown = f"RAM/CONTACT criterion R={ram} m (ADR-0084); net-class radius {net} m"
+    elif abs(radius_m - rh.LETHAL_RADIUS_NET_M) < 1e-6:
+        shown = f"NET-CLASS criterion R={net} m (ADR-0025); ram/contact radius {ram} m (ADR-0084)"
+    else:
+        shown = (f"criterion R={rh.fmt_radius(radius_m)} m -- net-class {net} m / "
+                 f"ram {ram} m (ADR-0025/0084)")
+    return shown + " -- not a modeled collision; GT, scoring only"
 
 
 # ---------------------------------------------------------------------------
@@ -331,9 +354,7 @@ def render_frame(ctx, i, out_path, W, H, transparent, slowmo, rt_label,
         ax.text(0.5, 0.772, f"CLOSEST APPROACH  {ctx.cpa_m:0.2f} m",
                 color=rh.COLOR_RED, fontsize=fs * 1.25, family=rh.MONO,
                 ha="center", va="center", weight="bold", zorder=5)
-        ax.text(0.5, 0.735,
-                f"lethal-radius criterion (R={ctx.radius_m:.1f} m, ADR-0025) -- "
-                "not a modeled collision; GT, scoring only",
+        ax.text(0.5, 0.735, cpa_criterion_line(ctx.radius_m),
                 color=rh.COLOR_GRAY, fontsize=fs * 0.68, family=rh.MONO,
                 ha="center", va="center", zorder=5)
 
