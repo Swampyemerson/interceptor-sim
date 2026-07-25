@@ -779,3 +779,41 @@ at correct aim). Get the aim right — now AUTOMATIC via the accel-aware lead (A
 the open-loop line-crossing dash at 9 m/s is **~0.71 m dash-only**, and the camera's value is
 defending the imperfect aim of the real world, not beating this. The remaining lever for a tighter
 REAL intercept is outdoor real-data detection (acquisition), a hardware/field task.
+
+### AE5 — the aim-error sweep, cell 1 (5°): camera NULL again, and an unexpected AIM finding
+
+The review's last open sim question: at CORRECT aim the camera is a slight liability (G20), but
+real aim is never perfect — does the camera earn its handoff at a FIELD-REALISTIC aim error?
+Cell 1 = 5° deliberate heading error (`--dash-heading-err-deg 5`), accel-aware lead, camera arm
++ its dash-only twin, n=8 paired, seed 123.
+
+| run | dir | camera | dash-only | Δ (cam−dash) |
+|----:|:---:|-------:|----------:|-------------:|
+| 0 | l2r | 1.42 | 0.49 | +0.94 |
+| 1 | r2l | 0.58 | 0.30 | +0.29 |
+| 2 | l2r | 0.58 | 0.49 | +0.09 |
+| 3 | r2l | 0.55 | 0.42 | +0.13 |
+| 4 | l2r | 0.57 | 0.45 | +0.13 |
+| 5 | r2l | 0.46 | 0.34 | +0.12 |
+| 6 | l2r | 0.84 | 0.44 | +0.41 |
+| 7 | r2l | 0.49 | 0.32 | +0.17 |
+| **median** | | **0.58** | **0.43** | **+0.15** |
+
+**Camera tighter on 0/8. Pre-registered gate was ≥6/8 → NULL at 5°.** Read in isolation the camera
+arm looks great (0.58 m, 8/8 clean, tighter than the 0°-error camera's 1.02 m) — which is exactly
+the shape of this project's five prior mirages. The twin is what kills it: the dash alone did
+BETTER on every single flight.
+
+**⭐ THE UNEXPECTED FINDING — the accel-aware lead is itself ~5° off optimum, and that is worth
+~0.28 m.** The dash-only control at **+5° error scored 0.43 m** vs the 0°-error dash-only floor
+(**AAL, 0.71 m**) — same seeds, same geometry, directly paired. Adding 5° of deliberate "error"
+made the open-loop ballistics BETTER. So ADR-0080's derived aim, while a large improvement over the
+constant-speed lead (1.37 → 0.75 m) and validated as auto-correcting, is not yet at the true
+optimum for the real quad dynamics — there is roughly another **0.28 m** available from aim alone.
+
+**Why that matters more than it looks:** the honest 5-inch ram envelope is ~0.36 m (contract stage
+`kill`). A 0.43 m open-loop dash is already knocking on that door; 0.71 m is not. **Aim refinement,
+not the camera, is the lever that could get the open-loop dash inside the kill envelope** — and it
+costs pre-flight arithmetic, not hardware. Next: a residual-bias sweep around the accel-aware
+solution (±2.5/5/7.5°, dash-only, both directions) to find and then DERIVE the true optimum, rather
+than leaving a hand-found 5° offset sitting on top of a "derived" aim.
