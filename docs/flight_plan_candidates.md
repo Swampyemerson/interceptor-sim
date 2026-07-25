@@ -965,3 +965,84 @@ direction is consistent across arms, which is the evidential weight here, not an
 
 Arm CSVs: `logs/mc_fp_arm{G20_s123,G20_s777,AE5_s123,AE15_s123,GL_s777 → *_line9_*}.csv`
 (re-flown 2026-07-25T22:01–22:41Z, `logs/refly_camera_arms_20260725.log`).
+
+## PRE-REGISTRATION — the 10 mph (4.47 m/s) speed-ladder rung (builder request, 2026-07-25)
+
+**Written BEFORE the arms fly** (anti-mirage rule §4). Builder: *"can we try 10 mph for the
+drone-only interception first?"* This is the roadmap's own **R6 speed ladder** rung (GOALS/NEXT
+REFRAME: "markerless <1 m first at ~5 m/s") — the goal condition has only ever been flown at
+9 m/s (20 mph), where `line@9` fired the reframe (3.38 m median) and the camera never earned
+its handoff.
+
+**Config:** identical to the re-flown `AAL` pair, ONE change — target speed 9.0 → **4.47 m/s**.
+Aim comes from the **accel-aware collision lead** (ADR-0080), which DERIVES the heading from the
+target's kinematics, so it re-solves for the new speed with no hand-tuned bias (this is the
+point: no per-speed tuning). Geometry scaled **time-consistently**: `y0_mag = 15.343 × 4.47/9.0
+= 7.62 m`, so the time-to-crossing (1.70 s) and the x0 = 6.5 m offset are preserved and only the
+target's speed changes. n=8 both directions, seed 123, camera arm + its dash-only twin
+(`--coded-dash-acquire-range-min 999`), paired by run_idx.
+
+**Predictions (pre-registered):**
+1. **Dash-only improves** on the 9 m/s 0.71 m floor — less target travel during the dash means a
+   given aim error costs less miss. Predict dash-only median **≤ 0.6 m**.
+2. **The decisive question — does the CAMERA finally earn its handoff?** At 9 m/s it did not
+   (3/8, 1/8, 4/8 vs twins). At 4.47 m/s it gets ~2× the time-on-target and a slower LOS rate,
+   which is the regime the ADR-0056 aspect bias should bite least. **Adopt criterion: the camera
+   beats its own dash-only twin on ≥6/8 paired flights** (same bar as every prior camera arm;
+   6/8 is p=0.289, so a 6/8 is "encouraging, not significant" and needs seed 777 to replicate).
+3. **Sub-meter:** predict combined median **< 1.0 m** and Pk@1.0 ≥ 6/16 — i.e. the reframe's
+   "markerless sub-meter at ~5 m/s" becomes measurable rather than asserted.
+
+**What a NULL here would mean (stated in advance, so it can't be rationalised after):** if the
+camera still does not beat its twin at half speed, the honest conclusion is that this seeker's
+value is NOT terminal precision at any speed in this regime — it is acquisition/aim-error
+defence only, and the portfolio claim must say exactly that.
+
+### RESULT — the 10 mph rung (flown 2026-07-25T23:33–23:49Z, n=8 paired + 8 twin)
+
+Instrument check first: `audit_per_tick` on the camera arm = fail 0, **0/150 detected pre-CPA
+ENGAGE ticks zero-command** — the terminal steered. (c) gated on 0/8 flights, so this arm carries
+NO camera-coupling certification — the engagements are short and azimuth-variance-starved at this
+speed. Stated, not hidden.
+
+| | camera arm | dash-only twin |
+|---|---|---|
+| median miss | **0.853 m** | **0.730 m** |
+| Pk @ 1.0 m | 5/8 | **8/8** |
+| Pk @ 0.35 m (the RAM/kill criterion, ADR-0084) | **0/8** | **0/8** |
+| camera beats its twin | **2/8** (bar: ≥6/8) | — |
+
+**VERDICT 1 — the camera NULLs again, and the pre-registered consequence applies.** 2/8 is not
+near the ≥6/8 bar, and the camera arm is *worse* than its own twin on both median and Pk@1.0
+(8/8 → 5/8). Per the pre-registration's stated-in-advance rule: **this seeker's value is NOT
+terminal precision at any speed in this regime — it is acquisition / aim-error defence only, and
+the portfolio claim must say exactly that.** Halving the target speed did not rescue it. The
+damage is directional and matches ADR-0056: the camera arm's losses are all r2l (1.128 / 1.851 /
+4.812) while l2r is fine — the aspect bias, unchanged by speed.
+
+**VERDICT 2 — sub-meter at 10 mph IS real, and it is BALLISTIC.** The dash-only twin puts
+**8/8 flights under 1 m, median 0.730 m**, on the realistic 3-D quad target. That is the first
+clean sub-meter fleet this project has measured against that target. It is an *open-loop* result:
+no camera in the loop at all.
+
+**VERDICT 3 — nothing is a kill yet. 0/16 flights across BOTH arms are inside the ratified
+0.35 m ram radius.** Sub-meter ≠ kill. The gap between the 0.73 m ballistic median and the 0.35 m
+contact envelope is the actual remaining problem, and neither speed nor the current seeker closes it.
+
+**THE CAVEAT THAT GOVERNS ALL THREE (contradiction `launch-aim-derived-from-ground-truth`):** both
+arms were aimed from the target's EXACTLY KNOWN track. So verdict 2 is "a ballistic solution to a
+perfectly-cued problem", and verdict 1 is measured in the one regime where the camera has least to
+offer — a cue with zero error. **This experiment structurally cannot answer the question that
+matters** (does the camera recover a realistically-imperfect cue?). The AE5/AE15 aim-error arms are
+the closest attempt and they nulled too. Until the cue carries honest error, "dash-only beats
+camera" is a statement about a perfect-cue world, not about the field.
+
+**One flight discarded as an INSTRUMENT failure, not a miss** (camera run1, logged 4.812 m): the
+past-CPA breakoff fired at true range 7.6 m while the target was still closing, on measured-range
+rises of +0.09 m and +0.008 m against a range estimate biased ~2.5 m high. **This defect is
+speed-dependent and gets WORSE as the ladder descends** — at 9 m/s the true range falls ~1 m
+between detections so noise cannot fake three consecutive rises; at 4.47 m/s it falls ~0.15 m,
+comparable to the noise. `--breakoff-deadband-m` exists (audit #37) but defaults to 0.0 = the old
+behaviour. **Do not fly a slower rung until this is sized and A/B'd** or the ladder will
+manufacture a false "slower is worse" conclusion. Excluding the flight does not change the
+verdict (2/7, medians 0.833 / 0.721).
