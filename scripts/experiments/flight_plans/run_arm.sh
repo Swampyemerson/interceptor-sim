@@ -93,6 +93,15 @@ case "$ARM" in
   # Accel-aware collision-lead (ADR-0080): DERIVES the aim instead of the hand-set +20.
   # Dash-only -> tests that auto-aim reproduces G20dash's 0.75 m WITHOUT a manual bias.
   AAL)     EXTRA="$BASE --dash-accel-aware-lead $DASHONLY"; N=8; DIRS=both;;
+  # AIM-ERROR sweep (the review's last open sim question): does the CAMERA earn its
+  # handoff when the open-loop aim is WRONG by a field-realistic amount? At 0 deg
+  # error the camera is a slight liability (G20 vs G20dash); the real world never
+  # gets 0. Each camera arm ships its dash-only twin -> the claim is the DIFFERENCE.
+  # Pre-registered: camera earns it iff it beats its own twin >=6/8, replicated on 777.
+  AE5)     EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5"; N=8; DIRS=both;;
+  AE5dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY"; N=8; DIRS=both;;
+  AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
+  AE15dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY"; N=8; DIRS=both;;
   # Accel-CAP at CORRECT aim (never flown): cap 3.57 + accel-aware lead sized to the
   # ACHIEVED a=4.0. Decouples the cap's closing-speed cost from the aim confound
   # (the 2026-07-24 Bdash correction). Compare to AAL (uncapped, correct aim, 0.71).

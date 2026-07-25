@@ -103,11 +103,21 @@ EARTH_RADIUS_M = 6371000.0  # mean Earth radius; flat-earth (equirectangular)
                              # about (error grows with range^3/R^2, negligible
                              # here). Documented approximation, not a bug.
 
-# Mechanism-anchored lethal radii referenced in docs/decisions.md (ADR-0025)
+# Mechanism-anchored kill radii referenced in docs/decisions.md (ADR-0025)
 # and docs/hardware_order_list.md Sec.0c: ~0.5 m for a kinetic ram, ~1.5 m for
-# a net/frag-style kill radius. Default here is the more conservative (larger)
-# "net" number; override with --lethal-radius for a ram-only claim.
-DEFAULT_LETHAL_RADIUS_M = 1.5
+# a net/frag-style kill radius.
+#
+# DEFAULT CORRECTED 2026-07-24 (full project review): the default was 1.5 m -- the
+# NET number -- but the net was PARKED by builder ruling (RAM confirmed, contract
+# stage `kill`). Scoring a ram attempt against a net radius scores the wrong
+# mechanism and flatters the result by 3x. The ram number is the default now;
+# pass --lethal-radius 1.5 explicitly if a net claim is ever revived.
+#
+# HONEST CEILING (raised to the builder, contract stage `kill`): even 0.5 m is a
+# 7-INCH-airframe number. BOTH ordered aircraft are 5-INCH, so the pair's true
+# maximum tip-to-tip contact envelope is ~0.36 m. Treat 0.5 m as an upper bound
+# on the claimable radius, not a measured one.
+DEFAULT_LETHAL_RADIUS_M = 0.5
 
 
 # --------------------------------------------------------------------------

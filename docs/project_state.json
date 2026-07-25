@@ -171,37 +171,37 @@
    ]
   },
   "levers": {
-   "headline": "DO-FIRST levers — sim-cheap, honesty-clean, each with its decisive experiment already specified",
+   "headline": "SETTLED levers (2026-07-24 decomposition) — what actually shrinks the miss, and what was tried and found net-negative",
    "rows": [
     {
-     "lever": "Loft-then-dive dash",
-     "category": "pointing / kinematics",
-     "what": "Climb 2-3 m early, dive on the co-altitude target so the nose-down pitch aims the camera AT it. The COMPLEMENT to the accel-cap (worth a few more degrees of LOS depression); over-loft flips the target out the bottom.",
-     "test": "Replay canonical mc_batch geometry, lofted-dive vs flat; log fraction-of-ticks-in-frame across 8-12 m. (Analytical A/B done — inframe_ab.py.)"
+     "lever": "Correct the AIM (accel-aware collision-lead)",
+     "category": "kinematics / the dominant lever",
+     "what": "THE PROVEN LEVER. The collision-lead solved a CONSTANT-SPEED triangle while the dash ACCELERATES from rest, so the aim was mis-sized. Correcting it took the open-loop dash-only miss 1.37 → 0.75 m, and the accel-aware lead (ADR-0080) now DERIVES the right aim automatically (+21.3° ≈ the confirmed +20°) with no per-config tuning. Free, honesty-clean (pre-flight constants), carries to hardware.",
+     "test": "DONE + VALIDATED: G20dash CONFIRMED (7/8 paired, median 0.75); AAL reproduces hand-tuned on seed 123 (0.71) and GENERALIZES on disjoint seed 777 (0.57). flight_plan_candidates.md RESULTS."
     },
     {
-     "lever": "Accel-capped constant-pitch dash",
-     "category": "kinematics / pointing",
-     "what": "THE PRIMARY LEVER (sim-confirmed): cap forward accel so body pitch holds one bounded value (θ≈20° centers the 8-12 m band 100% vs 0% today); keep the wedge MODEST (~10-15°, ≥20° dumps the terminal out the bottom) + thrust headroom for terminal lateral correction. Cost: slower closing.",
-     "test": "Paired-seed A/B (n≥8) sweeping the accel cap, wedge co-chosen; log in-frame fraction, miss, closing-speed penalty. (Analytical A/B done; Gazebo next.)"
+     "lever": "The camera as an AIM-ERROR corrector",
+     "category": "terminal / the open question",
+     "what": "The camera's value is DEFENDING IMPERFECT AIM, not beating a well-aimed dash. Measured: it recovers a badly-aimed pass (l2r 2.05 → 0.68 m) but at CORRECT aim it is a slight liability (G20 1.02 vs dash-only 0.75) because of the ADR-0056 aspect bias. Real-world aim is never perfect — but the aim-error regime where the camera should pay has NEVER been tested as a controlled pair.",
+     "test": "IN FLIGHT (the last open sim question): AE5/AE15 arms — camera ON vs its own dash-only twin at 5° and 15° deliberate heading error, paired n=8, replicate on seed 777. Deliverable = the crossover aim error above which the camera is net-positive."
     },
     {
-     "lever": "Terminal IMU-coast",
-     "category": "endgame",
-     "what": "Freeze-and-propagate the last good LOS-rate through the sub-1 m blind window, armed by a tau clock. Highest-confidence terminal lever.",
-     "test": "A/B freeze-and-propagate vs hold-last-command on flights with a real terminal track; compare CPA."
+     "lever": "Accel-capped dash + loft + wedge (FRAMING)",
+     "category": "pointing — TRIED, NET-NEGATIVE at 9 m/s",
+     "what": "⛔ NOT a do-first lever. It genuinely fixes POINTING (8-12 m real recall 3.0% → 35.4%, target centred) but the cap costs ~0.34 m of closing speed even at CORRECT aim (EAL 1.05 vs uncapped 0.71), and framing HURTS at correct aim (CG framed 1.92 vs level 1.32). ARM B's original 2.01 m regression = mis-aimed (~1.3 m) + real cap cost (~0.34 m). Keep the dash LEVEL and uncapped; the wedge's own share is still unpriced (see the wedge-vs-level ledger entry).",
+     "test": "DONE: Bdash/EAL/CG decomposition, all paired n=8 with dash-only twins."
     },
     {
-     "lever": "Size-based range → filter fusion",
-     "category": "sensing",
-     "what": "R = fx·W/w_px from the existing bbox, fused as a coarse prior into the range channel to sharpen t_go (squares into the ZEM budget).",
-     "test": "guidance_lab A/B (n≥8) vs geometry-only with W-foreshortening noise; miss + t_go error."
+     "lever": "Terminal-precision compensation (bias constant / LOS lag)",
+     "category": "terminal — TRIED, NULL",
+     "what": "⛔ BOTH NULL. A direction-keyed aspect-bias constant is regime-confounded (stable only under the accel-cap that itself hurts; unstable elsewhere, LOO +1%). A 190 ms LOS-rate-lag correction shifts error between directions and fails its gate (GL 1.44 vs 1.32, 5/8). The ADR-0056 terminal-bearing wall does not yield to a simple constant or lag — consistent with the ADR-0071 subpixel null.",
+     "test": "DONE: GL flown; measure_aspect_bias.py --loo reads a null offline for free before spending an arm."
     },
     {
-     "lever": "FOV-holding guidance term",
-     "category": "guidance law",
-     "what": "Look-angle-constrained PN + IBVS pixel-centering; wedge = static bias, this = the dynamic residual; prototype on the 30 fps AprilTag baseline.",
-     "test": "After pointing frames the target: A/B wedge-only vs +look-angle+centering; detection density through the pitch swing + miss."
+     "lever": "Real-data outdoor detection",
+     "category": "perception — THE REMAINING LEVER",
+     "what": "The acquisition wall is OUTDOOR APPEARANCE, and it is a HARDWARE/FIELD task, not a sim one. Measured on real held-out imagery: the deployed sim-trained model scores 1.1% recall / 88.5% false-fire vs the real-data mono model's 44.2% / 4.9%. This is where the remaining intercept improvement lives.",
+     "test": "The tripod day's two curves (gated on the measurement layer being fixed — see the build_plan), then capture → retrain validated on held-out FLIGHTS."
     }
    ],
    "note": "Hardware escalations (2-axis gimbal, dual onboard cameras, event camera, motor cant) are gated BEHIND Phase-A validation; research dark-horses (track-before-detect, FOV-constrained RL guidance, bank-as-accel APN, IMU-deblur) are spikes, not commitments. Three ideas were vetted straight into the graveyard (porpoise pulses, impact-angle ram, observability weave) — §6.0.",
@@ -601,7 +601,7 @@
    ],
    "status": "half-done",
    "active": "Sim: Pk@2.5 m proximity metric (ADR-0025), CPA from gt (scoring only). Real: BINARY KILL evidence = seeker video + phone slow-mo + both ULogs ($0).",
-   "note": "Criterion re-scoped 2026-07-15 from measured <1 m CPA to binary kill — this is what cut the RTK pair from the BOM. field_score.py (CPA from dual GPS logs) is planned, not built; consumer GPS cannot measure <1 m anyway.",
+   "note": "Criterion re-scoped 2026-07-15 from measured <1 m CPA to binary kill — this is what cut the RTK pair from the BOM. field_score.py (CPA from dual GPS logs) is planned, not built; consumer GPS cannot measure <1 m anyway. | ⚠️ RAM-RADIUS CORRECTION (full review 2026-07-24, RAISED TO THE BUILDER, not yet ratified): the 0.5 m ram radius quoted throughout was derived for a 7-INCH airframe. BOTH ordered aircraft are 5-INCH, so the pair's maximum tip-to-tip contact envelope is ~0.36 m — the bar is ~10% TIGHTER than assumed. Against it the best measured batch scores 4/96 @0.36 m and 0/96 @0.25 m, while the open-loop dash floor is ~0.71 m (AAL). CONSEQUENCE: the camera terminal is NOT optional decoration — it has to earn ~a metre, and at CORRECT aim it currently does not (G20). This is the single most consequential number in the project and it should be settled BEFORE the Tier-2 order; the only physical lever that widens the envelope is a bigger interceptor.",
    "evidence": [
     "ADR-0025",
     "docs/hardware_order_list.md §0b/§0c"
@@ -618,6 +618,10 @@
     {
      "date": "2026-07-20",
      "note": "field_score speaks ArduPilot (constraint target-is-ardupilot closed for scoring): DataFlash .BIN support via pymavlink DFReader — POS (EKF-fused) preferred over raw GPS, GWk/GMS UTC recovery for cross-aircraft sync, per-side --ulog/--bin/--csv source selection so a PX4-interceptor + ArduPilot-target engagement is first-class. Self-test 5/5 incl. an end-to-end synthetic .BIN byte stream through the real DFReader; Mission Planner CSV export documented as the no-pymavlink fallback."
+    },
+    {
+     "date": "2026-07-24",
+     "note": "Ram radius 0.5 m was a 7-inch number; the ordered 5-inch pair gives ~0.36 m max contact envelope -> the terminal must earn ~1 m. Raised to the builder pre-Tier-2 (full review)."
     }
    ]
   },
@@ -666,9 +670,9 @@
     2,
     3
    ],
-   "status": "idea",
+   "status": "half-done",
    "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo AI HAT+ DEFERRED; nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
-   "note": "NOTHING ORDERED YET — the staged buy plan is the bom_tiers table (§3.0) and the human sequence is build_plan (§2.2). GATING (corrected 2026-07-17): the Tier-2 interceptor order is gated on the tripod session's APRILTAG decode-envelope curve (first kills fly the tag on Pi 5 CPU); the NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — never the interceptor. COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates); fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the tripod + tagged-target afternoon yields BOTH curves in one session (the transfer bet is hope-past-evidence, but its verdict only moves the markerless phase). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.) | Onboard flight software READY (skeleton): real_flight.py state machine SITL-verified (ADR-0081) + field bring-up kit (scripts/field/) -- so when parts arrive the software side is built; remaining is the physical build + bench tuning of the TODO-BUILDER constants + the tripod test.",
+   "note": "ORDERED 2026-07-20 (~$1,000 shipped: target-drone stack + seeker kit + interceptor BRAIN 6C Mini/PM02/M10) + the must-add top-up. The interceptor AIRFRAME is Tier-2 and still gated on the tripod AprilTag decode curve. [CORRECTED 2026-07-24: this note previously read 'NOTHING ORDERED YET' four days after the cart was placed — a contract-drift miss found by the full project review.] the staged buy plan is the bom_tiers table (§3.0) and the human sequence is build_plan (§2.2). GATING (corrected 2026-07-17): the Tier-2 interceptor order is gated on the tripod session's APRILTAG decode-envelope curve (first kills fly the tag on Pi 5 CPU); the NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — never the interceptor. COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates); fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the tripod + tagged-target afternoon yields BOTH curves in one session (the transfer bet is hope-past-evidence, but its verdict only moves the markerless phase). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.) | Onboard flight software READY (skeleton): real_flight.py state machine SITL-verified (ADR-0081) + field bring-up kit (scripts/field/) -- so when parts arrive the software side is built; remaining is the physical build + bench tuning of the TODO-BUILDER constants + the tripod test.",
    "evidence": [
     "docs/hardware_order_list.md §0/§0b/§0c",
     "NEXT.md ROUND-5 (Pi5/HAT ruling, tripod test)"
@@ -689,6 +693,10 @@
     {
      "date": "2026-07-21",
      "note": "CAMERA MODALITY DECIDED (ADR-0078, Fable case-for/against workflow): KEEP the ordered MONO OV9281, do NOT reorder color (high confidence). The mono 'penalty' was a training confound already refunded by the mono-native retrain (n-mono AP50 0.442 / 4.9% false-fire in gray = the repo's best); motion-blur physics FAVOR mono (~1 stop more light -> halves terminal blur at 485-1870 deg/s); the AprilTag first-kill baseline is grayscale-only; the AR0234 color upgrade is honesty-gated + Pivariety-kernel-fragile + its documented 98-deg lens FAILS the >=100-deg hard req. Two-way door preserved (AR0234/IMX296 = upgrade path if the tripod range-walk measures short or the free bird A/B shows chroma load-bearing (CLOSED: PARITY, no advantage)). Open cell CLOSED for $0 (2026-07-21): native bird A/B = PARITY (n-color 3.07% vs n-mono 3.4%, one-image diff) — chroma NOT load-bearing, keep-mono fully evidenced. A/B ALSO found color 3x WORSE on desert clutter (14.6% vs 4.6%, p<1e-6) — mono is the better sensor on the deployment clutter, not just equal."
+    },
+    {
+     "date": "2026-07-24",
+     "note": "Status idea->half-done: parts ORDERED 2026-07-20; the stale 'NOTHING ORDERED YET' note corrected (full-review finding)."
     }
    ]
   },
