@@ -964,14 +964,23 @@ def update_coded_dash_streak(streak, new_meas, meas_range_m,
 #     update_coded_dash_streak / DEEP-H2 pattern). ------------------------------
 
 def terminal_coast_active(frozen_vworld, r_hat, freeze_range_m):
-    """Is this ENGAGE tick flying the terminal COAST? (byte-identical to the
-    pre-extraction inline expression.)
+    """Is this ENGAGE tick flying the terminal COAST?
 
     True once the latch is set (one-way, ADR-0023 -- split-freeze measured
     worse), or the first time the estimated range dips inside the freeze range,
-    where lambda_dot goes singular and chasing it un-flies the intercept."""
+    where lambda_dot goes singular and chasing it un-flies the intercept.
+
+    NEGATIVE r_hat DOES NOT ARM (sim==hw parity follow-up, 2026-07-25). The
+    alpha-beta range channel can coast r_hat through zero to a physically
+    impossible negative value (the ADR-0041 forensics measured -12..-21 m
+    post-CPA); flight/deploy/seeker_loop.py treats negative range as a BROKEN
+    track that must NEVER select the coast branch, while this predicate armed
+    off it (8/104 ENGAGE ticks on the fix-verification SITL flight). A broken
+    range channel is not evidence the vehicle is at terminal range -- inhibit
+    the arm and let the law block keep flying live corrections. An
+    already-set latch is unaffected (still one-way)."""
     return (frozen_vworld is not None
-            or (r_hat is not None and r_hat < freeze_range_m))
+            or (r_hat is not None and 0.0 <= r_hat < freeze_range_m))
 
 
 def terminal_must_build_command(in_terminal_coast, vh_cmd_valid):
@@ -2710,6 +2719,7 @@ async def run_acquire_and_engage(
     # guard at the `if (not in_terminal_coast) or not vh_cmd_valid:` branch).
     vh_cmd_valid = False
     coast_zero_flag = False       # the coast latched a ~zero horizontal velocity
+    neg_rhat_warned = False       # one-shot broken-track (r_hat < 0) narration
     frozen_vworld = None
     # --split-freeze (Tier-1 lever B) one-way latch state: once r_hat first
     # dips under the (relocated) freeze range, the v_perp MAGNITUDE freezes
@@ -3790,7 +3800,7 @@ async def run_acquire_and_engage(
                     if (
                         not split_frozen
                         and r_hat is not None
-                        and r_hat < TERMINAL_FREEZE_RANGE_M
+                        and 0.0 <= r_hat < TERMINAL_FREEZE_RANGE_M
                     ):
                         split_frozen = True
                         print(
@@ -3799,6 +3809,15 @@ async def run_acquire_and_engage(
                             "v_close/yaw/lambda_hat stay live through CPA"
                         )
                 else:
+                    if (r_hat is not None and r_hat < 0.0
+                            and not neg_rhat_warned):
+                        print(
+                            f"[m4] BROKEN-TRACK range: r_hat={r_hat:.2f} m < 0 "
+                            "on a detected tick -- coast arming inhibited "
+                            "(seeker_loop broken-track parity; live law "
+                            "corrections continue)"
+                        )
+                        neg_rhat_warned = True
                     in_terminal_coast = terminal_coast_active(
                         frozen_vworld, r_hat, TERMINAL_FREEZE_RANGE_M)
                 # ZERO-COMMAND TERMINAL GUARD (review-2 BLOCKER, fixed 2026-07-25).

@@ -159,15 +159,37 @@ def test_fix_is_a_noop_when_engage_starts_outside_the_freeze_range(mutant):
     assert z_new == z_old is False
 
 
-def test_coast_active_predicate_is_byte_identical_to_the_inline_expression():
-    """terminal_coast_active() was EXTRACTED, not rewritten. Pin it against the
-    expression it replaced over the full decision surface."""
+def test_coast_active_predicate_truth_table():
+    """terminal_coast_active() over the full decision surface. One deliberate
+    divergence from the original inline expression (2026-07-25 follow-up):
+    a NEGATIVE r_hat must NOT arm -- the alpha-beta range channel coasting
+    through zero is a BROKEN track (ADR-0041 measured -12..-21 m post-CPA),
+    and flight/deploy/seeker_loop.py never selects the coast branch on it;
+    m4 armed off it on 8/104 ENGAGE ticks of the fix-verification flight."""
     for frozen in (None, (1.0, 2.0)):
-        for r_hat in (None, 0.0, 1.6, 3.4999, 3.5, 3.5001, 12.0):
+        for r_hat in (None, -21.0, -1.0, -1e-9, 0.0, 1.6,
+                      3.4999, 3.5, 3.5001, 12.0):
             for rng in (2.0, 3.5):
                 expected = (frozen is not None
-                            or (r_hat is not None and r_hat < rng))
+                            or (r_hat is not None and 0.0 <= r_hat < rng))
                 assert m4.terminal_coast_active(frozen, r_hat, rng) is bool(expected)
+
+
+def test_negative_r_hat_never_arms_but_a_set_latch_survives_it():
+    """The sim==hw broken-track parity fix, pinned both ways:
+    (a) a diverged negative r_hat alone can never start the coast;
+    (b) the one-way latch, once legitimately set, is NOT released by a
+        subsequent negative r_hat (release semantics unchanged -- only the
+        ARM trigger gained the physicality guard)."""
+    assert m4.terminal_coast_active(None, -0.5, 3.5) is False
+    assert m4.terminal_coast_active(None, -21.0, 3.5) is False
+    # replay: track diverges negative BEFORE ever dipping into the freeze
+    # range -> no latch, the law keeps commanding live ticks throughout.
+    frozen, cmds, coast_zero = replay_engage(m4, [12.0, 6.0, -2.0, -8.0])
+    assert frozen is None
+    assert len(cmds) == 4 and all(math.hypot(*c) > 0 for c in cmds)
+    # a latch set at a REAL in-range tick survives later negative dust.
+    assert m4.terminal_coast_active((1.0, 2.0), -3.0, 3.5) is True
 
 
 def test_must_build_command_truth_table():
