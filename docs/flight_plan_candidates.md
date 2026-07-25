@@ -875,3 +875,41 @@ not a tuning note.
 minimising at **0.43 m at +5°** — better than the 0.71 m the "derived" aim produces. Aim refinement
 is worth ~0.28 m, needs no perception at all, and is the only measured path toward the ~0.36 m
 5-inch ram envelope. The AE2/AE7/AE10 bracketing arms are staged to derive that optimum.
+
+### WHY the aim is off — measured, and a trap avoided
+
+Chasing the ~0.28 m aim gap into the flight logs (offline analysis of `gt_*` telemetry, which is
+scoring-only and never a guidance input):
+
+**Finding 1 — the solver's effective-accel constant is ~3× wrong in the window that decides the
+intercept.** On a flown dash-only flight, CPA occurs at **t = 2.19 s** (range 0.64 m); everything
+after is fly-past (the acquire gate is shut in a dash-only arm, so the vehicle keeps going — 8.03 s
+and 83 m total). Fitting ONLY the pre-CPA window:
+
+| model | best fit | RMS |
+|---|---|---|
+| ideal ramp (what the solver uses) | **a = 3.10 m/s²** | 0.54 m |
+| first-order velocity lag | τ = 4.60 s | 0.61 m |
+
+ADR-0080's solver is parameterized at **a = 10.0 m/s²**. By CPA it predicts **22.2 m** of interceptor
+travel; the vehicle actually covers **8.24 m**. The quad is far slower off the line than an ideal
+ramp — which is exactly the kind of error that will ALSO appear on the real airframe.
+
+**Finding 2 — but do NOT simply substitute the measured accel. That was a trap, and the empirical
+data refutes it.** Re-solving the lead with the measured profile swings the commanded heading by
+**~30°** (l2r 128.2° → 98.6°), and by ~50-70° with the raw fitted `a`. Yet the MEASURED optimum is
+only **~+5°** from the current aim, and +15° (AE15) is already much worse (1.43 m). So the naive
+"physically derived" correction would have made the aim dramatically WORSE while looking rigorous.
+
+**Why the mapping isn't direct:** at CPA the interceptor has travelled only 8.2 m while the target
+covered ~19.7 m (9 m/s × 2.19 s). The geometry is dominated by TARGET motion, so the CPA is a
+shallow function of the dash heading near the optimum, and the heading that minimises CPA is not the
+heading a distance-fit implies. A profile fit and an aim fit are answering different questions.
+
+**Position (deliberate):** the solver is NOT re-parameterized on this analysis. Pin the optimum
+EMPIRICALLY first (AE7/AE10 bracketing arms), replicate on disjoint seed 777, and only then decide
+whether the correction belongs in the solver's accel term, in an explicit lead-lag term, or as a
+characterised per-airframe constant. **The measured-accel defect (a=10 vs ~3.1) stands on its own as
+a real finding about ADR-0080's parameterization and must be re-measured on the real airframe from
+the first dash ULog — but it is NOT the aim fix, and shipping it as one would have been a mirage
+with physics-flavoured packaging.**
