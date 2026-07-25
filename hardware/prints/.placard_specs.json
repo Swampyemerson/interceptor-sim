@@ -1,0 +1,254 @@
+{
+ "placard_tag36h11_id0_poster_a1.pdf": {
+  "kind": "poster",
+  "paper_mm": [
+   594.0,
+   841.0
+  ],
+  "art_origin_mm": [
+   72.0,
+   351.0
+  ],
+  "exact": false,
+  "expect_black_mm": [
+   122.0,
+   401.0,
+   472.0,
+   751.0
+  ]
+ },
+ "placard_tag36h11_id0_poster_arch24x36.pdf": {
+  "kind": "poster",
+  "paper_mm": [
+   609.6,
+   914.4
+  ],
+  "art_origin_mm": [
+   79.80000000000001,
+   419.4
+  ],
+  "exact": false,
+  "expect_black_mm": [
+   129.8,
+   469.4,
+   479.8,
+   819.4
+  ]
+ },
+ "placard_tag36h11_id0_poster_bleed480.pdf": {
+  "kind": "poster",
+  "paper_mm": [
+   480.0,
+   512.0
+  ],
+  "art_origin_mm": [
+   15.0,
+   31.0
+  ],
+  "exact": false,
+  "expect_black_mm": [
+   65.0,
+   81.0,
+   415.0,
+   431.0
+  ]
+ },
+ "placard_tag36h11_id0_poster_exact450.pdf": {
+  "kind": "poster",
+  "paper_mm": [
+   450.0,
+   450.0
+  ],
+  "art_origin_mm": [
+   0.0,
+   0.0
+  ],
+  "exact": true,
+  "expect_black_mm": [
+   50.0,
+   50.0,
+   400.0,
+   400.0
+  ]
+ },
+ "placard_tag36h11_id0_tiled_a4.pdf": {
+  "kind": "tiled",
+  "paper_mm": [
+   210.0,
+   297.0
+  ],
+  "layout": {
+   "win_w": 194.0,
+   "win_h": 266.0,
+   "step_x": 184.0,
+   "step_y": 256.0,
+   "ncols": 3,
+   "nrows": 2,
+   "margin": 8.0,
+   "header": 15.0,
+   "overlap": 10.0,
+   "paper": [
+    210.0,
+    297.0
+   ]
+  },
+  "tiles": [
+   {
+    "col": 0,
+    "row": 0,
+    "window_art_mm": [
+     0.0,
+     184.0,
+     194.0,
+     450.0
+    ]
+   },
+   {
+    "col": 1,
+    "row": 0,
+    "window_art_mm": [
+     184.0,
+     184.0,
+     378.0,
+     450.0
+    ]
+   },
+   {
+    "col": 2,
+    "row": 0,
+    "window_art_mm": [
+     368.0,
+     184.0,
+     562.0,
+     450.0
+    ]
+   },
+   {
+    "col": 0,
+    "row": 1,
+    "window_art_mm": [
+     0.0,
+     -72.0,
+     194.0,
+     194.0
+    ]
+   },
+   {
+    "col": 1,
+    "row": 1,
+    "window_art_mm": [
+     184.0,
+     -72.0,
+     378.0,
+     194.0
+    ]
+   },
+   {
+    "col": 2,
+    "row": 1,
+    "window_art_mm": [
+     368.0,
+     -72.0,
+     562.0,
+     194.0
+    ]
+   }
+  ],
+  "header_band_mm": [
+   8.0,
+   274.0,
+   202.0,
+   289.0
+  ]
+ },
+ "placard_tag36h11_id0_tiled_letter.pdf": {
+  "kind": "tiled",
+  "paper_mm": [
+   215.9,
+   279.4
+  ],
+  "layout": {
+   "win_w": 199.9,
+   "win_h": 248.39999999999998,
+   "step_x": 189.9,
+   "step_y": 238.39999999999998,
+   "ncols": 3,
+   "nrows": 2,
+   "margin": 8.0,
+   "header": 15.0,
+   "overlap": 10.0,
+   "paper": [
+    215.9,
+    279.4
+   ]
+  },
+  "tiles": [
+   {
+    "col": 0,
+    "row": 0,
+    "window_art_mm": [
+     0.0,
+     201.60000000000002,
+     199.9,
+     450.0
+    ]
+   },
+   {
+    "col": 1,
+    "row": 0,
+    "window_art_mm": [
+     189.9,
+     201.60000000000002,
+     389.8,
+     450.0
+    ]
+   },
+   {
+    "col": 2,
+    "row": 0,
+    "window_art_mm": [
+     379.8,
+     201.60000000000002,
+     579.7,
+     450.0
+    ]
+   },
+   {
+    "col": 0,
+    "row": 1,
+    "window_art_mm": [
+     0.0,
+     -36.799999999999955,
+     199.9,
+     211.60000000000002
+    ]
+   },
+   {
+    "col": 1,
+    "row": 1,
+    "window_art_mm": [
+     189.9,
+     -36.799999999999955,
+     389.8,
+     211.60000000000002
+    ]
+   },
+   {
+    "col": 2,
+    "row": 1,
+    "window_art_mm": [
+     379.8,
+     -36.799999999999955,
+     579.7,
+     211.60000000000002
+    ]
+   }
+  ],
+  "header_band_mm": [
+   8.0,
+   256.4,
+   207.9,
+   271.4
+  ]
+ }
+}

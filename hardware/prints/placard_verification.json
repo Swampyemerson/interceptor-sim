@@ -1,0 +1,332 @@
+{
+ "tag_edge_mm": 350.0,
+ "cell_mm": 43.75,
+ "sheet_mm": 450.0,
+ "tol_mm": 0.5,
+ "files": [
+  {
+   "file": "placard_tag36h11_id0_poster_a1.pdf",
+   "paper_mm": [
+    594.0,
+    841.0
+   ],
+   "pages": 1,
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "1 page(s)"
+    },
+    {
+     "check": "media_box_mm",
+     "ok": true,
+     "detail": "594.0000 x 841.0000 mm (expect 594.0 x 841.0)"
+    },
+    {
+     "check": "black_square_edge_mm",
+     "ok": true,
+     "detail": "measured 350.0000 x 350.0000 mm (expect 350.0; err 0.0 / 0.0 um)"
+    },
+    {
+     "check": "black_square_position_mm",
+     "ok": true,
+     "detail": "x 122.000..472.000, y 401.000..751.000 (expect 122.000..472.000 / 401.000..751.000)"
+    },
+    {
+     "check": "quiet_zone_clean",
+     "ok": true,
+     "detail": "no black ink inside the 450 mm sheet outside the tag square"
+    },
+    {
+     "check": "ruler_bar_200mm",
+     "ok": true,
+     "detail": "1 bar(s) of 200.0 mm; measured 200.0000 mm"
+    }
+   ]
+  },
+  {
+   "file": "placard_tag36h11_id0_poster_arch24x36.pdf",
+   "paper_mm": [
+    609.6,
+    914.4
+   ],
+   "pages": 1,
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "1 page(s)"
+    },
+    {
+     "check": "media_box_mm",
+     "ok": true,
+     "detail": "609.6000 x 914.4000 mm (expect 609.6 x 914.4)"
+    },
+    {
+     "check": "black_square_edge_mm",
+     "ok": true,
+     "detail": "measured 350.0000 x 350.0000 mm (expect 350.0; err 0.0 / 0.0 um)"
+    },
+    {
+     "check": "black_square_position_mm",
+     "ok": true,
+     "detail": "x 129.800..479.800, y 469.400..819.400 (expect 129.800..479.800 / 469.400..819.400)"
+    },
+    {
+     "check": "quiet_zone_clean",
+     "ok": true,
+     "detail": "no black ink inside the 450 mm sheet outside the tag square"
+    },
+    {
+     "check": "ruler_bar_200mm",
+     "ok": true,
+     "detail": "1 bar(s) of 200.0 mm; measured 200.0000 mm"
+    }
+   ]
+  },
+  {
+   "file": "placard_tag36h11_id0_poster_bleed480.pdf",
+   "paper_mm": [
+    480.0,
+    512.0
+   ],
+   "pages": 1,
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "1 page(s)"
+    },
+    {
+     "check": "media_box_mm",
+     "ok": true,
+     "detail": "480.0000 x 512.0000 mm (expect 480.0 x 512.0)"
+    },
+    {
+     "check": "black_square_edge_mm",
+     "ok": true,
+     "detail": "measured 350.0000 x 350.0000 mm (expect 350.0; err 0.0 / 0.0 um)"
+    },
+    {
+     "check": "black_square_position_mm",
+     "ok": true,
+     "detail": "x 65.000..415.000, y 81.000..431.000 (expect 65.000..415.000 / 81.000..431.000)"
+    },
+    {
+     "check": "quiet_zone_clean",
+     "ok": true,
+     "detail": "no black ink inside the 450 mm sheet outside the tag square"
+    },
+    {
+     "check": "ruler_bar_200mm",
+     "ok": true,
+     "detail": "1 bar(s) of 200.0 mm; measured 200.0000 mm"
+    }
+   ]
+  },
+  {
+   "file": "placard_tag36h11_id0_poster_exact450.pdf",
+   "paper_mm": [
+    450.0,
+    450.0
+   ],
+   "pages": 1,
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "1 page(s)"
+    },
+    {
+     "check": "media_box_mm",
+     "ok": true,
+     "detail": "450.0000 x 450.0000 mm (expect 450.0 x 450.0)"
+    },
+    {
+     "check": "black_square_edge_mm",
+     "ok": true,
+     "detail": "measured 350.0000 x 350.0000 mm (expect 350.0; err 0.0 / 0.0 um)"
+    },
+    {
+     "check": "black_square_position_mm",
+     "ok": true,
+     "detail": "x 50.000..400.000, y 50.000..400.000 (expect 50.000..400.000 / 50.000..400.000)"
+    },
+    {
+     "check": "quiet_zone_clean",
+     "ok": true,
+     "detail": "no black ink inside the 450 mm sheet outside the tag square"
+    }
+   ]
+  },
+  {
+   "file": "placard_tag36h11_id0_tiled_a4.pdf",
+   "paper_mm": [
+    210.0,
+    297.0
+   ],
+   "pages": 7,
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "7 page(s) (1 instructions + 6 tiles)"
+    },
+    {
+     "check": "instructions_bar_200mm",
+     "ok": true,
+     "detail": "measured 200.0000 mm"
+    },
+    {
+     "check": "instructions_bar_150mm",
+     "ok": true,
+     "detail": "measured 150.0000 mm"
+    },
+    {
+     "check": "tile_C1R1",
+     "ok": true,
+     "detail": "MediaBox 210.000x297.000; 100 mm bar 100.0000 mm; black 144.0000 x 216.0000 mm at (58.000, 8.000); expected 144.0000 x 216.0000 at (58.000, 8.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C2R1",
+     "ok": true,
+     "detail": "MediaBox 210.000x297.000; 100 mm bar 100.0000 mm; black 194.0000 x 216.0000 mm at (8.000, 8.000); expected 194.0000 x 216.0000 at (8.000, 8.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C3R1",
+     "ok": true,
+     "detail": "MediaBox 210.000x297.000; 100 mm bar 100.0000 mm; black 32.0000 x 216.0000 mm at (8.000, 8.000); expected 32.0000 x 216.0000 at (8.000, 8.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C1R2",
+     "ok": true,
+     "detail": "MediaBox 210.000x297.000; 100 mm bar 100.0000 mm; black 144.0000 x 144.0000 mm at (58.000, 130.000); expected 144.0000 x 144.0000 at (58.000, 130.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C2R2",
+     "ok": true,
+     "detail": "MediaBox 210.000x297.000; 100 mm bar 100.0000 mm; black 194.0000 x 144.0000 mm at (8.000, 130.000); expected 194.0000 x 144.0000 at (8.000, 130.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C3R2",
+     "ok": true,
+     "detail": "MediaBox 210.000x297.000; 100 mm bar 100.0000 mm; black 32.0000 x 144.0000 mm at (8.000, 130.000); expected 32.0000 x 144.0000 at (8.000, 130.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tiles_reassemble_x",
+     "ok": true,
+     "detail": "art-space x coverage of the black square 50.0..400.0 mm"
+    },
+    {
+     "check": "tiles_reassemble_y",
+     "ok": true,
+     "detail": "art-space y coverage of the black square 50.0..400.0 mm"
+    },
+    {
+     "check": "worst_tile_error",
+     "ok": true,
+     "detail": "worst corner error across all tiles 0.0 um (tol 500 um)"
+    }
+   ]
+  },
+  {
+   "file": "placard_tag36h11_id0_tiled_letter.pdf",
+   "paper_mm": [
+    215.9,
+    279.4
+   ],
+   "pages": 7,
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "7 page(s) (1 instructions + 6 tiles)"
+    },
+    {
+     "check": "instructions_bar_200mm",
+     "ok": true,
+     "detail": "measured 200.0000 mm"
+    },
+    {
+     "check": "instructions_bar_150mm",
+     "ok": true,
+     "detail": "measured 150.0000 mm"
+    },
+    {
+     "check": "tile_C1R1",
+     "ok": true,
+     "detail": "MediaBox 215.900x279.400; 100 mm bar 100.0000 mm; black 149.9000 x 198.4000 mm at (58.000, 8.000); expected 149.9000 x 198.4000 at (58.000, 8.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C2R1",
+     "ok": true,
+     "detail": "MediaBox 215.900x279.400; 100 mm bar 100.0000 mm; black 199.9000 x 198.4000 mm at (8.000, 8.000); expected 199.9000 x 198.4000 at (8.000, 8.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C3R1",
+     "ok": true,
+     "detail": "MediaBox 215.900x279.400; 100 mm bar 100.0000 mm; black 20.2000 x 198.4000 mm at (8.000, 8.000); expected 20.2000 x 198.4000 at (8.000, 8.000); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C1R2",
+     "ok": true,
+     "detail": "MediaBox 215.900x279.400; 100 mm bar 100.0000 mm; black 149.9000 x 161.6000 mm at (58.000, 94.800); expected 149.9000 x 161.6000 at (58.000, 94.800); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C2R2",
+     "ok": true,
+     "detail": "MediaBox 215.900x279.400; 100 mm bar 100.0000 mm; black 199.9000 x 161.6000 mm at (8.000, 94.800); expected 199.9000 x 161.6000 at (8.000, 94.800); max corner err 0.0 um"
+    },
+    {
+     "check": "tile_C3R2",
+     "ok": true,
+     "detail": "MediaBox 215.900x279.400; 100 mm bar 100.0000 mm; black 20.2000 x 161.6000 mm at (8.000, 94.800); expected 20.2000 x 161.6000 at (8.000, 94.800); max corner err 0.0 um"
+    },
+    {
+     "check": "tiles_reassemble_x",
+     "ok": true,
+     "detail": "art-space x coverage of the black square 50.0..400.0 mm"
+    },
+    {
+     "check": "tiles_reassemble_y",
+     "ok": true,
+     "detail": "art-space y coverage of the black square 50.0..400.0 mm"
+    },
+    {
+     "check": "worst_tile_error",
+     "ok": true,
+     "detail": "worst corner error across all tiles 0.0 um (tol 500 um)"
+    }
+   ]
+  }
+ ],
+ "decode_check": {
+  "ran": true,
+  "ok": true,
+  "raster_px": 3543,
+  "dpi": 200.0,
+  "px_per_mm": 7.873333,
+  "tag_family": "tag36h11",
+  "tag_id": 0,
+  "hamming": 0,
+  "decision_margin": 120.0,
+  "edges_mm": [
+   350.0512,
+   350.0805,
+   350.0532,
+   350.0474
+  ],
+  "max_edge_err_mm": 0.0805,
+  "centre_mm": [
+   225.055,
+   225.067
+  ]
+ },
+ "all_ok": true
+}

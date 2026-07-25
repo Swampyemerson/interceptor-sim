@@ -1,0 +1,301 @@
+{
+ "inner_cols": 9,
+ "inner_rows": 6,
+ "tol_mm": 0.5,
+ "tol_rel": 0.001,
+ "files": [
+  {
+   "file": "checkerboard_9x6_25mm_a4.pdf",
+   "paper_mm": [
+    297.0,
+    210.0
+   ],
+   "square_mm": 25.0,
+   "board_mm": [
+    250.0,
+    175.0
+   ],
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "2 page(s) (1 instructions + 1 board)"
+    },
+    {
+     "check": "page1_media_box_mm",
+     "ok": true,
+     "detail": "297.0000 x 210.0000 mm (expect 297.0 x 210.0)"
+    },
+    {
+     "check": "page2_media_box_mm",
+     "ok": true,
+     "detail": "297.0000 x 210.0000 mm (expect 297.0 x 210.0)"
+    },
+    {
+     "check": "instructions_bar_200mm",
+     "ok": true,
+     "detail": "measured 200.0000 mm"
+    },
+    {
+     "check": "instructions_bar_150mm",
+     "ok": true,
+     "detail": "measured 150.0000 mm"
+    },
+    {
+     "check": "square_count",
+     "ok": true,
+     "detail": "35 black squares (expect 35 for a 10x7 chessboard)"
+    },
+    {
+     "check": "square_size_mm",
+     "ok": true,
+     "detail": "every square 25.000 mm within 0.0 um (worst of 35; tol 25 um = 0.10% of 25 mm)"
+    },
+    {
+     "check": "board_extent_mm",
+     "ok": true,
+     "detail": "measured 250.0000 x 175.0000 mm (expect 250.0 x 175.0; tol 250 / 175 um)"
+    },
+    {
+     "check": "board_centred_mm",
+     "ok": true,
+     "detail": "origin (23.500, 17.500) mm (expect (23.500, 17.500))"
+    },
+    {
+     "check": "inner_corner_span_mm",
+     "ok": true,
+     "detail": "200.0000 x 125.0000 mm (expect 200.0 x 125.0; tol 200 um) -- this is the span you measure with a steel rule"
+    }
+   ],
+   "command": "scripts/calibrate_camera.py --images 'calib/*.png' --cols 9 --rows 6 --square 0.025 --out calib.json"
+  },
+  {
+   "file": "checkerboard_9x6_25mm_letter.pdf",
+   "paper_mm": [
+    279.4,
+    215.9
+   ],
+   "square_mm": 25.0,
+   "board_mm": [
+    250.0,
+    175.0
+   ],
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "2 page(s) (1 instructions + 1 board)"
+    },
+    {
+     "check": "page1_media_box_mm",
+     "ok": true,
+     "detail": "279.4000 x 215.9000 mm (expect 279.4 x 215.9)"
+    },
+    {
+     "check": "page2_media_box_mm",
+     "ok": true,
+     "detail": "279.4000 x 215.9000 mm (expect 279.4 x 215.9)"
+    },
+    {
+     "check": "instructions_bar_200mm",
+     "ok": true,
+     "detail": "measured 200.0000 mm"
+    },
+    {
+     "check": "instructions_bar_150mm",
+     "ok": true,
+     "detail": "measured 150.0000 mm"
+    },
+    {
+     "check": "square_count",
+     "ok": true,
+     "detail": "35 black squares (expect 35 for a 10x7 chessboard)"
+    },
+    {
+     "check": "square_size_mm",
+     "ok": true,
+     "detail": "every square 25.000 mm within 0.0 um (worst of 35; tol 25 um = 0.10% of 25 mm)"
+    },
+    {
+     "check": "board_extent_mm",
+     "ok": true,
+     "detail": "measured 250.0000 x 175.0000 mm (expect 250.0 x 175.0; tol 250 / 175 um)"
+    },
+    {
+     "check": "board_centred_mm",
+     "ok": true,
+     "detail": "origin (14.700, 20.450) mm (expect (14.700, 20.450))"
+    },
+    {
+     "check": "inner_corner_span_mm",
+     "ok": true,
+     "detail": "200.0000 x 125.0000 mm (expect 200.0 x 125.0; tol 200 um) -- this is the span you measure with a steel rule"
+    }
+   ],
+   "command": "scripts/calibrate_camera.py --images 'calib/*.png' --cols 9 --rows 6 --square 0.025 --out calib.json"
+  },
+  {
+   "file": "checkerboard_9x6_25mm_a3.pdf",
+   "paper_mm": [
+    420.0,
+    297.0
+   ],
+   "square_mm": 25.0,
+   "board_mm": [
+    250.0,
+    175.0
+   ],
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "2 page(s) (1 instructions + 1 board)"
+    },
+    {
+     "check": "page1_media_box_mm",
+     "ok": true,
+     "detail": "420.0000 x 297.0000 mm (expect 420.0 x 297.0)"
+    },
+    {
+     "check": "page2_media_box_mm",
+     "ok": true,
+     "detail": "420.0000 x 297.0000 mm (expect 420.0 x 297.0)"
+    },
+    {
+     "check": "instructions_bar_200mm",
+     "ok": true,
+     "detail": "measured 200.0000 mm"
+    },
+    {
+     "check": "instructions_bar_150mm",
+     "ok": true,
+     "detail": "measured 150.0000 mm"
+    },
+    {
+     "check": "square_count",
+     "ok": true,
+     "detail": "35 black squares (expect 35 for a 10x7 chessboard)"
+    },
+    {
+     "check": "square_size_mm",
+     "ok": true,
+     "detail": "every square 25.000 mm within 0.0 um (worst of 35; tol 25 um = 0.10% of 25 mm)"
+    },
+    {
+     "check": "board_extent_mm",
+     "ok": true,
+     "detail": "measured 250.0000 x 175.0000 mm (expect 250.0 x 175.0; tol 250 / 175 um)"
+    },
+    {
+     "check": "board_centred_mm",
+     "ok": true,
+     "detail": "origin (85.000, 61.000) mm (expect (85.000, 61.000))"
+    },
+    {
+     "check": "inner_corner_span_mm",
+     "ok": true,
+     "detail": "200.0000 x 125.0000 mm (expect 200.0 x 125.0; tol 200 um) -- this is the span you measure with a steel rule"
+    }
+   ],
+   "command": "scripts/calibrate_camera.py --images 'calib/*.png' --cols 9 --rows 6 --square 0.025 --out calib.json"
+  },
+  {
+   "file": "checkerboard_9x6_20mm_a4.pdf",
+   "paper_mm": [
+    297.0,
+    210.0
+   ],
+   "square_mm": 20.0,
+   "board_mm": [
+    200.0,
+    140.0
+   ],
+   "ok": true,
+   "checks": [
+    {
+     "check": "page_count",
+     "ok": true,
+     "detail": "2 page(s) (1 instructions + 1 board)"
+    },
+    {
+     "check": "page1_media_box_mm",
+     "ok": true,
+     "detail": "297.0000 x 210.0000 mm (expect 297.0 x 210.0)"
+    },
+    {
+     "check": "page2_media_box_mm",
+     "ok": true,
+     "detail": "297.0000 x 210.0000 mm (expect 297.0 x 210.0)"
+    },
+    {
+     "check": "instructions_bar_200mm",
+     "ok": true,
+     "detail": "measured 200.0000 mm"
+    },
+    {
+     "check": "instructions_bar_150mm",
+     "ok": true,
+     "detail": "measured 150.0000 mm"
+    },
+    {
+     "check": "square_count",
+     "ok": true,
+     "detail": "35 black squares (expect 35 for a 10x7 chessboard)"
+    },
+    {
+     "check": "square_size_mm",
+     "ok": true,
+     "detail": "every square 20.000 mm within 0.0 um (worst of 35; tol 20 um = 0.10% of 20 mm)"
+    },
+    {
+     "check": "board_extent_mm",
+     "ok": true,
+     "detail": "measured 200.0000 x 140.0000 mm (expect 200.0 x 140.0; tol 200 / 140 um)"
+    },
+    {
+     "check": "board_centred_mm",
+     "ok": true,
+     "detail": "origin (48.500, 35.000) mm (expect (48.500, 35.000))"
+    },
+    {
+     "check": "inner_corner_span_mm",
+     "ok": true,
+     "detail": "160.0000 x 100.0000 mm (expect 160.0 x 100.0; tol 160 um) -- this is the span you measure with a steel rule"
+    }
+   ],
+   "command": "scripts/calibrate_camera.py --images 'calib/*.png' --cols 9 --rows 6 --square 0.020 --out calib.json"
+  }
+ ],
+ "detect_check_25mm": {
+  "ran": true,
+  "ok": true,
+  "raster_px": [
+   2066,
+   1624
+  ],
+  "dpi": 150.0,
+  "px_per_mm": 5.902857,
+  "n_corners": 54,
+  "pitch_x_mm": [
+   25.0091,
+   0.082
+  ],
+  "pitch_y_mm": [
+   25.0048,
+   0.083
+  ],
+  "inner_span_mm": [
+   200.0726,
+   125.0242
+  ],
+  "expected_inner_span_mm": [
+   200.0,
+   125.0
+  ],
+  "max_pitch_err_mm": 0.0091
+ },
+ "all_ok": true
+}
