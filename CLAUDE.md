@@ -99,17 +99,20 @@ don't spawn a subagent where doing the thing inline is cheaper.
    safeguard blocks** — released 2026-07-24 (`claude-opus-5`, near-Fable capability, half
    Fable's price, classifiers intervene ~85% less): substantial builds/analyses AND the
    flagged defense-framed guidance / targeting / honesty work and their reviews. **Builder
-   directive 2026-07-24: NO work on Opus 4.8.** GOTCHA: in sessions started on/before
-   release day the Agent tool's bare `opus` alias still resolves to 4.8 — always spawn via
-   `subagent_type: opus5-worker` (pinned `model: claude-opus-5`, verified live), and in a
-   fresh session re-verify what `opus` resolves to before trusting the alias.
-   **HOOK-ENFORCED 2026-07-25 (builder: "I don't want it accidentally used"; alias re-verified
-   still 4.8 in a fresh session):** a PreToolUse hook (`scripts/hooks/block_opus48.py`, wired
-   in `.claude/settings.json`) DENIES any Agent spawn with model `opus`/`claude-opus-4*` and
-   any Workflow script pinning those — proven live with a refused test spawn. Not
-   hook-coverable: the head-session safeguard auto-switch to 4.8 on flagged turns (product
-   behavior, the sanctioned fallback — `/model` back when noticed) and the user-facing
-   `/fast` toggle (fast mode runs on Opus 4.8 — leave it off).
+   directive 2026-07-24: NO work on Opus 4.8.** GOTCHA (root-caused 2026-07-25): what the
+   bare `opus` alias resolves to is a property of the RUNNING CLI BINARY, not the account —
+   a long-lived `claude --continue` process on 2.1.204 maps `opus`→`claude-opus-4-8` while
+   the updated on-disk 2.1.220 maps `opus`→`claude-opus-5`. So always spawn via
+   `subagent_type: opus5-worker` (pinned `model: claude-opus-5`, verified live) and never
+   trust the bare alias; after a CLI update the fix reaches a session only on RESTART.
+   **HOOK-ENFORCED 2026-07-25 (builder: "I don't want it accidentally used"):** a PreToolUse
+   hook (`scripts/hooks/block_opus48.py`, wired in `.claude/settings.json`) DENIES any Agent
+   spawn with model `opus`/`claude-opus-4*` and any Workflow script pinning those — proven
+   live with a refused test spawn. The ambiguous bare alias stays blocked even on updated
+   binaries (explicit `claude-opus-5` passes). Not hook-coverable: the head-session safeguard
+   auto-switch to 4.8 on flagged turns (product behavior, the sanctioned fallback — `/model`
+   back when noticed) and the user-facing `/fast` toggle (fast mode runs on Opus 4.8 — leave
+   it off).
 
 Balance: parallelize for SPEED when there is genuinely independent work in flight (keep the
 sim busy while sim-free work proceeds), but let each spawn EARN its tokens — a targeted Fable

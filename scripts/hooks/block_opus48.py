@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """PreToolUse hook: block any subagent spawn on Opus 4.8.
 
-Builder directive 2026-07-24: NO work on Opus 4.8. The Agent tool's bare
-'opus' alias still resolves to claude-opus-4-8 (re-verified live 2026-07-25
-in a fresh session), so both the alias and any explicit claude-opus-4* id
-are denied here. Opus 5 stays available via subagent_type: opus5-worker
+Builder directive 2026-07-24: NO work on Opus 4.8. What the bare 'opus'
+alias resolves to is VERSION-DEPENDENT on the running CLI binary (root-caused
+2026-07-25: a long-lived `claude --continue` process on 2.1.204 mapped
+opus->claude-opus-4-8 while the on-disk 2.1.220 maps opus->claude-opus-5),
+so the ambiguous alias is denied categorically alongside any explicit
+claude-opus-4* id. Opus 5 stays available via subagent_type: opus5-worker
 (pinned claude-opus-5) or an explicit 'claude-opus-5' model string.
 
 Covers the two spawn surfaces:
@@ -53,8 +55,9 @@ def main() -> None:
         if isinstance(model, str) and BLOCKED_MODEL.match(model.strip()):
             deny(
                 f"BLOCKED by scripts/hooks/block_opus48.py: model '{model}' is Opus 4.8 "
-                "(the bare 'opus' alias still resolves to claude-opus-4-8, verified "
-                "2026-07-25). Builder directive 2026-07-24: NO work on Opus 4.8. "
+                "or the ambiguous 'opus' alias, whose resolution depends on the running "
+                "CLI binary (a stale --continue process resolved it to claude-opus-4-8 "
+                "on 2026-07-25). Builder directive 2026-07-24: NO work on Opus 4.8. "
                 "Spawn via subagent_type: 'opus5-worker' (pinned claude-opus-5) or "
                 "pass model 'claude-opus-5' explicitly."
             )
