@@ -572,7 +572,7 @@
     },
     {
      "date": "2026-07-18",
-     "note": "DEPLOYMENT seeker loop built: flight/deploy/seeker_loop.py drives the portable flight/ core end-to-end (camera undistort -> full-attitude LOS -> lever-arm -> alpha-beta -> pro-nav N=5 -> MAVSDK NED setpoint). No-cheat AUDITED (camera + own-state EKF only). self-test 7/7 + 72 setpoints over real frames; compute_v_close throttle-band fixed to match m4 (review must-fix). MAVSDK live path written but needs PX4 SITL/hardware to verify."
+     "note": "DEPLOYMENT seeker loop built: flight/deploy/seeker_loop.py drives the portable flight/ core end-to-end (camera undistort -> full-attitude LOS -> lever-arm -> alpha-beta -> pro-nav N=5 -> MAVSDK NED setpoint). No-cheat AUDITED (camera + own-state EKF only). CORRECTED 2026-07-25 (review 2): the standing validation evidence is flight/tests/test_seeker_loop_coast.py (17 tests) + the widened AST honesty audit over the whole real-build import closure (9 modules) -- NOT the old 'self-test 7/7', which review 2 proved passes with a full BEARING INVERSION (it pinned no sign/direction). Review-2 hardening landed (2026-07-25): the terminal-coast freeze can no longer latch forever on one oversized box; a detection dropout can no longer make the yaw command chase itself (~90 deg -> 0); guidance REFUSES to steer on the level/yaw-0 stand-in when own-state is absent/stale; own-state age + track-health flags logged. MAVSDK live path SITL-verified via check_real_flight_sitl.sh + check_deploy_sitl.sh (bench brn-05 for hardware)."
     },
     {
      "date": "2026-07-20",

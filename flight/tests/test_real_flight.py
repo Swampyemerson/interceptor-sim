@@ -29,6 +29,8 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from flight.deploy.real_flight import (  # noqa: E402
+    _CSV_FIELDS,
+    _CSV_HEADER,
     FakeVehicle,
     GateReadyTrigger,
     LatchOnce,
@@ -40,18 +42,27 @@ from flight.deploy.real_flight import (  # noqa: E402
     ScriptedTrigger,
     Setpoint,
     State,
+    StepTelemetry,
     TriggerState,
     VehicleObs,
+    audited_module_paths,
     honesty_audit,
+    is_offboard_mode,
     latch_heading_from_bearing,
+    make_mode_subscriber,
     resolve_preflight_heading,
     run_offline,
+    trigger_poll_time,
     update_acquire_streak,
     update_recede_streak,
     wrap_deg,
 )
 from flight.geometry import wrap_pi  # noqa: E402
-from flight.guidance import dash_forward_speed, dash_loft_alt_ref  # noqa: E402
+from flight.guidance import (  # noqa: E402
+    dash_forward_speed,
+    dash_loft_alt_ref,
+    dash_ramp_distance,
+)
 
 DT = 0.05                     # 20 Hz control loop, as flown
 AIM = 40.0                    # the scenarios' pre-flight dash heading C1
@@ -599,7 +610,11 @@ def test_the_offline_dry_run_walks_the_whole_path():
     assert State.ENGAGE in sm.visited
     assert sm.visited[-1] == State.SAFE
     assert sm.dash_heading.is_set
-    assert len(rows) > 50 and rows[0].count(",") == 17
+    # Row/header SEAM: pin the shape against the PRODUCER's own header, not a
+    # magic number, so a new column can never silently mis-align the CSV.
+    assert len(rows) > 50
+    assert all(r.count(",") == _CSV_HEADER.count(",") for r in rows)
+    assert _CSV_HEADER.strip().split(",") == list(_CSV_FIELDS)
 
 
 def test_the_scripted_trigger_can_model_a_dying_link():
@@ -614,6 +629,346 @@ def test_the_fake_vehicle_integrates_the_commanded_setpoint():
     veh.apply(Setpoint(0.0, 0.0, -1.0, 45.0), dt=1.0)
     assert veh.alt_m == pytest.approx(6.0)      # NED: v_down -1 climbs
     assert veh.yaw_deg == pytest.approx(45.0)
+
+
+# ==================================================== review2 silent-failure fixes
+# Each test below pins a path that produced a confident, plausible, WRONG result
+# with nothing raised. All are offline: fake vehicle, fake drone, injected clock.
+
+
+# ---- OFFBOARD: a latched constant is not a measurement ------------------------
+
+
+def test_is_offboard_mode_reads_a_flight_mode_sample_not_a_latch():
+    """The producer half. `offboard_active` used to be written once, right after
+    `offboard.start()` succeeded, and never again -- so `arm_gate`'s OFFBOARD
+    check could not fail in flight by construction. Name-compare so it works
+    against MAVSDK's enum, a bare string, or a repr."""
+    class _FM:
+        def __init__(self, n): self.name = n
+        def __str__(self): return f"FlightMode.{self.name}"
+    assert is_offboard_mode(_FM("OFFBOARD")) is True
+    assert is_offboard_mode(_FM("POSCTL")) is False
+    assert is_offboard_mode(_FM("HOLD")) is False
+    assert is_offboard_mode("OFFBOARD") is True
+    assert is_offboard_mode("FlightMode.OFFBOARD") is True
+    assert is_offboard_mode("FlightMode.LAND") is False
+    # No sample yet MUST be None, not False and certainly not True: the gate
+    # tests `is not True`, so None fails CLOSED.
+    assert is_offboard_mode(None) is None
+
+
+def test_the_mode_subscriber_drives_the_state_dict_and_the_gate_follows_it():
+    """THE SEAM (the thing that had no test): drive the real subscriber with a
+    fake drone that reports OFFBOARD then POSCTL, and assert the VehicleObs the
+    state machine sees flips -- and that a GO is then refused.
+
+    scripts/check_real_flight_sitl.sh structurally CANNOT catch this: SITL never
+    leaves OFFBOARD. It has to be an offline seam test."""
+    import asyncio
+
+    class FakeTelemetry:
+        def __init__(self, modes): self._modes = modes
+        async def flight_mode(self):
+            for m in self._modes:
+                yield m
+
+    class FakeDrone:
+        def __init__(self, modes): self.telemetry = FakeTelemetry(modes)
+
+    state = {"offboard": None, "mode": None}
+    # Before the first sample the gate must FAIL (fail-closed), not pass.
+    sm = RealFlightSM(cfg())
+    assert sm.arm_gate(obs(0.0, offboard_active=state["offboard"]))[0] is False
+
+    asyncio.run(make_mode_subscriber(FakeDrone(["OFFBOARD"]), state)())
+    assert state["offboard"] is True and state["mode"] == "OFFBOARD"
+    assert sm.arm_gate(obs(0.0, offboard_active=state["offboard"]))[0] is True
+
+    asyncio.run(make_mode_subscriber(FakeDrone(["OFFBOARD", "POSCTL"]), state)())
+    assert state["offboard"] is False, "PX4 leaving OFFBOARD must be visible"
+    ok, fails = sm.arm_gate(obs(0.0, offboard_active=state["offboard"]))
+    assert not ok and any("not_offboard" in f for f in fails)
+
+    # ...and a GO on that observation ABORTS instead of dashing.
+    sm2 = RealFlightSM(cfg())
+    sm2.step(obs(0.0, trigger=NO, offboard_active=False))
+    sm2.step(obs(DT, trigger=GO, offboard_active=False))
+    assert sm2.state == State.SAFE and sm2.dash_heading.is_set is False
+
+
+# ---- RC trigger clock base ----------------------------------------------------
+
+
+def test_the_rc_trigger_link_failsafe_survives_the_drivers_own_clock():
+    """THE BLOCKER. The live driver stamped `ingest()` with absolute
+    time.monotonic() but polled with `time.monotonic() - t0`, so `age` was ~-t0
+    (a large negative), `link_ok` was pinned True for the whole flight, and the
+    per-tick CSV asserted `trig_link=1, trig_age_s=-24580.70`. FAILSAFE 1
+    (link-denied -> SAFE) could never fire.
+
+    Drive ingest+poll through the DRIVER's own expressions, with a realistic
+    ~1e4 s uptime offset. The existing unit test at :189 is clock-base-consistent
+    and structurally cannot catch this."""
+    boot = 24_580.0                     # "seconds since boot", i.e. real uptime
+    t0 = boot + 12.0                    # mission start, as the driver sets it
+    trg = RcChannelTrigger(channel=7, link_timeout_s=1.0)
+
+    def driver_poll(t_abs):
+        """EXACTLY what run_mavsdk_mission does, via the shared seam helper."""
+        return trg.poll(trigger_poll_time(trg, t_mission=t_abs - t0, t_abs=t_abs))
+
+    # A live link: frames arriving, GO honoured.
+    trg.ingest({"chan7_raw": 1900}, boot + 20.0)          # absolute, as the driver
+    st = driver_poll(boot + 20.2)
+    assert st.link_ok is True and st.go is True and st.clock_fault is False
+    assert st.age_s == pytest.approx(0.2)
+
+    # The TX dies. Within link_timeout_s the link MUST read denied.
+    dead = driver_poll(boot + 21.5)
+    assert dead.link_ok is False, "the link-denied failsafe is dead again"
+    assert dead.go is False
+    assert dead.age_s > trg.link_timeout_s
+
+    # ...and the state machine actually transitions on it.
+    sm = RealFlightSM(cfg())
+    sm.step(obs(0.0, trigger=driver_poll(boot + 20.2)))
+    sm.step(obs(DT, trigger=dead))
+    assert sm.state == State.SAFE and sm.safe_reason.startswith("link_denied")
+
+
+def test_a_negative_rc_age_is_a_hard_link_failure_not_a_healthy_link():
+    """Belt-and-braces for the whole defect CLASS: if two call sites ever
+    disagree about the clock again, a physically impossible negative staleness
+    must read DENIED and say so, not flatter the log with trig_link=1."""
+    trg = RcChannelTrigger(channel=7, link_timeout_s=1.0)
+    trg.ingest({"chan7_raw": 1900}, t=24_580.0)      # absolute
+    st = trg.poll(12.0)                              # elapsed -- the old mismatch
+    assert st.age_s < 0
+    assert st.link_ok is False and st.go is False and st.clock_fault is True
+    assert trg.n_clock_faults == 1
+
+
+def test_the_clock_base_seam_routes_each_trigger_to_its_own_clock():
+    """The offline triggers keep MISSION time (go_at_s is defined against mission
+    start); only the MAVLink-fed one wants absolute monotonic."""
+    assert trigger_poll_time(RcChannelTrigger(), t_mission=5.0, t_abs=9000.0) == 9000.0
+    assert trigger_poll_time(ScriptedTrigger(go_at_s=1.0), 5.0, 9000.0) == 5.0
+    assert trigger_poll_time(GateReadyTrigger(), 5.0, 9000.0) == 5.0
+    # ScriptedTrigger semantics are unchanged by the routing.
+    trg = ScriptedTrigger(go_at_s=1.0, link_dies_at_s=2.0)
+    assert trg.poll(trigger_poll_time(trg, 1.5, 9000.0)).go is True
+    assert trg.poll(trigger_poll_time(trg, 2.5, 9000.0)).link_ok is False
+
+
+# ---- the honesty audit --------------------------------------------------------
+
+
+def test_the_honesty_audit_covers_the_whole_real_build_import_closure():
+    """It used to audit `__file__` only, so seeker_loop.py -- the module that
+    actually produces det_range_m -- was covered by NO AST honesty check at all,
+    while the PASS line claimed "inputs by construction"."""
+    covered = {os.path.relpath(p, _REPO_ROOT) for p in audited_module_paths()}
+    for must in ("flight/deploy/real_flight.py", "flight/deploy/seeker_loop.py",
+                 "flight/geometry.py", "flight/guidance.py", "flight/camera.py",
+                 "flight/estimator.py"):
+        assert must in covered, f"{must} is not in the audited closure"
+    assert all(os.path.exists(p) for p in audited_module_paths())
+    assert honesty_audit(verbose=False) == 0
+
+
+@pytest.mark.parametrize("injection,why", [
+    ("        gt_range = obs.det_range_m\n", "the gt_ prefix (already caught)"),
+    ("        _r = ground_truth_world_points()[0]\n",
+     "the repo's REAL accessor name -- passed the one-prefix guard"),
+    ("        _r = self._tracker.ground_truth_rel_optical()\n",
+     "the attribute form of the real accessor"),
+    ("        _r = obs.ground_truth_range\n", "a ground-truth attribute read"),
+    ("from m3_static_intercept import ground_truth_world_points\n",
+     "a sim-module import that would drag truth in under a clean name"),
+    ("from m4_intercept import compute_v_close\n",
+     "a sim-module import at all"),
+])
+def test_injected_ground_truth_reads_fail_the_audit(tmp_path, injection, why):
+    """MUTATION CALIBRATION -- the test the guard never had. Without it the fix
+    is unverified in exactly the way the audit was: `_FORBIDDEN_ID_PREFIXES =
+    ("gt_",)` did not include `ground_truth`, which is the name of the repo's
+    real accessors (m3_static_intercept.ground_truth_world_points,
+    PoseTracker.ground_truth_rel_optical), so a planted read of the REAL thing
+    printed "[PASS] no ground-truth identifier is read anywhere (found 0)"."""
+    src = open(os.path.join(_REPO_ROOT, "flight", "deploy", "real_flight.py")).read()
+    assert honesty_audit(path=os.path.join(_REPO_ROOT, "flight", "deploy",
+                                           "real_flight.py"), verbose=False) == 0
+    anchor = "    def link_status(self, obs: VehicleObs) -> Tuple[bool, str]:\n"
+    assert anchor in src
+    if injection.startswith("from "):
+        mutated = injection + src
+    else:
+        mutated = src.replace(anchor, anchor + '        """x"""\n' + injection, 1)
+    p = tmp_path / "mutant.py"
+    p.write_text(mutated)
+    assert honesty_audit(path=str(p), verbose=False) == 1, (
+        f"the audit did NOT catch {why}")
+
+
+def test_a_second_latch_write_still_fails_the_audit(tmp_path):
+    """The latch arm must survive the multi-file refactor."""
+    src = open(os.path.join(_REPO_ROOT, "flight", "deploy", "real_flight.py")).read()
+    anchor = "            self.t_dash_start = obs.t\n"
+    assert anchor in src
+    p = tmp_path / "mutant.py"
+    p.write_text(src.replace(
+        anchor, "            self.dash_heading.set(1.0, t=obs.t)\n" + anchor, 1))
+    assert honesty_audit(path=str(p), verbose=False) == 1
+
+
+# ---- arm gate: the attitude quaternion ---------------------------------------
+
+
+def test_the_arm_gate_refuses_to_dash_without_an_attitude_quaternion():
+    """The terminal's whole LOS chain hangs on the quat; without it seeker_loop
+    reverts to the pre-fix yaw-only formula on an assumed-level vehicle. The gate
+    already refused on `no_yaw`; quat is the same own-state EKF."""
+    sm = RealFlightSM(cfg())
+    ok, fails = sm.arm_gate(obs(0.0, quat=None))
+    assert not ok and "no_attitude_quat" in fails
+    sm.step(obs(0.0, trigger=NO, quat=None))
+    sm.step(obs(DT, trigger=GO, quat=None))
+    assert sm.state == State.SAFE
+    assert "no_attitude_quat" in sm.transitions[-1].reason
+    assert sm.dash_heading.is_set is False
+
+
+# ---- FAILSAFE 8: a diverged range channel aborts, it does not coast ----------
+
+
+def test_a_persistently_broken_range_track_breaks_off_instead_of_coasting():
+    """Pre-fix, r_hat <= 0 / a non-physical rdot silently selected the
+    terminal-coast branch and flew a frozen vector to the end of the engagement.
+    Now the terminal FLAGS it and the state machine breaks off, loudly."""
+    class BrokenGuidance:
+        """Stand-in terminal that reports a diverged range channel."""
+        def __init__(self): self.n = 0
+        def step(self, box, own, t):
+            self.n += 1
+            tel = StepTelemetry(t=t, detected=box is not None)
+            tel.track_broken = True
+            tel.health.append("range_track_broken")
+            return Setpoint(1.0, 0.0, 0.0, 0.0), tel
+
+    c = cfg(engage_track_broken_ticks=3)
+    sm = RealFlightSM(c, guidance=BrokenGuidance())
+    t = dash_now(sm)
+    for i in range(5):
+        sm.step(obs(t + DT * (i + 1), det_new=True, det_range_m=9.0))
+    assert sm.state == State.ENGAGE, f"setup: {sm.transitions}"
+    for i in range(3):
+        sm.step(obs(t + DT * (6 + i), det_new=True, det_range_m=9.0))
+    assert sm.state == State.BREAKOFF
+    assert "range_track_broken" in sm.transitions[-1].reason
+    # One isolated broken tick must NOT end an engagement.
+    sm2 = RealFlightSM(cfg(), guidance=None)
+    t2 = dash_now(sm2)
+    for i in range(5):
+        sm2.step(obs(t2 + DT * (i + 1), det_new=True, det_range_m=9.0))
+    assert sm2.state == State.ENGAGE
+
+
+def test_failsafe_8_does_not_abort_a_legitimate_terminal_coast():
+    """Inside the armed freeze the range estimate is SUPPOSED to run through
+    zero -- that is the coast flying through CPA (ADR-0023, and un-freezing it
+    is graveyarded). FAILSAFE 8 must not delete the validated mechanism."""
+    class CoastingGuidance:
+        def step(self, box, own, t):
+            tel = StepTelemetry(t=t, detected=box is not None)
+            tel.terminal_coast = True
+            tel.r_hat_m = -1.5           # past CPA, as a real coast reads
+            tel.track_broken = True
+            tel.health.append("range_track_broken")
+            return Setpoint(9.0, 0.0, 0.0, 0.0), tel
+
+    sm = RealFlightSM(cfg(engage_track_broken_ticks=3, engage_max_s=30.0,
+                          engage_lost_target_s=30.0),
+                      guidance=CoastingGuidance())
+    t = dash_now(sm)
+    for i in range(5):
+        sm.step(obs(t + DT * (i + 1), det_new=True, det_range_m=9.0))
+    assert sm.state == State.ENGAGE
+    for i in range(20):
+        sm.step(obs(t + DT * (6 + i), det_new=True, det_range_m=9.0))
+    assert sm.state == State.ENGAGE, (
+        f"FAILSAFE 8 aborted an armed terminal coast: {sm.transitions}")
+
+
+# ---- FAILSAFE 4: a modelled metre is not a flown metre ------------------------
+
+
+def test_the_distance_bound_prefers_the_measured_ground_speed():
+    """`dash_accel_ms2 = 10.0` is a MISS-MAE AIM fit, not a kinematic
+    acceleration: ADR-0083 measured it predicting 22.2 m of travel where the
+    vehicle covered 8.2 m. Dead-reckoning the distance failsafe off it aborts the
+    dash at roughly a third of the real distance AND writes a fabricated number
+    into the log. Integrate the EKF ground speed when the vehicle reports it."""
+    # Same 20 m bound, same 2 s of flight, two very different truths.
+    fast = RealFlightSM(cfg(dash_max_s=60.0, dash_max_dist_m=20.0))
+    t = dash_now(fast, ground_speed_ms=0.0)
+    for i in range(1, 200):
+        fast.step(obs(t + DT * i, ground_speed_ms=16.0))
+        if fast.state == State.SAFE:
+            break
+    assert fast.safe_reason == "dash_distance_bound"
+    assert "EKF" in fast.transitions[-1].reason
+    # 20 m at 16 m/s is ~1.25 s, so it must NOT trip before ~1.2 s of dash.
+    assert (fast.transitions[-1].t - t) == pytest.approx(20.0 / 16.0, abs=0.15)
+
+    # A vehicle that is barely moving must NOT trip the bound at all...
+    slow = RealFlightSM(cfg(dash_max_s=60.0, dash_max_dist_m=20.0))
+    t = dash_now(slow, ground_speed_ms=0.0)
+    for i in range(1, 60):                      # 3 s at 1 m/s = 3 m flown
+        slow.step(obs(t + DT * i, ground_speed_ms=1.0))
+    assert slow.state == State.CODED_DASH
+    # ...whereas the MODELLED bound would have "flown" >> 20 m by then.
+    assert dash_ramp_distance(10.0, 10.0, 3.0) > 20.0
+
+    # And when no ground speed is available the reason SAYS it is a model.
+    mdl = RealFlightSM(cfg(dash_max_s=60.0, dash_max_dist_m=20.0))
+    t = dash_now(mdl)
+    for i in range(1, 200):
+        mdl.step(obs(t + DT * i))
+        if mdl.state == State.SAFE:
+            break
+    assert mdl.safe_reason == "dash_distance_bound"
+    assert "MODELLED" in mdl.transitions[-1].reason
+
+
+# ---- the mission log ----------------------------------------------------------
+
+
+def test_the_mission_log_carries_the_guidance_state_not_just_the_command():
+    """A flight that latched the coast freeze, spun on a stale bearing or ran on
+    a missing attitude used to produce a CSV of smooth, plausible setpoints with
+    NO way to tell any of them apart from correct guidance."""
+    from flight.camera import CameraModel
+    from flight.deploy.seeker_loop import GuidanceConfig, SeekerGuidance
+    g = SeekerGuidance(GuidanceConfig(), CameraModel(539.936, 539.936, 640.0, 480.0),
+                       span_m=1.0)
+    sm, rows = run_offline(cfg(engage_max_s=4.0, breakoff_s=0.5, safe_hold_s=0.5),
+                           GateReadyTrigger(), guidance=g, fps=20.0, max_s=60.0,
+                           verbose=False)
+    assert State.ENGAGE in sm.visited
+    cols = list(_CSV_FIELDS)
+    for needed in ("sp_source", "r_hat_m", "rdot_hat_m_s", "lambda_dot_deg_s",
+                   "terminal_coast", "own_state_ok", "meas_age_s", "yaw_hold",
+                   "track_broken", "health", "mode", "trig_clock_fault"):
+        assert needed in cols
+    eng = [r.strip().split(",") for r in rows if f",{State.ENGAGE}," in r]
+    assert eng, "setup: the run must reach ENGAGE"
+    i_src = cols.index("sp_source")
+    i_r = cols.index("r_hat_m")
+    assert any(r[i_src] == "guided" for r in eng), (
+        "a run whose terminal never steered must be visible in the log")
+    assert any(r[i_r] for r in eng), "r_hat is still being thrown away"
+    assert all(len(r) == len(cols) for r in eng)
 
 
 if __name__ == "__main__":

@@ -265,6 +265,11 @@ class MissionConfig:
     yaw_tol_deg: float = 2.0               # arm gate, Sec 4
     require_armed: bool = True
     require_offboard: bool = True
+    require_attitude_quat: bool = True     # arm gate: no dash without a live quat
+    # ENGAGE: consecutive ticks on which the terminal reports `range_track_broken`
+    # (r_hat <= 0 or a non-physical range rate) before BREAKOFF. A diverged range
+    # channel must abort loudly, never silently select the coast branch (review2).
+    engage_track_broken_ticks: int = 3
     require_low_before_go: bool = True     # a switch HIGH at boot is NEVER a GO
     safe_hold_s: float = 2.0               # hold in SAFE before the driver lands
 
@@ -298,6 +303,10 @@ class TriggerState:
     link_ok: bool = False               # a fresh RC frame arrived recently
     age_s: Optional[float] = None       # seconds since the last RC frame
     raw_us: Optional[int] = None        # last PWM (logging only)
+    # A NEGATIVE age is physically impossible: it means ingest() and poll() were
+    # stamped from different clock bases, which silently pins link_ok True
+    # forever (review2 BLOCKER). Surfaced so the log says so instead of "healthy".
+    clock_fault: bool = False
 
 
 @dataclass
@@ -307,10 +316,20 @@ class VehicleObs:
 
     t: float                                    # monotonic seconds
     armed: Optional[bool] = None
+    # LIVE flight-mode-derived (see make_mode_subscriber). None = no sample yet,
+    # which the arm gate treats as FAIL (it tests `is not True`). It is NOT
+    # "offboard.start() returned OK" -- those are different facts.
     offboard_active: Optional[bool] = None
+    mode: Optional[str] = None                  # PX4 flight mode name (log only)
     alt_m: Optional[float] = None               # relative altitude (own EKF)
     yaw_deg: Optional[float] = None             # own EKF yaw
     quat: Optional[Tuple[float, float, float, float]] = None  # (w,x,y,z) body->NED
+    # Horizontal ground speed from the own-state EKF (same honesty class as
+    # alt_m). When present FAILSAFE 4 INTEGRATES it instead of dead-reckoning off
+    # `dash_accel_ms2` -- that constant is a MISS-MAE aim fit, not a kinematic
+    # acceleration, and ADR-0083 measured it over-predicting travel by ~2.7x in
+    # the CPA window (22.2 m predicted vs 8.2 m flown).
+    ground_speed_ms: Optional[float] = None
     trigger: TriggerState = field(default_factory=TriggerState)
     # Camera, exactly as the detector reports it (finetuned_seeker.SeekerDetection)
     det_new: bool = False                       # a NEW detector result this tick
@@ -494,6 +513,12 @@ class RealFlightSM:
         self._breakoff_armed = False
         self._recede_streak = 0
         self._recede_last_range: Optional[float] = None
+        self._broken_streak = 0            # FAILSAFE 8 persistence counter
+        self._flown_m = 0.0                # FAILSAFE 4: integrated EKF distance
+        self._gs_last_t: Optional[float] = None
+        self._gs_last_v: float = 0.0
+        self._warned_own_state = False
+        self.last_telemetry: Optional[StepTelemetry] = None  # for the CSV row
 
     # ---------------------------------------------------------------- logging
 
@@ -552,6 +577,13 @@ class RealFlightSM:
             err = abs(wrap_deg(obs.yaw_deg - cfg.aim_yaw_deg))
             if err > cfg.yaw_tol_deg:
                 fails.append(f"yaw_off({err:.1f} deg > {cfg.yaw_tol_deg})")
+        # The terminal's whole LOS chain hangs on the attitude QUATERNION, and
+        # with it absent seeker_loop reverts to the pre-fix yaw-only formula on an
+        # assumed-level vehicle. The gate already refuses to dash on `no_yaw`;
+        # quat is the SAME own-state EKF (review2 HIGH). One line converts a
+        # silent revert-to-pre-fix into a loud pre-dash refusal on the ground.
+        if cfg.require_attitude_quat and obs.quat is None:
+            fails.append("no_attitude_quat")
         if self.t_state is not None and (obs.t - self.t_state) < cfg.standby_settle_s:
             fails.append("not_settled")
         return (not fails), fails
@@ -778,12 +810,24 @@ class RealFlightSM:
         # FAILSAFE 4 -- optional dead-reckoned DISTANCE bound (own dash model, no
         # position read needed). Off by default; size it to the range box.
         if cfg.dash_max_dist_m is not None:
-            flown = dash_ramp_distance(cfg.dash_speed_ms,
-                                       cfg.dash_accel_cap_ms2 or cfg.dash_accel_ms2,
-                                       elapsed)
+            # PREFER THE MEASUREMENT. Trapezoid-integrate the EKF ground speed
+            # when the vehicle reports it; only dead-reckon when it does not, and
+            # then SAY SO in the reason string, so no log reader can mistake a
+            # MODELLED metre for a flown one (review2 safety).
+            if obs.ground_speed_ms is not None:
+                if self._gs_last_t is not None:
+                    self._flown_m += 0.5 * (obs.ground_speed_ms + self._gs_last_v) \
+                        * max(0.0, obs.t - self._gs_last_t)
+                self._gs_last_t, self._gs_last_v = obs.t, obs.ground_speed_ms
+                flown, src = self._flown_m, "EKF"
+            else:
+                flown = dash_ramp_distance(
+                    cfg.dash_speed_ms,
+                    cfg.dash_accel_cap_ms2 or cfg.dash_accel_ms2, elapsed)
+                src = "MODELLED"
             if flown > cfg.dash_max_dist_m:
                 self._transition(State.SAFE,
-                                 f"dash_distance_bound({flown:.1f} m > "
+                                 f"dash_distance_bound({src} {flown:.1f} m > "
                                  f"{cfg.dash_max_dist_m:.1f} m)", obs, events)
                 self.safe_reason = "dash_distance_bound"
                 return self._safe_setpoint(obs)
@@ -803,6 +847,36 @@ class RealFlightSM:
             sp, tel = self.guidance.step(box, obs.own_state(), obs.t)
         if sp is not None:
             self._last_yaw_cmd_deg = sp.yaw_deg
+
+        # FAILSAFE 8 -- the terminal's RANGE CHANNEL DIVERGED (review2 BLOCKER).
+        # r_hat <= 0 or a non-physical |rdot_hat| is proof the estimate is not the
+        # target any more. Pre-fix that state silently selected the terminal-coast
+        # branch and flew a frozen vector to the end of the engagement.
+        #   * PERSISTENCE: one bad tick may not end an engagement.
+        #   * NOT DURING AN ARMED COAST: inside the freeze the range estimate is
+        #     SUPPOSED to run through zero -- that is the coast flying through CPA
+        #     (ADR-0023), and the coast can only arm off a sane track anyway.
+        #     Aborting there would delete the validated terminal mechanism.
+        broken_now = (tel is not None and getattr(tel, "track_broken", False)
+                      and not getattr(tel, "terminal_coast", False))
+        if broken_now:
+            self._broken_streak += 1
+        elif tel is not None:
+            self._broken_streak = 0
+        if self._broken_streak >= max(1, cfg.engage_track_broken_ticks):
+            self._transition(State.BREAKOFF,
+                             f"range_track_broken({self._broken_streak} ticks)",
+                             obs, events)
+            return self._breakoff_setpoint(obs), tel
+        # Own-state loss inside the terminal: the seeker refuses to steer (returns
+        # None) and we coast the last dash velocity. Say so once -- an unremarked
+        # coast is indistinguishable from guidance in the log.
+        if tel is not None and not getattr(tel, "own_state_ok", True) \
+                and not self._warned_own_state:
+            self._warned_own_state = True
+            self._emit(f"[{obs.t:7.2f}s] WARNING: own-state EKF unavailable in "
+                       f"ENGAGE ({','.join(tel.health)}) -- terminal is HOLDING, "
+                       f"not guiding", events)
 
         if obs.det_new and obs.det_range_m is not None:
             self._last_det_t = obs.t
@@ -925,7 +999,22 @@ class RcChannelTrigger:
     this object from the `mavlink_direct` plugin's raw RC_CHANNELS subscription.
     TODO-BUILDER: verify on the bench (L3) that PX4 actually STREAMS RC_CHANNELS
     on TELEM2 at a useful rate -- it may need SR / MAV_x_RATE tuning, and if it
-    does not, fall back to a pymavlink reader on the same port."""
+    does not, fall back to a pymavlink reader on the same port.
+
+    CLOCK BASE (review2 BLOCKER, fixed 2026-07-25): `ingest()` is fed from an
+    async MAVLink callback that has no notion of "mission elapsed", so BOTH
+    ingest and poll take ABSOLUTE `time.monotonic()`. The live driver used to
+    stamp ingest with time.monotonic() but poll with `time.monotonic() - t0`,
+    which made `age = t - last_rx_t` a large NEGATIVE number: `link_ok` was
+    pinned True for the whole flight, FAILSAFE 1 (link-denied -> SAFE) was
+    structurally unreachable, and the CSV asserted `trig_link=1` with
+    `trig_age_s=-24580.70`. `clock_base` declares which clock poll() wants, so
+    the driver can never guess wrong again (`trigger_poll_time`), and a negative
+    age is now itself a hard link failure."""
+
+    #: poll() expects ABSOLUTE time.monotonic() (the offline triggers want
+    #: mission-elapsed seconds -- see trigger_poll_time()).
+    clock_base = "absolute"
 
     def __init__(self, channel: int = 7, high_us: int = 1700, low_us: int = 1300,
                  link_timeout_s: float = 1.0):
@@ -934,10 +1023,12 @@ class RcChannelTrigger:
         self.link_timeout_s = float(link_timeout_s)
         self.last_pwm: Optional[int] = None
         self.last_rx_t: Optional[float] = None
+        self.n_clock_faults = 0
 
     def ingest(self, fields: dict, t: float) -> None:
         """Fold one decoded RC_CHANNELS message in. `fields` is the JSON body
-        MAVSDK's mavlink_direct hands back (chan1_raw .. chan18_raw, rssi, ...)."""
+        MAVSDK's mavlink_direct hands back (chan1_raw .. chan18_raw, rssi, ...).
+        `t` MUST be absolute time.monotonic() -- the same base poll() is given."""
         pwm = fields.get(f"chan{self.channel}_raw")
         if pwm is None:
             return
@@ -947,15 +1038,42 @@ class RcChannelTrigger:
 
     def poll(self, t: float) -> TriggerState:
         age = None if self.last_rx_t is None else (t - self.last_rx_t)
-        link_ok = age is not None and age <= self.link_timeout_s
+        clock_fault = age is not None and age < 0.0
+        if clock_fault:
+            self.n_clock_faults += 1
+            if self.n_clock_faults == 1:
+                print(f"[trigger] FAULT clock_base_mismatch: RC frame age is "
+                      f"{age:.2f} s (negative) -- ingest() and poll() are on "
+                      f"different clocks. Treating the link as DENIED.")
+        # Fail CLOSED on a negative age: a link we cannot age is not a link.
+        link_ok = age is not None and 0.0 <= age <= self.link_timeout_s
         return TriggerState(go=self.switch.state and link_ok, link_ok=link_ok,
-                            age_s=age, raw_us=self.last_pwm)
+                            age_s=age, raw_us=self.last_pwm,
+                            clock_fault=clock_fault)
+
+
+def trigger_poll_time(trigger, t_mission: float, t_abs: float) -> float:
+    """WHICH CLOCK a trigger's `poll()` expects. The driver MUST route through
+    this -- the whole link-denied failsafe was dead because the two call sites
+    disagreed and nothing declared the contract (review2 BLOCKER).
+
+      * `clock_base == "absolute"` (RcChannelTrigger): absolute time.monotonic(),
+        because its ingest() runs in an async MAVLink callback that has no
+        mission clock.
+      * otherwise (ScriptedTrigger/GateReadyTrigger): mission-elapsed seconds,
+        because `go_at_s` / `link_dies_at_s` are defined against mission start.
+
+    Pure, so the test drives the SAME expression the driver does."""
+    return t_abs if getattr(trigger, "clock_base", "mission") == "absolute" \
+        else t_mission
 
 
 class ScriptedTrigger:
     """OFFLINE ONLY (tests, --dry-run, --sitl-smoke). Fires GO at `go_at_s`, can
     simulate a link that dies at `link_dies_at_s`, and can start HIGH (to prove
-    the switch-high-at-boot refusal)."""
+    the switch-high-at-boot refusal). poll() takes MISSION-ELAPSED seconds."""
+
+    clock_base = "mission"
 
     def __init__(self, go_at_s: Optional[float] = None,
                  link_dies_at_s: Optional[float] = None,
@@ -1033,24 +1151,45 @@ class FakeVehicle:
 _LATCH_ATTR = "dash_heading"
 # Identifier prefixes that would mean a ground-truth read. There is no ground
 # truth on real hardware; this asserts none crept in from a sim-side copy/paste.
-_FORBIDDEN_ID_PREFIXES = ("gt_",)
-_FORBIDDEN_IMPORT_ROOTS = ("gz", "gz_transport", "gz.transport13")
+#
+# `ground_truth` is NOT optional here (review2 HIGH, 2026-07-25): the repo's
+# ACTUAL ground-truth accessors are `m3_static_intercept.ground_truth_world_points`
+# and `PoseTracker.ground_truth_rel_optical` -- neither starts with `gt_`, so the
+# one-prefix guard PASSED a planted read of the real accessor. This list is kept
+# equal to tests/test_honesty_seekers.GT_PREFIXES on purpose; the drift between
+# two guards that were meant to say the same thing IS the bug.
+_FORBIDDEN_ID_PREFIXES = ("gt_", "ground_truth")
+# Import roots that would drag ground truth in under a clean local name (a
+# wrapper renaming the return value defeats the identifier check alone).
+_FORBIDDEN_IMPORT_ROOTS = ("gz", "gz_transport", "gz.transport13",
+                           "m2_detect", "m3_static_intercept", "m4_intercept",
+                           "guidance_lab", "pose_tracker")
+
+# The REAL-BUILD IMPORT CLOSURE: every module that runs on the vehicle. The
+# audit's printed claim is only true of what it actually walks, so the boundary
+# of the proof is now explicit and machine-checked instead of asserted. The
+# latch-count arm stays scoped to real_flight.py (it is the only file with a
+# latch); the gt/import arms run over all of these.
+_AUDITED_MODULES = (
+    os.path.join("flight", "deploy", "real_flight.py"),
+    os.path.join("flight", "deploy", "seeker_loop.py"),
+    os.path.join("flight", "camera.py"),
+    os.path.join("flight", "geometry.py"),
+    os.path.join("flight", "estimator.py"),
+    os.path.join("flight", "guidance.py"),
+    os.path.join("flight", "range_fusion.py"),
+    os.path.join("flight", "terminal_coast.py"),
+    os.path.join("flight", "fov_guidance.py"),
+)
 
 
-def honesty_audit(path: Optional[str] = None, verbose: bool = True) -> int:
-    """Prove -- from the SYNTAX TREE, not the text -- that this module:
+def audited_module_paths() -> List[str]:
+    """Absolute paths of the real-build import closure the honesty audit walks."""
+    return [os.path.join(_REPO_ROOT, m) for m in _AUDITED_MODULES]
 
-      1. reads NO ground-truth symbol (no identifier with a forbidden prefix),
-      2. imports no simulator/ground-truth module,
-      3. writes the dash heading latch at EXACTLY ONE call site (the GO edge),
-         i.e. `docs/launch_mechanism_plan.md` L2's "assigned once, never again".
 
-    A comment or a docstring cannot fool it (the walk ignores string constants),
-    which is why the module's prose may freely discuss the boundary. Mirrors the
-    existing AST-audit pattern in scripts/field/fc_link_check.py.
-
-    Exit 0 = clean, 1 = violation."""
-    path = path or os.path.abspath(__file__)
+def _audit_one(path: str, check_latch: bool) -> Tuple[List[str], int]:
+    """AST arms for ONE file. Returns (problems, latch_set_count)."""
     with open(path) as fh:
         tree = ast.parse(fh.read(), filename=path)
     problems: List[str] = []
@@ -1082,48 +1221,197 @@ def honesty_audit(path: Optional[str] = None, verbose: bool = True) -> int:
                     and f.value.attr == _LATCH_ATTR:
                 latch_sets += 1
 
-    if latch_sets != 1:
+    if check_latch and latch_sets != 1:
         problems.append(
             f"the dash-heading latch is written at {latch_sets} call sites "
             "(must be EXACTLY 1 -- the GO edge)")
+    return problems, latch_sets
+
+
+def is_offboard_mode(mode) -> Optional[bool]:
+    """True/False from one MAVSDK `FlightMode` sample; None if there is no sample
+    yet. Compared by NAME so this is testable with no mavsdk installed, and so a
+    MAVSDK enum-repr change ("FlightMode.OFFBOARD" vs "OFFBOARD") cannot flip it.
+
+    DO NOT substitute `drone.offboard.is_active()`: that reports MAVSDK's own
+    setpoint-mode flag, not the vehicle's flight mode, and would reproduce the
+    exact permanently-True silent failure this replaces."""
+    if mode is None:
+        return None
+    name = getattr(mode, "name", None) or str(mode)
+    return str(name).rsplit(".", 1)[-1].strip().upper() == "OFFBOARD"
+
+
+def make_mode_subscriber(drone, state: dict):
+    """The live OFFBOARD producer, as a factory so a test can drive it with a
+    fake drone (the seam that had no test -- the consumer was parametrised, the
+    producer did not exist). Sets state["offboard"] from TELEMETRY, never from
+    "we called offboard.start() once"."""
+    async def _mode():
+        async for m in drone.telemetry.flight_mode():
+            state["offboard"] = is_offboard_mode(m)
+            state["mode"] = str(getattr(m, "name", None) or m)
+    return _mode
+
+
+def honesty_audit(path: Optional[str] = None, verbose: bool = True,
+                  paths: Optional[Sequence[str]] = None) -> int:
+    """Prove -- from the SYNTAX TREE, not the text -- that the real-build code:
+
+      1. reads NO ground-truth symbol (no identifier with a forbidden prefix),
+      2. imports no simulator/ground-truth module,
+      3. writes the dash heading latch at EXACTLY ONE call site (the GO edge),
+         i.e. `docs/launch_mechanism_plan.md` L2's "assigned once, never again".
+
+    A comment or a docstring cannot fool it (the walk ignores string constants),
+    which is why the module's prose may freely discuss the boundary. Mirrors the
+    existing AST-audit pattern in scripts/field/fc_link_check.py.
+
+    SCOPE (be precise about what this proves): with no arguments it walks the
+    whole real-build import closure (`_AUDITED_MODULES`) -- not just this file,
+    which was the pre-2026-07-25 behaviour and left seeker_loop.py (the module
+    that actually produces det_range_m) covered by no AST check at all. Pass
+    `path=` to audit a single file (used by the mutation-calibration test).
+
+    It remains a NAMING-CONVENTION check, not an information-flow proof: it
+    cannot see ground truth handed in by a caller under a clean name or read from
+    a topic at runtime. It says "no module on the vehicle NAMES a ground-truth
+    symbol or imports a simulator module", which is what it should be quoted as.
+
+    Exit 0 = clean, 1 = violation."""
+    if path is not None:
+        targets = [os.path.abspath(path)]
+    elif paths is not None:
+        targets = [os.path.abspath(p) for p in paths]
+    else:
+        targets = audited_module_paths()
+    real_flight_path = os.path.join(_REPO_ROOT, _AUDITED_MODULES[0])
+
+    all_problems: List[str] = []
+    latch_total = 0
+    latch_checked = False
+    per_file = []
+    for tgt in targets:
+        # The latch arm applies to real_flight.py only -- and to a single-file
+        # audit of a mutated COPY of it (the calibration test's temp file), which
+        # is detected by the module's own latch attribute being present.
+        check_latch = (os.path.abspath(tgt) == os.path.abspath(real_flight_path)
+                       or (len(targets) == 1 and _has_latch_site(tgt)))
+        probs, n_latch = _audit_one(tgt, check_latch)
+        if check_latch:
+            latch_total += n_latch
+            latch_checked = True
+        per_file.append((tgt, probs))
+        all_problems += [f"{os.path.relpath(tgt, _REPO_ROOT)}: {p}" for p in probs]
 
     if verbose:
-        print(f"[audit] {os.path.relpath(path, _REPO_ROOT)}")
-        print(f"  [{'PASS' if latch_sets == 1 else 'FAIL'}] dash heading latched at "
-              f"exactly one call site (found {latch_sets})")
-        n_gt = sum(1 for p in problems if "ground-truth" in p)
+        print("[audit] real-build import closure "
+              f"({len(targets)} module{'s' if len(targets) != 1 else ''}):")
+        for tgt, probs in per_file:
+            rel = os.path.relpath(tgt, _REPO_ROOT)
+            print(f"  [{'PASS' if not probs else 'FAIL'}] {rel}")
+        if latch_checked:
+            print(f"  [{'PASS' if latch_total == 1 else 'FAIL'}] dash heading "
+                  f"latched at exactly one call site (found {latch_total})")
+        n_gt = sum(1 for p in all_problems if "ground-truth" in p)
         print(f"  [{'PASS' if n_gt == 0 else 'FAIL'}] no ground-truth identifier "
-              f"is read anywhere (found {n_gt})")
-        n_imp = sum(1 for p in problems if "simulator import" in p)
+              f"({'/'.join(_FORBIDDEN_ID_PREFIXES)}) is read in ANY audited "
+              f"module (found {n_gt})")
+        n_imp = sum(1 for p in all_problems if "simulator import" in p)
         print(f"  [{'PASS' if n_imp == 0 else 'FAIL'}] no simulator/ground-truth "
               f"import (found {n_imp})")
-        print("  [INFO] inputs by construction: camera pixels (ENGAGE only), "
-              "own-state EKF, pre-flight constants, and ONE arm/kill trigger bit")
-        for p in problems:
+        print("  [INFO] inputs by construction, IN THE MODULES LISTED ABOVE: "
+              "camera pixels (ENGAGE only), own-state EKF, pre-flight constants, "
+              "and ONE arm/kill trigger bit")
+        print("  [INFO] scope: AST naming/import check -- it cannot see ground "
+              "truth passed in by a caller under a clean name")
+        for p in all_problems:
             print(f"  VIOLATION: {p}")
-        print(f"[audit] {'PASS' if not problems else 'FAIL'}")
-    return 0 if not problems else 1
+        print(f"[audit] {'PASS' if not all_problems else 'FAIL'}")
+    return 0 if not all_problems else 1
+
+
+def _has_latch_site(path: str) -> bool:
+    """Does this file define the LatchOnce cell (i.e. is it a copy of the state
+    machine)? Used so the calibration test's temp copy still gets the latch arm."""
+    try:
+        with open(path) as fh:
+            src = fh.read()
+    except OSError:
+        return False
+    return f"self.{_LATCH_ATTR} = LatchOnce" in src
 
 
 # ---------------------------------------------------------------- CSV logging
 
 
-_CSV_HEADER = ("t_s,state,streak,armed,offboard,alt_m,yaw_deg,trig_go,trig_link,"
-               "trig_age_s,trig_us,det_new,det_range_m,v_north,v_east,v_down,"
-               "yaw_cmd_deg,safe_reason\n")
+# PER-TICK MISSION LOG. The guidance block (bearing.. onward) exists because the
+# pre-2026-07-25 schema logged only the COMMAND: a flight that latched the coast
+# freeze, spun on a stale bearing or ran on a missing attitude produced a CSV of
+# smooth, plausible setpoints with nothing to tell any of them apart from correct
+# guidance (review2). Decision.telemetry was already carried and thrown away.
+# `_CSV_FIELDS` is the single source of truth -- header and row are built from it,
+# so the two halves cannot drift (the seam that broke elsewhere today).
+_CSV_FIELDS = (
+    "t_s", "state", "streak", "armed", "offboard", "mode", "alt_m", "yaw_deg",
+    "trig_go", "trig_link", "trig_age_s", "trig_clock_fault", "trig_us",
+    "det_new", "det_range_m",
+    "v_north", "v_east", "v_down", "yaw_cmd_deg",
+    # --- guidance state (dec.telemetry; empty outside ENGAGE) ---
+    "sp_source", "bearing_deg", "lambda_deg", "lambda_dot_deg_s",
+    "r_hat_m", "rdot_hat_m_s", "v_perp", "terminal_coast",
+    "own_state_ok", "own_age_s", "meas_age_s", "stale", "yaw_hold",
+    "track_broken", "coast_age_s", "health",
+    "safe_reason",
+)
+_CSV_HEADER = ",".join(_CSV_FIELDS) + "\n"
 
 
 def _csv_row(obs: VehicleObs, dec: Decision) -> str:
     sp = dec.setpoint
+    tel = dec.telemetry
+
     def f(x, nd=4):
         return "" if x is None else f"{x:.{nd}f}"
-    return (f"{obs.t:.3f},{dec.state},{dec.streak},{obs.armed},"
-            f"{obs.offboard_active},{f(obs.alt_m,3)},{f(obs.yaw_deg,2)},"
-            f"{int(bool(obs.trigger.go))},{int(bool(obs.trigger.link_ok))},"
-            f"{f(obs.trigger.age_s,2)},{obs.trigger.raw_us or ''},"
-            f"{int(bool(obs.det_new))},{f(obs.det_range_m,3)},"
-            f"{sp.v_north:.4f},{sp.v_east:.4f},{sp.v_down:.4f},"
-            f"{sp.yaw_deg:.2f},{dec.safe_reason or ''}\n")
+
+    def b(x):
+        return "" if x is None else str(int(bool(x)))
+
+    def g(attr, nd=4):
+        return "" if tel is None else f(getattr(tel, attr, None), nd)
+
+    if tel is None:
+        sp_source = "safe" if dec.state == State.SAFE else dec.state.lower()
+    elif tel.setpoint is None:
+        sp_source = "hold"            # seeker declined -> caller's coast setpoint
+    elif tel.terminal_coast:
+        sp_source = "coast"
+    else:
+        sp_source = "guided"
+    health = "" if tel is None else "|".join(getattr(tel, "health", []) or [])
+    vals = [
+        f"{obs.t:.3f}", dec.state, str(dec.streak), str(obs.armed),
+        str(obs.offboard_active), str(obs.mode or ""), f(obs.alt_m, 3),
+        f(obs.yaw_deg, 2),
+        str(int(bool(obs.trigger.go))), str(int(bool(obs.trigger.link_ok))),
+        f(obs.trigger.age_s, 2), str(int(bool(obs.trigger.clock_fault))),
+        str(obs.trigger.raw_us or ""),
+        str(int(bool(obs.det_new))), f(obs.det_range_m, 3),
+        f"{sp.v_north:.4f}", f"{sp.v_east:.4f}", f"{sp.v_down:.4f}",
+        f"{sp.yaw_deg:.2f}",
+        sp_source, g("bearing_deg", 3), g("lambda_deg", 3),
+        g("lambda_dot_deg_s", 3), g("r_hat_m", 3), g("rdot_hat_m_s", 3),
+        g("v_perp", 3), "" if tel is None else b(tel.terminal_coast),
+        "" if tel is None else b(tel.own_state_ok), g("own_age_s", 3),
+        g("meas_age_s", 3), "" if tel is None else b(tel.stale),
+        "" if tel is None else b(tel.yaw_hold),
+        "" if tel is None else b(tel.track_broken), g("coast_age_s", 3),
+        health,
+        dec.safe_reason or "",
+    ]
+    assert len(vals) == len(_CSV_FIELDS), (
+        f"CSV row/header drift: {len(vals)} values vs {len(_CSV_FIELDS)} columns")
+    return ",".join(vals) + "\n"
 
 
 # ---------------------------------------------------------------- offline driver
@@ -1192,6 +1480,9 @@ _HEALTH_TIMEOUT_S = 60.0
 _TAKEOFF_TIMEOUT_S = 60.0
 _TAKEOFF_ALT_FRAC = 0.8
 _LAND_TIMEOUT_S = 60.0
+# Bounded wait for the FIRST telemetry.flight_mode() sample after offboard.start().
+# Only affects how loudly we report; the gate fails closed on None regardless.
+_MODE_FIRST_SAMPLE_TIMEOUT_S = 10.0
 
 
 async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
@@ -1252,12 +1543,18 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
     print("[mavsdk] connected")
 
     # OWN-STATE EKF + own status. The ONLY non-camera, non-constant inputs.
+    # `offboard` and `mode` start None and are owned by the flight_mode
+    # SUBSCRIBER -- never by "offboard.start() returned". arm_gate uses
+    # `is not True`, so None fails CLOSED (no GO can be accepted), and
+    # standby_settle_s=2.0 means no GO is possible inside the first-sample window.
     state = {"quat": None, "psi": None, "alt": None, "armed": None,
-             "landed": None, "offboard": None}
+             "landed": None, "offboard": None, "mode": None,
+             "t_quat": None, "gs": None}
 
     async def _att_q():
         async for q in drone.telemetry.attitude_quaternion():
             state["quat"] = (q.w, q.x, q.y, q.z)
+            state["t_quat"] = time.monotonic()
 
     async def _att_e():
         async for e in drone.telemetry.attitude_euler():
@@ -1267,6 +1564,12 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         async for p in drone.telemetry.position():
             state["alt"] = p.relative_altitude_m
 
+    async def _vel():
+        """Own-state EKF horizontal ground speed -- FAILSAFE 4 integrates this
+        instead of dead-reckoning off the aim-fitted dash_accel_ms2."""
+        async for v in drone.telemetry.velocity_ned():
+            state["gs"] = math.hypot(v.north_m_s, v.east_m_s)
+
     async def _armed():
         async for a in drone.telemetry.armed():
             state["armed"] = a
@@ -1275,23 +1578,48 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         async for ls in drone.telemetry.landed_state():
             state["landed"] = ls
 
+    # THE OFFBOARD INPUT. Without this subscriber `state["offboard"]` was a
+    # latched constant and the arm gate's OFFBOARD check was structurally
+    # unreachable in flight (review2 BLOCKER).
+    _mode = make_mode_subscriber(drone, state)
+
     async def _rc():
         """RC_CHANNELS -> the ELRS aux switch. MAVSDK's telemetry plugin has no
-        per-channel accessor, so this uses the mavlink_direct raw subscription."""
+        per-channel accessor, so this uses the mavlink_direct raw subscription.
+
+        CLOCK: absolute time.monotonic(), matching RcChannelTrigger.clock_base
+        (the driver polls it through `trigger_poll_time`)."""
         async for msg in drone.mavlink_direct.message("RC_CHANNELS"):
+            # NARROW: a programming error in here must not masquerade as "a
+            # malformed RC_CHANNELS" forever (that swallow hid the clock defect).
             try:
                 trigger.ingest(json.loads(msg.fields_json), time.monotonic())
-            except Exception as e:  # noqa: BLE001 -- never let a bad frame kill the loop
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError,
+                    AttributeError) as e:
                 print(f"[rc] skipped a malformed RC_CHANNELS: {e}")
 
-    coros = [_att_q, _att_e, _pos, _armed, _landed]
+    coros = [_att_q, _att_e, _pos, _vel, _armed, _landed, _mode]
     if isinstance(trigger, RcChannelTrigger):
         coros.append(_rc)
     tasks = [asyncio.ensure_future(c()) for c in coros]
 
+    def _task_died(task):
+        """A telemetry generator that raises dies SILENTLY and freezes its slice
+        of own-state at the last value forever. Say so."""
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            print(f"[mavsdk] FAULT telemetry_task_died: {type(exc).__name__}: "
+                  f"{exc} -- an own-state stream is now FROZEN")
+
+    for tk in tasks:
+        tk.add_done_callback(_task_died)
+
     rc_exit = 0
     offboard_ok = False
-    n_tick = n_sp = 0
+    offboard_lost_after_go = False
+    n_tick = n_sp = n_off_true = 0
     csv_rows: List[str] = []
     try:
         print(f"[mavsdk] waiting for health (global+home position ok), timeout "
@@ -1328,12 +1656,29 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                                                              cfg.aim_yaw_deg))
         try:
             await drone.offboard.start()
-            offboard_ok = True
-            state["offboard"] = True
-            print("[mavsdk] OFFBOARD active; STANDBY hold stream begins")
+            offboard_ok = True     # "start() SUCCEEDED" -- a different fact from
+                                   # "the vehicle IS in OFFBOARD right now", which
+                                   # only telemetry may answer. Do NOT latch
+                                   # state["offboard"] here (review2 BLOCKER).
+            print("[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins")
         except OffboardError as e:
             print(f"[mavsdk] FAIL: offboard start failed: {e}")
             rc_exit = 1
+
+        if offboard_ok:
+            # Wait (bounded, LOUD) for the first flight_mode sample so the arm
+            # gate is not merely failing closed on a warm-up None.
+            _deadline = time.monotonic() + _MODE_FIRST_SAMPLE_TIMEOUT_S
+            while time.monotonic() < _deadline and state["offboard"] is None:
+                await asyncio.sleep(0.1)
+            if state["offboard"] is None:
+                print(f"[mavsdk] WARNING: no telemetry.flight_mode() sample within "
+                      f"{_MODE_FIRST_SAMPLE_TIMEOUT_S:.0f}s -- offboard_active "
+                      f"stays None and the arm gate will (correctly) REFUSE every "
+                      f"GO. This is fail-closed, not a silent pass.")
+            else:
+                print(f"[mavsdk] flight mode = {state['mode']} "
+                      f"(offboard_active={state['offboard']}) from TELEMETRY")
 
         if offboard_ok:
             t0 = time.monotonic()
@@ -1348,7 +1693,11 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                           f"reached in state {sm.state} -- forcing shutdown")
                     rc_exit = 1
                     break
-                trig = trigger.poll(t)
+                # ONE clock contract, declared by the trigger (review2 BLOCKER):
+                # RcChannelTrigger.ingest() stamps absolute time.monotonic(), so
+                # its poll() must get the same base -- polling it with mission
+                # time made the RC age negative and pinned link_ok True forever.
+                trig = trigger.poll(trigger_poll_time(trigger, t, time.monotonic()))
                 det_new = det_range = det_box = None
                 if detector is not None and sm.t_dash_start is not None \
                         and t >= sm.t_dash_start + args.smoke_acquire_after_s \
@@ -1361,13 +1710,25 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                     det_new, det_range, det_box = True, d.range_m, d.box_xywh
                 obs = VehicleObs(t=t, armed=state["armed"],
                                  offboard_active=state["offboard"],
+                                 mode=state["mode"],
                                  alt_m=state["alt"], yaw_deg=state["psi"],
-                                 quat=state["quat"], trigger=trig,
+                                 quat=state["quat"],
+                                 ground_speed_ms=state["gs"], trigger=trig,
                                  det_new=bool(det_new), det_range_m=det_range,
                                  det_box_xywh=det_box)
                 if isinstance(trigger, GateReadyTrigger):
                     trigger.observe_gate(sm.arm_gate(obs)[0])
                 dec = sm.step(obs)
+                n_off_true += 1 if state["offboard"] is True else 0
+                if state["offboard"] is not True and sm.dash_heading.is_set:
+                    if not offboard_lost_after_go:
+                        offboard_lost_after_go = True
+                        print(f"[mavsdk] FAULT offboard_lost_after_go: PX4 flight "
+                              f"mode is {state['mode']} at t={t:.2f}s in state "
+                              f"{dec.state} -- the setpoints below this line were "
+                              f"NOT flown by the vehicle. (Policy: post-GO loss is "
+                              f"RECORDED, not aborted -- constraint no-datalink; "
+                              f"see the open ADR-0081 addendum.)")
                 csv_rows.append(_csv_row(obs, dec))
                 sp = dec.setpoint
                 if args.dry_run:
@@ -1451,6 +1812,51 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         if not sm.dash_heading.is_set:
             print("[sitl-smoke] FAIL: dash heading was never latched")
             rc_exit = 1
+        # A DEAD SEEKER MUST FAIL THIS GATE (review2): "states visited" +
+        # "n_sp > 0" both pass with a terminal that never steers -- which is
+        # exactly how a frozen/zero-command terminal survived elsewhere. Assert
+        # the terminal ACTUATED: some ENGAGE tick was `guided`, and the commanded
+        # horizontal velocity actually moved.
+        eng = [r.split(",") for r in csv_rows if f",{State.ENGAGE}," in r]
+        i_src, i_vn, i_ve = (_CSV_FIELDS.index("sp_source"),
+                             _CSV_FIELDS.index("v_north"),
+                             _CSV_FIELDS.index("v_east"))
+        n_guided = sum(1 for r in eng if r[i_src] == "guided")
+        n_distinct = len({(r[i_vn], r[i_ve]) for r in eng})
+        print(f"[sitl-smoke] terminal: {len(eng)} ENGAGE ticks, {n_guided} "
+              f"camera-GUIDED, {n_distinct} distinct horizontal commands")
+        if eng and n_guided == 0:
+            print("[sitl-smoke] FAIL: ZERO ENGAGE ticks were camera-guided -- the "
+                  "terminal never steered (states visited is not evidence)")
+            rc_exit = 1
+        if eng and n_distinct < 2:
+            print("[sitl-smoke] FAIL: the commanded horizontal velocity took "
+                  f"{n_distinct} distinct value(s) across ENGAGE -- a frozen or "
+                  "zero terminal, not guidance")
+            rc_exit = 1
+        # OFFBOARD must have been held WHILE the terminal was actually steering --
+        # NOT at the final tick. CORRECTED 2026-07-25 (review 2, SITL-observed): a
+        # nominal mission ends in SAFE with offboard cleanly STOPPED before landing
+        # (mode=HOLD), so "offboard active at the end" false-FAILs a perfect run. The
+        # real fact — "were the guided setpoints flown in OFFBOARD?" — is checked here
+        # over the ENGAGE ticks, and the mid-flight loss is caught by
+        # offboard_lost_after_go below. (This is why offboard is telemetry-sourced now:
+        # a latched constant could not have told the truth at either point.)
+        i_mode = _CSV_FIELDS.index("mode")
+        eng_guided = [r for r in eng if r[i_src] == "guided"]
+        n_guided_offb = sum(1 for r in eng_guided if r[i_mode] == "OFFBOARD")
+        if eng_guided and n_guided_offb < len(eng_guided):
+            print(f"[sitl-smoke] FAIL: {len(eng_guided) - n_guided_offb} of "
+                  f"{len(eng_guided)} camera-GUIDED ENGAGE ticks were NOT in OFFBOARD "
+                  f"-- the commanded dash was not flown by the vehicle "
+                  f"(offboard.start() succeeding is not the same fact)")
+            rc_exit = 1
+        if offboard_lost_after_go:
+            print("[sitl-smoke] FAIL: PX4 left OFFBOARD after the GO edge -- the "
+                  "logged dash was not flown by the vehicle")
+            rc_exit = 1
+        print(f"[sitl-smoke] offboard_active was True on {n_off_true}/{n_tick} "
+              f"ticks (telemetry-sourced, not latched)")
         print(f"[sitl-smoke] {'PASS' if rc_exit == 0 else 'FAIL'} "
               f"({n_sp} setpoints, dash heading "
               f"{sm.dash_heading.value if sm.dash_heading.is_set else 'unset'})")
@@ -1694,6 +2100,13 @@ def main(argv=None) -> int:
     trm.add_argument("--mount-left-m", type=float, default=0.0)
     trm.add_argument("--mount-up-m", type=float, default=0.05)
     trm.add_argument("--mount-tilt-deg", type=float, default=0.0)
+    trm.add_argument("--target-span-m", type=float, default=None,
+                     help="known-size span (m) the terminal converts a box width "
+                          "into range with. NO nn_tier detector ships a range "
+                          "calibration yet, so on real imagery the default is a "
+                          "SIM-fitted constant and every range-keyed threshold "
+                          "(freeze 3.5 m, breakoff arm 4.0 m, hard floor 0.5 m) "
+                          "fires at the wrong true distance. TODO-BUILDER.")
 
     run = ap.add_argument_group("run")
     run.add_argument("--fps", type=float, default=20.0)
@@ -1732,6 +2145,18 @@ def main(argv=None) -> int:
     from flight.camera import CameraModel
     cam = (load_camera(args.intrinsics) if os.path.exists(args.intrinsics)
            else CameraModel(539.936, 539.936, 640.0, 480.0))
+    # KNOWN-SIZE SPAN: range = fx*span/box_width_px, and span multiplies Vc into
+    # the pro-nav command -- it is NOT a display constant. --dry-run/--sitl-smoke
+    # use a SYNTHETIC detector built from this same value, so the default is
+    # self-consistent there; a real camera mode must pass --target-span-m or ship
+    # a fitted <weights>.calib.json (review2 HIGH). TODO-BUILDER.
+    if args.target_span_m is not None:
+        gcfg.target_span_m = float(args.target_span_m)
+        print(f"[terminal] target span {gcfg.target_span_m:.3f} m "
+              f"(--target-span-m)")
+    else:
+        print(f"[terminal] target span {gcfg.target_span_m:.3f} m (config "
+              f"default -- NOT range-calibrated; synthetic-detector modes only)")
     guidance = SeekerGuidance(gcfg, cam, gcfg.target_span_m)
 
     ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())

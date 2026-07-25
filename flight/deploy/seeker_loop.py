@@ -35,15 +35,20 @@ HONESTY / NO-CHEAT AUDIT (CLAUDE.md #5, ADR-0010):
   * The ONLY inputs are (a) camera pixels and (b) the flight controller's OWN-state
     EKF -- the body->NED attitude quaternion, yaw, and altitude that MAVSDK reports
     over MAVLink. That is the same own-state basis the sim's guidance is allowed to
-    read. There is NO gt_* anywhere in this file (there is no ground truth on real
-    hardware to read); grep confirms it. The `flight/` core it calls is itself
-    gt-free and test-pinned. The ONNX detector's weights were fine-tuned OFFLINE on
-    gt-projected labels (an offline human-labeler analogue) -- the LIVE detector at
-    inference is gt-free.
+    read. There is NO ground-truth symbol anywhere in this file (there is no ground
+    truth on real hardware to read). That is MACHINE-CHECKED, not grepped: this file
+    is in real_flight.py's `_AUDITED_MODULES`, so `python -m flight.deploy.real_flight
+    --audit` walks its syntax tree (pinned by flight/tests/test_real_flight.py's
+    injection-calibration test). The `flight/` core it calls is audited the same way.
+    The ONNX detector's weights were fine-tuned OFFLINE on gt-projected labels (an
+    offline human-labeler analogue) -- the LIVE detector at inference is gt-free.
   * On the DESK (no flight controller), own-state falls back to a LEVEL hover
-    (identity attitude, yaw 0, a fixed altitude). That is a benign stand-in, not
-    ground truth: it says "assume the camera is level," which is exactly what a
-    bench test with the camera on a table is.
+    (identity attitude, yaw 0, a fixed altitude) via `OwnState.level()`. That is a
+    benign BENCH stand-in, not ground truth: it says "assume the camera is level,"
+    which is exactly what a bench test with the camera on a table is. It is NOT
+    allowed to become a flight input: `GuidanceConfig.require_own_attitude`
+    (default True) makes `SeekerGuidance.step` REFUSE to steer when the live
+    own-state is missing/stale, instead of silently substituting the stand-in.
 
 DEPS: numpy + opencv + onnxruntime (all in .venv-seeker). Picamera2 and mavsdk are
 GUARDED imports -- absent on this x86 desk, so the desk/dry-run path runs without
@@ -109,6 +114,57 @@ class GuidanceConfig:
     # Terminal-coast: as R->0 lambda_dot is singular -> freeze the velocity vector.
     terminal_freeze_range_m: float = 3.5
 
+    # --- TERMINAL-COAST LATCH HYGIENE (review2 BLOCKER, 2026-07-25) ------------
+    # The freeze is a LATCH: once armed it flies a constant NED vector through
+    # CPA, and un-freezing v_perp mid-terminal is GRAVEYARDED (ADR-0023 measured
+    # split-freeze WORSE, +0.084 m, 2/12 better). The defect was not the latch,
+    # it was that a SINGLE oversized/merged detector box could arm it -- the
+    # range channel carries no rate_cap (deliberate: m4 parity), so one 3x box at
+    # 12 m injects rdot_hat ~ -72 m/s, predict() coasts r_hat through 3.5 m and
+    # the camera is disconnected for the rest of the engagement, silently.
+    # Three guards, none of which REJECTS a measurement (that family is
+    # graveyarded -- "phantom range-plausibility gates", ADR-0077); they only
+    # decide when the LATCH may arm and when a demonstrably spurious one is
+    # released:
+    coast_arm_ticks: int = 2        # consecutive FRESHLY-CORRECTED ticks with
+                                    # r_hat < terminal_freeze_range_m required to
+                                    # arm. m4 parity is "only on a detected tick"
+                                    # (m4_intercept.py:3589 `if detected:`); the
+                                    # 2nd tick is the corroboration that kills a
+                                    # lone gross outlier. 1 = m4-parity only.
+    # RELEASE (a legitimate latch can NEVER hit either bar -- pinned by test):
+    # at v_close_terminal=5.5 m/s a real 3.5 m freeze reaches CPA in ~0.6 s, so
+    # it can neither see fresh detections back out at 2x the freeze range nor
+    # outlive coast_max_s. Firing either is PROOF the arming was spurious.
+    coast_release_range_m: Optional[float] = 7.0   # = 2 x terminal_freeze_range_m
+    coast_release_ticks: int = 3    # consecutive fresh corrections above it
+    coast_max_s: Optional[float] = 3.0            # ~5x the physical coast time
+    # BROKEN TRACK: a negative range or a non-physical range rate is proof the
+    # range channel has diverged. It must never silently select the coast branch;
+    # it raises a health flag the caller (real_flight FAILSAFE 8) breaks off on.
+    rdot_sane_max_ms: Optional[float] = None      # None -> 2 x v_total_max
+
+    # --- MEASUREMENT STALENESS (review2 BLOCKER #2) ----------------------------
+    # Past this age the LOS rate is an extrapolation, not a measurement: stop
+    # integrating a_cmd into v_perp (measured +1.8 m/s of lateral velocity
+    # accumulated on a stale rate in 0.5 s) and flag the tick. 0.25 s is >= 3
+    # detector periods at the measured ~14 Hz onboard cadence, so the nominal
+    # 20 Hz-loop/14 Hz-detector path (max gap ~0.07-0.14 s) is UNAFFECTED.
+    v_perp_stale_s: float = 0.25
+
+    # --- OWN-STATE PRECONDITION (review2 HIGH) ---------------------------------
+    # With quat None, derotate_bearing_lambda returns the PRE-FIX yaw-only
+    # lambda = psi + beta, and psi None additionally assumes the nose points
+    # NORTH -- i.e. guidance steers on the DESK stand-in (level, yaw 0). That is
+    # a benign stand-in on a bench and a fabricated control input in the air, and
+    # it is indistinguishable in the log. Refuse to steer instead: the caller
+    # holds (real_flight coasts the last dash velocity) and the stream never gaps.
+    require_own_attitude: bool = True
+    # Age gate. Deliberately None (OFF): no measured own-state warm-up/stall
+    # latency exists yet -- measure it on bench brn-05 from the logged
+    # own_age_s column BEFORE sizing this. The flag is recorded either way.
+    own_state_max_age_s: Optional[float] = None
+
     # Target known size (fed to range = fx*span/box_width). Overridden by the
     # detector's own calib sidecar if present; this is the fallback.
     target_span_m: float = 1.0
@@ -150,11 +206,38 @@ class OwnState:
     quat: Optional[Tuple[float, float, float, float]] = None  # (w,x,y,z) body->NED
     psi_rad: Optional[float] = None                           # yaw
     alt_m: Optional[float] = None                             # altitude AMSL/rel
+    # Seconds since the newest own-state sample arrived (None = not instrumented).
+    # A telemetry generator that dies leaves this dict FROZEN at its last value
+    # with no other trace, so the age is the only thing that can see it.
+    age_s: Optional[float] = None
 
     @staticmethod
     def level(alt_m: float) -> "OwnState":
-        """Desk stand-in: camera level, yaw 0. (identity quat = no rotation)."""
-        return OwnState(quat=(1.0, 0.0, 0.0, 0.0), psi_rad=0.0, alt_m=alt_m)
+        """Desk stand-in: camera level, yaw 0. (identity quat = no rotation).
+
+        This is a BENCH stand-in, never a flight input: `GuidanceConfig.
+        require_own_attitude` makes the terminal REFUSE to steer when the live
+        own-state is absent, rather than silently substituting this."""
+        return OwnState(quat=(1.0, 0.0, 0.0, 0.0), psi_rad=0.0, alt_m=alt_m,
+                        age_s=0.0)
+
+
+def own_state_status(own: OwnState, cfg: GuidanceConfig) -> Tuple[bool, str]:
+    """Is this own-state fit to derive a STEERING command from? Returns
+    (ok, reason). Pure, so the guard is unit-testable without a vehicle.
+
+    `require_own_attitude=False` restores the old permissive behaviour (the
+    yaw-only / level fallback), for a deliberate bench experiment only."""
+    if not cfg.require_own_attitude:
+        return True, "ok"
+    if own.quat is None:
+        return False, "no_own_attitude_quat"
+    if own.psi_rad is None:
+        return False, "no_own_yaw"
+    if cfg.own_state_max_age_s is not None and own.age_s is not None \
+            and own.age_s > cfg.own_state_max_age_s:
+        return False, "own_state_stale"
+    return True, "ok"
 
 
 @dataclass
@@ -189,6 +272,18 @@ class StepTelemetry:
     v_close: Optional[float] = None
     terminal_coast: bool = False
     setpoint: Optional[Setpoint] = None
+    # --- HEALTH (review2): a tick that LOOKS nominal must be distinguishable
+    #     from one that is coasting, stale, or running on a stand-in. `health`
+    #     is the machine-readable fault list the caller/log consumes; empty =
+    #     clean. Nothing here changes the command; it makes the command legible.
+    own_state_ok: bool = True
+    own_age_s: Optional[float] = None
+    meas_age_s: Optional[float] = None   # seconds since the last fresh detection
+    stale: bool = False                  # meas_age_s past v_perp_stale_s
+    yaw_hold: bool = False               # yaw cmd coasted, not re-derived
+    track_broken: bool = False           # r_hat <= 0 or |rdot_hat| non-physical
+    coast_age_s: Optional[float] = None  # seconds since the freeze armed
+    health: List[str] = field(default_factory=list)
 
 
 # ------------------------------------------------------------------ measurement
@@ -223,8 +318,30 @@ class SeekerGuidance:
     """The camera-only pro-nav terminal, as a pure step function so it is
     MAVSDK-free and unit-testable. `step(det_box, own, t)` folds one frame's
     detection (or a miss) into the alpha-beta trackers and returns the NED
-    velocity+yaw setpoint (or None before first lock). This is the exact ENGAGE-
-    phase math from scripts/m4_intercept.py, calling the SAME flight/ core."""
+    velocity+yaw setpoint (or None before first lock). It is the ENGAGE-phase
+    math from scripts/m4_intercept.py, calling the SAME flight/ core.
+
+    THREE DELIBERATE DIVERGENCES from m4 (review2 silent-failure audit,
+    2026-07-25 -- each fixes a path that produced a confident, plausible, WRONG
+    command with nothing raised; all three are NO-OPS on a nominal tick and are
+    pinned byte-identical by flight/tests/test_seeker_loop_coast.py):
+
+      1. The terminal-coast freeze may only ARM off freshly-corrected ticks and
+         needs `coast_arm_ticks` corroboration, and a demonstrably spurious latch
+         RELEASES (range or timeout). Pre-fix, ONE oversized box + a short
+         dropout latched it permanently -- the camera was disconnected for the
+         rest of the engagement while every logged value stayed plausible.
+      2. The absolute yaw command is LATCHED and coasted on the estimated LOS
+         rate through a dropout. Pre-fix it was re-derived from the LIVE yaw plus
+         a stale bearing every dark tick, so the command chased the vehicle it
+         was steering (measured 90-108 deg of uncommanded yaw in 2 s).
+      3. It REFUSES to steer when the own-state EKF is absent/stale rather than
+         falling back to the level/yaw-0 desk stand-in.
+
+    `step` NEVER raises: a fault is reported on `StepTelemetry.health` (and
+    printed once), and the caller decides. Returning None means "I have no
+    trustworthy command" -- real_flight holds the last dash velocity, so the
+    OFFBOARD setpoint stream never gaps."""
 
     def __init__(self, cfg: GuidanceConfig, cam: CameraModel, span_m: float):
         self.cfg = cfg
@@ -238,6 +355,27 @@ class SeekerGuidance:
         self._last_t: Optional[float] = None
         self._frozen_vworld: Optional[Tuple[float, float]] = None
         self._last_bearing_rad: float = 0.0
+        # --- review2 fix state ------------------------------------------------
+        self._last_det_t: Optional[float] = None    # last FRESH correction time
+        self._coast_arm_count = 0                   # consecutive corroborations
+        self._coast_release_count = 0
+        self._coast_t0: Optional[float] = None      # when the freeze armed
+        self._yaw_cmd_deg: Optional[float] = None   # LATCHED absolute yaw command
+        self._warned_own_state = False
+        self._faults_seen: set = set()
+        self.n_coast_releases = 0                   # health counters (log/tests)
+        self.n_track_broken = 0
+
+    def _emit_fault(self, tel: "StepTelemetry", flag: str, msg: str,
+                    once: bool = False) -> None:
+        """Record a fault on the tick AND say it out loud (once, if asked). A
+        fault that only exists as a struct field is the failure class this whole
+        pass is about -- the flag goes on EVERY affected tick so the log shows
+        the extent; the print is rate-limited so it stays readable."""
+        tel.health.append(flag)
+        if not once or flag not in self._faults_seen:
+            self._faults_seen.add(flag)
+            print(f"[seeker] FAULT {flag}: {msg}")
 
     def step(self, det_box, own: OwnState, t: float) -> Tuple[Optional[Setpoint], StepTelemetry]:
         cfg = self.cfg
@@ -249,25 +387,51 @@ class SeekerGuidance:
         self.rng.predict(dt)
 
         tel = StepTelemetry(t=t, detected=det_box is not None)
+        tel.own_age_s = own.age_s
+
+        # ---- OWN-STATE PRECONDITION (review2 HIGH) ---------------------------
+        # Without a live attitude the LOS math silently reverts to the pre-fix
+        # yaw-only formula on an assumed-level, assumed-north vehicle -- a
+        # fabricated steering input that is finite, plausible and invisible.
+        # REFUSE to steer (and, critically, refuse to INITIALISE the tracker off
+        # a stand-in-derived lambda); the caller holds and the stream never gaps.
+        own_ok, own_why = own_state_status(own, cfg)
+        tel.own_state_ok = own_ok
+        if not own_ok:
+            tel.stale = True
+            self._emit_fault(
+                tel, own_why,
+                "own-state EKF unavailable/stale -- NOT steering on the level/"
+                "yaw-0 stand-in (guidance holds; see GuidanceConfig."
+                "require_own_attitude)", once=True)
+            return None, tel
 
         # CORRECT on a fresh detection.
         bearing_h = None
+        fresh = det_box is not None
         if det_box is not None:
             bearing_h, range_meas, meas_xyz = measurement_from_box(
                 det_box, cfg, self.cam, self.span_m)
             self._last_bearing_rad = bearing_h
+            self._last_det_t = t
             tel.bearing_deg = math.degrees(bearing_h)
             tel.range_meas_m = range_meas
             # Camera-frame LOS azimuth -> inertial, derotating the FULL own
             # attitude (+ fixed mount up-tilt). Own EKF only, no gt_*.
             lambda_meas = derotate_bearing_lambda(
-                meas_xyz, bearing_h, own.quat, own.psi_rad or 0.0,
+                meas_xyz, bearing_h, own.quat,
+                (0.0 if own.psi_rad is None else own.psi_rad),
                 mount_up_rad=cfg.mount_up_rad)
             # Re-anchor camera range/LOS from the CAMERA to the CG (lever arm).
             range_cg, lambda_cg = camera_to_cg_los(
                 range_meas, lambda_meas, own.quat, cfg.cam_offset_body)
             self.lam.correct(lambda_cg, t)
             self.rng.correct(range_cg, t)
+
+        # MEASUREMENT AGE: past v_perp_stale_s the LOS rate is an extrapolation.
+        meas_age = None if self._last_det_t is None else (t - self._last_det_t)
+        tel.meas_age_s = meas_age
+        tel.stale = meas_age is not None and meas_age > cfg.v_perp_stale_s
 
         lambda_hat = self.lam.x_hat
         lambda_dot = self.lam.xdot_hat if self.lam.initialized else None
@@ -291,13 +455,89 @@ class SeekerGuidance:
         v_close = compute_v_close(r_hat, cfg)
         tel.v_close = v_close
 
-        # TERMINAL COAST: inside the freeze range lambda_dot is singular -> lock
-        # the collision-course velocity vector and fly it straight through CPA.
-        in_coast = (self._frozen_vworld is not None
-                    or (r_hat is not None and r_hat < cfg.terminal_freeze_range_m))
+        # ---- BROKEN RANGE TRACK ---------------------------------------------
+        # r_hat <= 0 is geometrically impossible and |rdot_hat| above ~2x the
+        # vehicle's own speed clamp cannot be a real closure -- both mean the
+        # (deliberately rate-cap-free) range channel has diverged. This must not
+        # silently select the coast branch; it raises a flag the caller aborts on.
+        rdot_bound = (cfg.rdot_sane_max_ms if cfg.rdot_sane_max_ms is not None
+                      else 2.0 * cfg.v_total_max)
+        broken = ((r_hat is not None and r_hat <= 0.0)
+                  or (rdot_hat is not None and abs(rdot_hat) > rdot_bound))
+        if broken:
+            tel.track_broken = True
+            self.n_track_broken += 1
+            self._emit_fault(
+                tel, "range_track_broken",
+                f"range channel diverged (r_hat={r_hat}, rdot_hat={rdot_hat}, "
+                f"|rdot| bound {rdot_bound:.1f} m/s) -- coast latch INHIBITED",
+                once=True)
+
+        # ---- TERMINAL COAST: arm / release ----------------------------------
+        # Inside the freeze range lambda_dot is singular -> lock the collision-
+        # course velocity vector and fly it straight through CPA. Once armed the
+        # latch HOLDS by design (ADR-0023: split-freeze measured worse); the only
+        # exits are the two spurious-latch proofs below.
+        if self._frozen_vworld is not None:
+            coast_age = 0.0 if self._coast_t0 is None else (t - self._coast_t0)
+            tel.coast_age_s = coast_age
+            if fresh and r_hat is not None and cfg.coast_release_range_m is not None \
+                    and r_hat > cfg.coast_release_range_m:
+                self._coast_release_count += 1
+            elif fresh:
+                self._coast_release_count = 0
+            release_why = None
+            if cfg.coast_release_ticks and cfg.coast_release_range_m is not None \
+                    and self._coast_release_count >= cfg.coast_release_ticks:
+                release_why = ("coast_released_range",
+                               f"{self._coast_release_count} consecutive fresh "
+                               f"detections at r_hat > "
+                               f"{cfg.coast_release_range_m:.1f} m while frozen")
+            elif cfg.coast_max_s is not None and coast_age > cfg.coast_max_s:
+                release_why = ("coast_released_timeout",
+                               f"the freeze has been latched {coast_age:.2f} s "
+                               f"(> {cfg.coast_max_s:.1f} s); a real 3.5 m coast "
+                               f"reaches CPA in well under 1 s")
+            if release_why is not None:
+                self._frozen_vworld = None
+                self._coast_t0 = None
+                self._coast_arm_count = 0
+                self._coast_release_count = 0
+                self.n_coast_releases += 1
+                self._emit_fault(tel, release_why[0],
+                                 release_why[1] + " -- the latch was SPURIOUS; "
+                                 "releasing back to closed-loop pro-nav")
+
+        if self._frozen_vworld is None:
+            # ARM only off FRESHLY-CORRECTED ticks (m4 parity, m4_intercept.py:3589
+            # `if detected:`) and only with corroboration -- a no-detection tick
+            # HOLDS the count, a fresh tick back outside the range RESETS it.
+            below = (r_hat is not None and r_hat < cfg.terminal_freeze_range_m)
+            if fresh and not broken:
+                self._coast_arm_count = self._coast_arm_count + 1 if below else 0
+            if self._coast_arm_count >= max(1, int(cfg.coast_arm_ticks)):
+                u = (math.cos(lambda_hat), math.sin(lambda_hat))
+                p = (-math.sin(lambda_hat), math.cos(lambda_hat))
+                self._frozen_vworld = (v_close * u[0] + self.v_perp * p[0],
+                                       v_close * u[1] + self.v_perp * p[1])
+                self._coast_t0 = t
+                self._coast_release_count = 0
+                tel.coast_age_s = 0.0
+
+        in_coast = self._frozen_vworld is not None
         if not in_coast:
-            self.v_perp = _clamp(self.v_perp + a_cmd * dt,
-                                 -cfg.v_perp_max, cfg.v_perp_max)
+            # STALE-RATE GUARD: only integrate the pro-nav acceleration while the
+            # LOS rate is backed by a recent measurement. On a dropout the rate is
+            # an extrapolation and integrating it walks v_perp to its clamp.
+            if not tel.stale:
+                self.v_perp = _clamp(self.v_perp + a_cmd * dt,
+                                     -cfg.v_perp_max, cfg.v_perp_max)
+            else:
+                self._emit_fault(
+                    tel, "v_perp_hold_stale",
+                    f"no fresh detection for {meas_age:.2f} s "
+                    f"(> {cfg.v_perp_stale_s:.2f} s) -- HOLDING v_perp instead of "
+                    "integrating a_cmd off an extrapolated LOS rate", once=True)
             u = (math.cos(lambda_hat), math.sin(lambda_hat))       # LOS dir (N,E)
             p = (-math.sin(lambda_hat), math.cos(lambda_hat))      # perpendicular
             vh_n = v_close * u[0] + self.v_perp * p[0]
@@ -308,11 +548,6 @@ class SeekerGuidance:
                 vh_n *= s
                 vh_e *= s
         else:
-            if self._frozen_vworld is None:
-                u = (math.cos(lambda_hat), math.sin(lambda_hat))
-                p = (-math.sin(lambda_hat), math.cos(lambda_hat))
-                self._frozen_vworld = (v_close * u[0] + self.v_perp * p[0],
-                                       v_close * u[1] + self.v_perp * p[1])
             vh_n, vh_e = self._frozen_vworld
         tel.v_perp = self.v_perp
         tel.terminal_coast = in_coast
@@ -324,9 +559,23 @@ class SeekerGuidance:
         else:
             v_down = 0.0
 
-        # Absolute yaw at the target's azimuth: psi + bearing (nose on the LOS).
+        # ---- ABSOLUTE YAW COMMAND -------------------------------------------
+        # On a DETECTION tick: nose on the LOS, yaw = psi + bearing (unchanged --
+        # byte-identical to the pre-fix expression on every detected tick).
+        # On a DARK tick the pre-fix code re-evaluated psi + <stale bearing> with
+        # the LIVE psi, so as the vehicle slewed toward the command the command
+        # ran away with it -- a pure positive-feedback integrator (measured ~108
+        # deg of uncommanded yaw in 2 s). Instead LATCH the absolute command and
+        # coast it on the ESTIMATED LOS rate, which is the constant-LOS-rate
+        # doctrine flight/terminal_coast.py already implements, and is bounded by
+        # the estimator's lambda_rate_cap.
         psi_deg = 0.0 if own.psi_rad is None else math.degrees(own.psi_rad)
-        yaw_deg = psi_deg + math.degrees(self._last_bearing_rad)
+        if bearing_h is not None or self._yaw_cmd_deg is None:
+            self._yaw_cmd_deg = psi_deg + math.degrees(self._last_bearing_rad)
+        else:
+            self._yaw_cmd_deg += math.degrees(lambda_dot or 0.0) * dt
+            tel.yaw_hold = True
+        yaw_deg = self._yaw_cmd_deg
 
         sp = Setpoint(vh_n, vh_e, v_down, yaw_deg)
         tel.setpoint = sp
@@ -508,24 +757,68 @@ def load_camera(intrinsics_path: str) -> CameraModel:
     return CameraModel.from_json(intrinsics_path)
 
 
-def resolve_span(weights: str, cfg: GuidanceConfig) -> Tuple[float, str]:
-    """Effective known-size span, matching FinetunedNNSeeker: MARKERLESS_SPAN_M
-    env, then a <weights>.calib.json sidecar, then the config default."""
+def resolve_span(weights: str, cfg: GuidanceConfig,
+                 explicit_m: Optional[float] = None):
+    """Effective known-size span. Returns (span_m, source, calibrated).
+
+    Order (matching FinetunedNNSeeker): an EXPLICIT --target-span-m, then the
+    MARKERLESS_SPAN_M env, then a <weights>.calib.json sidecar, then the config
+    default. `calibrated` is False ONLY for that last case.
+
+    WHY THE THIRD RETURN VALUE (review2 HIGH): NO nn_tier model has a calib
+    sidecar -- only the retired SIM models do -- so on real hardware the span
+    silently became cfg.target_span_m = 1.0 m, a constant fitted to the SIM
+    quad, and the run printed a reassuring "span=1.000 m (config default)".
+    That constant is not a display value: range = fx*span/box_width_px feeds
+    EVERY range-keyed threshold (closing-speed throttle 5.0 m, terminal freeze
+    3.5 m, breakoff arm 4.0 m, hard floor 0.5 m) and multiplies Vc into the
+    pro-nav command. Callers must be able to see it was never measured."""
+    if explicit_m is not None:
+        return float(explicit_m), f"--target-span-m {explicit_m}", True
     env = os.environ.get("MARKERLESS_SPAN_M")
     if env:
         try:
-            return float(env), f"env {env}"
+            return float(env), f"env MARKERLESS_SPAN_M={env}", True
         except ValueError:
             pass
     sidecar = str(weights) + ".calib.json"
     if os.path.exists(sidecar):
         try:
             with open(sidecar) as fh:
-                return float(json.load(fh)["span_m_eff"]), \
-                    f"calib {os.path.basename(sidecar)}"
+                return (float(json.load(fh)["span_m_eff"]),
+                        f"calib {os.path.basename(sidecar)}", True)
         except Exception:
             pass
-    return cfg.target_span_m, "config default"
+    return cfg.target_span_m, "config default (NOT CALIBRATED)", False
+
+
+def warn_uncalibrated_span(span_m: float, source: str, weights: str,
+                           cfg: GuidanceConfig, live: bool,
+                           require: bool = False) -> int:
+    """Print the consequence of an uncalibrated span; return 1 if the caller
+    should REFUSE. Silent when the span is calibrated.
+
+    Default is a LOUD warning rather than a refusal because the props-off bench
+    gate (scripts/check_deploy_bench.sh) currently runs the live path with the
+    uncalibrated n-mono weights and has no way to pass a span; `--require-span-
+    calib` (or a fitted sidecar) is the switch that makes it fail-closed."""
+    if not live or "NOT CALIBRATED" not in source:
+        return 0
+    lvl = "REFUSING" if require else "WARNING"
+    print(f"\n[span] {lvl}: NO RANGE CALIBRATION for {os.path.basename(weights)}")
+    print(f"[span]   using span = {span_m:.3f} m from the config default -- a "
+          f"constant fitted to the SIM target, not this detector on this target.")
+    print(f"[span]   range = fx*span/box_width_px, so EVERY range-keyed threshold "
+          f"fires at the wrong true distance:")
+    print(f"[span]     closing-speed throttle {cfg.throttle_range_m:.1f} m, "
+          f"terminal freeze {cfg.terminal_freeze_range_m:.1f} m "
+          f"(+ real_flight breakoff arm / hard floor)")
+    print(f"[span]   and span multiplies Vc into a_cmd = N*Vc*lambda_dot, so an "
+          f"uncalibrated run flies an effective N far from the ADR-0011 N=5.")
+    print(f"[span]   FIX: fit scripts/seeker/calibrate_range.py -> "
+          f"{os.path.basename(weights)}.calib.json, or pass --target-span-m, "
+          f"or set MARKERLESS_SPAN_M.\n")
+    return 1 if require else 0
 
 
 # ------------------------------------------------------------------ desk driver
@@ -722,11 +1015,16 @@ async def run_mavsdk(args, cam, detector, guidance, source,
     # OWN-STATE EKF streams (attitude quaternion + euler yaw + altitude) plus the
     # armed/landed STATUS used only to shut down cleanly. These are the vehicle's
     # own estimate/status -- the only non-camera inputs, no gt_*.
-    state = {"quat": None, "psi": None, "alt": None, "armed": None, "landed": None}
+    # `t_own` is the monotonic stamp of the NEWEST own-state sample. Without it a
+    # telemetry generator that dies silently freezes the dict at its last value
+    # and guidance keeps steering on it with nothing raised (review2).
+    state = {"quat": None, "psi": None, "alt": None, "armed": None,
+             "landed": None, "t_own": None}
 
     async def _att_q():
         async for q in drone.telemetry.attitude_quaternion():
             state["quat"] = (q.w, q.x, q.y, q.z)
+            state["t_own"] = time.monotonic()
 
     async def _att_e():
         async for e in drone.telemetry.attitude_euler():
@@ -784,6 +1082,35 @@ async def run_mavsdk(args, cam, detector, guidance, source,
             alt_str = "None" if alt_now is None else f"{alt_now:.2f}"
             print(f"[mavsdk] airborne at rel_alt={alt_str} m")
 
+        # FIRST-SETPOINT PRECONDITION (review2 HIGH): do not start the guidance
+        # loop until the own-state EKF is actually streaming. Otherwise the first
+        # detections initialise the LOS tracker off the level/yaw-0 stand-in
+        # (guidance.step now REFUSES those ticks, so without this wait the loop
+        # would simply produce no setpoints and look like a dead seeker).
+        # Bounded + LOUD: never a silent fallback.
+        # ATTITUDE (quat + yaw) is HARD: it is the LOS input, it comes from the
+        # IMU/EKF and needs no GPS, and without it guidance is a stand-in.
+        # ALTITUDE is a LOUD WARNING, not a gate: it only feeds the altitude-hold
+        # v_down term, and a props-off bench FC indoors legitimately has no
+        # position solution -- failing there would block bring-up for no honesty
+        # gain. Its absence is now visible (v_down 0) instead of unremarked.
+        _own_deadline = time.monotonic() + _HEALTH_TIMEOUT_S
+        while time.monotonic() < _own_deadline:
+            if state["quat"] is not None and state["psi"] is not None:
+                break
+            await asyncio.sleep(0.1)
+        if state["quat"] is None or state["psi"] is None:
+            print(f"[mavsdk] FAIL: own-state EKF ATTITUDE did not stream within "
+                  f"{_HEALTH_TIMEOUT_S}s (quat={state['quat'] is not None} "
+                  f"psi={state['psi'] is not None}) -- refusing to guide on the "
+                  f"level/yaw-0 stand-in (GuidanceConfig.require_own_attitude)")
+            return 1
+        if state["alt"] is None:
+            print("[mavsdk] WARNING: no own-state ALTITUDE yet -- altitude hold "
+                  "is inert (v_down = 0) until position streams.")
+        print("[mavsdk] own-state EKF attitude streaming (quat + yaw); "
+              f"alt={'yes' if state['alt'] is not None else 'NOT YET'}")
+
         # OFFBOARD: PX4 needs a setpoint STREAM established before it will accept
         # the mode switch, so prime one zero setpoint, then start (m3 pattern).
         await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
@@ -804,8 +1131,11 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                 box = getattr(det, "box_xywh", None)
                 if getattr(det, "range_m", None) is None:
                     box = None
+                _t_own = state["t_own"]
                 own = OwnState(quat=state["quat"], psi_rad=state["psi"],
-                               alt_m=state["alt"])
+                               alt_m=state["alt"],
+                               age_s=(None if _t_own is None
+                                      else time.monotonic() - _t_own))
                 sp, tel = guidance.step(box, own, t)
                 n_frame += 1
                 if sp is not None:
@@ -819,11 +1149,15 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                     if t_first is None:
                         t_first = t
                     if n_sp % 20 == 0:
+                        _age = ("None" if own.age_s is None
+                                else f"{own.age_s:.2f}s")
                         print(f"[mavsdk] t={t:5.1f}s frames={n_frame} "
                               f"setpoints={n_sp} last vN={sp.v_north:+.2f} "
                               f"vE={sp.v_east:+.2f} vD={sp.v_down:+.2f} "
-                              f"yaw={sp.yaw_deg:+.1f}"
-                              + ("  [COAST]" if tel.terminal_coast else ""))
+                              f"yaw={sp.yaw_deg:+.1f} own_age={_age}"
+                              + ("  [COAST]" if tel.terminal_coast else "")
+                              + (f"  [{','.join(tel.health)}]"
+                                 if tel.health else ""))
                 await asyncio.sleep(1.0 / args.fps)
 
             span = (t_last - t_first) if (t_first is not None
@@ -951,6 +1285,19 @@ def main(argv=None) -> int:
     ap.add_argument("--mount-tilt-deg", type=float, default=0.0,
                     help="fixed camera up-tilt (degrees)")
     ap.add_argument("--n-pronav", type=float, default=5.0)
+    ap.add_argument("--target-span-m", type=float, default=None,
+                    help="EXPLICIT known-size span (m) for range = fx*span/"
+                         "box_width_px. Highest precedence, ahead of "
+                         "MARKERLESS_SPAN_M and the <weights>.calib.json "
+                         "sidecar. No nn_tier model ships a sidecar yet, so on "
+                         "real hardware this is currently the ONLY calibrated "
+                         "source -- without it the span falls back to a constant "
+                         "fitted to the SIM target and every range-keyed "
+                         "threshold fires at the wrong true distance.")
+    ap.add_argument("--require-span-calib", action="store_true",
+                    help="on the LIVE path, REFUSE to run (exit 1) when the span "
+                         "is the uncalibrated config default, instead of warning. "
+                         "Make this the default once a fitted sidecar exists.")
     args = ap.parse_args(argv)
 
     if args.self_test:
@@ -992,12 +1339,19 @@ def main(argv=None) -> int:
         mount_fwd_m=args.mount_fwd_m, mount_left_m=args.mount_left_m,
         mount_up_m=args.mount_up_m, mount_up_rad=math.radians(args.mount_tilt_deg))
     cam = load_camera(args.intrinsics)
-    span_m, span_src = resolve_span(args.weights, cfg)
+    span_m, span_src, span_ok = resolve_span(args.weights, cfg,
+                                             args.target_span_m)
     print(f"[config] intrinsics fx={cam.fx:.1f} cx={cam.cx:.1f} "
           f"dist={'yes' if cam.has_distortion else 'none (pinhole)'} | "
           f"span={span_m:.3f} m ({span_src}) | N={cfg.n_pronav} "
           f"| mount fwd={cfg.mount_fwd_m} up={cfg.mount_up_m} "
           f"tilt={math.degrees(cfg.mount_up_rad):.1f}deg")
+    # LIVE = a real vehicle link with a real camera; the desk replay/dry-run keeps
+    # the 1.0 fallback so nothing offline breaks.
+    _live = bool(args.mavsdk_url) and not args.dry_run
+    if warn_uncalibrated_span(span_m, span_src, args.weights, cfg, live=_live,
+                              require=args.require_span_calib):
+        return 1
 
     detector = build_detector(args, cam, span_m)
     guidance = SeekerGuidance(cfg, cam, span_m)
