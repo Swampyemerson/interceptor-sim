@@ -2,11 +2,15 @@
 # ===========================================================================
 # bringup.sh -- THE ONE COMMAND: "did my laptop see everything?"
 #
-# Runs the field bring-up checks 00 -> 03 in order and prints one summary table.
+# Runs the field bring-up checks in order and prints one summary table.
 # Run it the day the parts arrive, and again before every field day. Full
 # plain-English runbook: docs/field_bringup.md
 #
 #   00_detect_devices.sh     what is plugged in / reachable (+ the WSL usbipd fix)
+#   05_pi_link_check.sh      laptop<->Pi over the FIELD network: ssh key, IP vs
+#                            .local, the Pi's repo/venv/rsync/disk, clock offset
+#                            (runs 2nd, out of numeric order, because 01 and 04
+#                            both depend on this link -- fix it here first)
 #   01_camera_live_check.sh  frames from the OV9281 on the Pi 5, exposure vs spec
 #   02_apriltag_desk_check.sh the AprilTag baseline seeker decodes the placard
 #   03_fc_bench_check.sh     MAVLink telemetry from the flight controller (no arming)
@@ -24,7 +28,8 @@
 #
 # Usage:
 #   scripts/field/bringup.sh                       # the friendly pre-hardware run
-#   scripts/field/bringup.sh --pi pi@interceptor-seeker.local
+#   scripts/field/bringup.sh --pi pi@192.168.43.17 # the Pi's IP (.local will not
+#                                                  # resolve from WSL2 -- see 05)
 #   scripts/field/bringup.sh --require             # field-day gate: all gear must be present
 #   scripts/field/bringup.sh --only 00,03          # just those steps
 #   scripts/field/bringup.sh --skip 01,02          # everything but those
@@ -93,6 +98,8 @@ run_step() {
 
 run_step 00 "device detection" \
     "$FLD_DIR/00_detect_devices.sh" "${PI_ARG[@]}" "${REQUIRE_ARG[@]}"
+run_step 05 "laptop<->Pi link" \
+    "$FLD_DIR/05_pi_link_check.sh" "${PI_ARG[@]}" "${REQUIRE_ARG[@]}"
 run_step 01 "camera frames" \
     "$FLD_DIR/01_camera_live_check.sh" "${PI_ARG[@]}" "${REQUIRE_ARG[@]}"
 run_step 02 "apriltag decode" \

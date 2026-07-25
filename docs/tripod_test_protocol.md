@@ -70,6 +70,12 @@ bench task (§7.3) — it does not need the target flying.
       the sensor actually hits ≤1 ms (check `meta.json` `exposure_meets_spec`).
 - [ ] **Field power for the Pi 5 solved**: a USB-C PD source (≥27 W) that isn't the
       flight LiPo — a power bank or a car inverter. Not in the Tier-1 BOM; bring one.
+- [ ] **NETWORKING DRY RUN DONE AT THE DESK** — `scripts/field/05_pi_link_check.sh`
+      PASSES against the Pi joined to the **actual field phone hotspot**, and
+      `01_camera_live_check.sh --pi` → `04_pull_logs.sh --pi` have each been run
+      once end-to-end from the laptop. Every pass is started by ssh; an ssh that
+      does not work is a field day with zero frames. Full recipe (ssh key, second
+      Wi-Fi profile, IP-not-`.local`): `docs/field_bringup.md` §3.0.
 
 ---
 
@@ -85,9 +91,18 @@ the ~$620–780 realistic first-outdoor-test outlay, not just the ~$310 tripod c
 - Tripod or mast for the camera (stable, adjustable height + a way to lock a tilt
   angle — an articulating ball head + a phone inclinometer app is enough).
 - USB-C PD power bank for the Pi (§1 gap item).
-- Laptop (offline scoring happens after the session, not required live, but useful
-  for spot-checking captured frames between passes so a bad calibration/exposure
-  isn't discovered after everyone's gone home).
+- **Laptop — REQUIRED LIVE, not optional.** Scoring is offline, but *starting a
+  pass is not*: the recorder runs on the Pi and is launched over ssh (§6.0b). If
+  the laptop cannot reach the Pi, nothing captures. Bring it charged, and prove the
+  link at the desk first with `scripts/field/05_pi_link_check.sh` (ssh key, IP vs
+  `.local`, clock). It is also how you spot-check frames between passes so a bad
+  calibration/exposure isn't discovered after everyone's gone home.
+  - **Backup way to start a pass, if the laptop↔Pi link dies at the field:** an ssh
+    app on the PHONE. The hotspot HOST always reaches its own clients, even when
+    the hotspot has AP/client isolation — strictly more robust than the laptop.
+    Install and test it before you leave.
+- **Phone hotspot** — it is the network AND the Pi's only NTP source; the frame↔log
+  clock join (§6.1) depends on it. Keep mobile data on.
 - Tape measure or laser rangefinder, and cones/flags/GPS waypoint markers to mark
   the range stations in §4.
 - A phone for slow-mo/overview video of each pass (context record, not the primary
@@ -155,16 +170,44 @@ the ~$620–780 realistic first-outdoor-test outlay, not just the ~$310 tripod c
 > not a real perception limit. Stations must BRACKET the predicted envelope, not sit
 > beyond it. (Found by the placard-mount design pass, `docs/placard_mount.md` §11.)
 
-Mark **4, 6, 8, 10, 12, 16, 20 m** from the tripod along the approach line (use a
-rangefinder or pre-plan the target's AUTO waypoint mission in QGC so the ranges are
-GPS-repeatable pass to pass — the ArduPilot target flies a scripted box/line, so
-this is buildable once, then reused for every pass). The **4/6/10 m near stations are
-the money stations** — they are where the tag is predicted to actually decode. Keep
-16/20 m as the upper bracket (they establish where the envelope dies, which is a real
-number worth having); 25/30 m are dropped as certain zeros that only cost field time.
+Mark **4, 6, 8, 10, 12, 14, 16, 18, 20 m** from the tripod along the approach line
+(use a rangefinder or pre-plan the target's AUTO waypoint mission in QGC so the
+ranges are GPS-repeatable pass to pass — the ArduPilot target flies a scripted
+box/line, so this is buildable once, then reused for every pass). The **4/6/10 m
+near stations are the money stations** — they are where the tag is predicted to
+actually decode. Keep 12–20 m as the upper bracket (it establishes where the
+envelope dies, which is a real number worth having); 25/30 m are dropped as certain
+zeros that only cost field time.
 
-**Bin curve (a) in 2 m bins from 4–14 m** (not the old wide bins) — the decision
-hinges on where inside 4–10 m the 90% line falls, so the resolution has to be there.
+**Bin curve (a) in 2 m bins** — the decision hinges on where inside 4–10 m the 90%
+line falls, so the resolution has to be there. Score with the shipped defaults plus
+a max range that matches the grid you actually shot:
+
+```
+--range-bin 2 --max-range 20
+```
+
+> ⛔ **THE STATION GRID MUST BE CONTIGUOUS ON THAT 2 m BIN — 14 m and 18 m were ADDED
+> 2026-07-25 for this reason.** The gate walks outward from the nearest bin one
+> `--range-bin` step at a time and STOPS at the first bin that is missing or
+> underpopulated (`scripts/seeker/tripod_score.py` `r90_walk` /
+> `gate_verdict`). A stop for `bin_absent`, `bin_underpopulated` **or**
+> `end_of_data` is bounded by data you never shot, so the verdict is **UNCERTAIN —
+> never PASS**. The old 4/6/8/10/12/**16/20** list left 12–14 and 16–18 empty on the
+> 2 m grid, so a placard that DECODES BETTER than predicted (≥90% out past 12 m)
+> would have hit the hole and returned UNCERTAIN on a perfectly good field day.
+> Two extra cones cost nothing; a re-shoot costs a field day.
+>
+> The other half of contiguity is HOW you fly it: true range is per-frame (from the
+> GPS join, §7.0 step (b)), so a **continuous inbound approach — start at/beyond 20 m and
+> fly all the way in to ~4 m without pausing — fills every bin by itself.** Fixed-
+> standoff (crossing) passes only ever populate their own bin. Do not let the far
+> band be crossing-only.
+>
+> ⚠️ A PASS also requires the walk to end on a MEASURED failure (`rate_below_90`) —
+> i.e. the grid must extend far enough out that the tag actually stops decoding. At
+> the predicted 7.10 m `R_decode90` the 8/10/12 m stations already deliver that; the
+> 14–20 m marks are the insurance if the placard over-performs.
 
 ### 4.2 Aspects
 
@@ -194,6 +237,18 @@ pass flown at 0° are **different experiments** — pooling them smears the curv
   `qd=1.0` is the unexercised range/incidence-widening lever (~1.5× range, ±48–56°
   cone) and costs only Pi fps — so if the gate is marginal at `qd=2.0`, this is the
   first reclaim lever and it needs no second field day.
+  > ⛔ **NOT EXECUTABLE WITH THE SHIPPED TOOLS (verified 2026-07-25).** Every decode
+  > path in the repo constructs `Detector(families="tag36h11")` with **no**
+  > `quad_decimate` argument (`pi_capture.py`, `tripod_score.py`,
+  > `autolabel_from_apriltag.py`), so all of them run the pupil-apriltags default
+  > **2.0**, and no CLI flag exists to change it. The comparison this bullet asks
+  > for therefore cannot be run today, and `meta.json` does not record which value
+  > produced a session. It costs ~nothing at the desk to add (`--quad-decimate` on
+  > `pi_capture` + `tripod_score`, recorded into `meta.json`) — **do it BEFORE the
+  > field day** or strike this bullet, because "re-score the same frames at qd=1.0"
+  > is the whole no-second-field-day reclaim lever. Field-day consequence if it is
+  > not added: you still capture normally (the frames are raw PNGs, the lever stays
+  > available later), you simply cannot exercise it that evening.
 
 ### 4.3 Backgrounds
 
@@ -244,6 +299,26 @@ if batteries/daylight run out). With 3× 6S 1500 mAh packs and the HOTA D6 Pro
 charger in the BOM, plan on mid-session recharge cycles rather than trying to fly
 all packs back-to-back.
 
+#### 4.6b THE CLOCK-SYNC PASS — one per battery segment, non-negotiable
+
+Add **one dedicated LOW, CLOSE CROSSING pass at the start of every battery
+segment**: standoff **≤5 m**, target within ~2 m of the tripod's height, flown at
+full speed, straight through the tripod's beam so the range **closes and then
+opens** (a real CPA).
+
+Why it is its own row: that is the ONLY geometry in this matrix where
+`range_truth_join.py --auto-sync` can resolve the frame↔log clock offset — an
+approach pass has a near-constant closing rate, which auto-sync refuses as
+unidentifiable by design (§6.1). It must also be CLOSE, because auto-sync aligns
+*tag-decoded* ranges against log ranges: at the predicted ~7.1 m decode envelope a
+pass flown at 8 m standoff yields **zero** tag-ranged frames to align, and it
+refuses again (it needs ≥8 such frames).
+
+**Reuse that segment's offset for every other pass in the segment** via
+`--clock-offset-s` — the Pi's clock does not jump mid-battery. And still mark the
+§6.1 hand sync event on every pass card: it is the primary source, and it is the
+only recovery if the sync pass itself is dropped.
+
 This is intentionally **not** n≥8 paired-seed statistics (CLAUDE.md's sim standard)
 — a field afternoon can't buy that. Treat curve (a)/(b) as a first honest read, not
 a statistically tight one; note the small-n caveat explicitly when reporting results.
@@ -276,6 +351,70 @@ a statistically tight one; note the small-n caveat explicitly when reporting res
 
 ## 6. What to record — every pass
 
+### 6.0 SURVEY THE TRIPOD — once per setup, BEFORE pass 1 (hard input, not prose)
+
+> **Nothing downstream works without these three numbers.** Curve (a) and curve (b)
+> are binned by TRUE RANGE, and true range is computed by
+> `scripts/seeker/range_truth_join.py` from *(target GPS track) − (tripod position)*.
+> With no surveyed tripod position there is no range column, `n_binnable == 0`, and
+> the money gate returns `UNCERTAIN: no TRUE ranges in the session`. The field day
+> produces no verdict. This is the single cheapest way to waste the whole afternoon.
+
+- [ ] **Tripod latitude (deg): `________.______`**
+- [ ] **Tripod longitude (deg): `________.______`**
+- [ ] **Tripod altitude (m), IN THE LOG'S DATUM: `______`** — ArduPilot `POS`/`GPS`
+      `Alt` is **AMSL**, so this must be AMSL too, *not* height above ground.
+- [ ] Re-survey (and re-record) if the tripod is MOVED between blocks. One row per
+      tripod position, noted on every pass card that used it.
+
+**How to get them, best method first (all $0):**
+
+1. **Use the target aircraft as the survey instrument** (best — same receiver, same
+   datum, so the ~1–3 m inter-receiver bias largely cancels): with the Kakute
+   powered and GPS-locked, set the target down at the tripod's base for **≥60 s**
+   before the first pass, then read that plateau's lat/lon/alt out of the same
+   `.BIN` you will score with. Add the **camera height above that spot** to the
+   altitude (measure it with the tape — it is typically 1–1.5 m and it matters).
+2. QGC's map/plan readout or a phone GPS averaged for a minute (~3–5 m, degrades
+   every range number by that much).
+
+**The datum blunder this catches:** giving AGL where the log is AMSL puts a constant
+tens-of-metres error into every range. `range_truth_join.py` REFUSES a join whose
+constant bias exceeds `--max-bias-m` (default **5.0 m**) and names exactly this
+cause — a refusal is the tool working, not a tool bug. A metre-scale bias (tag
+placard vs GPS antenna, camera vs survey point) is expected and is absorbed.
+
+### 6.0b Start each pass with the real capture command
+
+The recorder is `scripts/seeker/pi_capture.py`, run **on the Pi** (over ssh from the
+laptop, or from an ssh app on the phone). Size the pass with `--duration` or
+`--n-frames` rather than stopping it by hand:
+
+```bash
+# on the Pi (one pass, ~20 s at 30 fps), tag decode + tag size RECORDED into meta.json
+~/interceptor-sim/.venv-pi/bin/python ~/interceptor-sim/scripts/seeker/pi_capture.py \
+    --source picamera2 --out ~/interceptor-sim/sessions/pass01 \
+    --duration 20 --exposure-us 1000 --width 1280 --height 800 \
+    --calib ~/interceptor-sim/calib.json --tag-size 0.35 --run-tag pass01
+```
+
+- `--calib` + `--tag-size 0.35` are **not optional**: they put `tag_size_m` and a
+  ranged `tags.csv` into the session. Without them the capture-time `tags.csv` is
+  presence-only, `--auto-sync` (§7.0 step (b)) has nothing to align, and any later scorer
+  that has to guess a tag size shortens every tag-derived range.
+- Ctrl-C still works (`pi_capture` writes `meta.json` from a `finally` and marks
+  `terminated_early`), but a sized pass is cleaner and self-documenting.
+- **Per-pass check, on the Pi, before you fly the next one:**
+
+  ```bash
+  S=~/interceptor-sim/sessions/pass01
+  test -f "$S/meta.json" && \
+    [ "$(tail -n +2 "$S/index.csv" | wc -l)" = "$(ls "$S/frames" | wc -l)" ] && echo PASS-OK
+  ```
+
+  That second test is the one that catches a silently truncated session — frames on
+  disk that the index never recorded (or vice versa).
+
 - [ ] **Raw camera frames** — PNG/raw, not compressed video, for the frames that
       feed curve (a)/(b) scoring. Compression artifacts specifically hurt small,
       distant-tag decode — the exact regime curve (a) is trying to measure. Use
@@ -299,26 +438,146 @@ a statistically tight one; note the small-n caveat explicitly when reporting res
 - [ ] **Session log entries** (§11) — pass number, aspect, background, speed,
       tilt angle, battery, any anomaly (RC glitch, sun glare, wrong heading).
 
-### 6.1 Time sync
+### 6.1 Time sync — the marked sync event is the PRIMARY clock source
 
-Frame timestamps (Pi clock) and the target's ULog (autopilot GPS time) must agree
+Frame timestamps (Pi wall clock) and the target's log (autopilot GPS-UTC) must agree
 well within one range bin's time-of-flight (~2 m of travel at 9 m/s ≈ 0.22 s per
-bin — keep sync error well under that):
-- NTP-sync the Pi's clock (phone hotspot) within a few minutes of the first pass.
-- Mark one clear **sync event per pass** visible in both streams — e.g., the pilot
-  flies the target directly over the tripod at a known moment, or flashes a light
-  toward the camera at the pass start — and note the frame index / ULog timestamp
-  of that event in the session log.
+bin — keep sync error well under that). Two independent things to do, in this order:
+
+1. **NTP-sync the Pi's clock** (phone hotspot) within a few minutes of the first
+   pass. `scripts/field/05_pi_link_check.sh` measures the laptop↔Pi offset and
+   grades it against the 0.22 s bar — run it once the hotspot is up.
+2. **Mark one clear sync event PER PASS, visible in both streams**, and write it on
+   the pass card. This is the **primary** clock source, not a backup — e.g. the
+   pilot flies the target directly over the tripod at a known moment, or flashes a
+   light toward the camera at pass start. Record BOTH sides of it:
+
+   ```
+   offset_s = t_ULog(sync event)  -  index.csv t_wall_unix(that frame index)
+   ```
+
+   That number is what you hand to `range_truth_join.py --clock-offset-s` (§7.0 step (b)).
+   Write down the raw pair (log timestamp, frame index), not just the difference —
+   the difference can be recomputed at 9pm; a missing frame index cannot.
+
+> ⚠️ **`--auto-sync` is a CROSS-CHECK, not the plan.** It estimates the offset by
+> aligning the tag-decoded range against the log-derived range — and by design it
+> **REFUSES a constant-closing-rate geometry**, because with a constant range rate a
+> clock error is mathematically indistinguishable from a constant range bias
+> (`range_truth_join.py`, the `UNIDENTIFIABLE` refusal; its own self-test pins this).
+> **The capture matrix (§4.6) is approach-heavy — i.e. it is mostly exactly that
+> geometry.** Auto-sync can only resolve a pass whose range rate REVERSES: one that
+> flies through a CPA (see the dedicated sync pass in §4.6). Every other pass needs
+> the hand-marked offset above. A pass with neither is unrecoverable: no clock, no
+> range truth, no curve — permanently.
 
 ---
 
 ## 7. Offline scoring plan (after the field day)
 
+### 7.0 Scoring sequence — run these THREE, in this order
+
+> **Read this before you run anything.** Pointing the scorer at a session and
+> expecting a verdict does not work, and the way it fails is quiet: it prints
+> `GATE UNCERTAIN — no TRUE ranges in the session`. That is not a bad field day,
+> it is a **missing step**. The scorer bins by TRUE range; nothing in the capture
+> writes one. `range_truth_join.py` is what turns the target's log + the surveyed
+> tripod position (§6.0) into `index.csv:true_range_m`. Verified end-to-end on a
+> synthetic session 2026-07-25: step (a) alone → `GATE UNCERTAIN`; after step (b)
+> the identical command → a real `GATE PASS/FAIL`.
+>
+> **Note the two different interpreters.** They are not interchangeable:
+> `.venv-seeker` has `onnxruntime` (curve b) but **no `pymavlink`/`pyulog`**, so it
+> cannot read a `.BIN`/`.ulg`; `.venv` has the log readers and `matplotlib` (plots)
+> but no `onnxruntime`. Running step (b) under `.venv-seeker` exits 1 with
+> `ImportError: pymavlink is required to read ArduPilot .BIN logs` (measured) —
+> loud, not silent, but it will stop you at 9pm if you do not expect it. (It is the
+> LOG READERS that need `.venv`; a pre-exported `--csv` track works under either.)
+
+**(a) DECODE PASS — produces the tag ranges. It WILL say UNCERTAIN; that is expected.**
+
+```bash
+.venv-seeker/bin/python scripts/seeker/tripod_score.py SESSION_DIR \
+    --calib calib.json --tag-size 0.35 --redecode \
+    --out-dir logs/tripod_score
+```
+
+`--redecode` is the offline re-decode §6 asks for (it ignores any capture-time
+`tags.csv`, so the detector is decoupled from the recorder). It writes
+`logs/tripod_score/<session>/tags.csv` carrying a per-frame `tag_range_m`. Expect
+`>>> GATE UNCERTAIN <<<` with the reason naming `range_truth_join.py` — this pass
+exists to make the tag ranges, not a verdict.
+
+**(b) RANGE-TRUTH JOIN — the step the whole verdict hangs on. Different interpreter.**
+
+```bash
+.venv/bin/python scripts/seeker/range_truth_join.py \
+    --session-dir SESSION_DIR --bin target_flight.BIN \
+    --tripod-lat <§6.0> --tripod-lon <§6.0> --tripod-alt <§6.0, AMSL> \
+    --clock-offset-s <from the §6.1 sync card> \
+    --tags-csv logs/tripod_score/<session>/tags.csv
+```
+
+- `--tripod-lat/lon/alt` are the §6.0 survey. All three or none; the altitude must
+  be in the **log's** datum (ArduPilot `POS`/`GPS` `Alt` is **AMSL**).
+- `--clock-offset-s` = `t_ULog(sync event) − index.csv t_wall_unix(that frame)` (§6.1).
+- `--tags-csv` is what `--auto-sync` aligns against; point it at step (a)'s OFFLINE
+  re-decode rather than the capture-time file. (Harmless but unused when you supply
+  `--clock-offset-s` without `--auto-sync`.)
+- **Add `--auto-sync` ONLY on the close-crossing sync pass (§4.6b).** Auto-sync
+  refuses a constant-closing-rate approach as *unidentifiable* **by design**, and
+  the capture matrix is approach-heavy — so on most passes it will refuse, and that
+  refusal is correct behaviour. Reuse the sync pass's offset for the rest of the
+  battery segment via `--clock-offset-s`.
+- It writes `true_range_m` + `range_quality` / `range_sigma_m` back into
+  `index.csv`, atomically, keeping a pristine `index.csv.bak`. Exit `2` = REFUSED
+  (an unsafe join) — read the reason, it names which of {wrong log, bad survey,
+  datum blunder, unidentifiable clock} it caught. **A refusal is the tool working.**
+- Repeat per pass directory.
+
+**(c) RE-SCORE — the real verdict.**
+
+```bash
+.venv-seeker/bin/python scripts/seeker/tripod_score.py SESSION_DIR \
+    --calib calib.json --tag-size 0.35 --redecode \
+    --range-bin 2 --max-range 20 \
+    --stream-fps <the §7.3 Pi 5 bench number> \
+    --out-dir logs/tripod_score
+```
+
+Same command as (a) — the session now carries the ranges, so curve (a), curve (b)
+and the money gate all resolve. Two additions:
+
+- `--stream-fps` is the **§7.3 bench** number (sustained end-to-end decode Hz on the
+  real Pi 5 at the flying `quad_decimate`), not the capture rate. The scorer refuses
+  to invent one; if you omit it and the session's own recorder rate is used, the
+  verdict line says so in words. The gate flips across ~24 fps, so this matters.
+- Re-running with `--redecode` decodes the frames a second time (a few minutes,
+  offline). To skip that, copy step (a)'s `logs/tripod_score/<session>/tags.csv`
+  into `SESSION_DIR/` and drop `--redecode` — the scorer reads both tags.csv
+  schemas.
+
+**Want the PNG curves?** Re-run (c) under `.venv` (matplotlib) — curve (b)'s NN half
+then cleanly no-ops (no `onnxruntime`), which is fine: the plots are for curve (a).
+
+**Three UNCERTAIN messages and what each actually means:**
+
+| It prints | It means | Do this |
+|---|---|---|
+| `no TRUE ranges in the session` | step (b) was never run for this pass | run (b) |
+| `bounded by MISSING DATA (bin_absent / bin_underpopulated / end_of_data)` | the ≥90% band ran into a station you never shot — a lower bound, not a measurement | §4.1: contiguous 2 m grid, shoot farther, or re-shoot that station |
+| `MISSING MEASUREMENT: capture/decode stream_fps` | no `--stream-fps` and no measured rate in `meta.json` | pass the §7.3 bench number |
+
 ### 7.1 Curve (a) — AprilTag decode envelope
+
+> §7.0 is the path you actually run; this section explains what it computes and
+> gives the manual equivalent if you want to check it by hand.
 
 1. Run `autolabel_from_apriltag.py --frames DIR --calib calib.json --tag-size
    TAG_EDGE_M --drone-size 0.35 --out DATASET` per pass directory. It reports the
-   tag's label/decode rate — that print IS the raw curve-(a) input.
+   tag's label/decode rate — that print IS the raw curve-(a) input. (Its "decode
+   ceiling" line is only meaningful on target-PRESENT footage; pointed at
+   target-free negatives it is not measuring the tag.)
 2. Bin decode success (tag found vs not) by the frame's ground-truth range (from
    the ULog track, §6) into the same range bins as §4.1 (or finer, e.g. 2 m bins
    like `approach_recall.py`'s convention).
@@ -350,22 +609,37 @@ the session dir; it scores curve (a) and curve (b) in one pass.
 
    ```
    .venv-seeker/bin/python scripts/seeker/tripod_score.py SESSION_DIR \
-       --calib calib.json --out-dir logs/tripod_score
+       --calib calib.json --tag-size 0.35 --redecode \
+       --range-bin 2 --max-range 20 --stream-fps <§7.3 Pi 5 bench> \
+       --out-dir logs/tripod_score
    # -> curve_b_recall.csv (n-mono, PRIMARY) + curve_b_recall_drone_finetuned_quad_v2.csv (BAR)
    #    plus the primary-minus-bar delta in verdict.txt and gate.json:curve_b_models
    # (--no-weights-bar scores the primary only; --weights / --weights-bar override either)
    ```
+   This is step (c) of §7.0 — it only produces curve (b) after the range-truth
+   join (§7.0 step (b)) has run, and `--stream-fps` is the §7.3 bench number, not the
+   capture rate.
    Input modality is resolved **per model** (gray for the gray-native nn_tier weights,
    color for the sim weights) — on the mono OV9281 the gray step is a bit-exact no-op,
    so no flag is needed in the field.
    **Read the PRIMARY row against §8.2's threshold; a low BAR row is expected and gates
    nothing.**
 2. Ground-truth each frame's range/position with the tag pose where the tag
-   decoded, and with the ULog-derived range beyond that (§6) — this is the one
+   decoded, and with the log-derived range beyond that (§6) — this is the one
    place curve (a)'s decode ceiling matters for scoring curve (b): don't drop
    frames beyond the tag's decode range, that's exactly the far-band data curve (b)
    needs (`real_data_pipeline.md`'s "tag-miss frames dropped" rule is about
    TRAINING labels, not this scoring pass).
+   > ⚠️ **The shipped scorer does NOT do this yet.** `tripod_score.curve_b` builds
+   > its truth box from the TAG's recovered pose, so it can only score frames where
+   > the tag decoded — curve (b)'s far edge is bounded by curve (a)'s decode
+   > ceiling (the tool says so in its own note and flags it rather than dropping it
+   > silently). Truthing the far band needs log-derived truth boxes, which is not
+   > built. Until it is: **beyond the decode ceiling, curve (b) is a fire-rate read
+   > only** (how often the NN boxes *something*), not a recall number — and §8.2's
+   > 10–25 m band is only answerable where the two overlap. `tripod_score` reports
+   > that overlap explicitly (`curve_b_band_coverage`); if it says the band is not
+   > answerable, do NOT quote the overall recall as the §8.2 answer.
 3. Bin recall by **range** (as approach_recall.py does) **AND by position-in-frame**
    (e.g. top/middle/bottom third, or degrees off the vertical boresight) — ADR-0076
    add #18k's finding was that recall vs range alone hid a 100%-static-vs-0.8%-
@@ -397,9 +671,28 @@ t_go = (R_decode90 - R_streak_burn) / V_closing
 
 - `R_decode90` — measured this session (§7.1).
 - `R_streak_burn` — range consumed forming the 5-consecutive-detection handoff
-  streak at the tag's measured decode *rate* (not the sim's ~7 m NN figure — that's
-  a different pipeline; compute it from this session's own rate curve:
-  `R_streak_burn ≈ (5 / decode_Hz) × V_closing`).
+  streak (not the sim's ~7 m NN figure — that's a different pipeline). **Use the
+  RUN-LENGTH form (ADR-0079, what the scorer gates on):**
+
+  ```
+  E[T] = (1 - p^k) / (p^k · (1 - p))          # expected frames to get k in a row
+  R_streak_burn = (E[T] / stream_fps) × V_closing
+  ```
+
+  with `p` = the decode rate at `R_decode90` and `k = 5`. The older mean-rate form
+  `(5 / decode_Hz) × V_closing` is **REJECTED as the gate model**: it understates
+  the burn, always in the flattering direction for a ~$740 purchase (k=5: ~1.2× at
+  p=0.9, ~2.3× at p=0.7, ~6.2× at p=0.5). It is still *reported* for transparency
+  (`R_streak_burn_meanrate_m`). Reproduce the comparison with
+  `scripts/seeker/streak_burn_derivation.py`.
+- `stream_fps` — the **§7.3 bench** decode cadence on the real Pi 5, passed with
+  `--stream-fps`. Not the recorder's capture rate: the recorder pays a PNG write the
+  flight loop never pays and (with decode off) no decode cost at all. The gate flips
+  across ~24 fps at the predicted `R_decode90`, so this is a real input, not a
+  formality — the scorer refuses to invent it.
+- Honest caveat carried by the tool: real decodes are temporally CORRELATED, not
+  independent Bernoulli, so BOTH analytic burns are surrogates. If a session gives
+  an EMPIRICAL streak-formation range, prefer it.
 - `V_closing` — depends on final engagement geometry, which isn't fixed yet. Score
   against **two scenarios**: conservative (target-only speed, ~9 m/s — matches the
   NEXT.md anchor) and aggressive (interceptor's own dash speed ~16 m/s combined
@@ -464,26 +757,47 @@ band (roughly ±20° off-axis) across the 10–25 m operational band.**
 
 ## 11. Session log template (fill in per pass, field-side)
 
+**Session header — fill ONCE per tripod position, before pass 1 (§6.0):**
+
+```
+Tripod lat: ________.______   lon: ________.______   alt (m, AMSL): ______
+  survey method: target-on-the-spot / QGC / phone      camera height above that spot (m): ____
+Target log file (.BIN): ______________     Calib file: ______________
+Hotspot up + Pi NTP-synced (05_pi_link_check offset, s): ______
+```
+
+**Per pass:**
+
 ```
 Pass #: ___   Time: ___   Aspect: approach / crossing   Background: sky / horizon / clutter
 Speed: full / slow   Attitude: level / banked   Tilt (deg, measured): ___
-Battery: pack # ___   Range stations confirmed: Y/N
-Sync event (frame idx / ULog t): ___
+Placard mount index angle (deg): ___        Battery: pack # ___   Range stations confirmed: Y/N
+SYNC EVENT -- log timestamp t_ULog: ____________   frame index: ______
+  (offset_s = t_ULog - index.csv t_wall_unix of that frame; §6.1. WRITE BOTH RAW NUMBERS.)
+Is this the battery's CLOCK-SYNC pass (close crossing through a CPA, §4.6b)? Y/N
+Per-pass check ran on the Pi (meta.json present, index rows == frame files)? Y/N
 Anomalies: ______________________________________________
-Frame dir: ______________   ULog file: ______________   Video file: ______________
+Frame dir: ______________   Video file: ______________
 ```
 
 Keep one filled sheet (or a spreadsheet row) per pass — it's the only thing that
-lets §7's offline scoring reconstruct what each frame directory actually was.
+lets §7's offline scoring reconstruct what each frame directory actually was. The
+sync-event pair and the tripod survey are the two entries that cannot be
+reconstructed afterwards: without them that pass has no range truth, permanently.
 
 ---
 
 ## 12. After the session — what "done" looks like
 
 - [ ] `calib.json` (start-of-day + end-of-day) archived with the session.
-- [ ] All pass frame directories + ULogs + videos archived, named by the §11 log.
+- [ ] All pass frame directories + the target `.BIN` + videos archived, named by the
+      §11 log — **including the tripod survey and the per-pass sync-event pairs**.
+- [ ] **The three-step scoring sequence (§7.0) run per pass**, in order: decode →
+      `range_truth_join` → re-score. A pass whose `verdict.txt` still says
+      `no TRUE ranges` has NOT been scored.
 - [ ] Curve (a) `R_decode90` / `R_decode_any` computed, t_go scenarios run (§8.1),
-      GO/NO-GO recorded with the numbers.
+      GO/NO-GO recorded with the numbers — and the `r90_stop_reason` recorded with
+      them: only `rate_below_90` is a measured cutoff that may PASS.
 - [ ] Curve (b) recall-vs-range × position-in-frame computed (§7.2), PASS/FAIL
       against §8.2's working threshold recorded, with the honest small-n caveat
       (§4.6).

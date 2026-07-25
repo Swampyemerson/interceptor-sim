@@ -115,13 +115,26 @@ def main() -> int:
     n_frames = int(meta.get("n_frames") or len(frames_seen))
     n_dec = len(decoded_frames)
     rate = (n_dec / n_frames) if n_frames else 0.0
+    # DENOMINATOR CHECK. The decode rate divides tags.csv rows by meta.json's
+    # frame count -- two files written by two loops. If tags.csv does not cover
+    # every frame (interrupted capture, partial copy, decode started late), the
+    # rate is computed against a denominator the numerator never saw, and it
+    # reads as a real perception result. Say so instead of averaging it away.
+    denom_warn = None
+    if frames_seen and len(frames_seen) != n_frames:
+        denom_warn = (f"tags.csv covers {len(frames_seen)} frame(s) but meta.json "
+                      f"says {n_frames} -- the decode rate below is NOT over the "
+                      f"whole session (truncated tags.csv or partial copy)")
 
     res = meta.get("resolution") or {}
     print(f"[tag-summary] session      : {args.session}")
     print(f"[tag-summary] family       : {meta.get('family', 'tag36h11')}   "
           f"tag edge assumed: {meta.get('tag_size_m')} m")
     print(f"[tag-summary] frames       : {n_frames}")
-    print(f"[tag-summary] decoded      : {n_dec}  ({rate * 100:.1f}% of frames)")
+    if denom_warn:
+        print(f"[tag-summary]   WARN {denom_warn}")
+    print(f"[tag-summary] decoded      : {n_dec}  ({rate * 100:.1f}% of "
+          f"{n_frames} frames{' -- SEE THE WARNING ABOVE' if denom_warn else ''})")
     print(f"[tag-summary] tag ids seen : {', '.join(f'{k} x{v}' for k, v in sorted(ids.items())) or '(none)'}")
 
     med_margin = _median(margins)
@@ -170,6 +183,8 @@ def main() -> int:
         "median_decision_margin": med_margin,
         "median_tag_edge_px": _median(edges), "median_range_m": med_range,
         "expect_range_m": args.expect_range, "calib_trusted": bool(args.calib_trusted),
+        "n_frames_in_tags_csv": len(frames_seen),
+        "warnings": ([denom_warn] if denom_warn else []),
         "failures": fails, "pass": not fails,
     }
     if args.json_out:

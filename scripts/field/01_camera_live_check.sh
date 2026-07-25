@@ -116,7 +116,7 @@ if [[ "$MODE" == "auto" ]]; then
             fld_miss "no Pi at '$PI_TRY' and no /dev/video* here"
             fld_hint "falling back to the NO-HARDWARE replay dry run"
             MODE="replay"
-            ABSENT_AFTER_REPLAY=1
+            NO_SEEKER_CHECKED=1
         fi
     fi
 fi
@@ -182,6 +182,11 @@ local)
     fi
     # A random webcam is not the OV9281, so its resolution is not graded.
     EXPECT_RES="any"
+    # ...and for the same reason it is NOT evidence that the seeker camera works.
+    # Report NOT CONNECTED (advisory) so `--require` on field day cannot be
+    # satisfied by a laptop webcam -- the failure mode this whole check exists
+    # to catch. Use --pi for the real check.
+    NO_SEEKER_CHECKED=1
     ;;
 
 # ------------------------------------------------------------ replay dry run
@@ -196,18 +201,31 @@ replay)
     "$PY" "$CAPTURE" --source "dir=$REPLAY_DIR" --out "$SESSION" \
         --n-frames "$N_FRAMES" --run-tag fieldcheck-replay \
         2>&1 | sed "s/^/[$FLD_TAG]   | /" || RC=1
-    ((RC)) && fld_finish "$FLD_FAIL" "the replay backend itself failed -- that is a software bug, not hardware"
+    # pi_capture exits 1 on a TRUNCATED session too (fewer frames than requested),
+    # so name that case: with a small fixture dir it is the fixture, not a bug.
+    ((RC)) && fld_finish "$FLD_FAIL" \
+        "the replay run did not deliver $N_FRAMES frames" \
+        "if $REPLAY_DIR holds fewer than $N_FRAMES images, lower --frames or point --replay at a bigger dir" \
+        "otherwise the recorder itself failed -- that is a software bug, not hardware"
     EXPECT_RES="any"     # the fixture is the 1280x960 sim camera, not the OV9281
+    NO_SEEKER_CHECKED=1  # replay proves the RECORDER, never the camera
     ;;
 esac
 
 # --------------------------------------------------------------- grade it
 fld_head "grading the session"
+# GRADE AGAINST THE BAR WE ASKED FOR. --min-frames 1 used to accept a session
+# that delivered 1 of the 30 requested frames and still print PASS; the recorder
+# writes exactly --n-frames on a healthy camera, so the requested count IS the
+# bar. --require-exposure only on the Pi path: that is the one backend that
+# reports a real microsecond exposure, and the only mode whose header claims to
+# verify the <=1 ms spec.
+SUM_ARGS=(--expect-res "$EXPECT_RES" --min-frames "$N_FRAMES"
+          --sample-out "$LOG_DIR/sample_frame.png"
+          --json-out "$LOG_DIR/verdict.json")
+[[ "$MODE" == "pi" ]] && SUM_ARGS+=(--require-exposure)
 set +e
-"$PY" "$SUMMARY" "$SESSION" \
-    --expect-res "$EXPECT_RES" --min-frames 1 \
-    --sample-out "$LOG_DIR/sample_frame.png" \
-    --json-out "$LOG_DIR/verdict.json" 2>&1 | sed "s/^/[$FLD_TAG]   | /"
+"$PY" "$SUMMARY" "$SESSION" "${SUM_ARGS[@]}" 2>&1 | sed "s/^/[$FLD_TAG]   | /"
 SUM_RC="${PIPESTATUS[0]}"
 set -e
 
@@ -219,10 +237,11 @@ if [[ "$SUM_RC" -ne 0 ]]; then
         "session kept at $SESSION"
 fi
 
-if [[ "${ABSENT_AFTER_REPLAY:-0}" == "1" ]]; then
+if [[ "${NO_SEEKER_CHECKED:-0}" == "1" ]]; then
     fld_finish "$FLD_ABSENT" \
-        "the recorder pipeline is healthy, but NO REAL CAMERA was checked" \
-        "plug the OV9281 ribbon into the Pi 5 (22-pin end at the Pi) and re-run with --pi" \
+        "the recorder pipeline is healthy, but THE SEEKER CAMERA WAS NOT CHECKED (mode: $MODE)" \
+        "a replay fixture or a laptop webcam is not evidence the OV9281 works" \
+        "plug the OV9281 ribbon into the Pi 5 (22-pin end at the Pi) and re-run with --pi <user@IP>" \
         "sample frame: $LOG_DIR/sample_frame.png"
 fi
 

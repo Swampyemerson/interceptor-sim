@@ -197,10 +197,18 @@ fld_video_devices() {
 }
 
 # --- the Pi 5 (seeker rig) over the network --------------------------------
-# The Pi is a separate computer; the laptop reaches it over SSH/mDNS.
+# The Pi is a separate computer; the laptop reaches it over SSH.
 # The provisioning pack sets the hostname (scripts/pi_setup/README.md §1:
 # `provision.sh --hostname interceptor-seeker`), so the default below matches.
-FIELD_PI_HOST="${FIELD_PI_HOST:-}"                       # e.g. pi@interceptor-seeker.local
+#
+# USE THE IP AT THE FIELD, NOT `.local`. The default is an mDNS name, and mDNS
+# does NOT resolve from NAT-mode WSL2 (nsswitch is `files dns`, the VM sits
+# behind a 172.x NAT), which is exactly where these scripts run. On a phone
+# hotspot it is less reliable still. So:
+#     export FIELD_PI_HOST=pi@192.168.43.17     # the IP the Pi shows on the hotspot
+# or pin it once with a line in WSL's /etc/hosts. `scripts/field/05_pi_link_check.sh`
+# tests this whole path (key, address, reachability, clock) before you pack.
+FIELD_PI_HOST="${FIELD_PI_HOST:-}"                       # e.g. pi@192.168.43.17
 FIELD_PI_DEFAULT_HOST="${FIELD_PI_DEFAULT_HOST:-interceptor-seeker.local}"
 FIELD_PI_REPO="${FIELD_PI_REPO:-~/interceptor-sim}"      # scripts/pi_setup/README.md §1 clone path
 FIELD_PI_PYTHON="${FIELD_PI_PYTHON:-~/interceptor-sim/.venv-pi/bin/python}"  # provision.sh default venv

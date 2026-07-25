@@ -9,7 +9,11 @@ layout documented in pi_capture.py's header) and turns it into a PASS/FAIL.
 
 WHAT IT GRADES, AND WHERE EACH NUMBER COMES FROM
 ------------------------------------------------
-  frames arrived   meta.json n_frames >= --min-frames.
+  frames arrived   meta.json n_frames >= --min-frames, AND that count is
+                   RECONCILED against the files actually on disk -- a hand-copied
+                   or half-pulled session reports a healthy meta with missing
+                   frames otherwise (the mismatch is free to detect, so it is a
+                   FAIL, not a warning).
   resolution       meta.json resolution vs --expect-res. The BOM camera is the
                    innomaker OV9281, 1280x800 mono global shutter
                    (docs/camera_paper_check.md; pi_capture.py DEF_WIDTH/HEIGHT).
@@ -27,7 +31,7 @@ Exit: 0 PASS, 1 FAIL, 2 usage/parse error.
 
 Usage:
   camera_session_summary.py SESSION_DIR [--expect-res 1280x800|any]
-      [--min-frames 1] [--sample-out PATH] [--json-out PATH]
+      [--min-frames 1] [--require-exposure] [--sample-out PATH] [--json-out PATH]
 """
 from __future__ import annotations
 
@@ -60,6 +64,12 @@ def main() -> int:
                     help="WxH the sensor must report, or 'any' (default 1280x800 = OV9281)")
     ap.add_argument("--min-frames", type=int, default=1)
     ap.add_argument("--exposure-spec-us", type=int, default=EXPOSURE_SPEC_US)
+    ap.add_argument("--require-exposure", action="store_true",
+                    help="FAIL (instead of WARN) when the <=1 ms spec could not be "
+                         "verified -- i.e. no applied_exposure_us, or a v4l2/replay "
+                         "backend whose exposure is not a real microsecond reading. "
+                         "Use it in the --pi mode, the only mode that CLAIMS to "
+                         "verify the spec (01_camera_live_check.sh header).")
     ap.add_argument("--sample-out", default=None,
                     help="copy one mid-session frame here (a picture you can eyeball)")
     ap.add_argument("--json-out", default=None, help="write the machine-readable verdict here")
@@ -78,11 +88,30 @@ def main() -> int:
 
     # --- frames ------------------------------------------------------------
     n = int(meta.get("n_frames") or 0)
+    frames_dir = os.path.join(sess, meta.get("frames_dir") or "frames")
+    on_disk_names = []
+    if os.path.isdir(frames_dir):
+        on_disk_names = sorted(f for f in os.listdir(frames_dir)
+                               if f.lower().endswith((".png", ".jpg", ".jpeg")))
+    n_on_disk = len(on_disk_names)
     print(f"[camera-summary] session   : {sess}")
     print(f"[camera-summary] backend   : {meta.get('source')} {meta.get('backend_detail')}")
-    print(f"[camera-summary] frames    : {n}")
+    print(f"[camera-summary] frames    : {n} in meta.json / {n_on_disk} on disk")
     if n < args.min_frames:
         fails.append(f"only {n} frame(s), expected >= {args.min_frames}")
+    # RECONCILE meta against the filesystem. meta.json is written by the recorder
+    # from its own counter; the files are what survived the copy off the Pi. A
+    # mismatch means a partial rsync / hand copy / truncated pass, and it is the
+    # one thing here that can be verified for free instead of trusted.
+    if not os.path.isdir(frames_dir):
+        fails.append(f"no frames dir at {frames_dir}")
+    elif n_on_disk != n:
+        fails.append(f"meta.json says {n} frame(s) but {n_on_disk} image file(s) are "
+                     f"in {frames_dir} -- partial copy or truncated session")
+    if meta.get("terminated_early"):
+        warns.append("session was TERMINATED EARLY "
+                     f"({meta.get('terminated_early_reason')}) -- pi_capture still "
+                     "wrote meta.json, but the pass is short")
 
     # --- resolution --------------------------------------------------------
     res = meta.get("resolution") or {}
@@ -109,15 +138,17 @@ def main() -> int:
         # microsecond spec would be a fake verdict, so we refuse to grade it.
         print(f"[camera-summary] exposure  : read-back {applied} in DEVICE-SPECIFIC "
               f"V4L2 units (requested {req} us) -- NOT graded")
-        warns.append("v4l2 exposure units are device-specific: the <=1 ms spec is "
-                     "UNVERIFIED here. The spec is verified on the Pi's picamera2 "
-                     "backend (scripts/pi_setup/README.md step 3).")
+        msg = ("v4l2 exposure units are device-specific: the <=1 ms spec is "
+               "UNVERIFIED here. The spec is verified on the Pi's picamera2 "
+               "backend (scripts/pi_setup/README.md step 3).")
+        (fails if args.require_exposure else warns).append(msg)
         applied = None
     elif applied is None:
         print(f"[camera-summary] exposure  : UNKNOWN "
               f"(source={meta.get('exposure_source')}, requested {req} us)")
-        warns.append("this backend cannot report the applied exposure -- "
-                     "the <=1 ms spec is UNVERIFIED for this session")
+        msg = (f"this backend ({meta.get('source')}) cannot report the applied "
+               "exposure -- the <=1 ms spec is UNVERIFIED for this session")
+        (fails if args.require_exposure else warns).append(msg)
     else:
         verdict = "OK" if applied <= args.exposure_spec_us else "OVER SPEC"
         print(f"[camera-summary] exposure  : applied ~{applied:.0f} us "
@@ -144,17 +175,22 @@ def main() -> int:
             fps = 1.0 / med
             print(f"[camera-summary] rate      : ~{fps:.1f} fps (median dt {med * 1e3:.1f} ms) "
                   f"[ADVISORY -- capture-loop rate]")
+        n_idx = len(ts)
+        if n_idx != n_on_disk:
+            fails.append(f"index.csv has {n_idx} timestamped row(s) but {n_on_disk} "
+                         f"image file(s) are on disk -- the per-frame index and the "
+                         f"frames disagree (partial copy / truncated write)")
     else:
-        warns.append("no index.csv in the session")
+        # pi_capture.record_session ALWAYS writes index.csv (and now writes
+        # meta.json from a finally), so its absence always means a broken or
+        # half-copied session -- never a benign backend difference.
+        fails.append("no index.csv in the session -- pi_capture always writes one, "
+                     "so this session is broken or was copied incompletely")
 
     # --- a picture you can actually look at --------------------------------
     sample_src = None
-    frames_dir = os.path.join(sess, meta.get("frames_dir") or "frames")
-    if os.path.isdir(frames_dir):
-        names = sorted(f for f in os.listdir(frames_dir)
-                       if f.lower().endswith((".png", ".jpg", ".jpeg")))
-        if names:
-            sample_src = os.path.join(frames_dir, names[len(names) // 2])
+    if on_disk_names:
+        sample_src = os.path.join(frames_dir, on_disk_names[len(on_disk_names) // 2])
     if args.sample_out and sample_src:
         os.makedirs(os.path.dirname(os.path.abspath(args.sample_out)), exist_ok=True)
         shutil.copyfile(sample_src, args.sample_out)
@@ -168,6 +204,9 @@ def main() -> int:
 
     verdict = {
         "session": os.path.abspath(sess), "n_frames": n,
+        "n_frames_on_disk": n_on_disk, "min_frames": args.min_frames,
+        "terminated_early": bool(meta.get("terminated_early")),
+        "require_exposure": bool(args.require_exposure),
         "resolution": [w, h], "expect_res": args.expect_res,
         "applied_exposure_us": applied, "exposure_spec_us": args.exposure_spec_us,
         "fps_estimate": fps, "sample_frame": args.sample_out if sample_src else None,

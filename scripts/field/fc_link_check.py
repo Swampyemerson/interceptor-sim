@@ -12,11 +12,25 @@ IT CANNOT ARM. THAT IS ENFORCED, NOT PROMISED.
 Arming, takeoff, offboard, manual control and parameter writes all live behind
 MAVSDK plugins this file never touches (`drone.action.*`, `drone.offboard.*`,
 `drone.manual_control.*`, `drone.param.*`, `drone.actuator_*`). At startup the
-script parses its OWN source with `ast` and refuses to run if any call into
-those plugins exists (`audit_no_actuation`). A comment or a docstring cannot
-fool it -- the audit walks the syntax tree, not the text. `--self-test` runs
-that audit on its own and exits 0/1 with no hardware. This mirrors the repo's
-existing no-gt AST audits (CLAUDE.md honesty boundary; audit finding DEEP-N1).
+script parses its OWN source with `ast` and refuses to run if it finds ANY of:
+a CALL into those plugins, an ATTRIBUTE ACCESS that so much as binds one
+(`a = drone.action`), an IMPORT of one (`from mavsdk.offboard import ...`), or
+dynamic dispatch on the vehicle handle (`getattr(drone, ...)`)
+(`audit_no_actuation`). A comment or a docstring cannot fool it -- the audit
+walks the syntax tree, not the text. `--self-test` runs that audit on its own
+and exits 0/1 with no hardware. This mirrors the repo's existing no-gt AST
+audits (CLAUDE.md honesty boundary; audit finding DEEP-N1).
+
+WIDENED 2026-07-25 (review 2, safety): the rule used to match CALL nodes only,
+so the two-step alias `a = drone.action` / `await a.arm()` and a bare
+`from mavsdk.offboard import ...` both passed a check whose printed guarantee
+said otherwise. Six injected forms are now detected (direct call, alias binding,
+import, param write, getattr dispatch, manual_control) with no false positive on
+the real file or on legitimate `telemetry`/`info`/argparse use.
+
+WHAT THIS IS NOT: an audit of code this file IMPORTS. It proves THIS module's
+own source cannot command the vehicle. The physical interlock is still props
+off (docs/field_bringup.md §5).
 
 The only MAVSDK surfaces used are `core` (connection state), `info` (identity)
 and `telemetry` (read-only subscriptions).
@@ -69,22 +83,44 @@ def audit_no_actuation(path: str | None = None):
     path = path or os.path.abspath(__file__)
     with open(path) as fh:
         tree = ast.parse(fh.read(), filename=path)
-    bad = []
+    found = {}   # (lineno, text) -> reason, so a call is not reported twice
+
+    def flag(lineno, text):
+        found.setdefault((lineno, text), None)
+
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-        name = _dotted(node.func)
-        # Rule 1: no direct call into a forbidden plugin namespace.
-        if name and any(p in name.split(".") for p in FORBIDDEN_PLUGINS):
-            bad.append(f"line {node.lineno}: {name}()")
-        # Rule 2: no DYNAMIC dispatch on the vehicle handle -- getattr(drone...)
-        # would let a call slip past rule 1, so it is banned outright.
-        if name == "getattr" and node.args:
-            target = _dotted(node.args[0])
-            if target.split(".")[:1] == ["drone"]:
-                bad.append(f"line {node.lineno}: getattr({target}, ...) "
-                           f"-- dynamic dispatch on the vehicle handle")
-    return bad
+        # Rule 1 (calls) and Rule 3 (ATTRIBUTE ACCESS, added 2026-07-25).
+        # Rule 1 alone only saw `drone.action.arm()`. The two-step alias
+        #     a = drone.action        # <- no Call node here
+        #     await a.arm()           # <- dotted name is just 'a.arm'
+        # walked straight past it, so the printed guarantee was broader than the
+        # check. Flagging the ATTRIBUTE catches the binding itself, which is the
+        # only way to reach a forbidden plugin off the vehicle handle.
+        if isinstance(node, (ast.Call, ast.Attribute)):
+            name = _dotted(node.func if isinstance(node, ast.Call) else node)
+            if name and any(p in name.split(".") for p in FORBIDDEN_PLUGINS):
+                flag(node.lineno, f"{name}{'()' if isinstance(node, ast.Call) else ''}")
+        if isinstance(node, ast.Call):
+            name = _dotted(node.func)
+            # Rule 2: no DYNAMIC dispatch on the vehicle handle -- getattr(drone...)
+            # would let a call slip past rule 1, so it is banned outright.
+            if name == "getattr" and node.args:
+                target = _dotted(node.args[0])
+                if target.split(".")[:1] == ["drone"]:
+                    flag(node.lineno, f"getattr({target}, ...) "
+                                      f"-- dynamic dispatch on the vehicle handle")
+        # Rule 4: no IMPORT of a forbidden plugin module. `from mavsdk.offboard
+        # import VelocityNedYaw` is how offboard normally enters a file, and it
+        # is a plain import node -- invisible to the call/attribute rules.
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                if any(p in a.name.split(".") for p in FORBIDDEN_PLUGINS):
+                    flag(node.lineno, f"import {a.name}")
+        if isinstance(node, ast.ImportFrom):
+            mod = node.module or ""
+            if any(p in mod.split(".") for p in FORBIDDEN_PLUGINS):
+                flag(node.lineno, f"from {mod} import ...")
+    return [f"line {ln}: {txt}" for (ln, txt) in sorted(found)]
 
 
 async def _first(stream, timeout):
@@ -252,8 +288,9 @@ def main() -> int:
         for v in violations:
             print(f"[fc-link]   {v}", file=sys.stderr)
         return 2
-    print(f"[fc-link] safety audit OK: no calls into {', '.join(FORBIDDEN_PLUGINS)} "
-          f"(AST-verified) -- this tool CANNOT arm the vehicle")
+    print(f"[fc-link] safety audit OK: no call, attribute access or import of "
+          f"{', '.join(FORBIDDEN_PLUGINS)} in this file "
+          f"(AST-verified over dotted names) -- this tool CANNOT arm the vehicle")
 
     if args.self_test:
         print("[fc-link] self-test PASS (audit only, no hardware touched)")
