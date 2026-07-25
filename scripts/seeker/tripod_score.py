@@ -31,28 +31,61 @@ baseline seeker / auto-labels); using the tag pose to truth the NN is the
 sanctioned training/scoring label source (autolabel_from_apriltag.py). Nothing
 here feeds live guidance.
 
-SESSION LAYOUT (the contract scripts/seeker/pi_capture.py writes; that script
-is not in the worktree yet, so this scorer defines the layout its docstring
-specifies and will read pi_capture's output verbatim once it exists):
+SESSION LAYOUT (what scripts/seeker/pi_capture.py ACTUALLY writes -- verified
+against its INDEX_HEADER/TAGS_HEADER, 2026-07-24):
 
     session_dir/
-      frames/*.png   raw frames (PNG, not compressed video -- protocol §6)
-      index.csv      one row per frame; columns are best-effort. The scorer
-                     needs a TRUE range per frame -- it reads `true_range_m`
-                     (GPS/ULog- or rangefinder-derived, protocol §6) if present,
-                     else parses `_r<num>_` from the frame filename (the
-                     synth_tag_frames / resolution_probe convention), else that
-                     frame is unbinnable and skipped. Optional extra columns
-                     (`t_s`, `aspect`, `background`, `speed`, `tilt_deg`) are
-                     carried into the summary but not required.
+      frames/*.png   raw frames (PNG, not compressed video -- protocol §6),
+                     zero-padded capture order: 000000.png, 000001.png, ...
+      index.csv      one row per frame. pi_capture's columns are
+                     `frame_idx, frame_path, t_mono_s, t_wall_unix,
+                      exposure_us, gain`; older/synthetic sessions may instead
+                     key on `frame`/`filename`/`name`. BOTH bind (load_session
+                     joins on frame_path's basename, then on frame_idx).
+                     The scorer needs a TRUE range per frame -- it reads
+                     `true_range_m`, which scripts/seeker/range_truth_join.py
+                     writes by joining the target's flight log + the surveyed
+                     tripod position to each frame's `t_wall_unix` (protocol
+                     §6/§6.1) -- else parses `_r<num>_` from the frame filename
+                     (the synth_tag_frames / resolution_probe convention), else
+                     that frame is unbinnable and skipped. range_truth_join also
+                     writes `range_quality` / `range_src_dt_s` / `range_sigma_m`;
+                     frames it could not truth carry an EMPTY true_range_m and a
+                     reject flag, never a fabricated number.
       meta.json      session metadata: `tag_size_m`, `drone_size_m`,
-                     `stream_fps`, `closing_speed_mps`, `tilt_deg`, `aspect`...
-                     -- all optional; the CLI / documented defaults fill gaps.
-      tags.csv       OPTIONAL pre-computed AprilTag decode per frame (columns
-                     `frame,decoded,tag_range_m,u_px,v_px,n_tags`). If present
+                     `stream_fps` (+ `stream_fps_source`), `closing_speed_mps`,
+                     `tilt_deg`, `aspect`...
+      tags.csv       OPTIONAL pre-computed AprilTag decode per frame. BOTH
+                     schemas are read: pi_capture's capture-time QC record
+                     (`frame_idx,frame_path,n_tags,tag_id,...,range_m`, one row
+                     per tag) and this scorer's own output
+                     (`frame,decoded,tag_range_m,u_px,v_px,n_tags`). If present
                      it is reused (decouples decode from scoring, protocol §6);
-                     if absent the scorer decodes the frames itself with
-                     pupil-apriltags and writes a tags.csv into the OUTPUT dir.
+                     `--redecode` forces a fresh offline decode instead, which
+                     is what protocol §6 actually asks for. If absent the scorer
+                     decodes with pupil-apriltags and writes a tags.csv into the
+                     OUTPUT dir.
+
+STREAM FPS IS A MEASUREMENT, NOT A DEFAULT (2026-07-24). The gate's streak burn
+is `R_streak_burn = (E[T] / stream_fps) x V_closing`, so the frame rate moves the
+verdict directly. At the PREDICTED R_decode90 for the adopted 0.35 m placard
+(7.10 m realistic, docs/placard_sizing.md §4 / placard_mount.md §11) with k=5 and
+V=9 m/s:
+
+    p = 0.90 (the WORST rate the >=90% sustain band allows -- E[T]=6.94 fr):
+        30 fps -> t_go 0.558 s PASS | 20 Hz -> 0.442 s FAIL | 14 Hz -> 0.293 s FAIL
+        break-even 24.0 fps
+    p = 1.00 (a perfect band -- E[T]=5 fr):
+        30 fps -> t_go 0.622 s PASS | 20 Hz -> 0.539 s PASS | 14 Hz -> 0.432 s FAIL
+        break-even 17.3 fps
+
+So the SAME optical data buys or blocks the ~$740 order depending on a number
+that was previously an unsourced 30.0 constant -- while the deployed flight loop
+runs 20 Hz and the only measured detector cadence in this repo is ~14 Hz. The
+scorer NO LONGER invents one: the fps must come from the session's
+`meta.json:stream_fps` (measured by pi_capture from real capture timestamps) or
+an explicit `--stream-fps` (bench it -- protocol §7.3 Pi 5 compute bench). With
+neither, the gate returns UNCERTAIN naming the missing measurement.
 
 DEPS / WHICH VENV (mirrors the repo's .venv vs .venv-seeker split):
   * Curve (a) + plots  -> pupil-apriltags + cv2 + matplotlib (the MAIN .venv).
@@ -100,10 +133,18 @@ DEFAULT_V_CLOSING_HI_MPS = 20.0
 # HANDOFF_STREAK_MIN is smaller (3, m4_intercept.py); R5 pre-registers 5 for the
 # tag gate, so 5 is the sourced number here (overridable).
 DEFAULT_HANDOFF_STREAK = 5
-# Stream/decode rate: AprilTag runs ~30 fps real-time on the Pi 5 CPU
-# (protocol §7.3 "AprilTag ~30 fps CPU-real-time"). R_streak_burn is computed
-# at the SESSION's own decode rate × this stream fps (protocol §8.1).
-DEFAULT_STREAM_FPS = 30.0
+# Stream/decode rate: there is deliberately NO DEFAULT (2026-07-24). The
+# ~30 fps figure in protocol §7.3 is a PAPER ANCHOR ("AprilTag ~30 fps
+# CPU-real-time") that §7.3 itself schedules to be BENCH-MEASURED on the real
+# Pi 5 -- and the verdict flips across it (module docstring: 30 fps PASS vs
+# 20 Hz FAIL at the predicted 7.10 m R_decode90; break-even 24.0 fps). Using it
+# as a silent fallback would decide ~$740 on an unmeasured constant. It is kept
+# ONLY as the help-text anchor and as the self-test's stand-in.
+PI5_APRILTAG_FPS_PAPER_ANCHOR = 30.0
+# meta.json `stream_fps_source` values containing this substring are NOT a
+# capture-rate measurement (pi_capture's dir-replay backend stamps synthetic
+# timestamps) and are refused as a gate input.
+FPS_SOURCE_REJECT_MARK = "replay"
 # BOM default placard: tag36h11 printed AS LARGE as the quad carries, ~0.25-0.35 m
 # (hardware_order_list.md §E line 268). 0.3 m default; a real session overrides
 # via meta.json / --tag-size. This is the AprilTag black-square edge that
@@ -170,7 +211,61 @@ def _read_csv(path):
         return list(csv.DictReader(f))
 
 
-def load_session(session_dir):
+# Columns any of the session CSVs may use to name a frame. `frame_path` is what
+# pi_capture ACTUALLY writes (INDEX_HEADER/TAGS_HEADER); the other three are the
+# older synth/probe convention. Missing this list was the silent schema break
+# that made every real session unbinnable (n_binnable=0 -> UNCERTAIN), fixed
+# 2026-07-24 -- see tests/test_tripod_pipeline_join.py.
+_FRAME_NAME_COLS = ("frame", "filename", "name", "frame_path", "file", "path")
+_FRAME_IDX_COLS = ("frame_idx", "idx", "index", "i")
+
+
+def _row_frame_key(row, base_set, bases):
+    """Resolve one CSV row to a frame basename, trying (1) any filename-ish
+    column, (2) the zero-padded frame_idx (pi_capture names frames %06d.png),
+    (3) frame_idx as a POSITION in capture order. Returns None if unresolvable."""
+    fn = ""
+    for c in _FRAME_NAME_COLS:
+        v = (row.get(c) or "").strip()
+        if v:
+            fn = v
+            break
+    key = os.path.splitext(os.path.basename(fn))[0] if fn else None
+    if key is not None and key in base_set:
+        return key
+    for c in _FRAME_IDX_COLS:
+        iv = _pf(row.get(c))
+        if iv is None:
+            continue
+        i = int(iv)
+        cand = f"{i:06d}"
+        if cand in base_set:
+            return cand
+        if 0 <= i < len(bases):
+            return bases[i]
+    return key  # may be a name with no matching frame file (kept, harmless)
+
+
+def _tag_row_range(row):
+    """AprilTag range from EITHER tags.csv schema (tripod_score's `tag_range_m`
+    or pi_capture's `range_m`)."""
+    r = _pf(row.get("tag_range_m"))
+    return r if r is not None else _pf(row.get("range_m"))
+
+
+def _merge_tag_rows(old, new):
+    """pi_capture writes ONE ROW PER TAG, so a frame can repeat. Keep the
+    NEAREST tag -- the same rule decode_frames uses on live detections
+    (`min(dets, key=pose_t[2])`). Rows without a range keep the first seen."""
+    ro, rn = _tag_row_range(old), _tag_row_range(new)
+    if rn is None:
+        return old
+    if ro is None:
+        return new
+    return new if rn < ro else old
+
+
+def load_session(session_dir, ignore_tags_csv=False):
     """Return (frames, index_map, meta, tags_map). `frames` is a sorted list of
     (path, basename); `index_map`/`tags_map` are {basename: row} or None."""
     frames_dir = os.path.join(session_dir, "frames")
@@ -181,20 +276,26 @@ def load_session(session_dir):
     if not paths:
         raise SystemExit(f"no frames in {frames_dir}")
     frames = [(p, os.path.splitext(os.path.basename(p))[0]) for p in paths]
+    bases = [b for _p, b in frames]
+    base_set = set(bases)
 
-    def _keymap(rows):
+    def _keymap(rows, merge=None):
         if rows is None:
             return None
         out = {}
         for r in rows:
-            fn = (r.get("frame") or r.get("filename") or r.get("name") or "").strip()
-            key = os.path.splitext(os.path.basename(fn))[0] if fn else None
-            if key:
+            key = _row_frame_key(r, base_set, bases)
+            if not key:
+                continue
+            if key in out and merge is not None:
+                out[key] = merge(out[key], r)
+            else:
                 out[key] = r
         return out
 
     index_map = _keymap(_read_csv(os.path.join(session_dir, "index.csv")))
-    tags_map = _keymap(_read_csv(os.path.join(session_dir, "tags.csv")))
+    tags_map = None if ignore_tags_csv else _keymap(
+        _read_csv(os.path.join(session_dir, "tags.csv")), merge=_merge_tag_rows)
     meta = {}
     mp = os.path.join(session_dir, "meta.json")
     if os.path.exists(mp):
@@ -212,17 +313,49 @@ def _pf(v):
         return None
 
 
-def truth_range_for(basename, index_map):
-    """TRUE range for a frame: index.csv `true_range_m` (GPS/ULog/rangefinder),
-    else `_r<num>_` parsed from the filename, else None (unbinnable)."""
+# Per-frame quality flags range_truth_join.py writes. A frame it could not truth
+# carries an EMPTY true_range_m AND one of these, so it is unbinnable either way;
+# `--require-quality ok` additionally drops the flagged-but-usable ones.
+QUALITY_REJECT = ("extrapolated", "no_frame_time")
+
+
+def truth_range_for(basename, index_map, accept_quality=None):
+    """TRUE range for a frame: index.csv `true_range_m` (written by
+    scripts/seeker/range_truth_join.py from the target's flight log + the
+    surveyed tripod position, protocol §6/§6.1), else `_r<num>_` parsed from the
+    filename, else None (unbinnable).
+
+    `accept_quality` (a set, optional) restricts which `range_quality` flags are
+    binnable; QUALITY_REJECT flags are ALWAYS dropped so a frame the join could
+    not truth can never sneak in as a number."""
     if index_map and basename in index_map:
-        r = _pf(index_map[basename].get("true_range_m") or
-                index_map[basename].get("gt_range") or
-                index_map[basename].get("range_m"))
+        row = index_map[basename]
+        q = (row.get("range_quality") or "").strip()
+        if q and (q in QUALITY_REJECT or
+                  (accept_quality is not None and q not in accept_quality)):
+            return None
+        r = _pf(row.get("true_range_m") or row.get("gt_range") or
+                row.get("range_m"))
         if r is not None:
             return r
     m = _RANGE_RE.search(basename)
     return float(m.group(1)) if m else None
+
+
+def quality_summary(frames, index_map):
+    """{range_quality flag: n frames} over the session (blank -> 'unflagged').
+    Surfaces the join's honesty flags in the scorer's own report."""
+    counts = {}
+    if not index_map:
+        return counts
+    for _p, base in frames:
+        row = index_map.get(base)
+        if row is None:
+            counts["no_index_row"] = counts.get("no_index_row", 0) + 1
+            continue
+        q = (row.get("range_quality") or "").strip() or "unflagged"
+        counts[q] = counts.get(q, 0) + 1
+    return counts
 
 
 # --------------------------------------------------------------------------
@@ -240,12 +373,28 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False):
             if row is None:
                 results[base] = (False, None, None, None, 0)
                 continue
-            dec = str(row.get("decoded", "")).strip().lower() in _TRUE
-            results[base] = (dec, _pf(row.get("tag_range_m")),
-                             _pf(row.get("u_px")), _pf(row.get("v_px")),
-                             int(_pf(row.get("n_tags")) or 0))
+            # BOTH tags.csv schemas (see load_session's docstring): this
+            # scorer's `decoded` boolean, or pi_capture's `n_tags`/`tag_id`
+            # capture-time QC record. Reading only `decoded` silently scored
+            # every pi_capture row as NOT decoded (schema break, fixed
+            # 2026-07-24).
+            n_tags = int(_pf(row.get("n_tags")) or 0)
+            dv = str(row.get("decoded", "")).strip()
+            if dv:
+                dec = dv.lower() in _TRUE
+            else:
+                dec = n_tags > 0 or bool(str(row.get("tag_id", "")).strip())
+            u = _pf(row.get("u_px"))
+            v = _pf(row.get("v_px"))
+            if u is None:
+                u = _pf(row.get("center_u"))
+            if v is None:
+                v = _pf(row.get("center_v"))
+            results[base] = (dec, _tag_row_range(row), u, v, n_tags)
         if not quiet:
-            print(f"[tripod] curve(a): reused provided tags.csv ({len(frames)} frames)")
+            n_dec = sum(1 for r in results.values() if r[0])
+            print(f"[tripod] curve(a): reused provided tags.csv "
+                  f"({n_dec}/{len(frames)} frames decoded)")
         return results
 
     import cv2
@@ -286,7 +435,7 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False):
 # --------------------------------------------------------------------------
 # Curve (a): decode envelope
 # --------------------------------------------------------------------------
-def curve_a(frames, decode, index_map, bin_m, max_m):
+def curve_a(frames, decode, index_map, bin_m, max_m, accept_quality=None):
     """Bin decode success by TRUE range. Returns (bins, R_decode_any,
     R_decode90, accuracy_rows, n_binnable, n_unbinnable).
 
@@ -302,7 +451,7 @@ def curve_a(frames, decode, index_map, bin_m, max_m):
     n_binnable = n_unbinnable = 0
     r_any = 0.0
     for _, base in frames:
-        gr = truth_range_for(base, index_map)
+        gr = truth_range_for(base, index_map, accept_quality=accept_quality)
         if gr is None or gr <= 0 or gr > max_m:
             n_unbinnable += 1
             continue
@@ -330,18 +479,25 @@ def curve_a(frames, decode, index_map, bin_m, max_m):
 
 
 def decode_rate_near(bins, r90, bin_m):
-    """Sustained per-frame decode rate in the bin at R_decode90 -- the rate used
+    """Sustained per-frame decode rate in the bin AT R_decode90 -- the rate used
     to size the streak burn (protocol §8.1: 'compute it from this session's own
-    rate curve'). By construction this is >=0.9 when r90>0."""
-    if r90 <= 0:
+    rate curve'). By construction this is >=0.9 when r90>0.
+
+    BUG FIXED 2026-07-24 (latent; only bites on REAL data). curve_a returns
+    `r90 = lo + bin_m` of the LAST bin that sustained >=90%, i.e. the band's OUTER
+    EDGE -- so the bin keyed exactly `r90` is the FIRST FAILING bin. The old
+    `for b in sorted(bins): if b <= r90: best = b` selected that failing bin
+    whenever the bins were CONTIGUOUS, handing the gate the sub-90% rate (0.0 in
+    a clean cutoff), which inflates R_streak_burn to infinity and forces FAIL.
+    It went unnoticed because the only session ever run through it (the synthetic
+    self-test) has a GAP between its near and far ranges, so `b <= r90` happened
+    to land on the last sustaining bin. Now the bin CONTAINING (r90 - bin_m/2) is
+    selected explicitly. Regression: tests/test_tripod_pipeline_join.py."""
+    if r90 <= 0 or not bins:
         return 0.0
-    lo = int((r90 - bin_m / 2) // bin_m) * bin_m
-    best = None
-    for b in sorted(bins):
-        if b <= r90:
-            best = b
-    if best is None:
-        best = lo
+    target_lo = math.floor((r90 - bin_m / 2.0) / bin_m) * bin_m
+    cands = [b for b in bins if b <= target_lo + 1e-9]
+    best = max(cands) if cands else min(bins, key=lambda b: abs(b - target_lo))
     n_dec, n_tot, _ = bins.get(best, [0, 0, []])
     return (n_dec / n_tot) if n_tot else 0.0
 
@@ -380,6 +536,17 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     string. UNCERTAIN when the data can't decide (no truth ranges, no sustained
     handoff-quality band, or below the data-presence floor).
 
+    STREAM FPS IS REQUIRED, NEVER INVENTED (2026-07-24). `stream_fps=None` (no
+    `meta.json:stream_fps`, no `--stream-fps`) returns UNCERTAIN naming the
+    missing measurement instead of falling back to a constant: the burn scales
+    as 1/fps, so at the predicted R_decode90 (7.10 m, docs/placard_sizing.md §4)
+    with p=0.9/k=5/9 m/s the SAME optical data gives t_go 0.558 s PASS at 30 fps
+    and 0.442 s FAIL at the 20 Hz the deployed flight loop actually runs
+    (break-even 24.0 fps). A verdict that does NOT depend on fps is still
+    returned -- `R_decode90 == 0` (no bin sustains >=90%) is FAIL on decode
+    evidence alone -- so the missing measurement only blocks the calls it
+    actually decides.
+
     GATING MODEL (ADR-0079, adopted 2026-07-24 -- docs/decisions.md): the handoff
     needs `streak_n` CONSECUTIVE fresh detections, so the burn is the run-length
     expectation E[T], NOT the earlier MEAN-RATE burn (streak_n / decode_Hz). The
@@ -395,31 +562,68 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     a real session provides it; this analytic gate is the fallback.
     Reproduce the comparison: scripts/seeker/streak_burn_derivation.py
     """
-    decode_hz = decode_rate * stream_fps
+    fps_ok = stream_fps is not None and stream_fps > 0
+    decode_hz = decode_rate * stream_fps if fps_ok else None
     # Mean-rate burn: optimistic, reported for transparency only (not gating).
-    r_burn_meanrate = (streak_n / decode_hz) * v_closing if decode_hz > 0 else float("inf")
+    r_burn_meanrate = ((streak_n / decode_hz) * v_closing
+                       if (fps_ok and decode_hz > 0) else float("inf"))
     # Run-length burn: the GATING model (ADR-0079), conservative for the purchase gate.
     e_frames = _streak_burn_frames(decode_rate, streak_n)
-    if stream_fps > 0 and math.isfinite(e_frames):
+    if fps_ok and math.isfinite(e_frames):
         r_streak_burn = (e_frames / stream_fps) * v_closing
     else:
         r_streak_burn = float("inf")
-    t_go = (r90 - r_streak_burn) / v_closing if v_closing > 0 else float("-inf")
+    t_go = ((r90 - r_streak_burn) / v_closing
+            if (fps_ok and v_closing > 0) else float("-inf"))
 
     if not have_truth:
-        verdict, reason = "UNCERTAIN", "no TRUE ranges in the session (index.csv true_range_m / filename _r_) -- cannot bin curve (a)"
+        verdict, reason = "UNCERTAIN", "no TRUE ranges in the session (index.csv true_range_m / filename _r_) -- cannot bin curve (a). Run scripts/seeker/range_truth_join.py first (target log + surveyed tripod position -> true_range_m)."
     elif n_decoded is not None and n_decoded < min_decoded:
         verdict, reason = "UNCERTAIN", (f"only {n_decoded} decoded frame(s) < data floor {min_decoded} -- too thin to decide")
     elif r90 <= 0:
         # No bin sustained >=90%: the tag never forms a handoff-quality stream.
+        # This leg is fps-INDEPENDENT, so it is decided before the fps check.
         verdict = "FAIL" if r_any > 0 else "UNCERTAIN"
         reason = ("no range bin sustains >=90% decode (R_decode90=0) -- "
                   + ("sparse decodes exist but no clean handoff band"
                      if r_any > 0 else "the tag never decoded"))
+    elif not fps_ok:
+        verdict, reason = "UNCERTAIN", (
+            "MISSING MEASUREMENT: capture/decode stream_fps. The streak burn is "
+            "(E[T]/stream_fps) x V_closing, so the verdict turns on it -- at this "
+            f"R_decode90={r90:.2f} m the gate flips between ~24 fps and below. "
+            "Supply the BENCH-MEASURED rate (protocol §7.3 Pi 5 compute bench) via "
+            "--stream-fps, or capture with pi_capture so meta.json records "
+            "stream_fps from real capture timestamps. NO default is assumed.")
     elif t_go >= tgo_min:
         verdict, reason = "PASS", "t_go clears the pre-registered floor"
     else:
         verdict, reason = "FAIL", "t_go below the pre-registered floor"
+
+    if not fps_ok:
+        arithmetic = (
+            f"decode_rate p = {decode_rate:.3f}  (streak k = {streak_n})\n"
+            f"E[T] run-length = (1 - p^k)/(p^k*(1-p)) = "
+            f"{e_frames:.2f} frames\n"
+            f"R_streak_burn = (E[T] / stream_fps) x {v_closing:.1f} m/s = "
+            f"UNKNOWN -- stream_fps NOT SUPPLIED\n"
+            f"t_go = (R_decode90 {r90:.2f} m - R_streak_burn ?) / {v_closing:.1f} m/s "
+            f"= UNCOMPUTABLE\n"
+            f"gate: -> {verdict} ({'fps-independent' if r90 <= 0 else 'needs the fps measurement'})"
+        ) if math.isfinite(e_frames) else (
+            f"decode_rate p = {decode_rate:.3f} -> streak never forms -> {verdict}")
+        return {
+            "verdict": verdict, "reason": reason,
+            "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
+            "decode_rate": round(decode_rate, 4), "decode_Hz": None,
+            "streak_burn_model": "run-length (ADR-0079)",
+            "E_streak_frames": round(e_frames, 3) if math.isfinite(e_frames) else None,
+            "R_streak_burn_m": None, "R_streak_burn_meanrate_m": None,
+            "t_go_s": None,
+            "V_closing_mps": v_closing, "tgo_min_s": tgo_min,
+            "handoff_streak": streak_n, "stream_fps": None,
+            "arithmetic": arithmetic,
+        }
 
     arithmetic = (
         f"decode_rate p = {decode_rate:.3f}  (streak k = {streak_n})\n"
@@ -694,7 +898,8 @@ SMALL_N_CAVEAT = (
 
 
 def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
-                  n_unbinnable, bin_m):
+                  n_unbinnable, bin_m, fps_source=None, quality=None,
+                  range_truth=None):
     L = []
     L.append("=" * 70)
     L.append("TRIPOD TWO-CURVE SCORE — build_plan P2 / docs/tripod_test_protocol.md")
@@ -706,6 +911,17 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
         if shown:
             L.append(f"session meta: {shown}")
     L.append(f"frames binned by true range: {n_binnable}  (unbinnable/skipped: {n_unbinnable})")
+    if quality:
+        L.append(f"range-truth quality (range_truth_join): {quality}")
+    if range_truth:
+        L.append(f"range truth: {range_truth.get('n_true_range_written')} frames from "
+                 f"{range_truth.get('track_source')} @ clock offset "
+                 f"{range_truth.get('clock_offset_s')} s "
+                 f"[{range_truth.get('clock_offset_source')}], median sigma "
+                 f"{range_truth.get('range_sigma_median_m')} m")
+        for w in range_truth.get("warnings", []):
+            L.append(f"  [WARN] {w}")
+    L.append(f"stream fps source: {fps_source or 'NOT SUPPLIED'}")
     L.append("")
     L.append("--- CURVE (a): AprilTag decode envelope ---")
     L.append(f"  {'range(m)':<10}{'decode%':>9}{'n_dec':>8}{'n_tot':>8}")
@@ -741,32 +957,73 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
 # --------------------------------------------------------------------------
 # Driver
 # --------------------------------------------------------------------------
+def resolve_stream_fps(args, meta):
+    """(stream_fps or None, human-readable source). NO DEFAULT -- see the module
+    docstring: the burn scales as 1/fps and the verdict flips across ~24 fps at
+    the predicted R_decode90, so an invented rate would decide ~$740.
+
+    Accepted, in order: (1) an explicit --stream-fps (the one-line override for a
+    bench-measured number, protocol §7.3); (2) meta.json `stream_fps` -- UNLESS
+    `stream_fps_source` says it came from pi_capture's dir-REPLAY backend, whose
+    timestamps are synthetic and therefore not a capture-rate measurement."""
+    if getattr(args, "stream_fps", None) is not None:
+        return float(args.stream_fps), "--stream-fps (explicit; bench-measured, protocol §7.3)"
+    fps = _pf(meta.get("stream_fps"))
+    src = str(meta.get("stream_fps_source") or "").strip()
+    if fps is not None and fps > 0:
+        if FPS_SOURCE_REJECT_MARK in src.lower():
+            return None, (f"REJECTED meta.json stream_fps={fps} — stream_fps_source="
+                          f"'{src}' is not a capture-rate measurement")
+        return fps, f"meta.json stream_fps ({src or 'source unspecified'})"
+    return None, ("NOT SUPPLIED — no --stream-fps and no meta.json stream_fps "
+                  "(pi_capture records it from real capture timestamps; bench it "
+                  "per protocol §7.3)")
+
+
 def run(args):
-    frames, index_map, meta, tags_map = load_session(args.session_dir)
+    frames, index_map, meta, tags_map = load_session(
+        args.session_dir, ignore_tags_csv=getattr(args, "redecode", False))
     calib = load_calib(args.calib)
 
     tag_size = args.tag_size if args.tag_size is not None else \
         _pf(meta.get("tag_size_m")) or DEFAULT_TAG_SIZE_M
-    stream_fps = args.stream_fps if args.stream_fps is not None else \
-        _pf(meta.get("stream_fps")) or DEFAULT_STREAM_FPS
+    stream_fps, fps_source = resolve_stream_fps(args, meta)
     v_close = args.closing_speed if args.closing_speed is not None else \
         _pf(meta.get("closing_speed_mps")) or DEFAULT_V_CLOSING_MPS
     drone_size = args.drone_size if args.drone_size is not None else \
         _pf(meta.get("drone_size_m")) or DEFAULT_DRONE_SIZE_M
+    accept_quality = ({"ok"} if getattr(args, "require_quality", "any") == "ok"
+                      else None)
 
     os.makedirs(args.out_dir, exist_ok=True)
     tag = args.tag or os.path.basename(os.path.normpath(args.session_dir))
     outp = os.path.join(args.out_dir, tag)
     os.makedirs(outp, exist_ok=True)
 
+    # Provenance of the TRUE ranges, if range_truth_join wrote one.
+    range_truth = None
+    rtp = os.path.join(args.session_dir, "range_truth.json")
+    if os.path.exists(rtp):
+        try:
+            range_truth = json.loads(open(rtp).read())
+        except (ValueError, OSError):
+            range_truth = None
+
     # Curve (a)
+    if tags_map is not None and not getattr(args, "redecode", False):
+        print("[tripod] NOTE: reusing the session's tags.csv. If it is "
+              "pi_capture's CAPTURE-TIME decode, protocol §6 asks for an OFFLINE "
+              "re-decode instead (decouples capture from detector) -- use "
+              "--redecode.")
     decode = decode_frames(frames, calib, tag_size, tags_map=tags_map)
     if tags_map is None:
         write_tags_csv(os.path.join(outp, "tags.csv"), frames, decode)
     bins, r_any, r90, acc, n_binnable, n_unbinnable = curve_a(
-        frames, decode, index_map, args.range_bin, args.max_range)
+        frames, decode, index_map, args.range_bin, args.max_range,
+        accept_quality=accept_quality)
     n_decoded = sum(1 for _, b in frames if decode[b][0])
     have_truth = n_binnable > 0
+    quality = quality_summary(frames, index_map)
 
     d_rate = decode_rate_near(bins, r90, args.range_bin)
     gate = gate_verdict(r90, r_any, d_rate, stream_fps, args.handoff_streak,
@@ -820,13 +1077,17 @@ def run(args):
     b_note = "\n".join(b_note_lines)
 
     summary = build_summary(gate, gate_hi, bins, b_note, meta, n_binnable,
-                            n_unbinnable, args.range_bin)
+                            n_unbinnable, args.range_bin, fps_source=fps_source,
+                            quality=quality, range_truth=range_truth)
     with open(os.path.join(outp, "verdict.txt"), "w") as f:
         f.write(summary + "\n")
     with open(os.path.join(outp, "gate.json"), "w") as f:
         json.dump({"conservative": gate, "aggressive": gate_hi,
                    "tag_size_m": tag_size, "drone_size_m": drone_size,
                    "n_decoded": n_decoded, "n_binnable": n_binnable,
+                   "stream_fps": stream_fps, "stream_fps_source": fps_source,
+                   "range_quality_counts": quality,
+                   "range_truth_provenance": range_truth,
                    # curve (b) provenance: which model produced which recall number.
                    # Curve (b) gates ONLY the Hailo/markerless phase (protocol §8.2).
                    "curve_b_models": [
@@ -888,8 +1149,13 @@ def _build_synth_session(out_dir):
     with open(os.path.join(out_dir, "calib.json"), "w") as f:
         json.dump(calib, f)
     with open(os.path.join(out_dir, "meta.json"), "w") as f:
+        # stream_fps is a MEASUREMENT in a real session; the self-test stands in
+        # the protocol §7.3 paper anchor and LABELS it as a stand-in, so the
+        # no-invented-fps rule stays visible here too.
         json.dump(dict(tag_size_m=tag_size, drone_size_m=DEFAULT_DRONE_SIZE_M,
-                       stream_fps=DEFAULT_STREAM_FPS, aspect="approach"), f)
+                       stream_fps=PI5_APRILTAG_FPS_PAPER_ANCHOR,
+                       stream_fps_source="self-test stand-in (protocol §7.3 paper anchor)",
+                       aspect="approach"), f)
     return near, far
 
 
@@ -933,6 +1199,31 @@ def self_test():
     print(f"[self-test] no-truth -> {g4['verdict']} : {'OK' if c4 else 'FAIL'}")
     ok = ok and c4
 
+    # UNCERTAIN: NO stream_fps supplied -> the gate must NOT invent 30 fps
+    # (2026-07-24). Same optical data, three rates, three different answers.
+    g6 = gate_verdict(8.0, 8.0, 0.9, None, 5, 9.0, 0.5, n_decoded=40)
+    c6a = (g6["verdict"] == "UNCERTAIN" and "stream_fps" in g6["reason"]
+           and g6["t_go_s"] is None and g6["stream_fps"] is None)
+    print(f"[self-test] no-fps -> {g6['verdict']} (t_go={g6['t_go_s']}) : "
+          f"{'OK' if c6a else 'FAIL'}")
+    ok = ok and c6a
+    # The flip itself, at the PREDICTED R_decode90 for the adopted 0.35 m
+    # placard (7.10 m, docs/placard_sizing.md §4): 30 fps PASS vs 20 Hz FAIL.
+    g30 = gate_verdict(7.10, 7.10, 0.9, 30.0, 5, 9.0, 0.5, n_decoded=40)
+    g20 = gate_verdict(7.10, 7.10, 0.9, 20.0, 5, 9.0, 0.5, n_decoded=40)
+    c6b = g30["verdict"] == "PASS" and g20["verdict"] == "FAIL"
+    print(f"[self-test] fps FLIPS the $740 gate at R90=7.10 m: 30 fps t_go="
+          f"{g30['t_go_s']} -> {g30['verdict']} | 20 Hz t_go={g20['t_go_s']} -> "
+          f"{g20['verdict']} : {'OK' if c6b else 'FAIL'}")
+    ok = ok and c6b
+    # An fps-INDEPENDENT verdict must still come out: R_decode90=0 with sparse
+    # decodes is FAIL on decode evidence alone.
+    g0 = gate_verdict(0.0, 5.0, 0.4, None, 5, 9.0, 0.5, n_decoded=40)
+    c6c = g0["verdict"] == "FAIL"
+    print(f"[self-test] fps-independent leg (R90=0, no fps) -> {g0['verdict']} : "
+          f"{'OK' if c6c else 'FAIL'}")
+    ok = ok and c6c
+
     print("[self-test] --- part 2: end-to-end curve (a) on a synthetic session ---")
     with tempfile.TemporaryDirectory() as td:
         sess = os.path.join(td, "synthA")
@@ -970,10 +1261,10 @@ def self_test():
         # (iii) end-to-end gate arithmetic matches the pure function on this
         # session, and R_decode90 landed at the near/far boundary (~8 m).
         d_rate = decode_rate_near(bins, r90, 2.0)
-        g5 = gate_verdict(r90, r_any, d_rate, DEFAULT_STREAM_FPS,
+        g5 = gate_verdict(r90, r_any, d_rate, PI5_APRILTAG_FPS_PAPER_ANCHOR,
                           DEFAULT_HANDOFF_STREAK, DEFAULT_V_CLOSING_MPS,
                           DEFAULT_TGO_MIN_S, n_decoded=sum(1 for _, b in frames if decode[b][0]))
-        ref = gate_verdict(r90, r_any, d_rate, DEFAULT_STREAM_FPS,
+        ref = gate_verdict(r90, r_any, d_rate, PI5_APRILTAG_FPS_PAPER_ANCHOR,
                            DEFAULT_HANDOFF_STREAK, DEFAULT_V_CLOSING_MPS,
                            DEFAULT_TGO_MIN_S, n_decoded=999)
         c5 = (r90 >= 6.0 and abs(g5["t_go_s"] - ref["t_go_s"]) < 1e-9 and
@@ -1022,6 +1313,48 @@ def self_test():
         print(f"[self-test] run() artifacts {dict(zip(want, made))} : {'OK' if c7 else 'FAIL'}")
         ok = ok and c7
 
+        # (vi) THE SCHEMA JOIN (2026-07-24 defect): a REAL pi_capture index.csv
+        # keys frames by `frame_path` / `frame_idx`, not `frame`/`filename`/
+        # `name`. Before this fix none of them bound, index_map came out empty,
+        # and every session scored n_binnable=0 -> UNCERTAIN. End-to-end proof:
+        # tests/test_tripod_pipeline_join.py.
+        bases = ["000000", "000001", "000002"]
+        bset = set(bases)
+        c8 = (_row_frame_key({"frame_path": "frames/000001.png"}, bset, bases) == "000001"
+              and _row_frame_key({"frame_idx": "2"}, bset, bases) == "000002"
+              and _row_frame_key({"frame": "000000.png"}, bset, bases) == "000000"
+              and _row_frame_key({"nothing": "x"}, bset, bases) is None)
+        print(f"[self-test] pi_capture schema keys (frame_path / frame_idx / legacy "
+              f"frame) all bind : {'OK' if c8 else 'FAIL'}")
+        ok = ok and c8
+        # pi_capture's tags.csv schema (n_tags / range_m / center_u|v) reads as a
+        # decode; multi-row frames collapse to the NEAREST tag.
+        pc_tags = {"000000": {"frame_idx": "0", "frame_path": "frames/000000.png",
+                              "n_tags": "1", "tag_id": "7", "center_u": "640.0",
+                              "center_v": "400.0", "range_m": "5.2500"}}
+        dec_pc = decode_frames([("/x/000000.png", "000000")],
+                               (600.0, 600.0, 640.0, 400.0, 1280, 800, np.zeros(5)),
+                               0.3, tags_map=pc_tags, quiet=True)["000000"]
+        merged = _merge_tag_rows({"range_m": "9.0"}, {"range_m": "4.0"})
+        c9 = (dec_pc[0] is True and abs(dec_pc[1] - 5.25) < 1e-6
+              and dec_pc[2] == 640.0 and dec_pc[3] == 400.0
+              and _tag_row_range(merged) == 4.0)
+        print(f"[self-test] pi_capture tags.csv schema decodes ({dec_pc}) + nearest-tag "
+              f"merge : {'OK' if c9 else 'FAIL'}")
+        ok = ok and c9
+        # range_truth_join quality flags are honoured: an `extrapolated` frame is
+        # NEVER binnable even if a stale range sits in the row.
+        imap = {"f1": {"true_range_m": "12.0", "range_quality": "ok"},
+                "f2": {"true_range_m": "12.0", "range_quality": "extrapolated"},
+                "f3": {"true_range_m": "12.0", "range_quality": "gap"}}
+        c10 = (truth_range_for("f1", imap) == 12.0
+               and truth_range_for("f2", imap) is None
+               and truth_range_for("f3", imap) == 12.0
+               and truth_range_for("f3", imap, accept_quality={"ok"}) is None)
+        print(f"[self-test] range_quality gating (extrapolated dropped; "
+              f"--require-quality ok strict) : {'OK' if c10 else 'FAIL'}")
+        ok = ok and c10
+
     print(f"[self-test] {'PASS' if ok else 'FAIL'}")
     return ok
 
@@ -1055,8 +1388,21 @@ def main():
     ap.add_argument("--closing-speed-hi", type=float, default=DEFAULT_V_CLOSING_HI_MPS,
                     help=f"aggressive closing speed m/s (context only, default {DEFAULT_V_CLOSING_HI_MPS}, protocol §8.1)")
     ap.add_argument("--stream-fps", type=float, default=None,
-                    help=f"capture/decode stream fps for the streak burn; default meta.json/"
-                         f"{DEFAULT_STREAM_FPS} (protocol §7.3 AprilTag ~30 fps CPU)")
+                    help="MEASURED capture/decode stream fps for the streak burn. "
+                         "REQUIRED unless the session's meta.json carries a measured "
+                         "stream_fps -- there is deliberately NO default: the verdict "
+                         f"flips across ~24 fps at the predicted R_decode90 (the "
+                         f"{PI5_APRILTAG_FPS_PAPER_ANCHOR:.0f} fps in protocol §7.3 is a "
+                         "PAPER anchor to be bench-measured, and the flight loop runs "
+                         "20 Hz). Without it the gate returns UNCERTAIN.")
+    ap.add_argument("--require-quality", choices=("any", "ok"), default="any",
+                    help="which range_truth_join `range_quality` flags may be binned: "
+                         "'any' (default: ok+gap+low_fix; extrapolated/no_frame_time are "
+                         "ALWAYS dropped) or 'ok' (strict)")
+    ap.add_argument("--redecode", action="store_true",
+                    help="ignore the session's tags.csv and re-decode the frames "
+                         "offline (what protocol §6 actually asks for -- do not rely "
+                         "on pi_capture's capture-time decode)")
     ap.add_argument("--handoff-streak", type=int, default=DEFAULT_HANDOFF_STREAK,
                     help=f"consecutive detections to form a handoff (default {DEFAULT_HANDOFF_STREAK}, NEXT.md R5)")
     ap.add_argument("--tgo-min", type=float, default=DEFAULT_TGO_MIN_S,

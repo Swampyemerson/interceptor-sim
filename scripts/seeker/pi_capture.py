@@ -51,11 +51,24 @@ layout, so keep it stable):
       t_mono_s      monotonic capture time, seconds (time.monotonic; for the dir
                     replay backend this is synthetic = frame_idx / --replay-fps)
       t_wall_unix   wall-clock UNIX time, seconds (float) — the axis that lines
-                    up with the target's ULog for §6.1 time-sync; blank for the
-                    dir replay backend
+                    up with the target's ULog/.BIN for §6.1 time-sync; blank for
+                    the dir replay backend. scripts/seeker/range_truth_join.py
+                    consumes exactly this column (+ a surveyed tripod position +
+                    the target's flight log) to write the per-frame
+                    `true_range_m` the tripod scorer bins on; without it a
+                    session CANNOT be scored, so a field capture must use the
+                    picamera2/v4l2 backend, not dir replay.
       exposure_us   exposure ACTUALLY APPLIED, microseconds (blank if the backend
                     can't report it, e.g. dir replay)
       gain          analogue gain ACTUALLY APPLIED (blank if unavailable)
+
+    meta.json also records the MEASURED capture rate — `stream_fps` (median
+    inter-frame dt), `stream_fps_p10_slow_tail` (the worst-decile rate, the
+    honest input for a purchase gate on a throttling Pi) and
+    `stream_fps_source`. The tripod money gate REFUSES to invent a frame rate
+    (its streak burn goes as 1/fps and the ~$740 verdict flips across ~24 fps at
+    the predicted decode range), so this measurement is load-bearing. A
+    dir-replay session publishes NO stream_fps — its timestamps are synthetic.
 
     tags.csv columns (only written when --decode-tags):
       frame_idx, frame_path, n_tags, tag_id, decision_margin, hamming,
@@ -324,6 +337,32 @@ def iter_picamera2(cv2, w, h, exposure_us, gain, n_frames, duration):
 # Session recorder — consumes a backend's Frame stream, writes the layout
 # --------------------------------------------------------------------------
 
+def _fps_stats(t_monos):
+    """(median fps, 10th-percentile-SLOW fps, median frame dt) from the capture
+    timestamps, or (None, None, None) with <3 frames.
+
+    WHY THIS IS RECORDED (2026-07-24): the tripod money gate's streak burn is
+    `(E[T] / stream_fps) x V_closing`, so the capture rate moves the ~$740
+    verdict directly -- at the predicted R_decode90 (7.10 m) the gate PASSES at
+    30 fps and FAILS at 20 Hz. tripod_score.py therefore refuses to assume a
+    rate; this is where the real number comes from. The p10 SLOW-tail rate is
+    reported too because a thermally-throttled Pi's worst decile is the honest
+    input for a purchase gate (constraint `pi5-emulation-gap`)."""
+    if not t_monos or len(t_monos) < 3:
+        return None, None, None
+    ts = sorted(float(t) for t in t_monos)
+    dts = [b - a for a, b in zip(ts, ts[1:]) if b > a]
+    if not dts:
+        return None, None, None
+    dts.sort()
+    n = len(dts)
+    med = dts[n // 2] if n % 2 else 0.5 * (dts[n // 2 - 1] + dts[n // 2])
+    slow_dt = dts[min(n - 1, int(round(0.9 * (n - 1))))]   # 90th-pct dt = p10 fps
+    return (round(1.0 / med, 3) if med > 0 else None,
+            round(1.0 / slow_dt, 3) if slow_dt > 0 else None,
+            round(med, 6))
+
+
 def _git_rev():
     try:
         return subprocess.check_output(
@@ -348,6 +387,7 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
 
     detector = _make_detector() if decode_tags else None
     applied_exps, applied_gains = [], []
+    t_monos = []   # for the MEASURED stream_fps (see _fps_stats)
     n = 0
     n_tag_frames = 0
     actual_w, actual_h = w, h  # overwritten with the real saved-frame shape below
@@ -376,6 +416,8 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                 f"{fr.exposure_us:.1f}" if fr.exposure_us is not None else "",
                 f"{fr.gain:.4f}" if fr.gain is not None else "",
             ])
+            if fr.t_mono is not None:
+                t_monos.append(float(fr.t_mono))
             if fr.exposure_us is not None:
                 applied_exps.append(float(fr.exposure_us))
             if fr.gain is not None:
@@ -400,6 +442,19 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
         return s[m] if len(s) % 2 else 0.5 * (s[m - 1] + s[m])
 
     applied_exp_med = _median(applied_exps)
+    fps_med, fps_slow, dt_med = _fps_stats(t_monos)
+    live = source in ("picamera2", "v4l2")
+    if live and fps_med:
+        fps_out, fps_src = fps_med, "measured: median inter-frame dt (t_mono_s)"
+    elif fps_med:
+        # The dir-REPLAY backend stamps SYNTHETIC timestamps (frame_idx /
+        # --replay-fps), so its cadence is not a capture-rate measurement. Report
+        # it, but never as `stream_fps` -- the tripod gate refuses a `replay`
+        # source outright (tripod_score.resolve_stream_fps).
+        fps_out, fps_src = None, ("replay-synthetic (NOT a capture-rate "
+                                  f"measurement; synthetic {fps_med:.2f} fps)")
+    else:
+        fps_out, fps_src = None, "unavailable (too few timestamped frames)"
     meta = {
         "session": run_tag,
         "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -417,6 +472,14 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                             ("replay-unknown" if source == "dir" else "unavailable")),
         "requested_gain": float(requested_gain),
         "applied_gain": _median(applied_gains),
+        # MEASURED capture rate -- the tripod money gate consumes this
+        # (tripod_score.resolve_stream_fps) and REFUSES to invent one, because
+        # R_streak_burn = (E[T]/stream_fps) x V_closing flips the ~$740 verdict
+        # across ~24 fps at the predicted R_decode90 (tripod_score docstring).
+        "stream_fps": fps_out,
+        "stream_fps_source": fps_src,
+        "stream_fps_p10_slow_tail": fps_slow,   # conservative rate for the gate
+        "frame_dt_median_s": dt_med,
         "exposure_spec_us": EXPOSURE_SPEC_US,
         "exposure_meets_spec": (None if applied_exp_med is None
                                 else bool(applied_exp_med <= EXPOSURE_SPEC_US)),
@@ -589,6 +652,16 @@ def self_test():
     check(meta["applied_exposure_us"] is None
           and meta["exposure_source"] == "replay-unknown",
           "dir backend: applied exposure null, source=replay-unknown")
+    # stream_fps is a MEASUREMENT the tripod money gate consumes. The dir-replay
+    # backend's timestamps are synthetic, so it must NOT publish one (the gate
+    # refuses a `replay` source outright -- tripod_score.resolve_stream_fps).
+    check(meta["stream_fps"] is None
+          and "replay" in str(meta["stream_fps_source"]).lower(),
+          f"dir backend: stream_fps null, source={meta['stream_fps_source']!r} "
+          f"(synthetic cadence is never a capture-rate measurement)")
+    check(_fps_stats([0.0, 0.05, 0.10, 0.15, 0.20])[0] == 20.0
+          and _fps_stats([0.0, 0.05])[0] is None,
+          "_fps_stats: 20 Hz timestamps -> 20.0 fps; <3 frames -> None")
 
     # --- tags.csv (the decode actually ran on real pixels) ---
     with open(os.path.join(session, "tags.csv")) as f:
