@@ -39,6 +39,19 @@ item, L1).
 Every failsafe is a GUARDED, LOGGED transition into SAFE. There is no path that
 "continues blindly".
 
+POST-GO OFFBOARD LOSS (FAILSAFE 7, builder decision #22): after the GO edge the
+RF link may die freely (that is the whole no-datalink claim), but the OFFBOARD
+CONTROL PATH may not. If PX4 leaves OFFBOARD -- or the flight-mode sample that
+claims it is IN OFFBOARD goes stale, i.e. we no longer KNOW -- during
+CODED_DASH/ENGAGE/BREAKOFF, the machine goes SAFE. Two reasons, both about
+props-on hazard: (1) while PX4 is out of OFFBOARD our setpoints are not being
+flown, so every guard downstream of them (the dash bound, breakoff, the terminal)
+is scoring a flight that is not happening; (2) SAFE is ABSORBING, so when the
+pilot hands OFFBOARD back the vehicle receives a ZERO-velocity hold + a land
+request -- NOT a live, half-ramped dash command that would fire the moment
+control returns. Link-loss and OFFBOARD-loss are deliberately opposite policies:
+one is expected and ignored, the other is a control-path failure and aborts.
+
 COMPOSITION (this file adds a state machine and NOTHING else)
 ------------------------------------------------------------
   * the terminal            -> flight.deploy.seeker_loop.SeekerGuidance (imported)
@@ -251,6 +264,30 @@ class MissionConfig:
     breakoff_arm_range_m: float = 4.0      # arms past-CPA logic (m4 FPV profile)
     breakoff_range_increases: int = 3
     breakoff_range_deadband_m: float = 0.05
+    # MAGNITUDE guard on the past-CPA breakoff -- the missing half of the count
+    # guard, ported from scripts/m4_intercept.py (`--breakoff-min-rise-m`). The
+    # count alone fires on N tiny rises, i.e. on a SLOW DRIFT of the range
+    # estimate; this requires the total rise from the BASE of the rising run to
+    # clear a real distance before "past CPA" is believed.
+    #
+    # DERIVATION of the 0.30 m default (sim-derived; TODO-BUILDER, see below).
+    # Range comes from the known-size span: r = fx*span/w_px, so one pixel of
+    # box-width noise moves the estimate by dr = r/w = r^2/(fx*span). At the
+    # breakoff ARM range (4 m) with fx=540 px and span~0.36 m, w~49 px and
+    # dr~0.08 m/px, so a 2-3 px box wobble can drift ~0.16-0.25 m -- which is
+    # exactly the "slow drift fires breakoff" hazard. 0.30 m sits above that and
+    # far below a true post-CPA recession (>=0.1 m per fresh detection even at
+    # the 2 m/s bottom rung of the kill-day ladder, i.e. >=0.3 m over the 3
+    # required rises, and metres at the 9 m/s rung). NOTE the count guard alone
+    # already implies deadband*increases = 0.15 m, so anything <=0.15 would be
+    # VACUOUS -- 0.30 m is the first value that actually bites.
+    # TODO-BUILDER: re-derive from the OV9281 intrinsics (bench L4) and the
+    # MEASURED box-width noise of the deployed detector (bench L5); until then
+    # this is a sim-geometry estimate, not a measured one.
+    breakoff_min_rise_m: float = 0.30
+    # m4's `--breakoff-max-range-m` twin. INERT by default (None), kept so this
+    # config matches the sim's contract knob-for-knob.
+    breakoff_max_range_m: Optional[float] = None
     breakoff_hard_floor_m: float = 0.5
     breakoff_s: float = 1.5
     breakoff_climb_ms: float = 1.0
@@ -272,6 +309,36 @@ class MissionConfig:
     engage_track_broken_ticks: int = 3
     require_low_before_go: bool = True     # a switch HIGH at boot is NEVER a GO
     safe_hold_s: float = 2.0               # hold in SAFE before the driver lands
+
+    # --- FAILSAFE 7: POST-GO OFFBOARD LOSS (builder decision #22) --------------
+    # The RF LINK may die after GO (expected, ignored -- constraint no-datalink).
+    # The OFFBOARD CONTROL PATH may not: if PX4 is not flying our setpoints, the
+    # dash is not happening, and a live mid-ramp command must not be waiting to
+    # execute when the pilot hands control back. Both arms -> SAFE.
+    require_offboard_after_go: bool = True   # NEVER set False for a props-on flight
+    # ARM 1 (mode loss): how long `offboard_active is not True` may PERSIST after
+    # the GO edge before aborting. Not zero, because one dropped/late telemetry
+    # sample must not end an engagement.
+    # SIM-DERIVED DEFAULT, TODO-BUILDER: 0.5 s is PX4's own OFFBOARD setpoint
+    # timeout (COM_OF_LOSS_T family / the ~0.5 s stream gap that drops the mode),
+    # so it is the shortest bound that cannot fire on a healthy vehicle. At the
+    # 16 m/s dash that is ~8 m of un-flown travel -- size it DOWN once the real
+    # flight_mode cadence is measured on the Pi (bench L3/L6).
+    offboard_lost_s: float = 0.5
+    # ARM 2 (stale knowledge): `offboard_active` is a value in a dict fed by a
+    # telemetry subscriber. If that subscriber dies the value FREEZES at True and
+    # arm 1 can never fire -- the exact silent-failure shape this project keeps
+    # hitting (the driver already prints "an own-state stream is now FROZEN").
+    # So an offboard sample older than this is treated as LOSS, not as health.
+    # None disables the arm (arm 1 still stands).
+    # MEASURED (not assumed): the MAVSDK flight_mode stream arrives at the ~1 Hz
+    # heartbeat rate -- max observed sample age 1.00 s over a full 328-tick
+    # mission (logs/real_flight_sitl_20260725T200929Z.csv, offb_age_s column;
+    # scripts/check_real_flight_sitl.sh PASS 2026-07-25). 3.0 s is 3x that.
+    # TODO-BUILDER: re-measure on the REAL Pi->TELEM2 link (bench L3/L6) -- the
+    # driver PRINTS the max observed age every run -- and if the real stream
+    # turns out to be on-change-only, set this to None and rely on arm 1.
+    offboard_stale_s: Optional[float] = 3.0
 
     # --- vertical / hold control ----------------------------------------------
     kp_alt: float = 1.0
@@ -320,6 +387,12 @@ class VehicleObs:
     # which the arm gate treats as FAIL (it tests `is not True`). It is NOT
     # "offboard.start() returned OK" -- those are different facts.
     offboard_active: Optional[bool] = None
+    # Age (s) of the flight-mode sample that produced `offboard_active`. FAILSAFE
+    # 7 arm 2 reads it: a frozen subscriber leaves `offboard_active` pinned at its
+    # last value forever, and only its AGE can say so. None = the driver did not
+    # supply it (arm 2 inactive); a NEGATIVE value is a clock-base fault and is
+    # treated as loss, exactly like TriggerState.clock_fault.
+    offboard_sample_age_s: Optional[float] = None
     mode: Optional[str] = None                  # PX4 flight mode name (log only)
     alt_m: Optional[float] = None               # relative altitude (own EKF)
     yaw_deg: Optional[float] = None             # own EKF yaw
@@ -406,21 +479,52 @@ def update_acquire_streak(streak: int, new_meas: bool,
     return streak + 1 if range_ok else 0
 
 
+def update_range_increase_streak(streak: int, last_fresh_range: Optional[float],
+                                 streak_start_range: Optional[float],
+                                 meas_range: float, deadband: float):
+    """Past-CPA range-INCREASE streak with a noise deadband AND the streak BASE.
+
+    CONTRACT-IDENTICAL to `scripts/m4_intercept.update_range_increase_streak` --
+    same name, same signature, same branches, so the two can be fuzzed against
+    each other case-for-case (the executor may not IMPORT the sim module: that is
+    a honesty-audit violation, `_FORBIDDEN_IMPORT_ROOTS`).
+
+    Returns (streak, last_fresh_range, streak_start_range).
+
+      * a RISE (meas > last_fresh + deadband) advances the streak, and on the
+        FIRST rise of a run records `streak_start_range` = the range at the BASE
+        of that run -- which is what makes a MAGNITUDE test possible at all,
+      * a within-deadband CREEP holds the streak WITHOUT advancing the baseline
+        (quantization jitter cannot ratchet a false streak),
+      * a genuine DROP resets both the streak and the base.
+
+    PORTED 2026-07-25 (audit reader 1 / completeness): the executor previously
+    carried the COUNT half only, so N tiny rises -- a slow drift of the range
+    estimate -- could fire breakoff on the real aircraft while the sim-validated
+    twin would not. The base returned here feeds `cfg.breakoff_min_rise_m` in
+    `_step_engage`; that pair IS the ported guard."""
+    if last_fresh_range is None:
+        return 0, meas_range, None
+    if meas_range > last_fresh_range + deadband:
+        if streak == 0:
+            streak_start_range = last_fresh_range
+        return streak + 1, meas_range, streak_start_range
+    if meas_range > last_fresh_range:
+        # within-deadband creep: hold streak, keep the last SIGNIFICANT range
+        return streak, last_fresh_range, streak_start_range
+    return 0, meas_range, None
+
+
 def update_recede_streak(streak: int, last_range: Optional[float],
                          meas_range: float, deadband: float):
-    """Past-CPA range-INCREASE streak with a noise deadband. Mirrors
-    `scripts/m4_intercept.update_range_increase_streak` minus its
-    streak_start_range magnitude check (TODO-BUILDER: port that check before a
-    real terminal flies -- it is what stops a slow drift from firing breakoff).
-
-    Returns (streak, last_range)."""
-    if last_range is None:
-        return 0, meas_range
-    if meas_range > last_range + deadband:
-        return streak + 1, meas_range
-    if meas_range > last_range:
-        return streak, last_range        # within-deadband creep: hold
-    return 0, meas_range
+    """BACK-COMPAT 2-tuple view of `update_range_increase_streak` (streak,
+    last_range) -- the streak/baseline halves are element-for-element identical;
+    only the streak BASE is dropped. Kept because it is the published signature
+    (flight/tests/test_real_flight.py); the state machine calls the 3-tuple form,
+    because the base is what the magnitude guard needs."""
+    s, last, _ = update_range_increase_streak(streak, last_range, None,
+                                              meas_range, deadband)
+    return s, last
 
 
 def resolve_preflight_heading(target_start, target_vel, dash_speed,
@@ -513,6 +617,12 @@ class RealFlightSM:
         self._breakoff_armed = False
         self._recede_streak = 0
         self._recede_last_range: Optional[float] = None
+        self._recede_start_range: Optional[float] = None   # base of the rising run
+        self._breakoff_held_logged = False   # "count met, magnitude short" said once
+        # FAILSAFE 7: when `offboard_active` first stopped reading True (None =
+        # it is reading True right now). Persistence, not a single bad tick.
+        self._offboard_bad_since: Optional[float] = None
+        self.max_offboard_sample_age_s: float = 0.0        # evidence for the log
         self._broken_streak = 0            # FAILSAFE 8 persistence counter
         self._flown_m = 0.0                # FAILSAFE 4: integrated EKF distance
         self._gs_last_t: Optional[float] = None
@@ -556,6 +666,59 @@ class RealFlightSM:
                 return True, "grace"       # RC stream has not started yet
             return False, "link_never_acquired"
         return False, "link_lost"
+
+    def offboard_status(self, obs: VehicleObs) -> Tuple[bool, str]:
+        """FAILSAFE 7 input (builder decision #22). Returns (ok, reason).
+
+        POLICY -- and note it is the OPPOSITE of link_status() on purpose:
+
+          * the RF LINK is monitored only BEFORE the GO edge (post-GO loss is the
+            jam-resistance deliverable, so it is ignored);
+          * the OFFBOARD CONTROL PATH is monitored only AFTER it (before the GO
+            edge the arm gate already refuses to dash without it).
+
+        Two arms, both -> SAFE, both conservative:
+          ARM 1  the vehicle is NOT in OFFBOARD (`offboard_active is not True`)
+                 for `offboard_lost_s` continuously. Our setpoints are not being
+                 flown; and because SAFE absorbs, handing OFFBOARD back cannot
+                 resume a half-ramped dash.
+          ARM 2  the flight-mode SAMPLE is older than `offboard_stale_s` (or has
+                 a physically impossible NEGATIVE age -> clock-base fault). A
+                 dead subscriber freezes `offboard_active` at True and would make
+                 arm 1 structurally unreachable, which is precisely the
+                 silent-failure shape this project keeps retracting results over.
+
+        Pure + public so the driver, the tests and a log reader can all ask it."""
+        cfg = self.cfg
+        if not cfg.require_offboard_after_go:
+            return True, "disabled"
+
+        age = obs.offboard_sample_age_s
+        if age is not None:
+            self.max_offboard_sample_age_s = max(self.max_offboard_sample_age_s,
+                                                 float(age))
+
+        # ARM 1 -- not in OFFBOARD, with persistence.
+        if obs.offboard_active is not True:
+            if self._offboard_bad_since is None:
+                self._offboard_bad_since = obs.t
+            held = obs.t - self._offboard_bad_since
+            if held >= cfg.offboard_lost_s:
+                return False, (f"mode={obs.mode or obs.offboard_active} for "
+                               f"{held:.2f}s >= {cfg.offboard_lost_s:.2f}s")
+            return True, "transient"
+        self._offboard_bad_since = None
+
+        # ARM 2 -- the sample that says "OFFBOARD" is stale (or impossible).
+        if age is not None:
+            if age < 0.0:
+                return False, (f"mode_sample_clock_fault(age={age:.2f}s < 0 -- "
+                               "producer and consumer are on different clocks)")
+            if cfg.offboard_stale_s is not None and age > cfg.offboard_stale_s:
+                return False, (f"mode_sample_stale({age:.2f}s > "
+                               f"{cfg.offboard_stale_s:.2f}s -- offboard_active "
+                               "is a FROZEN value, not a live one)")
+        return True, "ok"
 
     def arm_gate(self, obs: VehicleObs) -> Tuple[bool, List[str]]:
         """The Sec 4 arm gate: the Pi REFUSES to dash unless the aircraft is in a
@@ -687,6 +850,26 @@ class RealFlightSM:
                              f"mission_timeout({self.cfg.mission_max_s:.0f}s)",
                              obs, events)
             self.safe_reason = "mission_timeout"
+
+        # FAILSAFE 7 -- POST-GO OFFBOARD LOSS (builder decision #22). Checked for
+        # every post-GO state, BEFORE the state body, so no tick of dash/terminal
+        # logic runs on a flight the vehicle is not actually flying. STANDBY is
+        # excluded on purpose: there the arm gate already refuses to dash without
+        # OFFBOARD, and a pre-GO blip should cost a GO, not the aircraft.
+        if self.state in (State.CODED_DASH, State.ENGAGE, State.BREAKOFF):
+            offb_ok, offb_why = self.offboard_status(obs)
+            if not offb_ok:
+                self._last_obs_t = obs.t
+                self._transition(State.SAFE, f"offboard_lost({offb_why})",
+                                 obs, events)
+                self.safe_reason = "offboard_lost"
+                self._emit(f"[{obs.t:7.2f}s] FAILSAFE 7: the OFFBOARD control "
+                           f"path is gone after the GO edge -- SAFE is absorbing, "
+                           f"so the vehicle gets a ZERO-velocity hold + land "
+                           f"request if control returns, NOT the dash command",
+                           events)
+                return self._decide(before, transition_before,
+                                    self._safe_setpoint(obs), events, None)
 
         if self.state == State.STANDBY:
             sp = self._step_standby(obs, events)
@@ -883,19 +1066,51 @@ class RealFlightSM:
             r = obs.det_range_m
             if r < cfg.breakoff_arm_range_m:
                 self._breakoff_armed = True
-            self._recede_streak, self._recede_last_range = update_recede_streak(
-                self._recede_streak, self._recede_last_range, r,
-                cfg.breakoff_range_deadband_m)
+            (self._recede_streak, self._recede_last_range,
+             self._recede_start_range) = update_range_increase_streak(
+                self._recede_streak, self._recede_last_range,
+                self._recede_start_range, r, cfg.breakoff_range_deadband_m)
             if r <= cfg.breakoff_hard_floor_m:
                 self._transition(State.BREAKOFF, f"hard_floor({r:.2f} m)",
                                  obs, events)
                 return self._breakoff_setpoint(obs), tel
+            # PAST-CPA TRIGGER = COUNT **and** MAGNITUDE (ported from
+            # scripts/m4_intercept.py, audit reader 1). The count alone fires on
+            # N tiny rises -- a slow drift of the range estimate reads exactly
+            # like a real recession. `rise` is the total climb from the BASE of
+            # the current rising run and must clear `breakoff_min_rise_m`.
+            rise = (None if self._recede_start_range is None
+                    else r - self._recede_start_range)
+            rise_ok = (rise is None or rise >= cfg.breakoff_min_rise_m)
+            range_ok = (cfg.breakoff_max_range_m is None
+                        or r <= cfg.breakoff_max_range_m)
             if self._breakoff_armed and \
                     self._recede_streak >= cfg.breakoff_range_increases:
-                self._transition(State.BREAKOFF,
-                                 f"past_cpa({self._recede_streak} rising)",
-                                 obs, events)
-                return self._breakoff_setpoint(obs), tel
+                if rise_ok and range_ok:
+                    self._transition(
+                        State.BREAKOFF,
+                        f"past_cpa({self._recede_streak} rising, "
+                        f"+{0.0 if rise is None else rise:.2f} m from "
+                        f"{'?' if self._recede_start_range is None else f'{self._recede_start_range:.2f}'} m"
+                        f" >= min_rise {cfg.breakoff_min_rise_m:.2f} m)",
+                        obs, events)
+                    return self._breakoff_setpoint(obs), tel
+                # HELD, and SAID SO: a suppressed breakoff that is invisible in
+                # the log is indistinguishable from one that never armed. Once
+                # per rising run (reset below when the run breaks), not per tick.
+                if not self._breakoff_held_logged:
+                    self._breakoff_held_logged = True
+                    why = (
+                        f"rise +{0.0 if rise is None else rise:.2f} m < min_rise "
+                        f"{cfg.breakoff_min_rise_m:.2f} m (drift, not recession)"
+                        if not rise_ok else
+                        f"range {r:.2f} m > breakoff_max_range "
+                        f"{cfg.breakoff_max_range_m}")
+                    self._emit(f"[{obs.t:7.2f}s] past-CPA count met "
+                               f"({self._recede_streak} rising) but HELD: {why}",
+                               events)
+            elif self._recede_streak == 0:
+                self._breakoff_held_logged = False   # the rising run broke
 
         # FAILSAFE 5 -- the terminal lost the target and did not recover.
         if self._last_det_t is not None and \
@@ -1246,11 +1461,17 @@ def make_mode_subscriber(drone, state: dict):
     """The live OFFBOARD producer, as a factory so a test can drive it with a
     fake drone (the seam that had no test -- the consumer was parametrised, the
     producer did not exist). Sets state["offboard"] from TELEMETRY, never from
-    "we called offboard.start() once"."""
+    "we called offboard.start() once".
+
+    It also STAMPS each sample (`state["t_mode"]`, monotonic). FAILSAFE 7 arm 2
+    reads the age of that stamp: without it, a subscriber that dies leaves
+    `state["offboard"]` frozen at True and the mode-loss arm becomes structurally
+    unreachable -- the same freeze the driver's `_task_died` warning exists for."""
     async def _mode():
         async for m in drone.telemetry.flight_mode():
             state["offboard"] = is_offboard_mode(m)
             state["mode"] = str(getattr(m, "name", None) or m)
+            state["t_mode"] = time.monotonic()
     return _mode
 
 
@@ -1353,7 +1574,10 @@ def _has_latch_site(path: str) -> bool:
 # `_CSV_FIELDS` is the single source of truth -- header and row are built from it,
 # so the two halves cannot drift (the seam that broke elsewhere today).
 _CSV_FIELDS = (
-    "t_s", "state", "streak", "armed", "offboard", "mode", "alt_m", "yaw_deg",
+    # `offb_age_s` is FAILSAFE 7 arm 2's input: without it a log cannot tell
+    # "offboard=True, freshly sampled" from "offboard=True, frozen 40 s ago".
+    "t_s", "state", "streak", "armed", "offboard", "offb_age_s", "mode",
+    "alt_m", "yaw_deg",
     "trig_go", "trig_link", "trig_age_s", "trig_clock_fault", "trig_us",
     "det_new", "det_range_m",
     "v_north", "v_east", "v_down", "yaw_cmd_deg",
@@ -1391,7 +1615,8 @@ def _csv_row(obs: VehicleObs, dec: Decision) -> str:
     health = "" if tel is None else "|".join(getattr(tel, "health", []) or [])
     vals = [
         f"{obs.t:.3f}", dec.state, str(dec.streak), str(obs.armed),
-        str(obs.offboard_active), str(obs.mode or ""), f(obs.alt_m, 3),
+        str(obs.offboard_active), f(obs.offboard_sample_age_s, 2),
+        str(obs.mode or ""), f(obs.alt_m, 3),
         f(obs.yaw_deg, 2),
         str(int(bool(obs.trigger.go))), str(int(bool(obs.trigger.link_ok))),
         f(obs.trigger.age_s, 2), str(int(bool(obs.trigger.clock_fault))),
@@ -1549,7 +1774,7 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
     # standby_settle_s=2.0 means no GO is possible inside the first-sample window.
     state = {"quat": None, "psi": None, "alt": None, "armed": None,
              "landed": None, "offboard": None, "mode": None,
-             "t_quat": None, "gs": None}
+             "t_quat": None, "t_mode": None, "gs": None}
 
     async def _att_q():
         async for q in drone.telemetry.attitude_quaternion():
@@ -1708,8 +1933,16 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                     # branch is exercised too.
                     d = detector.detect(frame, t)
                     det_new, det_range, det_box = True, d.range_m, d.box_xywh
+                # FAILSAFE 7 arm 2 input: how old the flight-mode sample is, on
+                # the SAME clock base it was stamped with (absolute monotonic --
+                # mission time here would reproduce the RC clock-base defect, and
+                # offboard_status() treats a negative age as a hard fault).
+                _t_mode = state["t_mode"]
+                _offb_age = (None if _t_mode is None
+                             else time.monotonic() - _t_mode)
                 obs = VehicleObs(t=t, armed=state["armed"],
                                  offboard_active=state["offboard"],
+                                 offboard_sample_age_s=_offb_age,
                                  mode=state["mode"],
                                  alt_m=state["alt"], yaw_deg=state["psi"],
                                  quat=state["quat"],
@@ -1726,9 +1959,15 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                         print(f"[mavsdk] FAULT offboard_lost_after_go: PX4 flight "
                               f"mode is {state['mode']} at t={t:.2f}s in state "
                               f"{dec.state} -- the setpoints below this line were "
-                              f"NOT flown by the vehicle. (Policy: post-GO loss is "
-                              f"RECORDED, not aborted -- constraint no-datalink; "
-                              f"see the open ADR-0081 addendum.)")
+                              f"NOT flown by the vehicle. POLICY (FAILSAFE 7, "
+                              f"builder decision #22): the STATE MACHINE aborts to "
+                              f"SAFE once this persists {cfg.offboard_lost_s:.2f}s "
+                              f"(or the mode sample goes stale past "
+                              f"{cfg.offboard_stale_s}s), and SAFE is absorbing, so "
+                              f"restoring OFFBOARD hands the vehicle a zero-velocity "
+                              f"hold + land request rather than a live dash. This "
+                              f"is NOT the link failsafe: post-GO LINK loss is "
+                              f"still expected and ignored (constraint no-datalink).")
                 csv_rows.append(_csv_row(obs, dec))
                 sp = dec.setpoint
                 if args.dry_run:
@@ -1857,6 +2096,18 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
             rc_exit = 1
         print(f"[sitl-smoke] offboard_active was True on {n_off_true}/{n_tick} "
               f"ticks (telemetry-sourced, not latched)")
+        # THE MEASUREMENT that sizes FAILSAFE 7 arm 2 (cfg.offboard_stale_s is a
+        # TODO-BUILDER guess until this number exists on the real Pi). Printed
+        # every run so the bound is set from data, not from an assumed rate.
+        _max_age = sm.max_offboard_sample_age_s
+        print(f"[sitl-smoke] max flight_mode sample age observed: {_max_age:.2f}s "
+              f"(FAILSAFE 7 arm 2 bound = {cfg.offboard_stale_s}s; set the bound "
+              f"to ~5x the observed cadence, or None if the stream is "
+              f"on-change-only)")
+        if cfg.offboard_stale_s is not None and _max_age > 0.5 * cfg.offboard_stale_s:
+            print(f"[sitl-smoke] WARNING: the observed mode-sample age is within "
+                  f"2x of the FAILSAFE 7 staleness bound -- raise "
+                  f"--offboard-stale-s or a healthy flight will abort")
         print(f"[sitl-smoke] {'PASS' if rc_exit == 0 else 'FAIL'} "
               f"({n_sp} setpoints, dash heading "
               f"{sm.dash_heading.value if sm.dash_heading.is_set else 'unset'})")
@@ -1971,6 +2222,82 @@ def self_test() -> int:
           f"the full path STANDBY->DASH->ENGAGE->BREAKOFF->SAFE is reachable "
           f"({sorted(seen)})")
 
+    # 7) FAILSAFE 7 arm 1 -- PX4 leaves OFFBOARD mid-dash -> SAFE, and SAFE
+    #    ABSORBS, so restoring OFFBOARD cannot resume the dash.
+    sm = _sm(MissionConfig(preflight_heading_deg=40.0, standby_settle_s=0.0,
+                           dash_max_s=60.0, offboard_lost_s=0.5))
+    sm.step(_obs(0.0, trigger=no))
+    sm.step(_obs(0.05, trigger=go))
+    sm.step(_obs(0.10, trigger=no, offboard_active=False, mode="POSCTL"))
+    still_dashing = sm.state == State.CODED_DASH        # transient, not yet a loss
+    for i in range(20):
+        sm.step(_obs(0.15 + 0.05 * i, trigger=no, offboard_active=False,
+                     mode="POSCTL"))
+    check(still_dashing and sm.state == State.SAFE
+          and sm.safe_reason == "offboard_lost",
+          f"FAILSAFE 7 arm 1: OFFBOARD lost after GO -> SAFE after the "
+          f"persistence window, not on one tick ({sm.safe_reason})")
+    d = sm.step(_obs(2.0, trigger=go, offboard_active=True, det_new=True,
+                     det_range_m=9.0))
+    check(sm.state == State.SAFE and d.setpoint.v_north == 0.0
+          and d.setpoint.v_east == 0.0 and d.land_requested,
+          "...and restoring OFFBOARD gets a ZERO-velocity hold + land request, "
+          "never the half-ramped dash command")
+
+    # 8) FAILSAFE 7 arm 2 -- offboard_active is still True but its SAMPLE is
+    #    stale (a dead subscriber). Arm 1 can never fire on a frozen True.
+    sm = _sm(MissionConfig(preflight_heading_deg=40.0, standby_settle_s=0.0,
+                           dash_max_s=60.0, offboard_stale_s=3.0))
+    sm.step(_obs(0.0, trigger=no))
+    sm.step(_obs(0.05, trigger=go))
+    sm.step(_obs(1.0, trigger=no, offboard_sample_age_s=2.0))
+    fresh_ok = sm.state == State.CODED_DASH
+    sm.step(_obs(5.0, trigger=no, offboard_sample_age_s=4.5))
+    check(fresh_ok and sm.state == State.SAFE
+          and sm.safe_reason == "offboard_lost",
+          "FAILSAFE 7 arm 2: a FROZEN offboard sample (age 4.5s > 3.0s) aborts "
+          "even though offboard_active still reads True")
+    #    ...and a NEGATIVE age (two clock bases) is a hard fault, not health.
+    sm = _sm(MissionConfig(preflight_heading_deg=40.0, standby_settle_s=0.0,
+                           dash_max_s=60.0))
+    sm.step(_obs(0.0, trigger=no))
+    sm.step(_obs(0.05, trigger=go))
+    sm.step(_obs(0.10, trigger=no, offboard_sample_age_s=-24580.0))
+    check(sm.state == State.SAFE and "clock_fault" in sm.transitions[-1].reason,
+          "a NEGATIVE offboard sample age (clock-base mismatch) reads as LOSS")
+
+    # 9) BREAKOFF MAGNITUDE parity with the sim (ported guard): the COUNT alone
+    #    must not fire breakoff on a slow drift, but a real recession still does.
+    def _engage_then(ranges, min_rise):
+        s = _sm(MissionConfig(preflight_heading_deg=40.0, standby_settle_s=0.0,
+                              dash_max_s=60.0, engage_max_s=60.0,
+                              breakoff_arm_range_m=4.0,
+                              breakoff_range_deadband_m=0.0,
+                              breakoff_min_rise_m=min_rise))
+        s.step(_obs(0.0, trigger=no))
+        s.step(_obs(0.05, trigger=go))
+        t = 0.10
+        for _ in range(5):
+            s.step(_obs(t, trigger=no, det_new=True, det_range_m=3.0))
+            t += 0.05
+        assert s.state == State.ENGAGE, s.transitions
+        for r in ranges:
+            s.step(_obs(t, trigger=no, det_new=True, det_range_m=r))
+            t += 0.05
+        return s
+    drift = [3.02, 3.04, 3.06, 3.08, 3.10]      # +0.10 m total: estimator drift
+    # NB both lists start with the SEED detection (the first fresh range in
+    # ENGAGE only sets the baseline; rises are counted from there).
+    real = [3.0, 3.6, 4.4, 5.3]                 # +2.3 m from the base: past CPA
+    check(_engage_then(drift, 0.30).state == State.ENGAGE,
+          "breakoff MAGNITUDE guard: 5 rising detections totalling +0.10 m "
+          "(drift) do NOT fire breakoff")
+    check(_engage_then(real, 0.30).state == State.BREAKOFF,
+          "...and a true post-CPA recession (+2.3 m) still does")
+    check(_engage_then(drift, 0.0).state == State.BREAKOFF,
+          "...and with min_rise=0 the same drift DOES fire it -- proof the guard "
+          "is what changed the outcome, not the fixture")
+
     print(f"\n[self-test] {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1
 
@@ -2015,6 +2342,14 @@ def build_config(args) -> MissionConfig:
         link_timeout_s=args.link_timeout_s,
         alt_tol_m=args.alt_tol_m,
         yaw_tol_deg=args.yaw_tol_deg,
+        offboard_lost_s=args.offboard_lost_s,
+        # A NEGATIVE bound is the explicit "disable arm 2" spelling (argparse has
+        # no clean optional-float); it must never be read as a 0-second bound,
+        # which would abort every flight instantly.
+        offboard_stale_s=(None if args.offboard_stale_s is not None
+                          and args.offboard_stale_s < 0 else args.offboard_stale_s),
+        breakoff_min_rise_m=args.breakoff_min_rise_m,
+        breakoff_max_range_m=args.breakoff_max_range_m,
     )
 
 
@@ -2078,6 +2413,20 @@ def main(argv=None) -> int:
     saf.add_argument("--link-timeout-s", type=float, default=1.0)
     saf.add_argument("--alt-tol-m", type=float, default=0.3)
     saf.add_argument("--yaw-tol-deg", type=float, default=2.0)
+    saf.add_argument("--offboard-lost-s", type=float, default=0.5,
+                     help="FAILSAFE 7 arm 1: how long PX4 may be OUT of OFFBOARD "
+                          "after the GO edge before aborting to SAFE")
+    saf.add_argument("--offboard-stale-s", type=float, default=3.0,
+                     help="FAILSAFE 7 arm 2: a flight-mode sample older than this "
+                          "is treated as LOSS (a frozen subscriber pins "
+                          "offboard_active True). Negative disables the arm.")
+    saf.add_argument("--breakoff-min-rise-m", type=float, default=0.30,
+                     help="past-CPA breakoff MAGNITUDE guard: total range rise "
+                          "from the base of the rising run (mirrors m4's "
+                          "--breakoff-min-rise-m). 0 = count-only (unguarded).")
+    saf.add_argument("--breakoff-max-range-m", type=float, default=None,
+                     help="past-CPA breakoff is ignored beyond this range "
+                          "(mirrors m4's --breakoff-max-range-m; default inert)")
 
     trg = ap.add_argument_group("trigger")
     trg.add_argument("--trigger", choices=("rc", "timer", "gate-ready"),
