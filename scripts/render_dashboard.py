@@ -46,6 +46,7 @@ REV:BEGIN/END markers (--check ignores the REV stamp; only the state block is co
 Ritual: edit the JSON -> run this script -> commit BOTH files together.
 --check is the drift alarm (wired into run_tests.sh).
 """
+import hashlib
 import json
 import re
 import subprocess
@@ -98,7 +99,7 @@ def fail(msg: str) -> None:
 def validate(state: dict) -> None:
     for key in ("schema_version", "updated", "goal", "headline", "narrative", "architecture",
                 "build_plan", "stages", "edges", "constraints", "graveyard", "key_numbers",
-                "bom_tiers", "build_tab", "decisions", "contradictions"):
+                "bom_tiers", "build_tab", "decisions", "contradictions", "artifact_url"):
         if key not in state:
             fail(f"missing top-level key: {key}")
     narr = state["narrative"]
@@ -307,6 +308,45 @@ def extract_embedded_json(html: str) -> dict:
     return json.loads(m.group(1))
 
 
+def hand_layer_visible_numbers(html: str) -> list:
+    """Decimal numbers a human can SEE in the hand-authored layer: everything
+    OUTSIDE the generated embedded-state block, minus <style>/<script>/HTML
+    comments/tags. These are the headline claims the builder actually reads."""
+    i, j = html.find(BEGIN), html.find(END)
+    hand = (html[:i] + html[j + len(END):]) if (i >= 0 and j >= 0) else html
+    hand = re.sub(r"<style\b.*?</style>", " ", hand, flags=re.S | re.I)
+    hand = re.sub(r"<script\b.*?</script>", " ", hand, flags=re.S | re.I)
+    hand = re.sub(r"<!--.*?-->", " ", hand, flags=re.S)
+    visible = re.sub(r"<[^>]+>", " ", hand)
+    return sorted(set(re.findall(r"\d+\.\d+", visible)))
+
+
+def check_hand_layer_numbers(html: str, state_raw: str) -> int:
+    """NUMBER-TRACEABILITY GUARD (review-2 structural finding, 2026-07-24).
+
+    --check used to validate ONLY the embedded JSON, so the hand-authored
+    prose/SVG could assert REVERSED conclusions while the check passed green
+    (it happened twice on 2026-07-24: the hero SVG sold a refuted fix, and a
+    stage read 'NOTHING ORDERED YET' four days after ~$1,000 shipped).
+    Mechanical floor: every decimal number VISIBLE in the hand-authored layer
+    must appear VERBATIM in project_state.json's raw text — 'numbers trace to
+    a run', enforced at the layer a human reads. Verified green on the tree
+    this shipped on (20 visible numbers, all traced). Scope honesty: this
+    guards NUMBERS only; a pure-prose flip (e.g. NET-NEGATIVE -> NET-POSITIVE)
+    still passes and remains a human-review control.
+
+    Returns the count of visible numbers traced; exits 1 naming the orphans.
+    """
+    nums = hand_layer_visible_numbers(html)
+    missing = [n for n in nums if n not in state_raw]
+    if missing:
+        fail(f"hand-authored dashboard layer carries number(s) with no verbatim "
+             f"source in {STATE.name}: {missing} — every visible number must "
+             f"trace to the contract (fix the prose/SVG or land the number in "
+             f"project_state.json first)")
+    return len(nums)
+
+
 def emit_artifact(html: str, out: Path) -> None:
     """Write a claude.ai-Artifact-flavored copy of the rendered dashboard: the
     Artifact publisher supplies its own <!doctype>/<html>/<head>/<body> skeleton,
@@ -335,20 +375,33 @@ def git_short_sha() -> str:
 
 def main() -> None:
     check = "--check" in sys.argv[1:]
+    state_raw = STATE.read_text()
     try:
-        state = json.loads(STATE.read_text())
+        state = json.loads(state_raw)
     except json.JSONDecodeError as e:
         fail(f"{STATE} is not valid JSON: {e}")
     validate(state)
     html = HTML.read_text()
 
     if check:
+        if "--artifact" in sys.argv[1:]:
+            # Silent-failure fix (review 2): this combination used to write
+            # NOTHING and print OK/exit 0 — an operator believed a fresh
+            # artifact copy existed when none was emitted.
+            fail("--check --artifact does nothing: --check never renders, so no "
+                 "artifact file would be written. Run WITHOUT --check to render "
+                 "and emit the artifact copy.")
         if extract_embedded_json(html) != state:
             fail(f"{HTML.name} embedded state DIFFERS from {STATE.name} — run scripts/render_dashboard.py and commit both")
+        n_traced = check_hand_layer_numbers(html, state_raw)
         n_open = sum(1 for c in state["contradictions"] if c["status"] == "open")
-        print(f"OK: {STATE.name} valid; {HTML.name} in sync (updated {state['updated']}, "
+        # Scope-honest OK line: say what was checked, not more (review 2 —
+        # "in sync" used to claim more scope than the check had).
+        print(f"OK: {STATE.name} valid; {HTML.name} embedded state in sync; "
+              f"hand-authored layer: {n_traced} visible numbers traced to the contract "
+              f"(prose wording NOT checked). updated {state['updated']}, "
               f"{len(state['stages'])} stages, {len(state['decisions'])} decisions, "
-              f"{len(state['contradictions'])} contradictions [{n_open} open])")
+              f"{len(state['contradictions'])} contradictions [{n_open} open]")
         return
 
     # '</' -> '<\/' keeps the payload valid JSON while making '</script>' inert.
@@ -360,16 +413,25 @@ def main() -> None:
     html = html[:i] + injected + html[j + len(END):]
     html = REV_RE.sub(lambda m: m.group(1) + git_short_sha() + m.group(3), html)
     HTML.write_text(html)
+    # Same number-traceability guard as --check, so an orphan number fails at
+    # RENDER time (loudly, after the write) instead of surviving to the gate.
+    n_traced = check_hand_layer_numbers(html, state_raw)
     print(f"OK: rendered {HTML.name} from {STATE.name} (updated {state['updated']}, "
           f"{len(state['stages'])} stages, {len(state['decisions'])} decisions, "
-          f"{len(state['contradictions'])} contradictions) — commit both files")
+          f"{len(state['contradictions'])} contradictions; hand-authored layer: "
+          f"{n_traced} visible numbers traced) — commit both files")
 
     if "--artifact" in sys.argv[1:]:
         i = sys.argv.index("--artifact")
         out = Path(sys.argv[i + 1]) if i + 1 < len(sys.argv) else ROOT / "docs" / "dashboard.artifact.html"
         emit_artifact(html, out)
+        # PUBLISH RECEIPT: ties the emitted bytes to the contract revision so a
+        # republish can be audited ("which state did the hosted Artifact carry?").
+        data = out.read_bytes()
         print(f"OK: wrote self-contained Artifact HTML -> {out}\n"
-              f"    publish with the Artifact tool, url={state.get('artifact_url', '<set artifact_url in project_state.json>')}")
+              f"    publish with the Artifact tool, url={state.get('artifact_url', '<set artifact_url in project_state.json>')}\n"
+              f"    RECEIPT: sha256[:12]={hashlib.sha256(data).hexdigest()[:12]} "
+              f"bytes={len(data)} state.updated={state['updated']} git={git_short_sha()}")
 
 
 if __name__ == "__main__":

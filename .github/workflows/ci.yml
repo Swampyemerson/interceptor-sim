@@ -4,10 +4,17 @@
 # Written 2026-07-10; rewritten 2026-07-20 for the publish push. Runs on the
 # first push once the GitHub remote exists.
 #
-# WHAT THIS RUNS (mirrors run_tests.sh stages 1 and 3 -- keep in sync):
+# WHAT THIS RUNS (mirrors run_tests.sh stages 1, 3 and 4 -- keep in sync):
 #   1. The main offline suite under .venv:  pytest tests/ flight/tests/
 #   2. The project-state drift check:       python3 scripts/render_dashboard.py --check
-#      (stdlib-only; fails if docs/dashboard.html drifted from project_state.json)
+#      (stdlib-only; fails if docs/dashboard.html drifted from project_state.json,
+#      or if a VISIBLE hand-authored dashboard number has no verbatim source in
+#      the contract -- the review-2 number-traceability guard)
+#   3. The uncovered --self-test entry points (run_tests.sh stage 4): field_score,
+#      seeker_loop, and scripts/field/selftest.sh -- before 2026-07-25 only 1 of
+#      29 self-tests was reachable from CI (review-2 "green != ran" finding).
+#      pyulog+pymavlink are pip'd below (pinned to the local .venv versions) so
+#      field_score's ULog/.BIN self-test cases RUN here instead of self-skipping.
 #
 # WHAT THIS DELIBERATELY SKIPS -- the .venv-seeker ONNX-parity stage
 # (run_tests.sh stage 2): those tests `pytest.importorskip("onnxruntime")`
@@ -82,6 +89,11 @@ jobs:
           python3 -m venv --system-site-packages .venv
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt
+          # Local-.venv extras not in requirements.txt (pinned to the versions
+          # verified locally 2026-07-25): pyulog for the loft-dive parser import
+          # in the flight-CSV contract test; pymavlink so field_score's .BIN
+          # DFReader self-test cases run for real instead of self-skipping.
+          .venv/bin/pip install pyulog==1.2.3 pymavlink==2.4.49
 
       - name: Run the offline suite (run_tests.sh stage 1, .venv)
         run: |
@@ -102,3 +114,11 @@ jobs:
 
       - name: Project-state dashboard drift check (run_tests.sh stage 3)
         run: python3 scripts/render_dashboard.py --check
+
+      - name: Uncovered --self-test entry points (run_tests.sh stage 4)
+        # Each must exit 0. A self-test that cannot run is a FAILURE here, not
+        # a skip (docs/error_handling_policy.md: green means ran).
+        run: |
+          .venv/bin/python "$PWD/scripts/field_score.py" --self-test
+          .venv/bin/python "$PWD/flight/deploy/seeker_loop.py" --self-test
+          bash "$PWD/scripts/field/selftest.sh"

@@ -87,7 +87,11 @@ Exit code: 0 if every audited flight passes checks (a)-(c) (SKIPPED flights
 don't count either way, (d) never gates); 1 if any audited flight fails
 (a)/(b)/(c) (only in --strict mode, the default); 2 on a usage error or a
 missing/unreadable arm CSV / flight CSV (a file-existence problem, as
-distinct from an audit finding a dishonest flight).
+distinct from an audit finding a dishonest flight); 3 if any arm's verdict
+is VACUOUS -- zero flights were actually scored (every flight SKIPPED, or
+the arm resolved none), so NOTHING WAS VERIFIED and that must never read
+as PASS (docs/error_handling_policy.md "no vacuous verdicts"; strict mode
+only -- --no-strict still prints the VACUOUS banner but exits 0).
 
 Standard library only -- no numpy/scipy/pandas (matches the project's other
 analysis scripts, e.g. ekf_ab_analyze.py).
@@ -642,10 +646,18 @@ def print_flight_table(records):
 
 def arm_verdict(records_for_arm):
     """PASS only if every non-SKIPPED, non-ERROR flight in the arm PASSed
-    (a)/(b)/(c). SKIPPED flights (legitimate aborts) are excluded from both
-    the pass and fail tallies. ERROR flights (couldn't be read/audited at
-    all) count as failures -- a flight this tool cannot verify does not get
-    the benefit of the doubt."""
+    (a)/(b)/(c) AND at least one flight was actually scored. SKIPPED flights
+    (legitimate aborts) are excluded from both the pass and fail tallies.
+    ERROR flights (couldn't be read/audited at all) count as failures -- a
+    flight this tool cannot verify does not get the benefit of the doubt.
+
+    NO VACUOUS VERDICTS (review-2 finding, 2026-07-24; policy:
+    docs/error_handling_policy.md): when ZERO flights were actually scored
+    (everything SKIPPED, or the arm resolved no flights at all), the verdict
+    is VACUOUS, never PASS. Proven live before this fix: an all-skip arm
+    printed "PASS (pass=0 fail=0 skipped=8)" and exited 0 -- a green audit
+    that never audited anything. Same class as the CODED_DASH phase-name bug
+    (the anti-mirage audit silently ran over zero ticks)."""
     n_pass = n_fail = n_skip = n_error = 0
     for rec in records_for_arm:
         status = rec["result"]["status"]
@@ -657,7 +669,12 @@ def arm_verdict(records_for_arm):
             n_skip += 1
         elif status == "ERROR":
             n_error += 1
-    verdict = "PASS" if (n_fail == 0 and n_error == 0) else "FAIL"
+    if n_fail or n_error:
+        verdict = "FAIL"
+    elif n_pass == 0:
+        verdict = "VACUOUS"  # zero units scored -> not PASS, ever
+    else:
+        verdict = "PASS"
     return verdict, n_pass, n_fail, n_skip, n_error
 
 
@@ -780,11 +797,17 @@ def main(argv=None):
     print()
     print("[audit_per_tick] ================ Arm verdicts ================")
     any_fail = False
+    any_vacuous = False
+    n_pass_total = n_skip_total = 0
     for arm_label in arm_names_in_order:
         recs = per_arm_records[arm_label]
         verdict, n_pass, n_fail, n_skip, n_error = arm_verdict(recs)
         if verdict == "FAIL":
             any_fail = True
+        elif verdict == "VACUOUS":
+            any_vacuous = True
+        n_pass_total += n_pass
+        n_skip_total += n_skip
         print(
             f"[audit_per_tick] {arm_label}: {verdict}  "
             f"(pass={n_pass} fail={n_fail} skipped={n_skip} error={n_error} "
@@ -799,6 +822,14 @@ def main(argv=None):
         print("[audit_per_tick] exit 2 (usage-or-missing-files)")
         return 2
 
+    if any_vacuous:
+        # No vacuous verdicts (docs/error_handling_policy.md): printed in BOTH
+        # strict and --no-strict modes so an all-skip arm can never scroll by
+        # as a quiet green line.
+        print("[audit_per_tick] VACUOUS: at least one arm audited 0 flights "
+              "(all SKIPPED or none resolved) -- nothing was verified there. "
+              "A verdict computed on zero units is UNCERTAIN, never PASS.")
+
     if not args.strict:
         print("[audit_per_tick] --no-strict: report-only, exit 0 "
               "(a-c findings above are NOT gating this run).")
@@ -809,8 +840,15 @@ def main(argv=None):
               "failed (a)/(b)/(c).")
         return 1
 
-    print("[audit_per_tick] PASS: every audited flight passed (a)/(b)/(c) "
-          "(SKIPPED aborts excluded, (d) advisory-only).")
+    if any_vacuous:
+        print("[audit_per_tick] exit 3 (VACUOUS -- audited 0 flights in at "
+              "least one arm; nothing was verified, which must never read "
+              "as PASS).")
+        return 3
+
+    print(f"[audit_per_tick] PASS: {n_pass_total}/{n_pass_total} audited "
+          f"flights passed (a)/(b)/(c) "
+          f"({n_skip_total} SKIPPED aborts excluded, (d) advisory-only).")
     return 0
 
 
