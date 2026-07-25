@@ -1863,7 +1863,7 @@ def main():
     ap.add_argument("--min-bin-n", type=int, default=DEFAULT_MIN_BIN_N,
                     help=f"per-BIN sample floor for the R_decode90 walk (default "
                          f"{DEFAULT_MIN_BIN_N}): a bin with fewer binnable frames may "
-                         f"not extend the >=90% envelope, and stopping there returns "
+                         f"not extend the >=90%% envelope, and stopping there returns "
                          f"UNCERTAIN (the band is bounded by missing data, not by a "
                          f"measured decode failure)")
     ap.add_argument("--allow-partial-tags", action="store_true",
