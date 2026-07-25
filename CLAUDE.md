@@ -182,6 +182,33 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
 - **Honesty boundary.** `gt_*` (ground truth) is scoring/logging ONLY; the cue is
   structurally unreadable after handoff; guidance sees camera + own-state EKF only.
   Every new guidance path re-earns the numeric no-cheat audit.
+- **Instruments are evidence (2026-07-25, the silent-failure rule).** A bug in a
+  SCORER / AUDITOR / MEASUREMENT tool invalidates every run that passed through it,
+  and a paired control CANNOT see it because both arms share the instrument. Most of
+  this project's retracted mirages root-caused to measurement-layer CODE, not
+  experiment design (coded_dash_summary "any ENGAGE = camera-guided"; resolution_probe's
+  backwards hit test; the non-tilt-aware gt chain; approach_recall's grounded-takeoff
+  bins; curve (b)'s missing 1/s truth-box factor). So: (a) **NO VACUOUS VERDICTS** — a
+  verdict computed on ZERO units (empty join/filter/selection) is UNCERTAIN / exit≠0,
+  NEVER PASS; a shrinking denominator must be COUNTED and reported, never absorbed.
+  (b) **FAIL-CLOSED on measured quantities** — never substitute a default for a number
+  that should have been MEASURED (the invented 30 fps flipped the $740 gate). (c) When
+  a tool crosses a file boundary, it earns a **producer→consumer contract test whose
+  fixture comes from the producer's own writer** — a hand-typed fixture is exactly what
+  hid the schema breaks (both scripts passed their own self-tests; nothing tested the
+  pair). Policy: `docs/error_handling_policy.md`; enforcement lives in `run_tests.sh` +
+  CI, not in discretion.
+- **A fix is not done until its EFFECT is observed end-to-end, and drift is swept the
+  SAME TURN (2026-07-25 — my own two errors that day).** (1) I committed an ADR whose
+  code change was **inert** (a band declared but never wired in); a fix that isn't
+  exercised — run it, watch the number actually change — is a claim, not a fix. Before
+  committing "fixed", DEMONSTRATE the new behaviour (the mutant fails, the real path
+  changes). (2) When a VERDICT FLIPS (a claim is refuted, a number is corrected), sweep
+  the **always-visible surfaces the same turn** — the dashboard §0 headline + hero SVG,
+  NEXT.md, README, any T25/demo copy — not just the stage note; the drift-check is
+  JSON-only and will stay green while a reversed conclusion sits in the prose a reader
+  actually sees. Apply the same scrutiny to your OWN diffs that you apply to a
+  subagent's.
 - **Git with background workers.** Stage specific paths — never `git add -A` while
   any background agent may be mid-edit (swept partial work into commits once,
   ADR-0011 3rd addendum). Worktree jobs: symlink the main `.venv`; merge = local
