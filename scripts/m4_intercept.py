@@ -1750,7 +1750,22 @@ def parse_args():
         help="--coded-dash ROBUSTNESS sweep: add a FIXED azimuth error (deg) to the "
              "computed/explicit dash heading -- tests how far off the open-loop aim can "
              "be and still acquire (the real interceptor's dash is hand-programmed, so "
-             "the aim carries operator error). Default 0.0 = byte-identical.")
+             "the aim carries operator error). This flag INJECTS ERROR; to apply a "
+             "measured CORRECTION use --dash-aim-trim-deg. Default 0.0 = byte-identical.")
+    parser.add_argument(
+        "--dash-aim-trim-deg", type=float, default=0.0,
+        help="--coded-dash EMPIRICAL AIM TRIM (ADR-0083): a measured global azimuth "
+             "trim added to the solved dash heading. Mechanically identical to "
+             "--dash-heading-err-deg but semantically OPPOSITE (a correction, not an "
+             "injected error) -- kept separate so a log can never be misread. "
+             "CHARACTERIZED VALUE for the canonical line@9 + accel-aware-lead config: "
+             "+5.0 deg, which improves the OPEN-LOOP dash-only miss on 14/16 paired "
+             "flights (sign-test p=0.0021, paired median -0.25 m), replicated across "
+             "seeds 123+777. HONEST STATUS: MEASURED, NOT DERIVED -- the physical origin "
+             "is not established (the pre-CPA profile fit implies a far larger shift, so "
+             "the naive substitution overshoots badly; docs/flight_plan_candidates.md). "
+             "It is therefore a per-configuration constant that MUST be re-measured on "
+             "the real airframe from the first dash ULog, not a law. Default 0.0.")
     parser.add_argument(
         "--dash-accel-aware-lead", action="store_true",
         help="--coded-dash AIM fix (docs/flight_plan_candidates.md Sec 1.3): solve the "
@@ -2425,6 +2440,14 @@ async def run_acquire_and_engage(
     # explicit). Default 0.0 -> byte-identical.
     if args.coded_dash and args.dash_heading_err_deg:
         coded_dash_heading_deg += args.dash_heading_err_deg
+    # EMPIRICAL AIM TRIM (ADR-0083). Same arithmetic as the error injection above, kept
+    # as a separate flag so the LOG records intent: an injected error and a measured
+    # correction must never be confused when a result is re-read months later.
+    if args.coded_dash and args.dash_aim_trim_deg:
+        coded_dash_heading_deg += args.dash_aim_trim_deg
+        print(f"[m4] Empirical aim trim (ADR-0083): {args.dash_aim_trim_deg:+.2f} deg "
+              f"-> dash heading {coded_dash_heading_deg:.2f} deg. MEASURED, NOT DERIVED; "
+              f"re-measure on the real airframe.", flush=True)
     # PER-DIRECTION aim correction (ADR-0076 add #18e): the aspect-biased markerless
     # bearing under-reads the cross-range LOS with a sign that flips with the crossing
     # direction (r2l needs +east, l2r needs -). Apply a bias whose SIGN is keyed on the

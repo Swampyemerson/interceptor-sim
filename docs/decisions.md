@@ -2169,3 +2169,37 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   really there and names the one unmeasured input (achieved Pi capture rate) the decision hinges on.
   The tripod day remains the authority.
 - **Date.** 2026-07-24.
+
+## ADR-0083 — Adopt a +5° empirical aim trim for the coded dash (MEASURED, not derived)
+
+- **Context.** The aim-error sweep (built to test whether the camera earns its handoff) produced a
+  second, more valuable result in its CONTROL column: the open-loop dash-only miss is minimised NOT
+  at the accel-aware lead's own solution but ~5° beyond it. Measured curve, dash-only, seed 123:
+  **0° → 0.71 m, 2.5° → 0.54, 5° → 0.43, 7.5° → 0.69, 15° → 1.43**; parabola vertex **+4.5°**.
+- **Replication (the project's statistics rule).** Disjoint seed 777: 0° → 0.57, +5° → 0.52, better
+  on 6/8 paired. The seed-123 magnitude (−0.28 m) was optimistic; the second seed corrected it — the
+  documented failure mode of single-seed effects. **Pooled n=16 (seeds 123+777, paired by run_idx):
+  +5° better on 14/16, one-sided sign-test p = 0.0021, paired delta median −0.248 m.** This clears
+  the pre-registered adoption bar (≥13/16) in `docs/flight_plan_candidates.md`.
+- **Decision.** Adopt +5.0° as the CHARACTERIZED aim trim for the canonical line@9 + accel-aware-lead
+  configuration, exposed as a NEW, explicitly-named flag `--dash-aim-trim-deg` (default 0.0,
+  byte-identical when absent; 321 tests pass). It is mechanically identical to the existing
+  `--dash-heading-err-deg` but kept SEPARATE because that flag *injects error* while this one
+  *applies a correction* — a log must never be re-read months later with the two confused.
+- **What it is NOT — the honest boundary.** It is **MEASURED, NOT DERIVED**. The mechanism hunt found
+  a real defect (the solver assumes a = 10 m/s² while the measured pre-CPA effective accel is
+  ~3.1 m/s²; by CPA it predicts 22.2 m of travel where the vehicle covers 8.2 m), but substituting
+  the measured profile swings the heading 30-70° while the empirical optimum is only ~5° away — the
+  naive "physically derived" fix would have made the aim dramatically worse. At CPA the interceptor
+  has covered 8.2 m against the target's ~19.7 m, so the miss is dominated by target motion and is
+  SHALLOW in heading near the optimum: a profile fit and an aim fit answer different questions.
+  Therefore the trim is deliberately NOT baked into `collision_lead_heading_accel` — dressing an
+  empirical constant as physics is this project's signature failure mode.
+- **Why it matters.** The corrected 5-inch ram envelope is ~0.36 m (contract stage `kill`). The trim
+  takes the open-loop dash from 0.71 m to ~0.43 m pooled — and the r2l cell to **0.33 m, inside the
+  envelope** — with no perception, no hardware, and no camera. It is the only measured path into
+  kill range currently in hand.
+- **Obligation on the real build.** The trim is a per-configuration constant, not a law. It MUST be
+  re-measured on the real airframe from the first dash ULog (`build_plan` L9), and the
+  a = 10-vs-3.1 parameterization defect re-checked there, before any trim value is flown.
+- **Date.** 2026-07-24.
