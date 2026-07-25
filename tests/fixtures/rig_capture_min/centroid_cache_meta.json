@@ -1,0 +1,13 @@
+{
+  "note": "ADR-0051 (docs/decisions.md): this centroids.csv is the OFFLINE PRECOMPUTE step ADR-0051 chose over running detection live during a flight. The capture frames are pre-rendered and deterministic (ADR-0046), and detection on a fixed frame is deterministic, so this equals what running the SAME detector LIVE on the SAME frames would produce (empirically confirmed by tests/test_ground_station.py's determinism test). REGENERATE this cache (re-run build_centroid_cache.py) if the capture directory OR the detector weights/conf/imgsz change -- this file does not self-detect staleness.",
+  "capture_dir": "logs/rig_captures/full_sweep_20260709T015530Z",
+  "weights": "/home/emerson/interceptor-sim/scripts/seeker/weights/ground_v1.onnx",
+  "conf": 0.25,
+  "imgsz": 960,
+  "generated_utc": "2026-07-09T04:37:31Z",
+  "n_rows": 56,
+  "n_hit_l": 54,
+  "n_hit_r": 54,
+  "n_hit_both": 52,
+  "n_miss_either": 4
+}

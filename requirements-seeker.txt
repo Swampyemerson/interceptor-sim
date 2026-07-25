@@ -1,0 +1,26 @@
+# SEEKER VENV (.venv-seeker) -- the ONNX lane.
+#
+#   python3 -m venv .venv-seeker            # NO --system-site-packages needed
+#   .venv-seeker/bin/pip install -r requirements-seeker.txt
+#
+# What needs it:
+#   * scripts/run_tests.sh stage 2 -- the real-detector ONNX parity tests. Under
+#     .venv they `pytest.importorskip("onnxruntime")` and SKIP; routed here they
+#     RUN (that is the whole reason two venvs exist -- see run_tests.sh's header).
+#   * flight/deploy/seeker_loop.py -- the deployed Pi-5 terminal loop, run as
+#     `.venv-seeker/bin/python -m flight.deploy.seeker_loop ...`.
+#
+# NOT sufficient on its own to reproduce stage 2's numbers: those tests also need
+# the detector weights and cached eval frames under scripts/seeker/, which are
+# gitignored (docs/license_notice_weights.md). This file pins the CODE deps only.
+#
+# Pinned to `.venv-seeker/bin/pip freeze --local`, verified 2026-07-25.
+# Recorded 2026-07-25 (audit: "dependency rot") -- before that the environment
+# these numbers were produced in existed only on this disk.
+mavsdk==3.15.3
+numpy==2.5.1
+onnxruntime==1.27.0
+opencv-contrib-python==5.0.0.93   # legacy trackers (detect-then-track, ADR-0058)
+opencv-python-headless==5.0.0.93
+pupil-apriltags==1.0.4.post11
+pytest==9.1.1

@@ -84,7 +84,41 @@ from ground_station.triangulate import (  # noqa: E402
 from ground_station.detect import DetectionResult, box_center  # noqa: E402
 
 STATION_PATH = os.path.join(SCRIPTS, "ground_station", "station.py")
-CAPTURE_DIR = DEFAULT_CAPTURE_DIR
+
+# CAPTURE FIXTURE RESOLUTION (CI fix, 2026-07-25). `DEFAULT_CAPTURE_DIR` points
+# into `logs/rig_captures/...`, which is GITIGNORED -- so on a clean clone (i.e.
+# every GitHub Actions run) this module used to raise FileNotFoundError at
+# fixture setup: 1 failed + 10 errors, which is what kept CI red on 73/73 runs
+# since the first push. It passed locally only because this machine happens to
+# hold the capture.
+#
+# Fix: prefer the real on-disk capture when present (so local runs exercise the
+# full 56-frame sweep, including the onnxruntime-gated real-detector cases under
+# .venv-seeker); otherwise fall back to the TRACKED minimal subset in
+# tests/fixtures/rig_capture_min/ (the metadata trio + the 3 stereo frame pairs
+# the non-onnx cases actually stat). Every case in groups 1-5 and 7b-7d RUNS
+# against the fallback -- nothing is skipped to buy the green (see
+# docs/error_handling_policy.md: green means ran).
+_FALLBACK_CAPTURE_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "fixtures", "rig_capture_min")
+FULL_CAPTURE = os.path.isfile(os.path.join(DEFAULT_CAPTURE_DIR, "capture_meta.json"))
+CAPTURE_DIR = DEFAULT_CAPTURE_DIR if FULL_CAPTURE else _FALLBACK_CAPTURE_DIR
+assert os.path.isfile(os.path.join(CAPTURE_DIR, "capture_meta.json")), (
+    "neither the on-disk rig capture nor the tracked fallback fixture is "
+    f"readable ({DEFAULT_CAPTURE_DIR} / {_FALLBACK_CAPTURE_DIR}) -- this file "
+    "must FAIL loudly here rather than silently skip its whole suite")
+
+
+def test_capture_fixture_resolves_and_holds_the_frames_the_suite_stats():
+    """Guards the CI fix itself: whichever capture dir resolved, the metadata
+    trio and the seq 5/6/7 stereo pairs (the only real frames the non-onnx
+    cases require on disk) must exist. Without this, a future fixture trim
+    turns test_datum_bias_... back into an error on a clean clone."""
+    for name in ("capture_meta.json", "index.csv", "centroids.csv"):
+        assert os.path.isfile(os.path.join(CAPTURE_DIR, name)), (CAPTURE_DIR, name)
+    for seq in (5, 6, 7):
+        left_path, right_path = frame_paths(CAPTURE_DIR, seq)
+        assert os.path.isfile(left_path) and os.path.isfile(right_path), (seq, CAPTURE_DIR)
 
 
 # ============================================================================
@@ -536,6 +570,11 @@ def test_real_detector_matches_t18_reference_centroids():
     pytest.importorskip("cv2")
     from ground_station.detect import GroundDetector
 
+    assert FULL_CAPTURE, (
+        "this case needs the FULL on-disk rig capture (seq 15 pixels), not the "
+        "tracked minimal fallback fixture -- it is reached only under "
+        ".venv-seeker (run_tests.sh stage 2), which also needs the gitignored "
+        "detector weights. Failing loudly rather than skipping.")
     det = GroundDetector()
     left_path, right_path = frame_paths(CAPTURE_DIR, 15)
     dl = det.detect_path(left_path)
@@ -649,6 +688,10 @@ def test_centroid_cache_replay_matches_live_detection_byte_identical(rig, captur
     from ground_station.detect import GroundDetector
     from ground_station.build_centroid_cache import detect_row, write_cache_csv
 
+    assert FULL_CAPTURE, (
+        "this case needs the FULL on-disk rig capture (seq 10-13 pixels), not "
+        "the tracked minimal fallback fixture -- see the note on "
+        "test_real_detector_matches_t18_reference_centroids.")
     subset = capture_rows[10:14]
     assert len(subset) == 4
     for row in subset:

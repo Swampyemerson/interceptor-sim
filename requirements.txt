@@ -1,8 +1,28 @@
-# Direct dependencies only (trimmed from `pip freeze`, which also lists
-# system-site-packages leaking in via .venv/.../gz_system.pth — see NEXT.md).
-# gz.transport13 / gz.msgs10 are NOT pip-installable; they come from apt
-# (python3-gz-transport13, python3-gz-msgs10) and reach this venv via that
-# .pth file. Install with: .venv/bin/pip install -r requirements.txt
+# MAIN VENV (.venv) -- reproduces the offline test suite: `scripts/run_tests.sh`
+# stage 1 (pytest tests/ flight/tests/), stage 3 (dashboard drift) and stage 4
+# (the --self-test entry points).
+#
+#   python3 -m venv --system-site-packages .venv
+#   .venv/bin/pip install -r requirements.txt
+#
+# The --system-site-packages flag is NOT optional: gz.transport13 / gz.msgs10 are
+# NOT pip-installable. They come from apt (python3-gz-transport13,
+# python3-gz-msgs10, Gazebo Harmonic / OSRF "noble" line) and reach this venv
+# through the .pth file that flag creates. Six test files import them at
+# collection time (see .github/workflows/ci.yml's header for the list and the
+# deselect fallback).
+#
+# Versions are PINNED to what this machine's .venv actually holds (`pip freeze
+# --local`, verified 2026-07-25) -- the numbers in docs/ were produced under
+# exactly this set.
+#
+# RECONCILED 2026-07-25 (audit: "dependency rot"). Before that, this file listed
+# only the first six lines while the tree also imported pyulog and pymavlink, and
+# .github/workflows/ci.yml compensated with an inline
+# `pip install pyulog==1.2.3 pymavlink==2.4.49` under a comment reading
+# "Local-.venv extras not in requirements.txt". That inline hack is now DELETED:
+# a clean `pip install -r requirements.txt` reproduces the suite, and CI installs
+# nothing this file does not declare.
 mavsdk==3.15.3
 numpy==2.5.1
 opencv-python-headless==5.0.0.93
@@ -10,3 +30,20 @@ pytest==9.1.1
 pupil-apriltags==1.0.4.post11  # x86_64/dev; on aarch64 (Raspberry Pi) install pyapriltags instead (ADR-0012)
 # pyapriltags        # aarch64/drone drop-in replacement for pupil-apriltags (uncomment on the Pi)
 matplotlib==3.11.0
+pyulog==1.2.3      # PX4 .ulg reader -- flight-CSV contract test + the loft-dive parser
+pymavlink==2.4.49  # ArduPilot .BIN DFReader -- scripts/field_score.py's --self-test cases
+
+# ---------------------------------------------------------------------------
+# HEAVY OPTIONAL LANES -- deliberately NOT here (they are separate venvs, and
+# installing them into .venv would BREAK a gate by design):
+#
+#   requirements-seeker.txt  -> .venv-seeker        (onnxruntime; the ONNX-parity
+#                               stage + the deployed flight/deploy/seeker_loop.py)
+#   requirements-train.txt   -> .venv-seeker-train  (ultralytics + torch, ~3 GB;
+#                               YOLO fine-tunes only, never needed to run a gate)
+#
+# Why the split is load-bearing rather than tidiness: run_tests.sh stage 1 relies
+# on .venv having NO onnxruntime, and stage 2 routes the parity tests to
+# .venv-seeker so they EXECUTE instead of `importorskip`-ing. One merged
+# environment would silently re-merge those two stages into one.
+# scripts/pi_setup/requirements-pi.txt is the aarch64 (Pi 5) field-day set.

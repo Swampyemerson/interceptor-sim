@@ -107,17 +107,44 @@ elif [[ -n "$SESSION_IN" ]]; then
         fld_hint "its range numbers depend on the tag size that made the ORIGINAL frames"
     fi
 else
-    # newest camera session from step 01, if any -- but skip replay sessions
-    LATEST="$(ls -1dt "$FLD_LOGS"/01_camera_*/session 2>/dev/null | head -1 || true)"
-    if [[ -n "$LATEST" ]] && session_is_replay "$LATEST"; then
-        fld_miss "the newest camera session ($LATEST) is a replay, not a real capture"
-        LATEST=""
+    # Newest REAL camera session from step 01. We scan newest-first and take the
+    # first non-replay, rather than testing only the single newest.
+    #
+    # BUG FIXED 2026-07-25 (audit hygiene): this used to `head -1` and, if THAT
+    # one session was a replay, blank it and fall all the way through to the sim
+    # fixture dry run -- silently discarding a perfectly good REAL capture that
+    # was sitting one directory older. That is a wrong-and-confident answer (it
+    # reports "no captured session found" while one exists), and it was easy to
+    # trigger because scripts/field/selftest.sh's replay landed in this very
+    # directory on every run_tests.sh invocation. A real capture now always wins
+    # over a newer replay, however many replays are stacked on top of it.
+    LATEST=""
+    _skipped_replays=0
+    while IFS= read -r _cand; do
+        [[ -n "$_cand" ]] || continue
+        if session_is_replay "$_cand"; then
+            _skipped_replays=$((_skipped_replays + 1))
+            continue
+        fi
+        [[ -d "$_cand/frames" ]] || continue
+        LATEST="$_cand"
+        break
+    done < <(ls -1dt "$FLD_LOGS"/01_camera_*/session 2>/dev/null || true)
+    if [[ "$_skipped_replays" -gt 0 ]]; then
+        fld_say "skipped $_skipped_replays newer REPLAY session(s) looking for a real capture"
+    fi
+    if [[ -z "$LATEST" && "$_skipped_replays" -gt 0 ]]; then
+        fld_miss "every camera session under $FLD_LOGS is a replay, not a real capture"
     fi
     if [[ -n "$LATEST" && -d "$LATEST/frames" ]]; then
         FRAMES="$LATEST/frames"
         fld_ok "using the newest camera session: $LATEST"
     else
         FRAMES="$REPO_ROOT/scripts/seeker/data/autolabel_sim_20260721T032324Z/images"
+        # scripts/seeker/data/ is GITIGNORED: fall back to the TRACKED 32-frame
+        # subset so the dry run works on a clean clone (see 01_camera_live_check.sh's
+        # note -- this was the third cause of the 73/73 red CI streak).
+        [[ -d "$FRAMES" ]] || FRAMES="$REPO_ROOT/tests/fixtures/apriltag_sim_frames"
         TAG_SIZE="0.5"          # the sim tag is 0.5 m (models/apriltag_target/model.sdf)
         DRY=1
         # The fixture holds 252 frames; a dry run only needs enough to prove the

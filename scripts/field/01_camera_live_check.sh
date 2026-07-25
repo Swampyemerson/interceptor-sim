@@ -58,10 +58,19 @@ N_FRAMES=30               # enough to see a rate + a couple of good frames
 MODE="auto"
 PI_HOST="$FIELD_PI_HOST"
 LOCAL_DEV=""
-# No-hardware fixture: 252 sim frames that really contain a tag36h11, shipped
-# with the repo (scripts/seeker/data/autolabel_sim_*/images). 1280x960 sim
+# No-hardware fixture: sim frames that really contain a tag36h11. 1280x960 sim
 # camera, so resolution is NOT graded in replay mode.
+#
+# THE FULL 252-frame set lives under scripts/seeker/data/, which is GITIGNORED --
+# so the old comment here ("shipped with the repo") was FALSE on any clean clone,
+# and this script exited 2 (USAGE, replay dir not found) in CI, failing
+# scripts/field/selftest.sh and with it CI stage 4. That was a THIRD independent
+# cause of the 73/73 red run streak, alongside the test_ground_station capture dir
+# and the missing short-session PNG (audit 2026-07-25). tests/fixtures/
+# apriltag_sim_frames/ is a TRACKED 32-frame subset of the same capture (~770 KB,
+# ranges 1.9-29.9 m), so the no-hardware path works from `git clone` alone.
 REPLAY_DIR="$REPO_ROOT/scripts/seeker/data/autolabel_sim_20260721T032324Z/images"
+[[ -d "$REPLAY_DIR" ]] || REPLAY_DIR="$REPO_ROOT/tests/fixtures/apriltag_sim_frames"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in

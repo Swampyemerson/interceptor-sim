@@ -65,7 +65,15 @@
 #   BENCH_MAVSDK_URL   serial://$BENCH_DEVICE:$BENCH_BAUD  # full override wins (e.g. udpin://0.0.0.0:14540)
 #   BENCH_PYTHON       <repo>/.venv-seeker/bin/python      # needs BOTH mavsdk AND onnxruntime (the vehicle path uses the real detector)
 #   BENCH_SOURCE       <repo>/scripts/seeker/data/quad_approach/images  # frames w/ the target in view (or 'picamera' on the Pi)
-#   BENCH_WEIGHTS      <repo>/scripts/seeker/weights/drone_finetuned_quad_v2.onnx
+#   BENCH_WEIGHTS      <repo>/scripts/seeker/weights/nn_tier/n-mono.onnx
+#                      = flight/deploy/seeker_loop.py's OWN default (the REAL-DATA
+#                      model). CORRECTED 2026-07-25: this defaulted to the
+#                      sim-trained drone_finetuned_quad_v2.onnx long after the
+#                      flight default moved, so the gate meant to CERTIFY the
+#                      deployed loop was scoring a model that does not fly --
+#                      and quad_v2 reads AP50 0.0003 / recall 1.1% / false-fire
+#                      88.5% on real held-out imagery. Set BENCH_WEIGHTS
+#                      explicitly to re-run the historical bar.
 #   BENCH_INTRINSICS   <repo>/camera_intrinsics.json       # ON HARDWARE use the calibrate_camera.py output for the real lens
 #   BENCH_MOUNT_TILT_DEG 0                                 # fixed camera up-tilt of the real mount (deg)
 #   BENCH_FPS          20
@@ -83,7 +91,7 @@ BENCH_BAUD="${BENCH_BAUD:-921600}"
 BENCH_MAVSDK_URL="${BENCH_MAVSDK_URL:-serial://${BENCH_DEVICE}:${BENCH_BAUD}}"
 BENCH_PYTHON="${BENCH_PYTHON:-$REPO_ROOT/.venv-seeker/bin/python}"
 BENCH_SOURCE="${BENCH_SOURCE:-$REPO_ROOT/scripts/seeker/data/quad_approach/images}"
-BENCH_WEIGHTS="${BENCH_WEIGHTS:-$REPO_ROOT/scripts/seeker/weights/drone_finetuned_quad_v2.onnx}"
+BENCH_WEIGHTS="${BENCH_WEIGHTS:-$REPO_ROOT/scripts/seeker/weights/nn_tier/n-mono.onnx}"
 BENCH_INTRINSICS="${BENCH_INTRINSICS:-$REPO_ROOT/camera_intrinsics.json}"
 BENCH_MOUNT_TILT_DEG="${BENCH_MOUNT_TILT_DEG:-0}"
 BENCH_FPS="${BENCH_FPS:-20}"

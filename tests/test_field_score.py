@@ -109,20 +109,33 @@ def test_the_grid_argmin_really_would_have_called_it_a_MISS():
 
 
 def test_threshold_case_is_scored_against_the_module_constant():
-    """A 1.050 m CPA sits STRICTLY between the ADR-0025 ram radius (0.5 m) and
-    the net radius (1.5 m). Scored against DEFAULT_LETHAL_RADIUS_M it is a MISS
-    -- and it flips to KILL if that constant ever regresses to the net number,
-    which is what makes this a radius-regression guard and not just a CPA test.
+    """A 1.050 m CPA sits STRICTLY above the ratified ram radius and below the
+    net radius (1.5 m). Scored against DEFAULT_LETHAL_RADIUS_M it is a MISS --
+    and it flips to KILL if that constant ever regresses to the net number, which
+    is what makes this a radius-regression guard and not just a CPA test.
+
+    RADIUS PIN SWEPT 2026-07-25 (ADR-0084). The pin below read 0.5 m, the
+    ADR-0014/0025 heritage number derived for a SEVEN-inch airframe. ADR-0084
+    ratified R_ram = 0.35 m from the ordered 5-inch hardware's geometry
+    (Mark5 Pro half-span (226+129.5)/2 = 177.8 mm + Source One V6 half-span
+    (220+129.5)/2 = 174.8 mm = 352.5 mm, rounded down), and
+    `scripts/field_score.py:123` moved with it. The test pin did NOT move in the
+    same turn, so the suite went red -- the exact "sweep the drift the same turn"
+    failure the pin exists to catch, caught by the pin. The 1.5 m net radius is a
+    different, forgiving mechanism and is unchanged.
     """
     a = _track("interceptor", (-60.6, 1.05, 0.0), (12.0, 0.0, 0.0), 10.0, 5.0)
     b = _track("target", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0), 10.0, 10.0, t0_offset=0.15)
     res = FS.score_engagement(a, b, lethal_radius_m=FS.DEFAULT_LETHAL_RADIUS_M)
-    assert 0.5 < res.cpa_m < 1.5
+    assert FS.DEFAULT_LETHAL_RADIUS_M < res.cpa_m < 1.5
     assert res.cpa_m == pytest.approx(1.050, abs=0.005)
     assert res.verdict == "MISS"
-    assert FS.DEFAULT_LETHAL_RADIUS_M == 0.5, (
-        "the ram radius is the default (the net was PARKED by builder ruling, "
-        "contract stage `kill`); scoring a ram attempt at 1.5 m flatters it 3x")
+    assert FS.DEFAULT_LETHAL_RADIUS_M == 0.35, (
+        "the RAM radius is the default and it is the ADR-0084 5-inch geometry "
+        "number 0.35 m (the net was PARKED by builder ruling, contract stage "
+        "`kill`); scoring a ram attempt at 1.5 m flatters it >4x, and the "
+        "retired 0.5 m is the 7-inch heritage figure the ordered aircraft "
+        "cannot deliver")
     assert "net radius" not in FS._lethal_radius_help().lower(), (
         "the help text must not relabel the ram radius as the net radius")
 

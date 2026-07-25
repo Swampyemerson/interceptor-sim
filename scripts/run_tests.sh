@@ -80,7 +80,7 @@ python3 scripts/render_dashboard.py --check || rc=1
 
 echo ""
 echo "== [4/4] uncovered --self-test entry points (each must exit 0) =="
-# These three were unreachable from any automated runner (review 2: only 1 of
+# These five were unreachable from any automated runner (review 2: only 1 of
 # 29 self-tests ran in CI). Each is offline, dependency-light, ~1 s.
 # DELIBERATE SKIP SET (do not cite an unrun self-test as evidence): the other
 # ~25 self-tests either duplicate stronger stage-1 pytest coverage (pi_capture,
@@ -103,8 +103,48 @@ run_selftest "scripts/field_score.py --self-test (kill/CPA scorer)" \
     "$ROOT/.venv/bin/python" "$ROOT/scripts/field_score.py" --self-test
 run_selftest "flight/deploy/seeker_loop.py --self-test (deployed terminal loop)" \
     "$ROOT/.venv/bin/python" "$ROOT/flight/deploy/seeker_loop.py" --self-test
+run_selftest "scripts/field/parse_flight_log.py --self-test (onboard decision-log parser)" \
+    "$ROOT/.venv/bin/python" "$ROOT/scripts/field/parse_flight_log.py" --self-test
+
+# NO LOG POLLUTION (audit hygiene fix, 2026-07-25): the field pack's scripts
+# each mkdir a timestamped run dir under logs/field/, so every invocation of
+# this runner used to leave ~8 REAL-LOOKING capture dirs behind (53 had piled
+# up by 2026-07-25). Test droppings that look exactly like field evidence are
+# an evidence-integrity hazard, not just clutter. FIELD_LOG_ROOT (honoured by
+# scripts/field/common.sh) redirects them into a scratch dir we delete after.
+FIELD_TMP_LOGS="$(mktemp -d)"
 run_selftest "scripts/field/selftest.sh (field bring-up pack incl. AST arming audit)" \
-    bash "$ROOT/scripts/field/selftest.sh"
+    env FIELD_LOG_ROOT="$FIELD_TMP_LOGS" bash "$ROOT/scripts/field/selftest.sh"
+rm -rf "$FIELD_TMP_LOGS"
+
+# ALL THREE selftest.sh PACKS (audit fix, 2026-07-25). `git ls-files | grep
+# selftest.sh` returns three; until now only scripts/field was gated here or in
+# CI, which is precisely how the stale tripod mission geometry survived inside
+# the UNGATED configs/target_kakute pack. Both are stdlib-only and offline.
+run_selftest "configs/target_kakute/selftest.sh (mission generator + target.param lint)" \
+    bash "$ROOT/configs/target_kakute/selftest.sh"
+run_selftest "scripts/pi_setup/selftest.sh (Pi provisioning pack, dry-run no-change proof)" \
+    bash "$ROOT/scripts/pi_setup/selftest.sh"
+
+# COVERAGE-DRIFT GUARD (audit, reader 5: "the skip set is prose, not data").
+# The DELIBERATE SKIP SET above is a comment, and a comment cannot notice a pack
+# added tomorrow -- which is the same shape as the hole stage 4 was built to
+# close. The packs are uniformly cheap and offline, so make their coverage DATA:
+# every tracked *selftest.sh must appear in this file. (The ~37 python
+# --self-test entry points stay prose-governed; they are NOT uniformly cheap --
+# several need weights/GPU/hardware.)
+missing_packs=""
+while read -r pack; do
+    [ -n "$pack" ] || continue
+    grep -qF "$pack" "$ROOT/scripts/run_tests.sh" || missing_packs="$missing_packs $pack"
+done < <(cd "$ROOT" && git ls-files -- '*selftest.sh' 2>/dev/null)
+if [ -n "$missing_packs" ]; then
+    echo "  FAIL tracked selftest.sh pack(s) NOT wired into stage 4:$missing_packs"
+    echo "       (add a run_selftest line above, or the pack is uncovered)"
+    rc=1
+else
+    echo "  OK   every tracked selftest.sh pack is wired into stage 4"
+fi
 
 echo ""
 if [ "$rc" -eq 0 ]; then

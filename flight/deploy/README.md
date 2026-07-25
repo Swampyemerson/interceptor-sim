@@ -106,8 +106,7 @@ Run everything with the seeker venv (`onnxruntime` + `opencv`):
 # 2) Desk replay over existing captured frames (dry-run PRINTS setpoints)
 .venv-seeker/bin/python -m flight.deploy.seeker_loop \
     --source scripts/seeker/data/quad_approach/images \
-    --weights scripts/seeker/weights/drone_finetuned_quad_v2.onnx \
-    --dry-run --mount-tilt-deg 8
+    --dry-run --mount-tilt-deg 8   # --weights omitted = the n-mono flight default
 
 # 3) Desk replay over a recorded flight video
 .venv-seeker/bin/python -m flight.deploy.seeker_loop \
@@ -116,8 +115,11 @@ Run everything with the seeker venv (`onnxruntime` + `opencv`):
 # 4) On the vehicle — live Pi camera, real PX4 OFFBOARD over MAVLink
 .venv-seeker/bin/python -m flight.deploy.seeker_loop \
     --source picamera --mavsdk-url udpin://0.0.0.0:14540 \
-    --weights scripts/seeker/weights/drone_finetuned_quad_v2.onnx \
     --mount-fwd-m 0.10 --mount-up-m 0.05 --mount-tilt-deg 8
+#   ^ NO --weights: the default IS the deployed model. Passing
+#     scripts/seeker/weights/drone_finetuned_quad_v2.onnx runs the sim-trained
+#     historical bar, which is BLIND on real imagery (AP50 0.0003 / recall 1.1%
+#     / false-fire 88.5%, n=4175) -- never fly it.
 # add --dry-run to PRINT setpoints instead of commanding the vehicle
 ```
 
@@ -126,7 +128,7 @@ Run everything with the seeker venv (`onnxruntime` + `opencv`):
 | Flag | Meaning | Default |
 |---|---|---|
 | `--source` | image dir · video file · `picamera` | (required unless `--self-test`) |
-| `--weights` | ONNX detector | `weights/drone_finetuned_quad_v2.onnx` |
+| `--weights` | ONNX detector | `scripts/seeker/weights/nn_tier/n-mono.onnx` (the REAL-DATA model; sha256 in `weights/DEPLOYED.sha256`) |
 | `--intrinsics` | `calibrate_camera.py` / `camera_intrinsics.json` (fx,fy,cx,cy + distortion) | `camera_intrinsics.json` |
 | `--mavsdk-url` | MAVLink connect URL; omit for desk dry-run | none |
 | `--dry-run` | print setpoints instead of sending | off |

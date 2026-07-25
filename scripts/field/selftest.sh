@@ -137,13 +137,19 @@ else bad "04 empty card exited $rc (expected 3 NOT CONNECTED)"; fi
 #     (it was graded against --min-frames 1 and passed).
 ONE="$TMP/one_frame"
 mkdir -p "$ONE"
-FIXTURE="$(find "$REPO/scripts/seeker/data" -name '*.png' -print -quit 2>/dev/null)"
+# scripts/seeker/data/ is GITIGNORED (the 15,391-image real-media corpus), so on a
+# clean clone this check found nothing and the pack exited 1 -- the second cause
+# that kept CI red on 73/73 runs (audit 2026-07-25, completeness critic #1).
+# tests/fixtures/field_selftest_frame.png is a TRACKED 28 KB frame, so the branch
+# now runs everywhere; the dataset dir stays first so a local run still uses it.
+FIXTURE="$(find "$REPO/scripts/seeker/data" "$REPO/tests/fixtures" \
+    -name '*.png' -print -quit 2>/dev/null)"
 if [[ -n "$FIXTURE" ]]; then
     cp "$FIXTURE" "$ONE/"
     want_fail "01 short session (1 frame of 30)" \
         "$HERE/01_camera_live_check.sh" --replay "$ONE" --frames 30
 else
-    bad "no fixture PNG under scripts/seeker/data -- cannot test the short-session branch"
+    bad "no fixture PNG under scripts/seeker/data or tests/fixtures -- cannot test the short-session branch"
 fi
 
 # 5d. 01: --require must not be satisfiable by a replay fixture (no real camera).

@@ -22,7 +22,9 @@ mavsdk==3.15.3
 
 # --- ONNX inference for the markerless NN seeker + curve-(b) shadow scoring -
 # Pinned to the version in .venv-seeker (onnxruntime-1.27.0.dist-info) so bench
-# scoring (drone_finetuned_quad_v2 @640, tripod_test_protocol.md §7.3 / skr-08)
+# scoring (nn_tier/n-mono @640 -- seeker_loop.py's deployed default;
+# tripod_test_protocol.md §7.3 / skr-08. CORRECTED 2026-07-25: this said
+# drone_finetuned_quad_v2, the sim-trained model that is BLIND on real imagery)
 # matches the desk. CPU wheel; the Hailo NPU path is a separate, deferred stack.
 # If pip finds no aarch64 wheel for this exact version on the Pi, relax to the
 # nearest onnxruntime 1.2x aarch64 wheel and re-note it here.

@@ -11,10 +11,12 @@
 #      or if a VISIBLE hand-authored dashboard number has no verbatim source in
 #      the contract -- the review-2 number-traceability guard)
 #   3. The uncovered --self-test entry points (run_tests.sh stage 4): field_score,
-#      seeker_loop, and scripts/field/selftest.sh -- before 2026-07-25 only 1 of
-#      29 self-tests was reachable from CI (review-2 "green != ran" finding).
-#      pyulog+pymavlink are pip'd below (pinned to the local .venv versions) so
-#      field_score's ULog/.BIN self-test cases RUN here instead of self-skipping.
+#      seeker_loop, parse_flight_log, and ALL THREE selftest.sh packs
+#      (scripts/field, configs/target_kakute, scripts/pi_setup) -- before
+#      2026-07-25 only 1 of 29 self-tests was reachable from CI (review-2
+#      "green != ran" finding). pyulog+pymavlink are declared in requirements.txt
+#      (NOT pip'd inline here any more) so field_score's ULog/.BIN self-test cases
+#      RUN instead of self-skipping.
 #
 # WHAT THIS DELIBERATELY SKIPS -- the .venv-seeker ONNX-parity stage
 # (run_tests.sh stage 2): those tests `pytest.importorskip("onnxruntime")`
@@ -29,21 +31,31 @@
 # treats a missing .venv-seeker as a failure by design.
 #
 # THE ONE NON-OBVIOUS DEPENDENCY: the suite is sim-free (nothing boots
-# Gazebo/PX4, no display), but six test files pull in gz python bindings at
-# import/collection time: five import m4_intercept at module scope
-# (tests/test_bearing_derotation.py, test_breakoff_deadband.py,
-# test_cue_staleness.py, test_handoff_streak.py, test_phantom_range_gate.py;
-# m4_intercept.py unconditionally imports gz.transport13/gz.msgs10), and
-# tests/test_target_orientation.py exec-loads scripts/m4_target_mover.py,
-# whose gz imports are also module-top-level (verified line 99, 2026-07-20).
+# Gazebo/PX4, no display), but NINE test files pull in gz python bindings at
+# import/collection time. Eight import scripts/m4_intercept.py at module scope
+# (it does `from gz.transport13 import Node` unconditionally at line 201) and
+# tests/test_target_orientation.py exec-loads scripts/m4_target_mover.py, whose
+# gz imports are also module-top-level. The list is the --ignore set below.
+#
+# THIS LIST IS MACHINE-CHECKED, not maintained by hand:
+# tests/test_ci_gz_deselect_list.py re-collects the whole suite in a subprocess
+# with `gz` blocked and asserts the erroring files are EXACTLY this set. It was
+# written because the hand-maintained list had already rotted three files' worth
+# in one day (test_solve_intercept_time, test_dash_clock, test_terminal_coast_latch
+# all landed 2026-07-25 unlisted). The failure mode is why it matters: an unlisted
+# file is a pytest COLLECTION ERROR, which interrupts the ENTIRE stage rather than
+# skipping one file -- and the fallback only fires when the OSRF apt step is
+# already broken, i.e. exactly when CI most needs to still work.
 # The bindings are NOT pip-installable (repo's requirements.txt says so);
 # they come from the Gazebo Harmonic apt repo. We install just the two
 # python binding packages (no rendering/GUI meta-package) and expose them
 # to .venv via --system-site-packages, the same mechanism the local .venv
 # uses. FALLBACK, so CI stays green if the OSRF apt step ever breaks on a
-# runner image drift: if the bindings don't import, those six files are
+# runner image drift: if the bindings don't import, those seven files are
 # deselected -- they hold pure-function unit tests that merely import a
 # flight script for helpers; nothing skipped that way touches a sim.
+# tests/test_ci_gz_deselect_list.py MACHINE-CHECKS that this list covers every
+# gz-importing test file, so the sync note above is data, not a promise.
 #
 # Pinning: Python deps are pinned in requirements.txt; ubuntu-24.04 is
 # pinned (not ubuntu-latest) because the OSRF "noble" apt line and the
@@ -89,36 +101,68 @@ jobs:
           python3 -m venv --system-site-packages .venv
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt
-          # Local-.venv extras not in requirements.txt (pinned to the versions
-          # verified locally 2026-07-25): pyulog for the loft-dive parser import
-          # in the flight-CSV contract test; pymavlink so field_score's .BIN
-          # DFReader self-test cases run for real instead of self-skipping.
-          .venv/bin/pip install pyulog==1.2.3 pymavlink==2.4.49
+          # NOTHING is pip-installed here that requirements.txt does not declare.
+          # Until 2026-07-25 this step carried an inline
+          #   pip install pyulog==1.2.3 pymavlink==2.4.49
+          # under a comment reading "local-.venv extras not in requirements.txt".
+          # That was dependency drift with a second source of truth: `pip install
+          # -r requirements.txt` alone did NOT reproduce the suite. Both pins now
+          # live in requirements.txt; if a dep is missing, the fix goes THERE.
 
       - name: Run the offline suite (run_tests.sh stage 1, .venv)
         run: |
           # Mirror of run_tests.sh stage 1; the gz-fallback deselect list is
-          # the six gz-at-import-time files (see the header comment).
+          # the seven gz-at-import-time files (see the header comment; the list
+          # is machine-checked by tests/test_ci_gz_deselect_list.py).
           if .venv/bin/python -c "import gz.transport13, gz.msgs10" 2>/dev/null; then
             .venv/bin/python -m pytest tests/ flight/tests/ -v
           else
-            echo "::warning::gz bindings unavailable -- deselecting the 6 gz-importing test files"
+            echo "::warning::gz bindings unavailable -- deselecting the 7 gz-importing test files"
             .venv/bin/python -m pytest tests/ flight/tests/ -v \
               --ignore=tests/test_bearing_derotation.py \
               --ignore=tests/test_breakoff_deadband.py \
               --ignore=tests/test_cue_staleness.py \
+              --ignore=tests/test_dash_clock.py \
               --ignore=tests/test_handoff_streak.py \
               --ignore=tests/test_phantom_range_gate.py \
-              --ignore=tests/test_target_orientation.py
+              --ignore=tests/test_solve_intercept_time.py \
+              --ignore=tests/test_target_orientation.py \
+              --ignore=tests/test_terminal_coast_latch.py
           fi
 
+      # WHY `if: ${{ !cancelled() }}` ON THE REMAINING STAGES (audit fix,
+      # 2026-07-25): by default a step only runs if every earlier step
+      # SUCCEEDED. Stage 1 has failed on all 73 runs since the first push, so
+      # stages 3 and 4 below had NEVER ONCE EXECUTED -- a red stage-1 was
+      # silently hiding the drift check and the whole self-test gate, and we
+      # had no idea whether they passed. Now a stage-1 failure can never again
+      # mask them. `!cancelled()` rather than `always()` so a manually
+      # cancelled run stops instead of grinding on.
+      #
+      # THE JOB STILL FAILS RED IF ANY STAGE FAILS: `if:` only controls whether
+      # a step RUNS, never how its exit code is aggregated (that would be
+      # `continue-on-error: true`, which we deliberately do NOT use anywhere).
+      # Green here means all four stages ran AND all four passed.
       - name: Project-state dashboard drift check (run_tests.sh stage 3)
+        if: ${{ !cancelled() }}
         run: python3 scripts/render_dashboard.py --check
 
       - name: Uncovered --self-test entry points (run_tests.sh stage 4)
+        if: ${{ !cancelled() }}
         # Each must exit 0. A self-test that cannot run is a FAILURE here, not
         # a skip (docs/error_handling_policy.md: green means ran).
+        #
+        # ALL THREE selftest.sh PACKS are wired (audit fix, 2026-07-25). Before
+        # it, `git ls-files | grep selftest.sh` returned three packs and only
+        # scripts/field was gated here or in run_tests.sh -- which is exactly
+        # how the stale tripod mission geometry survived in the ungated
+        # configs/target_kakute pack. Both additions are stdlib-only, offline,
+        # no hardware and no sim (verified locally 2026-07-25, each exit 0).
         run: |
+          set -e
           .venv/bin/python "$PWD/scripts/field_score.py" --self-test
           .venv/bin/python "$PWD/flight/deploy/seeker_loop.py" --self-test
-          bash "$PWD/scripts/field/selftest.sh"
+          .venv/bin/python "$PWD/scripts/field/parse_flight_log.py" --self-test
+          FIELD_LOG_ROOT="$(mktemp -d)" bash "$PWD/scripts/field/selftest.sh"
+          bash "$PWD/configs/target_kakute/selftest.sh"
+          bash "$PWD/scripts/pi_setup/selftest.sh"

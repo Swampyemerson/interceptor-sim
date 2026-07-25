@@ -1,0 +1,34 @@
+{
+  "world": "stereo_intercept",
+  "target_model": "fpv_target_markerless",
+  "rig_model": "ground_stereo_rig",
+  "rig_pose_xyz_yaw": [
+    -153.5,
+    0.0,
+    1.8,
+    0.0
+  ],
+  "rig_baseline_m": 2.0,
+  "rig_hfov_rad": 0.349,
+  "resolution": [
+    1920,
+    1200
+  ],
+  "left_topic": "/world/stereo_intercept/model/ground_stereo_rig/link/link/sensor/rig_left/image",
+  "right_topic": "/world/stereo_intercept/model/ground_stereo_rig/link/link/sensor/rig_right/image",
+  "dash_x0_m": 6.5,
+  "dash_y0_mag_m": 29.3,
+  "dash_z0_m": 0.5,
+  "dash_speed_m_s": 9.0,
+  "rate_hz": 10.0,
+  "path_boundary_abs_y_m": 5.0,
+  "signs_captured": [
+    "+",
+    "-"
+  ],
+  "smoke": false,
+  "n_captured": 56,
+  "n_skipped": 0,
+  "git_rev": "fe256194d657ea0e6fed98ed22b0b628da344200",
+  "runstamp": "20260709T015530Z"
+}

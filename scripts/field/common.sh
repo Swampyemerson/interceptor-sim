@@ -36,7 +36,13 @@ FLD_ABSENT=3
 # readlink -f so the scripts work through a symlink or from any cwd.
 FLD_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 REPO_ROOT="$(cd "$FLD_DIR/../.." && pwd)"
-FLD_LOGS="$REPO_ROOT/logs/field"
+# FIELD_LOG_ROOT overrides where run dirs are created. Default is unchanged
+# (logs/field/), so every real field-day invocation behaves exactly as before.
+# It exists so the AUTOMATED gates (scripts/run_tests.sh stage 4, ci.yml) can
+# point the self-test replay at a scratch dir: before this, each run_tests.sh
+# invocation left ~8 timestamped dirs in logs/field/ that are indistinguishable
+# from real captures (audit hygiene fix, 2026-07-25).
+FLD_LOGS="${FIELD_LOG_ROOT:-$REPO_ROOT/logs/field}"
 
 # --- pretty printing -------------------------------------------------------
 # Colors only when stdout is a TTY, so tee'd logs stay clean text.

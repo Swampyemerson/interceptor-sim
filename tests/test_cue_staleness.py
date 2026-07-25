@@ -36,6 +36,7 @@ Run: `.venv/bin/python -m pytest tests/test_cue_staleness.py -v`
 """
 import ast
 import os
+import re
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,13 +45,47 @@ M4_PATH = os.path.join(SCRIPTS, "m4_intercept.py")
 sys.path.insert(0, SCRIPTS)
 sys.path.insert(0, os.path.join(SCRIPTS, "seeker"))
 
-from m4_intercept import cue_is_stale                        # noqa: E402
+from m4_intercept import COAST_STALE_S, cue_is_stale         # noqa: E402
 from detect_track import DetectThenTracker, SeekerSeedContext  # noqa: E402
 from nn_seeker import SeekerDetection                        # noqa: E402
 
-# The default --cue-stale-horizon in m4 (= COAST_STALE_S). Kept as a literal here
-# so a silent change to that default trips test_m4_exposes_cue_stale_horizon_flag.
+# The default --cue-stale-horizon in m4 (= COAST_STALE_S), repeated as a literal
+# so the cases below read as arithmetic rather than as an import.
+#
+# COMMENT CORRECTED 2026-07-25 (audit, reader 5). It previously claimed a silent
+# change to the default would "trip test_m4_exposes_cue_stale_horizon_flag" --
+# FALSE, and the worse half of the defect: that test is a pure AST check that the
+# argparse default is the *Name* `COAST_STALE_S`, and it never reads the value,
+# so m4's 1.0 could drift to 10.0 with the whole suite green. An overclaiming
+# comment inside an instrument is the project's named defect class -- it is what
+# stops the next reader from adding the pin. The real pin is
+# test_coast_stale_s_value_is_pinned below (DEEP-T1's "remaining" item).
 HORIZON_S = 1.0
+
+
+def test_coast_stale_s_value_is_pinned():
+    """THE VALUE PIN (docs/audit_findings_tracker.md DEEP-T1).
+
+    PROVENANCE of 1.0 s: `scripts/m4_intercept.py:544` -- "cue silent longer than
+    this (sim) => stale/link-loss". It is the ADR-0059 dead-reckon-coast horizon
+    and, as the argparse default for --cue-stale-horizon, the value every
+    coded-dash/handoff flight ran at unless an arm overrode it (scripts/mc_jam_arm.sh
+    documents the same default). Changing it re-scopes every logged coast latch,
+    so it is a deliberate decision + ADR, never a silent edit.
+
+    Mirror in the design-time surrogate: scripts/guidance_lab.py:1833 carries
+    `COAST_STALE_S=1.0  # m4 COAST_STALE_S`. Divergence there breaks "lab ranks,
+    Gazebo decides", so it is pinned to the same number here."""
+    assert COAST_STALE_S == 1.0
+    assert HORIZON_S == COAST_STALE_S, (
+        "this file's local literal drifted from m4's constant")
+
+    # guidance_lab's copy of the same constant must not drift from m4's.
+    lab_src = open(os.path.join(SCRIPTS, "guidance_lab.py")).read()
+    m = re.search(r"COAST_STALE_S\s*=\s*([0-9.]+)", lab_src)
+    assert m, "guidance_lab.py no longer defines COAST_STALE_S"
+    assert float(m.group(1)) == COAST_STALE_S, (
+        f"guidance_lab COAST_STALE_S={m.group(1)} != m4's {COAST_STALE_S}")
 
 
 # ---------------------------------------------------------------- helpers
