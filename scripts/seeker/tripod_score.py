@@ -706,6 +706,8 @@ def curve_b(frames, decode, calib, weights, conf, drone_size_m, bin_m, max_m,
     import cv2
     bins = {}
     n_scored = 0
+    n_offframe = 0        # truth box projected outside the image
+    n_unreadable = 0      # frame file unreadable
     for p, base in frames:
         dec, drange, _u, _v, _n = decode[base]
         if not dec or drange is None:
@@ -719,15 +721,30 @@ def curve_b(frames, decode, calib, weights, conf, drone_size_m, bin_m, max_m,
         u0, v0 = _u, _v
         if u0 is None or v0 is None:
             u0, v0 = cx, cy
-        x = (u0 - cx) / fx * gr
-        y = (v0 - cy) / fy * gr
-        z = gr / math.sqrt(1.0 + ((u0 - cx) / fx) ** 2 + ((v0 - cy) / fy) ** 2)
+        # BUG FIXED 2026-07-24 (review 2, blocker). x and y were scaled by the RANGE
+        # gr while z was scaled by gr/s (s = sqrt(1+a^2+b^2)), so the re-projected
+        # truth centre landed at u = cx + (u0-cx)*s instead of u0 -- displaced
+        # RADIALLY OUTWARD by a factor that GROWS with off-axis angle (measured:
+        # 6.9 px at 16 deg, 72.7 px at 34 deg, 234 px at 45 deg = off-frame).
+        # That is exactly the position-in-frame axis curve (b) exists to measure, so
+        # a PERFECT detector would score MISS toward the edges and the artefact would
+        # read as CONFIRMATION of this project's own "position-in-frame explains the
+        # recall gap" belief (ADR-0076 add #18k). Correct: the bearing ray (a, b, 1)
+        # normalised to length gr, i.e. x = a*z, y = b*z -- which is what the
+        # IoU-0.965-validated autolabel_from_apriltag path already does.
+        _a = (u0 - cx) / fx
+        _b = (v0 - cy) / fy
+        z = gr / math.sqrt(1.0 + _a * _a + _b * _b)
+        x = _a * z
+        y = _b * z
         gt = project_to_bbox(x, y, z, gr, fx, fy, cx, cy, drone_size_m, w or 1280, h or 960)
         if gt is None:
-            continue
+            n_offframe += 1     # SILENT-DROP GUARD: a denominator that shrinks
+            continue            # without saying so is the whole failure class.
         gcx, gcy, gw, gh = gt
         frame = cv2.imread(p)
         if frame is None:
+            n_unreadable += 1
             continue
         hit = box_hits_gt(seeker._infer_boxes(frame), gcx, gcy, gw, gh)
         band = _pos_band(gcy, h or frame.shape[0], n_bands)
@@ -738,6 +755,9 @@ def curve_b(frames, decode, calib, weights, conf, drone_size_m, bin_m, max_m,
         n_scored += 1
     note = (f"NN half: scored {n_scored} tag-truthed frames "
             f"(recall bounded by curve (a)'s decode ceiling -- protocol §7.2)")
+    if n_offframe or n_unreadable:
+        note += (f" | DROPPED {n_offframe + n_unreadable}: "
+                 f"{n_offframe} truth-box off-frame, {n_unreadable} unreadable")
     return bins, note
 
 

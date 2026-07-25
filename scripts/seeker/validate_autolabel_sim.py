@@ -591,6 +591,28 @@ def placard_sizing(r90_sim, r_any_sim, rate_at_r90, sim_fx, r90_hires=None):
     # gate threshold on R90: t_go>=0.5 @9 m/s  ->  R90 >= 0.5*V + R_streak_burn
     burn = out["candidates"][0]["R_streak_burn_m"] or 0.0
     out["gate_R90_threshold_m"] = round(TGO_MIN_S * V_CLOSING_MPS + burn, 2)
+    # ADR-0082 COMPLETION (2026-07-24, review 2): the single headline threshold above
+    # is computed at STREAM_FPS and was being published ALONE -- the frame-rate BAND
+    # introduced by ADR-0082 was declared but never emitted, so the "one measured fps"
+    # fix was INERT and every published verdict still rode the unmeasured 30 fps. The
+    # band is now materialised, and the report carries the fps each number belongs to.
+    band = {}
+    for _fps in STREAM_FPS_BAND:
+        _g = tripod_gate(out["candidates"][0]["R_decode90_real_conservative_m"],
+                         rate_at_r90, stream_fps=_fps)
+        band[f"{_fps:g}fps"] = {
+            "R90_threshold_m": round(TGO_MIN_S * V_CLOSING_MPS
+                                     + (_g["r_streak_burn"] or 0.0), 2),
+            "R_streak_burn_m": _g["r_streak_burn"],
+            "E_streak_frames": _g["e_streak_frames"],
+        }
+    out["gate_R90_threshold_band"] = band
+    out["gate_threshold_fps_assumed"] = STREAM_FPS
+    out["gate_threshold_note"] = (
+        "gate_R90_threshold_m is computed at gate_threshold_fps_assumed. That rate is "
+        "NOT measured -- the deployed loop runs 20 Hz and the only measured tag cadence "
+        "is ~14 Hz. Read gate_R90_threshold_band and use the row matching the rate "
+        "MEASURED on the Pi bench (pi_capture records stream_fps). ADR-0082.")
     if r90_hires:
         out["R_decode90_sim_hires_m"] = r90_hires
         out["hires_note"] = ("quad_decimate=1.0 (full-res) sim envelope; the deployed "

@@ -351,3 +351,37 @@ def test_range_truth_join_self_test_passes():
                           capture_output=True, text=True, cwd=REPO_ROOT)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "[self-test] PASS" in proc.stdout
+
+
+def test_curve_b_truth_box_reprojects_onto_the_tag_centre():
+    """REGRESSION (review 2, blocker): curve_b's truth box must land back on the
+    tag's own image centre at ANY off-axis angle.
+
+    The original construction scaled x,y by the RANGE while scaling z by range/s,
+    displacing the truth box radially outward by a factor growing with off-axis
+    angle (6.9 px @16 deg, 72.7 @34, 234 @45 = off-frame). Since curve (b) is
+    binned BY position-in-frame, a perfect detector scored MISS toward the edges
+    and the artefact confirmed the project's own prior. This pins the geometry.
+    """
+    import math
+    fx = fy = 540.0
+    cx, cy = 640.0, 400.0
+    gr = 12.0
+    worst = 0.0
+    for u0, v0 in [(640, 400), (800, 400), (1000, 400), (640, 600),
+                   (1100, 700), (300, 150), (1200, 780)]:
+        a = (u0 - cx) / fx
+        b = (v0 - cy) / fy
+        z = gr / math.sqrt(1.0 + a * a + b * b)
+        x, y = a * z, b * z
+        # reproject
+        u = cx + fx * x / z
+        v = cy + fy * y / z
+        err = math.hypot(u - u0, v - v0)
+        worst = max(worst, err)
+        off_axis_deg = math.degrees(math.atan(math.hypot(a, b)))
+        assert err <= 1.0, (
+            f"truth box reprojects {err:.1f} px from the tag centre at "
+            f"{off_axis_deg:.1f} deg off-axis (u0={u0}, v0={v0}) -- the "
+            f"position-in-frame axis curve (b) measures is corrupted")
+    assert worst <= 1.0
