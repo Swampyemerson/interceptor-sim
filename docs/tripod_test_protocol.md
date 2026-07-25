@@ -37,12 +37,15 @@ bench task (§7.3) — it does not need the target flying.
       fixed-tilt mechanism is real before you rely on it for the camera setup below.
       If not yet run, use the sim-anchored default tilt in §3.2 and treat the field
       tilt as provisional.
-- [ ] **Auto-labeler validated in the `apriltag` sim world** (tag-box vs gt-box IoU
-      vs range) — sizes the placard. **Status per `real_data_pipeline.md`: NOT yet
-      run.** If still not run, use the BOM default placard (~0.3 m tag36h11,
-      `hardware_order_list.md` §E) and treat placard sizing as unresolved — do not
-      block the field day on it, but do not over-read a marginal curve (a) result
-      as final until this validation exists.
+- [x] **Auto-labeler validated in the `apriltag` sim world** (tag-box vs gt-box IoU
+      vs range) — **DONE 2026-07-21** (IoU 0.965 vs gt, min 0.951; `docs/placard_sizing.md`).
+      *(The "NOT yet run / use the ~0.3 m BOM default" text here was STALE and is
+      superseded — it would have sent you to the field with an undersized placard.)*
+      **ADOPTED PLACARD: 0.35 m AprilTag black square = a 0.45 m PHYSICAL SHEET.**
+      Note the two numbers: 0.35 m is the *tag* (what `tag_size` means for pose), the
+      *object you carry and print* is **450 × 450 mm** (black square + the mandatory
+      1-cell quiet zone: 0.35/0.8 = 437.5 mm + margin — `docs/placard_mount.md` §2).
+      Every other doc that says "~0.3–0.35 m print" is naming the tag, not the sheet.
 - [ ] **Camera paper-checks done** (before/at purchase, `build_plan.P0` task 5):
       HFOV ≥100°; **vertical FoV** — OV9281 is 1280×800 vs the sim's 1280×960, and
       the wall is a *vertical* pointing problem, so check this explicitly, not just
@@ -141,19 +144,56 @@ the ~$620–780 realistic first-outdoor-test outlay, not just the ~$310 tripod c
 
 ### 4.1 Range stations
 
-Mark **8, 12, 16, 20, 25, 30 m** from the tripod along the approach line (use a
+> ⛔ **CORRECTED 2026-07-24 — the original stations (8/12/16/20/25/30 m) COULD NOT
+> MEASURE THE THING THIS DAY EXISTS TO MEASURE, and would have manufactured a FALSE
+> NO-GO on the ~$740 interceptor order.** The predicted `R_decode90` for the adopted
+> 0.35 m placard is **7.10 m** (realistic px/deg scaling; 5.98 m conservative, 8.97 m
+> full-res — `docs/placard_sizing.md` §5). The old NEAREST station was **8 m**, i.e.
+> *outside* the entire predicted envelope: every station would have returned ~0%
+> decode, curve (a) would read "no range bin sustains ≥90%", and `gate_verdict` would
+> have returned **FAIL → do not buy the interceptor** — for a purely geometric reason,
+> not a real perception limit. Stations must BRACKET the predicted envelope, not sit
+> beyond it. (Found by the placard-mount design pass, `docs/placard_mount.md` §11.)
+
+Mark **4, 6, 8, 10, 12, 16, 20 m** from the tripod along the approach line (use a
 rangefinder or pre-plan the target's AUTO waypoint mission in QGC so the ranges are
 GPS-repeatable pass to pass — the ArduPilot target flies a scripted box/line, so
-this is buildable once, then reused for every pass).
+this is buildable once, then reused for every pass). The **4/6/10 m near stations are
+the money stations** — they are where the tag is predicted to actually decode. Keep
+16/20 m as the upper bracket (they establish where the envelope dies, which is a real
+number worth having); 25/30 m are dropped as certain zeros that only cost field time.
+
+**Bin curve (a) in 2 m bins from 4–14 m** (not the old wide bins) — the decision
+hinges on where inside 4–10 m the 90% line falls, so the resolution has to be there.
 
 ### 4.2 Aspects
 
 - **Approach** — target flies straight at the camera boresight (mirrors the sim's
   head-on regime).
-- **Crossing** — target flies a lateral leg at a fixed standoff (~15–20 m) that
-  transects the FOV (mirrors the sim's l2r/r2l crossing regime — the regime where
-  the AprilTag goes *invisible* in sim, ADR-0076 add #18e; this is exactly the
-  aspect worth checking for real).
+- **Crossing** — target flies a lateral leg at a fixed standoff that transects the
+  FOV (mirrors the sim's l2r/r2l crossing regime — the regime where the AprilTag goes
+  *invisible* in sim, ADR-0076 add #18e; this is exactly the aspect worth checking for
+  real). **Use a ~5–6 m standoff for the dedicated tag-envelope crossing block**
+  (inside the predicted decode envelope); the old ~15–20 m standoff is retained ONLY
+  for the NN/curve-(b) crossing passes, where detection is not envelope-limited the
+  same way.
+
+### 4.2b Incidence is a variable, not a nuisance — record and score it
+
+The placard is a **flat fiducial**: decode range falls with the angle between the
+camera boresight and the placard normal (the *incidence angle*). The measured law is
+`R_decode(θ) ≈ R_decode(0°)·cos θ`, with a usable cone of **±32.3°** at the deployed
+`quad_decimate=2.0` (`docs/placard_mount.md` §6). A pass flown at 30° incidence and a
+pass flown at 0° are **different experiments** — pooling them smears the curve.
+
+- **Record the mount index angle** (the placard mount is 15°-indexable) on every pass
+  card, and **compute per-frame incidence offline** from the target ULog attitude +
+  the surveyed tripod position + that index angle. This costs **zero field time**.
+- **Score curve (a) as decode vs `(range × incidence)`**, not range alone.
+- **Re-decode the same captured frames offline at `quad_decimate ∈ {2.0, 1.0}`.**
+  `qd=1.0` is the unexercised range/incidence-widening lever (~1.5× range, ±48–56°
+  cone) and costs only Pi fps — so if the gate is marginal at `qd=2.0`, this is the
+  first reclaim lever and it needs no second field day.
 
 ### 4.3 Backgrounds
 
