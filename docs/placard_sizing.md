@@ -229,3 +229,56 @@ SIM_GPU_RENDER=0 bash scripts/seeker/validate_autolabel_sim.sh
     --images-dir docs/images --sim-fx 539.9363327026367 --r90-hires 18.0 \
     --summary-out logs/autolabel_sim/summary_placard.json
 ```
+
+---
+
+## ⛔ CORRECTION (2026-07-24, ADR-0082) — the published threshold was optimistic; the SIZE stands, the DECODE SETTING changes
+
+The gate threshold quoted above (`R_decode90 ≥ 6.0 m`) came from
+`validate_autolabel_sim.tripod_gate()`, which used the **mean-rate** streak burn
+(`k / decode_Hz`) at a **hardcoded 30 fps**. Both inputs were wrong:
+
+1. **Wrong burn model.** ADR-0079 replaced mean-rate with the **run-length**
+   expectation `E[T] = (1−p^k)/(p^k(1−p))` in `tripod_score.py` because the handoff
+   needs `k` CONSECUTIVE decodes and mean-rate always understates the burn (the
+   optimistic = dangerous direction for a purchase gate). `validate_autolabel_sim`
+   was never updated — so the codebase carried **two different burn models**, and the
+   *optimistic* one produced the published sizing numbers. Both now use the identical
+   run-length model (parity asserted: p=0.9 → 6.9351 frames in both files).
+2. **Unsourced frame rate.** 30 fps had no provenance. The deployed flight loop runs
+   **20 Hz**; the only measured AprilTag cadence in the repo is **~14 Hz**.
+
+**Corrected threshold band** (R_decode90 needed for t_go ≥ 0.5 s at 9 m/s, k=5):
+
+| | 30 fps | 20 Hz (deployed loop) | 14 Hz (measured tag rate) |
+|---|---:|---:|---:|
+| p = 1.0 | 6.00 m | 6.75 m | 7.71 m |
+| **p = 0.9** (worst the ≥90% band allows) | **6.58 m** | **7.62 m** | **8.96 m** |
+
+**Verdict for the ADOPTED 0.35 m placard** (predicted 7.10 m realistic / 8.97 m at
+full-res `quad_decimate=1.0`):
+
+| decode setting | 30 fps | 20 Hz | 14 Hz |
+|---|:--:|:--:|:--:|
+| `qd=2.0` (deployed default), 7.10 m | PASS (t_go 0.558) | **FAIL (0.442)** | **FAIL (0.294)** |
+| `qd=1.0` (full-res), 8.97 m | PASS (0.765) | **PASS (0.650)** | **PASS (0.501)** |
+
+### The two decisions this forces
+
+- **PLACARD SIZE IS UNCHANGED — 0.35 m tag / 0.45 m sheet.** It was already the
+  **carry limit** (`docs/placard_mount.md`), so there is nothing larger to choose
+  without a different target airframe. The correction does not make the placard
+  wrong; it makes the *margin* honest — at the deployed decode setting there is none.
+- **`quad_decimate=1.0` (full-res decode) is PROMOTED from "reclaim lever" to the
+  PLANNED tripod-day setting.** It is the only configuration that clears the gate at
+  every credible frame rate, and it costs Pi fps — which is precisely why the day must
+  also **MEASURE** the achieved rate (`pi_capture` now records `stream_fps` + a p10
+  slow-tail; `tripod_score` refuses to invent one). Capture at `qd=1.0`, and re-score
+  the same frames offline at `qd=2.0` for the comparison — one session, both answers.
+
+**Honest read:** this does not say the placard fails. It says the published PASS was
+resting on an optimistic burn model at an unmeasured frame rate, and that the real
+decision hinges on a number nobody has measured yet (the achieved Pi capture rate).
+The tripod day was always the authority — this correction just makes sure the day is
+run in the configuration that can actually clear the bar, and that its verdict is
+computed with the conservative model.

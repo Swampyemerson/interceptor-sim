@@ -103,7 +103,16 @@ TGO_MIN_S = 0.5
 V_CLOSING_MPS = 9.0        # conservative (the GATE scenario)
 V_CLOSING_HI_MPS = 20.0    # aggressive (context only)
 HANDOFF_STREAK = 5
-STREAM_FPS = 30.0
+# STREAM_FPS: the capture rate the gate is evaluated at. CORRECTED 2026-07-24
+# (ADR-0082): this was a bare 30.0 with no source, while the deployed flight loop
+# runs 20 Hz and the only MEASURED AprilTag cadence in the repo is ~14 Hz. The
+# rate is load-bearing -- it moves the R_decode90 threshold by ~1.6 m between 30
+# and 20 Hz at p=0.9 -- so the sizing report now prints a BAND over these rates
+# instead of a single optimistic number. The authority is the rate MEASURED on the
+# Pi bench (pi_capture records stream_fps + a p10 slow tail); tripod_score.py
+# refuses to invent one.
+STREAM_FPS = 30.0                      # legacy single-point (kept for provenance)
+STREAM_FPS_BAND = (30.0, 20.0, 14.0)   # 30 = as-published, 20 = deployed loop, 14 = measured tag rate
 
 
 # ==========================================================================
@@ -616,16 +625,46 @@ def placard_sizing(r90_sim, r_any_sim, rate_at_r90, sim_fx, r90_hires=None):
     return out
 
 
-def tripod_gate(r90_real, decode_rate, v=V_CLOSING_MPS):
-    """tripod_score.py gate_verdict arithmetic (verbatim constants)."""
-    decode_hz = decode_rate * STREAM_FPS
-    r_streak_burn = (HANDOFF_STREAK / decode_hz) * v if decode_hz > 0 else float("inf")
+def _streak_frames(p, k=HANDOFF_STREAK):
+    """Expected frames to the FIRST RUN of k consecutive decodes (ADR-0079).
+
+    E[T] = (1 - p^k) / (p^k * (1 - p)). This REPLACED the mean-rate model (k/p)
+    on 2026-07-24: the handoff needs k CONSECUTIVE detections, and mean-rate
+    always UNDERSTATES the burn -- the optimistic, i.e. dangerous, direction for
+    a purchase gate (up to 9.25x at p=0.44; ~1.2x in this gate's p>=0.9 regime).
+    Must stay identical to tripod_score._streak_burn_frames.
+    """
+    if p >= 1.0:
+        return float(k)
+    if p <= 0.0:
+        return float("inf")
+    pk = p ** k
+    return (1.0 - pk) / (pk * (1.0 - p))
+
+
+def tripod_gate(r90_real, decode_rate, v=V_CLOSING_MPS, stream_fps=STREAM_FPS):
+    """tripod_score.py gate_verdict arithmetic (ADR-0079 run-length burn).
+
+    CORRECTED 2026-07-24 (ADR-0082): this used the mean-rate burn
+    (HANDOFF_STREAK / decode_Hz) at a hardcoded 30 fps -- the exact model
+    ADR-0079 rejected in tripod_score.py. Two different burn models in one
+    codebase is the drift that manufactures mirages, and THIS function produced
+    the published placard-sizing threshold. Now it mirrors tripod_score exactly
+    and takes the frame rate as a parameter.
+    """
+    e_frames = _streak_frames(decode_rate)
+    decode_hz = decode_rate * stream_fps
+    r_streak_burn = ((e_frames / stream_fps) * v
+                     if (stream_fps > 0 and math.isfinite(e_frames)) else float("inf"))
     t_go = (r90_real - r_streak_burn) / v if v > 0 else float("-inf")
     verdict = "PASS" if (r90_real > 0 and t_go >= TGO_MIN_S) else "FAIL"
     return dict(verdict=verdict,
                 t_go=round(t_go, 3) if math.isfinite(t_go) else None,
                 r_streak_burn=round(r_streak_burn, 3) if math.isfinite(r_streak_burn) else None,
-                decode_hz=round(decode_hz, 2))
+                decode_hz=round(decode_hz, 2),
+                stream_fps=stream_fps,
+                e_streak_frames=round(e_frames, 2) if math.isfinite(e_frames) else None,
+                burn_model="run-length (ADR-0079)")
 
 
 def plot_placard(pl, images_dir, plt):

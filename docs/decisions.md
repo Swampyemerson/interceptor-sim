@@ -2140,3 +2140,32 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   magnitude check (slow-drift past-CPA risk, port-before-flight); the own-prop phantom-streak residual
   is inherited from the sim and is designed out in HARDWARE (nose-cantilever mount), not here.
 - **Date.** 2026-07-24.
+
+## ADR-0082 — One burn model, one measured frame rate: correct the placard-sizing gate
+
+- **Context.** ADR-0079 adopted the conservative run-length streak burn in
+  `tripod_score.gate_verdict`. The full project review (2026-07-24) found that
+  `scripts/seeker/validate_autolabel_sim.py:tripod_gate()` — **the function that produced the
+  published placard-sizing threshold and the 0.35 m recommendation** — still used the REJECTED
+  mean-rate burn, at a hardcoded, unsourced `STREAM_FPS = 30.0`. So the codebase carried two
+  different burn models and the optimistic one sized the hardware.
+- **Decision.** (1) `validate_autolabel_sim.tripod_gate` now uses the identical run-length model
+  (parity asserted numerically against `tripod_score._streak_burn_frames`) and takes the frame rate
+  as a parameter; `STREAM_FPS_BAND = (30, 20, 14)` documents the credible range (as-published /
+  deployed loop / measured tag rate) so the sizing report prints a BAND, not a single number.
+  (2) The **placard size is UNCHANGED at 0.35 m tag / 0.45 m sheet** — it was already the carry
+  limit, so no larger option exists without a different target airframe. (3) **`quad_decimate=1.0`
+  (full-res decode) is promoted from "reclaim lever" to the PLANNED tripod-day capture setting**:
+  it is the only configuration that clears the gate at 30/20/14 fps, whereas the deployed `qd=2.0`
+  clears only at 30 fps.
+- **Numbers.** Corrected threshold (t_go ≥ 0.5 s, 9 m/s, k=5), p=0.9: **6.58 m @30 fps, 7.62 m
+  @20 Hz, 8.96 m @14 Hz**. The 0.35 m placard predicts 7.10 m at `qd=2.0` (PASS only at 30 fps) and
+  8.97 m at `qd=1.0` (PASS at all three).
+- **Why it matters.** The gate authorizes a ~$740 purchase. An optimistic burn at an invented frame
+  rate could green-light an order the data does not support — or, with the bin-edge defect fixed the
+  same day, red-light one it does. The frame rate is now a MEASURED input (`pi_capture` records
+  `stream_fps` + a p10 slow tail; `tripod_score` returns UNCERTAIN rather than inventing one).
+- **Honest scope.** This does not falsify the placard choice; it removes the margin that was never
+  really there and names the one unmeasured input (achieved Pi capture rate) the decision hinges on.
+  The tripod day remains the authority.
+- **Date.** 2026-07-24.
