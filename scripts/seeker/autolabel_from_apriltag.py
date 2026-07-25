@@ -85,12 +85,29 @@ def autolabel_frame(gray, detector, cam_params, tag_size, drone_size,
     return project_to_bbox(x, y, z, rng, fx, fy, cx, cy, drone_size, w, h)
 
 
-def run(args):
-    import cv2
+# Detector CACHED per quad_decimate — pupil_apriltags' native Detector.__del__
+# SIGSEGVs when construction churns in one process (fixed the CI flake at the
+# tripod_score/pi_capture sites too). One label run builds one Detector, so this
+# is a no-op in the field; it only matters across repeated in-process calls.
+_DETECTOR_CACHE = {}
+
+
+def _make_detector(quad_decimate):
+    key = float(quad_decimate)
+    det = _DETECTOR_CACHE.get(key)
+    if det is not None:
+        return det
     try:
         from pupil_apriltags import Detector
     except ImportError:  # aarch64: pyapriltags drop-in (docs/pi_emulation_check.md)
         from pyapriltags import Detector
+    det = Detector(families="tag36h11", quad_decimate=key)
+    _DETECTOR_CACHE[key] = det
+    return det
+
+
+def run(args):
+    import cv2
     fx, fy, cx, cy, w, h, dist = _load_calib(args.calib)
     if not (w and h):
         raise SystemExit("calib JSON needs a resolution (width/height)")
@@ -109,7 +126,7 @@ def run(args):
     # 1.0 the tag decodes ~1.5x farther and over a +-48-56 deg incidence cone
     # instead of +-32 deg (docs/placard_mount.md §3.3), i.e. MORE labelled frames
     # from the same footage. It is printed so the label run is self-documenting.
-    det = Detector(families="tag36h11", quad_decimate=float(args.quad_decimate))
+    det = _make_detector(args.quad_decimate)
     print(f"[autolabel] detector: tag36h11, quad_decimate={args.quad_decimate}"
           + ("" if float(args.quad_decimate) != 1.0 else
              "  (full-res: the ADR-0082 tripod-day setting)"))

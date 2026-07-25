@@ -500,6 +500,30 @@ def check_decimate_consistency(values, allow_mismatch=False):
     return info
 
 
+# Detector objects are CACHED per quad_decimate and never destroyed. The
+# pupil_apriltags C Detector.__del__ frees native state that SIGSEGVs when
+# construction/destruction churns in one process (measured on CI: scoring
+# several sessions in one pytest process crashed at tripod_score.run). A single
+# scoring pass builds one Detector, so the cache is a no-op there; it only
+# matters across many in-process calls (the test suite, a batch tool). Mirrors
+# scripts/seeker/pi_capture.py:_make_detector.
+_DETECTOR_CACHE = {}
+
+
+def _make_detector(quad_decimate=DEFAULT_QUAD_DECIMATE):
+    key = float(quad_decimate)
+    det = _DETECTOR_CACHE.get(key)
+    if det is not None:
+        return det
+    try:
+        from pupil_apriltags import Detector
+    except ImportError:  # aarch64: pyapriltags drop-in (docs/pi_emulation_check.md)
+        from pyapriltags import Detector
+    det = Detector(families="tag36h11", quad_decimate=key)
+    _DETECTOR_CACHE[key] = det
+    return det
+
+
 def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
                   allow_partial_tags=False,
                   quad_decimate=DEFAULT_QUAD_DECIMATE):
@@ -563,10 +587,6 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
         return results
 
     import cv2
-    try:
-        from pupil_apriltags import Detector
-    except ImportError:  # aarch64: pyapriltags drop-in (docs/pi_emulation_check.md)
-        from pyapriltags import Detector
     undistort = bool(np.asarray(dist).any()) and w and h
     map1 = map2 = None
     if undistort:
@@ -576,7 +596,7 @@ def decode_frames(frames, calib, tag_size_m, tags_map=None, quiet=False,
     # default 2.0, which is the configuration placard_sizing predicts FAILS the
     # money gate at 20/14 Hz. It is a range multiplier, so it belongs on the
     # record next to the curve it produced -- see check_decimate_consistency.
-    det = Detector(families="tag36h11", quad_decimate=float(quad_decimate))
+    det = _make_detector(quad_decimate)
     for p, base in frames:
         img = cv2.imread(p)
         if img is None:
