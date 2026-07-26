@@ -1200,3 +1200,62 @@ protect. **Any ad-hoc analysis snippet must count and report NaN/void rows, or r
    being measured and every n=8 single-arm comparison in this project needs a wider error bar.
 
 **Nothing about the trim hypothesis is refuted or confirmed by these runs. They are simply void.**
+
+## ★ THE MISS IS VERTICAL — the error budget's headline (2026-07-26, VERIFIED BY THE HEAD)
+
+The builder's instinct ("something is missing if our misses are by that much") and his separate
+question ("is altitude accounted for in the targeting algorithms?") turn out to be **the same
+question**, and the answer resolves both.
+
+**Decomposing the adopted config's closest approach into horizontal and vertical** (AE5dash,
++5° trim, camera off, 9 m/s goal speed, n=16 across seeds 123+777, computed from per-tick ground
+truth by the head, independent of the workflow):
+
+| | median | inside the 0.35 m ram radius |
+|---|---|---|
+| **3-D closest approach, as flown** | 0.445 m | **3/16** |
+| **HORIZONTAL component only** | **0.226 m** | **14/16** |
+| **VERTICAL offset** | **−0.370 m** (mean −0.366) | — |
+
+**The horizontal guidance is already good enough.** Fourteen of sixteen flights pass inside the
+contact radius *in the horizontal plane*. What stops them being contacts is a **constant ~0.37 m
+vertical offset** — the interceptor flies consistently BELOW the target — that nothing in the
+system ever measures or corrects.
+
+**It is a BIAS, not scatter.** Mean ≈ median ≈ −0.37 m; the aim-bias decomposition puts vertical
+1σ at just **0.030–0.033 m**, an order of magnitude below the offset. A constant offset is the
+cheapest possible class of error to remove.
+
+**This is exactly the hole the lever audit found from the other direction:** altitude appears in NO
+targeting algorithm (the lead solve is explicitly 2-D horizontal; `derotate_bearing_lambda` returns
+azimuth only; the camera measures the target's elevation every frame and discards it; ADR-0085's
+elevation-following terminal was never implemented — `min_agl` appears in zero .py files). The
+vertical channel was never closed, so a standing vertical offset had nothing to correct it.
+
+**Corroborating measurements from the error budget (independent agents):**
+- **Actuation:** the altitude-hold error alone is 0.134 ± 0.050 m and is *the entire* actuation
+  term (horizontal tracking is indistinguishable from zero — the +5° trim already absorbed it).
+  Holding the commanded altitude takes CPA 0.391/0.413 → 0.257/0.279 m, i.e. **4/16 → 14/16**
+  inside the radius by that agent's reckoning.
+- **Aim bias:** of the 0.66 m pooled untrimmed miss, ~0.50 m was a constant AZIMUTH offset (now
+  trimmed out by ADR-0083) and **~0.35 m is a constant ELEVATION offset that has never been
+  trimmed**. Genuine flight-to-flight scatter is only ~0.15 m (1σ).
+
+**WHY THIS MATTERS MORE THAN ANY LEVER SO FAR:** every previous attempt to close the miss attacked
+the terminal or the perception — bearing bias, LOS lag, subpixel, PIP, APN, Kalata, the crop, the
+mount — and all of them NULLed. They were all horizontal. **The residual was never horizontal.**
+
+**Cheapest possible first test (do this before implementing anything):** the offset is constant and
+signed, so a fixed vertical trim — command the dash to hold ~0.37 m higher — should convert most
+of those 14 horizontal passes into contacts, with no new guidance code at all. That is a one-number
+change, and it is falsifiable in one paired arm at idle load. Only if that works is it worth
+building the real elevation-following terminal (measure the target's elevation, filter it, drive
+v_down inside ENGAGE, with the min-AGL floor ADR-0085 specified and never delivered).
+
+**Honest caveats, stated up front:** (1) the sim flies co-altitude by construction, so this offset
+is a property of the *airframe/camera geometry and altitude-hold*, not of a target at a different
+height — outdoors BOTH error sources will be present and the GPS-altitude brief carries 1–3 m of
+its own error; (2) V_VERT_MAX is 0.5 m/s under `--fpv` vs 8.0/13.0 horizontal, so a vertical
+correction may be rate-limited and the clamp likely needs raising behind its own flag; (3) sim and
+deploy already disagree on vertical rate (`seeker_loop.py` defaults 2.0 m/s) — that divergence must
+be closed with a contract test, per the frozen_vworld lesson.
