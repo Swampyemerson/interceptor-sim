@@ -1088,3 +1088,48 @@ so nobody re-tries the dead-band: **it has been measured and it cannot work.**
   per 8-flight arm, vs 0 on dash-only twins). Their NULL verdicts survive the same arithmetic
   (3/8, 1/8, 4/8 — none within reach of 6/8 even fully credited), but their margins are likewise
   not quantitative. `docs/project_state.json` stage `terminal` swept to match.
+
+### ⚠ TWO HEAD ERRORS CORRECTED (red-team, 2026-07-26) — and a stale sentence retracted
+
+A deliberate red-team of the plan (builder-requested) overturned two claims THE HEAD had asserted
+confidently, both verified against the raw logs before accepting:
+
+**ERROR 1 — "0/16 inside the 0.35 m ram radius; nothing has ever succeeded even in sim."**
+FALSE as stated. That is true of the 10 mph arms ONLY; the head generalised it project-wide.
+The ADOPTED config (`AE5dash`, +5° trim, dash-only, at the FULL 9 m/s goal speed) scores
+**3/8 inside 0.35 m on seed 123 — 0.296 / 0.320 / 0.343 m, all r2l** (`logs/mc_fp_armAE5dash_line9_s123.csv`),
+median 0.427. Seed 777 replicates weakly: 0/8 but min 0.351 and two more at 0.359. **Pooled 3/16
+inside the ratified radius, best flight 0.296 m.** ADR-0083 already said this in words ("the only
+measured path into range currently in hand") and the plan had stopped pulling on it.
+
+**ERROR 2 — the 10 mph "ballistic floor" of 0.730 m was measured WITHOUT the project's best lever.**
+Verified from the flown argv (`logs/mc_speed10_dash_s123_stdout.log`): `--dash-accel-aware-lead`,
+**no `--dash-aim-trim-deg`**. So the rung the head designed and reported omitted the ADR-0083 +5°
+trim — the ONLY effect in this project that has ever cleared its pre-registered bar (0.71 → 0.43 m,
+14/16 paired, sign test p = 0.0021). And the 10 mph misses are **bias-dominated**: 0.600 … 0.952,
+**σ ≈ 0.12 m about a ~0.4 m offset** — precisely the error shape a trim removes. Arithmetic
+prediction: remove the bias and the rung lands ~0.33 ± 0.12 m → **Pk@0.35 ≈ 50%**. Falsifiable.
+
+**ERROR 3 (A5, the head's own "no known fix") — FALSE.** The measurement that ruled out a dead-band
+tested ONE discriminator (per-step rise MAGNITUDE). It says nothing about `--breakoff-max-range-m`
+(`m4_intercept.py:2169`, exists, default off, documented deployment value 5.0 m under `--fpv`),
+which gates on the ABSOLUTE measured range at which the breakoff fires — a different signal. Across
+27 breakoff events on five arms the distributions SEPARATE: 20 of 22 legitimate breakoffs fire at
+1.60–2.40 m, while 6 of 7 premature ones fire above 3.1 m. `--breakoff-max-range-m 5.0` blocks
+**6/7 premature** (including every catastrophic r2l flight: 4.81, 2.64, 2.51, 2.17 m) and suppresses
+only 2/24 legitimate ones — both at `closed_after = 0.00`, i.e. after CPA was already recorded, so
+suppressing them costs the miss metric nothing. **The fix is in the codebase with a documented
+default.** (Honest caveat: suppressing an early breakoff does not AUTOMATICALLY improve the miss —
+the vehicle may keep steering on a phantom. That is what the A/B measures.)
+
+**RETRACTED — a stale sentence that was the live justification for the aim-error sweep extension.**
+The "AE15 + SWEEP VERDICT" section still reads: *"l2r: the camera IS starting to earn it — tighter
+on 3/4, once by −0.43 m. This is the first aim-error cell where the camera helps at all."* That was
+measured **PRE-`frozen_vworld`-fix**. Post-fix the same cell is **2/4 with deltas of ±0.2 m — noise.**
+The favourable-aspect crossover evidence is GONE; the retraction had been applied to the pooled
+verdict only, never to the per-direction reading. **Consider that sentence withdrawn.**
+
+**CONSEQUENCE FOR THE PLAN:** the miss is an open-loop AIM-BIAS problem, not a terminal-precision
+problem — every terminal/perception lever has NULLed (bearing bias, LOS lag, subpixel, PIP, APN,
+Kalata) while aim is the one channel that has ever moved, twice, significantly. Next action is
+therefore the **aim-trim sweep at the 10 mph rung**, not the aim-ERROR sweep extension.
