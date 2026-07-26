@@ -3,7 +3,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-26",
- "updated_by": "2026-07-26: bench hardware audit -- camera/GPS/Pi/tools/safety in hand; only the target FC is missing.",
+ "updated_by": "2026-07-26: first hardware night -- Pi + Pixhawk bench up, 1 ms exposure measured, 48 script defects fixed.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -15,11 +15,11 @@
  },
  "now": {
   "as_of": "2026-07-26",
-  "where": "The physical build is underway. In hand and unblocked: Pi 5, seeker camera, Pixhawk 6C Mini, GPS, cards, tools and safety kit -- both bench bring-ups can run now. Still in transit: the target drone's flight controller and power parts, which is all that now holds up tripod day.",
+  "where": "Bench night one landed: Pixhawk flashed and parameterised, Pi 5 provisioned, OV9281 live at 1280x800, and the <=1 ms exposure the tripod day depends on is MEASURED at 994 us. The target drone still waits on its flight controller -- that is now the only thing holding up tripod day.",
   "finding": "The miss ruler is wrong and the fix I published was itself incomplete. Scored at the camera it reads 3 of 16 inside 0.35 m; correcting only height gives 12 of 16; the full 3-D camera offset may give 5-8. UNRESOLVED until the scorer is fixed properly.",
   "next": [
-   "Log pitch and roll per tick -- without them the ruler CANNOT be corrected (one-line fix)",
-   "Then fix the scorer with the full 3-D camera offset and re-score every past run"
+   "Wire the 3 TELEM2 jumpers and close brn-05, the props-off OFFBOARD gate",
+   "Then the miss ruler: log pitch/roll per tick, re-score every past run"
   ],
   "evidence": "docs/flight_plan_candidates.md (2026-07-25 results + confound correction) · commits df1b557, 8e8eba5"
  },
@@ -407,6 +407,18 @@
  "plain_log": [
   {
    "date": "2026-07-26",
+   "text": "First real hardware night. Pixhawk parameterised, Pi 5 provisioned on Debian 13 (not the Bookworm the docs assume), camera live at 1280x800 after finding the ribbon was on CSI port 0, and the <=1 ms exposure verified at 994 us.",
+   "so_what": "The tripod day's motion-blur measurement is possible, and the seeker rig is real hardware now instead of a plan.",
+   "evidence": "Pi 5 at 192.168.50.67, sessions/smoke/meta.json"
+  },
+  {
+   "date": "2026-07-26",
+   "text": "Adversarial review of every script run at the bench: 51 defects raised, 48 survived two independent skeptics. The props-off OFFBOARD gate could print PASS without testing anything -- its first setpoint came from a hallucinated detection on a frame with no target, and a single setpoint passed while the line above read 'mean cadence 0.0 Hz'.",
+   "so_what": "The gate built to retire the one link the sim never tested would have retired it untested. Now gated on measured cadence, span, gap, and proof that bytes came back over the wire.",
+   "evidence": "commit 1b89340"
+  },
+  {
+   "date": "2026-07-26",
    "text": "Bench hardware count corrected: the target's flight controller has NOT arrived, but the camera, GPS, cables, cards, tools and safety kit all have -- the contract had several of these still marked in transit.",
    "so_what": "Every bench step is unblocked, so both bring-up gates can be closed now and the day the flight controller lands the only work left is building the target.",
    "evidence": "builder at the bench 2026-07-26"
@@ -464,18 +476,6 @@
    "text": "Flew the 10 mph test: the pre-programmed dash alone got 8/8 flights under 1 m (median 0.73 m). The camera arm did not beat its dash-only twin (2/8 vs a 6/8 bar). Nothing got inside 0.35 m.",
    "so_what": "Sub-metre is real but it is ballistic — camera off. And sub-metre is still not a kill: 0/16 inside the ram radius.",
    "evidence": "commit df1b557 · logs/mc_fp_arm*"
-  },
-  {
-   "date": "2026-07-25",
-   "text": "Logged the big loophole in the ledger: the launch aim is computed from the target's exactly-known flight path — a perfect cue no real engagement would provide.",
-   "so_what": "Until the cue carries honest error, every 'dash beats camera' result describes a perfect-cue world, not the field.",
-   "evidence": "commit 2a54362 · contradiction launch-aim-derived-from-ground-truth"
-  },
-  {
-   "date": "2026-07-25",
-   "text": "Re-flew all camera-vs-dash tests on the repaired terminal (a bug had been freezing its steering). Verdict unchanged: the camera does not earn its handoff at 0, 5, or 15 degrees of aim error.",
-   "so_what": "The earlier conclusion survives on a terminal that provably steers — it was not an artifact of the frozen-steering bug.",
-   "evidence": "commit 1b51fb4 · flight_plan_candidates.md re-fly table"
   }
  ],
  "narrative": {
@@ -1822,15 +1822,15 @@
     "steps": [
      {
       "id": "skr-01",
-      "text": "Flash Pi OS to the microSD, boot the Pi 5, fit the active cooler — then run scripts/pi_setup/provision.sh: it installs the whole capture stack (+ capture.service) reproducibly (selftest green)."
+      "text": "[DONE 2026-07-26] Pi OS flashed headless (SSH + Wi-Fi preset) and provision.sh applied -- BUT the OS is Debian 13 trixie / Python 3.13, NOT the Bookworm every doc here assumes; all 7 apt packages and the onnxruntime cp313 aarch64 wheel exist, and cv2/numpy/picamera2/mavsdk/onnxruntime/pyapriltags all import. Active cooler still NOT fitted (blocks skr-07's thermal soak only). Original: flash Pi OS, boot, fit the cooler, run provision.sh."
      },
      {
       "id": "skr-02",
-      "text": "Seat the CSI ribbon (narrow 22-pin end at the Pi) and prove live frames at 1280x800 (rpicam/libcamera)."
+      "text": "[DONE 2026-07-26] rpicam-still captured 1280x800 mono. THE RIBBON IS ON CSI PORT 0 (i2c@88000), not the default port 1 -- the bare `dtoverlay=ov9281` found nothing and NOTHING answered on any i2c bus, which is how a wrong-port camera presents. Fixed by `provision.sh --cam-port 0`. Original: seat the CSI ribbon and prove live frames at 1280x800."
      },
      {
       "id": "skr-03",
-      "text": "Verify the driver exposes exposure control down to <=1 ms.",
+      "text": "[DONE 2026-07-26 -- THE GATING MEASUREMENT] Requested 1000 us, APPLIED 994 us, exposure_meets_spec=true in meta.json. The tripod day's motion-blur read -- the one thing the field can measure that the sim cannot -- is possible. Original: verify the driver exposes exposure control down to <=1 ms.",
       "why": "The tripod day's motion-blur read — the ONE thing the field can measure that the sim cannot — depends on short exposure at full-speed passes."
      },
      {
@@ -1839,7 +1839,7 @@
      },
      {
       "id": "skr-05",
-      "text": "Bench-test the Pi-side capture script (scripts/seeker/pi_capture.py — BUILT + self-tested 2026-07-20) indoors on a static scene: real picamera2 backend, timestamped frames to SD, confirm meta.json shows exposure <=1 ms actually applied.",
+      "text": "[DONE 2026-07-26] pi_capture.py --self-test PASS on the Pi, then a live picamera2 session: 30 frames, tuning file ov9281_mono.json, stream_fps 30.14, decode_loop_fps 89.5. Original: bench-test pi_capture indoors on a static scene with the real picamera2 backend.",
       "why": "The script is dir-replay-verified off-Pi; the picamera2 backend and the real exposure floor only prove out on the actual Pi 5 — the first live run must not be at the field."
      },
      {
@@ -1930,7 +1930,7 @@
     "steps": [
      {
       "id": "brn-01",
-      "text": "Flash PX4 on the 6C Mini over USB and load configs/px4_6cmini/bench.params (annotated, QGC-loadable); confirm a microSD is present and ULog logging is on."
+      "text": "[DONE 2026-07-26] PX4 v1.16.0 confirmed on the 6C Mini over USB-C; configs/px4_6cmini/bench.params loaded via QGC (exactly 5 params in the diff, as predicted -- the other 4 already equal v1.16 defaults) and rebooted. Original: flash PX4 and load the pack; confirm a microSD is present and ULog logging is on."
      },
      {
       "id": "brn-02",
@@ -1982,9 +1982,9 @@
      },
      {
       "name": "LiPo safety set — fireproof bag, cell checker + LV alarm, safety glasses, fire blanket",
-      "status": "must-add",
+      "status": "in hand",
       "role": "Never cut safety on a vehicle built to hit things; glasses on any time props are on and a pack is in.",
-      "notes": "UNRESOLVED 2026-07-26 -- status was flipped to 'in hand' on the builder's 'safety gate is taken care of', but this is a BUNDLE of 4 and the note says 3 were still missing. ASK WHICH: fireproof charge bag / ANSI Z87 glasses / fire blanket / cell checker + LV alarm. Never charge a 6S pack without the bag."
+      "notes": "CONFIRMED by the builder 2026-07-26 (all four: fireproof bag, cell checker + LV alarm, ANSI Z87 glasses, fire blanket). Never charge a 6S pack outside the bag."
      },
      {
       "name": "Smoke stopper (VIFLY ShortSaver 2 class)",
