@@ -133,6 +133,12 @@ def self_test():
 def _write_json(path, K, dist, image_size, n_views, rms):
     w, h = image_size
     out = {
+        # POSITIVE provenance stamp (2026-07-26): consumers on a live camera must
+        # be able to tell a MEASURED checkerboard calibration from the Gazebo
+        # camera_info dump (camera_intrinsics.json), which carries the same keys
+        # and the same 1280x960 shape. Testing for the ABSENCE of a sim marker is
+        # fragile; testing for the presence of this one is not.
+        "source": "checkerboard",
         "resolution": {"width": int(w), "height": int(h)},
         "fx": float(K[0, 0]), "fy": float(K[1, 1]),
         "cx": float(K[0, 2]), "cy": float(K[1, 2]),

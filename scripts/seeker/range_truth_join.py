@@ -125,8 +125,9 @@ Usage:
         --ulog target.ulg --tripod-lat ... --tripod-lon ... --tripod-alt ... \\
         --clock-offset-s -0.42
     # already-local ENU CSV track + tripod in the same ENU frame
+    # (--clock-offset-s or --auto-sync is REQUIRED on every invocation)
     scripts/seeker/range_truth_join.py --session-dir S --csv track.csv \\
-        --tripod-enu 0,0,1.5
+        --tripod-enu 0,0,1.5 --clock-offset-s 0
     # + the per-frame INCIDENCE that makes tripod_score's curve (a) x incidence a
     #   RATE curve instead of an annotation (protocol §4.2b). ATT comes from the
     #   same .BIN; the index angle comes from THIS pass's card.
@@ -916,7 +917,8 @@ def compute_incidence(t_q, enu_q, inside_pos, have_time, attitude,
 # The join
 # --------------------------------------------------------------------------
 def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
-                 clock_offset_s=0.0, do_auto_sync=False, tags_csv=None,
+                 clock_offset_s=None, do_auto_sync=False, tags_csv=None,
+                 clock_offset_sigma_s=None,
                  max_gap_s=DEFAULT_MAX_GAP_S, min_coverage=DEFAULT_MIN_COVERAGE,
                  gps_sigma_m=DEFAULT_GPS_SIGMA_M, gps_quality=None,
                  min_nsats=DEFAULT_MIN_NSATS, max_hdop=DEFAULT_MAX_HDOP,
@@ -935,7 +937,34 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
     `incidence_deg` that turns tripod_score's curve-(a) x incidence product from
     an ANNOTATION into a decode-RATE curve (protocol §4.2b). `mount_index_deg` is
     then REQUIRED -- there is no default index angle, because the pass card's
-    index is the only record of which way the placard faced."""
+    index is the only record of which way the placard faced.
+
+    THE CLOCK OFFSET IS NOT DEFAULTABLE (2026-07-26). `clock_offset_s` used to
+    default to 0.0 and the provenance stamped it "explicit --clock-offset-s"
+    either way, so a FORGOTTEN §6.1 sync offset was indistinguishable from a
+    measured zero -- and on the one path with no cross-check
+    (--allow-unverified-survey, which a beam-facing placard on an approach pass
+    REQUIRES) a 1 s clock error silently shifts every true_range_m by ~4 m at
+    4 m/s. So: an offset must be STATED (any value, 0.0 included) or ESTIMATED
+    (--auto-sync); neither is a Refuse. Its 1-sigma is stated too -- a hand
+    offset read off a frame INDEX carries at least half a frame period, and
+    calling that 0 is the same fail-open in the uncertainty channel."""
+    if clock_offset_s is None and not do_auto_sync:
+        raise Refuse(
+            "NO CLOCK OFFSET GIVEN. The frames' wall clock and the target log's "
+            "UTC axis are two different clocks, and there is no default that "
+            "makes them one -- a forgotten offset would be indistinguishable "
+            "from a measured zero, and on a pass scored with "
+            "--allow-unverified-survey nothing else would catch it. Supply the "
+            "offset from the protocol §6.1 sync event (--clock-offset-s <s>; "
+            "pass 0 explicitly if the Pi and the FC really are NTP-synced), or "
+            "estimate it with --auto-sync.")
+    offset_source = ("auto-sync (seeded by explicit --clock-offset-s)"
+                     if (do_auto_sync and clock_offset_s is not None)
+                     else "auto-sync (tag vs log range)" if do_auto_sync
+                     else "explicit --clock-offset-s")
+    clock_offset_s = 0.0 if clock_offset_s is None else float(clock_offset_s)
+
     fieldnames, rows = read_index(session_dir)
     t_frames_all = frame_wall_times(rows)
     n_rows = len(rows)
@@ -981,8 +1010,24 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
                               **(sync_kwargs or {}))
         clock_offset_s = sync_info["offset_s"]
         offset_sigma_s = sync_info["offset_sigma_s"] or 0.0
+        offset_sigma_source = "auto-sync identifiability (grid residual)"
+    elif clock_offset_sigma_s is not None:
+        offset_sigma_s = float(clock_offset_sigma_s)
+        offset_sigma_source = "explicit --clock-offset-sigma-s"
     else:
-        offset_sigma_s = 0.0
+        # A HAND OFFSET IS NOT EXACT (2026-07-26). The §6.1 sync event is marked
+        # on a FRAME INDEX, so the offset can only be read to within half a frame
+        # period -- ~0.025 s at 20 Hz, which is ~0.11 m of range error at a
+        # 4.5 m/s closing rate and grows with speed. Reporting 0 here made
+        # range_sigma_m equal --gps-sigma-m exactly, with the clock term absent.
+        dtf = np.diff(np.sort(t_frames_all[np.isfinite(t_frames_all)]))
+        dtf = dtf[dtf > 0]
+        offset_sigma_s = float(np.median(dtf)) / 2.0 if dtf.size else 0.0
+        offset_sigma_source = (
+            f"DERIVED: half the median frame period "
+            f"({2 * offset_sigma_s:.4f} s) -- the quantization of reading the "
+            f"§6.1 sync event off a frame index. Override with "
+            f"--clock-offset-sigma-s if you marked it more precisely.")
 
     # ---- interpolate ----
     t_q = t_frames_all + float(clock_offset_s)
@@ -1016,13 +1061,23 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
     # it did not exist before 2026-07-25. It runs AFTER the span/coverage refusals
     # so the most diagnostic message wins on a wrong-log session ("ZERO frames
     # inside the log span" beats "too few tag-ranged frames").
+    # offset_source is PLUMBED, not re-derived: the stamp used to be inferred
+    # from `do_auto_sync` in two separate places, which is how "defaulted" could
+    # print as "explicit" (2026-07-26).
     bias_info, w = survey_bias_check(
         tf, rt, t_track, enu_track, clock_offset_s,
-        offset_source=("--auto-sync (estimated)" if do_auto_sync
-                       else "explicit --clock-offset-s"),
+        offset_source=offset_source,
         min_samples=min_sync_samples, max_residual_m=max_residual_m,
         max_bias_m=max_bias_m, allow_unverified=allow_unverified_survey)
     integrity_warnings += w
+    if not bias_info.get("ran"):
+        # The ONE path with no cross-check on the offset must at least say out
+        # loud which offset it used and where that number came from.
+        integrity_warnings.append(
+            f"the tag-vs-log cross-check did NOT run, so the clock offset used "
+            f"({clock_offset_s:+.4f} s, sigma {offset_sigma_s:.4f} s, source: "
+            f"{offset_source}) is UNCHECKED -- every true_range_m below rides on "
+            f"it, and a 1 s error is ~4 m of range at a 4 m/s closing rate.")
 
     # THE OVERRIDE MUST NOT ALSO DISABLE THE LAST REMAINING GUARD (2026-07-25).
     # The tag-vs-log bias test is what actually catches a decametre-scale
@@ -1196,8 +1251,9 @@ def join_session(session_dir, track, tripod_llh=None, tripod_enu=None,
         "quality_counts": counts,
         "coverage_frac": round(coverage, 4),
         "clock_offset_s": round(float(clock_offset_s), 4),
-        "clock_offset_source": ("auto-sync (tag vs log range)" if do_auto_sync
-                                else "explicit --clock-offset-s"),
+        "clock_offset_source": offset_source,
+        "clock_offset_sigma_s": round(float(offset_sigma_s), 4),
+        "clock_offset_sigma_source": offset_sigma_source,
         "auto_sync": sync_info,
         "track_source": track.source,
         "track_label": track.label,
@@ -1252,7 +1308,9 @@ def _print_report(prov):
     for w in prov["track_warnings"]:
         print(f"    [warn] {w}")
     print(f"  clock offset  : {prov['clock_offset_s']:+.4f} s "
+          f"+/- {prov['clock_offset_sigma_s']:.4f} s "
           f"[{prov['clock_offset_source']}]")
+    print(f"    sigma source: {prov['clock_offset_sigma_source']}")
     s = prov.get("auto_sync")
     if s:
         print(f"    residual {s['residual_m']:.3f} m (robust MAD)  "
@@ -1444,11 +1502,46 @@ def self_test():
               f"all {n_fr} frames flagged '{_QUALITY_OK}' "
               f"({prov['quality_counts']})")
 
+        # ---- 1b. THE OFFSET IS NOT DEFAULTABLE (2026-07-26) ----
+        # No --clock-offset-s and no --auto-sync must REFUSE, at the library
+        # level too (the CLI guard alone would leave join_session's twin open),
+        # and the provenance must never say "explicit" for a value nobody typed.
+        check(prov["clock_offset_source"] == "explicit --clock-offset-s"
+              and prov["clock_offset_sigma_s"] > 0.0
+              and prov["clock_offset_sigma_source"].startswith("DERIVED"),
+              f"explicit offset stamped honestly, with a NON-ZERO derived sigma "
+              f"({prov['clock_offset_sigma_s']:.4f} s -- half a frame period; it "
+              f"used to be 0, hiding the clock's whole share of range_sigma_m)")
+        s1b = _synth_session(os.path.join(td, "s1b"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        try:
+            join_session(s1b, track, tripod_llh=(lat0, lon0, alt0), quiet=True)
+            check(False, "no offset and no --auto-sync must REFUSE")
+        except Refuse as e:
+            check("NO CLOCK OFFSET" in str(e),
+                  f"no offset + no --auto-sync REFUSED ({str(e)[:52]}...)")
+
         # ---- 2. --auto-sync recovers the injected offset ----
         s2 = _synth_session(os.path.join(td, "s2"), t_wall_frames, tag_r,
                             INDEX_HEADER, TAGS_HEADER)
         prov2 = join_session(s2, track, tripod_llh=(lat0, lon0, alt0),
                              do_auto_sync=True, quiet=True)
+        check(prov2["clock_offset_source"] == "auto-sync (tag vs log range)",
+              f"bare --auto-sync stamps '{prov2['clock_offset_source']}'")
+        # ...and SEEDING auto-sync with the hand offset stays LEGAL -- protocol
+        # §6.1/§7.0 asks for exactly that cross-check, so the rule is "at least
+        # one", never "exactly one".
+        s2b = _synth_session(os.path.join(td, "s2b"), t_wall_frames, tag_r,
+                             INDEX_HEADER, TAGS_HEADER)
+        prov2b = join_session(s2b, track, tripod_llh=(lat0, lon0, alt0),
+                              clock_offset_s=TRUE_OFFSET, do_auto_sync=True,
+                              quiet=True)
+        check(prov2b["clock_offset_source"]
+              == "auto-sync (seeded by explicit --clock-offset-s)"
+              and abs(prov2b["clock_offset_s"] - TRUE_OFFSET) < 0.05,
+              f"--auto-sync SEEDED by --clock-offset-s still joins and says so "
+              f"({prov2b['clock_offset_source']}, "
+              f"{prov2b['clock_offset_s']:+.4f} s)")
         est = prov2["auto_sync"]["offset_s"]
         check(abs(est - TRUE_OFFSET) < 0.05,
               f"--auto-sync recovered {est:+.4f} s vs true {TRUE_OFFSET:+.4f} s "
@@ -1462,7 +1555,8 @@ def self_test():
         s3 = _synth_session(os.path.join(td, "s3"), t_wall_frames + 5000.0,
                             tag_r, INDEX_HEADER, TAGS_HEADER)
         try:
-            join_session(s3, track, tripod_llh=(lat0, lon0, alt0), quiet=True)
+            join_session(s3, track, tripod_llh=(lat0, lon0, alt0),
+                         clock_offset_s=TRUE_OFFSET, quiet=True)
             check(False, "no-overlap log must REFUSE")
         except Refuse as e:
             check("ZERO frames" in str(e) or "cover" in str(e),
@@ -1540,7 +1634,8 @@ def self_test():
             for i in range(5):
                 wr.writerow([i, f"frames/{i:06d}.png", f"{i * 0.03:.6f}", "", "", ""])
         try:
-            join_session(s6, track, tripod_llh=(lat0, lon0, alt0), quiet=True)
+            join_session(s6, track, tripod_llh=(lat0, lon0, alt0),
+                         clock_offset_s=TRUE_OFFSET, quiet=True)
             check(False, "session with no t_wall_unix must REFUSE")
         except Refuse as e:
             check("t_wall_unix" in str(e),
@@ -1805,10 +1900,19 @@ def main():
                          "(ArduPilot POS/GPS Alt is AMSL)")
     ap.add_argument("--tripod-enu", type=_parse_enu, default=None,
                     help="tripod position E,N,U (m) when the track is already local ENU")
-    ap.add_argument("--clock-offset-s", type=float, default=0.0,
+    ap.add_argument("--clock-offset-s", type=float, default=None,
                     help="seconds to ADD to each frame's t_wall_unix to land on the "
                          "log's UTC axis (from the protocol §6.1 sync event). With "
-                         "--auto-sync this is the search CENTRE.")
+                         "--auto-sync this is the search CENTRE. REQUIRED unless "
+                         "--auto-sync is given -- there is NO default: a forgotten "
+                         "offset would be indistinguishable from a measured zero. "
+                         "Pass 0 explicitly to assert a synced clock.")
+    ap.add_argument("--clock-offset-sigma-s", type=float, default=None,
+                    help="1-sigma of the offset above, seconds (default: DERIVED "
+                         "as half the session's median frame period -- the "
+                         "quantization of marking the §6.1 event on a frame "
+                         "index). It feeds range_sigma_m; reporting 0 there hid "
+                         "the clock's whole contribution to the range error.")
     ap.add_argument("--auto-sync", action="store_true",
                     help="estimate the clock offset by aligning the tag-decoded range "
                          "(tags.csv) with the log-derived range; refuses if the offset "
@@ -1931,6 +2035,22 @@ def main():
         ap.error("provide EXACTLY ONE target log source: --bin | --ulog | --csv")
     path, loader = srcs[0]
 
+    # AT LEAST ONE of {an explicitly typed --clock-offset-s, --auto-sync}. NOT
+    # exclusive: protocol §6.1/§7.0 asks for the hand offset as --auto-sync's
+    # search CENTRE and then compares the two, so BOTH together is the
+    # recommended cross-check, not an error (2026-07-26).
+    if args.clock_offset_s is None and not args.auto_sync:
+        # REFUSED (exit 2), not a usage error: this is the fail-closed refusal
+        # this tool's exit contract reserves 2 for -- an unsafe join, not a typo.
+        print("[range_truth_join] REFUSED: the frames' wall clock and the log's "
+              "UTC axis need an offset. Give --clock-offset-s <seconds> from the "
+              "protocol §6.1 sync event (pass 0 explicitly to assert an "
+              "NTP-synced Pi), or --auto-sync to estimate it from the tag "
+              "ranges. There is NO default -- a forgotten offset would look "
+              "exactly like a measured zero, and on an --allow-unverified-survey "
+              "pass nothing downstream would catch it.", file=sys.stderr)
+        return 2
+
     tripod_llh = None
     if args.tripod_lat is not None or args.tripod_lon is not None:
         if None in (args.tripod_lat, args.tripod_lon, args.tripod_alt):
@@ -1980,6 +2100,7 @@ def main():
         join_session(
             args.session_dir, track, tripod_llh=tripod_llh,
             tripod_enu=args.tripod_enu, clock_offset_s=args.clock_offset_s,
+            clock_offset_sigma_s=args.clock_offset_sigma_s,
             do_auto_sync=args.auto_sync, tags_csv=args.tags_csv,
             max_gap_s=args.max_gap_s, min_coverage=args.min_coverage,
             gps_sigma_m=args.gps_sigma_m,

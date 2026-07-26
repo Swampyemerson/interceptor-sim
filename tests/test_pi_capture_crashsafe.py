@@ -22,10 +22,18 @@ SIGTERM handler makes `systemctl stop` unwind the same way, the session
 self-labels `terminated_early` / `capture_truncated`, and a short capture returns
 non-zero instead of reporting success.
 
-Also pinned: `decode_loop_fps`, the WRITE-EXCLUSIVE grab+decode cadence. The
-gate models the flight decode rate but was being fed `stream_fps`, which is the
+Also pinned: `decode_loop_fps`, the modelled onboard decode cadence. The gate
+models the flight decode rate but was being fed `stream_fps`, which is the
 disk-bound recorder loop (it pays a per-frame PNG write the flight loop never
 pays, and with decode off pays no decode cost at all).
+
+AND (2026-07-26) that `decode_loop_fps` is BOUNDED. The recorder times the decode
+CALL only -- the wait for the next frame is outside the interval -- so the raw
+figure is decode THROUGHPUT, an UPPER BOUND on a cadence, and it could exceed the
+camera's physical delivery rate. Feeding an optimistic bound to the gate shrinks
+R_streak_burn and pushes the ~$740 verdict toward PASS, so the published value is
+clamped by the delivered frame cadence and the raw figure moves to
+`decode_throughput_fps`.
 
 Offline: a synthetic Frame generator, no camera, no cv2 backend.
 
@@ -182,6 +190,41 @@ def test_decode_loop_fps_is_recorded_separately_from_stream_fps(tmp_path):
     assert "decode_loop_fps" in src
 
 
+def test_decode_loop_fps_can_never_exceed_the_frame_delivery_rate(tmp_path):
+    """THE FIX (2026-07-26). Decoding a blank 16x16 frame is sub-millisecond, so
+    the raw decode THROUGHPUT here is tens of thousands of fps -- while the
+    frames arrive at 20 Hz. An onboard cadence physically cannot exceed the rate
+    frames arrive, but the un-clamped number could, and the money gate divides
+    E[T] by exactly this field: an optimistic divisor shrinks R_streak_burn and
+    pushes the ~$740 verdict toward PASS. PRE-FIX this published ~30000."""
+    pytest.importorskip("pupil_apriltags")
+    meta = PC.record_session(_frames(20), str(tmp_path), "picamera2", {}, 16, 16,
+                             PC.DEF_EXPOSURE_US, 1.0, True, None, 0.35,
+                             "pytest", requested_n_frames=20)
+    assert meta["decode_throughput_fps"] > meta["stream_fps"], (
+        "the fixture must actually exercise the clamp -- decode must be faster "
+        "than delivery, which is the real Pi's regime at small tag counts too")
+    assert meta["decode_loop_fps"] == pytest.approx(1.0 / FRAME_DT, abs=1e-6)
+    assert meta["decode_loop_fps"] <= meta["stream_fps"]
+    assert "UPPER BOUND" in meta["decode_loop_fps_source"]
+
+    # ...and the number the GATE gets is the bounded one.
+    fps, _src = TS.resolve_stream_fps(type("A", (), {"stream_fps": None})(), meta)
+    assert fps == pytest.approx(20.0)
+
+
+def test_an_unboundable_decode_throughput_is_refused_not_published(tmp_path):
+    """FAIL CLOSED: with too few timestamped frames there is no delivered cadence
+    to clamp against, and an unbounded upper bound is not a cadence."""
+    pytest.importorskip("pupil_apriltags")
+    meta = PC.record_session(_frames(2), str(tmp_path), "picamera2", {}, 16, 16,
+                             PC.DEF_EXPOSURE_US, 1.0, True, None, 0.35,
+                             "pytest", requested_n_frames=2)
+    assert meta["decode_throughput_fps"] is not None   # it WAS measured
+    assert meta["decode_loop_fps"] is None             # ...but never published
+    assert "REFUSED" in meta["decode_loop_fps_source"]
+
+
 def test_a_decode_free_session_is_flagged_as_the_wrong_quantity(tmp_path):
     """--no-decode-tags records a rate with ZERO decode cost. The scorer must
     say so in the provenance string rather than presenting it as the modelled
@@ -240,6 +283,66 @@ def test_the_fps_source_check_is_a_whitelist_not_a_blacklist():
     fps, src = TS.resolve_stream_fps(A(), {"source": "libcamera-vid",
                                            "decode_loop_fps": 41.0})
     assert fps is None and "REFUSED" in src
+
+
+# ------------------------------------------------- the wall clock can STEP
+def _stepped_frames(n, step_at, step_s):
+    """Frames whose MONOTONIC clock is perfect but whose WALL clock jumps once,
+    exactly as systemd-timesyncd stepping the Pi mid-pass looks on disk."""
+    t = 0.0
+    for i in range(n):
+        wall = 1_752_700_000.0 + t + (step_s if i >= step_at else 0.0)
+        yield PC.Frame(np.zeros((16, 16), dtype=np.uint8), t, wall, 900.0, 1.0)
+        t += FRAME_DT
+
+
+def test_a_midpass_clock_step_is_detected_and_located(tmp_path):
+    """THE ARM-ASYMMETRIC HOLE. range_truth_join interpolates the target log onto
+    `t_wall_unix` ALONE, so a 1.5 s NTP step writes true_range_m ~13 m wrong at
+    9 m/s with range_quality still 'ok'. On a beam-facing APPROACH pass the
+    placard never decodes, so the tag-vs-log bias check that could catch it is
+    switched off by --allow-unverified-survey -- crossing passes can catch a step
+    and curve (b)'s core approach data structurally cannot.
+
+    The detector needs NO tags, NO survey and NO log: it is (t_wall - t_mono),
+    two columns every live frame already writes. PRE-FIX nothing computed it."""
+    meta = _record(tmp_path, _stepped_frames(20, step_at=11, step_s=1.5),
+                   requested=20)
+    assert meta["wall_mono_max_step_s"] == pytest.approx(1.5, abs=1e-6)
+    assert meta["wall_mono_max_step_frame_idx"] == 11, "the step must be LOCATED"
+    assert meta["wall_mono_offset_span_s"] == pytest.approx(1.5, abs=1e-6)
+    assert meta["wall_mono_max_step_s"] > meta["wall_mono_step_tolerance_s"]
+    # comparable across passes only within one boot -- hence the boot identity
+    assert meta["boot_id"]
+
+
+def test_a_coherent_clock_reports_no_step(tmp_path):
+    """The control: the same detector must stay quiet on a clean pass, or the
+    field-day warning becomes noise the operator learns to ignore."""
+    meta = _record(tmp_path, _frames(20), requested=20)
+    assert meta["wall_mono_max_step_s"] == pytest.approx(0.0, abs=1e-9)
+    assert meta["wall_mono_max_step_s"] <= meta["wall_mono_step_tolerance_s"]
+    assert meta["wall_mono_offset_median_s"] is not None
+
+
+# ------------------------------------------------- v4l2 units are NOT microseconds
+def test_a_v4l2_session_publishes_no_microsecond_spec_verdict(tmp_path):
+    """V4L2's CAP_PROP_EXPOSURE is DEVICE units (V4L2_CID_EXPOSURE_ABSOLUTE is
+    100 us per unit; other drivers use log2 steps). Folding that read-back into
+    `applied_exposure_us` / `exposure_meets_spec` states a MICROSECOND verdict on
+    a quantity never measured in microseconds -- on a 100-us-per-unit device the
+    session read `exposure_meets_spec: true` while every frame carried 100x the
+    intended blur. A verdict is now only published for a backend whose readings
+    ARE microseconds."""
+    meta = _record(tmp_path, _frames(20), requested=20, source="v4l2")
+    assert PC.EXPOSURE_US_SOURCES == ("picamera2",)
+    assert meta["applied_exposure_us"] is None
+    assert meta["exposure_meets_spec"] is None
+    assert "DEVICE UNITS" in meta["exposure_source"]
+    # ...while the picamera2 twin, whose metadata IS microseconds, still grades.
+    meta_pi = _record(tmp_path / "pi", _frames(20), requested=20)
+    assert meta_pi["applied_exposure_us"] == 900.0
+    assert meta_pi["exposure_meets_spec"] is True
 
 
 def test_replay_sessions_still_publish_no_stream_fps(tmp_path):

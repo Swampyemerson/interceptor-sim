@@ -127,10 +127,23 @@ def _make_session(session_dir, with_tags=True, meta_extra=None):
                 rel = os.path.join("frames", f"{i:06d}.png")
                 if true_rng[i] <= TAG_DECODE_MAX_M:
                     r = float(true_rng[i] + 0.20 + rs.normal(0, 0.08))
-                    wr.writerow([i, rel, 1, 7, "48.500", 0, "640.00", "400.00",
-                                 "0:0;1:0;1:1;0:1", f"{r:.4f}"])
+                    # A REAL incidence value, not padding: an empty string would
+                    # satisfy the width check while leaving this end-to-end path
+                    # still not carrying the column.
+                    row = [i, rel, 1, 7, "48.500", 0, "640.00", "400.00",
+                           "0:0;1:0;1:1;0:1", f"{r:.4f}", "3.10"]
                 else:
-                    wr.writerow([i, rel, 0, "", "", "", "", "", "", ""])
+                    # self-widening, so a future trailing column cannot silently
+                    # de-sync this fixture from the producer the way incidence_deg
+                    # did (a 10-value row against an 11-column header)
+                    row = [i, rel, 0] + [""] * (len(TAGS_HEADER) - 3)
+                # A hand-typed fixture that has drifted from the producer's header
+                # is exactly the shape this project's contract-test rule exists to
+                # stop; fail loudly the instant they disagree.
+                assert len(row) == len(TAGS_HEADER), (
+                    f"tags.csv fixture row has {len(row)} values against a "
+                    f"{len(TAGS_HEADER)}-column pi_capture.TAGS_HEADER")
+                wr.writerow(row)
 
     meta = {"tag_size_m": 0.35, "drone_size_m": 0.35, "aspect": "approach",
             "source": "picamera2", "n_frames": N_FRAMES}

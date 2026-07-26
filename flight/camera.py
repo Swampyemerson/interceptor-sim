@@ -1,9 +1,11 @@
 """flight.camera -- pinhole + Brown-Conrady lens model for the real seeker's
 bearing computation. Honesty-critical for the hardware build: the real
-Arducam AR0234 + wide ~100 deg M12 lens (docs/hardware_order_list.md) has heavy
-barrel distortion the sim's pinhole camera does NOT, so a bearing taken from a
-RAW distorted pixel is wrong toward the frame edges -> corrupts the LOS the
-pro-nav terminal steers on. The seeker must UNDISTORT the target pixel first.
+innomaker OV9281 (1280x800 mono global shutter, ~118 deg HFoV -- docs/
+project_state.json hardware node, scripts/seeker/pi_capture.py DEF_WIDTH/HEIGHT)
+behind a wide M12 lens has heavy barrel distortion the sim's pinhole camera does
+NOT, so a bearing taken from a RAW distorted pixel is wrong toward the frame
+edges -> corrupts the LOS the pro-nav terminal steers on. The seeker must
+UNDISTORT the target pixel first.
 
 This module is the parameterized machinery (the coefficients come from
 `scripts/calibrate_camera.py`'s checkerboard calibration). Pure Python + math,
@@ -25,13 +27,27 @@ class CameraModel:
     """Pinhole intrinsics + radial/tangential distortion. `dist` = (k1,k2,p1,p2,k3);
     all-zero (default) is an ideal pinhole (the Gazebo sim case)."""
 
-    def __init__(self, fx, fy, cx, cy, dist=(0.0, 0.0, 0.0, 0.0, 0.0)):
+    def __init__(self, fx, fy, cx, cy, dist=(0.0, 0.0, 0.0, 0.0, 0.0),
+                 width=None, height=None, source=None):
         self.fx = float(fx)
         self.fy = float(fy)
         self.cx = float(cx)
         self.cy = float(cy)
         k = list(dist) + [0.0] * (5 - len(dist))
         self.k1, self.k2, self.p1, self.p2, self.k3 = (float(v) for v in k[:5])
+        # THE RESOLUTION IS PART OF THE CALIBRATION, NOT DECORATION (2026-07-26).
+        # fx/fy/cx/cy only describe the pixel grid they were fitted on. from_dict
+        # used to DROP calibrate_camera.py's `resolution` key, so nothing could
+        # notice that seeker_loop streams the Pi camera at a different size than
+        # the lens was calibrated at -- every bearing and every
+        # range = fx*span/box_width_px silently rescales/shifts. None = the
+        # calibration file did not say (older sidecars); callers on a live camera
+        # must treat that as UNKNOWN, not as "matches".
+        self.width = None if width is None else int(width)
+        self.height = None if height is None else int(height)
+        # Provenance stamp written by scripts/calibrate_camera.py ("checkerboard").
+        # Absent => not a measured calibration (e.g. the Gazebo camera_info dump).
+        self.source = source
 
     @property
     def has_distortion(self):
@@ -85,9 +101,16 @@ class CameraModel:
         output {fx,fy,cx,cy, dist_coeffs:[...], resolution:{...}} (the format that
         matches camera_intrinsics.json) -> the calibration tool's JSON loads
         directly. Only the first 5 distortion terms (Brown-Conrady k1,k2,p1,p2,k3)
-        are used; a higher-order (rational) calibration is truncated to those."""
+        are used; a higher-order (rational) calibration is truncated to those.
+
+        `resolution` (if present) and `source` are RETAINED -- see __init__: they
+        are what lets a live-camera caller refuse a calibration that does not
+        describe the frames it is actually getting."""
         dist = d.get("dist", d.get("dist_coeffs", (0.0, 0.0, 0.0, 0.0, 0.0)))
-        return cls(d["fx"], d["fy"], d["cx"], d["cy"], tuple(dist))
+        res = d.get("resolution") or {}
+        return cls(d["fx"], d["fy"], d["cx"], d["cy"], tuple(dist),
+                   width=res.get("width"), height=res.get("height"),
+                   source=d.get("source"))
 
     @classmethod
     def from_json(cls, path):

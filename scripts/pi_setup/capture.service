@@ -17,11 +17,18 @@
 #         SESSION=sessions/pass01
 #         NFRAMES=300
 #         EXPOSURE_US=1000
-#         EXTRA_ARGS=--calib calib.json --tag-size 0.30
+#         EXTRA_ARGS=--calib calib.json --tag-size 0.35 --quad-decimate 1.0 --run-tag pass01
+#
+# --tag-size is 0.35 = the ADOPTED placard edge (docs/placard_mount.md §2). It is
+# NOT a free parameter: every tag-recovered range scales LINEARLY in it, so the
+# 0.30 that used to sit on this line read every range ~14% short. --quad-decimate
+# 1.0 is the PLANNED tripod-day detector setting (ADR-0082 — 2.0 does not clear
+# the t_go money gate at the adopted placard), and it is stamped into meta.json.
 #
 # The <=1 ms EXPOSURE_US default is the motion-blur spec target
 # (docs/tripod_test_protocol.md §3.3/§4.4; docs/camera_paper_check.md item 3).
-# Confirm meta.json exposure_meets_spec=true after the run (skr-03/skr-05).
+# Confirm meta.json exposure_meets_spec=true after the run (skr-03/skr-05) — that
+# field is only populated for a --source picamera2 session, which this unit uses.
 
 [Unit]
 Description=interceptor-sim seeker capture (pi_capture.py, OV9281 mono GS)

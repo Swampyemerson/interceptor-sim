@@ -47,9 +47,25 @@ Mission Planner path.
    **STM32CubeProgrammer** (installs the DFU USB driver). Source:
    [Loading Firmware onto boards without existing ArduPilot firmware](https://ardupilot.org/copter/docs/common-loading-firmware-onto-chibios-only-boards.html).
 2. Download `arducopter_with_bl.hex` for board **`KakuteH7`** from
-   [firmware.ardupilot.org](https://firmware.ardupilot.org/Copter/stable/KakuteH7/)
-   (pick the latest **stable** Copter). The `_with_bl` build includes the
-   bootloader — needed for the first DFU flash. Source: same page.
+   [firmware.ardupilot.org/Copter/**stable-4.7.0**/KakuteH7/](https://firmware.ardupilot.org/Copter/stable-4.7.0/KakuteH7/).
+   The `_with_bl` build includes the bootloader — needed for the first DFU flash.
+   Source: same page.
+
+   > ⛔ **Flash 4.7.0 specifically — `target.param` is pinned to it.** "Latest
+   > stable" is not good enough here: ArduPilot **renamed five** of the params
+   > this pack sets (`GPS_TYPE`→`GPS1_TYPE` in 4.6; `WPNAV_SPEED`→`WP_SPD`,
+   > `WPNAV_ACCEL`→`WP_ACC`, `ANGLE_MAX`→`ATC_ANGLE_MAX`,
+   > `ARMING_CHECK`→`ARMING_SKIPCHK` in 4.7), **three of them also changed
+   > units** (cm/s → m/s, centidegrees → degrees) and one **inverted its sense**.
+   > Mission Planner *skips* an unknown name with a warning instead of failing,
+   > so loading this file on 4.5/4.6 silently drops those lines. `lint_param.py`
+   > enforces the 4.7 spellings; if you must use another release, fix both the
+   > file and the linter's `REQUIRED` list first. (Verified 2026-07-26 against
+   > `firmware-version.txt` = `4.7.0` and the ArduPilot source at tag
+   > `Copter-4.7.0`.)
+   >
+   > **After loading, read the params back off the FC and diff them against the
+   > file.** A dropped write is invisible in the write direction.
 3. Put the board in **DFU**: hold the FC's BOOT button (or bridge the BOOT pads),
    plug USB, release. Source: same page.
 4. In **STM32CubeProgrammer** select the **USB / DFU** interface → **Open file** →
@@ -263,6 +279,26 @@ WP File*) or **QGC** (*Plan → Open*). Source:
 3. **AUTO passes** — Loiter takeoff → confirm fix → switch to **Auto** to fly the
    loaded mission. Log the pass in the protocol §11 session sheet (pass #, aspect,
    speed, tilt, battery).
+
+> ⚠️ **WHERE YOU ARM MATTERS — the fence and the mission have different centres.**
+> ArduPilot sets **HOME at the arming point** (row 0 of the mission file is
+> ignored on upload), so the `FENCE_RADIUS` tin-can is centred on **where you
+> armed** while every waypoint is placed relative to the **surveyed tripod**. Arm
+> too far out and `FENCE_ACTION=1` will **RTL the target mid-pass** — which under
+> OPTION A's continue-in-AUTO reasoning looks exactly like an RC failsafe and is
+> not one. Nothing pre-arm-checks the mission against the fence; with
+> `FS_GCS_ENABLE=0` there is no on-site message either, so an unexplained
+> mid-pass RTL means *pull the `.BIN` and look for the FENCE/ERR record*.
+>
+> `gen_tripod_mission.py` **prints the budget for the geometry it just emitted**
+> — e.g. `farthest waypoint 20.7 m from the TRIPOD -> … ARM WITHIN 59.3 m OF THE
+> TRIPOD` (the off-protocol NN block at `--standoff 17` reaches 26.2 m, so the
+> budget drops to 53.8 m). Use that printed number, not one memorised from here.
+>
+> Same root cause, second consequence: `--alt` is **AGL above the arming point**
+> (`MAV_FRAME_GLOBAL_RELATIVE_ALT`), not above the tripod. Arm on ground level
+> with the tripod base or protocol §3.1's co-altitude framing is off by the
+> ground-height difference. **RTL returns to the arming point**, not the tripod.
 
 ---
 

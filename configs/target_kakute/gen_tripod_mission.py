@@ -141,6 +141,19 @@ class MissionItem:
     y: float          # longitude (deg) for NAV cmds, else 0
     z: float          # altitude (m)
     autocontinue: int
+    # WHICH PASS THIS WAYPOINT BELONGS TO, tagged at CONSTRUCTION ("approach" /
+    # "crossing" / "" for HOME/TAKEOFF/RTL). NOT serialized -- QGC WPL 110 has
+    # exactly 12 columns and the round-trip must stay byte-stable; the tag is
+    # carried alongside the file into waypoint_geometry.
+    # WHY IT EXISTS (2026-07-26 BLOCKER): check_conformance used to infer the
+    # pass type from |lateral_m| > 0.5*bin_m, so the tool's OWN documented
+    # offset sweep (--lateral-offset=-5,0,5, protocol 7.2) had its +/-5 m
+    # APPROACH endpoints read as CROSSING waypoints at standoffs 4 and 20 m and
+    # was REFUSED -- the README section 9 build-day command exited 2 and wrote
+    # nothing, blaming a crossing standoff that was correctly 5.5 m. Any
+    # threshold on lateral offset has this failure; the pass type is a property
+    # of how the waypoint was BUILT, so that is where it is recorded.
+    pass_type: str = ""
 
     def to_line(self) -> str:
         # Mission Planner writes ints for seq/current/frame/cmd/autocont and
@@ -191,7 +204,7 @@ def latlon_to_enu(home_lat: float, home_lon: float, lat: float, lon: float):
     return east, north
 
 
-def waypoint_geometry(items, home_lat, home_lon, bearing_deg):
+def waypoint_geometry(items, home_lat, home_lon, bearing_deg, pass_types=None):
     """Every NAV waypoint (excluding HOME/seq 0) as a dict with the three numbers
     the protocol is written in:
 
@@ -199,8 +212,13 @@ def waypoint_geometry(items, home_lat, home_lon, bearing_deg):
                  approach waypoint, and the STANDOFF for a crossing waypoint)
       lateral_m  offset +right of the view
       range_m    slant range from the tripod = hypot(along, lateral)
+      pass       "approach" / "crossing" / "" -- from `pass_types` (a {seq: type}
+                 map taken off the BUILT MissionItems), never inferred from the
+                 geometry (see MissionItem.pass_type for why).
 
-    This is the read-back the self-test asserts on. `alt` is deliberately not
+    This is the read-back the self-test asserts on: the NUMBERS still come out of
+    the emitted file, so a geometry drift is still caught against what will be
+    flown; only the LABEL comes from construction. `alt` is deliberately not
     folded into range_m: the protocol flies the target CO-ALTITUDE with the
     camera (3.1), so the mission's AGL alt is the camera's height, not a
     vertical separation."""
@@ -212,9 +230,17 @@ def waypoint_geometry(items, home_lat, home_lon, bearing_deg):
         e, n = latlon_to_enu(home_lat, home_lon, it.x, it.y)
         along = e * vE + n * vN
         lateral = e * rE + n * rN
+        ptype = (it.pass_type if pass_types is None
+                 else pass_types.get(it.seq, ""))
         out.append({"seq": it.seq, "along_m": along, "lateral_m": lateral,
-                    "range_m": math.hypot(along, lateral)})
+                    "range_m": math.hypot(along, lateral), "pass": ptype})
     return out
+
+
+def pass_type_map(items):
+    """{seq: pass_type} off the BUILT mission items, to be carried into
+    waypoint_geometry alongside the parsed file."""
+    return {it.seq: it.pass_type for it in items}
 
 
 def check_conformance(geom, *, passes, speed, slow_speed, placard_index_deg,
@@ -228,18 +254,41 @@ def check_conformance(geom, *, passes, speed, slow_speed, placard_index_deg,
     the old --self-test verified mission STRUCTURE and round-trip, so the
     pre-correction 8/17/30 m defaults passed it green.
 
-    Checked against the EMITTED waypoints (waypoint_geometry), not the args."""
+    Checked against the EMITTED waypoints (waypoint_geometry), not the args --
+    with ONE exception, deliberate: which pass a waypoint belongs to is read off
+    its construction tag, not guessed from its lateral offset (see
+    MissionItem.pass_type; the guess REFUSED the tool's own documented offset
+    sweep)."""
     v, w = [], []
     lo_station, hi_station = float(min(stations)), float(max(stations))
 
-    appr = [g for g in geom if abs(g["lateral_m"]) <= 0.5 * bin_m]
-    cross = [g for g in geom if abs(g["lateral_m"]) > 0.5 * bin_m]
+    appr = [g for g in geom if g["pass"] == "approach"]
+    cross = [g for g in geom if g["pass"] == "crossing"]
 
     if "approach" in passes:
+        # THE STATION GRID IS A PROPERTY OF THE BORESIGHT LEG. tripod_score bins
+        # on TRUE SLANT RANGE, so an offset leg genuinely never reaches the 4 m
+        # station (hypot(4,5) = 6.4 m) -- evaluating near/far/contiguity over the
+        # UNION of all approach waypoints would therefore false-refuse an
+        # offsets-only mission for a real geometric reason stated as the wrong
+        # one. The offset legs answer protocol 7.2 (recall vs position in
+        # frame); curve (a)'s range grid is answered by the on-boresight leg, so
+        # that is the leg the grid checks run on -- and one must exist.
+        boresight = [g for g in appr if abs(g["lateral_m"]) <= 0.5 * bin_m]
         if not appr:
-            v.append("approach pass requested but NO on-boresight waypoint was "
+            v.append("approach pass requested but NO approach waypoint was "
                      "emitted")
+        elif not boresight:
+            v.append(
+                f"approach passes were emitted but NONE is ON BORESIGHT "
+                f"(lateral offsets "
+                f"{sorted({round(g['lateral_m'], 1) for g in appr})} m). "
+                f"Protocol 4.1's contiguous {lo_station:.0f}-{hi_station:.0f} m "
+                f"station grid is flown down the boresight -- an offset leg's "
+                f"slant range never reaches the near stations, so this mission "
+                f"cannot answer curve (a). Include 0 in --lateral-offset")
         else:
+            appr = boresight
             near = min(g["range_m"] for g in appr)
             far = max(g["range_m"] for g in appr)
             if near > lo_station + GEOM_TOL_M:
@@ -319,9 +368,10 @@ def build_mission(*, home_lat, home_lon, home_alt, bearing_deg, alt,
     """Return a list[MissionItem]. seq numbers are assigned at the end."""
     items: list[MissionItem] = []
 
-    def nav_wp(lat, lon, accept_radius=2.0):
+    def nav_wp(lat, lon, pass_type, accept_radius=2.0):
         items.append(MissionItem(0, 0, FRAME_REL_ALT, CMD_WAYPOINT,
-                                 0.0, accept_radius, 0.0, 0.0, lat, lon, alt, 1))
+                                 0.0, accept_radius, 0.0, 0.0, lat, lon, alt, 1,
+                                 pass_type=pass_type))
 
     def change_speed(mps):
         items.append(MissionItem(0, 0, FRAME_REL_ALT, CMD_CHANGE_SPEED,
@@ -341,24 +391,24 @@ def build_mission(*, home_lat, home_lon, home_alt, bearing_deg, alt,
             change_speed(speed)
             far = _front_point(home_lat, home_lon, bearing_deg, leg_length, lat_off)
             near = _front_point(home_lat, home_lon, bearing_deg, near_range, lat_off)
-            nav_wp(*far)
-            nav_wp(*near)
+            nav_wp(*far, pass_type="approach")
+            nav_wp(*near, pass_type="approach")
             # one slow control pass on the same line (protocol 4.4)
             change_speed(slow_speed)
-            nav_wp(*far)
-            nav_wp(*near)
+            nav_wp(*far, pass_type="approach")
+            nav_wp(*near, pass_type="approach")
 
     if "crossing" in passes:
         # full-speed crossing at fixed standoff, left -> right across the FOV
         change_speed(speed)
         left = _front_point(home_lat, home_lon, bearing_deg, standoff, -cross_halfwidth)
         right = _front_point(home_lat, home_lon, bearing_deg, standoff, +cross_halfwidth)
-        nav_wp(*left)
-        nav_wp(*right)
+        nav_wp(*left, pass_type="crossing")
+        nav_wp(*right, pass_type="crossing")
         # slow control crossing
         change_speed(slow_speed)
-        nav_wp(*left)
-        nav_wp(*right)
+        nav_wp(*left, pass_type="crossing")
+        nav_wp(*right, pass_type="crossing")
 
     # RTL home.
     items.append(MissionItem(0, 0, FRAME_REL_ALT, CMD_RTL,
@@ -542,7 +592,8 @@ def self_test() -> int:
         items = build_mission(**kw)
         # go through serialize->parse so the check sees the FILE, not the objects
         return waypoint_geometry(parse(serialize(items)), home[0], home[1],
-                                 kw["bearing_deg"])
+                                 kw["bearing_deg"],
+                                 pass_types=pass_type_map(items))
 
     # (5a) THE ARGPARSE DEFAULTS THEMSELVES conform. This is the assertion that
     # would have caught the stale 8/17/30 m defaults, and it reads them out of
@@ -562,9 +613,9 @@ def self_test() -> int:
           "CLI DEFAULTS conform to protocol 4.1/4.2: " + "; ".join(dviol))
 
     # (5b) the emitted numbers ARE the protocol's stations, not merely "valid".
-    dappr = [g["range_m"] for g in dgeom if abs(g["lateral_m"]) <= 1.0]
+    dappr = [g["range_m"] for g in dgeom if g["pass"] == "approach"]
     dcross = sorted({round(g["along_m"], 3) for g in dgeom
-                     if abs(g["lateral_m"]) > 1.0})
+                     if g["pass"] == "crossing"})
     check(dappr and abs(min(dappr) - min(PROTOCOL_STATIONS_M)) < GEOM_TOL_M
           and abs(max(dappr) - max(PROTOCOL_STATIONS_M)) < GEOM_TOL_M,
           f"emitted approach leg spans {min(dappr):.2f}..{max(dappr):.2f} m, "
@@ -657,6 +708,50 @@ def self_test() -> int:
         check(rc_nn == 0 and os.path.exists(os.path.join(td, "nn.waypoints")),
               "main() --off-protocol emits the curve-(b)/NN 17 m crossing block")
 
+        # (5g) THE OFFSET SWEEP -- the fixture whose absence let the 2026-07-26
+        # blocker ship. README section 9's own build-day command was REFUSED
+        # (exit 2, no file written) because the +/-5 m APPROACH endpoints were
+        # classified as CROSSINGS at 4 and 20 m and judged against the 5-6 m
+        # crossing band. Run the documented argv verbatim.
+        readme_out = os.path.join(td, "offsets.waypoints")
+        rc_off = main(["--home-lat", "37.8199", "--home-lon", "-122.4786",
+                       "--home-alt", "12", "--bearing-deg", "90", "--alt", "10",
+                       "--speed", "9", "--slow-speed", "3",
+                       "--lateral-offset=-5,0,5",
+                       "--passes", "approach,crossing", "--out", readme_out])
+        check(rc_off == 0 and os.path.exists(readme_out),
+              f"main() with README section 9's OFFSET SWEEP command exits 0 and "
+              f"writes the mission (got rc={rc_off})")
+        # ...including the case where a crossing endpoint COLLIDES with a
+        # requested offset (--cross-halfwidth 5 with an offset of 5), which any
+        # "match the waypoint to a requested offset" rule would still get wrong.
+        coll_out = os.path.join(td, "collide.waypoints")
+        rc_coll = main(["--home-lat", "37.8199", "--home-lon", "-122.4786",
+                        "--bearing-deg", "90", "--cross-halfwidth", "5",
+                        "--lateral-offset=-5,0,5", "--out", coll_out])
+        check(rc_coll == 0 and os.path.exists(coll_out),
+              f"main() with a crossing halfwidth EQUAL to a requested lateral "
+              f"offset still exits 0 (got rc={rc_coll})")
+        # ...and the reclassification has NOT gone toothless: a genuinely bad
+        # geometry flown WITH offsets is still refused.
+        rc_off_bad = main(["--home-lat", "37.8199", "--home-lon", "-122.4786",
+                           "--bearing-deg", "90", "--near-range", "8",
+                           "--lateral-offset=-5,0,5",
+                           "--out", os.path.join(td, "offbad.waypoints")])
+        check(rc_off_bad == 2
+              and not os.path.exists(os.path.join(td, "offbad.waypoints")),
+              f"an 8 m near end WITH offsets is still REFUSED (got rc={rc_off_bad})")
+        # ...and an offsets-only approach (no boresight leg) is refused for the
+        # RIGHT reason: its slant range never reaches the near stations, so it
+        # cannot answer curve (a). Previously this was refused for the wrong one.
+        rc_noboresight = main(["--home-lat", "37.8199", "--home-lon", "-122.4786",
+                               "--bearing-deg", "90", "--passes", "approach",
+                               "--lateral-offset=-5,5",
+                               "--out", os.path.join(td, "nobore.waypoints")])
+        check(rc_noboresight == 2,
+              f"an approach sweep with NO boresight leg is REFUSED "
+              f"(got rc={rc_noboresight})")
+
     if failures:
         print("SELF-TEST FAILED:")
         for f in failures:
@@ -718,6 +813,12 @@ def main_parser() -> argparse.ArgumentParser:
                          "NN block ONLY and needs --off-protocol. default 5.5.")
     ap.add_argument("--cross-halfwidth", type=float, default=20.0,
                     help="crossing-pass half-length each side of boresight (m). default 20.")
+    ap.add_argument("--fence-radius", type=float, default=80.0,
+                    help="the target's FENCE_RADIUS (m) from configs/"
+                         "target_kakute/target.param, used ONLY to print how "
+                         "close to the tripod you must arm -- the fence is "
+                         "centred on the ARMING point, the mission on the "
+                         "tripod. default 80.")
     ap.add_argument("--speed", type=float, default=9.0,
                     help="full-speed pass ground speed (m/s). protocol 4.4 >=9. default 9.")
     ap.add_argument("--slow-speed", type=float, default=3.0,
@@ -773,9 +874,10 @@ def main(argv=None) -> int:
     parse(text)
 
     # PROTOCOL CONFORMANCE ON THE EMITTED GEOMETRY -- read back out of the
-    # waypoints that will actually be flown, not off the arguments.
+    # waypoints that will actually be flown, not off the arguments. Only the
+    # approach/crossing LABEL comes from the built items (pass_type_map).
     geom = waypoint_geometry(parse(text), args.home_lat, args.home_lon,
-                             args.bearing_deg)
+                             args.bearing_deg, pass_types=pass_type_map(items))
     viol, warns = check_conformance(
         geom, passes=passes, speed=args.speed, slow_speed=args.slow_speed,
         placard_index_deg=args.placard_index_deg)
@@ -796,8 +898,12 @@ def main(argv=None) -> int:
     with open(args.out, "w") as fh:
         fh.write(text)
     n_wp = sum(1 for it in items if it.command == CMD_WAYPOINT) - 1
-    appr = [g["range_m"] for g in geom if abs(g["lateral_m"]) <= 1.0]
-    cross = sorted({round(g["along_m"], 1) for g in geom if abs(g["lateral_m"]) > 1.0})
+    # Same pass tag the conformance check uses -- this summary used to carry its
+    # own copy of the |lateral| <= 1.0 heuristic and so printed approach
+    # endpoints as "crossing standoff", which is how the misclassification stayed
+    # invisible in the tool's own output.
+    appr = [g["range_m"] for g in geom if g["pass"] == "approach"]
+    cross = sorted({round(g["along_m"], 1) for g in geom if g["pass"] == "crossing"})
     print(f"Wrote {args.out}: {len(items)} mission items ({n_wp} waypoints, "
           f"passes={'+'.join(passes)}, speed={args.speed} m/s, "
           f"offsets={args.lateral_offset}).")
@@ -807,6 +913,24 @@ def main(argv=None) -> int:
           + (f" | placard index {args.placard_index_deg:.0f} deg"
              if args.placard_index_deg is not None else "")
           + (f"  [PROTOCOL OK]" if not viol else "  [OFF-PROTOCOL]"))
+    # WHERE TO ARM. ArduPilot sets HOME at the ARMING point and ignores this
+    # file's row 0, but every waypoint here is placed relative to the SURVEYED
+    # TRIPOD -- so the FENCE_RADIUS tin-can (target.param) is centred somewhere
+    # else entirely from the mission. Arm too far out and FENCE_ACTION=1 RTLs the
+    # target mid-pass, which under OPTION A's continue-in-AUTO reasoning reads
+    # like an RC failsafe and is not one. The number is COMPUTED from the emitted
+    # waypoints rather than written into prose, because --standoff/--leg-length/
+    # --cross-halfwidth all move it (the off-protocol NN block at --standoff 17
+    # reaches 26.2 m, not 20.7 m).
+    far_m = max((g["range_m"] for g in geom), default=0.0)
+    budget = args.fence_radius - far_m
+    print(f"  farthest waypoint {far_m:.1f} m from the TRIPOD -> with "
+          f"FENCE_RADIUS={args.fence_radius:.0f} m (target.param), ARM WITHIN "
+          f"{budget:.1f} m OF THE TRIPOD.")
+    print(f"    The fence is centred on the ARMING point (= ArduPilot HOME), the "
+          f"mission on the tripod; RTL returns to the arming point. --alt is AGL "
+          f"above the ARMING point too, so arm on ground level with the tripod "
+          f"base or protocol 3.1's co-altitude framing is off by the difference.")
     print("Load it in Mission Planner (Plan > Load WP File) or QGC (Plan > Open).")
     return 0
 

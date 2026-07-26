@@ -293,16 +293,27 @@ _FRAME_IDX_COLS = ("frame_idx", "idx", "index", "i")
 def _row_frame_key(row, base_set, bases):
     """Resolve one CSV row to a frame basename, trying (1) any filename-ish
     column, (2) the zero-padded frame_idx (pi_capture names frames %06d.png),
-    (3) frame_idx as a POSITION in capture order. Returns None if unresolvable."""
+    (3) frame_idx as a POSITION in capture order. Returns None if unresolvable.
+
+    THE NAME IS AUTHORITATIVE (2026-07-26). A row that NAMES a frame file which
+    is not on disk is UNRESOLVABLE -- it is never re-bound to some other frame.
+    The old code fell through to the positional branch (3), so deleting the
+    ground/setup frames (where the placard is held NEAR the camera) before
+    scoring re-bound those rows' 1-3 m capture-time tag ranges onto the first
+    IN-FLIGHT frames, and the nearest-tag merge then let a deleted frame's
+    smaller range replace a surviving frame's correct decode. Curve (a)'s range
+    accuracy, the survey cross-check and curve (b)'s truth boxes all shifted
+    toward NEAR with every check green. Positional binding survives ONLY for a
+    legacy row that carries no filename column at all."""
     fn = ""
     for c in _FRAME_NAME_COLS:
         v = (row.get(c) or "").strip()
         if v:
             fn = v
             break
-    key = os.path.splitext(os.path.basename(fn))[0] if fn else None
-    if key is not None and key in base_set:
-        return key
+    if fn:
+        key = os.path.splitext(os.path.basename(fn))[0]
+        return key if key in base_set else None
     for c in _FRAME_IDX_COLS:
         iv = _pf(row.get(c))
         if iv is None:
@@ -313,7 +324,7 @@ def _row_frame_key(row, base_set, bases):
             return cand
         if 0 <= i < len(bases):
             return bases[i]
-    return key  # may be a name with no matching frame file (kept, harmless)
+    return None
 
 
 def _tag_row_range(row):
@@ -335,9 +346,15 @@ def _merge_tag_rows(old, new):
     return new if rn < ro else old
 
 
-def load_session(session_dir, ignore_tags_csv=False):
+def load_session(session_dir, ignore_tags_csv=False, stats=None):
     """Return (frames, index_map, meta, tags_map). `frames` is a sorted list of
-    (path, basename); `index_map`/`tags_map` are {basename: row} or None."""
+    (path, basename); `index_map`/`tags_map` are {basename: row} or None.
+
+    `stats`, when a dict is passed in, is filled with the ORPHAN ROW COUNTS --
+    rows naming a frame that is not in frames/. Dropping them silently would be
+    the same uncounted-denominator defect as the misbinding they replace, so the
+    caller (run()) reports them and refuses by default. The return arity is
+    deliberately unchanged; several tests unpack it as a 4-tuple."""
     frames_dir = os.path.join(session_dir, "frames")
     if not os.path.isdir(frames_dir):
         raise SystemExit(f"no frames/ subdir in session {session_dir}")
@@ -349,23 +366,30 @@ def load_session(session_dir, ignore_tags_csv=False):
     bases = [b for _p, b in frames]
     base_set = set(bases)
 
-    def _keymap(rows, merge=None):
+    counts = {}
+
+    def _keymap(rows, which, merge=None):
         if rows is None:
             return None
-        out = {}
+        out, orphans = {}, 0
         for r in rows:
             key = _row_frame_key(r, base_set, bases)
             if not key:
+                orphans += 1
                 continue
             if key in out and merge is not None:
                 out[key] = merge(out[key], r)
             else:
                 out[key] = r
+        counts[which] = {"rows": len(rows), "orphan_rows": orphans}
         return out
 
-    index_map = _keymap(_read_csv(os.path.join(session_dir, "index.csv")))
+    index_map = _keymap(_read_csv(os.path.join(session_dir, "index.csv")), "index")
     tags_map = None if ignore_tags_csv else _keymap(
-        _read_csv(os.path.join(session_dir, "tags.csv")), merge=_merge_tag_rows)
+        _read_csv(os.path.join(session_dir, "tags.csv")), "tags",
+        merge=_merge_tag_rows)
+    if stats is not None:
+        stats.update(counts)
     meta = {}
     mp = os.path.join(session_dir, "meta.json")
     if os.path.exists(mp):
@@ -1065,6 +1089,20 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     th_eng = float(engagement_incidence_deg or 0.0)
     cos_eng = math.cos(math.radians(th_eng))
     r90_eff = r90 * cos_eng
+    # THE DERATE LAW IS ONLY VALIDATED TO 32.6 deg (2026-07-26). verdict.txt
+    # flagged the hypothesis for incidence CELLS but never for theta_eng, so a
+    # gate quoted at --engagement-incidence-deg 45 printed a clean PASS/FAIL
+    # resting on an extrapolation. It travels with the gate dict (both speeds,
+    # both early returns) so gate.json is machine-checkable, and the caveat is
+    # OPTIMISTIC in direction: placard_mount §3.2's literature note says decode
+    # can fall FASTER than cos near P_min.
+    cos_extrapolated = th_eng > COS_LAW_VALIDATED_TO_DEG
+    _cos_caveat = (
+        f"  [HYPOTHESIS] theta_eng {th_eng:.1f} deg EXCEEDS the "
+        f"{COS_LAW_VALIDATED_TO_DEG} deg the cos-law is validated to "
+        f"(placard_mount §3.2/§13) -- R_eff is an EXTRAPOLATION, not a measured "
+        f"derate, and decode may fall FASTER than cos near P_min, so this is the "
+        f"OPTIMISTIC direction\n" if cos_extrapolated else "")
     fps_ok = stream_fps is not None and stream_fps > 0
     decode_hz = decode_rate * stream_fps if fps_ok else None
     # Mean-rate burn: optimistic, reported for transparency only (not gating).
@@ -1147,6 +1185,8 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
             "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
             "engagement_incidence_deg": round(th_eng, 3),
             "R_decode90_eff_m": round(r90_eff, 3),
+            "cos_law_validated_to_deg": COS_LAW_VALIDATED_TO_DEG,
+            "theta_eng_beyond_validated_cos_law": bool(cos_extrapolated),
             "r90_stop_reason": r90_stop_reason,
             "r90_stop_lo_m": r90_stop_lo,
             "r90_data_bounded": bool(data_bounded),
@@ -1164,6 +1204,7 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
     _inc_line = (
         f"R_eff = R_decode90 {r90:.2f} m x cos(theta_eng {th_eng:.1f} deg) = "
         f"{r90_eff:.2f} m   [incidence-aware, placard_mount §11 item 10]\n"
+        + _cos_caveat
         if th_eng else "")
     arithmetic = (
         f"decode_rate p = {decode_rate:.3f}  (streak k = {streak_n})\n"
@@ -1184,6 +1225,8 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
         "R_decode90_m": round(r90, 3), "R_decode_any_m": round(r_any, 3),
         "engagement_incidence_deg": round(th_eng, 3),
         "R_decode90_eff_m": round(r90_eff, 3),
+        "cos_law_validated_to_deg": COS_LAW_VALIDATED_TO_DEG,
+        "theta_eng_beyond_validated_cos_law": bool(cos_extrapolated),
         "r90_stop_reason": r90_stop_reason,
         "r90_stop_lo_m": r90_stop_lo,
         "r90_data_bounded": bool(data_bounded),
@@ -1618,6 +1661,10 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
         if th:
             L.append(f"  gate applied at theta_eng = {th:.1f} deg -> R_eff = "
                      f"{gate.get('R_decode90_eff_m')} m (§8.1 incidence-aware form)")
+            if gate.get("theta_eng_beyond_validated_cos_law"):
+                L.append(f"  [HYPOTHESIS] that theta_eng is BEYOND the "
+                         f"{COS_LAW_VALIDATED_TO_DEG} deg the cos-law is "
+                         f"validated to -- R_eff is an EXTRAPOLATION")
         else:
             L.append("  [WARN] the gate above was computed at theta_eng = 0 deg. A GO "
                      "measured dead-on is NOT a GO at the incidence the real "
@@ -1638,6 +1685,16 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
     L.append(f"  >>> GATE {gate['verdict']} <<<   "
              f"(PASS -> unlock the interceptor order; FAIL -> bigger placard / "
              f"camera upgrade; UNCERTAIN -> re-shoot / more data)")
+    # The caveat must sit NEXT TO THE VERDICT, not only in the incidence section
+    # -- that whole section is skipped when no incidence axis exists, and this
+    # gate can still have been derated by an unvalidated theta_eng (2026-07-26).
+    if gate.get("theta_eng_beyond_validated_cos_law"):
+        L.append(f"  [WARN] this gate was derated by cos(theta_eng "
+                 f"{gate.get('engagement_incidence_deg')} deg), BEYOND the "
+                 f"{COS_LAW_VALIDATED_TO_DEG} deg the cos-law is validated to "
+                 f"(placard_mount §3.2/§13) -- it is a HYPOTHESIS-based "
+                 f"extrapolation, and the optimistic direction. Do not quote it "
+                 f"as a measured incidence-aware verdict.")
     L.append("")
     L.append("--- CURVE (b): NN approach recall (gates ONLY the Hailo/markerless phase) ---")
     for line in str(curve_b_note).splitlines() or [""]:
@@ -1768,8 +1825,33 @@ def resolve_stream_fps(args, meta):
 
 
 def run(args):
+    session_stats = {}
     frames, index_map, meta, tags_map = load_session(
-        args.session_dir, ignore_tags_csv=getattr(args, "redecode", False))
+        args.session_dir, ignore_tags_csv=getattr(args, "redecode", False),
+        stats=session_stats)
+    # ORPHAN ROWS ARE COUNTED AND REFUSED (2026-07-26), the mirror of
+    # decode_frames' partial-coverage refusal: there, frames/ has rows tags.csv
+    # is missing; here, the CSVs name frames that frames/ no longer holds. Both
+    # mean the session on disk and the session that was recorded are not the same
+    # session -- most often because the ground/setup frames were deleted before
+    # scoring, which is exactly the case whose rows used to be re-bound onto
+    # surviving in-flight frames.
+    n_orph = sum(v["orphan_rows"] for v in session_stats.values())
+    if n_orph:
+        detail = ", ".join(f"{k}.csv {v['orphan_rows']}/{v['rows']}"
+                           for k, v in sorted(session_stats.items())
+                           if v["orphan_rows"])
+        if not getattr(args, "allow_orphan_rows", False):
+            raise SystemExit(
+                f"[tripod] REFUSED: {detail} row(s) name a frame that is NOT in "
+                f"frames/. The session's CSVs and its frames disagree -- usually "
+                f"frames were deleted after capture (the near-field ground/setup "
+                f"shots). Those rows are DROPPED, so the curve is scored on a "
+                f"smaller population than the CSVs describe. Re-copy the session, "
+                f"or accept the shrunken denominator explicitly with "
+                f"--allow-orphan-rows (the count is stamped into the summary).")
+        print(f"[tripod] [WARN] --allow-orphan-rows: {detail} row(s) name a frame "
+              f"not in frames/ and were DROPPED (counted, not absorbed)")
     calib = load_calib(args.calib)
 
     # PARAMETER PROVENANCE (2026-07-25, review 2): every load-bearing scalar
@@ -1992,6 +2074,10 @@ def run(args):
         json.dump({"conservative": gate, "aggressive": gate_hi,
                    "tag_size_m": tag_size, "drone_size_m": drone_size,
                    "n_decoded": n_decoded, "n_binnable": n_binnable,
+                   # Rows the session's CSVs carry for frames that are NOT on
+                   # disk: dropped, and COUNTED here so the denominator this
+                   # curve was scored on is on the record (2026-07-26).
+                   "session_csv_rows": session_stats,
                    "stream_fps": stream_fps, "stream_fps_source": fps_source,
                    # PARAMETER PROVENANCE: which numbers came from the session
                    # and which from a DEFAULT (review 2).
@@ -2344,7 +2430,15 @@ def self_test():
            and abs(g_30["R_decode90_eff_m"] - 8.0 * math.cos(math.radians(30))) < 1e-3
            and g_30["t_go_s"] < g_0["t_go_s"] and g_30["verdict"] == "PASS"
            and g_45["verdict"] == "FAIL"
-           and "cos(theta_eng" in g_45["arithmetic"])
+           and "cos(theta_eng" in g_45["arithmetic"]
+           # ...and the derate ABOVE 32.6 deg says out loud that it is a
+           # hypothesis, in the arithmetic AND as a machine-readable key, while
+           # a validated 30 deg does not (2026-07-26).
+           and g_45["theta_eng_beyond_validated_cos_law"] is True
+           and "HYPOTHESIS" in g_45["arithmetic"]
+           and g_30["theta_eng_beyond_validated_cos_law"] is False
+           and "HYPOTHESIS" not in g_30["arithmetic"]
+           and g_0["cos_law_validated_to_deg"] == COS_LAW_VALIDATED_TO_DEG)
     print(f"[self-test] incidence-aware gate: theta=0 -> t_go {g_0['t_go_s']} "
           f"{g_0['verdict']} | theta=30 -> R_eff {g_30['R_decode90_eff_m']} m, "
           f"t_go {g_30['t_go_s']} {g_30['verdict']} | theta=45 -> t_go "
@@ -2415,6 +2509,56 @@ def self_test():
               f"(stop={why90} at {lo90} m, {len(gaps90)} gap bins) -> "
               f"{g5['verdict']} : {'OK' if c5b else 'FAIL'}")
         ok = ok and c5b
+
+        # (iii-c) DELETED FRAMES MUST NOT RE-BIND THEIR ROWS (2026-07-26).
+        # THE FIELD SHAPE: the operator deletes the ground/setup frames -- where
+        # the placard was held 1-3 m from the camera -- before scoring. Those
+        # rows' NEAR tag ranges used to land on the first surviving IN-FLIGHT
+        # frames via the positional fallback, and the nearest-tag merge then let
+        # the deleted frame's smaller range replace the survivor's real one:
+        # curve (a)'s range accuracy, the survey cross-check and curve (b)'s
+        # truth boxes all pulled toward NEAR with every check green. Fixture is
+        # written from pi_capture's OWN header constants (producer->consumer).
+        sess_del = os.path.join(td, "deleted_frames")
+        os.makedirs(os.path.join(sess_del, "frames"), exist_ok=True)
+        sys.path.insert(0, HERE)
+        from pi_capture import INDEX_HEADER, TAGS_HEADER
+        N_SETUP, N_TOTAL = 3, 8          # 3 near ground shots, then the pass
+        with open(os.path.join(sess_del, "index.csv"), "w", newline="") as f:
+            wr = csv.DictWriter(f, fieldnames=INDEX_HEADER)
+            wr.writeheader()
+            for i in range(N_TOTAL):
+                wr.writerow({"frame_idx": i, "frame_path": f"frames/{i:06d}.png",
+                             "t_mono_s": f"{i * 0.05:.3f}",
+                             "t_wall_unix": f"{1_752_700_000 + i * 0.05:.3f}",
+                             "exposure_us": 2000, "gain": 1.0})
+        with open(os.path.join(sess_del, "tags.csv"), "w", newline="") as f:
+            wr = csv.DictWriter(f, fieldnames=TAGS_HEADER)
+            wr.writeheader()
+            for i in range(N_TOTAL):
+                wr.writerow({"frame_idx": i, "frame_path": f"frames/{i:06d}.png",
+                             "n_tags": 1, "tag_id": 7, "decision_margin": 40.0,
+                             "hamming": 0, "center_u": 640.0, "center_v": 400.0,
+                             "corners_px": "", "incidence_deg": "",
+                             # the tell-tale: setup shots are held NEAR
+                             "range_m": f"{1.5 if i < N_SETUP else 12.0:.3f}"})
+        for i in range(N_TOTAL):
+            open(os.path.join(sess_del, "frames", f"{i:06d}.png"), "wb").write(b"")
+        for i in range(N_SETUP):        # the operator deletes the ground shots
+            os.remove(os.path.join(sess_del, "frames", f"{i:06d}.png"))
+        st = {}
+        _fr_d, imap_d, _m_d, tmap_d = load_session(sess_del, stats=st)
+        c_del = (st["tags"]["orphan_rows"] == N_SETUP
+                 and st["index"]["orphan_rows"] == N_SETUP
+                 and sorted(tmap_d) == [f"{i:06d}" for i in range(N_SETUP, N_TOTAL)]
+                 and all(int(r["frame_idx"]) == int(b) for b, r in tmap_d.items())
+                 and all(abs(_tag_row_range(r) - 12.0) < 1e-9
+                         for r in tmap_d.values()))
+        print(f"[self-test] deleted setup frames: {st} -- every surviving frame "
+              f"keeps its OWN row (ranges "
+              f"{sorted({_tag_row_range(r) for r in tmap_d.values()})}), the "
+              f"{N_SETUP} orphan rows are COUNTED : {'OK' if c_del else 'FAIL'}")
+        ok = ok and c_del
 
         # (iv) NN half no-ops cleanly (onnxruntime absent in the main .venv, or
         # weights missing) -- returns None + a message, never crashes.
@@ -2508,6 +2652,19 @@ def self_test():
         print(f"[self-test] pi_capture schema keys (frame_path / frame_idx / legacy "
               f"frame) all bind : {'OK' if c8 else 'FAIL'}")
         ok = ok and c8
+        # (vi-b) A ROW THAT NAMES AN ABSENT FRAME IS UNRESOLVABLE, never
+        # re-bound positionally (2026-07-26). Positional binding survives only
+        # for a legacy row with NO filename column, which is why the third
+        # assertion uses non-%06d frame names.
+        legacy = ["shot_a", "shot_b", "shot_c"]
+        c8b = (_row_frame_key({"frame_path": "frames/000009.png"}, bset, bases) is None
+               and _row_frame_key({"frame_path": "frames/000009.png",
+                                   "frame_idx": "1"}, bset, bases) is None
+               and _row_frame_key({"idx": "1"}, set(legacy), legacy) == "shot_b")
+        print(f"[self-test] a row naming an ABSENT frame resolves to None (no "
+              f"positional re-bind); a legacy no-filename row still binds by "
+              f"position : {'OK' if c8b else 'FAIL'}")
+        ok = ok and c8b
         # pi_capture's tags.csv schema (n_tags / range_m / center_u|v) reads as a
         # decode; multi-row frames collapse to the NEAREST tag.
         pc_tags = {"000000": {"frame_idx": "0", "frame_path": "frames/000000.png",
@@ -2638,6 +2795,12 @@ def main():
                     help="score even when the reused tags.csv does not cover every "
                          "frame (default: REFUSE -- uncovered frames would count as "
                          "decode FAILURES and silently deflate curve (a))")
+    ap.add_argument("--allow-orphan-rows", action="store_true",
+                    help="score even when index.csv/tags.csv rows name frames "
+                         "that are not in frames/ (default: REFUSE -- the "
+                         "session's CSVs and its frames describe different "
+                         "populations; the dropped count is stamped into "
+                         "gate.json either way)")
     ap.add_argument("--gate", action="store_true",
                     help="exit 0=PASS / 1=FAIL / 2=UNCERTAIN so a wrapper can read "
                          "the verdict from the exit code (default: always 0)")

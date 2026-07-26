@@ -173,9 +173,16 @@ def summarize(header, rows):
             "flight.deploy.real_flight not importable -- header NOT validated "
             "against the producer (schema drift would go unseen here)")
 
+    # EMPTY LOG: note it and KEEP GOING. There used to be a `return s` here, which
+    # left `engage`/`zero_cmd` as bare {} -- and report() indexes
+    # s['zero_cmd']['population'], so the documented exit-3 UNCERTAIN path died
+    # with a KeyError traceback and exit 1 ("a gated check FAILED", i.e. "the
+    # terminal did not actuate") on a flight that simply produced no ticks, and
+    # the --json record was never written (2026-07-26). Every block below already
+    # degrades correctly on rows == [] (empty counters, frac None), so the fix is
+    # to let them run rather than to sprinkle .get() guards in the consumers.
     if not rows:
         s["notes"].append("EMPTY LOG: header only, zero ticks")
-        return s
 
     ts = [_f(r, "t_s") for r in rows]
     ts = [t for t in ts if t is not None]
@@ -453,6 +460,21 @@ def self_test() -> int:
         s = summarize(h, rows)
         code, _ = verdicts(s)
         check(code == EXIT_UNCERTAIN, "an EMPTY log is UNCERTAIN (exit 3), not a pass")
+        # ...and the SAME through the CLI. Stopping at verdicts() is why the
+        # empty-log KeyError in report() survived every green check: the printer
+        # and the --json writer were never driven on this path (2026-07-26).
+        jp = os.path.join(td, "empty.json")
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):   # keep the report quiet
+            rc = main([p, "--json", jp])
+        check(rc == EXIT_UNCERTAIN,
+              f"main() on an EMPTY log exits {EXIT_UNCERTAIN} UNCERTAIN "
+              f"(got {rc}) with no traceback")
+        check(os.path.exists(jp)
+              and json.load(open(jp))["zero_cmd"]["population"] == 0,
+              "the --json summary is still written for an empty log "
+              "(zero_cmd.population = 0, not a missing key)")
 
         # (2) all-zero-command ENGAGE -> FAIL
         p = os.path.join(td, "frozen.csv")
@@ -558,12 +580,16 @@ def main(argv=None) -> int:
     s = summarize(header, rows)
     s["zero_cmd_constants_from"] = provenance
     code, notes = verdicts(s, require_engage=args.require_engage)
-    report(s, args.csv_path, code, notes)
+    # The JSON is written BEFORE the human report: report() is only a formatter,
+    # and a crash in it must not cost the run its machine-readable record (that
+    # is exactly what the empty-log KeyError did).
     if args.json:
         s["verdict"] = {"exit": code,
                         "notes": [{"level": l, "text": t} for l, t in notes]}
         with open(args.json, "w") as f:
             json.dump(s, f, indent=2, sort_keys=True)
+    report(s, args.csv_path, code, notes)
+    if args.json:
         print(f"   [json] {args.json}")
     return code
 

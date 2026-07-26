@@ -73,10 +73,22 @@ layout, so keep it stable):
     TWO RATES, NOT ONE (2026-07-25). `stream_fps` is the RECORDER LOOP rate: it
     includes a per-frame PNG write the flight loop never pays, and with tag
     decode off it pays no decode cost at all. The gate's burn model wants the
-    ONBOARD DECODE cadence, so `decode_loop_fps` is recorded separately as the
-    WRITE-EXCLUSIVE grab+decode rate whenever --decode-tags is on. Neither is the
-    flying Pi 5 at the flight quad_decimate — that is the protocol §7.3 bench,
-    passed to the scorer explicitly with --stream-fps.
+    ONBOARD DECODE cadence, so `decode_loop_fps` is recorded separately whenever
+    --decode-tags is on. Neither is the flying Pi 5 at the flight quad_decimate —
+    that is the protocol §7.3 bench, passed to the scorer explicitly with
+    --stream-fps.
+
+    AND `decode_loop_fps` IS A BOUNDED NUMBER, NOT A RAW ONE (2026-07-26). What
+    the loop times is the DECODE CALL ONLY — the wait for the next frame to
+    arrive is outside the interval — so the raw figure is decode THROUGHPUT, an
+    UPPER BOUND on a cadence rather than a cadence, and it could (and did) exceed
+    the camera's physical delivery rate. Since the money gate PREFERS this field
+    as its 1/fps divisor, an optimistic bound there shrinks the streak burn and
+    pushes the ~$740 verdict toward PASS. So the published `decode_loop_fps` is
+    min(decode throughput, delivered frame cadence) — pessimistic when the
+    recorder is disk-bound, which is the right direction to be wrong on a
+    purchase gate — and the raw figure sits beside it as
+    `decode_throughput_fps`, diagnostic only.
 
     CRASH-SAFE: meta.json is written from a `finally`, so a Ctrl-C'd (or
     SIGTERM'd) pass is still scorable and self-labels `terminated_early` /
@@ -148,6 +160,31 @@ DEF_WIDTH, DEF_HEIGHT = 1280, 800
 # P0 camera paper-check). We REQUEST this and log what the sensor actually applied.
 EXPOSURE_SPEC_US = 1000
 DEF_EXPOSURE_US = EXPOSURE_SPEC_US
+
+# Only the picamera2/libcamera backend reports exposure in DOCUMENTED
+# MICROSECONDS (`ExposureTime` in request metadata -- docs/camera_paper_check.md
+# item 3). V4L2's CAP_PROP_EXPOSURE is device-specific units, so a microsecond
+# spec verdict computed on it is a fake verdict; `dir` replay has no exposure at
+# all. A whitelist, not a blacklist: a new backend fails closed.
+EXPOSURE_US_SOURCES = ("picamera2",)
+
+# The largest wall-clock STEP tolerated inside one capture session. WHY THIS
+# NUMBER: range_truth_join joins the target's flight log onto `t_wall_unix`
+# ALONE, so an NTP/timesyncd step mid-pass shifts every later frame's join time
+# and writes true_range_m off by |dR/dt| x step -- ~13 m at 9 m/s for a 1.5 s
+# step, with range_quality still 'ok'. The BAR is protocol §6.1's sync budget:
+# one 2 m range bin at 9 m/s is 0.22 s, and the sync error must stay well inside
+# a half-bin. 0.05 s is that with margin. This is a DETECTOR, not a fix: the
+# session records the step so the join can refuse or repair it.
+CLOCK_STEP_TOL_S = 0.05
+
+# The ADOPTED placard's black-square edge (docs/placard_mount.md §2). NOT a free
+# parameter: a tag-recovered range scales LINEARLY in the assumed edge, so the
+# 0.30 that sat in capture.service's copy-paste example read every range 14.3%
+# short -- silently scaling curve (b)'s bins and truth boxes and curve (a)'s
+# range-accuracy column. The existing guard only fired on a MISSING --tag-size;
+# a wrong-but-present value sailed through, so a live capture now says so.
+ADOPTED_TAG_SIZE_M = 0.35
 
 # tag36h11 + default detector params — the SAME family/threshold convention as
 # scripts/seeker/autolabel_from_apriltag.py and synth_tag_frames.py (Detector(
@@ -352,11 +389,23 @@ def iter_dir(cv2, path, n_frames, replay_fps):
         yield Frame(gray, i * dt, None, None, None)
 
 
-def iter_v4l2(cv2, device, w, h, exposure_us, gain, n_frames, duration):
+def iter_v4l2(cv2, device, w, h, exposure_us, gain, n_frames, duration,
+              detail=None):
     """OpenCV VideoCapture fallback. Exposure control is best-effort — V4L2
-    exposure units are device-specific (often log2 steps, not microseconds), so
-    we set what we can and log the READ-BACK value; meta.json flags the unit
-    ambiguity so nobody mistakes it for a verified microsecond figure."""
+    exposure units are DEVICE-SPECIFIC (V4L2_CID_EXPOSURE_ABSOLUTE is 100 us per
+    unit, other drivers use log2 steps), so this backend does NOT publish a
+    microsecond value: `Frame.exposure_us` stays None and the raw read-back goes
+    into `backend_detail` labelled as device units.
+
+    WHY (2026-07-26): the read-back used to be folded into index.csv's
+    `exposure_us` column and into meta.json's `applied_exposure_us` /
+    `exposure_meets_spec` as if it were microseconds. On a 100-us-per-unit device
+    a requested 1000 sets 100 ms of exposure and the session still stamped
+    `exposure_meets_spec: true` — a verified-sounding claim about a quantity that
+    was never measured in the units it is compared against. Worse, cv2 returns
+    the sentinel -1 for an unsupported property (cv2.CAP_PROP_UNKNOWN == -1) and
+    the old truthiness filter let it through, so `-1 <= 1000` also read `true`.
+    Only the picamera2/libcamera backend reports documented microseconds."""
     dev = int(device) if str(device).isdigit() else device
     cap = cv2.VideoCapture(dev)
     if not cap.isOpened():
@@ -372,21 +421,37 @@ def iter_v4l2(cv2, device, w, h, exposure_us, gain, n_frames, duration):
     except Exception as e:  # pragma: no cover - driver-dependent
         print(f"[pi_capture] v4l2: exposure/gain set failed ({e}); "
               f"auto-exposure may be active", file=sys.stderr)
-    applied_exp = cap.get(cv2.CAP_PROP_EXPOSURE)
-    applied_gain = cap.get(cv2.CAP_PROP_GAIN)
+    # <=0 is the "property unsupported" sentinel, never a measurement.
+    def _readback(prop):
+        v = cap.get(prop)
+        return float(v) if (v is not None and v > 0 and math.isfinite(v)) else None
+
+    applied_exp = _readback(cv2.CAP_PROP_EXPOSURE)
+    applied_gain = _readback(cv2.CAP_PROP_GAIN)
+    if detail is not None:
+        detail["applied_exposure_raw_device_units"] = applied_exp
     t0 = time.monotonic()
     i = 0
     try:
         while True:
             ok, img = cap.read()
             if not ok:
-                print("[pi_capture] v4l2: frame grab failed", file=sys.stderr)
-                break
+                # RAISE, do not `break`. A clean generator end is indistinguishable
+                # from "the pass finished", so a camera that wedged 1.5 s into a
+                # `--duration 20` pass used to finalize normally: terminated_early
+                # False, requested_n_frames None => capture_truncated False, exit
+                # 0. Over ssh at the field that reads as a good pass, and the 18.5
+                # missing seconds -- the part at the ranges being measured -- are
+                # silently absent. picamera2's failures raise; this makes the two
+                # live backends symmetric. record_session's `finally` still writes
+                # meta.json, self-labelled terminated_early.
+                raise SystemExit(
+                    f"[pi_capture] v4l2: frame grab failed after {i} frames "
+                    f"(requested n_frames={n_frames}, duration={duration}) -- the "
+                    f"camera stopped delivering; this session is TRUNCATED")
             now_m, now_w = time.monotonic(), time.time()
             gray = _to_gray(cv2, img)
-            yield Frame(gray, now_m, now_w,
-                        applied_exp if applied_exp else None,
-                        applied_gain if applied_gain else None)
+            yield Frame(gray, now_m, now_w, None, applied_gain)
             i += 1
             if n_frames and i >= n_frames:
                 break
@@ -478,6 +543,45 @@ def _fps_stats(t_monos):
             round(med, 6))
 
 
+def _clock_coherence(offsets):
+    """Wall-vs-monotonic coherence for one session, from data every live frame
+    already carries: offset_i = t_wall_i - t_mono_i. A free-running pair drifts
+    only by the clocks' relative rate; a systemd-timesyncd/NTP STEP moves it
+    discontinuously, and CLOCK_MONOTONIC is unaffected by a frequency SLEW, so a
+    jump between consecutive frames is a step and nothing else.
+
+    `offsets` is [(frame_idx, offset_s), ...]. Returns
+    (median, span, max_step, max_step_frame_idx) or four Nones with <2 frames.
+    The step LOCATION is returned, not just its size, because a repair needs to
+    know which frames are on the far side of it."""
+    if not offsets or len(offsets) < 2:
+        return None, None, None, None
+    vals = [o for _i, o in offsets]
+    s = sorted(vals)
+    m = len(s) // 2
+    med = s[m] if len(s) % 2 else 0.5 * (s[m - 1] + s[m])
+    step, step_idx = 0.0, None
+    for (_ia, a), (ib, b) in zip(offsets, offsets[1:]):
+        d = abs(b - a)
+        if d > step:
+            step, step_idx = d, ib
+    return med, max(vals) - min(vals), step, step_idx
+
+
+def _boot_id():
+    """The kernel's boot identity. A wall-vs-mono offset is only comparable
+    ACROSS sessions within ONE boot (t_mono restarts at 0), and the protocol
+    (§4.6b, §7.0) reuses ONE hand-measured clock offset across every pass in a
+    battery segment -- so the cross-pass comparison this enables is exactly the
+    exposure a per-session span cannot see: a step BETWEEN passes is internally
+    constant and shows span == 0 on both."""
+    try:
+        with open("/proc/sys/kernel/random/boot_id") as f:
+            return f.read().strip() or None
+    except OSError:
+        return None
+
+
 def _git_rev():
     try:
         return subprocess.check_output(
@@ -491,7 +595,8 @@ def _git_rev():
 def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                    requested_exposure_us, requested_gain, decode_tags,
                    cam_params, tag_size, run_tag, requested_n_frames=None,
-                   quad_decimate=DEFAULT_QUAD_DECIMATE):
+                   quad_decimate=DEFAULT_QUAD_DECIMATE, *,
+                   requested_duration_s=None):
     """Drive a backend's Frame stream to disk in the documented layout. Returns
     the meta dict.
 
@@ -516,10 +621,14 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
     detector = _make_detector(quad_decimate) if decode_tags else None
     applied_exps, applied_gains = [], []
     t_monos = []   # for the MEASURED stream_fps (see _fps_stats)
-    decode_loop_dts = []   # grab->decode-done, PNG write EXCLUDED (see below)
+    decode_loop_dts = []   # decode wall-time only, PNG write EXCLUDED (see below)
+    wm_offsets = []        # (frame_idx, t_wall - t_mono) -- clock-step detector
     n = 0
     n_tag_frames = 0
-    actual_w, actual_h = w, h  # overwritten with the real saved-frame shape below
+    # NOT pre-seeded with the REQUEST: a zero-frame session must report the
+    # resolution as UNMEASURED, not echo back what was asked for (fail-closed on
+    # a measured quantity). Filled from the first frame actually saved.
+    actual_w, actual_h = None, None
     terminated_early = False
     early_reason = None
 
@@ -556,19 +665,57 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                                       f"measurement; synthetic {fps_med:.2f} fps)")
         else:
             fps_out, fps_src = None, "unavailable (too few timestamped frames)"
-        # decode_loop_fps: the WRITE-EXCLUSIVE grab+decode cadence -- the quantity
-        # the money gate's burn model actually needs (review 2). stream_fps is a
-        # DIFFERENT experiment: it is disk-bound. Only meaningful when the decode
-        # really ran in the loop.
+        # decode_loop_fps -- BOUNDED (2026-07-26). What is TIMED here is the
+        # decode call alone: the wait for the next frame to arrive is outside the
+        # interval, so 1/median(decode_dt) is decode THROUGHPUT, an UPPER BOUND
+        # on a cadence and not a cadence. It could (and did) exceed the camera's
+        # physical delivery rate, and the money gate PREFERS this field as its
+        # 1/fps divisor -- an optimistic bound there shrinks R_streak_burn and
+        # pushes the ~$740 verdict toward PASS. An onboard cadence can never
+        # exceed the rate frames arrive, so the published value is clamped by the
+        # measured delivered cadence: min(decode throughput, frame cadence). The
+        # clamp is PESSIMISTIC when the recorder is disk-bound (the PNG write is
+        # in the frame cadence but not in the flight loop) -- which is the right
+        # direction to be wrong on a purchase gate.
         dec_dt_med = _median(decode_loop_dts) if decode_tags else None
-        dec_fps = (round(1.0 / dec_dt_med, 3)
+        dec_raw = (round(1.0 / dec_dt_med, 3)
                    if dec_dt_med and dec_dt_med > 0 else None)
+        live = source in ("picamera2", "v4l2")
+        if dec_raw is None:
+            dec_fps, dec_src = None, ("not measured (tag decode was OFF in this "
+                                      "capture)")
+        elif not live:
+            # Replay timestamps are synthetic, so there is no delivery rate to
+            # clamp against -- and the gate refuses a replay source outright.
+            dec_fps, dec_src = dec_raw, (
+                "replay: decode THROUGHPUT only, NOT a cadence (the dir backend's "
+                "timestamps are synthetic, so nothing bounds it)")
+        elif fps_med:
+            dec_fps = min(dec_raw, fps_med)
+            dec_src = (
+                "measured+BOUNDED: min(decode throughput 1/median decode "
+                f"wall-time [{dec_raw} fps, PNG WRITE EXCLUDED], delivered frame "
+                f"cadence [{fps_med} fps]). The decode throughput ALONE is an "
+                "UPPER BOUND, never a cadence -- frames cannot be decoded faster "
+                "than they arrive. Still this rig's CPU/camera, not the flying "
+                "Pi 5 -- protocol §7.3")
+        else:
+            # FAIL CLOSED: an unbounded upper bound must not reach the gate.
+            dec_fps, dec_src = None, (
+                f"REFUSED: decode throughput {dec_raw} fps could not be bounded "
+                f"by a delivered frame cadence (too few timestamped frames), and "
+                f"an unbounded throughput is not a cadence")
+        wm_med, wm_span, wm_step, wm_step_idx = _clock_coherence(wm_offsets)
         meta = _meta_dict(fps_out, fps_src, fps_slow, dt_med, dec_fps, dec_dt_med,
-                          applied_exp_med, _median(applied_gains))
+                          dec_raw, dec_src, applied_exp_med, _median(applied_gains),
+                          wm_med, wm_span, wm_step, wm_step_idx)
         return meta
 
     def _meta_dict(fps_out, fps_src, fps_slow, dt_med, dec_fps, dec_dt_med,
-                   applied_exp_med, applied_gain_med):
+                   dec_raw, dec_src, applied_exp_med, applied_gain_med,
+                   wm_med, wm_span, wm_step, wm_step_idx):
+        elapsed = (round(max(t_monos) - min(t_monos), 6)
+                   if len(t_monos) >= 2 else None)
         return _make_meta_dict(
             run_tag=run_tag, source=source, backend_detail=backend_detail,
             actual_w=actual_w, actual_h=actual_h, w=w, h=h, n=n,
@@ -577,8 +724,12 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
             applied_exp_med=applied_exp_med, applied_exps=applied_exps,
             requested_gain=requested_gain, applied_gain_med=applied_gain_med,
             fps_out=fps_out, fps_src=fps_src, fps_slow=fps_slow, dt_med=dt_med,
-            dec_fps=dec_fps, dec_dt_med=dec_dt_med, cam_params=cam_params,
+            dec_fps=dec_fps, dec_dt_med=dec_dt_med, dec_raw=dec_raw,
+            dec_src=dec_src, cam_params=cam_params,
             tag_size=tag_size, requested_n_frames=requested_n_frames,
+            requested_duration_s=requested_duration_s, elapsed_s=elapsed,
+            wm_med=wm_med, wm_span=wm_span, wm_step=wm_step,
+            wm_step_idx=wm_step_idx,
             terminated_early=terminated_early, early_reason=early_reason,
             quad_decimate=quad_decimate)
 
@@ -604,6 +755,8 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
             ])
             if fr.t_mono is not None:
                 t_monos.append(float(fr.t_mono))
+                if fr.t_wall is not None:
+                    wm_offsets.append((n, float(fr.t_wall) - float(fr.t_mono)))
             if fr.exposure_us is not None:
                 applied_exps.append(float(fr.exposure_us))
             if fr.gain is not None:
@@ -651,13 +804,25 @@ def _make_meta_dict(*, run_tag, source, backend_detail, actual_w, actual_h, w, h
                     applied_gain_med, fps_out, fps_src, fps_slow, dt_med,
                     dec_fps, dec_dt_med, cam_params, tag_size,
                     requested_n_frames, terminated_early, early_reason,
-                    quad_decimate=DEFAULT_QUAD_DECIMATE):
+                    quad_decimate=DEFAULT_QUAD_DECIMATE,
+                    dec_raw=None, dec_src=None, requested_duration_s=None,
+                    elapsed_s=None, wm_med=None, wm_span=None, wm_step=None,
+                    wm_step_idx=None):
+    # A microsecond spec verdict is only meaningful for a backend whose exposure
+    # readings ARE microseconds (EXPOSURE_US_SOURCES). Everything else publishes
+    # null, not a boolean computed on unit-ambiguous input.
+    us_semantics = source in EXPOSURE_US_SOURCES
+    exp_us = applied_exp_med if us_semantics else None
     meta = {
         "session": run_tag,
         "created_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "source": source,
         "backend_detail": backend_detail,
-        "resolution": {"width": int(actual_w), "height": int(actual_h)},
+        # null, not the REQUEST, when nothing was captured: the request is
+        # already recorded below, and echoing it as `resolution` states a
+        # measurement that never happened.
+        "resolution": (None if (actual_w is None or actual_h is None)
+                       else {"width": int(actual_w), "height": int(actual_h)}),
         "requested_resolution": {"width": int(w), "height": int(h)},
         "n_frames": n,
         "family": TAG_FAMILY,
@@ -676,9 +841,18 @@ def _make_meta_dict(*, run_tag, source, backend_detail, actual_w, actual_h, w, h
         "tag_decode": bool(decode_tags),
         "n_tag_frames": n_tag_frames if decode_tags else None,
         "requested_exposure_us": int(requested_exposure_us),
-        "applied_exposure_us": applied_exp_med,
-        "exposure_source": ("sensor-metadata" if applied_exps else
-                            ("replay-unknown" if source == "dir" else "unavailable")),
+        "applied_exposure_us": exp_us,
+        "exposure_source": (
+            ("libcamera sensor-metadata (ExposureTime, MICROSECONDS)"
+             if applied_exps else "unavailable (no ExposureTime in the sensor "
+                                  "metadata -- exposure was NOT verified)")
+            if us_semantics else
+            ("v4l2 CAP_PROP_EXPOSURE read-back, DEVICE UNITS -- NOT microseconds, "
+             "the <=1 ms spec is UNVERIFIED for this backend (raw read-back in "
+             "backend_detail.applied_exposure_raw_device_units)"
+             if source == "v4l2" else
+             ("replay-unknown" if source == "dir" else
+              f"unavailable (backend {source!r} does not report exposure)"))),
         "requested_gain": float(requested_gain),
         "applied_gain": applied_gain_med,
         # MEASURED RECORDER-LOOP rate -- the tripod money gate consumes this
@@ -693,30 +867,59 @@ def _make_meta_dict(*, run_tag, source, backend_detail, actual_w, actual_h, w, h
         "stream_fps_source": fps_src,
         "stream_fps_p10_slow_tail": fps_slow,   # conservative rate for the gate
         "frame_dt_median_s": dt_med,
-        # WRITE-EXCLUSIVE grab+decode cadence: the quantity the burn model
-        # actually models. Only present when the decode really ran in the loop.
+        # The modelled onboard decode cadence, BOUNDED by the delivered frame
+        # rate (see _build_meta). `decode_throughput_fps` below is the raw,
+        # UNBOUNDED decode-only rate it was clamped from -- diagnostic only,
+        # never a gate input.
         "decode_loop_fps": dec_fps,
+        "decode_throughput_fps": dec_raw,
         "decode_loop_dt_median_s": (round(dec_dt_med, 6)
                                     if dec_dt_med is not None else None),
-        "decode_loop_fps_source": (
-            "measured: median AprilTag decode wall-time per frame, PNG WRITE "
-            "EXCLUDED (the modelled handoff cadence; still this rig's CPU, not "
-            "the flying Pi 5 -- protocol §7.3)" if dec_fps else
-            "not measured (tag decode was OFF in this capture)"),
+        "decode_loop_fps_source": dec_src,
         "exposure_spec_us": EXPOSURE_SPEC_US,
-        "exposure_meets_spec": (None if applied_exp_med is None
-                                else bool(applied_exp_med <= EXPOSURE_SPEC_US)),
+        "exposure_meets_spec": (None if exp_us is None
+                                else bool(exp_us <= EXPOSURE_SPEC_US)),
         "calib": cam_params is not None,
         "tag_size_m": tag_size,
         # Request-vs-delivered for the FRAME COUNT (meta already does this for
         # resolution/exposure/gain). A pass that died 12 frames into a 300-frame
         # request must be self-labelling AFTER the field window closes.
         "requested_n_frames": requested_n_frames,
+        # A DURATION-sized pass had no request on record at all, so nobody --
+        # not a consumer, not the operator at 9 pm -- could audit its length
+        # afterwards. No truncation heuristic is derived from it on purpose: the
+        # backend's own grab failure now RAISES (see iter_v4l2), which is the
+        # exact signal, and a "short by >10%" rule would false-positive on
+        # camera warm-up in a short pass.
+        "requested_duration_s": requested_duration_s,
+        "capture_elapsed_s": elapsed_s,
         "capture_truncated": bool(
             (requested_n_frames is not None and n < requested_n_frames)
             or terminated_early),
         "terminated_early": bool(terminated_early),
         "terminated_early_reason": early_reason,
+        # CLOCK COHERENCE (2026-07-26). range_truth_join interpolates the target
+        # log onto `t_wall_unix` ALONE, so an NTP/timesyncd STEP mid-pass silently
+        # writes true_range_m off by |dR/dt| x step (~13 m at 9 m/s for 1.5 s)
+        # with range_quality still 'ok'. On a BEAM-facing APPROACH pass the
+        # placard never decodes, so the tag-vs-log bias check that could catch it
+        # is switched off by --allow-unverified-survey -- an arm-asymmetric hole
+        # that curve (b)'s core data sits in. These four numbers come free from
+        # columns every live frame already writes, need no tags/survey/log, and
+        # are therefore the ONE check that runs on the approach arm.
+        "wall_mono_offset_median_s": (round(wm_med, 6) if wm_med is not None
+                                      else None),
+        "wall_mono_offset_span_s": (round(wm_span, 6) if wm_span is not None
+                                    else None),
+        "wall_mono_max_step_s": (round(wm_step, 6) if wm_step is not None
+                                 else None),
+        "wall_mono_max_step_frame_idx": wm_step_idx,
+        "wall_mono_step_tolerance_s": CLOCK_STEP_TOL_S,
+        # The median offset is only comparable ACROSS sessions within one boot
+        # (t_mono restarts at 0), and the protocol reuses ONE clock offset across
+        # a whole battery segment -- so a step BETWEEN passes shows span == 0 on
+        # both and is only visible by comparing medians under the same boot_id.
+        "boot_id": _boot_id(),
         "git_rev": _git_rev(),
         "frames_dir": "frames",
         "index_csv": "index.csv",
@@ -746,11 +949,23 @@ def _install_sigterm_handler():
 
 
 def _load_cam_params(calib_path):
-    """(fx,fy,cx,cy) from a calibrate_camera.py / synth calib JSON, or None."""
+    """((fx,fy,cx,cy), (calib_w, calib_h)) from a calibrate_camera.py / synth
+    calib JSON, or (None, None). The RESOLUTION is returned too (it used to be
+    read and thrown away): fx/cx are pixel quantities, so handing 1280x800
+    intrinsics to a pose recovered on a 640x400 frame scales every `range_m` by
+    the size ratio with no diagnostic anywhere in the chain."""
     if not calib_path:
-        return None
+        return None, None
     d = json.loads(open(calib_path).read())
-    return (float(d["fx"]), float(d["fy"]), float(d["cx"]), float(d["cy"]))
+    res = d.get("resolution") or {}
+    wh = None
+    if res.get("width") and res.get("height"):
+        wh = (int(res["width"]), int(res["height"]))
+    return (float(d["fx"]), float(d["fy"]), float(d["cx"]), float(d["cy"])), wh
+
+
+def _res_str(res):
+    return "UNMEASURED" if not res else f"{res['width']}x{res['height']}"
 
 
 def capture(args):
@@ -761,10 +976,12 @@ def capture(args):
         backend = iter_dir(cv2, path, args.n_frames, args.replay_fps)
         source, detail = "dir", {"path": path, "replay_fps": args.replay_fps}
     elif args.source == "v4l2":
+        source = "v4l2"
+        detail = {"device": args.device,
+                  "exposure_units": "device-specific (V4L2), NOT microseconds"}
         backend = iter_v4l2(cv2, args.device, args.width, args.height,
-                            args.exposure_us, args.gain, args.n_frames, args.duration)
-        source, detail = "v4l2", {"device": args.device,
-                                  "exposure_units": "device-specific (V4L2)"}
+                            args.exposure_us, args.gain, args.n_frames,
+                            args.duration, detail=detail)
     elif args.source == "picamera2":
         backend = iter_picamera2(cv2, args.width, args.height, args.exposure_us,
                                  args.gain, args.n_frames, args.duration)
@@ -773,7 +990,22 @@ def capture(args):
         raise SystemExit(f"[pi_capture] unknown --source {args.source!r} "
                          f"(use picamera2 | v4l2 | dir=PATH)")
 
-    cam_params = _load_cam_params(args.calib)
+    # An escape hatch only counts if the session records that it was used.
+    # getattr, matching the --quad-decimate idiom below: callers that build an
+    # argparse.Namespace by hand (the tests) must not have to track new flags.
+    allow_over_spec = bool(getattr(args, "allow_exposure_over_spec", False))
+    detail["allow_exposure_over_spec"] = allow_over_spec
+
+    cam_params, calib_wh = _load_cam_params(args.calib)
+    # fx/cx are PIXEL quantities: a pose recovered with intrinsics from a
+    # different frame size scales every range_m by the size ratio, silently.
+    if calib_wh and calib_wh != (args.width, args.height):
+        print(f"[pi_capture] WARNING: calib {args.calib} was solved at "
+              f"{calib_wh[0]}x{calib_wh[1]} but this capture requests "
+              f"{args.width}x{args.height}. fx/cx are pixel units, so every "
+              f"tag-recovered range_m would be scaled by ~{calib_wh[0] / float(args.width):.3g}. "
+              f"Re-calibrate at the capture resolution (skr-06) or capture at "
+              f"the calib resolution.", file=sys.stderr)
     if args.tag_size and cam_params is None and args.decode_tags:
         print("[pi_capture] NOTE: --tag-size given without --calib; decode is "
               "presence-only (no range_m in tags.csv)", file=sys.stderr)
@@ -786,6 +1018,14 @@ def capture(args):
               f"and every tag-recovered range scales by the wrong edge. The "
               f"ADOPTED placard is 0.350 m (docs/placard_mount.md §2) -- pass "
               f"--tag-size 0.35.", file=sys.stderr)
+    if (args.tag_size and source in ("picamera2", "v4l2")
+            and abs(args.tag_size - ADOPTED_TAG_SIZE_M) > 0.02 * ADOPTED_TAG_SIZE_M):
+        print(f"[pi_capture] WARNING: --tag-size {args.tag_size} m is NOT the "
+              f"ADOPTED placard edge {ADOPTED_TAG_SIZE_M} m "
+              f"(docs/placard_mount.md §2). Range scales LINEARLY in it, so every "
+              f"range_m in this session will read "
+              f"{args.tag_size / ADOPTED_TAG_SIZE_M:.3f}x the truth if the real "
+              f"placard is the adopted one.", file=sys.stderr)
     os.makedirs(args.out, exist_ok=True)
     _install_sigterm_handler()
     qd = float(getattr(args, "quad_decimate", DEFAULT_QUAD_DECIMATE))
@@ -798,26 +1038,60 @@ def capture(args):
         backend, args.out, source, detail, args.width, args.height,
         args.exposure_us, args.gain, args.decode_tags,
         cam_params if args.tag_size else None, args.tag_size, args.run_tag,
-        requested_n_frames=args.n_frames, quad_decimate=qd)
+        requested_n_frames=args.n_frames, quad_decimate=qd,
+        requested_duration_s=getattr(args, "duration", None))
 
     print(f"[pi_capture] wrote {meta['n_frames']} frames -> {args.out}")
+    print(f"[pi_capture]   resolution {_res_str(meta['resolution'])} "
+          f"(requested {_res_str(meta['requested_resolution'])})")
     print(f"[pi_capture]   quad_decimate={meta['quad_decimate']} "
           f"[{meta['quad_decimate_source']}]")
     print(f"[pi_capture]   index.csv + meta.json"
           + (f" + tags.csv ({meta['n_tag_frames']} frames with a tag)"
              if args.decode_tags else " (tag decode OFF)"))
-    if meta["applied_exposure_us"] is not None:
+    if meta["exposure_meets_spec"] is not None:
         spec = "OK <=1ms" if meta["exposure_meets_spec"] else "OVER 1ms spec!"
         print(f"[pi_capture]   applied exposure ~{meta['applied_exposure_us']:.0f} us "
               f"({spec}), gain ~{meta['applied_gain']}")
     else:
-        print(f"[pi_capture]   exposure: {meta['exposure_source']} "
+        print(f"[pi_capture]   exposure: UNVERIFIED -- {meta['exposure_source']} "
               f"(requested {meta['requested_exposure_us']} us)")
     if meta.get("decode_loop_fps"):
         print(f"[pi_capture]   rates: stream_fps={meta['stream_fps']} "
               f"(recorder loop, PNG write INCLUDED) | "
-              f"decode_loop_fps={meta['decode_loop_fps']} (grab+decode, write "
-              f"EXCLUDED -- the quantity the money gate models)")
+              f"decode_loop_fps={meta['decode_loop_fps']} "
+              f"(raw decode throughput {meta['decode_throughput_fps']}) "
+              f"[{meta['decode_loop_fps_source']}]")
+    # A live frame size that is not the requested one is recorded honestly but
+    # used to be printed nowhere, so a silently ISP-adjusted 640x400 session
+    # measured the whole decode envelope at half resolution with no hint.
+    if source in ("picamera2", "v4l2") and meta["resolution"] != meta["requested_resolution"]:
+        print(f"[pi_capture] WARNING: the camera delivered "
+              f"{_res_str(meta['resolution'])}, NOT the requested "
+              f"{_res_str(meta['requested_resolution'])} -- every range/recall "
+              f"number from this session is at the DELIVERED size.",
+              file=sys.stderr)
+    # ...and the same check against the CALIBRATION, which is what actually turns
+    # a size surprise into a wrong number: fx/cx are pixel quantities, so a pose
+    # recovered on a smaller frame with full-size intrinsics scales range_m.
+    if (calib_wh and meta["resolution"]
+            and (meta["resolution"]["width"], meta["resolution"]["height"]) != calib_wh):
+        print(f"[pi_capture] WARNING: frames were DELIVERED at "
+              f"{_res_str(meta['resolution'])} but the calib is solved at "
+              f"{calib_wh[0]}x{calib_wh[1]} -- every tag-recovered range_m in "
+              f"tags.csv is scaled by ~"
+              f"{calib_wh[0] / float(meta['resolution']['width']):.3g}. Do not "
+              f"score this session until the two agree.", file=sys.stderr)
+    step = meta["wall_mono_max_step_s"]
+    if step is not None and step > CLOCK_STEP_TOL_S:
+        print(f"[pi_capture] WARNING: the WALL CLOCK STEPPED {step:.3f} s mid-pass "
+              f"(at frame {meta['wall_mono_max_step_frame_idx']}; tolerance "
+              f"{CLOCK_STEP_TOL_S} s). t_wall_unix is the ONLY axis "
+              f"range_truth_join uses, so every frame after that jump joins the "
+              f"target log {step:.3f} s wrong (~{step * 9.0:.1f} m at 9 m/s). Fix "
+              f"the clock (`sudo timedatectl set-ntp false` for the session) and "
+              f"RE-FLY this pass -- it is cheap now and impossible later.",
+              file=sys.stderr)
     if meta["capture_truncated"]:
         # A short capture is an ERROR, not a success with fewer frames: the
         # camera wedging 12 frames into a 300-frame pass used to print "wrote 12
@@ -828,6 +1102,31 @@ def capture(args):
                  if meta["terminated_early_reason"] else "")
               + f" -- backend {source} ended early", file=sys.stderr)
         return 1
+    # FAIL CLOSED ON THE EXPOSURE SPEC (2026-07-26). The <=1 ms global-shutter
+    # exposure is the whole reason for this sensor and the field day's primary
+    # read (protocol §4.4) -- yet enforcement was a stdout line among six others
+    # and a README step, nothing downstream consumes exposure_meets_spec, and the
+    # session exited 0. A picamera2 pass that applied a longer exposure, or whose
+    # metadata carried no ExposureTime at all (requested but NEVER VERIFIED, the
+    # same class as substituting a default for a measured number), now fails so
+    # the operator re-shoots it while the light and the target are still there.
+    # Deliberate long-exposure passes use --allow-exposure-over-spec.
+    if source in EXPOSURE_US_SOURCES and not allow_over_spec:
+        if meta["exposure_meets_spec"] is False:
+            print(f"[pi_capture] EXPOSURE OVER SPEC: applied "
+                  f"~{meta['applied_exposure_us']:.0f} us > {EXPOSURE_SPEC_US} us "
+                  f"(protocol §3.3/§4.4). Frames carry more motion blur than the "
+                  f"decode-range/recall numbers are allowed to assume. Usually "
+                  f"too little light or FrameDurationLimits not lowered. Re-shoot, "
+                  f"or pass --allow-exposure-over-spec for a deliberate pass.",
+                  file=sys.stderr)
+            return 1
+        if meta["exposure_meets_spec"] is None:
+            print(f"[pi_capture] EXPOSURE UNVERIFIED: {meta['exposure_source']}. "
+                  f"The <=1 ms spec is REQUESTED but not confirmed, so this "
+                  f"session cannot back a motion-blur claim. Re-run, or pass "
+                  f"--allow-exposure-over-spec to keep it anyway.", file=sys.stderr)
+            return 1
     return 0 if meta["n_frames"] > 0 else 1
 
 
@@ -878,7 +1177,8 @@ def self_test():
         source=f"dir={raw_dir}", out=session, n_frames=None, replay_fps=30.0,
         device="0", width=stf.W, height=stf.H, exposure_us=DEF_EXPOSURE_US,
         gain=1.0, duration=None, decode_tags=True, calib=calib_path,
-        tag_size=0.5, run_tag="selftest", quad_decimate=DEFAULT_QUAD_DECIMATE)
+        tag_size=0.5, run_tag="selftest", quad_decimate=DEFAULT_QUAD_DECIMATE,
+        allow_exposure_over_spec=False)
     rc = capture(ns)
 
     ok = True
@@ -1004,13 +1304,55 @@ def self_test():
           f"a --quad-decimate 1.0 capture records 1.0 "
           f"[{meta_qd['quad_decimate_source']}] -- the §4.2b reclaim lever is "
           f"now recoverable after the field day")
-    # decode_loop_fps is the WRITE-EXCLUSIVE grab+decode cadence -- the quantity
-    # the money gate models. It must exist (decode ran) and be a plausible rate.
+    # decode_loop_fps is the modelled onboard decode cadence -- the quantity the
+    # money gate divides by. It must exist (decode ran) and be a plausible rate.
     check(isinstance(meta["decode_loop_fps"], (int, float))
           and meta["decode_loop_fps"] > 0
           and meta["decode_loop_fps"] != meta["stream_fps"],
           f"decode_loop_fps measured separately from stream_fps "
           f"({meta['decode_loop_fps']} vs {meta['stream_fps']})")
+    # THE CADENCE CEILING (2026-07-26). Decode of a blank 16x16 frame is
+    # sub-millisecond, so the raw decode THROUGHPUT is hundreds of fps -- but the
+    # frames arrive at 10 Hz, and an onboard cadence can never exceed the rate
+    # frames arrive. The published decode_loop_fps (which the money gate divides
+    # by) must be the 10 Hz, with the unbounded figure kept separately.
+    def _slow_delivery_frames(k, dt):
+        for j in range(k):
+            yield Frame(np.zeros((16, 16), dtype=np.uint8), j * dt,
+                        1_752_700_000.0 + j * dt, 900.0, 1.0)
+
+    sess_rate = os.path.join(work, "session_rate")
+    os.makedirs(sess_rate, exist_ok=True)
+    m_rate = record_session(_slow_delivery_frames(10, 0.1), sess_rate,
+                            "picamera2", {}, 16, 16, DEF_EXPOSURE_US, 1.0, True,
+                            None, 0.35, "rate", requested_n_frames=10)
+    check(m_rate["stream_fps"] == 10.0
+          and m_rate["decode_loop_fps"] == 10.0
+          and m_rate["decode_throughput_fps"] > 10.0
+          and "UPPER BOUND" in m_rate["decode_loop_fps_source"],
+          f"decode_loop_fps is CLAMPED to the delivered cadence "
+          f"(published {m_rate['decode_loop_fps']} fps from a raw "
+          f"{m_rate['decode_throughput_fps']} fps decode throughput at 10 Hz "
+          f"delivery) -- the gate's divisor can never exceed frame arrival")
+    # CLOCK-STEP DETECTOR (2026-07-26): the wall/mono offset is coherent here, so
+    # the session must report no step. The stepped case is pinned in
+    # tests/test_pi_capture_crashsafe.py (it needs a doctored wall clock).
+    check(m_rate["wall_mono_max_step_s"] is not None
+          and m_rate["wall_mono_max_step_s"] <= CLOCK_STEP_TOL_S
+          and m_rate["wall_mono_step_tolerance_s"] == CLOCK_STEP_TOL_S,
+          f"coherent clocks -> no step flagged "
+          f"(max_step={m_rate['wall_mono_max_step_s']} s, tol "
+          f"{CLOCK_STEP_TOL_S} s)")
+    # A ZERO-FRAME session must report the resolution as UNMEASURED, not echo
+    # back the request (fail-closed on a measured quantity).
+    sess_empty = os.path.join(work, "session_empty")
+    os.makedirs(sess_empty, exist_ok=True)
+    m_empty = record_session(iter(()), sess_empty, "picamera2", {}, 1280, 800,
+                             DEF_EXPOSURE_US, 1.0, False, None, 0.35, "empty")
+    check(m_empty["resolution"] is None
+          and m_empty["requested_resolution"] == {"width": 1280, "height": 800},
+          f"a 0-frame session reports resolution={m_empty['resolution']} "
+          f"(UNMEASURED), not the request")
     check(meta["capture_truncated"] is False and meta["terminated_early"] is False,
           "a complete capture is NOT flagged truncated")
 
@@ -1100,6 +1442,12 @@ def main():
                          f"ADR-0082 PLANS 1.0 for the tripod day because 2.0 does "
                          f"not clear the t_go money gate at 20/14 Hz. The value is "
                          f"STAMPED into meta.json so the session records what it ran.")
+    ap.add_argument("--allow-exposure-over-spec", action="store_true",
+                    help=f"keep a picamera2 session whose APPLIED exposure "
+                         f"exceeds the {EXPOSURE_SPEC_US} us spec (or was never "
+                         f"reported) instead of exiting non-zero. For a "
+                         f"DELIBERATE long-exposure pass only -- it is recorded "
+                         f"in meta.json as an operator choice.")
     ap.add_argument("--run-tag", default="session",
                     help="session label recorded in meta.json")
     ap.add_argument("--self-test", action="store_true",

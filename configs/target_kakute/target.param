@@ -5,6 +5,31 @@
 #   Flash the ArduCopter build for board name "KakuteH7"  --  NOT "KakuteH7v2"
 #   and NOT the -bdshot / -Wing variants.  This is the V1 board.
 #   src: https://ardupilot.org/copter/docs/common-holybro-kakuteh7.html
+#
+# ⛔ FIRMWARE VERSION IS PINNED: ArduCopter 4.7.0.
+#   Verified 2026-07-26: firmware.ardupilot.org/Copter/stable/KakuteH7/
+#   firmware-version.txt reads "4.7.0-FIRMWARE_VERSION_TYPE_OFFICIAL".
+#   PARAM NAMES MOVED, so this is not decoration. Between 4.5 and 4.7 ArduPilot
+#   renamed four of the params this file sets, and Mission Planner SKIPS an
+#   unknown name with a warning rather than failing -- a silently dropped write
+#   that is invisible in the write direction:
+#       GPS_TYPE      -> GPS1_TYPE      (4.6: AP_GPS::Params subgroup prefix "1_")
+#       WPNAV_SPEED   -> WP_SPD         (Copter 4.7 GOBJECTPTR(wp_nav, "WP_"),
+#                                        and the UNIT changed cm/s -> m/s)
+#       WPNAV_ACCEL   -> WP_ACC         (same rename; cm/s/s -> m/s/s)
+#       ANGLE_MAX     -> ATC_ANGLE_MAX  (AC_AttitudeControl, "ATC_" prefix;
+#                                        centidegrees -> DEGREES, range 10..80)
+#       ARMING_CHECK  -> ARMING_SKIPCHK (AP_Arming "SKIPCHK"; INVERTED sense --
+#                                        it is the bitmask of checks to SKIP)
+#   Sources (read at tag Copter-4.7.0): libraries/AP_GPS/AP_GPS.cpp
+#   AP_SUBGROUPINFO(params[0], "1_"), libraries/AC_WPNav/AC_WPNav.cpp
+#   AP_GROUPINFO("SPD"/"ACC") + AC_WPNav.h WP_SPD_DEFAULT 10.0f,
+#   libraries/AC_AttitudeControl/AC_AttitudeControl.cpp AP_GROUPINFO("ANGLE_MAX"),
+#   libraries/AP_Arming/AP_Arming.cpp AP_GROUPINFO("SKIPCHK", ... , 0),
+#   ArduCopter/Parameters.cpp GOBJECT/GOBJECTPTR prefixes.
+#   DO NOT load this file on 4.5.x or 4.6.x without re-checking those five names.
+#   ON BUILD DAY: after loading, READ THE PARAMS BACK off the FC and diff against
+#   this file. A dropped write is only visible in the read direction.
 #   src (bom): docs/project_state.json bom_tiers[0] ("ArduPilot target KakuteH7
 #              -- flash THAT not v2"); docs/hardware_order_list.md (E)
 #
@@ -134,27 +159,43 @@ RSSI_TYPE,3
 # src: common-holybro-kakuteh7.html
 SERIAL3_PROTOCOL,5
 # Auto-detect the u-blox M10 receiver. (firmware default, stated)
-# src: https://ardupilot.org/copter/docs/common-gps-for-position.html
-GPS_TYPE,1
+# RENAMED in Copter 4.6: GPS_TYPE -> GPS1_TYPE (AP_GPS::Params subgroup prefix
+# "1_", AP_GPS.cpp). On 4.7 the OLD name does not exist, and Mission Planner
+# skips an unknown name rather than erroring -- benign here only because the new
+# param already defaults to 1. src: https://ardupilot.org/copter/docs/common-gps-for-position.html
+GPS1_TYPE,1
 
 
 # ---------------------------------------------------------------------------
 # AUTO LEG SPEED  --  tripod matrix needs >=9 m/s passes
 # ---------------------------------------------------------------------------
-# 10 m/s horizontal AUTO speed (cm/s). The protocol's full-speed passes push
-# toward >=9 m/s (docs/tripod_test_protocol.md 4.4); 1000 clears that with margin.
+# 10 m/s horizontal AUTO speed. The protocol's full-speed passes push toward
+# >=9 m/s (docs/tripod_test_protocol.md 4.4); 10 clears that with margin.
 # This equals the firmware default but is set explicitly to make the >=9 m/s
 # requirement unmistakable on build day. A per-leg DO_CHANGE_SPEED in the mission
 # (gen_tripod_mission.py) can still slow individual "control" passes.
-# src: https://ardupilot.org/copter/docs/parameters.html (WPNAV_SPEED, default 1000)
-WPNAV_SPEED,1000
-# Horizontal AUTO acceleration (cm/s/s). Default 250 is sluggish -> a short
-# ~30 m leg may never reach 9-10 m/s. 350 lets the target hit speed on the leg.
-# Verify actual leg speed in the log on the maiden AUTO run. src: parameters.html
-WPNAV_ACCEL,350
-# Max lean angle (centidegrees, 35 deg). Default 3000 (30 deg) can cap top speed;
-# 3500 gives the lean headroom to hold 9-10 m/s. src: parameters.html (ANGLE_MAX)
-ANGLE_MAX,3500
+# RENAMED + RE-UNITED in Copter 4.7: WPNAV_SPEED (cm/s) -> WP_SPD in METRES/s.
+# The old line said 1000; on 4.7 that name does not exist, and the number would
+# have been 100x wrong if the rename had been done without the unit.
+# src (read at tag Copter-4.7.0): AC_WPNav.cpp AP_GROUPINFO("SPD", ...,
+# _wp_speed_ms, WP_SPD_DEFAULT), @Units m/s @Range 0.10 20.00; AC_WPNav.h
+# `#define WP_SPD_DEFAULT 10.0f`; Parameters.cpp GOBJECTPTR(wp_nav, "WP_").
+WP_SPD,10
+# Horizontal AUTO acceleration (m/s/s). The firmware default 2.5 is sluggish ->
+# a short ~30 m leg may never reach 9-10 m/s. 3.5 lets the target hit speed on
+# the leg. Verify actual leg speed in the log on the maiden AUTO run.
+# RENAMED + RE-UNITED in 4.7: WPNAV_ACCEL (cm/s/s, was 350) -> WP_ACC (m/s/s).
+# src: AC_WPNav.cpp AP_GROUPINFO("ACC", ..., _wp_accel_mss,
+# WPNAV_ACCELERATION_MS), @Units m/s/s @Range 0.50 5.00 (default 2.5).
+WP_ACC,3.5
+# Max lean angle, 35 deg. The default 30 deg can cap top speed; 35 gives the lean
+# headroom to hold 9-10 m/s.
+# RENAMED + RE-UNITED in 4.7: ANGLE_MAX (centidegrees, was 3500) ->
+# ATC_ANGLE_MAX in DEGREES. 3500 would now be rejected outright: the firmware
+# range is 10..80. src: AC_AttitudeControl.cpp AP_GROUPINFO("ANGLE_MAX", ...,
+# _angle_max_deg), @Units deg @Range 10.0 80.0; Parameters.cpp
+# GOBJECTVARPTR(attitude_control, "ATC_").
+ATC_ANGLE_MAX,35
 
 
 # ---------------------------------------------------------------------------
@@ -201,9 +242,15 @@ RC6_OPTION,31
 # ARMING
 # ---------------------------------------------------------------------------
 # ALL pre-arm checks ON. Left ON per the build spec -- do NOT disable checks to
-# "get it flying"; fix the flagged cause instead. 1 = all checks.
-# src: https://ardupilot.org/copter/docs/prearm_safety_check.html (ARMING_CHECK)
-ARMING_CHECK,1
+# "get it flying"; fix the flagged cause instead.
+# RENAMED + INVERTED in Copter 4.7: ARMING_CHECK (a bitmask of checks to RUN,
+# was 1) -> ARMING_SKIPCHK, the bitmask of checks to SKIP. 0 = skip nothing =
+# every check on. Writing 1 here would now SKIP a check instead of enabling one.
+# src (read at tag Copter-4.7.0): AP_Arming.cpp
+# AP_GROUPINFO("SKIPCHK", 13, AP_Arming, checks_to_skip, 0);
+# Parameters.cpp GOBJECT(arming, "ARMING_", AP_Arming_Copter).
+# src: https://ardupilot.org/copter/docs/prearm_safety_check.html
+ARMING_SKIPCHK,0
 
 
 # ============================================================================
@@ -234,6 +281,16 @@ FENCE_ENABLE,1
 # Fence type = Altitude + Circle + Polygon (bitmask 1+2+4). src: common-ac2_simple_geofence.html
 FENCE_TYPE,7
 # TIGHT 80 m circular fence around home. **TUNE to your actual field / COA.** metres.
+# ⚠️ CENTRED ON *HOME* = THE POINT WHERE YOU ARM, not on the tripod. The AUTO
+# mission's waypoints are TRIPOD-referenced and reach ~20.7 m from it (26.2 m for
+# the off-protocol NN block), so arming more than (FENCE_RADIUS - that) metres
+# from the tripod puts far waypoints OUTSIDE the fence and FENCE_ACTION=1 will
+# RTL the target mid-pass -- which, under OPTION A's continue-in-AUTO reasoning,
+# reads exactly like an RC failsafe and is not one. Nothing pre-arm-checks the
+# mission against the fence; you find out mid-leg, and with FS_GCS_ENABLE=0 there
+# is no on-site message (pull the .BIN and look for the FENCE/ERR record).
+# gen_tripod_mission.py PRINTS the arm-within budget for the geometry it emitted
+# -- use that number, not one written down here.
 # src: common-ac2_simple_geofence.html (FENCE_RADIUS)
 FENCE_RADIUS,80
 # 50 m altitude ceiling. **TUNE to your field / airspace authorization.** metres.

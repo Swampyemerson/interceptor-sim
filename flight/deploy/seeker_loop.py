@@ -593,6 +593,8 @@ class ImageDirSource:
     """Iterate PNG/JPG frames from a directory in sorted order -- the DESK test
     mode over existing captured frames (scripts/seeker/data/*/images)."""
 
+    _IMG_EXT = (".png", ".jpg", ".jpeg")
+
     def __init__(self, path: str, fps: float = 20.0, loop: bool = False):
         pats = ("*.png", "*.jpg", "*.jpeg")
         files: List[str] = []
@@ -602,12 +604,29 @@ class ImageDirSource:
                 for p in pats:
                     files += glob.glob(os.path.join(base, p))
         else:
+            # FAIL CLOSED on a bad --source (2026-07-26). This branch used to
+            # accept ANY string: a typo'd path became files=[<typo>], cv2.imread
+            # returned None on every frame, and the run reported "0 frames, 0
+            # setpoints" -- which reads as a dead FC or a dead detector and sent
+            # the bench operator to re-check TX/RX on a link that was working.
+            # os.path.exists alone is not enough: an EXISTING non-image file
+            # (a .txt) reproduces the same silent zero-frame run.
+            if not os.path.isfile(path):
+                raise FileNotFoundError(f"--source path does not exist: {path}")
+            if not path.lower().endswith(self._IMG_EXT):
+                raise ValueError(
+                    f"--source {path} is not an image "
+                    f"({'/'.join(self._IMG_EXT)}), a directory, a video, or "
+                    f"'picamera'")
             files = [path]
         self.files = sorted(set(files))
         if not self.files:
             raise FileNotFoundError(f"no images under {path}")
         self.dt = 1.0 / fps
         self.loop = loop
+        # SHRINKING DENOMINATOR, COUNTED not absorbed: a dir where most images
+        # are corrupt used to yield a partial n_frame and a clean PASS.
+        self.n_unreadable = 0
 
     def frames(self):
         import cv2
@@ -617,8 +636,16 @@ class ImageDirSource:
             img = cv2.imread(f)
             if img is not None:
                 yield img, os.path.basename(f)
+            else:
+                self.n_unreadable += 1
+                if self.n_unreadable <= 3:
+                    print(f"[source] UNREADABLE, skipped: {f}")
             i += 1
             if i >= len(self.files):
+                if self.n_unreadable:
+                    print(f"[source] {self.n_unreadable}/{len(self.files)} "
+                          f"file(s) under the --source path were unreadable and "
+                          f"were SKIPPED (the frame count below is the survivors)")
                 if not self.loop:
                     return
                 i = 0
@@ -648,11 +675,91 @@ class VideoSource:
             cap.release()
 
 
+# The <=1 ms exposure SPEC TARGET, mirrored from the instrument that measures
+# against it (scripts/seeker/pi_capture.EXPOSURE_SPEC_US). It is duplicated, not
+# imported, because `flight/` cannot import `scripts/` (no package there) -- so
+# the equality is PINNED by tests/test_exposure_spec_transfers.py, which loads
+# pi_capture directly and fails if the two ever drift. The tripod day measures
+# the decode-range / recall envelope at this exposure and this loop flies against
+# that verdict, so they must be the same number
+# (docs/tripod_test_protocol.md §3.3/§4.4; docs/camera_paper_check.md item 3).
+EXPOSURE_SPEC_US = 1000
+
+
+def picam_exposure_controls(camera_controls, exposure_us, gain=1.0):
+    """The picamera2 control dict that pins EXPOSURE manual and leaves GAIN auto.
+
+    Pure + off-Pi testable on purpose: it is the only part of the camera setup
+    that can be exercised without hardware, and it is the part that carries the
+    decision. `camera_controls` is the live camera's advertised control map (or
+    None on an older stack)."""
+    avail = camera_controls or {}
+    if "ExposureTimeMode" in avail:
+        # 1 == Manual, 0 == Auto for libcamera's split mode controls; they take
+        # precedence over AeEnable in the same request.
+        return {"ExposureTimeMode": 1, "ExposureTime": int(exposure_us),
+                "AnalogueGainMode": 0}
+    return {"AeEnable": False, "ExposureTime": int(exposure_us),
+            "AnalogueGain": float(gain)}
+
+
+def picam_exposure_verdict(applied_us, spec_us=EXPOSURE_SPEC_US):
+    """One line stating whether the FLOWN exposure matches the condition the
+    tripod curve was measured under. `None` (no ExposureTime in the metadata) is
+    UNVERIFIED, never 'fine' -- fail-closed on a measured quantity."""
+    if applied_us is None:
+        return ("[picam] WARNING: the sensor reported no ExposureTime -- the "
+                f"<={spec_us} us condition the tripod decode-range / recall "
+                "curve was measured under is UNVERIFIED on this flight.")
+    if applied_us > spec_us:
+        return (f"[picam] WARNING: applied exposure {applied_us:.0f} us > "
+                f"{spec_us} us spec -- motion blur at 9 m/s is "
+                f"~{applied_us / float(spec_us):.1f}x what the tripod curve was "
+                f"measured at, so its ranges do not transfer to this flight.")
+    return f"[picam] exposure {applied_us:.0f} us (<= {spec_us} us spec) -- OK"
+
+
 class PicameraSource:
     """Live frames from the real Pi 5 camera (Picamera2). GUARDED import -- only
-    constructed on the vehicle; absent on this x86 desk."""
+    constructed on the vehicle; absent on this x86 desk.
 
-    def __init__(self, size=(1280, 960)):
+    `size` MUST be the resolution the intrinsics were CALIBRATED at -- main()
+    reads it out of the calibration file and refuses to construct this source
+    without one. The old hard-coded (1280, 960) was the SIM camera's shape while
+    the adopted sensor is the innomaker OV9281 at 1280x800 native
+    (scripts/seeker/pi_capture.py DEF_WIDTH/DEF_HEIGHT), so the ISP rescaled
+    every frame away from the grid fx/fy/cx/cy describe. The default here is the
+    OV9281 native shape, but nothing on the live path relies on it.
+
+    Requesting a size is NOT the same as getting it (libcamera may substitute a
+    size the sensor supports). We deliberately do NOT try to read the negotiated
+    size back out of picamera2 -- that would pin this file to picamera2 internals
+    we cannot exercise off-Pi. The universal first-frame shape assertion in the
+    drivers (frame_shape_fault) catches an adjusted size on the frame itself.
+
+    EXPOSURE IS PINNED HERE, NOT LEFT TO AUTO-EXPOSURE (2026-07-26). The tripod
+    instrument (scripts/seeker/pi_capture.py) captures with AE off at the <=1 ms
+    spec and VERIFIES the applied value -- that is the optical condition under
+    which R_decode90 and the NN recall curve are measured, and it is the whole
+    reason a global-shutter sensor was bought. This source used to set NO camera
+    controls at all, so the FLYING camera ran picamera2's auto-exposure: 8-20 ms
+    in overcast light is 8-20x the measured motion blur at 9 m/s closing, and
+    detection would die at ranges the tripod curve certified. The instrument and
+    the operational system disagreeing on the one knob the sensor was chosen for
+    is invisible to every offline test AND to the tripod data itself -- neither
+    arm can see it.
+
+    EXPOSURE MANUAL, GAIN AUTO. libcamera's control_ids_core.yaml documents
+    `AeEnable` as setting BOTH ExposureTimeMode and AnalogueGainMode, so pinning
+    gain too would mean a flight in different light than the bench session gets a
+    black or blown frame with no adaptation -- a NEW failure the auto-everything
+    code did not have. Where libcamera's split mode controls exist we use them
+    (manual exposure, auto gain); otherwise we fall back to AeEnable=False with an
+    explicit gain. Either way the APPLIED value is read back off the first
+    request's metadata and logged, because a requested-but-unverified exposure is
+    the same class of claim the instrument refuses to make."""
+
+    def __init__(self, size=(1280, 800), exposure_us=EXPOSURE_SPEC_US, gain=1.0):
         try:
             from picamera2 import Picamera2  # type: ignore
         except ImportError as exc:  # pragma: no cover -- hardware only
@@ -660,15 +767,31 @@ class PicameraSource:
                 "Picamera2 not available -- run on the Pi, or use "
                 "--source <image-dir|video> on the desk.") from exc
         self.cam = Picamera2()
+        self.exposure_us = int(exposure_us)
+        self.applied_exposure_us = None      # read back off the FIRST request
+        self.controls = picam_exposure_controls(
+            getattr(self.cam, "camera_controls", None), self.exposure_us, gain)
         config = self.cam.create_video_configuration(
-            main={"size": size, "format": "RGB888"})
+            main={"size": size, "format": "RGB888"}, controls=self.controls)
         self.cam.configure(config)
         self.cam.start()
+        self.cam.set_controls(self.controls)
 
     def frames(self):  # pragma: no cover -- hardware only
         import cv2
         while True:
-            rgb = self.cam.capture_array()
+            # capture_request, not capture_array: it is the only way to see the
+            # per-frame metadata, i.e. what the sensor ACTUALLY applied.
+            request = self.cam.capture_request()
+            try:
+                rgb = request.make_array("main")
+                md = request.get_metadata()
+            finally:
+                request.release()
+            if self.applied_exposure_us is None:
+                self.applied_exposure_us = md.get("ExposureTime")
+                print(picam_exposure_verdict(self.applied_exposure_us),
+                      file=sys.stderr)
             yield cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), "picam"
 
 
@@ -798,10 +921,12 @@ def warn_uncalibrated_span(span_m: float, source: str, weights: str,
     """Print the consequence of an uncalibrated span; return 1 if the caller
     should REFUSE. Silent when the span is calibrated.
 
-    Default is a LOUD warning rather than a refusal because the props-off bench
-    gate (scripts/check_deploy_bench.sh) currently runs the live path with the
-    uncalibrated n-mono weights and has no way to pass a span; `--require-span-
-    calib` (or a fitted sidecar) is the switch that makes it fail-closed."""
+    Default is a LOUD warning rather than a refusal because a live PERCEPTION
+    run over the uncalibrated n-mono weights (scripts/check_deploy_bench.sh with
+    BENCH_SYNTHETIC=0) has no way to pass a span; `--require-span-calib` (or a
+    fitted sidecar) is the switch that makes it fail-closed. The bench LINK gate
+    itself no longer touches this path at all -- it runs --synthetic-detector,
+    whose span is a self-consistent synthetic constant, not a range claim."""
     if not live or "NOT CALIBRATED" not in source:
         return 0
     lvl = "REFUSING" if require else "WARNING"
@@ -821,12 +946,45 @@ def warn_uncalibrated_span(span_m: float, source: str, weights: str,
     return 1 if require else 0
 
 
+# --------------------------------------------------- intrinsics/frame contract
+
+
+class FrameShapeMismatch(RuntimeError):
+    """The delivered frames are not the pixel grid the intrinsics describe."""
+
+
+def frame_shape_fault(frame, cam: CameraModel) -> Optional[str]:
+    """Return None if this frame matches the resolution the intrinsics were
+    CALIBRATED at, else the message to refuse with.
+
+    WHY THIS EXISTS (2026-07-26): fx/fy/cx/cy only describe ONE pixel grid. Feed
+    them frames of a different size and every bearing shifts, box_width_px
+    rescales, and range = fx*span/box_width_px is wrong -- which then moves EVERY
+    range-keyed threshold (closing throttle 5.0 m, terminal freeze 3.5 m,
+    real_flight's breakoff arm 4.0 m) and multiplies Vc into the pro-nav command.
+    Nothing anywhere compared the two, because CameraModel.from_dict used to
+    DISCARD the calibration's `resolution` key.
+
+    A calibration that declares no resolution returns None (older sidecars must
+    keep loading); the LIVE-camera path refuses that case up front instead."""
+    if cam.width is None or cam.height is None:
+        return None
+    h, w = frame.shape[:2]
+    if (w, h) == (cam.width, cam.height):
+        return None
+    return (f"frame is {w}x{h} but the intrinsics were calibrated at "
+            f"{cam.width}x{cam.height} -- fx/fy/cx/cy do not describe these "
+            f"pixels, so every bearing and every range = fx*span/box_width_px "
+            f"is silently rescaled/shifted")
+
+
 # ------------------------------------------------------------------ desk driver
 
 
 def run_over_source(source, detector, guidance: SeekerGuidance,
                     dry_run: bool = True, max_frames: Optional[int] = None,
-                    fps: float = 20.0, verbose: bool = True) -> List[StepTelemetry]:
+                    fps: float = 20.0, verbose: bool = True,
+                    cam: Optional[CameraModel] = None) -> List[StepTelemetry]:
     """Drive the terminal over a frame source with a LEVEL own-state (desk). On
     real hardware the MAVSDK driver replaces this and supplies live own-state +
     sends the setpoints; here we PRINT them (dry-run). Returns the telemetry log."""
@@ -837,6 +995,11 @@ def run_over_source(source, detector, guidance: SeekerGuidance,
     for i, (frame, name) in enumerate(source.frames()):
         if max_frames is not None and i >= max_frames:
             break
+        if i == 0 and cam is not None:
+            fault = frame_shape_fault(frame, cam)
+            if fault:
+                print(f"[frame] FAULT intrinsics/frame mismatch: {fault}")
+                raise FrameShapeMismatch(fault)
         det = detector.detect(frame, t)
         box = getattr(det, "box_xywh", None)
         # A detection with no range/box is a miss (finetuned_seeker returns a
@@ -943,6 +1106,77 @@ _HEALTH_TIMEOUT_S = 60.0     # EKF global+home position ok after boot (m0/m3)
 _TAKEOFF_TIMEOUT_S = 40.0    # climb to the takeoff altitude
 _TAKEOFF_ALT_FRAC = 0.8      # "airborne" once at 80% of the target altitude (m0)
 _LAND_TIMEOUT_S = 60.0       # land + disarm after the stream
+_ARMED_WAIT_S = 10.0         # bounded wait for the ARMED status (--require-disarmed)
+
+# ---- STREAM ACCEPTANCE BAR (what a rc=0 actually asserts) --------------------
+# The only stream criterion used to be `n_sp == 0`, so ONE setpoint PASSED -- and
+# the line printed directly above the PASS read "mean cadence 0.0 Hz", a verdict
+# computed over one unit. These are named so scripts/check_deploy_bench.sh's
+# header and this code cannot drift apart.
+_STREAM_MIN_SETPOINTS = 2    # cadence is UNDEFINED on <2 samples -> UNVERIFIABLE
+_STREAM_MIN_SPAN_S = 1.0     # a shorter stream measures nothing
+_STREAM_MIN_HZ = 2.0         # the offboard streaming rate of thumb in the PX4 docs
+# THE BINDING NUMBER IS THE GAP, NOT THE MEAN. PX4 treats offboard availability
+# as a RECENCY test -- `hrt_absolute_time() < offboard_control_mode.timestamp +
+# COM_OF_LOSS_T` (v1.16.0 src/modules/commander/HealthAndArmingChecks/checks/
+# offboardCheck.cpp) with COM_OF_LOSS_T defaulting to 1.0 s (v1.16.0
+# src/modules/commander/commander_params.c). A 20 Hz mean with a 3 s hole in the
+# middle is a stream PX4 would have dropped, so the GAP is what we fail on.
+_STREAM_MAX_GAP_S = 1.0      # = COM_OF_LOSS_T default
+_STREAM_WARN_GAP_S = 0.5     # half of it: loud, but not a failure
+# BENCH LIVENESS BOUND on the own-state round trip. This is NOT
+# GuidanceConfig.own_state_max_age_s -- that constant is deliberately unset
+# because brn-05 exists to MEASURE the own-state latency that sizes it, and
+# picking it here would be inventing the number the run is supposed to produce.
+# This is a blunt "the link stopped" bound, orders above any plausible warm-up.
+_OWN_AGE_ABORT_S = 2.0
+
+
+def _stream_verdict(*, n_frame, n_det, n_sp, span, cadence, max_gap_s,
+                    max_frames, stop_reason) -> int:
+    """Does this setpoint stream meet the bar the bench gate CLAIMS to verify?
+
+    Returns 0 (pass) or 1 (fail) and prints the reason with the measured value.
+    Pure + argument-only so it is exercisable without MAVSDK or hardware.
+
+    NO VACUOUS VERDICTS: a stream of <2 setpoints has no defined cadence, so it
+    is UNVERIFIABLE, never a pass. A truncated stream that never saw a detection
+    is named as a BOUND/config problem, not reported the same as a detector that
+    saw nothing over the whole source -- they send the operator to different
+    places."""
+    if n_sp == 0:
+        if max_frames is not None and "max-frames" in stop_reason:
+            print(f"[mavsdk] FAIL: no setpoints -- the stream was TRUNCATED by "
+                  f"--max-frames ({max_frames}) after {n_det} detection(s) in "
+                  f"{n_frame} frames. That is a BOUND/source problem, not "
+                  f"necessarily a link or detector one: raise --max-frames, or "
+                  f"point --source at frames that contain the target.")
+        else:
+            print(f"[mavsdk] FAIL: no setpoints over the WHOLE source "
+                  f"({n_frame} frames, {n_det} detections)")
+        return 1
+    if n_sp < _STREAM_MIN_SETPOINTS or span <= 0.0:
+        print(f"[mavsdk] FAIL: stream UNVERIFIABLE -- {n_sp} setpoint(s) over "
+              f"{span:.2f}s; cadence is undefined on <{_STREAM_MIN_SETPOINTS} "
+              f"samples and must not be reported as 0.0 Hz")
+        return 1
+    if span < _STREAM_MIN_SPAN_S:
+        print(f"[mavsdk] FAIL: stream lasted {span:.2f}s "
+              f"(< {_STREAM_MIN_SPAN_S:.1f}s required)")
+        return 1
+    if cadence is not None and cadence < _STREAM_MIN_HZ:
+        print(f"[mavsdk] FAIL: mean cadence {cadence:.2f} Hz "
+              f"(< {_STREAM_MIN_HZ:.1f} Hz required)")
+        return 1
+    if max_gap_s >= _STREAM_MAX_GAP_S:
+        print(f"[mavsdk] FAIL: max inter-setpoint gap {max_gap_s:.2f}s >= "
+              f"COM_OF_LOSS_T ({_STREAM_MAX_GAP_S:.1f}s) -- PX4 would have "
+              f"dropped OFFBOARD in that hole, whatever the mean says")
+        return 1
+    if max_gap_s > _STREAM_WARN_GAP_S:
+        print(f"[mavsdk] WARNING: max inter-setpoint gap {max_gap_s:.2f}s is "
+              f"over half of COM_OF_LOSS_T ({_STREAM_MAX_GAP_S:.1f}s)")
+    return 0
 
 
 async def run_mavsdk(args, cam, detector, guidance, source,
@@ -1042,9 +1276,37 @@ async def run_mavsdk(args, cam, detector, guidance, source,
         async for ls in drone.telemetry.landed_state():
             state["landed"] = ls
 
-    tasks = [asyncio.ensure_future(c())
-             for c in (_att_q, _att_e, _pos, _armed, _landed)]
+    # LINK LIVENESS (2026-07-26). Nothing watched the link after connect: a
+    # Dupont jumper working loose mid-run left MAVSDK's own resend timer queueing
+    # setpoints into a dead port, n_sp kept climbing, and the gate printed PASS
+    # on a link that had been dead for half the run. `n_sp` counts messages the
+    # Pi QUEUED, so it can never be the liveness evidence -- these two flags and
+    # the own-state round trip below are.
+    fault = {"link_lost": False, "task_died": None}
 
+    async def _conn():
+        async for st in drone.core.connection_state():
+            if not st.is_connected:
+                fault["link_lost"] = True
+
+    tasks = [asyncio.ensure_future(c())
+             for c in (_att_q, _att_e, _pos, _armed, _landed, _conn)]
+
+    def _task_died(tk):
+        # A telemetry generator that dies silently FREEZES the state dict at its
+        # last value and guidance keeps steering on it (real_flight.py's
+        # `_task_died` pattern). Make it loud and fatal instead.
+        if tk.cancelled():
+            return
+        exc = tk.exception()
+        if exc is not None:
+            fault["task_died"] = repr(exc)
+            print(f"[mavsdk] FAULT own-state telemetry task died: {exc!r}")
+
+    for tk in tasks:
+        tk.add_done_callback(_task_died)
+
+    require_disarmed = bool(getattr(args, "require_disarmed", False))
     rc = 0
     offboard_ok = False
     n_frame = n_sp = 0
@@ -1111,6 +1373,34 @@ async def run_mavsdk(args, cam, detector, guidance, source,
         print("[mavsdk] own-state EKF attitude streaming (quat + yaw); "
               f"alt={'yes' if state['alt'] is not None else 'NOT YET'}")
 
+        # --- BENCH-ONLY DISARM INTERLOCK (--require-disarmed, default OFF) -----
+        # scripts/check_deploy_bench.sh's headline safety claim is "the FC stays
+        # DISARMED the whole time -- nothing can spin", and it was enforced only
+        # by the ABSENCE of an arm call: `armed` was subscribed and never read.
+        # An FC left armed from an RC bind or a QGC params check would take a
+        # 13 m/s pro-nav velocity stream. This makes the documented property an
+        # ENFORCED one -- but strictly opt-in, because the REAL terminal runs
+        # ARMED and AIRBORNE by design (the coded dash delivers it that way), so
+        # a blanket armed-refusal would break the mission.
+        # FAIL CLOSED on the telemetry too: state["armed"] starts None, and a
+        # bare `if state["armed"]:` reads None as "not armed" -- a vacuous pass
+        # of exactly the class this guard exists for.
+        if require_disarmed:
+            _armed_deadline = time.monotonic() + _ARMED_WAIT_S
+            while state["armed"] is None and time.monotonic() < _armed_deadline:
+                await asyncio.sleep(0.1)
+            if state["armed"] is None:
+                print(f"[mavsdk] UNCERTAIN: --require-disarmed but the ARMED "
+                      f"status never streamed within {_ARMED_WAIT_S:.0f}s -- "
+                      f"refusing to certify a 'disarmed' run we cannot observe")
+                return 1
+            if state["armed"]:
+                print("[mavsdk] FAIL: --require-disarmed and the FC is ARMED. "
+                      "Refusing to enter OFFBOARD and stream velocity setpoints "
+                      "into an armed vehicle. Disarm it, then re-run.")
+                return 1
+            print("[mavsdk] armed=False confirmed (--require-disarmed)")
+
         # OFFBOARD: PX4 needs a setpoint STREAM established before it will accept
         # the mode switch, so prime one zero setpoint, then start (m3 pattern).
         await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0, 0.0))
@@ -1123,10 +1413,48 @@ async def run_mavsdk(args, cam, detector, guidance, source,
             rc = 1
 
         if offboard_ok:
+            t_own_start = state["t_own"]
             t0 = time.monotonic()
-            t_first = t_last = None
-            for frame, name in source.frames():
+            t_first = t_last = t_prev_sp = None
+            max_gap_s = 0.0
+            max_own_age_s = 0.0
+            n_det = 0
+            first_lock = None            # (frame index, frame name) of first lock
+            stop_reason = "source exhausted"
+            abort = None                 # not None -> rc 1, with this reason
+            max_frames = getattr(args, "max_frames", None)
+            max_seconds = getattr(args, "max_seconds", None)
+            for i, (frame, name) in enumerate(source.frames()):
+                # STREAM BOUNDS. --max-frames used to be parsed, passed by
+                # check_deploy_bench.sh, and IGNORED here (honoured only in the
+                # desk driver), so the documented bound was inert -- and the
+                # documented `--source picamera` path, whose generator is
+                # `while True`, could only ever end on the outer 180 s timeout.
+                if max_frames is not None and i >= max_frames:
+                    stop_reason = f"--max-frames bound reached ({max_frames})"
+                    break
                 t = time.monotonic() - t0
+                if max_seconds is not None and t >= max_seconds:
+                    stop_reason = f"--max-seconds bound reached ({max_seconds:.0f}s)"
+                    break
+                if fault["link_lost"]:
+                    abort = ("the MAVLink link DROPPED mid-run "
+                             "(connection_state went not-connected)")
+                    break
+                if fault["task_died"] is not None:
+                    abort = (f"an own-state telemetry stream died mid-run "
+                             f"({fault['task_died']}) -- own-state would have "
+                             f"frozen at its last value")
+                    break
+                if require_disarmed and state["armed"]:
+                    abort = ("the FC ARMED mid-run (--require-disarmed) -- "
+                             "setpoint stream stopped immediately")
+                    break
+                if i == 0:
+                    _shape = frame_shape_fault(frame, cam)
+                    if _shape:
+                        abort = f"intrinsics/frame mismatch: {_shape}"
+                        break
                 det = detector.detect(frame, t)
                 box = getattr(det, "box_xywh", None)
                 if getattr(det, "range_m", None) is None:
@@ -1136,8 +1464,21 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                                alt_m=state["alt"],
                                age_s=(None if _t_own is None
                                       else time.monotonic() - _t_own))
+                if own.age_s is not None:
+                    max_own_age_s = max(max_own_age_s, own.age_s)
+                    if own.age_s > _OWN_AGE_ABORT_S:
+                        abort = (f"own-state went STALE ({own.age_s:.1f}s > the "
+                                 f"{_OWN_AGE_ABORT_S:.0f}s bench liveness bound) "
+                                 f"-- the FC stopped answering; every setpoint "
+                                 f"after this would be steered off a frozen "
+                                 f"attitude")
+                        break
                 sp, tel = guidance.step(box, own, t)
                 n_frame += 1
+                if tel.detected:
+                    n_det += 1
+                    if first_lock is None:
+                        first_lock = (i, name)
                 if sp is not None:
                     if args.dry_run:
                         print(f"[dry-run] {name} SETPOINT {sp.as_tuple()}")
@@ -1145,14 +1486,17 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                         await drone.offboard.set_velocity_ned(VelocityNedYaw(
                             sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg))
                     n_sp += 1
-                    t_last = t
+                    if t_prev_sp is not None:
+                        max_gap_s = max(max_gap_s, t - t_prev_sp)
+                    t_prev_sp = t_last = t
                     if t_first is None:
                         t_first = t
                     if n_sp % 20 == 0:
                         _age = ("None" if own.age_s is None
                                 else f"{own.age_s:.2f}s")
                         print(f"[mavsdk] t={t:5.1f}s frames={n_frame} "
-                              f"setpoints={n_sp} last vN={sp.v_north:+.2f} "
+                              f"det={n_det} setpoints={n_sp} last vN="
+                              f"{sp.v_north:+.2f} "
                               f"vE={sp.v_east:+.2f} vD={sp.v_down:+.2f} "
                               f"yaw={sp.yaw_deg:+.1f} own_age={_age}"
                               + ("  [COAST]" if tel.terminal_coast else "")
@@ -1160,15 +1504,46 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                                  if tel.health else ""))
                 await asyncio.sleep(1.0 / args.fps)
 
+            if abort is not None:
+                stop_reason = "ABORTED"
             span = (t_last - t_first) if (t_first is not None
                                           and t_last is not None) else 0.0
-            cadence = (n_sp - 1) / span if (span > 0 and n_sp > 1) else 0.0
-            print(f"[mavsdk] stream complete: {n_frame} frames, {n_sp} setpoints "
-                  f"over {span:.1f}s wall, mean cadence {cadence:.1f} Hz "
-                  f"({'DRY-RUN, nothing sent' if args.dry_run else 'sent over MAVLink'})")
-            if n_sp == 0:
-                print("[mavsdk] FAIL: no setpoints were produced")
+            cadence = ((n_sp - 1) / span) if (span > 0 and n_sp > 1) else None
+            cad_s = ("n/a (<2 setpoints -- UNDEFINED, not 0.0)" if cadence is None
+                     else f"{cadence:.1f} Hz")
+            lock_s = ("none" if first_lock is None
+                      else f"frame #{first_lock[0]} {first_lock[1]}")
+            # EVERY DENOMINATOR, ALWAYS PRINTED. `n_sp` is the number of setpoints
+            # the Pi QUEUED to MAVSDK, not the number that crossed the wire (the
+            # mavsdk_server re-sends the last one on its own timer), so it is
+            # labelled as such -- the wire evidence is the own-state round trip.
+            print(f"[mavsdk] stream complete ({stop_reason}): {n_frame} frames, "
+                  f"{n_det} detections, {n_sp} setpoints over {span:.1f}s wall, "
+                  f"mean cadence {cad_s}, max inter-setpoint gap "
+                  f"{max_gap_s:.2f}s, max own_age {max_own_age_s:.2f}s, "
+                  f"first lock {lock_s} "
+                  f"({'DRY-RUN, nothing queued' if args.dry_run else 'queued to MAVSDK'})")
+
+            if abort is not None:
+                print(f"[mavsdk] FAIL: {abort}")
                 rc = 1
+            else:
+                rc = max(rc, _stream_verdict(
+                    n_frame=n_frame, n_det=n_det, n_sp=n_sp, span=span,
+                    cadence=cadence, max_gap_s=max_gap_s,
+                    max_frames=max_frames, stop_reason=stop_reason))
+                # OWN-STATE ROUND TRIP: `t_own` advancing is the only proof that
+                # bytes came BACK over the wire for the whole stream, and it
+                # needs no tuned constant -- it either advanced or it did not.
+                # (This is also the run that MEASURES the own_age distribution
+                # GuidanceConfig.own_state_max_age_s is waiting on: max own_age
+                # is printed above.)
+                if (state["t_own"] is None or t_own_start is None
+                        or state["t_own"] <= t_own_start):
+                    print("[mavsdk] FAIL: the own-state stamp did NOT advance "
+                          "across the stream -- no telemetry came back over the "
+                          "link while we were queueing setpoints into it")
+                    rc = 1
     finally:
         # Clean shutdown regardless of how we got here: stop offboard, (smoke)
         # land + wait for disarm, and cancel the own-state stream tasks so the
@@ -1178,7 +1553,13 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                 await drone.offboard.stop()
                 print("[mavsdk] offboard stopped")
             except Exception as e:  # noqa: BLE001 -- best-effort teardown
-                print(f"[mavsdk] offboard.stop skipped: {e}")
+                # NOT "skipped": a successful stop needs a command ACK from the
+                # FC, so a failed one is positive evidence the link was not
+                # delivering. Swallowing it let a dead-link run still print PASS.
+                print(f"[mavsdk] FAIL: offboard.stop() did not succeed ({e}) -- "
+                      f"the FC never ACKed the stop, so the link was not "
+                      f"round-tripping at teardown")
+                rc = 1
         if smoke:
             try:
                 await drone.action.land()
@@ -1272,7 +1653,28 @@ def main(argv=None) -> int:
                     help="camera_intrinsics.json / calibrate_camera.py output")
     ap.add_argument("--conf", type=float, default=0.25, help="detector confidence")
     ap.add_argument("--fps", type=float, default=20.0, help="control loop rate")
-    ap.add_argument("--max-frames", type=int, default=None)
+    ap.add_argument("--max-frames", type=int, default=None,
+                    help="stop after N frames. Honoured on BOTH the desk and "
+                         "the MAVSDK path (it was silently ignored on the "
+                         "MAVSDK one until 2026-07-26). Required in practice "
+                         "for --source picamera, whose stream never ends.")
+    ap.add_argument("--max-seconds", type=float, default=None,
+                    help="stop after N wall seconds of streaming. A bound that "
+                         "does not depend on the frame RATE, so a slow detector "
+                         "cannot push the run past a caller's outer timeout.")
+    ap.add_argument("--synthetic-detector", action="store_true",
+                    help="drive the MAVSDK path with the DETERMINISTIC "
+                         "SmokeSeeker + blank frames instead of the camera/ONNX "
+                         "detector, WITHOUT arming anything (unlike "
+                         "--sitl-smoke). This is what makes a link test a link "
+                         "test: the setpoint count stops being a perception "
+                         "outcome. Needs --max-frames or --max-seconds to bound "
+                         "the stream.")
+    ap.add_argument("--require-disarmed", action="store_true",
+                    help="BENCH interlock: refuse to enter OFFBOARD (exit 1) "
+                         "unless the FC reports armed=False, and abort if it "
+                         "arms mid-run. Default OFF because the real terminal "
+                         "runs armed and airborne by design.")
     ap.add_argument("--dry-run", action="store_true",
                     help="PRINT setpoints instead of sending over MAVSDK")
     ap.add_argument("--mavsdk-url", default=None,
@@ -1331,8 +1733,9 @@ def main(argv=None) -> int:
         return asyncio.run(
             run_mavsdk(args, cam, detector, guidance, source, smoke=True))
 
-    if not args.source:
-        ap.error("need --source <image-dir|video|picamera> (or --self-test)")
+    if not args.source and not args.synthetic_detector:
+        ap.error("need --source <image-dir|video|picamera> (or --self-test, or "
+                 "--synthetic-detector for a perception-free link test)")
 
     cfg = GuidanceConfig(
         n_pronav=args.n_pronav,
@@ -1341,11 +1744,44 @@ def main(argv=None) -> int:
     cam = load_camera(args.intrinsics)
     span_m, span_src, span_ok = resolve_span(args.weights, cfg,
                                              args.target_span_m)
+    _res = ("unstated" if cam.width is None
+            else f"{cam.width}x{cam.height}")
     print(f"[config] intrinsics fx={cam.fx:.1f} cx={cam.cx:.1f} "
+          f"res={_res} src={cam.source or 'unstamped'} | "
           f"dist={'yes' if cam.has_distortion else 'none (pinhole)'} | "
           f"span={span_m:.3f} m ({span_src}) | N={cfg.n_pronav} "
           f"| mount fwd={cfg.mount_fwd_m} up={cfg.mount_up_m} "
           f"tilt={math.degrees(cfg.mount_up_rad):.1f}deg")
+
+    # ---- PERCEPTION-FREE LINK TEST (--synthetic-detector) --------------------
+    # The bench gate's job is the UART/OFFBOARD link, and it used to earn its
+    # PASS from whatever the ONNX detector happened to fire on -- measured, the
+    # first setpoint of a default bench run came from a hallucinated detection
+    # on a frame with no target in it, and on a night without that false fire
+    # the same correctly-wired hardware produces n_sp=0 and FAILs. A link test
+    # whose verdict is controlled by detector noise is not a link test.
+    # SmokeSeeker + SyntheticSource make the setpoint count DETERMINISTIC, and
+    # `smoke` stays False so nothing arms / takes off / lands.
+    if args.synthetic_detector:
+        if args.max_frames is None and args.max_seconds is None:
+            ap.error("--synthetic-detector needs --max-frames or --max-seconds "
+                     "to bound the stream")
+        n_frames = (args.max_frames if args.max_frames is not None
+                    else max(1, int(args.max_seconds * args.fps)))
+        detector = SmokeSeeker(cam.fx, span_m, cx=cam.cx, cy=cam.cy)
+        source = SyntheticSource(
+            n_frames, size=((cam.height or 960), (cam.width or 1280)))
+        guidance = SeekerGuidance(cfg, cam, span_m)
+        print(f"[config] SYNTHETIC DETECTOR: {n_frames} blank frames + "
+              f"SmokeSeeker at a constant {span_m:.2f} m span -- setpoints are "
+              f"deterministic, so a PASS is a LINK result, not a perception one")
+        if args.mavsdk_url and not args.dry_run:
+            import asyncio
+            return asyncio.run(run_mavsdk(args, cam, detector, guidance, source))
+        run_over_source(source, detector, guidance, dry_run=True,
+                        max_frames=args.max_frames, fps=args.fps, cam=cam)
+        return 0
+
     # LIVE = a real vehicle link with a real camera; the desk replay/dry-run keeps
     # the 1.0 fallback so nothing offline breaks.
     _live = bool(args.mavsdk_url) and not args.dry_run
@@ -1358,7 +1794,18 @@ def main(argv=None) -> int:
 
     # Frame source.
     if args.source == "picamera":
-        source = PicameraSource()
+        # FAIL CLOSED: the camera must be streamed at the resolution the lens was
+        # CALIBRATED at. This used to be a hard-coded (1280, 960) -- the SIM
+        # camera's shape -- while the real OV9281 is 1280x800 native, so the ISP
+        # rescaled every frame away from the grid fx/cx describe and nothing
+        # compared the two. A resolution is a MEASURED quantity; no default.
+        if cam.width is None or cam.height is None:
+            print(f"[config] FAIL: --source picamera needs the CALIBRATED "
+                  f"resolution, and {args.intrinsics} declares none. Re-run "
+                  f"scripts/calibrate_camera.py on this lens (its output "
+                  f"carries a `resolution` block) -- do not guess a size.")
+            return 1
+        source = PicameraSource(size=(cam.width, cam.height))
     elif os.path.isdir(args.source):
         source = ImageDirSource(args.source, fps=args.fps)
     elif args.source.lower().endswith((".mp4", ".avi", ".mov", ".mkv")):
@@ -1370,8 +1817,11 @@ def main(argv=None) -> int:
     if args.mavsdk_url and not args.dry_run:
         import asyncio
         return asyncio.run(run_mavsdk(args, cam, detector, guidance, source))
-    run_over_source(source, detector, guidance, dry_run=True,
-                    max_frames=args.max_frames, fps=args.fps)
+    try:
+        run_over_source(source, detector, guidance, dry_run=True,
+                        max_frames=args.max_frames, fps=args.fps, cam=cam)
+    except FrameShapeMismatch:
+        return 1
     return 0
 
 

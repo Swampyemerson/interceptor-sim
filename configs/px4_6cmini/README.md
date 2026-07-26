@@ -24,9 +24,25 @@ Files here:
 ## What this bench DOES and does NOT prove
 
 **Proves (props-off, disarmed):** a live heartbeat over the real serial port,
-own-state EKF streaming to the Pi, a ≥2 Hz setpoint stream, the **OFFBOARD mode
-switch accepted while disarmed**, and pro-nav setpoints streaming over the wire —
-the whole `flight/deploy/seeker_loop.py` chain end-to-end on real I/O.
+own-state EKF streaming to the Pi **and the own-state stamp advancing for the
+whole run** (the only evidence bytes came *back* over the wire), the **OFFBOARD
+mode switch accepted while disarmed**, and a **measured** pro-nav setpoint stream
+— gated on span ≥ 1 s, mean ≥ 2 Hz and **no inter-setpoint gap ≥ `COM_OF_LOSS_T`
+(1 s)** — through the whole `flight/deploy/seeker_loop.py` chain on real I/O.
+
+> **The detector is SYNTHETIC here, on purpose (changed 2026-07-26).** This gate
+> certifies a *link*, so its verdict must not be decided by perception. It used
+> to run the real ONNX detector over replayed frames, and — measured — the first
+> setpoint of a default run came from a **hallucinated detection on a frame with
+> no target in it**; on a run without that false fire the same correctly-wired
+> hardware produces zero setpoints and prints FAIL. The run now passes
+> `--synthetic-detector` (deterministic `SmokeSeeker` + blank frames, nothing
+> arms). `BENCH_SYNTHETIC=0` runs the real detector — that is a **perception**
+> run and its result does not belong to `brn-05`.
+
+**Not verified here:** the MAVLink **wire** rate. The cadence in the run log is
+the rate the Pi *computed* setpoints at; `mavsdk_server` re-sends the last
+setpoint on its own timer, so the two are different numbers.
 
 **Deferred to the airframe (NOT here):** arming, motors actually responding to
 setpoints, takeoff/land, ESC/DShot, battery monitoring, control-allocation
@@ -82,13 +98,13 @@ airframe ID / geometry / motors are set when the frame is built.
 
 ### 3. Load `bench.params`
 *Vehicle Setup → Parameters → Tools → Load from file* → pick
-`configs/px4_6cmini/bench.params` → **reboot**. The file carries **9** lines;
+`configs/px4_6cmini/bench.params` → **reboot**. The file carries **10** lines;
 all of them were re-verified against **PX4 v1.16** on 2026-07-26 (see the header
 block inside the file).
 
 **What QGC should show you.** Modern QGC previews a **diff** before applying and
-*skips lines whose value already matches the vehicle*. Four of the nine already
-equal the v1.16 defaults, so expect the diff to list roughly these **five**:
+*skips lines whose value already matches the vehicle*. Four of the ten already
+equal the v1.16 defaults, so expect the diff to list roughly these **six**:
 
 | Param | New value | Means |
 |---|---|---|
@@ -96,6 +112,7 @@ equal the v1.16 defaults, so expect the diff to list roughly these **five**:
 | `MAV_1_FLOW_CTRL` | 0 | flow control **forced off** (3-wire link) |
 | `MAV_1_FORWARD` | 1 | forward Pi↔GCS traffic (bench convenience) |
 | `COM_ARM_WO_GPS` | 0 | deny arming when the GPS preflight check fails |
+| `CBRK_IO_SAFETY` | 0 | safety button **required** to arm (see below) |
 | `SDLOG_MODE` | 2 | log from boot until shutdown |
 
 Silently skipped because they are already the v1.16 default: `MAV_1_MODE`=2,
@@ -103,16 +120,35 @@ Silently skipped because they are already the v1.16 default: `MAV_1_MODE`=2,
 instead reports a param as **not present on the vehicle**, stop and tell the
 session — that means a name is wrong for this firmware.
 
-After the reboot, re-open Parameters and confirm the five above. Then
+> ⛔ **`CBRK_IO_SAFETY` is new, and it changes what the board will let you do.**
+> The v1.16 **compiled default is 22027**, which means the safety-button arming
+> gate is **already bypassed** on a stock board — this pack used to claim the
+> opposite ("we keep the safety switch active by not setting it"). Setting **0**
+> restores the gate, which is the right fail-closed posture for a props-off
+> bench. The cost is real: PX4IO advertises the `safety_button` topic even with
+> no button wired, so QGC will show a standing *"Preflight Fail: Press safety
+> button first"* and **the board will not arm until the M10 (with its safety
+> switch) is on GPS1 and pressed.** Nothing about the disarmed OFFBOARD gate
+> changes. If you need a deliberate props-off arm test before the M10 arrives,
+> set it back to 22027 *knowingly*, then restore it. Verify on the live board:
+> *Parameters → `CBRK_IO_SAFETY`*.
+
+After the reboot, re-open Parameters and confirm the six above. Then
 **calibrate sensors** (accel / gyro / mag / level) — sensors-only, bench-safe now.
 
 ### 4. Bind ELRS + Radio calibration (SBUS RC in)
 Bind the RadioMaster **Pocket** TX to the interceptor's ELRS RX (SBUS output),
 wire the RX to the 6C Mini's **dedicated RC IN** pad (not a UART — stock PX4 has
-no CRSF driver, §B). QGC *Radio* calibration → then map the **kill switch** and
-set `RC_MAP_KILL_SW` to the channel your switch actually uses. Flip it and
-confirm QGC reads *Kill switch* active. ELRS is **kill/arm only** — it carries no
-guidance (`no-datalink`).
+no CRSF driver, §B). QGC *Radio* calibration → then **set `RC_MAP_KILL_SW` by
+hand on QGC's *Parameters* page** to the channel your switch actually uses —
+Radio calibration does **not** assign it. Flip it and confirm QGC logs *Kill
+engaged*, then flip it back and confirm *Kill disengaged*. ELRS is **kill/arm
+only** — it carries no guidance (`no-datalink`).
+
+There is no `RC_INPUT_PROTO` to set: the 6C Mini decodes RC in the **PX4IO
+co-processor**, which scans SBUS/PPM/DSM in parallel, and that parameter is not
+even built into `px4_fmu-v6c`. (`bench.params` §2 has the source citations, and
+why writing `0` there would silently *disable* RC on a board that does have it.)
 
 > **`RC_MAP_KILL_SW` is now `0` (unassigned), changed 2026-07-26.** It used to
 > carry a guessed `5`. A guessed mapping is not protection, it is the *illusion*
@@ -168,25 +204,59 @@ setpoints from replayed frames → clean `offboard.stop()`. **No arm, no takeoff
 no land.** Override the link/source with env vars if needed, e.g.:
 ```bash
 # USB fallback from the laptop (FC on USB-C shows as /dev/ttyACM0):
-BENCH_DEVICE=/dev/ttyACM0 BENCH_BAUD=57600 scripts/check_deploy_bench.sh
-# live Pi camera pointed at the AprilTag placard instead of replayed frames:
-BENCH_SOURCE=picamera scripts/check_deploy_bench.sh
+BENCH_DEVICE=/dev/ttyACM0 scripts/check_deploy_bench.sh
+# the REAL detector over replayed frames (a perception run, not the link gate):
+BENCH_SYNTHETIC=0 scripts/check_deploy_bench.sh
+# ...or over the live Pi camera:
+BENCH_SYNTHETIC=0 BENCH_SOURCE=picamera scripts/check_deploy_bench.sh
 ```
 
-**Exercise the kill switch by hand** during the run and watch QGC / the ULog —
-it must be honored and auto-disarm after `COM_KILL_DISARM` (5 s).
+> ⚠️ **The USB fallback does NOT close `brn-05`.** `/dev/ttyACM0` is PX4's **USB
+> CDC-ACM** MAVLink instance, started by `rcS`/`cdcacm_autostart` with its own
+> arguments: `MAV_1_CONFIG`, `MAV_1_FLOW_CTRL` and `SER_TEL2_BAUD` are **not on
+> that code path**, `BENCH_BAUD` is meaningless on CDC-ACM (which is why the
+> old `BENCH_BAUD=57600` in this example has been dropped — it never applied),
+> and the 3-wire **floating-CTS** failure mode `MAV_1_FLOW_CTRL=0` exists to
+> prevent is unreachable. The script now says so itself: it classifies the
+> endpoint and prints **`PARTIAL … brn-05 REMAINS OPEN` and exits 3** for
+> anything that is not the TELEM2 UART, so a clean USB run can never be absorbed
+> as a green gate.
+
+**Exercise the kill switch by hand** during the run — but note it is **half
+deferred**:
+
+- **The switch is UNMAPPED until you do step 4.** QGC *Radio* calibration does
+  not assign `RC_MAP_KILL_SW`; you set it on QGC's *Parameters* page.
+- **What you CAN observe here (disarmed):** QGC's messages panel shows `Kill
+  engaged` / `Kill disengaged`, and `actuator_armed.manual_lockdown` toggles in
+  the ULog (that field is named `actuator_armed.kill` on PX4 v1.17+). That is the
+  whole switch→FC path, and it is what this step certifies.
+- **What you CANNOT observe here:** the `COM_KILL_DISARM` auto-disarm. PX4
+  v1.16.0 `Commander::handleAutoDisarm()` runs that block only inside
+  `if (isArmed())`, so on a never-armed bench it is **structurally unreachable**.
+  It is deferred to the first props-off **arm** test on the real frame. Expected
+  evidence for *this* run is therefore a ULog with `manual_lockdown` transitions
+  and **no** disarm record — the absence is the PASS, not a gap.
+- **Flip the switch back** and confirm `Kill disengaged` before moving on:
+  `manual_lockdown` latches, and a latched lockdown carried forward will make the
+  later arm test refuse for no visible reason.
 
 ### Expected output (PASS)
 ```
 [check_deploy_bench] REAL bench run (props-off, NO arm) against serial:///dev/ttyAMA0:921600
 [mavsdk] connecting serial:///dev/ttyAMA0:921600 ...
 [mavsdk] connected
+[mavsdk] armed=False confirmed (--require-disarmed)
 [mavsdk] OFFBOARD active; streaming setpoints ...
-[mavsdk] stream complete: <N> frames, <M> setpoints over <t>s wall, mean cadence ~20 Hz (sent over MAVLink)
+[mavsdk] stream complete (--max-frames bound reached (300)): 300 frames, 300 detections, 300 setpoints over 15.0s wall, mean cadence ~20 Hz, max inter-setpoint gap 0.05s, max own_age 0.02s, first lock frame #0 synth00000 (queued to MAVSDK)
 [mavsdk] offboard stopped
 [mavsdk] done rc=0
-[check_deploy_bench] PASS (connect + own-state + OFFBOARD + setpoints, disarmed; see logs/deploy_seeker_bench_*.log)
+[check_deploy_bench] PASS (TELEM2 UART -- connect + own-state round trip + OFFBOARD
+[check_deploy_bench]   accepted + a measured setpoint stream, disarmed. brn-05 satisfied;
+[check_deploy_bench]   perception NOT exercised by design; see logs/deploy_seeker_bench_*.log)
 ```
+`max own_age` is the number `brn-05` exists to measure — it is what will size
+`GuidanceConfig.own_state_max_age_s`, which is deliberately unset until then.
 Evidence: the run log under `logs/deploy_seeker_bench_*.log` **and** the FC's ULog
 on the microSD (logged from boot, `SDLOG_MODE=2`).
 
@@ -207,6 +277,15 @@ on the microSD (logged from boot, `SDLOG_MODE=2`).
 4. `offboard.start()` rejected → **not** a GPS problem on this bench (see the
    corrected note at the top); look for the FC rejecting the mode in QGC's
    messages panel.
+5. Connects and OFFBOARD goes active, then **`0 frames, 0 setpoints`** → the
+   frame **source**, not the link. This can only happen with `BENCH_SYNTHETIC=0`;
+   check the `detector:` line in the run-log header and any OpenCV
+   `imread_(...): can't open/read file` warning just above. A missing
+   `BENCH_SOURCE` is now caught *before* the serial port is opened (exit 2, "This
+   is a CONFIG problem, not a link problem").
+6. **`--require-disarmed and the FC is ARMED`** → something armed the vehicle
+   (an RC bind, a leftover QGC arm). Disarm it; the gate refuses to stream
+   velocity setpoints into an armed FC rather than trusting the props-off note.
 
 At the *end* of the run, PX4 will notice the setpoint stream stopped
 (`COM_OF_LOSS_T` = 1 s) and fall back per `COM_OBL_RC_ACT` (Position mode).
@@ -233,7 +312,7 @@ differ; every semantic claim above was re-checked at v1.16 on 2026-07-26.
 - [PX4 v1.16 Serial Port Configuration](https://docs.px4.io/v1.16/en/peripherals/serial_configuration) — `MAV_1_CONFIG`, `SER_TEL2_BAUD`.
 - [PX4 v1.16 MAVLink Peripherals (companion)](https://docs.px4.io/v1.16/en/peripherals/mavlink_peripherals) — recommended companion set: `MAV_1_CONFIG`=TELEM2, `MAV_1_MODE`=Onboard, `MAV_1_RATE`=0, `MAV_1_FORWARD`=Disabled, `SER_TEL2_BAUD`=921600.
 - [PX4 v1.16 Raspberry Pi Companion](https://docs.px4.io/v1.16/en/companion_computer/pixhawk_rpi) — TELEM2↔Pi GPIO14/15 wiring, TX/RX crossed, `/dev/ttyAMA0`.
-- [PX4 v1.16 Arm/Disarm/Prearm](https://docs.px4.io/v1.16/en/advanced_config/prearm_arm_disarm) — kill switch, safety switch / `CBRK_IO_SAFETY`.
+- [PX4 v1.16 Arm/Disarm/Prearm](https://docs.px4.io/v1.16/en/advanced_config/prearm_arm_disarm) — kill switch, safety switch / `CBRK_IO_SAFETY`. **The polarity claim in this pack comes from the source, not this page:** `circuit_breaker_params.c` (default **22027** = bypassed), `Safety.cpp` (`_safety_off = true` when the breaker is set), `systemCheck.cpp` ("Press safety button first"), `ButtonPublisher.cpp` (advertises `safety_button` unconditionally), `Commander.cpp` `handleAutoDisarm()` (kill auto-disarm is **armed-only**), all at v1.16.0.
 - [Holybro Pixhawk 6C Mini (PX4 v1.16)](https://docs.px4.io/v1.16/en/flight_controller/pixhawk6c_mini) — `px4_fmu-v6c_default`, **UART5 = /dev/ttyS3 = TELEM2**, dedicated SBUS/DSM/CPPM RC IN.
 - v1.16.0 source, for the four behaviours the docs do not spell out:
   [`UserModeIntention.cpp`](https://github.com/PX4/PX4-Autopilot/blob/v1.16.0/src/modules/commander/UserModeIntention.cpp) (mode change always allowed while disarmed),

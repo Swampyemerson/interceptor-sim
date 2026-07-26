@@ -33,12 +33,22 @@
 #      see the WHY in section (2). This is the one value that changed meaning.
 #    - MAV_1_FLOW_CTRL = 0 ADDED: the TELEM2 link is wired with 3 leads, so
 #      CTS/RTS do not exist and flow control must not be left on auto.
+#    - CBRK_IO_SAFETY = 0 ADDED (2026-07-26, second pass). This file used to say
+#      the safety switch was "kept active" because we deliberately did NOT set
+#      the breaker. That was INVERTED: 22027 (= safety BYPASSED) IS the compiled
+#      default -- v1.16.0 src/lib/circuit_breaker/circuit_breaker_params.c:70
+#      PARAM_DEFINE_INT32(CBRK_IO_SAFETY, 22027) -- so a stock board ships with
+#      the safety-button arming gate ALREADY OFF. See section (2).
+#    - RC_INPUT_PROTO: the old comment claimed "stays at its default (0 = auto)".
+#      Wrong twice: 0 means None (RC DISABLED), and the parameter does not exist
+#      on this firmware at all. See section (2).
 #
 #  SCOPE / SAFETY POSTURE
 #  ----------------------
 #  Bench = FC on the desk, NO ESC, NO motors, NO airframe -- NOTHING can spin.
-#  This profile deliberately keeps arming HARD (safety switch required + GPS
-#  required + strict default checks). The bench OFFBOARD check itself
+#  This profile deliberately keeps arming HARD (safety button REQUIRED, via the
+#  CBRK_IO_SAFETY=0 line in section (2) -- it is NOT the firmware default -- plus
+#  GPS required + strict default checks). The bench OFFBOARD check itself
 #  (check_deploy_bench.sh) does NOT arm -- it verifies the MAVLink connect,
 #  own-state stream, OFFBOARD mode switch, and setpoint stream with the vehicle
 #  DISARMED. Two v1.16 facts that make that safe, both source-verified:
@@ -82,6 +92,11 @@
 #  Every data line has a WHY + a doc source. Lines marked "(= v1.16 default)"
 #  are explicit assertions, not changes.
 #  Params that must WAIT for the airframe are listed (commented) at the bottom.
+#  CAUTION on that convention: a parameter existing in the online v1.16 reference
+#  does NOT mean it exists on px4_fmu-v6c -- that reference is the UNION over all
+#  boards, and PX4 params are module-scoped, so a param whose module this board
+#  does not build is simply unknown here (RC_INPUT_PROTO, section (2)). Check the
+#  board's default.px4board before writing a "(= v1.16 default)" assertion line.
 #
 # Onboard parameters for Vehicle 1
 #
@@ -149,10 +164,29 @@
 #  RC path (hardware_order_list.md §B, constraint no-datalink): the ELRS RX is
 #  flashed to SBUS OUTPUT and wired to the 6C Mini's DEDICATED RC IN pad (NOT a
 #  UART -- stock PX4 has no CRSF driver, and the Mini's UARTs are spoken for by
-#  GPS1/TELEM1-SiK/TELEM2-Pi). SBUS on the dedicated RC IN is AUTO-DETECTED, so
-#  RC_INPUT_PROTO stays at its default (0 = auto) -- no param line needed. After
-#  binding, run QGC Radio calibration; that is where the kill-switch channel
-#  gets its real number. ELRS is kill/ARM ONLY -- it carries NO guidance.
+#  GPS1/TELEM1-SiK/TELEM2-Pi).
+#
+#  DO NOT ADD AN RC_INPUT_PROTO LINE -- and note that this is the ONE param in
+#  this file that must never get a "(= v1.16 default)" assertion.
+#  [CORRECTED 2026-07-26: this comment used to say "RC_INPUT_PROTO stays at its
+#  default (0 = auto)". Wrong twice over.]
+#    (a) The param does not exist on this firmware. RC on the 6C Mini is decoded
+#        by the PX4IO CO-PROCESSOR, which gathers SBUS + PPM + DSM/ST24/SUMD in
+#        PARALLEL every cycle -- genuinely auto-detected, with no protocol
+#        parameter (v1.16.0 src/modules/px4iofirmware/controls.cpp: sbus_input,
+#        ppm_input, dsm_port_input, results OR'd). PX4IO is present on the MINI:
+#        boards/px4/fmu-v6c/src/manifest.c maps V6C21/V6C22 ("MINI") to
+#        hw_mft_list_v0600 with PX4_MFT_PX4IO present=1 mandatory=1, and
+#        default.px4board sets CONFIG_DRIVERS_PX4IO=y. RC_INPUT_PROTO belongs to
+#        the FMU-side rc_input driver, which fmu-v6c does NOT build (no
+#        CONFIG_DRIVERS_RC_INPUT in default.px4board; src/drivers/rc_input/Kconfig
+#        is "default n"), so a PARAM_SET for it is rejected as an unknown param.
+#    (b) On boards that DO build rc_input, the v1.16 default is -1 (Auto) and
+#        0 means None -- i.e. RC INPUT DISABLED, silently and permanently, with
+#        no error printed anywhere. Writing 0 here "to make the default explicit"
+#        would have been the exact opposite of the intent.
+#  After binding, run QGC Radio calibration; that is where the kill-switch
+#  channel gets its real number. ELRS is kill/ARM ONLY -- it carries NO guidance.
 #
 #  RC_MAP_KILL_SW = 0 -> Emergency kill switch DELIBERATELY UNASSIGNED for now.
 #     CHANGED 2026-07-26 (was a placeholder 5). Three reasons, in order:
@@ -185,6 +219,12 @@
 #     2026-07-26: this file used to say the default was 0 ("never auto-disarm").
 #     It is not -- the v1.16 default IS 5.0 s (min 0, max 30, unit s), so this
 #     line asserts the default rather than changing it. Kept for explicitness.
+#     NOT OBSERVABLE ON THIS BENCH (2026-07-26): this 5 s timer is ARMED-ONLY --
+#     v1.16.0 Commander::handleAutoDisarm() runs the whole kill/auto-disarm block
+#     inside `if (isArmed())`, so on a never-armed bench it is structurally
+#     unreachable. What you CAN see disarmed is "Kill engaged"/"Kill disengaged"
+#     in QGC and actuator_armed.manual_lockdown toggling in the ULog. The
+#     auto-disarm half is DEFERRED to the first props-off arm test on the frame.
 #     Source: docs.px4.io/v1.16 parameter reference (COM_KILL_DISARM).
 1	1	COM_KILL_DISARM	5.000000	9
 #  COM_ARM_WO_GPS = 0 -> "Deny arming" when the GPS preflight check fails.
@@ -199,11 +239,41 @@
 #     brn-05 run. Source: docs.px4.io/v1.16 parameter reference (COM_ARM_WO_GPS).
 1	1	COM_ARM_WO_GPS	0	6
 #
-#  NOTE (no param line -- a deliberate NON-action): we KEEP the safety switch
-#  active (do NOT set CBRK_IO_SAFETY=22027). Arming then requires a physical
-#  press of the M10's safety button -- the deliberate operator action that gates
-#  any future props-off arm test. Only set CBRK_IO_SAFETY if your GPS has no
-#  safety switch AND you must arm for a deliberate bench test.
+#  CBRK_IO_SAFETY = 0 -> safety button REQUIRED to arm.
+#     ⛔ CORRECTED 2026-07-26 -- THIS BLOCK PREVIOUSLY SAID THE OPPOSITE. It read
+#     "no param line -- a deliberate NON-action: we KEEP the safety switch active
+#     (do NOT set CBRK_IO_SAFETY=22027)". That inverts the polarity: 22027 IS the
+#     COMPILED DEFAULT (v1.16.0 src/lib/circuit_breaker/circuit_breaker_params.c:
+#     PARAM_DEFINE_INT32(CBRK_IO_SAFETY, 22027)), and 22027 means the breaker is
+#     TRIPPED, i.e. safety BYPASSED. Safety::Safety() then sets _button_available
+#     = true and _safety_off = true at construction and the "Press safety button
+#     first" arming check can never fire (v1.16.0 src/modules/commander/
+#     Safety.cpp). So a stock-flashed 6C Mini ships with the safety-button arming
+#     gate ALREADY OFF, and the pack's written guarantee was false. Setting 0
+#     puts the gate back. Values: 0 = safety enforced, 22027 = bypassed.
+#     ACCEPT THIS TRADEOFF KNOWINGLY -- it is not free:
+#       * Nothing about TODAY'S bench changes: the props-off OFFBOARD check never
+#         arms, and a mode change is always allowed while disarmed.
+#       * But it does NOT mean "no effect until an M10 is attached". px4io holds a
+#         ButtonPublisher whose CONSTRUCTOR advertises the safety_button topic
+#         unconditionally (v1.16.0 src/lib/button/ButtonPublisher.cpp), so as soon
+#         as px4io starts, Safety::safetyButtonHandler() sets _button_available =
+#         true even with no button wired -- and systemCheck.cpp's gate
+#         (`safety_button_available && !safety_off && !isArmed()`) then raises
+#         "Preflight Fail: Press safety button first" permanently. Expect QGC to
+#         show a standing arming-check failure, and expect the board to be
+#         UNARMABLE until an M10 with a safety switch is on GPS1 and pressed.
+#         That is the correct fail-closed direction for a props-off bench, and it
+#         means a deliberate props-off ARM test needs the M10 present (or this
+#         line temporarily set back to 22027, knowingly).
+#       * REBOOT REQUIRED IN PRACTICE, and QGC will NOT prompt for it: the param
+#         carries no @reboot_required tag, but Safety.cpp reads it ONLY in the
+#         constructor, at commander start. The load procedure already reboots.
+#       * Being CBRK_*, it is NOT in rcS's `param reset_all` exclude list, so an
+#         airframe change WIPES it like the rest of this file -- re-load then.
+#     VERIFY IN 10 SECONDS ON THE LIVE BOARD: QGC > Parameters > CBRK_IO_SAFETY.
+#     Source: v1.16.0 source as cited; docs.px4.io/v1.16 Arm/Disarm/Prearm.
+1	1	CBRK_IO_SAFETY	0	6
 #  COM_RC_IN_MODE also stays at its default -- but note the v1.16 default is 3
 #  ("RC or Joystick keep first"), NOT 0 ("RC Transmitter only") as this file
 #  used to claim. Either way RC input is accepted and a mapped kill switch is
