@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->fcb2a0a<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->f2ecfce<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -879,7 +879,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-26",
- "updated_by": "2026-07-26 late: scorer ruler error found (3/16 -> 12/16); second zero-command bug; trim sweep voided.",
+ "updated_by": "2026-07-26: instrument audit found the ruler fix was itself incomplete; contact count is UNRESOLVED.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -892,10 +892,10 @@
  "now": {
   "as_of": "2026-07-26",
   "where": "Sim testing has answered what it can for now. The physical build has started: target frame, flight controller, and Pi 5 in hand, assembly begun. Next physical milestone is tripod day — the camera tests that decide the ~$740 parts order.",
-  "finding": "Re-scored with the ruler the criterion actually defines -- airframe centre, not camera lens -- the adopted setup is 12 of 16 inside the 0.35 m contact radius, not 3. The old number was a measurement error. Still a perfect-cue, level-flight sim result.",
+  "finding": "The miss ruler is wrong and the fix I published was itself incomplete. Scored at the camera it reads 3 of 16 inside 0.35 m; correcting only height gives 12 of 16; the full 3-D camera offset may give 5-8. UNRESOLVED until the scorer is fixed properly.",
   "next": [
-   "Fix the scorer properly (airframe-centre + true closest approach) and re-score every past run",
-   "Assemble the target drone and prep tripod day -- the camera test that gates the ~$740 order"
+   "Log pitch and roll per tick -- without them the ruler CANNOT be corrected (one-line fix)",
+   "Then fix the scorer with the full 3-D camera offset and re-score every past run"
   ],
   "evidence": "docs/flight_plan_candidates.md (2026-07-25 results + confound correction) · commits df1b557, 8e8eba5"
  },
@@ -909,7 +909,7 @@
     "kill"
    ],
    "key_numbers": [
-    "Inside the contact radius (re-scored)"
+    "Inside the contact radius (UNRESOLVED)"
    ],
    "test": {
     "how": "Fix the scorer to reference the airframe centre and interpolate the true closest approach; add a producer->consumer contract test whose fixture comes from m4's own CSV writer, plus a mutant test that FAILS if the camera-lens reference returns; then re-score every historical arm, reporting old and new side by side.",
@@ -917,7 +917,7 @@
     "status": "not_run"
    },
    "state": "violated",
-   "ruling": "VIOLATED, confirmed 2026-07-26 and head-verified independently: the camera sits +0.208 m above the airframe datum (median, 1748 ticks). Re-scoring the adopted setup at the airframe centre moves it from 3/16 to 12/16 inside the 0.35 m radius (16/16 with the true between-tick minimum -- quote 12/16 until the scorer is actually fixed). Every historical miss number is inflated by ~0.18 m. The fix is a code change plus a full re-score, not a relabelling: old numbers must be reported alongside the new ones.",
+   "ruling": "VIOLATED and STILL UNRESOLVED. The scorer measures the camera, not the airframe centre. My 2026-07-26 correction subtracted a constant 0.208 m of HEIGHT and reported 12/16 -- but the camera offset is a 3-D vector (~0.25 m up, 0.12 m forward) that ROTATES with attitude, so at the 35-44 deg dash pitch the vertical part shrinks to ~0.10 m and a ~0.25 m HORIZONTAL error appears that was never corrected. The audit's reconstruction suggests 5-8/16, not 12/16. HARD BLOCKER: the per-tick CSV logs yaw only -- pitch and roll are not recorded -- so the correct number cannot be computed from any existing run. Fix the logging first, then the scorer, then re-score. Quote NO count until then.",
    "origin": "Deep targeting workflow 2026-07-26, head-verified independently (gt_cam_z - alt_m = +0.208 m median over 1748 ticks)",
    "evidence": "commit fcb2a0a; docs/flight_plan_candidates.md"
   },
@@ -1283,6 +1283,12 @@
  "plain_log": [
   {
    "date": "2026-07-26",
+   "text": "My own fix to the miss ruler was wrong too: I corrected the camera's height but not the fact that it also sits forward of the drone's centre and swings as the drone pitches.",
+   "so_what": "How many flights actually reach contact range is genuinely unknown -- and the logs do not even record the pitch needed to work it out.",
+   "evidence": "instrument audit #7"
+  },
+  {
+   "date": "2026-07-26",
    "text": "We were measuring the miss from the camera lens, not the airframe centre -- and the criterion means centre to centre. Re-scored, the adopted setup already reaches contact range on 12 of 16 flights instead of 3.",
    "so_what": "The 'we have never got close enough' headline was a ruler error, not a design failure.",
    "evidence": "commit fcb2a0a"
@@ -1346,12 +1352,6 @@
    "text": "Physical build started: target frame carbon, Pixhawk 6C Mini, and Pi 5 in hand; frame assembly begun (dry-fit only — no power until the smoke-stopper supplies arrive).",
    "so_what": "The project is now physically moving, not just simulated.",
    "evidence": "commit e9857df · NEXT.md build note"
-  },
-  {
-   "date": "2026-07-25",
-   "text": "Big cleanup day: ratified the 0.35 m kill radius from the real parts' measured dimensions, fixed the frozen-steering sim bug and its blind auditor, closed all 6 field-day blockers, and turned CI green (it had been silently red since the first push).",
-   "so_what": "The measuring instruments are now trustworthy again — several past verdicts had passed through broken ones.",
-   "evidence": "commits bf47598, 0c80454, 8653263 · ADR-0084"
   }
  ],
  "narrative": {
@@ -2320,12 +2320,12 @@
    "trust": "bench"
   },
   {
-   "label": "Inside the contact radius (re-scored)",
-   "value": "12/16",
+   "label": "Inside the contact radius (UNRESOLVED)",
+   "value": "3-12/16",
    "trust": "sim",
-   "plain": "Scored the way the criterion is defined, 12 of 16 flights already reach contact range",
-   "note": "Adopted setup: +5 deg aim trim, camera off, 9 m/s, n=16. Camera-lens scoring reported 3/16; airframe-centre scoring gives 12/16 on logged ticks (16/16 if the true between-tick minimum is interpolated -- quote 12/16 until the scorer is fixed). Perfect cue, co-altitude by construction.",
-   "provenance": "logs/mc_fp_armAE5dash_line9_s{123,777}.csv re-scored 2026-07-26; ADR-0084; commit fcb2a0a"
+   "plain": "How many flights reach contact range depends on a ruler we have not fixed yet -- do not quote a single number",
+   "note": "Three rulers, three answers on the SAME 16 flights: camera-lens 3/16 (as long published); height-only correction 12/16 (2026-07-26, incomplete); full 3-D attitude-rotated camera offset possibly 5-8/16 (audit #7, not yet reproducible here). The camera sits ~0.25 m above AND 0.12 m forward of the airframe centre; at the 35-44 deg dash pitch the forward part rotates into ~0.25 m of HORIZONTAL error that no correction has applied. BLOCKER: the per-tick logs carry yaw only -- no pitch or roll -- so the correction cannot be computed from existing data at all.",
+   "provenance": "audit #7 (instrument audit 2026-07-26); m4_intercept.py:267 + :2221; commit fcb2a0a superseded"
   }
  ],
  "bom_tiers": [
