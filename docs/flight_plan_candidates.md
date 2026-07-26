@@ -1046,3 +1046,45 @@ comparable to the noise. `--breakoff-deadband-m` exists (audit #37) but defaults
 behaviour. **Do not fly a slower rung until this is sized and A/B'd** or the ladder will
 manufacture a false "slower is worse" conclusion. Excluding the flight does not change the
 verdict (2/7, medians 0.833 / 0.721).
+
+#### ⚠ CONFOUND FOUND AFTER PUBLISHING — the camera-vs-dash margin is overstated (same-turn correction, 2026-07-25)
+
+Investigating the discarded flight exposed something bigger than one bad flight. **The past-CPA
+breakoff is a defect that ONLY the camera arm can suffer**: it lives in the ENGAGE terminal, and a
+dash-only twin never engages — measured, `past closest approach` fires on essentially every camera
+flight and on **0/8** dash-only flights. So the two arms are not on equal footing.
+
+Measured on the 10 mph camera arm: **2 of 7 flights (29%) broke off PREMATURELY** — the vehicle
+stopped steering and then kept closing by more than 0.5 m (worst: **3.46 m** of further closing
+after it had quit). The recorded miss is still a true CPA (it is the minimum ground-truth range,
+so the *measurement* is sound), but the *performance* is handicapped: guidance stopped early on
+those flights for a reason unrelated to guidance.
+
+**Why a dead-band cannot fix it (measured, and it kills the obvious fix).** Per-step measured-range
+rises are statistically INDISTINGUISHABLE between genuinely closing and genuinely receding:
+
+| regime | FALSE rises while truly CLOSING | TRUE rises while truly RECEDING |
+|---|---|---|
+| 10 mph | n=129, median **0.175 m**, p90 1.69 | n=278, median **0.152 m**, p90 2.06 |
+| 9 m/s | n=86, median **0.169 m**, p90 1.74 | n=215, median **0.137 m**, p90 1.73 |
+
+The false distribution is if anything *larger* than the true one. So `--breakoff-deadband-m` and
+`--breakoff-min-rise-m` cannot separate them at any threshold — **the discriminator itself carries
+no information.** The NN's box-size range is too noisy to detect passage per-step. The fix has to
+come from a different signal (own-state kinematics / filtered closing speed / the LOS sweeping past
+boresight), which is a design change requiring its own A/B — NOT a threshold tweak. Recorded here
+so nobody re-tries the dead-band: **it has been measured and it cannot work.**
+
+**WHAT THIS DOES AND DOES NOT CHANGE:**
+- **The NULL verdict STANDS.** Camera beat its twin 2/8 against a ≥6/8 bar. Even crediting BOTH
+  premature-breakoff flights entirely to the camera, it reaches 4/8 — still short. The seeker did
+  not earn its handoff at 10 mph.
+- **The MARGIN claim is RETRACTED as stated.** "The camera arm is worse than its twin
+  (0.853 vs 0.730 m median, Pk@1.0 5/8 vs 8/8)" is CONFOUNDED: part of that gap is the breakoff
+  defect, which the control structurally cannot experience. The honest statement is *"the camera
+  did not earn its handoff, and the size of its apparent deficit cannot be quantified until the
+  breakoff discriminator is fixed."*
+- **The 9 m/s re-fly arms carry the SAME confound** (they fire the same breakoff, 10-16 mentions
+  per 8-flight arm, vs 0 on dash-only twins). Their NULL verdicts survive the same arithmetic
+  (3/8, 1/8, 4/8 — none within reach of 6/8 even fully credited), but their margins are likewise
+  not quantitative. `docs/project_state.json` stage `terminal` swept to match.
