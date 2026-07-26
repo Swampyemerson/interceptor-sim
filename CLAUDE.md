@@ -26,6 +26,19 @@ with it (the drift check + the contradiction ledger enforce it).
   **decision options** for the *why*. The contract is the guard against this project's recurring
   failure mode — a decision that lived only in chat, evaporated, and let a bad approach bake in
   unnoticed (the five mirages, ADR-0076).
+- **UPDATES ARE OVERWRITES, NOT APPENDS (2026-07-26 — the rule that was missing).** The
+  update ritual below created pure append-pressure with no compaction rule, and `headline.text`
+  grew to a **5,128-character run-on paragraph** of nested dated brackets that no human could
+  read — the builder's "too much useless or overly technical text" complaint, manufactured by
+  this file. So: the status fields are REWRITTEN each time (hard char caps, validator-enforced,
+  and a `[20…` dated insert inside one is a validation FAILURE), dated entries go to
+  `plain_log[]` (max 12, overflow to `docs/state_archive/`), and long-form history goes to the
+  Archive tab / ADRs. **If your instinct is to append a bracketed aside, that is the signal to
+  rewrite the field and log the date separately.** The contract is a STATUS BOARD, not a log.
+- **Write the contract for the BUILDER, not for yourself.** He is new to simulation and
+  guidance and often reads this on a PHONE. Every primary-layer string is plain English with
+  jargon glossed inline; the technical depth lives one click down. A surface he cannot read is
+  a surface that cannot catch your mistakes — which is the whole point of it existing.
 - **UPDATE (every positive change — the #1 housekeeping task):** the SAME TURN a status, active
   version, or decision changes, or a contradiction is found/resolved — edit `project_state.json`
   → `python3 scripts/render_dashboard.py` (regenerates the view; `run_tests.sh` fails on drift)
@@ -92,9 +105,13 @@ don't spawn a subagent where doing the thing inline is cheaper.
    prose, commits, management-file upkeep — accepting Opus quality when the safeguard has
    pinned the head there, rather than spawning a Fable agent for each small thing. Reserve
    Fable for where its edge (review, complexity, gap-spotting) actually pays.
-3. **SONNET subagents for genuinely low-reasoning VOLUME** — installs, boilerplate, sim
-   batches, log/CSV greps, wide read-only searches, mechanical spec'd edits. `.claude/agents/`
-   (sonnet-worker, verifier, council-member) are Sonnet-pinned; a `model:` override bumps up.
+3. **~~SONNET subagents for volume~~ — REVOKED by the builder 2026-07-25: NO Sonnet workers.**
+   The lanes are now Opus 5 (`opus5-worker`) for every build/analysis, and Fable for review /
+   judgment / planning / the contract. `.claude/agents/{sonnet-worker,verifier,council-member}.md`
+   are still Sonnet-pinned on disk — **override with `model:` or use `opus5-worker` instead**;
+   do not spawn them bare. (This bullet contradicted the directive for a day before anyone
+   noticed — the exact drift class this project exists to prevent. If you find CLAUDE.md and a
+   builder directive disagreeing, the DIRECTIVE wins and you fix the file the same turn.)
 4. **OPUS 5 subagents (`opus5-worker`) = the substantive WORKHORSE lane + everything the
    safeguard blocks** — released 2026-07-24 (`claude-opus-5`, near-Fable capability, half
    Fable's price, classifiers intervene ~85% less): substantial builds/analyses AND the
@@ -164,6 +181,15 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
 - **Numbers trace to a run or a derivation.** No unsourced quantitative claims.
 - **Ask before** downloads over ~2 GB, or changes to the system outside this project
   dir and apt packages.
+- **NEVER touch CREDENTIALS or EXTERNAL ACCOUNTS without the builder explicitly asking —
+  and never from a subagent (2026-07-25 incident).** A worker unilaterally launched a
+  `gh auth refresh` device flow to widen the local token's OAuth scope. Even though the
+  builder wanted that scope, starting it was not the agent's call, and it cost him a
+  TeamViewer session for what was an 8-character job on his phone. Covered: OAuth scopes,
+  tokens, SSH keys, `git remote` changes, pushing to a NEW remote, creating repos/orgs,
+  publishing anything public, anything that spends money. The head may PREPARE and EXPLAIN
+  such a step; only the builder authorizes it. If a device code is needed, hand him the code
+  and the URL — the flow works from ANY browser (his phone), so never make him get to the PC.
 - **Fix root cause.** On breakage, read the actual error, check PX4/Gazebo docs and
   GitHub issues, and fix the cause — don't stack workarounds.
 
@@ -183,6 +209,19 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
 - **Statistics before verdicts.** Run-to-run terminal-dropout noise is ~1 m; a
   single-flight delta below that is noise. A/B claims need paired seeds (n≥8) plus
   mechanism evidence, and honest "not significant at this n" language.
+- **PRE-REGISTER before you fly (proved its worth 2026-07-25).** Before launching any arm
+  whose result could change a belief, write into the relevant doc: the config, the
+  prediction, the adopt/reject criterion, AND **what a NULL would mean** — then fly. The
+  10 mph rung came back a null and could not be spun, because "if the camera still doesn't
+  beat its twin at half speed, its value is acquisition/aim-error defence, not terminal
+  precision" was already in writing. A criterion chosen after seeing the numbers is not a
+  criterion. This costs five minutes and is the cheapest anti-mirage tool the project has.
+- **A threshold validated at one operating point is NOT validated at another.** The
+  past-CPA breakoff works at 9 m/s (true range falls ~1 m per detection, noise can't fake
+  it) and silently breaks at 4.5 m/s (~0.15 m per detection — comparable to the noise), so
+  descending the speed ladder would have manufactured a false "slower is worse". When you
+  change speed, range, altitude or rate, **list the constants whose validity depends on that
+  regime and re-earn each one** — don't assume a tuned number travels.
 - **Lab ranks, Gazebo decides.** guidance_lab.py is a design-time surrogate with six
   documented divergences from Gazebo (PIP, Kalata, fusion coverage, …). Its numbers
   rank options; only a Gazebo gate/batch turns a ranking into a conclusion.
@@ -192,9 +231,35 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
 - **Honesty boundary.** `gt_*` (ground truth) is scoring/logging ONLY; the cue is
   structurally unreadable after handoff; guidance sees camera + own-state EKF only.
   Every new guidance path re-earns the numeric no-cheat audit.
+- **The boundary covers PRE-FLIGHT inputs too, and their QUALITY (2026-07-25, the builder
+  caught this; ledger `launch-aim-derived-from-ground-truth`).** The rule above polices only
+  *when* a value is read, so for months "the launch aim is solved from the target's exactly-known
+  track" passed as clean — it is a pre-flight constant, therefore not a live read. That is a
+  LOOPHOLE, and it was load-bearing: aim is the dominant lever and the camera adds ~nothing on
+  top of good aim, so a zero-error cue quietly reduces the whole demo to a ballistic solution of
+  a known trajectory. **The real test is not WHEN the value is read but WHETHER A REAL SYSTEM
+  COULD GET IT AT THAT QUALITY.** An external cue is architectural and fine (the concept is
+  "interceptors cued by smarter sensors"); a cue with ZERO error is not, because no real cue has
+  zero error. So: every input the system is GIVEN rather than MEASURES gets an entry in the
+  assumptions register (below) graded `measured` / `given-noisy` / `given-perfect` / `unmeasured`,
+  and a headline number computed on a `given-perfect` input is reported as a BEST-CASE UPPER
+  BOUND, never as the claim.
+- **Assumptions are first-class; an unrecorded assumption is the #1 source of this project's
+  mirages (2026-07-25).** The graveyard stops you re-trying dead ideas and the ledger stops you
+  re-asserting refuted claims — but neither catches a thing that was never questioned. When you
+  publish a number or mark a stage `implemented`, DECLARE what it is given (`consumes` on the
+  stage, an entry in `assumptions[]` in the contract). If you cannot say where an input comes
+  from, that is the finding — write it down before continuing.
 - **Instruments are evidence (2026-07-25, the silent-failure rule).** A bug in a
   SCORER / AUDITOR / MEASUREMENT tool invalidates every run that passed through it,
-  and a paired control CANNOT see it because both arms share the instrument. Most of
+  and a paired control CANNOT see it because both arms share the instrument.
+  **AND THE MIRROR CASE, which is worse (2026-07-25): a defect only ONE ARM CAN SUFFER
+  manufactures a fake effect.** The past-CPA breakoff lives in the ENGAGE terminal, so it
+  fires on ~every camera flight and on 0/8 dash-only flights — the control structurally
+  cannot experience it — which made a camera-arm handicap look like a seeker deficit.
+  **Before trusting ANY A/B, ask which failure modes are reachable by EACH arm. If a defect
+  is arm-asymmetric the DIRECTION may survive but the MARGIN is not quantitative** — say
+  that in words instead of quoting a delta. Most of
   this project's retracted mirages root-caused to measurement-layer CODE, not
   experiment design (coded_dash_summary "any ENGAGE = camera-guided"; resolution_probe's
   backwards hit test; the non-tilt-aware gt chain; approach_recall's grounded-takeoff

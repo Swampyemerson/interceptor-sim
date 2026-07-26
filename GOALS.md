@@ -12,6 +12,17 @@
 
 ## Mission (one line)
 
+> ⚠️ **THE LINE BELOW IS THE ORIGINAL 2026 SIM-PHASE MISSION AND IS NO LONGER THE PROJECT'S
+> MISSION.** It is kept because the milestone ladder (M0–M5) and the frame conventions below
+> still govern the sim harness. **The CURRENT mission is a REAL outdoor BINARY KILL of a
+> ≥9 m/s target by a physical interceptor — coded open-loop dash → camera-only terminal, no
+> datalink.** The sim phase is closed; the live truth is `docs/project_state.json` (and its
+> dashboard/Artifact). Two things the sim phase established that the sentence below does NOT
+> say, and that a fresh session must not re-learn the hard way: the AprilTag was replaced by a
+> markerless NN seeker in-sim, and **no camera-guided sub-metre intercept of the realistic 3-D
+> quad has ever been demonstrated** — the measured sub-metre results are open-loop dash
+> ballistics under a perfect launch cue (see the ledger entry `launch-aim-derived-from-ground-truth`).
+
 Build a **simulation-only** counter-UAS interceptor: a quadcopter that uses its
 own **monocular camera** to visually detect an **AprilTag** on a target drone and
 autonomously **intercepts** it, first against a static target, then a moving one —
