@@ -1,0 +1,152 @@
+{
+ "schema_version": 1,
+ "fetched_at": "2026-07-26T00:10:48Z",
+ "source": {
+  "kind": "project",
+  "project_number": 1,
+  "project_title": "Interceptor — build queue",
+  "url": "https://github.com/users/Swampyemerson/projects/1",
+  "repo": "Swampyemerson/interceptor-sim",
+  "tool": "gh 2.45.0"
+ },
+ "columns": [
+  "Todo",
+  "In Progress",
+  "Done"
+ ],
+ "counts": {
+  "items": 7,
+  "by_column": {
+   "Todo": 7,
+   "In Progress": 0,
+   "Done": 0
+  }
+ },
+ "warnings": [
+  "14 custom field value(s) of type ['ProjectV2ItemFieldLabelValue', 'ProjectV2ItemFieldRepositoryValue'] were not read (fetch_board reads text/number/date/single-select/iteration only)"
+ ],
+ "items": [
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0Fz30",
+   "number": 1,
+   "title": "DECISION: how should the launch aim get its target track?",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "builder-decision",
+    "assumption-audit",
+    "from-contract"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/1",
+   "updated_at": "2026-07-26T00:10:07Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0Fz4E",
+   "number": 2,
+   "title": "DECISION: retire or re-shoot the stale onboard demo assets?",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "builder-decision",
+    "from-contract"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/2",
+   "updated_at": "2026-07-26T00:10:10Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0Fz4w",
+   "number": 3,
+   "title": "Fix the past-CPA breakoff discriminator (blocks the speed ladder)",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "assumption-audit",
+    "from-contract"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/3",
+   "updated_at": "2026-07-26T00:10:13Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0Fz5E",
+   "number": 4,
+   "title": "Fill in docs/regulatory_site_capture.md",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "builder-decision",
+    "from-contract",
+    "next-physical"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/4",
+   "updated_at": "2026-07-26T00:10:15Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0Fz8Y",
+   "number": 5,
+   "title": "Confirm the 2nd RadioMaster Pocket TX is not already ordered (ADR-0089)",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "builder-decision",
+    "from-contract",
+    "next-physical"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/5",
+   "updated_at": "2026-07-26T00:10:31Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0Fz9I",
+   "number": 6,
+   "title": "TRIPOD DAY — the 740 dollar money gate",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "from-contract",
+    "next-physical"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/6",
+   "updated_at": "2026-07-26T00:10:34Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0Fz9o",
+   "number": 7,
+   "title": "Build the target drone (tgt-01 ... tgt-08)",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "from-contract",
+    "next-physical"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/7",
+   "updated_at": "2026-07-26T00:10:37Z",
+   "type": "Issue",
+   "fields": {}
+  }
+ ]
+}
