@@ -32,12 +32,13 @@ project constraint, with the cue-error sweep as the deliverable that replaces it
 
 1. **Fix the past-CPA breakoff discriminator** — [#3](https://github.com/Swampyemerson/interceptor-sim/issues/3). **Blocks everything below it in sim.** The measured-range rise test carries no information (false rises median 0.175 m vs true 0.152 m); the dead-band is measurement-ruled-out. Needs a different signal + an A/B.
 2. **The cue-error sensitivity sweep** — extend the aim-error arms to 20/25/30° and find the crossover where the seeker starts earning its place. That curve is the portfolio deliverable and the derived accuracy requirement for the cue. *(Blocked by 1 — wider-error arms trip the same false abort.)*
-3. **Tripod day** — [#6](https://github.com/Swampyemerson/interceptor-sim/issues/6). All desk prep is closed; needs the print, a tripod, and a field afternoon.
-4. **Build the target drone** — [#7](https://github.com/Swampyemerson/interceptor-sim/issues/7), in progress. Dry-fit only; no solder or power until the smoke stopper arrives.
+3. **Bench bring-up — UNBLOCKED, hardware in hand (2026-07-26).** Two independent chains, both fully in hand: the **seeker rig** (`skr-01`→`skr-06`, Pi 5 + OV9281, ends at the calibration gate) and the **brain bench** (`brn-01`→`brn-05`, Pi 5 + 6C Mini + M10, ends at the props-off OFFBOARD gate — the one link the sim never exercised). Packs are written: `scripts/pi_setup/`, `configs/px4_6cmini/`. Pull `skr-03` (exposure ≤1 ms) forward — a null there kills tripod day's motion-blur read.
+4. **Tripod day** — [#6](https://github.com/Swampyemerson/interceptor-sim/issues/6). Desk prep closed; needs the print, a tripod, a field afternoon — **and the target flying**, so it waits on 5.
+5. **Build the target drone** — [#7](https://github.com/Swampyemerson/interceptor-sim/issues/7). **Blocked on the Kakute H7 + power parts, still in transit.** Everything else for it (SD, tools, solder kit, safety gate) is in hand. Flash + prove `.BIN` logging (`tgt-01`/`tgt-02`) with the board loose on the desk before it goes into the stack.
 
 ## Standing cautions
 
-- **No solder/power work** on the target until the smoke stopper + consumables land (tgt-04 gate).
+- **Every first power-up after soldering goes through the smoke stopper, props off** (tgt-04 gate). The stopper is in hand as of 2026-07-26 — the gate is now a step to perform, not a part to wait for.
 - **LiPos:** store ~3.8 V/cell, in the bag, never charge unattended.
 - **One sim at a time, at idle load.** Gates and batches only when the machine is quiet.
 - **Pre-register** any arm that could change a belief — prediction, criterion, and what a null means — *before* it flies.

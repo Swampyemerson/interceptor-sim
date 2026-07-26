@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->f2ecfce<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0109d3d<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -879,7 +879,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-26",
- "updated_by": "2026-07-26: instrument audit found the ruler fix was itself incomplete; contact count is UNRESOLVED.",
+ "updated_by": "2026-07-26: bench hardware audit -- camera/GPS/Pi/tools/safety in hand; only the target FC is missing.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -891,7 +891,7 @@
  },
  "now": {
   "as_of": "2026-07-26",
-  "where": "Sim testing has answered what it can for now. The physical build has started: target frame, flight controller, and Pi 5 in hand, assembly begun. Next physical milestone is tripod day — the camera tests that decide the ~$740 parts order.",
+  "where": "The physical build is underway. In hand and unblocked: Pi 5, seeker camera, Pixhawk 6C Mini, GPS, cards, tools and safety kit -- both bench bring-ups can run now. Still in transit: the target drone's flight controller and power parts, which is all that now holds up tripod day.",
   "finding": "The miss ruler is wrong and the fix I published was itself incomplete. Scored at the camera it reads 3 of 16 inside 0.35 m; correcting only height gives 12 of 16; the full 3-D camera offset may give 5-8. UNRESOLVED until the scorer is fixed properly.",
   "next": [
    "Log pitch and roll per tick -- without them the ruler CANNOT be corrected (one-line fix)",
@@ -1283,6 +1283,12 @@
  "plain_log": [
   {
    "date": "2026-07-26",
+   "text": "Bench hardware count corrected: the target's flight controller has NOT arrived, but the camera, GPS, cables, cards, tools and safety kit all have -- the contract had several of these still marked in transit.",
+   "so_what": "Every bench step is unblocked, so both bring-up gates can be closed now and the day the flight controller lands the only work left is building the target.",
+   "evidence": "builder at the bench 2026-07-26"
+  },
+  {
+   "date": "2026-07-26",
    "text": "My own fix to the miss ruler was wrong too: I corrected the camera's height but not the fact that it also sits forward of the drone's centre and swings as the drone pitches.",
    "so_what": "How many flights actually reach contact range is genuinely unknown -- and the logs do not even record the pitch needed to work it out.",
    "evidence": "instrument audit #7"
@@ -1346,12 +1352,6 @@
    "text": "Re-flew all camera-vs-dash tests on the repaired terminal (a bug had been freezing its steering). Verdict unchanged: the camera does not earn its handoff at 0, 5, or 15 degrees of aim error.",
    "so_what": "The earlier conclusion survives on a terminal that provably steers — it was not an artifact of the frozen-steering bug.",
    "evidence": "commit 1b51fb4 · flight_plan_candidates.md re-fly table"
-  },
-  {
-   "date": "2026-07-25",
-   "text": "Physical build started: target frame carbon, Pixhawk 6C Mini, and Pi 5 in hand; frame assembly begun (dry-fit only — no power until the smoke-stopper supplies arrive).",
-   "so_what": "The project is now physically moving, not just simulated.",
-   "evidence": "commit e9857df · NEXT.md build note"
   }
  ],
  "narrative": {
@@ -2547,7 +2547,7 @@
      },
      {
       "name": "microSD 32-64 GB for the Kakute",
-      "status": "must-add",
+      "status": "in hand",
       "role": "The DataFlash .BIN lives here — no card, no target track, no scored pass.",
       "notes": ""
      }
@@ -2632,13 +2632,13 @@
     "parts": [
      {
       "name": "innomaker OV9281 mono global-shutter camera",
-      "status": "ordered",
+      "status": "in hand",
       "role": "1280x800 global shutter — no rolling-shutter smear at terminal LOS rates.",
       "notes": "118° FoV is HORIZONTAL (paper-verified, docs/camera_paper_check.md); expect ~15% shorter px/deg range vs the sim — curve (a) measures the truth. Re-measure the delivered adjustable lens at calibration (skr-06)."
      },
      {
       "name": "Wonrabai 22-to-15-pin CSI cable",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Bridges the camera's 15-pin ribbon to the Pi 5's narrow 22-pin CSI port.",
       "notes": ""
      },
@@ -2650,13 +2650,13 @@
      },
      {
       "name": "SanDisk 128 GB microSD + reader",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Pi OS + captured frames.",
       "notes": ""
      },
      {
       "name": "Pi 27 W USB-C PSU",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Bench power rail for the Pi.",
       "notes": "Bench only — the field rail is the PD power bank (must-add)."
      },
@@ -2759,7 +2759,7 @@
      },
      {
       "name": "Holybro M10 GPS + IST8310 compass",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Position-hold / failsafe GPS for the future interceptor.",
       "notes": "10-pin plug into GPS1."
      },
@@ -2771,7 +2771,7 @@
      },
      {
       "name": "USB-C DATA cable",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Flashes PX4 + the Pi; must be data-capable, not charge-only.",
       "notes": ""
      }
@@ -2858,25 +2858,25 @@
      },
      {
       "name": "LiPo safety set — fireproof bag, cell checker + LV alarm, safety glasses, fire blanket",
-      "status": "must-add",
+      "status": "in hand",
       "role": "Never cut safety on a vehicle built to hit things; glasses on any time props are on and a pack is in.",
       "notes": "STILL NEEDED: fireproof charge bag, safety glasses (ANSI Z87), fire blanket — never charge a 6S pack without the bag. (Checker + LV alarm already ordered.)"
      },
      {
       "name": "Smoke stopper (VIFLY ShortSaver 2 class)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Inline fused XT60 for every first power-up after soldering.",
       "notes": ""
      },
      {
       "name": "Solder/build layer — iron, 63/37 solder + flux, XT60 pigtails, 14-16 AWG, heatshrink, zip ties, straps",
-      "status": "ordered",
+      "status": "in hand",
       "role": "The cart cannot become a flying quad without it.",
       "notes": "Ordered/owned — history in docs/hardware_order_list.md."
      },
      {
       "name": "Tool layer — 1.5/2.0/2.5 mm hex, 8 mm prop wrench, multimeter",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Continuity checks before power; generic driver sets strip FPV hardware.",
       "notes": "Ordered/owned — history in docs/hardware_order_list.md."
      },
