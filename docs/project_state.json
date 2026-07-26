@@ -2,8 +2,8 @@
  "schema_version": 2,
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-07-25",
- "updated_by": "2026-07-25 builder challenge logged: the launch aim is derived from the exactly-known target track while aim is the dominant lever and the camera adds ~nothing at correct aim (contradiction launch-aim-derived-from-ground-truth, OPEN, high) — the honesty boundary polices mid-flight reads only, not pre-flight cue QUALITY. Resolution is the builder's call.",
+ "updated": "2026-07-26",
+ "updated_by": "2026-07-26: launch-cue ruling adopted; red-team corrections folded; trim sweep in flight.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -13,120 +13,452 @@
    "docs/decisions.md ADR-0025"
   ]
  },
- "headline": {
-  "date": "2026-07-25",
-  "text": "HARDWARE ORDERED (2026-07-20, Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor brain. [2026-07-21 the binding wall is now DECOMPOSED: both in-view mechanisms settled — ground-clutter REFUTED in sim, phantom-competition CONFIRMED-but-modest + mount-removable — and the ~0 in-flight recall is a POINTING deficit (75% of terminal ticks have the target OUT of frame under the dash pitch; the fixed up-tilt is the fix), NOT a detector-in-view failure. The real-data detector's remaining job is the OUTDOOR terrain/appearance gap the sim can't test.] Next physical step: add the must-add build/field layer, then build the target + seeker rig + bench the 6C Mini in parallel. [2026-07-20 late] The Tier-1 SOFTWARE layer landed (all adversarially verified): pi_capture.py session recorder, tripod_score.py two-curve money-gate scorer, field_score ArduPilot .BIN, the cam-offset/model-swap guard, deploy seeker loop SITL-validated (3 real MAVSDK defects fixed), camera paper-check CLEARS (118 deg HORIZONTAL; px/deg penalty corrected ~30%->~15%); the dashboard grew the Build tab (Tier-1 workbench view). [2026-07-20b] Must-add TOP-UP ORDERED (~$116 Amazon + ~$300 vendor): solder consumables/wiring/tools/jumpers/data-cable/18650s/smoke-stopper/LiPo-checker + 2 more 6S packs. Builder 2026-07-20: no duplicate order (verified); remaining TOOLS owned (iron, multimeter, prop wrench, zip ties); FAA registration good to go. Still missing before build: Kakute microSD, LiPo bag/glasses/blanket, Pi cooler, PD power bank, tripod+head (unless owned), buzzer. [2026-07-21] PLACARD SIZED 0.35 m (P0.2 — print it); ARM64 stack proof PASS (pyapriltags landmine fixed); repo PUSHED to private GitHub (Swampyemerson/interceptor-sim), first CI wired (it actually stayed RED until the 2026-07-25 fix below — the earlier 'green' claim was false). [2026-07-25 BUILD PUSH] The 2026-07-25 what's-left sweep (docs/audit_2026-07-25_whats_left.md, 8-agent workflow) drove the backlog to zero: RAM/KILL RADIUS RATIFIED at 0.35 m (ADR-0084 — derived from the ordered 5-inch pair's contact envelope, sum of half-spans 177.8+174.8 mm; retires the 7-inch 0.5 m; field_score default swept + every visible Pk surface); the 5-inch airframe carries the full seeker (dry 525 g, first-kill AUW 770 g, T/W ~7.8:1) so size is not payload-limited. SIM BUGS FIXED: the coded-dash camera terminal frozen_vworld zero-command latch (verdicts through it were measured on a terminal that never steered) + its blind auditor (audit_per_tick now FAILS a zero-command run) + wall-clock scheduling → sim-clock. FIELD-DAY P0s CLOSED: --quad-decimate plumbed end-to-end + stamped; gen_tripod_mission geometry corrected (refuses off-protocol); capture matrix re-briefed for the beam-facing placard + incidence-aware curve-(a) scoring; range_truth_join integrity checks hoisted onto the manual field-day path; desk-fps whitelist (ADR-0087). PRINT ARTIFACTS built + dimensionally verified (placard 0.35 m tag, checkerboard, mount .scad — hardware/prints/, scripts/print_artifacts/). FAILSAFE 7 (post-GO offboard loss → SAFE, ADR-0086) + kill_day_protocol.md + regulatory_site_capture.md written. CI GREEN (was 73/73 red — gitignored-fixture + dep-rot + stage-gating all fixed; suite 428→592 tests). TIER-1 fully ORDERED (builder 2026-07-25). ADRs 0084-0089. [2026-07-25 eve] PHYSICAL BUILD STARTED — target frame carbon + Pixhawk 6C Mini + Pi 5 reported IN HAND by the builder; target frame skeleton assembly begun (mechanical front half of tgt-03: dry-fit, no final torque until the powered build; no solder/power work until the smoke-stopper consumables arrive). Sim: the m4 negative-r_hat coast-arm inhibit landed (86d60b3) and the 5 camera arms are RE-FLYING on the fully-fixed terminal (~40 flights, dash-only twins reused). [2026-07-25 late] CAMERA-ARM RE-FLY FLOWN + SCORED on the fixed terminal: the zero-command downgrades RESOLVE to a CONFIRMATION (no camera earn at 0/5/15 deg aim error; at correct aim now ~parity with the dash, not a liability; LOS-lag comp confirmed NEGATIVE; audit (e) 0/674 zero-command ticks). The last desk-side field-day gap also closed: the per-frame incidence-RATE producer is BUILT (range_truth_join --incidence --mount-index-deg; protocol 4.2b's decode-rate-vs-(range x incidence) row is now reachable; producer->consumer contract test; two consumer defects found+fixed: partial-denominator cells, silent mount-index contradiction). [2026-07-25 T25] The T25 demo is RE-RENDERED with the ram-radius + ADR-0066 claims pass (net-class R named as such, ram 0.35 m at both caption sites, comms-denied HELD, hardened n=72 CI claim on the end card, billboard-stand-in disclosure; captions verified in-pixels; recipe scripts/video/t25_render_plan.md). Found en route + fixed: ADR-0064's median was median_high (1.784 -> corrected 1.752; Pk/CI table unaffected) and kill_mechanism.md §7 still recommended the retired 0.5 m. CAVEAT: the separate onboard reel + 2 tracked stills still bake the old un-named 1.5 m caption and are un-re-renderable (hero CSV rotated off disk) -- do not publish those three as ram kills (demo_out/README.md).",
-  "next_probe": "RE-FLY the coded-dash camera arms (frozen_vworld fixed 2026-07-25 — the terminal now actually commands horizontal velocity; the prior 'camera adds ~nothing / camera can't defend aim' verdicts were partly measured through the zero-command latch and are DOWNGRADED to PENDING RE-FLY). Then the physical arc: the tripod AprilTag afternoon (curve-a decode envelope = the $740 money gate; all desk P0s now closed + print artifacts ready) → build + bench (FAILSAFE 7 + the P4 gates) → the kill ladder (docs/kill_day_protocol.md).",
-  "evidence": [
-   "docs/decisions.md ADR-0076 add #18k",
-   "NEXT.md ROUND-5 CORRECTION banner",
-   "pointing stage changelog 2026-07-17 (fixed-tilt FINAL)"
-  ]
+ "now": {
+  "as_of": "2026-07-26",
+  "where": "Sim testing has answered what it can for now. The physical build has started: target frame, flight controller, and Pi 5 in hand, assembly begun. Next physical milestone is tripod day — the camera tests that decide the ~$740 parts order.",
+  "finding": "We HAVE reached contact range: 3 of 16 flights at full speed came inside 0.35 m, best 0.296 m -- with the aim trim on. The 10 mph run that missed by 0.73 m was flown WITHOUT it. All of it assumed a perfect launch cue, so these are best-case numbers.",
+  "next": [
+   "Read the aim-trim sweep now flying at 10 mph -- it tests whether the miss is a fixable offset",
+   "Assemble the target drone and prep tripod day -- the camera test that gates the ~$740 order"
+  ],
+  "evidence": "docs/flight_plan_candidates.md (2026-07-25 results + confound correction) · commits df1b557, 8e8eba5"
  },
+ "assumptions": [
+  {
+   "id": "launch-cue-error-free",
+   "statement": "The launch aim (C1 fallback heading + C2 lead correction) is computed from the target's EXACTLY known, pre-programmed flight path — a zero-error cue no real ground sensor provides.",
+   "grade": "given-perfect",
+   "if_wrong": "The 0.71–0.75 m dash floor, the 8/8 sub-meter fleet and every 'camera adds nothing' verdict describe a perfect-cue world and may reverse — else the demo is a ballistic solve of a known path.",
+   "stages": [
+    "launch_aim",
+    "coded_dash",
+    "terminal"
+   ],
+   "key_numbers": [
+    "Open-loop aim tolerance",
+    "Pk@2.8 m, weave 12 m/s"
+   ],
+   "test": {
+    "how": "Cue-error sensitivity sweep: extend the aim-error arms to 20/25/30 deg and read off where the camera starts beating the blind dash; that crossover IS the derived accuracy requirement for the cue. Blocked behind the breakoff fix (wider-error arms trip it).",
+    "cost": "One sim batch now (free); L5 needs the tripod (not yet bought); L12 needs Tier-2 flights.",
+    "status": "scheduled"
+   },
+   "state": "accepted",
+   "ruling": "BUILDER RULING 2026-07-26: declared an explicit PROJECT CONSTRAINT. The interceptor is cued, and we specify the interface rather than build a cueing sensor. On hardware it launches off a GPS-derived cue LATCHED AT THE TRIGGER, link then DEAD (a streaming cue would be a guidance datalink and would destroy the no-datalink claim). Error is then INJECTED to measure how far off the cue can be. Consequence: any number computed at zero cue error is reported as a BEST-CASE UPPER BOUND, never as the claim.",
+   "origin": "docs/launch_mechanism_plan.md §2 (C1 table: 'The AUTO leg is programmed by us, so target start/velocity are known inputs'); logged as open contradiction launch-aim-derived-from-ground-truth (builder challenge 2026-07-25)",
+   "evidence": "docs/flight_plan_candidates.md lines 1032–1038: 'both arms were aimed from the target's EXACTLY KNOWN track… This experiment structurally cannot answer the question that matters'; project_state.json contradiction (CONFIRMED, high, open)"
+  },
+  {
+   "id": "camera-terminal-earns-handoff",
+   "statement": "The onboard camera terminal was assumed to improve the intercept over the open-loop dash — the reason the seeker exists.",
+   "grade": "unmeasured",
+   "if_wrong": "It hasn't yet: on the fixed, provably-steering terminal the camera lost to its dash-only twin in every paired test (best 4/8 vs a 6/8 bar). Claim 'aim-error defence', not 'terminal precision'.",
+   "stages": [
+    "terminal",
+    "handoff"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Already tested: paired camera-vs-dash-only re-fly on the fixed terminal (5 arms, 2026-07-25) plus the pre-registered 10 mph rung. The remaining honest test is the same pairing with a NOISY launch cue (see launch-cue-error-free) — the one regime where the camera has something to offer.",
+    "cost": "One sim batch",
+    "status": "done for the perfect-cue regime (NULL); imperfect-cue version not run"
+   },
+   "state": "violated",
+   "ruling": "NULL at 0°/5°/15° aim error and at half speed — but only ever measured under the perfect cue, so the field question is still open. Margins additionally confounded by the breakoff defect (see breakoff-rise-discriminator).",
+   "origin": "docs/flight_plan_candidates.md RESULTS 2026-07-25 (lines 919–1048); project_state.json stage 'terminal' note",
+   "evidence": "Camera 0.895 vs twin 0.752 m (3/8); 10 mph camera 0.853 vs twin 0.730 m, 2/8, Pk@1.0 5/8 vs 8/8; pre-registered consequence applied verbatim"
+  },
+  {
+   "id": "pk-proxy-means-kill",
+   "statement": "A simulated 'kill' scored at a 2.5–2.8 m proximity radius was treated as standing in for a real kill; the ratified physical contact envelope is 0.35 m — about 7x tighter.",
+   "grade": "unmeasured",
+   "if_wrong": "The 'Pk 95%' headline does not support the binary-kill goal: the best fleet ever (8/8 under 1 m at 10 mph) put 0/16 inside 0.35 m. Sub-meter is not a kill; the 0.73→0.35 m gap is the open problem.",
+   "stages": [
+    "kill",
+    "terminal"
+   ],
+   "key_numbers": [
+    "Pk@2.8 m, weave 12 m/s",
+    "Ram / kill radius (ratified)"
+   ],
+   "test": {
+    "how": "Score every fleet at the 0.35 m ram radius (field_score.py DEFAULT_LETHAL_RADIUS_M already swept), and re-read every sim 'kill' number against the ram bar before it justifies hardware (launch plan §9 flag).",
+    "cost": "Free — re-scoring existing logs",
+    "status": "partially done: 10 mph fleet scored 0/16 at 0.35 m"
+   },
+   "state": "violated",
+   "ruling": "ADR-0084 ratified 0.35 m; flight_plan_candidates VERDICT 3: 'nothing is a kill yet — 0/16 inside the ram radius'.",
+   "origin": "docs/launch_mechanism_plan.md §9 ('the ram bar is ~7× tighter than the Pk@2.5 m sim proxy'); ADR-0084; docs/kill_mechanism.md §1",
+   "evidence": "docs/flight_plan_candidates.md line 1028–1030; project_state.json stage 'kill' note"
+  },
+  {
+   "id": "bearing-latch-accuracy",
+   "statement": "The static-camera bearing latch — the ONLY listed aiming method that clears the ±2.4° ram aim budget — is credited with ~0.1–0.5° accuracy from pixel arithmetic. No real photon has ever tested it.",
+   "grade": "unmeasured",
+   "if_wrong": "No aiming method on the list clears the ±2.4° budget (eyeball 5–10°, red-dot 1–2° marginal, compass 2–5°) — a ram becomes unaimable with current hardware and the launch-mechanism decision re-opens.",
+   "stages": [
+    "launch_aim",
+    "hardware"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Bench L5: tripod the OV9281, place the target/placard at tape-surveyed bearings, measure latched-bearing vs truth (need 1-sigma ≪ 3°). Requires camera calibration L4 first.",
+    "cost": "One bench afternoon; blocked on the tripod + ball head (not yet bought)",
+    "status": "planned (launch plan §7 L5)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/launch_mechanism_plan.md §2 (C1 primary) + §3.1 aiming-methods table; its '~100% reliable when static' basis is a sim set-pose sweep",
+   "evidence": "real_flight.py:232–235 — bearing_latch_enabled defaults False, 'TODO-BUILDER: needs the OV9281 intrinsics (L4) and a measured 1-sigma bearing error (L5) before it may drive a ram'"
+  },
+  {
+   "id": "trigger-latency-within-budget",
+   "statement": "Human trigger latency is assumed ±100–200 ms, and the bearing latch is assumed to turn that timing error into benign range error, not aim error. Neither the latency nor the conversion is measured.",
+   "grade": "unmeasured",
+   "if_wrong": "With a pre-computed heading, ~80 ms of trigger jitter spends the entire ±2.4° ram budget (~3° per 100 ms). If the latch path is unavailable, every launch is mis-aimed by the pilot's thumb.",
+   "stages": [
+    "launch_aim"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Bench L6: log the GO-edge timestamp on the Pi vs the operator's switch throw (video timestamp); measure latency + jitter. Needs only ordered parts (Pocket M2, 6C Mini, Pi).",
+    "cost": "One bench hour, ordered parts only",
+    "status": "planned (launch plan §7 L6)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/launch_mechanism_plan.md §3.2 (LOS sweeps at ~31°/s at launch range) + ADR-lite #2",
+   "evidence": "launch_mechanism_plan.md lines 190–203; the derivation is model output, no measured latency exists"
+  },
+  {
+   "id": "dash-accel-profile",
+   "statement": "The real aircraft's dash acceleration (10 m/s²) and top speed (16 m/s) are sim-fitted guesses — and the C2 lead correction that aims the whole intercept is sized directly from that acceleration.",
+   "grade": "unmeasured",
+   "if_wrong": "The lead solve points the dash at the wrong spot: the same error class cost ~1 m of CPA in sim — several times the 0.35 m kill envelope. Mis-sizing C2 silently spends the entire ±2.4° aim budget.",
+   "stages": [
+    "launch_aim",
+    "coded_dash",
+    "hardware"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "L9: fly the first real dash, read the achieved horizontal acceleration profile from the ULog — that single curve IS C2. Needs the Tier-2 airframe.",
+    "cost": "First Tier-2 flight",
+    "status": "planned (launch plan §7 L9, [T2])"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/launch_mechanism_plan.md §2 ('the --dash-speed trap') and C2 row",
+   "evidence": "real_flight.py:239–243 — 'dash_accel_ms2 = 10.0 … Sim-fitted; the FIRST real dash ULog replaces it. TODO-BUILDER'; flight_plan_candidates.md §1.3 (~1 m mismatch cost, 1.5–2 m capped)"
+  },
+  {
+   "id": "standby-yaw-hold",
+   "statement": "The adopted launch method (ground takeoff → standby hover) assumes PX4's yaw controller holds the commanded heading to ~1–2° in a real outdoor hover. Asserted, never measured on this airframe.",
+   "grade": "unmeasured",
+   "if_wrong": "The method's selling point ('aim becomes a controller-held number inside the budget') fails: hover yaw 1-sigma over ~2° spends the ±2.4° budget before the trigger — the L10 gate says exactly this.",
+   "stages": [
+    "launch_aim"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "L10: 10× takeoff-to-standby, log yaw-hold and position error. Pass = yaw 1-sigma ≤ 2°, position 1-sigma ≤ 0.5 m.",
+    "cost": "One Tier-2 flight session",
+    "status": "planned (launch plan §7 L10, [T2])"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/launch_mechanism_plan.md §1 reason 2 ('~1–2°, and it is logged') + §7 L10",
+   "evidence": "The 1–2° figure appears only as an inline assertion; L10's done-when is its first measurement"
+  },
+  {
+   "id": "cos-theta-beyond-32deg",
+   "statement": "Tag decode range is assumed to fall as cos(θ) with viewing angle — validated only to 32.6°, only on static sim renders. Above that it is a stated HYPOTHESIS, yet the money gate derates by it.",
+   "grade": "unmeasured",
+   "if_wrong": "The gate computes a wrong usable engagement cone, so the ~$740 Tier-2 order is decided on a wrong envelope — at the pessimistic corner the cone is 0°, and ordinary flight attitudes eat ±30° alone.",
+   "stages": [
+    "handoff",
+    "hardware"
+   ],
+   "key_numbers": [
+    "Lean BOM, interceptor"
+   ],
+   "test": {
+    "how": "Tripod day Block A3: full-speed passes at indexed 15°/30°/45° placard angles — the protocol itself calls this 'the single largest information gain available'. Gate formula: t_go = (R_decode90·cosθ − R_streak_burn)/V_closing.",
+    "cost": "3 passes of the already-planned tripod session",
+    "status": "planned (tripod_test_protocol.md §4.6 A3)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/placard_mount.md §3.2 [DERIVED] + §13 [HYPOTHESIS]; docs/tripod_test_protocol.md §8.1",
+   "evidence": "placard_mount.md lines 171–176: 'nothing above 32.6° was ever tested, and all points are static software-render frames'; tripod_test_protocol.md lines 973–975, 1021–1028"
+  },
+  {
+   "id": "sim-decode-range-transfers",
+   "statement": "Every decode/acquisition range comes from sim renders; the real camera's adjustable lens has never been checkerboard-measured, and the paper check cannot give an absolute range in real light.",
+   "grade": "unmeasured",
+   "if_wrong": "The real decode range may not leave t_go ≥ 0.5 s after the handoff streak burns its range — no valid handoff at real closing speed, and the $740 gate flips to a bigger placard / camera upgrade.",
+   "stages": [
+    "detector",
+    "handoff",
+    "hardware"
+   ],
+   "key_numbers": [
+    "Lean BOM, interceptor"
+   ],
+   "test": {
+    "how": "The tripod-day range-walk (curve (a)): measure R_decode90 in real light on the real OV9281 + Pi 5, with a measured cutoff (r90_stop_reason == rate_below_90, never a data-bounded band). Re-measure the delivered lens HFoV at calibration first.",
+    "cost": "The already-planned ~$310 tripod afternoon",
+    "status": "planned — this IS the pre-registered money gate"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/camera_paper_check.md item 2 ('absolute decode/NN range stays tripod-gated, not a paper claim'); constraint pi5-compute (~≥20 m needed at 9 m/s)",
+   "evidence": "camera_paper_check.md lines 55–62; tripod_test_protocol.md §8.1 (the incidence-aware gate); the paper check only bounds the resolution penalty (~15% px/deg)"
+  },
+  {
+   "id": "sim-nn-outdoor-transfer",
+   "statement": "The sim-trained markerless detector (drone_finetuned_quad_v2, trained on color Gazebo renders) was bet to transfer to real outdoor mono frames (the 'transfer-bet' constraint).",
+   "grade": "unmeasured",
+   "if_wrong": "It IS wrong — measured: AP50 0.0003 with 88.5% false-fire on held-out real mono frames (it sees ~nothing and fires at clutter). Every sim recall/handoff number using v2 has no outdoor validity.",
+   "stages": [
+    "detector",
+    "real_data"
+   ],
+   "key_numbers": [
+    "Real-data NN vs deployed sim-NN (held-out, mono)",
+    "In-flight approach recall"
+   ],
+   "test": {
+    "how": "Already run: held-out real-mono evaluation (logs/nn_tier/eval_n-mono_heldout.csv). Remaining: finish the real-data capture→retrain pipeline from the final mount geometry (docs/real_data_pipeline.md) and re-gate in flight.",
+    "cost": "Tripod-day capture + a GPU fine-tune (hours)",
+    "status": "measured — transfer bet lost; retrain path in flight"
+   },
+   "state": "violated",
+   "ruling": "Transfer bet killed by measurement; the real-data retrain (AP50 0.44, false-fire 4.9%) is the sanctioned replacement path. camera_paper_check item 4 additionally flags the mono-vs-color cue loss as strictly harder, never easier.",
+   "origin": "project_state.json constraint transfer-bet + key number 'Real-data NN vs deployed sim-NN'; docs/camera_paper_check.md item 4",
+   "evidence": "AP50 0.44 vs 0.0003; false-fire 4.9% vs 88.5% (logs/nn_tier/eval_n-mono_heldout.csv; docs/nn_tier/PLAN.md)"
+  },
+  {
+   "id": "breakoff-rise-discriminator",
+   "statement": "The terminal's breakoff assumed 3 consecutive rises in camera-measured range mean the target is passed. Measured 2026-07-25: false rises while still CLOSING are statistically identical to true ones.",
+   "grade": "unmeasured",
+   "if_wrong": "It IS wrong: 29% of 10 mph camera flights quit steering early (worst: 3.46 m of closing left), and ONLY the camera arm can suffer it — every camera-vs-dash margin is confounded until the redesign.",
+   "stages": [
+    "terminal",
+    "kill"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "A CANDIDATE FIX ALREADY EXISTS IN THE CODEBASE (found by red-team 2026-07-26): --breakoff-max-range-m (m4_intercept.py:2169, default off, documented deployment value 5.0 m under --fpv) gates on the ABSOLUTE range at which the breakoff fires -- a different signal from the rise MAGNITUDE the dead-band measurement ruled out. Across 27 events the distributions separate: 20/22 legitimate breakoffs fire at 1.60-2.40 m, 6/7 premature ones above 3.1 m. Setting 5.0 blocks 6/7 premature (every catastrophic r2l flight) and suppresses 2/24 legitimate, both AFTER CPA was recorded (costs the miss metric nothing). NEXT: one paired A/B arm, ~50 min. NOT a design project.",
+    "cost": "A build + one paired sim batch",
+    "status": "not_run"
+   },
+   "state": "violated",
+   "ruling": "Confound logged same turn; NULL verdicts survive even crediting both bad flights to the camera (4/8 vs a 6/8 bar), but margins are unquantifiable until fixed — the '0.853 vs 0.730 m' margin claim is retracted as stated.",
+   "origin": "docs/flight_plan_candidates.md lines 1050–1089 ('CONFOUND FOUND AFTER PUBLISHING'); false rises while closing median 0.175 vs 0.152 m receding",
+   "evidence": "False-rise table (n=129/278 etc.); 'past closest approach' fires on ~every camera flight, 0/8 dash-only; real_flight.py:273–287 carries the same sim-derived 0.30 m threshold"
+  },
+  {
+   "id": "zero-wind-environment",
+   "statement": "The sim hands the system a windless world for free. Wind/gust is unmodelled everywhere — it pushes the open-loop dash off its aim line AND rotates the airframe, moving where the camera wedge points.",
+   "grade": "given-perfect",
+   "if_wrong": "The 0.71–0.75 m open-loop miss floor, the ±2.4° aim budget and the pointing-availability numbers do not survive a breezy day — wind degrades the two things the entire plan depends on at once.",
+   "stages": [
+    "coded_dash",
+    "pointing",
+    "launch_aim"
+   ],
+   "key_numbers": [
+    "Open-loop aim tolerance"
+   ],
+   "test": {
+    "how": "Log wind (even a handheld anemometer) at every first outdoor session and correlate with achieved aim error from the ULogs; optionally add a wind model to the sim and re-fly the dash-only floor.",
+    "cost": "~$20 anemometer + logging discipline; sim wind arm is free",
+    "status": "not started"
+   },
+   "state": "unchecked",
+   "ruling": "",
+   "origin": "docs/launch_mechanism_plan.md §9 ('Wind/gust is unmodelled everywhere')",
+   "evidence": "No wind term appears in dash_cpa_model.py inputs or any mc_batch config; sim_to_real_gaps.md documents the sim-flatters pattern class"
+  },
+  {
+   "id": "go-bit-not-a-cue",
+   "statement": "The ELRS GO switch is classed as a command (not a target cue), and the intercept is claimed to complete with the radio link dead after the trigger — the jam-resistance headline. Asserted, never flown.",
+   "grade": "unmeasured",
+   "if_wrong": "The project's one-line reason to exist ('when the datalink is denied, the camera finishes the intercept') is an unsupported claim; ADR-lite #3 forbids making it anywhere until L11 passes.",
+   "stages": [
+    "launch_aim",
+    "hardware"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "L11: kill the TX immediately after the GO edge on ≥3 flights; the dash + terminal must complete unaided and the ULog must show no RC input after the edge.",
+    "cost": "3 Tier-2 flights",
+    "status": "planned (launch plan §7 L11, [T2], mandatory)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/launch_mechanism_plan.md §4 + §8 ADR-lite #3; constraint no-datalink",
+   "evidence": "'This must be demonstrated, not asserted: a mandatory link-denied test arm … That test IS the jam-resistance deliverable' (launch_mechanism_plan.md lines 236–239)"
+  },
+  {
+   "id": "pi5-realtime-compute",
+   "statement": "The Pi 5 is assumed to run the AprilTag seeker at ~30 fps real-time (CPU YOLO 5–10 fps) — literature anchors. QEMU proved the software RUNS on arm64, explicitly not its speed.",
+   "grade": "unmeasured",
+   "if_wrong": "Lower fps burns more range in the handoff streak → the t_go ≥ 0.5 s money gate flips (measured to flip across ~24 fps). The Tier-2 order hinges on a frame rate nobody has measured on the real board.",
+   "stages": [
+    "detector",
+    "hardware"
+   ],
+   "key_numbers": [
+    "Lean BOM, interceptor"
+   ],
+   "test": {
+    "how": "Tripod-day §7.3 compute bench: sustained AprilTag fps and CPU-YOLO fps on the actual Pi 5 (in hand); feed the measured number into the gate scorer with --stream-fps (it refuses to invent one).",
+    "cost": "One bench hour on in-hand hardware",
+    "status": "planned (tripod_test_protocol.md §7.3)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "project_state.json constraints pi5-compute + pi5-emulation-gap; docs/tripod_test_protocol.md §7.3 + §8.1; an invented 30 fps default already flipped the $740 gate once",
+   "evidence": "'The gate flips across ~24 fps … a real input, not a formality' (tripod_test_protocol.md); the fail-closed rule in docs/error_handling_policy.md traces to the invented-30fps incident"
+  },
+  {
+   "id": "real-flight-constants-sim-derived",
+   "statement": "Nearly every terminal and failsafe constant in the real flight driver is a sim-derived TODO-BUILDER guess (24 markers) — 'launch_aim: implemented' means SITL-validated software, not measured numbers.",
+   "grade": "unmeasured",
+   "if_wrong": "Failsafes fire falsely (aborting good engagements, corrupting field CPAs) or too late (0.5 s of offboard loss ≈ 8 m unflown at dash speed) — a props-on safety issue and a metrology issue at once.",
+   "stages": [
+    "launch_aim",
+    "terminal",
+    "hardware"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Bench L3/L6 (real Pi→TELEM2 link cadence — the driver prints max observed sample age every run), L4/L5 (OV9281 intrinsics + measured box-width noise re-derive breakoff_min_rise), and the first real ULogs replace the dash constants. The full checklist is the Build sheet's 'numbers still guessed' section.",
+    "cost": "Bench sessions on ordered parts; no airframe needed for L3–L6",
+    "status": "planned (each constant's comment names its bench item)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "flight/deploy/real_flight.py MissionConfig (lines 216–341) — 24 TODO-BUILDER markers, incl. breakoff_min_rise 0.30 m derived from the SIM camera's fx=540, not the OV9281",
+   "evidence": "e.g. real_flight.py:273–287 (0.30 m derivation 'is a sim-geometry estimate, not a measured one'), :322–341 (offboard timeouts, one already re-measured in SITL and flagged for re-measure on real link)"
+  }
+ ],
+ "builder_queue": [
+  {
+   "id": "stale-demo-assets",
+   "question": "Three old demo files (the onboard mp4/gif and two hero stills) bake an outdated '1.5 m lethal radius' caption and cannot be re-rendered — their source data was deleted. What do we do with them?",
+   "options": [
+    "Retire them from every public surface now",
+    "Keep them private with the existing warning note and replace them after the next good flight",
+    "Re-fly a fresh hero run to regenerate them (costs sim time, gives a different closest approach)"
+   ],
+   "rec": "Option 2 — they are already flagged not-for-publication in demo_out/README.md; replace them when a better clip naturally exists.",
+   "blocked": "Nothing critical — portfolio polish only",
+   "doc": "demo_out/README.md"
+  },
+  {
+   "id": "regulatory-site-capture",
+   "question": "You confirmed you have a legal basis and a flying site, but the specifics — which rule you fly under, which site, and whether a deliberate mid-air collision is permitted in writing — are not recorded anywhere. When do we write them down?",
+   "options": [
+    "Fill docs/regulatory_site_capture.md now (about 15 minutes)",
+    "Fill it before the first powered flight",
+    "Leave it until kill-day planning"
+   ],
+   "rec": "Option 2 at the latest — kill day needs the mid-air permission in writing, and memory fades; the template is already written for you.",
+   "blocked": "Kill-day planning confidence (tripod day itself is unaffected)",
+   "doc": "docs/regulatory_site_capture.md"
+  },
+  {
+   "id": "second-transmitter",
+   "question": "Flying two drones at once needs two radio transmitters. Is a second Pocket TX already in one of your orders, or do we need to buy one?",
+   "options": [
+    "Check your order history and confirm it is already covered",
+    "Order one now (roughly $60)",
+    "Plan single-transmitter operations with binding swaps — not recommended for a live two-aircraft intercept"
+   ],
+   "rec": "Check your orders first; if it is not there, order now — it is cheap and a missing transmitter would stall every two-aircraft flight day.",
+   "blocked": "Any flight day with both aircraft airborne",
+   "doc": "ADR-0089 in docs/decisions.md"
+  }
+ ],
+ "plain_log": [
+  {
+   "date": "2026-07-26",
+   "text": "Ruled the launch cue an explicit project constraint: the interceptor is cued, we publish performance vs cue error instead of pretending it aims itself.",
+   "so_what": "Turns the project's biggest honesty hole into a derived requirement -- and every zero-cue-error number is now labelled best-case.",
+   "evidence": "issue #1; ledger launch-aim-derived-from-ground-truth"
+  },
+  {
+   "date": "2026-07-26",
+   "text": "A red-team caught the head in two errors: we HAVE reached contact range (3/16 at 9 m/s, best 0.296 m), and the 10 mph run was flown without the aim trim -- our only proven lever.",
+   "so_what": "The miss looks like a fixable aim offset, not a hard limit. A trim sweep is flying now.",
+   "evidence": "f0c26c7; logs/mc_fp_armAE5dash_line9_s123.csv"
+  },
+  {
+   "date": "2026-07-26",
+   "text": "The premature-abort bug turns out to have a fix already in the code (--breakoff-max-range-m); the earlier 'no known fix' was wrong.",
+   "so_what": "One flag and one A/B instead of a design project.",
+   "evidence": "m4_intercept.py:2169; f0c26c7"
+  },
+  {
+   "date": "2026-07-25",
+   "text": "Found a scoring flaw that only hurts camera flights: they sometimes quit steering early (a false 'we passed it' trigger the dash-only flights can never fire).",
+   "so_what": "The camera-vs-dash verdicts stand, but the SIZE of the camera's deficit is unknown until this is redesigned — a simple threshold fix was measured and cannot work.",
+   "evidence": "commit 8e8eba5 · flight_plan_candidates.md confound section"
+  },
+  {
+   "date": "2026-07-25",
+   "text": "Flew the 10 mph test: the pre-programmed dash alone got 8/8 flights under 1 m (median 0.73 m). The camera arm did not beat its dash-only twin (2/8 vs a 6/8 bar). Nothing got inside 0.35 m.",
+   "so_what": "Sub-metre is real but it is ballistic — camera off. And sub-metre is still not a kill: 0/16 inside the ram radius.",
+   "evidence": "commit df1b557 · logs/mc_fp_arm*"
+  },
+  {
+   "date": "2026-07-25",
+   "text": "Logged the big loophole in the ledger: the launch aim is computed from the target's exactly-known flight path — a perfect cue no real engagement would provide.",
+   "so_what": "Until the cue carries honest error, every 'dash beats camera' result describes a perfect-cue world, not the field.",
+   "evidence": "commit 2a54362 · contradiction launch-aim-derived-from-ground-truth"
+  },
+  {
+   "date": "2026-07-25",
+   "text": "Re-flew all camera-vs-dash tests on the repaired terminal (a bug had been freezing its steering). Verdict unchanged: the camera does not earn its handoff at 0, 5, or 15 degrees of aim error.",
+   "so_what": "The earlier conclusion survives on a terminal that provably steers — it was not an artifact of the frozen-steering bug.",
+   "evidence": "commit 1b51fb4 · flight_plan_candidates.md re-fly table"
+  },
+  {
+   "date": "2026-07-25",
+   "text": "Physical build started: target frame carbon, Pixhawk 6C Mini, and Pi 5 in hand; frame assembly begun (dry-fit only — no power until the smoke-stopper supplies arrive).",
+   "so_what": "The project is now physically moving, not just simulated.",
+   "evidence": "commit e9857df · NEXT.md build note"
+  },
+  {
+   "date": "2026-07-25",
+   "text": "Big cleanup day: ratified the 0.35 m kill radius from the real parts' measured dimensions, fixed the frozen-steering sim bug and its blind auditor, closed all 6 field-day blockers, and turned CI green (it had been silently red since the first push).",
+   "so_what": "The measuring instruments are now trustworthy again — several past verdicts had passed through broken ones.",
+   "evidence": "commits bf47598, 0c80454, 8653263 · ADR-0084"
+  },
+  {
+   "date": "2026-07-25",
+   "text": "Re-rendered the demo video with the corrected 0.35 m kill-radius captions; found and fixed two more stale claims on the way. Three old demo files still bake a wrong caption and cannot be re-rendered.",
+   "so_what": "The public-facing video now matches the measured truth; the three stale files await your call (see Waiting on You).",
+   "evidence": "commit 759e9b0 · demo_out/README.md"
+  },
+  {
+   "date": "2026-07-24",
+   "text": "Settled what actually drives accuracy: AIM dominates. Built an auto-aim that derives the lead angle from target motion, cutting the dash-only miss from 1.37 m to 0.75 m with no hand-tuning.",
+   "so_what": "The single biggest accuracy lever is now automatic and carries over to the real hardware.",
+   "evidence": "ADR-0080 · commit 6adb4d7"
+  },
+  {
+   "date": "2026-07-24",
+   "text": "Tried two fixes for the camera's known sideways bias (a fixed correction, and a time-lag compensation) — both failed cleanly; the lag version actually made things worse.",
+   "so_what": "The camera's terminal weakness does not yield to simple corrections — it needs a different design, not a tweak.",
+   "evidence": "commit e0bedf4 · flight_plan_candidates.md GL arm"
+  }
+ ],
  "narrative": {
   "as_of": "2026-07-24",
-  "lede": "Read this first — the current shape of the project in four findings: the REFRAME (what the wall actually is), the one BIGGEST LEVER, the honest CAVEAT that bounds every claim, and the builder's LIVE RULINGS. The 4-phase program in §0.2 follows from them; everything below §0 is the detail. Every number traces to a run or a derivation (provenance on each tile).",
-  "reframe": {
-   "headline": "The intercept is POINTING-limited, not sensor-limited.",
-   "text": "To dash forward the quad pitches ~35-40° nose-DOWN, so the fixed camera stares at the ground and a co-altitude target rides the top edge of the frame — or leaves it entirely. The detector was never the problem: the same network reads ~100% with the camera static at 8-22 m but 0.8% in flight, and in the decisive 8-12 m band ~75% of terminal ticks have the target OUT of frame altogether (when it IS in frame, the deployed detector hits 70%). The target simply is not in the picture — which is why every sensor-side lever (retrains, resolution/crop, color) returned NULL, and why the fix is geometry, not weights.",
-   "stats": [
-    {
-     "label": "in-flight approach recall",
-     "value": "0.8%",
-     "note": "2 real vs 1187 phantom detections across 63 flights",
-     "tone": "bad",
-     "stamp": "THE WALL",
-     "provenance": "ADR-0076 add #18i/#18k · approach_recall.py"
-    },
-    {
-     "label": "same detector, camera static",
-     "value": "~100%",
-     "note": "8-22 m, both aspects (set-pose sweep) — the sensor is fine",
-     "tone": "good",
-     "stamp": "NOT THE SENSOR",
-     "provenance": "ADR-0076 add #18k · set-pose sweep 2026-07-16"
-    },
-    {
-     "label": "target OUT of frame, 8-12 m band",
-     "value": "75%",
-     "note": "of terminal ticks under the dash pitch; when in view, detection is 70%",
-     "tone": "bad",
-     "stamp": "THE MECHANISM",
-     "provenance": "docs/inview_probe_results.md (probes flown 2026-07-21)"
-    },
-    {
-     "label": "nose-down dash pitch",
-     "value": "35-40°",
-     "note": "full-accel dash attitude — the geometry that points the camera at the ground",
-     "tone": "warn",
-     "stamp": "THE GEOMETRY",
-     "provenance": "ADR-0060 · docs/intercept_accuracy_levers.md"
-    }
-   ],
-   "evidence": [
-    "docs/inview_probe_results.md",
-    "ADR-0076 add #18k",
-    "docs/intercept_accuracy_levers.md"
-   ]
-  },
-  "big_lever": {
-   "headline": "SETTLED: correct AIM is the dominant lever (open-loop 0.71 → 0.43 m, ADR-0083) — and the camera does NOT defend imperfect aim: it lost to its own control at 0°, 5° AND 15° aim error. Spend on aim + real-data detection.",
-   "text": "The 4-arm decomposition (A/Adash bias30, G20/G20dash bias20) isolated what the camera terminal does. (1) AIM is the dominant, free lever: correcting the crossing-bias +30°→+20° (the collision-lead was mis-sized — it assumes constant speed, the dash accelerates from rest) drops the OPEN-LOOP dash-only combined median 1.37→0.75 m (7/8, G20dash CONFIRMED). (2) The CAMERA is an AIM-ERROR CORRECTOR: on a badly-aimed l2r dash it recovers 2.05→0.68 m (+1.36), but on a well-aimed dash it slightly hurts (aspect bias has nothing to fix), and on r2l it hurts at BOTH biases because the ADR-0056 aspect bias there is large + opposite-signed. So the camera's real value is defending IMPERFECT aim (the real-world case the sim's perfect-aim dash understates), GATED by the aspect bias. REFINED 2026-07-24 (compensation built + validated toward): the 'aspect bias' is largely a ~190 ms LOS-RATE LAG (direction-agnostic --terminal-los-lag-ms knob), and the stable direction-keyed constant is regime-confounded (only ARM B's accel-capped slow approach gives it; the fast uncapped approach is lag-dominated). FRAMING (loft+wedge) HURTS at correct aim (CG 1.92 > level 1.32). So the honest lever stack is: (1) CORRECT AIM is the dominant, free lever (accel-aware collision-lead, ADR-0080/0083) → 0.75 m dash-only. (2) The CAMERA does NOT defend imperfect aim — REFUTED in sim: it lost to its own dash-only control at 0°, 5° AND 15° aim error (see the levers table). (3) The terminal-precision compensations are NULLs — the LOS-lag knob flew (GL) at 1.44 vs the level 1.32 m, and the direction-keyed bias constant is regime-confounded. Keep the terminal SIMPLE and level; the framing levers (loft+wedge) are net-negative at 9 m/s. ⚠️ 2026-07-25 CAVEAT: the coded-dash CAMERA-ARM verdicts above (the '(2) camera adds nothing / can't defend aim' finding) were measured while the terminal's frozen_vworld latch commanded ZERO horizontal velocity (bug fixed 2026-07-25; the auditor now catches it). The AIM conclusion (open-loop dash-only) is unaffected and stands, but the camera-arm numbers are DOWNGRADED to PENDING RE-FLY until re-flown with the steering terminal. The remaining real lever is real-data OUTDOOR detection (a field task).",
-   "evidence": [
-    "scripts/experiments/loft_dive/inframe_ab.py + inframe_ab_results.csv (80 rows, 2026-07-21)",
-    "docs/intercept_accuracy_levers.md (Execution results 2026-07-21)",
-    "decision intercept_accuracy (pointing stage) · contradiction wedge-sizing-vs-accel-cap"
-   ]
-  },
-  "caveat": {
-   "headline": "9 m/s is ZEM-hard — no terminal-only trick makes it sub-meter.",
-   "text": "At a 9 m/s crossing, the delivered zero-effort-miss (ZEM) at handoff is ~4 m against ~0.27 m of terminal correction capacity from today's geometry — a perfect collision course exists at handoff; the interceptor just doesn't fly it. Correction capacity is ½·a·t_go², growing with time-to-go SQUARED, so the win comes from getting the target IN FRAME during the dash and onto a converged collision course EARLIER, with more t_go: measured, pushing handoff from ~6.5 m out to ~12 m lifts capacity 0.72 m → ~4.3 m, past the ~4 m bar. Earlier framing IS the win; terminal polish (Phases C/D) only harvests it.",
-   "meter": {
-    "unit": "m",
-    "max": 4.6,
-    "reference": {
-     "value": 4.0,
-     "label": "delivered ZEM at a 9 m/s handoff (~4 m) — the correction the terminal must be able to make"
-    },
-    "bars": [
-     {
-      "label": "correction capacity, today's geometry",
-      "value": 0.27
-     },
-     {
-      "label": "capacity with handoff pushed ~6.5 m → ~12 m out",
-      "value": 4.3
-     }
-    ],
-    "provenance": "ADR-0027 (ZEM r²=0.99; capacity = ½·a·t_go²; measured 0.72 m → ~4.3 m)"
-   },
-   "evidence": [
-    "ADR-0027",
-    "docs/intercept_accuracy_levers.md (honest gates)"
-   ]
-  },
-  "rulings": [
-   {
-    "date": "2026-07-21",
-    "text": "RAM kill CONFIRMED — the success bar is a ~0.3-0.5 m contact (much tighter than the sim's Pk@2.5 m proxy); the net is parked as a fallback, revisited only if the ram bar proves impossible.",
-    "evidence": "launch_aim changelog 2026-07-21 · docs/kill_mechanism.md"
-   },
-   {
-    "date": "2026-07-21",
-    "text": "LAUNCH MECHANISM PARKED until real flights inform it. The standing recommendation for when it is revisited: B-core (manual trigger + coded dash) + an honesty-clean pre-flight aim stack; auto-fire and any live datalink cue are REJECTED.",
-    "evidence": "decision launch_mech (§2.1) · docs/launch_mechanism_options.md"
-   },
-   {
-    "date": "2026-07-21",
-    "text": "KEEP MONO — the ordered OV9281 stands (ADR-0078): the bird A/B closed at parity, color measured 3x WORSE on desert clutter, and blur physics favor mono.",
-    "evidence": "ADR-0078 · bom_tiers Tier-1 OV9281 row"
-   },
-   {
-    "date": "2026-07-17",
-    "text": "FIXED up-tilt wedge over adaptive tilt (simplicity), angle = the REAL measured dash pitch — now explicitly co-sized with the Phase-A dash profile, never frozen in isolation.",
-    "evidence": "pointing stage (FINAL 2026-07-17) · docs/intercept_accuracy_levers.md"
-   }
-  ],
   "program": {
    "headline": "The 4-phase intercept-accuracy program — a causal stack; pointing gates everything",
    "summary": "⛔ SUPERSEDED (2026-07-24/25) — this 4-phase 'pointing gates everything' program predates the SETTLED conclusions: the dash-only control arms flew (aim is the dominant lever, ADR-0080/0083), Phase A (accel-cap + loft + wedge) is NET-NEGATIVE at correct aim and NOT a do-first lever, Phase B (fov_guidance) is PARKED (the wrong lever), and the terminal-precision phases are NULLs. Read the levers table + big_lever for the current stack. Kept for the causal-reasoning history. Not a menu: each phase only pays off once the one before it lands, and NONE is ratified — all four are ranked hypotheses, each with a pre-registered sim/bench test (full option-by-option detail: decision intercept_accuracy under the pointing stage, §2.1). Sim numbers are UPPER BOUNDS (the sim has no motion-blur model); the Stage-0 bench confirms. First kills fly the AprilTag — some levers are markerless-only.",
@@ -170,45 +502,28 @@
     "ADR-0027"
    ]
   },
-  "levers": {
-   "headline": "SETTLED levers (2026-07-24 decomposition) — what actually shrinks the miss, and what was tried and found net-negative",
-   "rows": [
-    {
-     "lever": "Correct the AIM (accel-aware collision-lead)",
-     "category": "kinematics / the dominant lever",
-     "what": "THE PROVEN LEVER. The collision-lead solved a CONSTANT-SPEED triangle while the dash ACCELERATES from rest, so the aim was mis-sized. Correcting it took the open-loop dash-only miss 1.37 → 0.75 m, then ADR-0083's measured +5° trim to ~0.43 m pooled (r2l 0.33 m = inside the ~0.35 m ram envelope (ADR-0084)), and the accel-aware lead (ADR-0080) now DERIVES the right aim automatically (+21.3° ≈ the confirmed +20°) with no per-config tuning. Free, honesty-clean (pre-flight constants), carries to hardware.",
-     "test": "DONE + VALIDATED: G20dash CONFIRMED (7/8 paired, median 0.75); AAL reproduces hand-tuned on seed 123 (0.71) and GENERALIZES on disjoint seed 777 (0.57). flight_plan_candidates.md RESULTS."
-    },
-    {
-     "lever": "The camera as an AIM-ERROR corrector — REFUTED in sim",
-     "category": "terminal — TESTED, NULL at every aim error",
-     "what": "⛔ The hypothesis was that the camera earns its handoff once the open-loop aim is imperfect (as it always is in the real world). TESTED at 0°, 5° and 15° deliberate heading error, each against its OWN dash-only twin, paired n=8: the camera lost at every cell (tighter on 2/8, 0/8, 3/8; the pre-registered bar was ≥6/8). Binding cause = the ADR-0056 r2l aspect bias: on l2r the camera DOES start to help at 15° (3/4, once −0.43 m), but r2l costs +2.1 m twice and drags the pooled result to null. SCOPE: this indicts the SIM's markerless seeker on one aspect, NOT the camera-terminal architecture — first kills fly the AprilTag, and real-data detection (44.2% vs 1.1% recall on real imagery) may reopen it.",
-     "test": "DONE: AE5/AE15 + twins, seed 123 (docs/flight_plan_candidates.md). The sweep is the pre-registered harness to re-ask the question once a real-data detector exists."
-    },
-    {
-     "lever": "Accel-capped dash + loft + wedge (FRAMING)",
-     "category": "pointing — TRIED, NET-NEGATIVE at 9 m/s",
-     "what": "⛔ NOT a do-first lever. It genuinely fixes POINTING (8-12 m real recall 3.0% → 35.4%, target centred) but the cap costs ~0.34 m of closing speed even at CORRECT aim (EAL 1.05 vs uncapped 0.71), and framing HURTS at correct aim (CG framed 1.92 vs level 1.32). ARM B's original 2.01 m regression = mis-aimed (~1.3 m) + real cap cost (~0.34 m). Keep the dash LEVEL and uncapped; the wedge's own share is still unpriced (see the wedge-vs-level ledger entry).",
-     "test": "DONE: Bdash/EAL/CG decomposition, all paired n=8 with dash-only twins."
-    },
-    {
-     "lever": "Terminal-precision compensation (bias constant / LOS lag)",
-     "category": "terminal — TRIED, NULL",
-     "what": "⛔ BOTH NULL. A direction-keyed aspect-bias constant is regime-confounded (stable only under the accel-cap that itself hurts; unstable elsewhere, LOO +1%). A 190 ms LOS-rate-lag correction shifts error between directions and fails its gate (GL 1.44 vs 1.32, 5/8). The ADR-0056 terminal-bearing wall does not yield to a simple constant or lag — consistent with the ADR-0071 subpixel null.",
-     "test": "DONE: GL flown; measure_aspect_bias.py --loo reads a null offline for free before spending an arm."
-    },
-    {
-     "lever": "Real-data outdoor detection",
-     "category": "perception — THE REMAINING LEVER",
-     "what": "The acquisition wall is OUTDOOR APPEARANCE, and it is a HARDWARE/FIELD task, not a sim one. Measured on real held-out imagery: the deployed sim-trained model scores 1.1% recall / 88.5% false-fire vs the real-data mono model's 44.2% / 4.9%. This is where the remaining intercept improvement lives.",
-     "test": "The tripod day's two curves (gated on the measurement layer being fixed — see the build_plan), then capture → retrain validated on held-out FLIGHTS."
-    }
-   ],
-   "note": "Hardware escalations (2-axis gimbal, dual onboard cameras, event camera, motor cant) are gated BEHIND Phase-A validation; research dark-horses (track-before-detect, FOV-constrained RL guidance, bank-as-accel APN, IMU-deblur) are spikes, not commitments. Three ideas were vetted straight into the graveyard (porpoise pulses, impact-angle ram, observability weave) — §6.0.",
-   "evidence": [
-    "docs/intercept_accuracy_levers.md (DO FIRST table + hardware bets + dark horses)"
-   ]
-  }
+  "rulings": [
+   {
+    "date": "2026-07-21",
+    "text": "RAM kill CONFIRMED — the success bar is a ~0.3-0.5 m contact (much tighter than the sim's Pk@2.5 m proxy); the net is parked as a fallback, revisited only if the ram bar proves impossible.",
+    "evidence": "launch_aim changelog 2026-07-21 · docs/kill_mechanism.md"
+   },
+   {
+    "date": "2026-07-21",
+    "text": "LAUNCH MECHANISM PARKED until real flights inform it. The standing recommendation for when it is revisited: B-core (manual trigger + coded dash) + an honesty-clean pre-flight aim stack; auto-fire and any live datalink cue are REJECTED.",
+    "evidence": "decision launch_mech (§2.1) · docs/launch_mechanism_options.md"
+   },
+   {
+    "date": "2026-07-21",
+    "text": "KEEP MONO — the ordered OV9281 stands (ADR-0078): the bird A/B closed at parity, color measured 3x WORSE on desert clutter, and blur physics favor mono.",
+    "evidence": "ADR-0078 · bom_tiers Tier-1 OV9281 row"
+   },
+   {
+    "date": "2026-07-17",
+    "text": "FIXED up-tilt wedge over adaptive tilt (simplicity), angle = the REAL measured dash pitch — now explicitly co-sized with the Phase-A dash profile, never frozen in isolation.",
+    "evidence": "pointing stage (FINAL 2026-07-17) · docs/intercept_accuracy_levers.md"
+   }
+  ]
  },
  "architecture": {
   "summary": "ONE NN, THE WHOLE FLIGHT: the detector runs on EVERY camera frame — there is no learned tracker (detect-then-track, NN acquire + CSRT follow, was TRIED and DROPPED: every tracker slips on the banking quad, NN-only won the paired A/B, ADR-0076 add #2). The 'tracking' that flies the intercept is PHYSICS — an alpha-beta filter plus proportional navigation — not a second network. Flight shape: coded open-loop dash (no datalink) -> 5-consecutive-detection streak hands off -> the closed loop below runs every frame to contact.",
@@ -376,6 +691,17 @@
      "date": "2026-07-24",
      "note": "ADR-0083: +5° empirical aim trim adopted (14/16 pooled, p=0.0021) — open-loop dash 0.71 → 0.43 m, r2l inside the ram envelope. Measured not derived; re-measure on hardware."
     }
+   ],
+   "caption": "Point the drone the right way before launch. Works in sim — but only with a perfect cue.",
+   "consumes": [
+    "launch-cue-error-free",
+    "bearing-latch-accuracy",
+    "trigger-latency-within-budget",
+    "dash-accel-profile",
+    "standby-yaw-hold",
+    "zero-wind-environment",
+    "go-bit-not-a-cue",
+    "real-flight-constants-sim-derived"
    ]
   },
   {
@@ -410,6 +736,12 @@
      "date": "2026-07-24",
      "note": "real_flight.py onboard state machine built + SITL-verified (ADR-0081) -- the coded-dash now has a real-hardware executor, not just the sim m4 path. launch_mechanism_plan L1/L2 built."
     }
+   ],
+   "caption": "The pre-programmed sprint at the target. Surprisingly accurate alone: 0.73 m at 10 mph.",
+   "consumes": [
+    "launch-cue-error-free",
+    "dash-accel-profile",
+    "zero-wind-environment"
    ]
   },
   {
@@ -456,6 +788,12 @@
      "date": "2026-07-21",
      "note": "IN-VIEW PROBES FLOWN -> the binding wall re-decomposed to POINTING. Ground-clutter background REFUTED in sim (GROUND 100/99% ~ SKY 92%, every bin); phantom-competition CONFIRMED but only ~12% of in-view frames + top-3 recovers 89% + mount-removed. Decisive: 75% of 8-12 m ticks have the target OUT of frame (dash pitch) -> ~0 approach recall is POINTING, not in-view (in-view hit 70%). Detector-stage note rewritten; the real-data detector is re-scoped OFF the sim in-view wall and ONTO the outdoor terrain/appearance gap. Caveat: sim ground is flat gray, not terrain — Probe-1's refutation is sim-scoped."
     }
+   ],
+   "caption": "The camera's drone-spotter. Works when the target is in frame — but often it isn't.",
+   "consumes": [
+    "sim-decode-range-transfers",
+    "sim-nn-outdoor-transfer",
+    "pi5-realtime-compute"
    ]
   },
   {
@@ -502,6 +840,10 @@
      "date": "2026-07-21",
      "note": "In-view probes CONFIRM the fixed-tilt premise: FOV COVERAGE is the binding lever (75% of 8-12 m ticks have the target out-of-frame under the dash pitch; in-view detection is 70%), and the feared horizon/ground-background ceiling was REFUTED in sim (ground ~ sky recall). So the up-tilt's job = keep the co-altitude crosser IN FRAME during the level dash, exactly what the fixed angle=dash-pitch does. Angle still set from the real ULog dash pitch; adaptive tilt stays rejected."
     }
+   ],
+   "caption": "Tilting the camera so the target stays in the picture during the sprint. Half-built.",
+   "consumes": [
+    "zero-wind-environment"
    ]
   },
   {
@@ -536,6 +878,12 @@
      "date": "2026-07-17",
      "note": "Builder COMMITTED to 3D-printing the forward camera extension — cam-forward is the assumption from here; handoff simplifies (range-gate machinery retired)."
     }
+   ],
+   "caption": "The moment the camera takes over steering. Clean rule built; camera hasn't earned it yet.",
+   "consumes": [
+    "camera-terminal-earns-handoff",
+    "cos-theta-beyond-32deg",
+    "sim-decode-range-transfers"
    ]
   },
   {
@@ -602,6 +950,14 @@
      "date": "2026-07-24",
      "note": "Aim-error sweep COMPLETE (0/5/15°, each vs its own dash-only twin): camera never earns its handoff; 'defends imperfect aim' REFUTED in sim; binding cause = r2l ADR-0056 aspect bias. ENGAGE-on-markerless not justified by sim evidence."
     }
+   ],
+   "caption": "Camera-steered final homing. The law works but hasn't beaten the dash alone in any test.",
+   "consumes": [
+    "launch-cue-error-free",
+    "camera-terminal-earns-handoff",
+    "pk-proxy-means-kill",
+    "breakoff-rise-discriminator",
+    "real-flight-constants-sim-derived"
    ]
   },
   {
@@ -635,6 +991,11 @@
      "date": "2026-07-24",
      "note": "Ram radius 0.5 m was a 7-inch number; the ordered 5-inch pair gives ~0.36 m max contact envelope -> the terminal must earn ~1 m. Raised to the builder pre-Tier-2 (full review)."
     }
+   ],
+   "caption": "How we score a kill: contact within 0.35 m. So far 0 of 16 sim flights get that close.",
+   "consumes": [
+    "pk-proxy-means-kill",
+    "breakoff-rise-discriminator"
    ]
   },
   {
@@ -673,6 +1034,10 @@
      "date": "2026-07-20",
      "note": "Tripod-day capture+scoring toolchain BUILT + adversarially verified: scripts/seeker/pi_capture.py (Pi 5/OV9281 session recorder — frames/ + index.csv + meta.json + tags.csv; picamera2/v4l2/dir-replay backends; logs the ACTUAL applied exposure vs the <=1 ms spec; autolabel_from_apriltag consumes the layout directly, verified 100% label rate) + scripts/seeker/tripod_score.py (P0.3 two-curve scorer: curve (a) tag decode envelope -> Tier-2 money gate with explicit t_go>=0.5 s arithmetic incl. the 5-streak burn; curve (b) NN recall vs range x position-in-frame -> Hailo gate only; NN half no-ops cleanly without onnxruntime). Camera paper-check (P0.5, docs/camera_paper_check.md): 118 deg HORIZONTAL clears wide-fov; px/deg penalty ~15% not ~30% (ledger ov9281-pxdeg-30-vs-15); <=1 ms exposure clears (~40 us floor); mono-vs-color NN confound stays UNVERIFIED-ON-PAPER — the real-data mono retrain is the sanctioned fix."
     }
+   ],
+   "caption": "Record real outdoor footage, retrain the spotter on it. Built, not yet proven in flight.",
+   "consumes": [
+    "sim-nn-outdoor-transfer"
    ]
   },
   {
@@ -714,6 +1079,16 @@
      "date": "2026-07-24",
      "note": "Builder confirms FAA regime + site are IN HAND — both external-lead-time blockers from the full review are cleared; the critical path is build/bench/tripod."
     }
+   ],
+   "caption": "The physical drones. Frame, flight controller, and Pi 5 in hand; assembly has begun.",
+   "consumes": [
+    "bearing-latch-accuracy",
+    "dash-accel-profile",
+    "cos-theta-beyond-32deg",
+    "sim-decode-range-transfers",
+    "go-bit-not-a-cue",
+    "pi5-realtime-compute",
+    "real-flight-constants-sim-derived"
    ]
   },
   {
@@ -736,7 +1111,9 @@
      "date": "2026-07-11",
      "note": "GPU render adopted (RTF 0.336->0.951); 3D quad target replaces billboard for realism work."
     }
-   ]
+   ],
+   "caption": "The simulator and its anti-fooling checks — where every number so far comes from.",
+   "none_because": "It is the measuring instrument itself — its assumptions (sim-vs-real gaps) are registered on the stages that consume its numbers, not here."
   }
  ],
  "edges": [
@@ -985,49 +1362,73 @@
    "label": "Pk@2.8 m, weave 12 m/s",
    "value": "95.0%",
    "note": "CI lower bound, 72/72 clean (billboard-era adopted config)",
-   "provenance": "ADR-0064 · logs/mc_pk72_weave_s*.csv"
+   "provenance": "ADR-0064 · logs/mc_pk72_weave_s*.csv",
+   "plain": "Hit rate against an older, easier target (a flat billboard) at a generous 2.8 m radius — not the real 0.35 m kill bar.",
+   "trust": "sim"
   },
   {
    "label": "M5 median miss, n=96",
    "value": "0.93 m",
    "note": "final Monte-Carlo, running-start profile, Pk@2.5 100%",
-   "provenance": "ADR-0036 · scripts/check_m5.sh"
+   "provenance": "ADR-0036 · scripts/check_m5.sh",
+   "plain": "Typical closest approach in the final sim campaign — against the easy AprilTag target, not the real drone shape.",
+   "trust": "sim"
   },
   {
    "label": "Pro-nav vs pursuit @2 m/s",
    "value": "4.6-7.6x",
    "note": "0.28-0.44 m vs 2.05-2.54 m, identical paths",
-   "provenance": "M4 gate · ADR-0009 · logs/m4_intercept_*.csv"
+   "provenance": "M4 gate · ADR-0009 · logs/m4_intercept_*.csv",
+   "plain": "The missile-style steering law misses 4.6–7.6x less than naively chasing the target's current position.",
+   "trust": "sim"
   },
   {
    "label": "Ram / kill radius (ratified)",
    "value": "0.35 m",
    "note": "ADR-0084: sum of the ordered 5-inch pair's half-spans (177.8+174.8 mm); retires the 7-inch 0.5 m. Aim budget re-derived to ±2.4°.",
-   "provenance": "ADR-0084 · scripts/field_score.py DEFAULT_LETHAL_RADIUS_M"
+   "provenance": "ADR-0084 · scripts/field_score.py DEFAULT_LETHAL_RADIUS_M",
+   "plain": "A kill = within 0.35 m, where the two airframes physically touch. This is the bar every result must meet.",
+   "trust": "bench"
   },
   {
    "label": "In-flight approach recall",
    "value": "0.8%",
    "note": "vs 100% static/centred 8-22 m — THE WALL (flight-dynamic pointing)",
-   "provenance": "ADR-0076 add #18i/#18k · approach_recall.py"
+   "provenance": "ADR-0076 add #18i/#18k · approach_recall.py",
+   "plain": "In real flight the camera sees the target in under 1% of frames — mostly because it is pointed the wrong way.",
+   "trust": "sim"
   },
   {
    "label": "Open-loop aim tolerance",
    "value": "±30°",
    "note": "48/48 flights engaged (dash-robustness only, per #18g)",
-   "provenance": "ADR-0076 add #18b/#18c"
+   "provenance": "ADR-0076 add #18b/#18c",
+   "plain": "The dash kept engaging with aim off by up to 30 degrees — sprint robustness, not proof the camera works.",
+   "trust": "sim"
   },
   {
    "label": "Lean BOM, interceptor",
    "value": "~$740",
    "note": "binary-kill re-scope; ~$1,390 everything-new",
-   "provenance": "hardware_order_list.md §0c"
+   "provenance": "hardware_order_list.md §0c",
+   "plain": "Parts money still to spend to finish the interceptor. Tripod-day camera results decide whether to spend it.",
+   "trust": "bench"
   },
   {
    "label": "Real-data NN vs deployed sim-NN (held-out, mono)",
    "value": "AP50 0.44 vs 0.0003; false-fire 4.9% vs 88.5%",
    "note": "n-mono (real-data grayscale YOLO11n) vs v2_deployed on a source-disjoint held-out test (n=4175, conf .25); recall 44.2% vs 1.1%. PUBLIC-media metric — held-out-FLIGHT on the real target is the tripod day.",
-   "provenance": "logs/nn_tier/eval_n-mono_heldout.csv; docs/nn_tier/PLAN.md"
+   "provenance": "logs/nn_tier/eval_n-mono_heldout.csv; docs/nn_tier/PLAN.md",
+   "plain": "Retrained on real photos, the spotter hugely beats the sim-trained one on real images. Flight test still needed.",
+   "trust": "bench"
+  },
+  {
+   "label": "Closest to contact (measured)",
+   "value": "3/16 inside 0.35 m",
+   "trust": "sim",
+   "plain": "3 of 16 flights actually reached contact range at full speed; the best came within 0.296 m",
+   "note": "Adopted config: +5 deg aim trim, camera OFF, dash-only, 9 m/s. Seed 123 3/8; seed 777 0/8 (min 0.351). The only measured path into range currently in hand.",
+   "provenance": "logs/mc_fp_armAE5dash_line9_s{123,777}.csv; ADR-0083; red-team correction 2026-07-26 (f0c26c7)"
   }
  ],
  "bom_tiers": [
@@ -1186,7 +1587,7 @@
   }
  ],
  "build_tab": {
-  "scope": "Tier 1 ONLY — the four hardware groups of the 2026-07-20 order (target drone, seeker rig, brain bench, ground & safety). This sheet ends at the P2 tripod MONEY GATE: curve (a), the AprilTag decode envelope, unlocks the ~$740 Tier-2 interceptor build; curve (b), NN approach recall, gates only the deferred Hailo/markerless phase. No Tier-2 build content lives here.",
+  "scope": "Tier 1 ONLY — the four hardware groups of the 2026-07-20 order (target drone, seeker rig, brain bench, ground & safety). The sheet ends at the P2 tripod MONEY GATE: curve (a), the AprilTag decode envelope, unlocks the ~$740 Tier-2 interceptor build; curve (b), NN approach recall, gates only the deferred Hailo/markerless phase. Both curves come out of one software chain: pi_capture.py -> range_truth_join.py -> tripod_score.py — it is already built and tested (see the kit table).",
   "subsystems": [
    {
     "id": "target",
@@ -1197,37 +1598,37 @@
       "name": "TBS Source One V6 5in frame",
       "status": "in hand",
       "role": "Airframe; the flat top plate carries the tag placard.",
-      "notes": "Shares the 5-inch prop/motor class with the future interceptor — one spare pool. IN HAND (builder, 2026-07-25) — frame skeleton assembly STARTED: the mechanical front half of tgt-03, dry-fit only; final torque/loctite on motor/stack bolt paths waits for the powered build (motors + stack reopen those joints)."
+      "notes": "In hand; dry-fit skeleton started — final torque/loctite waits for the powered build. Shares the 5-inch prop/motor class with the future interceptor."
      },
      {
       "name": "Kakute H7 V1.5 flight controller",
       "status": "ordered",
       "role": "Runs ArduPilot; flies the AUTO legs and writes the DataFlash .BIN log.",
-      "notes": "Flash ArduPilot target `KakuteH7`, NOT the v2 target. ICM-42688-P IMU supported. Needs its own microSD (must-add row) — field_score reads the target's position from this log."
+      "notes": "Flash target `KakuteH7`, NOT the v2 target. Needs its own microSD — field_score reads the target's track from the DataFlash .BIN."
      },
      {
       "name": "Tekko32 F4 Metal 65A 4-in-1 ESC",
       "status": "ordered",
       "role": "Four motor drives + battery V/I sense on one 30.5x30.5 stack board.",
-      "notes": "ArduPilot ships battery-monitor defaults for the Tekko — start from those, don't hand-derive."
+      "notes": "Start from ArduPilot's shipped Tekko battery-monitor defaults."
      },
      {
       "name": "EMAX ECO II 2207 1900KV motors (x4)",
       "status": "ordered",
       "role": "6S propulsion.",
-      "notes": "Same class the Tier-2 interceptor will use — spares interchange."
+      "notes": ""
      },
      {
       "name": "Matek M10Q-5883 GPS + compass",
       "status": "ordered",
       "role": "Makes the waypoint legs GPS-repeatable pass to pass.",
-      "notes": "GPS over UART, compass over I2C; mast-mount away from power wiring (compass EMI)."
+      "notes": "Mast-mount away from power wiring (compass EMI)."
      },
      {
       "name": "RadioMaster RP1 V2 ELRS RX",
       "status": "ordered",
       "role": "Arming, manual override, failsafe.",
-      "notes": "Wired CRSF on a UART here — unlike the interceptor's SBUS-to-RC-IN plan (stock PX4 has no CRSF driver; ArduPilot speaks CRSF natively)."
+      "notes": "Wired CRSF on a UART (ArduPilot speaks CRSF natively)."
      },
      {
       "name": "HQ V2S 5in props (CW+CCW)",
@@ -1239,13 +1640,13 @@
       "name": "CNHL 6S 1500 mAh LiPo (1 in cart)",
       "status": "ordered",
       "role": "Flight power; 6S everywhere so packs and charger are shared across aircraft.",
-      "notes": "+2 more packs are a must-add (ground kit) — the ~28-pass tripod matrix needs 3 with mid-session recharges."
+      "notes": "3 packs total on order — the ~28-pass matrix needs 3 with mid-session recharges."
      },
      {
       "name": "AprilTag tag36h11 placard (rigid)",
       "status": "print",
       "role": "The seeker's target lock + the auto-labeler's truth source.",
-      "notes": "SIZED 0.35 m edge — P0.2 DONE 2026-07-21 (docs/placard_sizing.md: the only size clearing the t_go>=0.5 s gate under realistic OV9281 scaling; carry limit). Print PDFs BUILT + dimensionally verified (cbcce14, hardware/prints/placard_tag36h11_id0_*.pdf — 350.000 mm black-square edge re-decoded by pupil_apriltags). Remaining: physically print + mount rigid."
+      "notes": "0.35 m edge (docs/placard_sizing.md). PRINT-READY: hardware/prints/placard_tag36h11_id0_*.pdf — dimension-verified at 350.0 mm. Mount is DESIGNED too: docs/placard_mount.md + scripts/print_artifacts/*.scad."
      },
      {
       "name": "microSD 32-64 GB for the Kakute",
@@ -1315,7 +1716,7 @@
      },
      {
       "id": "tgt-06",
-      "text": "Configure the mover: outdoor compass calibration (M10Q), WPNAV_SPEED >= 900 (cm/s — the >=9 m/s AUTO legs), battery-monitor sanity vs the Tekko defaults, geofence + failsafe behavior."
+      "text": "Configure the mover: load configs/target_kakute/target.param (44 linted params — selftest green), then VERIFY on the aircraft: outdoor compass calibration (M10Q), WPNAV_SPEED >= 900 (the >=9 m/s AUTO legs), battery monitor vs the Tekko defaults, geofence + failsafe behavior."
      },
      {
       "id": "tgt-07",
@@ -1323,7 +1724,7 @@
      },
      {
       "id": "tgt-08",
-      "text": "Mount the AprilTag placard (rigid, facing the approach) and re-check hover + AUTO with it on — drag and CG shift. Placard SIZE = 0.35 m edge (P0.2, 2026-07-21 — docs/placard_sizing.md); print tag36h11 id 0 at that edge on rigid backing."
+      "text": "Mount the AprilTag placard rigid, facing the approach: print the DESIGNED mount (scripts/print_artifacts/*.scad via render_stls.sh — design: docs/placard_mount.md) and RECORD the index-disc angle — placard_incidence.py needs it to score curve (a) by viewing angle. Placard print: hardware/prints/placard_tag36h11_id0_*.pdf (0.35 m edge, dimension-verified). Re-check hover + AUTO with it on — drag and CG shift."
      }
     ]
    },
@@ -1336,7 +1737,7 @@
       "name": "innomaker OV9281 mono global-shutter camera",
       "status": "ordered",
       "role": "1280x800 global shutter — no rolling-shutter smear at terminal LOS rates.",
-      "notes": "118 deg FoV PAPER-VERIFIED HORIZONTAL (vendor states H=118/D=148 — docs/camera_paper_check.md, 2026-07-20); clears the >=100 deg hard floor with margin. px/deg penalty vs the sim camera is ~15% (the earlier ~30% was the diagonal misread), so expect proportionally shorter tag/NN range; that is what curve (a) measures. Re-measure the delivered adjustable lens at calibration."
+      "notes": "118° FoV is HORIZONTAL (paper-verified, docs/camera_paper_check.md); expect ~15% shorter px/deg range vs the sim — curve (a) measures the truth. Re-measure the delivered adjustable lens at calibration (skr-06)."
      },
      {
       "name": "Wonrabai 22-to-15-pin CSI cable",
@@ -1348,19 +1749,19 @@
       "name": "Raspberry Pi 5, 8 GB",
       "status": "in hand",
       "role": "Runs the same stack the flight Pi will: capture, calibration, tag decode, NN shadow scoring.",
-      "notes": "IN HAND (builder, 2026-07-25). The Pi 3 also on hand is a capture-only fallback: records frames fine, useless for the fps bench (A53 vs A76, no PCIe)."
+      "notes": "In hand. The Pi 3 also on hand is capture-only fallback — useless for the fps bench."
      },
      {
       "name": "SanDisk 128 GB microSD + reader",
       "status": "ordered",
       "role": "Pi OS + captured frames.",
-      "notes": "$45 in cart is ~2x street (~$20) — re-source with the Pi."
+      "notes": ""
      },
      {
       "name": "Pi 27 W USB-C PSU",
       "status": "ordered",
       "role": "Bench power rail for the Pi.",
-      "notes": "Useless at the field — the >=27 W USB-C PD power bank (must-add, ground kit) is the field rail."
+      "notes": "Bench only — the field rail is the PD power bank (must-add)."
      },
      {
       "name": "Pi 5 active cooler",
@@ -1372,7 +1773,7 @@
       "name": "Checkerboard 9x6 calibration board (rigid)",
       "status": "print",
       "role": "Feeds calibrate_camera.py — intrinsics + distortion.",
-      "notes": "A pre-printed rigid board (~$8) beats a home print — flatness is signal here."
+      "notes": "Pre-printed rigid board (~$8) beats a home print — flatness is signal. Print files exist too: hardware/prints/checkerboard_*.pdf (dimension-verified)."
      }
     ],
     "connections": [
@@ -1400,7 +1801,7 @@
     "steps": [
      {
       "id": "skr-01",
-      "text": "Flash Pi OS to the microSD, boot the Pi 5, fit the active cooler."
+      "text": "Flash Pi OS to the microSD, boot the Pi 5, fit the active cooler — then run scripts/pi_setup/provision.sh: it installs the whole capture stack (+ capture.service) reproducibly (selftest green)."
      },
      {
       "id": "skr-02",
@@ -1413,7 +1814,7 @@
      },
      {
       "id": "skr-04",
-      "text": "Paper-check the FoV (P0.5) — DONE 2026-07-20, docs/camera_paper_check.md: 118 deg is HORIZONTAL (vendor states H=118/D=148; clears >=100 with margin); px/deg penalty vs the sim is ~15%, NOT the assumed ~30% (that was the diagonal misread). Residual: re-measure the delivered adjustable lens at calibration (skr-06)."
+      "text": "FoV paper-check (P0.5): DONE 2026-07-20 — 118° is HORIZONTAL, clears the >=100° floor (docs/camera_paper_check.md). Live residual: re-measure the delivered adjustable lens at calibration (skr-06)."
      },
      {
       "id": "skr-05",
@@ -1433,7 +1834,12 @@
      },
      {
       "id": "skr-08",
-      "text": "Run the NN shadow-scoring path end-to-end on bench frames (drone_finetuned_quad_v2 @640, conf 0.25) so curve (b)'s scoring works before the field day."
+      "text": "Run the NN shadow-scoring path end-to-end on bench frames (drone_finetuned_quad_v2 @640, conf 0.25) so curve (b)'s scoring works before the field day. If the gate later FAILs (b), the retrain is already scripted: scripts/seeker/autolabel_from_apriltag.py (AprilTag-supervised auto-labels)."
+     },
+     {
+      "id": "skr-09",
+      "text": "After EVERY capture session, run the data chain: scripts/field/04_pull_logs.sh -> parse_flight_log.py (onboard decision log), then JOIN true range into the session — scripts/seeker/range_truth_join.py --incidence --mount-index-deg (no join, no curves; a missed sync event burns the field day) — then score: scripts/seeker/tripod_score.py.",
+      "why": "range_truth_join.py is the missing link that makes the session scorable at all (defect found + closed 2026-07-24); it cannot recover a skipped sync event after the fact."
      }
     ]
    },
@@ -1446,31 +1852,31 @@
       "name": "Pixhawk 6C Mini",
       "status": "in hand",
       "role": "The interceptor's PX4 autopilot — the exact stack the sim validated.",
-      "notes": "Front-loaded PAST the P2 money gate — acceptable (survives every gate FAIL loop-back), logged as an ADR-lite deviation. Confirm the box includes a microSD: ULogs are the metrology. IN HAND (builder, 2026-07-25)."
+      "notes": "In hand. Front-loaded past the P2 gate (logged ADR-lite deviation). Confirm a microSD is included — ULogs are the metrology."
      },
      {
       "name": "Holybro PM02 V3 power module (analog)",
       "status": "ordered",
       "role": "FC battery power + V/I telemetry when it flies; on the bench it is just the wiring dry-run.",
-      "notes": "Must be the ANALOG PM02 — the digital PM02D pairs with the 6X, not the 6C Mini."
+      "notes": "Must be the ANALOG PM02 (the PM02D pairs with the 6X) — settled, see hardware_order_list.md."
      },
      {
       "name": "Holybro M10 GPS + IST8310 compass",
       "status": "ordered",
       "role": "Position-hold / failsafe GPS for the future interceptor.",
-      "notes": "10-pin plug into GPS1. Two GPS units across the project is one per aircraft — correct, not redundant."
+      "notes": "10-pin plug into GPS1."
      },
      {
       "name": "Pi-to-TELEM2 UART jumper leads",
       "status": "ordered",
       "role": "The three wires the whole deploy path rides on.",
-      "notes": "ORDERED 2026-07-20b: ELEGOO 120pc Dupont M-F/M-M/F-F kit — covers the bench jumpers (GND + TX/RX crossed, 3.3 V logic, no level shifter)."
+      "notes": ""
      },
      {
       "name": "USB-C DATA cable",
       "status": "ordered",
       "role": "Flashes PX4 + the Pi; must be data-capable, not charge-only.",
-      "notes": "ORDERED 2026-07-20b: Silkland 2-in-1 10 Gbps USB-A->C + C->C — genuinely data-capable."
+      "notes": ""
      }
     ],
     "connections": [
@@ -1503,7 +1909,7 @@
     "steps": [
      {
       "id": "brn-01",
-      "text": "Flash PX4 on the 6C Mini over USB; confirm a microSD is present and ULog logging is on."
+      "text": "Flash PX4 on the 6C Mini over USB and load configs/px4_6cmini/bench.params (annotated, QGC-loadable); confirm a microSD is present and ULog logging is on."
      },
      {
       "id": "brn-02",
@@ -1520,7 +1926,7 @@
      {
       "id": "brn-05",
       "gate": true,
-      "text": "Props-off OFFBOARD bring-up: run the deployment seeker loop (flight/deploy/seeker_loop.py) against the bench FC — OFFBOARD accepted, setpoints streaming, kill switch honored. Nothing can spin; no airframe exists.",
+      "text": "Props-off OFFBOARD bring-up — the scripted gate is scripts/check_deploy_bench.sh (the configs/px4_6cmini/ pack exists to close this step): run flight/deploy/seeker_loop.py against the bench FC — OFFBOARD accepted, setpoints streaming, kill switch honored. Nothing can spin; no airframe exists.",
       "why": "Retires the one link the sim never exercised (MAVSDK over a real serial port) while the tripod campaign runs in parallel."
      },
      {
@@ -1539,43 +1945,43 @@
       "name": "RadioMaster Pocket M2 ELRS TX",
       "status": "ordered",
       "role": "Flies the target; later the hardware kill for both aircraft.",
-      "notes": "Ships without cells — needs 2x 18650 (must-add). Forward flag (Tier-2, not a Tier-1 blocker): one TX + two aircraft needs ELRS Model Match, and the unselected model sits in RC failsafe — the open two-TX decision from the pre-purchase audit."
+      "notes": "Needs 2x 18650 (ordered). Second-TX / Model-Match question: see Waiting on You (ADR-0089)."
      },
      {
       "name": "1-6S balance charger",
       "status": "ordered",
       "role": "Charges the shared 6S packs.",
-      "notes": "Verify AC wall input (2026-07-20 inventory check) — if DC-only, add a supply brick."
+      "notes": "Verify AC wall input — if DC-only, add a supply brick."
      },
      {
       "name": "2x 18650 cells (for the TX)",
       "status": "ordered",
       "role": "The Pocket M2's power.",
-      "notes": "ORDERED 2026-07-20b: RadioMaster 18650 3200 mAh 2-pack."
+      "notes": ""
      },
      {
       "name": "LiPo safety set — fireproof bag, cell checker + LV alarm, safety glasses, fire blanket",
       "status": "must-add",
       "role": "Never cut safety on a vehicle built to hit things; glasses on any time props are on and a pack is in.",
-      "notes": "PARTIAL 2026-07-20b: cell checker + LV alarm ORDERED. STILL NEEDED: fireproof charge bag, safety glasses (ANSI Z87), fire blanket — never charge a 6S pack without the bag."
+      "notes": "STILL NEEDED: fireproof charge bag, safety glasses (ANSI Z87), fire blanket — never charge a 6S pack without the bag. (Checker + LV alarm already ordered.)"
      },
      {
       "name": "Smoke stopper (VIFLY ShortSaver 2 class)",
       "status": "ordered",
       "role": "Inline fused XT60 for every first power-up after soldering.",
-      "notes": "ORDERED 2026-07-20b: ViFly Short Saver 2 (XT30/XT60)."
+      "notes": ""
      },
      {
       "name": "Solder/build layer — iron, 63/37 solder + flux, XT60 pigtails, 14-16 AWG, heatshrink, zip ties, straps",
       "status": "ordered",
       "role": "The cart cannot become a flying quad without it.",
-      "notes": "COVERED 2026-07-20: solder, flux pen, 3x XT60 pigtails, 14 AWG wire, 650pc heatshrink, straps ORDERED; iron + zip ties OWNED (builder confirmed)."
+      "notes": "Ordered/owned — history in docs/hardware_order_list.md."
      },
      {
       "name": "Tool layer — 1.5/2.0/2.5 mm hex, 8 mm prop wrench, multimeter",
       "status": "ordered",
       "role": "Continuity checks before power; generic driver sets strip FPV hardware.",
-      "notes": "COVERED 2026-07-20: Hobbypark hex set ORDERED; prop wrench + multimeter OWNED (builder confirmed)."
+      "notes": "Ordered/owned — history in docs/hardware_order_list.md."
      },
      {
       "name": "Lost-model buzzer",
@@ -1587,13 +1993,13 @@
       "name": "Field layer — tripod + ball head + inclinometer, >=27 W USB-C PD power bank, cones + tape measure, +2 CNHL 6S packs",
       "status": "must-add",
       "role": "Makes the tripod day decision-grade (protocol sections 1-2); the inclinometer records the exact tilt every downstream number depends on.",
-      "notes": "PARTIAL 2026-07-20b: +2 CNHL 6S packs ORDERED (3 total — meets the 3+ the pass matrix needs). STILL NEEDED: tripod + ball head (+ inclinometer, a phone app is fine), >=27 W USB-C PD power bank (the wall PSU is useless at the field), cones + tape measure."
+      "notes": "STILL NEEDED: tripod + ball head (+ inclinometer — a phone app is fine), >=27 W USB-C PD power bank (the wall PSU is useless at the field), cones + tape measure. Packs covered (3 total)."
      },
      {
       "name": "FAA registration + Remote ID decision",
       "status": "must-add",
       "role": "$5/aircraft registration (the target is >250 g), number displayed on the airframe; fly at a FRIA field ($0) or fit a broadcast module. A legal blocker, not a data blocker.",
-      "notes": "Builder 2026-07-20: registration good to go. STILL OPEN: the field choice — FRIA field ($0) vs a broadcast Remote-ID module; decide before the first outdoor flight."
+      "notes": "Registration good to go (builder). STILL OPEN: FRIA field ($0) vs a broadcast Remote-ID module — decide before the first outdoor flight."
      }
     ],
     "connections": [
@@ -1615,12 +2021,17 @@
     ],
     "steps": [
      {
+      "id": "gnd-00",
+      "text": "As each box arrives, run scripts/field/bringup.sh — one PASS/FAIL check per device (camera live, AprilTag desk decode, FC bench, log pull, Pi link). Runbook: docs/field_bringup.md ('the parts arrived — now what?').",
+      "why": "The whole bring-up phase has a scripted entry point — don't improvise device checks by hand."
+     },
+     {
       "id": "gnd-01",
-      "text": "Order the must-add BUILD layer (solder/XT60/heatshrink, smoke stopper, LiPo safety, tools, Kakute microSD, 18650s, buzzer, USB-C data cable, UART jumpers) — ~$120-180; fund it by re-sourcing the Pi + SD (~$120 back)."
+      "text": "Order the STILL-NEEDED build/safety items: fireproof charge bag, safety glasses (ANSI Z87), fire blanket, Kakute microSD, lost-model buzzer, Pi 5 active cooler."
      },
      {
       "id": "gnd-02",
-      "text": "Order/print the FIELD layer: +2 CNHL packs, active cooler, PD power bank, tripod + ball head + inclinometer, cones + tape measure; print the checkerboard; hold the placard print for P0.2 sizing."
+      "text": "Order/print the FIELD layer: >=27 W USB-C PD power bank, tripod + ball head + inclinometer, cones + tape measure; print the checkerboard + placard from hardware/prints/ and the placard mount from scripts/print_artifacts/ (render_stls.sh)."
      },
      {
       "id": "gnd-03",
@@ -1642,7 +2053,7 @@
      },
      {
       "id": "gnd-07",
-      "text": "Plan the tripod day from docs/tripod_test_protocol.md: range stations 8-30 m, the ~28-pass capture matrix (sky cells first), session-log sheets printed, a sync event per pass."
+      "text": "Plan the tripod day from docs/tripod_test_protocol.md: GENERATE the pass-matrix mission with configs/target_kakute/gen_tripod_mission.py (it enforces protocol geometry); range stations 8-30 m, ~28 passes (sky cells first), session-log sheets printed. THREE data requirements the tools cannot recover after the fact: (1) tape-survey the tripod position, (2) record the placard mount index-disc angle, (3) fire a sync event EVERY pass — miss one and the session is unscorable."
      },
      {
       "id": "gnd-08",
@@ -1659,13 +2070,15 @@
      "name": "Bench prep & safety",
      "goal": "Must-add layers ordered + staged, charger/TX proven, legal path settled — nothing downstream starts without this.",
      "refs": [
+      "gnd-00",
       "gnd-01",
       "gnd-02",
       "gnd-03",
       "gnd-04",
       "gnd-05",
       "gnd-06"
-     ]
+     ],
+     "kit": "READY: scripts/field/bringup.sh (run as each box arrives) · hardware/prints/*.pdf (print-ready, dimension-verified)"
     },
     {
      "code": "B1",
@@ -1680,7 +2093,8 @@
       "tgt-06",
       "tgt-07",
       "tgt-08"
-     ]
+     ],
+     "kit": "READY: configs/target_kakute/ (target.param + gen_tripod_mission.py, selftest green) · placard mount: scripts/print_artifacts/ + docs/placard_mount.md"
     },
     {
      "code": "B2",
@@ -1695,7 +2109,8 @@
       "skr-06",
       "skr-07",
       "skr-08"
-     ]
+     ],
+     "kit": "READY: scripts/pi_setup/provision.sh · scripts/seeker/pi_capture.py · scripts/calibrate_camera.py · scripts/field/01+02 checks"
     },
     {
      "code": "B3",
@@ -1708,7 +2123,8 @@
       "brn-04",
       "brn-05",
       "brn-06"
-     ]
+     ],
+     "kit": "READY: configs/px4_6cmini/bench.params · scripts/check_deploy_bench.sh (the brn-05 gate) · flight/deploy/seeker_loop.py — PLUS the 'numbers still guessed' bench checklist below"
     },
     {
      "code": "B4",
@@ -1720,17 +2136,125 @@
       "skr-06",
       "skr-08",
       "gnd-07",
-      "gnd-08"
-     ]
+      "gnd-08",
+      "skr-09"
+     ],
+     "kit": "READY (the full field-day chain): gen_tripod_mission.py -> pi_capture.py -> 04_pull_logs.sh -> range_truth_join.py -> placard_incidence.py -> tripod_score.py · script of the day: docs/tripod_test_protocol.md"
     }
    ],
-   "gate": "P2 MONEY GATE (end of this sheet): curve (a), the AprilTag decode envelope, must leave t_go >= 0.5 s post-handoff at the 9 m/s closing scenario — that unlocks the ~$740 Tier-2 interceptor order. Curve (b), NN approach recall, gates ONLY the deferred Hailo HAT + the markerless phase, never the interceptor. FAIL(a) = bigger placard / camera upgrade; FAIL(b) = real-data retrain. Neither spends interceptor money."
+   "gate": "P2 MONEY GATE (end of this sheet): curve (a), the AprilTag decode envelope, must leave t_go >= 0.5 s post-handoff at the 9 m/s closing scenario — that unlocks the ~$740 Tier-2 interceptor order. Curve (b), NN approach recall, gates ONLY the deferred Hailo HAT + the markerless phase, never the interceptor. FAIL(a) = bigger placard / camera upgrade; FAIL(b) = real-data retrain (already scripted: scripts/seeker/autolabel_from_apriltag.py). Neither spends interceptor money. Both curves are scored by scripts/seeker/tripod_score.py."
   },
   "evidence": [
-   "docs/hardware_order_list.md §0d (ordered cart 2026-07-20) / §3 / §4 / §E",
-   "docs/tripod_test_protocol.md",
+   "docs/hardware_order_list.md (order history lives THERE, not on this sheet)",
+   "docs/tripod_test_protocol.md · docs/field_bringup.md",
+   "flight/deploy/real_flight.py MissionConfig (the 24 TODO-BUILDER constants)",
    "bom_tiers[0] + build_plan P0-P2 (this file)"
-  ]
+  ],
+  "software_kit": {
+   "summary": "Already BUILT and VERIFIED in the repo — the invisible half of the build. Do not redo any of this by hand; each row says what it does and how we know it works.",
+   "rows": [
+    {
+     "asset": "scripts/field/bringup.sh",
+     "does": "One PASS/FAIL check per device as boxes arrive",
+     "verified": "selftest PASS (scripts/field/selftest.sh) · runbook docs/field_bringup.md"
+    },
+    {
+     "asset": "scripts/pi_setup/provision.sh",
+     "does": "One-shot Pi 5 capture-stack install (+ capture.service)",
+     "verified": "selftest PASS (scripts/pi_setup/selftest.sh)"
+    },
+    {
+     "asset": "configs/target_kakute/",
+     "does": "Target params (44, linted) + protocol-conformant mission generator",
+     "verified": "selftest PASS (lint + gen_tripod_mission --self-test)"
+    },
+    {
+     "asset": "configs/px4_6cmini/",
+     "does": "PX4 bench params + the props-off OFFBOARD gate",
+     "verified": "README ties to brn-05 · scripts/check_deploy_bench.sh"
+    },
+    {
+     "asset": "scripts/seeker/pi_capture.py",
+     "does": "Field session recorder (timestamped frames + meta)",
+     "verified": "pytest crash-safe contract + dir-replay self-test"
+    },
+    {
+     "asset": "scripts/seeker/range_truth_join.py",
+     "does": "Joins TRUE range (+ incidence) into a session — no join, no curves",
+     "verified": "pytest (range-truth integrity + pipeline-join contract)"
+    },
+    {
+     "asset": "scripts/seeker/placard_incidence.py",
+     "does": "Per-frame viewing angle from attitude + surveyed tripod + mount angle",
+     "verified": "protocol §4.2b input · pytest"
+    },
+    {
+     "asset": "scripts/seeker/tripod_score.py",
+     "does": "Scores BOTH money-gate curves from a joined session",
+     "verified": "pytest (tests/test_tripod_pipeline_join.py)"
+    },
+    {
+     "asset": "scripts/seeker/autolabel_from_apriltag.py",
+     "does": "AprilTag-supervised auto-labels — the scripted FAIL(b) retrain path",
+     "verified": "CI selftest"
+    },
+    {
+     "asset": "scripts/field/04_pull_logs.sh + parse_flight_log.py",
+     "does": "Pull + parse the onboard decision logs after a session",
+     "verified": "parse_flight_log --self-test in CI"
+    },
+    {
+     "asset": "hardware/prints/",
+     "does": "Print-ready placard + checkerboard PDFs (tag edge 350.0 mm)",
+     "verified": "dimension-verified (placard_verification.json, err 0.0 um)"
+    },
+    {
+     "asset": "scripts/print_artifacts/ (.scad + render_stls.sh)",
+     "does": "Printable placard mount, shoe, spar cap + index disc",
+     "verified": "check_scad.py · design doc docs/placard_mount.md"
+    }
+   ]
+  },
+  "guessed_numbers": {
+   "summary": "LOOPHOLE-KILLER: flight/deploy/real_flight.py — the program that will fly the real intercept — runs on 24 TODO-BUILDER constants that are GUESSES or sim-derived numbers, including EVERY failsafe limit. The flight software is NOT done until each group below is bench-measured; each row names the bench step that produces the real number.",
+   "rows": [
+    {
+     "group": "Standby & dash",
+     "constants": "standby altitude 7.0 m · dash speed 16 m/s · dash accel 10 m/s²",
+     "bench": "first real dash/hover ULogs replace them (launch plan L9/L10)"
+    },
+    {
+     "group": "Terminal & breakoff",
+     "constants": "breakoff_min_rise 0.30 m (derived from the SIM camera fx=540, not the OV9281) · engage / lost-target windows",
+     "bench": "L4 intrinsics + L5 measured box-width noise re-derive them"
+    },
+    {
+     "group": "Safety / failsafe (ALL TODO-BUILDER)",
+     "constants": "offboard-loss timeouts + abort behavior — 0.5 s of offboard loss ≈ 8 m unflown at dash speed",
+     "bench": "L3/L6 bench on the real Pi->TELEM2 link"
+    },
+    {
+     "group": "RC GO-switch channel",
+     "constants": "RC_CHANNELS index of the GO switch",
+     "bench": "L6 bench with the Pocket M2"
+    },
+    {
+     "group": "Geofence",
+     "constants": "fence radius / height sizing",
+     "bench": "size from the legal field chosen at gnd-05"
+    },
+    {
+     "group": "Camera intrinsics",
+     "constants": "sim fx/fy placeholders",
+     "bench": "skr-06 checkerboard calibration (L4)"
+    },
+    {
+     "group": "Pi->TELEM2 link timing",
+     "constants": "control loop rate · max sample age",
+     "bench": "L3 — the driver prints max observed sample age every run"
+    }
+   ]
+  }
  },
  "decisions": [
   {
@@ -2780,13 +3304,13 @@
    "id": "launch-aim-derived-from-ground-truth",
    "verdict": "CONFIRMED",
    "severity": "high",
-   "status": "open",
+   "status": "resolved",
    "topic": "The launch AIM is computed from the target's EXACTLY KNOWN track, while aim is the dominant lever and the camera adds ~nothing at correct aim — so the demo risks reducing to a ballistic solution of a fully-specified problem (builder challenge, 2026-07-25)",
    "claim_a": "Honesty is enforced: constraint honesty-boundary ('gt_* is scoring/logging ONLY; guidance sees camera + own-state EKF only') + no-datalink. The launch aim stack is declared honesty-CLEAN because its constants are latched at-or-before the trigger: 'The AUTO leg is programmed by us, so target start/velocity are known inputs, not a live sensor read (identical status to the sim's --target-start/--target-vel).'",
    "loc_a": "docs/launch_mechanism_plan.md §2 (C1/C2 table + 'honesty-clean launch-time AIM stack'); project_state.json constraints no-datalink + honesty-boundary",
    "claim_b": "The honesty boundary polices only MID-FLIGHT reads; it has NO rule on the quality of the PRE-FLIGHT cue. C1-fallback and C2 are derived from the true target start/velocity, i.e. a cue with ZERO error — the one thing a real ground cue never has. Combined with two measured results this is load-bearing: (1) AIM is the dominant lever (correct aim alone: 1.37 -> 0.75 m, ADR-0080/0083, floor 0.71/0.43 m); (2) the 2026-07-25 re-fly showed the camera terminal does NOT beat a well-aimed open-loop dash (3/8, 1/8, 4/8 vs its dash-only twins at 0/5/15 deg aim error). If a perfect cue supplies the dominant lever and the seeker adds ~nothing on top, the seeker is decoration and the headline collapses to 'a ballistic solution to a known trajectory'.",
    "loc_b": "docs/flight_plan_candidates.md RESULTS 2026-07-25 (re-fly table); ADR-0080/0083; project_state.json stage 'terminal' note",
-   "current_truth": "UNRESOLVED — raised by the builder 2026-07-25, logged same turn, resolution is his call. The split: (a) DEFENSIBLE — an external cue is ARCHITECTURAL, not cheating (GOALS.md: 'cheap, sensor-agnostic interceptors CUED BY SMARTER SENSORS'), and the no-datalink property (nothing steers the interceptor mid-course but its own camera) is real and audit-enforced; the trigger-instant CAMERA BEARING LATCH is a genuine onboard measurement and is already C1-PRIMARY. (b) NOT DEFENSIBLE — a cue with zero error. The target's VELOCITY (for the lead solve) is currently ground truth by construction. CANDIDATE RESOLUTIONS, none adopted: (1) report performance over a realistic CUE-ERROR DISTRIBUTION instead of headlining the perfect-aim number (the AE5/AE15 aim-error arms are already this experiment, and the project ALREADY had cue-error machinery — modeled sigma/latency tiers — that the coded-dash pivot dropped as sim-only); (2) estimate the target's cross-track velocity ONBOARD pre-launch (two camera bearings over a short static observation window + the box-size range => bearing rate => velocity) so the lead is measured, not typed; (3) accept the operator-entered ROUGH cue (speed/heading to the nearest ~10-20%) as the honest ground-cue analogue and budget its error explicitly in §3. Whichever is chosen, the perfect-aim 0.71 m must be reported as a BEST-CASE UPPER BOUND, not the headline claim."
+   "current_truth": "RESOLVED BY BUILDER RULING 2026-07-26: declared an explicit PROJECT CONSTRAINT (option 1 of the three recorded). The interceptor is CUED and the deliverable is the interface spec -- performance vs cue error -- not a cueing sensor. Hardware: GPS-derived cue LATCHED AT TRIGGER, link then DEAD; error injected to measure tolerance. The no-datalink constraint is preserved precisely because the cue does not survive launch. Standing consequence: zero-cue-error results are BEST-CASE UPPER BOUNDS, never the claim. Follow-on work (the cue-error sweep) is tracked, not open as a question."
   }
  ]
 }

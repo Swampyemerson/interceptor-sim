@@ -1133,3 +1133,30 @@ verdict only, never to the per-direction reading. **Consider that sentence withd
 problem — every terminal/perception lever has NULLed (bearing bias, LOS lag, subpixel, PIP, APN,
 Kalata) while aim is the one channel that has ever moved, twice, significantly. Next action is
 therefore the **aim-trim sweep at the 10 mph rung**, not the aim-ERROR sweep extension.
+
+## PRE-REGISTRATION — the AIM-TRIM sweep at the 10 mph rung (builder-directed, 2026-07-26)
+
+Written BEFORE flying. Builder: *"i'm sure the aim trim is part of that, so get on that."* The
+10 mph rung was flown WITHOUT `--dash-aim-trim-deg` and its misses are bias-dominated
+(0.600 … 0.952, σ ≈ 0.12 m about a ~0.4 m offset), so a trim is the indicated lever.
+
+**Design.** Dash-only (`--coded-dash-acquire-range-min 999`) — deliberately, because dash-only arms
+fire ZERO past-CPA breakoffs (measured 0/8), so this sweep is UNAFFECTED by that open defect and
+needs no other change. Trim bracket **−5 / 0 / +5 / +10 deg**, n=8 both directions, seed 123, same
+canonical 10 mph geometry (`y0_mag 7.62`, `x0 6.5`, accel-aware lead). Winner replicates on 777.
+
+**Pre-registered predictions:**
+1. **+5 is not automatically right here.** ADR-0083's +5 was calibrated at 9 m/s; the crossing
+   geometry differs at 4.47 m/s, so the optimum may shift. (This is the project's own
+   "a threshold validated at one operating point is not validated at another" rule.)
+2. **The optimum lands median ≤ 0.45 m** (from 0.730 untrimmed, removing a ~0.4 m bias against
+   σ ≈ 0.12 m).
+3. **DECISIVE: Pk@0.35 m ≥ 3/8 at the optimum.** That would convert "no measured successes at
+   10 mph" into a measured rate at the ram criterion, on the ballistic path that transfers to
+   hardware with no perception involved.
+
+**What a NULL means (stated in advance):** if no trim gets the median below ~0.6 m, the residual is
+DISPERSION not bias — and then 0.35 m is genuinely out of reach for this airframe at this speed,
+which makes the airframe-size / success-criterion question a real builder decision rather than a
+hypothetical. **The camera stays the headline either way (builder ruling 2026-07-26); a null here
+means the miss budget must be closed somewhere other than open-loop aim.**

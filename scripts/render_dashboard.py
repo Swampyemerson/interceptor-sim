@@ -47,6 +47,42 @@ gone-file case (a deleted snapshot must not keep rendering as current data).
                    calls) + program (headline/summary/phases[] of code/name/status/tone/
                    what/test — the 4-phase A→D roadmap) + levers (headline/rows[] of
                    lever/category/what/test + note).
+Schema v3 (2026-07-26 tracker redesign — the builder's readability complaints ARE the
+spec; all validated here, HARD caps fail, never warn):
+  now            — REPLACES `headline` (final headline text archived verbatim in
+                   docs/state_archive/headline_final_2026-07-25.md): {as_of, where<=300,
+                   finding<=300, next[] (1-2 items, <=100 each), evidence}. Updates are
+                   OVERWRITES: any now.* string carrying a dated "[20..]" bracket insert
+                   FAILS ("dated inserts go to plain_log") — the anti-accretion rule.
+  assumptions    — THE CENTREPIECE: the register of what the system is GIVEN FOR FREE.
+                   [] of {id, statement<=200, grade measured|given-noisy|given-perfect|
+                   unmeasured, if_wrong<=200, stages[] (existing stage ids), key_numbers[]
+                   (existing key_number labels), test{how,cost,status}, state unchecked|
+                   planned|verified|violated|accepted, ruling (required once verified/
+                   violated/accepted), origin, evidence}. A given-perfect/unmeasured +
+                   unchecked row with stages or key_numbers is RED and renders unfoldable.
+  builder_queue  — [] of {id, question, options[] (2-3), rec, blocked, doc}; §2 "WAITING
+                   ON EMERSON" is the renderer-computed union of this + open
+                   contradictions + red assumptions lacking a ruling.
+  plain_log      — [] of {date, text, so_what, evidence}, newest first, MAX 12 (fails at
+                   13; overflow moves to docs/state_archive/plain_log.md).
+  per stage      — caption<=90 (plain-English strip caption) + consumes[] (assumption ids
+                   the stage silently relies on) or none_because; REQUIRED on any
+                   implemented/half-done stage. The old note/changelog essays SURVIVE,
+                   demoted behind a click (Archive tab).
+  key_numbers    — gain REQUIRED plain<=120 (what the number means, in plain English) and
+                   trust sim|bench|field (sim renders muted).
+  narrative      — SHRINKS to {as_of, program, rulings}; the retired lede/reframe/
+                   big_lever/caveat/levers prose is preserved verbatim in
+                   docs/state_archive/narrative_2026-07-21.md.
+  build_tab      — gains software_kit {summary, rows[] of asset/does/verified} (the
+                   already-built-and-verified repo kit) and guessed_numbers {summary,
+                   rows[] of group/constants/bench} (real_flight.py's TODO-BUILDER
+                   bench-measurement checklist); ladder rungs gain an optional `kit`
+                   line naming the ready repo assets per rung. Step ids stay UNIQUE
+                   (localStorage contract) and >=1 step carries gate=true.
+  top level      — `headline` REMOVED; updated_by capped <=120; UNKNOWN top-level keys
+                   are rejected (a schema change must stop the render).
 
 The renderer also stamps the live git short-sha into the title block between
 REV:BEGIN/END markers (--check ignores the REV stamp; only the state block is compared).
@@ -73,33 +109,49 @@ B_END = "<!-- BOARD_SNAPSHOT_JSON:END -->"
 REV_RE = re.compile(r"(<!-- REV:BEGIN -->)(.*?)(<!-- REV:END -->)", re.S)
 
 STATUSES = {"implemented", "half-done", "idea", "rejected", "superseded"}
+TOP_KEYS = {"schema_version", "artifact_url", "project", "updated", "updated_by", "goal",
+            "now", "assumptions", "builder_queue", "plain_log", "narrative", "architecture",
+            "build_plan", "stages", "edges", "constraints", "graveyard", "key_numbers",
+            "bom_tiers", "build_tab", "decisions", "contradictions"}
+NOW_KEYS = {"as_of", "where", "finding", "next", "evidence"}
+ASSUMPTION_KEYS = {"id", "statement", "grade", "if_wrong", "stages", "key_numbers",
+                   "test", "state", "ruling", "origin", "evidence"}
+ASSUMPTION_GRADES = {"measured", "given-noisy", "given-perfect", "unmeasured"}
+ASSUMPTION_STATES = {"unchecked", "planned", "verified", "violated", "accepted"}
+ASSUMPTION_TEST_KEYS = {"how", "cost", "status"}
+BQ_KEYS = {"id", "question", "options", "rec", "blocked", "doc"}
+PLAIN_LOG_KEYS = {"date", "text", "so_what", "evidence"}
+PLAIN_LOG_MAX = 12
 STAGE_KEYS = {"id", "name", "pos", "status", "active", "note", "evidence", "changelog"}
+STAGE_OPT_KEYS = {"caption", "consumes", "none_because"}
 OPTION_STATUSES = {"chosen", "rejected", "deferred", "superseded"}
 OPTION_KEYS = {"name", "summary", "why_choose", "pros", "cons", "status"}
 DECISION_KEYS = {"stage_id", "question", "options", "chosen_rationale", "evidence"}
 SEVERITIES = {"high", "medium", "low"}
 FLAG_STATUSES = {"open", "resolved"}
 CONTRA_KEYS = {"id", "topic", "severity", "status", "claim_a", "loc_a", "claim_b", "loc_b", "current_truth"}
-KEYNUM_KEYS = {"label", "value", "provenance"}
+KEYNUM_KEYS = {"label", "value", "provenance", "plain", "trust"}
+KEYNUM_TRUST = {"sim", "bench", "field"}
 ARCH_KEYS = {"summary", "steps", "evidence"}
 ARCH_STEP_KEYS = {"code", "name", "role"}
 BOM_TIER_KEYS = {"tier", "name", "purpose", "total", "items"}
 BOM_ITEM_KEYS = {"item", "qty", "price", "why"}
 BUILD_PLAN_KEYS = {"summary", "phases", "evidence"}
 BP_PHASE_KEYS = {"code", "name", "cost", "tasks"}
-BUILD_TAB_KEYS = {"scope", "subsystems", "ladder", "evidence"}
+BUILD_TAB_KEYS = {"scope", "subsystems", "ladder", "evidence", "software_kit", "guessed_numbers"}
+BT_SK_ROW_KEYS = {"asset", "does", "verified"}
+BT_GN_ROW_KEYS = {"group", "constants", "bench"}
 BT_SUB_KEYS = {"id", "name", "role", "parts", "connections", "steps"}
 BT_PART_KEYS = {"name", "status", "role"}
 BT_PART_STATUSES = {"ordered", "must-add", "print", "in hand", "built"}
 BT_CONN_KEYS = {"from", "to", "medium"}
 BT_STEP_KEYS = {"id", "text"}
 BT_LADDER_KEYS = {"summary", "rungs", "gate"}
-BT_RUNG_KEYS = {"code", "name", "goal", "refs"}
-NARR_KEYS = {"lede", "reframe", "big_lever", "caveat", "rulings", "program", "levers"}
-NARR_STAT_KEYS = {"label", "value", "provenance"}
+BT_RUNG_KEYS = {"code", "name", "goal", "refs"}   # + optional "kit" (the ready repo assets line)
+NARR_KEYS = {"as_of", "program", "rulings"}
 NARR_PHASE_KEYS = {"code", "name", "status", "tone", "what", "test"}
 NARR_RULING_KEYS = {"date", "text", "evidence"}
-NARR_LEVER_KEYS = {"lever", "category", "what", "test"}
+DATE_RE = r"\d{4}-\d{2}-\d{2}"
 
 
 def fail(msg: str) -> None:
@@ -107,33 +159,125 @@ def fail(msg: str) -> None:
     sys.exit(1)
 
 
+def _cap(path: str, s, n: int) -> None:
+    """Hard char cap — FAIL, never warn (the anti-regrowth rule; schema v3)."""
+    if not isinstance(s, str) or not s.strip():
+        fail(f"{path} must be a non-empty string")
+    if len(s) > n:
+        fail(f"{path} is {len(s)} chars — hard cap {n} (schema v3: plain and short; "
+             f"detail belongs in docs/ or the Archive tab, not here)")
+
+
 def validate(state: dict) -> None:
-    for key in ("schema_version", "updated", "goal", "headline", "narrative", "architecture",
-                "build_plan", "stages", "edges", "constraints", "graveyard", "key_numbers",
-                "bom_tiers", "build_tab", "decisions", "contradictions", "artifact_url"):
-        if key not in state:
-            fail(f"missing top-level key: {key}")
-    narr = state["narrative"]
-    missing = NARR_KEYS - set(narr)
+    missing = TOP_KEYS - set(state)
     if missing:
-        fail(f"narrative missing keys: {sorted(missing)}")
-    for blk in ("reframe", "big_lever", "caveat"):
-        for k in ("headline", "text", "evidence"):
-            if not narr[blk].get(k):
-                fail(f"narrative.{blk} needs a non-empty {k!r}")
-    if not narr["reframe"].get("stats"):
-        fail("narrative.reframe has no stats tiles")
-    for s in narr["reframe"]["stats"]:
-        missing = NARR_STAT_KEYS - set(s)
-        if missing:
-            fail(f"narrative stat {s.get('label', '?')!r} missing keys: {sorted(missing)} (numbers trace to a run)")
-    meter = narr["caveat"].get("meter") or {}
-    if not ({"unit", "max", "reference", "bars", "provenance"} <= set(meter)):
-        fail("narrative.caveat.meter needs unit/max/reference/bars/provenance")
-    if not ({"value", "label"} <= set(meter["reference"])):
-        fail("narrative.caveat.meter.reference needs value+label")
-    if not meter["bars"] or not all({"label", "value"} <= set(b) for b in meter["bars"]):
-        fail("narrative.caveat.meter.bars need label+value each")
+        fail(f"missing top-level key(s): {sorted(missing)}")
+    unknown = set(state) - TOP_KEYS
+    if unknown:
+        fail(f"unknown top-level key(s): {sorted(unknown)} — a schema change must update "
+             f"validate() in the same edit (and 'headline' is retired: the NOW bar replaced "
+             f"it; its final text lives in docs/state_archive/headline_final_2026-07-25.md)")
+    _cap("updated_by", state["updated_by"], 120)
+    # Reference sets used by the new v3 blocks (detailed per-item checks come later).
+    stage_id_set = {st.get("id") for st in state["stages"]}
+    keynum_labels = {kn.get("label") for kn in state["key_numbers"]}
+
+    # ---- now (the §0 NOW bar; replaces headline) -------------------------------
+    now = state["now"]
+    if set(now) != NOW_KEYS:
+        fail(f"now keys {sorted(set(now))} != {sorted(NOW_KEYS)}")
+    if not re.fullmatch(DATE_RE, str(now["as_of"])):
+        fail(f"now.as_of must be YYYY-MM-DD, got {now['as_of']!r}")
+    _cap("now.where", now["where"], 300)
+    _cap("now.finding", now["finding"], 300)
+    if not isinstance(now["next"], list) or not (1 <= len(now["next"]) <= 2):
+        fail("now.next must be a list of 1-2 items (the top of the stack, not a backlog)")
+    for i, item in enumerate(now["next"]):
+        _cap(f"now.next[{i}]", item, 100)
+    _cap("now.evidence", now["evidence"], 300)
+    for k, v in now.items():
+        for s in (v if isinstance(v, list) else [v]):
+            if isinstance(s, str) and "[20" in s:
+                fail(f"now.{k} carries a dated bracket insert ({s[s.find('[20'):s.find('[20') + 12]!r}...) — "
+                     f"dated inserts go to plain_log (now.* is an OVERWRITE, never an accretion)")
+
+    # ---- assumptions (the GIVEN-FOR-FREE register — the centrepiece) -----------
+    if not state["assumptions"]:
+        fail("assumptions register is empty — the loophole-test layer must exist "
+             "(what does the system get for free, and what breaks if that's wrong?)")
+    a_ids = []
+    for a in state["assumptions"]:
+        aid = a.get("id", "?")
+        if set(a) != ASSUMPTION_KEYS:
+            fail(f"assumption {aid!r} keys {sorted(set(a))} != {sorted(ASSUMPTION_KEYS)}")
+        a_ids.append(a["id"])
+        _cap(f"assumption {aid!r} statement", a["statement"], 200)
+        _cap(f"assumption {aid!r} if_wrong", a["if_wrong"], 200)
+        if a["grade"] not in ASSUMPTION_GRADES:
+            fail(f"assumption {aid!r} grade {a['grade']!r}; allowed: {sorted(ASSUMPTION_GRADES)}")
+        if a["state"] not in ASSUMPTION_STATES:
+            fail(f"assumption {aid!r} state {a['state']!r}; allowed: {sorted(ASSUMPTION_STATES)}")
+        for sid in a["stages"]:
+            if sid not in stage_id_set:
+                fail(f"assumption {aid!r} lists unknown stage {sid!r}")
+        for lbl in a["key_numbers"]:
+            if lbl not in keynum_labels:
+                fail(f"assumption {aid!r} lists unknown key_number label {lbl!r}")
+        if not isinstance(a["test"], dict) or set(a["test"]) != ASSUMPTION_TEST_KEYS:
+            fail(f"assumption {aid!r} test must have exactly {sorted(ASSUMPTION_TEST_KEYS)}")
+        if a["state"] in ("verified", "violated", "accepted") and not a["ruling"].strip():
+            fail(f"assumption {aid!r} is {a['state']} but has no ruling — a closed "
+                 f"assumption must say what was found")
+        if not a["origin"] or not a["evidence"]:
+            fail(f"assumption {aid!r} needs origin + evidence (where it hid, and the receipt)")
+    if len(a_ids) != len(set(a_ids)):
+        fail("duplicate assumption ids")
+    a_id_set = set(a_ids)
+
+    # ---- builder_queue (feeds §2 WAITING ON EMERSON) ---------------------------
+    bq_ids = []
+    for q in state["builder_queue"]:
+        qid = q.get("id", "?")
+        if set(q) != BQ_KEYS:
+            fail(f"builder_queue {qid!r} keys {sorted(set(q))} != {sorted(BQ_KEYS)}")
+        bq_ids.append(q["id"])
+        if not isinstance(q["options"], list) or not (2 <= len(q["options"]) <= 3):
+            fail(f"builder_queue {qid!r} needs 2-3 options (a QUESTION with choices, "
+                 f"not an essay and not a fait accompli)")
+        for k in ("question", "rec", "blocked", "doc"):
+            if not q[k]:
+                fail(f"builder_queue {qid!r} needs a non-empty {k!r}")
+    if len(bq_ids) != len(set(bq_ids)):
+        fail("duplicate builder_queue ids")
+
+    # ---- plain_log (§5 THIS WEEK; capped so it cannot re-grow a headline) ------
+    pl = state["plain_log"]
+    if not pl:
+        fail("plain_log is empty")
+    if len(pl) > PLAIN_LOG_MAX:
+        fail(f"plain_log has {len(pl)} entries — max {PLAIN_LOG_MAX}; overflow moves to "
+             f"docs/state_archive/plain_log.md (the log is a window, not an archive)")
+    prev = None
+    for e in pl:
+        if set(e) != PLAIN_LOG_KEYS:
+            fail(f"plain_log entry {e.get('date', '?')!r} keys {sorted(set(e))} != {sorted(PLAIN_LOG_KEYS)}")
+        if not re.fullmatch(DATE_RE, str(e["date"])):
+            fail(f"plain_log date {e['date']!r} must be YYYY-MM-DD")
+        for k in ("text", "so_what", "evidence"):
+            if not e[k]:
+                fail(f"plain_log entry {e['date']} needs a non-empty {k!r}")
+        if prev is not None and e["date"] > prev:
+            fail(f"plain_log must be newest-first ({e['date']} after {prev})")
+        prev = e["date"]
+
+    # ---- narrative (shrunk to as_of + program + rulings, schema v3) ------------
+    narr = state["narrative"]
+    if set(narr) != NARR_KEYS:
+        fail(f"narrative keys {sorted(set(narr))} != {sorted(NARR_KEYS)} — the retired "
+             f"lede/reframe/big_lever/caveat/levers prose lives verbatim in "
+             f"docs/state_archive/narrative_2026-07-21.md")
+    if not re.fullmatch(DATE_RE, str(narr["as_of"])):
+        fail(f"narrative.as_of must be YYYY-MM-DD, got {narr['as_of']!r}")
     if not narr["rulings"]:
         fail("narrative has no rulings")
     for r in narr["rulings"]:
@@ -148,14 +292,6 @@ def validate(state: dict) -> None:
         missing = NARR_PHASE_KEYS - set(p)
         if missing:
             fail(f"narrative program phase {p.get('code', '?')!r} missing keys: {sorted(missing)}")
-    lev = narr["levers"]
-    for k in ("headline", "rows", "evidence"):
-        if not lev.get(k):
-            fail(f"narrative.levers needs a non-empty {k!r}")
-    for row in lev["rows"]:
-        missing = NARR_LEVER_KEYS - set(row)
-        if missing:
-            fail(f"narrative lever {row.get('lever', '?')!r} missing keys: {sorted(missing)}")
     bt = state["build_tab"]
     missing = BUILD_TAB_KEYS - set(bt)
     if missing:
@@ -204,11 +340,31 @@ def validate(state: dict) -> None:
         missing = BT_RUNG_KEYS - set(r)
         if missing:
             fail(f"build_tab ladder rung {r.get('code', '?')!r} missing keys: {sorted(missing)}")
+        unknown = set(r) - BT_RUNG_KEYS - {"kit"}
+        if unknown:
+            fail(f"build_tab ladder rung {r.get('code', '?')!r} unknown keys: {sorted(unknown)}")
         if not r["refs"]:
             fail(f"build_tab ladder rung {r['code']!r} has no step refs")
         for ref in r["refs"]:
             if ref not in bt_sid_set:
                 fail(f"build_tab ladder rung {r['code']!r} references unknown step id {ref!r}")
+    # v3: the two re-weighting sections — the already-built kit and the still-guessed numbers.
+    sk = bt["software_kit"]
+    if set(sk) != {"summary", "rows"} or not sk["rows"]:
+        fail("build_tab.software_kit needs {summary, rows[]} with at least one row "
+             "(the already-built-and-verified repo kit must be VISIBLE on the sheet)")
+    for row in sk["rows"]:
+        if set(row) != BT_SK_ROW_KEYS or not all(row.values()):
+            fail(f"software_kit row {row.get('asset', '?')!r} needs non-empty "
+                 f"{sorted(BT_SK_ROW_KEYS)} (asset / what it does / how it's verified)")
+    gn = bt["guessed_numbers"]
+    if set(gn) != {"summary", "rows"} or not gn["rows"]:
+        fail("build_tab.guessed_numbers needs {summary, rows[]} with at least one row — "
+             "real_flight.py's TODO-BUILDER constants stay visible until bench-measured")
+    for row in gn["rows"]:
+        if set(row) != BT_GN_ROW_KEYS or not all(row.values()):
+            fail(f"guessed_numbers row {row.get('group', '?')!r} needs non-empty "
+                 f"{sorted(BT_GN_ROW_KEYS)} (group / the guessed constants / the bench step)")
     bp = state["build_plan"]
     missing = BUILD_PLAN_KEYS - set(bp)
     if missing:
@@ -250,12 +406,30 @@ def validate(state: dict) -> None:
         missing = STAGE_KEYS - set(st)
         if missing:
             fail(f"stage {st.get('id', '?')!r} missing keys: {sorted(missing)}")
+        unknown = set(st) - STAGE_KEYS - STAGE_OPT_KEYS
+        if unknown:
+            fail(f"stage {st.get('id', '?')!r} unknown keys: {sorted(unknown)}")
         if st["status"] not in STATUSES:
             fail(f"stage {st['id']!r} has status {st['status']!r}; allowed: {sorted(STATUSES)}")
         if not (isinstance(st["pos"], list) and len(st["pos"]) == 2 and all(isinstance(v, int) for v in st["pos"])):
             fail(f"stage {st['id']!r} pos must be [row, col] ints")
         if not st["evidence"]:
             fail(f"stage {st['id']!r} has no evidence pointer (numbers trace to a run or a derivation)")
+        if "caption" in st:
+            _cap(f"stage {st['id']!r} caption", st["caption"], 90)
+        if st["status"] in ("implemented", "half-done"):
+            # v3: a built stage must say, in plain English, what it is and what it eats.
+            if not st.get("caption"):
+                fail(f"stage {st['id']!r} is {st['status']} but has no caption "
+                     f"(<=90 chars, plain English — the chain strip a phone reader sees)")
+            if not st.get("consumes") and not st.get("none_because"):
+                fail(f"stage {st['id']!r} is {st['status']} but declares neither consumes[] "
+                     f"(the assumption ids it silently relies on) nor none_because — "
+                     f"undeclared assumptions are how the launch-aim loophole hid")
+        for aid in st.get("consumes", []):
+            if aid not in a_id_set:
+                fail(f"stage {st['id']!r} consumes unknown assumption {aid!r} — "
+                     f"register it in assumptions[] first")
         ids.append(st["id"])
     if len(ids) != len(set(ids)):
         fail("duplicate stage ids")
@@ -275,7 +449,15 @@ def validate(state: dict) -> None:
     for kn in state["key_numbers"]:
         missing = KEYNUM_KEYS - set(kn)
         if missing:
-            fail(f"key_number {kn.get('label', '?')!r} missing keys: {sorted(missing)} (numbers trace to a run)")
+            fail(f"key_number {kn.get('label', '?')!r} missing keys: {sorted(missing)} "
+                 f"(numbers trace to a run; v3 adds plain + trust)")
+        unknown = set(kn) - KEYNUM_KEYS - {"note"}   # note = optional fine print
+        if unknown:
+            fail(f"key_number {kn.get('label', '?')!r} unknown keys: {sorted(unknown)}")
+        _cap(f"key_number {kn['label']!r} plain", kn["plain"], 120)
+        if kn["trust"] not in KEYNUM_TRUST:
+            fail(f"key_number {kn['label']!r} trust {kn['trust']!r}; allowed: "
+                 f"{sorted(KEYNUM_TRUST)} (sim renders muted — a sim number is not a field fact)")
     for d in state["decisions"]:
         missing = DECISION_KEYS - set(d)
         if missing:

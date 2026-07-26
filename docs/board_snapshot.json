@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "fetched_at": "2026-07-26T00:10:48Z",
+ "fetched_at": "2026-07-26T01:21:32Z",
  "source": {
   "kind": "project",
   "project_number": 1,
@@ -17,9 +17,9 @@
  "counts": {
   "items": 7,
   "by_column": {
-   "Todo": 7,
+   "Todo": 6,
    "In Progress": 0,
-   "Done": 0
+   "Done": 1
   }
  },
  "warnings": [
@@ -30,9 +30,9 @@
    "id": "PVTI_lAHOBKnXT84BedNAzg0Fz30",
    "number": 1,
    "title": "DECISION: how should the launch aim get its target track?",
-   "column": "Todo",
+   "column": "Done",
    "column_source": "project-field:Status",
-   "state": "OPEN",
+   "state": "CLOSED",
    "labels": [
     "builder-decision",
     "assumption-audit",
@@ -40,7 +40,7 @@
    ],
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/1",
-   "updated_at": "2026-07-26T00:10:07Z",
+   "updated_at": "2026-07-26T01:21:06Z",
    "type": "Issue",
    "fields": {}
   },
@@ -74,7 +74,7 @@
    ],
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/3",
-   "updated_at": "2026-07-26T00:10:13Z",
+   "updated_at": "2026-07-26T01:21:07Z",
    "type": "Issue",
    "fields": {}
   },
