@@ -582,6 +582,28 @@ def _boot_id():
         return None
 
 
+def bounded_decode_source(dec_raw, fps_med):
+    """The `decode_loop_fps_source` string for a CLAMPED decode rate.
+
+    PUBLIC because it is half of a producer->consumer contract: tripod_score's
+    resolve_stream_fps refuses any decode_loop_fps whose source string does not
+    evidence this clamp (it prefers the field as the money gate's 1/fps divisor,
+    and an unbounded throughput there shrinks R_streak_burn toward GO). Exposing
+    the builder lets the contract test drive BOTH sides off this one function
+    instead of a hand-typed fixture -- the failure mode that let a producer and
+    consumer drift while each passed its own self-test.
+
+    Keep the literal 'BOUNDED' in the text: tripod_score.BOUNDED_MARK matches it.
+    """
+    return (
+        "measured+BOUNDED: min(decode throughput 1/median decode "
+        f"wall-time [{dec_raw} fps, PNG WRITE EXCLUDED], delivered frame "
+        f"cadence [{fps_med} fps]). The decode throughput ALONE is an "
+        "UPPER BOUND, never a cadence -- frames cannot be decoded faster "
+        "than they arrive. Still this rig's CPU/camera, not the flying "
+        "Pi 5 -- protocol §7.3")
+
+
 def _git_rev():
     try:
         return subprocess.check_output(
@@ -692,13 +714,7 @@ def record_session(frames_iter, out_dir, source, backend_detail, w, h,
                 "timestamps are synthetic, so nothing bounds it)")
         elif fps_med:
             dec_fps = min(dec_raw, fps_med)
-            dec_src = (
-                "measured+BOUNDED: min(decode throughput 1/median decode "
-                f"wall-time [{dec_raw} fps, PNG WRITE EXCLUDED], delivered frame "
-                f"cadence [{fps_med} fps]). The decode throughput ALONE is an "
-                "UPPER BOUND, never a cadence -- frames cannot be decoded faster "
-                "than they arrive. Still this rig's CPU/camera, not the flying "
-                "Pi 5 -- protocol §7.3")
+            dec_src = bounded_decode_source(dec_raw, fps_med)
         else:
             # FAIL CLOSED: an unbounded upper bound must not reach the gate.
             dec_fps, dec_src = None, (

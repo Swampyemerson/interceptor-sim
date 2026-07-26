@@ -160,6 +160,10 @@ PI5_APRILTAG_FPS_PAPER_ANCHOR = 30.0
 # the source WHITELIST below -- it catches a replay-flavoured rate even inside an
 # otherwise-sanctioned session.
 FPS_SOURCE_REJECT_MARK = "replay"
+# The mark pi_capture.py stamps into `decode_loop_fps_source` once it has clamped
+# the decode throughput by the delivered frame cadence (commit 1b89340). Its
+# ABSENCE means the number is an unbounded upper bound — see resolve_stream_fps.
+BOUNDED_MARK = "bounded"
 # CAPTURE-SOURCE WHITELIST for the gate's fps divisor (BUILDER RULING 2026-07-25:
 # "may a --local/v4l2 desk rehearsal ever supply the gate's fps?" -> NO).
 #
@@ -1799,9 +1803,43 @@ def resolve_stream_fps(args, meta):
             f"it and pass --stream-fps.")
     dec_fps = _pf(meta.get("decode_loop_fps"))
     if dec_fps is not None and dec_fps > 0:
+        # THE PRODUCER MUST SHOW ITS WORK (2026-07-26). decode_loop_fps was an
+        # UNBOUNDED decode throughput until pi_capture.py started clamping it by
+        # the delivered frame cadence (commit 1b89340) -- an upper bound, not a
+        # cadence, and preferred right here as the gate's 1/fps divisor, so it
+        # shrinks R_streak_burn and pushes a ~$740 purchase toward GO.
+        #
+        # This is not hypothetical: the 2026-07-26 skr-05 bench session was
+        # captured on a Pi still checked out at 15b88b0 -- one commit before the
+        # clamp -- and published decode_loop_fps=89.5 on a rig whose camera was
+        # delivering 30.14 fps. Feeding that session here would have understated
+        # the burn ~3x. meta.json DID carry the git_rev that would have exposed
+        # it; nothing read it.
+        #
+        # Checking the commit graph would be the brittle fix (it needs a repo,
+        # and a rev says nothing about a hand-edited file). Instead require the
+        # EVIDENCE THAT THE CLAMP ACTUALLY RAN: pi_capture stamps the bounded
+        # figure's source with BOUNDED_MARK. Absent that mark the number is
+        # either pre-clamp or from an unknown producer, and it is REFUSED -- the
+        # gate then returns UNCERTAIN naming the missing measurement, which is
+        # the correct fail-closed outcome. Contract-tested in
+        # tests/test_decode_fps_bound_contract.py against pi_capture's OWN
+        # writer, because a hand-typed fixture is exactly what hid this class
+        # of break before.
+        dec_src = str(meta.get("decode_loop_fps_source") or "").strip()
+        if BOUNDED_MARK not in dec_src.lower():
+            return None, (
+                f"REFUSED meta.json decode_loop_fps={dec_fps}: its "
+                f"decode_loop_fps_source ({dec_src or 'absent'!r}) does not show "
+                f"the delivered-cadence clamp, so this is a decode THROUGHPUT -- "
+                f"an upper bound, not a cadence. Sessions captured before "
+                f"pi_capture commit 1b89340 (git_rev={meta.get('git_rev')!r}) "
+                f"published exactly this. Re-capture on current code, or pass "
+                f"--stream-fps from the §7.3 bench (scripts/seeker/pi_fps_soak.py).")
         return dec_fps, ("meta.json decode_loop_fps (grab+decode, PNG-write "
-                         "EXCLUDED -- the modelled quantity; still a TRIPOD-rig "
-                         "rate, not the flying Pi 5 at the flight quad_decimate)")
+                         "EXCLUDED -- the modelled quantity; BOUNDED by the "
+                         "delivered cadence; still a TRIPOD-rig rate, not the "
+                         "flying Pi 5 at the flight quad_decimate)")
     fps = _pf(meta.get("stream_fps"))
     src = str(meta.get("stream_fps_source") or "").strip()
     if fps is not None and fps > 0:
