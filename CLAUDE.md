@@ -128,8 +128,21 @@ don't spawn a subagent where doing the thing inline is cheaper.
    live with a refused test spawn. The ambiguous bare alias stays blocked even on updated
    binaries (explicit `claude-opus-5` passes). Not hook-coverable: the head-session safeguard
    auto-switch to 4.8 on flagged turns (product behavior, the sanctioned fallback — `/model`
-   back when noticed) and the user-facing `/fast` toggle (fast mode runs on Opus 4.8 — leave
-   it off).
+   back when noticed) and the user-facing `/fast` toggle.
+5. **FAST MODE IS SANCTIONED ON OPUS 5 — for IN-PERSON BENCH WORK (builder 2026-07-26).**
+   *(This bullet previously read "fast mode runs on Opus 4.8 — leave it off". That is FALSE
+   and was blocking a useful capability: fast mode runs the SAME Opus model with faster
+   output — it does NOT downgrade to a smaller model — and is available on Opus 5/4.8/4.7.
+   The 4.8 concern was real for the 4.8 case only. Builder-corrected; the directive wins.)*
+   **It cannot be enabled from inside a turn** — no tool, no settings.json key; the builder
+   types it. Two commands, in order, because fast mode is an OPUS feature and this project
+   pins the head to Fable: `/model claude-opus-5` then `/fast`. **When to use it:** live
+   bench/field sessions, where the builder is standing at the hardware and the exchange is
+   short, factual and latency-bound (which pin, which menu, did the value take). **When NOT
+   to:** review, gap-spotting, planning, contract work — that is Fable's seat (§Model
+   orchestration), and the head should be switched back with `/model claude-fable-5` when the
+   bench session ends. Leaving a bench-tuned session pinned to fast Opus for a design decision
+   is the failure mode to avoid.
 
 Balance: parallelize for SPEED when there is genuinely independent work in flight (keep the
 sim busy while sim-free work proceeds), but let each spawn EARN its tokens — a targeted Fable
