@@ -1160,3 +1160,43 @@ DISPERSION not bias — and then 0.35 m is genuinely out of reach for this airfr
 which makes the airframe-size / success-criterion question a real builder decision rather than a
 hypothetical. **The camera stays the headline either way (builder ruling 2026-07-26); a null here
 means the miss budget must be closed somewhere other than open-loop aim.**
+
+### ⛔ THE AIM-TRIM SWEEP IS VOID — load confound, self-inflicted (2026-07-26)
+
+**The arms flown at 01:07–01:23Z are DISCARDED, not interpreted.** Renamed
+`logs/mc_trim10_t*_VOID_LOADCONFOUND.csv` so they can never be mistaken for evidence.
+
+**What happened.** The head launched two large multi-agent workflows (the lever audit and the deep
+targeting workflow) while a MEASURED Monte-Carlo batch was in flight. Machine load reached
+**6.5–7.6**. This directly violates the project's own hard rule — *"Gates and Monte-Carlo batches
+run at IDLE machine load only"* (ADR-0015 2nd addendum, load confound documented) — which exists
+precisely because this has corrupted results before.
+
+**The damage, measured not assumed:**
+- **3 of 8 flights in the trim-0 arm returned `miss=nan`** with `breakoff_reason='sim_boot_timeout'`
+  — the simulator could not boot inside its window under load.
+- The surviving flights are ALSO suspect: the trim-0 arm should be **byte-identical** to the
+  untrimmed baseline (`--dash-aim-trim-deg 0` is documented as a no-op) yet returned different
+  per-flight misses (run0 0.694 vs 0.843, run2 0.915 vs 0.784 on identical seeds and geometry).
+  Either the sim is not deterministic even dash-only, or RTF sag under load moved the numbers.
+  **Both possibilities invalidate the sweep**, and which one is true is itself now an open question.
+- The −5 arm (median 1.246 m) was flown in the same window and is discarded on the same grounds,
+  even though its signal looked large.
+
+**A SECOND defect, in the ANALYSIS layer (the more embarrassing one).** The head's summary script
+computed a median straight through the NaNs and printed **`n=8`** — reporting a curve point derived
+from 5 valid flights while displaying 8. That is a NO-VACUOUS-VERDICTS violation
+(`docs/error_handling_policy.md`) in exactly the measurement layer this project's rules exist to
+protect. **Any ad-hoc analysis snippet must count and report NaN/void rows, or refuse to report.**
+
+**Corrective actions:**
+1. Re-fly the whole sweep at genuine idle (no workflows, no agents, nothing else running), same
+   pre-registration, unchanged.
+2. Add a **load + NaN preflight/postflight guard** to the arm launcher so a batch REFUSES to start
+   above a load threshold and FAILS LOUDLY if any flight returns a non-finite miss, instead of
+   letting void rows into a CSV that looks complete.
+3. Settle the determinism question first with a cheap control: re-fly the untrimmed baseline twice
+   at idle on the same seed. If it does not reproduce, run-to-run noise is larger than the effect
+   being measured and every n=8 single-arm comparison in this project needs a wider error bar.
+
+**Nothing about the trim hypothesis is refuted or confirmed by these runs. They are simply void.**
