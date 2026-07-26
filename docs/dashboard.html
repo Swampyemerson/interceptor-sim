@@ -80,7 +80,7 @@
     font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 600;
     color: var(--ink2); padding: 7px 7px; flex: 0 0 auto; }
   #topnav a.nl:hover { color: var(--accent); text-decoration: none; }
-  body[data-sheet="build"] #navlinks { display: none; }
+  body[data-sheet="build"] #navlinks, body[data-sheet="board"] #navlinks { display: none; }
 
   /* ---- title block (engineering-drawing header) ---- */
   #titleblock { border: 2px solid var(--hair2); display: grid;
@@ -401,6 +401,59 @@
     background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
   .bt-reset:hover { color: var(--rejd); }
 
+  /* ---- board sheet (docs/board_snapshot.json — the GitHub work board). Baked
+     in at render time, never fetched: a published Artifact runs under a CSP
+     that forbids any external request, so the page can only ever show the
+     snapshot AS OF its fetched_at — which is stamped in the title block, in
+     the status box, and again in the footer. Same inks/codes as the other two
+     sheets; no new colour system. ---- */
+  #bdtitleblock { border: 2px solid var(--hair2); display: grid; grid-template-columns: 1.4fr 1.5fr 1.6fr 1.5fr .8fr; }
+  #bdtitleblock .cell { border-right: 1px solid var(--hair2); background: var(--inset); padding: 6px 9px 7px; min-width: 0; }
+  #bdtitleblock .cell:last-child { border-right: 0; }
+  #bdtitleblock .v { display: block; margin-top: 3px; font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    font-size: 12.5px; font-variant-numeric: tabular-nums slashed-zero; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 800px) { #bdtitleblock { grid-template-columns: 1fr 1fr; } #bdtitleblock .cell { border-top: 1px solid var(--hair2); } }
+
+  #bd-state { border-top: 2px solid var(--accent); border-bottom: 1px solid var(--hair);
+    margin-top: 18px; padding: 8px 0 10px; }
+  #bd-state p { margin: 5px 0 0; max-width: 90ch; }
+  #bd-state .bd-hl { font-size: 15px; }
+  #bd-state code { background: var(--inset); padding: 1px 4px; }
+  #bd-warn { margin: 12px 0 0; padding: 0; list-style: none; font-family: ui-monospace, monospace;
+    font-size: 11.5px; color: var(--part); max-width: 100ch; }
+  #bd-warn li { border-top: 1px dotted var(--hair); padding: 4px 0 0; margin-top: 4px; }
+
+  #bd-strip { display: flex; flex-wrap: wrap; border: 1px solid var(--hair2); margin-top: 16px; }
+  #bd-strip:empty, #bd-warn:empty { display: none; }
+  #bd-strip .bcol { flex: 1 1 130px; min-width: 0; border-right: 1px solid var(--hair2);
+    background: var(--inset); padding: 7px 10px 9px; }
+  #bd-strip .bcol:last-child { border-right: 0; }
+  #bd-strip .bcol a { color: inherit; }
+  #bd-strip .n { display: block; margin-top: 2px; font-family: ui-monospace, monospace;
+    font-size: 21px; font-variant-numeric: tabular-nums slashed-zero; }
+  #bd-strip .cn { display: block; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; font-weight: 600;
+    color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  section.bdcol { border-top: 1px solid var(--hair); margin-top: 28px; padding-top: 9px; }
+  section.bdcol h2 { font-family: "Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 600;
+    color: var(--ink); margin: 0 0 4px; padding-bottom: 6px; border-bottom: 2px solid var(--hair2);
+    display: flex; gap: 10px; align-items: baseline; }
+  section.bdcol h2 .bd-n { margin-left: auto; font-family: ui-monospace, monospace;
+    font-size: 11px; color: var(--ink2); letter-spacing: 0; }
+  ul.bd-items { list-style: none; margin: 0; padding: 0; }
+  ul.bd-items li { border-top: 1px dotted var(--hair); padding: 8px 2px 9px;
+    display: grid; grid-template-columns: 5.2em 1fr; gap: 2px 10px; align-items: baseline; }
+  ul.bd-items li:first-child { border-top: 0; }
+  ul.bd-items li:hover { background: var(--hover); }
+  .bd-num { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ink2); }
+  .bd-ttl { font-size: 14.5px; }
+  .bd-meta { grid-column: 2; font-family: ui-monospace, monospace; font-size: 11px;
+    color: var(--ink2); max-width: 96ch; }
+  .bd-tag { border: 1px solid var(--hair2); padding: 0 4px 1px; margin-right: 5px; white-space: nowrap; }
+  .bd-none { color: var(--ink2); font-style: italic; padding: 7px 0 2px; }
+
   @media print {
     #topnav, .bt-reset, .fhint { display: none; }
     [hidden] { display: none !important; }
@@ -413,6 +466,7 @@
   <div class="nvin">
     <a class="tab" id="tab-state" href="#state" aria-current="page">Sheet 1 &mdash; State</a>
     <a class="tab" id="tab-build" href="#build" aria-current="false">Sheet 2 &mdash; Build</a>
+    <a class="tab" id="tab-board" href="#board" aria-current="false">Sheet 3 &mdash; Board</a>
     <span class="nvsep" aria-hidden="true"></span>
     <span id="navlinks">
       <a class="nl" href="#sec-story">Story</a>
@@ -434,9 +488,9 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">PROJ-STATE / RANGE LOG</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->2a54362<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->8e8eba5<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">—</span></div>
-    <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 2</span></div>
+    <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 3</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">—</span></div>
   </div>
   <div id="error"></div>
@@ -732,6 +786,38 @@
       <span id="bt-ev" class="acc"></span></p>
     </footer>
   </div><!-- /#view-build -->
+
+  <div id="view-board" hidden>
+    <div id="bdtitleblock">
+      <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
+      <div class="cell"><span class="lbl">Doc</span><span class="v">WORK BOARD (GITHUB)</span></div>
+      <div class="cell"><span class="lbl">Source</span><span class="v" id="bd-tb-source">&mdash;</span></div>
+      <div class="cell"><span class="lbl">Snapshot taken</span><span class="v" id="bd-tb-fetched">&mdash;</span></div>
+      <div class="cell"><span class="lbl">Items</span><span class="v" id="bd-tb-count">&mdash;</span></div>
+    </div>
+    <div id="bd-error"></div>
+
+    <div id="bd-state">
+      <span class="lbl" id="bd-state-lbl">Board status</span>
+      <p class="bd-hl" id="bd-state-msg"></p>
+      <p class="dim" id="bd-state-sub"></p>
+    </div>
+
+    <ul id="bd-warn"></ul>
+    <div id="bd-strip"></div>
+    <div id="bd-cols"></div>
+
+    <footer>
+      <p>THIS BOARD IS A SNAPSHOT, NOT A LIVE VIEW. A published Artifact may not call out to
+      GitHub (content-security policy), so the board is pulled by
+      <code>python3 scripts/fetch_board.py</code> into <code>docs/board_snapshot.json</code> and
+      baked in by <code>python3 scripts/render_dashboard.py</code>. Everything above is as of the
+      timestamp in the title block &mdash; re-run those two commands to refresh, then republish.</p>
+      <p>A FAILED FETCH NEVER SHOWS AS AN EMPTY BOARD: a broken pull leaves the old items in
+      place and raises the red banner above with the cause; a genuinely empty board says so in
+      plain words. Schema + failure codes: the header of <code>scripts/fetch_board.py</code>.</p>
+    </footer>
+  </div><!-- /#view-board -->
 </main>
 
 <!-- PROJECT_STATE_JSON:BEGIN (generated - edit docs/project_state.json and run scripts/render_dashboard.py; never hand-edit this block) -->
@@ -3528,6 +3614,9 @@
  ]
 }</script>
 <!-- PROJECT_STATE_JSON:END -->
+<!-- BOARD_SNAPSHOT_JSON:BEGIN (generated - run scripts/fetch_board.py then scripts/render_dashboard.py; never hand-edit this block) -->
+<script id="board" type="application/json">null</script>
+<!-- BOARD_SNAPSHOT_JSON:END -->
 
 <script>
 (function () {
@@ -3563,6 +3652,11 @@
     box.style.display = "block";
     box.textContent = "BUILD SHEET BROKEN (fail-loud): " + msg;
   }
+  function showBoardError(msg) {
+    var box = document.getElementById("bd-error");
+    box.style.display = "block";
+    box.textContent = "BOARD SHEET BROKEN (fail-loud): " + msg;
+  }
 
   // ---- sheet tabs (State | Build) + fold-aware anchor reveal.
   // #build / #step- / #bsub- open the bench sheet; #state / #sec- / #dec- open the
@@ -3571,6 +3665,7 @@
   var onShowState = null; // pipeline-edge redraw hook, set once the chart exists
   function tabFromHash(h) {
     if (h === "#build" || h.indexOf("#step-") === 0 || h.indexOf("#bsub-") === 0) return "build";
+    if (h === "#board" || h.indexOf("#bdcol-") === 0) return "board";
     if (h === "" || h === "#" || h === "#state") return "state";
     if (h.indexOf("#sec-") === 0 || h.indexOf("#dec-") === 0) return "state";
     return null;
@@ -3580,12 +3675,14 @@
     document.body.setAttribute("data-sheet", t);
     document.getElementById("view-state").hidden = t !== "state";
     document.getElementById("view-build").hidden = t !== "build";
+    document.getElementById("view-board").hidden = t !== "board";
     document.getElementById("tab-state").setAttribute("aria-current", t === "state" ? "page" : "false");
     document.getElementById("tab-build").setAttribute("aria-current", t === "build" ? "page" : "false");
+    document.getElementById("tab-board").setAttribute("aria-current", t === "board" ? "page" : "false");
     if (t === "state" && onShowState) onShowState();
   }
   function revealAnchor(id) {
-    if (!id || id === "state" || id === "build") return;
+    if (!id || id === "state" || id === "build" || id === "board") return;
     var t = document.getElementById(id);
     if (!t) return;
     var opened = false, p = t;
@@ -4159,6 +4256,161 @@
       recount();
     })();
   } catch (e) { showBuildError(e.message + (e.stack ? " @ " + e.stack.split("\n")[1] : "")); }
+
+  // ---- BOARD sheet (docs/board_snapshot.json, baked in by render_dashboard.py).
+  // Own try/catch, like the Build sheet. FOUR states, deliberately different to
+  // read (docs/error_handling_policy.md — "empty" and "broken" must never look
+  // alike): NOT CONNECTED (no snapshot embedded) / EMPTY (connected, 0 items) /
+  // FETCH FAILED (old items shown, banner + real age) / OK. ----
+  try {
+    (function renderBoard() {
+      var board = null, rawBoard = document.getElementById("board");
+      if (!rawBoard) { showBoardError("no <script id=\"board\"> block — re-run scripts/render_dashboard.py"); return; }
+      try { board = JSON.parse(rawBoard.textContent); }
+      catch (e) { showBoardError("board snapshot is not valid JSON: " + e.message); return; }
+
+      var msg = document.getElementById("bd-state-msg");
+      var sub = document.getElementById("bd-state-sub");
+
+      function ago(iso) {                       // "3 h" / "2 d"; never faked
+        if (!iso) return null;
+        var t = Date.parse(iso);
+        if (isNaN(t)) return null;
+        var h = (Date.now() - t) / 3600000;
+        if (h < 1) return Math.max(0, Math.round(h * 60)) + " min";
+        if (h < 48) return Math.round(h) + " h";
+        return Math.round(h / 24) + " d";
+      }
+
+      // ---- state 1: never connected ----------------------------------------
+      if (board === null) {
+        document.getElementById("bd-tb-source").textContent = "NOT CONNECTED";
+        document.getElementById("bd-tb-fetched").textContent = "never";
+        document.getElementById("bd-tb-count").textContent = "—";
+        document.getElementById("bd-state-lbl").textContent = "Board status — not yet connected";
+        msg.innerHTML = 'No board snapshot is baked into this page yet — this is <b>not</b> ' +
+          'an empty board, it is a board that has never been pulled.';
+        sub.innerHTML = 'To connect it: <code>gh auth refresh -s read:project</code>, then ' +
+          '<code>python3 scripts/fetch_board.py</code>, then ' +
+          '<code>python3 scripts/render_dashboard.py</code>, then republish the Artifact. ' +
+          'Until then the columns below stay blank on purpose.';
+        sub.classList.add("st-part");
+        return;
+      }
+
+      // ---- shared header --------------------------------------------------
+      var src = board.source || {}, n = (board.counts || {}).items;
+      var age = ago(board.fetched_at);
+      var srcTxt = src.kind === "project"
+        ? ("PROJECT #" + src.project_number + (src.project_title ? " · " + src.project_title : ""))
+        : ("ISSUES · " + (src.repo || "?"));
+      document.getElementById("bd-tb-source").textContent = srcTxt;
+      document.getElementById("bd-tb-fetched").innerHTML =
+        esc(board.fetched_at) + (age ? " (" + esc(age) + " ago)" : "") +
+        (board.last_error ? ' <span class="st-rejd">STALE</span>' : "");
+      document.getElementById("bd-tb-count").textContent = n + (n === 1 ? " item" : " items");
+
+      // ---- state 2: the last fetch FAILED (items below are stale) ----------
+      if (board.last_error) {
+        var le = board.last_error;
+        document.getElementById("bd-state-lbl").textContent = "Board status — LAST FETCH FAILED";
+        msg.className = "bd-hl st-rejd";
+        msg.textContent = "The last attempt to pull the board FAILED [" + le.cause +
+          ", exit " + le.exit_code + "] at " + le.at + ". Everything below is the OLDER snapshot from " +
+          board.fetched_at + (age ? " (" + age + " ago)" : "") + " — treat it as out of date.";
+        sub.className = "dim";
+        sub.textContent = le.message;
+      // ---- state 3: connected, board genuinely empty -----------------------
+      } else if (!n) {
+        document.getElementById("bd-state-lbl").textContent = "Board status — connected, no work items";
+        msg.textContent = "The board is connected and readable, and it currently holds ZERO items" +
+          (src.kind === "issues-only" ? " (no issues in " + (src.repo || "the repo") + ")." : ".");
+        sub.textContent = "Pulled cleanly at " + board.fetched_at + (age ? " (" + age + " ago)" : "") +
+          " — this is an empty board, not a broken fetch.";
+      // ---- state 4: normal ------------------------------------------------
+      } else {
+        document.getElementById("bd-state-lbl").textContent = "Board status — snapshot, not live";
+        msg.textContent = n + (n === 1 ? " item" : " items") + " across " +
+          (board.columns || []).length + " columns, as of " + board.fetched_at +
+          (age ? " (" + age + " ago)" : "") + ".";
+        sub.textContent = "Re-run scripts/fetch_board.py + scripts/render_dashboard.py to refresh; " +
+          "the page cannot poll GitHub itself.";
+      }
+      if (age && /d$/.test(age) && parseInt(age, 10) >= 3) {
+        sub.className = "st-part";
+        sub.textContent += "  ·  STALE: this snapshot is " + age + " old.";
+      }
+
+      // warnings ride WITH the data they qualify
+      var warnWrap = document.getElementById("bd-warn");
+      (board.warnings || []).forEach(function (w) {
+        warnWrap.appendChild(el("li", null, "NOTE — " + T(w)));
+      });
+
+      // ---- column codes: reuse the sheet-wide glyph/ink grammar ------------
+      var KNOWN = {
+        "todo": ["TODO", "outline", "st-idea"], "to do": ["TODO", "outline", "st-idea"],
+        "backlog": ["BKLG", "outline", "st-idea"], "open": ["OPEN", "outline", "st-idea"],
+        "ready": ["REDY", "outline", "st-idea"], "next": ["NEXT", "outline", "st-idea"],
+        "in progress": ["WIPR", "half", "st-part"], "doing": ["WIPR", "half", "st-part"],
+        "in review": ["RVEW", "half", "st-part"], "review": ["RVEW", "half", "st-part"],
+        "blocked": ["BLKD", "x", "st-rejd"], "(no status)": ["NOST", "x", "st-rejd"],
+        "done": ["DONE", "filled", "st-impl"], "closed": ["DONE", "filled", "st-impl"],
+        "shipped": ["SHIP", "filled", "st-impl"]
+      };
+      var BOARD_ST = {};
+      (board.columns || []).forEach(function (c) {
+        var k = KNOWN[String(c).toLowerCase()];
+        if (!k) {                              // unknown column: derive a code, never "????"
+          var s = String(c).toUpperCase().replace(/[^A-Z0-9]/g, "");
+          k = [(s + "----").slice(0, 4), "outline", "st-idea"];
+        }
+        BOARD_ST[c] = { code: k[0], g: k[1], cls: k[2] };
+      });
+
+      // ---- the count strip (scannable summary, one tap to the column) ------
+      var strip = document.getElementById("bd-strip");
+      (board.columns || []).forEach(function (c) {
+        var cnt = (board.counts.by_column || {})[c] || 0, m = BOARD_ST[c];
+        strip.appendChild(el("div", "bcol",
+          '<a href="#bdcol-' + encodeURIComponent(c) + '">' +
+          '<span class="cn ' + m.cls + '">' + glyph(m.g) + " " + T(c) + "</span>" +
+          '<span class="n">' + cnt + "</span></a>"));
+      });
+
+      // ---- one section per column -----------------------------------------
+      var wrap = document.getElementById("bd-cols");
+      (board.columns || []).forEach(function (c) {
+        var rows = (board.items || []).filter(function (it) { return it.column === c; });
+        var sec = el("section", "bdcol");
+        sec.id = "bdcol-" + encodeURIComponent(c);
+        var lis = rows.map(function (it) {
+          var meta = [];
+          (it.labels || []).forEach(function (l) { meta.push('<span class="bd-tag">' + T(l) + "</span>"); });
+          if (it.assignee) meta.push("@" + T(it.assignee));
+          meta.push(it.updated_at ? ("updated " + (ago(it.updated_at) || "?") + " ago")
+                                  : "update time unknown");
+          if (it.type && it.type !== "Issue") meta.push(T(it.type));
+          Object.keys(it.fields || {}).forEach(function (k) {
+            meta.push(T(k) + ": " + T(String(it.fields[k])));
+          });
+          var head = it.url
+            ? '<a href="' + esc(it.url) + '" target="_blank" rel="noopener">' + T(it.title) + "</a>"
+            : T(it.title) + ' <span class="dim">(draft — no GitHub link)</span>';
+          return "<li>" +
+            '<span class="bd-num">' + (it.number ? "#" + it.number : "—") + "</span>" +
+            '<span class="bd-ttl">' + head + "</span>" +
+            '<span class="bd-meta">' + meta.join(" &middot; ") + "</span></li>";
+        }).join("");
+        sec.innerHTML =
+          "<h2>" + codeSpan(BOARD_ST, c) + " &nbsp;" + T(c) +
+          '<span class="bd-n">' + rows.length + (rows.length === 1 ? " item" : " items") + "</span></h2>" +
+          (rows.length ? '<ul class="bd-items">' + lis + "</ul>"
+                       : '<p class="bd-none">Nothing in this column.</p>');
+        wrap.appendChild(sec);
+      });
+    })();
+  } catch (e) { showBoardError(e.message + (e.stack ? " @ " + e.stack.split("\n")[1] : "")); }
 })();
 </script>
 </body>

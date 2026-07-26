@@ -34,6 +34,14 @@ Schema v2.4 adds (2026-07-21 narrative-first redesign, validated here):
                    never contradict them): lede + reframe (headline/text/stats[] of
                    label/value/provenance — numbers trace to a run — + optional
                    note/tone/stamp) + big_lever (headline/text/evidence) + caveat
+Schema v2.5 adds (2026-07-25 board pass) — a SECOND embedded document, not a
+state key: docs/board_snapshot.json (the GitHub work board, written by
+scripts/fetch_board.py) is baked into a <script id="board"> block the same way
+the contract is, because a published Artifact runs under a CSP that forbids
+fetching it live. The snapshot is OPTIONAL: with no file the render still
+succeeds and the Board sheet says "not yet connected". --check verifies that
+embed against the file exactly as it does for the state — including the
+gone-file case (a deleted snapshot must not keep rendering as current data).
                    (headline/text/meter of unit/max/reference{value,label}/bars[]{label,
                    value}/provenance) + rulings[] (date/text/evidence — the builder's live
                    calls) + program (headline/summary/phases[] of code/name/status/tone/
@@ -56,9 +64,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 STATE = ROOT / "docs" / "project_state.json"
 HTML = ROOT / "docs" / "dashboard.html"
+BOARD = ROOT / "docs" / "board_snapshot.json"
 
 BEGIN = "<!-- PROJECT_STATE_JSON:BEGIN (generated - edit docs/project_state.json and run scripts/render_dashboard.py; never hand-edit this block) -->"
 END = "<!-- PROJECT_STATE_JSON:END -->"
+B_BEGIN = "<!-- BOARD_SNAPSHOT_JSON:BEGIN (generated - run scripts/fetch_board.py then scripts/render_dashboard.py; never hand-edit this block) -->"
+B_END = "<!-- BOARD_SNAPSHOT_JSON:END -->"
 REV_RE = re.compile(r"(<!-- REV:BEGIN -->)(.*?)(<!-- REV:END -->)", re.S)
 
 STATUSES = {"implemented", "half-done", "idea", "rejected", "superseded"}
@@ -293,6 +304,121 @@ def validate(state: dict) -> None:
         fail("duplicate contradiction ids")
 
 
+BOARD_TOP_KEYS = {"schema_version", "fetched_at", "source", "columns", "counts", "warnings", "items"}
+BOARD_SOURCE_KEYS = {"kind", "project_number", "project_title", "url", "repo", "tool"}
+BOARD_ITEM_KEYS = {"id", "number", "title", "column", "column_source", "state", "labels",
+                   "assignee", "url", "updated_at", "type", "fields"}
+BOARD_ERR_KEYS = {"at", "cause", "exit_code", "message"}
+ISO_Z_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def validate_board(board: dict) -> None:
+    """CONSUMER-side schema check for docs/board_snapshot.json (schema v1,
+    written by scripts/fetch_board.py — its own producer-side validator is
+    fetch_board.validate_snapshot). Two validators is deliberate: the SEAM
+    between them is pinned by tests/test_board_snapshot_contract.py, whose
+    fixture comes from the producer's own writer (error_handling_policy §6).
+    Strict on unknown keys — a schema change must stop the render, not render
+    a half-understood board."""
+    if not isinstance(board, dict):
+        fail(f"{BOARD.name} is not a JSON object")
+    unknown = set(board) - BOARD_TOP_KEYS - {"last_error"}
+    missing = BOARD_TOP_KEYS - set(board)
+    if missing:
+        fail(f"{BOARD.name} missing keys: {sorted(missing)}")
+    if unknown:
+        fail(f"{BOARD.name} has unknown top-level keys: {sorted(unknown)} "
+             f"(schema changed? update validate_board + the Board sheet)")
+    if board["schema_version"] != 1:
+        fail(f"{BOARD.name} schema_version {board['schema_version']!r} — this renderer speaks 1")
+    if not ISO_Z_RE.match(str(board["fetched_at"])):
+        fail(f"{BOARD.name} fetched_at {board['fetched_at']!r} is not ISO-8601 UTC "
+             f"(the page stamps this age; an unparseable timestamp would hide staleness)")
+    src = board["source"]
+    if not isinstance(src, dict) or set(src) != BOARD_SOURCE_KEYS:
+        fail(f"{BOARD.name} source keys {sorted(set(src)) if isinstance(src, dict) else src!r} "
+             f"!= {sorted(BOARD_SOURCE_KEYS)}")
+    if src["kind"] not in ("project", "issues-only"):
+        fail(f"{BOARD.name} source.kind {src['kind']!r}; allowed: project | issues-only")
+    if not isinstance(board["columns"], list) or not all(isinstance(c, str) for c in board["columns"]):
+        fail(f"{BOARD.name} columns must be a list of strings")
+    if not isinstance(board["warnings"], list) or not all(isinstance(w, str) for w in board["warnings"]):
+        fail(f"{BOARD.name} warnings must be a list of strings")
+    items = board["items"]
+    if not isinstance(items, list):
+        fail(f"{BOARD.name} items must be a list")
+    for it in items:
+        if not isinstance(it, dict) or set(it) != BOARD_ITEM_KEYS:
+            fail(f"{BOARD.name} item {it.get('id', '?') if isinstance(it, dict) else it!r} keys "
+                 f"{sorted(set(it)) if isinstance(it, dict) else '?'} != {sorted(BOARD_ITEM_KEYS)}")
+        if not it["title"]:
+            fail(f"{BOARD.name} item {it['id']!r} has an empty title")
+        if it["column"] not in board["columns"]:
+            fail(f"{BOARD.name} item {it['id']!r} sits in column {it['column']!r}, which is not "
+                 f"in columns {board['columns']} — it would render nowhere (a silently "
+                 f"dropped work item)")
+    counts = board["counts"]
+    if not isinstance(counts, dict) or set(counts) != {"items", "by_column"}:
+        fail(f"{BOARD.name} counts must hold exactly items + by_column")
+    # Anti-partial-snapshot invariants: the count a reader sees must equal the
+    # rows actually present, and no item may vanish between the two.
+    if counts["items"] != len(items):
+        fail(f"{BOARD.name} counts.items {counts['items']} != {len(items)} rendered items "
+             f"(partial write / edited snapshot — re-run scripts/fetch_board.py)")
+    if sum(counts["by_column"].values()) != len(items):
+        fail(f"{BOARD.name} counts.by_column sums to {sum(counts['by_column'].values())} but "
+             f"carries {len(items)} items")
+    le = board.get("last_error")
+    if le is not None:
+        if not isinstance(le, dict) or set(le) != BOARD_ERR_KEYS:
+            fail(f"{BOARD.name} last_error keys must be exactly {sorted(BOARD_ERR_KEYS)}")
+        if not ISO_Z_RE.match(str(le["at"])):
+            fail(f"{BOARD.name} last_error.at {le['at']!r} is not ISO-8601 UTC")
+
+
+def load_board():
+    """Returns the validated snapshot, or None when the builder has not
+    connected the board yet. ABSENT is a legitimate, renderable state; a
+    PRESENT-but-broken file is not (it fails the render loudly)."""
+    if not BOARD.exists():
+        return None
+    try:
+        board = json.loads(BOARD.read_text())
+    except json.JSONDecodeError as e:
+        fail(f"{BOARD} is not valid JSON: {e} — re-run scripts/fetch_board.py "
+             f"(never hand-edit the snapshot)")
+    validate_board(board)
+    return board
+
+
+def extract_embedded_board(html: str):
+    """The board the HTML currently carries: the parsed snapshot, or None for
+    the 'not yet connected' sentinel (an embedded JSON `null`)."""
+    i, j = html.find(B_BEGIN), html.find(B_END)
+    if i < 0 or j < 0:
+        fail(f"board markers not found in {HTML} (expected {B_BEGIN[:40]}...)")
+    block = html[i + len(B_BEGIN):j]
+    m = re.search(r'<script id="board" type="application/json">(.*)</script>', block, re.S)
+    if not m:
+        fail('embedded <script id="board"> not found between the board markers')
+    return json.loads(m.group(1))
+
+
+def board_status_line(board) -> str:
+    """One human line naming exactly what the board embed is — printed by both
+    render and --check so an operator can never mistake 'not connected' for
+    'empty' or for 'stale after a failed fetch'."""
+    if board is None:
+        return "board: NOT CONNECTED (no docs/board_snapshot.json — run scripts/fetch_board.py)"
+    n = board["counts"]["items"]
+    bits = [f"board: {n} item(s)" + (" [EMPTY BOARD]" if n == 0 else ""),
+            f"source {board['source']['kind']}",
+            f"fetched {board['fetched_at']}"]
+    if board.get("last_error"):
+        bits.append(f"LAST FETCH FAILED [{board['last_error']['cause']}] — data above is STALE")
+    return ", ".join(bits)
+
+
 def embedded_block(html: str) -> str:
     i, j = html.find(BEGIN), html.find(END)
     if i < 0 or j < 0:
@@ -381,6 +507,7 @@ def main() -> None:
     except json.JSONDecodeError as e:
         fail(f"{STATE} is not valid JSON: {e}")
     validate(state)
+    board = load_board()
     html = HTML.read_text()
 
     if check:
@@ -393,6 +520,19 @@ def main() -> None:
                  "and emit the artifact copy.")
         if extract_embedded_json(html) != state:
             fail(f"{HTML.name} embedded state DIFFERS from {STATE.name} — run scripts/render_dashboard.py and commit both")
+        emb_board = extract_embedded_board(html)
+        if emb_board != board:
+            if board is None:
+                fail(f"{HTML.name} still embeds a board snapshot but {BOARD.name} is GONE — "
+                     f"the page would serve deleted data as current. Re-run "
+                     f"scripts/render_dashboard.py (or restore the snapshot with "
+                     f"scripts/fetch_board.py) and commit both")
+            if emb_board is None:
+                fail(f"{BOARD.name} exists but {HTML.name} embeds no board — run "
+                     f"scripts/render_dashboard.py and commit both")
+            fail(f"{HTML.name} embedded board DIFFERS from {BOARD.name} (embedded fetched_at "
+                 f"{emb_board.get('fetched_at')!r} vs file {board.get('fetched_at')!r}) — run "
+                 f"scripts/render_dashboard.py and commit both")
         n_traced = check_hand_layer_numbers(html, state_raw)
         n_open = sum(1 for c in state["contradictions"] if c["status"] == "open")
         # Scope-honest OK line: say what was checked, not more (review 2 —
@@ -402,6 +542,8 @@ def main() -> None:
               f"(prose wording NOT checked). updated {state['updated']}, "
               f"{len(state['stages'])} stages, {len(state['decisions'])} decisions, "
               f"{len(state['contradictions'])} contradictions [{n_open} open]")
+        print(f"OK: {board_status_line(board)} — embed in sync "
+              f"(board CONTENT is not verified against GitHub; it is as of fetched_at)")
         return
 
     # '</' -> '<\/' keeps the payload valid JSON while making '</script>' inert.
@@ -411,6 +553,18 @@ def main() -> None:
     if i < 0 or j < 0:
         fail(f"markers not found in {HTML}")
     html = html[:i] + injected + html[j + len(END):]
+
+    # Second embedded document: the GitHub board snapshot (CSP forbids the
+    # published Artifact from fetching it live). `null` is the explicit
+    # not-yet-connected sentinel — it must OVERWRITE any previous embed, so a
+    # deleted snapshot can never keep rendering as current data.
+    b_payload = json.dumps(board, indent=1, ensure_ascii=False).replace("</", "<\\/")
+    b_injected = f'{B_BEGIN}\n<script id="board" type="application/json">{b_payload}</script>\n{B_END}'
+    bi, bj = html.find(B_BEGIN), html.find(B_END)
+    if bi < 0 or bj < 0:
+        fail(f"board markers not found in {HTML} — the Board sheet's embed block is missing")
+    html = html[:bi] + b_injected + html[bj + len(B_END):]
+
     html = REV_RE.sub(lambda m: m.group(1) + git_short_sha() + m.group(3), html)
     HTML.write_text(html)
     # Same number-traceability guard as --check, so an orphan number fails at
@@ -420,6 +574,7 @@ def main() -> None:
           f"{len(state['stages'])} stages, {len(state['decisions'])} decisions, "
           f"{len(state['contradictions'])} contradictions; hand-authored layer: "
           f"{n_traced} visible numbers traced) — commit both files")
+    print(f"OK: {board_status_line(board)}")
 
     if "--artifact" in sys.argv[1:]:
         i = sys.argv.index("--artifact")
