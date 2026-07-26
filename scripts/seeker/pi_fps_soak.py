@@ -37,6 +37,17 @@ tool fails CLOSED rather than publishing a flattering number:
      is decode THROUGHPUT — an UPPER BOUND on a cadence, not a cadence. Frames
      cannot be processed faster than they arrive, so the published figure is
      min(decode throughput, delivered frame cadence).
+
+     BE PRECISE ABOUT WHAT THAT MIN IS DOING. The inter-arrival interval measured
+     here spans one whole trip round the loop (wait for frame + decode it), so it
+     is ALWAYS >= the decode interval, and the min() therefore ALWAYS selects the
+     cadence. That is not a redundant guard — it means the published number is the
+     ACHIEVED END-TO-END DETECTION CADENCE, which is precisely the rate the gate's
+     burn model wants, and never the decode-only figure that would flatter it.
+     `compute_headroom_x` = throughput / cadence then says WHERE the loop's time
+     goes: >>1 means it is mostly waiting on the camera (camera-bound), ~1 means
+     decode dominates (compute-bound). At the inherited 30 fps cap this rig read
+     3.9x (camera-bound); uncapped it read 1.21x (compute-bound).
   2. The published gate figure is the STEADY-STATE window, never the whole run.
   3. `fps_p10_slow_tail` (worst-decile) is reported beside the median as the
      honest input for a purchase gate on a part that throttles.
