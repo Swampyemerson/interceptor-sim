@@ -1259,3 +1259,54 @@ its own error; (2) V_VERT_MAX is 0.5 m/s under `--fpv` vs 8.0/13.0 horizontal, s
 correction may be rate-limited and the clamp likely needs raising behind its own flag; (3) sim and
 deploy already disagree on vertical rate (`seeker_loop.py` defaults 2.0 m/s) — that divergence must
 be closed with a contract test, per the frozen_vworld lesson.
+
+## ★★ THE RULER WAS WRONG — the adopted config likely already MEETS the contact criterion
+
+**Head-verified 2026-07-26, independently of the workflow that raised it, and it CORRECTS my own
+"the miss is vertical" note above.**
+
+ADR-0084 defines the criterion in its own words as a **centre-to-centre** contact envelope between
+two 5-inch airframes. The scorer has never measured that quantity: it scores the **camera lens**
+position, and it takes the smallest *logged tick* rather than the true minimum between ticks.
+
+Measured, not assumed: `gt_cam_z − alt_m` = **+0.208 m median over 1,748 ticks** — the camera sits
+~21 cm above the airframe datum. The target end is fine: `fpv_quad_enemy`'s model origin IS its
+airframe centre (frame visual offset only 0.025 m), so only the interceptor end was mis-referenced.
+
+**Re-scoring the adopted config (AE5dash, n=16, seeds 123+777) at the airframe datum:**
+
+| how it is measured | median | inside 0.35 m |
+|---|---|---|
+| as reported today (camera lens, nearest logged tick) | 0.445 m | **3/16** |
+| airframe datum, nearest logged tick | 0.293 m | **12/16** |
+| airframe datum, TRUE closest approach (interpolated) | **0.237 m** | **16/16** |
+
+**So the headline "we have never reached contact range" was a MEASUREMENT ARTEFACT.** Same flights,
+same logs, correct ruler. This is the sixth instrument-layer defect this project has caught, and
+the most consequential: it is the difference between "the design misses by 27%" and "the design
+meets its bar."
+
+**IT ALSO CORRECTS MY OWN NOTE ABOVE (twice on the same topic tonight — stated plainly).** The
+"constant −0.370 m vertical offset" I reported was measured from the CAMERA. Removing the 0.208 m
+mount lever leaves a real vertical gap of only **~0.16 m**. Vertical is still the largest single
+real term, but it is roughly HALF what I told the builder, and it no longer dominates the miss on
+its own. The direction of that finding stands; the magnitude does not.
+
+**WHAT THIS DOES NOT MEAN — read before celebrating:**
+- It is not a hardware result. The sim still flies a PERFECT launch cue (`--dash-target-err-n/e`
+  pinned at 0.0 in every run), co-altitude BY CONSTRUCTION, no wind, no real optics, no thermal
+  throttling. Those are the terms that decide the field.
+- The 16/16 uses linear interpolation between ticks. **12/16 (logged ticks only) is the
+  conservative number** and is the one to quote until the scorer is properly fixed.
+- My ad-hoc recompute is NOT the deliverable. The scorer must actually be fixed
+  (`base_link`-referenced + interpolated CPA), with a producer→consumer contract test whose fixture
+  comes from m4's own CSV writer and a mutant test that FAILS if the camera-lens reference returns,
+  and then every historical arm re-scored. Old numbers must be re-reported alongside, never
+  silently relabelled.
+
+**A SECOND LIVE DEFECT found in the same pass (frozen_vworld's twin, still at HEAD):** under
+`--coded-dash` the branch that sets `cmd` never writes `last_cmd`, so the terminal dropout handler
+re-issues the initial `(0,0,0,0)` — **a commanded full stop**. Measured: 24 zero-command pre-CPA
+ticks across 5 of 16 camera-on flights, once held 5 consecutive ticks while closing 7.3 → 4.6 m.
+**Part of the "the camera makes it worse" evidence is this bug, not the camera.** Same defect class
+as `0c80454`, different site.
