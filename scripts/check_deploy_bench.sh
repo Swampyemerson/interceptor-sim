@@ -22,10 +22,17 @@
 #   1. A live MAVLink heartbeat over the real serial port (connect succeeds).
 #   2. Own-state EKF streaming (attitude quat + yaw + rel-altitude) -- the loop's
 #      only non-camera input; proves the companion link is bidirectional.
-#   3. A setpoint stream established >=2 Hz for >=1 s BEFORE the mode switch, and
-#      a valid local-position estimate -- PX4 will not accept OFFBOARD velocity-NED
-#      without EKF horizontal position, so the M10 needs a GPS fix (bench by a
-#      window / outdoors; this is why bench.params sets COM_ARM_WO_GPS=0).
+#   3. A setpoint stream established >=2 Hz for >=1 s BEFORE the mode switch.
+#      NO GPS FIX IS REQUIRED FOR THIS BENCH [CORRECTED 2026-07-26 -- this comment
+#      previously claimed a fix was mandatory, and the same false claim was in
+#      bench.params + configs/px4_6cmini/README.md]. Two independent reasons, both
+#      verified against the PX4 v1.16.0 source: (a) UserModeIntention::change()
+#      -- "Always allow mode change while disarmed", so the health check that
+#      would demand a position estimate is not applied disarmed; (b) the vehicle
+#      path run_mavsdk(smoke=False) hard-requires only the EKF ATTITUDE stream --
+#      the global-position wait lives in the SITL-only smoke branch. COM_ARM_WO_GPS=0
+#      is about ARMING (it is the GPS preflight-check action in v1.16), and nothing
+#      on this bench ever arms. Run it on the desk, no GPS module attached.
 #   4. OFFBOARD mode ENTERED while DISARMED (PX4 allows the mode switch disarmed;
 #      it simply does not actuate) -> drone.offboard.start() returns success.
 #   5. Setpoints stream continuously over the wire until the frame source ends.
