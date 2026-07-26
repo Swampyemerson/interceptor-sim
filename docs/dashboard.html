@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->f0c26c7<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->fcb2a0a<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -879,7 +879,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-26",
- "updated_by": "2026-07-26: launch-cue ruling adopted; red-team corrections folded; trim sweep in flight.",
+ "updated_by": "2026-07-26 late: scorer ruler error found (3/16 -> 12/16); second zero-command bug; trim sweep voided.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -892,14 +892,35 @@
  "now": {
   "as_of": "2026-07-26",
   "where": "Sim testing has answered what it can for now. The physical build has started: target frame, flight controller, and Pi 5 in hand, assembly begun. Next physical milestone is tripod day — the camera tests that decide the ~$740 parts order.",
-  "finding": "We HAVE reached contact range: 3 of 16 flights at full speed came inside 0.35 m, best 0.296 m -- with the aim trim on. The 10 mph run that missed by 0.73 m was flown WITHOUT it. All of it assumed a perfect launch cue, so these are best-case numbers.",
+  "finding": "Re-scored with the ruler the criterion actually defines -- airframe centre, not camera lens -- the adopted setup is 12 of 16 inside the 0.35 m contact radius, not 3. The old number was a measurement error. Still a perfect-cue, level-flight sim result.",
   "next": [
-   "Read the aim-trim sweep now flying at 10 mph -- it tests whether the miss is a fixable offset",
+   "Fix the scorer properly (airframe-centre + true closest approach) and re-score every past run",
    "Assemble the target drone and prep tripod day -- the camera test that gates the ~$740 order"
   ],
   "evidence": "docs/flight_plan_candidates.md (2026-07-25 results + confound correction) · commits df1b557, 8e8eba5"
  },
  "assumptions": [
+  {
+   "id": "scorer-measures-the-criterion",
+   "statement": "We assumed the miss we report is the quantity the criterion defines. It is not: the scorer measures the camera lens, 21 cm above the airframe centre, and takes the nearest logged sample.",
+   "grade": "unmeasured",
+   "if_wrong": "Every miss number this project has ever published is inflated by ~0.18 m. Confirmed 2026-07-26: the adopted setup reads 3/16 inside the contact radius by the old ruler and 12/16 by the correct one.",
+   "stages": [
+    "kill"
+   ],
+   "key_numbers": [
+    "Inside the contact radius (re-scored)"
+   ],
+   "test": {
+    "how": "Fix the scorer to reference the airframe centre and interpolate the true closest approach; add a producer->consumer contract test whose fixture comes from m4's own CSV writer, plus a mutant test that FAILS if the camera-lens reference returns; then re-score every historical arm, reporting old and new side by side.",
+    "cost": "desk, hours",
+    "status": "not_run"
+   },
+   "state": "violated",
+   "ruling": "VIOLATED, confirmed 2026-07-26 and head-verified independently: the camera sits +0.208 m above the airframe datum (median, 1748 ticks). Re-scoring the adopted setup at the airframe centre moves it from 3/16 to 12/16 inside the 0.35 m radius (16/16 with the true between-tick minimum -- quote 12/16 until the scorer is actually fixed). Every historical miss number is inflated by ~0.18 m. The fix is a code change plus a full re-score, not a relabelling: old numbers must be reported alongside the new ones.",
+   "origin": "Deep targeting workflow 2026-07-26, head-verified independently (gt_cam_z - alt_m = +0.208 m median over 1748 ticks)",
+   "evidence": "commit fcb2a0a; docs/flight_plan_candidates.md"
+  },
   {
    "id": "launch-cue-error-free",
    "statement": "The launch aim (C1 fallback heading + C2 lead correction) is computed from the target's EXACTLY known, pre-programmed flight path — a zero-error cue no real ground sensor provides.",
@@ -1262,6 +1283,24 @@
  "plain_log": [
   {
    "date": "2026-07-26",
+   "text": "We were measuring the miss from the camera lens, not the airframe centre -- and the criterion means centre to centre. Re-scored, the adopted setup already reaches contact range on 12 of 16 flights instead of 3.",
+   "so_what": "The 'we have never got close enough' headline was a ruler error, not a design failure.",
+   "evidence": "commit fcb2a0a"
+  },
+  {
+   "date": "2026-07-26",
+   "text": "Found a second full-stop bug: on a camera dropout the coded dash re-issues a zero command, braking mid-terminal. Twin of the one fixed yesterday, still live.",
+   "so_what": "Some of the evidence that 'the camera makes it worse' is this bug, not the camera.",
+   "evidence": "deep targeting workflow"
+  },
+  {
+   "date": "2026-07-26",
+   "text": "Threw away an aim-trim experiment: I ran heavy background work while a measured batch was flying, 3 of 8 flights failed to boot, and my own summary script averaged through the failures.",
+   "so_what": "Re-fly at idle with a load guard; the trim question is still open.",
+   "evidence": "commit f49a03a"
+  },
+  {
+   "date": "2026-07-26",
    "text": "Ruled the launch cue an explicit project constraint: the interceptor is cued, we publish performance vs cue error instead of pretending it aims itself.",
    "so_what": "Turns the project's biggest honesty hole into a derived requirement -- and every zero-cue-error number is now labelled best-case.",
    "evidence": "issue #1; ledger launch-aim-derived-from-ground-truth"
@@ -1313,24 +1352,6 @@
    "text": "Big cleanup day: ratified the 0.35 m kill radius from the real parts' measured dimensions, fixed the frozen-steering sim bug and its blind auditor, closed all 6 field-day blockers, and turned CI green (it had been silently red since the first push).",
    "so_what": "The measuring instruments are now trustworthy again — several past verdicts had passed through broken ones.",
    "evidence": "commits bf47598, 0c80454, 8653263 · ADR-0084"
-  },
-  {
-   "date": "2026-07-25",
-   "text": "Re-rendered the demo video with the corrected 0.35 m kill-radius captions; found and fixed two more stale claims on the way. Three old demo files still bake a wrong caption and cannot be re-rendered.",
-   "so_what": "The public-facing video now matches the measured truth; the three stale files await your call (see Waiting on You).",
-   "evidence": "commit 759e9b0 · demo_out/README.md"
-  },
-  {
-   "date": "2026-07-24",
-   "text": "Settled what actually drives accuracy: AIM dominates. Built an auto-aim that derives the lead angle from target motion, cutting the dash-only miss from 1.37 m to 0.75 m with no hand-tuning.",
-   "so_what": "The single biggest accuracy lever is now automatic and carries over to the real hardware.",
-   "evidence": "ADR-0080 · commit 6adb4d7"
-  },
-  {
-   "date": "2026-07-24",
-   "text": "Tried two fixes for the camera's known sideways bias (a fixed correction, and a time-lag compensation) — both failed cleanly; the lag version actually made things worse.",
-   "so_what": "The camera's terminal weakness does not yield to simple corrections — it needs a different design, not a tweak.",
-   "evidence": "commit e0bedf4 · flight_plan_candidates.md GL arm"
   }
  ],
  "narrative": {
@@ -2299,12 +2320,12 @@
    "trust": "bench"
   },
   {
-   "label": "Closest to contact (measured)",
-   "value": "3/16 inside 0.35 m",
+   "label": "Inside the contact radius (re-scored)",
+   "value": "12/16",
    "trust": "sim",
-   "plain": "3 of 16 flights actually reached contact range at full speed; the best came within 0.296 m",
-   "note": "Adopted config: +5 deg aim trim, camera OFF, dash-only, 9 m/s. Seed 123 3/8; seed 777 0/8 (min 0.351). The only measured path into range currently in hand.",
-   "provenance": "logs/mc_fp_armAE5dash_line9_s{123,777}.csv; ADR-0083; red-team correction 2026-07-26 (f0c26c7)"
+   "plain": "Scored the way the criterion is defined, 12 of 16 flights already reach contact range",
+   "note": "Adopted setup: +5 deg aim trim, camera off, 9 m/s, n=16. Camera-lens scoring reported 3/16; airframe-centre scoring gives 12/16 on logged ticks (16/16 if the true between-tick minimum is interpolated -- quote 12/16 until the scorer is fixed). Perfect cue, co-altitude by construction.",
+   "provenance": "logs/mc_fp_armAE5dash_line9_s{123,777}.csv re-scored 2026-07-26; ADR-0084; commit fcb2a0a"
   }
  ],
  "bom_tiers": [
@@ -4194,7 +4215,7 @@
 <!-- BOARD_SNAPSHOT_JSON:BEGIN (generated - run scripts/fetch_board.py then scripts/render_dashboard.py; never hand-edit this block) -->
 <script id="board" type="application/json">{
  "schema_version": 1,
- "fetched_at": "2026-07-26T01:21:32Z",
+ "fetched_at": "2026-07-26T03:39:12Z",
  "source": {
   "kind": "project",
   "project_number": 1,
@@ -4209,15 +4230,15 @@
   "Done"
  ],
  "counts": {
-  "items": 7,
+  "items": 8,
   "by_column": {
-   "Todo": 6,
+   "Todo": 7,
    "In Progress": 0,
    "Done": 1
   }
  },
  "warnings": [
-  "14 custom field value(s) of type ['ProjectV2ItemFieldLabelValue', 'ProjectV2ItemFieldRepositoryValue'] were not read (fetch_board reads text/number/date/single-select/iteration only)"
+  "16 custom field value(s) of type ['ProjectV2ItemFieldLabelValue', 'ProjectV2ItemFieldRepositoryValue'] were not read (fetch_board reads text/number/date/single-select/iteration only)"
  ],
  "items": [
   {
@@ -4339,6 +4360,22 @@
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/7",
    "updated_at": "2026-07-26T00:10:37Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0GUms",
+   "number": 8,
+   "title": "Fix the scorer: measure airframe-centre + true closest approach, then re-score everything",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "from-contract"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/8",
+   "updated_at": "2026-07-26T03:38:44Z",
    "type": "Issue",
    "fields": {}
   }

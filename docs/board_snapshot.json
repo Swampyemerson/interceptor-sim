@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "fetched_at": "2026-07-26T01:21:32Z",
+ "fetched_at": "2026-07-26T03:39:12Z",
  "source": {
   "kind": "project",
   "project_number": 1,
@@ -15,15 +15,15 @@
   "Done"
  ],
  "counts": {
-  "items": 7,
+  "items": 8,
   "by_column": {
-   "Todo": 6,
+   "Todo": 7,
    "In Progress": 0,
    "Done": 1
   }
  },
  "warnings": [
-  "14 custom field value(s) of type ['ProjectV2ItemFieldLabelValue', 'ProjectV2ItemFieldRepositoryValue'] were not read (fetch_board reads text/number/date/single-select/iteration only)"
+  "16 custom field value(s) of type ['ProjectV2ItemFieldLabelValue', 'ProjectV2ItemFieldRepositoryValue'] were not read (fetch_board reads text/number/date/single-select/iteration only)"
  ],
  "items": [
   {
@@ -145,6 +145,22 @@
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/7",
    "updated_at": "2026-07-26T00:10:37Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0GUms",
+   "number": 8,
+   "title": "Fix the scorer: measure airframe-centre + true closest approach, then re-score everything",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "from-contract"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/8",
+   "updated_at": "2026-07-26T03:38:44Z",
    "type": "Issue",
    "fields": {}
   }
