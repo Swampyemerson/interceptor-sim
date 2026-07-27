@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c6c7bcf<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->fd78933<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1200,7 +1200,7 @@
   },
   {
    "id": "pi5-realtime-compute",
-   "statement": "Assumed ~30 fps for the AprilTag seeker (CPU YOLO 5-10) from literature. MEASURED 2026-07-26: 96.6 fps at decimate 2.0, 40.3 at 1.0; CPU YOLO 6.09.",
+   "statement": "Assumed ~30 fps for the AprilTag seeker (CPU YOLO 5-10) from literature. MEASURED 2026-07-26: 96.6 fps at decimate 2.0, 38.2 at 1.0; CPU YOLO 6.09.",
    "grade": "measured",
    "if_wrong": "Lower fps burns more range in the handoff streak → the t_go ≥ 0.5 s money gate flips (measured to flip across ~24 fps). The Tier-2 order hinges on a frame rate nobody has measured on the real board.",
    "stages": [
@@ -2066,7 +2066,7 @@
   },
   {
    "id": "pi5-emulation-gap",
-   "text": "RESOLVED 2026-07-26 -- the gap is closed by measurement. Emulation could never give fps (QEMU proved the stack RUNS, not its speed), so the real board was a Tier-1 buy. Measured: AprilTag 96.6 fps at decimate 2.0 / 40.3 at 1.0; CPU YOLO 6.09 fps. The old anchors here read '~30 fps AprilTag' and were never measured -- the AprilTag figure was low by ~3.2x because an inherited picamera2 frame-duration default was capping the camera.",
+   "text": "RESOLVED 2026-07-26 -- the gap is closed by measurement. Emulation could never give fps (QEMU proved the stack RUNS, not its speed), so the real board was a Tier-1 buy. Measured: AprilTag 96.6 fps at decimate 2.0 / 38.2 at 1.0; CPU YOLO 6.09 fps. The old anchors here read '~30 fps AprilTag' and were never measured -- the AprilTag figure was low by ~3.2x because an inherited picamera2 frame-duration default was capping the camera.",
    "evidence": [
     "docs/hardware_order_list.md §0c",
     "NEXT.md ROUND-5 (Pi5 ruling)",
@@ -2734,7 +2734,7 @@
      },
      {
       "id": "skr-07",
-      "text": "[DONE 2026-07-26] Sustained rates on the REAL Pi 5 through 750 s thermal soaks, tag in frame, no throttling at any point: 96.6 fps at quad_decimate 2.0, 40.3 at 1.0, CPU-YOLO 6.09 fps (n-mono.onnx @640, 162 ms/inference). Max 57.9 C on the tag arms, 67.2 C on YOLO. THE HEADLINE: the seeker had been running at 30 fps because neither pi_capture nor the flight camera source set picamera2's FrameDurationLimits -- an inherited default, not the sensor (143 fps) and not the CPU. Harness scripts/seeker/pi_fps_soak.py; ADR-0090; runs/skr07_tagged/.",
+      "text": "[DONE 2026-07-26] Sustained rates on the REAL Pi 5 through 750 s thermal soaks, tag in frame, no throttling at any point: 96.6 fps at quad_decimate 2.0, 38.2 at 1.0, CPU-YOLO 6.09 fps (n-mono.onnx @640, 162 ms/inference). Max 57.9 C on the tag arms, 67.2 C on YOLO. THE HEADLINE: the seeker had been running at 30 fps because neither pi_capture nor the flight camera source set picamera2's FrameDurationLimits -- an inherited default, not the sensor (143 fps) and not the CPU. Harness scripts/seeker/pi_fps_soak.py; ADR-0090; runs/skr07_tagged/.",
       "why": "Emulation cannot measure this (pi5-emulation-gap) — it is why the physical Pi is a Tier-1 buy. Anchors: tag ~30 fps CPU; CPU YOLO ~5-10 fps (not viable at terminal rates, hence the deferred Hailo)."
      },
      {

@@ -958,7 +958,7 @@ cannot measure this).
 > | arm | sustained | decode | max temp | throttled |
 > |---|---|---|---|---|
 > | AprilTag, `quad_decimate=2.0` (the flying default) | **96.6 fps** | 8.9 ms | 57.9 °C | none |
-> | AprilTag, `quad_decimate=1.0` (the reclaim lever) | **40.3 fps** | 23.3 ms | 59.0 °C | none |
+> | AprilTag, `quad_decimate=1.0` (the reclaim lever) | **38.2 fps** | 24.7 ms | 60.0 °C | none |
 > | CPU-YOLO, `n-mono.onnx` @640 | **6.09 fps** | 162 ms | 67.2 °C | none |
 >
 > **The old anchor here read "AprilTag ~30 fps CPU-real-time" and was never
