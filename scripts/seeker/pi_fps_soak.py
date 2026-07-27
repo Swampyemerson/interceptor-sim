@@ -418,6 +418,29 @@ def _window_stats(rows):
     }
 
 
+def _tag_timeline(samples, bucket_s=30.0):
+    """Per-bucket tag-detection fraction, so a DROPOUT can be located in time.
+
+    Added 2026-07-26 after the qd=1.0 arm came back tag_frac=0.44 and the record
+    could not say whether the tags vanished at minute 2 or minute 12 — the
+    difference between 'the display died partway' and 'the detector is marginal',
+    which are opposite diagnoses. An aggregate that cannot be localised is a
+    number you can only guess about. Output-only: it changes no measured value.
+    """
+    if not samples:
+        return []
+    out, t_end = [], samples[-1][0]
+    t = samples[0][0]
+    while t < t_end:
+        rows = [r for r in samples if t <= r[0] < t + bucket_s]
+        if rows:
+            hits = sum(1 for r in rows if r[3] and r[3] > 0)
+            out.append({"t_s": round(t, 1), "n": len(rows),
+                        "tag_frac": round(hits / len(rows), 3)})
+        t += bucket_s
+    return out
+
+
 def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames):
     warm = [r for r in samples if r[0] < args.warmup_s]
     steady = [r for r in samples if r[0] >= args.warmup_s]
@@ -499,6 +522,7 @@ def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames):
         },
         "warmup_window": warm_stats,
         "steady_window": steady_stats,
+        "tag_timeline_30s": _tag_timeline(samples),
     }
     return rec, therm
 
