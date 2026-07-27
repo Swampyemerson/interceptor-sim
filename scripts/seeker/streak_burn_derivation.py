@@ -13,7 +13,27 @@ def E_run(p, k):
     """Expected Bernoulli trials to first run of k consecutive successes."""
     return (1 - p**k) / (p**k * (1 - p))
 
-K, V, FPS = 5, 9.0, 30.0
+# FPS — 30.0 IS A SUPERSEDED ASSUMPTION, KEPT ONLY TO REPRODUCE THE PUBLISHED
+# TABLES (2026-07-26). It was never measured. On the real Pi 5 the seeker was
+# delivering exactly 30.0 fps because neither pi_capture nor the flight camera
+# source set picamera2's FrameDurationLimits, so an inherited default — not the
+# sensor (143 fps at 1280x800) and not the CPU (~112 fps of decode throughput) —
+# was setting it. With the cap lifted, the measured SUSTAINED rate through a
+# 750 s thermal soak with a tag in every frame is 96.6 fps at the flying
+# quad_decimate=2.0, and 40.3 fps at qd=1.0 (ADR-0090, build_tab skr-07,
+# runs/skr07_tagged/). Override with --fps to see the burn at the measured rate;
+# the default stays 30.0 so the numbers quoted in
+# docs/detection_tracking_methods.md A.4/B.3 still reproduce exactly.
+import argparse as _argparse
+
+_ap = _argparse.ArgumentParser(add_help=True)
+_ap.add_argument("--fps", type=float, default=30.0,
+                 help="detector cadence (default 30.0 = the SUPERSEDED "
+                      "assumption these tables were published at; the measured "
+                      "value is 96.6 at qd=2.0 — see ADR-0090)")
+_args, _ = _ap.parse_known_args()
+
+K, V, FPS = 5, 9.0, _args.fps
 print("=== A.4  frames-to-5-streak vs per-frame recall (k=5, V=9 m/s, 30 fps) ===")
 print("  run-length = (1-p^k)/(p^k(1-p))   mean-rate = k/p (gate_verdict today)")
 print(f"{'p':>6} {'E[frames]':>10} {'burn_m':>8} {'R_acq(tgo>=.5s)':>16} "
