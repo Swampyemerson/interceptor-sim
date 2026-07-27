@@ -136,6 +136,23 @@ E[T] = (1 − p^k) / (p^k · (1 − p))                  [DERIVED — classic Be
 
 **[DERIVED]** k = 5, V = 9 m/s, 30 fps (so 0.30 m of closure per frame):
 
+> ⚠️ **THE `@30 fps` IN THIS TABLE IS A SUPERSEDED ASSUMPTION (measured 2026-07-26).**
+> 30 fps was never measured — and the real rig was delivering exactly 30.0 fps for an
+> unrelated reason (neither `pi_capture.py` nor the flight camera source set picamera2's
+> `FrameDurationLimits`, so an inherited default capped it), which would have made the
+> assumption look confirmed. Lifting the cap, the **measured sustained** rate on the real
+> Pi 5 through a 750 s thermal soak with a tag in every frame is **96.6 fps** at the flying
+> `quad_decimate=2.0` (ADR-0090; `runs/skr07_tagged/`; harness `scripts/seeker/pi_fps_soak.py`).
+> The burn column scales as `1/fps`, so at 96.6 fps every entry below falls by ~3.2×: p=0.70
+> burns **1.54 m** not 4.95 m, and p=0.4417 burns **9.76 m** not 31.4 m. Reproduce with
+> `streak_burn_derivation.py --fps 96.6`. **The rows are kept at 30 fps** so the published
+> numbers still tie out; read the burn columns as the superseded case.
+>
+> Two things this does NOT license. (1) The p=0.4417 row is the **markerless NN's** held-out
+> recall; 96.6 fps is the **AprilTag** decode cadence. They belong to different pipelines and
+> must not be multiplied together — the CPU-YOLO rate is its own measurement. (2) "Unformable"
+> is not thereby overturned; it is re-opened, pending the markerless arm's own number.
+
 | per-frame recall p | E[frames], run-length | streak burn @30 fps, 9 m/s | R_acq needed for t_go ≥ 0.5 s | mean-rate model (k/p) | optimism factor |
 |---:|---:|---:|---:|---:|---:|
 | 1.00 (B4's assumption) | 5.0 | 1.5 m | **6.0 m** | 5.0 | 1.00× |
