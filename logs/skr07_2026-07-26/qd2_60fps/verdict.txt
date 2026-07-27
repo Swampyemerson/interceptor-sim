@@ -1,0 +1,15 @@
+skr-07 compute bench — mode=apriltag
+  host      : Raspberry Pi 5 Model B Rev 1.1  gov=ondemand
+  workload  : {"detector": "pyapriltags tag36h11", "quad_decimate": 2.0}
+  soak      : 700s, temp 47.4 -> 50.15 C (max 51.8), steady (drift +0.08 C)
+  throttle  : none (raw ['0x0'])
+
+  STEADY fps (published) : 60.419
+    source               : BOUNDED min(decode throughput 130.84, delivered cadence 60.42)
+    p10 slow tail        : 60.419
+    decode ms med / p90  : 7.643 / 8.964
+    bound by             : camera delivery (compute headroom 2.17x)
+    tag_frac             : 1.0
+  cold warm-up fps       : 60.278 (DIAGNOSTIC ONLY — never the gate number)
+
+  GATE-ELIGIBLE: may be passed to tripod_score --stream-fps

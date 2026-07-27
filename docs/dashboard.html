@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->fd78933<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->36e62ac<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -892,9 +892,9 @@
  "now": {
   "as_of": "2026-07-26",
   "where": "Bench night two. The seeker's frame rate was set by an inherited camera default, not by the hardware. With the cap lifted and a tag on screen, the Pi 5 holds 96.6 frames per second through a 12-minute soak at 58 C with no throttling -- the first compute-bench number the money gate can use.",
-  "finding": "The gate's frame rate was assumed to be 30 and never measured. It is 96.6. That cuts the range burned while the camera locks on by about three times, and we can now afford the finer decode setting we thought we could not.",
+  "finding": "The gate's frame rate was assumed to be 30 and never measured. It is 96.6, and the flying camera was capped by a default nobody chose. Now pinned at 60 -- most of the gain, half the CPU, and 20 C of thermal margin outdoors.",
   "next": [
-   "Re-run the fine-decode arm: its on-screen tags dimmed out mid-soak",
+   "Ratify the 60 fps camera cap on the props-off bench (brn-05)",
    "Feed 96.6 fps into the gate scorer and re-quote the range needed"
   ],
   "evidence": "runs/skr07_tagged/ (soak.json + verdict.txt per arm) - docs/decisions.md ADR-0090 - scripts/seeker/pi_fps_soak.py - commits 5cdefb0, e344c96, f3a9d5e, c6c7bcf"
@@ -2734,7 +2734,7 @@
      },
      {
       "id": "skr-07",
-      "text": "[DONE 2026-07-26] Sustained rates on the REAL Pi 5 through 750 s thermal soaks, tag in frame, no throttling at any point: 96.6 fps at quad_decimate 2.0, 38.2 at 1.0, CPU-YOLO 6.09 fps (n-mono.onnx @640, 162 ms/inference). Max 57.9 C on the tag arms, 67.2 C on YOLO. THE HEADLINE: the seeker had been running at 30 fps because neither pi_capture nor the flight camera source set picamera2's FrameDurationLimits -- an inherited default, not the sensor (143 fps) and not the CPU. Harness scripts/seeker/pi_fps_soak.py; ADR-0090; runs/skr07_tagged/.",
+      "text": "[DONE 2026-07-26] Sustained rates on the REAL Pi 5 through 750 s thermal soaks, tag in frame, no throttling at any point: 96.6 fps at quad_decimate 2.0, 38.2 at 1.0, CPU-YOLO 6.09 fps (n-mono.onnx @640, 162 ms/inference). Max 57.9 C on the tag arms, 67.2 C on YOLO. THE HEADLINE: the seeker had been running at 30 fps because neither pi_capture nor the flight camera source set picamera2's FrameDurationLimits -- an inherited default, not the sensor (143 fps) and not the CPU. At a deliberate 60 fps cap: 60.4 fps, 51.8 C, 2.17x compute headroom -- now wired into the flight camera source and verified on hardware (30.048 -> 59.875 fps as flown). Harness scripts/seeker/pi_fps_soak.py; ADR-0090 + addenda; evidence logs/skr07_2026-07-26/.",
       "why": "Emulation cannot measure this (pi5-emulation-gap) — it is why the physical Pi is a Tier-1 buy. Anchors: tag ~30 fps CPU; CPU YOLO ~5-10 fps (not viable at terminal rates, hence the deferred Hailo)."
      },
      {

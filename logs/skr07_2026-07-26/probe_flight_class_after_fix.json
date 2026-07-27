@@ -1,0 +1,23 @@
+{
+  "tool": "probe_flight_frame_rate.py",
+  "subject": "flight/deploy/seeker_loop.py:PicameraSource (the DEPLOYED class)",
+  "exposure_us_applied": 994,
+  "format": "RGB888 (what the flight source requests, on a MONO sensor)",
+  "as_flown": {
+    "n_timed": 169,
+    "fps_median": 60.483,
+    "fps_p10_slow_tail": 53.977,
+    "frame_dt_ms_median": 16.534
+  },
+  "uncapped": {
+    "n_timed": 169,
+    "fps_median": 115.145,
+    "fps_p10_slow_tail": 99.53,
+    "frame_dt_ms_median": 8.685
+  },
+  "target_fps_requested": 143.0,
+  "speedup_x": 1.9,
+  "capped": true,
+  "cap_is_deliberate": true,
+  "so_what": "Capped DELIBERATELY at ~60 fps (FrameDurationLimits set by PicameraSource). Uncapped it would run 115; the headroom is given up on purpose to leave CPU for guidance/EKF/MAVSDK (ADR-0090). This is a CHOICE, not the defect this probe was written to find."
+}

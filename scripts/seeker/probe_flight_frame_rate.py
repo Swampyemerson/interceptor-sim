@@ -123,6 +123,33 @@ def main():
 
     ratio = (uncapped["fps_median"] / as_flown["fps_median"]
              if as_flown and uncapped and as_flown["fps_median"] else None)
+
+    # DELIBERATE cap or INHERITED one? They look identical in the fps ratio and
+    # mean opposite things (2026-07-26). Before the fix, PicameraSource set no
+    # FrameDurationLimits and the 30 fps was a default nobody chose -- a defect.
+    # It now pins the rate on purpose (CAMERA_FPS_DEFAULT), and reporting THAT as
+    # "over-spends range" would be a tool crying wolf about its own fix. The
+    # source's control dict is the discriminator, so read it rather than guess.
+    deliberate = bool(capped_controls.get("FrameDurationLimits"))
+    slower = bool(ratio and ratio > 1.3)
+
+    if slower and deliberate:
+        so_what = (
+            f"Capped DELIBERATELY at ~{as_flown['fps_median']:.0f} fps "
+            f"(FrameDurationLimits set by PicameraSource). Uncapped it would run "
+            f"{uncapped['fps_median']:.0f}; the headroom is given up on purpose to "
+            "leave CPU for guidance/EKF/MAVSDK (ADR-0090). This is a CHOICE, not "
+            "the defect this probe was written to find.")
+    elif slower:
+        so_what = (
+            "CAPPED BY AN INHERITED DEFAULT -- PicameraSource sets no "
+            "FrameDurationLimits, so nobody chose this rate. R_streak_burn goes "
+            "as 1/fps (ADR-0079), making this ratio the factor by which the "
+            "deployed seeker over-spends range forming the 5-frame handoff "
+            "streak. NOT a bench artifact: this is the class that flies.")
+    else:
+        so_what = "The deployed source is not frame-duration capped."
+
     rec = {
         "tool": "probe_flight_frame_rate.py",
         "subject": "flight/deploy/seeker_loop.py:PicameraSource (the DEPLOYED class)",
@@ -132,13 +159,9 @@ def main():
         "uncapped": uncapped,
         "target_fps_requested": args.target_fps,
         "speedup_x": round(ratio, 2) if ratio else None,
-        "capped": bool(ratio and ratio > 1.3),
-        "so_what": (
-            "R_streak_burn goes as 1/fps (ADR-0079), so this ratio is the factor "
-            "by which the deployed seeker over-spends range forming the 5-frame "
-            "handoff streak. It is NOT a bench artifact: this is the class that "
-            "flies." if ratio and ratio > 1.3 else
-            "The deployed source is not frame-duration capped."),
+        "capped": slower,
+        "cap_is_deliberate": deliberate,
+        "so_what": so_what,
     }
     print(json.dumps(rec, indent=2))
     if args.json:
