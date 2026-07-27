@@ -821,10 +821,20 @@ class PicameraSource:
         self.cam.configure(config)
         self.cam.start()
         self.cam.set_controls(self.controls)
-        print(f"[picam] frame rate pinned to {self.target_fps} fps"
-              if self.target_fps else
-              "[picam] WARNING: frame rate NOT pinned -- inheriting picamera2's "
-              "default, which measured 30.048 fps on the bench rig (ADR-0090)")
+        # Report what was APPLIED, not what was intended. The first version of
+        # this line printed "pinned to 60 fps" off `self.target_fps` alone -- a
+        # mutation test that deleted the FrameDurationLimits assignment still saw
+        # it claim success. A log that cannot distinguish the fix from its absence
+        # is worse than no log: it is the confident-wrong-output failure mode.
+        pinned = self.controls.get("FrameDurationLimits")
+        if pinned:
+            print(f"[picam] frame rate pinned to {1e6 / pinned[0]:.1f} fps "
+                  f"(FrameDurationLimits={pinned})")
+        else:
+            print("[picam] WARNING: frame rate NOT pinned -- inheriting "
+                  "picamera2's default, which MEASURED 30.048 fps on the real "
+                  "rig against 114.9 uncapped (ADR-0090). R_streak_burn goes as "
+                  "1/fps, so this costs range at handoff.")
 
     def frames(self):  # pragma: no cover -- hardware only
         import cv2
