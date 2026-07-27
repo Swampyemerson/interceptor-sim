@@ -45,7 +45,9 @@ import statistics
 import sys
 import time
 
-REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# This file is scripts/seeker/<name>.py, so the repo root is THREE levels up.
+# Two levels lands on scripts/ and `import flight` then fails on the Pi.
+REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if REPO not in sys.path:
     sys.path.insert(0, REPO)
 
