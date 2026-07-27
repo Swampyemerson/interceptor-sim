@@ -685,6 +685,23 @@ class VideoSource:
 # (docs/tripod_test_protocol.md §3.3/§4.4; docs/camera_paper_check.md item 3).
 EXPOSURE_SPEC_US = 1000
 
+# TODO-BUILDER: ratify on the props-off bench before the first powered flight.
+#
+# The seeker's frame rate. NOT the maximum the hardware can do -- 60 is chosen,
+# and the choice is the point (ADR-0090).
+#
+# Measured on the real Pi 5 (scripts/seeker/pi_fps_soak.py, 750 s soaks, tag in
+# every frame, no throttling): 96.6 fps sustained at quad_decimate=2.0, 38.2 at
+# 1.0, with decode consuming 2.41 of 4 cores at the top rate. The handoff burn
+# goes as 1/fps but is CONCAVE, so the gain is nearly spent by 60: at p=0.7,
+# 30 -> 60 fps saves ~2.5 m of burn while 60 -> 96.6 saves only ~1 m more. The
+# flight Pi must also carry guidance, the EKF, MAVSDK and logging on those same
+# four cores, so the last ~1 m is not worth ~25% of the machine.
+#
+# Raise it only with a measurement in hand, and remember the burn quantity the
+# gate wants is the rate at the decimate actually flown (protocol §4.2b).
+CAMERA_FPS_DEFAULT = 60.0
+
 
 def picam_exposure_controls(camera_controls, exposure_us, gain=1.0):
     """The picamera2 control dict that pins EXPOSURE manual and leaves GAIN auto.
@@ -759,7 +776,8 @@ class PicameraSource:
     request's metadata and logged, because a requested-but-unverified exposure is
     the same class of claim the instrument refuses to make."""
 
-    def __init__(self, size=(1280, 800), exposure_us=EXPOSURE_SPEC_US, gain=1.0):
+    def __init__(self, size=(1280, 800), exposure_us=EXPOSURE_SPEC_US, gain=1.0,
+                 target_fps=CAMERA_FPS_DEFAULT):
         try:
             from picamera2 import Picamera2  # type: ignore
         except ImportError as exc:  # pragma: no cover -- hardware only
@@ -769,13 +787,44 @@ class PicameraSource:
         self.cam = Picamera2()
         self.exposure_us = int(exposure_us)
         self.applied_exposure_us = None      # read back off the FIRST request
+        self.target_fps = float(target_fps) if target_fps else None
         self.controls = picam_exposure_controls(
             getattr(self.cam, "camera_controls", None), self.exposure_us, gain)
+
+        # FRAME RATE IS PINNED HERE, NOT INHERITED (2026-07-26). This class used
+        # to set no FrameDurationLimits, so the FLYING camera ran at whatever
+        # picamera2 defaulted to -- measured on the real rig by
+        # scripts/seeker/probe_flight_frame_rate.py as exactly 30.048 fps, while
+        # the same class with the cap lifted delivered 114.9 (3.82x). That was
+        # not the sensor (143 fps at 1280x800) and not the CPU (~112 fps of
+        # AprilTag decode throughput): it was a default nobody chose.
+        #
+        # It is load-bearing. The handoff streak burn goes as 1/fps
+        # (R_streak_burn = (E[T]/fps) x V_closing, ADR-0079), so a 3.8x frame-rate
+        # error is a 3.8x error in the range consumed forming the 5-in-a-row lock
+        # -- the quantity that decides whether the camera earns its place in the
+        # terminal phase, and an input to the ~$740 gate.
+        #
+        # Same treatment `size` gets above and for the same stated reason: a
+        # MEASURED quantity does not get a silent default. See ADR-0090.
+        if self.target_fps:
+            dur = int(round(1e6 / self.target_fps))
+            if dur < self.exposure_us:
+                raise RuntimeError(
+                    f"[picam] --camera-fps {self.target_fps} needs a {dur} us "
+                    f"frame duration, shorter than the {self.exposure_us} us "
+                    f"exposure. Exposure is a hard floor on frame duration.")
+            self.controls["FrameDurationLimits"] = (dur, dur)
+
         config = self.cam.create_video_configuration(
             main={"size": size, "format": "RGB888"}, controls=self.controls)
         self.cam.configure(config)
         self.cam.start()
         self.cam.set_controls(self.controls)
+        print(f"[picam] frame rate pinned to {self.target_fps} fps"
+              if self.target_fps else
+              "[picam] WARNING: frame rate NOT pinned -- inheriting picamera2's "
+              "default, which measured 30.048 fps on the bench rig (ADR-0090)")
 
     def frames(self):  # pragma: no cover -- hardware only
         import cv2
@@ -1653,6 +1702,12 @@ def main(argv=None) -> int:
                     help="camera_intrinsics.json / calibrate_camera.py output")
     ap.add_argument("--conf", type=float, default=0.25, help="detector confidence")
     ap.add_argument("--fps", type=float, default=20.0, help="control loop rate")
+    ap.add_argument("--camera-fps", type=float, default=CAMERA_FPS_DEFAULT,
+                    help="SENSOR frame rate for --source picamera (distinct from "
+                         "--fps, the control-loop rate). Pinned, not inherited: "
+                         "the unpinned default measured 30.048 fps on the real "
+                         "rig while the hardware does 143 (ADR-0090). 0 = leave "
+                         "unpinned (logs a warning).")
     ap.add_argument("--max-frames", type=int, default=None,
                     help="stop after N frames. Honoured on BOTH the desk and "
                          "the MAVSDK path (it was silently ignored on the "
@@ -1805,7 +1860,8 @@ def main(argv=None) -> int:
                   f"scripts/calibrate_camera.py on this lens (its output "
                   f"carries a `resolution` block) -- do not guess a size.")
             return 1
-        source = PicameraSource(size=(cam.width, cam.height))
+        source = PicameraSource(size=(cam.width, cam.height),
+                                target_fps=args.camera_fps)
     elif os.path.isdir(args.source):
         source = ImageDirSource(args.source, fps=args.fps)
     elif args.source.lower().endswith((".mp4", ".avi", ".mov", ".mkv")):
