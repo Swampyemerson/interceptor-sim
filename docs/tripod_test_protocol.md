@@ -948,8 +948,37 @@ the session dir; it scores curve (a) and curve (b) in one pass.
 
 Bench the real Pi 5 the same day (`build_plan.P2` task 5): sustained AprilTag fps
 and CPU-YOLO fps on the actual hardware (`pi5-emulation-gap` constraint — emulation
-cannot measure this). Anchors to compare against: AprilTag ~30 fps CPU-real-time;
-CPU YOLO ~5–10 fps (not viable at terminal LOS rates, hence the deferred Hailo HAT).
+cannot measure this).
+
+> ✅ **RUN 2026-07-26 — this section is now MEASURED, not anchored.** Harness:
+> `scripts/seeker/pi_fps_soak.py` (750 s soaks, tag in frame, thermals sampled
+> throughout, fails closed on a short/cold/tagless run). Results in
+> `runs/skr07_tagged/`; reasoning in ADR-0090.
+>
+> | arm | sustained | decode | max temp | throttled |
+> |---|---|---|---|---|
+> | AprilTag, `quad_decimate=2.0` (the flying default) | **96.6 fps** | 8.9 ms | 57.9 °C | none |
+> | AprilTag, `quad_decimate=1.0` (the reclaim lever) | **40.3 fps** | 23.3 ms | 59.0 °C | none |
+> | CPU-YOLO, `n-mono.onnx` @640 | **6.09 fps** | 162 ms | 67.2 °C | none |
+>
+> **The old anchor here read "AprilTag ~30 fps CPU-real-time" and was never
+> measured — it was low by ~3.2×.** The rig really was delivering 30.0 fps, but
+> because neither `pi_capture.py` nor `flight/deploy/seeker_loop.py:PicameraSource`
+> set picamera2's `FrameDurationLimits`: an inherited default, not the sensor
+> (143 fps at 1280×800) and not the CPU (~112 fps of decode throughput). Steady
+> state ≈ cold start on every arm, so there is **no thermal derating** with the
+> active cooler fitted.
+>
+> **Which gate each number may feed.** Only the AprilTag arms may supply
+> `tripod_score --stream-fps`, and **at the decimate you scored** (§4.2b). The
+> CPU-YOLO figure gates the **deferred Hailo/markerless phase ONLY** — it is a
+> different pipeline and must never be quoted as curve (a)'s cadence. At 6.09 fps
+> the ~5–10 fps CPU-YOLO anchor is CONFIRMED, so the Hailo HAT requirement stands.
+>
+> **Caveat, in the conservative direction:** measured with tags filling the frame,
+> which is more decode work than one distant placard — so the flight case should be
+> no slower. The tagless upper bound was 108.6 fps, i.e. the missing tag inflated
+> the rate ~12%, which is why the harness refuses a tagless run outright.
 
 ---
 
