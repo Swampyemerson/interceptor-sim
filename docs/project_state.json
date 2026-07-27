@@ -1515,7 +1515,7 @@
           "item": "MUST-ADD field layer (NOT in cart) — Pi 5 active cooler (~$5), USB-C PD power bank >=27W (field power), tripod/mast + ball head + inclinometer, 2 more CNHL 6S packs (the ~28-pass matrix needs 3+), tape measure/cones + laptop, FAA reg $5 + Remote-ID/FRIA decision",
           "qty": "1 set",
           "price": "~$100-180",
-          "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2). [2026-07-20b TOP-UP: +2 CNHL 6S packs ORDERED (3 total). STILL MISSING: Pi 5 active cooler, >=27 W USB-C PD power bank, tripod + ball head (+ inclinometer app), cones/tape measure; FAA reg + Remote-ID/FRIA decision still open. Duplicate flag RESOLVED (builder checked 2026-07-20: NOT doubled — the 6C Mini + PM02 were ordered once, in the top-up).]"
+          "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2). [2026-07-20b TOP-UP: +2 CNHL 6S packs ORDERED (3 total). STILL MISSING: >=27 W USB-C PD power bank, tripod + ball head (+ inclinometer app), cones/tape measure, handheld anemometer (the cooler is FITTED — ADR-0090); FAA reg + Remote-ID/FRIA decision still open. Duplicate flag RESOLVED (builder checked 2026-07-20: NOT doubled — the 6C Mini + PM02 were ordered once, in the top-up).]"
         }
       ],
       "status": "✅ FULLY ORDERED (builder 2026-07-25) — the entire Tier-1 validation kit is on order/in hand (target-drone stack, seeker kit, interceptor brain, and the must-add build/field layer). See the parts list + dashboard."
@@ -1794,9 +1794,9 @@
           },
           {
             "name": "Pi 5 active cooler",
-            "status": "must-add",
+            "status": "in hand",
             "role": "Mandatory under sustained CV load — the fps benchmark is a thermal-soak test, not a sprint.",
-            "notes": ""
+            "notes": "FITTED and proven: the skr-07 soaks held 96.6 fps at 58 C with throttled=0x0 throughout, steady-state equal to cold-start (ADR-0090). The contract had it as must-add until 2026-07-27."
           },
           {
             "name": "Checkerboard 9x6 calibration board (rigid)",
@@ -2056,7 +2056,7 @@
           },
           {
             "id": "gnd-01",
-            "text": "Order the STILL-NEEDED build/safety items: fireproof charge bag, safety glasses (ANSI Z87), fire blanket, Kakute microSD, lost-model buzzer, Pi 5 active cooler."
+            "text": "Order the STILL-NEEDED items: lost-model buzzer, >=27 W USB-C PD power bank, tripod + ball head, cones + tape measure, handheld anemometer. (Charge bag, glasses, fire blanket, Kakute microSD and the Pi 5 active cooler are all in hand as of 2026-07-26.)"
           },
           {
             "id": "gnd-02",
