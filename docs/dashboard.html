@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1b89340<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c6c7bcf<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -879,7 +879,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-07-26",
- "updated_by": "2026-07-26: first hardware night -- Pi + Pixhawk bench up, 1 ms exposure measured, 48 script defects fixed.",
+ "updated_by": "2026-07-26 bench night two: seeker frame rate was a camera default, not a limit -- measured 96.6 fps sustained.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -891,13 +891,13 @@
  },
  "now": {
   "as_of": "2026-07-26",
-  "where": "Bench night one landed: Pixhawk flashed and parameterised, Pi 5 provisioned, OV9281 live at 1280x800, and the <=1 ms exposure the tripod day depends on is MEASURED at 994 us. The target drone still waits on its flight controller -- that is now the only thing holding up tripod day.",
-  "finding": "The miss ruler is wrong and the fix I published was itself incomplete. Scored at the camera it reads 3 of 16 inside 0.35 m; correcting only height gives 12 of 16; the full 3-D camera offset may give 5-8. UNRESOLVED until the scorer is fixed properly.",
+  "where": "Bench night two. The seeker's frame rate was set by an inherited camera default, not by the hardware. With the cap lifted and a tag on screen, the Pi 5 holds 96.6 frames per second through a 12-minute soak at 58 C with no throttling -- the first compute-bench number the money gate can use.",
+  "finding": "The gate's frame rate was assumed to be 30 and never measured. It is 96.6. That cuts the range burned while the camera locks on by about three times, and we can now afford the finer decode setting we thought we could not.",
   "next": [
-   "Wire the 3 TELEM2 jumpers and close brn-05, the props-off OFFBOARD gate",
-   "Then the miss ruler: log pitch/roll per tick, re-score every past run"
+   "Re-run the fine-decode arm: its on-screen tags dimmed out mid-soak",
+   "Feed 96.6 fps into the gate scorer and re-quote the range needed"
   ],
-  "evidence": "docs/flight_plan_candidates.md (2026-07-25 results + confound correction) · commits df1b557, 8e8eba5"
+  "evidence": "runs/skr07_tagged/ (soak.json + verdict.txt per arm) - docs/decisions.md ADR-0090 - scripts/seeker/pi_fps_soak.py - commits 5cdefb0, e344c96, f3a9d5e, c6c7bcf"
  },
  "assumptions": [
   {
@@ -1200,8 +1200,8 @@
   },
   {
    "id": "pi5-realtime-compute",
-   "statement": "The Pi 5 is assumed to run the AprilTag seeker at ~30 fps real-time (CPU YOLO 5–10 fps) — literature anchors. QEMU proved the software RUNS on arm64, explicitly not its speed.",
-   "grade": "unmeasured",
+   "statement": "Assumed ~30 fps for the AprilTag seeker (CPU YOLO 5-10) from literature. MEASURED 2026-07-26: 96.6 fps at decimate 2.0, 40.3 at 1.0; CPU YOLO 6.09.",
+   "grade": "measured",
    "if_wrong": "Lower fps burns more range in the handoff streak → the t_go ≥ 0.5 s money gate flips (measured to flip across ~24 fps). The Tier-2 order hinges on a frame rate nobody has measured on the real board.",
    "stages": [
     "detector",
@@ -1213,12 +1213,12 @@
    "test": {
     "how": "Tripod-day §7.3 compute bench: sustained AprilTag fps and CPU-YOLO fps on the actual Pi 5 (in hand); feed the measured number into the gate scorer with --stream-fps (it refuses to invent one).",
     "cost": "One bench hour on in-hand hardware",
-    "status": "planned (tripod_test_protocol.md §7.3)"
+    "status": "RUN 2026-07-26 (750 s soak, tag_frac 1.0, no throttle)"
    },
-   "state": "planned",
-   "ruling": "",
+   "state": "verified",
+   "ruling": "RESOLVED, and the assumption was low by ~3.2x. The 30 fps was never measured -- and the rig really was delivering 30.0, because neither pi_capture nor the flight camera source set picamera2's FrameDurationLimits. An inherited default, not the sensor (143 fps) and not the CPU (112 fps of decode throughput), was setting the seeker's frame rate. The gate flips across ~24 fps; at 96.6 that input is no longer marginal. Caveat: measured with tags filling the frame, which is MORE decode work than one distant placard, so it is conservative for the flight case.",
    "origin": "project_state.json constraints pi5-compute + pi5-emulation-gap; docs/tripod_test_protocol.md §7.3 + §8.1; an invented 30 fps default already flipped the $740 gate once",
-   "evidence": "'The gate flips across ~24 fps … a real input, not a formality' (tripod_test_protocol.md); the fail-closed rule in docs/error_handling_policy.md traces to the invented-30fps incident"
+   "evidence": "runs/skr07_tagged/qd2_uncapped/soak.json - ADR-0090 - scripts/seeker/pi_fps_soak.py (fails closed on a short, cold, or tagless soak)"
   },
   {
    "id": "real-flight-constants-sim-derived",
@@ -1283,6 +1283,18 @@
  "plain_log": [
   {
    "date": "2026-07-26",
+   "text": "The camera was only ever getting 30 frames a second because of a default nobody set -- not the sensor (capable of 143) and not the Pi (capable of 112). Lifting it gives 96.6 sustained, with a tag in every frame and no overheating.",
+   "so_what": "The interceptor burns about three times less distance while the camera locks on, and the finer decode setting is now affordable. This is the first bench number the $740 gate can legitimately use.",
+   "evidence": "ADR-0090 - runs/skr07_tagged/qd2_uncapped - commit f3a9d5e"
+  },
+  {
+   "date": "2026-07-26",
+   "text": "Last night's bench ran one commit behind and published an unbounded frame rate (89.5) on a rig actually delivering 30. The gate scorer prefers exactly that field, so it would have taken it.",
+   "so_what": "Would have understated the lock-on burn threefold, always toward 'buy'. The scorer now refuses any rate that cannot show it was bounded, with a test tying the two scripts.",
+   "evidence": "commit e344c96 - tests/test_decode_fps_bound_contract.py"
+  },
+  {
+   "date": "2026-07-26",
    "text": "First real hardware night. Pixhawk parameterised, Pi 5 provisioned on Debian 13 (not the Bookworm the docs assume), camera live at 1280x800 after finding the ribbon was on CSI port 0, and the <=1 ms exposure verified at 994 us.",
    "so_what": "The tripod day's motion-blur measurement is possible, and the seeker rig is real hardware now instead of a plan.",
    "evidence": "Pi 5 at 192.168.50.67, sessions/smoke/meta.json"
@@ -1340,18 +1352,6 @@
    "text": "The premature-abort bug turns out to have a fix already in the code (--breakoff-max-range-m); the earlier 'no known fix' was wrong.",
    "so_what": "One flag and one A/B instead of a design project.",
    "evidence": "m4_intercept.py:2169; f0c26c7"
-  },
-  {
-   "date": "2026-07-25",
-   "text": "Found a scoring flaw that only hurts camera flights: they sometimes quit steering early (a false 'we passed it' trigger the dash-only flights can never fire).",
-   "so_what": "The camera-vs-dash verdicts stand, but the SIZE of the camera's deficit is unknown until this is redesigned — a simple threshold fix was measured and cannot work.",
-   "evidence": "commit 8e8eba5 · flight_plan_candidates.md confound section"
-  },
-  {
-   "date": "2026-07-25",
-   "text": "Flew the 10 mph test: the pre-programmed dash alone got 8/8 flights under 1 m (median 0.73 m). The camera arm did not beat its dash-only twin (2/8 vs a 6/8 bar). Nothing got inside 0.35 m.",
-   "so_what": "Sub-metre is real but it is ballistic — camera off. And sub-metre is still not a kill: 0/16 inside the ram radius.",
-   "evidence": "commit df1b557 · logs/mc_fp_arm*"
   }
  ],
  "narrative": {
@@ -2058,7 +2058,7 @@
  "constraints": [
   {
    "id": "pi5-compute",
-   "text": "Pi 5 CPU runs the AprilTag baseline seeker real-time; markerless YOLO REQUIRES the (deferred) Hailo AI HAT+ — CPU YOLO ~5-10 FPS is not viable at terminal LOS rates. First real kills therefore fly the tag.",
+   "text": "MEASURED 2026-07-26 on the real board, confirming this constraint: the Pi 5 CPU runs the AprilTag seeker comfortably real-time (96.6 fps sustained at decimate 2.0) but CPU YOLO manages only 6.09 fps (162 ms/inference) -- inside the predicted 5-10 band and NOT viable at terminal LOS rates. The markerless path still REQUIRES the deferred Hailo AI HAT+, so first real kills fly the tag. Note the frame-rate win does NOT rescue the markerless path: 96.6 fps is the tag pipeline, 6.09 is the NN's.",
    "evidence": [
     "docs/hardware_order_list.md §0c",
     "NEXT.md ROUND-5"
@@ -2066,7 +2066,7 @@
   },
   {
    "id": "pi5-emulation-gap",
-   "text": "Pi 5 performance CANNOT be pre-validated in emulation: a QEMU/ARM64 VM proves the SOFTWARE stack (ONNX loads, the pipeline runs end-to-end) but NOT real fps — emulated throughput is not representative of real Cortex-A76 performance. Real numbers need the physical Pi 5 (the Tier-1 buy, bom_tiers) or the Hailo vendor benchmark. Anchors: AprilTag ~30 fps CPU-real-time; markerless YOLO ~5-10 fps CPU (measured ~13 fps YOLOv8n on desktop-class CPU, ADR-0015) — not viable at terminal LOS rates, REQUIRES the Hailo HAT.",
+   "text": "RESOLVED 2026-07-26 -- the gap is closed by measurement. Emulation could never give fps (QEMU proved the stack RUNS, not its speed), so the real board was a Tier-1 buy. Measured: AprilTag 96.6 fps at decimate 2.0 / 40.3 at 1.0; CPU YOLO 6.09 fps. The old anchors here read '~30 fps AprilTag' and were never measured -- the AprilTag figure was low by ~3.2x because an inherited picamera2 frame-duration default was capping the camera.",
    "evidence": [
     "docs/hardware_order_list.md §0c",
     "NEXT.md ROUND-5 (Pi5 ruling)",
@@ -2326,6 +2326,14 @@
    "plain": "How many flights reach contact range depends on a ruler we have not fixed yet -- do not quote a single number",
    "note": "Three rulers, three answers on the SAME 16 flights: camera-lens 3/16 (as long published); height-only correction 12/16 (2026-07-26, incomplete); full 3-D attitude-rotated camera offset possibly 5-8/16 (audit #7, not yet reproducible here). The camera sits ~0.25 m above AND 0.12 m forward of the airframe centre; at the 35-44 deg dash pitch the forward part rotates into ~0.25 m of HORIZONTAL error that no correction has applied. BLOCKER: the per-tick logs carry yaw only -- no pitch or roll -- so the correction cannot be computed from existing data at all.",
    "provenance": "audit #7 (instrument audit 2026-07-26); m4_intercept.py:267 + :2221; commit fcb2a0a superseded"
+  },
+  {
+   "label": "Seeker frame rate, measured on the Pi 5",
+   "value": "96.6 fps",
+   "plain": "How many camera frames a second the seeker really manages. The project assumed 30; measured it is 96.6.",
+   "provenance": "runs/skr07_tagged/qd2_uncapped/soak.json · ADR-0090 · scripts/seeker/pi_fps_soak.py",
+   "trust": "bench",
+   "note": "750 s soak, quad_decimate 2.0, tag in every frame, 57.9 C max, no throttling; the project had assumed 30"
   }
  ],
  "bom_tiers": [
@@ -2726,7 +2734,7 @@
      },
      {
       "id": "skr-07",
-      "text": "Bench the REAL Pi 5: sustained AprilTag decode fps + CPU-YOLO fps through a thermal soak.",
+      "text": "[DONE 2026-07-26] Sustained rates on the REAL Pi 5 through 750 s thermal soaks, tag in frame, no throttling at any point: 96.6 fps at quad_decimate 2.0, 40.3 at 1.0, CPU-YOLO 6.09 fps (n-mono.onnx @640, 162 ms/inference). Max 57.9 C on the tag arms, 67.2 C on YOLO. THE HEADLINE: the seeker had been running at 30 fps because neither pi_capture nor the flight camera source set picamera2's FrameDurationLimits -- an inherited default, not the sensor (143 fps) and not the CPU. Harness scripts/seeker/pi_fps_soak.py; ADR-0090; runs/skr07_tagged/.",
       "why": "Emulation cannot measure this (pi5-emulation-gap) — it is why the physical Pi is a Tier-1 buy. Anchors: tag ~30 fps CPU; CPU YOLO ~5-10 fps (not viable at terminal rates, hence the deferred Hailo)."
      },
      {

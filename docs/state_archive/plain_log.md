@@ -1,3 +1,19 @@
+### 2026-07-25
+
+Found a scoring flaw that only hurts camera flights: they sometimes quit steering early (a false 'we passed it' trigger the dash-only flights can never fire).
+
+**So what:** The camera-vs-dash verdicts stand, but the SIZE of the camera's deficit is unknown until this is redesigned — a simple threshold fix was measured and cannot work.
+
+*Evidence: commit 8e8eba5 · flight_plan_candidates.md confound section*
+
+### 2026-07-25
+
+Flew the 10 mph test: the pre-programmed dash alone got 8/8 flights under 1 m (median 0.73 m). The camera arm did not beat its dash-only twin (2/8 vs a 6/8 bar). Nothing got inside 0.35 m.
+
+**So what:** Sub-metre is real but it is ballistic — camera off. And sub-metre is still not a kill: 0/16 inside the ram radius.
+
+*Evidence: commit df1b557 · logs/mc_fp_arm**
+
 
 ### 2026-07-25
 
