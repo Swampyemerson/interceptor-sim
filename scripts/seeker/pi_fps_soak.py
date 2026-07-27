@@ -441,6 +441,62 @@ def _tag_timeline(samples, bucket_s=30.0):
     return out
 
 
+# Pi 5 soft-throttles here. The trip points exposed on thermal_zone0 (50/60/67/75)
+# are FAN CURVE steps, not throttle points; 110 is the critical shutdown.
+THROTTLE_C = 80.0
+
+
+def _thermal_margin(temps, args):
+    """How much thermal headroom is left — AND how much of it is an artifact of
+    benching indoors.
+
+    WHY THIS IS NOT JUST max_temp (2026-07-26, the builder's question — does the
+    drone's own airflow help?). Partly, but it is the wrong worry in both
+    directions:
+
+      * FLIGHT IS TOO SHORT TO MATTER. An engagement is seconds; this soak is 750.
+        The part cannot approach steady state in a flight, so no single engagement
+        is as thermally severe as this bench. Forced convection from the dash and
+        prop wash only adds margin on top of that.
+      * THE BINDING CASE IS GROUND STANDBY. Armed on the launch plate in the sun,
+        seeker running, NO airflow, and an enclosure the free stream never reaches.
+        That is hotter than flight and can be hotter than this bench.
+      * AND THIS BENCH WAS RUN INDOORS. Every temperature here carries the room's
+        ambient. Outdoors on a hot day the whole curve shifts up by roughly the
+        ambient difference, which is why the projection below exists.
+
+    AMBIENT IS NOT MEASURED — the Pi has no ambient sensor and nothing recorded the
+    room. So `--ambient-c` is an OPERATOR-DECLARED input and the projection is
+    labelled an estimate, never a measurement. Stating an unmeasured input beats
+    quietly assuming one (the assumptions rule).
+    """
+    if not temps:
+        return None
+    t_max = max(temps)
+    amb = getattr(args, "ambient_c", None)
+    proj = getattr(args, "project_ambient_c", None)
+    out = {
+        "temp_c_max": t_max,
+        "throttle_c": THROTTLE_C,
+        "margin_c": round(THROTTLE_C - t_max, 2),
+        "ambient_c_declared": amb,
+        "ambient_measured": False,
+        "note": ("margin is to the 80 C soft-throttle; the 50/60/67/75 trips on "
+                 "thermal_zone0 are FAN steps, not throttle points"),
+    }
+    if amb is not None and proj is not None:
+        shift = float(proj) - float(amb)
+        out["projected"] = {
+            "at_ambient_c": proj,
+            "temp_c_estimated": round(t_max + shift, 2),
+            "margin_c_estimated": round(THROTTLE_C - (t_max + shift), 2),
+            "basis": ("ESTIMATE, not a measurement: assumes SoC temperature "
+                      "tracks ambient 1:1, which is optimistic in still air and "
+                      "pessimistic under forced convection"),
+        }
+    return out
+
+
 def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames):
     warm = [r for r in samples if r[0] < args.warmup_s]
     steady = [r for r in samples if r[0] >= args.warmup_s]
@@ -531,6 +587,7 @@ def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames):
             "steady_note": steady_note,
             "throttled_values_seen": throttle_seen or ["0x0"],
             "throttle_flags": flags,
+            "thermal_margin": _thermal_margin(temps, args),
         },
         "warmup_window": warm_stats,
         "steady_window": steady_stats,
@@ -592,7 +649,7 @@ def self_test():
         mode = "apriltag"; quad_decimate = 2.0; warmup_s = 1.0; duration_s = 5.0
         width = 1280; height = 800; exposure_us = 1000; nthreads = 4
         min_tag_frac = 0.5; allow_no_tag = False; weights = ""; imgsz = 640
-        target_fps = None
+        target_fps = None; ambient_c = None; project_ambient_c = None
 
     # a short, tagless run must be refused on BOTH counts
     samples = [(i * 0.05, 0.02, 0.03, 0) for i in range(200)]
@@ -651,6 +708,12 @@ def main():
                          "camera-capped, not compute-bound. Recorded either way.")
     ap.add_argument("--nthreads", type=int, default=4)
     ap.add_argument("--min-tag-frac", type=float, default=DEFAULT_MIN_TAG_FRAC)
+    ap.add_argument("--ambient-c", type=float, default=None,
+                    help="OPERATOR-DECLARED room ambient (the Pi has no ambient "
+                         "sensor). Recorded, never assumed.")
+    ap.add_argument("--project-ambient-c", type=float, default=None,
+                    help="project the peak temperature to this ambient, e.g. 35 "
+                         "for a hot field day. Estimate, not a measurement.")
     ap.add_argument("--allow-no-tag", action="store_true",
                     help="run without a tag in view; result is stamped "
                          "PROVISIONAL and stays gate_eligible=false")
