@@ -483,9 +483,21 @@ def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames):
         "mode": args.mode,
         "gate_eligible": not refusals,
         "refusals": refusals,
+        # WHICH GATE THIS NUMBER MAY FEED (2026-07-26). Only the AprilTag arm may
+        # supply tripod_score's --stream-fps: curve (a)'s burn model is the TAG
+        # pipeline's cadence, and handing it a CPU-YOLO rate would be the
+        # wrong-quantity error one layer up (the markerless rate gates the
+        # deferred Hailo decision, not the ~$740 interceptor order). The tool used
+        # to stamp both arms identically, which is exactly how a plausible number
+        # ends up in the wrong slot.
         "may_be_quoted_as_stream_fps": (
-            steady_stats["fps_published"] if (not refusals and steady_stats)
+            steady_stats["fps_published"]
+            if (not refusals and steady_stats and args.mode == "apriltag")
             else None),
+        "gates": ("curve (a) / the ~$740 Tier-2 order (tripod_score --stream-fps)"
+                  if args.mode == "apriltag"
+                  else "the DEFERRED Hailo/markerless phase ONLY — never "
+                       "tripod_score --stream-fps"),
         "host": {
             "model": model, "governor": _read_governor(),
             "python": sys.version.split()[0], "nthreads": args.nthreads,
