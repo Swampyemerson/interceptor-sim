@@ -1,0 +1,77 @@
+{
+  "tool": "pi_fps_soak.py",
+  "contract_step": "skr-07",
+  "protocol": "docs/tripod_test_protocol.md \u00a77.3",
+  "mode": "yolo",
+  "gate_eligible": true,
+  "refusals": [],
+  "may_be_quoted_as_stream_fps": 6.086,
+  "host": {
+    "model": "Raspberry Pi 5 Model B Rev 1.1",
+    "governor": "ondemand",
+    "python": "3.13.5",
+    "nthreads": 4
+  },
+  "capture": {
+    "source": "picamera2",
+    "width": 1280,
+    "height": 800,
+    "exposure_us_requested": 1000,
+    "exposure_us_applied": 994,
+    "target_fps_requested": 143.0,
+    "frame_duration_capped": true,
+    "frames_written": 0,
+    "note": "NO frames are written: this measures the FLIGHT loop, not the recorder (pi_capture.py pays a PNG write per frame that the flight loop never pays)"
+  },
+  "workload": {
+    "onnx": "scripts/seeker/weights/nn_tier/n-mono.onnx",
+    "imgsz": 640,
+    "provider": "CPUExecutionProvider"
+  },
+  "soak": {
+    "duration_s_requested": 750.0,
+    "duration_s_elapsed": 750.48,
+    "warmup_s": 300.0,
+    "n_frames_total": 4516,
+    "temp_c_start": 49.6,
+    "temp_c_max": 67.2,
+    "temp_c_end": 67.2,
+    "steady_state": true,
+    "steady_drift_c": 1.072,
+    "steady_note": "steady (drift +1.07 C)",
+    "throttled_values_seen": [
+      "0x0"
+    ],
+    "throttle_flags": []
+  },
+  "warmup_window": {
+    "n_frames": 1802,
+    "fps_published": 6.105,
+    "fps_source": "BOUNDED min(decode throughput 6.20, delivered cadence 6.11)",
+    "fps_p10_slow_tail": 6.008,
+    "decode_throughput_fps": 6.198,
+    "delivered_cadence_fps": 6.105,
+    "compute_headroom_x": 1.02,
+    "clamp_dominated": false,
+    "bound_by": "compute/decode",
+    "decode_ms_median": 161.342,
+    "decode_ms_p90": 166.447,
+    "frames_with_tag": 0,
+    "tag_frac": 0.0
+  },
+  "steady_window": {
+    "n_frames": 2714,
+    "fps_published": 6.086,
+    "fps_source": "BOUNDED min(decode throughput 6.18, delivered cadence 6.09)",
+    "fps_p10_slow_tail": 5.988,
+    "decode_throughput_fps": 6.178,
+    "delivered_cadence_fps": 6.086,
+    "compute_headroom_x": 1.02,
+    "clamp_dominated": false,
+    "bound_by": "compute/decode",
+    "decode_ms_median": 161.865,
+    "decode_ms_p90": 166.988,
+    "frames_with_tag": 0,
+    "tag_frac": 0.0
+  }
+}

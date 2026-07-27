@@ -110,3 +110,10 @@ scripts/seeker/nn_tier/runs/
 /yolo26n.pt
 # In-view-probe downtilt mount SDF scratch (regenerable)
 scripts/experiments/downtilt_mounts/
+
+# skr-07 compute bench (2026-07-26) — the ~$740 gate's fps divisor. Same DEEP-H1
+# rule as the aggregate CSVs above: these are small (112 KB total) and ADR-0090,
+# tripod_test_protocol §7.3 and the contract all cite them, so the published
+# numbers must survive disk loss and the Pi being reflashed.
+!logs/skr07_2026-07-26/
+!logs/skr07_2026-07-26/**
