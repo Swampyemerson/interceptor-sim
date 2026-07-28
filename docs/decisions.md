@@ -2269,3 +2269,45 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Thermal margin at 60 fps is comfortable even outdoors.** Projected to a 35 °C field day from the builder-declared ~26.7 °C bench ambient: **60.1 °C, 19.9 °C of margin** to the 80 °C soft throttle (estimate; solar gain on the airframe is extra and not included).
 - **Wired and verified end-to-end, not just asserted.** `flight/deploy/seeker_loop.py` now pins the rate (`CAMERA_FPS_DEFAULT = 60.0`, `--camera-fps`, `TODO-BUILDER` for props-off ratification). Re-running the probe against the deployed class: **as flown 30.048 → 59.875 fps**. The fix is observed changing hardware behaviour, per the standing rule that a fix isn't done until its effect is seen.
 - **Two self-inflicted errors worth recording.** (1) The first 60 fps arm died instantly because it was launched with `--ambient-c` flags the Pi's copy of the harness did not yet have, and six minutes were lost before the monitor caught it — the launch was never verified as *surviving*, only as *started*. (2) A mutation test (deleting the `FrameDurationLimits` assignment) showed the new log still printing "frame rate pinned to 60.0 fps", because it read the *intent* (`self.target_fps`) rather than the *fact* (the applied control). A log that cannot distinguish a fix from its absence is the confident-wrong-output failure mode this project exists to prevent; it now reports the applied value. `probe_flight_frame_rate.py` likewise now distinguishes a DELIBERATE cap from an INHERITED one — otherwise the tool would cry wolf about its own fix.
+
+## ADR-0091 — The M10 lands on GPS2, not GPS1: the GPS is a param change, the COMPASS is a bus the firmware never scans (bench decision, 2026-07-27)
+
+- **Context.** At the bench the builder found the Holybro M10's cable is **6-pin**, so it
+  physically fits only **GPS2**; GPS1 on the Pixhawk 6C Mini is a 10-pin connector. The
+  `brn-02` step, `configs/px4_6cmini/README.md` and `bench.params` all assumed GPS1.
+- **What is actually on each port** (Holybro 6C Mini port pinout, verified 2026-07-27):
+  GPS1 = 10-pin JST-GH — VCC, TX1, RX1, **SCL1/SDA1 (I2C bus 1)**, SAFETY_SWITCH,
+  SAFETY_SWITCH_LED, IO_VDD_3V3, BUZZER-, GND. GPS2 = 6-pin JST-GH — VCC, UART8_TX,
+  UART8_RX, **I2C2_SCL/SDA (I2C bus 2)**, GND.
+- **The GPS half is trivial.** `GPS_1_CONFIG` is a generic serial-port assignment; setting
+  it to **"GPS 2"** in QGC (plus `SER_GPS2_BAUD` = Auto) makes the receiver on GPS2 the
+  PRIMARY GPS. Using `GPS_2_CONFIG` instead would leave `GPS_1_CONFIG` pointed at an empty
+  port and a permanently failing primary — do not do that.
+- **The COMPASS half is the finding, and it is silent.** PX4 v1.16.0
+  [`boards/px4/fmu-v6c/init/rc.board_sensors`](https://github.com/PX4/PX4-Autopilot/blob/v1.16.0/boards/px4/fmu-v6c/init/rc.board_sensors)
+  starts exactly two ist8310 instances: `ist8310 -X -b 4 -a 0xc start` (the board's
+  internal mag) and `ist8310 -X -b 1 -R 10 start` (GPS1's I2C). **Bus 2 is never probed**,
+  so a compass on GPS2 simply does not appear — indistinguishable at the QGC surface from
+  a dead module or a bad solder joint. This is exactly the failure class the project's
+  fail-closed rule exists for: an absent measurement that reads as a hardware fault.
+- **Options.** (a) `ist8310 -X -b 2 -R 10 start` in `/fs/microsd/etc/extras.txt` — sourced
+  by `rcS` at line 584, *after* `sensors start` (line 350), so the late instance must be
+  verified, not assumed. (b) A 6→10-pin GPS cable to move the module onto GPS1 (~$5) —
+  puts it on the probed bus with the documented `-R 10` rotation. (c) Accept the internal
+  ist8310 on bus 4 for bench work.
+- **Decision.** **(c) for the bench now, (b) for flight.** `brn-05` never arms and needs no
+  GPS fix at all (see the corrected note in `configs/px4_6cmini/README.md`), so nothing on
+  the bench is blocked. An external mag away from the power wiring is worth having on the
+  airframe, and a cable is cheaper and less fragile than an SD-card startup script that
+  silently stops applying if the card is reformatted. (a) is the fallback if the cable is
+  slow to arrive — verify with `ist8310 status` in the MAVLink console, never by assuming.
+- **Second consequence, logged now so it does not surprise the airframe build.** This M10
+  has **no safety switch** — those are GPS1 pins 6/7 and this module does not carry them.
+  `bench.params` sets `CBRK_IO_SAFETY = 0`, which *restores* the safety-button arming gate,
+  and PX4IO advertises `safety_button` whether or not a button exists. So at the first
+  props-off ARM test the board will refuse with "Press safety button first" and there will
+  be no button to press. Fix then, knowingly: either add a switch or set `CBRK_IO_SAFETY`
+  back to 22027. Not a bench blocker (nothing arms in `brn-05`), and `README.md` §3's
+  claim that "the M10 (with its safety switch) on GPS1" will satisfy it is **wrong for the
+  module actually in hand**.
+- **Date:** 2026-07-27.

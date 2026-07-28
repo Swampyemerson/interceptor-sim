@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4c285c5<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->cd9323e<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -2729,7 +2729,7 @@
      {
       "id": "skr-06",
       "gate": true,
-      "text": "Calibrate: >=15 checkerboard views in the final tripod geometry into scripts/calibrate_camera.py; acceptance RMS reprojection <= 1.0 px. Re-shoot a short set at end-of-session to catch drift.",
+      "text": "Calibrate: >=15 checkerboard views in the final tripod geometry into scripts/calibrate_camera.py; acceptance RMS reprojection <= 1.0 px. Re-shoot a short set at end-of-session to catch drift. CAPTURE THEM WITH scripts/seeker/capture_calib_views.py (added 2026-07-27) -- calibrate_camera.py's own --live mode needs V4L2 + a GUI window and cannot run on the headless libcamera Pi; the capture tool reports FOUND/NOT and frame-zone + distance coverage per shot, and refuses READY below 15 views / 7 of 9 zones / all 3 distance buckets.",
       "why": "Every range/bearing number is wrong until intrinsics + distortion are solved — the wide lens distorts. This is the first bench gate."
      },
      {
@@ -2818,7 +2818,8 @@
      },
      {
       "id": "brn-02",
-      "text": "Connect the M10 to GPS1; verify GPS + compass appear in QGC."
+      "text": "Connect the M10 and verify GPS + compass appear in QGC. REALITY 2026-07-27: this M10's cable is 6-pin, so it only fits GPS2, not the 10-pin GPS1. That is fine for the GPS (set GPS_1_CONFIG = 'GPS 2' in QGC, SER_GPS2_BAUD = Auto) but NOT for the compass: PX4 v1.16 fmu-v6c starts the external ist8310 on I2C bus 1 and bus 4 only, and GPS2's I2C is bus 2 -- so the M10's mag is NOT probed. Fix by one of: an extras.txt line on the FC's microSD ('ist8310 -X -b 2 -R 10 start'), a 6->10 pin GPS cable onto GPS1, or accept the board's INTERNAL ist8310 (bus 4) for the bench. ADR-0091.",
+      "why": "The GPS itself is only a port assignment, but the compass is a bus the firmware does not scan -- it would have looked like a dead module. Separately: this M10 carries no safety switch (those are GPS1 pins 6/7), so bench.params' CBRK_IO_SAFETY=0 leaves the board unarmable at the airframe stage. Not a bench blocker (brn-05 never arms)."
      },
      {
       "id": "brn-03",

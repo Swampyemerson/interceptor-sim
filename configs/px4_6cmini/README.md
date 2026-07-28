@@ -127,9 +127,20 @@ session — that means a name is wrong for this firmware.
 > restores the gate, which is the right fail-closed posture for a props-off
 > bench. The cost is real: PX4IO advertises the `safety_button` topic even with
 > no button wired, so QGC will show a standing *"Preflight Fail: Press safety
-> button first"* and **the board will not arm until the M10 (with its safety
-> switch) is on GPS1 and pressed.** Nothing about the disarmed OFFBOARD gate
-> changes. If you need a deliberate props-off arm test before the M10 arrives,
+> button first"* and **the board will not arm until a safety button is wired and
+> pressed.** Nothing about the disarmed OFFBOARD gate changes.
+>
+> ⚠️ **CORRECTED 2026-07-27 (ADR-0091): this pack used to say the M10 would
+> supply that button. The M10 actually in hand has a 6-pin cable — it fits GPS2
+> only, and the SAFETY_SWITCH / LED pins are GPS1 pins 6/7, which this module
+> does not carry.** So there is no safety button anywhere in the current
+> hardware. Harmless here (nothing arms in `brn-05`); at the first props-off ARM
+> test either wire a button or set `CBRK_IO_SAFETY` back to 22027 *knowingly*.
+> **GPS on GPS2 also needs a param:** set `GPS_1_CONFIG` = **"GPS 2"** (not
+> `GPS_2_CONFIG`, which would leave the primary pointed at an empty port) and
+> `SER_GPS2_BAUD` = Auto. And the M10's **compass will not appear** — v1.16
+> `fmu-v6c` probes the external ist8310 on I2C buses 1 and 4 only, and GPS2's
+> I2C is bus 2. See ADR-0091 for the three fixes. If you need a deliberate props-off arm test before the M10 arrives,
 > set it back to 22027 *knowingly*, then restore it. Verify on the live board:
 > *Parameters → `CBRK_IO_SAFETY`*.
 
