@@ -160,10 +160,32 @@ class GuidanceConfig:
     # it is indistinguishable in the log. Refuse to steer instead: the caller
     # holds (real_flight coasts the last dash velocity) and the stream never gaps.
     require_own_attitude: bool = True
-    # Age gate. Deliberately None (OFF): no measured own-state warm-up/stall
-    # latency exists yet -- measure it on bench brn-05 from the logged
-    # own_age_s column BEFORE sizing this. The flag is recorded either way.
-    own_state_max_age_s: Optional[float] = None
+    # Age gate. SIZED 2026-07-29 from bench brn-05, now ON (ADR-0093).
+    #
+    # MEASURED: on the real 6C Mini <-> Pi 5 TELEM2 link, 300 setpoints over
+    # 15.3 s, every logged own_age_s fell in 0.00-0.02 s -- MAX 0.02 s
+    # (runs/brn05_bench/deploy_seeker_bench_20260729T230827Z.log).
+    #
+    # This is a STALL detector, not a jitter policeman, and it is deliberately
+    # NOT set near the measured max. Two reasons:
+    #   1. brn-05 ran on an IDLE Pi with a synthetic detector. In flight the same
+    #      4 cores also carry the detector (ADR-0090 measured tag decode alone at
+    #      ~60% of them at full rate), guidance and mavsdk_server, so the flight
+    #      own_age distribution is necessarily WORSE than 0.02 s. A bound tuned to
+    #      an idle bench would fire on healthy flight scheduling -- and this gate's
+    #      failure mode is refusing to steer, so a false positive costs guidance.
+    #   2. Project rule: a threshold validated at one operating point is not
+    #      validated at another. 0.02 s is an idle-bench number.
+    # So: 0.25 s = 12.5x the measured max (cannot fire on healthy jitter), matching
+    # v_perp_stale_s above so both staleness bounds tell one story, and comfortably
+    # under PX4's COM_OF_LOSS_T (1.0 s) so we notice before PX4 drops OFFBOARD.
+    #
+    # PRE-REGISTERED, so the next result cannot be re-interpreted after the fact:
+    # if flight logs show own_age approaching 0.25 s, the finding is that the Pi is
+    # OVERLOADED (shed work), NOT that the threshold should be raised. And if it
+    # ever needs to be a TIGHT bound rather than a stall detector, it must first be
+    # re-measured under flight-representative CPU load.
+    own_state_max_age_s: Optional[float] = 0.25
 
     # Target known size (fed to range = fx*span/box_width). Overridden by the
     # detector's own calib sidecar if present; this is the fallback.

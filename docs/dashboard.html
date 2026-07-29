@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4e24133<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1fffa09<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -2604,7 +2604,7 @@
      },
      {
       "id": "tgt-03",
-      "text": "Assemble + solder: motors to arms, Tekko32 + Kakute stacked, motor leads and XT60 pigtail soldered; multimeter continuity check across the pads before any power.",
+      "text": "Assemble + solder: motors to arms, Tekko32 + Kakute stacked, motor leads and XT60 pigtail soldered; multimeter continuity check across the pads before any power. [2026-07-29 MECHANICAL HALF DONE] All four EMAX ECO II 2207s mounted on the included M3x8 (M3x6 would have given ZERO thread engagement in the 6.0 mm V6 arm -- ADR-0092). Threadlocker + witness marks still to do (ADR-0092 addendum). NOT WIRED, correctly: leads stay at the full 120 mm until the ESC is in its final position, since only ~20-25 mm is spare. Remaining electrical work is blocked on the Kakute H7 + Tekko32, still in transit.",
       "why": "A solder-bridge short is found free with a meter, expensively with smoke."
      },
      {
@@ -2833,7 +2833,7 @@
      {
       "id": "brn-05",
       "gate": true,
-      "text": "[DONE 2026-07-29 -- THE GATE] scripts/check_deploy_bench.sh PASS on the real TELEM2 UART, props off, never armed. Connect -> own-state EKF attitude streaming (quat + yaw, alt present) -> armed=False confirmed -> OFFBOARD accepted while disarmed -> 300 frames / 300 setpoints over 15.3 s, mean cadence 19.5 Hz, max inter-setpoint gap 0.05 s, clean offboard stop, rc=0. Synthetic detector by design, so this is a LINK result and not a perception one. **MAX own_age = 0.02 s** -- the number this step existed to measure, and the input that sizes GuidanceConfig.own_state_max_age_s (still deliberately unset; choosing it is the follow-up).",
+      "text": "[DONE 2026-07-29 -- THE GATE] scripts/check_deploy_bench.sh PASS on the real TELEM2 UART, props off, never armed. Connect -> own-state EKF attitude streaming (quat + yaw, alt present) -> armed=False confirmed -> OFFBOARD accepted while disarmed -> 300 frames / 300 setpoints over 15.3 s, mean cadence 19.5 Hz, max inter-setpoint gap 0.05 s, clean offboard stop, rc=0. Synthetic detector by design, so this is a LINK result and not a perception one. **MAX own_age = 0.02 s** -- the number this step existed to measure. FOLLOW-UP CLOSED same day: GuidanceConfig.own_state_max_age_s is now 0.25 s and the gate is ON (ADR-0093) -- a STALL detector at 12.5x the measured max, deliberately NOT tuned to the idle bench, because in flight the same 4 cores also carry the detector, guidance and mavsdk_server. Mutation-tested; 15 new checks.",
       "why": "Retires the one link the simulation never exercised: MAVSDK OFFBOARD over a real serial port. Evidence: runs/brn05_bench/deploy_seeker_bench_20260729T230827Z.log (pulled off the Pi) + the FC's ULog on its microSD (SDLOG_MODE=2)."
      },
      {

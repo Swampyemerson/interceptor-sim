@@ -2391,3 +2391,48 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
   the bundled "Build consumables kit" row (`docs/hardware_order_list.md:304`, $35) and is
   **not confirmed in hand**. If it is not in the box, a $6 tube is the cheapest item on the
   critical path to a flying target drone.
+
+## ADR-0093 — Sizing the own-state age gate from brn-05: 0.25 s as a STALL detector, deliberately not tuned to the idle bench (head decision, 2026-07-29)
+
+- **Context.** `GuidanceConfig.own_state_max_age_s` shipped as `None` (OFF) with a fully
+  implemented enforcement path behind it (`own_state_status` → `"own_state_stale"`), because
+  picking the number before measuring it would have been inventing the quantity bench
+  **brn-05** existed to produce. brn-05 passed on 2026-07-29 and produced it.
+- **Measured.** Real 6C Mini ↔ Pi 5 TELEM2 link, props off, 300 setpoints over 15.3 s: every
+  logged `own_age_s` fell in **0.00–0.02 s, max 0.02 s**
+  (`runs/brn05_bench/deploy_seeker_bench_20260729T230827Z.log`).
+- **Decision: 0.25 s**, gate ON.
+- **Why NOT ~0.02–0.05 s, which the measurement superficially supports.** brn-05 ran on an
+  **idle** Pi with a *synthetic* detector. In flight the same four cores also carry the
+  detector (ADR-0090 measured tag decode alone at ~60% of them at full rate), guidance and
+  `mavsdk_server`, so the flight `own_age` distribution is necessarily **worse** than the
+  bench one. This is the project's own standing rule — *a threshold validated at one
+  operating point is not validated at another* — and 0.02 s is an idle-bench number. The
+  asymmetry of harm decides it: this gate's action is **refusing to steer**, so a false
+  positive costs guidance in the terminal phase, while a false negative costs one stale
+  attitude solution. It should therefore be a **stall detector** (is the own-state feed
+  *dead*?), not a jitter policeman.
+- **Why 0.25 s specifically.** (1) **12.5× the measured max**, so healthy scheduling jitter
+  cannot reach it. (2) It **matches `v_perp_stale_s = 0.25`**, already chosen as ≥3 detector
+  periods at the measured ~14 Hz onboard cadence — one staleness story instead of two. (3) It
+  is comfortably **under PX4's `COM_OF_LOSS_T` (1.0 s)**, so we notice before PX4 drops
+  OFFBOARD; a bound above that could only be reached after PX4 had already given up.
+- **PRE-REGISTERED, before any flight log exists.** If flight logs show `own_age` approaching
+  0.25 s, the finding is that **the Pi is overloaded and work must be shed** — *not* that the
+  threshold should be raised. If this ever needs to be a tight bound rather than a stall
+  detector, it must first be re-measured **under flight-representative CPU load**. `None`
+  remains supported as a deliberate bench-experiment opt-out.
+- **Effect observed, not asserted** (`tests/test_own_state_age_gate.py`, 15 checks, and
+  nothing referenced this constant before today). Mutation-tested with bytecode caching
+  disabled: `None` → 4 fail, `0.02` → 4 fail (the healthy 0.05/0.1/0.24 s ages get refused,
+  which is exactly the flight failure mode the sizing defends against), `1.5` → 1 fail (the
+  `COM_OF_LOSS_T` bound), `0.25` → 15 pass. Full suite 519 passed / 3 skipped.
+- **METHOD NOTE worth keeping — the first mutation run was INVALID and said so only under
+  scrutiny.** `None`, `0.25` and `0.02` are all exactly four characters, so the source file
+  size never changed; with the mtimes landing in the same second, CPython's `.pyc` staleness
+  check (source mtime + size) could not distinguish them and kept serving stale bytecode.
+  Two "mutants" therefore ran the *first* mutant's code and the restored file still reported
+  `None`. Any future mutation check on a single literal must clear `__pycache__` and run
+  `-B`, **and assert that the IMPORTED value equals the source** before trusting the result.
+  This is the instrument-is-evidence rule applied to the test harness itself.
+- **Date:** 2026-07-29.
