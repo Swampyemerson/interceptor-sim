@@ -1,0 +1,36 @@
+=== deploy_seeker BENCH (props-off, no-arm OFFBOARD) @ 20260729T230827Z (UTC) ===
+host: Linux 6.18.34+rpt-rpi-2712  |  python: /home/admin/interceptor-sim/.venv-pi/bin/python
+url:  serial:///dev/ttyAMA0:921600   link: telem2
+detector: SYNTHETIC (deterministic; this is a LINK test)
+note: NO arm/takeoff/land, --require-disarmed enforced -- verifies connect + own-state round trip + OFFBOARD switch + a MEASURED setpoint stream, DISARMED.
+------------------------------------------------------------------
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+[config] intrinsics fx=539.9 cx=640.0 res=1280x960 src=unstamped | dist=none (pinhole) | span=1.000 m (config default (NOT CALIBRATED)) | N=5.0 | mount fwd=0.1 up=0.05 tilt=0.0deg
+[config] SYNTHETIC DETECTOR: 300 blank frames + SmokeSeeker at a constant 1.00 m span -- setpoints are deterministic, so a PASS is a LINK result, not a perception one
+[mavsdk] connecting serial:///dev/ttyAMA0:921600 ...
+[mavsdk] connected
+[mavsdk] own-state EKF attitude streaming (quat + yaw); alt=yes
+[mavsdk] armed=False confirmed (--require-disarmed)
+[mavsdk] OFFBOARD active; streaming setpoints ...
+[mavsdk] t=  1.0s frames=20 det=20 setpoints=20 last vN=-8.93 vE=+2.36 vD=-2.00 yaw=+152.4 own_age=0.01s
+[mavsdk] t=  2.0s frames=40 det=40 setpoints=40 last vN=-9.00 vE=+2.21 vD=-2.00 yaw=+152.5 own_age=0.02s
+[mavsdk] t=  3.0s frames=60 det=60 setpoints=60 last vN=-7.57 vE=+4.86 vD=-2.00 yaw=+146.9 own_age=0.00s
+[mavsdk] t=  4.1s frames=80 det=80 setpoints=80 last vN=-5.70 vE=+7.29 vD=-2.00 yaw=+141.4 own_age=0.01s
+[mavsdk] t=  5.1s frames=100 det=100 setpoints=100 last vN=-5.83 vE=+7.16 vD=-2.00 yaw=+141.8 own_age=0.02s
+[mavsdk] t=  6.1s frames=120 det=120 setpoints=120 last vN=-7.72 vE=+4.62 vD=-2.00 yaw=+147.7 own_age=0.00s
+[mavsdk] t=  7.1s frames=140 det=140 setpoints=140 last vN=-9.05 vE=+2.08 vD=-2.00 yaw=+152.9 own_age=0.01s
+[mavsdk] t=  8.2s frames=160 det=160 setpoints=160 last vN=-8.88 vE=+2.48 vD=-2.00 yaw=+152.0 own_age=0.02s
+[mavsdk] t=  9.2s frames=180 det=180 setpoints=180 last vN=-7.24 vE=+5.36 vD=-2.00 yaw=+145.8 own_age=0.00s
+[mavsdk] t= 10.2s frames=200 det=200 setpoints=200 last vN=-5.54 vE=+7.46 vD=-2.00 yaw=+140.9 own_age=0.01s
+[mavsdk] t= 11.2s frames=220 det=220 setpoints=220 last vN=-6.03 vE=+6.93 vD=-2.00 yaw=+142.4 own_age=0.02s
+[mavsdk] t= 12.3s frames=240 det=240 setpoints=240 last vN=-7.99 vE=+4.17 vD=-2.00 yaw=+148.7 own_age=0.00s
+[mavsdk] t= 13.3s frames=260 det=260 setpoints=260 last vN=-9.10 vE=+1.95 vD=-2.00 yaw=+153.2 own_age=0.01s
+[mavsdk] t= 14.3s frames=280 det=280 setpoints=280 last vN=-8.70 vE=+2.86 vD=-2.00 yaw=+151.2 own_age=0.01s
+[mavsdk] t= 15.3s frames=300 det=300 setpoints=300 last vN=-6.91 vE=+5.81 vD=-2.00 yaw=+144.8 own_age=0.02s
+[mavsdk] stream complete (source exhausted): 300 frames, 300 detections, 300 setpoints over 15.3s wall, mean cadence 19.5 Hz, max inter-setpoint gap 0.05s, max own_age 0.02s, first lock frame #0 synth00000 (queued to MAVSDK)
+[mavsdk] offboard stopped
+[mavsdk] done rc=0
+------------------------------------------------------------------
+[check_deploy_bench] PASS (TELEM2 UART -- connect + own-state round trip + OFFBOARD
+[check_deploy_bench]   accepted + a measured setpoint stream, disarmed. brn-05 satisfied;
+[check_deploy_bench]   perception NOT exercised by design; see /home/admin/interceptor-sim/logs/deploy_seeker_bench_20260729T230827Z.log)

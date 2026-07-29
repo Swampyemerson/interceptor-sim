@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->557a8d4<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4e24133<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -2519,9 +2519,9 @@
      },
      {
       "name": "EMAX ECO II 2207 1900KV motors (x4)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "6S propulsion.",
-      "notes": ""
+      "notes": "ARRIVED 2026-07-29. Ships 5x M3x8 + 5x M3x7 + 5x M3x6 per motor. The Source One V6 arm is 6.0 mm, so M3x6 = ZERO thread engagement -- use the M3x8 (2 mm engagement, EMAX's longest included screw). Verify each motor reads 1900KV (1700/2400 variants look identical) and run the winding-short continuity check before AND after mounting: ADR-0092."
      },
      {
       "name": "Matek M10Q-5883 GPS + compass",
@@ -2823,18 +2823,18 @@
      },
      {
       "id": "brn-03",
-      "text": "Wire Pi GPIO14/15 to TELEM2: both 3.3 V (no level shifter), TX/RX crossed, 921600; set MAV_1_CONFIG=TELEM2 and free the Pi's serial console. [2026-07-29 IN PROGRESS] Lead hand-made from a spare TELEM-to-TELEM cable (README §5a). PI SIDE FULLY MEASURED GOOD: no serial console, getty inactive, GPIO14/15 muxed a4 TXD0/RXD0, /dev/ttyAMA0 = RP1 uart0 (1f00030000), termios 921600, user in dialout, port unheld -- and the Bluetooth-owns-the-UART theory was tested and REFUTED (BT is on the SoC UART 107d50c000, a different device). FC IS POWERED AND A WIRE IS CONNECTED: with the Pi's internal pull-up removed, GPIO15 held HIGH and steady while an unconnected control pin read LOW, so an external driver is holding the line -- a live, idle UART transmitter. STILL ZERO BYTES in 5 s, line idle rather than garbled (so not a baud mismatch). Two open candidates: PX4 not streaming on TELEM2 (MAV_1_CONFIG / reboot), or the wire on Pi pin 10 is TELEM2 pin 5 (RTS) rather than pin 2 (TX) -- both are FC outputs idling at a clean 3.3 V, so no meter or pin-level test can separate them. Discriminator: `mavlink status` in the QGC MAVLink console, looking for an instance on /dev/ttyS3 with a non-zero tx rate.",
-      "why": "Verified with scripts/seeker/fc_link_check.py (added 2026-07-29, stdlib-only so it runs on a bare Pi OS): --check-port reported 0 BAD / 0 UNKNOWN on the real Pi, and the capture returned the FAIL/zero-bytes verdict with the README §7 ladder. The tool separates FAIL (no bytes) from UNCERTAIN (bytes but no framing = baud mismatch) from PASS (>=3 consecutive frames AND >=1 HEARTBEAT), so 'bytes arrived' can never be read as 'the link works'."
+      "text": "[DONE 2026-07-29] Lead hand-made from a spare TELEM-to-TELEM cable (README §5a); BOTH DIRECTIONS PROVEN. FC->Pi: 74,070 bytes in 5 s, 1791 frames, HEARTBEAT at 1.00 Hz from sysid (1,1). Pi->FC: the FC's stream flipped v1->v2 after the Pi emitted v2 heartbeats (1570 v2 / 0 v1, having been 1791 v1 / 0 v2) -- PX4 only upgrades a link on RECEIVING a v2 packet -- and it then answered PARAM_REQUEST_READ. Params read back off the wire: SER_TEL2_BAUD=921600, MAV_1_MODE=2, MAV_1_FLOW_CTRL=0. Pi side had been measured good beforehand (pins a4 TXD0/RXD0, ttyAMA0 = RP1 uart0, no console, in dialout; the Bluetooth-owns-the-UART theory was tested and REFUTED -- BT is on SoC UART 107d50c000).",
+      "why": "Original wiring intent (TELEM2 pins 2/3/6) was correct throughout. Recorded because a THROWAWAY diagnostic reported a false FAIL on the return path -- it emitted MAVLink v1 and PX4 did not answer; the same probe passed unchanged emitting v2. The independent v1->v2 upgrade test is what caught it. Do not cite that probe as evidence; the versioned tool is scripts/seeker/fc_link_check.py (FC->Pi only, by design)."
      },
      {
       "id": "brn-04",
-      "text": "MAVSDK heartbeat from the Pi over the serial link — the deploy path's first hardware proof. NOTE 2026-07-29: this is the STAGE-TWO test. scripts/seeker/fc_link_check.py proves only the FC->Pi direction (stage one, README §5a step 11) and passing it does NOT close this step -- a green fc_link_check with a dead Pi-TX lead is an expected combination. The Pi->FC wire is only proven by an advancing own-state stamp, which is brn-05's job."
+      "text": "[DONE 2026-07-29] Companion link proven from the Pi in both directions -- see brn-03 for the measurements. Note the stage split: scripts/seeker/fc_link_check.py proves only FC->Pi; the return direction was proven by the protocol upgrade plus a PARAM_VALUE reply, and finally by brn-05's advancing own-state stamp."
      },
      {
       "id": "brn-05",
       "gate": true,
-      "text": "Props-off OFFBOARD bring-up — the scripted gate is scripts/check_deploy_bench.sh (the configs/px4_6cmini/ pack exists to close this step): run flight/deploy/seeker_loop.py against the bench FC — OFFBOARD accepted, setpoints streaming, kill switch honored. Nothing can spin; no airframe exists.",
-      "why": "Retires the one link the sim never exercised (MAVSDK over a real serial port) while the tripod campaign runs in parallel."
+      "text": "[DONE 2026-07-29 -- THE GATE] scripts/check_deploy_bench.sh PASS on the real TELEM2 UART, props off, never armed. Connect -> own-state EKF attitude streaming (quat + yaw, alt present) -> armed=False confirmed -> OFFBOARD accepted while disarmed -> 300 frames / 300 setpoints over 15.3 s, mean cadence 19.5 Hz, max inter-setpoint gap 0.05 s, clean offboard stop, rc=0. Synthetic detector by design, so this is a LINK result and not a perception one. **MAX own_age = 0.02 s** -- the number this step existed to measure, and the input that sizes GuidanceConfig.own_state_max_age_s (still deliberately unset; choosing it is the follow-up).",
+      "why": "Retires the one link the simulation never exercised: MAVSDK OFFBOARD over a real serial port. Evidence: runs/brn05_bench/deploy_seeker_bench_20260729T230827Z.log (pulled off the Pi) + the FC's ULog on its microSD (SDLOG_MODE=2)."
      },
      {
       "id": "brn-06",

@@ -2311,3 +2311,49 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
   claim that "the M10 (with its safety switch) on GPS1" will satisfy it is **wrong for the
   module actually in hand**.
 - **Date:** 2026-07-27.
+
+## ADR-0092 — Motor screws are a load-bearing UNRECORDED assumption: M3×6 into a 6 mm arm is zero thread engagement (bench decision, 2026-07-29)
+
+- **Context.** The EMAX ECO II 2207 motors arrived and the builder's reasonable assumption
+  was "the 6 mm screws." Until today the build carried **no fastener line item anywhere** —
+  not in `build_tab.target.parts`, not in `bom_tiers` — i.e. it silently assumed "the
+  motor's included screws fit the frame." They do not, in the dangerous direction.
+- **The arithmetic.** TBS Source One **V6** arm thickness is **6.0 mm** (TBS's own spec and
+  CAD; note V4-and-earlier were thinner, so older Source One build guides mislead here).
+  Thread engagement = screw length − 6.0 mm:
+  **M3×6 → 0.0 mm** (the motor is held by nothing), M3×7 → 1.0, **M3×8 → 2.0**,
+  M3×10 → 4.0, M3×12 → 6.0 (into the stator).
+  EMAX ships 5× M3×8, 5× M3×7 and 5× M3×6 per motor — M3×8 being the longest is a strong
+  hint that EMAX considers 8 mm this motor's safe maximum.
+- **Decision.** **Use the included M3×8**, snug + blue threadlocker on the tip, torqued with
+  the short arm of the 2.5 mm hex key. 2 mm of M3 in aluminium is ~4 threads and the carbon
+  arm fails before the thread does; the real risk at that engagement is backing out under
+  vibration, which threadlocker plus a pre-flight wiggle check covers. **M3×10 only if** a
+  bench depth probe shows ≥4.5 mm of clear thread — the ECO II 2207's usable thread depth is
+  **not published** and could not be confirmed from any source.
+- **Why it is graded `unmeasured`, not `measured`.** Two quantities remain unverified: the
+  motor's clear thread depth (unpublished), and whether the V6 arm is counterbored on its
+  underside at the motor pad (TBS's 2D DXF shows no counterbore, but the arm's motor-mount
+  detail is 3D geometry we could not measure). A counterbore would *reduce* effective
+  thickness and *increase* engagement — which only reinforces M3×8.
+- **The hazard, both ways.** Too long: the tip presses into the stator windings, and because
+  carbon fibre is **conductive**, nicked enamel shorts a motor phase to the whole airframe —
+  presenting as one hot motor, oscillations no tune fixes, then a burnt motor and possibly an
+  ESC FET. A screw that merely *touches* enamel passes a meter test today and wears through
+  in flight. Too short: threads strip under prop torque and a motor departs the arm with a
+  5-inch tri-blade attached.
+- **Mandated check (this is the part that does not depend on any number above being right).**
+  Per motor, meter on continuity: **baseline before mounting** — wire↔wire beeps roughly
+  equally across all three pairs, and every wire↔bare metal must **not** beep. Mount snug
+  with **no threadlocker**, then re-test every wire → each screw head and every wire → the
+  carbon arm: **any beep = a screw is in a winding, back it out.** Hand-spin the bell and
+  compare to baseline for grind or tick. Log all four motors. Only then threadlock.
+- **Also ratified:** motor leads are **not cut** until the ESC is in its final position.
+  Derived from the ordered geometry, only ~20–25 mm of the supplied 120 mm leads is spare
+  (~95–100 mm needed: 120 mm shaft-to-centre, leads exiting ~13 mm inboard, nearest pad
+  ~21 mm from centre on a 30.5 mm board, ~10 mm rise) — *[DERIVED estimate, pending the real
+  ESC in place]*, which is far less margin than the "cut half off" habit assumes. Phase order
+  is irrelevant (direction is set in software), so there is nothing to plan by cutting early.
+- **Date:** 2026-07-29. Sources: TBS Source One V6 product spec + `tbs-trappy/source_one`
+  CAD/BOM · EMAX ECO II 2207 store page (16×16 M3, 120 mm 20 AWG, in-box screw list) ·
+  oscarliang.com motor-screw winding check and threadlock guidance.
