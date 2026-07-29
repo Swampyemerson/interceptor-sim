@@ -171,7 +171,20 @@ why writing `0` there would silently *disable* RC on a board that does have it.)
 > step, the vehicle has no mapped kill switch** — honest, and harmless while
 > nothing can spin.
 
-### 5. Wire the three Dupont jumpers: TELEM2 ↔ Pi  (`brn-03`)
+### 5. Wire the three leads: TELEM2 ↔ Pi  (`brn-03`)
+
+> **⚠️ CORRECTED 2026-07-27 — this heading used to say "three Dupont jumpers",
+> which is only true of the PI end and sent the builder looking for somewhere to
+> push a jumper into.** **TELEM2 is a JST-GH 1.25 mm 6-pin socket** (the same
+> latching type as the GPS plug); a Dupont pin physically cannot enter it. You
+> need a **JST-GH 6-pin → Dupont-female cable**, or a spare Holybro 6-pin
+> telemetry cable with Dupont females crimped onto three of its wires. The
+> **`MAIN` / `AUX` 3-pin `S`/`+`/`−` headers do accept jumpers and must NOT be
+> used** — they are the PWM motor outputs (servo signal + a 5 V rail), not a
+> UART. And note that **POWER1, TELEM1, TELEM2 and GPS2 are all 6-pin JST-GH**
+> and differ only by silkscreen — read the label before it clicks in. Wiring card
+> (phone-friendly): https://claude.ai/code/artifact/359e5669-d1f9-4a3d-8327-80f747e7f77d
+
 Both sides are **3.3 V logic — no level shifter**. **TX/RX crossed.** Connect
 **only these three** (leave TELEM2 pin-1 +5 V **unconnected**):
 
@@ -188,6 +201,10 @@ TELEM2 baud = **921600** (`SER_TEL2_BAUD`, set by `bench.params`).
 Pi, `sudo raspi-config` → *Interface Options → Serial Port* → login shell over
 serial **No**, serial hardware **Yes**; ensure `enable_uart=1` in
 `/boot/firmware/config.txt`; reboot. The port is **`/dev/ttyAMA0`**.
+
+**Confirm the header orientation on the actual board before pushing anything on** —
+run **`pinout`** on the Pi (ships with Pi OS): it prints your board with the 40-pin
+header mapped, so which end is pin 1 is observed, not inferred from a drawing.
 
 ### 6. Heartbeat from the Pi  (`brn-04`)
 On the Pi, quick check that MAVLink is flowing (any of):

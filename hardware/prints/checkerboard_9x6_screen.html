@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Checkerboard 9x6 — screen target for camera calibration</title>
+<style>
+  /* SCREEN calibration target for scripts/seeker/capture_calib_views.py (skr-06).
+     10 x 7 SQUARES  ->  9 x 6 INNER CORNERS, which is what --cols 9 --rows 6 means.
+     The count is deliberately non-square so OpenCV's findChessboardCorners can
+     resolve the board's orientation unambiguously.
+
+     WHY A SCREEN IS VALID FOR INTRINSICS: scaling every object point by the same
+     factor k scales only the extrinsic translations -- fx, fy, cx, cy and the
+     distortion coefficients come out identical. So not knowing the exact physical
+     square size on this display costs nothing for the numbers skr-06 solves.
+     What DOES matter: the display is flat, glare-free, at full brightness, and
+     surrounded by the white quiet zone below (the detector needs it). */
+  :root { --sq: min(9.2vw, 12.4vh); }   /* 10 wide / 7 tall, leaving a quiet zone */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #fff;               /* the quiet zone -- do not tint this */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: calc(var(--sq) * 0.35);
+    font: 500 13px/1.5 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    color: #c9c9c9;                 /* deliberately faint: never competes with the board */
+    -webkit-font-smoothing: antialiased;
+  }
+  .board {
+    display: grid;
+    grid-template-columns: repeat(10, var(--sq));
+    grid-template-rows: repeat(7, var(--sq));
+    /* A hairline ring keeps the outer white squares distinguishable from the page
+       on displays with aggressive contrast enhancement. */
+    outline: 1px solid #e8e8e8;
+  }
+  .board i { display: block; background: #fff; }
+  .board i.k { background: #000; }
+  .meta { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+  .ruler { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+  .ruler .bar {
+    width: calc(var(--sq) * 10);
+    height: 1px;
+    background: #d8d8d8;
+    position: relative;
+  }
+  .ruler .bar::before, .ruler .bar::after {
+    content: ""; position: absolute; top: -4px; width: 1px; height: 9px; background: #d8d8d8;
+  }
+  .ruler .bar::before { left: 0; }
+  .ruler .bar::after { right: 0; }
+  kbd {
+    font: inherit; border: 1px solid #e0e0e0; border-bottom-width: 2px;
+    border-radius: 4px; padding: 0 4px; color: #b4b4b4;
+  }
+  body.bare .meta { visibility: hidden; }
+  @media print { .meta { display: none; } }
+</style>
+</head>
+<body>
+  <div class="board" id="board" aria-label="9 by 6 inner-corner calibration checkerboard"></div>
+
+  <div class="meta">
+    <div class="ruler">
+      <span>span = 10 squares</span>
+      <span class="bar"></span>
+      <span>measure it, divide by 10 → <code>--square</code> in metres</span>
+    </div>
+    <div>
+      Press <kbd>F11</kbd> for full screen · <kbd>h</kbd> hides this line ·
+      full brightness, no glare, screen flat-on
+    </div>
+  </div>
+
+<script>
+  // 10 x 7 squares. Alternating parity gives the 9 x 6 inner corners the
+  // detector is configured for.
+  const board = document.getElementById("board");
+  const frag = document.createDocumentFragment();
+  for (let r = 0; r < 7; r++) {
+    for (let c = 0; c < 10; c++) {
+      const cell = document.createElement("i");
+      if ((r + c) % 2 === 0) cell.className = "k";
+      frag.appendChild(cell);
+    }
+  }
+  board.appendChild(frag);
+
+  // 'h' hides the caption entirely -- useful when shooting the board close up,
+  // where even faint text can sit inside the frame.
+  addEventListener("keydown", (e) => {
+    if (e.key === "h" || e.key === "H") document.body.classList.toggle("bare");
+  });
+</script>
+</body>
+</html>
