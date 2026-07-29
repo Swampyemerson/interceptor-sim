@@ -105,6 +105,11 @@ run_selftest "flight/deploy/seeker_loop.py --self-test (deployed terminal loop)"
     "$ROOT/.venv/bin/python" "$ROOT/flight/deploy/seeker_loop.py" --self-test
 run_selftest "scripts/field/parse_flight_log.py --self-test (onboard decision-log parser)" \
     "$ROOT/.venv/bin/python" "$ROOT/scripts/field/parse_flight_log.py" --self-test
+# Gated because this one decides a HARDWARE verdict (brn-03/brn-04): its FAIL /
+# UNCERTAIN / PASS split is what stops "bytes arrived" being read as "the link
+# works". 26 checks, stdlib-only, ~40 ms, no hardware.
+run_selftest "scripts/seeker/fc_link_check.py --self-test (FC->Pi MAVLink link verdict)" \
+    "$ROOT/.venv/bin/python" "$ROOT/scripts/seeker/fc_link_check.py" --self-test
 
 # NO LOG POLLUTION (audit hygiene fix, 2026-07-25): the field pack's scripts
 # each mkdir a timestamped run dir under logs/field/, so every invocation of

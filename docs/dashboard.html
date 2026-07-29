@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->7d171e8<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->557a8d4<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -2823,11 +2823,12 @@
      },
      {
       "id": "brn-03",
-      "text": "Wire Pi GPIO14/15 to TELEM2: both 3.3 V (no level shifter), TX/RX crossed, 921600; set MAV_1_CONFIG=TELEM2 and free the Pi's serial console."
+      "text": "Wire Pi GPIO14/15 to TELEM2: both 3.3 V (no level shifter), TX/RX crossed, 921600; set MAV_1_CONFIG=TELEM2 and free the Pi's serial console. [2026-07-29 IN PROGRESS] Lead hand-made from a spare TELEM-to-TELEM cable (README §5a). PI SIDE FULLY MEASURED GOOD: no serial console, getty inactive, GPIO14/15 muxed a4 TXD0/RXD0, /dev/ttyAMA0 = RP1 uart0 (1f00030000), termios 921600, user in dialout, port unheld -- and the Bluetooth-owns-the-UART theory was tested and REFUTED (BT is on the SoC UART 107d50c000, a different device). FC IS POWERED AND A WIRE IS CONNECTED: with the Pi's internal pull-up removed, GPIO15 held HIGH and steady while an unconnected control pin read LOW, so an external driver is holding the line -- a live, idle UART transmitter. STILL ZERO BYTES in 5 s, line idle rather than garbled (so not a baud mismatch). Two open candidates: PX4 not streaming on TELEM2 (MAV_1_CONFIG / reboot), or the wire on Pi pin 10 is TELEM2 pin 5 (RTS) rather than pin 2 (TX) -- both are FC outputs idling at a clean 3.3 V, so no meter or pin-level test can separate them. Discriminator: `mavlink status` in the QGC MAVLink console, looking for an instance on /dev/ttyS3 with a non-zero tx rate.",
+      "why": "Verified with scripts/seeker/fc_link_check.py (added 2026-07-29, stdlib-only so it runs on a bare Pi OS): --check-port reported 0 BAD / 0 UNKNOWN on the real Pi, and the capture returned the FAIL/zero-bytes verdict with the README §7 ladder. The tool separates FAIL (no bytes) from UNCERTAIN (bytes but no framing = baud mismatch) from PASS (>=3 consecutive frames AND >=1 HEARTBEAT), so 'bytes arrived' can never be read as 'the link works'."
      },
      {
       "id": "brn-04",
-      "text": "MAVSDK heartbeat from the Pi over the serial link — the deploy path's first hardware proof."
+      "text": "MAVSDK heartbeat from the Pi over the serial link — the deploy path's first hardware proof. NOTE 2026-07-29: this is the STAGE-TWO test. scripts/seeker/fc_link_check.py proves only the FC->Pi direction (stage one, README §5a step 11) and passing it does NOT close this step -- a green fc_link_check with a dead Pi-TX lead is an expected combination. The Pi->FC wire is only proven by an advancing own-state stamp, which is brn-05's job."
      },
      {
       "id": "brn-05",
