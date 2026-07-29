@@ -2357,3 +2357,37 @@ cue σ_R(R)=0.4+0.008·R² m; datum bias = per-run constant, 0.5 m (shared RTK+P
 - **Date:** 2026-07-29. Sources: TBS Source One V6 product spec + `tbs-trappy/source_one`
   CAD/BOM · EMAX ECO II 2207 store page (16×16 M3, 120 mm 20 AWG, in-box screw list) ·
   oscarliang.com motor-screw winding check and threadlock guidance.
+
+### ADR-0092 addendum (2026-07-29) — threadlocker is risk mitigation, not airworthiness; and an UNMARKED screw cannot be "checked"
+
+The builder mounted the motors on the included **M3×8** (confirmed working) and asked,
+correctly, whether threadlocker is mandatory or whether periodic inspection would do.
+
+- **Blue is the right grade.** Loctite **242 / 243** (medium, removable). **Never red**
+  (271/272) — permanent, needs heat, and motor replacement is routine maintenance on this
+  airframe. Apply a dab to the screw **threads**, not into the hole; excess wicking toward
+  the bearing is its own failure. **Full cure is ~24 h** (handling ~10 min), so it has to be
+  done the night before a flight day, not on the field. Re-apply fresh every time a screw
+  comes out.
+- **Not strictly required to fly.** The honest position: threadlocker does not make the
+  joint airworthy — 2 mm of M3 in aluminium is ~4 threads and the carbon arm fails before
+  the thread does. What it buys is protection against **backing out under vibration**, which
+  is the actual observed failure mode, and the margin is thinner at 2 mm engagement than on
+  a build with 4 mm. This airframe is also the one the contract designates as the
+  hard-landing taker.
+- **THE REAL FINDING — inspection without a witness mark is not inspection.** "I'll check
+  them after a few flights" fails on method, not on principle: putting a hex key in a screw
+  and feeling for movement **destroys the evidence you are looking for** — you cannot tell
+  whether it was already loose or whether you just broke the seal. Fix: draw a **witness
+  mark** (paint pen or nail polish) as a single line across each screw head and onto the
+  adjacent motor base. A **glance** then shows rotation, no tool and no ambiguity. This is
+  strictly better than a torque check and takes 2 minutes for all 16 screws.
+- **Decision.** Do **both**: blue threadlocker, plus witness marks on all 16 motor screws,
+  inspected visually **before every flight** for the first five, then per flight day.
+  Threadlocker does not replace inspection; it makes the inspection interval sane. Flying the
+  low maiden hover *without* threadlocker is acceptable **if** the witness marks are on and
+  checked between packs — repeated ≥9 m/s AUTO legs are not.
+- **Procurement note:** blue threadlocker is not separately tracked — it appears only inside
+  the bundled "Build consumables kit" row (`docs/hardware_order_list.md:304`, $35) and is
+  **not confirmed in hand**. If it is not in the box, a $6 tube is the cheapest item on the
+  critical path to a flying target drone.
