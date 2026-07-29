@@ -206,6 +206,128 @@ serial **No**, serial hardware **Yes**; ensure `enable_uart=1` in
 run **`pinout`** on the Pi (ships with Pi OS): it prints your board with the 40-pin
 header mapped, so which end is pin 1 is observed, not inferred from a drawing.
 
+#### 5a. Making the lead from a spare TELEM↔TELEM cable (2026-07-29)
+
+> **CHECK THE MAIL FIRST.** A ready-made **JST-GH 6-pin → Dupont pigtail is already on
+> order** (`docs/hardware_order_list.md` (D); `project_state.json` → `build_tab.brain` →
+> "Pi-to-TELEM2 UART jumper leads"). Holybro sell exactly this part. Only hand-make one if
+> you want the link closed before it lands — and note that cutting pins 4/5 off a TELEM
+> cable is permanent, so this donor can never carry a SiK radio afterwards.
+>
+> **You need:** iron + solder, ~2 mm heatshrink (adhesive-lined if you have it — do **not**
+> substitute tape on the +5 V stub, it unwraps), fine strippers, and a multimeter with DC
+> volts + continuity. JST-GH wire is ~28 AWG, hair-fine: strip ~3 mm on the finest notch or
+> nick-and-pull with a blade; ordinary cutters sever it.
+
+**This procedure is ordered so that every identification is MEASURED before anything is
+cut, and the wire the Pi drives goes on last.** Do not reorder it — an earlier draft of
+this section capped the +5 V wire *before* the step that probes it, which made the
+verification impossible to perform.
+
+1. **Do not cut yet.**
+
+2. **Find GND by continuity — no power, no colour.** FC **unpowered, USB unplugged**.
+   Plug the intact cable into TELEM2. Meter in **continuity**. One probe on the FC's
+   **USB connector shell** (chassis ground); touch the other to each wire *at the far
+   plug's back face*. Exactly one beeps: that is **pin 6, GND**. Flag it with tape
+   **within 10 mm of the plug boot** — pin order is only guaranteed at the boot, and a
+   long cable can cross wires mid-run.
+
+   > Probe the **wires**, never inside the 1.25 mm socket. A probe tip in the socket
+   > bridges adjacent pins, which is the exact damage this whole section is avoiding.
+
+3. **Find +5 V.** Now power the FC on **USB only**, Pi nowhere near it. Meter in **DC
+   volts**, black probe on your flagged GND. One wire reads **≈5 V** — that is **pin 1**.
+   Flag it too. You now have both **ends** of the ribbon measured.
+
+   > **PRE-DECLARED NULL — read this before you measure.** If **nothing** reads ~5 V,
+   > that is a legitimate outcome and **not** evidence you did anything wrong: the
+   > peripheral 5 V is a firmware-enabled, current-limited, over-current-latching switched
+   > rail, and whether it is driven on USB-only is **undocumented for this board**. Do not
+   > re-cut, do not re-count. Fall back to: pin 1 is the wire at the **opposite ribbon edge
+   > from your measured GND** (cross-check: on most Holybro 6-pin cables pin 1 is the lone
+   > **red** wire — but all-black and rainbow variants exist, and one distributor warns in
+   > writing that red may not be pin 1, so colour is only ever a cross-check, never the
+   > anchor).
+
+4. **Count inward from BOTH measured ends and flag the rest.** From pin 1: next is **2 =
+   FC TX**, then 3 = FC RX. From pin 6: next in is 5 = RTS, then 4 = CTS. Counting from a
+   ribbon **edge** is flip-invariant — turning the cable over swaps which side the edge is
+   on but never reverses the sequence, so there is nothing to get wrong here.
+
+   > Both TX (pin 2) and RTS (pin 5) are FC **outputs** and can both read a clean logic
+   > level, which is why they are anchored from **opposite measured ends** rather than by
+   > voltage. A valid 3.3 V reading is not a TX fingerprint.
+
+5. **Now cut**, keeping the flags on the plug side. Cut near the middle; keep the finished
+   lead under ~25 cm (921600 baud on unshielded Dupont prefers short runs).
+
+6. **Terminate the three you keep** (pins 2, 3, 6). Cut three female-to-female Dupont
+   jumpers in half — three different colours, because the Pi end is where a mix-up
+   happens. **Slide a 20 mm piece of heatshrink onto each JST wire BEFORE you solder: it
+   will not go on afterwards, the Dupont housing is too fat to pass through.** Tin both
+   ends, lap the strands side by side (not butted end-to-end), solder, cool, slide the
+   sleeve over and shrink. **One joint at a time**, so no two bare joints ever sit
+   adjacent.
+
+7. **Kill the three you don't.** Cut the **+5 V (pin 1)**, **CTS (4)** and **RTS (5)**
+   wires back to ~10 mm from the boot, fold the bare ends back on themselves and seal each
+   in its own heatshrink. Short is safer than long: there is then nothing to flop onto the
+   Pi header. (Pin 4 is an FC *input* — 5 V onto it is a plausible board-killer, and TELEM
+   pins are **not** documented as 5 V tolerant.)
+
+8. **Continuity sweep, unplugged and unpowered.** Unplug the lead from the FC **and**
+   unplug the FC's USB — continuity mode injects its own current and means nothing while
+   the plug sits in a powered board; even unpowered, the FC's internals give false paths
+   between TX/RX/GND. Then sweep **all 15 pairs — every wire against every other,
+   including the three capped stubs.** No beep anywhere. The pair that matters most is
+   **+5 V against TX, RX or GND**: that one takes out a Pi GPIO or crowbars the FC's 5 V
+   rail. A short here is found free with a meter and expensively with smoke.
+
+9. **Strain-relieve, tug-test, label.** Zip-tie or tape the three pigtails together ~20 mm
+   behind the joints so any pull lands on the bundle. Then pull each joint firmly. A joint
+   that moves now would have failed mid-run and looked like a firmware problem. Flag the
+   ends `TX→Pi 10`, `RX→Pi 8`, `GND→Pi 6`, and write `TELEM2 3-wire, no +5 V` on the plug —
+   six months from now the flags are the only pinout that exists.
+
+10. **Wire it to the Pi with everything dead.** FC USB out, Pi PSU out, no lights. Run
+    `pinout` on the Pi beforehand so you know which corner is pin 1, and note that **the
+    GND target (header pin 6) is one pin away from +5 V (header pin 4)** — a one-pin slip
+    dumps the Pi's 5 V rail into the FC's ground. Connect **GND first**, then RX, then TX;
+    when dismantling later, remove **GND last**. Until GND is joined, the two independently
+    powered grounds float relative to each other, so a signal wire landing first puts that
+    offset across a 3.3 V input. Never push or pull a Dupont end on a powered header, and
+    unplug the JST end **by the housing, never the wires**.
+
+11. **Prove it in two stages — the wire the Pi drives goes last.** With everything off,
+    connect **only GND (Pi pin 6) and FC TX (Pi pin 10)**. Two wires, no Pi output
+    involved, nothing that can fight. Power up and run §6's byte check — bytes containing
+    `fd`/`fe` prove **GND and TX are both correct**. Power down, add the third wire (FC RX
+    ← Pi pin 8), and run §6's MAVSDK check: `connected True` proves RX. Each stage has its
+    own pass criterion, and a wrong guess at stage one costs nothing.
+
+    > **Precondition:** TELEM2 is only open once `bench.params` is loaded (§3) —
+    > `MAV_1_CONFIG=102` is what opens it, and it needs a **reboot**. If the byte check is
+    > silent, suspect a skipped §3 or flow control before you suspect your counting.
+    > Recovery: shifting the **FC TX** wire to a neighbouring Pi pin is harmless (a wrong
+    > 3.3 V pin gives no bytes, not damage). Do **not** brute-force the wire the **Pi**
+    > drives — landing Pi pin 8 on the FC's RTS is output fighting output.
+
+12. **Bag the spare half.** It still has a good plug with a **bare +5 V wire** on it. Tape
+    its cut ends together, mark it `BARE +5 V`, and put it away — a loose plug with a live
+    pin-1 wire is exactly the thing that gets absent-mindedly pushed into TELEM1.
+
+> **Why this is written down.** The pinout tables say "pin 2, pin 3, pin 6" as if the wires
+> were labelled. They are not — five of six are typically the same colour, the colour
+> convention is vendor discretion rather than standard, and the cable is the one link in
+> this chain with no silkscreen, no self-test and no error message. Steps 2–4 exist to turn
+> a counted assumption into a measured fact, and step 11 exists because the only test that
+> actually proves a serial lead is bytes arriving.
+>
+> **One forward trap:** if you ever re-apply an airframe in QGC, `MAV_1_FLOW_CTRL` is wiped
+> back to auto (§2's mechanism), and this 3-wire lead will stall until `bench.params` is
+> re-loaded.
+
 ### 6. Heartbeat from the Pi  (`brn-04`)
 On the Pi, quick check that MAVLink is flowing (any of):
 ```bash
@@ -348,3 +470,7 @@ differ; every semantic claim above was re-checked at v1.16 on 2026-07-26.
   [`rc_update.cpp`](https://github.com/PX4/PX4-Autopilot/blob/v1.16.0/src/modules/rc_update/rc_update.cpp) (switch states published only while RC is present + updating),
   [`mavlink_main.cpp`](https://github.com/PX4/PX4-Autopilot/blob/v1.16.0/src/modules/mavlink/mavlink_main.cpp) (Onboard-mode stream set; flow-control auto starts ON and falls back after >500 ms).
 - Project: `docs/hardware_order_list.md` §3/§B, `docs/project_state.json` (`build_tab.brain`).
+
+> **Card source now lives in the repo:** `configs/px4_6cmini/wiring_card.html` (published to the
+> URL above). Edit and republish them together — a bench surface that drifts from this pack is
+> the surface the builder actually reads with an iron in his hand.

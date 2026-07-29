@@ -1938,7 +1938,7 @@
         "steps": [
           {
             "id": "brn-01",
-            "text": "[DONE 2026-07-26] PX4 v1.16.0 confirmed on the 6C Mini over USB-C; configs/px4_6cmini/bench.params loaded via QGC (exactly 5 params in the diff, as predicted -- the other 4 already equal v1.16 defaults) and rebooted. Original: flash PX4 and load the pack; confirm a microSD is present and ULog logging is on."
+            "text": "[DONE 2026-07-26] PX4 v1.16.0 confirmed on the 6C Mini over USB-C; configs/px4_6cmini/bench.params loaded via QGC (exactly 5 params in the diff, as predicted -- the other 4 already equal v1.16 defaults) and rebooted. Note: the pack later grew CBRK_IO_SAFETY, so a fresh load now shows SIX -- the 5 above is the historical count for that session, not the current pack. Original: flash PX4 and load the pack; confirm a microSD is present and ULog logging is on."
           },
           {
             "id": "brn-02",

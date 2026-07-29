@@ -1,0 +1,546 @@
+<title>Bench wiring card — 6C Mini ↔ Pi 5</title>
+<style>
+  /* ------------------------------------------------------------------
+     Bench wiring card. Read on a phone, at a desk, under a lamp, while
+     holding a connector in the other hand. Every colour is drawn from the
+     hardware itself: board-black, silkscreen white, copper pad, the red
+     +5V lead, probe teal.
+     ------------------------------------------------------------------ */
+  :root {
+    --pcb:      #0d1416;
+    --paper:    #eceeea;
+    --ink:      #12191b;
+    --ink-soft: #4a565a;
+    --ink-faint:#7d888c;
+    --rule:     #d3d8d3;
+    --card:     #f6f7f4;
+    --copper:   #9c5a28;
+    --copper-lo:#f0e3d6;
+    --probe:    #256b82;
+    --probe-lo: #dce9ed;
+    --danger:   #a8261c;
+    --danger-lo:#f6e0dd;
+    --ok:       #2f6b45;
+
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, "Segoe UI Variable Text", "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:    #0d1214;
+      --ink:      #e6ebe8;
+      --ink-soft: #a3b0b3;
+      --ink-faint:#78868a;
+      --rule:     #263235;
+      --card:     #141c1f;
+      --copper:   #d99354;
+      --copper-lo:#2c2016;
+      --probe:    #6cbcd6;
+      --probe-lo: #10262e;
+      --danger:   #e8776b;
+      --danger-lo:#2c1614;
+      --ok:       #74c294;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#0d1214; --ink:#e6ebe8; --ink-soft:#a3b0b3; --ink-faint:#78868a;
+    --rule:#263235; --card:#141c1f; --copper:#d99354; --copper-lo:#2c2016;
+    --probe:#6cbcd6; --probe-lo:#10262e; --danger:#e8776b; --danger-lo:#2c1614; --ok:#74c294;
+  }
+  :root[data-theme="light"] {
+    --paper:#eceeea; --ink:#12191b; --ink-soft:#4a565a; --ink-faint:#7d888c;
+    --rule:#d3d8d3; --card:#f6f7f4; --copper:#9c5a28; --copper-lo:#f0e3d6;
+    --probe:#256b82; --probe-lo:#dce9ed; --danger:#a8261c; --danger-lo:#f6e0dd; --ok:#2f6b45;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 16px/1.6 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  /* --- masthead ---------------------------------------------------- */
+  header { display: flex; flex-direction: column; gap: 10px; }
+  .eyebrow {
+    font: 600 11px/1 var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--copper);
+  }
+  h1 {
+    margin: 0;
+    font: 650 clamp(26px, 6vw, 38px)/1.12 var(--sans);
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .standfirst { margin: 0; max-width: 60ch; color: var(--ink-soft); }
+
+  /* --- sections --------------------------------------------------- */
+  section { display: flex; flex-direction: column; gap: 16px; }
+  h2 {
+    margin: 0;
+    font: 650 20px/1.25 var(--sans);
+    letter-spacing: -0.01em;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  h2 .step {
+    font: 600 11px/1 var(--mono);
+    letter-spacing: 0.1em;
+    color: var(--copper);
+    padding: 4px 7px;
+    background: var(--copper-lo);
+    border-radius: 3px;
+  }
+  p { margin: 0; max-width: 62ch; }
+  p + p { margin-top: -4px; }
+  code {
+    font: 500 0.88em/1.4 var(--mono);
+    background: var(--copper-lo);
+    color: var(--copper);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  strong { font-weight: 650; }
+
+  /* --- connector strip (the JST-GH socket, drawn as pads) ---------- */
+  .conn {
+    display: flex;
+    gap: 4px;
+    padding: 10px;
+    background: var(--pcb);
+    border-radius: 5px;
+    overflow-x: auto;
+  }
+  .conn .pad {
+    flex: 1 1 0;
+    min-width: 74px;
+    background: #1b2528;
+    border: 1px solid #2b3a3e;
+    border-radius: 3px;
+    padding: 8px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: center;
+    font: 500 11px/1.25 var(--mono);
+    color: #cfd8d6;
+  }
+  .conn .pad .n {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+  }
+  .conn .pad .sig { color: #9fb0ae; letter-spacing: 0.02em; }
+  .conn .pad.use { border-color: var(--copper); background: #2a1c11; }
+  .conn .pad.use .sig { color: #e9a869; }
+  .conn .pad.no   { border-color: #7b2a22; background: #2a1512; }
+  .conn .pad.no .sig { color: #e08b80; }
+  .conn .pad .tag {
+    font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: #7f8f8d;
+  }
+  .conn .pad.use .tag { color: var(--copper); }
+  .conn .pad.no  .tag { color: #d4685c; }
+
+  /* --- the three-wire map ----------------------------------------- */
+  .map { border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; background: var(--card); }
+  .map .row {
+    display: grid;
+    grid-template-columns: 1fr 28px 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .map .row:last-child { border-bottom: 0; }
+  .map .row.head {
+    font: 600 11px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    background: transparent;
+  }
+  .map .row.skip { background: var(--danger-lo); }
+  .map .side { font: 500 14px/1.35 var(--mono); }
+  .map .side .lbl { color: var(--ink-faint); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; display: block; }
+  .map .arrow { text-align: center; color: var(--copper); font-weight: 700; }
+  .map .row.skip .arrow { color: var(--danger); }
+  .map .row.skip .side { color: var(--danger); }
+
+  /* --- Pi 40-pin header ------------------------------------------- */
+  .hdr-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .hdr {
+    display: grid;
+    grid-template-columns: auto repeat(20, 1fr);
+    gap: 3px;
+    min-width: 560px;
+    padding: 12px;
+    background: var(--pcb);
+    border-radius: 5px;
+  }
+  .hdr .rlabel {
+    font: 600 9px/1.1 var(--mono);
+    letter-spacing: 0.06em;
+    color: #7f8f8d;
+    align-self: center;
+    padding-right: 6px;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .hdr .pin {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #1f2a2d;
+    border: 1px solid #303f43;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 600 9px/1 var(--mono);
+    color: #6f8083;
+    font-variant-numeric: tabular-nums;
+  }
+  .hdr .pin.hit {
+    background: var(--copper);
+    border-color: #e2a86f;
+    color: #1a1208;
+    font-weight: 700;
+  }
+  .hdr .pin.one { border-color: #cfd8d6; color: #cfd8d6; }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font: 500 12px/1.3 var(--mono);
+    color: var(--ink-soft);
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 11px; height: 11px; border-radius: 50%; background: var(--copper); flex: none; }
+
+  /* --- callouts ---------------------------------------------------- */
+  .note {
+    border-left: 3px solid var(--probe);
+    background: var(--probe-lo);
+    padding: 12px 14px;
+    border-radius: 0 5px 5px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .note.stop { border-left-color: var(--danger); background: var(--danger-lo); }
+  .note .title {
+    font: 600 11px/1 var(--mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--probe);
+  }
+  .note.stop .title { color: var(--danger); }
+  .note p { max-width: 58ch; }
+
+  /* --- check ladder ------------------------------------------------ */
+  ol.ladder { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; counter-reset: c; }
+  ol.ladder li {
+    counter-increment: c;
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    padding: 13px 14px 13px 12px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 5px;
+    align-items: start;
+  }
+  ol.ladder li::before {
+    content: counter(c);
+    font: 700 12px/22px var(--mono);
+    text-align: center;
+    background: var(--copper-lo);
+    color: var(--copper);
+    border-radius: 4px;
+    height: 22px;
+  }
+  ol.ladder .what { display: flex; flex-direction: column; gap: 6px; }
+  ol.ladder .proves {
+    font: 500 12px/1.45 var(--mono);
+    color: var(--ink-faint);
+  }
+  pre {
+    margin: 0;
+    padding: 12px 14px;
+    background: var(--pcb);
+    color: #d5dedb;
+    border-radius: 5px;
+    overflow-x: auto;
+    font: 500 12.5px/1.6 var(--mono);
+  }
+  pre .c { color: #7f9a94; }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 16px;
+    font: 500 12px/1.6 var(--mono);
+    color: var(--ink-faint);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  a { color: var(--probe); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--copper); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Bench card · brn-02 / brn-03 · 2026-07-27</div>
+  <h1>Three wires to the Pi, and one GPS that lives on the wrong port</h1>
+  <p class="standfirst">
+    Everything below is the Pixhawk 6C Mini talking to the Raspberry Pi 5 over one
+    serial line. Nothing here can spin a motor — there is no airframe and no ESC.
+  </p>
+</header>
+
+<section>
+  <h2><span class="step">First</span> The cable, because DuPont does not fit</h2>
+  <p>
+    You were right to stop. <strong>TELEM2 is a JST-GH 1.25 mm 6-pin socket</strong> —
+    the same tiny latching type as your GPS plug. A DuPont jumper cannot go into it;
+    the pitch is less than half as wide. The repo said "three DuPont jumpers," which
+    described the <em>Pi</em> end only. That wording has been corrected.
+  </p>
+  <p>What you need at the flight-controller end is one of:</p>
+  <div class="map">
+    <div class="row"><div class="side">A <strong>JST-GH 6-pin to DuPont-female</strong> cable — sold as a Pixhawk telemetry-to-DuPont lead. Plugs into TELEM2, the loose ends push onto the Pi header.</div><div class="arrow">✓</div><div class="side">best</div></div>
+    <div class="row"><div class="side">A spare <strong>Holybro 6-pin telemetry cable</strong> with DuPont females crimped or soldered onto three of its wires.</div><div class="arrow">✓</div><div class="side">works</div></div>
+    <div class="row skip"><div class="side">Forcing DuPont pins into the JST-GH socket, or using the <strong>MAIN / AUX</strong> headers because they accept jumpers.</div><div class="arrow">✕</div><div class="side">no</div></div>
+  </div>
+  <div class="note stop">
+    <div class="title">MAIN and AUX are not serial ports</div>
+    <p>
+      Those 3-pin <code>S / + / −</code> headers are the <strong>PWM motor outputs</strong>.
+      They carry a servo signal and a 5 V rail. Wiring the Pi's GPIO to them puts 5 V on a
+      3.3 V pin and connects nothing useful.
+    </p>
+  </div>
+  <div class="note">
+    <div class="title">Four ports look identical</div>
+    <p>
+      <strong>POWER1, TELEM1, TELEM2 and GPS2 are all 6-pin JST-GH.</strong> They are
+      distinguished only by the silkscreen label next to the socket. Read it before it
+      clicks in — POWER1 carries the battery sense rail.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="step">brn-03</span> TELEM2 → Pi 5</h2>
+  <p>What the six pins on TELEM2 actually are, with pin&nbsp;1 identified by the <strong>red</strong> wire:</p>
+  <div class="conn">
+    <div class="pad no"><span class="n">1</span><span class="sig">VCC +5V</span><span class="tag">leave off</span></div>
+    <div class="pad use"><span class="n">2</span><span class="sig">TX (out)</span><span class="tag">use</span></div>
+    <div class="pad use"><span class="n">3</span><span class="sig">RX (in)</span><span class="tag">use</span></div>
+    <div class="pad"><span class="n">4</span><span class="sig">CTS</span><span class="tag">unused</span></div>
+    <div class="pad"><span class="n">5</span><span class="sig">RTS</span><span class="tag">unused</span></div>
+    <div class="pad use"><span class="n">6</span><span class="sig">GND</span><span class="tag">use</span></div>
+  </div>
+  <p>
+    Pins 4 and 5 are hardware flow control, deliberately unused — <code>MAV_1_FLOW_CTRL = 0</code>
+    in <code>bench.params</code> turns it off so the floating CTS line can't stall the link.
+  </p>
+
+  <div class="map">
+    <div class="row head"><div>6C Mini TELEM2</div><div></div><div>Pi 5 header</div></div>
+    <div class="row">
+      <div class="side"><span class="lbl">pin 2 — talks</span>TX (out)</div>
+      <div class="arrow">→</div>
+      <div class="side"><span class="lbl">pin 10 — listens</span>GPIO15 / RXD</div>
+    </div>
+    <div class="row">
+      <div class="side"><span class="lbl">pin 3 — listens</span>RX (in)</div>
+      <div class="arrow">→</div>
+      <div class="side"><span class="lbl">pin 8 — talks</span>GPIO14 / TXD</div>
+    </div>
+    <div class="row">
+      <div class="side"><span class="lbl">pin 6</span>GND</div>
+      <div class="arrow">→</div>
+      <div class="side"><span class="lbl">pin 6</span>GND</div>
+    </div>
+    <div class="row skip">
+      <div class="side"><span class="lbl">pin 1 — red wire</span>+5 V</div>
+      <div class="arrow">✕</div>
+      <div class="side"><span class="lbl">nowhere</span>would feed 5 V into a 3.3 V GPIO</div>
+    </div>
+  </div>
+  <p>
+    A talk pin always goes to a listen pin — that is all "TX/RX crossed" means. Both sides
+    are 3.3 V logic, so no level shifter. Ground is the third wire and it is not optional:
+    without a shared ground the other two carry nothing meaningful.
+  </p>
+
+  <div class="hdr-wrap">
+    <div class="hdr" role="img" aria-label="Raspberry Pi 5 40-pin header with pins 6, 8 and 10 highlighted">
+      <div class="rlabel">odd row<br>(inner)</div>
+      <div class="pin one">1</div><div class="pin">3</div><div class="pin">5</div><div class="pin">7</div>
+      <div class="pin">9</div><div class="pin">11</div><div class="pin">13</div><div class="pin">15</div>
+      <div class="pin">17</div><div class="pin">19</div><div class="pin">21</div><div class="pin">23</div>
+      <div class="pin">25</div><div class="pin">27</div><div class="pin">29</div><div class="pin">31</div>
+      <div class="pin">33</div><div class="pin">35</div><div class="pin">37</div><div class="pin">39</div>
+      <div class="rlabel">even row<br>(board edge)</div>
+      <div class="pin">2</div><div class="pin">4</div><div class="pin hit">6</div><div class="pin hit">8</div>
+      <div class="pin hit">10</div><div class="pin">12</div><div class="pin">14</div><div class="pin">16</div>
+      <div class="pin">18</div><div class="pin">20</div><div class="pin">22</div><div class="pin">24</div>
+      <div class="pin">26</div><div class="pin">28</div><div class="pin">30</div><div class="pin">32</div>
+      <div class="pin">34</div><div class="pin">36</div><div class="pin">38</div><div class="pin">40</div>
+    </div>
+  </div>
+  <div class="legend">
+    <span><i></i> 6 = GND · 8 = TXD · 10 = RXD</span>
+    <span>all three are adjacent, on the outer row, near the pin-1 end</span>
+  </div>
+  <div class="note">
+    <div class="title">Confirm the orientation on your own board</div>
+    <p>
+      Don't trust a drawing for which end is pin 1. Run <code>pinout</code> on the Pi — it
+      ships with Pi OS and prints your actual board with the header mapped, so you can match
+      it to what's in front of you before anything is pushed on.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="step">5a</span> Splicing a TELEM↔TELEM cable</h2>
+  <p>
+    Cutting a spare 6-pin TELEM cable and soldering Dupont pigtails onto three of its
+    wires is a normal move. Two things make it worth doing carefully: <strong>five of the
+    six wires are usually the same colour</strong>, and the colour convention is vendor
+    discretion, not standard — one distributor warns in writing that the red wire may not
+    be pin 1. So <strong>every identification here is measured, not counted</strong>, and
+    the order below matters.
+  </p>
+  <div class="note">
+    <div class="title">Check the mail before the scissors</div>
+    <p>
+      A ready-made JST-GH → Dupont pigtail is <strong>already on order</strong>. Cutting
+      pins 4 and 5 off a TELEM cable is permanent, so this donor can never carry a SiK
+      radio afterwards. Hand-make one only to close the link tonight.
+    </p>
+  </div>
+  <ol class="ladder">
+    <li><div class="what"><div><strong>Find GND with the meter, not the colours.</strong> FC unpowered, USB out, cable plugged into TELEM2. Continuity mode: one probe on the FC's <strong>USB shell</strong>, touch each wire at the far plug. The one that beeps is <strong>pin 6</strong>. Flag it within 10 mm of the plug boot.</div><div class="proves">Pin order is only guaranteed at the boot. Probe the wires, never inside the 1.25 mm socket — a probe tip in there bridges pins.</div></div></li>
+    <li><div class="what"><div><strong>Find +5 V.</strong> Power the FC on USB only. DC volts, black probe on your flagged GND. The wire reading ≈5 V is <strong>pin 1</strong>. Flag it.</div><div class="proves">If NOTHING reads 5 V, that is a legitimate result, not a mistake — the peripheral 5 V is a switched, current-limited rail and USB-only behaviour is undocumented for this board. Fall back to: pin 1 is the wire at the opposite ribbon edge from measured GND. Do not re-cut.</div></div></li>
+    <li><div class="what"><div><strong>Count inward from both measured ends.</strong> From pin 1: next is <strong>2 = TX</strong>, then 3 = RX. From pin 6: next in is 5 = RTS, then 4 = CTS.</div><div class="proves">Counting from an edge is flip-invariant — turning the cable over never reverses the sequence. Anchoring from opposite ends is what separates TX (pin 2) from RTS (pin 5): both are FC outputs and both read a clean logic level, so voltage alone cannot tell them apart.</div></div></li>
+    <li><div class="what"><div><strong>Cut. Then solder — heatshrink threaded on FIRST.</strong> It will not go on afterwards; the Dupont housing is too fat. Lap the strands side by side, one joint at a time, three different jumper colours.</div><div class="proves">Only now is it safe to cut, because both anchors are already measured and flagged.</div></div></li>
+    <li><div class="what"><div><strong>Cap the three you don't use</strong> — +5 V, CTS, RTS — back to ~10 mm, each in its own heatshrink.</div><div class="proves">Short leaves nothing to flop onto the Pi header. Pin 4 is an FC input, and TELEM pins are not documented as 5 V tolerant.</div></div></li>
+    <li><div class="what"><div><strong>Continuity sweep, unplugged and unpowered — all 15 pairs, capped stubs included.</strong></div><div class="proves">+5 V against TX, RX or GND is the pair that kills a GPIO or crowbars the FC rail. Continuity means nothing while the plug sits in a powered board.</div></div></li>
+    <li><div class="what"><div><strong>Wire to the Pi with everything dead. GND first, then RX, then TX.</strong> Remove GND last when dismantling.</div><div class="proves">Pi header pin 6 (GND) is one pin from pin 4 (+5 V) — a one-pin slip dumps the Pi's 5 V into the FC's ground. And until GND is joined, two independently powered grounds float relative to each other.</div></div></li>
+    <li><div class="what"><div><strong>Prove it in two stages.</strong> GND + FC TX only → byte check. Then power down, add FC RX → MAVSDK check.</div><div class="proves">Stage one involves no Pi output, so a wrong guess costs nothing. Bytes arriving is the only thing that actually proves a serial lead.</div></div></li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="step">brn-02</span> The M10 on GPS2</h2>
+  <p>
+    No wiring for this one — the plug goes straight in. GPS2 is 6-pin JST-GH carrying a
+    UART <em>and</em> an I²C bus, which is why a GPS-plus-compass module fits a single socket:
+  </p>
+  <div class="conn">
+    <div class="pad"><span class="n">1</span><span class="sig">VCC +5V</span><span class="tag">power</span></div>
+    <div class="pad use"><span class="n">2</span><span class="sig">TX (out)</span><span class="tag">gps</span></div>
+    <div class="pad use"><span class="n">3</span><span class="sig">RX (in)</span><span class="tag">gps</span></div>
+    <div class="pad"><span class="n">4</span><span class="sig">SCL</span><span class="tag">i²c bus 2</span></div>
+    <div class="pad"><span class="n">5</span><span class="sig">SDA</span><span class="tag">i²c bus 2</span></div>
+    <div class="pad"><span class="n">6</span><span class="sig">GND</span><span class="tag">ground</span></div>
+  </div>
+  <p>
+    Set <code>GPS_1_CONFIG</code> to <strong>"GPS 2"</strong> and <code>SER_GPS2_BAUD</code>
+    to Auto, then reboot. Use <code>GPS_1_CONFIG</code>, not <code>GPS_2_CONFIG</code> —
+    the latter leaves the <em>primary</em> GPS pointed at an empty port, failing forever.
+  </p>
+  <div class="note stop">
+    <div class="title">The compass will not appear, and that is not a fault</div>
+    <p>
+      PX4 v1.16 on this board starts the external magnetometer on I²C bus 1 (GPS1's) and
+      bus 4 (internal) only. <strong>GPS2's I²C is bus 2, which is never scanned</strong> —
+      so the M10's compass is invisible, looking exactly like a dead module. The bench uses
+      the board's internal compass instead; a 6→10-pin cable moves the module to the scanned
+      bus for flight. Full reasoning in ADR-0091.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>Checks, in order — stop at the first failure</h2>
+  <ol class="ladder">
+    <li>
+      <div class="what">
+        <div>In QGC's <strong>MAVLink Console</strong> (Analyze Tools), run <code>gps status</code>.</div>
+        <pre><span class="c"># also useful, prints the live values:</span>
+listener sensor_gps</pre>
+        <div class="proves">Proves the driver found the receiver and identified its protocol. Indoors you will see few or zero satellites — that is the roof, not a wiring fault. A named device and a u-blox protocol line is the pass here; the satellite count is what you check outdoors.</div>
+      </div>
+    </li>
+    <li>
+      <div class="what">
+        <div>Free the Pi's serial port: <code>sudo raspi-config</code> → Interface Options → Serial Port → login shell <strong>No</strong>, serial hardware <strong>Yes</strong>. Reboot.</div>
+        <pre>ls -l /dev/serial0        <span class="c"># should point at ttyAMA0</span>
+grep -o 'console=serial0' /boot/firmware/cmdline.txt   <span class="c"># must print NOTHING</span></pre>
+        <div class="proves">By default Linux runs a login prompt on those pins and eats every MAVLink byte before your code sees it.</div>
+      </div>
+    </li>
+    <li>
+      <div class="what">
+        <div>Raw bytes on the wire.</div>
+        <pre>stty -F /dev/ttyAMA0 921600 &amp;&amp; timeout 3 cat /dev/ttyAMA0 | xxd | head</pre>
+        <div class="proves">Hex scrolling proves the FC → Pi direction only. Silence means: wrong device, TX/RX not crossed, console still holding the port, or a baud mismatch.</div>
+      </div>
+    </li>
+    <li>
+      <div class="what">
+        <div>MAVSDK parses a heartbeat — this closes <strong>brn-04</strong>.</div>
+        <pre>.venv-seeker/bin/python -c "import asyncio; from mavsdk import System
+async def m():
+    d=System(); await d.connect(system_address='serial:///dev/ttyAMA0:921600')
+    async for s in d.core.connection_state():
+        print('connected', s.is_connected); break
+asyncio.run(m())"</pre>
+        <div class="proves">Bytes are not just present but well-formed MAVLink. Still only one direction.</div>
+      </div>
+    </li>
+    <li>
+      <div class="what">
+        <div>The gate — this closes <strong>brn-05</strong>, the one link the simulation never exercised.</div>
+        <pre>scripts/check_deploy_bench.sh</pre>
+        <div class="proves">Connect → own-state → OFFBOARD accepted → a measured setpoint stream → clean stop, all disarmed. The advancing own-state stamp is the only evidence bytes went <em>back</em> up the wire, so this is where your Pi → FC lead is proven. It refuses to pass over USB and exits 3 instead.</div>
+      </div>
+    </li>
+  </ol>
+  <div class="note">
+    <div class="title">If it connects but stalls in half-second chunks</div>
+    <p>
+      That is hardware flow control on a three-wire link. Confirm <code>MAV_1_FLOW_CTRL = 0</code>
+      actually took, in QGC's Parameters page. The rest of the failure ladder, in likelihood
+      order, is in <code>configs/px4_6cmini/README.md</code>.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div>Sources: Holybro Pixhawk 6C Mini port pinout · PX4 v1.16 serial-port configuration · PX4 v1.16 <code>boards/px4/fmu-v6c/init/rc.board_sensors</code></div>
+  <div>Project: <code>configs/px4_6cmini/README.md</code> · ADR-0091 · <code>docs/project_state.json</code> → build_tab → brain</div>
+</footer>
+
+</div>
