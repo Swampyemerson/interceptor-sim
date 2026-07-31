@@ -321,13 +321,47 @@ calibration means measuring the lens's real focal length from photos of a
 checkerboard — without it, every distance is wrong by an unknown factor:
 
 ```bash
-# on the Pi, photograph the printed checkerboard from ~15 angles, then:
-scripts/calibrate_camera.py --images 'calib/*.png' --cols 9 --rows 6 --square 0.025 \
-    --out camera_intrinsics_real.json
+# on the Pi, capture the views (headless, ssh-friendly, reports coverage per shot):
+.venv-pi/bin/python scripts/seeker/capture_calib_views.py --out ~/calib_views
+# ENTER grabs · s skips · q finishes + verdict. Then solve:
+scripts/calibrate_camera.py --images '/home/admin/calib_views/calib_*.png' \
+    --cols 9 --rows 6 --square 0.025 --out camera_intrinsics_real.json
 ```
 
 Once `camera_intrinsics_real.json` exists in the repo root, step 02 picks it up
 automatically and starts *grading* range against your tape measure.
+
+#### How far from the board to stand — GET CLOSE (derived 2026-07-31, bench session)
+
+The 118° lens is wide enough that intuition is wrong here by a factor of several,
+and the failure is silent: you shoot twenty views, every one of them lands in the
+FAR bucket, and `capture_calib_views.py` refuses READY at the end of the session.
+Frame width = `2·tan(59°)·d` = **3.33·d**, so a board's share of frame AREA falls
+as 1/d². For the checkerboard displayed on a screen
+(`hardware/prints/checkerboard_9x6_screen.html`, squares = `min(9.2vw, 12.4vh)`):
+
+| display | board | NEAR (≥25 %) | MID (8–25 %) | FAR (<8 %) |
+|---|---|---|---|---|
+| 13" laptop 16:9 | 20×14 cm | 13 cm | 13–23 cm | >23 cm |
+| 15.6" laptop 16:9 | 24×17 cm | 15 cm | 15–27 cm | >27 cm |
+| 24" monitor 16:9 | 37×26 cm | 24 cm | 24–42 cm | >42 cm |
+| 27" monitor 16:9 | 42×29 cm | 27 cm | 27–47 cm | >47 cm |
+
+**Use the largest display available.** Not for convenience — for FOCUS. The lens
+is ~1.15 mm focal length (118° HFoV across the OV9281's 3.84×2.40 mm sensor), so
+with CoC = diag/1500 = 0.0030 mm the hyperfocal distance is **≈22 cm at f/2**
+(≈16 cm at f/2.8). A lens focused for FIELD distances is therefore sharp only down
+to ~16–22 cm: on a 15.6" laptop the NEAR views sit at 15 cm, *inside* the blur
+limit, and come back NOT FOUND. On a 24"+ screen every bucket clears it.
+
+The same number carries the good news: **do not refocus the lens to shoot close.**
+Depth of field at this focal length runs from ~20 cm to infinity, and `skr-06`
+requires the intrinsics measured with the lens exactly as tripod day will use it —
+refocusing between calibration and the field invalidates the calibration.
+
+A printed board is no larger than a laptop screen at these square sizes
+(A3 @ 25 mm = 25×17.5 cm), so printing does not solve the distance problem;
+only a physically bigger board or a bigger display does.
 
 **Top failure modes**
 
