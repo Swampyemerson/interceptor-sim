@@ -611,7 +611,47 @@ def _run_gz(args, cond: WindConditions, drag: DragParams) -> int:
     msg.entity.name = scoped
     msg.entity.type = Entity.LINK
 
+    clear_ent = Entity()
+    clear_ent.name = scoped
+    clear_ent.type = Entity.LINK
+
     def publish(fx: float, fy: float, fz: float) -> bool:
+        """CLEAR, THEN PUBLISH. The clear is not optional (fixed 2026-08-10).
+
+        gz-sim's ApplyLinkWrench does NOT replace a persistent wrench on
+        re-publish -- it APPENDS. Verified verbatim in the gz-sim8 source:
+
+            void ApplyLinkWrenchPrivate::OnWrenchPersistent(const msgs::EntityWrench &_msg)
+            { ... this->persistentWrenches.push_back(_msg); }
+
+        and PreUpdate then applies EVERY entry:
+            for (auto msg : this->dataPtr->persistentWrenches) ...
+
+        So publishing at RATE_HZ without clearing accumulates one wrench per
+        tick and sums them: after t seconds the link feels ~RATE_HZ*t times the
+        intended force. At 20 Hz over a 30 s flight that is 600 superimposed
+        wrenches -- a force ramping linearly with time, which would look
+        superficially like "wind builds during the dash" and would have silently
+        invalidated every measured wind arm.
+
+        Clearing first bounds the active set to exactly one. The cost is at most
+        a single physics iteration (4 ms at PX4 SITL's 250 Hz) between the clear
+        and the publish, against a 50 ms driver tick -- and both messages are
+        normally delivered in the same transport batch, so in practice zero.
+        That is the right direction to be wrong: a missing force for one
+        iteration understates the disturbance, whereas accumulation overstates
+        it without bound.
+        """
+        try:
+            clear_pub.publish(clear_ent)
+        except Exception as exc:                              # noqa: BLE001
+            # FAIL LOUD: silently skipping the clear reinstates the accumulation
+            # bug, and the resulting run would still produce a plausible CSV.
+            print(f"[wind] FATAL: could not clear the previous persistent "
+                  f"wrench ({exc}). Refusing to publish -- without the clear, "
+                  f"forces ACCUMULATE and the arm would be unusable.",
+                  flush=True)
+            raise
         msg.wrench.force.x = fx
         msg.wrench.force.y = fy
         msg.wrench.force.z = fz

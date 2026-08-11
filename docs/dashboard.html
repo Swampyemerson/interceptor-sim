@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->411fe83<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ec0e82d<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1169,14 +1169,14 @@
     "Open-loop aim tolerance"
    ],
    "test": {
-    "how": "Log wind (even a handheld anemometer) at every first outdoor session and correlate with achieved aim error from the ULogs; optionally add a wind model to the sim and re-fly the dash-only floor.",
+    "how": "Sim: scripts/wind_driver.py applies a PX4-form drag force from a steady+Dryden-gust field via gz ApplyLinkWrench; arms at BEST 1.5 / EXPECTED 4.5 / WORST 8.0 m/s (Beaufort-sourced). Gate first: the W3 physics probe — hover in steady 5 m/s, confirm settled tilt-into-wind within ±30% of atan(a_drag/g) ≈ 4–5°, then kill the driver and confirm force removal. Field: handheld anemometer at launch height + ULog, correlate with achieved aim error.",
     "cost": "~$20 anemometer + logging discipline; sim wind arm is free",
-    "status": "not started"
+    "status": "in progress — sim wind mechanism BUILT (scripts/wind_driver.py, default OFF), physics probe NOT yet run"
    },
    "state": "unchecked",
    "ruling": "",
    "origin": "docs/launch_mechanism_plan.md §9 ('Wind/gust is unmodelled everywhere')",
-   "evidence": "No wind term appears in dash_cpa_model.py inputs or any mc_batch config; sim_to_real_gaps.md documents the sim-flatters pattern class"
+   "evidence": "Mechanism built + reviewed 2026-08-10 (ADR-0096). NOT yet exercised in Gazebo — no wind arm has flown, so every published number still assumes a windless world."
   },
   {
    "id": "go-bit-not-a-cue",
@@ -1240,6 +1240,65 @@
    "ruling": "",
    "origin": "flight/deploy/real_flight.py MissionConfig (lines 216–341) — 24 TODO-BUILDER markers, incl. breakoff_min_rise 0.30 m derived from the SIM camera's fx=540, not the OV9281",
    "evidence": "e.g. real_flight.py:273–287 (0.30 m derivation 'is a sim-geometry estimate, not a measured one'), :322–341 (offboard timeouts, one already re-measured in SITL and flagged for re-measure on real link)"
+  },
+  {
+   "id": "target-wind-immune",
+   "statement": "The target drone is teleported along its briefed path, so wind cannot blow it off course. Only the interceptor feels the new wind model.",
+   "grade": "given-perfect",
+   "if_wrong": "If a real target is blown off course by the same gust that pushes the interceptor, the closing geometry is noisier than any sim arm shows — and the two errors are CORRELATED.",
+   "stages": [
+    "sim_harness",
+    "coded_dash"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Fly the real target in measured wind and compare its achieved track against its briefed waypoints (ArduPilot .BIN vs mission).",
+    "cost": "Free — it rides on any outdoor target flight",
+    "status": "not started"
+   },
+   "state": "unchecked",
+   "ruling": "",
+   "origin": "Declared 2026-08-10 when the sim wind model was built (ADR-0096)",
+   "evidence": "scripts/m4_target_mover.py teleports the target; wind_driver.py applies force to the interceptor link only. Defensible — a real target's controller holds its briefed track — but it IS an assumption, so it is declared."
+  },
+  {
+   "id": "anemometer-wind-cue",
+   "statement": "The wind correction is fed by an operator reading a handheld anemometer before launch — one number, typed in, assumed to hold for the whole flight.",
+   "grade": "given-noisy",
+   "if_wrong": "A wind trim computed from a stale or mis-read number corrects in the wrong direction. Gusts and vertical shear are not in the reading at all.",
+   "stages": [
+    "launch_aim",
+    "coded_dash"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Compare the pre-launch handheld reading against the ULog's own wind estimate over the same flight; that spread IS the cue error.",
+    "cost": "~$20 anemometer, already on the must-add list",
+    "status": "not started"
+   },
+   "state": "unchecked",
+   "ruling": "",
+   "origin": "Declared 2026-08-10 with the --wind-trim-mps flag (ADR-0096)",
+   "evidence": "PLACEHOLDER σ: ±(0.3 m/s or 5%) speed, ±15° direction, from typical handheld spec sheets — NOT measured on the purchased unit. Re-earn from the real device."
+  },
+  {
+   "id": "wind-sag-table-unmeasured",
+   "statement": "The trim converts a wind reading into an expected dash-speed sag using a table that has never been measured — it is derived from PX4's default drag coefficients, not from this airframe.",
+   "grade": "given-perfect",
+   "if_wrong": "The lead solve aims off by whatever the table is wrong by. At the worst-case headwind the derived drag exceeds half the vehicle's tilt-limited authority, so the sag is large.",
+   "stages": [
+    "launch_aim"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Fly the dash at a known commanded speed in measured steady wind, head-on and cross, and read the achieved ground speed from the ULog. That IS the table.",
+    "cost": "Two passes of an outdoor session",
+    "status": "not started"
+   },
+   "state": "unchecked",
+   "ruling": "",
+   "origin": "Declared 2026-08-10 with scripts/wind_trim.py (ADR-0096)",
+   "evidence": "Table derives from PX4 params_drag.yaml defaults (MCOEF 0.15 s^-1, BCOEF 100 kg/m^2) and x500 mass 2.114 kg — generic values, not this airframe measured."
   }
  ],
  "builder_queue": [

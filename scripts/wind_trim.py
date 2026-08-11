@@ -75,9 +75,22 @@ WHAT IT DELIBERATELY DOES NOT DO (limitations, in code not just prose)
   shows a systematic cross-track residual the velocity loop does NOT reject,
   that is a NEW finding and a new, separately pre-registered parameter -- it
   does not silently appear here.
-* NO VERTICAL TRIM. The published -0.37 m vertical bias is ~56% camera
-  lens-arm artefact (scoring_fix_plan.md issue #8); a trim sized off it would
-  overcorrect >2x. Nothing here depends on that constant.
+* NO VERTICAL TRIM -- AND THE REASON GIVEN HERE ORIGINALLY WAS WRONG
+  (corrected 2026-08-10). This module was told, while it was being designed,
+  that the published -0.37 m vertical bias was "~56% camera lens-arm artefact"
+  and that a trim sized off it would overcorrect >2x. That is FALSE. The
+  "+0.208 m lens arm" it rested on was `median(gt_cam_z - alt_m)`, and `alt_m`
+  is MAVSDK `relative_altitude_m` -- height above the TAKEOFF POINT, not world
+  z -- so the quantity measured the LANDING GEAR. The camera sits ~2 mm above
+  the airframe datum. Re-measured over 168 flights at the corrected
+  centre-to-centre CPA, the vertical bias is median **-0.374 m**: it stands
+  (ADR-0095, docs/rescore_2026-08-10.md).
+  THE DECISION IS UNCHANGED, for a better reason: a vertical trim is a
+  GUIDANCE lever (the altitude channel was never closed -- the lead solve is
+  2-D horizontal by construction), not a WIND correction. It belongs to its
+  own pre-registered experiment, not bundled into a wind module where its
+  effect could not be attributed. Nothing here depends on that constant either
+  way -- which is why a wrong rationale produced no wrong code.
 * IT CORRECTS THE AIM, NOT THE THROTTLE. The corrected speed is what the
   pre-flight LEAD SOLVE should ASSUME the vehicle will achieve, so the aim
   leads further ahead of a crossing target and expects a longer time of
