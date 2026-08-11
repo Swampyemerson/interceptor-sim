@@ -1,0 +1,16 @@
+skr-07 compute bench — mode=apriltag
+  host      : Raspberry Pi 5 Model B Rev 1.1  gov=ondemand
+  workload  : {"detector": "pyapriltags tag36h11", "quad_decimate": 2.0}
+  soak      : 60s, temp 45.75 -> 45.75 C (max 47.4), steady (drift +0.22 C)
+  throttle  : none (raw ['0x0'])
+
+  STEADY fps (published) : 30.006
+    source               : BOUNDED min(decode throughput 117.42, delivered cadence 30.01)
+    p10 slow tail        : 30.006
+    decode ms med / p90  : 8.517 / 10.049
+    tag_frac             : 0.0
+  cold warm-up fps       : 30.004 (DIAGNOSTIC ONLY — never the gate number)
+
+  NOT GATE-ELIGIBLE — refusals:
+    - soak too short: 60s < 600s
+    - PROVISIONAL, --allow-no-tag was passed: NO TAG IN VIEW for most of the soak (tag_frac=0.00 < 0.50): with no candidate quads to refine, decode cost is UNDERSTATED and fps OVERSTATED — the flattering direction for the ~$740 gate

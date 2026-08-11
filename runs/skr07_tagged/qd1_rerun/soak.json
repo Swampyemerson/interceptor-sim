@@ -1,0 +1,204 @@
+{
+  "tool": "pi_fps_soak.py",
+  "contract_step": "skr-07",
+  "protocol": "docs/tripod_test_protocol.md \u00a77.3",
+  "mode": "apriltag",
+  "gate_eligible": true,
+  "refusals": [],
+  "may_be_quoted_as_stream_fps": 38.154,
+  "gates": "curve (a) / the ~$740 Tier-2 order (tripod_score --stream-fps)",
+  "host": {
+    "model": "Raspberry Pi 5 Model B Rev 1.1",
+    "governor": "ondemand",
+    "python": "3.13.5",
+    "nthreads": 4
+  },
+  "capture": {
+    "source": "picamera2",
+    "width": 1280,
+    "height": 800,
+    "exposure_us_requested": 1000,
+    "exposure_us_applied": 994,
+    "target_fps_requested": 143.0,
+    "frame_duration_capped": true,
+    "frames_written": 0,
+    "note": "NO frames are written: this measures the FLIGHT loop, not the recorder (pi_capture.py pays a PNG write per frame that the flight loop never pays)"
+  },
+  "workload": {
+    "detector": "pyapriltags tag36h11",
+    "quad_decimate": 1.0
+  },
+  "soak": {
+    "duration_s_requested": 750.0,
+    "duration_s_elapsed": 750.42,
+    "warmup_s": 300.0,
+    "n_frames_total": 28247,
+    "temp_c_start": 47.4,
+    "temp_c_max": 60.05,
+    "temp_c_end": 59.5,
+    "steady_state": true,
+    "steady_drift_c": -0.087,
+    "steady_note": "steady (drift -0.09 C)",
+    "throttled_values_seen": [
+      "0x0"
+    ],
+    "throttle_flags": []
+  },
+  "warmup_window": {
+    "n_frames": 11242,
+    "fps_published": 38.151,
+    "fps_source": "BOUNDED min(decode throughput 40.39, delivered cadence 38.15)",
+    "fps_p10_slow_tail": 37.197,
+    "decode_throughput_fps": 40.394,
+    "delivered_cadence_fps": 38.151,
+    "compute_headroom_x": 1.06,
+    "clamp_dominated": false,
+    "bound_by": "compute/decode",
+    "decode_ms_median": 24.756,
+    "decode_ms_p90": 26.884,
+    "frames_with_tag": 11242,
+    "tag_frac": 1.0
+  },
+  "steady_window": {
+    "n_frames": 17005,
+    "fps_published": 38.154,
+    "fps_source": "BOUNDED min(decode throughput 40.43, delivered cadence 38.15)",
+    "fps_p10_slow_tail": 37.254,
+    "decode_throughput_fps": 40.427,
+    "delivered_cadence_fps": 38.154,
+    "compute_headroom_x": 1.06,
+    "clamp_dominated": false,
+    "bound_by": "compute/decode",
+    "decode_ms_median": 24.736,
+    "decode_ms_p90": 26.843,
+    "frames_with_tag": 17005,
+    "tag_frac": 1.0
+  },
+  "tag_timeline_30s": [
+    {
+      "t_s": 2.0,
+      "n": 1134,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 32.0,
+      "n": 1131,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 62.0,
+      "n": 1127,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 92.0,
+      "n": 1133,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 122.0,
+      "n": 1136,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 152.0,
+      "n": 1134,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 182.0,
+      "n": 1130,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 212.0,
+      "n": 1132,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 242.0,
+      "n": 1127,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 272.0,
+      "n": 1133,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 302.0,
+      "n": 1133,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 332.0,
+      "n": 1132,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 362.0,
+      "n": 1129,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 392.0,
+      "n": 1136,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 422.0,
+      "n": 1132,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 452.0,
+      "n": 1132,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 482.0,
+      "n": 1138,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 512.0,
+      "n": 1135,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 542.0,
+      "n": 1135,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 572.0,
+      "n": 1132,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 602.0,
+      "n": 1135,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 632.0,
+      "n": 1133,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 662.0,
+      "n": 1137,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 692.0,
+      "n": 1135,
+      "tag_frac": 1.0
+    },
+    {
+      "t_s": 722.0,
+      "n": 1056,
+      "tag_frac": 1.0
+    }
+  ]
+}

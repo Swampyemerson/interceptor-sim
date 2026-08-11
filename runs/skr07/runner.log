@@ -1,0 +1,41 @@
+=== [2026-07-26T16:26:10-07:00] ARM qd2_uncapped ===
+skr-07 compute bench — mode=apriltag
+  host      : Raspberry Pi 5 Model B Rev 1.1  gov=ondemand
+  workload  : {"detector": "pyapriltags tag36h11", "quad_decimate": 2.0}
+  soak      : 900s, temp 46.3 -> 56.75 C (max 59.5), steady (drift +1.00 C)
+  throttle  : none (raw ['0x0'])
+
+  STEADY fps (published) : 108.614
+    source               : BOUNDED min(decode throughput 132.34, delivered cadence 108.61)
+    p10 slow tail        : 108.614
+    decode ms med / p90  : 7.556 / 8.851
+    bound by             : compute/decode (compute headroom 1.22x)
+    tag_frac             : 0.0
+  cold warm-up fps       : 108.157 (DIAGNOSTIC ONLY — never the gate number)
+
+  NOT GATE-ELIGIBLE — refusals:
+    - PROVISIONAL, --allow-no-tag was passed: NO TAG IN VIEW for most of the soak (tag_frac=0.00 < 0.50): with no candidate quads to refine, decode cost is UNDERSTATED and fps OVERSTATED — the flattering direction for the ~$740 gate
+
+=== [2026-07-26T16:41:11-07:00] ARM qd2_uncapped done (exit 2) ===
+=== [2026-07-26T16:41:41-07:00] ARM qd1_uncapped ===
+skr-07 compute bench — mode=apriltag
+  host      : Raspberry Pi 5 Model B Rev 1.1  gov=ondemand
+  workload  : {"detector": "pyapriltags tag36h11", "quad_decimate": 1.0}
+  soak      : 900s, temp 49.6 -> 57.3 C (max 59.5), steady (drift +0.06 C)
+  throttle  : none (raw ['0x0'])
+
+  STEADY fps (published) : 43.402
+    source               : BOUNDED min(decode throughput 46.58, delivered cadence 43.40)
+    p10 slow tail        : 39.772
+    decode ms med / p90  : 21.469 / 25.143
+    bound by             : compute/decode (compute headroom 1.07x)
+    tag_frac             : 0.0001
+  cold warm-up fps       : 42.966 (DIAGNOSTIC ONLY — never the gate number)
+
+  NOT GATE-ELIGIBLE — refusals:
+    - PROVISIONAL, --allow-no-tag was passed: NO TAG IN VIEW for most of the soak (tag_frac=0.00 < 0.50): with no candidate quads to refine, decode cost is UNDERSTATED and fps OVERSTATED — the flattering direction for the ~$740 gate
+
+=== [2026-07-26T16:56:41-07:00] ARM qd1_uncapped done (exit 2) ===
+=== [2026-07-26T16:57:11-07:00] ARM yolo_cpu ===
+[0;93m2026-07-26 16:57:12.800818351 [W:onnxruntime:Default, device_discovery.cc:283 GetGpuDevices] Failed to detect devices under "/sys/class/drm/card1": device_discovery.cc:93 ReadFileContents Failed to open file: "/sys/class/drm/card1/device/vendor"[m
+[0;93m2026-07-26 16:57:12.800868555 [W:onnxruntime:Default, device_discovery.cc:283 GetGpuDevices] Failed to detect devices under "/sys/class/drm/card0": device_discovery.cc:93 ReadFileContents Failed to open file: "/sys/class/drm/card0/device/vendor"[m

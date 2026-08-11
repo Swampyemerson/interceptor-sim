@@ -1,0 +1,15 @@
+skr-07 compute bench — mode=yolo
+  host      : Raspberry Pi 5 Model B Rev 1.1  gov=ondemand
+  workload  : {"onnx": "scripts/seeker/weights/nn_tier/n-mono.onnx", "imgsz": 640, "provider": "CPUExecutionProvider"}
+  soak      : 750s, temp 49.6 -> 67.2 C (max 67.2), steady (drift +1.07 C)
+  throttle  : none (raw ['0x0'])
+
+  STEADY fps (published) : 6.086
+    source               : BOUNDED min(decode throughput 6.18, delivered cadence 6.09)
+    p10 slow tail        : 5.988
+    decode ms med / p90  : 161.865 / 166.988
+    bound by             : compute/decode (compute headroom 1.02x)
+    tag_frac             : 0.0
+  cold warm-up fps       : 6.105 (DIAGNOSTIC ONLY — never the gate number)
+
+  GATE-ELIGIBLE: may be passed to tripod_score --stream-fps

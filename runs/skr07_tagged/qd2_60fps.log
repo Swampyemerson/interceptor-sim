@@ -1,0 +1,25 @@
+[3:48:28.575529016] [11723]  INFO Camera camera_manager.cpp:340 libcamera v0.7.1+rpt20260609
+[3:48:28.584031362] [11726]  INFO RPI pisp.cpp:720 libpisp version v1.5.0 01-05-2026 (05:33:53)
+[3:48:28.592694059] [11726]  INFO IPAProxy ipa_proxy.cpp:184 Using tuning file /usr/share/libcamera/ipa/rpi/pisp/ov9281_mono.json
+[3:48:28.593733074] [11726]  INFO Camera camera_manager.cpp:223 Adding camera '/base/axi/pcie@1000120000/rp1/i2c@88000/ov9281@60' for pipeline handler rpi/pisp
+[3:48:28.593745741] [11726]  INFO RPI pisp.cpp:1181 Registered camera /base/axi/pcie@1000120000/rp1/i2c@88000/ov9281@60 to CFE device /dev/media0 and ISP device /dev/media2 using PiSP variant BCM2712_D0
+[3:48:28.595857309] [11726]  WARN V4L2 v4l2_pixelformat.cpp:346 Unsupported V4L2 pixel format Nc30
+[3:48:28.595869587] [11726]  WARN V4L2 v4l2_pixelformat.cpp:346 Unsupported V4L2 pixel format Nc12
+[3:48:28.596253049] [11723]  INFO Camera camera.cpp:1216 configuring streams: (0) 1280x800-XBGR8888/Rec709/Rec709/None/Full (1) 1280x800-MONO_PISP_COMP1/RAW
+[3:48:28.596329641] [11726]  INFO RPI pisp.cpp:1485 Sensor: /base/axi/pcie@1000120000/rp1/i2c@88000/ov9281@60 - Selected sensor format: 1280x800-Y10_1X10/RAW - Selected CFE format: 1280x800-PC1M/RAW/Linear/Rec601/Limited
+skr-07 compute bench — mode=apriltag
+  host      : Raspberry Pi 5 Model B Rev 1.1  gov=ondemand
+  workload  : {"detector": "pyapriltags tag36h11", "quad_decimate": 2.0}
+  soak      : 700s, temp 47.4 -> 50.15 C (max 51.8), steady (drift +0.08 C)
+  throttle  : none (raw ['0x0'])
+
+  STEADY fps (published) : 60.419
+    source               : BOUNDED min(decode throughput 130.84, delivered cadence 60.42)
+    p10 slow tail        : 60.419
+    decode ms med / p90  : 7.643 / 8.964
+    bound by             : camera delivery (compute headroom 2.17x)
+    tag_frac             : 1.0
+  cold warm-up fps       : 60.278 (DIAGNOSTIC ONLY — never the gate number)
+
+  GATE-ELIGIBLE: may be passed to tripod_score --stream-fps
+
