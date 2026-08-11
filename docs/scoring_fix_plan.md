@@ -1,5 +1,33 @@
 # Scoring-integrity fix plan — issues #8, #9, #3 (planned 2026-08-10)
 
+> ## ⚠️ §2's #8 SECTION IS CORRECTED — read this first (2026-08-10, after the offline re-score)
+>
+> This plan was written against issue #8's premise that the scorer sits **+0.208 m above** the
+> airframe datum. **That is wrong.** The figure is `median(gt_cam_z − alt_m)`, and `alt_m` is
+> MAVSDK `relative_altitude_m` — height above the takeoff point, not world z — so it measures the
+> **landing gear**. The camera is **~2 mm** above the datum and **0.120 m forward**. The
+> correction is horizontal, not vertical.
+>
+> **Three things in this plan are therefore wrong, and one of them is dangerous:**
+>
+> 1. **§2's proposed m4 change would make the scorer WORSE.** It says return `p_model`
+>    (`tracker.latest[DRONE_MODEL]`) "as base_link". `p_model` is the model origin, **0.240 m
+>    BELOW** `base_link` — essentially the gear datum. Scored that way the adopted config reads
+>    13/16, a *larger* error than the camera reference it replaces, in the **flattering**
+>    direction. The correct additive column is `p_model + 0.240·(body up)`, or log the attitude
+>    quaternion and compose downstream.
+> 2. **The expected result is 3/16 → 5/16, not 3/16 → 12/16 → 16/16.** §4's surface-sweep list is
+>    still right about *where* to sweep; the numbers to write there are different, and they do not
+>    flip the headline.
+> 3. **§6 risk 6b is void.** The wind/error-correction workflow's vertical sizing was NOT built on
+>    a measurement artefact — the −0.37 m vertical bias is real (re-measured: median −0.374 m at
+>    the corrected c2c CPA vs −0.375 m at the camera).
+>
+> **§1 (the ORDER), §3 (the re-fly budget) and §5 (#3's pre-registration) are unaffected** — they
+> turn on which arms are contaminated by which defect, which does not depend on the lever arm.
+> Evidence: `docs/rescore_2026-08-10.md`; tool: `scripts/rescore_cpa.py`.
+
+
 **Scope:** the three open measurement-layer defects — the wrong-reference scorer (#8), the
 coded-dash zero-command bug (#9), and the informationless past-CPA breakoff (#3). All three
 either contaminate camera-arm results or misgrade every result; two of them are arm-asymmetric
