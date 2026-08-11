@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->5097598<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0d46840<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -890,12 +890,12 @@
   ]
  },
  "now": {
-  "as_of": "2026-07-26",
+  "as_of": "2026-08-10",
   "where": "Bench night two. The seeker's frame rate was set by an inherited camera default, not by the hardware. With the cap lifted and a tag on screen, the Pi 5 holds 96.6 frames per second through a 12-minute soak at 58 C with no throttling -- the first compute-bench number the money gate can use.",
   "finding": "The gate's frame rate was assumed to be 30 and never measured. It is 96.6, and the flying camera was capped by a default nobody chose. Now pinned at 60 -- most of the gain, half the CPU, and 20 C of thermal margin outdoors.",
   "next": [
-   "Ratify the 60 fps camera cap on the props-off bench (brn-05)",
-   "Feed 96.6 fps into the gate scorer and re-quote the range needed"
+   "Land the scorer fix (#8) — it changes what every past flight MEANS, and costs no sim time",
+   "Calibrate the camera (skr-06) — the only bench step still waiting on hands"
   ],
   "evidence": "runs/skr07_tagged/ (soak.json + verdict.txt per arm) - docs/decisions.md ADR-0090 - scripts/seeker/pi_fps_soak.py - commits 5cdefb0, e344c96, f3a9d5e, c6c7bcf"
  },

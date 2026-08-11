@@ -181,7 +181,28 @@ statically (AST scans over every live seeker module, mutation-calibrated).
 
 ## The real build (Tier-1, in progress)
 
-**Status 2026-07-25** — **Tier-1 is fully ordered** (target-drone stack, seeker
+**Status 2026-08-10 — the hardware is in hand, up, and measured.** The Pi 5 seeker
+rig runs the real camera (1280×800 mono, exposure **994 µs**, inside the ≤1 ms
+spec), the flight controller passes **MAVSDK OFFBOARD over a real serial UART with
+props off** — the one link the simulation never exercised — and the deployed camera
+source was measured **on hardware at 60.27 fps** (114.9 uncapped). Along the way
+the seeker was found to have been running at 30 fps purely because nobody had set a
+frame-duration limit; lifting it cuts the range burned forming the handoff by about
+3.2× (ADR-0090).
+
+> **One number on this page is being corrected.** The miss-distance scorer ranges
+> to the **camera lens**, which sits 0.208 m above the airframe centre, while the
+> kill criterion (ADR-0084) is centre-to-centre. Re-scored on the correct ruler, the
+> same flights go from **0/16 to 12/16** inside the 0.35 m ram radius — so the
+> statement *"no camera-guided intercept has reached contact range"* was a
+> **measurement artefact**, not a result. The fix is sequenced in
+> [`docs/scoring_fix_plan.md`](docs/scoring_fix_plan.md) and has **not landed yet**;
+> until it does, treat both numbers as provisional and note that all of them still
+> assume a perfect launch cue, co-altitude flight, and no wind. The corrected figure
+> is better than the old one *because the ruler was wrong*, which is worth saying
+> plainly rather than quietly restating.
+
+**Earlier — 2026-07-25** — **Tier-1 is fully ordered** (target-drone stack, seeker
 kit, interceptor flight controller, and the build/field consumables top-up).
 The 2026-07-25 what's-left build push
 ([`docs/audit_2026-07-25_whats_left.md`](docs/audit_2026-07-25_whats_left.md))
