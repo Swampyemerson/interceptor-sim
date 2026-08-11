@@ -130,6 +130,20 @@ def test_enumerated_reads_cannot_go_stale_source_sweep():
         "raw",   # audit_per_tick.load_arm_flights: ekf_ab_analyze's wrapper dict key
     }
     known = set(CSV_HEADER) | set(ARM_HEADER) | allowed_extra
+    # SWEEP FLOORS (added 2026-08-10). Without these the guard is VACUOUS: the
+    # regexes bind specific row-variable names, so an ordinary refactor renaming
+    # `r` to `rec` drops the swept count to ZERO and `assert not unknown` still
+    # passes -- having checked nothing. Mutant-proven that night: 8 -> 0 reads,
+    # test still green. A verdict computed on zero units is never a PASS
+    # (CLAUDE.md; docs/error_handling_policy.md), and the sibling guard
+    # tests/test_ci_gz_deselect_list.py already carries the same protection under
+    # the name test_the_measurement_is_not_vacuous.
+    #
+    # The floors are deliberately BELOW the counts measured on 2026-08-10
+    # (8 / 18 / 21) so ordinary edits do not trip them, while a sweep that
+    # collapses to near-zero does. Raise them if a consumer grows substantially.
+    floors = {"coded_dash_summary.py": 5, "parse_ab.py": 12,
+              "audit_per_tick.py": 14}
     for fname in [os.path.join(SCRIPTS, "coded_dash_summary.py"),
                   os.path.join(LOFT_DIVE, "parse_ab.py"),
                   os.path.join(SCRIPTS, "audit_per_tick.py")]:
@@ -138,9 +152,17 @@ def test_enumerated_reads_cannot_go_stale_source_sweep():
         reads = set()
         for pat in pats:
             reads |= set(pat.findall(src))
+        base = os.path.basename(fname)
+        floor = floors[base]
+        assert len(reads) >= floor, (
+            f"{base}: the completeness sweep found only {len(reads)} row "
+            f"read(s), below the floor of {floor}. The guard is not finding the "
+            f"reads it is supposed to check, so its PASS would be meaningless. "
+            f"Most likely the row variable was renamed away from "
+            f"'{row_vars}' -- update the pattern, do not lower the floor.")
         unknown = sorted(reads - known)
         assert not unknown, (
-            f"{os.path.basename(fname)} reads name(s) not in any producer "
+            f"{base} reads name(s) not in any producer "
             f"header (new column, rename, or a new non-CSV key needing the "
             f"allowlist): {unknown}")
 
