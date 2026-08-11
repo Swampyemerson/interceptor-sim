@@ -331,9 +331,21 @@ def test_m4_no_flag_aim_is_byte_identical():
     src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
         os.path.abspath(__file__)))), "scripts", "m4_intercept.py")).read()
     flat = " ".join(src.split())
-    assert ("else: coded_dash_heading_deg, _ = collision_lead_heading( "
+    # UPDATED 2026-08-10 (wind arm wiring). The constant-speed call is now made
+    # THROUGH wind_trim.solve_wind_trimmed_lead, whose DISABLED path is an exact
+    # identity: it calls the injected solver exactly once, with the nominal
+    # speed, and returns its heading untouched. So the flag-off aim is still
+    # byte-identical -- the float pins above are unchanged and still pass -- but
+    # the verbatim text moved. The identity itself is pinned behaviourally in
+    # tests/test_wind_wiring.py (test_disabled_trim_calls_the_lead_solver_exactly_once
+    # and test_explicit_zero_trim_is_identical_to_the_default); this stays a
+    # source pin so that swapping in a DIFFERENT solver wrapper still trips here.
+    assert ("else: coded_dash_heading_deg, _, _wind_trim_result = "
+            "solve_wind_trimmed_lead( collision_lead_heading, "
             "(_tx + args.dash_target_err_e, _ty + args.dash_target_err_n), "
-            "(_tvx, _tvy), _vi)") in flat, "m4 flag-off aim call changed"
+            "(_tvx, _tvy), _vi, _wind_trim)") in flat, "m4 flag-off aim call changed"
+    # ...and the wrapper must be the one whose disabled path is the identity.
+    assert "_wind_trim = build_wind_trim(args)" in flat
 
 
 # --- TERMINAL LOS bearing-bias compensation (docs/flight_plan_candidates.md

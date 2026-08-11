@@ -113,6 +113,21 @@ source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/de
 #   --extra-args "..."     forwarded verbatim to m4_intercept.py, word-split
 #                          (mirrors check_s2.sh's EXTRA_ARGS convention --
 #                          e.g. "--kalata --cue-latency-comp") ("")
+#                          WIND ARM: this is how a wind arm is flown. There is
+#                          deliberately NO separate --wind flag here -- the
+#                          wind knobs are m4_intercept.py flags and this
+#                          channel already forwards them verbatim, so adding a
+#                          second spelling would be surface for nothing:
+#                            Gate-1 drag-only control:
+#                              --extra-args "--wind-still-air --wind-seed 7 \
+#                                            --wind-height-m 6.0"
+#                            Gate-2 EXPECTED tier, crosswind from the west:
+#                              --extra-args "--wind-tier EXPECTED \
+#                                            --wind-dir-from-deg 270 \
+#                                            --wind-seed 7 --wind-height-m 6.0"
+#                          Pair the seed across arms. Every wind arm compares
+#                          against the DRAG-ONLY control, never against a
+#                          no-driver baseline (turning wind on turns drag on).
 #   --out PATH             override the aggregate CSV path (default
 #                          logs/mc_batch_<UTCstamp>.csv)
 #   --dry-run              print the planned flight matrix and exit 0 --
@@ -424,13 +439,20 @@ PYEOF
 SIM_PID=""
 
 kill_stale_sim() {
-    echo "[mc_batch] Killing any stale px4 / gz / cue-mock / mover processes..."
+    echo "[mc_batch] Killing any stale px4 / gz / cue-mock / mover / wind processes..."
     pkill -f "bin/px4" 2>/dev/null
     pkill -f "px4_sitl" 2>/dev/null
     pkill -f "gz sim" 2>/dev/null
     pkill -f "gz-sim" 2>/dev/null
     pkill -f "s2_cue_mock.py" 2>/dev/null
     pkill -f "m4_target_mover.py" 2>/dev/null
+    # WIND ARM: a stranded wind_driver.py holds a PERSISTENT wrench on the
+    # airframe. Left alive it would silently blow on the NEXT flight -- an
+    # arm-asymmetric contamination no paired control could see. (These pkill
+    # patterns live in a script FILE, never typed inline in a tool call: the
+    # harness evals the command text, so an inline pattern sits in an ancestor
+    # argv and self-matches -- CLAUDE.md, hit 3x on 2026-07-08.)
+    pkill -f "wind_driver.py" 2>/dev/null
     sleep 2
 }
 
@@ -447,6 +469,7 @@ teardown_sim() {
     pkill -f "gz-sim" 2>/dev/null
     pkill -f "s2_cue_mock.py" 2>/dev/null
     pkill -f "m4_target_mover.py" 2>/dev/null
+    pkill -f "wind_driver.py" 2>/dev/null   # WIND ARM: see kill_stale_sim
     sleep 3
     SIM_PID=""
 }

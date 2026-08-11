@@ -260,6 +260,21 @@ from flight.geometry import (  # noqa: E402
     check_cam_offset_consistency,
     parse_cam_fwd_from_sdf,
 )
+# WIND ARM (default OFF -- see parse_args' "WIND ARM" group). scripts/wind_trim.py
+# is the FLIGHT-SIDE half: the operator's pre-flight anemometer reading, which
+# corrects only the dash speed the PRE-FLIGHT lead solve assumes. It is
+# stdlib-only by construction and its honesty partition is machine-checked by
+# tests/test_wind_trim_honesty.py (it structurally cannot import the sim, the
+# wind driver, or the instrument model). The INJECTION half lives in a separate
+# PROCESS (scripts/wind_driver.py) precisely so this file never gains a path to
+# the true wind: m4 spawns it with a command line and reads back only its
+# APPLIED summary at teardown.
+from wind_trim import (  # noqa: E402
+    SagTable,
+    WindTrim,
+    WindTrimError,
+    solve_wind_trimmed_lead,
+)
 
 # --- Guidance targets / gains (GOALS.md M4; pro-nav mechanization + gain
 # council-decided per CLAUDE.md -- do not retune without an ADR). See the
@@ -691,6 +706,148 @@ BENCH_PASS_MEAN_DEG_S = 3.0
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGS_DIR = os.path.join(REPO_ROOT, "logs")
 MOVER_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "m4_target_mover.py")
+# WIND ARM injection process (default OFF -- spawned only when a --wind-* source
+# is passed). Separate PROCESS on purpose: it keeps the true wind vector out of
+# this file entirely (honesty boundary), exactly like m4_target_mover.py.
+WIND_DRIVER_SCRIPT = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "wind_driver.py")
+
+
+# ============================================================== WIND ARM WIRING
+# Both helpers are module-level and PURE (no I/O, no sim) so the wiring itself is
+# testable offline -- tests/test_wind_wiring.py flips the flags and asserts the
+# REAL path changes, and mutates this file to prove the tests are not decoration.
+# A flag declared but never read is this project's single most-repeated defect.
+def build_wind_trim(args) -> "WindTrim":
+    """Resolve the PRE-FLIGHT anemometer trim from the CLI. OFF -> exact identity.
+
+    `--wind-trim-mps 0.0` (the default) is the disabled sentinel, matching the
+    --dash-*-deg 0.0 convention: an operator who genuinely measures dead calm
+    has nothing to correct. Raises (fail closed) if the trim is asked for
+    without the MEASURED sag table -- there is no default sag, because the
+    table's points come from the Gate-2 wind arms and those have not flown.
+    """
+    if not getattr(args, "wind_trim_mps", 0.0):
+        return WindTrim.disabled()
+    table_path = getattr(args, "wind_sag_table", None)
+    if not table_path:
+        raise WindTrimError(
+            "--wind-trim-mps was set without --wind-sag-table; the trim has no "
+            "default parameter and one will not be invented.")
+    return WindTrim.from_cli_values(
+        wind_trim_mps=float(args.wind_trim_mps),
+        wind_trim_dir_deg=float(getattr(args, "wind_trim_dir_deg", 0.0)),
+        table=SagTable.from_json(table_path))
+
+
+def wind_driver_command(args, out_path, python_exe=None, script=None):
+    """The argv m4 spawns for scripts/wind_driver.py, or None when wind is OFF.
+
+    Returning None (not an empty list, not a no-op driver) is what makes the
+    default a true no-op: with no --wind-* source there is no process, no
+    wrench topic publisher, and no behavioural difference of any kind.
+    """
+    if not getattr(args, "wind_enabled", False):
+        return None
+    cmd = [python_exe or sys.executable, script or WIND_DRIVER_SCRIPT]
+    if args.wind_still_air:
+        cmd.append("--still-air")
+    elif args.wind_tier is not None:
+        cmd += ["--tier", str(args.wind_tier),
+                "--dir-from-deg", str(args.wind_dir_from_deg)]
+    else:
+        cmd += ["--mean-mps", str(args.wind_mps),
+                "--dir-from-deg", str(args.wind_dir_from_deg)]
+    cmd += ["--seed", str(args.wind_seed),
+            "--height-m", str(args.wind_height_m)]
+    if args.wind_allow_below_10ft:
+        cmd.append("--allow-below-10ft")
+    if out_path:
+        cmd += ["--out", str(out_path)]
+    return cmd
+
+
+def spawn_wind_driver(args, log_path, script=None, settle_s=1.0):
+    """Start the wind disturbance process, or do NOTHING at all when wind is OFF.
+
+    Returns (proc, applied_csv_path); (None, None) when no --wind-* source was
+    passed -- the default, in which case no process exists, no wrench topic is
+    ever advertised, and the flight is byte-identical to every arm flown before
+    the wind arm existed.
+
+    FAILS LOUD if the driver dies on its own fail-closed checks (missing seed,
+    missing height, no sim clock, airframe entity never seen). A run labelled
+    "wind" that quietly flew without wind is the arm-asymmetric mirage class:
+    only the wind arm can suffer it, so a paired control structurally cannot
+    see it.
+    """
+    cmd = wind_driver_command(args, log_path, script=script)
+    if cmd is None:
+        return None, None
+    applied_csv = cmd[cmd.index("--out") + 1] if "--out" in cmd else None
+    print(f"[m4] WIND ARM ON -- spawning {' '.join(cmd)}", flush=True)
+    proc = subprocess.Popen(cmd, stdout=None, stderr=None)
+    if settle_s:
+        time.sleep(settle_s)
+    if proc.poll() is not None:
+        raise RuntimeError(
+            f"the wind driver exited immediately (rc={proc.returncode}). "
+            "Refusing to fly a run labelled 'wind' that has no wind.")
+    return proc, applied_csv
+
+
+def summarize_applied_wind(csv_path, returncode=None):
+    """Read the wind driver's APPLIED-wrench CSV back and state what it DID.
+
+    This is the ADR-0090 discipline applied to the wind arm: the flight log must
+    record the force that was actually put on the wire, not the wind that was
+    requested on the command line. The two differ whenever the driver failed to
+    find the airframe entity, lost the sim clock, or died mid-flight -- and in
+    every one of those cases the flight would otherwise score as a perfectly
+    normal "wind made no difference" data point.
+
+    NEVER returns a PASS-shaped string off zero rows (no vacuous verdicts).
+    """
+    if not csv_path:
+        return ("WIND APPLIED: UNKNOWN -- the driver ran with no --out CSV, so "
+                "there is no record of what was applied. Do not score this "
+                "flight as a wind arm.")
+    if not os.path.exists(csv_path):
+        return (f"WIND APPLIED: NONE -- no driver CSV at {csv_path} "
+                f"(driver rc={returncode}). The wind arm did not run; discard "
+                "this flight rather than scoring it.")
+    n_rows = n_pub = 0
+    sum_f = 0.0
+    max_f = 0.0
+    max_wind = 0.0
+    try:
+        with open(csv_path, newline="") as fh:
+            rows = csv.DictReader(line for line in fh if not line.startswith("#"))
+            for row in rows:
+                n_rows += 1
+                published = row.get("published") == "1"
+                f = math.hypot(float(row["applied_f_n"]), float(row["applied_f_e"]))
+                w = math.hypot(float(row["wind_n"]), float(row["wind_e"]))
+                max_wind = max(max_wind, w)
+                if published:
+                    n_pub += 1
+                    sum_f += f
+                    max_f = max(max_f, f)
+    except (OSError, KeyError, ValueError) as exc:
+        return (f"WIND APPLIED: UNREADABLE -- {type(exc).__name__}: {exc} while "
+                f"reading {csv_path}. Treat this flight as unscored.")
+    if n_rows == 0:
+        return (f"WIND APPLIED: NONE -- driver CSV {csv_path} has ZERO rows "
+                f"(driver rc={returncode}). The driver never applied a wrench, "
+                "so this flight is NOT a wind arm; discard it.")
+    if n_pub == 0:
+        return (f"WIND APPLIED: NONE -- {n_rows} ticks, 0 published "
+                f"(driver rc={returncode}). Every publish failed; discard.")
+    return (f"WIND APPLIED: {n_pub}/{n_rows} wrenches published, mean "
+            f"|F|={sum_f / n_pub:.3f} N, max |F|={max_f:.3f} N, max wind "
+            f"speed={max_wind:.2f} m/s (driver rc={returncode}); log {csv_path}. "
+            "NOTE: this is what was PUT ON THE WIRE -- that Gazebo applied it is "
+            "the Gate-0 hover probe's job to confirm, not this line's.")
 
 
 def active_px4_cam_sdf_path():
@@ -2357,6 +2514,100 @@ def parse_args():
              "terminal stays jam-resistant. Byte-identical to plain markerless "
              "when off. Tunables: MARKERLESS_TRACK_* env vars.",
     )
+
+    # ================================================================ WIND ARM
+    # ALL DEFAULT OFF. With none of these passed, m4 builds no wind command, the
+    # wind driver is never spawned, and no wind_trim object is ever consulted --
+    # every measured arm in the repo is byte-identical to before this block
+    # existed. See docs/project_state.json assumption `zero-wind-environment`
+    # (this is its mitigation), scripts/wind_model.py (the physics),
+    # scripts/wind_driver.py (the disturbance process) and scripts/wind_trim.py
+    # (the pre-flight correction).
+    #
+    # TWO INDEPENDENT HALVES, deliberately named so a log can never confuse
+    # them (the same reason --dash-heading-err-deg and --dash-aim-trim-deg are
+    # separate flags):
+    #   INJECTION  --wind-*        : the world blows on the airframe. World
+    #                                physics, gt side of the honesty boundary.
+    #   CORRECTION --wind-trim-*   : the OPERATOR's pre-flight anemometer
+    #                                reading, typed at launch. Flight side.
+    wind = parser.add_argument_group(
+        "WIND ARM (all default OFF; injection --wind-* vs correction --wind-trim-*)")
+    wind.add_argument(
+        "--wind-tier", choices=["BEST", "EXPECTED", "WORST"], default=None,
+        help="WIND INJECTION: spawn scripts/wind_driver.py with a sourced "
+             "Beaufort/WMO tier (BEST 1.5, EXPECTED 4.5, WORST 8.0 m/s mean; "
+             "provenance in wind_model.TIERS). Mutually exclusive with "
+             "--wind-mps / --wind-still-air. Default None = NO wind driver is "
+             "spawned at all (byte-identical to every flown arm).")
+    wind.add_argument(
+        "--wind-mps", type=float, default=None,
+        help="WIND INJECTION: explicit measured 1-minute mean wind speed (m/s) "
+             "instead of a tier. Requires --wind-dir-from-deg.")
+    wind.add_argument(
+        "--wind-still-air", action="store_true",
+        help="WIND INJECTION, Gate-1 DRAG-ONLY CONTROL: run the wind driver "
+             "with the wind identically ZERO. Turning wind on also turns DRAG "
+             "on, so every wind arm must be compared against THIS, never "
+             "against a no-driver baseline -- otherwise the two effects are "
+             "conflated (the arm-asymmetric defect class).")
+    wind.add_argument(
+        "--wind-dir-from-deg", type=float, default=None,
+        help="WIND INJECTION: METEOROLOGICAL direction (deg from true N) the "
+             "wind blows FROM -- what a wind sock + compass give, +/-15 deg. "
+             "Required with --wind-tier / --wind-mps.")
+    wind.add_argument(
+        "--wind-seed", type=int, default=None,
+        help="WIND INJECTION: gust realisation seed. REQUIRED whenever the "
+             "driver runs and has no default -- paired-seed A/B arms (n>=8) "
+             "are this project's evidence standard and an unseeded gust cannot "
+             "be paired across arms.")
+    wind.add_argument(
+        "--wind-height-m", type=float, default=None,
+        help="WIND INJECTION: height AGL (m) the wind is quoted at. REQUIRED "
+             "whenever the driver runs, NO DEFAULT: the Dryden gust parameters "
+             "are strong functions of height (at 4.5 m/s the gust correlation "
+             "time is 9.59 s at 6 m but 0.88 s at 0.5 m -- longer than vs. "
+             "shorter than a ~2 s engagement, i.e. a qualitatively different "
+             "result), and this sim's own ALT_REF_M is %.1f m, BELOW the "
+             "MIL-F-8785C low-altitude form's 10 ft (3.048 m) validity floor. "
+             "The flight height of record is an operator decision that must "
+             "appear in the run log." % ALT_REF_M)
+    wind.add_argument(
+        "--wind-allow-below-10ft", action="store_true",
+        help="WIND INJECTION: explicitly acknowledge extrapolating the "
+             "MIL-F-8785C low-altitude Dryden form below 3.048 m AGL. Without "
+             "this the driver REFUSES to run at low --wind-height-m rather "
+             "than silently using a model outside its stated validity.")
+    wind.add_argument(
+        "--wind-driver-log", default=None,
+        help="WIND INJECTION: path for the driver's APPLIED-wrench CSV "
+             "(default logs/wind_<run-tag>.csv). This is scoring/audit data on "
+             "the gt side of the boundary; nothing in the tick loop reads it.")
+    wind.add_argument(
+        "--wind-trim-mps", type=float, default=0.0,
+        help="WIND CORRECTION (pre-flight, flight side): the OPERATOR's "
+             "handheld-anemometer reading (m/s, 1-minute mean at launch "
+             "height), typed at launch exactly like the latched GPS cue. It "
+             "adjusts ONLY the dash ground speed the PRE-FLIGHT lead solve "
+             "assumes, via a MEASURED sag table (--wind-sag-table). It is NOT "
+             "a throttle change and NOT an in-flight wind estimate -- the "
+             "vehicle has no airspeed sensor and the link is dead, so no "
+             "in-flight wind correction exists or is possible (see "
+             "scripts/wind_trim.py). Default 0.0 = DISABLED = exact identity.")
+    wind.add_argument(
+        "--wind-trim-dir-deg", type=float, default=0.0,
+        help="WIND CORRECTION: METEOROLOGICAL direction (deg from true N) of "
+             "the operator's reading -- the bearing the wind blows FROM. Only "
+             "consulted when --wind-trim-mps is non-zero.")
+    wind.add_argument(
+        "--wind-sag-table", default=None,
+        help="WIND CORRECTION: path to the MEASURED dash-speed sag table JSON "
+             "(headwind m/s -> ground-speed sag m/s). There is NO built-in "
+             "default and none will be invented: the table's points come from "
+             "the Gate-2 wind arms, which have not flown. Enabling "
+             "--wind-trim-mps without this REFUSES TO RUN.")
+
     args = parser.parse_args()
 
     if args.handoff and not args.fpv:
@@ -2429,6 +2680,64 @@ def parse_args():
                      "fixed offset would double-count). Use one.")
     if args.adaptive_tilt and not (0.0 <= args.adaptive_tilt_max_deg <= 45.0):
         parser.error("--adaptive-tilt-max-deg must be in [0, 45]")
+
+    # --- WIND ARM validation. Everything here fails CLOSED: a wind arm that
+    # silently ran without wind, or ran with an invented default, would be the
+    # arm-asymmetric mirage class this project keeps retracting.
+    _wind_sources = [args.wind_tier is not None, args.wind_mps is not None,
+                     bool(args.wind_still_air)]
+    args.wind_enabled = any(_wind_sources)
+    if sum(1 for s in _wind_sources if s) > 1:
+        parser.error("--wind-tier / --wind-mps / --wind-still-air are mutually "
+                     "exclusive (pick exactly one wind source)")
+    if args.wind_enabled:
+        if args.wind_seed is None:
+            parser.error("the wind driver requires --wind-seed (no default: "
+                         "paired-seed A/B arms are this project's evidence "
+                         "standard, and an unseeded gust cannot be paired)")
+        if args.wind_height_m is None:
+            parser.error("the wind driver requires --wind-height-m (no default: "
+                         "the Dryden gust parameters are strong functions of "
+                         "height and the sim's ALT_REF_M is below the model's "
+                         "10 ft validity floor -- see the flag's help)")
+        if (args.wind_tier is not None or args.wind_mps is not None) \
+                and args.wind_dir_from_deg is None:
+            parser.error("--wind-tier/--wind-mps require --wind-dir-from-deg "
+                         "(met convention: the bearing the wind blows FROM)")
+    else:
+        for _name, _val in (("--wind-dir-from-deg", args.wind_dir_from_deg),
+                            ("--wind-seed", args.wind_seed),
+                            ("--wind-height-m", args.wind_height_m),
+                            ("--wind-driver-log", args.wind_driver_log)):
+            if _val is not None:
+                parser.error(
+                    f"{_name} was passed but NO wind source was "
+                    "(--wind-tier / --wind-mps / --wind-still-air). Refusing to "
+                    "fly a run that looks configured for wind and has none -- "
+                    "a silently-inert flag is this project's most-repeated "
+                    "defect.")
+        if args.wind_allow_below_10ft:
+            parser.error("--wind-allow-below-10ft was passed but no wind source "
+                         "was; it would be silently inert.")
+    if args.wind_trim_mps and args.wind_sag_table is None:
+        parser.error(
+            "--wind-trim-mps needs --wind-sag-table: the trim's ONLY parameter "
+            "is a MEASURED headwind->ground-speed-sag table produced by the "
+            "Gate-2 wind arms, which have not flown. There is no default sag "
+            "and none will be invented. Until Gate 2 lands, the honest "
+            "configuration is trim OFF.")
+    if args.wind_sag_table is not None and not args.wind_trim_mps:
+        parser.error("--wind-sag-table was passed with --wind-trim-mps 0.0 "
+                     "(trim disabled) -- the table would be silently unused.")
+    if args.wind_trim_mps and args.dash_heading_deg is not None:
+        parser.error("--wind-trim-mps with an explicit --dash-heading-deg would "
+                     "be SILENTLY INERT: the hand-set heading overrides the lead "
+                     "solve, which is the only thing the trim corrects.")
+    if args.wind_trim_mps and not args.coded_dash:
+        parser.error("--wind-trim-mps requires --coded-dash: it corrects the "
+                     "coded dash's PRE-FLIGHT lead solve, and there is no lead "
+                     "solve to correct on any other front-end (it would be "
+                     "silently inert).")
 
     # ADR-0033 (M5 finish): remember whether the caller EXPLICITLY passed
     # --target-start BEFORE we fill in a default just below. The internal tag
@@ -2557,6 +2866,11 @@ async def run_acquire_and_engage(
     # leaves frame before the seeker can acquire (ADR-0076 add #18: l2r aborted
     # "no acquire" at 157deg-to-initial; the lead heading keeps it near boresight).
     coded_dash_heading_deg = args.dash_heading_deg
+    # WIND ARM, correction half. Default (--wind-trim-mps 0.0) -> WindTrim.disabled(),
+    # which makes solve_wind_trimmed_lead do EXACTLY ONE lead_solver call at the
+    # nominal speed and return its heading untouched: byte-identical to before.
+    _wind_trim = build_wind_trim(args)
+    _wind_trim_result = None
     if args.coded_dash and coded_dash_heading_deg is None:
         _tx, _ty = (float(v) for v in args.target_start.split(",")[:2])
         _tvx, _tvy = (float(v) for v in args.target_vel.split(",")[:2])
@@ -2582,8 +2896,14 @@ async def run_acquire_and_engage(
                                if (args.dash_accel_cap and args.dash_accel_cap > 0.0)
                                else "fitted uncapped effective accel"))
             _lead_pos = (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n)
-            coded_dash_heading_deg, _t_lead = collision_lead_heading_accel(
-                _lead_pos, (_tvx, _tvy), _vi, _lead_accel)
+            # WIND ARM: the trim (default DISABLED) adjusts the dash ground speed
+            # this solve assumes, then re-solves; the headwind depends on the
+            # heading which depends on the speed, so wind_trim runs a bounded
+            # deterministic fixed point. Disabled -> one call at _vi, identical.
+            coded_dash_heading_deg, _t_lead, _wind_trim_result = solve_wind_trimmed_lead(
+                lambda pos, vel, spd: collision_lead_heading_accel(
+                    pos, vel, spd, _lead_accel),
+                _lead_pos, (_tvx, _tvy), _vi, _wind_trim)
             # Log-only: what the OLD constant-speed solve would have aimed, and the
             # crossing-bias-equivalent this fix supplies automatically (signed by the
             # same pre-flight crossing key --dash-crossing-bias-deg uses).
@@ -2611,9 +2931,16 @@ async def run_acquire_and_engage(
                       "m/s^2 -- pass --dash-lead-accel-ms2 to match the flown accel.",
                       flush=True)
         else:
-            coded_dash_heading_deg, _ = collision_lead_heading(
+            coded_dash_heading_deg, _, _wind_trim_result = solve_wind_trimmed_lead(
+                collision_lead_heading,
                 (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
-                (_tvx, _tvy), _vi)
+                (_tvx, _tvy), _vi, _wind_trim)
+        # LOG WHAT WAS APPLIED, NOT WHAT WAS INTENDED (ADR-0090 pattern). The
+        # line names the operator's raw reading, the resolved head/crosswind, the
+        # MEASURED sag, and the before->after dash speed -- so a re-read months
+        # later cannot mistake a correction that fired for one that didn't, nor a
+        # measured correction for an injected error.
+        print(f"[m4] {_wind_trim_result.log_line}", flush=True)
     elif args.coded_dash and args.dash_accel_aware_lead:
         print("[m4] NOTE: --dash-accel-aware-lead is INERT this run -- an explicit "
               f"--dash-heading-deg {coded_dash_heading_deg} overrides the lead solve.",
@@ -4732,6 +5059,10 @@ async def main():
     result_code = 1
     mover_proc = None
     cue_proc = None
+    # WIND ARM, injection half. None unless a --wind-* source was passed, so the
+    # default path spawns no process and touches no wrench topic.
+    wind_proc = None
+    wind_log_path = None
 
     try:
         print(f"[m4] Connecting to {SYSTEM_ADDRESS} (timeout {CONNECT_TIMEOUT_S}s)...")
@@ -4775,6 +5106,16 @@ async def main():
         # CODED_DASH phase can DIVE onto the co-altitude target (the ~2 s dash is too
         # short to also climb at the stock vertical rate). Default loft 0 -> ALT_REF
         # (byte-identical takeoff).
+        # --- WIND ARM: start the disturbance BEFORE arming so the wind acts
+        # through takeoff, hover and dash alike (a real breeze does not wait for
+        # the dash). The driver is a separate process on purpose: the true wind
+        # vector never enters this file. Spawned ONLY when --wind-tier /
+        # --wind-mps / --wind-still-air was passed; otherwise this block is a
+        # single `is None` test and nothing else changes.
+        wind_proc, wind_log_path = spawn_wind_driver(
+            args, args.wind_driver_log or os.path.join(
+                LOGS_DIR, f"wind_{suffix}_{timestamp}.csv"))
+
         takeoff_alt = ALT_REF_M + (args.dash_loft_m if args.coded_dash else 0.0)
         print(f"[m4] Setting takeoff altitude to {takeoff_alt} m..."
               + (f" (ALT_REF {ALT_REF_M} + loft {args.dash_loft_m})"
@@ -5000,6 +5341,26 @@ async def main():
                 mover_proc.kill()
                 mover_proc.wait(timeout=3.0)
 
+        if wind_proc is not None:
+            if wind_proc.poll() is None:
+                print("[m4] Terminating wind driver subprocess...")
+                wind_proc.terminate()
+                try:
+                    wind_proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    print("[m4] Wind driver did not exit in time, killing...")
+                    wind_proc.kill()
+                    wind_proc.wait(timeout=3.0)
+            # REPORT WHAT WAS APPLIED, NOT WHAT WAS ASKED FOR (ADR-0090 pattern:
+            # seeker_loop.py once printed the REQUESTED frame rate and would have
+            # claimed 60 fps on a 30 fps camera). The driver's CSV is the record
+            # of every wrench actually put on the wire, so this reads it back and
+            # states the count and the mean/max applied force. A wind arm whose
+            # driver published nothing is CALLED OUT here rather than quietly
+            # scoring as "wind made no difference".
+            print(f"[m4] {summarize_applied_wind(wind_log_path, wind_proc.returncode)}",
+                  flush=True)
+
         if cue_proc is not None and cue_proc.poll() is None:
             # Left running (not killed) through HANDOFF by design -- its log
             # is the audit evidence that cue data stayed available-but-
@@ -5086,6 +5447,18 @@ async def main():
             mover_proc.kill()
         if cue_proc is not None and cue_proc.poll() is None:
             cue_proc.kill()
+        # A killed wind driver would leave its PERSISTENT wrench applied to the
+        # airframe for the rest of the sim's life. SIGTERM first so its own
+        # handler publishes the /wrench/clear; SIGKILL only if it will not go.
+        if wind_proc is not None and wind_proc.poll() is None:
+            wind_proc.terminate()
+            try:
+                wind_proc.wait(timeout=5.0)
+            except subprocess.TimeoutExpired:
+                print("[m4] WARNING: wind driver ignored SIGTERM -- killing it. "
+                      "Its PERSISTENT wrench may still be applied; boot a fresh "
+                      "sim before the next flight.", flush=True)
+                wind_proc.kill()
         for task in tracker_tasks:
             task.cancel()
         for task in tracker_tasks:
