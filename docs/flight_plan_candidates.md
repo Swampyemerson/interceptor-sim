@@ -1245,26 +1245,29 @@ vertical channel was never closed, so a standing vertical offset had nothing to 
 the terminal or the perception — bearing bias, LOS lag, subpixel, PIP, APN, Kalata, the crop, the
 mount — and all of them NULLed. They were all horizontal. **The residual was never horizontal.**
 
-> ### ⚠️ SUPERSEDED NUMBER — READ THIS BEFORE ACTING ON ANYTHING IN THIS SECTION
-> **The `0.37 m` in this section is measured through a scorer that ranges to the CAMERA LENS, and
-> it is roughly DOUBLE the real vertical gap.** The correction is already written in this same
-> file — see **"IT ALSO CORRECTS MY OWN NOTE ABOVE"** below — and puts the true residual at
-> **~0.16 m** after removing the +0.208 m mount lever arm.
+> ### ✅ THE −0.37 m VERTICAL OFFSET IS REAL AND STANDS (re-verified 2026-08-10)
+> **Measured independently with `scripts/rescore_cpa.py` on all 168 flights: at the corrected
+> centre-to-centre CPA the vertical component is median −0.374 m (range −0.457…−0.280), against
+> −0.375 m at the camera. It does not change. Horizontal is only 0.174 m.** The finding in this
+> section — that the residual miss is VERTICAL, that it is a bias rather than scatter, and that
+> the vertical channel was never closed — is confirmed, and it is the largest real term left.
 >
-> **A vertical trim commanded at 0.37 m would therefore OVERCORRECT BY MORE THAN DOUBLE** and fly
-> the interceptor high — a plausible-looking fix that makes the miss worse and is painful to
-> diagnose afterwards. Do not implement one at this magnitude.
+> **RETRACTION, because this banner said the opposite for part of 2026-08-10.** An earlier
+> version claimed the 0.37 was "roughly double" the truth and that a trim at that magnitude would
+> overcorrect. That was **wrong**, and so is the "IT ALSO CORRECTS MY OWN NOTE ABOVE" passage
+> further down this file which puts the residual at ~0.16 m. Both rested on reading
+> `gt_cam_z − alt_m = +0.208 m` as a camera mount lever arm. It is not one: `alt_m` is MAVSDK
+> `relative_altitude_m` (height above the takeoff point), so differencing it against a world z
+> measures the **landing gear**. The camera is **~2 mm** above the airframe datum
+> (three routes: SDF chain, collision geometry, on-pad telemetry — a parked x500 reads
+> `gt_cam_z` = 0.229 m, not the 0.469 m a 0.242 m mount would give).
 >
-> The trim's real size cannot be set until the scorer fix (GitHub issue #8) lands and the arms are
-> re-scored; sequencing is in `docs/scoring_fix_plan.md`. *(Banner added 2026-08-10: the
-> superseded recommendation and its correction were sitting 50 lines apart in one file, so a
-> reader arriving here first would have acted on the stale number. The correction below was
-> already right — this only stops the wrong half being read in isolation.)*
+> The centre-to-centre correction is therefore almost entirely **horizontal**, and the vertical
+> finding below survives it untouched. Full working: `docs/rescore_2026-08-10.md`.
 
-**Cheapest possible first test (do this before implementing anything) — MAGNITUDE SUPERSEDED, see
-the banner above:** the offset is constant and signed, so a fixed vertical trim — command the dash
-to hold higher by *the re-derived amount, not 0.37 m* — should convert most of those 14 horizontal
-passes into contacts, with no new guidance code at all. That is a one-number
+**Cheapest possible first test (do this before implementing anything):** the offset is constant and
+signed, so a fixed vertical trim — command the dash to hold ~0.37 m higher — should convert most
+of those 14 horizontal passes into contacts, with no new guidance code at all. That is a one-number
 change, and it is falsifiable in one paired arm at idle load. Only if that works is it worth
 building the real elevation-following terminal (measure the target's elevation, filter it, drive
 v_down inside ENGAGE, with the min-AGL floor ADR-0085 specified and never delivered).
@@ -1303,11 +1306,28 @@ same logs, correct ruler. This is the sixth instrument-layer defect this project
 the most consequential: it is the difference between "the design misses by 27%" and "the design
 meets its bar."
 
-**IT ALSO CORRECTS MY OWN NOTE ABOVE (twice on the same topic tonight — stated plainly).** The
-"constant −0.370 m vertical offset" I reported was measured from the CAMERA. Removing the 0.208 m
-mount lever leaves a real vertical gap of only **~0.16 m**. Vertical is still the largest single
-real term, but it is roughly HALF what I told the builder, and it no longer dominates the miss on
-its own. The direction of that finding stands; the magnitude does not.
+**~~IT ALSO CORRECTS MY OWN NOTE ABOVE~~ — THIS PARAGRAPH IS ITSELF RETRACTED (2026-08-10).**
+~~The "constant −0.370 m vertical offset" I reported was measured from the CAMERA. Removing the
+0.208 m mount lever leaves a real vertical gap of only ~0.16 m ... roughly HALF what I told the
+builder.~~
+
+**That correction was wrong, and the original finding was right.** The +0.208 m was never a mount
+lever arm: it is `median(gt_cam_z − alt_m)`, and `alt_m` is MAVSDK `relative_altitude_m` — height
+above the TAKEOFF POINT, not world z — so the subtraction measures the x500's **landing-gear
+height**. The camera sits **~2 mm** above the airframe datum (0.120 m forward, 0.030 m left);
+a parked x500 reads `gt_cam_z` = 0.229 m, which is the gear rest height, not the 0.469 m a 0.242 m
+mount would produce.
+
+Re-measured with `scripts/rescore_cpa.py` over all 168 flights at the corrected centre-to-centre
+CPA: the vertical component is **median −0.374 m** (range −0.457…−0.280) against −0.375 m at the
+camera. **It does not move.** Horizontal is 0.174 m. So vertical is not merely the largest real
+term — it is essentially the whole miss, exactly as the section above argued. Working:
+`docs/rescore_2026-08-10.md`.
+
+*Three corrections deep on one number in one file. The lesson is not "check harder" — every step
+here was checked. It is that `gt_cam_z − alt_m` looked like a lever arm and typed like one, and
+nobody asked what `alt_m` was measured FROM until a tool was built that had to state its datum
+explicitly.*
 
 **WHAT THIS DOES NOT MEAN — read before celebrating:**
 - It is not a hardware result. The sim still flies a PERFECT launch cue (`--dash-target-err-n/e`

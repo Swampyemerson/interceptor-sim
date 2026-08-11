@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0d46840<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->411fe83<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -879,7 +879,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-08-10",
- "updated_by": "2026-08-10 overnight: three new standing questions; scoring-fix plan sequenced; wind workflow corrected mid-flight.",
+ "updated_by": "2026-08-10: retracted tonight's 12/16 kill-radius claim -- the real correction is 3/16 to 5/16.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1283,6 +1283,12 @@
  "plain_log": [
   {
    "date": "2026-08-10",
+   "text": "A correction on top of a correction. Tonight's headline was that the kill-radius scorer measured to the camera and that fixing it turned 0 of 16 flights into 12 of 16. That was WRONG, and it is now retracted. The '+0.208 m camera offset' it rested on was never a camera offset -- it came from subtracting a height-above-takeoff from a height-above-the-world, which measures the LANDING GEAR. The camera actually sits about 2 mm above the airframe centre.",
+   "so_what": "The real correction is small and sideways, not large and vertical: 3 of 16 becomes 5 of 16, from interpolating between samples. So nothing has reliably reached contact range yet -- the honest headline did not change. And the finding this briefly cast doubt on is confirmed: the interceptor flies about 0.37 m LOW, which is now essentially the whole miss, on a vehicle whose targeting math is 2-D horizontal by design.",
+   "evidence": "scripts/rescore_cpa.py - docs/rescore_2026-08-10.md - 168 flights, 36,276 rows, 0 dropped"
+  },
+  {
+   "date": "2026-08-10",
    "text": "Three questions that had been sitting in the Waiting-on-You list are now answered, so the list is EMPTY for the first time. Retire the old demo videos. Regulatory and site: settled — the builder owns the ~50-acre site, so the FRIA-field question never applied. The second transmitter is NOT already ordered, so it becomes something to buy rather than something to check.",
    "so_what": "The board stops asking. Five stale contract lines that still described the site as an open FAA/Remote-ID problem were rewritten to match the ruling, and two more demo cuts were retired than the question named — the honesty fix to the video generator landed 2026-07-25, so EVERY cut rendered on 07-07 carries the misleading 1.5 m caption, not just the two that were flagged.",
    "evidence": "docs/regulatory_site_capture.md - demo_out/retired_2026-08-10/README.md - ADR-0089 - build_demo.py fix 759e9b0"
@@ -1346,12 +1352,6 @@
    "text": "Threw away an aim-trim experiment: I ran heavy background work while a measured batch was flying, 3 of 8 flights failed to boot, and my own summary script averaged through the failures.",
    "so_what": "Re-fly at idle with a load guard; the trim question is still open.",
    "evidence": "commit f49a03a"
-  },
-  {
-   "date": "2026-07-26",
-   "text": "Ruled the launch cue an explicit project constraint: the interceptor is cued, we publish performance vs cue error instead of pretending it aims itself.",
-   "so_what": "Turns the project's biggest honesty hole into a derived requirement -- and every zero-cue-error number is now labelled best-case.",
-   "evidence": "issue #1; ledger launch-aim-derived-from-ground-truth"
   }
  ],
  "narrative": {

@@ -190,17 +190,27 @@ the seeker was found to have been running at 30 fps purely because nobody had se
 frame-duration limit; lifting it cuts the range burned forming the handoff by about
 3.2× (ADR-0090).
 
-> **One number on this page is being corrected.** The miss-distance scorer ranges
-> to the **camera lens**, which sits 0.208 m above the airframe centre, while the
-> kill criterion (ADR-0084) is centre-to-centre. Re-scored on the correct ruler, the
-> same flights go from **0/16 to 12/16** inside the 0.35 m ram radius — so the
-> statement *"no camera-guided intercept has reached contact range"* was a
-> **measurement artefact**, not a result. The fix is sequenced in
-> [`docs/scoring_fix_plan.md`](docs/scoring_fix_plan.md) and has **not landed yet**;
-> until it does, treat both numbers as provisional and note that all of them still
-> assume a perfect launch cue, co-altitude flight, and no wind. The corrected figure
-> is better than the old one *because the ruler was wrong*, which is worth saying
-> plainly rather than quietly restating.
+> **The scorer measures the wrong point, and the correction is SMALL.** The
+> miss-distance scorer ranges to the **camera**, not the airframe centre the kill
+> criterion is defined against (ADR-0084). Re-scored properly with a purpose-built
+> offline tool, the adopted config moves from **3/16 to 5/16** inside the 0.35 m ram
+> radius — the interpolation between logged samples is worth ~0.03–0.06 m and is
+> real, but it is a modest correction, not a reversal.
+>
+> **An earlier version of this note claimed 12/16, and that was wrong.** It rested
+> on a figure of "+0.208 m camera lens above the airframe datum", which turned out
+> not to be a lever arm at all: it was `gt_cam_z − alt_m`, differencing a *world* z
+> against MAVSDK's *relative* altitude, so it measured the **landing gear's height**.
+> Three independent routes — the SDF chain, the collision geometry, and the on-pad
+> telemetry — put the camera **~2 mm** above the airframe datum and 0.120 m forward
+> of it. The real correction is therefore almost entirely **horizontal**.
+>
+> **So the headline stands: nothing has yet landed inside the ram radius reliably**,
+> and the largest remaining term is a **vertical** one (median −0.374 m — the
+> interceptor flies low), on a vehicle whose targeting math is explicitly 2-D
+> horizontal. That gap is real and unclosed. All of these numbers still assume a
+> perfect launch cue, co-altitude flight and no wind. Detail:
+> [`docs/rescore_2026-08-10.md`](docs/rescore_2026-08-10.md).
 
 **Earlier — 2026-07-25** — **Tier-1 is fully ordered** (target-drone stack, seeker
 kit, interceptor flight controller, and the build/field consumables top-up).
