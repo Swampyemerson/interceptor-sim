@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->21d52a2<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->5097598<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -879,7 +879,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-08-10",
- "updated_by": "2026-08-10: builder cleared the whole decision queue — demos retired, site settled, 2nd TX to buy.",
+ "updated_by": "2026-08-10 overnight: three new standing questions; scoring-fix plan sequenced; wind workflow corrected mid-flight.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1242,7 +1242,44 @@
    "evidence": "e.g. real_flight.py:273–287 (0.30 m derivation 'is a sim-geometry estimate, not a measured one'), :322–341 (offboard timeouts, one already re-measured in SITL and flagged for re-measure on real link)"
   }
  ],
- "builder_queue": [],
+ "builder_queue": [
+  {
+   "id": "corrected-headline-framing",
+   "question": "The scorer was measuring to the camera lens, not the airframe centre. On the correct ruler the SAME flights go from 0 of 16 inside the kill radius to 12 of 16. That is your headline changing because the ruler was wrong, not because the aircraft got better. How do you want it said?",
+   "options": [
+    "Say both numbers, every time, with the reason — 'measured wrong at first, here is the corrected figure'",
+    "Quote only the corrected 12/16 and explain the fix if asked",
+    "Say nothing publicly until a real flight backs it up"
+   ],
+   "rec": "Option 1. An interviewer who finds the old number and the new one with no explanation sees a moving claim; one who is told up front sees somebody who audits his own instruments. The catch is real though — it means leading with a mistake, and it is your portfolio, so it is your call.",
+   "blocked": "Nothing technical. The fix proceeds either way; this is only about how it is written up.",
+   "doc": "docs/scoring_fix_plan.md §4"
+  },
+  {
+   "id": "purchasing-tx-and-power",
+   "question": "Two small purchases are waiting on you, and both are cheaper bundled than bought alone. The second RadioMaster Pocket (~$65, confirmed NOT ordered) and a replacement power module (the Holybro PM02 was refunded by the vendor). Buy now or fold into the ~$740 airframe order?",
+   "options": [
+    "Fold both into the Tier-2 airframe order — one shipping charge, decided after tripod day",
+    "Buy the TX now, defer the power module",
+    "Buy both now so nothing is on a lead time when the airframe lands"
+   ],
+   "rec": "Option 1, with one thing to check first: does your 4-in-1 ESC already do current sensing and provide a 5 V BEC? If it does you may not need a power module at all, which is weight off a vehicle whose whole job is a fast dash. Worth confirming before spending.",
+   "blocked": "Neither blocks bench work — the 6C Mini runs off USB for the whole brain bench.",
+   "doc": "ADR-0089, ADR-0094"
+  },
+  {
+   "id": "ship-vs-one-more-experiment",
+   "question": "With the scorer fixed, the design meets its own bar in simulation. There is already far more evidence here than the stated purpose needs. The real risk to this project now is that it is never packaged and shown to anyone. What gets priority?",
+   "options": [
+    "Package what exists — write the portfolio piece, cut a real demo, call the sim phase closed for good",
+    "Keep building — tripod day and the first real kill are the story, everything before is setup",
+    "Both, in that order: package a checkpoint now so the work is showable, then keep building"
+   ],
+   "rec": "Option 3. The measured results, the honesty audits and the instrument-defect catches are already a stronger story than most internship portfolios carry, and right now none of it exists outside this repo. Packaging a checkpoint costs a day and de-risks everything after it.",
+   "blocked": "Nothing. This is a priorities question, and the answer changes what I work on next.",
+   "doc": "CLAUDE.md — 'the portfolio can die of one more experiment'"
+  }
+ ],
  "plain_log": [
   {
    "date": "2026-08-10",
@@ -4188,7 +4225,7 @@
 <!-- BOARD_SNAPSHOT_JSON:BEGIN (generated - run scripts/fetch_board.py then scripts/render_dashboard.py; never hand-edit this block) -->
 <script id="board" type="application/json">{
  "schema_version": 1,
- "fetched_at": "2026-08-11T03:42:27Z",
+ "fetched_at": "2026-08-11T03:57:04Z",
  "source": {
   "kind": "project",
   "project_number": 1,

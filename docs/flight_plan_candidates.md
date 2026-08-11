@@ -1245,9 +1245,26 @@ vertical channel was never closed, so a standing vertical offset had nothing to 
 the terminal or the perception — bearing bias, LOS lag, subpixel, PIP, APN, Kalata, the crop, the
 mount — and all of them NULLed. They were all horizontal. **The residual was never horizontal.**
 
-**Cheapest possible first test (do this before implementing anything):** the offset is constant and
-signed, so a fixed vertical trim — command the dash to hold ~0.37 m higher — should convert most
-of those 14 horizontal passes into contacts, with no new guidance code at all. That is a one-number
+> ### ⚠️ SUPERSEDED NUMBER — READ THIS BEFORE ACTING ON ANYTHING IN THIS SECTION
+> **The `0.37 m` in this section is measured through a scorer that ranges to the CAMERA LENS, and
+> it is roughly DOUBLE the real vertical gap.** The correction is already written in this same
+> file — see **"IT ALSO CORRECTS MY OWN NOTE ABOVE"** below — and puts the true residual at
+> **~0.16 m** after removing the +0.208 m mount lever arm.
+>
+> **A vertical trim commanded at 0.37 m would therefore OVERCORRECT BY MORE THAN DOUBLE** and fly
+> the interceptor high — a plausible-looking fix that makes the miss worse and is painful to
+> diagnose afterwards. Do not implement one at this magnitude.
+>
+> The trim's real size cannot be set until the scorer fix (GitHub issue #8) lands and the arms are
+> re-scored; sequencing is in `docs/scoring_fix_plan.md`. *(Banner added 2026-08-10: the
+> superseded recommendation and its correction were sitting 50 lines apart in one file, so a
+> reader arriving here first would have acted on the stale number. The correction below was
+> already right — this only stops the wrong half being read in isolation.)*
+
+**Cheapest possible first test (do this before implementing anything) — MAGNITUDE SUPERSEDED, see
+the banner above:** the offset is constant and signed, so a fixed vertical trim — command the dash
+to hold higher by *the re-derived amount, not 0.37 m* — should convert most of those 14 horizontal
+passes into contacts, with no new guidance code at all. That is a one-number
 change, and it is falsifiable in one paired arm at idle load. Only if that works is it worth
 building the real elevation-following terminal (measure the target's elevation, filter it, drive
 v_down inside ENGAGE, with the min-AGL floor ADR-0085 specified and never delivered).
