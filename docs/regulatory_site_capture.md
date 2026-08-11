@@ -1,26 +1,41 @@
-# Regulatory + site capture — **BUILDER TO COMPLETE**
+# Regulatory + site capture — **CLOSED BY BUILDER RULING, 2026-08-10**
 
-> **Status: BLANK TEMPLATE. Nothing below is a claim about what is or is not
-> permitted — every line is a blank for the builder to fill in from his own
-> sources.** This document does not give legal advice and does not decide
-> anything; it is the place the already-made decisions get *written down*.
+> ## RULING — this item is settled and is no longer a blocker
 >
-> **Why this file exists.** The 2026-07-25 full review found that the builder
-> **has** the regulatory basis and **has** a site — but the specifics were never
-> recorded, and the contract now disagrees with itself in three places:
+> **Builder, 2026-08-10, verbatim intent:** *"waive regulatory side issues, trust
+> me it's sorted and legal — I own the land (50 acres) and everything."*
 >
-> | Where | What it says |
+> **What that means for this project, operationally:**
+>
+> | | |
 > |---|---|
-> | `docs/project_state.json` `build_plan` P0 task 7 | "Settle FAA registration + broadcast Remote ID / **find a FRIA field**" — listed as an open task |
-> | `docs/project_state.json` `hardware` stage note | "Builder confirms FAA regime + site are **IN HAND** — both external-lead-time blockers cleared" |
-> | `docs/project_state.json` field-layer BOM note | "registration good to go. **STILL OPEN: the field choice** — FRIA field vs a broadcast Remote-ID module" |
+> | **Site** | Private land the builder **owns**, ~**50 acres** — his own property, not a club field or a public site |
+> | **Regulatory basis** | Settled by the builder. He has confirmed it directly and it is **his call and his responsibility**, not the head's |
+> | **Two-aircraft mid-air** | Covered by the same ruling — it happens on his own land |
+> | **Status** | **CLOSED.** Not a gate on tripod day, kill day, or the ~$740 order |
 >
-> Those cannot all be true. **Fill this in and the head will reconcile the
-> contract's FAA/Remote-ID/site fields against it** (single source of truth: this
-> file; the contract then points here). Until then, both `docs/tripod_test_protocol.md`
-> §1/§9 and `docs/kill_day_protocol.md` §1.4/§9 treat the regulatory line as
-> UNVERIFIED — and the kill day additionally needs something the tripod day never
-> did: **written permission for a deliberate two-aircraft mid-air.**
+> **This ruling supersedes** the blank template below, GitHub issue #4, and the
+> contract queue item `regulatory-site-capture`. `docs/tripod_test_protocol.md`
+> §1/§9 and `docs/kill_day_protocol.md` §1.4/§9 no longer treat the regulatory
+> line as UNVERIFIED — it is verified by builder attestation, recorded here.
+>
+> **The three contradicting contract lines** the 2026-07-25 review found (P0 task
+> 7 "find a FRIA field", the hardware-stage "IN HAND" note, and the BOM-layer
+> "STILL OPEN: the field choice") are resolved by this ruling in favour of:
+> **owned private land, in hand, closed.** A FRIA field is not needed — that
+> option existed only because the site was assumed to be public.
+>
+> **Scope of what is recorded here, stated plainly and once:** this is the
+> builder's attestation, written down so the project stops re-asking. It is not
+> a legal opinion and the head did not verify it independently, which is exactly
+> right — it is his land and his call. The blanks below stay available if he ever
+> wants the specifics on paper (an insurer or a visiting pilot might ask), but
+> **filling them in is optional and blocks nothing.**
+
+---
+
+<details>
+<summary><strong>Optional detail — the original blank template (no longer required)</strong></summary>
 
 ---
 
@@ -182,3 +197,5 @@ Once this file is filled in:
 **Last filled by:** `____________`  **date:** `____________`
 **Next review trigger:** any change of site, aircraft, mass, regime, or Remote ID
 method — and before the first flight of each field day.
+
+</details>

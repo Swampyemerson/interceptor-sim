@@ -74,6 +74,18 @@ build/
 # docs/images/ instead of here.
 demo_out/*
 !demo_out/README.md
+# The RETIREMENT NOTE is tracked even though the media it describes is not
+# (ADR-0094, 2026-08-10). The assets were retired for making a ram-kill claim
+# the project cannot support; the REASON has to outlive the local copy of the
+# files, or a future session finds five orphaned videos and no explanation and
+# is one step from republishing them.
+# NOTE the three-line dance: git cannot re-include a path inside a fully ignored
+# DIRECTORY, so the directory is un-ignored, its CONTENTS re-ignored, and then
+# only the README un-ignored again. Un-ignoring the directory alone would commit
+# the five retired video files themselves (~8 MB) — verified with git check-ignore.
+!demo_out/retired_2026-08-10/
+demo_out/retired_2026-08-10/*
+!demo_out/retired_2026-08-10/README.md
 
 # Editor / OS
 .vscode/

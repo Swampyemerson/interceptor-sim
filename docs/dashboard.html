@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->b3f70cc<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->75e08cd<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -879,7 +879,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-08-10",
- "updated_by": "2026-08-10 housekeeping: bench evidence rescued off the Pi's card; Pi checkout resynced and de-polluted.",
+ "updated_by": "2026-08-10: builder cleared the whole decision queue — demos retired, site settled, 2nd TX to buy.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1242,45 +1242,14 @@
    "evidence": "e.g. real_flight.py:273–287 (0.30 m derivation 'is a sim-geometry estimate, not a measured one'), :322–341 (offboard timeouts, one already re-measured in SITL and flagged for re-measure on real link)"
   }
  ],
- "builder_queue": [
-  {
-   "id": "stale-demo-assets",
-   "question": "Three old demo files (the onboard mp4/gif and two hero stills) bake an outdated '1.5 m lethal radius' caption and cannot be re-rendered — their source data was deleted. What do we do with them?",
-   "options": [
-    "Retire them from every public surface now",
-    "Keep them private with the existing warning note and replace them after the next good flight",
-    "Re-fly a fresh hero run to regenerate them (costs sim time, gives a different closest approach)"
-   ],
-   "rec": "Option 2 — they are already flagged not-for-publication in demo_out/README.md; replace them when a better clip naturally exists.",
-   "blocked": "Nothing critical — portfolio polish only",
-   "doc": "demo_out/README.md"
-  },
-  {
-   "id": "regulatory-site-capture",
-   "question": "You confirmed you have a legal basis and a flying site, but the specifics — which rule you fly under, which site, and whether a deliberate mid-air collision is permitted in writing — are not recorded anywhere. When do we write them down?",
-   "options": [
-    "Fill docs/regulatory_site_capture.md now (about 15 minutes)",
-    "Fill it before the first powered flight",
-    "Leave it until kill-day planning"
-   ],
-   "rec": "Option 2 at the latest — kill day needs the mid-air permission in writing, and memory fades; the template is already written for you.",
-   "blocked": "Kill-day planning confidence (tripod day itself is unaffected)",
-   "doc": "docs/regulatory_site_capture.md"
-  },
-  {
-   "id": "second-transmitter",
-   "question": "Flying two drones at once needs two radio transmitters. Is a second Pocket TX already in one of your orders, or do we need to buy one?",
-   "options": [
-    "Check your order history and confirm it is already covered",
-    "Order one now (roughly $60)",
-    "Plan single-transmitter operations with binding swaps — not recommended for a live two-aircraft intercept"
-   ],
-   "rec": "Check your orders first; if it is not there, order now — it is cheap and a missing transmitter would stall every two-aircraft flight day.",
-   "blocked": "Any flight day with both aircraft airborne",
-   "doc": "ADR-0089 in docs/decisions.md"
-  }
- ],
+ "builder_queue": [],
  "plain_log": [
+  {
+   "date": "2026-08-10",
+   "text": "Three questions that had been sitting in the Waiting-on-You list are now answered, so the list is EMPTY for the first time. Retire the old demo videos. Regulatory and site: settled — the builder owns the ~50-acre site, so the FRIA-field question never applied. The second transmitter is NOT already ordered, so it becomes something to buy rather than something to check.",
+   "so_what": "The board stops asking. Five stale contract lines that still described the site as an open FAA/Remote-ID problem were rewritten to match the ruling, and two more demo cuts were retired than the question named — the honesty fix to the video generator landed 2026-07-25, so EVERY cut rendered on 07-07 carries the misleading 1.5 m caption, not just the two that were flagged.",
+   "evidence": "docs/regulatory_site_capture.md - demo_out/retired_2026-08-10/README.md - ADR-0089 - build_demo.py fix 759e9b0"
+  },
   {
    "date": "2026-08-10",
    "text": "The evidence behind two finished bench steps was sitting on ONE microSD card. skr-07's soak results (96.6 / 38.2 / 6.09 fps) and skr-05's session meta (994 us applied exposure, spec met) are quoted all over this contract but had never been copied off the Pi. Both are now in the repo. The Pi's own checkout was also 16 days stale -- including the whole field-day scoring chain -- and carried 461 stray file copies from an old session.",
@@ -1346,12 +1315,6 @@
    "text": "Ruled the launch cue an explicit project constraint: the interceptor is cued, we publish performance vs cue error instead of pretending it aims itself.",
    "so_what": "Turns the project's biggest honesty hole into a derived requirement -- and every zero-cue-error number is now labelled best-case.",
    "evidence": "issue #1; ledger launch-aim-derived-from-ground-truth"
-  },
-  {
-   "date": "2026-07-26",
-   "text": "A red-team caught the head in two errors: we HAVE reached contact range (3/16 at 9 m/s, best 0.296 m), and the 10 mph run was flown without the aim trim -- our only proven lever.",
-   "so_what": "The miss looks like a fixable aim offset, not a hard limit. A trim sweep is flying now.",
-   "evidence": "f0c26c7; logs/mc_fp_armAE5dash_line9_s123.csv"
   }
  ],
  "narrative": {
@@ -1471,7 +1434,7 @@
      "Plumbing: link --cam-fwd-offset-m to the camera-forward model swap (terminal changelog: still open).",
      "Camera paper-checks BEFORE purchase: HFOV >=100°; VERTICAL FoV (OV9281 is 1280x800 vs the sim's 1280x960 — and the wall is a VERTICAL pointing problem); <=1 ms exposure control; mono-vs-color-trained-NN confound.",
      "$0 kill-test: run the candidate NN on existing public outdoor drone footage — a free first read on the transfer bet.",
-     "Settle FAA registration + broadcast Remote ID / find a FRIA field — the >250 g target flies OUTDOORS at the tripod step.",
+     "[CLOSED 2026-08-10 by builder ruling] Regulatory + site: settled. Flying on land the builder OWNS (~50 acres); no FRIA field needed. docs/regulatory_site_capture.md holds the ruling.",
      "OPTIONAL after P0.1: a re-sequenced fixed-tilt sim A/B, falsification-only — paired seeds n>=8 + dash-only control, gated on approach recall + handoff rate, NEVER Pk (a sim PASS is necessary-not-sufficient)."
     ],
     "gate": "Desk checks done and none falsified the plan (tilt mechanism real; placard sized; camera specs verified; legal path clear) -> spend the first dollar."
@@ -2388,10 +2351,10 @@
      "why": "Cart cannot become a flying quad without these (Fable GO-WITH-FIXES). Fund via re-sourcing Pi+SD (~$120 recovered). [2026-07-20b TOP-UP ORDER — MOSTLY COVERED: solder+flux, XT60 pigtails, 14 AWG, heatshrink, straps, hex set, Dupont UART jumpers, USB-C data cable, 18650x2, smoke stopper, LiPo checker/LV-alarm all ORDERED (~$116 Amazon + ~$300 vendor). STILL MISSING: the soldering IRON itself, the KAKUTE microSD (no card = no target log = no scored pass), fireproof bag + glasses + fire blanket, lost-model buzzer, zip ties, multimeter if unowned; VERIFY the hex kit has an 8 mm prop socket.]"
     },
     {
-     "item": "MUST-ADD field layer (NOT in cart) — Pi 5 active cooler (~$5), USB-C PD power bank >=27W (field power), tripod/mast + ball head + inclinometer, 2 more CNHL 6S packs (the ~28-pass matrix needs 3+), tape measure/cones + laptop, FAA reg $5 + Remote-ID/FRIA decision",
+     "item": "MUST-ADD field layer (NOT in cart) — Pi 5 active cooler (~$5), USB-C PD power bank >=27W (field power), tripod/mast + ball head + inclinometer, 2 more CNHL 6S packs (the ~28-pass matrix needs 3+), tape measure/cones + laptop, regulatory/site CLOSED 2026-08-10 (owned land, builder ruling)",
      "qty": "1 set",
      "price": "~$100-180",
-     "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2). [2026-07-20b TOP-UP: +2 CNHL 6S packs ORDERED (3 total). STILL MISSING: >=27 W USB-C PD power bank, tripod + ball head (+ inclinometer app), cones/tape measure, handheld anemometer (the cooler is FITTED — ADR-0090); FAA reg + Remote-ID/FRIA decision still open. Duplicate flag RESOLVED (builder checked 2026-07-20: NOT doubled — the 6C Mini + PM02 were ordered once, in the top-up).]"
+     "why": "Required for the tripod day to be DECISION-GRADE (protocol §1-2). Placard + checkerboard already listed above. Power/battery/cable/tool inventory verified 2026-07-20: charger must be AC-input (else add a DC brick); Matek BEC12S-PRO 5.2V is deferred to when the Pi FLIES (Tier-2). [2026-07-20b TOP-UP: +2 CNHL 6S packs ORDERED (3 total). STILL MISSING: >=27 W USB-C PD power bank, tripod + ball head (+ inclinometer app), cones/tape measure, handheld anemometer (the cooler is FITTED — ADR-0090); regulatory/site CLOSED 2026-08-10 (builder ruling: owned land). Duplicate flag RESOLVED (builder checked 2026-07-20: NOT doubled — the 6C Mini + PM02 were ordered once, in the top-up).]"
     }
    ],
    "status": "✅ FULLY ORDERED (builder 2026-07-25) — the entire Tier-1 validation kit is on order/in hand (target-drone stack, seeker kit, interceptor brain, and the must-add build/field layer). See the parts list + dashboard."
@@ -2852,7 +2815,7 @@
       "name": "RadioMaster Pocket M2 ELRS TX",
       "status": "ordered",
       "role": "Flies the target; later the hardware kill for both aircraft.",
-      "notes": "Needs 2x 18650 (ordered). Second-TX / Model-Match question: see Waiting on You (ADR-0089)."
+      "notes": "Needs 2x 18650 (ordered). SECOND TX CONFIRMED NOT ORDERED (builder, 2026-08-10) — ADR-0089 stands: buy a 2nd RadioMaster Pocket (~$65) so each aircraft has an independent arm/kill. This is now a PURCHASE item, not a question."
      },
      {
       "name": "1-6S balance charger",
@@ -2903,10 +2866,10 @@
       "notes": "STILL NEEDED: tripod + ball head (+ inclinometer — a phone app is fine), >=27 W USB-C PD power bank (the wall PSU is useless at the field), cones + tape measure. Packs covered (3 total)."
      },
      {
-      "name": "FAA registration + Remote ID decision",
+      "name": "Regulatory + site (CLOSED — owned land)",
       "status": "must-add",
-      "role": "$5/aircraft registration (the target is >250 g), number displayed on the airframe; fly at a FRIA field ($0) or fit a broadcast module. A legal blocker, not a data blocker.",
-      "notes": "Registration good to go (builder). STILL OPEN: FRIA field ($0) vs a broadcast Remote-ID module — decide before the first outdoor flight."
+      "role": "CLOSED 2026-08-10 by builder ruling — he owns the ~50-acre site and has confirmed the regulatory basis is settled. Recorded in docs/regulatory_site_capture.md. No longer a blocker on any flight day.",
+      "notes": "CLOSED 2026-08-10. The FRIA-vs-module question existed only because the site was assumed public; the site is the builder's own land, so it does not arise."
      }
     ],
     "connections": [
@@ -2951,8 +2914,8 @@
      {
       "id": "gnd-05",
       "gate": true,
-      "text": "Settle FAA + Remote ID BEFORE any outdoor flight: register ($5/aircraft), display the number, pick a FRIA field or buy a broadcast module.",
-      "why": "A legal blocker, not a data blocker — nothing outdoors flies until this is settled."
+      "text": "[CLOSED 2026-08-10 by builder ruling] Regulatory + site settled — owned land (~50 acres), recorded in docs/regulatory_site_capture.md. Nothing here gates an outdoor flight.",
+      "why": "Was a legal blocker; CLOSED 2026-08-10 by builder ruling. Retained for provenance — is settled."
      },
      {
       "id": "gnd-06",
@@ -3148,7 +3111,7 @@
     {
      "group": "Geofence",
      "constants": "fence radius / height sizing",
-     "bench": "size from the legal field chosen at gnd-05"
+     "bench": "size from the builder's own ~50-acre site (regulatory/site CLOSED 2026-08-10)"
     },
     {
      "group": "Camera intrinsics",
