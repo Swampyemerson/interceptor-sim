@@ -724,6 +724,14 @@ EXPOSURE_SPEC_US = 1000
 # gate wants is the rate at the decimate actually flown (protocol §4.2b).
 CAMERA_FPS_DEFAULT = 60.0
 
+# The consumer's copy of calibrate_range.MIN_KEPT_FOR_TRUSTWORTHY_FIT, used only
+# when a sidecar does not carry its own `min_kept_required`. Duplicated rather
+# than imported ON PURPOSE: flight/ is the DEPLOYED code and must not import
+# from scripts/ (dev tooling that is not installed on the aircraft). The two
+# copies are held equal by tests/test_range_calib_contract.py, which imports
+# BOTH and fails if they drift -- a test, not a coupling.
+CALIB_MIN_KEPT = 20
+
 
 def picam_exposure_controls(camera_controls, exposure_us, gain=1.0):
     """The picamera2 control dict that pins EXPOSURE manual and leaves GAIN auto.
@@ -986,13 +994,52 @@ def resolve_span(weights: str, cfg: GuidanceConfig,
         except ValueError:
             pass
     sidecar = str(weights) + ".calib.json"
+    base = os.path.basename(sidecar)
     if os.path.exists(sidecar):
         try:
             with open(sidecar) as fh:
-                return (float(json.load(fh)["span_m_eff"]),
-                        f"calib {os.path.basename(sidecar)}", True)
-        except Exception:
-            pass
+                blob = json.load(fh)
+            span = float(blob["span_m_eff"])
+        except Exception as exc:
+            # A CORRUPT sidecar is not the same event as a MISSING one, and
+            # reporting both as "NOT CALIBRATED" told an operator who HAD run
+            # calibration that he had not (2026-08-10). Name the file and the
+            # reason; the caller still falls back, but the fallback is now
+            # explicable instead of mystifying.
+            print(f"[seeker] WARNING: calibration sidecar {base} exists but "
+                  f"could NOT be read ({type(exc).__name__}: {exc}). Falling "
+                  f"back to the config default -- this is a BROKEN calibration, "
+                  f"not a missing one. Re-run scripts/seeker/calibrate_range.py.")
+            return cfg.target_span_m, f"config default (SIDECAR UNREADABLE: {base})", False
+
+        # THE FIT'S OWN QUALITY GRADE IS PART OF THE CONTRACT (2026-08-10).
+        # calibrate_range.py exits 2 below MIN_KEPT_FOR_TRUSTWORTHY_FIT but
+        # writes the sidecar ANYWAY, so an under-powered fit used to arrive here
+        # indistinguishable from a good one and was consumed as calibrated=True.
+        # span_m_eff sets range = fx*span/box_width_px, which multiplies Vc into
+        # a_cmd = N*Vc*lambda_dot -- so an unvetted span does not merely mislabel
+        # a display value, it steers the aircraft. Refuse it.
+        n_kept = blob.get("n_kept")
+        need = int(blob.get("min_kept_required", CALIB_MIN_KEPT))
+        if n_kept is None:
+            # Pre-2026-08-10 sidecars predate the grade. Do not guess: an
+            # unmeasurable quality is treated as untrustworthy (fail closed).
+            print(f"[seeker] WARNING: {base} carries no n_kept, so its fit "
+                  f"quality CANNOT be checked (sidecar predates the "
+                  f"2026-08-10 contract). Treating as NOT calibrated. Re-run "
+                  f"scripts/seeker/calibrate_range.py to regenerate it.")
+            return cfg.target_span_m, f"config default (CALIB UNGRADED: {base})", False
+        if int(n_kept) < need:
+            print(f"[seeker] WARNING: {base} is an UNDER-POWERED fit -- kept "
+                  f"{int(n_kept)} sample(s), needs {need}. calibrate_range.py "
+                  f"graded this a FAILURE (exit 2) and wrote it anyway. "
+                  f"REFUSING it: span_m_eff feeds range, and range multiplies "
+                  f"Vc into the pro-nav command.")
+            return (cfg.target_span_m,
+                    f"config default (CALIB UNDER-POWERED n={int(n_kept)}<{need}: {base})",
+                    False)
+
+        return span, f"calib {base} (n={int(n_kept)})", True
     return cfg.target_span_m, "config default (NOT CALIBRATED)", False
 
 
@@ -1695,7 +1742,17 @@ def build_detector(args, cam: CameraModel, span_m: float):
                              gray_input=gray)
 
 
-def main(argv=None) -> int:
+def build_argparser() -> argparse.ArgumentParser:
+    """The CLI parser, as a SEPARATE function so it can be introspected.
+
+    EXTRACTED FROM main() 2026-08-10. flight/tests/test_camera_fps_pinned.py
+    guards that `--camera-fps` never drifts from CAMERA_FPS_DEFAULT -- the
+    ADR-0090 frame rate whose 3.82x error was an input to the ~$740 gate. That
+    test called build_argparser(), which did not exist, so it skipped on every
+    run since it was written and could never have caught the drift it guards.
+    A test that cannot run is not a guard, so the code moved to meet the test
+    rather than the test being deleted to match the code.
+    """
     ap = argparse.ArgumentParser(
         description="Real-hardware camera-only pro-nav terminal seeker loop.")
     ap.add_argument("--self-test", action="store_true",
@@ -1787,6 +1844,11 @@ def main(argv=None) -> int:
                     help="on the LIVE path, REFUSE to run (exit 1) when the span "
                          "is the uncalibrated config default, instead of warning. "
                          "Make this the default once a fitted sidecar exists.")
+    return ap
+
+
+def main(argv=None) -> int:
+    ap = build_argparser()
     args = ap.parse_args(argv)
 
     if args.self_test:

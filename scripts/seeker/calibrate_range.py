@@ -58,6 +58,22 @@ sys.path.insert(0, HERE)
 from finetuned_seeker import FinetunedNNSeeker, TARGET_SPAN_M  # noqa: E402
 
 FX = FY = 539.936
+
+# The minimum number of kept samples for this fit to be TRUSTWORTHY. Below it,
+# this tool exits 2 -- and, since 2026-08-10, the CONSUMER refuses the sidecar
+# too (flight/deploy/seeker_loop.py:resolve_span).
+#
+# WHY IT IS A NAMED CONSTANT AND NOT A LITERAL IN THE RETURN: it was a bare `20`
+# inside `return 0 if n_kept >= 20 else 2`, so the consumer had no way to agree
+# with it and did not even try. The sidecar is written BEFORE that return, so a
+# 3-sample fit this tool grades a FAILURE still lands on disk looking exactly
+# like a good one -- and `span_m_eff` multiplies into range, which multiplies Vc
+# into the pro-nav command a_cmd = N*Vc*lambda_dot. A consumer that reads the
+# span but not the sample count is the "shrinking denominator absorbed instead
+# of counted" failure, on a number that steers the aircraft.
+# tests/test_range_calib_contract.py asserts this constant and the consumer's
+# copy stay equal, so the two cannot drift apart silently.
+MIN_KEPT_FOR_TRUSTWORTHY_FIT = 20
 CX, CY = 640.0, 480.0
 
 # Matches "..._r04.5_..." (render_sim_dataset.py stems) and the flight-capture
@@ -228,6 +244,14 @@ def main() -> int:
         "weights": os.path.basename(args.weights),
     }
 
+    # SELF-GRADE THE FIT, and write the grade INTO the file. The exit code alone
+    # was not enough: nothing downstream sees an exit code, and the sidecar is
+    # written either way, so an under-powered fit reached guidance wearing the
+    # same clothes as a good one (fixed 2026-08-10).
+    trustworthy = n_kept >= MIN_KEPT_FOR_TRUSTWORTHY_FIT
+    result["min_kept_required"] = MIN_KEPT_FOR_TRUSTWORTHY_FIT
+    result["trustworthy"] = trustworthy
+
     if args.dry_run:
         print(f"[calib] --dry-run: NOT writing {out_path}")
         print(f"[calib] would write: {json.dumps(result)}")
@@ -236,7 +260,14 @@ def main() -> int:
             json.dump(result, fh, indent=2)
         print(f"[calib] wrote {out_path}")
 
-    return 0 if n_kept >= 20 else 2
+    if not trustworthy:
+        print(f"[calib] UNDER-POWERED FIT: kept {n_kept} sample(s), need "
+              f"{MIN_KEPT_FOR_TRUSTWORTHY_FIT}. The sidecar records "
+              f"trustworthy=false and the flight consumer WILL REFUSE it "
+              f"(seeker_loop.resolve_span). Capture more views and re-run.",
+              file=sys.stderr)
+
+    return 0 if trustworthy else 2
 
 
 if __name__ == "__main__":

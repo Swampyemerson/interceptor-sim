@@ -36,8 +36,43 @@ rc=0
 echo "== [1/4] main offline suite  (.venv)  =="
 # flight/tests/ = the portable real-build core (geometry + coded-dash aim); pure
 # math, no onnx/cv2, so it runs in the main suite (ADR-0076 add #18, P0.3).
+#
+# SKIP ENFORCEMENT ADDED 2026-08-10, and it is the point of this stage, not
+# decoration. Stage 1 used to run without -rs and without checking skips, so a
+# test that had become STRUCTURALLY INCAPABLE OF RUNNING reported as green. Two
+# were found that night: test_camera_fps_pinned's CLI-drift guard called a
+# build_argparser() that did not exist, and test_decode_fps_bound_contract's
+# regression pointed at a sessions/ path that has never existed in any commit.
+# Both had skipped silently since the day they were written -- guarding numbers
+# that feed the ~$740 gate. Only stage 2 had this check; that asymmetry is
+# exactly what hid them.
+#
+# The rule: EVERY skip must be named in ALLOWED_SKIPS below, with a reason. A
+# new skip fails the stage until a human decides it is legitimate.
+ALLOWED_SKIPS=(
+    # onnxruntime is deliberately absent from .venv; stage 2 re-runs these same
+    # tests under .venv-seeker where they EXECUTE, and fails there on any skip.
+    "could not import 'onnxruntime'"
+)
 if [ -x .venv/bin/python ]; then
-    .venv/bin/python -m pytest tests/ flight/tests/ "${PYTEST_ARGS[@]}" || rc=1
+    stage1_out="$(mktemp)"
+    .venv/bin/python -m pytest tests/ flight/tests/ -rs "${PYTEST_ARGS[@]}" \
+        2>&1 | tee "$stage1_out" || rc=1
+    # Every "SKIPPED [n] path::test: reason" line must match an allowlist entry.
+    while IFS= read -r line; do
+        ok=0
+        for alw in "${ALLOWED_SKIPS[@]}"; do
+            case "$line" in *"$alw"*) ok=1; break;; esac
+        done
+        if [ "$ok" -eq 0 ]; then
+            echo "  FAIL: UNDECLARED SKIP -- $line"
+            echo "        A skipped test protects nothing. Either make it run, or"
+            echo "        add its reason to ALLOWED_SKIPS in scripts/run_tests.sh"
+            echo "        with a comment saying why a human accepted it."
+            rc=1
+        fi
+    done < <(grep '^SKIPPED' "$stage1_out" || true)
+    rm -f "$stage1_out"
 else
     echo "  SKIP: .venv not found"; rc=1
 fi

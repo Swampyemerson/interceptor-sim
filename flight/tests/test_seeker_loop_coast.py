@@ -358,19 +358,44 @@ def test_guidance_refuses_to_steer_on_the_level_yaw0_desk_stand_in():
 
 
 def test_a_stale_own_state_is_refused_once_a_threshold_is_configured():
-    """The AGE gate is off by default on purpose -- no measured own-state stall
-    latency exists yet (bench brn-05 produces it from the logged own_age_s
-    column). Once set, a stale attitude is refused exactly like a missing one."""
+    """A stale attitude is refused exactly like a missing one -- and since
+    ADR-0093 the gate is ON BY DEFAULT at 0.25 s.
+
+    HISTORY, because this test asserted the opposite for eleven days: the gate
+    used to default to None ("off on purpose -- no measured own-state stall
+    latency exists yet"). Bench brn-05 produced that measurement on real
+    hardware, ADR-0093 sized the threshold at 0.25 s and turned it ON
+    (seeker_loop.py GuidanceConfig.own_state_max_age_s), and this test was not
+    swept with it. It then failed on main for eight CI runs -- caught 2026-08-10.
+    The CODE was right the whole time; the test was the stale artefact.
+    """
     g, cfg = guidance(own_state_max_age_s=0.25)
     fresh = OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0, age_s=0.05)
     stale = OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0, age_s=1.50)
     assert g.step(box(900.0), fresh, 0.0)[0] is not None
     sp, tel = g.step(box(900.0), stale, DT)
     assert sp is None and "own_state_stale" in tel.health
-    # Default config: the same stale sample is accepted (and still REPORTED).
-    g2, _ = guidance()
+
+    # THE DEFAULT now refuses that same sample -- this is the ADR-0093 behaviour,
+    # and asserting it here is what makes the default a tested guarantee rather
+    # than a constant someone could quietly relax.
+    g2, cfg2 = guidance()
+    assert cfg2.own_state_max_age_s == 0.25, (
+        "ADR-0093 pins the default own-state age gate at 0.25 s, ON. If this "
+        "changed, it needs an ADR and a re-measurement under flight-representative "
+        "CPU load -- not a test edit.")
     sp2, tel2 = g2.step(box(900.0), stale, 0.0)
-    assert sp2 is not None and tel2.own_age_s == 1.50
+    assert sp2 is None and "own_state_stale" in tel2.health
+    # The age is still REPORTED even when the sample is refused: the operator has
+    # to be able to tell a stall from a silence.
+    assert tel2.own_age_s == 1.50
+
+    # And a sample INSIDE the default threshold is still accepted, so the gate
+    # rejects staleness rather than rejecting everything -- the failure mode a
+    # too-tight gate would have.
+    g3, _ = guidance()
+    ok = OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0, age_s=0.10)
+    assert g3.step(box(900.0), ok, 0.0)[0] is not None
 
 
 def test_own_state_status_is_pure_and_opt_outable():

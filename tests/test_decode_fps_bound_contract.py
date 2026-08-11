@@ -26,6 +26,7 @@ import sys
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
 SEEKER = os.path.join(os.path.dirname(HERE), "scripts", "seeker")
 if SEEKER not in sys.path:
     sys.path.insert(0, SEEKER)
@@ -99,15 +100,35 @@ def test_explicit_bench_fps_still_wins():
 
 
 def test_real_session_on_disk_would_have_been_refused():
-    """Regression on the actual artefact, if it is still around: the skr-05
-    session's meta must not be able to feed the gate."""
-    for cand in (os.path.join(os.path.dirname(HERE), "sessions", "smoke",
-                              "meta.json"),):
-        if not os.path.exists(cand):
-            pytest.skip("the skr-05 smoke session is not on this machine")
-        with open(cand) as fh:
-            meta = json.load(fh)
-        if not meta.get("decode_loop_fps"):
-            pytest.skip("session carries no decode_loop_fps")
-        fps, why = tripod_score.resolve_stream_fps(_Args(), meta)
-        assert fps is None, f"pre-clamp session still feeds the gate: {why}"
+    """Regression on the ACTUAL skr-05 artefact: its meta must not be able to
+    feed the ~$740 gate.
+
+    PATH CORRECTED 2026-08-10. This looked for `<repo>/scripts/seeker/sessions/
+    smoke/meta.json`, a directory that has never existed in any commit on any
+    branch -- so the test skipped on every run since it was written and the
+    regression never once executed against the real file. Meanwhile the real
+    artefact was rescued off the Pi's SD card the same day (commit 29ec8bc) to
+    `runs/skr05_smoke_session/meta.json`, carrying exactly the pathology this
+    test is about: decode_loop_fps 89.532 published with no delivered-cadence
+    clamp, from a session recorded at git_rev 15b88b0 (pre-1b89340).
+
+    The lesson is the one the project already writes down: a guard that skips is
+    not a guard. It is now pointed at the committed artefact and FAILS CLOSED if
+    that artefact goes missing, rather than skipping quietly.
+    """
+    cand = os.path.join(REPO, "runs", "skr05_smoke_session", "meta.json")
+    assert os.path.exists(cand), (
+        f"the skr-05 session meta is missing from the repo at {cand}. It is "
+        f"COMMITTED evidence (29ec8bc) and this regression depends on it; if it "
+        f"was deleted, restore it rather than letting this test skip.")
+    with open(cand) as fh:
+        meta = json.load(fh)
+    assert meta.get("decode_loop_fps"), (
+        "the skr-05 meta lost its decode_loop_fps field -- this test cannot "
+        "verify the refusal without it, and a vacuous pass is not acceptable")
+    fps, why = tripod_score.resolve_stream_fps(_Args(), meta)
+    assert fps is None, f"pre-clamp session still feeds the gate: {why}"
+    # The refusal must NAME the culprit, not merely decline: an operator has to
+    # learn which capture rev produced the bad number.
+    assert "15b88b0" in why or "clamp" in why.lower(), (
+        f"the refusal did not explain itself: {why}")
