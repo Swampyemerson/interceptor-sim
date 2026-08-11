@@ -52,6 +52,18 @@ scripts/seeker/eval_tag_boxes.json
 .venv-seeker-train/
 scripts/seeker/data/
 
+# Bench/field CAPTURE SESSIONS written by scripts/seeker/pi_capture.py --out.
+# The frames are bulky and regenerable by re-running the capture; the tiny
+# per-session aggregates are NOT (they carry applied exposure, the two measured
+# rates, and the tag rows a scorer joins against), so they are re-included and
+# committed under runs/ the same way logs/*.csv gate evidence is above.
+# WHY THIS RULE EXISTS (2026-08-10): sessions/ was untracked-and-unignored, so
+# the skr-05 session sat on one microSD card while project_state.json quoted its
+# numbers, and the next capture would have shown up as untracked noise -- or been
+# swept into a commit whole, frames and all.
+sessions/*/frames/
+sessions/**/*.png
+
 # Gazebo / PX4 caches that can leak into the workspace
 .gz/
 build/

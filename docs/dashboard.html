@@ -531,7 +531,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1fffa09<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->29ec8bc<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -878,8 +878,8 @@
  "schema_version": 2,
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-07-26",
- "updated_by": "2026-07-26 bench night two: seeker frame rate was a camera default, not a limit -- measured 96.6 fps sustained.",
+ "updated": "2026-08-10",
+ "updated_by": "2026-08-10 housekeeping: bench evidence rescued off the Pi's card; Pi checkout resynced and de-polluted.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1282,6 +1282,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-08-10",
+   "text": "The evidence behind two finished bench steps was sitting on ONE microSD card. skr-07's soak results (96.6 / 38.2 / 6.09 fps) and skr-05's session meta (994 us applied exposure, spec met) are quoted all over this contract but had never been copied off the Pi. Both are now in the repo. The Pi's own checkout was also 16 days stale -- including the whole field-day scoring chain -- and carried 461 stray file copies from an old session.",
+   "so_what": "A dead SD card would have turned published numbers into unsourced claims. Every stray file was checked against the real repo before deletion, and the 445 MB training set was moved to the path the scripts read, not deleted. The Pi now matches the repo exactly. Camera calibration itself is still not done.",
+   "evidence": "commits fc0f18b + 29ec8bc - runs/skr07_tagged - runs/skr05_smoke_session"
+  },
+  {
    "date": "2026-07-26",
    "text": "The camera was only ever getting 30 frames a second because of a default nobody set -- not the sensor (capable of 143) and not the Pi (capable of 112). Lifting it gives 96.6 sustained, with a tag in every frame and no overheating.",
    "so_what": "The interceptor burns about three times less distance while the camera locks on, and the finer decode setting is now affordable. This is the first bench number the $740 gate can legitimately use.",
@@ -1346,12 +1352,6 @@
    "text": "A red-team caught the head in two errors: we HAVE reached contact range (3/16 at 9 m/s, best 0.296 m), and the 10 mph run was flown without the aim trim -- our only proven lever.",
    "so_what": "The miss looks like a fixable aim offset, not a hard limit. A trim sweep is flying now.",
    "evidence": "f0c26c7; logs/mc_fp_armAE5dash_line9_s123.csv"
-  },
-  {
-   "date": "2026-07-26",
-   "text": "The premature-abort bug turns out to have a fix already in the code (--breakoff-max-range-m); the earlier 'no known fix' was wrong.",
-   "so_what": "One flag and one A/B instead of a design project.",
-   "evidence": "m4_intercept.py:2169; f0c26c7"
   }
  ],
  "narrative": {
