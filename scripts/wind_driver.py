@@ -13,8 +13,9 @@ WHAT IT IS
     scripts/m4_target_mover.py: a WORLD-SIDE DISTURBANCE. It reads Gazebo state
     in order to APPLY PHYSICS, and it publishes nothing the flight code can
     read. It:
-      1. subscribes `/clock` (sim time -- ADR-0009, never wall time) and
-         `/world/<w>/dynamic_pose/info`;
+      1. subscribes `/clock` (sim time -- ADR-0009, never wall time) and BOTH
+         `/world/<w>/pose/info` and `/world/<w>/dynamic_pose/info`, taking
+         whichever names the airframe and RECORDING which one did;
       2. finite-differences the interceptor's pose ON SIM TIME to get its world
          velocity;
       3. asks scripts/wind_model.py for the wind vector at that sim instant and
@@ -120,7 +121,15 @@ INTERCEPTOR_LINK = os.environ.get("INTERCEPTOR_WIND_LINK", "base_link")
 
 WRENCH_PERSISTENT_TOPIC = f"/world/{WORLD_NAME}/wrench/persistent"
 WRENCH_CLEAR_TOPIC = f"/world/{WORLD_NAME}/wrench/clear"
-POSE_TOPIC = f"/world/{WORLD_NAME}/dynamic_pose/info"
+# TWO pose topics, subscribed together on purpose. `/world/<w>/pose/info` is the
+# one this repo has actually proven (scripts/m2_detect.py:182 reads the tag and
+# camera_link poses off it); `/world/<w>/dynamic_pose/info` carries only moving
+# entities and updates at the physics rate. Which one names the x500's base_link,
+# and how, is a Gazebo-version detail this file must not guess at -- so it takes
+# whichever delivers, RECORDS WHICH ONE DID (`pose_source` in the result line),
+# and still fails closed if neither ever does.
+POSE_TOPIC = f"/world/{WORLD_NAME}/pose/info"
+DYNAMIC_POSE_TOPIC = f"/world/{WORLD_NAME}/dynamic_pose/info"
 CLOCK_TOPIC = "/clock"
 
 DEFAULT_RATE_HZ = 20.0
@@ -549,38 +558,51 @@ def _run_gz(args, cond: WindConditions, drag: DragParams) -> int:
 
     node = Node()
     clock = {"t": None}
-    pose = {"t": None, "n": None, "e": None, "seen": False}
+    pose = {"t": None, "n": None, "e": None, "seen": False, "source": None}
     scoped = f"{INTERCEPTOR_MODEL}::{INTERCEPTOR_LINK}"
 
     def on_clock(msg: Clock) -> None:
         clock["t"] = msg.sim.sec + msg.sim.nsec * 1e-9
 
-    def on_pose(msg: Pose_V) -> None:
-        # dynamic_pose/info carries the model pose under the MODEL name and the
-        # link poses under the link name; accept either, preferring the link.
-        best = None
-        for p in msg.pose:
-            if p.name in (scoped, INTERCEPTOR_LINK, INTERCEPTOR_MODEL):
-                best = p
-                if p.name in (scoped, INTERCEPTOR_LINK):
-                    break
-        if best is None:
-            return
-        t = None
-        if msg.header.stamp.sec or msg.header.stamp.nsec:
-            t = msg.header.stamp.sec + msg.header.stamp.nsec * 1e-9
-        if t is None:
-            t = clock["t"]
-        if t is None:
-            return
-        # Gazebo ENU: x = east, y = north.
-        pose.update({"t": t, "n": best.position.y, "e": best.position.x,
-                     "seen": True})
+    def make_on_pose(source: str):
+        def on_pose(msg: Pose_V) -> None:
+            # Either topic may name the entity by its scoped link name, its bare
+            # link name, or the model name; accept any, preferring the link.
+            best = None
+            for p in msg.pose:
+                if p.name in (scoped, INTERCEPTOR_LINK, INTERCEPTOR_MODEL):
+                    best = p
+                    if p.name in (scoped, INTERCEPTOR_LINK):
+                        break
+            if best is None:
+                return
+            t = None
+            if msg.header.stamp.sec or msg.header.stamp.nsec:
+                t = msg.header.stamp.sec + msg.header.stamp.nsec * 1e-9
+            if t is None:
+                t = clock["t"]
+            if t is None:
+                return
+            # Once a topic has supplied a pose, STAY ON IT. Interleaving two
+            # topics with different stamps would feed the finite difference a
+            # jittering time base and manufacture velocity noise -- the sort of
+            # measurement-layer defect a paired control cannot see.
+            if pose["source"] not in (None, source):
+                return
+            # Gazebo ENU: x = east, y = north.
+            pose.update({"t": t, "n": best.position.y, "e": best.position.x,
+                         "seen": True, "source": source})
+        return on_pose
 
     if not node.subscribe(Clock, CLOCK_TOPIC, on_clock):
         raise WindDriverError(f"could not subscribe {CLOCK_TOPIC}")
-    if not node.subscribe(Pose_V, POSE_TOPIC, on_pose):
-        raise WindDriverError(f"could not subscribe {POSE_TOPIC}")
+    subscribed = []
+    for topic in (POSE_TOPIC, DYNAMIC_POSE_TOPIC):
+        if node.subscribe(Pose_V, topic, make_on_pose(topic)):
+            subscribed.append(topic)
+    if not subscribed:
+        raise WindDriverError(
+            f"could not subscribe either {POSE_TOPIC} or {DYNAMIC_POSE_TOPIC}")
 
     pub = node.advertise(WRENCH_PERSISTENT_TOPIC, EntityWrench)
     clear_pub = node.advertise(WRENCH_CLEAR_TOPIC, Entity)
@@ -600,6 +622,7 @@ def _run_gz(args, cond: WindConditions, drag: DragParams) -> int:
         drag, publish,
         estimator=PoseVelocityEstimator(lowpass_tau_s=args.velocity_lowpass_tau_s))
 
+    print(f"[wind] pose topics subscribed: {subscribed}", flush=True)
     print(f"[wind] driver up: {WRENCH_PERSISTENT_TOPIC} -> {scoped}; "
           f"{cond.label} {cond.mean_mps:.2f} m/s FROM {cond.dir_from_deg:.1f} deg, "
           f"sigma {cond.sigma_mps:.3f} m/s, tau {cond.tau_s:.2f} s, seed "
@@ -621,7 +644,7 @@ def _run_gz(args, cond: WindConditions, drag: DragParams) -> int:
         time.sleep(0.05)
     if not pose["seen"]:
         raise WindDriverError(
-            f"never saw entity {scoped!r} on {POSE_TOPIC} within "
+            f"never saw entity {scoped!r} on any of {subscribed} within "
             f"{ENTITY_TIMEOUT_S:.0f} wall-seconds. Exiting NON-ZERO rather than "
             "applying zero force for the whole flight -- 'the wind driver ran "
             "and nothing happened' is a FAIL, never a finding "
@@ -676,6 +699,7 @@ def _run_gz(args, cond: WindConditions, drag: DragParams) -> int:
             write_rows_csv(args.out, core.rows, header_lines(cond, drag, args))
             print(f"[wind] wrote {len(core.rows)} applied rows -> {args.out}",
                   flush=True)
+        print(f"[wind] pose_source={pose['source']}", flush=True)
         print(f"[wind] {core.result_line()}", flush=True)
         if core.n_published == 0:
             print("[wind] FAIL: the driver published ZERO wrenches. A wind arm "
