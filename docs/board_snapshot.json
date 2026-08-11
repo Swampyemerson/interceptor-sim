@@ -1,6 +1,6 @@
 {
  "schema_version": 1,
- "fetched_at": "2026-07-26T03:39:12Z",
+ "fetched_at": "2026-08-11T03:42:27Z",
  "source": {
   "kind": "project",
   "project_number": 1,
@@ -15,15 +15,15 @@
   "Done"
  ],
  "counts": {
-  "items": 8,
+  "items": 9,
   "by_column": {
-   "Todo": 7,
+   "Todo": 5,
    "In Progress": 0,
-   "Done": 1
+   "Done": 4
   }
  },
  "warnings": [
-  "16 custom field value(s) of type ['ProjectV2ItemFieldLabelValue', 'ProjectV2ItemFieldRepositoryValue'] were not read (fetch_board reads text/number/date/single-select/iteration only)"
+  "18 custom field value(s) of type ['ProjectV2ItemFieldLabelValue', 'ProjectV2ItemFieldRepositoryValue'] were not read (fetch_board reads text/number/date/single-select/iteration only)"
  ],
  "items": [
   {
@@ -48,16 +48,16 @@
    "id": "PVTI_lAHOBKnXT84BedNAzg0Fz4E",
    "number": 2,
    "title": "DECISION: retire or re-shoot the stale onboard demo assets?",
-   "column": "Todo",
+   "column": "Done",
    "column_source": "project-field:Status",
-   "state": "OPEN",
+   "state": "CLOSED",
    "labels": [
     "builder-decision",
     "from-contract"
    ],
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/2",
-   "updated_at": "2026-07-26T00:10:10Z",
+   "updated_at": "2026-08-11T03:42:11Z",
    "type": "Issue",
    "fields": {}
   },
@@ -82,9 +82,9 @@
    "id": "PVTI_lAHOBKnXT84BedNAzg0Fz5E",
    "number": 4,
    "title": "Fill in docs/regulatory_site_capture.md",
-   "column": "Todo",
+   "column": "Done",
    "column_source": "project-field:Status",
-   "state": "OPEN",
+   "state": "CLOSED",
    "labels": [
     "builder-decision",
     "from-contract",
@@ -92,7 +92,7 @@
    ],
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/4",
-   "updated_at": "2026-07-26T00:10:15Z",
+   "updated_at": "2026-08-11T03:42:18Z",
    "type": "Issue",
    "fields": {}
   },
@@ -100,9 +100,9 @@
    "id": "PVTI_lAHOBKnXT84BedNAzg0Fz8Y",
    "number": 5,
    "title": "Confirm the 2nd RadioMaster Pocket TX is not already ordered (ADR-0089)",
-   "column": "Todo",
+   "column": "Done",
    "column_source": "project-field:Status",
-   "state": "OPEN",
+   "state": "CLOSED",
    "labels": [
     "builder-decision",
     "from-contract",
@@ -110,7 +110,7 @@
    ],
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/5",
-   "updated_at": "2026-07-26T00:10:31Z",
+   "updated_at": "2026-08-11T03:42:20Z",
    "type": "Issue",
    "fields": {}
   },
@@ -160,7 +160,23 @@
    ],
    "assignee": null,
    "url": "https://github.com/Swampyemerson/interceptor-sim/issues/8",
-   "updated_at": "2026-07-26T03:38:44Z",
+   "updated_at": "2026-07-26T05:21:34Z",
+   "type": "Issue",
+   "fields": {}
+  },
+  {
+   "id": "PVTI_lAHOBKnXT84BedNAzg0GUnI",
+   "number": 9,
+   "title": "Second zero-command bug: coded dash never writes last_cmd, dropout re-issues a full stop",
+   "column": "Todo",
+   "column_source": "project-field:Status",
+   "state": "OPEN",
+   "labels": [
+    "from-contract"
+   ],
+   "assignee": null,
+   "url": "https://github.com/Swampyemerson/interceptor-sim/issues/9",
+   "updated_at": "2026-07-26T03:38:46Z",
    "type": "Issue",
    "fields": {}
   }
