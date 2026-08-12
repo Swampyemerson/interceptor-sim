@@ -75,6 +75,21 @@ WHAT IT DELIBERATELY DOES NOT DO (limitations, in code not just prose)
   shows a systematic cross-track residual the velocity loop does NOT reject,
   that is a NEW finding and a new, separately pre-registered parameter -- it
   does not silently appear here.
+* WHAT ACTUALLY CORRECTS FOR WIND, AND WHERE (builder question, 2026-08-12).
+  In the TERMINAL phase, pro-nav corrects for wind with no wind-specific code at
+  all: wind pushes the vehicle sideways, the line of sight to the target rotates,
+  and pro-nav commands acceleration against that rotation -- it does not care
+  WHY the geometry is changing. The airframe's lean-into-wind is absorbed too,
+  because bearings are de-rotated through the full attitude quaternion
+  (m4_intercept.py derotate_bearing_lambda).
+  THE GAP IS EVERYTHING BEFORE THAT. The camera can only correct what is inside
+  its wedge, and the dash is open-loop with the link dead, so wind spends the
+  whole dash pushing the vehicle off its aim line. Push it far enough and the
+  target never enters the wedge, the terminal phase never begins, and there is
+  nothing to correct. THAT is the only thing this module defends: it moves the
+  pre-flight AIM so the dash ends with the target still in view. Getting the
+  target into the wedge is the wind problem; once it is there, pro-nav has it.
+
 * NO VERTICAL TRIM -- AND THE REASON GIVEN HERE ORIGINALLY WAS WRONG
   (corrected 2026-08-10). This module was told, while it was being designed,
   that the published -0.37 m vertical bias was "~56% camera lens-arm artefact"

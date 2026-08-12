@@ -315,6 +315,35 @@ scripts/field/02_apriltag_desk_check.sh --expect-range 3.0     # 3.0 m tape-meas
 **What a PASS looks like:** `decoded: 30 (100.0% of frames)`, a tag id, a
 `tag in frame: ~NNN px per edge` line, and `PASS`.
 
+#### "Why calibrate at all — can't the loop just steer at the tag?" (builder question, 2026-08-12)
+
+It could, and that is **pursuit guidance** — and pursuit was measured against a
+moving target in M4 and lost badly: **2.0–2.5 m** miss versus **0.3–0.4 m** for
+pro-nav (PROGRESS.md M4). Pro-nav is the law that works, and unlike pursuit it
+needs two *quantitative* things a raw image does not provide:
+
+1. **Range.** A single camera's only route to range is apparent size:
+   `range = fx · tag_size / width_in_pixels`. Calibration is what measures `fx`
+   (focal length in pixels). A wrong `fx` scales **every** range by the same
+   factor — and range is not a display value here: it multiplies into the
+   acceleration command, and every terminal decision is range-keyed (terminal
+   freeze 3.5 m, breakoff arm 4.0 m, hard floor 0.5 m). All of them would fire
+   at the wrong true distance. The sim recorded `fx = 539.9` for *its* camera;
+   that number is meaningless for any real lens.
+2. **Straight lines.** The 118° lens bends the image near the edges. Pro-nav
+   steers on the *rate the line of sight rotates*, so through an uncalibrated
+   wide lens a target moving in a straight line traces a **curved** pixel path —
+   it looks like it is accelerating when it is not, and pro-nav responds to a
+   maneuver that never happened. Worst exactly at the frame edges, which is
+   where the target sits at handoff.
+
+Tripod day adds a third reason: the money-gate curve converts "tag decoded at N
+pixels" into "decoded at X metres", and that conversion **is** the calibration.
+
+Short version: the loop can already *steer* at the tag. Calibration is what lets
+it know how far away the tag is and how fast the geometry is really changing —
+the difference between the law that lost and the law that works.
+
 About **range**: the tool prints the distance implied by the tag's pose, but it
 marks it *INDICATIVE ONLY* until you have calibrated **this** camera. Camera
 calibration means measuring the lens's real focal length from photos of a
