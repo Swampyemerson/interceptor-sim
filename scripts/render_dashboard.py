@@ -109,7 +109,8 @@ B_END = "<!-- BOARD_SNAPSHOT_JSON:END -->"
 REV_RE = re.compile(r"(<!-- REV:BEGIN -->)(.*?)(<!-- REV:END -->)", re.S)
 
 STATUSES = {"implemented", "half-done", "idea", "rejected", "superseded"}
-TOP_KEYS = {"schema_version", "artifact_url", "project", "updated", "updated_by", "goal",
+TOP_KEYS = {"schema_version", "artifact_url", "mbse_artifact_url", "project", "updated",
+            "updated_by", "goal",
             "now", "assumptions", "builder_queue", "plain_log", "narrative", "architecture",
             "build_plan", "stages", "edges", "constraints", "graveyard", "key_numbers",
             "bom_tiers", "build_tab", "decisions", "contradictions"}

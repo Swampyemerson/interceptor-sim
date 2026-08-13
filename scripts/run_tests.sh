@@ -112,6 +112,10 @@ echo "== [3/4] project-state dashboard sync (docs/project_state.json <-> docs/da
 # suite -- including the hand-authored layer's number-traceability guard
 # (every VISIBLE decimal number must appear verbatim in the contract).
 python3 scripts/render_dashboard.py --check || rc=1
+# Second generated view of the SAME contract: the MBSE view set. Same rule --
+# the model may not drift from the build. The check compares a digest of the
+# contract against the one baked into docs/mbse.html at render time.
+python3 scripts/render_mbse.py --check || rc=1
 
 echo ""
 echo "== [4/4] uncovered --self-test entry points (each must exit 0) =="

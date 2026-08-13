@@ -1,3 +1,11 @@
+### 2026-07-26
+
+Threw away an aim-trim experiment: I ran heavy background work while a measured batch was flying, 3 of 8 flights failed to boot, and my own summary script averaged through the failures.
+
+**So what:** Re-fly at idle with a load guard; the trim question is still open.
+
+*Evidence: commit f49a03a*
+
 ### 2026-07-25
 
 Found a scoring flaw that only hurts camera flights: they sometimes quit steering early (a false 'we passed it' trigger the dash-only flights can never fire).
