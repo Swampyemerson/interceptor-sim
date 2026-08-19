@@ -1,5 +1,7 @@
 # Counter-UAS Interceptor — Sim-Proven Guidance, Real Build In Progress
 
+[![CI](https://github.com/Swampyemerson/interceptor-sim/actions/workflows/ci.yml/badge.svg)](https://github.com/Swampyemerson/interceptor-sim/actions/workflows/ci.yml)
+
 A quadcopter interceptor that flies a **coded open-loop dash** at a moving
 target, then finishes with a **camera-only proportional-navigation terminal**
 — no datalink, no ground cue, nothing steers it mid-course except its own
@@ -19,18 +21,26 @@ project's retractions are documented with the same care as its wins, because
 > quantified the perception acquisition envelope and identified the
 > flight-dynamic detector-recall limit."*
 
+<p align="center">
+  <img src="docs/images/m5_traj_overlay.png" width="32%" alt="M5 Monte-Carlo trajectory overlay"/>
+  <img src="docs/images/hud_overlay_sample.png" width="32%" alt="Seeker HUD overlay at handoff"/>
+  <img src="docs/images/m5_pk_vs_radius_by_arm.png" width="32%" alt="Pk vs lethal radius, per speed and law"/>
+</p>
+
 **Canonical live state:** [`docs/project_state.json`](docs/project_state.json)
-(the machine-readable contract: stage statuses, constraints, a contradiction
-ledger, and a dead-ideas graveyard), rendered to
-[`docs/dashboard.html`](docs/dashboard.html) and hosted at
-<https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc>.
-Where anything in this README and that contract disagree, **the contract
-wins**. Mission and scope history: [`docs/goals.md`](docs/goals.md); milestone roll-up:
-[`docs/progress.md`](docs/progress.md); working front: [`docs/next.md`](docs/next.md).
+— the machine-readable contract (stage statuses, hard constraints, a
+contradiction ledger, a dead-ideas graveyard, an assumptions register) —
+rendered to [`docs/dashboard.html`](docs/dashboard.html) and the generated
+MBSE views ([`docs/mbse.html`](docs/mbse.html)). Where anything in this README
+and that contract disagree, **the contract wins**. Mission and scope history:
+[`docs/goals.md`](docs/goals.md); milestone roll-up:
+[`docs/progress.md`](docs/progress.md); working front:
+[`docs/next.md`](docs/next.md).
 
 **Read "What is proven / what is not" before the results table.** Several
 headline-looking numbers from this project's own history were retracted by
-its own audits; this README quotes only what survived.
+its own audits; this README quotes only what survived. The long form of every
+table caveat: [`docs/results_notes.md`](docs/results_notes.md).
 
 ---
 
@@ -46,17 +56,12 @@ staged first-kill baseline seeker — never as input to the deployed markerless
 seeker. Source: `docs/project_state.json` (goal), `docs/real_build_coded_dash.md`,
 `docs/hardware_order_list.md` §0b/§0c.
 
-Hard constraints (full list with evidence in the contract):
-
-- **No guidance datalink.** The dash is open-loop; the RC link is kill/arm
-  only. Jam resistance by architecture, not by protocol.
-- **Wide FoV (~100°) is non-negotiable** — the ±30° open-loop aim tolerance
-  depends on it (ADR-0024; a 60° lens was flown and rejected).
-- **Pi 5 CPU flies the AprilTag baseline in real time; markerless YOLO
-  requires the deferred Hailo NPU** (~5–10 fps on CPU is not viable at
-  terminal LOS rates). First real kills therefore fly the tag.
-- **Prop clearance is a geometry problem** (nose-cantilever camera mount +
-  a hard bench gate) — every software fix for the own-prop phantom NULLed.
+Hard constraints (full list + evidence in the contract): **no guidance
+datalink** (the dash is open-loop; the RC link is kill/arm only — jam
+resistance by architecture, not protocol); **wide FoV (~100°)
+non-negotiable** (the ±30° aim tolerance depends on it, ADR-0024); **the
+Pi 5 CPU flies the AprilTag baseline; markerless YOLO waits on the deferred
+Hailo NPU**; **prop clearance is a geometry problem**, not a software one.
 
 ---
 
@@ -97,6 +102,7 @@ Hard constraints (full list with evidence in the contract):
   yet validated).
 - **"Works comms-denied" stays HELD** — see the box in the results section.
 
+
 ---
 
 ## Headline results (each traced; scope stated inline)
@@ -105,15 +111,16 @@ Hard constraints (full list with evidence in the contract):
 |---|---|---|---|
 | M0–M2 foundations (boot, camera, AprilTag detection) | detection rate 1.000, mean pose error 0.0861 m @ ~4.9 m | wide (99.7°) lens; sim lighting | gates `check_m0/1/2.sh`, 2026-07-04; `docs/progress.md` |
 | M3 static intercept, hold 2 m standoff | final error **0.018 / 0.035 m** (bar < 0.5 m) | two verifier-confirmed runs | `scripts/check_m3.sh`; ADR-0008; committed `logs/m3_intercept_*.csv` |
-| M4 pro-nav vs pursuit, 2.0 m/s crosser, camera-only | pro-nav **0.402 / 0.277 / 0.443 m** vs pursuit **2.544 / 2.109 / 2.048 m** | official gate-config runs; three earlier dev-phase pro-nav flights that night read 1.04–1.12 m, over the gate, before the final config (disclosed, ADR-0009 addendum) | `scripts/check_m4.sh`; ADR-0009; committed `logs/m4_intercept_*_20260705T03*.csv` |
+| M4 pro-nav vs pursuit, 2.0 m/s crosser, camera-only | pro-nav **0.402 / 0.277 / 0.443 m** vs pursuit **2.544 / 2.109 / 2.048 m** | official gate-config runs; the dev-phase config selection that night is disclosed (ADR-0009 addendum; [notes](docs/results_notes.md#m4)) | `scripts/check_m4.sh`; ADR-0009; committed `logs/m4_intercept_*_20260705T03*.csv` |
 | Two-stage handoff (S2), 6 m/s crosser | miss 1.1–2.3 m, handoff latches, honesty audits pass | proves the *architecture* (running start + structural handoff), not sub-meter precision | `scripts/check_s2.sh`; ADR-0010/0013 |
 | Why fast crossers miss ~1.4 m (41-flight forensics) | terminal correction capacity **½·a·t_go² ≈ 0.72 m** vs **1.69 m** already delivered at handoff → a perfect terminal camera cuts the miss only ~25% | miss tracks zero-effort-miss at handoff with r² = 0.96 — *variance explained*, not "96% of any one miss" | ADR-0023/0027; `docs/terminal_diagnosis.md` |
-| M5 final Monte-Carlo, n=96 (pursuit vs pro-nav × 6/9/12 m/s × line/maneuver/oblique) | **96.9% clean** (ran to completion and engaged; failures stay in every Pk denominator), mean miss 1.08 m, median 0.93 m; per-speed Pk per ADR-0025, never pooled | flew the **clean AprilTag sensor** (the disclosed perception upper bound), flat-board target; laws tied within the ~1 m run-to-run noise at these speeds | ADR-0036; `scripts/check_m5.sh`; committed `logs/mc_final_all.csv`; plots `docs/images/m5_*.png` |
+| M5 final Monte-Carlo, n=96 (pursuit vs pro-nav × 6/9/12 m/s × line/maneuver/oblique) | **96.9% clean** (ran to completion and engaged; failures stay in every Pk denominator), mean miss 1.08 m, median 0.93 m; per-speed Pk per ADR-0025, never pooled | flew the **clean AprilTag sensor** (the disclosed perception upper bound), flat-board target; laws tied within the ~1 m run-to-run noise ([notes](docs/results_notes.md#m5)) | ADR-0036; `scripts/check_m5.sh`; committed `logs/mc_final_all.csv`; plots `docs/images/m5_*.png` |
 | Markerless seeker v2 (kill the AprilTag) | false-detection pollution **0.751 → 0.000**, range honesty **0.056 → 0.935**; ~+1 m median miss vs the tag = bearing *quality* (box-center vs subpixel corners) | in-sim markerless; guidance-side recovery levers pre-registered and NULL | ADR-0038/0040/0042/0043; `scripts/check_seeker_v2.sh` |
-| Detect-then-track maneuvering terminal (billboard era) | post-handoff camera-terminal Pk@2.5 m: weave **3/16 → 14/14**, jink **1/8 → 14/15** (paired n=16 baseline reads 3/15 → 14/15); phantom handoffs 12 → 0; zero gross (>8 m) false terminal detections (0/155) in the headline arm | one empty Gazebo world (gate radii never saw clutter — disclosed); **the CSRT tracker was later dropped for the 3D quad target** — every tracker slips on a banking quad; the deployed config is NN-only every frame (ADR-0076 add #2) | ADR-0058; committed `logs/mc_t21_*.csv`; `scripts/check_t21.sh` |
-| Pk statistics hardening, n=72 | **Pk@2.8 m 72/72 — 95.0% Clopper-Pearson lower bound** (clears the ratified ≥95%-CI bar); Pk@2.5 m 71/72 = 98.6% point / 92.5% CP-LB | **flat-billboard target**, weave path + 12 m/s only, never pooled across paths/speeds, radius always stated; the realistic 3D-quad target later exposed the perception wall this target shape masked | ADR-0064/0025; committed `logs/mc_pk72_weave_s*.csv` |
+| Detect-then-track maneuvering terminal (billboard era) | post-handoff camera-terminal Pk@2.5 m: weave **3/16 → 14/14**, jink **1/8 → 14/15** (paired n=16 baseline reads 3/15 → 14/15); phantom handoffs 12 → 0; zero gross (>8 m) false terminal detections (0/155) in the headline arm | one empty Gazebo world (disclosed); **the CSRT tracker was later dropped for the 3D quad target** — the deployed config is NN-only every frame (ADR-0076 add #2; [notes](docs/results_notes.md#t21)) | ADR-0058; committed `logs/mc_t21_*.csv`; `scripts/check_t21.sh` |
+| Pk statistics hardening, n=72 | **Pk@2.8 m 72/72 — 95.0% Clopper-Pearson lower bound** (clears the ratified ≥95%-CI bar); Pk@2.5 m 71/72 = 98.6% point / 92.5% CP-LB | **flat-billboard target**, weave + 12 m/s only, never pooled, radius always stated; the 3D-quad target later exposed the wall this shape masked ([notes](docs/results_notes.md#pk72)) | ADR-0064/0025; committed `logs/mc_pk72_weave_s*.csv` |
 | Perception wall, quantified | in-flight approach recall **0.8%** vs **100% static** at 8–22 m, same detector, same threshold | the wall is flight-dynamic (pointing + background + phantom competition), **not** range/resolution/aspect — each of those was tested and eliminated | ADR-0076 add #18i/#18k; `scripts/seeker/approach_recall.py` |
 | Open-loop dash robustness | 48/48 flights still acquired/engaged with up to **±30° aim error** | dash-robustness only — *not* perception proof (ENGAGE streaks can be phantom, add #18g) | ADR-0076 add #18b/#18c |
+
 
 > **Comms-denied status: HELD — tested, not merely untested.** The one-way
 > handoff latch is real and structural: once the camera terminal latches, the
@@ -165,17 +172,16 @@ cue imports (enforced by AST-based honesty tests) and drives the real
 vehicle via `flight/deploy/seeker_loop.py` (SITL-validated,
 `scripts/check_deploy_sitl.sh`).
 
-The block/process diagrams in `docs/images/` (`architecture_block_diagram.png`,
-`process_flow_diagram.png`) show the **retired sim-phase two-sensor
-architecture** (ground stereo cue → jammable link → handoff) — kept as
-history of the phase that produced the M0–M5 results; the ground-sensing
-half remains a parent-project concept, not part of the current interceptor.
+(The block diagrams in `docs/images/` show the retired sim-phase
+two-sensor architecture — kept as history of the phase that produced
+the M0–M5 results.)
 
 **Honesty boundary (unchanged since M0):** `gt_*` ground-truth topics are
 scoring/logging only; guidance sees camera pixels + own-state EKF, nothing
 else. Every gate re-derives the numeric no-cheat check, and
 `tests/test_honesty_static.py` / `tests/test_honesty_seekers.py` pin it
 statically (AST scans over every live seeker module, mutation-calibrated).
+
 
 ---
 
@@ -212,46 +218,21 @@ frame-duration limit; lifting it cuts the range burned forming the handoff by ab
 > perfect launch cue, co-altitude flight and no wind. Detail:
 > [`docs/rescore_2026-08-10.md`](docs/rescore_2026-08-10.md).
 
-**Earlier — 2026-07-25** — **Tier-1 is fully ordered** (target-drone stack, seeker
-kit, interceptor flight controller, and the build/field consumables top-up).
-The 2026-07-25 what's-left build push
+**Earlier — 2026-07-25 — Tier-1 fully ordered** (target-drone stack, seeker
+kit, interceptor flight controller, consumables), after the what's-left push
 ([`docs/audit_2026-07-25_whats_left.md`](docs/audit_2026-07-25_whats_left.md))
-closed the desk backlog before the parts land: the **ram/kill radius is
-ratified at 0.35 m** (ADR-0084 — the ordered 5-inch pair's contact envelope, so
-every Pk figure is now quoted against a radius the hardware can actually
-deliver; the 5-inch carries the full seeker at T/W ~6:1); the field-day P0s are
-closed (`--quad-decimate` plumbed, tripod mission geometry corrected, capture
-matrix re-briefed for the beam-facing placard, range-truth integrity hardened);
-the print artifacts (placard, checkerboard, mount) are built and dimensionally
-verified; `FAILSAFE 7` (post-GO offboard loss → SAFE) and the kill-day protocol
-are written; a sim-terminal zero-command bug was fixed (the coded-dash camera-arm
-verdicts are re-flying); and **CI is green** (it had been red since the first
-push). The Tier-1 software layer, all adversarially reviewed:
+closed the desk backlog: the **ram/kill radius ratified at 0.35 m** (ADR-0084 —
+the ordered 5-inch pair's contact envelope, so every Pk figure is quoted
+against a radius the hardware can actually deliver), the field-day P0s closed,
+the print artifacts dimensionally verified, `FAILSAFE 7` and the kill-day
+protocol written, and CI brought green. The Tier-1 software layer — Pi 5
+session recorder, the two-curve money-gate scorer, binary-kill metrology from
+both aircraft logs, the SITL-validated OFFBOARD deploy loop — is adversarially
+reviewed. The in-person ladder with its go/no-go money gates lives in
+`docs/project_state.json` (`build_plan`) and
+[`docs/hardware_order_list.md`](docs/hardware_order_list.md); a gate failure
+loops back to the cheapest upstream fix, never forward to more spend.
 
-- `scripts/seeker/pi_capture.py` — Pi 5 / OV9281 session recorder (frames +
-  index + metadata; logs the actual applied exposure vs the ≤1 ms spec).
-- `scripts/seeker/tripod_score.py` — the **two-curve money-gate scorer**:
-  curve (a) AprilTag decode envelope → gates the ~$740 Tier-2 interceptor
-  order (explicit t_go ≥ 0.5 s arithmetic incl. the 5-detection streak
-  burn); curve (b) NN recall vs range × position-in-frame → gates only the
-  Hailo/markerless phase.
-- `scripts/field_score.py` — binary-kill metrology from both aircraft logs
-  (PX4 ULog + ArduPilot DataFlash .BIN), with the GPS relative-accuracy
-  caveat stated (inter-receiver bias rivals the kill radius; video is the
-  primary kill evidence).
-- `flight/deploy/seeker_loop.py` MAVSDK OFFBOARD path SITL-validated
-  (three real defects found and fixed); camera-offset/model-swap guard
-  (a mismatch aborts the run rather than flying uncompensated).
-- Camera paper-check (`docs/camera_paper_check.md`): the OV9281 clears the
-  wide-FoV and exposure requirements on paper (118° horizontal, ~40 µs
-  exposure floor); the mono-vs-color training confound stays open until
-  real data.
-
-The in-person ladder (P0 desk checks → tripod afternoon → Tier-2 order →
-bench gates → kill ladder), with its go/no-go money gates, lives in
-`docs/project_state.json` (`build_plan`) and `docs/hardware_order_list.md`.
-A gate failure loops back to the cheapest upstream fix, never forward to
-more spend.
 
 ---
 
@@ -283,6 +264,34 @@ vibration, no outdoor clutter or lighting in the sim
 (`docs/sim_to_real_gaps.md`); the tripod session exists precisely to measure
 what the sim cannot.
 
+
+---
+
+## Systems engineering, generated — not hand-drawn
+
+The system model is **generated from the contract**, and the test suite fails
+if the rendered views drift from it — so the model cannot disagree with the
+build. `docs/project_state.json` holds ~10 pipeline stages with status and
+active version, hard constraints, a **38-entry contradiction ledger** (every
+one resolved in place), a dead-ideas graveyard, and a **19-entry assumptions
+register** that grades every input the system is *given* rather than measures
+(`measured` / `given-noisy` / `given-perfect` / `unmeasured`) — a number
+computed on a `given-perfect` input is reported as a best-case upper bound,
+never as the claim.
+
+<p align="center">
+  <img src="docs/images/dashboard_view.png" width="49%" alt="Rendered project status board"/>
+  <img src="docs/images/mbse_view.png" width="49%" alt="Generated MBSE view set"/>
+</p>
+
+Renderers: [`scripts/render_dashboard.py`](scripts/render_dashboard.py) (the
+status board + the drift gate) and
+[`scripts/render_mbse.py`](scripts/render_mbse.py) (functions, requirements,
+quantities, and their trace links). Views:
+[`docs/dashboard.html`](docs/dashboard.html) ·
+[`docs/mbse.html`](docs/mbse.html).
+
+
 ---
 
 ## Reproduce it
@@ -292,6 +301,15 @@ evidence CSVs behind every number quoted above are **committed** (M3/M4
 gates, `mc_final_*`, `mc_t21_*`, `mc_pk72_*`, jam-MC and up-tilt arms); bulk
 per-run logs are gitignored and regenerable. All Python runs through the
 project venv (`.venv/bin/python`).
+
+**60-second check, no sim install** — from a fresh clone, only Python needed:
+
+```bash
+python3 -m venv --system-site-packages .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python -m pytest tests/ flight/tests/  # 900+ offline tests (10 files need the apt gz bindings; CI deselects them when absent)
+python3 scripts/render_dashboard.py --check      # the contract/dashboard drift gate (stdlib-only)
+scripts/check_t21.sh                             # re-asserts the ADR-0058 headline from committed CSVs
+```
 
 **Requirements:** Ubuntu 24.04, PX4-Autopilot (SITL) + Gazebo Harmonic,
 Python 3.12, `pip install -r requirements.txt` (plus the apt-installed
@@ -305,51 +323,37 @@ scripts/run_tests.sh        # offline suite (.venv) + ONNX parity (.venv-seeker)
                             # + the project-state dashboard drift check
 ```
 
-**Milestone gates** (each a scripted pass/fail; exit 0 = pass):
-
-```bash
-scripts/check_m0.sh    # PX4+Gazebo boot headless; MAVSDK arms/takes off/lands
-scripts/check_m1.sh    # camera frames via gz-transport
-scripts/check_m2.sh    # AprilTag detected live (also repairs the world symlink, ADR-0005)
-scripts/check_m3.sh    # static intercept, < 0.5 m standoff error
-scripts/check_m4.sh    # pursuit vs pro-nav on a mover, pro-nav < 1.0 m
-scripts/check_s1.sh    # FPV-speed crossing
-scripts/check_s2.sh    # two-stage handoff + camera-only terminal
-scripts/check_t21.sh   # re-asserts the ADR-0058 headline from committed CSVs (no sim needed)
-scripts/check_deploy_sitl.sh  # deployment seeker loop end-to-end vs SITL
-```
-
-**Monte-Carlo batches** (the evidence machine):
-
-```bash
-scripts/mc_batch.sh --dry-run
-scripts/mc_batch.sh --n 20 --laws pronav,pip --speeds 6.0,9.0 --directions both --master-seed 42
-.venv/bin/python scripts/mc_analyze.py     # newest logs/mc_batch_*.csv
-```
-
+**Milestone gates** (each a scripted pass/fail, exit 0 = pass; needs the sim
+stack): `scripts/check_m0.sh` … `check_m5.sh`, `check_s1/s2.sh`,
+`check_deploy_sitl.sh`. **Monte-Carlo batches** (the evidence machine):
+`scripts/mc_batch.sh` + `scripts/mc_analyze.py`.
 One sim at a time, idle machine only — batch numbers are only comparable at
 matched load. `scripts/env/bootstrap.sh` recreates the config files on a fresh VM; a
 normal clone doesn't need it.
+
 
 ---
 
 ## Repo map
 
-- `flight/` — the portable real-build guidance core (geometry, estimator,
-  pro-nav, deploy loop) + its tests. No sim imports; runs on the Pi.
-- `scripts/` — sim harnesses (`m4_intercept.py` and friends), milestone
-  gates, the Monte-Carlo batch runner/analyzer, the guidance lab,
-  `ground_station/` (the retired-but-kept stereo spine), `seeker/` (the
-  markerless detector lane: capture, training, scoring, tripod harness).
-- `worlds/`, `models/` — the Gazebo worlds and targets (`apriltag_target`,
-  the 3D `fpv_quad_enemy` quad, the stereo rig).
-- `docs/` — `project_state.json` (**the contract**) + `dashboard.html`,
-  `decisions.md` (the full ADR log), the audit findings tracker, design
-  docs, `hardware_order_list.md`, `real_build_coded_dash.md`,
-  `publish_runbook.md`.
-- `logs/` — committed evidence CSVs (see above); everything else gitignored.
-- `tests/` — the offline suite, including the AST-based honesty pins.
-- `docs/progress.md` / `docs/next.md` / `docs/goals.md` — roll-up, working front, mission.
+`flight/` — the portable real-build guidance core + its tests (no sim imports;
+runs on the Pi). `scripts/` — sim harnesses, milestone gates, the Monte-Carlo
+runner/analyzer, the seeker lane (`seeker/`), the contract renderers.
+`worlds/`, `models/` — Gazebo worlds and targets. `docs/` — the contract +
+rendered views, the full ADR log (`decisions.md`), design docs, the runbooks.
+`logs/` — committed evidence CSVs (everything else gitignored). `tests/` — the
+offline suite, including the AST-based honesty pins.
+
+## Built with AI, disclosed
+
+This project was built by the author working with Claude (Anthropic's coding
+agent) under the honesty machinery documented above — the AI wrote most of the
+code and flew most of the batches; the author set the goals, made the calls,
+and asked the questions that caught the biggest overclaims. The process,
+including what the AI got wrong along the way, is logged in
+[`docs/build_log.md`](docs/build_log.md). Every number still traces to a
+committed run or a written derivation; none of the claims rest on the AI's
+say-so.
 
 ## License
 
