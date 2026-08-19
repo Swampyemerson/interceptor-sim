@@ -39,9 +39,12 @@ with it (the drift check + the contradiction ledger enforce it).
   a surface that cannot catch your mistakes — which is the whole point of it existing.
 - **UPDATE (every positive change — the #1 housekeeping task):** the SAME TURN a status, active
   version, or decision changes, or a contradiction is found/resolved — edit `project_state.json`
-  → `python3 scripts/render_dashboard.py` (regenerates the view; `run_tests.sh` fails on drift)
+  → `python3 scripts/render_mbse.py && python3 scripts/render_dashboard.py` (regenerates BOTH
+  views — mbse first, because the dashboard's SHEET 5 and the published Artifact embed it;
+  `run_tests.sh` fails on drift of either)
   → **republish the Artifact to the SAME URL** (`render_dashboard.py --artifact <tmp>.html`, then
-  the Artifact tool with `url` = the stored `artifact_url`) → commit both. *An update that isn't
+  the Artifact tool with `url` = the stored `artifact_url`; the emitted file inlines the MBSE
+  sheet and FAILS if docs/mbse.html is stale) → commit all three. *An update that isn't
   in the contract didn't happen.*
 - Schema + full ritual: `docs/project_state_readme.md`. Every stage/number carries an
   `evidence`/`provenance` pointer (numbers trace to a run or a derivation).

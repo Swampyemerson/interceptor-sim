@@ -31,8 +31,10 @@ Mission + scope: `docs/goals.md` (imported below). The full operating model
 ## Update ritual (housekeeping rule #1)
 
 The SAME TURN a status, decision, or contradiction changes: edit
-`docs/project_state.json` → `python3 scripts/render_dashboard.py` → republish
-the Artifact to the stored `artifact_url` → commit both. Status fields are
+`docs/project_state.json` → `python3 scripts/render_mbse.py && python3
+scripts/render_dashboard.py` → republish the Artifact to the stored
+`artifact_url` (its SHEET 5 embeds the MBSE render — mbse first, always) →
+commit all three. Status fields are
 REWRITTEN (validator-enforced caps), never appended; dated notes go to
 `plain_log`. An update that isn't in the contract didn't happen.
 

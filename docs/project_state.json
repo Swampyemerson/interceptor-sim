@@ -429,13 +429,13 @@
  "builder_queue": [
   {
    "id": "corrected-headline-framing",
-   "question": "The scorer was measuring to the camera lens, not the airframe centre. On the correct ruler the SAME flights go from 0 of 16 inside the kill radius to 12 of 16. That is your headline changing because the ruler was wrong, not because the aircraft got better. How do you want it said?",
+   "question": "The scorer was measuring to the camera lens, not the airframe centre. An interim re-score claimed the fix turned 0 of 16 flights inside the kill radius into 12 of 16 -- that was RETRACTED the same night (the '+0.208 m camera offset' was landing-gear height). The real corrected ruling is 3 of 16 at logged ticks, 5 of 16 interpolated. How do you want it said?",
    "options": [
     "Say both numbers, every time, with the reason — 'measured wrong at first, here is the corrected figure'",
     "Quote only the corrected 12/16 and explain the fix if asked",
     "Say nothing publicly until a real flight backs it up"
    ],
-   "rec": "Option 1. An interviewer who finds the old number and the new one with no explanation sees a moving claim; one who is told up front sees somebody who audits his own instruments. The catch is real though — it means leading with a mistake, and it is your portfolio, so it is your call.",
+   "rec": "The README already does option 1: the rescore box quotes the wrong number, the corrected number, and the reason, side by side -- the strongest-looking honest framing. Bless it or pick another; no code changes either way.",
    "blocked": "Nothing technical. The fix proceeds either way; this is only about how it is written up.",
    "doc": "docs/scoring_fix_plan.md §4"
   },
@@ -462,13 +462,25 @@
    "rec": "Option 3. The measured results, the honesty audits and the instrument-defect catches are already a stronger story than most internship portfolios carry, and right now none of it exists outside this repo. Packaging a checkpoint costs a day and de-risks everything after it.",
    "blocked": "Nothing. This is a priorities question, and the answer changes what I work on next.",
    "doc": "CLAUDE.md — 'the portfolio can die of one more experiment'"
+  },
+  {
+   "id": "pre-public-checklist",
+   "question": "The repo is ALREADY PUBLIC on GitHub, and the cleanup branch is done and green. Which of the remaining hands-on steps can you do now? (Everything is also written in docs/publish_cleanup_work_order.md so no Claude session is needed.)",
+   "options": [
+    "At the PC: change the VM's Linux password (the old one is in public git history) and re-point the desktop launcher at scripts/env/",
+    "From the phone: merge branch claude/portfolio-data-github-cleanup-g792ae into main on github.com (turns the README's CI badge green) and set the About text + topics",
+    "Later, at the sim PC: fly a new hero flight and re-shoot the demo GIF (scripts/build_demo.py -- the caption fix is already in)"
+   ],
+   "rec": "Password first -- it is a local-VM login, low real risk, but it is sitting in public history. The MIT license is CONFIRMED (your ruling, 2026-08-19) -- nothing to do there.",
+   "blocked": "Every item needs your hands (PC, phone browser, or the sim machine); none need a Claude session.",
+   "doc": "docs/publish_cleanup_work_order.md"
   }
  ],
  "plain_log": [
   {
    "date": "2026-08-19",
    "text": "Publication sweep. The repo was de-cluttered for public view: the plaintext VM password line deleted, root files moved under docs/ and .claude/, the README repackaged around the results and the honesty machinery, and the retracted 12-of-16 kill-radius claim corrected on every surface that still carried it. CI had been red since 2026-08-11: the rescore gate test needs the machine-local flight archive and now says so as a named skip instead of failing.",
-   "so_what": "The public repo now tells the same story as the contract. Before flipping public: rotate the VM password, re-point the desktop launcher at scripts/env/, and confirm the MIT license.",
+   "so_what": "The repo turned out to be ALREADY PUBLIC, so rotate the VM password first. MIT license: CONFIRMED by the builder 2026-08-19. Still yours: re-point the desktop launcher, merge the cleanup branch, set About/topics, re-shoot the GIF.",
    "evidence": "commits 7ea21c7, 5c40a96 - docs/publish_cleanup_work_order.md"
   },
   {

@@ -29,6 +29,7 @@ project constraint, with the cue-error sweep as the deliverable that replaces it
 | ⬜ | Retire or re-shoot the 3 stale demo assets (they read as a ram-kill claim they are not) | [#2](https://github.com/Swampyemerson/interceptor-sim/issues/2) |
 | ⬜ | Fill `docs/regulatory_site_capture.md` (which regime, which site, mid-air permitted in writing?) | [#4](https://github.com/Swampyemerson/interceptor-sim/issues/4) |
 | ⬜ | Confirm the 2nd RadioMaster Pocket TX isn't already ordered (ADR-0089) | [#5](https://github.com/Swampyemerson/interceptor-sim/issues/5) |
+| ⬜ | **Publication checklist** (repo is ALREADY public): rotate the VM password, re-point the launcher, merge the cleanup branch to `main`, set About/topics. MIT license **CONFIRMED 2026-08-19** | [`publish_cleanup_work_order.md`](publish_cleanup_work_order.md) |
 
 ## Next work, in order
 

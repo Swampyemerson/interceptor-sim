@@ -31,6 +31,8 @@ private is itself the win; flipping public can wait.*
 4. **Confirm the license posture.** `LICENSE` (MIT + the weights scope
    note) is the **recommendation, not a settled decision** — builder
    confirms MIT is what he wants his name on before the repo goes public.
+   **CONFIRMED by the builder 2026-08-19: MIT.** (Weights stay out of the
+   repo per `docs/license_notice_weights.md`; nothing further to do.)
    Weights decision (a/b/c) is in `docs/license_notice_weights.md`; with
    weights gitignored (verified below), option (a) is a no-op today.
 5. **(BUILDER) Flip public — ONLY after re-reading the claims-scrub
