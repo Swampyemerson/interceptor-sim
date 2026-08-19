@@ -62,14 +62,40 @@ def _import_m4():
         return m4_intercept
     except ImportError:
         pass
-    for name in ("gz", "gz.transport13", "gz.msgs10", "gz.msgs10.image_pb2",
-                 "gz.msgs10.pose_v_pb2", "gz.msgs10.clock_pb2",
-                 "gz.msgs10.double_pb2", "mavsdk", "mavsdk.action",
-                 "mavsdk.offboard", "mavsdk.telemetry", "cv2", "numpy"):
-        if name not in sys.modules:
-            mod = types.ModuleType(name)
+    # REWRITTEN 2026-08-19: the original hand-listed sys.modules stubs had
+    # never once executed in a gz-less environment (the CI fallback deselects
+    # this file, and with real gz installed the first import above succeeds),
+    # and they were broken three ways when finally run: package parents
+    # lacked __path__ (the import machinery iterates parent.__path__ and the
+    # catch-all __getattr__ handed it a CLASS -> "TypeError: 'type' object is
+    # not iterable" at collection), the list was missing submodules the chain
+    # actually imports (gz.msgs10.camera_info_pb2 via m2_detect), and the
+    # "not in sys.modules" test shadowed REAL installed-but-not-yet-imported
+    # numpy/cv2 with fakes (breaking pupil_apriltags' numpy.typing import).
+    # A meta-path finder serves any gz.*/mavsdk.* on demand instead; it is
+    # APPENDED, so real bindings always win when present.
+    import importlib.abc
+    import importlib.util
+
+    class _StubLoader(importlib.abc.Loader):
+        def create_module(self, spec):
+            mod = types.ModuleType(spec.name)
+            mod.__path__ = []
             mod.__getattr__ = lambda _n: type("_S", (), {})  # noqa: E731
-            sys.modules[name] = mod
+            return mod
+
+        def exec_module(self, mod):
+            pass
+
+    class _StubFinder(importlib.abc.MetaPathFinder):
+        def find_spec(self, fullname, path=None, target=None):
+            root = fullname.split(".", 1)[0]
+            if root in ("gz", "mavsdk"):
+                return importlib.util.spec_from_loader(
+                    fullname, _StubLoader(), is_package=True)
+            return None
+
+    sys.meta_path.append(_StubFinder())
     import m4_intercept  # noqa: F811
     return m4_intercept
 
@@ -331,6 +357,20 @@ def test_gate_arms_exist_and_the_legacy_table_reproduces():
     for arm in rescore_cpa.GATE_ARMS:
         if not os.path.exists(os.path.join(REPO_ROOT, arm)):
             pytest.fail(f"gate arm missing: {arm} (the gate cannot be vacuous)")
+    # The gate follows each arm row's flight_csv_path to the per-tick flight
+    # CSVs -- gitignored, machine-local bulk logs (the 168-flight archive).
+    # Where that archive is absent (CI, any fresh clone) the gate CANNOT run
+    # and must say so as a skip -- not fail the suite (this one assertion kept
+    # CI red for every run from 2026-08-11 to 2026-08-13) and not pass
+    # vacuously. On the dev machine the archive exists, the skip never fires,
+    # and the gate still runs for real. The skip reason is named in
+    # ALLOWED_SKIPS in scripts/run_tests.sh.
+    with open(os.path.join(REPO_ROOT, rescore_cpa.GATE_ARMS[0])) as fh:
+        first_row = next(csv.DictReader(r for r in fh if not r.startswith("#")))
+    if not os.path.exists(first_row["flight_csv_path"]):
+        pytest.skip("per-tick flight CSV archive not on this machine "
+                    "(gitignored machine-local data; the rescore gate can only "
+                    "run where the 168-flight archive exists)")
     ok, notes, results, pooled = rescore_cpa.gate(
         [m for m in rescore_cpa.MODES if m != "exact"])
     assert ok, f"legacy ad-hoc table did not reproduce: {notes}"

@@ -176,7 +176,7 @@ elif [[ -f "$(dirname "$FRAMES")/calib.json" ]]; then
     CALIB="$(dirname "$FRAMES")/calib.json"
     fld_warn "using $CALIB -- range is INDICATIVE only"
 else
-    CALIB="$REPO_ROOT/camera_intrinsics.json"
+    CALIB="$REPO_ROOT/configs/camera_intrinsics.json"
     fld_warn "falling back to the SIM camera intrinsics ($CALIB) -- range is INDICATIVE only"
 fi
 if ((CALIB_TRUSTED == 0)); then
