@@ -15,7 +15,7 @@
 
   BYTE-IDENTICAL to worlds/markerless.sdf (physics / scene / ground_plane /
   sun / spherical_coordinates kept EXACTLY -- PX4's gz_bridge depends on it,
-  GOALS.md M2) EXCEPT for two deliberate changes:
+  docs/goals.md M2) EXCEPT for two deliberate changes:
 
     1. World name is "stereo_intercept" (not "markerless"). Every gz-
        transport topic for this run keys off it, e.g.
@@ -70,7 +70,7 @@
   pattern), models via GZ_SIM_RESOURCE_PATH:
 
     PX4_GZ_WORLD=stereo_intercept \
-    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models \
     HEADLESS=1 make px4_sitl gz_x500_mono_cam
 
   With INTERCEPTOR_WORLD_NAME=stereo_intercept

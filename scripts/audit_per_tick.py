@@ -2,7 +2,7 @@
 """Standalone per-tick honesty audit -- extracted from scripts/check_s2.sh,
 generalized to sweep EVERY flight in an mc_batch arm CSV.
 
-WHY THIS EXISTS: NEXT.md records the debt "Full per-tick check owed at A/B
+WHY THIS EXISTS: docs/next.md records the debt "Full per-tick check owed at A/B
 close" -- scripts/check_s2.sh's audit_csv() audits exactly the one flight it
 just flew (it boots a fresh sim, flies, then audits), and scripts/mc_batch.sh
 NEVER calls it: batch arms only ever get the S2_RESULT summary line

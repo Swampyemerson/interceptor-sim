@@ -49,10 +49,10 @@ in the repo. Start there and at the honesty boundary (A).
 - **Artifacts:** `scripts/m4_intercept.py` terminal law (strapdown `λ = ψ + β`,
   `a = N·Vc·λ̇`, α-β filters on λ and range), the **empirical** world→NED mapping
   (`north = world_y, east = world_x` — counterintuitive, ADR-0013), the FRD/ENU/NED/
-  camera-OpenCV frame chain (GOALS.md), ADR-0006 transform-chain gotcha.
+  camera-OpenCV frame chain (docs/goals.md), ADR-0006 transform-chain gotcha.
 - **Claim under test:** the frame conversions and signs are correct end-to-end;
   `λ̇` has the right sign so pro-nav drives LOS-rate to zero (not away).
-- **Why load-bearing:** GOALS.md names sign/frame errors as the #1 bug class here;
+- **Why load-bearing:** docs/goals.md names sign/frame errors as the #1 bug class here;
   ADR-0006 already caught one "same number, wrong parent" coincidence. A hidden sign
   error can still *look* like it works at one geometry and fail at mirror geometries.
 - **How it could be wrong / check:** re-derive the world→NED mapping from first

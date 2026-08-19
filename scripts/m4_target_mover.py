@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """M4 target mover: streams the AprilTag along a straight-line path by
-repeatedly calling Gazebo's `/world/apriltag/set_pose` service. See GOALS.md
+repeatedly calling Gazebo's `/world/apriltag/set_pose` service. See docs/goals.md
 milestone M4 (moving-target intercept) and scripts/m4_intercept.py, which
 spawns this script as a SEPARATE OS process during its ENGAGE phase.
 

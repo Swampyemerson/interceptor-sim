@@ -8,7 +8,7 @@
 >
 > Sources: `docs/project_state.json` (`build_plan.P2`, `bom_tiers[0]`, stages
 > `detector`/`pointing`/`handoff`), `docs/real_data_pipeline.md`,
-> `docs/hardware_order_list.md` §0c/§0d, `NEXT.md` ROADMAP R5, ADR-0076 add
+> `docs/hardware_order_list.md` §0c/§0d, `docs/next.md` ROADMAP R5, ADR-0076 add
 > #18h/#18i/#18j-fix/#18k.
 
 ---
@@ -986,7 +986,7 @@ cannot measure this).
 
 ### 8.1 Curve (a) — gates the ~$740 Tier-2 interceptor order
 
-**Rule (NEXT.md R5, the pre-registered kill number):** the decode range must leave
+**Rule (docs/next.md R5, the pre-registered kill number):** the decode range must leave
 **t_go ≥ 0.5 s post-handoff** at the real closing speed. Documented anchor:
 **R_acq ≈ ≥20 m for a 9 m/s closing speed.**
 
@@ -1030,7 +1030,7 @@ t_go = (R_decode90(0°) · cos θ_eng  -  R_streak_burn) / V_closing
   an EMPIRICAL streak-formation range, prefer it.
 - `V_closing` — depends on final engagement geometry, which isn't fixed yet. Score
   against **two scenarios**: conservative (target-only speed, ~9 m/s — matches the
-  NEXT.md anchor) and aggressive (interceptor's own dash speed ~16 m/s combined
+  docs/next.md anchor) and aggressive (interceptor's own dash speed ~16 m/s combined
   with the target, ~20–25 m/s head-on).
 
 **STATE THE GATE IN INCIDENCE-AWARE FORM (added 2026-07-25 —
@@ -1068,7 +1068,7 @@ point of running this session first.
 
 **No hard pre-registered numeric bar exists in the source docs** — `project_state.
 json`/`hardware_order_list.md` deliberately leave this a judgment call ("gates ONLY
-the Hailo HAT + the markerless phase"), unlike curve (a)'s NEXT.md R5 number.
+the Hailo HAT + the markerless phase"), unlike curve (a)'s docs/next.md R5 number.
 Working threshold proposed here (protocol-author judgment, not a sourced number —
 revisit once real data exists): **≥50% recall in the tilt-compensated boresight
 band (roughly ±20° off-axis) across the 10–25 m operational band.**
@@ -1181,6 +1181,6 @@ reconstructed afterwards: without them that pass has no range truth, permanently
       (§4.6).
 - [ ] Pi 5 compute bench numbers recorded (§7.3).
 - [ ] Result written back into `docs/project_state.json` (`build_plan.P2`
-      changelog + the `hardware` / `detector` stage notes) and `NEXT.md` — this
+      changelog + the `hardware` / `detector` stage notes) and `docs/next.md` — this
       session's whole point is to move the money-gate decision, so log it where the
       next session reads it.

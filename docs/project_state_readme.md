@@ -127,8 +127,8 @@ Three top-level arrays were added 2026-07-17 (all validated by `render_dashboard
 1. A contradiction is found (audit pass, Fable review, or mid-work) → add an entry
    with `status: "open"`, both quotes + locators, and the current truth. Re-render.
    The panel shows it as an OPEN flag (loud) until it is fixed.
-2. Fix the stale doc CONSERVATIVELY: living docs (NEXT.md, PROGRESS.md, README,
-   hardware_order_list, real_build/real_data/quad_retrain docs, GOALS.md) get the
+2. Fix the stale doc CONSERVATIVELY: living docs (docs/next.md, docs/progress.md, README,
+   hardware_order_list, real_build/real_data/quad_retrain docs, docs/goals.md) get the
    stale line marked **superseded INLINE** with a short pointer to the current truth
    / `docs/project_state.json` — never delete the historical narrative. Append-only
    ADRs in `docs/decisions.md` are NEVER rewritten — at most append a dated
@@ -141,7 +141,7 @@ Three top-level arrays were added 2026-07-17 (all validated by `render_dashboard
 ## The session-start ritual (a fresh Claude session, or the builder returning)
 
 1. **Read `docs/project_state.json`** (it is small — read all of it). It is the
-   current truth; NEXT.md holds the work queue, the ADRs hold the full stories.
+   current truth; docs/next.md holds the work queue, the ADRs hold the full stories.
 2. **Run `python3 scripts/render_dashboard.py --check`** — confirms the view matches
    the contract (also runs inside `run_tests.sh`).
 3. **Say out loud what is active** (deployed seeker, guidance config, current wall)

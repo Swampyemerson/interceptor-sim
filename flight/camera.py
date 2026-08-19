@@ -14,7 +14,7 @@ the pinhole special case the Gazebo sim uses, so wiring it into the sim seeker i
 byte-identical there. The optical ray it returns feeds
 flight.geometry.derotate_bearing_lambda unchanged (x right, y down, z forward).
 
-Convention (OpenCV, matches GOALS.md camera frame): image (u,v) with +u right,
+Convention (OpenCV, matches docs/goals.md camera frame): image (u,v) with +u right,
 +v down; normalized coords xn=(u-cx)/fx, yn=(v-cy)/fy; optical ray (xn, yn, 1).
 Brown-Conrady: xd = xn*(1+k1 r^2+k2 r^4+k3 r^6) + 2 p1 xn yn + p2 (r^2+2 xn^2),
 r^2 = xn^2+yn^2 (the standard OpenCV distortion model).
@@ -99,7 +99,7 @@ class CameraModel:
         """Build from a calibration dict. Accepts BOTH the clean
         {fx,fy,cx,cy, dist:[k1,k2,p1,p2,k3]} form AND scripts/calibrate_camera.py's
         output {fx,fy,cx,cy, dist_coeffs:[...], resolution:{...}} (the format that
-        matches camera_intrinsics.json) -> the calibration tool's JSON loads
+        matches configs/camera_intrinsics.json) -> the calibration tool's JSON loads
         directly. Only the first 5 distortion terms (Brown-Conrady k1,k2,p1,p2,k3)
         are used; a higher-order (rational) calibration is truncated to those.
 

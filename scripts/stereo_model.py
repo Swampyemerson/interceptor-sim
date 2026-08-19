@@ -3,7 +3,7 @@ r"""Ground stereo-rig design model (ADR-0015 P-2): turn "~2 m baseline" into a
 physics-derived design point with calibrated constants the sim can consume.
 
 This is a PURE-MODEL script (no Gazebo, no PX4, no hardware). It answers the
-P-2 question from NEXT.md: "camera baseline vs usable range vs 3D triangulation
+P-2 question from docs/next.md: "camera baseline vs usable range vs 3D triangulation
 accuracy vs cost -- the optimal distance to cover good range while remaining
 accurate and affordable. Where's the cost/accuracy knee?" It exports the
 range-error constants (a, c) for scripts/s2_cue_mock.py's sigma_R = a + c*R**2

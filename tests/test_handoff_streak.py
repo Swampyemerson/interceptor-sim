@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """DEEP-H2 -- interview-proof unit tests for the coded-dash -> camera-terminal
-HANDOFF state machine (the last honesty-hardening remainder, NEXT.md THE PLAN #5).
+HANDOFF state machine (the last honesty-hardening remainder, docs/next.md THE PLAN #5).
 
 WHAT THE HANDOFF IS. In the real-build architecture the interceptor flies an
 OPEN-LOOP coded dash (fixed heading + speed, no cue, no datalink) and hands the

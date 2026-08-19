@@ -56,7 +56,7 @@ old-σ_R-vs-new-σ_R A/B for free.
 
 ## 3. Arm table (RECOMMENDED = MIDDLE, 96 boots)
 
-Prefix each with the `S2_CUE_MOCK_EXTRA=…` env; cwd `/home/emerson/interceptor-sim`.
+Prefix each with the `S2_CUE_MOCK_EXTRA=…` env; cwd `~/interceptor-sim`.
 
 | # | Arm | Command (key flags) | Boots | Question |
 |---|---|---|---|---|

@@ -43,7 +43,7 @@ detection POLLUTION, not box geometry.*
 4. **Range (secondary):** post-calibration true-positive meas/gt median in
    [0.7, 1.3] (v1 flight: 0.06).
 5. **Honesty:** `cue_reads_post_handoff=0` on all 8; `test_honesty_static.py`
-   7/7; PLUS the full per-tick no-cheat audit NEXT.md owes at A/B close.
+   7/7; PLUS the full per-tick no-cheat audit docs/next.md owes at A/B close.
 6. **NULL outcome (pre-declared):** if clean-rate stays ≤ 6/8 with the
    pollution signature gone, the residual aborts are NOT false-positive-driven
    → log honestly, next lever becomes detection-persistence (imgsz / fusion

@@ -47,7 +47,7 @@ event (`CueScheduler.floor_violation_log` / the emitted audit CSV's
 than cosmetic: a batch/gate can later assert delivered latency never reads
 BELOW the floor (ADR-0048 SS3's own pre-registered T19 gate condition).
 
-t_sim PROVENANCE (ADR-0048 SS3 (1), also GOALS.md's sim-time-not-wall-time
+t_sim PROVENANCE (ADR-0048 SS3 (1), also docs/goals.md's sim-time-not-wall-time
 standing rule, ADR-0009) -- UPDATED by ADR-0052's epoch rebase: every
 emitted payload's `"t_sim"` is `t0 + index.csv`'s baked `t_sim_nominal`
 column, where `t0` is the LIVE `/clock` sim time sampled once, at the
@@ -110,7 +110,7 @@ need either dependency. `--replay-clock` (below) makes the LIVE-clock path
 itself skippable too, for a no-gz smoke demonstration.
 
 =======================================================================
-HONESTY (ADR-0048 SS4's scope + GOALS.md's honesty boundary)
+HONESTY (ADR-0048 SS4's scope + docs/goals.md's honesty boundary)
 =======================================================================
 This module holds exactly ONE gz subscription in its LIVE path: `/clock`.
 It NEVER subscribes to a pose/gt topic of any kind -- unlike

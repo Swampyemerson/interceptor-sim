@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """M3 gate script: close on the static AprilTag using ONLY the live camera
-detection as target feedback, and hold a 2.0 m standoff. See GOALS.md
+detection as target feedback, and hold a 2.0 m standoff. See docs/goals.md
 milestone M3, scripts/m2_detect.py (detection + ground-truth transform
 chain, ADR-0006) and scripts/m0_takeoff.py (MAVSDK connect/telemetry
 patterns) -- this script reuses both by import rather than copying them.
@@ -16,7 +16,7 @@ This is intentionally the simplest guidance law that closes a range and
 centers a bearing -- a "pursuit" controller, not proportional navigation
 (pro-nav, which reacts to the *rate of rotation* of the line of sight
 rather than the offset itself, comes in M4 against a moving target; see
-GOALS.md's guidance arc). Altitude is held near ALT_REF_M with its own
+docs/goals.md's guidance arc). Altitude is held near ALT_REF_M with its own
 small P-loop so the tag stays inside the camera's vertical field of view
 through the whole approach.
 
@@ -24,13 +24,13 @@ WHY BODY-FRAME VELOCITY SETPOINTS: the tag measurement (range, bearing)
 from pupil-apriltags comes out in the camera's own OPTICAL frame -- it is a
 statement about where the tag is *relative to the vehicle*, not about any
 world/NED heading. Commanding MAVSDK's VelocityBodyYawspeed (forward,
-right, down, yawspeed -- FRD body convention, GOALS.md coordinate frames)
+right, down, yawspeed -- FRD body convention, docs/goals.md coordinate frames)
 lets the controller act directly on that body-relative measurement with no
 compass/heading math in between. (Contrast with VelocityNedYaw, which
 would require converting the body-relative bearing into a world heading
 first -- an extra, unnecessary place for a sign error.)
 
-THE FEEDBACK SPLIT (the core idea this milestone proves, GOALS.md's
+THE FEEDBACK SPLIT (the core idea this milestone proves, docs/goals.md's
 "parent -> simulation translation" table): the vehicle's OWN state (its
 altitude, its armed/flight-mode status) still comes from PX4's own
 state estimate (EKF, fed by simulated IMU/GPS -- MAVSDK telemetry). Only
@@ -58,7 +58,7 @@ SETTLE_DURATION_S. It then holds station (same control law, same camera
 feedback) for HOLD_MEASURE_S more, during which ground-truth camera-to-tag
 range is sampled every tick. final_gt_range is the mean of those samples;
 final_err = |final_gt_range - STANDOFF_M|. The gate PASSES iff the
-controller settled and final_err < FINAL_ERR_THRESHOLD_M (0.5 m, GOALS.md).
+controller settled and final_err < FINAL_ERR_THRESHOLD_M (0.5 m, docs/goals.md).
 Using ground truth only for this final number -- never for control -- is
 what makes "final standoff error" an honest, camera-closed-loop result
 rather than a claim about a controller that secretly had perfect
@@ -128,15 +128,15 @@ from m0_takeoff import (  # noqa: E402
     SYSTEM_ADDRESS,
 )
 
-# --- Guidance targets / gains (GOALS.md M3). See the module docstring for
+# --- Guidance targets / gains (docs/goals.md M3). See the module docstring for
 # the control law itself; these are the only numbers it needs. ---
 STANDOFF_M = 2.0  # desired 3D camera-to-tag distance
-FINAL_ERR_THRESHOLD_M = 0.5  # GOALS.md M3 gate
+FINAL_ERR_THRESHOLD_M = 0.5  # docs/goals.md M3 gate
 # Takeoff/hold relative altitude. Puts the camera ~1.25 m up (base_link
 # ~1.0 m + the ~0.24 m camera mount offset, see ADR-0006), tag center at
 # 0.5 m -- so at the STANDOFF_M range the tag sits ~20-25 deg below
 # boresight, comfortably inside the mono_cam's ~41.6 deg vertical
-# half-FOV (see camera_intrinsics.json / NEXT.md).
+# half-FOV (see configs/camera_intrinsics.json / docs/next.md).
 ALT_REF_M = 1.0
 KP_RANGE = 0.5  # 1/s
 V_FWD_MAX = 1.0  # m/s

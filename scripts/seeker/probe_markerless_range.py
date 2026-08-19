@@ -70,7 +70,7 @@ from two_stage_seeker import TwoStageSeeker  # noqa: E402
 from gz.transport13 import Node  # noqa: E402
 from gz.msgs10.image_pb2 import Image  # noqa: E402
 
-# gz_x500_mono_cam intrinsics (camera_intrinsics.json / NEXT.md Key facts).
+# gz_x500_mono_cam intrinsics (configs/camera_intrinsics.json / docs/next.md Key facts).
 FX = FY = 539.936
 CX, CY = 640.0, 480.0
 

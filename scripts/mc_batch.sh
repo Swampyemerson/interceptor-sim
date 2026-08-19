@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/dev/null || source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../sim_gpu_render.sh" 2>/dev/null || true  # GPU render (ADR-0075)
-# Monte-Carlo BATCH runner (GOALS.md M5: "Monte-Carlo batch over target
+# Monte-Carlo BATCH runner (docs/goals.md M5: "Monte-Carlo batch over target
 # speeds/paths"). Flies N engagements per (law, speed) config through the
 # SAME validated pipeline scripts/check_s2.sh gates (m4_intercept.py --fpv
 # --handoff on the apriltag world), each with a DIFFERENT random draw, and
@@ -12,7 +12,7 @@ source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/de
 #   (1) --cue-seed forwarded to scripts/s2_cue_mock.py -- so the DEGRADED
 #       cue's Gaussian sensor noise differs flight to flight (m4_intercept.py
 #       already exposes --cue-seed, default 0, passed straight through to the
-#       cue mock's own --seed; nothing was hardcoded here, see NEXT.md/this
+#       cue mock's own --seed; nothing was hardcoded here, see docs/next.md/this
 #       task's brief -- verified by reading m4_intercept.py before writing
 #       this script).
 #   (2) A small crossing-geometry jitter on the target's start Y (+/-
@@ -39,7 +39,7 @@ source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/sim_gpu_render.sh" 2>/de
 # sequence) -- see that script's own header comments for the "why" behind
 # each step (ADR-0004 boot-complete string, ADR-0005 world symlink,
 # ADR-0009 ready-settle). The one hard rule this project has learned about
-# batch flights (NEXT.md): boot a COMPLETELY FRESH sim per flight -- the
+# batch flights (docs/next.md): boot a COMPLETELY FRESH sim per flight -- the
 # drone lands displaced, so state does NOT reset between flights inside one
 # sim instance.
 #

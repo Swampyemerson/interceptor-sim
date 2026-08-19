@@ -3,7 +3,7 @@
 flight logs. Read-only over logs/; writes per-flight + aggregate results to
 stdout and a machine-readable summary CSV in the job tmp dir.
 
-Frames / conventions (from scripts/m4_intercept.py + GOALS.md):
+Frames / conventions (from scripts/m4_intercept.py + docs/goals.md):
   gt_* columns are Gazebo WORLD ENU: x=East, y=North, z=Up.
   psi_deg is PX4 NED yaw: 0=North, positive clockwise (toward East).
   NED LOS azimuth lambda_true = atan2(dE, dN) = atan2(dx_world, dy_world).

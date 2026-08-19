@@ -98,7 +98,7 @@ if [[ -n "$M4_EXTRA" ]]; then
     EXTRA_ARGS_STR="$EXTRA_ARGS_STR $M4_EXTRA"
 fi
 
-# ---- the markerless flight env (NEXT.md key-facts block + r2 stdout log) ---
+# ---- the markerless flight env (docs/next.md key-facts block + r2 stdout log) ---
 export MC_WORLD="markerless"
 export MC_TARGET_MODEL="fpv_target_markerless"
 export MC_SEEKER="markerless"

@@ -2,7 +2,7 @@
 
 *Ratified by the builder 2026-07-08 (evening), immediately after the post-M5
 software arc closed (ADR-0038..0044). This is the master plan for Phase 2. A
-fresh session should read this + NEXT.md + the anti-jam Q&A context below, then
+fresh session should read this + docs/next.md + the anti-jam Q&A context below, then
 DRIVE it autonomously — execute the phases in dependency order, convene a
 council on the one-way-door forks, and proactively run the analytical
 deep-dives (do not wait to be asked the questions; ask them yourself and

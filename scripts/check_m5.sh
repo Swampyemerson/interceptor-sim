@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # check_m5.sh -- scripted M5 milestone gate (ADR-0036).
 #
-# M5 is a DELIVERABLES milestone (Monte-Carlo + plots + README + GIF, GOALS.md),
+# M5 is a DELIVERABLES milestone (Monte-Carlo + plots + README + GIF, docs/goals.md),
 # but the headline numbers must still be reproducible from the logs, not eyeballed.
 # This gate recomputes the ADR-0036 headline from the merged final-batch CSV and
 # asserts it, and confirms the committed plots + the analysis tool are present.

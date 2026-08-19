@@ -147,7 +147,7 @@ path; launch/wait/parse/GPU-health/cooldown loop per
 `.claude/skills/mc-batch/SKILL.md`, unchanged):
 
 ```bash
-cd /home/emerson/interceptor-sim
+cd ~/interceptor-sim
 export S2_CUE_MOCK_EXTRA="--sigma-range --datum-bias-m 0.5 --latency-jitter-s 0.05 --dropout-markov --emit-velocity --vel-sigma 0.5"
 
 # Arm A -- markerless, as-adopted handoff config
@@ -271,7 +271,7 @@ pointed to by `flight_csv_path` for the honesty audit:
 guidance path RE-EARNS the numeric no-cheat audit at the live Gazebo A/B"):**
 1. **Static check:** grep `scripts/seeker/*.py` for `gt_` reads — expect
    zero hits (the seeker reads only camera pixels + fixed
-   `camera_intrinsics.json`, per its own honesty-boundary docstring).
+   `configs/camera_intrinsics.json`, per its own honesty-boundary docstring).
 2. **Per-tick numeric check** (mirrors the ADR-0009/0010 verifier pattern):
    recompute what a ground-truth-derived command would have been at a sample
    of ticks and confirm the *actually sent* command tracks the seeker's

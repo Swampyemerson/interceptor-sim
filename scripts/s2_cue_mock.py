@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """S2 external-cue mock: streams a DEGRADED, ground-sensor-style position
 report of the AprilTag target over UDP, standing in for the parent
-project's ground stereo rig (GOALS.md IS-NOT list: "no ground stereo rig
+project's ground stereo rig (docs/goals.md IS-NOT list: "no ground stereo rig
 ... mocked away here"). See docs/decisions.md ADR-0010 decision #4 (exactly
 3 degradation knobs: Gaussian noise, fixed latency, coarse update rate) and
 ADR-0010 decision #5 (hard handoff -- this process is the "external cue"

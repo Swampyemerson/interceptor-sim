@@ -164,7 +164,7 @@ uncertain, not yet shown to flatter.*
 
 Prioritized against what hardware actually exists today: **Stage-0 is a
 single Pi 5 + camera bench** (`docs/stage0_bench_plan.md`, fully designed,
-**parts not yet ordered** — NEXT.md open item). The ground stereo rig, a real
+**parts not yet ordered** — docs/next.md open item). The ground stereo rig, a real
 radio, a real airframe, and RF/red-team test ranges are all later stages. This
 list is ordered so the cheapest, already-planned, highest-leverage
 measurements come first.

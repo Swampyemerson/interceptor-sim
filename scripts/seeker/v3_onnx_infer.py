@@ -31,7 +31,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import cv2
 
-# Fixed intrinsics -- camera_intrinsics.json / mono_cam SDF (1280x960).
+# Fixed intrinsics -- configs/camera_intrinsics.json / mono_cam SDF (1280x960).
 FX = FY = 539.936
 CX, CY = 640.0, 480.0
 IMG_W, IMG_H = 1280, 960

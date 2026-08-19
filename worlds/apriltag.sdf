@@ -3,7 +3,7 @@
   M2 world: copy of ~/PX4-Autopilot/Tools/simulation/gz/worlds/default.sdf
   (physics / scene / ground_plane / sun / spherical_coordinates kept
   EXACTLY -- PX4's gz_bridge depends on the world being compatible with
-  what it expects; see GOALS.md milestone M2) plus one <include> of the
+  what it expects; see docs/goals.md milestone M2) plus one <include> of the
   models/apriltag_target board.
 
   World name is "apriltag" (see <world name=...> below) -- this feeds every
@@ -19,11 +19,11 @@
   a symlink at
   ~/PX4-Autopilot/Tools/simulation/gz/worlds/apriltag.sdf -> this file
   makes it resolvable without duplicating content. Models resolve
-  separately via GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models
+  separately via GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models
   (that env var IS additive/inherited, unlike PX4_GZ_WORLDS).
 
     PX4_GZ_WORLD=apriltag \
-    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models \
     HEADLESS=1 make px4_sitl gz_x500_mono_cam
 -->
 <sdf version="1.9">

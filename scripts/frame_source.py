@@ -17,9 +17,9 @@ that minimal interface (`FrameSource`) and two implementations:
 The deployable on-drone entry point (fly_intercept.py) constructs an
 `OpenCVFrameSource`; the sim gates construct a `GzFrameSource`. The guidance
 code is identical either way -- that identity is the whole point of the
-sim-to-hardware port (GOALS.md's parent-project translation table).
+sim-to-hardware port (docs/goals.md's parent-project translation table).
 
-Intrinsics JSON format matches camera_intrinsics.json (the sim's recorded
+Intrinsics JSON format matches configs/camera_intrinsics.json (the sim's recorded
 values): a dict with "fx", "fy", "cx", "cy", and a "resolution":{"width",
 "height"}. calibrate_camera.py writes this format for a REAL camera; the sim
 value 539.9 is only valid for the sim camera and MUST be replaced by a real

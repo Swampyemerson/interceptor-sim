@@ -244,17 +244,17 @@ Numbers that flip when #8 lands, and every surface that carries them:
 
 | currently published | becomes | where it appears |
 |---|---|---|
-| "Nothing yet lands inside the 0.35 m ram radius (0/16)" | AE5dash: **12/16** inside 0.35 m at logged ticks, **16/16** interpolated, median 0.293/0.237 m — as a perfect-cue UPPER BOUND | `NEXT.md` §"Where the project is" (also stale vs ERROR 1's 3/16 **today**) |
+| "Nothing yet lands inside the 0.35 m ram radius (0/16)" | AE5dash: **12/16** inside 0.35 m at logged ticks, **16/16** interpolated, median 0.293/0.237 m — as a perfect-cue UPPER BOUND | `docs/next.md` §"Where the project is" (also stale vs ERROR 1's 3/16 **today**) |
 | kill-stage caption "So far 0 of 16 sim flights get that close" | same correction | `docs/project_state.json` stage `kill` caption + note |
 | AE5dash "median 0.445 m, 3/16" | 0.293 / 12/16 (logged), 0.237 / 16/16 (interp) | `docs/flight_plan_candidates.md` (correction already drafted there — mark SHIPPED), ADR-0083 quotes |
 | dash floors "0.71 m / 0.43 m" (ADR-0080/0083) | re-scored values from `rescore_cpa.py` | `project_state.json` stage `coded_dash` note, `docs/real_build_coded_dash.md` |
 | "the terminal must earn ~1 m" | re-derived gap at the centre datum (near zero for the adopted config **under a perfect cue**) — this changes the airframe-size discussion the kill note already flags | `docs/hardware_order_list.md` §0b/§0c, stage `kill` note |
 | "the miss is vertical, −0.37 m" | ~−0.16 m real vertical after removing the 0.208 m lens lever (direction stands, magnitude halves) | anywhere the vertical-offset finding propagated (check the wind/error-correction workflow — §6 risk 6) |
-| camera-vs-dash margins & "camera makes it worse" attributions | re-stated from the fleet; until then, margins remain "not quantitative" (already softened) | `project_state.json` stage `terminal`, `README.md` results rows, `NEXT.md` |
+| camera-vs-dash margins & "camera makes it worse" attributions | re-stated from the fleet; until then, margins remain "not quantitative" (already softened) | `project_state.json` stage `terminal`, `README.md` results rows, `docs/next.md` |
 | M5-era "median 0.93 m, n=96" | keep, footnoted "lens-referenced, logged-tick, billboard era" (or re-scored with era caveat) | `project_state.json` `key_numbers` |
 
 Mechanics per the CLAUDE.md ritual: edit `project_state.json` → `render_dashboard.py` →
-**republish the Artifact to the same URL** → commit; sweep `NEXT.md`, `README.md`, dashboard
+**republish the Artifact to the same URL** → commit; sweep `docs/next.md`, `README.md`, dashboard
 §0 headline/hero the SAME turn. Ledger: add-and-resolve `scorer-measured-camera-lens`.
 Assumptions register: scoring reference moves to `measured`. Graveyard: dead-band entry
 stays. New ADRs: one for #8+#9 (instrument fix + re-score), one for #3 (adoption or NULL).
@@ -349,6 +349,6 @@ camera logs (fire-range distributions, legit vs premature) before that rung's ve
    handoff at ≥ 6/8 vs twin; adoption at ≥ 13/16) were chosen before these fixes; they stay
    as-is for the fleet. Re-scoring may flip individual old verdicts — each flip goes through
    the §4 sweep, and no bar is re-chosen after seeing new numbers.
-8. **Scope note:** `NEXT.md` currently lists #3 as work-item 1. This plan supersedes that
-   ordering (#8 → #9 → #3 → fleet); update `NEXT.md` when the plan is adopted so the two
+8. **Scope note:** `docs/next.md` currently lists #3 as work-item 1. This plan supersedes that
+   ordering (#8 → #9 → #3 → fleet); update `docs/next.md` when the plan is adopted so the two
    surfaces don't contradict.

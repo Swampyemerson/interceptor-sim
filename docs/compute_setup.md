@@ -3,7 +3,7 @@
 *Companion to ADR-0015 (perception architecture) and ADR-0012 (hardware stack).
 This file makes the compute concrete: who computes what, at what rate, over what
 link, and — the load-bearing part — a **sourced, three-tier end-to-end latency
-budget** you can later replace 1:1 with bench measurements. Covers NEXT.md items
+budget** you can later replace 1:1 with bench measurements. Covers docs/next.md items
 **P-3** (compute split), **P-5** (onboard ML chip), **P-7** (latency budget).*
 
 > **⛔ SUPERSEDED for the ONBOARD interceptor by the 2026-07-15 coded-dash pivot
@@ -293,7 +293,7 @@ Four ways to divide the work. Latency, cost, jam-exposure, weight for each:
 **Why hybrid wins in one line:** it puts the power-hungry, heavy compute where power and
 weight are free (the ground), keeps the drone light and cheap (+$70-110 of Hailo), and
 **isolates the one phase that must survive jamming (the terminal) onto the one machine
-that can't be jammed off it (the drone itself).** Everything ADR-0015 and GOALS.md
+that can't be jammed off it (the drone itself).** Everything ADR-0015 and docs/goals.md
 argue for.
 
 ---

@@ -3,7 +3,7 @@
 # stage2_tilt_recovery_arm.sh -- #40 Stage-2: the TILTED+COMPENSATED comms-jam
 # RECOVERY re-test (docs/adr0067_refly_preregistration.md, ADR-0068 addendum).
 #
-# THE QUESTION (GOALS.md headline). ADR-0059's comms-denied recovery was a NULL:
+# THE QUESTION (docs/goals.md headline). ADR-0059's comms-denied recovery was a NULL:
 # under a pre-acquisition cue jam the coast-search reached the basket but the
 # CAMERA never reacquired on 10/16 coast flights (15-21 m) -- perception
 # AVAILABILITY, not guidance, was the binding limit, because the down-pitched

@@ -86,7 +86,7 @@ def check_flight_core(repo_root: str) -> dict:
     from flight.guidance import pronav_lateral_accel
     from flight.estimator import kalata_alpha_beta
 
-    intr_path = os.path.join(repo_root, "camera_intrinsics.json")
+    intr_path = os.path.join(repo_root, "configs/camera_intrinsics.json")
     cam = CameraModel.from_json(intr_path)
     bearing_rad = cam.pixel_to_bearing(700.0, 480.0)
 
@@ -166,7 +166,7 @@ def check_frame_source_dry_run(repo_root: str, image_path: str) -> dict:
     sys.path.insert(0, os.path.join(repo_root, "scripts"))
     import frame_source  # noqa: E402
 
-    intr_path = os.path.join(repo_root, "camera_intrinsics.json")
+    intr_path = os.path.join(repo_root, "configs/camera_intrinsics.json")
     if not os.path.exists(image_path):
         return {"ok": False, "problems": [f"test image not found: {image_path}"]}
 

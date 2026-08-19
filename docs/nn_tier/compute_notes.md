@@ -5,13 +5,13 @@ NN-tier fine-tunes. The working CPU venv is untouched and remains the fallback.
 
 ## The environment to use
 
-- **Train (GPU): `/home/emerson/interceptor-sim/.venv-seeker-train-gpu/bin/python`**
+- **Train (GPU): `~/interceptor-sim/.venv-seeker-train-gpu/bin/python`**
   - torch **2.12.1+cu126** + torchvision 0.27.1+cu126 (exact version match to the CPU
     venv's 2.12.1, so behavior parity), ultralytics **8.4.90** (same pin as CPU venv).
   - Verified: `torch.cuda.is_available()=True`, matmul runs on
     `NVIDIA GeForce RTX 4070 Laptop GPU`, CUDA runtime 12.6 under driver 573.09
     (driver CUDA 12.8 → backward-compatible).
-- Train (CPU fallback): `/home/emerson/interceptor-sim/.venv-seeker-train/bin/python`
+- Train (CPU fallback): `~/interceptor-sim/.venv-seeker-train/bin/python`
   (torch 2.12.1+cpu — unchanged).
 - Inference/eval stays in `.venv-seeker` (onnxruntime, cv2) as before.
 - Download cost: **~3.6 GB** of wheels (torch cu126 wheel alone 843.5 MB + NVIDIA

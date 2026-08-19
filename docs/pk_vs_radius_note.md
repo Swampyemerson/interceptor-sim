@@ -106,7 +106,7 @@ supported in this regime; a 2.5 m proximity criterion is.
 ## Recompute it
 
 ```bash
-/home/emerson/interceptor-sim/.venv/bin/python - <<'EOF'
+~/interceptor-sim/.venv/bin/python - <<'EOF'
 import csv, collections, statistics
 rows = list(csv.DictReader(open('logs/mc_final_all.csv')))
 radii = [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]

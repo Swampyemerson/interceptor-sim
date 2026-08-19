@@ -13,7 +13,7 @@ The sim's interceptor currently flies at a **dash speed capped at 16 m/s**
 the real parent-project airframe is a **2.5"–7" FPV-class** ("first-person
 view" — a small, agile racing/freestyle-style quad) interceptor carrying a
 **seeker payload** (a Raspberry Pi 5 + global-shutter camera, ~150–250 g,
-`NEXT.md` "Hardware Stage 0"). This doc designs — but does not build or fly —
+`docs/next.md` "Hardware Stage 0"). This doc designs — but does not build or fly —
 a `--fpv-fast` fidelity profile: a bundle of PX4 flight-controller parameters
 **and** guidance command ceilings that would make the sim's flight envelope
 honestly match a real FPV build's speed/acceleration, instead of an arbitrary
@@ -219,7 +219,7 @@ camera pod" numbers. So this section is an honest **engineering synthesis**
 from adjacent real data (stripped racing quads with no comparable payload,
 cinelifters carrying a much *heavier* 0.5–1.5 kg payload, and one real
 integrated-camera airframe), not a single citable measurement — exactly the
-gap NEXT.md's "Hardware Stage 0" bench work exists to eventually close with a
+gap docs/next.md's "Hardware Stage 0" bench work exists to eventually close with a
 real number.
 
 | Class | Config | Top/dash speed | Sustained accel | Source |
@@ -414,7 +414,7 @@ A future Gazebo A/B for this profile should, when it's actually flown:
 - **None of §5's real-world sources measure the actual target build** — a
   5–7" quad carrying exactly a 150–250 g Pi5+global-shutter-camera pod
   doesn't exist yet. The tiers are an honest synthesis, not a citation of a
-  single number; Stage-0 bench hardware (`NEXT.md`) is what eventually
+  single number; Stage-0 bench hardware (`docs/next.md`) is what eventually
   replaces this with a real measurement, the same relationship
   `docs/stereo_design.md`'s bench-test section has to its own lab numbers.
 - **The §3 physical-ceiling derivation is back-of-envelope**, steady-state
@@ -434,7 +434,7 @@ A future Gazebo A/B for this profile should, when it's actually flown:
   `apply_fpv_profile()` (355–368), `--accel-boost`/`--dash-unclamp` patch
   pattern (453–478, 2614–2639), MAVSDK param push+read-back loop
   (2849–2862).
-- `NEXT.md` — "Hardware Stage 0" seeker payload parts (Pi 5 8GB + global-
+- `docs/next.md` — "Hardware Stage 0" seeker payload parts (Pi 5 8GB + global-
   shutter camera).
 
 **PX4 source (authoritative, this machine's `~/PX4-Autopilot`, tag

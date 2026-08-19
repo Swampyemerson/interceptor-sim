@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Calibrate a REAL camera's pinhole intrinsics from chessboard views, and
-write them in the same JSON format as camera_intrinsics.json.
+write them in the same JSON format as configs/camera_intrinsics.json.
 
 WHY THIS EXISTS (the #1 sim-to-hardware gotcha): the whole perception->range
 chain depends on fx/fy/cx/cy. The sim recorded fx=fy=539.9 for its 1280x960
@@ -20,7 +20,7 @@ Two modes:
 Chessboard: give the INNER-corner count (e.g. a 10x7-square board has 9x6
 inner corners: --cols 9 --rows 6) and the square size in metres (--square).
 
-Output JSON (matches camera_intrinsics.json so frame_source.Intrinsics.from_json
+Output JSON (matches configs/camera_intrinsics.json so frame_source.Intrinsics.from_json
 reads it directly):
   { "resolution": {"width", "height"}, "fx","fy","cx","cy",
     "dist_coeffs": [...], "rms_reproj_error_px": ..., "n_views": ...,
@@ -135,7 +135,7 @@ def _write_json(path, K, dist, image_size, n_views, rms):
     out = {
         # POSITIVE provenance stamp (2026-07-26): consumers on a live camera must
         # be able to tell a MEASURED checkerboard calibration from the Gazebo
-        # camera_info dump (camera_intrinsics.json), which carries the same keys
+        # camera_info dump (configs/camera_intrinsics.json), which carries the same keys
         # and the same 1280x960 shape. Testing for the ABSENCE of a sim marker is
         # fragile; testing for the presence of this one is not.
         "source": "checkerboard",

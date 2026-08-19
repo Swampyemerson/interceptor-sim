@@ -21,20 +21,20 @@
 
 Scripts invoke Python as `../../.venv/bin/python` (two levels up from
 `experiments/darkhorse`). **In the main checkout that resolves to the real
-`/home/emerson/interceptor-sim/.venv` — nothing to set up.** Only an isolated
+`~/interceptor-sim/.venv` — nothing to set up.** Only an isolated
 git *worktree* needs a convenience symlink at the worktree root:
-`ln -s /home/emerson/interceptor-sim/.venv <worktree-root>/.venv`.
+`ln -s ~/interceptor-sim/.venv <worktree-root>/.venv`.
 
 - **`--self-test` on all scripts, and the whole of `bank_feasibility.py`**, need
   only **numpy + cv2** → run with the project **`.venv`** (`../../.venv/bin/python`).
 - **`track_before_detect.py --sweep`** additionally needs **onnxruntime + the
   seeker weights** → run with **`.venv-seeker`**
-  (`/home/emerson/interceptor-sim/.venv-seeker/bin/python`). CPU inference over a
+  (`~/interceptor-sim/.venv-seeker/bin/python`). CPU inference over a
   few hundred logged frames; no GPU, no sim. (The `.venv-seeker-train-gpu` GPU
   env is only for training, not needed here.)
 - Data (`scripts/seeker/data/*`, weights) is **gitignored** — it lives only in
   the **main checkout**. Scripts resolve it via `DARKHORSE_REPO`
-  (default `/home/emerson/interceptor-sim`) or `--repo`. Run from the worktree,
+  (default `~/interceptor-sim`) or `--repo`. Run from the worktree,
   data reads from main.
 
 ## Status at a glance
@@ -65,7 +65,7 @@ naive stack ~15×. **PASS.**
 
 **Run it on real logged frames (seeker .venv):**
 ```bash
-/home/emerson/interceptor-sim/.venv-seeker/bin/python track_before_detect.py \
+~/interceptor-sim/.venv-seeker/bin/python track_before_detect.py \
     --sweep --n-integrate 1,4,8,16 --blur-px 0 --noise-dn 22 --limit-per-range 24
 ```
 Re-runs the deployed `drone_finetuned_quad_v2.onnx` heatmap over the set-pose

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """One-off utility: subscribe once to the mono camera's CameraInfo topic and
-save fx, fy, cx, cy to camera_intrinsics.json. See GOALS.md milestone M2.
+save fx, fy, cx, cy to configs/camera_intrinsics.json. See docs/goals.md milestone M2.
 
 What: gz-transport publishes a gz.msgs10.CameraInfo message alongside the
 Image stream, on the sibling topic .../sensor/imager/camera_info. Its `K`
@@ -45,7 +45,7 @@ DECLARED_HFOV_RAD = 1.74
 DECLARED_WIDTH = 1280
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT_PATH = os.path.join(REPO_ROOT, "camera_intrinsics.json")
+OUT_PATH = os.path.join(REPO_ROOT, "configs/camera_intrinsics.json")
 
 
 def main():

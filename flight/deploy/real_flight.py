@@ -2443,7 +2443,7 @@ def main(argv=None) -> int:
 
     trm = ap.add_argument_group("terminal seeker (composed from seeker_loop)")
     trm.add_argument("--intrinsics",
-                     default=os.path.join(_REPO_ROOT, "camera_intrinsics.json"))
+                     default=os.path.join(_REPO_ROOT, "configs/camera_intrinsics.json"))
     trm.add_argument("--n-pronav", type=float, default=5.0)
     trm.add_argument("--mount-fwd-m", type=float, default=0.10)
     trm.add_argument("--mount-left-m", type=float, default=0.0)

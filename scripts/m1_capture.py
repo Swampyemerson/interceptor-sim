@@ -2,14 +2,14 @@
 """M1 gate script: capture real camera frames from gz_x500_mono_cam via gz-transport.
 
 What: subscribes to the mono camera's Gazebo Transport image topic (no ROS —
-see GOALS.md "IS NOT: No ROS 2"), decodes each Image protobuf into a numpy
+see docs/goals.md "IS NOT: No ROS 2"), decodes each Image protobuf into a numpy
 array, and saves the first N frames to disk as PNGs. This is the smallest
 possible proof that the camera-rendering pipeline (Gazebo -> gz-transport ->
 Python/OpenCV) works end to end before we build AprilTag detection on top of
-it. See GOALS.md milestone M1.
+it. See docs/goals.md milestone M1.
 
 Why gz-transport directly: the project deliberately avoids ROS 2 to keep the
-dependency surface small (GOALS.md). `gz.transport13` is Gazebo Harmonic's own
+dependency surface small (docs/goals.md). `gz.transport13` is Gazebo Harmonic's own
 pub/sub Python binding; `gz.msgs10` provides the matching protobuf message
 types (Image, CameraInfo, ...).
 

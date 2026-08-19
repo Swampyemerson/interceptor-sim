@@ -25,8 +25,8 @@ ledger, and a dead-ideas graveyard), rendered to
 [`docs/dashboard.html`](docs/dashboard.html) and hosted at
 <https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc>.
 Where anything in this README and that contract disagree, **the contract
-wins**. Mission and scope history: [`GOALS.md`](GOALS.md); milestone roll-up:
-[`PROGRESS.md`](PROGRESS.md); working front: [`NEXT.md`](NEXT.md).
+wins**. Mission and scope history: [`docs/goals.md`](docs/goals.md); milestone roll-up:
+[`docs/progress.md`](docs/progress.md); working front: [`docs/next.md`](docs/next.md).
 
 **Read "What is proven / what is not" before the results table.** Several
 headline-looking numbers from this project's own history were retracted by
@@ -103,7 +103,7 @@ Hard constraints (full list with evidence in the contract):
 
 | Result | Number | Scope / caveat | Source |
 |---|---|---|---|
-| M0–M2 foundations (boot, camera, AprilTag detection) | detection rate 1.000, mean pose error 0.0861 m @ ~4.9 m | wide (99.7°) lens; sim lighting | gates `check_m0/1/2.sh`, 2026-07-04; `PROGRESS.md` |
+| M0–M2 foundations (boot, camera, AprilTag detection) | detection rate 1.000, mean pose error 0.0861 m @ ~4.9 m | wide (99.7°) lens; sim lighting | gates `check_m0/1/2.sh`, 2026-07-04; `docs/progress.md` |
 | M3 static intercept, hold 2 m standoff | final error **0.018 / 0.035 m** (bar < 0.5 m) | two verifier-confirmed runs | `scripts/check_m3.sh`; ADR-0008; committed `logs/m3_intercept_*.csv` |
 | M4 pro-nav vs pursuit, 2.0 m/s crosser, camera-only | pro-nav **0.402 / 0.277 / 0.443 m** vs pursuit **2.544 / 2.109 / 2.048 m** | official gate-config runs; three earlier dev-phase pro-nav flights that night read 1.04–1.12 m, over the gate, before the final config (disclosed, ADR-0009 addendum) | `scripts/check_m4.sh`; ADR-0009; committed `logs/m4_intercept_*_20260705T03*.csv` |
 | Two-stage handoff (S2), 6 m/s crosser | miss 1.1–2.3 m, handoff latches, honesty audits pass | proves the *architecture* (running start + structural handoff), not sub-meter precision | `scripts/check_s2.sh`; ADR-0010/0013 |
@@ -328,7 +328,7 @@ scripts/mc_batch.sh --n 20 --laws pronav,pip --speeds 6.0,9.0 --directions both 
 ```
 
 One sim at a time, idle machine only — batch numbers are only comparable at
-matched load. `bootstrap.sh` recreates the config files on a fresh VM; a
+matched load. `scripts/env/bootstrap.sh` recreates the config files on a fresh VM; a
 normal clone doesn't need it.
 
 ---
@@ -349,7 +349,7 @@ normal clone doesn't need it.
   `publish_runbook.md`.
 - `logs/` — committed evidence CSVs (see above); everything else gitignored.
 - `tests/` — the offline suite, including the AST-based honesty pins.
-- `PROGRESS.md` / `NEXT.md` / `GOALS.md` — roll-up, working front, mission.
+- `docs/progress.md` / `docs/next.md` / `docs/goals.md` — roll-up, working front, mission.
 
 ## License
 

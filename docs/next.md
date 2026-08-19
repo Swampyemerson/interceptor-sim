@@ -1,8 +1,8 @@
 # NEXT — the live queue
 
-> **Canonical state → [`docs/project_state.json`](docs/project_state.json)** · view: [dashboard](docs/dashboard.html) · hosted: https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc
+> **Canonical state → [`project_state.json`](project_state.json)** · view: [dashboard](dashboard.html)
 > **Task board → https://github.com/users/Swampyemerson/projects/1** (issues in `Swampyemerson/interceptor-sim`)
-> **History → [`docs/next_archive.md`](docs/next_archive.md)** — the full 883-line queue as it stood 2026-07-26, verbatim. Reasoning lives in [`docs/decisions.md`](docs/decisions.md) (the ADRs).
+> **History → [`next_archive.md`](next_archive.md)** — the full 883-line queue as it stood 2026-07-26, verbatim. Reasoning lives in [`decisions.md`](decisions.md) (the ADRs).
 >
 > *Rewritten 2026-07-26: this file had grown to 883 lines of stacked superseded banners — the "too much text" problem in miniature. It is now the SHORT live queue only. **Rule: items live here or on the board, not both; superseded blocks go to the archive the same turn they are superseded, never left in place with a strikethrough.***
 
@@ -14,8 +14,10 @@ gates the ~$740 interceptor airframe order.
 
 **The honest headline:** aiming the launch correctly matters more than the camera does. Sub-metre
 interception is real at 10 mph (8/8 flights, median 0.73 m) but it is **ballistic** — camera off.
-The camera has not beaten a well-aimed blind dash at any speed or aim error tested. **Nothing yet
-lands inside the 0.35 m ram radius that defines a kill (0/16).** And every one of those numbers was
+The camera has not beaten a well-aimed blind dash at any speed or aim error tested. **Nothing
+reliably lands inside the 0.35 m ram radius that defines a kill** (best config 3/16 logged,
+5/16 interpolated under the corrected centre-to-centre scorer — `docs/rescore_2026-08-10.md`,
+which retracted an interim 12/16 claim). And every one of those numbers was
 measured with the launch aim solved from the target's exactly-known path — now declared an explicit
 project constraint, with the cue-error sweep as the deliverable that replaces it.
 

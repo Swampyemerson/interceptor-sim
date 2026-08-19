@@ -1,6 +1,6 @@
 # License notice: repo code vs. detector weights
 
-Written 2026-07-10 as part of publish-prep (NEXT.md). Not legal advice — a
+Written 2026-07-10 as part of publish-prep (docs/next.md). Not legal advice — a
 factual note on a licensing nuance this repo should carry once public.
 
 ## The split

@@ -23,9 +23,9 @@ All internal, traced to logs / ADRs. No external source.
 
 | Regime | Miss (closest approach) | Source |
 |---|---|---|
-| **M4 pro-nav, 2.0 m/s crossing** | 0.28 / 0.40 / 0.44 m (mean ~0.37 m) | PROGRESS.md M4; `logs/m4_intercept_*_20260705T03*.csv` |
-| M4 pursuit, 2.0 m/s | ~2.0–2.5 m | PROGRESS.md M4 |
-| S1 pure-PN, 3 m/s crosser, hover start | 0.94 m | NEXT.md S1; ADR-0011 |
+| **M4 pro-nav, 2.0 m/s crossing** | 0.28 / 0.40 / 0.44 m (mean ~0.37 m) | docs/progress.md M4; `logs/m4_intercept_*_20260705T03*.csv` |
+| M4 pursuit, 2.0 m/s | ~2.0–2.5 m | docs/progress.md M4 |
+| S1 pure-PN, 3 m/s crosser, hover start | 0.94 m | docs/next.md S1; ADR-0011 |
 | **S2 / FPV, 6 m/s crosser (N=20 MC)** | mean **2.19 m**, median 2.30, std 0.61, min **0.95**, max 3.43, p90 2.75, p95 2.91 | ADR-0014 addendum; `logs/mc_batch_20260705T225008Z.csv` |
 | Realistic-cue lab batches (pooled) | mean ~**1.4–1.8 m**, Pk@2 m ~50–75% | ADR-0015; `logs/guidance_lab_adr0015_*.csv` |
 
@@ -243,7 +243,7 @@ The 2 m/s and 6 m/s columns trace to real Gazebo runs (M4 gate, ADR-0014 addendu
    charge, no reframe needed. **Yes — at 2–3 m/s our current system already clears a
    defensible Pk under the cheapest possible mechanism.**
 
-2. **The "sub-meter miss problem" is partly a mechanism-choice artifact.** GOALS.md's
+2. **The "sub-meter miss problem" is partly a mechanism-choice artifact.** docs/goals.md's
    "< 1 m" bar and ADR-0014's R = 0.5–1.0 m headline encode a **hit-to-kill** standard.
    That standard is only *required* by the ram — the one mechanism cheap/light enough
    for a 2.5 in and, not coincidentally, the *least forgiving*. Judged against a net
@@ -313,7 +313,7 @@ The 2 m/s and 6 m/s columns trace to real Gazebo runs (M4 gate, ADR-0014 addendu
 1. **Headline mechanism = kinetic ram, R_lethal = 0.35 m (RATIFIED, ADR-0084 — supersedes this
    section's original "≈ 0.5 m (0.3 m expected)", which was the 7-inch heritage figure; see the
    ⚖️ banner in §2).** $0, 0 g,
-   matches the committed 2.5–7 in airframe and GOALS.md's "< 1 m" bar, and is what
+   matches the committed 2.5–7 in airframe and docs/goals.md's "< 1 m" bar, and is what
    ~70% of real interceptor kills already do. **Report the ram Pk-vs-R curve as the
    honest headline.** Under it, **the 2–3 m/s intercept is already a validated kill
    (Pk ~95–100%)** and the 6 m/s intercept honestly is not (Pk ~5%) — publish both.

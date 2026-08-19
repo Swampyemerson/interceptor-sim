@@ -32,7 +32,7 @@
 - **Decision-level fusion** — each sensor emits its *own* class decision + confidence and a rule
   (Bayesian log-likelihood, or Dempster–Shafer) combines those *decisions*. Distinct from the
   EKF, which fuses *state* (position / velocity). We run BOTH channels on the same track.
-- **Comms-denied terminal** — the project thesis (GOALS.md): a jammer cuts the datalink in the
+- **Comms-denied terminal** — the project thesis (docs/goals.md): a jammer cuts the datalink in the
   last seconds, so the onboard seeker finishes ALONE. The whole safety problem is that **bird
   rejection cannot depend on a link the threat model says is denied.**
 - **Fail-safe** — on *any* doubt the system does the inert thing (break off / do not engage).
@@ -973,7 +973,7 @@ discriminants against reality:
 
 ### Sources
 
-**Repo / ADR:** `GOALS.md`; `docs/decisions.md` ADR-0013/0015/0016/0017/0018/0019(+addendum)/0023/
+**Repo / ADR:** `docs/goals.md`; `docs/decisions.md` ADR-0013/0015/0016/0017/0018/0019(+addendum)/0023/
 0024/0025/0033/0034; `docs/seeker_design_brief.md` (§, R6/R7, line 47); `docs/stage0_bench_plan.md`;
 `docs/ground_modality.md`; `docs/audit_targets.md`; `docs/ekf_design_brief.md`;
 `scripts/m4_intercept.py` (lines 274/275/281/282/300/302, conjunction 1747–1749, `run_acquire_and_engage`

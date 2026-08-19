@@ -3,13 +3,13 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-08-12",
- "updated_by": "Fable head session — MBSE view set generated from the contract",
+ "updated": "2026-08-19",
+ "updated_by": "2026-08-19: pre-publication sweep -- stale 12/16 kill-radius references corrected to the rescore ruling everywhere.",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
   "evidence": [
-   "NEXT.md ROADMAP R1-R7",
+   "docs/next.md ROADMAP R1-R7",
    "docs/hardware_order_list.md §0b/§0c",
    "docs/decisions.md ADR-0025"
   ]
@@ -19,7 +19,7 @@
   "where": "Bench night two. The seeker's frame rate was set by an inherited camera default, not by the hardware. With the cap lifted and a tag on screen, the Pi 5 holds 96.6 frames per second through a 12-minute soak at 58 C with no throttling -- the first compute-bench number the money gate can use.",
   "finding": "The gate's frame rate was assumed to be 30 and never measured. It is 96.6, and the flying camera was capped by a default nobody chose. Now pinned at 60 -- most of the gain, half the CPU, and 20 C of thermal margin outdoors.",
   "next": [
-   "Land the scorer fix (#8) — it changes what every past flight MEANS, and costs no sim time",
+   "Attack the -0.37 m vertical bias -- the corrected scorer shows it is essentially the whole miss",
    "Calibrate the camera (skr-06) — the only bench step still waiting on hands"
   ],
   "evidence": "runs/skr07_tagged/ (soak.json + verdict.txt per arm) - docs/decisions.md ADR-0090 - scripts/seeker/pi_fps_soak.py - commits 5cdefb0, e344c96, f3a9d5e, c6c7bcf"
@@ -27,24 +27,24 @@
  "assumptions": [
   {
    "id": "scorer-measures-the-criterion",
-   "statement": "We assumed the miss we report is the quantity the criterion defines. It is not: the scorer measures the camera lens, 21 cm above the airframe centre, and takes the nearest logged sample.",
+   "statement": "We assumed the miss we report is the quantity the criterion defines. It was not: the in-sim scorer ranges to the camera lens (~2 mm up, 0.120 m forward of centre) at the nearest logged tick.",
    "grade": "unmeasured",
-   "if_wrong": "Every miss number this project has ever published is inflated by ~0.18 m. Confirmed 2026-07-26: the adopted setup reads 3/16 inside the contact radius by the old ruler and 12/16 by the correct one.",
+   "if_wrong": "Published misses were mis-referenced -- but by centimetres sideways, not 0.2 m up: the corrected ruler moves the adopted config 3/16 -> 5/16; the interim 12/16 measured landing-gear height.",
    "stages": [
     "kill"
    ],
    "key_numbers": [
-    "Inside the contact radius (UNRESOLVED)"
+    "Inside the contact radius (corrected ruler)"
    ],
    "test": {
     "how": "Fix the scorer to reference the airframe centre and interpolate the true closest approach; add a producer->consumer contract test whose fixture comes from m4's own CSV writer, plus a mutant test that FAILS if the camera-lens reference returns; then re-score every historical arm, reporting old and new side by side.",
     "cost": "desk, hours",
-    "status": "not_run"
+    "status": "run 2026-08-10 -- offline re-scorer, 15 tests incl. a producer-written fixture and 2 executed mutants"
    },
    "state": "violated",
-   "ruling": "VIOLATED and STILL UNRESOLVED. The scorer measures the camera, not the airframe centre. My 2026-07-26 correction subtracted a constant 0.208 m of HEIGHT and reported 12/16 -- but the camera offset is a 3-D vector (~0.25 m up, 0.12 m forward) that ROTATES with attitude, so at the 35-44 deg dash pitch the vertical part shrinks to ~0.10 m and a ~0.25 m HORIZONTAL error appears that was never corrected. The audit's reconstruction suggests 5-8/16, not 12/16. HARD BLOCKER: the per-tick CSV logs yaw only -- pitch and roll are not recorded -- so the correct number cannot be computed from any existing run. Fix the logging first, then the scorer, then re-score. Quote NO count until then.",
+   "ruling": "VIOLATED, now fully characterized and re-scored. The 2026-07-26 height-only 12/16 and the audit's 5-8/16 band were BOTH wrong: the '+0.208 m lens height' was landing-gear height (MAVSDK relative altitude subtracted from a world z; three independent routes put the camera ~2 mm above / 0.120 m forward of the airframe centre). scripts/rescore_cpa.py (yaw pad-calibrated per flight, pad-z self-check 168/168) rules: 3/16 at logged ticks, 5/16 interpolated, median 0.435 m against the 0.35 m bar. Quote those two numbers and no others. The -0.37 m vertical bias finding stands and is essentially the whole miss.",
    "origin": "Deep targeting workflow 2026-07-26, head-verified independently (gt_cam_z - alt_m = +0.208 m median over 1748 ticks)",
-   "evidence": "commit fcb2a0a; docs/flight_plan_candidates.md"
+   "evidence": "commit b47ce32; scripts/rescore_cpa.py; docs/rescore_2026-08-10.md"
   },
   {
    "id": "launch-cue-error-free",
@@ -680,7 +680,7 @@
      "Curve (b): NN approach recall vs range x position-in-frame (the P0.3 harness) — the Hailo/markerless gate.",
      "Bench the real Pi 5 the same day: AprilTag fps + CPU-YOLO fps (emulation cannot measure this — constraint pi5-emulation-gap)."
     ],
-    "gate": "MONEY GATE — two curves, two different doors: (a) the TAG envelope must support the staged first kill (decode leaves t_go >=0.5 s post-handoff at the straight-leg closing speed, the NEXT.md R5 kill-number applied to the tag) -> unlocks the ~$740 Tier-2 interceptor order; (b) the NN recall curve gates ONLY the Hailo HAT + the markerless phase. NEVER hold the interceptor hostage to NN acquisition. FAIL(a) -> bigger placard / camera upgrade; FAIL(b) -> real-data retrain — neither spends interceptor money."
+    "gate": "MONEY GATE — two curves, two different doors: (a) the TAG envelope must support the staged first kill (decode leaves t_go >=0.5 s post-handoff at the straight-leg closing speed, the docs/next.md R5 kill-number applied to the tag) -> unlocks the ~$740 Tier-2 interceptor order; (b) the NN recall curve gates ONLY the Hailo HAT + the markerless phase. NEVER hold the interceptor hostage to NN acquisition. FAIL(a) -> bigger placard / camera upgrade; FAIL(b) -> real-data retrain — neither spends interceptor money."
    },
    {
     "code": "P3",
@@ -720,7 +720,7 @@
    "docs/hardware_order_list.md §0c/§4",
    "docs/real_data_pipeline.md (auto-labeler validation pending)",
    "ADR-0076 add #18h/#18k",
-   "NEXT.md R5 (t_go >=0.5 s kill-number)"
+   "docs/next.md R5 (t_go >=0.5 s kill-number)"
   ]
  },
  "stages": [
@@ -736,7 +736,7 @@
    "note": "Aim tolerance measured: all 48 flights still acquired/engaged at up to +/-30 deg heading error (weave) — but #18g showed ENGAGE streaks can be phantom, so read that as dash-robustness, not perception proof. Onboard acoustic tracking REJECTED (own-noise ~40 dB the wrong way); acoustics OK only as a future GROUND launch-cue (idea). RELEASE/LAUNCH-MECHANISM options evaluated 2026-07-21 (decision launch_mech, docs/launch_mechanism_options.md): recommend B-core (manual trigger + coded dash) + an honesty-clean launch-time aim stack — a static-camera bearing latch and an OPTIONAL no-radio one-shot ground spotter, both latched as pre-flight constants; autonomous launch-on-detect (auto-fire) and a live-datalink cue are REJECTED (graveyard + constraint no-datalink). The launch choice is largely orthogonal to the binding wall (POINTING); the aim-stack extension is validation-gated on the fixed-tilt re-fly, NOT ratified. | AIM LEVER CONFIRMED 2026-07-24 (G20dash decomposition, n=8 paired dash-only, logs/mc_fp_armG20dash_line9_s123.csv): the crossing-bias aim constant was MIS-SIZED (collision_lead_heading solves a constant-speed triangle but the dash accelerates from rest). Correcting +30°→+20° for the baseline accel drops the OPEN-LOOP dash-only ballistic combined median 1.37→0.75 m, 7/8 paired better (l2r 2.05→0.73 the big win; r2l already near-optimal) — meets the pre-registered CONFIRM (≥6/8 AND median ≤0.90). A free, honest, pre-flight lever (launch-time constant, no gt/cue) = the cheapest miss-reduction found for the coded dash. HONEST: 0.75 m is the dash-only floor (camera off); the point-mass model over-predicted 0.14 m (ranked the aim right, absolute wrong). Real build implication: the collision-lead constant must be sized for the ACCELERATING dash, not constant-speed — a code fix that carries to hardware. Next: G20 (camera-live bias 20) tests if the terminal improves on 0.75 m at correct aim. | ADR-0080 SIM-VALIDATED 2026-07-24 (accel-aware lead auto-derives the aim): AAL dash-only reproduces the hand-tuned +20 on seed 123 (0.71 vs 0.75, 6/8 within 0.2 m) AND GENERALIZES to disjoint seed 777 (0.57 m, tighter; auto-derived +21.3°, honesty-clean pre-flight constants only). The crossing-bias is now a DERIVED kinematic constant, not a per-config knob — removes the aim-tuning burden from the real build. | ⭐ AIM OPTIMUM NOT YET REACHED (2026-07-24): the dash-only aim curve measures 0° 0.71 m → +5° 0.43 m → +15° 1.43 m (same seeds, paired), so ADR-0080's derived lead sits ~5° off a real optimum worth ~0.28 m. Load-bearing because the honest 5-inch ram envelope is 0.35 m (ADR-0084): a 0.43 m open-loop dash is knocking on it, 0.71 m is not. AIM REFINEMENT — not the camera — is the only measured path into the kill envelope, and it costs pre-flight arithmetic. AE2/AE7/AE10 bracketing arms staged to DERIVE the optimum into the solver rather than leave a hand-found offset. | ADR-0083 ADOPTED 2026-07-24: a +5.0° EMPIRICAL aim trim (--dash-aim-trim-deg, default off) takes the open-loop dash-only miss 0.71 → ~0.43 m pooled (14/16 paired, p=0.0021, seeds 123+777; r2l cell 0.33 m = INSIDE the ~0.36 m ram envelope). MEASURED, NOT DERIVED — the mechanism hunt found a real defect (solver a=10 vs measured pre-CPA ~3.1 m/s²; 22.2 m predicted travel by CPA vs 8.2 m actual) but substituting it swings the heading 30-70° against a ~5° empirical optimum, so it is deliberately NOT baked into the solver. Per-config constant: MUST be re-measured on the real airframe from the first dash ULog.",
    "evidence": [
     "ADR-0076 add #18b/#18c",
-    "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)",
+    "Fable strategic review 2026-07-16 (docs/next.md ROUND-5)",
     "docs/launch_mechanism_options.md (4-lens eval 2026-07-21)"
    ],
    "changelog": [
@@ -1133,7 +1133,7 @@
    "note": "BUILDER UNBLOCKED 2026-07-24: the two external-lead-time blockers the full review raised are RESOLVED — the builder confirms he HAS the regulatory basis AND a site. (Specifics — which regime, which site, and whether a deliberate two-aircraft mid-air is permitted IN WRITING — are not yet captured here; capture them when convenient, since the kill-day venue question is separate from the tripod-day one.) The critical path is therefore now BUILD + BENCH + tripod, not permissions. | ORDERED 2026-07-20 (~$1,000 shipped: target-drone stack + seeker kit + interceptor BRAIN 6C Mini/PM02/M10) + the must-add top-up. The interceptor AIRFRAME is Tier-2 and still gated on the tripod AprilTag decode curve. [CORRECTED 2026-07-24: this note previously read 'NOTHING ORDERED YET' four days after the cart was placed — a contract-drift miss found by the full project review.] the staged buy plan is the bom_tiers table (§3.0) and the human sequence is build_plan (§2.2). GATING (corrected 2026-07-17): the Tier-2 interceptor order is gated on the tripod session's APRILTAG decode-envelope curve (first kills fly the tag on Pi 5 CPU); the NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — never the interceptor. COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates); fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the tripod + tagged-target afternoon yields BOTH curves in one session (the transfer bet is hope-past-evidence, but its verdict only moves the markerless phase). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.) | Onboard flight software READY (skeleton): real_flight.py state machine SITL-verified (ADR-0081) + field bring-up kit (scripts/field/) -- so when parts arrive the software side is built; remaining is the physical build + bench tuning of the TODO-BUILDER constants + the tripod test.",
    "evidence": [
     "docs/hardware_order_list.md §0/§0b/§0c",
-    "NEXT.md ROUND-5 (Pi5/HAT ruling, tripod test)"
+    "docs/next.md ROUND-5 (Pi5/HAT ruling, tripod test)"
    ],
    "changelog": [
     {
@@ -1245,7 +1245,7 @@
    "text": "MEASURED 2026-07-26 on the real board, confirming this constraint: the Pi 5 CPU runs the AprilTag seeker comfortably real-time (96.6 fps sustained at decimate 2.0) but CPU YOLO manages only 6.09 fps (162 ms/inference) -- inside the predicted 5-10 band and NOT viable at terminal LOS rates. The markerless path still REQUIRES the deferred Hailo AI HAT+, so first real kills fly the tag. Note the frame-rate win does NOT rescue the markerless path: 96.6 fps is the tag pipeline, 6.09 is the NN's.",
    "evidence": [
     "docs/hardware_order_list.md §0c",
-    "NEXT.md ROUND-5"
+    "docs/next.md ROUND-5"
    ]
   },
   {
@@ -1253,7 +1253,7 @@
    "text": "RESOLVED 2026-07-26 -- the gap is closed by measurement. Emulation could never give fps (QEMU proved the stack RUNS, not its speed), so the real board was a Tier-1 buy. Measured: AprilTag 96.6 fps at decimate 2.0 / 38.2 at 1.0; CPU YOLO 6.09 fps. The old anchors here read '~30 fps AprilTag' and were never measured -- the AprilTag figure was low by ~3.2x because an inherited picamera2 frame-duration default was capping the camera.",
    "evidence": [
     "docs/hardware_order_list.md §0c",
-    "NEXT.md ROUND-5 (Pi5 ruling)",
+    "docs/next.md ROUND-5 (Pi5 ruling)",
     "docs/decisions.md ADR-0015"
    ]
   },
@@ -1293,7 +1293,7 @@
    "id": "transfer-bet",
    "text": "The MIT-licensed outdoor-drone-NN transfer bet is UNVALIDATED (hope past evidence). Cheapest kill-or-validate: the ~$310 tripod + tagged-target afternoon measuring real approach-recall vs range/frame-position. Its verdict gates ONLY the Hailo HAT + the markerless phase — the interceptor order is gated on the SAME session's AprilTag envelope curve instead (first kills fly the tag, §0c), so a dead transfer bet delays markerless, not the build. [SMOKE READ 2026-07-21, P0.6 — docs/transfer_bet_kill_test.md: NOT DEAD (quad_v2 boxes a real DJI 2/3 clean photos — the sim->real generalization exists) but NOT alive-and-well (raw per-frame discrimination ~zero: 0.71 drone-frames vs 0.65 drone-FREE — clutter fires); the deciding variable is the 5-streak handoff gate on real clutter, which only tripod curve (b) can measure.]",
    "evidence": [
-    "NEXT.md ROUND-5 (Fable strategic review 2026-07-16)"
+    "docs/next.md ROUND-5 (Fable strategic review 2026-07-16)"
    ]
   },
   {
@@ -1350,7 +1350,7 @@
   {
    "what": "Onboard acoustic target tracking",
    "why": "Own-prop noise ~40 dB the wrong way. (Ground launch-cue variant stays an idea.)",
-   "evidence": "Fable strategic review 2026-07-16 (NEXT.md ROUND-5)"
+   "evidence": "Fable strategic review 2026-07-16 (docs/next.md ROUND-5)"
   },
   {
    "what": "Bank-as-accel predictive cue / APN augmentation (read target bank -> feed-forward a_lat)",
@@ -1425,7 +1425,7 @@
   {
    "what": "Literal <1 m markerless @9 m/s as the headline goal",
    "why": "Pre-registered R1 rule fired (line@9 median 3.38 m); reframed to speed ladder + binary kill.",
-   "evidence": "NEXT.md ROADMAP R1; §0c"
+   "evidence": "docs/next.md ROADMAP R1; §0c"
   },
   {
    "what": "AprilTag as the terminal seeker in a crossing dash",
@@ -1504,12 +1504,12 @@
    "trust": "bench"
   },
   {
-   "label": "Inside the contact radius (UNRESOLVED)",
-   "value": "3-12/16",
+   "label": "Inside the contact radius (corrected ruler)",
+   "value": "3/16 → 5/16",
    "trust": "sim",
-   "plain": "How many flights reach contact range depends on a ruler we have not fixed yet -- do not quote a single number",
-   "note": "Three rulers, three answers on the SAME 16 flights: camera-lens 3/16 (as long published); height-only correction 12/16 (2026-07-26, incomplete); full 3-D attitude-rotated camera offset possibly 5-8/16 (audit #7, not yet reproducible here). The camera sits ~0.25 m above AND 0.12 m forward of the airframe centre; at the 35-44 deg dash pitch the forward part rotates into ~0.25 m of HORIZONTAL error that no correction has applied. BLOCKER: the per-tick logs carry yaw only -- no pitch or roll -- so the correction cannot be computed from existing data at all.",
-   "provenance": "audit #7 (instrument audit 2026-07-26); m4_intercept.py:267 + :2221; commit fcb2a0a superseded"
+   "plain": "Under the corrected scorer, 3 of 16 flights at logged ticks, 5 of 16 interpolated. An interim 12 of 16 was retracted.",
+   "note": "PRIMARY ruler = airframe centre-to-centre, interpolated between 20 Hz samples: median 0.435 m vs the 0.35 m bar (adopted AE5dash config, n=16, perfect-cue arms = best-case upper bound). The retracted '+0.208 m lens lever' was landing-gear height (relative altitude subtracted from a world z); the camera sits ~2 mm above / 0.120 m forward of the airframe centre, so the true correction is small and horizontal. The -0.37 m vertical bias stands -- essentially the whole miss.",
+   "provenance": "scripts/rescore_cpa.py · docs/rescore_2026-08-10.md · commit b47ce32 (168 flights, 36,276 rows, 0 dropped)"
   },
   {
    "label": "Seeker frame rate, measured on the Pi 5",
@@ -1527,7 +1527,7 @@
    "purpose": "Prove the riskiest bets CHEAPLY before any interceptor money — the tripod afternoon (build_plan P2) yields TWO curves in one session: (1) the AprilTag decode envelope, the curve that GATES the Tier-2 interceptor order (first kills fly the tag); (2) NN approach recall vs range AND position-in-frame — the outdoor-NN transfer-bet read, which gates ONLY the Hailo/markerless phase; plus (3) the compute bet — benchmark the REAL Pi 5 (AprilTag fps, CPU YOLO fps), which emulation cannot do (constraint pi5-emulation-gap). Every item carries into the final system. HONEST FIRST-TEST COST: flying the target also needs the ground/safety set (Pocket TX + charger + LiPo-safety/solder, keep-forever gear, BOM §4 Phase 0) — so the realistic first-outdoor-test outlay is ~$620-780 all-new if none is owned; the tier subtotal below is hardware-only.",
    "gate": "Buy FIRST (after the P0 desk checklist) — no result gate. Lowest-risk money; useful regardless of the test outcome.",
    "total": "~$650 ordered hardware (Kakute stack + target + seeker kit + TX/charger) + ~$220-360 must-add build/field layer = ~$870-1010 to actually FLY + run the field test. Re-source Pi+SD to recover ~$120.",
-   "evidence": "docs/hardware_order_list.md §E/§C/§0c; NEXT.md ROUND-5 (tripod kill-or-validate) | ADR-0089: order a 2nd RadioMaster Pocket (per-aircraft independent arm/kill for the two-aircraft mid-air — the S2 hole).",
+   "evidence": "docs/hardware_order_list.md §E/§C/§0c; docs/next.md ROUND-5 (tripod kill-or-validate) | ADR-0089: order a 2nd RadioMaster Pocket (per-aircraft independent arm/kill for the two-aircraft mid-air — the S2 hole).",
    "items": [
     {
      "item": "Target/practice drone (ORDERED 2026-07-20) — Kakute H7 V1.5 FC + Tekko32 F4 Metal 65A ESC + EMAX ECOII 2207 1900KV x4 + TBS Source One V6 5in + Matek M10Q GPS + RadioMaster RP1 V2 RX + Pocket M2 ELRS TX + CNHL 6S 1500 + 1-6S charger + HQ V2S 5in props",
@@ -1584,9 +1584,9 @@
    "tier": 2,
    "name": "Full budget-friendly initial seeker — the lean §0c interceptor",
    "purpose": "Everything the airframe needs that Tier 1 didn't buy; Tier 1's Pi 5 + camera + checkerboard carry over, landing the interceptor at ~$740 all-in (§0c lean binary-kill build). Deferred past this tier, buy at the phase that needs it: Hailo AI HAT+ $70 (markerless phase), SiK telemetry $75 (long-range), spare arms/motor/RX + 3rd LiPo ~$82 (before kill attempts).",
-   "gate": "ORDER ONLY AFTER the Tier-1 tripod afternoon's APRILTAG decode-envelope curve supports the staged first kill — the tag (the Pi-5-CPU baseline seeker, §0c) must decode the approaching placard early enough to leave t_go >=0.5 s post-handoff at the straight-leg closing speed (the NEXT.md R5 kill-number, applied to the tag). The NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — do NOT gate this order on NN acquisition; a dead transfer bet delays markerless, not the interceptor.",
+   "gate": "ORDER ONLY AFTER the Tier-1 tripod afternoon's APRILTAG decode-envelope curve supports the staged first kill — the tag (the Pi-5-CPU baseline seeker, §0c) must decode the approaching placard early enough to leave t_go >=0.5 s post-handoff at the straight-leg closing speed (the docs/next.md R5 kill-number, applied to the tag). The NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — do NOT gate this order on NN acquisition; a dead transfer bet delays markerless, not the interceptor.",
    "total": "~$510 this tier (-> interceptor ~$740 all-in with the Tier-1 carry-overs)",
-   "evidence": "docs/hardware_order_list.md §0c/§A/§B/§C/§D; NEXT.md R5",
+   "evidence": "docs/hardware_order_list.md §0c/§A/§B/§C/§D; docs/next.md R5",
    "items": [
     {
      "item": "Frame — TBS Source One V5 5\"",
@@ -2435,7 +2435,7 @@
     {
      "name": "AprilTag fiducial seeker",
      "summary": "The sanctioned sim stand-in for 'a reliable target lock exists' — sub-degree subpixel-corner bearing, ~5% range, CPU-real-time. Now scoped to calibration, training-time auto-labels, and the staged first-kill baseline seeker.",
-     "why_choose": "Pick the tag when you need to isolate guidance from perception (its original GOALS.md role), when compute is scarce (Pi 5 CPU runs it real-time, so the first real kills fly the tag while the Hailo HAT is deferred), or as measurement infrastructure (the tag pose auto-labels real footage for the markerless retrain, and it is the perception ceiling every markerless result is scored against — the clean-bearing control that held 8/8 at 1.64 m through the 12 m/s weave, ADR-0056).",
+     "why_choose": "Pick the tag when you need to isolate guidance from perception (its original docs/goals.md role), when compute is scarce (Pi 5 CPU runs it real-time, so the first real kills fly the tag while the Hailo HAT is deferred), or as measurement infrastructure (the tag pose auto-labels real footage for the markerless retrain, and it is the perception ceiling every markerless result is scored against — the clean-bearing control that held 8/8 at 1.64 m through the 12 m/s weave, ADR-0056).",
      "pros": "Clean, robust, cheap; the honest control arm; CPU-real-time; the calibration/labeling backbone of the real-data pipeline.",
      "cons": "No real threat carries one — a headline built on it flatters (the billboard/tag era's 72/72 vs the quad's ~41% is the cautionary tale); the directional ~6 m tag is INVISIBLE during a 16 m/s crossing dash (0 detections, ADR-0076 add #18e), so it is not even a viable terminal seeker in the crossing regime; it must never feed the deployed markerless seeker (honesty boundary).",
      "status": "superseded"
@@ -2677,12 +2677,12 @@
      "summary": "The GPU companion computer option, twice considered.",
      "why_choose": "Raw TOPS headroom and CUDA — attractive if the ML path demanded it.",
      "pros": "Compute headroom; well-supported ML tooling.",
-     "cons": "ADR-0012: its only real advantage for the fiducial was CUDA AprilTag via Isaac ROS, which is ROS 2 — explicitly forbidden by GOALS.md — leaving 2x price and 2–3x power for an idle GPU; and once real ML did enter, the Hailo HAT closed the gap for ~$70–110 without ROS 2 (ADR-0015). The Jetson's correct home is the GROUND node, where power/weight are free.",
+     "cons": "ADR-0012: its only real advantage for the fiducial was CUDA AprilTag via Isaac ROS, which is ROS 2 — explicitly forbidden by docs/goals.md — leaving 2x price and 2–3x power for an idle GPU; and once real ML did enter, the Hailo HAT closed the gap for ~$70–110 without ROS 2 (ADR-0015). The Jetson's correct home is the GROUND node, where power/weight are free.",
      "status": "rejected"
     }
    ],
    "chosen_rationale": "The compute decision is a staged pair, not a fork: Pi 5 is the board either way (council-unanimous across two eras), the AprilTag baseline flies first because it is CPU-real-time and de-risks the build, and the Hailo HAT + markerless stack is the ratified end-state gated on the Stage-0 bench (sustained end-to-end NN+tracker Hz through a thermal soak, CSRT loop time, yaw-ramp detection at terminal LOS rates). The binding principle from ADR-0063: bench the configuration that FLIES, and claim nothing until it is measured.",
-   "evidence": "ADR-0012, ADR-0015, ADR-0063, hardware_order_list.md §0/§0c, project_state.json constraint pi5-compute, NEXT.md ROUND-5"
+   "evidence": "ADR-0012, ADR-0015, ADR-0063, hardware_order_list.md §0/§0c, project_state.json constraint pi5-compute, docs/next.md ROUND-5"
   },
   {
    "stage_id": "kill",
@@ -2722,7 +2722,7 @@
     }
    ],
    "chosen_rationale": "Two metrics coexist by design, each honest in its domain: the proximity Pk-vs-radius curve is the SIM metric (ratified ADR-0025 because the physics and the fielded-systems evidence both say cheap interceptors kill within a radius, not at zero), and the binary kill is the FIELD criterion (the 2026-07-15 re-scope that cut RTK). The literal <1 m headline died by pre-registered rule, not vibes — R1 fired, and the four-lever elimination arc had already shown ~1.5–2 m is the seeker floor and ALREADY a kill under the ratified metric. Teaching point: pick the bar from the kill mechanism's physics before seeing results, and never quote Pk without its radius.",
-   "evidence": "ADR-0014, ADR-0021, ADR-0022, ADR-0025, ADR-0064, ADR-0070/0071 addenda, hardware_order_list.md §0b/§0c, NEXT.md ROADMAP R1"
+   "evidence": "ADR-0014, ADR-0021, ADR-0022, ADR-0025, ADR-0064, ADR-0070/0071 addenda, hardware_order_list.md §0b/§0c, docs/next.md ROADMAP R1"
   },
   {
    "stage_id": "handoff",
@@ -2794,7 +2794,7 @@
     }
    ],
    "chosen_rationale": "The coded pre-flight aim wins because the measured aim-error envelope (+/-30 deg) makes launch precision a non-problem — the wide-FoV camera and crossing-bias calibration absorb it. Onboard acoustics died on own-noise physics; the ground acoustic cue survives only as a future idea because it sidesteps that physics and needs only the coarse accuracy the envelope already tolerates.",
-   "evidence": "ADR-0076 add #18b/#18c/#18g, NEXT.md ROUND-5 (Fable strategic review 2026-07-16), project_state.json launch_aim"
+   "evidence": "ADR-0076 add #18b/#18c/#18g, docs/next.md ROUND-5 (Fable strategic review 2026-07-16), project_state.json launch_aim"
   },
   {
    "stage_id": "launch_aim",
@@ -2928,52 +2928,52 @@
    "verdict": "CONFIRMED",
    "severity": "high",
    "status": "resolved",
-   "topic": "RTK metrology: NEXT.md roadmap ('non-negotiable', 'now in the BOM', '<1.0 m absolute' gates) vs RTK CUT from the BOM",
-   "claim_a": "NEXT.md live ROADMAP: \"consumer GPS can't even MEASURE <1 m (→ RTK now in the BOM)\"; R4 gate \"RTK metrology σ≤0.3 m (non-negotiable)\"; R6/R7 gates \"tag median <1.0 m absolute @9 m/s\" / \"markerless <1.0 m absolute per rung\" — measured field medians that require the RTK metrology.",
-   "loc_a": "NEXT.md:99, 154-155, 158-161 (pre-fix numbering)",
+   "topic": "RTK metrology: docs/next.md roadmap ('non-negotiable', 'now in the BOM', '<1.0 m absolute' gates) vs RTK CUT from the BOM",
+   "claim_a": "docs/next.md live ROADMAP: \"consumer GPS can't even MEASURE <1 m (→ RTK now in the BOM)\"; R4 gate \"RTK metrology σ≤0.3 m (non-negotiable)\"; R6/R7 gates \"tag median <1.0 m absolute @9 m/s\" / \"markerless <1.0 m absolute per rung\" — measured field medians that require the RTK metrology.",
+   "loc_a": "docs/next.md:99, 154-155, 158-161 (pre-fix numbering)",
    "claim_b": "project_state.json goal.success: \"BINARY KILL (contact)... NOT a measured <1 m CPA (RTK cut, 2026-07-15)\"; hardware_order_list.md §0b:76 (RTK row struck, CUT) + §0c CUTS table; graveyard entry \"RTK metrology pair\".",
    "loc_b": "docs/project_state.json (goal, kill stage, graveyard); docs/hardware_order_list.md §0b/§0c",
    "current_truth": "RTK is CUT (2026-07-15 binary-kill re-scope, Fable-reviewed): success = a BINARY KILL confirmed by seeker video + phone slow-mo + both aircraft ULogs ($0). The R6/R7 \"<1.0 m absolute\" field gates are unexecutable under the current BOM — \"<1 m\" survives only as a sim-side number or an RTK buy-back stretch. The R4 Hailo ≥14 Hz gate is likewise deferred to the markerless phase (first kills fly the AprilTag on Pi 5 CPU).",
-   "resolution": "NEXT.md annotated inline: line-99 supersession bracket, R4 supersession bracket (RTK cut + Hailo deferred), and a metrology-superseded blockquote banner inserted after R7. hardware_order_list.md §0b closing line struck separately (see bom-0b-rtk-loadbearing)."
+   "resolution": "docs/next.md annotated inline: line-99 supersession bracket, R4 supersession bracket (RTK cut + Hailo deferred), and a metrology-superseded blockquote banner inserted after R7. hardware_order_list.md §0b closing line struck separately (see bom-0b-rtk-loadbearing)."
   },
   {
    "id": "pivot-camera-terminal-attribution",
    "verdict": "CONFIRMED",
    "severity": "high",
    "status": "resolved",
-   "topic": "Camera-terminal attribution in the NEXT.md PIVOT/ROBUSTNESS ⭐ bullets (outside the #18g banner's scope)",
-   "claim_a": "NEXT.md PIVOT ⭐ bullets: \"ALL 48 flights acquire+engage (the... camera terminal does the rest)\"; \"8/8 Pk @0.78 m by +30°, proving the r2l residual is... not a perception floor\"; \"combined Pk@2.5m 8/16→13/16\"; \"recovers r2l to sub-meter\".",
-   "loc_a": "NEXT.md:186-201 (pre-fix numbering)",
+   "topic": "Camera-terminal attribution in the docs/next.md PIVOT/ROBUSTNESS ⭐ bullets (outside the #18g banner's scope)",
+   "claim_a": "docs/next.md PIVOT ⭐ bullets: \"ALL 48 flights acquire+engage (the... camera terminal does the rest)\"; \"8/8 Pk @0.78 m by +30°, proving the r2l residual is... not a perception floor\"; \"combined Pk@2.5m 8/16→13/16\"; \"recovers r2l to sub-meter\".",
+   "loc_a": "docs/next.md:186-201 (pre-fix numbering)",
    "claim_b": "ADR-0076 add #18g/#18h: \"No camera-tracked terminal kill on the 3D quad exists anywhere in this dataset\"; dash-only control matched with-terminal (0.30 vs 0.29 m); ENGAGE streaks were phantom (LOS error ±120-140°). project_state.json launch_aim: \"read that as dash-robustness, not perception proof\".",
    "loc_b": "docs/decisions.md ADR-0076 add #18g/#18h; docs/project_state.json launch_aim/terminal notes",
    "current_truth": "No camera-guided intercept of the 3D quad exists in the dataset; the sub-meter r2l results are open-loop dash ballistics, the ±30° result is DASH-robustness only, the crossing-bias survives as open-loop AIM calibration, and \"not a perception floor\" is inverted — the flight-dynamic perception wall (add #18k) is the binding wall.",
-   "resolution": "Inserted a ⛔ ATTRIBUTION SUPERSEDED blockquote in NEXT.md directly above the two ⭐ bullets, scoping every retracted number without deleting the data."
+   "resolution": "Inserted a ⛔ ATTRIBUTION SUPERSEDED blockquote in docs/next.md directly above the two ⭐ bullets, scoping every retracted number without deleting the data."
   },
   {
    "id": "next-crop-do-first",
    "verdict": "CONFIRMED",
    "severity": "high",
    "status": "resolved",
-   "topic": "Foveated auto-crop still ranked '① DO FIRST' range lever (and queued as '#3 [SIM]') in NEXT.md vs the add #18j-fix retraction",
-   "claim_a": "NEXT.md seeker roadmap: \"RANGE... levers, ranked: ① foveated auto-crop on native res (... ~1.5-2× R_acq, near-free — DO FIRST); ② real-data fine-tune (the real acquisition lever...)\"; \"#3 [SIM] Auto-crop under coded-dash — ADR-0074 range lever\".",
-   "loc_a": "NEXT.md:227-228, 236-238 (pre-fix numbering)",
+   "topic": "Foveated auto-crop still ranked '① DO FIRST' range lever (and queued as '#3 [SIM]') in docs/next.md vs the add #18j-fix retraction",
+   "claim_a": "docs/next.md seeker roadmap: \"RANGE... levers, ranked: ① foveated auto-crop on native res (... ~1.5-2× R_acq, near-free — DO FIRST); ② real-data fine-tune (the real acquisition lever...)\"; \"#3 [SIM] Auto-crop under coded-dash — ADR-0074 range lever\".",
+   "loc_a": "docs/next.md:227-228, 236-238 (pre-fix numbering)",
    "claim_b": "ADR-0076 add #18j-fix: crop = full-frame recall at the 8-12 m wall band (33%/33%, 0%/0%) after the box_hits_gt scorer fix; the 47→71% 'crop win' was ≤6 m edge-clipped targets — \"RESOLUTION is NOT the lever... retract that claim\". project_state.json headline + graveyard.",
    "loc_b": "docs/decisions.md:~1960-1961, 1965; docs/project_state.json headline/graveyard",
    "current_truth": "Foveated-crop/resolution is NOT an acquisition lever (3rd mirage, retracted + graveyarded); the wall is flight-dynamic pointing (adaptive tilt #46/ADR-0065 dominant), and the real-data fine-tune is demoted to an outdoor-appearance hypothesis.",
-   "resolution": "NEXT.md ranked-levers line prefixed with a ⛔ SUPERSEDED correction (original kept for history); #3 queue item marked ⛔ SUPERSEDED (do NOT build)."
+   "resolution": "docs/next.md ranked-levers line prefixed with a ⛔ SUPERSEDED correction (original kept for history); #3 queue item marked ⛔ SUPERSEDED (do NOT build)."
   },
   {
    "id": "progress-r2l-row",
    "verdict": "CONFIRMED",
    "severity": "high",
    "status": "resolved",
-   "topic": "PROGRESS.md row 'Realistic-quad r2l intercept': 'LARGELY RESOLVED, 13/16 in-gate, residual = ADR-0056 bearing bias' vs 'no camera-guided 3D-quad intercept exists; wall is flight-dynamic recall' (3 findings merged)",
+   "topic": "docs/progress.md row 'Realistic-quad r2l intercept': 'LARGELY RESOLVED, 13/16 in-gate, residual = ADR-0056 bearing bias' vs 'no camera-guided 3D-quad intercept exists; wall is flight-dynamic recall' (3 findings merged)",
    "claim_a": "\"🟨→🟩 2026-07-12/15 — DIAGNOSED then LARGELY RESOLVED by the real-build pivot... lifts r2l 0/8→5/8 @Pk... combined Pk@2.5m 8/16→13/16. Residual r2l gap = the ADR-0056 bearing aspect-bias (the honest remaining lever).\"",
-   "loc_a": "PROGRESS.md:23",
+   "loc_a": "docs/progress.md:23",
    "claim_b": "ADR-0076 add #18g: \"No camera-tracked terminal kill on the 3D quad exists anywhere in this dataset\"; add #18h: dash-only 0.30 m ≈ with-terminal 0.29 m; add #18k: wall = flight-dynamic recall (0.8% in flight vs 100% static 8-22 m); project_state.json:89.",
    "loc_b": "docs/decisions.md ADR-0076 add #18g/#18h/#18k; docs/project_state.json terminal note",
    "current_truth": "Not 'largely resolved' as an intercept: the in-gate Pk reads were dash-ballistics mirages; what survives is the coded-dash architecture win + open-loop aim calibration. The residual is NOT the ADR-0056 bearing bias — it is flight-dynamic detector recall/pointing (adaptive tilt #46 dominant; real-data detector a hypothesis).",
-   "resolution": "PROGRESS.md row 23: status glyph changed to 🟨→🟩→🟨 (superseded) and a full ⚠ SUPERSEDED IN PART note appended to the cell (numbers kept as history)."
+   "resolution": "docs/progress.md row 23: status glyph changed to 🟨→🟩→🟨 (superseded) and a full ⚠ SUPERSEDED IN PART note appended to the cell (numbers kept as history)."
   },
   {
    "id": "adr0063-flight-compute",
@@ -3025,7 +3025,7 @@
    "claim_b": "ADR-0076 add #18g explicitly RETRACTED that phrase and file: ENGAGE detections were phantom (LOS error ±120-140°; 2 real vs 1187 phantom approach detections over 63 flights); add #18h: dash-only ≈ with-terminal — camera added ~nothing.",
    "loc_b": "docs/decisions.md ADR-0076 add #18g/#18h/#18i; docs/project_state.json launch_aim",
    "current_truth": "The 48/48 result is OPEN-LOOP DASH-AIM robustness only; the camera terminal did not find the target (in-flight approach recall ~0.8%); the file's own retraction banner was scoped to a later section and never covered these bullets.",
-   "resolution": "Robustness bullet 1: interpretive sentence struck inline with a ⛔ SUPERSEDED note (table + event counts kept); conclusion 3 annotated (0.78 m = dash ballistics; 'not a perception floor' retracted). NEXT.md echo covered by pivot-camera-terminal-attribution."
+   "resolution": "Robustness bullet 1: interpretive sentence struck inline with a ⛔ SUPERSEDED note (table + event counts kept); conclusion 3 annotated (0.78 m = dash ballistics; 'not a perception floor' retracted). docs/next.md echo covered by pivot-camera-terminal-attribution."
   },
   {
    "id": "rbcd-honest-open-items",
@@ -3058,37 +3058,37 @@
    "verdict": "CONFIRMED",
    "severity": "high",
    "status": "resolved",
-   "topic": "GOALS.md 'simulation-only / no hardware, no real flight' as current scope vs the 2026-07-15 real-build pivot",
+   "topic": "docs/goals.md 'simulation-only / no hardware, no real flight' as current scope vs the 2026-07-15 real-build pivot",
    "claim_a": "\"Build a simulation-only counter-UAS interceptor\"; \"before any hardware exists\"; \"IS NOT: No hardware, no real flight. Simulation only.\" (auto-loaded every session). README.md:3 repeats \"simulation-only\".",
-   "loc_a": "GOALS.md:9, 24-25, 44; README.md:3",
+   "loc_a": "docs/goals.md:9, 24-25, 44; README.md:3",
    "claim_b": "docs/real_build_coded_dash.md (\"the operating model the physical interceptor... actually flies\"); hardware_order_list.md §0c (live costed BOM); flight/ port; project_state.json goal.",
    "loc_b": "docs/real_build_coded_dash.md:1-8; docs/hardware_order_list.md §0c; docs/project_state.json",
    "current_truth": "Since 2026-07-15 the repo is also the build vehicle for a PHYSICAL interceptor (outdoor camera-only binary kill of a >=9 m/s target). 'Simulation-only' correctly describes the completed sim phase, not current scope.",
-   "resolution": "STATUS banner inserted at the top of GOALS.md; the 'No hardware' bullet annotated; README.md:3 given a parenthetical pointer. M0-M5 content untouched."
+   "resolution": "STATUS banner inserted at the top of docs/goals.md; the 'No hardware' bullet annotated; README.md:3 given a parenthetical pointer. M0-M5 content untouched."
   },
   {
    "id": "goals-no-ml-perception",
    "verdict": "CONFIRMED",
    "severity": "medium",
    "status": "resolved",
-   "topic": "GOALS.md 'No ML perception; the AprilTag is the target lock' vs the deployed markerless YOLO seeker",
+   "topic": "docs/goals.md 'No ML perception; the AprilTag is the target lock' vs the deployed markerless YOLO seeker",
    "claim_a": "\"No ML perception. The AprilTag is the target lock; classical/fiducial only.\" — live IS-NOT scope, no supersession note.",
-   "loc_a": "GOALS.md:46",
+   "loc_a": "docs/goals.md:46",
    "claim_b": "README markerless arc (\"Kill the AprilTag — a markerless seeker. FLOWN, ADR-0038/0039\"; v2 deployed); project_state.json mission (tag = calibration/labels/staged baseline only).",
    "loc_b": "README.md markerless sections; docs/project_state.json mission",
    "current_truth": "The deployed terminal seeker IS a markerless YOLO NN (ADR-0038/0040/0058); the AprilTag is sanctioned only for calibration, training-time auto-labels, and the staged first-kill baseline.",
-   "resolution": "Inline supersession parenthetical appended to the GOALS.md line, pointing at ADR-0038/0040 + project_state.json."
+   "resolution": "Inline supersession parenthetical appended to the docs/goals.md line, pointing at ADR-0038/0040 + project_state.json."
   },
   {
    "id": "r3-no-more-sim-levers",
    "verdict": "CONFIRMED",
    "severity": "medium",
    "status": "resolved",
-   "topic": "NEXT.md R3 'NET SIM LANDING: guidance solved; residuals need hardware + real data, not more sim levers; next progress is BUILDING' vs ROUND-5/#18k (pointing = dominant SIM lever; real-data demoted)",
+   "topic": "docs/next.md R3 'NET SIM LANDING: guidance solved; residuals need hardware + real data, not more sim levers; next progress is BUILDING' vs ROUND-5/#18k (pointing = dominant SIM lever; real-data demoted)",
    "claim_a": "R3: \"the fix is HARDWARE prop-clearance... + a real-data-trained detector (R6)... guidance/aim is SOLVED (crossing-bias → r2l 0.72 m kill-edge)... not more sim levers. The next real progress is BUILDING (R4+).\"",
-   "loc_a": "NEXT.md:147-153 (pre-fix numbering)",
+   "loc_a": "docs/next.md:147-153 (pre-fix numbering)",
    "claim_b": "ROUND-5 banner + ADR-0076 add #18k: pointing/attitude dominant (adaptive tilt #46, sim-testable, with a cheap decisive sim probe next); real-data detector DEMOTED to hypothesis; #18g retracted 'r2l 0.72 m kill-edge' as dash ballistics.",
-   "loc_b": "NEXT.md ROUND-5 banner; docs/decisions.md add #18g/#18h/#18k; docs/project_state.json headline",
+   "loc_b": "docs/next.md ROUND-5 banner; docs/decisions.md add #18g/#18h/#18k; docs/project_state.json headline",
    "current_truth": "'No more sim levers / go build' no longer holds: the dominant lever is a sim lever (adaptive tilt + the frame-top off-axis probe); prop-clearance is the false-handoff mitigation only; the 0.72 m kill-edge claim is retracted.",
    "resolution": "Supersession bracket appended to the R3 NET SIM LANDING sentence; the ⛔ #18g banner extended to route reading through the ROUND-5 banner too."
   },
@@ -3098,8 +3098,8 @@
    "severity": "medium",
    "status": "resolved",
    "topic": "Own-prop phantom: R3/banner frozen at 'prop-clearance fixes acquisition (untested), camera-forward = NEXT sim test' vs the flown #18h refutation",
-   "claim_a": "NEXT.md ⛔ banner: \"NEXT sim test = camera-forward × coded-dash... before any hardware inherits 'prop-clearance fixes acquisition' (untested)\"; R3: \"the fix is HARDWARE prop-clearance (remove the phantom at the source)\".",
-   "loc_a": "NEXT.md:86-88, 147-150 (pre-fix numbering)",
+   "claim_a": "docs/next.md ⛔ banner: \"NEXT sim test = camera-forward × coded-dash... before any hardware inherits 'prop-clearance fixes acquisition' (untested)\"; R3: \"the fix is HARDWARE prop-clearance (remove the phantom at the source)\".",
+   "loc_a": "docs/next.md:86-88, 147-150 (pre-fix numbering)",
    "claim_b": "ADR-0076 add #18h (2026-07-16, FLOWN): phantom removed at source (1187→1) yet approach recall still ~0 both directions — prop-clearance is NOT the acquisition fix; project_state.json handoff node: phantom = false-handoff hazard only.",
    "loc_b": "docs/decisions.md add #18g/#18h; docs/project_state.json handoff",
    "current_truth": "The phantom is the false-HANDOFF hazard only; the camera-forward decisive test has ALREADY flown; the acquisition wall is flight-dynamic pointing (#18k). The mount stays in the BOM solely to remove the false-handoff hazard.",
@@ -3111,8 +3111,8 @@
    "severity": "medium",
    "status": "resolved",
    "topic": "PIVOT-block/real_build_coded_dash BOM snapshot ($1,089, AR0234 color, Pi5+Hailo, fixed 15° up-tilt) vs the §0c lean build ($740, OV9281 mono, HAT deferred, no fixed tilt) (3 findings merged)",
-   "claim_a": "NEXT.md PIVOT: \"~$1,089 interceptor... Pi5+Hailo YOLO11n @640, Arducam AR0234... + fixed ~15° up-tilt\"; real_build_coded_dash.md \"Hardware mapping (~$1,089)\" table (Hailo-8L, AR0234, ~15° up-tilt bracket); hardware_order_list.md §1 totals restating $1,089.",
-   "loc_a": "NEXT.md:166-170; docs/real_build_coded_dash.md:104-112; docs/hardware_order_list.md:213/282/289 (pre-fix numbering)",
+   "claim_a": "docs/next.md PIVOT: \"~$1,089 interceptor... Pi5+Hailo YOLO11n @640, Arducam AR0234... + fixed ~15° up-tilt\"; real_build_coded_dash.md \"Hardware mapping (~$1,089)\" table (Hailo-8L, AR0234, ~15° up-tilt bracket); hardware_order_list.md §1 totals restating $1,089.",
+   "loc_a": "docs/next.md:166-170; docs/real_build_coded_dash.md:104-112; docs/hardware_order_list.md:213/282/289 (pre-fix numbering)",
    "claim_b": "hardware_order_list.md §0c NEW TOTALS (~$740 / ~$1,390); OV9281 mono GS primary (AR0234 = upgrade path); AI HAT+ DEFER; project_state.json hardware node; ADR-0068 (no fixed tilt adopted).",
    "loc_b": "docs/hardware_order_list.md:105-148; docs/project_state.json hardware; docs/decisions.md ADR-0068",
    "current_truth": "The active BOM is the §0c lean binary-kill build: ~$740 interceptor, OV9281 mono GS wide, Hailo HAT deferred (first kills fly the tag on Pi 5 CPU), RTK cut, no fixed tilt (bracket kept for prop-clearance, angle adjustable/TBD). The coded-dash architecture content remains current.",
@@ -3123,11 +3123,11 @@
    "verdict": "CONFIRMED",
    "severity": "medium",
    "status": "resolved",
-   "topic": "Three competing 'next sim test' directives in NEXT.md (one already flown, one flying a CUT architecture) vs the single ROUND-5 next probe",
+   "topic": "Three competing 'next sim test' directives in docs/next.md (one already flown, one flying a CUT architecture) vs the single ROUND-5 next probe",
    "claim_a": "⛔ banner: \"NEXT sim test = camera-forward × coded-dash... (untested)\"; Build queue: \"[NEXT SIM ITEM] Stage-2 tilted+compensated RECOVERY re-test\" (flies the ADR-0059 coast-search jam arm).",
-   "loc_a": "NEXT.md:86-88, 667-674 (pre-fix numbering)",
+   "loc_a": "docs/next.md:86-88, 667-674 (pre-fix numbering)",
    "claim_b": "ROUND-5 banner + project_state.json headline.next_probe: the frame-top off-axis set-pose sweep × {level, banked}; add #18h records camera-forward × coded-dash as FLOWN with a final verdict; the pivot CUT the coast-search/cue stack.",
-   "loc_b": "NEXT.md ROUND-5 banner; docs/project_state.json headline; docs/decisions.md add #18h",
+   "loc_b": "docs/next.md ROUND-5 banner; docs/project_state.json headline; docs/decisions.md add #18h",
    "current_truth": "The current next sim probe is the ROUND-5 frame-top off-axis sweep. The camera-forward test is done (#18h); the Stage-2 recovery re-test targets a cut architecture and is no longer the next item.",
    "resolution": "Banner updated (test FLOWN, pointer to the current probe); the '[NEXT SIM ITEM]' tag replaced with a [SUPERSEDED — no longer the next sim item] marker while preserving the pre-registered thresholds."
   },
@@ -3136,11 +3136,11 @@
    "verdict": "CONFIRMED",
    "severity": "medium",
    "status": "resolved",
-   "topic": "NEXT.md '#2 [SIM, next]' handoff range-plausibility hardening presented as unbuilt vs flown double-NULL (ADR-0077 + add #18f)",
+   "topic": "docs/next.md '#2 [SIM, next]' handoff range-plausibility hardening presented as unbuilt vs flown double-NULL (ADR-0077 + add #18f)",
    "claim_a": "\"#2 [SIM, next] Harden the coded-dash handoff...: 5-streak RANGE-CONSISTENCY + a pre-flight range-plausibility window... Gate: phantom-seeded false-handoff → 0...\" — and item #1 still routes work into #2.",
-   "loc_a": "NEXT.md:222-226 (pre-fix numbering)",
+   "loc_a": "docs/next.md:222-226 (pre-fix numbering)",
    "claim_b": "R3 (same file): the window WAS built as --coded-dash-acquire-range-min/max and is NULL (add #18f, aborted both directions); ADR-0077 addendum NULLed the first variant (l2r 81%→25%); project_state.json graveyard.",
-   "loc_b": "NEXT.md R3; docs/project_state.json graveyard; docs/decisions.md ADR-0077 + add #18f",
+   "loc_b": "docs/next.md R3; docs/project_state.json graveyard; docs/decisions.md ADR-0077 + add #18f",
    "current_truth": "Range-based handoff hardening is a documented double NULL (default-off, graveyarded). Only the streak range-CONSISTENCY variant is unflown — and suspect, since a phantom-only streak is self-consistent (~1.5 m). The false-handoff hazard itself remains open; prop-clearance is the mitigation.",
    "resolution": "#2 retagged '[SIM, PARTLY TESTED → NULL — superseded]' with an inline UPDATE; project_state.json handoff node + graveyard mechanism text corrected to the #18g reading."
   },
@@ -3149,11 +3149,11 @@
    "verdict": "CONFIRMED",
    "severity": "medium",
    "status": "resolved",
-   "topic": "Two blocks both labeled '📍 CURRENT (live)' in NEXT.md; the 07-12 one's HONEST STATE line ('phantom-removal validated, terminal fix in progress') contradicts its own arc conclusion and the #18h close-out",
+   "topic": "Two blocks both labeled '📍 CURRENT (live)' in docs/next.md; the 07-12 one's HONEST STATE line ('phantom-removal validated, terminal fix in progress') contradicts its own arc conclusion and the #18h close-out",
    "claim_a": "\"## 📍 CURRENT (2026-07-12, live)\" + HONEST STATE: \"🔧 quad r2l = refinable, phantom-removal validated, terminal fix in progress.\"",
-   "loc_a": "NEXT.md:249, 307-309 (pre-fix numbering)",
-   "claim_b": "Same block's add #17 conclusion (phantom-removal = DEAD-END, l2r +2.14 m worse); the sole live header at NEXT.md:56 (2026-07-16); project_state.json:93 (#18h final verdict).",
-   "loc_b": "NEXT.md:56, 287-291; docs/project_state.json terminal changelog",
+   "loc_a": "docs/next.md:249, 307-309 (pre-fix numbering)",
+   "claim_b": "Same block's add #17 conclusion (phantom-removal = DEAD-END, l2r +2.14 m worse); the sole live header at docs/next.md:56 (2026-07-16); project_state.json:93 (#18h final verdict).",
+   "loc_b": "docs/next.md:56, 287-291; docs/project_state.json terminal changelog",
    "current_truth": "Only the 2026-07-16 block is live. Phantom-removal is a concluded dead-end (rebal NULL, do-not-ship); no terminal fix is in progress — the camera-guided 3D-quad terminal is closed by #18h; the wall is flight-dynamic pointing.",
    "resolution": "07-12 header retitled '🗄 SUPERSEDED (2026-07-12 session — history...)'; the HONEST STATE line given an inline supersession bracket."
   },
@@ -3162,22 +3162,22 @@
    "verdict": "CONFIRMED",
    "severity": "medium",
    "status": "resolved",
-   "topic": "'up15 = leading candidate / #40 gates pending' in PROGRESS.md row 22 and NEXT.md PLAN step 3 vs the flown Stage-1 FAIL / Stage-2 NULL / graveyarded fixed-mount adoption",
-   "claim_a": "PROGRESS.md:22: \"NO mount adopted; #40 mount-compose gates the terminal re-fly (up15 = leading candidate), any adoption, and the tilted recovery re-test.\" NEXT.md PLAN step 3 mirrors it.",
-   "loc_a": "PROGRESS.md:22; NEXT.md:25-35 (pre-fix numbering)",
+   "topic": "'up15 = leading candidate / #40 gates pending' in docs/progress.md row 22 and docs/next.md PLAN step 3 vs the flown Stage-1 FAIL / Stage-2 NULL / graveyarded fixed-mount adoption",
+   "claim_a": "docs/progress.md:22: \"NO mount adopted; #40 mount-compose gates the terminal re-fly (up15 = leading candidate), any adoption, and the tilted recovery re-test.\" docs/next.md PLAN step 3 mirrors it.",
+   "loc_a": "docs/progress.md:22; docs/next.md:25-35 (pre-fix numbering)",
    "claim_b": "ADR-0068 addenda: Stage-1 pre-registered parity FAIL (up15-compensated worse 7/8) → NO fixed-mount adoption; Stage-2 recovery re-test NULL; ADR-0070 (tilt worse 8/8); add #18j-fix follow-up (fixed tilt structurally wrong); project_state.json graveyard.",
    "loc_b": "docs/decisions.md ADR-0068/0070 + add #18j-fix; docs/project_state.json pointing/graveyard",
    "current_truth": "The #40 gates flew and CLOSED fixed-mount adoption; the open lever is ADAPTIVE tilt (#46/ADR-0065). Mount-compose compensation code itself is validated and shipped.",
-   "resolution": "PROGRESS.md row 22 and NEXT.md PLAN step 3 both annotated with the FLOWN outcomes + graveyard pointer."
+   "resolution": "docs/progress.md row 22 and docs/next.md PLAN step 3 both annotated with the FLOWN outcomes + graveyard pointer."
   },
   {
    "id": "progress-code-gearing-row",
    "verdict": "CONFIRMED",
    "severity": "medium",
    "status": "resolved",
-   "topic": "PROGRESS.md row 24: robustness sweeps 'IN FLIGHT' and pro-nav extraction/m4 wiring 'NEXT' vs both completed same-day",
+   "topic": "docs/progress.md row 24: robustness sweeps 'IN FLIGHT' and pro-nav extraction/m4 wiring 'NEXT' vs both completed same-day",
    "claim_a": "\"Robustness sweeps... IN FLIGHT. NEXT: wire m4→flight/, extract the pro-nav terminal, port the Pi5/Hailo YOLO path + camera calibration + MAVSDK-serial/TELEM2.\"",
-   "loc_a": "PROGRESS.md:24",
+   "loc_a": "docs/progress.md:24",
    "claim_b": "ADR-0076 add #18b/#18c (48-flight envelope concluded); flight/guidance.py pronav_lateral_accel, flight/estimator.py, flight/camera.py + 26 tests; m4_intercept.py imports flight.guidance; project_state.json terminal.active/changelog.",
    "loc_b": "docs/project_state.json terminal; flight/ package; docs/decisions.md add #18b/#18c",
    "current_truth": "Sweeps DONE (48/48 up to ±30°, read as dash-robustness per #18g); flight/ core complete and wired. Genuinely still open: Pi5/Hailo YOLO port + MAVSDK-serial/TELEM2.",
@@ -3294,7 +3294,7 @@
    "status": "resolved",
    "topic": "Fixed up15 tilt presented as the sim-validated hardware spec (BOM header/mount row/§5 mapping; real_build_coded_dash row; NEXT PIVOT) vs 'NO mount adopted / fixed tilt only relocates the window'",
    "claim_a": "BOM mount row \"Sets the sim's up15 tilt (ADR-0067)\"; §5 'Sim (validated)' column \"Camera fixed up15 tilt (ADR-0067)\"; header comment \"anchored to the sim-validated design (... up15 tilt ...)\"; rbcd \"~15° up-tilt bracket | closes the dash-pitch FoV gap\".",
-   "loc_a": "docs/hardware_order_list.md:1, 190, 341; docs/real_build_coded_dash.md:111; NEXT.md:170 (pre-fix numbering)",
+   "loc_a": "docs/hardware_order_list.md:1, 190, 341; docs/real_build_coded_dash.md:111; docs/next.md:170 (pre-fix numbering)",
    "claim_b": "ADR-0067 (\"NO mount angle adopted... leading candidate, not a choice\"); ADR-0068 Stage-1 parity FAIL; add #18j-fix follow-up (fixed tilt only relocates the in-view window); project_state.json pointing + graveyard.",
    "loc_b": "docs/decisions.md ADR-0067/0068 + add #18j-fix; docs/project_state.json pointing/graveyard",
    "current_truth": "No fixed tilt is sim-validated or adopted; the bracket survives ONLY for prop-clearance (angle adjustable/TBD); adaptive tilt #46/ADR-0065 is the open lever.",
@@ -3305,11 +3305,11 @@
    "verdict": "CONFIRMED",
    "severity": "low",
    "status": "resolved",
-   "topic": "NEXT.md build-queue item 3 still calls #46 a 'candidate to un-HOLD ADR-0059 recovery' vs the same file's Stage-2 proof that it will NOT",
+   "topic": "docs/next.md build-queue item 3 still calls #46 a 'candidate to un-HOLD ADR-0059 recovery' vs the same file's Stage-2 proof that it will NOT",
    "claim_a": "\"#46 adaptive camera tilt sim A/B (ADR-0065)... candidate to un-HOLD ADR-0059 recovery.\"",
-   "loc_a": "NEXT.md:679-682 (pre-fix numbering)",
+   "loc_a": "docs/next.md:679-682 (pre-fix numbering)",
    "claim_b": "\"#46... will NOT un-HOLD comms-denied recovery: Stage-2 proved the recovery limit is FAR-RANGE NN DETECTION, not FoV pointing\" (prior-autonomous block); ADR-0070 reconfirmation.",
-   "loc_b": "NEXT.md:564-572; docs/decisions.md ADR-0068 Stage-2 / ADR-0070",
+   "loc_b": "docs/next.md:564-572; docs/decisions.md ADR-0068 Stage-2 / ADR-0070",
    "current_truth": "#46 will not un-HOLD ADR-0059 recovery; its live rationale is the add #18k flight-dynamic pointing wall (nominal acquisition), and the no-datalink pivot moots the ADR-0059 recovery question.",
    "resolution": "Clause struck inline with a supersession bracket pointing at the Stage-2 NULL + the #18k rationale."
   },
@@ -3318,9 +3318,9 @@
    "verdict": "CONFIRMED",
    "severity": "low",
    "status": "resolved",
-   "topic": "PROGRESS.md row 20 '#35 up-tilt mount, now load-bearing' vs the graveyarded fixed-mount adoption",
+   "topic": "docs/progress.md row 20 '#35 up-tilt mount, now load-bearing' vs the graveyarded fixed-mount adoption",
    "claim_a": "\"Camera-pitch (ADR-0060) measured — ~35% of dash ticks target above FoV → up-tilt mount (#35, now load-bearing).\"",
-   "loc_a": "PROGRESS.md:20",
+   "loc_a": "docs/progress.md:20",
    "claim_b": "project_state.json graveyard 'Fixed up-tilt mount adoption — Stage-1 parity FAIL'; ADR-0068 addendum; add #18j-fix follow-up ('the fix is ADAPTIVE tilt, not a fixed mount').",
    "loc_b": "docs/project_state.json graveyard; docs/decisions.md ADR-0068 + add #18j-fix",
    "current_truth": "The ADR-0060 pitch-gap MEASUREMENT stands; the fixed-mount remedy is dead — the pointing lever transferred to adaptive tilt #46/ADR-0065.",
@@ -3355,8 +3355,8 @@
   {
    "id": "residual-retracted-echoes",
    "topic": "Residual un-annotated echoes of retracted claims in already-banner-covered files",
-   "claim_a": "NEXT.md:189 'markerless IS sub-meter one-directionally'; NEXT.md:104-106 '9 m/s straight-crossing genuinely OPEN... NEVER been flown'; real_build_coded_dash.md:44-52 'combined Pk@2.5 8/16->13/16... the number that matters for the hardware'.",
-   "loc_a": "NEXT.md:189; NEXT.md:104-106; docs/real_build_coded_dash.md:44-52",
+   "claim_a": "docs/next.md:189 'markerless IS sub-meter one-directionally'; docs/next.md:104-106 '9 m/s straight-crossing genuinely OPEN... NEVER been flown'; real_build_coded_dash.md:44-52 'combined Pk@2.5 8/16->13/16... the number that matters for the hardware'.",
+   "loc_a": "docs/next.md:189; docs/next.md:104-106; docs/real_build_coded_dash.md:44-52",
    "claim_b": "ADR-0076 add #18e/#18g/#18h/#18k: sub-meter r2l was dash ballistics not camera-guided; line@9 WAS flown and fired the reframe; the 13/16 is dash ballistics (camera terminal added ~nothing).",
    "loc_b": "docs/decisions.md ADR-0076 add #18e/#18g/#18h/#18k; docs/project_state.json",
    "current_truth": "These lines restate claims retracted by the #18g/#18h/#18k corrections; their sibling lines already carry brackets but these specific ones were skipped by the auto-fix pass.",
@@ -3369,14 +3369,14 @@
    "id": "ov9281-pxdeg-30-vs-15",
    "topic": "OV9281 px/deg penalty vs the sim camera: ~30% (BOM/NEXT expectation) vs ~15% (paper-check)",
    "claim_a": "'~30% fewer px/deg than the sim camera' / 'vertical-FoV 800 vs sim 960 (~30% less px/deg -> shorter range)'",
-   "loc_a": "bom_tiers Tier-1 OV9281 row + build_tab seeker part note (pre-2026-07-20 text); NEXT.md P0.5 line",
+   "loc_a": "bom_tiers Tier-1 OV9281 row + build_tab seeker part note (pre-2026-07-20 text); docs/next.md P0.5 line",
    "claim_b": "Horizontal px/deg: sim 1280/100 = 12.8 vs OV9281 1280/118 = 10.85 -> ~15% penalty; the ~30% figure reproduces only by misreading the 148-deg DIAGONAL as HFoV (1280/148 = 8.65 -> 32%). Vendor states FoV(H)=118 explicitly; vertical works out ~5-15% too.",
    "loc_b": "docs/camera_paper_check.md items 1-2",
    "current_truth": "~15% fewer px/deg (H; V similar) -> ~15% shorter decode/acquisition range at a fixed min-pixel threshold. Absolute tag/NN range remains tripod-measured, not a paper number. All three claim sites corrected 2026-07-20 with pointers here.",
    "verdict": "CONFIRMED",
    "severity": "low",
    "status": "resolved",
-   "resolution": "Paper-check derivation adopted; bom_tiers row, build_tab note, and the NEXT.md P0.5 line rewritten to ~15% citing camera_paper_check.md; found the same day the paper-check ran, so no decision ever consumed the wrong 30%."
+   "resolution": "Paper-check derivation adopted; bom_tiers row, build_tab note, and the docs/next.md P0.5 line rewritten to ~15% citing camera_paper_check.md; found the same day the paper-check ran, so no decision ever consumed the wrong 30%."
   },
   {
    "id": "target-fc-matek-vs-kakute",

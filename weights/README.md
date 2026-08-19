@@ -44,6 +44,6 @@ sha256sum scripts/seeker/weights/nn_tier/n-mono.onnx \
 ```
 
 **Still open** (not solved by this file): the weights and the 15,391-image corpus
-have no off-machine copy. `NEXT.md` and `docs/publish_runbook.md` describe the
+have no off-machine copy. `docs/next.md` and `docs/publish_runbook.md` describe the
 private GitHub remote as "instant off-machine backup of the whole evidence base",
 which is false — git holds none of it (`git ls-files '*.onnx' '*.pt'` = 0).

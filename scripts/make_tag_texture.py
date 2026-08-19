@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """One-off utility: build the AprilTag 36h11 id-0 texture used by the
-models/apriltag_target Gazebo model. See GOALS.md milestone M2.
+models/apriltag_target Gazebo model. See docs/goals.md milestone M2.
 
 What: downloads the canonical tag36h11 id-0 PNG from AprilRobotics/apriltag-imgs
 (the reference repo pupil-apriltags itself is generated from) and upscales it

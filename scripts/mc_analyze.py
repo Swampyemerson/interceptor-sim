@@ -103,7 +103,7 @@ from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 import matplotlib
-matplotlib.use("Agg")  # headless by default, GOALS.md
+matplotlib.use("Agg")  # headless by default, docs/goals.md
 import matplotlib.pyplot as plt
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -205,7 +205,7 @@ def wilson_ci(k, n, z=Z_95):
 
 
 def percentile(sorted_vals, pct):
-    """Linear-interpolation percentile (no numpy -- GOALS.md minimal deps,
+    """Linear-interpolation percentile (no numpy -- docs/goals.md minimal deps,
     same convention as numpy.percentile's default 'linear' method)."""
     if not sorted_vals:
         return float("nan")

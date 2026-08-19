@@ -185,7 +185,7 @@ R_decode90_real = R_decode90_sim × (camera scale) × (edge_real / 0.5 m)
 At the R90 decode rate (1.0 → 30 Hz): `R_streak_burn = (5/30)·9 = 1.5 m`, and
 `t_go = (R90 − 1.5)/9 ≥ 0.5` ⇒ **gate threshold `R_decode90_real ≥ 6.0 m`.** (The aggressive
 20 m/s scenario needs ≥13.3 m — no candidate reaches it in sim; per `tripod_score.py` it is
-context-only, not the gate. The NEXT.md "~20 m R_acq" is a looser rule-of-thumb anchor; the
+context-only, not the gate. The docs/next.md "~20 m R_acq" is a looser rule-of-thumb anchor; the
 formula above is what the scorer actually computes and what this doc gates on.)
 
 **Result — predicted real `R_decode90` (m) and gate verdict per candidate edge:**

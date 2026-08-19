@@ -1,6 +1,6 @@
 # Ground sensor modality (P-1) — what the "smarter sensor" should actually be
 
-*Research record for NEXT.md item P-1, the last un-researched perception question.
+*Research record for docs/next.md item P-1, the last un-researched perception question.
 Companion to ADR-0015 (perception architecture, which STAGED thermal and asserted RF
 is defeated by fiber-optic FPV) and ADR-0017 (the EO stereo rig's ~59–160 m detection
 floor). This doc pressure-tests those two assertions against 2025–2026 sources and

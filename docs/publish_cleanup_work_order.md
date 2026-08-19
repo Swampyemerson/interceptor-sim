@@ -27,18 +27,19 @@ this file.
    `Claude-Session:` trailers: P2 step 15 discloses the AI-built workflow
    anyway, and stripping trailers both undercuts that disclosure and forces the
    history rewrite you otherwise avoid.
-4. `/home/emerson` paths: the original 4-file list is incomplete — the string
-   also appears in `worlds/*.sdf` usage comments (7 files), several scripts
+4. Home-directory absolute paths (the /home/<user> prefix): the original
+   4-file list was incomplete — the prefix also appeared in `worlds/*.sdf`
+   usage comments (7 files), several machine-local scripts
    (`scripts/deploy/qemu_arm_check.sh`, `scripts/seeker/*`,
    `scripts/forensics/*`), and as data columns (`flight_csv_path`,
-   `sim_log_path`, `run_log_path`) in MANY committed `logs/*.csv`, not just the
-   uptilt four. It is a username (already public via the GitHub handle and
-   commit author), not a secret — so either **accept it everywhere** (fine), or
-   strip it **uniformly with a script** (`/home/emerson/interceptor-sim` →
-   `~/interceptor-sim` across tracked text files), never by hand-editing four
-   CSVs. If stripping: evidence CSVs are consumed by gate scripts — run
-   `scripts/run_tests.sh` plus `scripts/check_t21.sh` after, and require green.
-   Do still fix `docs/review2_silent_failure_findings.md` (~line 126) either way.
+   `sim_log_path`, `run_log_path`) in MANY committed `logs/*.csv`, not just
+   the uptilt four. **EXECUTED 2026-08-19 with this scoping:** stripped to `~`
+   in all prose (`*.md`, incl. `docs/review2_silent_failure_findings.md`) and
+   in `worlds/*.sdf` comments; **left untouched** in functional machine-local
+   scripts/configs (py/sh/yaml — a literal `~` does not expand in Python/YAML,
+   so the rewrite would break working local tooling), in test fixtures, and in
+   the committed evidence CSVs (byte-identical evidence beats hiding a
+   username that is already public via the GitHub handle and commit author).
 5. **(NEW) Stale-claim sweep — the 12/16 retraction did not reach every
    surface.** `PROGRESS.md` (bench row) still says "re-scored, the same flights
    go 0/16 → 12/16 … measurement artefact"; `docs/project_state.json`

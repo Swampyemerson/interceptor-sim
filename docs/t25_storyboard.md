@@ -38,7 +38,7 @@ sensor is contributing what — including the honesty handoff moment where the
 cue goes dark; and the intercept is flown at the fastest speed we can
 RELIABLY stand behind.*
 
-**Sequencing (NEXT.md item 6, builder directive):** render AFTER the v3
+**Sequencing (docs/next.md item 6, builder directive):** render AFTER the v3
 detector evaluation completes — the demo flies the best detector. The
 maneuver-fix deferral is already met (ADR-0058, 14/14 camera-only maneuvering
 terminal), so nothing else gates this.

@@ -6,7 +6,7 @@ docs/phase2_sim_to_real_plan.md Sec 5.5-5.6.
 VENV: this needs cv2 (OpenCV) -- run it with the markerless/seeker venv:
     .venv-seeker/bin/python scripts/rig_snapshot_capture.py ...
 (matches scripts/seeker/render_sim_dataset.py, which this harness extends;
-the main .venv stays untouched/gated per NEXT.md's venv policy.)
+the main .venv stays untouched/gated per docs/next.md's venv policy.)
 
 WHAT: with PX4 SITL + gz_x500_mono_cam already running on the
 `stereo_intercept` world (worlds/stereo_intercept.sdf, which places
@@ -41,7 +41,7 @@ constant --dash-speed (default 9.0 m/s -- a harness-local default, NOT
 m4_intercept.py's S2["DASH_SPEED"]=10.0 or mc_batch.sh's batch-arm
 --dash-speed 16; this is an offline capture-rate choice, not a flown
 guidance parameter) from a start of +/- --y0-mag (default 29.3 m, the
-ratified NEXT.md dash profile) toward Y=0, STOPPING once |y| <=
+ratified docs/next.md dash profile) toward Y=0, STOPPING once |y| <=
 PATH_BOUNDARY_ABS_Y_M (5.0 m -- "stop just short of CPA (closest point of
 approach)", the exact boundary scripts/rig_geometry_analysis.py's Analysis
 2 uses, so this harness's captured span matches the geometry the wedge

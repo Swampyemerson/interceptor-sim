@@ -1,6 +1,6 @@
 # Camera paper-check — innomaker OV9281 mono GS wide (CAM-MIPIOV9281 V2)
 
-> P0.5 (NEXT.md). The seeker camera is **ORDERED** (2026-07-20 Tier-1 BOM). This is the
+> P0.5 (docs/next.md). The seeker camera is **ORDERED** (2026-07-20 Tier-1 BOM). This is the
 > paper gate: verify the datasheet clears the constraints BEFORE frames arrive, so the
 > tripod day measures the real curve instead of discovering a spec surprise. Engineer's-
 > notebook tone; every number cites a source; each item ends in a single VERDICT line.

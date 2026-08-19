@@ -1,6 +1,6 @@
 # Publish runbook — first GitHub push (builder, ~10 minutes)
 
-*Written 2026-07-20 (publish-prep pass, NEXT.md THE PLAN item 6). Everything
+*Written 2026-07-20 (publish-prep pass, docs/next.md THE PLAN item 6). Everything
 below is prepared; only the steps marked **(BUILDER)** need a human. Until a
 remote exists the entire evidence base has zero off-machine backup — pushing
 private is itself the win; flipping public can wait.*

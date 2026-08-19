@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """P0.3 -- the TWO-CURVE tripod SCORER: turn one capture session into the two
 MONEY-GATE curves the field afternoon exists to produce (build_plan P2,
-docs/tripod_test_protocol.md, NEXT.md P0/R5).
+docs/tripod_test_protocol.md, docs/next.md P0/R5).
 
 ONE capture set (target quad + AprilTag placard, camera on a fixed tripod),
 scored two ways, gating two different purchases:
@@ -10,7 +10,7 @@ scored two ways, gating two different purchases:
     frame's TRUE range. Gates the ~$740 Tier-2 interceptor order -- the staged
     first kills fly the tag36h11 placard on the Pi 5 CPU (docs/hardware_order_
     list.md §0c/§0d), so the tag must decode the approaching placard early
-    enough to leave t_go >= 0.5 s post-handoff at the closing speed (the NEXT.md
+    enough to leave t_go >= 0.5 s post-handoff at the closing speed (the docs/next.md
     R5 kill-number applied to the tag). This is the curve that stops -- or
     unlocks -- $740.
 
@@ -130,10 +130,10 @@ from pi_capture import (  # noqa: E402
 # Sourced constants -- every number traces to a doc/ADR (CLAUDE.md rule).
 # --------------------------------------------------------------------------
 # The money-gate kill number: the tag must decode early enough to leave this
-# much t_go AFTER the handoff streak forms (NEXT.md R5, tripod_test_protocol.md
+# much t_go AFTER the handoff streak forms (docs/next.md R5, tripod_test_protocol.md
 # §8.1, build_plan P2 gate, hardware_order_list.md §0d).
 DEFAULT_TGO_MIN_S = 0.5
-# Conservative closing speed = target-only ~9 m/s (>=20 mph goal, NEXT.md R5:
+# Conservative closing speed = target-only ~9 m/s (>=20 mph goal, docs/next.md R5:
 # "R_acq must leave t_go >=0.5 s post-handoff (≈>=20 m for 9 m/s)"). The gate
 # decision is made against THIS scenario (protocol §8.1 "GO: t_go >= 0.5 s under
 # the conservative (9 m/s) scenario at minimum").
@@ -141,7 +141,7 @@ DEFAULT_V_CLOSING_MPS = 9.0
 # Aggressive scenario (reported for context, NOT the gate): interceptor dash
 # ~16 m/s combined with the target head-on ~20-25 m/s (protocol §8.1).
 DEFAULT_V_CLOSING_HI_MPS = 20.0
-# Handoff streak = 5 CONSECUTIVE detections (NEXT.md R5 / protocol §8.1
+# Handoff streak = 5 CONSECUTIVE detections (docs/next.md R5 / protocol §8.1
 # "the 5-consecutive-detection handoff streak"). The coded-dash code's own
 # HANDOFF_STREAK_MIN is smaller (3, m4_intercept.py); R5 pre-registers 5 for the
 # tag gate, so 5 is the sourced number here (overridable).
@@ -1033,7 +1033,7 @@ def gate_verdict(r90, r_any, decode_rate, stream_fps, streak_n, v_closing,
                  have_truth=True, r90_stop_reason=R90_STOP_RATE,
                  r90_stop_lo=None, n_at_r90_bin=None,
                  engagement_incidence_deg=0.0):
-    """Apply the curve-(a) money gate (protocol §8.1 / NEXT.md R5):
+    """Apply the curve-(a) money gate (protocol §8.1 / docs/next.md R5):
 
         R_eff         = R_decode90 · cos(theta_eng)       [incidence-aware form]
         R_streak_burn = (E[T] / stream_fps) × V_closing   [run-length, ADR-0079]
@@ -1677,7 +1677,7 @@ def build_summary(gate, gate_hi, curve_a_bins, curve_b_note, meta, n_binnable,
                      f"above {COS_LAW_VALIDATED_TO_DEG} deg).")
         L.append("")
     L.append("--- MONEY GATE (curve a -> the ~$740 Tier-2 interceptor order) ---")
-    L.append(f"  conservative closing speed = {gate['V_closing_mps']:.1f} m/s (NEXT.md R5)")
+    L.append(f"  conservative closing speed = {gate['V_closing_mps']:.1f} m/s (docs/next.md R5)")
     for line in gate["arithmetic"].splitlines():
         L.append("  " + line)
     L.append(f"  reason: {gate['reason']}")
@@ -2760,7 +2760,7 @@ def main():
                     help=f"target extent (m) for the NN truth box; default meta.json/{DEFAULT_DRONE_SIZE_M}")
     ap.add_argument("--closing-speed", type=float, default=None,
                     help=f"conservative closing speed m/s for the GATE; default meta.json/"
-                         f"{DEFAULT_V_CLOSING_MPS} (NEXT.md R5)")
+                         f"{DEFAULT_V_CLOSING_MPS} (docs/next.md R5)")
     ap.add_argument("--closing-speed-hi", type=float, default=DEFAULT_V_CLOSING_HI_MPS,
                     help=f"aggressive closing speed m/s (context only, default {DEFAULT_V_CLOSING_HI_MPS}, protocol §8.1)")
     ap.add_argument("--stream-fps", type=float, default=None,
@@ -2815,9 +2815,9 @@ def main():
                          "offline (what protocol §6 actually asks for -- do not rely "
                          "on pi_capture's capture-time decode)")
     ap.add_argument("--handoff-streak", type=int, default=DEFAULT_HANDOFF_STREAK,
-                    help=f"consecutive detections to form a handoff (default {DEFAULT_HANDOFF_STREAK}, NEXT.md R5)")
+                    help=f"consecutive detections to form a handoff (default {DEFAULT_HANDOFF_STREAK}, docs/next.md R5)")
     ap.add_argument("--tgo-min", type=float, default=DEFAULT_TGO_MIN_S,
-                    help=f"minimum post-handoff t_go for GO (default {DEFAULT_TGO_MIN_S} s, NEXT.md R5)")
+                    help=f"minimum post-handoff t_go for GO (default {DEFAULT_TGO_MIN_S} s, docs/next.md R5)")
     ap.add_argument("--range-bin", type=float, default=2.0, help="range bin size m (default 2, approach_recall convention)")
     ap.add_argument("--max-range", type=float, default=40.0, help="max range m to score (default 40)")
     ap.add_argument("--pos-bands", type=int, default=3, help="position-in-frame bands for curve (b) (default 3: top/mid/bottom)")

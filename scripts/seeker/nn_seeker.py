@@ -54,7 +54,7 @@ except ImportError as exc:  # pragma: no cover
         "(never the project .venv)."
     ) from exc
 
-# ---- Camera intrinsics (camera_intrinsics.json; gz_x500_mono_cam) -----------
+# ---- Camera intrinsics (configs/camera_intrinsics.json; gz_x500_mono_cam) -----------
 FX = 539.9363327026367
 FY = 539.9363708496094
 CX = 640.0

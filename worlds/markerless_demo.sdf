@@ -47,7 +47,7 @@
   the other project worlds):
 
     PX4_GZ_WORLD=markerless_demo \
-    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models \
     HEADLESS=1 make px4_sitl gz_x500_mono_cam
 -->
 <sdf version="1.9">

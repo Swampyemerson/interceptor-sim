@@ -47,7 +47,7 @@ dataset work use the **0.35 m** 5-inch extent, not the sim model's size.
 
 Box width W = f·(0.35 m)/R; height H = f·(0.08…0.15 m)/R. The 6–20 m band is the terminal
 acquisition envelope: the money gate needs R_acq ≥ 6.0 m (`tripod_score.py` arithmetic,
-`placard_sizing.md` §4), and ~20 m is the NEXT.md R_acq rule-of-thumb anchor.
+`placard_sizing.md` §4), and ~20 m is the docs/next.md R_acq rule-of-thumb anchor.
 
 | range | box width (px @1280) cons / real | box height (px @1280) cons / real | width at the **640 model input** cons / real |
 |---:|---:|---:|---:|

@@ -4,7 +4,7 @@
 # on the custom "apriltag" world), pre-places the AprilTag at the engagement
 # start position, then runs scripts/m4_intercept.py to intercept a MOVING
 # tag (scripts/m4_target_mover.py streams it along a straight line once
-# scripts/m4_intercept.py's ENGAGE phase spawns it). See GOALS.md milestone
+# scripts/m4_intercept.py's ENGAGE phase spawns it). See docs/goals.md milestone
 # M4, scripts/m4_intercept.py, scripts/m4_target_mover.py,
 # worlds/apriltag.sdf, models/apriltag_target/, and
 # .claude/skills/px4-gazebo/SKILL.md for launch/shutdown conventions.
@@ -36,7 +36,7 @@ POST_READY_SETTLE_S=5
 # forever; m4_intercept.py has its own internal timeouts (connect, health,
 # altitude, acquire, engage, land) that should all fire well before this.
 PY_TIMEOUT_S=300
-# GOALS.md M4 gate: pro-nav closest approach must be < this.
+# docs/goals.md M4 gate: pro-nav closest approach must be < this.
 PRONAV_MISS_GATE_M=1.0
 # S1 target: FPV-class straight crossing (ADR-0010). 6 m/s > M4's 2 m/s.
 TARGET_VEL="0,6.0"
@@ -199,7 +199,7 @@ for LAW in pursuit pronav; do
 
     EXTRA_ARGS=()
     if [[ "$LAW" == "pronav" ]]; then
-        # GOALS.md's M4 gate ("< 1 m closest approach") is on pro-nav;
+        # docs/goals.md's M4 gate ("< 1 m closest approach") is on pro-nav;
         # pursuit is the baseline being compared against, so its own miss
         # is reported but not gated.
         EXTRA_ARGS+=(--require-miss "$PRONAV_MISS_GATE_M")

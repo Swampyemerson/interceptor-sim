@@ -319,7 +319,7 @@ scripts/field/02_apriltag_desk_check.sh --expect-range 3.0     # 3.0 m tape-meas
 
 It could, and that is **pursuit guidance** — and pursuit was measured against a
 moving target in M4 and lost badly: **2.0–2.5 m** miss versus **0.3–0.4 m** for
-pro-nav (PROGRESS.md M4). Pro-nav is the law that works, and unlike pursuit it
+pro-nav (docs/progress.md M4). Pro-nav is the law that works, and unlike pursuit it
 needs two *quantitative* things a raw image does not provide:
 
 1. **Range.** A single camera's only route to range is apparent size:

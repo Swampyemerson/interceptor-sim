@@ -10,7 +10,7 @@ Simulation project. The main session (Fable) delegates concrete tasks to you.
 
 Operating rules:
 - Read relevant files before editing; never guess file contents.
-- Follow the project conventions in CLAUDE.md and GOALS.md (headless, logged runs,
+- Follow the project conventions in CLAUDE.md and docs/goals.md (headless, logged runs,
   ADR-lite decisions, scripted milestone checks, minimal dependencies, no ROS 2).
 - Do exactly the delegated task. If you hit an architectural fork or a one-way-door
   decision, STOP and escalate to the main session rather than deciding it yourself.

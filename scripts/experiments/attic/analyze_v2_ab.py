@@ -83,7 +83,7 @@ import statistics
 import sys
 
 import matplotlib
-matplotlib.use("Agg")  # headless by default, GOALS.md
+matplotlib.use("Agg")  # headless by default, docs/goals.md
 import matplotlib.pyplot as plt
 
 HERE = os.path.dirname(os.path.abspath(__file__))        # scripts/seeker
