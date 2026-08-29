@@ -13,6 +13,18 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/scripts/hooks/check_stranded_branches.py",
+            "timeout": 15,
+            "statusMessage": "Checking for unmerged remote branches"
+          }
+        ]
+      }
     ]
   }
 }
