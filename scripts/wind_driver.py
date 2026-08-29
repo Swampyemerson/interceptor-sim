@@ -2,6 +2,29 @@
 """WIND DRIVER -- the sim-side process that turns scripts/wind_model.py into an
 actual force on the airframe (wind arm W1).
 
+!! STATUS 2026-08-29: PARKED BY BUILDER RULING, AND THE PUBLISH RECIPE BELOW IS
+!! KNOWN-BROKEN. DO NOT FLY A WIND ARM WITH THIS FILE AS IT STANDS. See ADR-0098.
+!!
+!! What the Gate-0 probe established:
+!!   * Gazebo APPLIES the wrench essentially exactly -- a SINGLE persistent
+!!     EntityWrench on the scoped link name produced a ground-truth tilt of
+!!     5.259 deg at bearing 270.2, against a derivation of 5.262 deg at 270.0.
+!!   * But the CLEAR-THEN-PUBLISH-AT-20-Hz recipe in publish() below CANCELS
+!!     ITS OWN FORCE. The clear and the wrench go out on two DIFFERENT topics
+!!     and gz-transport gives no ordering guarantee across topics, so "clear
+!!     then publish" frequently lands as "publish then clear". Same force,
+!!     same everything else: 5.259 deg published once vs 0.167 deg under this
+!!     recipe.
+!!   * The clear is still NECESSARY (ApplyLinkWrench appends -- ADR-0096); it
+!!     is the per-tick REPETITION that is wrong. The fix, if wind is ever
+!!     unparked: publish once per FORCE CHANGE instead of clearing every tick,
+!!     or drive the one-shot /world/<w>/wrench topic at the physics rate.
+!!     Do not re-derive this; arm B of scripts/wind_wrench_diag.py proves it.
+!!
+!! The pose-entity fix in make_on_pose() below IS correct and should stay --
+!! it was a genuine defect (drag computed from a frozen position) and is
+!! guarded by mutation-verified tests.
+
 STATUS 2026-08-10: NEW, DEFAULT-OFF, NOT YET FLOWN. Nothing spawns this unless
 `--wind-mps` / `--wind-tier` / `--wind-still-air` is passed to
 scripts/m4_intercept.py. With none of those, m4 never builds a wind command and

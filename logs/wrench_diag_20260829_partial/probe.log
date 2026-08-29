@@ -1,0 +1,16 @@
+[gate0] Killing stale px4 / gz / wind-driver processes...
+[gate0] Output dir -> /home/emerson/interceptor-sim/logs/wind_gate0_20260829T155825Z
+[gate0] Launching HEADLESS PX4 SITL + Gazebo (gz_x500_mono_cam, world=apriltag)...
+[gate0] Sim launched (pid/pgid 682513). Log -> /home/emerson/interceptor-sim/logs/wind_gate0_20260829T155825Z/sim.log
+[gate0] Sim ready. Running wind_wrench_diag.py...
+[diag] force 1.9095 N -> predicted tilt 5.262 deg
+[diag] pose topics: ['/world/apriltag/pose/info', '/world/apriltag/dynamic_pose/info']
+[diag] taking off to 6.0 m
+[diag] at 5.42 m, settling
+[diag] --- A_baseline ---
+[diag]   tilt 0.160 deg (max 0.349), lean 246.2, publishes=0, drift 0.09 m
+[diag] --- B_persistent_scoped_once ---
+[diag]   tilt 5.259 deg (max 5.453), lean 270.2, publishes=1, drift 0.16 m
+[diag] --- C_persistent_bare_once ---
+[gate0] Tearing down...
+Terminated
