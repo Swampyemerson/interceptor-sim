@@ -3,7 +3,7 @@
 # MAVSDK OFFBOARD path (flight/deploy/seeker_loop.py, README item 4) against a
 # local PX4 SITL. This is the same code the real interceptor's Pi 5 runs; the
 # front-loaded Pixhawk 6C Mini will re-run the equivalent on the props-off bench,
-# so this burns down the software risk first (NEXT.md "REMAINING SIM PREP",
+# so this burns down the software risk first (docs/next.md "REMAINING SIM PREP",
 # terminal-stage changelog 2026-07-18).
 #
 # It boots headless PX4 SITL + Gazebo (gz_x500, default world -- the smoke uses a

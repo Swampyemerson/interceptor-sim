@@ -159,7 +159,7 @@ to keep exactly one training pipeline to maintain instead of two.
 ## 3. The Stage-0 data loop
 
 `docs/stage0_bench_plan.md` already specifies a Pi 5 + global-shutter-camera
-bench (~$257, design-review §6 re-cost; parts on the builder per NEXT.md) — but that plan is scoped
+bench (~$257, design-review §6 re-cost; parts on the builder per docs/next.md) — but that plan is scoped
 **narrowly to the AprilTag go/no-go gate** (detection rate, range/bearing
 error, detection Hz, motion-blur threshold, lighting robustness, all against
 a *printed fiducial*). It says nothing about capturing real drone-vs-bird
@@ -267,7 +267,7 @@ generally-preferred permissive license for a model you might productize.
   or fielded as a product, AGPL is not a legal problem — the honesty is in
   disclosing it, which this project already does.
 - **For the "could this be a real product" framing this project explicitly
-  carries** (Anduril/Lattice-style counter-UAS pitch, GOALS.md), shipping an
+  carries** (Anduril/Lattice-style counter-UAS pitch, docs/goals.md), shipping an
   AGPL-trained detector inside a closed commercial device is a real
   exposure: either the whole stack goes open-source, or an Ultralytics
   Enterprise license gets purchased. Neither is free.

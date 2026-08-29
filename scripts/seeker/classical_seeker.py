@@ -109,7 +109,7 @@ class Proposal:
     source: str = "blob"                 # "blob" (dark-salient) or "motion"
 
 
-def load_intrinsics(path: str = "camera_intrinsics.json"):
+def load_intrinsics(path: str = "configs/camera_intrinsics.json"):
     """Return (fx, fy, cx, cy) from the calibrated intrinsics file."""
     d = json.loads(Path(path).read_text())
     return d["fx"], d["fy"], d["cx"], d["cy"]
@@ -361,7 +361,7 @@ def _main():
     ap.add_argument("frame", help="path to a BGR frame_*.png")
     ap.add_argument("--proposal-only", action="store_true",
                     help="emit candidate ROIs (proposal stage) instead of a bearing")
-    ap.add_argument("--intrinsics", default="camera_intrinsics.json")
+    ap.add_argument("--intrinsics", default="configs/camera_intrinsics.json")
     ap.add_argument("--max-candidates", type=int, default=8)
     args = ap.parse_args()
 

@@ -44,7 +44,7 @@ if [[ -x "$PY" ]]; then
         else bad "compile $(basename "$f")"; fi
     done
 else
-    bad "python venv not found at $PY (run bootstrap.sh)"
+    bad "python venv not found at $PY (run scripts/env/bootstrap.sh)"
 fi
 
 # --- 2. the no-arm audit, and proof that it bites -------------------------

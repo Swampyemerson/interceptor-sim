@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # M0 scripted milestone gate: headless PX4 SITL + Gazebo boots, MAVSDK arms,
-# takes off to 2 m, lands. See GOALS.md milestone M0 and
+# takes off to 2 m, lands. See docs/goals.md milestone M0 and
 # .claude/skills/px4-gazebo/SKILL.md for launch/shutdown conventions.
 #
 # Usage: scripts/check_m0.sh

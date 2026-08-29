@@ -335,7 +335,7 @@ mini-map already draws both if a side-panel treatment is preferred.
 > `demo_out/orient_test/chase_frames`, 576 frames, target banks clearly) and take
 > the CLEAN intercept result from the ONBOARD-only pass (flight-1: 0.784 m banking
 > intercept, `logs/m4_intercept_pronav_20260711T174723Z.csv`). GPU render (queued
-> in NEXT.md) may lift the RTF enough to make a chase-intercept viable — retest then.
+> in docs/next.md) may lift the RTF enough to make a chase-intercept viable — retest then.
 
 ## Honesty checklist pointers (enforced by the tooling)
 

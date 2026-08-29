@@ -6,7 +6,7 @@
 > banking-pose retrain and finish the swap **without the conversation**. Status
 > language is deliberate — read it before assuming anything is done.
 > Context ADR: `docs/decisions.md` **ADR-0072** (all addenda). Live status:
-> `NEXT.md` CURRENT block. Last updated 2026-07-11.
+> `docs/next.md` CURRENT block. Last updated 2026-07-11.
 
 ## The arc in one paragraph
 
@@ -71,7 +71,7 @@ once converged rather than waiting it out. Then re-validate (step 5). NOT yet do
 
 ## RESUME — step by step
 
-All commands run from the repo root `/home/emerson/interceptor-sim`. Sim work is
+All commands run from the repo root `~/interceptor-sim`. Sim work is
 serialized (one sim, idle load). Flight venv `.venv-seeker`; training venv
 `.venv-seeker-train` (CPU-only torch — expected, don't "fix" it).
 
@@ -90,7 +90,7 @@ tail -3 "$(ls -t logs/quad_dataset_banked_capture_*.log | head -1)"
 Detect death by **log staleness**, not pgrep (a setsid daemon may outlive its watcher).
 
 ### 1. Finish the banked dataset capture (if it died / is incomplete)
-Boot the `quad_enemy` world headless (see the px4-gazebo skill / `NEXT.md` "Key facts"
+Boot the `quad_enemy` world headless (see the px4-gazebo skill / `docs/next.md` "Key facts"
 boot line; env: `PX4_GZ_WORLD=quad_enemy INTERCEPTOR_WORLD_NAME=quad_enemy
 INTERCEPTOR_TARGET_MODEL=fpv_quad_enemy`, world already symlinked into PX4). Then:
 ```bash

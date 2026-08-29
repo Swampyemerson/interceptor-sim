@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """M4 gate script: intercept a MOVING AprilTag using ONLY the live camera as
 target feedback, running either a pursuit or a proportional-navigation
-(pro-nav) guidance law, and log the miss distance. See GOALS.md milestone
+(pro-nav) guidance law, and log the miss distance. See docs/goals.md milestone
 M4, scripts/m3_static_intercept.py (reused wholesale for setup/detection/
 ground-truth plumbing), and scripts/m4_target_mover.py (the separate
 process that drives the tag along a straight line).
@@ -129,7 +129,7 @@ ranking (guidance_lab.py --p6-fusion, ADR-0015 fusion study): fusion helps
 TRACK CONTINUITY through the terminal under EXPECTED realism (Pk@2 and
 terminal detection coverage rise) but is neutral/sub-noise on mean miss and
 inert under an early jammer link-cutoff; warm handoff is a small sub-noise
-positive for a pronav terminal -- so a Gazebo A/B is what decides (NEXT.md
+positive for a pronav terminal -- so a Gazebo A/B is what decides (docs/next.md
 P-6, "lab ranks, Gazebo decides").
 
 S2 WORLD-FRAME MAPPING (empirically verified, not assumed -- do not guess
@@ -141,7 +141,7 @@ mapping is
     north (NED) = world_y      east (NED) = world_x
 
 (standard Gazebo ENU world -- East/North/Up -- composed with PX4's fixed
-ENU->NED bridge; GOALS.md's "World: ENU, origin at the interceptor's
+ENU->NED bridge; docs/goals.md's "World: ENU, origin at the interceptor's
 start" means no translation term is needed either, since PX4's local NED
 origin IS the spawn point.) Verified two independent ways against
 existing FPV flight logs (main checkout's logs/, read-only during this
@@ -276,7 +276,7 @@ from wind_trim import (  # noqa: E402
     solve_wind_trimmed_lead,
 )
 
-# --- Guidance targets / gains (GOALS.md M4; pro-nav mechanization + gain
+# --- Guidance targets / gains (docs/goals.md M4; pro-nav mechanization + gain
 # council-decided per CLAUDE.md -- do not retune without an ADR). See the
 # module docstring for the guidance law itself. ---
 # Camera sits ~0.25 m above the model origin (base_link ~0 m + mount offset,
@@ -284,7 +284,7 @@ from wind_trim import (  # noqa: E402
 # reference altitude than M3's 1.0 m keeps the vertical component small so
 # it doesn't eat into the <1 m 3D miss-distance budget.
 ALT_REF_M = 0.5
-N_PRONAV = 4.0  # pro-nav gain (typical range 3-5, GOALS.md guidance arc)
+N_PRONAV = 4.0  # pro-nav gain (typical range 3-5, docs/goals.md guidance arc)
 ALPHA = 0.5  # alpha-beta filter position gain (both lambda and range channels)
 # Rate gains split per channel after dev run ...T012819Z: the lambda
 # channel's 0.15 rate gain lagged a building LOS rate by ~0.5 s (est -3
@@ -1467,7 +1467,7 @@ PIP_TRACK_BETA = 0.2
 PIP_MAX_LEAD_S = 3.0
 
 # --- P-6 mid-course fusion / warm handoff (ADR-0015 fusion decision;
-# NEXT.md P-6; ported from guidance_lab.py's FusedTrack -- keep the two in
+# docs/next.md P-6; ported from guidance_lab.py's FusedTrack -- keep the two in
 # sync). All behind --fuse-midcourse / --warm-handoff (both default OFF, both
 # require --handoff), so the S2 gate default path is byte-identical. Fusion
 # is a PRE-LATCH mid-course aid only; POST-latch the cue socket stays closed
@@ -2232,7 +2232,7 @@ def parse_args():
              "the cue stays closed one-way and the terminal is camera-only "
              "(unchanged). Lab: helps track continuity under EXPECTED realism, "
              "neutral/sub-noise on mean miss, inert under an early jammer "
-             "cutoff -- Gazebo A/B decides (NEXT.md P-6).",
+             "cutoff -- Gazebo A/B decides (docs/next.md P-6).",
     )
     parser.add_argument(
         "--warm-handoff", action="store_true",
@@ -3428,7 +3428,7 @@ async def run_acquire_and_engage(
                         # the module docstring's "S2 WORLD-FRAME MAPPING"
                         # section for the evidence/log filenames): the cue
                         # reports Gazebo WORLD x, y, z; north = world_y,
-                        # east = world_x (no sign flip). GOALS.md's world
+                        # east = world_x (no sign flip). docs/goals.md's world
                         # convention ("origin at the interceptor's start")
                         # means no translation term is needed either.
                         ext_n = cy

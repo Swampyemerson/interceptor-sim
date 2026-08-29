@@ -147,7 +147,7 @@
 #                      and quad_v2 reads AP50 0.0003 / recall 1.1% / false-fire
 #                      88.5% on real held-out imagery. Set BENCH_WEIGHTS
 #                      explicitly to re-run the historical bar.
-#   BENCH_INTRINSICS   <repo>/camera_intrinsics.json       # ON HARDWARE use the calibrate_camera.py output for the real lens
+#   BENCH_INTRINSICS   <repo>/configs/camera_intrinsics.json       # ON HARDWARE use the calibrate_camera.py output for the real lens
 #   BENCH_MOUNT_TILT_DEG 0                                 # fixed camera up-tilt of the real mount (deg)
 #   BENCH_FPS          20
 #   BENCH_MAX_FRAMES   300                                 # bound the stream (~15 s at 20 fps). Now actually honoured by run_mavsdk.
@@ -166,7 +166,7 @@ BENCH_MAVSDK_URL="${BENCH_MAVSDK_URL:-serial://${BENCH_DEVICE}:${BENCH_BAUD}}"
 BENCH_PYTHON="${BENCH_PYTHON:-$REPO_ROOT/.venv-seeker/bin/python}"
 BENCH_SOURCE="${BENCH_SOURCE:-$REPO_ROOT/scripts/seeker/data/quad_approach/images}"
 BENCH_WEIGHTS="${BENCH_WEIGHTS:-$REPO_ROOT/scripts/seeker/weights/nn_tier/n-mono.onnx}"
-BENCH_INTRINSICS="${BENCH_INTRINSICS:-$REPO_ROOT/camera_intrinsics.json}"
+BENCH_INTRINSICS="${BENCH_INTRINSICS:-$REPO_ROOT/configs/camera_intrinsics.json}"
 BENCH_MOUNT_TILT_DEG="${BENCH_MOUNT_TILT_DEG:-0}"
 BENCH_FPS="${BENCH_FPS:-20}"
 BENCH_MAX_FRAMES="${BENCH_MAX_FRAMES:-300}"

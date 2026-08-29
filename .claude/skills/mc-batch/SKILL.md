@@ -17,7 +17,7 @@ template. Read its header before using it — it is the single source of truth f
 below from memory; call the wrapper instead:
 
 ```bash
-cd /home/emerson/interceptor-sim
+cd ~/interceptor-sim
 scripts/mc_deployment_arm.sh --path weave --n 16 --out logs/mc_ARMNAME.csv           # echo only (default): prints env + command
 scripts/mc_deployment_arm.sh --path weave --n 16 --out logs/mc_ARMNAME.csv --dry-run # mc_batch plan print, boots nothing
 scripts/mc_deployment_arm.sh --path weave --n 16 --out logs/mc_ARMNAME.csv --go      # actually fly (idle load only)

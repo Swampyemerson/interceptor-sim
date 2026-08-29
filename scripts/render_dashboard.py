@@ -656,20 +656,43 @@ def check_hand_layer_numbers(html: str, state_raw: str) -> int:
     return len(nums)
 
 
-def emit_artifact(html: str, out: Path) -> None:
+def emit_artifact(html: str, out: Path, state: dict) -> None:
     """Write a claude.ai-Artifact-flavored copy of the rendered dashboard: the
     Artifact publisher supplies its own <!doctype>/<html>/<head>/<body> skeleton,
     so strip our wrappers and keep the <style> (from <head>) + the <body> inner
     (which already holds the embedded state JSON + the render script). Self-
     contained; only the SVG-namespace URI remains. Publish with the Artifact tool
-    (url = state['artifact_url'] to keep the same link)."""
+    (url = state['artifact_url'] to keep the same link).
+
+    SHEET 5 (MBSE): in the repo the shell's iframe loads the sibling file
+    docs/mbse.html; a published Artifact is a single page, so the iframe's src
+    is swapped for a srcdoc carrying the whole generated MBSE document
+    (builder request 2026-08-19: one artifact, the model on its own sheet).
+    FAIL-CLOSED on staleness: docs/mbse.html must carry the same `updated`
+    stamp as the contract, else the hosted board would silently show an old
+    model — run scripts/render_mbse.py first (run_tests.sh gates the same via
+    render_mbse.py --check)."""
     styles = "\n".join(re.findall(r"<style\b.*?</style>", html, re.S))
     body = re.search(r"<body\b[^>]*>(.*)</body>", html, re.S)
     if not body:
         fail("rendered HTML has no <body> to extract for --artifact")
     tm = re.search(r"<title\b[^>]*>(.*?)</title>", html, re.S)
     title = f"<title>{tm.group(1)}</title>\n" if tm else ""
-    out.write_text(title + styles + "\n" + body.group(1))
+    body_inner = body.group(1)
+    if 'src="mbse.html"' in body_inner:
+        mbse_path = ROOT / "docs" / "mbse.html"
+        if not mbse_path.exists():
+            fail("--artifact: the shell embeds mbse.html (SHEET 5) but "
+                 "docs/mbse.html does not exist — run scripts/render_mbse.py first")
+        mbse = mbse_path.read_text()
+        if f"updated {state['updated']}" not in mbse:
+            fail(f"--artifact: docs/mbse.html does not carry 'updated "
+                 f"{state['updated']}' — stale MBSE render; run "
+                 f"scripts/render_mbse.py before --artifact")
+        esc = mbse.replace("&", "&amp;").replace('"', "&quot;")
+        body_inner = body_inner.replace('src="mbse.html"',
+                                        'srcdoc="' + esc + '"', 1)
+    out.write_text(title + styles + "\n" + body_inner)
 
 
 def git_short_sha() -> str:
@@ -762,7 +785,7 @@ def main() -> None:
     if "--artifact" in sys.argv[1:]:
         i = sys.argv.index("--artifact")
         out = Path(sys.argv[i + 1]) if i + 1 < len(sys.argv) else ROOT / "docs" / "dashboard.artifact.html"
-        emit_artifact(html, out)
+        emit_artifact(html, out, state)
         # PUBLISH RECEIPT: ties the emitted bytes to the contract revision so a
         # republish can be audited ("which state did the hosted Artifact carry?").
         data = out.read_bytes()

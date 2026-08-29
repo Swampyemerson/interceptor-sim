@@ -12,7 +12,7 @@ already consumes. Built and evaluated **offline against pre-captured frames only
   seam). Model: **YOLOv8n**, COCO, ONNX, run on CPU via **onnxruntime**.
 - `scripts/seeker/eval_nn.py` — detection rate, latency, bearing quality, and the
   body-not-tag proof. Saves annotated frames to `scripts/seeker/eval_out/`.
-- Isolated venv `/home/emerson/interceptor-sim/.venv-seeker` (onnxruntime 1.27.0,
+- Isolated venv `~/interceptor-sim/.venv-seeker` (onnxruntime 1.27.0,
   opencv, numpy). The project `.venv` was never touched.
 
 ## Model (honest numbers)
@@ -74,7 +74,7 @@ is **scoring-only** and is never fed to the seeker.
 ## How to run
 ```
 OMP_NUM_THREADS=2 nice -n 15 \
-  /home/emerson/interceptor-sim/.venv-seeker/bin/python \
+  ~/interceptor-sim/.venv-seeker/bin/python \
   scripts/seeker/eval_nn.py --n 40          # sample; add --all for full 867 sweep
 ```
 Post-batch TODO: full 867-frame sweep; A/B vs AprilTag on paired seeds; drop in a

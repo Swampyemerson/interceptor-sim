@@ -18,7 +18,7 @@ bearing (the two-stage self-mask + NN gate is what removes the standalone
 classical self-lock, seeker_prototype_results.md s3.4).
 
 HONESTY BOUNDARY (CLAUDE.md / ADR-0010): the seeker reads ONLY camera pixels +
-the fixed camera_intrinsics.json intrinsics (fx=fy=539.936, cx=640, cy=480) --
+the fixed configs/camera_intrinsics.json intrinsics (fx=fy=539.936, cx=640, cy=480) --
 never any gt_* field. The gt_* scoring/logging path in m4_intercept.py is
 untouched, and the numeric no-cheat audit that applies to the AprilTag path
 applies IDENTICALLY here. Because this is a NEW guidance path (brief s4 honesty

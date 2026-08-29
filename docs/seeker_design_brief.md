@@ -6,7 +6,7 @@ target drone's own body and feeds the SAME bearing/range interface the guidance
 already consumes. Widened scope (builder, 2026-07-07): classical CV **and** a
 pre-built lightweight neural detector needing minimal adaptation.*
 
-> **Why this milestone exists.** GOALS.md makes one honest simplification: the real
+> **Why this milestone exists.** docs/goals.md makes one honest simplification: the real
 > onboard seeker is a Pi-class camera running classical CV; in the sim we swap that
 > for an AprilTag — "a clean, robust fiducial that lets us focus on the *guidance*
 > problem instead of the *perception* problem." This item deliberately **un-does**
@@ -48,7 +48,7 @@ dataclass and one thread. **Get these exactly right and nothing downstream chang
 | `n_detections` | int | how many tags this frame | number of candidate boxes (1 for the single-target sim) |
 
 The optical-frame convention (x right, y down, z forward) is OpenCV's and is fixed in
-GOALS.md's coordinate-frames section — get the bearing sign wrong and pro-nav steers
+docs/goals.md's coordinate-frames section — get the bearing sign wrong and pro-nav steers
 the wrong way. `+bearing = target right of boresight` is load-bearing.
 
 ### 1.2 The producer — `detection_loop`
@@ -217,7 +217,7 @@ structurally unreadable by guidance, which sees camera + own-state EKF. A marker
 seeker is a *new guidance path*, so it **re-earns the numeric no-cheat audit** — the
 same pattern as `docs/audit_targets.md`: assert the seeker's `Measurement` never
 derives from any `gt_` field, and that the CSV's `gt_range`/`gt_bearing` columns are
-computed only in the scoring block. Frame math stays ENU/optical/FRD/NED per GOALS.md.
+computed only in the scoring block. Frame math stays ENU/optical/FRD/NED per docs/goals.md.
 
 **The swap is one function.** `GzFrameSource` (frame_source.py) already delivers frames
 + intrinsics from the tag-less world exactly as it does for the tag world; only the
@@ -339,7 +339,7 @@ lower-risk ordering with an earlier working demo.
 > **Context.** Post-M5 queue item 2 (ADR-0033): replace the AprilTag target-lock with a
 > markerless seeker feeding the SAME `Measurement` interface (§1), attacking the #1
 > disclosed risk (ADR-0015 #5). Scope widened to include a pre-built lightweight NN
-> alongside classical CV. GOALS.md's "no ML" rule was about *isolating* guidance; this
+> alongside classical CV. docs/goals.md's "no ML" rule was about *isolating* guidance; this
 > milestone deliberately un-isolates it, and the parent architecture (ADR-0015
 > Pi5+Hailo detect-then-track) already assumes an ML detector.
 >
@@ -375,7 +375,7 @@ lower-risk ordering with an earlier working demo.
 
 ### Sources
 
-Repo/ADR: `GOALS.md`; `docs/decisions.md` ADR-0005/0010/0012/0015/0023/0024/0025/0028/0029/0033;
+Repo/ADR: `docs/goals.md`; `docs/decisions.md` ADR-0005/0010/0012/0015/0023/0024/0025/0028/0029/0033;
 `scripts/m3_static_intercept.py` (`Measurement`, `detection_loop`);
 `scripts/m4_intercept.py` (filter gains, LOS/pro-nav consumption); `scripts/frame_source.py`;
 `docs/audit_targets.md`; `docs/perception_design.md`; `.claude/skills/pronav`.

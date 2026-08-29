@@ -93,7 +93,7 @@ import sys
 
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")  # offline/headless always (GOALS.md)
+matplotlib.use("Agg")  # offline/headless always (docs/goals.md)
 import matplotlib.pyplot as plt
 import cv2
 

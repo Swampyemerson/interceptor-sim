@@ -23,7 +23,7 @@ New terms, one line each:
   below that floor the target is invisible to it. This is the whole game.
 - **fx (focal length in pixels)** — the camera intrinsic that maps angles to pixels. Our
   `gz_x500_mono_cam` has **fx = 539.936**, image width **1280 px**, horizontal FOV
-  **1.74 rad = 99.7°** (`camera_intrinsics.json`; self-consistent:
+  **1.74 rad = 99.7°** (`configs/camera_intrinsics.json`; self-consistent:
   `2·atan(1280 / (2·539.936)) = 1.740 rad`, verified). That is **12.84 px/deg**.
 - **IFOV (instantaneous field of view)** — the angle one pixel subtends, `1/fx` rad =
   **1.85e-3 rad = 0.106°/px** here. The camera cannot resolve anything finer than this.
@@ -218,7 +218,7 @@ and the sim-to-real gap.
 ### Sources
 Repo/ADR: `docs/seeker_design_brief.md` (§2.1, §3, §5); `docs/seeker_prototype_results.md`
 (terminal-only acquisition, both lanes); `docs/decisions.md` ADR-0012/0013/0015/0023/0024
-(+2nd & 3rd addenda)/0027/0028/0033; `camera_intrinsics.json` / `models/mono_cam`
+(+2nd & 3rd addenda)/0027/0028/0033; `configs/camera_intrinsics.json` / `models/mono_cam`
 (fx = 539.936, HFOV 1.74 rad); `.claude/skills/pronav` (a_cmd = N·Vc·λ̇, ZEM). Two-stage
 detector-crop: build-queue task #10.
 

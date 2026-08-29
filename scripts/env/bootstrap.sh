@@ -10,7 +10,7 @@ cat > "CLAUDE.md" <<'INTERCEPTOR_EOF'
 
 This file auto-loads at the start of every Claude Code session. It defines the
 operating model, the decision protocol, and the conventions. The mission and
-scope are in `GOALS.md` (imported at the bottom) — read it before planning.
+scope are in `docs/goals.md` (imported at the bottom) — read it before planning.
 
 ## Model orchestration (Fable 5 + Sonnet 5)
 
@@ -44,7 +44,7 @@ scope are in `GOALS.md` (imported at the bottom) — read it before planning.
 
 The builder is new to simulation and to guidance theory and is using this project to
 learn. For every non-trivial step, give a tight **what / why / where** (1-3
-sentences), pointing to the doc that holds the rationale (`GOALS.md`,
+sentences), pointing to the doc that holds the rationale (`docs/goals.md`,
 `docs/decisions.md`). When you introduce a new concept (proportional navigation,
 offboard control, camera intrinsics, tag pose, EKF, PX4 SITL), name it and offer a
 one-paragraph primer before using it as if obvious. Keep it concise — teaching, not lecturing.
@@ -60,8 +60,8 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
   where physics fidelity allows. Only launch the GUI when explicitly asked.
 - **Log everything to files.** Every run writes telemetry (positions, velocities,
   detection events, miss distance) to `logs/` as CSV/ulog. Analyze from logs.
-- **Keep the project's memory current.** Maintain this `CLAUDE.md`, a `NEXT.md`
-  (top of the stack), and `PROGRESS.md` (milestone roll-up) as you learn, so a fresh
+- **Keep the project's memory current.** Maintain this `CLAUDE.md`, a `docs/next.md`
+  (top of the stack), and `docs/progress.md` (milestone roll-up) as you learn, so a fresh
   session (after `/compact` or `/clear`) starts smart. Propose the edit and say why.
 - **Numbers trace to a run or a derivation.** No unsourced quantitative claims.
 - **Ask before** downloads over ~2 GB, or changes to the system outside this project
@@ -76,10 +76,10 @@ software-rendered and slow — use it only for a final demo capture. MAVSDK and 
 SITL both run inside the VM, so connect over local UDP (`udpin://0.0.0.0:14540`) —
 there is no host/VM networking to fight.
 
-@GOALS.md
+@docs/goals.md
 INTERCEPTOR_EOF
 
-cat > "GOALS.md" <<'INTERCEPTOR_EOF'
+cat > "docs/goals.md" <<'INTERCEPTOR_EOF'
 # Interceptor Simulation — Goals & Context
 
 > Read this file **fully** before planning anything. It tells you *what* we are
@@ -198,7 +198,7 @@ Simulation project. The main session (Fable) delegates concrete tasks to you.
 
 Operating rules:
 - Read relevant files before editing; never guess file contents.
-- Follow the project conventions in CLAUDE.md and GOALS.md (headless, logged runs,
+- Follow the project conventions in CLAUDE.md and docs/goals.md (headless, logged runs,
   ADR-lite decisions, scripted milestone checks, minimal dependencies, no ROS 2).
 - Do exactly the delegated task. If you hit an architectural fork or a one-way-door
   decision, STOP and escalate to the main session rather than deciding it yourself.
@@ -223,7 +223,7 @@ independently and do NOT soften your view to match an imagined consensus — dis
 is valuable.
 
 Method:
-- Evaluate each option against the project's governing constraints (GOALS.md:
+- Evaluate each option against the project's governing constraints (docs/goals.md:
   sim-only, no ROS 2, minimal dependencies, reproducible/logged, pro-nav-focused
   portfolio) and any evidence you can quickly gather (read repo files, check docs).
 - Weigh concretely: correctness, reproducibility, health/maintenance of the

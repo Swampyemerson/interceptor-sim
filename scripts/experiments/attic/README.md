@@ -1,7 +1,7 @@
-# scripts/attic/ — retired one-off tooling
+# scripts/experiments/attic/ — retired one-off tooling
 
 One-off experiment / plot / probe scripts that outlived their analysis. Moved here
-2026-07-25 (`git mv`, history preserved — `git log --follow scripts/attic/<file>`)
+2026-07-25 (`git mv`, history preserved — `git log --follow scripts/experiments/attic/<file>`)
 rather than deleted, so the analyses stay reproducible.
 
 **Why:** each of these had ZERO references from any tracked file. They inflate the

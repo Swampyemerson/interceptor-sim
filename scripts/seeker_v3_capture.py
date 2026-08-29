@@ -68,7 +68,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 
 # ---------------------------------------------------------------------------
-# Fixed camera model — matches camera_intrinsics.json (recorded 2026-07-04
+# Fixed camera model — matches configs/camera_intrinsics.json (recorded 2026-07-04
 # from the live camera_info topic) and the mono_cam SDF (1280x960, HFOV
 # 1.74 rad, 30 Hz, NO motion-blur/exposure model — plan doc §2).
 # Same constants render_sim_dataset.py / capture_flight_frames.py hard-code.
@@ -145,7 +145,7 @@ EDGE_MARGIN_PX = 8.0
 def project_box(rel_optical, extent_m: float = DEFAULT_EXTENT_M,
                 W: int = IMG_W, H: int = IMG_H, min_px: float = MIN_BOX_PX):
     """Classify one camera-optical-frame target vector (x right, y down,
-    z forward — GOALS.md OpenCV convention) into
+    z forward — docs/goals.md OpenCV convention) into
         ("positive", (cx, cy, w, h) normalized) | ("negative", None) |
         ("drop", None).
     Same math and three-way semantics as capture_flight_frames.classify(),
@@ -503,7 +503,7 @@ def run_live(args) -> int:
     print(f"[v3-grid] first frame received ({holder.w}x{holder.h})")
     if (holder.w, holder.h) != (IMG_W, IMG_H):
         print(f"[v3-grid] FAILED: resolution {holder.w}x{holder.h} != "
-              f"expected {IMG_W}x{IMG_H} (camera_intrinsics.json)")
+              f"expected {IMG_W}x{IMG_H} (configs/camera_intrinsics.json)")
         return 2
 
     # ---- posecheck [A8] + long-teleport settle check [A4]: verify the

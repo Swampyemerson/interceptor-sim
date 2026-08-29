@@ -29,7 +29,7 @@ aims from), so nothing here touches the honesty boundary.
 MODEL
 -----
 World ENU: x=east, y=north, z=up (matches scripts/mc_batch.sh + the mover).
-Camera intrinsics from camera_intrinsics.json: fx=fy=539.936, 1280x960 =>
+Camera intrinsics from configs/camera_intrinsics.json: fx=fy=539.936, 1280x960 =>
   half-HFOV = atan(640/539.936) = 49.85 deg, half-VFOV = atan(480/539.936)
   = 41.64 deg. Rectangular FOV test (matches scripts/experiments/dash_pitch_probe.py).
 
@@ -79,7 +79,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))))))
 from flight.guidance import collision_lead_heading  # noqa: E402
 
-# --- camera intrinsics (camera_intrinsics.json) ---
+# --- camera intrinsics (configs/camera_intrinsics.json) ---
 FX = FY = 539.9363327026367
 IMG_W, IMG_H = 1280, 960
 HALF_HFOV_DEG = math.degrees(math.atan((IMG_W / 2.0) / FX))   # 49.85

@@ -3,7 +3,7 @@
 # gz_x500_mono_cam airframe on the custom "apriltag" world, then
 # scripts/m3_static_intercept.py takes off, closes on the AprilTag using
 # ONLY the live camera detection as target feedback, and holds a 2.0 m
-# standoff. See GOALS.md milestone M3, scripts/m3_static_intercept.py,
+# standoff. See docs/goals.md milestone M3, scripts/m3_static_intercept.py,
 # worlds/apriltag.sdf, models/apriltag_target/, and
 # .claude/skills/px4-gazebo/SKILL.md for launch/shutdown conventions.
 #

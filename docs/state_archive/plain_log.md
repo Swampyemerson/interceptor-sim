@@ -46,3 +46,9 @@ Logged the big loophole in the ledger: the launch aim is computed from the targe
 **So what:** Until the cue carries honest error, every 'dash beats camera' result describes a perfect-cue world, not the field.
 
 *Evidence: commit 2a54362 · contradiction launch-aim-derived-from-ground-truth*
+
+## 2026-07-26 (rotated out 2026-08-19)
+
+- **text:** Found a second full-stop bug: on a camera dropout the coded dash re-issues a zero command, braking mid-terminal. Twin of the one fixed yesterday, still live.
+- **so_what:** Some of the evidence that 'the camera makes it worse' is this bug, not the camera.
+- **evidence:** deep targeting workflow

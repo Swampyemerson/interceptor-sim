@@ -258,7 +258,7 @@ def _run_eval(n_sample: int, use_motion: bool, out_dir: str):
     frames = sorted(glob.glob(os.path.join(FRAMES_DIR, "frame_*.png")))
     assert frames, f"no frames in {FRAMES_DIR}"
     os.makedirs(out_dir, exist_ok=True)
-    fx, fy, cx, cy = load_intrinsics(os.path.join(REPO, "camera_intrinsics.json"))
+    fx, fy, cx, cy = load_intrinsics(os.path.join(REPO, "configs/camera_intrinsics.json"))
     tag_gt = _tag_gt()
 
     # sample: uniform spread across approach UNION the terminal target window
@@ -449,7 +449,7 @@ def _main():
     if args.eval:
         _run_eval(args.n, args.motion, args.out)
     elif args.frame:
-        fx, fy, cx, cy = load_intrinsics(os.path.join(REPO, "camera_intrinsics.json"))
+        fx, fy, cx, cy = load_intrinsics(os.path.join(REPO, "configs/camera_intrinsics.json"))
         seeker = TwoStageSeeker(fx, fy, cx, cy)
         img = cv2.imread(args.frame)
         det, props, surv, rej = seeker.detect(img, return_debug=True)

@@ -11,7 +11,7 @@ label boxes) is used for SCORING and degradation-modelling ONLY — never as an
 input to the estimator under test. Each script states per-metric which side of
 the boundary its inputs sit on.
 
-Camera constants trace to camera_intrinsics.json (recorded 2026-07-04 from the
+Camera constants trace to configs/camera_intrinsics.json (recorded 2026-07-04 from the
 sim camera_info topic): fx=539.936, 1280x960. Motion-blur magnitudes trace to
 docs/seeker_acquisition_range_note.md §3.5 (blur_px = lambda_dot * t_exp * fx;
 terminal LOS rate 485-1870 deg/s per ADR-0023 row 7).
@@ -44,7 +44,7 @@ def main_repo(cli_override: Optional[str] = None) -> str:
     return repo
 
 
-# Camera intrinsics (camera_intrinsics.json, sim ground truth of the sensor).
+# Camera intrinsics (configs/camera_intrinsics.json, sim ground truth of the sensor).
 FX = 539.9363327026367
 FY = 539.9363708496094
 CX = 640.0

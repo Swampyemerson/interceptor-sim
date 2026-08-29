@@ -22,7 +22,7 @@ ADR-0042) collapses at 12 m/s weave/jink:
   (≤ 3 m). The phantom is a **large interior box** that reads ~1.6–1.8 m
   range while the true target is 15–100 m away (18–22 m typical error). At
   the calibrated span 0.9216 m (`drone_finetuned_v2.onnx.calib.json`) and
-  fx = 539.936 (`camera_intrinsics.json`), a 1.7 m range readout implies a
+  fx = 539.936 (`configs/camera_intrinsics.json`), a 1.7 m range readout implies a
   **~293 px-wide box** — this is not a speck, it is a huge, confident blob.
 - **Confidence is INVERTED:** phantom median conf 0.34 vs real-target 0.17
   (the real target at 15–100 m is ~8 px and low-conf). A confidence gate
@@ -79,7 +79,7 @@ matrix targets pose/aspect/size/attitude diversity, not blur; (2) do NOT
 add blur augmentation to the primary training arm — it would train for an
 artifact the eval domain cannot show (it stays a flagged sim-to-real knob
 for the future hardware seeker, per the parent-project translation table in
-GOALS.md).
+docs/goals.md).
 
 ## 3. Capture matrix
 
@@ -214,7 +214,7 @@ Reuse the proven gt-projection chain unchanged:
   capture time — `PoseTracker.ground_truth_rel_optical()` (the M2-validated
   transform chain) snapshotted in the same frame callback, projected
   through the fixed intrinsics (FX=FY=539.936, CX=640, CY=480 — matches
-  `camera_intrinsics.json`), extent 0.9 m, three-way pos/neg/drop split at
+  `configs/camera_intrinsics.json`), extent 0.9 m, three-way pos/neg/drop split at
   the 4 px floor. Label-skew at 12 m/s: the skew source is pose-topic vs
   render latency (~one physics tick, ~4 ms → 12 m/s × 4 ms ≈ 5 cm → ~5 px
   at 5 m) — the same argument the script's docstring makes at 9 m/s,

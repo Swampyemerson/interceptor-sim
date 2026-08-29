@@ -19,14 +19,13 @@ After that, the launcher drops you **straight back into your session**.
 
 ## What is in the project
 In WSL at `~/interceptor-sim` (Windows mirror in your Downloads > Simulation Work > interceptor-sim folder):
-- **GOALS.md** - what you are building and why.
-- **CLAUDE.md** - how Claude works, the model + council setup, your setup, and who it is helping (you).
-- **KICKOFF-PROMPT.md** - the full kickoff (the /go command runs this).
+- **docs/goals.md** - what you are building and why.
+- **CLAUDE.md** - the session operating notes (build/test, honesty boundary, update ritual); the full operating model is in **.claude/ops.md**.
+- **.claude/KICKOFF-PROMPT.md** - the full kickoff (the /go command runs this).
 - **.claude/skills/** - px4-gazebo, pronav, sim-milestone, sim-debug, mc-batch (used automatically). Built-in /code-review and /debug too.
 - **.claude/agents/** - the Sonnet worker, decision council, and verifier.
 
 ## Handy things to know
 - **Reopen / resume:** re-run the launcher.
 - **GPU:** run `nvidia-smi` in the terminal to see your RTX 4070. Gazebo can use it; batch runs still go headless for speed.
-- **Linux login** (rarely needed): user **emerson**, password **interceptor123**.
 - If a Gazebo window will not render, that is WSL OpenGL being finicky - Claude falls back to headless.

@@ -1,10 +1,10 @@
 # Deployment-profile phases M-1..M-4 — design brief
 
 > **Status:** DESIGN ONLY. No code changes, no sim boots, in the writing of this
-> document. This is the "design-as-ADR when picked up" work NEXT.md has parked
+> document. This is the "design-as-ADR when picked up" work docs/next.md has parked
 > since 2026-07-05 (originally logged in commit `1877ca9`, folded into the
-> post-M5 roadmap's Parked list — NEXT.md; referenced by ADR-0028's "the
-> deployment roadmap (NEXT.md M-1..M-4)" strategic-implication line). It follows
+> post-M5 roadmap's Parked list — docs/next.md; referenced by ADR-0028's "the
+> deployment roadmap (docs/next.md M-1..M-4)" strategic-implication line). It follows
 > the same brief pattern as `docs/seeker_design_brief.md` and
 > `docs/ekf_design_brief.md`: recommendation-first design questions, an
 > evidence-grounded evaluation plan, and a ratifiable ADR skeleton at the end.
@@ -19,7 +19,7 @@ New terms, one line each (defined once, used freely after):
   flag) is what triggers the arm/takeoff command. Today nothing gates the
   existing arm call on any sensor state.
 - **Climb-out / boost** — the vertical or oblique acceleration phase from pad
-  to cruise altitude/speed, before the horizontal pursuit (DASH) begins. GOALS.md's
+  to cruise altitude/speed, before the horizontal pursuit (DASH) begins. docs/goals.md's
   aspirational phrase; not modeled today (see §1.5 — the whole engagement,
   interceptor and target both, currently flies at a fixed 0.5 m altitude).
 - **Reaction latency** — the time from "the ground sensor could see the
@@ -189,7 +189,7 @@ plainly:** the *entire* engagement — `TAKEOFF`, `CUE_WAIT`, `DASH`, `ENGAGE`
 — flies at a **constant 0.5 m altitude** (`ALT_REF_M = 0.5`,
 `m4_intercept.py:247`; every `mc_batch.sh` target spawn is also
 `z: 0.5`, e.g. `mc_batch.sh:621`). There is **no vertical climb-out at
-all today** — GOALS.md's "launches up" is aspirational, not modeled. This is
+all today** — docs/goals.md's "launches up" is aspirational, not modeled. This is
 disclosed (ADR-0010's altitude choice was made to keep the camera-to-tag
 vertical offset out of the 3D miss budget, not to model real launch
 geometry), but M-3 as literally specified ("vertical/oblique boost to
@@ -237,7 +237,7 @@ catapults/launch rails are a fixed-wing or tube-launched-munition concept
 this project's airframe choice never needed. ADR-0028-addendum already
 measured the x500 has *un-used* lateral-accel headroom (6.7 of 12 m/s²
 achieved) — there is no physics gap a launcher would close. Building SDF
-launch-rail physics would (a) touch airframe modeling GOALS.md scopes as
+launch-rail physics would (a) touch airframe modeling docs/goals.md scopes as
 "no hardware" territory, (b) risk PX4 attitude-recovery instability after an
 external impulse (untested, unbounded engineering risk for a cosmetic gain),
 and (c) buy nothing the existing arm/takeoff sequence doesn't already prove.
@@ -515,7 +515,7 @@ project has run.
 > **ADR-00XX — Deployment-profile phases M-1..M-4: gated launch decision +
 > timeline reporting, no physical launcher, flat-altitude climb-out approximation.**
 >
-> **Context.** NEXT.md's Parked deployment-profile item (originally
+> **Context.** docs/next.md's Parked deployment-profile item (originally
 > commit `1877ca9`, 2026-07-05); design-as-ADR-first per that entry. The
 > arm/takeoff sequence already exists unconditionally in every flight
 > (`m4_intercept.py:2864–2899`, measured ~21.2–21.7 s sim-time, §1.2); the
@@ -586,7 +586,7 @@ project has run.
 
 ### Sources
 
-Repo/ADR: `NEXT.md` (Parked section, Current section); `docs/decisions.md`
+Repo/ADR: `docs/next.md` (Parked section, Current section); `docs/decisions.md`
 ADR-0009 (RTF/sim-time discovery, ALT_REF_M rationale), ADR-0010 (#2 dash/
 terminal speed decouple, #6 rigid tag face), ADR-0016 (latency budget),
 ADR-0023 (kinematic diagnosis), ADR-0024 3rd addendum (confirm-streak /

@@ -963,7 +963,7 @@ class SyntheticSource:
 
 
 def load_camera(intrinsics_path: str) -> CameraModel:
-    """Build the CameraModel from a calibrate_camera.py / camera_intrinsics.json
+    """Build the CameraModel from a calibrate_camera.py / configs/camera_intrinsics.json
     file (fx,fy,cx,cy + optional dist_coeffs). Zero distortion (the sim case) is
     a pinhole special case, so the same code serves sim and hardware."""
     return CameraModel.from_json(intrinsics_path)
@@ -1787,8 +1787,8 @@ def build_argparser() -> argparse.ArgumentParser:
                          "real OV9281 (mono sensor) the conversion is a bit-exact "
                          "no-op; it only bites on COLOR bench/sim replay.")
     ap.add_argument("--intrinsics",
-                    default=os.path.join(_REPO_ROOT, "camera_intrinsics.json"),
-                    help="camera_intrinsics.json / calibrate_camera.py output")
+                    default=os.path.join(_REPO_ROOT, "configs/camera_intrinsics.json"),
+                    help="configs/camera_intrinsics.json / calibrate_camera.py output")
     ap.add_argument("--conf", type=float, default=0.25, help="detector confidence")
     ap.add_argument("--fps", type=float, default=20.0, help="control loop rate")
     ap.add_argument("--camera-fps", type=float, default=CAMERA_FPS_DEFAULT,

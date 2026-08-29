@@ -129,7 +129,7 @@ Run everything with the seeker venv (`onnxruntime` + `opencv`):
 |---|---|---|
 | `--source` | image dir · video file · `picamera` | (required unless `--self-test`) |
 | `--weights` | ONNX detector | `scripts/seeker/weights/nn_tier/n-mono.onnx` (the REAL-DATA model; sha256 in `weights/DEPLOYED.sha256`) |
-| `--intrinsics` | `calibrate_camera.py` / `camera_intrinsics.json` (fx,fy,cx,cy + distortion) | `camera_intrinsics.json` |
+| `--intrinsics` | `calibrate_camera.py` / `configs/camera_intrinsics.json` (fx,fy,cx,cy + distortion) | `configs/camera_intrinsics.json` |
 | `--mavsdk-url` | MAVLink connect URL; omit for desk dry-run | none |
 | `--dry-run` | print setpoints instead of sending | off |
 | `--mount-fwd-m` / `--mount-left-m` / `--mount-up-m` | camera lever arm from the CG, body frame (m) | 0.10 / 0 / 0.05 |

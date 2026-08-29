@@ -7,7 +7,7 @@
 # exercise the full CUE_WAIT -> DASH -> HANDOFF -> ENGAGE/BREAKOFF two-stage
 # architecture (scripts/s2_cue_mock.py is spawned automatically by that
 # script's CUE_WAIT phase, scripts/m4_target_mover.py by its DASH phase).
-# See GOALS.md, docs/decisions.md ADR-0010 (#4 cue mock, #5 handoff) +
+# See docs/goals.md, docs/decisions.md ADR-0010 (#4 cue mock, #5 handoff) +
 # ADR-0011 third addendum (the lab-validated S2 config this gate exercises:
 # dash 10 m/s, handoff 10 m), scripts/check_s1.sh (the pattern this is
 # copied from), and .claude/skills/px4-gazebo/SKILL.md /

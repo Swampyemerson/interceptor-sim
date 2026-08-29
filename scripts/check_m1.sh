@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # M1 scripted milestone gate: headless PX4 SITL + Gazebo boots with the
 # gz_x500_mono_cam airframe, and real camera frames are captured over
-# gz-transport (no ROS — see GOALS.md). See GOALS.md milestone M1 and
+# gz-transport (no ROS — see docs/goals.md). See docs/goals.md milestone M1 and
 # .claude/skills/px4-gazebo/SKILL.md for launch/shutdown conventions.
 #
 # Usage: scripts/check_m1.sh

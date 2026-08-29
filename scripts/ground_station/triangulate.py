@@ -24,7 +24,7 @@ sensors sit at link-LOCAL offsets `(0, +1.0, 0)` (`rig_left`) and
 link's local Y axis, both boresights along local +X (fronto-parallel, no
 toe-in -- matches `scripts/rig_geometry_analysis.py`'s wedge model).
 
-Camera axes, OpenCV convention (GOALS.md "Coordinate frames": z forward, x
+Camera axes, OpenCV convention (docs/goals.md "Coordinate frames": z forward, x
 right, y down), derived from the rig's world yaw (up = world +Z, since the
 rig has no pitch/roll):
 

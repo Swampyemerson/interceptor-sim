@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Guidance-method trade-study lab: a FAST, pure-Python, point-mass kinematic
-Monte-Carlo harness for comparing intercept guidance laws. See GOALS.md's
+Monte-Carlo harness for comparing intercept guidance laws. See docs/goals.md's
 "guidance arc" and scripts/m4_intercept.py (the real Gazebo mechanization).
 
 WHAT THIS IS: a design-time SURROGATE for the full PX4/Gazebo sim. It has NO
@@ -50,7 +50,7 @@ MODELING ASSUMPTIONS (the honesty boundary of this tool):
     view limit (it is an external/ground sensor watching from outside, not
     the interceptor's own onboard camera). It is a toggle (--two-stage): the
     main trade study defaults to CAMERA-ONLY, since that is this project's
-    headline capability (GOALS.md: "when the datalink is denied, the
+    headline capability (docs/goals.md: "when the datalink is denied, the
     interceptor's own camera locks the target"). A new `two_stage_dash`
     guidance method (S2 design, ADR-0011 2nd addendum) uses the cue to DASH
     at up to DASH_SPEED while beyond HANDOFF_RANGE, then hands off to a
@@ -748,7 +748,7 @@ def draw_datum_bias(rng, mag_m):
 
 class Sensor:
     """The interceptor's ONLY window onto the target -- mirrors the camera
-    honesty boundary (GOALS.md / ADR-0008 lineage): guidance never sees
+    honesty boundary (docs/goals.md / ADR-0008 lineage): guidance never sees
     ground truth, only these measurements.
 
     Camera: valid inside det_range AND inside the FOV (see the own_heading
@@ -3515,9 +3515,9 @@ def run_adr0015_study(n_seeds=60):
 
 # =========================================================================
 # P-6 MID-COURSE FUSION + WARM HANDOFF STUDY (ADR-0015 fusion decision;
-# NEXT.md P-6). "lab ranks, Gazebo decides" -- this ranks the four
+# docs/next.md P-6). "lab ranks, Gazebo decides" -- this ranks the four
 # fusion x warm variants; the winner still owes a Gazebo A/B (do NOT put a
-# lab number in an ADR as a result). Builder methodology mandate (NEXT.md):
+# lab number in an ADR as a result). Builder methodology mandate (docs/next.md):
 # evaluate under THREE perception tiers and treat any variant that only wins
 # under BEST as FRAGILE.
 #
@@ -3545,7 +3545,7 @@ P6_PK_RANGES = (1.0, 2.0)
 #              window the warm init targets.
 P6_TERMINALS = ("pip", "pure_pn")
 
-# Three perception tiers (NEXT.md worse-than-ideal mandate). Magnitudes are
+# Three perception tiers (docs/next.md worse-than-ideal mandate). Magnitudes are
 # the ADR-0015 recommended realistic defaults, scaled to this lab's
 # compressed ~15 m standoff (same basis as ADR15_REALISTIC).
 P6_TIERS = {

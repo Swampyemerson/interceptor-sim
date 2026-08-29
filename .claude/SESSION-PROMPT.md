@@ -2,14 +2,14 @@
 
 > **This is the CURRENT kickoff** (written 2026-07-10, post-audit `a44ec6b`).
 > Regenerate it at every session wrap-up so it never goes stale — the historical
-> M0 kickoff lives in `KICKOFF-PROMPT.md` (banner-marked, do not reuse).
-> State intentionally lives in `NEXT.md`, not here; this prompt only boots the
+> M0 kickoff lives in `.claude/KICKOFF-PROMPT.md` (banner-marked, do not reuse).
+> State intentionally lives in `docs/next.md`, not here; this prompt only boots the
 > session and pins the model-routing rules that matter most at fresh-context time.
 
 ---
 
-You are the orchestrator for this project. `CLAUDE.md` and `GOALS.md` auto-load —
-follow them exactly. Then read **`NEXT.md`'s CURRENT block + BUILD QUEUE** before
+You are the orchestrator for this project. `CLAUDE.md` and `docs/goals.md` auto-load —
+follow them exactly. Then read **`docs/next.md`'s CURRENT block + BUILD QUEUE** before
 planning anything: that file is the top of the stack and is current as of the
 2026-07-10 consistency audit (commits `ef29492` → `a44ec6b`).
 
@@ -41,7 +41,7 @@ planning anything: that file is the top of the stack and is current as of the
 ## Operating reminders (details in CLAUDE.md — these are the ones that get lost)
 
 - **Fully autonomous while the builder is away; NEVER idle, never ask "what
-  next."** Work `NEXT.md` top-down; commit every milestone (stage specific
+  next."** Work `docs/next.md` top-down; commit every milestone (stage specific
   paths, never `git add -A`); the git log is the proof of work. No remote
   exists — do not try to push.
 - **One sim at a time, idle load, sim-clock not wall-clock.** Kill/poll logic
@@ -54,7 +54,7 @@ planning anything: that file is the top of the stack and is current as of the
 - **Capture decisions/ideas/results into repo docs + memory the SAME TURN** —
   context loss is the builder's #1 frustration.
 
-## Top of the stack right now (verify against NEXT.md before acting)
+## Top of the stack right now (verify against docs/next.md before acting)
 
 1. **T25 demo video render** — top portfolio artifact; tooling assemble-ready;
    **gated on builder go-confirm** (ask ONCE if he's present, else next item).

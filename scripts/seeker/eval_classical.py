@@ -58,7 +58,7 @@ def brightest_region_mask(gray, box, frac=0.4):
 
 def main():
     files = sorted(glob.glob(str(FRAMES_DIR / "frame_*.png")))
-    fx, fy, cx, cy = load_intrinsics(str(ROOT / "camera_intrinsics.json"))
+    fx, fy, cx, cy = load_intrinsics(str(ROOT / "configs/camera_intrinsics.json"))
     seeker = ClassicalSeeker(fx, fy, cx, cy)
     print(f"intrinsics fx={fx:.1f} cx={cx} cy={cy}; {len(files)} frames; "
           f"sampling {N_SAMPLE}")

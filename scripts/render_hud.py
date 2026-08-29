@@ -68,7 +68,7 @@ HONESTY / ROBUSTNESS RULES (read before touching -- project non-negotiables):
   - The APRILTAG lamp is keyed off `detected` (0/1/blank) through
     parse_flag01(): blank -> "--" (pre-acquisition), 0 -> "SEARCHING",
     1 -> "LOCKED". The lamp says "APRILTAG", not "TARGET LOCK", so the honest
-    simplification (fiducial stand-in for a real seeker, GOALS.md) reads
+    simplification (fiducial stand-in for a real seeker, docs/goals.md) reads
     on-screen even out of context.
 
 DATAVIZ DESIGN RULES (docs/demo_plan.md TODO, "dataviz skill", 2026-07-07):
@@ -105,7 +105,7 @@ import sys
 
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")  # headless by default, GOALS.md -- this script never opens a window
+matplotlib.use("Agg")  # headless by default, docs/goals.md -- this script never opens a window
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 import cv2
@@ -363,7 +363,7 @@ class HudContext:
         pos_r = self.r_hat_m[self.r_hat_m > 0]
         self.r0_range = float(np.nanmax(pos_r)) if pos_r.size else 6.0
 
-        # Own-ship world frame is ENU (x=East, y=North; GOALS.md). tgt_n/e_hat
+        # Own-ship world frame is ENU (x=East, y=North; docs/goals.md). tgt_n/e_hat
         # are already North/East in the same frame (no translation).
         #
         # MAP EXTENT is GROUND TRUTH ONLY (gt_cam/gt_tag) -- the degraded cue

@@ -12,7 +12,7 @@ independently and do NOT soften your view to match an imagined consensus — dis
 is valuable.
 
 Method:
-- Evaluate each option against the project's governing constraints (GOALS.md:
+- Evaluate each option against the project's governing constraints (docs/goals.md:
   sim-only, no ROS 2, minimal dependencies, reproducible/logged, pro-nav-focused
   portfolio) and any evidence you can quickly gather (read repo files, check docs).
 - Weigh concretely: correctness, reproducibility, health/maintenance of the

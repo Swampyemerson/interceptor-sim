@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  M2 AprilTag target board. See GOALS.md milestone M2 and
+  M2 AprilTag target board. See docs/goals.md milestone M2 and
   scripts/make_tag_texture.py for how tag36h11_00000.png was built.
 
   GEOMETRY (traced numbers -- Fable reviews this):
@@ -18,7 +18,7 @@
   the model's local -X: Ry(-pi/2) applied to (0,0,1) = (-1,0,0). When this
   model is included in a world with NO extra rotation (see worlds/apriltag.sdf),
   the tag's textured face therefore points toward world -X -- i.e. back
-  toward a camera approaching from smaller X, as required by GOALS.md's
+  toward a camera approaching from smaller X, as required by docs/goals.md's
   camera-forward-+X convention. Verified visually against a captured camera
   frame during M2 (see logs/), not just by this derivation.
 -->
@@ -37,7 +37,7 @@
         <material>
           <!-- Lighting reality check (measured during M2, see docs/decisions.md):
                this board faces world -X, but the world's inherited sun
-               direction (kept exactly per GOALS.md -- do not edit) is
+               direction (kept exactly per docs/goals.md -- do not edit) is
                ~(0, 0.625, -0.78), i.e. nearly straight down. A -X-facing
                vertical surface gets a grazing/near-zero dot product with
                that light, so ordinary lit shading (even with <lighting>

@@ -96,7 +96,7 @@ hard problem from "search" to "terminal reacquire under jamming" — it does not
 ## 2. The jamming residual — the coast-blind window (the irreducible job)
 
 This is the seam the ground rig **cannot** cover, and it is the reason the whole project
-exists (GOALS.md: *"when the datalink is denied, the interceptor's own camera locks the
+exists (docs/goals.md: *"when the datalink is denied, the interceptor's own camera locks the
 target and finishes the intercept"*).
 
 ### 2.1 What happens when the link is jammed
@@ -269,7 +269,7 @@ does the finishing — alone, on purpose, in the last few meters where the link 
 
 ### Sources
 
-Repo/ADR: `GOALS.md`; `docs/decisions.md` ADR-0011/0013/0015/0016/0017/0018/0019/0023/
+Repo/ADR: `docs/goals.md`; `docs/decisions.md` ADR-0011/0013/0015/0016/0017/0018/0019/0023/
 0024/0028/0030/0033/0034/0035; `docs/seeker_prototype_results.md`;
 `docs/seeker_design_brief.md`; `docs/stereo_design.md`; `docs/ground_modality.md`;
 `docs/bird_discrimination_design.md`; `docs/compute_setup.md`.

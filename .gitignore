@@ -68,24 +68,12 @@ sessions/**/*.png
 .gz/
 build/
 
-# Demo-video capture output (regenerable frame sequences + large MP4/GIF;
-# demo_out/README.md explains the pipeline and IS tracked despite the
-# directory-wide ignore below. A couple of committed sample stills live in
-# docs/images/ instead of here.
-demo_out/*
-!demo_out/README.md
-# The RETIREMENT NOTE is tracked even though the media it describes is not
-# (ADR-0094, 2026-08-10). The assets were retired for making a ram-kill claim
-# the project cannot support; the REASON has to outlive the local copy of the
-# files, or a future session finds five orphaned videos and no explanation and
-# is one step from republishing them.
-# NOTE the three-line dance: git cannot re-include a path inside a fully ignored
-# DIRECTORY, so the directory is un-ignored, its CONTENTS re-ignored, and then
-# only the README un-ignored again. Un-ignoring the directory alone would commit
-# the five retired video files themselves (~8 MB) — verified with git check-ignore.
-!demo_out/retired_2026-08-10/
-demo_out/retired_2026-08-10/*
-!demo_out/retired_2026-08-10/README.md
+# Demo-video capture output (regenerable frame sequences + large MP4/GIF —
+# scripts/build_demo.py writes here). The pipeline doc lives at
+# docs/demo_pipeline.md; the 2026-07-07 assets are RETIRED (ADR-0094, builder
+# ruling 2026-08-10 — they read as a ram-kill claim the project cannot
+# support) and must not be re-published from any local copy.
+demo_out/
 
 # Editor / OS
 .vscode/
@@ -96,7 +84,7 @@ demo_out/retired_2026-08-10/*
 # runs/ + training artifacts
 scripts/seeker/runs/
 scripts/seeker/weights/yolo11n.pt
-# Root-level demo copy of the base weights (never stage — NEXT.md rule, now self-enforcing)
+# Root-level demo copy of the base weights (never stage — docs/next.md rule, now self-enforcing)
 /yolo11n.pt
 !logs/m4_intercept_pronav_20260709T232337Z.csv
 !logs/m4_intercept_pronav_20260709T232447Z.csv

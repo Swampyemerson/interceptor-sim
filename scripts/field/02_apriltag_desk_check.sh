@@ -24,7 +24,7 @@
 # CALIBRATION (this decides whether RANGE means anything):
 #   --calib FILE, else camera_intrinsics_real.json (calibrate_camera.py output
 #   for the REAL lens) if it exists -> range is GRADED; else the session's own
-#   calib.json or the SIM camera_intrinsics.json -> range printed INDICATIVE
+#   calib.json or the SIM configs/camera_intrinsics.json -> range printed INDICATIVE
 #   ONLY. Sim intrinsics on real pixels give a silently wrong range: see the
 #   header of scripts/calibrate_camera.py.
 #
@@ -176,7 +176,7 @@ elif [[ -f "$(dirname "$FRAMES")/calib.json" ]]; then
     CALIB="$(dirname "$FRAMES")/calib.json"
     fld_warn "using $CALIB -- range is INDICATIVE only"
 else
-    CALIB="$REPO_ROOT/camera_intrinsics.json"
+    CALIB="$REPO_ROOT/configs/camera_intrinsics.json"
     fld_warn "falling back to the SIM camera intrinsics ($CALIB) -- range is INDICATIVE only"
 fi
 if ((CALIB_TRUSTED == 0)); then

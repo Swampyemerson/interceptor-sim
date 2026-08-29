@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """M2 gate script: detect the AprilTag live and compare against sim ground
-truth. See GOALS.md milestone M2, models/apriltag_target/model.sdf (tag
+truth. See docs/goals.md milestone M2, models/apriltag_target/model.sdf (tag
 geometry) and worlds/apriltag.sdf (world/topic names).
 
 What: subscribes to three gz-transport topics from a running PX4 SITL +
@@ -15,7 +15,7 @@ independently computes the true camera->tag relative position from the
 pose topic, then logs both plus the error between them.
 
 GROUND TRUTH TRANSFORM CHAIN (Fable reviews this -- it is the #1 sign-error
-risk zone per NEXT.md). /world/apriltag/pose/info reports each entity's
+risk zone per docs/next.md). /world/apriltag/pose/info reports each entity's
 pose RELATIVE TO ITS IMMEDIATE PARENT, except for top-level models (no
 parent, so their reported pose already IS the world pose).
 
@@ -76,7 +76,7 @@ x-forward, y-left, z-up) using camera_link's full WORLD rotation
 (R_world_cam, composed the same way as the position above):
     gt_rel_camlink = R_world_cam^T @ gt_rel_world
 
-Finally apply the fixed camlink->optical axis permutation (GOALS.md:
+Finally apply the fixed camlink->optical axis permutation (docs/goals.md:
 camera/optical frame is OpenCV convention, z-forward/x-right/y-down; gz's
 sensor frame is x-forward/y-left/z-up):
     x_opt = -y_link
@@ -89,7 +89,7 @@ Quaternion -> rotation matrix: implemented by hand below (`quat_to_matrix`)
 rather than via scipy. Decision (see docs/decisions.md / task report): the
 project already depends on gz's own protobuf/transport bindings and
 pupil-apriltags; adding scipy for one 9-term formula would grow the
-dependency surface for no real benefit (GOALS.md: "keep the dependency
+dependency surface for no real benefit (docs/goals.md: "keep the dependency
 surface minimal"), and the formula is short and easy to unit-test/verify.
 
 Ground truth deliberately reuses the SAME pose topic every frame rather
@@ -194,7 +194,7 @@ DEFAULT_DURATION_S = 15.0
 CAMERA_INFO_TIMEOUT_S = 30.0
 FRAME_WAIT_TIMEOUT_S = 30.0
 
-# Gate thresholds (GOALS.md milestone M2).
+# Gate thresholds (docs/goals.md milestone M2).
 DETECTION_RATE_THRESHOLD = 0.90
 MEAN_ERR_NORM_THRESHOLD_M = 0.25
 

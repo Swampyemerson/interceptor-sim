@@ -53,6 +53,12 @@ ALLOWED_SKIPS=(
     # onnxruntime is deliberately absent from .venv; stage 2 re-runs these same
     # tests under .venv-seeker where they EXECUTE, and fails there on any skip.
     "could not import 'onnxruntime'"
+    # The rescore acceptance gate follows flight_csv_path to the gitignored
+    # 168-flight per-tick archive, which exists only on the dev machine. On the
+    # dev machine the data is present and the gate RUNS (no skip fires); on CI
+    # and fresh clones it skips with this reason instead of failing the suite
+    # (it kept CI red 2026-08-11..13). Accepted 2026-08-19.
+    "per-tick flight CSV archive not on this machine"
 )
 if [ -x .venv/bin/python ]; then
     stage1_out="$(mktemp)"

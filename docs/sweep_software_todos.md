@@ -84,7 +84,7 @@ if ap is None:
 `seeker_loop` has no `build_argparser`; the parser is built inline in `main()`
 (`flight/deploy/seeker_loop.py:1698`, `--camera-fps` at `:1737`). So
 `test_cli_default_tracks_the_constant` — the check that `--camera-fps` cannot drift away
-from `CAMERA_FPS_DEFAULT = 60.0` — is a permanent skip. `NEXT.md:37` cites this file as
+from `CAMERA_FPS_DEFAULT = 60.0` — is a permanent skip. `docs/next.md:37` cites this file as
 "Regression-tested … 4 passed"; one of the four never ran.
 
 - **Actionable:** yes. **Size:** small-medium (extract `build_argparser()` from `main()`).
@@ -175,7 +175,7 @@ This block is the first thing the builder reads on his phone.
 - **Size:** small (rewrite + `render_dashboard.py` + republish the Artifact).
 - **Value:** medium-high — the compass is pointing at completed work.
 
-### 10. `PROGRESS.md` stops at 2026-07-25
+### 10. `docs/progress.md` stops at 2026-07-25
 The milestone roll-up has no row for the entire bench arc: skr-05/06/07, brn-01…brn-05,
 the 30-fps discovery and the 60 fps pin, the M10-lands-on-GPS2 finding (ADR-0091), the
 motor-screw finding (ADR-0092), the Pi evidence rescue, ADRs 0090-0094.
@@ -221,7 +221,7 @@ choice is *wire-and-validate* or *retire to the attic*. That is a builder/PM cal
 
 ### 14. `scripts/forensics/q6_experiment.py:15-16` imports from an agent scratch dir
 ```python
-sys.path.insert(0, "/home/emerson/.claude/jobs/28aff4e9/tmp")
+sys.path.insert(0, "~/.claude/jobs/28aff4e9/tmp")
 import guidance_lab_copy as gl
 ```
 The directory happens to still exist, but the script is unreproducible for anyone else
@@ -254,7 +254,7 @@ Deleting is a deliverable (CLAUDE.md §"What the BUILDER cannot see").
 | `scripts/seeker/eval_classical.py` | Module-level `cv2.TrackerKCF_create` breaks under `.venv`; under `.venv-seeker` it has no argparse at all, so `--help` **runs the full analysis** and writes into `scripts/seeker/out/`. Classical/CSRT tracking is a closed dead idea (contract `detector` stage: "detect-then-track/CSRT dropped … do NOT resurrect"). Attic. |
 | `scripts/adaptive_tilt_arm.sh` + `scripts/experiments/gimbal_mount/` | Adaptive tilt was **REJECTED** by the builder 2026-07-17 (contract `pointing` stage). Parked lever, sim-only. |
 | `scripts/experiments/actuation_error_budget.py`, `scripts/video/make_stereo_shots.py`, `experiments/darkhorse/darkhorse_common.py`, `scripts/seeker/stop_skr07.sh` | Zero references from any tracked file in the repo. |
-| Triplicated skr-07 evidence: `runs/skr07/`, `runs/skr07_tagged/`, `logs/skr07_2026-07-26/` | `NEXT.md:36` cites `runs/skr07_tagged/`; `docs/project_state.json:1824` cites `logs/skr07_2026-07-26/`. Two of the three should go, and the survivor should be cited consistently. |
+| Triplicated skr-07 evidence: `runs/skr07/`, `runs/skr07_tagged/`, `logs/skr07_2026-07-26/` | `docs/next.md:36` cites `runs/skr07_tagged/`; `docs/project_state.json:1824` cites `logs/skr07_2026-07-26/`. Two of the three should go, and the survivor should be cited consistently. |
 
 ---
 

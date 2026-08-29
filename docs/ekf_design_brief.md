@@ -259,7 +259,7 @@ jink schedules (`mc_batch.sh --path weave`, `WEAVE_LAT_SPEED = 3.0`; ADR-0033 it
 so **run CA as its own A/B arm on the weave/jink paths** and let the paired delta decide
 — do not adopt it by assertion.
 
-### 2.2 Frames (agree once, per GOALS.md)
+### 2.2 Frames (agree once, per docs/goals.md)
 
 - **Target state in PX4 local NED** — the guidance/tracker frame. World→NED:
   `north = world_y, east = world_x`, no sign flip (ADR-0013, empirically verified two

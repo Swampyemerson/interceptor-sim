@@ -56,7 +56,7 @@ COLUMN SCHEMAS SUPPORTED (--poses CSV), tried in this priority order
 ----------------------------------------------------------------------------
   1. CAMERA-FRAME xyz (exact, preferred) -- any of these column trios,
      already in the camera OPTICAL frame (x right, y down, z forward,
-     OpenCV convention, GOALS.md):
+     OpenCV convention, docs/goals.md):
        cam_x,cam_y,cam_z | rel_cam_x,rel_cam_y,rel_cam_z |
        target_cam_x,target_cam_y,target_cam_z | gt_cam_frame_x,_y,_z
      A range column (gt_range / gt_range_m / range_m) is used for box
@@ -131,7 +131,7 @@ sys.path.insert(0, HERE)
 from classical_seeker import load_intrinsics  # noqa: E402  (repo convention, see two_stage_seeker.py)
 
 DEFAULT_OUT = os.path.join(HERE, "data", "sim_dataset")
-DEFAULT_INTRINSICS = os.path.join(REPO, "camera_intrinsics.json")
+DEFAULT_INTRINSICS = os.path.join(REPO, "configs/camera_intrinsics.json")
 
 # Physical target extent (m) used for bbox sizing -- deliberately independent
 # of scripts/seeker/nn_seeker.py's TARGET_SPAN_M=1.0 (that constant covers
@@ -612,7 +612,7 @@ def main() -> int:
     ap.add_argument("--max-time-gap-s", type=float, default=0.2,
                      help="max |dt_sim| accepted for a sim-time join (default 0.2s)")
     ap.add_argument("--intrinsics", default=DEFAULT_INTRINSICS,
-                     help=f"camera_intrinsics.json path (default {DEFAULT_INTRINSICS})")
+                     help=f"configs/camera_intrinsics.json path (default {DEFAULT_INTRINSICS})")
     ap.add_argument("--class-name", default="drone",
                      help="YOLO class-0 name written to data.yaml (default drone)")
     ap.add_argument("--dry-run", action="store_true",

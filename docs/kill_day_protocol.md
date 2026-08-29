@@ -548,7 +548,7 @@ kinematic half, permanently.
       its bound was right — especially FAILSAFE 7, which has never fired on real
       hardware.
 - [ ] Result written back into `docs/project_state.json` (`build_plan` P5 + the
-      `kill` stage note) and `NEXT.md` — this day exists to move the project's
+      `kill` stage note) and `docs/next.md` — this day exists to move the project's
       headline claim, so log it where the next session reads it.
 - [ ] Every number quoted anywhere traces to a log file or a card (CLAUDE.md:
       numbers trace to a run or a derivation).

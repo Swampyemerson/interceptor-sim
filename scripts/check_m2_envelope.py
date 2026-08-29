@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """M2 detection-ENVELOPE sweep: measure the max reliable AprilTag detection
-range with the current camera lens, instead of assuming one. See GOALS.md
+range with the current camera lens, instead of assuming one. See docs/goals.md
 milestone M2, ADR-0007 (the old "~6 m" figure this replaces -- it was ad
 hoc, never measured with a script), and the ADR-0024 addendum (Tier-2 60
 deg lens change this re-baselines: fx 539.9 -> ~1108.5 px, predicted

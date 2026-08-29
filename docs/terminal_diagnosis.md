@@ -8,7 +8,7 @@ CSV (columns per `scripts/m4_intercept.py` CSV_HEADER). All 41/41 end in
 Analysis scripts + per-flight table preserved in-repo at `scripts/forensics/`
 (`terminal_forensics.py`, `deep_dive.py`, `quantify.py`, `q6_experiment.py`,
 `per_flight_summary.csv`) — copied 2026-07-06 from the ephemeral job dir
-`/home/emerson/.claude/jobs/28aff4e9/tmp/` so this linchpin diagnosis stays
+`~/.claude/jobs/28aff4e9/tmp/` so this linchpin diagnosis stays
 reproducible from the repo alone.
 Clock note: the CSV `t` column is WALL time; RTF (sim/wall, measured per flight from d(gt_tag_y)/dt vs the
 commanded 6 m/s) averaged **0.483** (0.296–0.514). All durations below are **sim seconds** unless marked wall.

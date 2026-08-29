@@ -5,7 +5,7 @@ What: connects to a running PX4 SITL instance, waits for GPS/home health,
 sets a 2 m takeoff altitude, arms, takes off, waits for altitude, then lands.
 Why: this is the smallest possible proof that the offboard-control path
 (MAVSDK -> PX4 -> Gazebo) works end to end before we build camera/guidance
-logic on top of it. See GOALS.md milestone M0.
+logic on top of it. See docs/goals.md milestone M0.
 
 Every stage is logged to logs/m0_takeoff_<UTC timestamp>.csv as
 (time_s, relative_altitude_m, flight_mode) rows. Exits 0 only if every

@@ -37,4 +37,4 @@ At fast-crosser speeds the miss is ~96% determined by the zero-effort-miss (ZEM)
 ## In this sim
 - Get bearing/LOS from the AprilTag detection (tag pose + camera intrinsics -> relative position -> LOS angle).
 - Run pursuit and pro-nav on the SAME target paths (paired seeds — terminal-dropout noise is ~1 m/run), log both miss distances, and compare. That comparison is the resume evidence.
-- Mind units and frames (ENU / OpenCV / FRD / NED - see GOALS.md, ADR-0013).
+- Mind units and frames (ENU / OpenCV / FRD / NED - see docs/goals.md, ADR-0013).

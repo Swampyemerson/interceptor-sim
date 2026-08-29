@@ -11,7 +11,7 @@ measures detection rate + bearing error vs blur length — the first
 quantitative curve for that gap.
 
 BLUR <-> PHYSICS MAPPING (documented assumption; flagged for a bench check):
-  The sim camera is 1280x960 with fx = fy = 539.936 px (camera_intrinsics.json,
+  The sim camera is 1280x960 with fx = fy = 539.936 px (configs/camera_intrinsics.json,
   the same constants markerless_loop.py hardcodes). Horizontal FOV:
       HFOV = 2*atan((1280/2)/539.936) = 2*atan(1.18533) = 99.72 deg
   Linear-average pixels per degree (task convention, frame width over HFOV):
@@ -90,7 +90,7 @@ sys.path.insert(0, SEEKER_DIR)
 from finetuned_seeker import FinetunedNNSeeker          # noqa: E402 (deployed detector)
 from v3_onnx_infer import iou, center_err               # noqa: E402 (eval-v3 match helpers)
 
-# ---- deployed camera constants (camera_intrinsics.json / markerless_loop.py) ----
+# ---- deployed camera constants (configs/camera_intrinsics.json / markerless_loop.py) ----
 FX = FY = 539.936
 CX, CY = 640.0, 480.0
 FRAME_W, FRAME_H = 1280, 960

@@ -251,7 +251,7 @@ and pass the **measured** size in metres as `--square` — not the nominal.
   until it is ≤ 1.0 px before trusting any range.
 - **Calibrate at the SAME resolution you will capture at.** `check_resolution()` enforces this;
   a calibrate/capture resolution mismatch corrupts the pose scale (lines 186–199).
-- The output JSON matches `camera_intrinsics.json`'s format and feeds `OpenCVFrameSource` directly.
+- The output JSON matches `configs/camera_intrinsics.json`'s format and feeds `OpenCVFrameSource` directly.
 - **If you swap the M12 lens (70° → ~1.6 mm), re-calibrate** — intrinsics belong to the *lens*,
   not the body.
 

@@ -59,7 +59,7 @@ VENV_PYTHON="$REPO_ROOT/.venv/bin/python"
 # --seeker markerless needs onnxruntime (absent from the main .venv, ADR-0048
 # SS5's own interpreter table) -- .venv-seeker is the ONE venv with gz +
 # mavsdk + onnxruntime + cv2 together (mc_batch.sh's MC_VENV_PYTHON
-# precedent, NEXT.md "Markerless flight venv"). The flight process itself
+# precedent, docs/next.md "Markerless flight venv"). The flight process itself
 # (m4_intercept.py) runs under THIS interpreter, not .venv.
 VENV_SEEKER_PYTHON="$REPO_ROOT/.venv-seeker/bin/python"
 LOGS_DIR="$REPO_ROOT/logs"

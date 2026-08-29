@@ -15,7 +15,7 @@ This machine (WSL2 Ubuntu, RTX 4070) was already provisioned. The stack the driv
 - **PX4-Autopilot v1.17.0** at `~/PX4-Autopilot` (`make px4_sitl gz_x500_mono_cam` builds/boots it). — `cat ~/PX4-Autopilot/version.txt` → `v1.17.0`
 - **Gazebo Harmonic** — `gz sim --version` → `8.14.0`.
 - **`.venv`** (main: cv2, MAVSDK, gz bindings) and **`.venv-seeker`** (adds onnxruntime for the NN detector). Both must exist and be executable.
-- Python deps are pinned in `requirements.txt`; project config files (`CLAUDE.md`, `GOALS.md`, `docs/`) can be regenerated with `./bootstrap.sh` on a fresh VM (a normal clone doesn't need it).
+- Python deps are pinned in `requirements.txt`; project config files (`CLAUDE.md`, `docs/goals.md`, `docs/`) can be regenerated with `./bootstrap.sh` on a fresh VM (a normal clone doesn't need it).
 
 If a gate later can't find the world file, run `scripts/check_m2.sh` once — it creates/repairs the `worlds/apriltag.sdf` symlink PX4 needs (PX4's `gz_env.sh` overwrites `PX4_GZ_WORLDS` every launch, ADR-0005, so an env var alone can't work).
 

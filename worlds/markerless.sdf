@@ -3,7 +3,7 @@
   MARKERLESS world (ADR-0033 post-M5 queue item 2: "kill the AprilTag").
 
   BYTE-IDENTICAL to worlds/apriltag.sdf (physics / scene / ground_plane / sun /
-  spherical_coordinates kept EXACTLY -- PX4's gz_bridge depends on it, GOALS.md
+  spherical_coordinates kept EXACTLY -- PX4's gz_bridge depends on it, docs/goals.md
   M2) EXCEPT for two deliberate changes, both required for the markerless A/B:
 
     1. World name is "markerless" (not "apriltag"). Every gz-transport topic for
@@ -28,7 +28,7 @@
   via GZ_SIM_RESOURCE_PATH:
 
     PX4_GZ_WORLD=markerless \
-    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models \
     HEADLESS=1 make px4_sitl gz_x500_mono_cam
 -->
 <sdf version="1.9">

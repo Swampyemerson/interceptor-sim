@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Pi-side capture recorder for the tripod field-test — the "Pi-side frame-dump
-script" flagged NOT BUILT in docs/tripod_test_protocol.md §1 and NEXT.md's
+script" flagged NOT BUILT in docs/tripod_test_protocol.md §1 and docs/next.md's
 REMAINING SIM PREP (P0). It records a decision-grade capture session on the
 Pi 5 + Arducam/innomaker OV9281 so the ONE tripod afternoon (docs/
 tripod_test_protocol.md) produces data BOTH money gates hang on.

@@ -2,7 +2,7 @@
 # M2 scripted milestone gate: headless PX4 SITL + Gazebo boots with the
 # gz_x500_mono_cam airframe on the custom "apriltag" world (a static
 # AprilTag 36h11 target board), and the tag is detected live with pose
-# accuracy checked against sim ground truth. See GOALS.md milestone M2,
+# accuracy checked against sim ground truth. See docs/goals.md milestone M2,
 # worlds/apriltag.sdf, models/apriltag_target/, and
 # .claude/skills/px4-gazebo/SKILL.md for launch/shutdown conventions.
 #

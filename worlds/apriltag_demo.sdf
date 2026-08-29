@@ -25,7 +25,7 @@
     ~/PX4-Autopilot/Tools/simulation/gz/worlds/apriltag_demo.sdf -> this file
   (repair with the same one-liner check_m2.sh uses for apriltag.sdf, just
   swap the filename) is needed before launch. Models resolve as usual via
-  GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models (additive, no
+  GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models (additive, no
   symlink needed -- this picks up models/fpv_target automatically since it's
   a sibling of models/apriltag_target in that same directory).
 
@@ -39,7 +39,7 @@
 
   Launch (mirrors apriltag.sdf's own launch comment):
     PX4_GZ_WORLD=apriltag_demo \
-    GZ_SIM_RESOURCE_PATH=/home/emerson/interceptor-sim/models \
+    GZ_SIM_RESOURCE_PATH=~/interceptor-sim/models \
     HEADLESS=0 make px4_sitl gz_x500_mono_cam
   (HEADLESS=0 to actually see/record the GUI; use the VideoRecorder plugin
   or gz's own video-recording service for the capture, not a screen

@@ -21,7 +21,7 @@ sample skipped. The headline classical result **did not survive** that check. Re
 | Method | Dark + low-saturation threshold → morphology → `connectedComponentsWithStats` → pick blob maximizing `contrast·log(area)`; KCF re-detect every 12 frames | YOLOv8n (COCO, ONNX) on CPU via onnxruntime; conf + horizon + self-mask + aspect gates; top-1 box |
 | Weights / license | Pure OpenCV, no model (permissive) | `weights/yolov8n.onnx`, 12.8 MB, **AGPL-3.0** (R6) |
 | Output | `SeekerDetection` → `to_measurement_fields()` | `SeekerDetection` → `as_measurement_tuple()` |
-| Venv | `/home/emerson/interceptor-sim/.venv-seeker` (isolated) | same isolated venv |
+| Venv | `~/interceptor-sim/.venv-seeker` (isolated) | same isolated venv |
 
 Both correctly implement the **interface contract** (brief §1): `bearing_rad`
 (`atan2((u−cx)/fx, 1)`, +=right), coarse known-size range (`fx·W/w_px`), confidence in
@@ -30,7 +30,7 @@ that part is real and reusable. The problem is upstream, in *what pixels the det
 locks onto*.
 
 **Isolation verified:** both lanes used `.venv-seeker`; the batch venv
-`/home/emerson/interceptor-sim/.venv` was not touched. `.venv-seeker` is **not** in
+`~/interceptor-sim/.venv` was not touched. `.venv-seeker` is **not** in
 `.gitignore` — exclude it before any commit (flagged, not fixed — no existing file was
 edited per the task constraints).
 
