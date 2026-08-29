@@ -143,3 +143,9 @@ scripts/experiments/downtilt_mounts/
 !logs/wrench_diag_*/diag.json
 !logs/wrench_diag_*/attitude.csv
 !logs/wrench_diag_*/probe.log
+
+# tgt-02 bench evidence: the first .BIN the real target FC ever wrote, pulled
+# off the board over MAVLink. Small, and it exists nowhere else -- bench
+# evidence that lives only on the device is evidence we lose.
+!runs/tgt02_bench/
+!runs/tgt02_bench/**

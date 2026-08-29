@@ -1,0 +1,48 @@
+{
+ "gate": "tgt-02 (target FC writes a scorable .BIN)",
+ "date": "2026-08-29",
+ "board": "Holybro Kakute H7 v1.5",
+ "firmware_from_board_banner": "ArduCopter V4.7.0 (1511f271)",
+ "firmware_from_flashed_hex": "ArduCopter V4.7.0 (1511f271)",
+ "retrieval": "downloaded over MAVLink from the FC, 643072/643072 bytes, card never removed",
+ "total_messages": 17057,
+ "distinct_types": 45,
+ "has_POS": false,
+ "has_GPS": false,
+ "has_IMU": true,
+ "has_ATT": true,
+ "has_BARO": true,
+ "boot_banner": [
+  "ArduCopter V4.7.0 (1511f271)",
+  "ChibiOS: 4f34e217",
+  "KakuteH7 002F0021 30345111 32303539",
+  "Param space used: 354/5376",
+  "RC Protocol: None",
+  "RCOut: DS600:1-4 PWM:5-8 NeoP:9",
+  "New mission",
+  "New rally",
+  "New fence",
+  "Frame: QUAD/X",
+  "PreArm: RC not found",
+  "PreArm: 3D Accel calibration needed",
+  "PreArm: Compass 1 not healthy",
+  "PreArm: AHRS: waiting for home",
+  "PreArm: Battery 1 low voltage failsafe",
+  "PreArm: Fence requires position",
+  "EKF3 IMU0 forced reset",
+  "EKF3 IMU0 initialised",
+  "EKF3 IMU0 tilt alignment complete"
+ ],
+ "verdict": "PARTIAL - see limits",
+ "proven": [
+  "microSD present and written by the FC (101 logs on card)",
+  "the .BIN is a well-formed DataFlash log our DFReader path parses (17057 msgs, 45 types)",
+  "firmware identity confirmed from the board's OWN log, matching the flashed hex hash",
+  "parameters took EFFECT, not merely wrote: Frame QUAD/X, RCOut DS600:1-4 (DShot600)",
+  "logs retrievable over MAVLink without pulling the card"
+ ],
+ "NOT_proven": [
+  "field_score.load_track_from_bin cannot build a track: no POS/GPS messages, because no GPS module is wired and the board is indoors",
+  "this gate does NOT close until a log with GPS lock is parsed end-to-end"
+ ]
+}
