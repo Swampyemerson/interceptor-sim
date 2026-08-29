@@ -27,6 +27,8 @@ from wind_gate0_probe import (  # noqa: E402
     angle_diff_deg,
     build_verdict,
     circular_mean_deg,
+    pose_motion,
+    read_driver_csv,
     summarise,
     tilt_from_quaternion,
 )
@@ -251,6 +253,68 @@ def test_void_beats_pass():
     v = _verdict(_phase(0.2), _phase(PREDICTED_TILT), _phase(0.2), driver=d)
     assert v["verdict"] == "VOID"
     assert v["checks"] == []
+
+
+# --- the two defects the FIRST real run exposed ----------------------------
+# Both are regression pins. Neither was hypothetical: run
+# logs/wind_gate0_20260829T154442Z hit both at once, and the pair very nearly
+# produced a confident NULL against a wind driver that was working correctly.
+
+def test_a_frozen_pose_is_void_not_null():
+    """THE NEAR-MISS. The pose reader was latched to a model-relative LINK
+    pose, so it read a constant (0,0,0.24) while the aircraft flew at 5.45 m.
+    Every phase then measured 0.000 deg -- which reads exactly like "Gazebo
+    never applied the force". Condemning a working driver on a frozen
+    instrument is the most expensive outcome available, so it must be VOID."""
+    frozen = [{"east_m": 0.0, "north_m": 0.0, "up_m": 0.24, "tilt_deg": 0.0}
+              for _ in range(500)]
+    motion = pose_motion(frozen)
+    assert motion["span_up_m"] == 0.0
+    v = build_verdict(CFG, {"A": _phase(0.0), "B": _phase(0.0), "C": _phase(0.0)},
+                      dict(GOOD_DRIVER), RESULT_LINE, motion)
+    assert v["verdict"] == "VOID", v
+    assert any("NEVER CHANGED" in r for r in v["reasons"])
+
+
+def test_a_moving_pose_does_not_trip_the_frozen_check():
+    moving = [{"east_m": 0.0, "north_m": 0.0, "up_m": 0.24 + i * 0.01,
+               "tilt_deg": 0.0} for i in range(500)]
+    v = build_verdict(CFG, {"A": _phase(0.2), "B": _phase(PREDICTED_TILT),
+                            "C": _phase(0.2)},
+                      dict(GOOD_DRIVER), RESULT_LINE, pose_motion(moving))
+    assert v["verdict"] == "PASS", v
+
+
+def test_a_hover_that_only_moves_in_attitude_still_counts_as_moving():
+    """Position may be near-constant in a good hover; centimetre-scale station
+    keeping is motion. Only an EXACTLY constant pose is the frozen signature."""
+    hover = [{"east_m": 0.001 * (i % 3), "north_m": 0.0, "up_m": 6.0,
+              "tilt_deg": 5.2} for i in range(500)]
+    m = pose_motion(hover)
+    assert m["span_east_m"] > 0.0
+
+
+def test_driver_csv_reader_skips_the_provenance_banner(tmp_path):
+    """THE OTHER HALF. wind_driver.py opens its CSV with '#' banner lines. Fed
+    to DictReader raw, the first banner becomes the header, every lookup
+    KeyErrors, and a 599-row file reports as 0 rows -- which is a VOID on a
+    perfectly good run. That is what happened."""
+    p = tmp_path / "wind_applied.csv"
+    p.write_text(
+        "# scripts/wind_driver.py -- APPLIED wind wrench log\n"
+        "# world=apriltag entity=x500_mono_cam_0::base_link\n"
+        "t_sim,grid_index,wind_n,wind_e,wind_d,steady_n,steady_e,gust_u,gust_v,"
+        "v_veh_n,v_veh_e,v_rel_n,v_rel_e,v_rel_mps,a_drag_m_s2,"
+        "applied_f_n,applied_f_e,applied_f_d,"
+        "applied_f_world_x,applied_f_world_y,applied_f_world_z,"
+        "published,publish_error\n"
+        "1.0,0,0,5,0,0,5,0,0,0,0,0,5,5,0.903,0.0,1.9095,0,1.9095,0,0,1,\n"
+        "1.05,0,0,5,0,0,5,0,0,0,0,0,5,5,0.903,0.0,1.9095,0,1.9095,0,0,1,\n")
+    d = read_driver_csv(str(p))
+    assert d["rows"] == 2
+    assert d["published"] == 2
+    assert d["publish_failed"] == 0
+    assert d["mean_force_n"] == pytest.approx(1.9095, abs=1e-4)
 
 
 def test_the_band_is_the_pre_registered_one():

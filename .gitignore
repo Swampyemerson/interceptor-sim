@@ -141,3 +141,17 @@ scripts/experiments/downtilt_mounts/
 # numbers must survive disk loss and the Pi being reflashed.
 !logs/skr07_2026-07-26/
 !logs/skr07_2026-07-26/**
+
+# Wind Gate-0 (W3) physics-probe evidence. The verdict + the ground-truth
+# attitude trace are the whole result of a sim-gated run that costs a boot to
+# reproduce; the sim log stays ignored (large, regenerable).
+!logs/wind_gate0_*/
+!logs/wind_gate0_*/verdict.json
+!logs/wind_gate0_*/attitude.csv
+!logs/wind_gate0_*/probe.log
+!logs/wind_gate0_*/wind_applied.csv
+!logs/wind_gate0_*/wind_driver.log
+!logs/wrench_diag_*/
+!logs/wrench_diag_*/diag.json
+!logs/wrench_diag_*/attitude.csv
+!logs/wrench_diag_*/probe.log

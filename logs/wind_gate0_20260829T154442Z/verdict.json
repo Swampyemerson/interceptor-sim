@@ -1,0 +1,76 @@
+{
+  "config": {
+    "wind_mps": 5.0,
+    "dir_from_deg": 270.0,
+    "height_m": 6.0,
+    "seed": 7,
+    "hover_alt_m": 6.0,
+    "phase_a_sim_s": 10.0,
+    "phase_b_sim_s": 30.0,
+    "phase_c_sim_s": 15.0,
+    "tail_sim_s": 10.0,
+    "gust_factor": 1.0,
+    "prereg": "docs/wind_gate0_prereg.md",
+    "parent_decision": "ADR-0096",
+    "utc": "2026-08-29T15:45:01+00:00"
+  },
+  "pose_source": "/world/apriltag/dynamic_pose/info",
+  "pose_updates": 4789,
+  "phases": {
+    "A": {
+      "n_samples_phase": 102,
+      "n_samples_window": 101,
+      "window_sim_s": 9.944,
+      "mean_tilt_deg": 0.0,
+      "max_tilt_deg": 0.0,
+      "min_tilt_deg": 0.0,
+      "mean_lean_bearing_deg": NaN,
+      "n_bearing_samples": 0,
+      "drift_within_window_m": 0.0,
+      "mean_up_m": 0.24
+    },
+    "B": {
+      "n_samples_phase": 302,
+      "n_samples_window": 101,
+      "window_sim_s": 9.968,
+      "mean_tilt_deg": 0.0,
+      "max_tilt_deg": 0.0,
+      "min_tilt_deg": 0.0,
+      "mean_lean_bearing_deg": NaN,
+      "n_bearing_samples": 0,
+      "drift_within_window_m": 0.0,
+      "mean_up_m": 0.24
+    },
+    "C": {
+      "n_samples_phase": 152,
+      "n_samples_window": 101,
+      "window_sim_s": 10.0,
+      "mean_tilt_deg": 0.0,
+      "max_tilt_deg": 0.0,
+      "min_tilt_deg": 0.0,
+      "mean_lean_bearing_deg": NaN,
+      "n_bearing_samples": 0,
+      "drift_within_window_m": 0.0,
+      "mean_up_m": 0.24
+    }
+  },
+  "driver": {
+    "rows": 0,
+    "published": 0,
+    "publish_failed": 0,
+    "mean_force_n": NaN
+  },
+  "driver_result_line": "[wind] WIND_DRIVER_RESULT label=gate0 mean_mps=5.00 dir_from_deg=270.0 sigma_mps=0.000 tau_s=8.629 seed=7 ticks=599 published=599 publish_failed=0 pose_updates=598 mean_force_n=1.9095 max_force_n=1.9095",
+  "verdict": "VOID",
+  "reasons": [
+    "the wind driver CSV has zero rows",
+    "the wind driver published ZERO wrenches (published=0 -- nothing was ever put on the wire)"
+  ],
+  "checks": [],
+  "predicted_tilt_deg": 5.261705527338197,
+  "predicted_force_n": 1.9094841346153844,
+  "band_deg": [
+    3.683193869136738,
+    6.8402171855396565
+  ]
+}

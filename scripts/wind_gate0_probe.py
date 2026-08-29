@@ -36,12 +36,19 @@ THE MEASUREMENT
     flight in the same sim boot.
 
 ATTITUDE COMES FROM GAZEBO GROUND TRUTH, NOT THE ESTIMATOR
-    We read the airframe's true orientation off /world/<w>/pose/info rather
+    We read the airframe's true orientation off the world pose topics rather
     than PX4's attitude estimate. The question is whether PHYSICS moved, and
     routing the answer through an estimator inserts an instrument between the
     question and the answer. This is gt_* usage in the sanctioned category --
     scoring/audit, exactly like m4's scorer and the target mover. Nothing here
     feeds guidance; the flight is a plain MAVSDK takeoff/hold/land.
+
+    MATCH THE MODEL ENTITY, NEVER THE LINK. A nested link's pose is reported
+    RELATIVE TO ITS ENCLOSING MODEL, so `base_link` reads a constant (0,0,0.24)
+    forever. The first run of this probe learned that the expensive way and it
+    is ADR-0006's root cause recurring; `pose_motion()` now fails the run closed
+    if the pose never moves, so a frozen reader can never again be mistaken for
+    a finding about Gazebo.
 
 SIM TIME, NEVER WALL TIME
     Every phase boundary and every window is measured on /clock (ADR-0009). RTF
@@ -93,9 +100,11 @@ FORCE_MATCH_FRAC = 0.10         # commanded force must match the assumed field
 class GroundTruthPose:
     """Gazebo's true pose of the interceptor, on sim time.
 
-    Mirrors scripts/wind_driver.py's subscriber: BOTH pose topics, take
-    whichever names the airframe, then STAY ON IT (interleaving two topics with
-    different stamps would jitter the time base). Records which one delivered.
+    Subscribes BOTH pose topics and stays on whichever delivers first
+    (interleaving two topics with different stamps would jitter the time base),
+    but matches ONLY the top-level MODEL entity -- see make_on_pose. Records
+    which topic delivered, and the caller cross-checks that the pose actually
+    moved before believing any tilt it reports.
     """
 
     def __init__(self):
@@ -120,12 +129,19 @@ class GroundTruthPose:
 
         def make_on_pose(source):
             def on_pose(msg):
+                # THE MODEL POSE IS THE WORLD POSE. THE LINK POSE IS NOT.
+                # A nested link's pose in gz's pose topics is relative to its
+                # enclosing MODEL, so base_link reads a constant (0,0,0.24) --
+                # x500_base's declared offset -- no matter how the aircraft
+                # flies. Measured the hard way on the first run of this probe
+                # (logs/wind_gate0_20260829T154442Z): 4789 callbacks, z=0.2400
+                # every time, while the aircraft sat at 5.45 m. Same root cause
+                # as ADR-0006. Match the model, and only the model.
                 best = None
                 for p in msg.pose:
-                    if p.name in (scoped, INTERCEPTOR_LINK, INTERCEPTOR_MODEL):
+                    if p.name == INTERCEPTOR_MODEL:
                         best = p
-                        if p.name in (scoped, INTERCEPTOR_LINK):
-                            break
+                        break
                 if best is None:
                     return
                 with self.lock:
@@ -330,12 +346,21 @@ def summarise(rows, tail_sim_s):
 
 
 def read_driver_csv(path):
-    """Mean commanded force magnitude and the publish tallies from the driver."""
+    """Mean commanded force magnitude and the publish tallies from the driver.
+
+    The driver's CSV opens with '#' provenance banner lines before the real
+    header. Feeding those straight to DictReader makes the FIRST BANNER the
+    header row, every lookup then KeyErrors, and the reader reports "0 rows" for
+    a file with 599 good ones -- which is exactly what happened on the first
+    probe run, producing a VOID over a driver that had worked perfectly. A
+    parser that mis-reads a healthy file is an instrument defect like any other.
+    """
     if not os.path.exists(path):
         return None
     forces, published, failed = [], 0, 0
     with open(path, newline="") as fh:
-        for row in csv.DictReader(fh):
+        lines = [ln for ln in fh if not ln.lstrip().startswith("#")]
+        for row in csv.DictReader(lines):
             try:
                 fn = float(row["applied_f_n"])
                 fe = float(row["applied_f_e"])
@@ -359,7 +384,30 @@ def read_driver_csv(path):
 
 
 # ------------------------------------------------------------------ verdict
-def build_verdict(cfg, phases, driver, driver_result_line):
+def pose_motion(all_rows):
+    """Total span of the ground-truth pose over the WHOLE run.
+
+    A flying aircraft's pose moves. If the span is exactly zero the reader is
+    latched onto something that does not move -- a model-relative link pose,
+    a stale cache, the wrong entity -- and every tilt it reported is an
+    artefact. This is the check that was MISSING on the first run: with the
+    reader frozen at (0,0,0.24), phases A/B/C all read 0.000 deg, and the
+    probe was one CSV-parser bug away from reporting a confident NULL and
+    condemning a wind driver that had worked perfectly. A false null is more
+    expensive than no result.
+    """
+    if not all_rows:
+        return {"span_east_m": 0.0, "span_north_m": 0.0, "span_up_m": 0.0,
+                "span_tilt_deg": 0.0, "n": 0}
+    def span(key):
+        vals = [r[key] for r in all_rows]
+        return max(vals) - min(vals)
+    return {"span_east_m": span("east_m"), "span_north_m": span("north_m"),
+            "span_up_m": span("up_m"), "span_tilt_deg": span("tilt_deg"),
+            "n": len(all_rows)}
+
+
+def build_verdict(cfg, phases, driver, driver_result_line, motion=None):
     """Apply the PRE-REGISTERED criteria. VOID beats PASS beats FAIL."""
     drag = DragParams.px4_x500_mono_cam_sitl()
     a_drag = drag.drag_accel_m_s2(cfg["wind_mps"])
@@ -397,6 +445,17 @@ def build_verdict(cfg, phases, driver, driver_result_line):
                     f"{rel * 100:.1f}% from the assumed {predicted_force:.3f} N "
                     f"-- the driver was not commanding the field this "
                     f"prediction assumes")
+    if motion is not None:
+        if motion["n"] == 0:
+            voids.append("the ground-truth pose reader produced no samples")
+        elif (motion["span_up_m"] == 0.0 and motion["span_east_m"] == 0.0
+                and motion["span_north_m"] == 0.0):
+            voids.append(
+                f"the ground-truth pose NEVER CHANGED across {motion['n']} "
+                f"samples (span 0.0 m in east/north/up) -- the reader is "
+                f"latched onto something that does not move, so every tilt it "
+                f"reported is an artefact. A frozen instrument is VOID, never "
+                f"a NULL finding about Gazebo.")
     if driver_result_line is None:
         voids.append("the driver never printed its WIND_DRIVER_RESULT summary "
                      "(it did not exit cleanly)")
@@ -508,6 +567,7 @@ async def run(args):
     driver_proc = None
     driver_result_line = None
     phases = {}
+    all_rows = []
 
     fh = open(attitude_csv, "w", newline="")
     writer = csv.DictWriter(fh, fieldnames=[
@@ -545,9 +605,12 @@ async def run(args):
         print(f"[gate0] At {st.relative_altitude_m:.2f} m. Settling "
               f"{args.settle_sim_s:.0f} s (sim)...", flush=True)
 
-        # Discard the climb transient: sample but do not score.
-        await record_phase(gt, writer, "settle", args.settle_sim_s, args.sample_hz,
-                           wall_budget_s=args.settle_sim_s * 6 + 60)
+        # Discard the climb transient: sample but do not score. The rows still
+        # count toward the frozen-pose check -- an instrument that cannot see a
+        # 6 m climb cannot see a 5 degree tilt either.
+        all_rows += await record_phase(gt, writer, "settle", args.settle_sim_s,
+                                       args.sample_hz,
+                                       wall_budget_s=args.settle_sim_s * 6 + 60)
 
         # ---- PHASE A: baseline, no driver -------------------------------
         print(f"[gate0] PHASE A ({args.phase_a_sim_s:.0f} sim s): driver OFF, "
@@ -555,6 +618,7 @@ async def run(args):
         rows_a = await record_phase(gt, writer, "A", args.phase_a_sim_s,
                                     args.sample_hz,
                                     wall_budget_s=args.phase_a_sim_s * 6 + 60)
+        all_rows += rows_a
         phases["A"] = summarise(rows_a, args.tail_sim_s)
         print(f"[gate0]   A: mean tilt {phases['A']['mean_tilt_deg']:.3f} deg "
               f"over {phases['A']['n_samples_window']} samples", flush=True)
@@ -581,6 +645,7 @@ async def run(args):
         rows_b = await record_phase(gt, writer, "B", args.phase_b_sim_s,
                                     args.sample_hz,
                                     wall_budget_s=args.phase_b_sim_s * 6 + 90)
+        all_rows += rows_b
         phases["B"] = summarise(rows_b, args.tail_sim_s)
         print(f"[gate0]   B: mean tilt {phases['B']['mean_tilt_deg']:.3f} deg, "
               f"lean {phases['B']['mean_lean_bearing_deg']:.1f} deg, "
@@ -615,6 +680,7 @@ async def run(args):
         rows_c = await record_phase(gt, writer, "C", args.phase_c_sim_s,
                                     args.sample_hz,
                                     wall_budget_s=args.phase_c_sim_s * 6 + 60)
+        all_rows += rows_c
         phases["C"] = summarise(rows_c, args.tail_sim_s)
         print(f"[gate0]   C: mean tilt {phases['C']['mean_tilt_deg']:.3f} deg",
               flush=True)
@@ -649,11 +715,14 @@ async def run(args):
 
     _sim_t, _s, source, n_updates = gt.read()
     driver = read_driver_csv(driver_csv)
-    result = build_verdict(cfg, phases, driver, driver_result_line)
+    motion = pose_motion(all_rows)
+    result = build_verdict(cfg, phases, driver, driver_result_line, motion)
     out = {
         "config": cfg,
         "pose_source": source,
         "pose_updates": n_updates,
+        "pose_entity": INTERCEPTOR_MODEL,
+        "pose_motion": motion,
         "phases": phases,
         "driver": driver,
         "driver_result_line": driver_result_line,

@@ -1,0 +1,32 @@
+[gate0] Subscribing to Gazebo ground truth...
+[gate0] Subscribed: ['/world/apriltag/pose/info', '/world/apriltag/dynamic_pose/info']
+[gate0] Connecting to udpin://0.0.0.0:14540...
+[gate0] Connected. Waiting for health...
+[gate0] Taking off to 6.0 m...
+[gate0] At 5.45 m. Settling 12 s (sim)...
+[gate0] PHASE A (10 sim s): driver OFF, expect level.
+[gate0]   A: mean tilt 0.000 deg over 101 samples
+[gate0] PHASE B (30 sim s): starting driver -> /home/emerson/interceptor-sim/scripts/wind_driver.py --mean-mps 5.0 --dir-from-deg 270.0 --height-m 6.0 --seed 7 --gust-factor 1.0 --duration 30.0 --out /home/emerson/interceptor-sim/logs/wind_gate0_20260829T154442Z/wind_applied.csv --label gate0 --provenance Gate-0 physics probe: synthetic steady wind, NOT a field reading (docs/wind_gate0_prereg.md)
+[gate0]   B: mean tilt 0.000 deg, lean nan deg, drift 0.00 m
+[gate0] Waiting for the driver to exit and clear the wrench...
+[gate0] driver exited rc=0
+[gate0] [wind] WIND_DRIVER_RESULT label=gate0 mean_mps=5.00 dir_from_deg=270.0 sigma_mps=0.000 tau_s=8.629 seed=7 ticks=599 published=599 publish_failed=0 pose_updates=598 mean_force_n=1.9095 max_force_n=1.9095
+[gate0] PHASE C (15 sim s): driver gone, expect level again.
+[gate0]   C: mean tilt 0.000 deg
+[gate0] Landing...
+
+========================================================================
+WIND GATE-0 (W3) PHYSICS PROBE -- VOID
+========================================================================
+  predicted tilt : 5.262 deg (band 3.683..6.840)
+  predicted force: 1.909 N
+  pose source    : /world/apriltag/dynamic_pose/info  (4789 updates)
+  phase A: tilt mean 0.000 deg (min 0.000 max 0.000), lean nan deg, drift 0.00 m, n=101/102
+  phase B: tilt mean 0.000 deg (min 0.000 max 0.000), lean nan deg, drift 0.00 m, n=101/302
+  phase C: tilt mean 0.000 deg (min 0.000 max 0.000), lean nan deg, drift 0.00 m, n=101/152
+  driver: rows=0 published=0 failed=0 mean_force=nan N
+  VOID: the wind driver CSV has zero rows
+  VOID: the wind driver published ZERO wrenches (published=0 -- nothing was ever put on the wire)
+
+  verdict written to /home/emerson/interceptor-sim/logs/wind_gate0_20260829T154442Z/verdict.json
+  Per docs/wind_gate0_prereg.md sec 5, this outcome must be recorded on the always-visible surfaces the same turn.

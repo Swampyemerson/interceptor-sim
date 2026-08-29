@@ -112,8 +112,13 @@ if [[ "$ready" -ne 1 ]]; then
     exit 2
 fi
 
-echo "[gate0] Sim ready. Running the probe..."
-"$VENV_PYTHON" "$REPO_ROOT/scripts/wind_gate0_probe.py" --out-dir "$OUT_DIR" "$@" \
+# GATE0_PROBE lets the same boot/teardown drive a different measurement script
+# against an identical sim -- used by the wrench diagnostic, which has to run in
+# exactly this environment for its answer to mean anything. One harness, not two
+# that can drift apart.
+PROBE_SCRIPT="${GATE0_PROBE:-$REPO_ROOT/scripts/wind_gate0_probe.py}"
+echo "[gate0] Sim ready. Running $(basename "$PROBE_SCRIPT")..."
+"$VENV_PYTHON" "$PROBE_SCRIPT" --out-dir "$OUT_DIR" "$@" \
     2>&1 | tee "$OUT_DIR/probe.log"
 PROBE_EXIT=${PIPESTATUS[0]}
 

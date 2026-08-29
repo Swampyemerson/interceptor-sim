@@ -566,14 +566,39 @@ def _run_gz(args, cond: WindConditions, drag: DragParams) -> int:
 
     def make_on_pose(source: str):
         def on_pose(msg: Pose_V) -> None:
-            # Either topic may name the entity by its scoped link name, its bare
-            # link name, or the model name; accept any, preferring the link.
+            # TAKE THE MODEL POSE. NEVER THE LINK POSE. (fixed 2026-08-29)
+            #
+            # This block used to accept the scoped/bare LINK name and PREFER it
+            # over the model. That is wrong, and it is ADR-0006's bug recurring
+            # in a new file -- the ADR that says in as many words that a "same
+            # number, different assumed parent" mistake "can bite twice".
+            #
+            # In gz's pose topics a nested LINK's pose is reported RELATIVE TO
+            # ITS ENCLOSING MODEL; only a top-level MODEL's pose is world-
+            # relative. base_link never moves relative to its own model, so the
+            # link entry reads a CONSTANT (0, 0, 0.24) -- x500_base's declared
+            # model offset -- forever, however the aircraft flies.
+            #
+            # Measured, Gate-0 probe run logs/wind_gate0_20260829T154442Z: the
+            # aircraft climbed to 5.45 m and every one of 4789 pose callbacks
+            # reported z = 0.2400. The finite difference of a constant is zero,
+            # so `v_veh_n`/`v_veh_e` were 0.00000 in all 599 applied rows.
+            #
+            # WHY IT MATTERED: relative air velocity is (wind - vehicle). With
+            # the vehicle term structurally zero, a dash arm computes drag from
+            # the WIND SPEED ALONE and omits the airframe's own ~9 m/s. Drag is
+            # superlinear in that quantity, so the applied force is wrong by a
+            # large factor -- and the CSV looks entirely plausible, because it
+            # faithfully logs the force that was commanded. Same shape as the
+            # accumulating-wrench defect above: the error is upstream of the
+            # log, so the log cannot show it.
+            #
+            # No published number is affected: no wind arm had ever flown.
             best = None
             for p in msg.pose:
-                if p.name in (scoped, INTERCEPTOR_LINK, INTERCEPTOR_MODEL):
+                if p.name == INTERCEPTOR_MODEL:
                     best = p
-                    if p.name in (scoped, INTERCEPTOR_LINK):
-                        break
+                    break
             if best is None:
                 return
             t = None

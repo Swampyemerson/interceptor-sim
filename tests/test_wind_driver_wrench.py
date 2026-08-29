@@ -110,3 +110,95 @@ def test_the_driver_still_clears_on_shutdown():
     assert src.count("clear_pub.publish") >= 2, (
         "expected a per-tick clear AND a shutdown clear; a persistent wrench "
         "left behind would keep pushing the vehicle in the NEXT flight")
+
+
+# --------------------------------------------------------------------------
+# THE SECOND ACTUATOR-INPUT DEFECT, found by the Gate-0 probe on 2026-08-29.
+#
+# The wrench itself was fine. What was wrong was the VEHICLE VELOCITY the force
+# is computed FROM. The pose callback used to accept the airframe's LINK entity
+# and prefer it over the MODEL. In gz's pose topics a nested link's pose is
+# reported RELATIVE TO ITS ENCLOSING MODEL, so `base_link` reads a constant
+# (0, 0, 0.24) -- x500_base's declared offset -- for the entire flight.
+#
+# Measured, not theorised (logs/wind_gate0_20260829T154442Z): the aircraft
+# climbed to 5.45 m and all 4789 pose callbacks reported z = 0.2400. The finite
+# difference of a constant is zero, so `v_veh_n`/`v_veh_e` were 0.00000 in every
+# one of the 599 applied rows.
+#
+# Relative air velocity is (wind - vehicle). With the vehicle term structurally
+# zero, a dash arm computes drag from the wind speed alone and omits the
+# airframe's own ~9 m/s. Drag is superlinear in that quantity, so the applied
+# force is wrong by a large factor -- and, once again, the CSV looks perfect,
+# because it faithfully logs the force that was commanded.
+#
+# This is ADR-0006's root cause recurring in a new file. That ADR says in as
+# many words that a "same number, different assumed parent" mistake can bite
+# twice. It did. This guard is why it cannot bite a third time here.
+def _on_pose_source():
+    """The gz-transport pose CALLBACK -- the one nested inside make_on_pose().
+
+    Selected by its enclosing factory on purpose: `WindDriverCore` also has an
+    `on_pose` method (a pure state update taking north/east floats), and an
+    ast.walk that grabs the first match by name silently guards the wrong
+    function. A guard pointed at the wrong code is worse than no guard.
+    """
+    src = open(DRIVER).read()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "make_on_pose":
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.FunctionDef) and inner.name == "on_pose":
+                    return ast.get_source_segment(src, inner)
+    raise AssertionError(
+        "wind_driver.py no longer defines make_on_pose()/on_pose() -- if the "
+        "pose path was restructured, this guard must be rewritten, not deleted.")
+
+
+def _on_pose_identifiers():
+    """Identifiers the callback actually USES -- from the AST, not the text.
+
+    Checking raw source would match the explanatory comment (which names the
+    link precisely because it is explaining why the link is wrong) and the
+    guard would fail on its own documentation.
+    """
+    import textwrap
+    node = ast.parse(textwrap.dedent(_on_pose_source()))
+    return {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+
+
+def test_pose_matches_the_MODEL_entity_only():
+    """THE REGRESSION: matching the link reads a model-relative constant."""
+    names = _on_pose_identifiers()
+    assert "INTERCEPTOR_MODEL" in names, (
+        "wind_driver's pose callback must match the top-level MODEL entity -- "
+        "that is the only world-relative pose available on these topics")
+    assert not ({"INTERCEPTOR_LINK", "scoped"} & names), (
+        "wind_driver's pose callback matched the LINK entity again. A nested "
+        "link's pose is relative to its enclosing model, so base_link reads a "
+        "CONSTANT (0,0,0.24) however the aircraft flies; the differenced "
+        "vehicle velocity is then structurally zero and the drag force omits "
+        "the airframe's own airspeed entirely. Measured on 2026-08-29: 4789 "
+        "callbacks all reporting z=0.2400 during a flight to 5.45 m.")
+
+
+def test_the_link_relative_pose_hazard_is_documented_at_the_site():
+    """The next person must not have to rediscover gz's pose parenting from a
+    failed wind campaign -- the same reason the clear is documented above."""
+    low = _on_pose_source().lower()
+    assert "relative" in low and "model" in low, (
+        "the pose callback must record WHY it matches the model and not the "
+        "link (link poses are model-relative), or the narrower match looks "
+        "like an arbitrary restriction someone can widen back")
+
+
+def test_the_wrench_still_targets_the_LINK():
+    """The fix must not overshoot. The pose to READ is the model's; the entity
+    the force is APPLIED to is still the link -- ApplyLinkWrench takes a link.
+    Swapping both would silently stop the force landing at all."""
+    src = open(DRIVER).read()
+    assert re.search(r"msg\.entity\.name\s*=\s*scoped", src), (
+        "the wrench must still be addressed to the scoped LINK name; "
+        "ApplyLinkWrench applies to links, not models")
+    assert re.search(r"clear_ent\.name\s*=\s*scoped", src), (
+        "the clear must address the same scoped LINK as the publish")

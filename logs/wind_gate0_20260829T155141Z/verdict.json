@@ -1,0 +1,110 @@
+{
+  "config": {
+    "wind_mps": 5.0,
+    "dir_from_deg": 270.0,
+    "height_m": 6.0,
+    "seed": 7,
+    "hover_alt_m": 6.0,
+    "phase_a_sim_s": 10.0,
+    "phase_b_sim_s": 30.0,
+    "phase_c_sim_s": 15.0,
+    "tail_sim_s": 10.0,
+    "gust_factor": 1.0,
+    "prereg": "docs/wind_gate0_prereg.md",
+    "parent_decision": "ADR-0096",
+    "utc": "2026-08-29T15:51:55+00:00"
+  },
+  "pose_source": "/world/apriltag/pose/info",
+  "pose_updates": 4814,
+  "pose_entity": "x500_mono_cam_0",
+  "pose_motion": {
+    "span_east_m": 0.10093916577696102,
+    "span_north_m": 0.07898747017601813,
+    "span_up_m": 0.6724006815304788,
+    "span_tilt_deg": 0.374588956532101,
+    "n": 678
+  },
+  "phases": {
+    "A": {
+      "n_samples_phase": 102,
+      "n_samples_window": 101,
+      "window_sim_s": 9.96,
+      "mean_tilt_deg": 0.1570168118894927,
+      "max_tilt_deg": 0.2912603990017204,
+      "min_tilt_deg": 0.028114077605157245,
+      "mean_lean_bearing_deg": 265.4620336720308,
+      "n_bearing_samples": 32,
+      "drift_within_window_m": 0.05141802651517239,
+      "mean_up_m": 6.010162660920433
+    },
+    "B": {
+      "n_samples_phase": 302,
+      "n_samples_window": 101,
+      "window_sim_s": 9.992,
+      "mean_tilt_deg": 0.16726571999691034,
+      "max_tilt_deg": 0.3292137593389173,
+      "min_tilt_deg": 0.007271822510659729,
+      "mean_lean_bearing_deg": 295.80950303143834,
+      "n_bearing_samples": 30,
+      "drift_within_window_m": 0.06908520298909046,
+      "mean_up_m": 5.99060226471673
+    },
+    "C": {
+      "n_samples_phase": 152,
+      "n_samples_window": 101,
+      "window_sim_s": 9.964,
+      "mean_tilt_deg": 0.17552082277495984,
+      "max_tilt_deg": 0.367863765579356,
+      "min_tilt_deg": 0.01878308049258997,
+      "mean_lean_bearing_deg": 120.47021227719408,
+      "n_bearing_samples": 35,
+      "drift_within_window_m": 0.05634076066568908,
+      "mean_up_m": 5.984003742705135
+    }
+  },
+  "driver": {
+    "rows": 598,
+    "published": 598,
+    "publish_failed": 0,
+    "mean_force_n": 1.9090080775457887,
+    "max_force_n": 1.9255945586233878
+  },
+  "driver_result_line": "[wind] WIND_DRIVER_RESULT label=gate0 mean_mps=5.00 dir_from_deg=270.0 sigma_mps=0.000 tau_s=8.629 seed=7 ticks=598 published=598 publish_failed=0 pose_updates=598 mean_force_n=1.9090 max_force_n=1.9256",
+  "verdict": "NULL",
+  "reasons": [],
+  "checks": [
+    {
+      "id": "A-level",
+      "what": "phase A (no driver) mean tilt < 1.0 deg",
+      "measured": 0.157,
+      "pass": true
+    },
+    {
+      "id": "B-magnitude",
+      "what": "phase B settled tilt within +/-30% of 5.262 deg  (3.683..6.840)",
+      "measured": 0.1673,
+      "pass": false
+    },
+    {
+      "id": "B-direction",
+      "what": "phase B lean points INTO the wind: bearing within +/-30.0 deg of 270",
+      "measured": [
+        295.81,
+        "err +25.81 deg"
+      ],
+      "pass": true
+    },
+    {
+      "id": "C-removable",
+      "what": "phase C (driver exited) mean tilt back < 1.0 deg",
+      "measured": 0.1755,
+      "pass": true
+    }
+  ],
+  "predicted_tilt_deg": 5.261705527338197,
+  "predicted_force_n": 1.9094841346153844,
+  "band_deg": [
+    3.683193869136738,
+    6.8402171855396565
+  ]
+}

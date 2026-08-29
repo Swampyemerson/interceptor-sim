@@ -1,0 +1,5 @@
+[wind] pose topics subscribed: ['/world/apriltag/pose/info', '/world/apriltag/dynamic_pose/info']
+[wind] driver up: /world/apriltag/wrench/persistent -> x500_mono_cam_0::base_link; gate0 5.00 m/s FROM 270.0 deg, sigma 0.000 m/s, tau 8.63 s, seed 7, 20 Hz on SIM time
+[wind] wrote 598 applied rows -> /home/emerson/interceptor-sim/logs/wind_gate0_20260829T155141Z/wind_applied.csv
+[wind] pose_source=/world/apriltag/dynamic_pose/info
+[wind] WIND_DRIVER_RESULT label=gate0 mean_mps=5.00 dir_from_deg=270.0 sigma_mps=0.000 tau_s=8.629 seed=7 ticks=598 published=598 publish_failed=0 pose_updates=598 mean_force_n=1.9090 max_force_n=1.9256

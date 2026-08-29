@@ -1,0 +1,34 @@
+[gate0] Subscribing to Gazebo ground truth...
+[gate0] Subscribed: ['/world/apriltag/pose/info', '/world/apriltag/dynamic_pose/info']
+[gate0] Connecting to udpin://0.0.0.0:14540...
+[gate0] Connected. Waiting for health...
+[gate0] Taking off to 6.0 m...
+[gate0] At 5.43 m. Settling 12 s (sim)...
+[gate0] PHASE A (10 sim s): driver OFF, expect level.
+[gate0]   A: mean tilt 0.157 deg over 101 samples
+[gate0] PHASE B (30 sim s): starting driver -> /home/emerson/interceptor-sim/scripts/wind_driver.py --mean-mps 5.0 --dir-from-deg 270.0 --height-m 6.0 --seed 7 --gust-factor 1.0 --duration 30.0 --out /home/emerson/interceptor-sim/logs/wind_gate0_20260829T155141Z/wind_applied.csv --label gate0 --provenance Gate-0 physics probe: synthetic steady wind, NOT a field reading (docs/wind_gate0_prereg.md)
+[gate0]   B: mean tilt 0.167 deg, lean 295.8 deg, drift 0.07 m
+[gate0] Waiting for the driver to exit and clear the wrench...
+[gate0] driver exited rc=0
+[gate0] [wind] WIND_DRIVER_RESULT label=gate0 mean_mps=5.00 dir_from_deg=270.0 sigma_mps=0.000 tau_s=8.629 seed=7 ticks=598 published=598 publish_failed=0 pose_updates=598 mean_force_n=1.9090 max_force_n=1.9256
+[gate0] PHASE C (15 sim s): driver gone, expect level again.
+[gate0]   C: mean tilt 0.176 deg
+[gate0] Landing...
+
+========================================================================
+WIND GATE-0 (W3) PHYSICS PROBE -- NULL
+========================================================================
+  predicted tilt : 5.262 deg (band 3.683..6.840)
+  predicted force: 1.909 N
+  pose source    : /world/apriltag/pose/info  (4814 updates)
+  phase A: tilt mean 0.157 deg (min 0.028 max 0.291), lean 265.5 deg, drift 0.05 m, n=101/102
+  phase B: tilt mean 0.167 deg (min 0.007 max 0.329), lean 295.8 deg, drift 0.07 m, n=101/302
+  phase C: tilt mean 0.176 deg (min 0.019 max 0.368), lean 120.5 deg, drift 0.06 m, n=101/152
+  driver: rows=598 published=598 failed=0 mean_force=1.909 N
+  [PASS] A-level: phase A (no driver) mean tilt < 1.0 deg -> 0.157
+  [FAIL] B-magnitude: phase B settled tilt within +/-30% of 5.262 deg  (3.683..6.840) -> 0.1673
+  [PASS] B-direction: phase B lean points INTO the wind: bearing within +/-30.0 deg of 270 -> (295.81, 'err +25.81 deg')
+  [PASS] C-removable: phase C (driver exited) mean tilt back < 1.0 deg -> 0.1755
+
+  verdict written to /home/emerson/interceptor-sim/logs/wind_gate0_20260829T155141Z/verdict.json
+  Per docs/wind_gate0_prereg.md sec 5, this outcome must be recorded on the always-visible surfaces the same turn.
