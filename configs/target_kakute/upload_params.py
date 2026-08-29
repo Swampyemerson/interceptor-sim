@@ -56,7 +56,11 @@ ATOL = 1e-6
 def parse_param_file(path):
     """ArduPilot .param: `NAME,VALUE` or `NAME<whitespace>VALUE`, # comments."""
     out = {}
-    with open(path) as fh:
+    # encoding is NOT optional here: this script is meant to run on WINDOWS
+    # python, whose default text encoding is cp1252, and target.param's inline
+    # annotations are UTF-8. Without this the file raises UnicodeDecodeError
+    # before a single parameter is read.
+    with open(path, encoding="utf-8", errors="replace") as fh:
         for lineno, raw in enumerate(fh, 1):
             line = raw.split("#")[0].strip()
             if not line:
@@ -162,12 +166,46 @@ def main():
             if n in have and not close_enough(have[n], v)}
 
     if missing:
-        print(f"\n!! {len(missing)} parameter(s) DO NOT EXIST on this firmware:")
+        # TWO very different causes, and calling the wrong one sends the
+        # operator hunting a firmware problem that does not exist (it did,
+        # 2026-08-29, on the first real run of this script):
+        #
+        #   (a) DRIVER SUB-PARAMETERS. ArduPilot only materialises a driver's
+        #       parameters once the driver is ENABLED and the board REBOOTS.
+        #       With BATT_MONITOR=0, none of BATT_VOLT_PIN/BATT_CURR_PIN/...
+        #       exist yet. Perfectly normal; fixed by a reboot and a re-run.
+        #       Measured: 1196 params before the reboot, 1221 after.
+        #   (b) THE 4.7 RENAME TRAP -- a genuinely wrong firmware version.
+        #
+        # Distinguish by asking whether an enabler for that prefix is being
+        # turned on in this very file. If it is, (a) is the explanation.
+        enablers = {n: v for n, v in want.items()
+                    if n.endswith(("_MONITOR", "_TYPE", "_ENABLE", "_PROTOCOL"))
+                    and v not in (0.0, -1.0)}
+        deferred, suspect = [], []
         for n in missing:
-            print(f"     {n}")
-        print("   This is the 4.7 rename trap. Confirm the board is running "
-              "ArduCopter 4.7.0 -- on 4.5/4.6 these names are silently ignored\n"
-              "   and the config half-loads.")
+            prefix = n.split("_")[0]
+            if any(e.split("_")[0] == prefix for e in enablers):
+                deferred.append(n)
+            else:
+                suspect.append(n)
+        if deferred:
+            print(f"\n[params] {len(deferred)} parameter(s) do not exist YET -- "
+                  f"their driver is being enabled in this same file:")
+            for n in deferred:
+                print(f"     {n}")
+            print("   This is NORMAL. ArduPilot creates a driver's parameters "
+                  "only after the driver is enabled AND the board reboots.\n"
+                  "   Reboot the FC and run this script again: pass 2 writes "
+                  "them. Not a firmware-version problem.")
+        if suspect:
+            print(f"\n!! {len(suspect)} parameter(s) DO NOT EXIST on this "
+                  f"firmware and nothing here enables them:")
+            for n in suspect:
+                print(f"     {n}")
+            print("   THIS is the 4.7 rename trap. Confirm the board runs "
+                  "ArduCopter 4.7.0 -- on 4.5/4.6 these names are silently\n"
+                  "   ignored and the config half-loads, including WP_SPD.")
 
     print(f"\n[params] {len(todo)} need changing, "
           f"{len(want) - len(todo) - len(missing)} already correct")
