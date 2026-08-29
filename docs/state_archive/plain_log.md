@@ -52,3 +52,13 @@ Logged the big loophole in the ledger: the launch aim is computed from the targe
 - **text:** Found a second full-stop bug: on a camera dropout the coded dash re-issues a zero command, braking mid-terminal. Twin of the one fixed yesterday, still live.
 - **so_what:** Some of the evidence that 'the camera makes it worse' is this bug, not the camera.
 - **evidence:** deep targeting workflow
+
+
+<!-- overflowed from project_state.json plain_log on 2026-08-29 -->
+
+### 2026-07-26
+We were measuring the miss from the camera lens, not the airframe centre -- and the criterion means centre to centre. Re-scored, the adopted setup already reaches contact range on 12 of 16 flights instead of 3.
+
+**So what:** The 'we have never got close enough' headline was a ruler error, not a design failure.
+
+*Evidence:* commit fcb2a0a

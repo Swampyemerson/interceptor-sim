@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c7cec75<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->2d681d9<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,8 +900,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-08-19",
- "updated_by": "2026-08-19: pre-publication sweep -- stale 12/16 kill-radius references corrected to the rescore ruling everywhere.",
+ "updated": "2026-08-29",
+ "updated_by": "Opus 5 head session — wind gate flown then parked; target FC flashed",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -912,14 +912,14 @@
   ]
  },
  "now": {
-  "as_of": "2026-08-19",
-  "where": "Publication prep. Bench state unchanged since the 2026-08-10 instrument sweep (seeker rig measured, brain bench green, the corrected kill-radius ruling swept everywhere); the repo is de-cluttered and repackaged for public view.",
-  "finding": "The gate's frame rate was assumed to be 30 and never measured. It is 96.6, and the flying camera was capped by a default nobody chose. Now pinned at 60 -- most of the gain, half the CPU, and 20 C of thermal margin outdoors.",
+  "as_of": "2026-08-29",
+  "where": "Bench night three, and the target's flight controller is being brought up. ArduPilot 4.7.0 is flashed to the Kakute H7 and verified by read-back. In sim, the wind gate ran for the first time and is now parked by ruling.",
+  "finding": "Gazebo does apply the wind force — 5.259 deg measured against 5.262 deg derived. The null came from our own driver clearing the force on a different topic than it publishes it. The fix for one silent bug had made the next one.",
   "next": [
-   "Attack the -0.37 m vertical bias -- the corrected scorer shows it is essentially the whole miss",
-   "Calibrate the camera (skr-06) — the only bench step still waiting on hands"
+   "Prove the H7 writes a .BIN our scorer can read (tgt-02)",
+   "Calibrate the camera (skr-06) — the last bench step needing hands"
   ],
-  "evidence": "docs/publish_cleanup_work_order.md - docs/publish_runbook.md (claims scrub) - runs/skr07_tagged/ - docs/decisions.md ADR-0090"
+  "evidence": "ADR-0098 - logs/wind_gate0_20260829T155141Z - configs/target_kakute/upload_params.py - commits 8cc2c26, 856fe38, 6dfca17, a8eb383"
  },
  "assumptions": [
   {
@@ -1193,12 +1193,12 @@
    "test": {
     "how": "Sim: scripts/wind_driver.py applies a PX4-form drag force from a steady+Dryden-gust field via gz ApplyLinkWrench; arms at BEST 1.5 / EXPECTED 4.5 / WORST 8.0 m/s (Beaufort-sourced). Gate first: the W3 physics probe — hover in steady 5 m/s, confirm settled tilt-into-wind within ±30% of atan(a_drag/g) ≈ 4–5°, then kill the driver and confirm force removal. Field: handheld anemometer at launch height + ULog, correlate with achieved aim error.",
     "cost": "~$20 anemometer + logging discipline; sim wind arm is free",
-    "status": "in progress — sim wind mechanism BUILT (scripts/wind_driver.py, default OFF), physics probe NOT yet run"
+    "status": "PARKED 2026-08-29. Mechanism PROVEN (probe: 5.259 deg measured vs 5.262 deg derived, bearing 270.2 vs 270.0). Driver's 20 Hz clear+publish recipe is known-broken and self-cancelling — fix is written down in ADR-0098, unspent."
    },
-   "state": "unchecked",
-   "ruling": "",
+   "state": "accepted",
+   "ruling": "PARKED by the builder 2026-08-29 (ADR-0098). The sim CAN model wind — the Gate-0 probe proved Gazebo applies the force to within 0.003 deg of the derivation — but no wind arm will be flown, so this stays GIVEN-PERFECT and untested. Every published number still assumes a windless world; say so.",
    "origin": "docs/launch_mechanism_plan.md §9 ('Wind/gust is unmodelled everywhere')",
-   "evidence": "Mechanism built + reviewed 2026-08-10 (ADR-0096). NOT yet exercised in Gazebo — no wind arm has flown, so every published number still assumes a windless world."
+   "evidence": "logs/wind_gate0_20260829T15{4442,5141}Z + logs/wrench_diag_20260829_partial; ADR-0096, ADR-0098; pre-registration docs/wind_gate0_prereg.md committed BEFORE the flight (8cc2c26)"
   },
   {
    "id": "go-bit-not-a-cue",
@@ -1321,6 +1321,27 @@
    "ruling": "",
    "origin": "Declared 2026-08-10 with scripts/wind_trim.py (ADR-0096)",
    "evidence": "Table derives from PX4 params_drag.yaml defaults (MCOEF 0.15 s^-1, BCOEF 100 kg/m^2) and x500 mass 2.114 kg — generic values, not this airframe measured."
+  },
+  {
+   "id": "camera-absorbs-wind",
+   "statement": "The wind arm was parked on the reasoning that the terminal camera pro-nav corrects for wind. That is assumed, not measured.",
+   "grade": "unmeasured",
+   "if_wrong": "Wind's damage is mostly to the OPEN-LOOP DASH, before any camera lock — and the camera has never beaten a well-aimed blind dash in any arm flown.",
+   "stages": [
+    "terminal",
+    "coded_dash",
+    "launch_aim"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Unpark the wind arm (ADR-0098 has the fix) and fly camera-terminal vs dash-only in a paired 4.5 m/s crosswind. The delta IS the camera's wind credit.",
+    "cost": "Free — the mechanism is built and proven; the driver needs a small publish fix.",
+    "status": "not started — parked with the wind arm"
+   },
+   "state": "unchecked",
+   "ruling": "",
+   "origin": "Builder ruling 2026-08-29: 'the camera pro nav should combat it enough' (ADR-0098)",
+   "evidence": "NOT evidence-backed. The camera has not beaten a well-aimed blind dash at any speed or aim error tested. Recorded so this is never read as validated."
   }
  ],
  "builder_queue": [
@@ -1374,6 +1395,12 @@
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-08-29",
+   "text": "Wind gate flown for the first time. It found two defects in the measurement path before it could answer its own question, then answered it: Gazebo applies the wind force almost exactly (5.259 deg measured vs 5.262 deg derived) — our own driver was cancelling it, because the fix for an earlier bug clears the force on a different topic than it publishes it, with no ordering guarantee.",
+   "so_what": "The wind arm is PARKED by builder ruling, but the answer is banked and the fix written down, so unparking costs a read rather than a re-derivation. A frozen-instrument bug nearly made the probe condemn working code.",
+   "evidence": "ADR-0098; logs/wind_gate0_20260829T155141Z; logs/wrench_diag_20260829_partial"
+  },
   {
    "date": "2026-08-19",
    "text": "Publication sweep. The repo was de-cluttered for public view: the plaintext VM password line deleted, root files moved under docs/ and .claude/, the README repackaged around the results and the honesty machinery, and the retracted 12-of-16 kill-radius claim corrected on every surface that still carried it. CI had been red since 2026-08-11: the rescore gate test needs the machine-local flight archive and now says so as a named skip instead of failing.",
@@ -1439,12 +1466,6 @@
    "text": "My own fix to the miss ruler was wrong too: I corrected the camera's height but not the fact that it also sits forward of the drone's centre and swings as the drone pitches.",
    "so_what": "How many flights actually reach contact range is genuinely unknown -- and the logs do not even record the pitch needed to work it out.",
    "evidence": "instrument audit #7"
-  },
-  {
-   "date": "2026-07-26",
-   "text": "We were measuring the miss from the camera lens, not the airframe centre -- and the criterion means centre to centre. Re-scored, the adopted setup already reaches contact range on 12 of 16 flights instead of 3.",
-   "so_what": "The 'we have never got close enough' headline was a ruler error, not a design failure.",
-   "evidence": "commit fcb2a0a"
   }
  ],
  "narrative": {

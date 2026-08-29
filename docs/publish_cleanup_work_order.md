@@ -27,10 +27,15 @@ dashboard's "Waiting on you" panel.
    commit-hash evidence citations).
 2. **Re-point the desktop launcher** if its shortcut targets the repo copy —
    the .bat now lives at `scripts/env/Launch Interceptor Sim.bat`.
-3. **Merge branch `claude/portfolio-data-github-cleanup-g792ae` into `main`**
-   (github.com → the repo → Branches or a PR — doable from a phone). CI on
-   the branch is **green** (run 142); main's CI — and the README badge —
-   stays red until this merge lands.
+3. ~~**Merge branch `claude/portfolio-data-github-cleanup-g792ae` into `main`**~~
+   — **DONE 2026-08-29**, merged locally and pushed. It had sat unmerged for
+   ten days; nobody noticed because the *published dashboard* was current
+   while `main` was not, so every surface a human looks at said the work had
+   landed. Found only because a dashboard republish hit a version conflict
+   and the 2026-08-19 contract had to be recovered out of the published
+   Artifact to see what was missing. Post-merge gate: `run_tests.sh` ALL
+   GREEN (941 + 29 tests, both drift checks, every self-test pack).
+   **Process fix owed: check for unmerged remote branches at session start.**
 4. ~~Confirm the MIT license~~ — **DONE: builder confirmed MIT 2026-08-19**
    (recorded in `docs/publish_runbook.md` step 4). Weights stay out of the
    repo per `docs/license_notice_weights.md`.
