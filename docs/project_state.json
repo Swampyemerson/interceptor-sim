@@ -4,7 +4,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-08-29",
- "updated_by": "Opus 5 head session — wind gate flown then parked; target FC flashed",
+ "updated_by": "Opus 5 head session — target FC flashed, configured and log-verified",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -16,13 +16,13 @@
  },
  "now": {
   "as_of": "2026-08-29",
-  "where": "Bench night three, and the target's flight controller is being brought up. ArduPilot 4.7.0 is flashed to the Kakute H7 and verified by read-back. In sim, the wind gate ran for the first time and is now parked by ruling.",
-  "finding": "Gazebo does apply the wind force — 5.259 deg measured against 5.262 deg derived. The null came from our own driver clearing the force on a different topic than it publishes it. The fix for one silent bug had made the next one.",
+  "where": "The target aircraft's flight controller is real. ArduPilot 4.7.0 is on the Kakute H7, all 44 settings verified by reading them back off the board, and it writes flight logs our scoring code can open. Done over USB with the board loose on the desk.",
+  "finding": "The board's own start-up message names the exact firmware build we flashed, and its motor output already reads DShot600 -- so the settings did not just save, they took effect. What is NOT proven is a position track: no GPS is wired yet.",
   "next": [
-   "Prove the H7 writes a .BIN our scorer can read (tgt-02)",
+   "Wire the GPS and re-run the log check outdoors — that is what closes tgt-02",
    "Calibrate the camera (skr-06) — the last bench step needing hands"
   ],
-  "evidence": "ADR-0098 - logs/wind_gate0_20260829T155141Z - configs/target_kakute/upload_params.py - commits 8cc2c26, 856fe38, 6dfca17, a8eb383"
+  "evidence": "runs/tgt02_bench/ (the first .BIN the board ever wrote, + its limits) - configs/target_kakute/upload_params.py - commits d191d50, bc9957b"
  },
  "assumptions": [
   {
@@ -500,6 +500,12 @@
  "plain_log": [
   {
    "date": "2026-08-29",
+   "text": "Target flight controller brought up end to end over USB: ArduPilot flashed after a full chip erase, all 44 settings written AND read back to confirm they landed, and the board proved it writes a flight log we can pull off it without touching the SD card. Its own start-up banner names the same firmware build we flashed.",
+   "so_what": "The first pass reported '23 of 23 written' and looked perfect -- four settings had not actually taken. Only reading them back caught it. The log still has no position track because no GPS is wired, so that gate stays open.",
+   "evidence": "runs/tgt02_bench/summary.json; commit d191d50"
+  },
+  {
+   "date": "2026-08-29",
    "text": "Wind gate flown for the first time. It found two defects in the measurement path before it could answer its own question, then answered it: Gazebo applies the wind force almost exactly (5.259 deg measured vs 5.262 deg derived) — our own driver was cancelling it, because the fix for an earlier bug clears the force on a different topic than it publishes it, with no ordering guarantee.",
    "so_what": "The wind arm is PARKED by builder ruling, but the answer is banked and the fix written down, so unparking costs a read rather than a re-derivation. A frozen-instrument bug nearly made the probe condemn working code.",
    "evidence": "ADR-0098; logs/wind_gate0_20260829T155141Z; logs/wrench_diag_20260829_partial"
@@ -563,12 +569,6 @@
    "text": "Bench hardware count corrected: the target's flight controller has NOT arrived, but the camera, GPS, cables, cards, tools and safety kit all have -- the contract had several of these still marked in transit.",
    "so_what": "Every bench step is unblocked, so both bring-up gates can be closed now and the day the flight controller lands the only work left is building the target.",
    "evidence": "builder at the bench 2026-07-26"
-  },
-  {
-   "date": "2026-07-26",
-   "text": "My own fix to the miss ruler was wrong too: I corrected the camera's height but not the fact that it also sits forward of the drone's centre and swings as the drone pitches.",
-   "so_what": "How many flights actually reach contact range is genuinely unknown -- and the logs do not even record the pitch needed to work it out.",
-   "evidence": "instrument audit #7"
   }
  ],
  "narrative": {

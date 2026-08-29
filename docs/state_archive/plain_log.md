@@ -62,3 +62,10 @@ We were measuring the miss from the camera lens, not the airframe centre -- and 
 **So what:** The 'we have never got close enough' headline was a ruler error, not a design failure.
 
 *Evidence:* commit fcb2a0a
+
+### 2026-07-26
+My own fix to the miss ruler was wrong too: I corrected the camera's height but not the fact that it also sits forward of the drone's centre and swings as the drone pitches.
+
+**So what:** How many flights actually reach contact range is genuinely unknown -- and the logs do not even record the pitch needed to work it out.
+
+*Evidence:* instrument audit #7
