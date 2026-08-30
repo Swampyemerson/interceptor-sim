@@ -25,6 +25,17 @@ NO VACUOUS VERDICTS
     Zero parameters compared is a FAILURE, never a pass. A run that connected to
     nothing, or parsed an empty file, exits non-zero and says so.
 
+ARDUPILOT ONLY. DO NOT POINT THIS AT A PX4 BOARD.
+    This reads and writes parameters as plain MAVLink floats, which is correct
+    for ArduPilot and WRONG for PX4. PX4 sends an INT32 parameter as its RAW
+    BYTES REINTERPRETED into the float field rather than value-cast, so a naive
+    `int(msg.param_value)` reads 0 and a naive write of 201.0 puts garbage on
+    the vehicle -- silently, with a plausible echo. (Found 2026-08-29 setting
+    GPS_1_CONFIG on the interceptor's Pixhawk: 202 arrives on the wire as
+    2.83e-43.) A PX4 equivalent must use struct.pack('<i')/unpack('<f') on both
+    sides. This file is safe only because ArduPilot genuinely sends floats --
+    that is the vendor's choice, not this script's design.
+
 RUNS ON *WINDOWS* PYTHON, because the FC enumerates as a Windows COM port and
 WSL2 cannot see it:
     python.exe configs/target_kakute/upload_params.py --port COM7

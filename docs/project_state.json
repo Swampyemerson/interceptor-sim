@@ -4,7 +4,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-08-29",
- "updated_by": "Opus 5 head session — target FC flashed, configured and log-verified",
+ "updated_by": "Opus 5 head session — GPS moved to GPS1; builder ruling: keep building",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -12,7 +12,8 @@
    "docs/next.md ROADMAP R1-R7",
    "docs/hardware_order_list.md §0b/§0c",
    "docs/decisions.md ADR-0025"
-  ]
+  ],
+  "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
   "as_of": "2026-08-29",
@@ -2035,7 +2036,7 @@
      },
      {
       "id": "brn-02",
-      "text": "Connect the M10 and verify GPS + compass appear in QGC. REALITY 2026-07-27: this M10's cable is 6-pin, so it only fits GPS2, not the 10-pin GPS1. That is fine for the GPS (set GPS_1_CONFIG = 'GPS 2' in QGC, SER_GPS2_BAUD = Auto) but NOT for the compass: PX4 v1.16 fmu-v6c starts the external ist8310 on I2C bus 1 and bus 4 only, and GPS2's I2C is bus 2 -- so the M10's mag is NOT probed. Fix by one of: an extras.txt line on the FC's microSD ('ist8310 -X -b 2 -R 10 start'), a 6->10 pin GPS cable onto GPS1, or accept the board's INTERNAL ist8310 (bus 4) for the bench. ADR-0091.",
+      "text": "Connect the M10 and verify GPS + compass appear in QGC. RESOLVED 2026-08-29: a second M10 arrived carrying the 10-pin cable, so the GPS moved to the GPS1 socket and GPS_1_CONFIG was set back to 'GPS 1' (201) -- verified by read-back on the live board. This should also fix the compass for free: the ist8310 is probed on I2C bus 1, which is GPS1's bus, so the extras.txt workaround ADR-0091 proposed should become unnecessary. TAKES EFFECT ONLY AFTER A REBOOT -- PX4 reads port assignments at boot. Confirm mag + 3D fix in QGC after the power cycle BEFORE deleting the workaround. The small M10Q-5883 goes to the TARGET's Kakute H7 instead, soldered to pads (that board has no GPS plug).",
       "why": "The GPS itself is only a port assignment, but the compass is a bus the firmware does not scan -- it would have looked like a dead module. Separately: this M10 carries no safety switch (those are GPS1 pins 6/7), so bench.params' CBRK_IO_SAFETY=0 leaves the board unarmable at the airframe stage. Not a bench blocker (brn-05 never arms)."
      },
      {
