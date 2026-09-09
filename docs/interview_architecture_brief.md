@@ -778,6 +778,27 @@ calibration, then sustained detection rate on the real board. The kill-link late
 flagged as a **safety** item that should not be deferred merely because it comes later in
 the build.
 
+### 6.3 And one reason the camera could not have won, found 2026-09-09
+
+Every seeker computes the target's vertical look angle. **Nothing in `flight/` consumes
+it.** The elevation enters the derotation chain only to get the *horizontal* azimuth
+right; the sole vertical command anywhere is an altitude-hold P-loop to a preset height.
+
+ADR-0095 measured the adopted configuration's residual as **0.374 m vertical against
+0.174 m horizontal**. So the terminal steers the axis carrying 18% of the squared error
+and is blind to the axis carrying 82%. Null the vertical term alone and the median is
+0.174 m, **inside** the 0.35 m ram radius.
+
+ADR-0085 **decided** a camera-driven vertical channel with a hard altitude floor in July.
+Neither half was ever written, and that ADR appears nowhere in the contract or the queue.
+
+This does not say the camera works. It says the strongest camera-versus-dash comparison
+has never been run. Full arithmetic, including why the ADR-0023 capacity bound is being
+quoted outside the regime it was measured in, and a separate question about the money
+gate computing the streak burn at the terminal's closing speed rather than the dash's:
+`docs/vertical_channel_analysis.md`, ledger entry
+`terminal-vertical-channel-decided-not-built`.
+
 ---
 
 ## 7. Questions to expect, and the honest answer to each
@@ -832,6 +853,20 @@ but does not parse is an error, never a fallback. Producer-to-consumer contract 
 fixtures come from the producer's own writer. And a fix is not done until its effect is
 observed end-to-end: reproduce the pre-fix behaviour, then demonstrate the post-fix
 behaviour.
+
+**"Is the short terminal window a physics limit?"**
+No, and separating the two halves is the answer. The *fiducial's read range* is a real
+optical limit: AprilTag needs about 22 px of tag edge, so at the ordered lens a 0.35 m
+placard reads to roughly 6 m, and the placard is already at the carry limit. But the
+markerless detector has a 24 m static ceiling. First kills fly the tag because the Pi
+runs the tag at 96.6 fps and the network at 6.09, so the short acquisition range is a
+consequence of deferring a $70 accelerator, not of camera guidance.
+
+The *correction capacity* is not the binding constraint at correct aim. At the planned
+decode setting it is 0.6 to 1.8 m against a need of roughly 0.4 m. At a 20 m acquisition
+range it is 11 m. Capacity scales as time-to-go squared, which is why acquisition range
+is the lever and why a human pilot tracking from 30 m has about 18 times the authority of
+a seeker whose first look is at 7 m.
 
 **"What would you do differently?"**
 Register assumptions from day one. Every mirage traces to something never written down —
@@ -900,3 +935,4 @@ deliverable, and it is also the derived accuracy requirement for the cue.
 | The silent-failure review (73 findings) | `docs/review2_silent_failure_findings.md` |
 | The re-score that retracted a headline | `docs/rescore_2026-08-10.md` |
 | Sim-to-real gap register | `docs/sim_to_real_gaps.md` |
+| Why the camera has not saved the aim | `docs/vertical_channel_analysis.md` |
