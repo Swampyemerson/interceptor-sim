@@ -69,3 +69,13 @@ My own fix to the miss ruler was wrong too: I corrected the camera's height but 
 **So what:** How many flights actually reach contact range is genuinely unknown -- and the logs do not even record the pitch needed to work it out.
 
 *Evidence:* instrument audit #7
+
+
+<!-- overflowed from project_state.json plain_log on 2026-09-09 -->
+
+### 2026-07-26
+Bench hardware count corrected: the target's flight controller has NOT arrived, but the camera, GPS, cables, cards, tools and safety kit all have -- the contract had several of these still marked in transit.
+
+**So what:** Every bench step is unblocked, so both bring-up gates can be closed now and the day the flight controller lands the only work left is building the target.
+
+*Evidence:* builder at the bench 2026-07-26

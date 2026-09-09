@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->d3004f1<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3d3347b<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,8 +900,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-08-29",
- "updated_by": "Opus 5 head session — GPS moved to GPS1; builder ruling: keep building",
+ "updated": "2026-09-09",
+ "updated_by": "Opus 5 head — builder question: why can't the camera save the aim? Vertical channel gap found",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1397,6 +1397,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-09-09",
+   "text": "The builder asked why a late camera adjustment cannot save a slightly-off aim, since he has watched exactly that happen on video. Checked it properly. He is right that nothing in the physics forbids it, and the reason it has never happened here is that the camera terminal has no up-and-down steering at all: it holds a preset height and throws away the target's measured elevation on every single frame.",
+   "so_what": "The miss we cannot close is 0.37 m vertical against 0.17 m sideways, so the guidance is blind to about 82% of it, and closing the vertical part alone would already be inside the 0.35 m contact radius. A vertical channel was DECIDED in ADR-0085 and never written; it is not in this contract or the queue. So 'the camera does not beat a well-aimed dash' describes the arms we flew, not what a camera can do.",
+   "evidence": "contradiction terminal-vertical-channel-decided-not-built; docs/vertical_channel_analysis.md"
+  },
+  {
    "date": "2026-08-29",
    "text": "Target flight controller brought up end to end over USB: ArduPilot flashed after a full chip erase, all 44 settings written AND read back to confirm they landed, and the board proved it writes a flight log we can pull off it without touching the SD card. Its own start-up banner names the same firmware build we flashed.",
    "so_what": "The first pass reported '23 of 23 written' and looked perfect -- four settings had not actually taken. Only reading them back caught it. The log still has no position track because no GPS is wired, so that gate stays open.",
@@ -1461,12 +1467,6 @@
    "text": "Adversarial review of every script run at the bench: 51 defects raised, 48 survived two independent skeptics. The props-off OFFBOARD gate could print PASS without testing anything -- its first setpoint came from a hallucinated detection on a frame with no target, and a single setpoint passed while the line above read 'mean cadence 0.0 Hz'.",
    "so_what": "The gate built to retire the one link the sim never tested would have retired it untested. Now gated on measured cadence, span, gap, and proof that bytes came back over the wire.",
    "evidence": "commit 1b89340"
-  },
-  {
-   "date": "2026-07-26",
-   "text": "Bench hardware count corrected: the target's flight controller has NOT arrived, but the camera, GPS, cables, cards, tools and safety kit all have -- the contract had several of these still marked in transit.",
-   "so_what": "Every bench step is unblocked, so both bring-up gates can be closed now and the day the flight controller lands the only work left is building the target.",
-   "evidence": "builder at the bench 2026-07-26"
   }
  ],
  "narrative": {
@@ -4333,6 +4333,18 @@
    "claim_b": "The honesty boundary polices only MID-FLIGHT reads; it has NO rule on the quality of the PRE-FLIGHT cue. C1-fallback and C2 are derived from the true target start/velocity, i.e. a cue with ZERO error — the one thing a real ground cue never has. Combined with two measured results this is load-bearing: (1) AIM is the dominant lever (correct aim alone: 1.37 -> 0.75 m, ADR-0080/0083, floor 0.71/0.43 m); (2) the 2026-07-25 re-fly showed the camera terminal does NOT beat a well-aimed open-loop dash (3/8, 1/8, 4/8 vs its dash-only twins at 0/5/15 deg aim error). If a perfect cue supplies the dominant lever and the seeker adds ~nothing on top, the seeker is decoration and the headline collapses to 'a ballistic solution to a known trajectory'.",
    "loc_b": "docs/flight_plan_candidates.md RESULTS 2026-07-25 (re-fly table); ADR-0080/0083; project_state.json stage 'terminal' note",
    "current_truth": "RESOLVED BY BUILDER RULING 2026-07-26: declared an explicit PROJECT CONSTRAINT (option 1 of the three recorded). The interceptor is CUED and the deliverable is the interface spec -- performance vs cue error -- not a cueing sensor. Hardware: GPS-derived cue LATCHED AT TRIGGER, link then DEAD; error injected to measure tolerance. The no-datalink constraint is preserved precisely because the cue does not survive launch. Standing consequence: zero-cue-error results are BEST-CASE UPPER BOUNDS, never the claim. Follow-on work (the cue-error sweep) is tracked, not open as a question."
+  },
+  {
+   "id": "terminal-vertical-channel-decided-not-built",
+   "verdict": "CONFIRMED",
+   "severity": "high",
+   "status": "open",
+   "topic": "The miss is almost all VERTICAL, and the camera terminal has no vertical steering at all — ADR-0085 decided one and no code was ever written (builder question, 2026-09-09: 'why can't a late camera adjustment save the aim?')",
+   "claim_a": "ADR-0085 (2026-07-25) DECIDED the design of record: 'In the terminal, the vertical channel follows the camera-derived target elevation within a bounded band, floored by a hard AGL minimum.' On that decision the camera steers the interceptor up and down during the final homing, and a safety floor stops a bad elevation reading flying it into the ground.",
+   "loc_a": "docs/decisions.md ADR-0085 (#16 vertical channel + altitude datum)",
+   "claim_b": "No such code exists, in the sim or on the vehicle. The ONLY vertical command anywhere is an altitude-hold P-loop to a PRESET height: v_down = clamp(kp_alt*(alt - alt_ref), +/-v_vert_max). Grep of flight/deploy/real_flight.py for min_agl / agl_m / elevation returns NOTHING, so neither the camera-driven band nor the AGL floor was built. Every seeker computes bearing_vert_rad and nothing in flight/ consumes it: the target's measured elevation is used only to get the HORIZONTAL azimuth right (FIX-A's 3-D ray), never to command a vertical correction. flight/fov_guidance.py does compute a vertical accel from that elevation, but it is PARKED and appears in real_flight.py only inside the honesty-audit module list — audited, never called. ADR-0085 appears 0 times in this contract and 0 times in docs/next.md.",
+   "loc_b": "flight/deploy/real_flight.py (v_down only; no elevation, no min_agl) · scripts/m4_intercept.py:1747/3692/3737/3899/4282/4696 · flight/fov_guidance.py (parked, unwired) · grep ADR-0085 project_state.json docs/next.md = 0/0",
+   "current_truth": "BOTH TRUE, and together they change how the project's own headline should be read. ADR-0095 measured the adopted config's residual as 0.374 m VERTICAL against 0.174 m horizontal (n=16, corrected centre-to-centre ruler) — 82% of the SQUARED miss sits on the one axis the terminal cannot steer. Nulling the vertical term alone would leave 0.174 m, INSIDE the ratified 0.35 m ram radius. So 'the camera terminal does not beat a well-aimed open-loop dash' is measured on arms whose guidance was STRUCTURALLY BLIND to the dominant error term, which makes it a fact about those arms and not a fact about camera guidance. It is also NOT a physics limit: at the planned tripod-day decode setting the terminal correction capacity is 0.6-1.8 m (1/2*a*t_go^2 at a=8.7 m/s^2, t_go 0.38-0.65 s) against a ~0.4 m need — capacity exceeds need by 2-4x. The ADR-0023 bound that is usually quoted here (0.72 m capacity vs 1.69 m delivered) was measured where the delivered error WAS 1.69 m; at correct aim it is 0.41 m, so the ratio inverts, and re-using the bound across that gap is the exact 'a threshold validated at one operating point is not validated at another' failure this project has a standing rule against. NOTHING here says the camera works — that is untested. It says the strongest camera-vs-dash test has never been run, and the cheapest missing piece was already decided 13 months of ADRs ago. UNRATIFIED RECOMMENDATION, builder's call: build the vertical channel as the RATE form (pro-nav on elevation), not the pixel-centring form, because M4 measured the rate form beating the angle form 4.6-7.6x on the horizontal axis; pre-register it before the cue-error sweep; and expect the past-CPA breakoff fix (queue item 1) to be a prerequisite, since it is arm-asymmetric and confounds any camera-vs-dash margin. Analysis + reproducible arithmetic: docs/vertical_channel_analysis.md."
   }
  ]
 }</script>
