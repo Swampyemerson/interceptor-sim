@@ -294,3 +294,105 @@ def test_field_score_self_test_passes():
     for leg in ("case2b_autodt_offgrid_KILL", "case2c_autodt_offgrid_MISS",
                 "case2e_truncated_log", "case5a_ulog_globalpos_preferred"):
         assert leg in proc.stdout, f"{leg} did not run"
+
+
+# --------------------------------------------------------------------------
+# The PLOT may not cost the VERDICT (2026-09-09)
+# --------------------------------------------------------------------------
+# write_report() did `import matplotlib` bare, AFTER computing and writing the
+# JSON verdict. On a machine without matplotlib the tool therefore died with a
+# raw traceback on a run that had already succeeded, and the caller
+# (scripts/field/04_pull_logs.sh) could only read that as "the scorer crashed".
+# --self-test is gated by run_tests.sh stage 4, so this also took the suite red.
+#
+# docs/error_handling_policy.md rule 1: helpers raise NAMING the quantity,
+# main() catches once, warnings ride IN the report. A PNG is a convenience; the
+# KILL/MISS verdict is the deliverable. These two tests pin both directions --
+# without them the guard could be deleted and only a matplotlib-less machine
+# would ever notice.
+
+_BLOCK_MATPLOTLIB = '''
+import sys
+
+
+class _Block:
+    def find_spec(self, name, path=None, target=None):
+        if name == "matplotlib" or name.startswith("matplotlib."):
+            raise ModuleNotFoundError("No module named %r" % name)
+        return None
+
+
+sys.meta_path.insert(0, _Block())
+'''
+
+
+def _self_test_with_matplotlib_blocked(tmp_path):
+    (tmp_path / "sitecustomize.py").write_text(_BLOCK_MATPLOTLIB)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(tmp_path) + os.pathsep + env.get("PYTHONPATH", "")
+    env.pop("PYTHONDONTWRITEBYTECODE", None)
+    return subprocess.run(
+        [sys.executable, os.path.join(REPO_ROOT, "scripts", "field_score.py"),
+         "--self-test"],
+        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=300)
+
+
+def test_self_test_survives_a_missing_plotting_library(tmp_path):
+    """No matplotlib must degrade to a WARNING, not a crash."""
+    proc = _self_test_with_matplotlib_blocked(tmp_path)
+    out = proc.stdout + proc.stderr
+
+    # The shim has to have bitten, or this test measured nothing.
+    assert "No module named 'matplotlib'" in out, (
+        f"the matplotlib-blocking shim did not take effect; nothing was "
+        f"measured.\n{out[-2000:]}")
+    assert proc.returncode == 0, (
+        "field_score --self-test must still PASS with no plotting library: the "
+        f"verdict does not depend on the PNG.\n{out[-3000:]}")
+    assert "Traceback" not in out, (
+        "a raw traceback escaped -- error_handling_policy rule 1 requires one "
+        f"clean line from main().\n{out[-3000:]}")
+    assert "WARNING: no plot written" in out, (
+        f"the skipped plot must be announced on the console.\n{out[-2000:]}")
+
+
+def test_the_report_carries_the_reason_the_plot_is_missing(tmp_path, monkeypatch):
+    """The caveat must travel WITH the number it qualifies, not only to stderr.
+
+    Policy rule 1: 'a caveat buried in a JSON nobody opens is a silent failure
+    with paperwork' -- so it is printed AND written. This asserts the written
+    half, on a real report produced by the real writer, with matplotlib blocked
+    in-process (monkeypatch undoes it, so no other test sees the block).
+    """
+    import json
+    import pathlib
+
+    class _Block:
+        def find_spec(self, name, path=None, target=None):
+            if name == "matplotlib" or name.startswith("matplotlib."):
+                raise ModuleNotFoundError(f"No module named {name!r}")
+            return None
+
+    for mod in [m for m in list(sys.modules) if m.split(".")[0] == "matplotlib"]:
+        monkeypatch.delitem(sys.modules, mod, raising=False)
+    monkeypatch.setattr(sys, "meta_path", [_Block()] + list(sys.meta_path))
+
+    a = _track("interceptor", (0.0, -30.0, 5.0), (0.0, 12.0, 0.0), 5.0, 20.0)
+    b = _track("target", (0.3, 30.0, 5.0), (0.0, -12.0, 0.0), 5.0, 20.0,
+               t0_offset=0.013)
+    res = FS.score_engagement(a, b, lethal_radius_m=0.35)
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    report = FS.write_report(res, pathlib.Path(out_dir), None, None, "noplot")
+
+    assert report.get("png_path") is None, (
+        "png_path must be None when no PNG was written, never a path to a file "
+        "that does not exist")
+    written = json.loads((out_dir / "field_score_noplot.json").read_text())
+    assert written.get("png_path") is None, "the WRITTEN report must agree"
+    joined = " ".join(written.get("warnings", []))
+    assert "plot not written" in joined and "matplotlib" in joined, (
+        f"the report must name why the plot is missing; warnings were "
+        f"{written.get('warnings')!r}")
+    assert not list(out_dir.glob("*.png")), "no PNG should exist in this run"

@@ -1176,72 +1176,102 @@ def write_report(result: ScoreResult, out_dir: Path, video_a: Optional[str],
         report["nonfinite_fields"] = nonfinite
     json_path.write_text(json.dumps(report, indent=2, allow_nan=False))
 
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    # THE PLOT MAY NOT COST THE VERDICT (2026-09-09). This import was bare, and
+    # write_report() is reached by --self-test, which run_tests.sh stage 4 gates on.
+    # On any machine without matplotlib the tool died HERE with a raw traceback --
+    # after the JSON verdict was already computed and written -- so the caller
+    # (scripts/field/04_pull_logs.sh) saw a crash on a run that had actually
+    # succeeded. That is the shape docs/error_handling_policy.md rule 1 forbids:
+    # helpers raise NAMING the quantity, main() catches once, no traceback escapes.
+    # The PNG is a convenience; the KILL/MISS verdict is the deliverable. So a
+    # plotting failure is now a WARNING THAT RIDES IN THE REPORT (policy rule 1),
+    # never a non-zero exit.
+    plt = None
+    png_path = None
+    plot_skip_reason = None
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except Exception as exc:            # ImportError, or a broken backend
+        plot_skip_reason = f"{type(exc).__name__}: {exc}"
 
-    fig, (ax_range, ax_traj) = plt.subplots(2, 1, figsize=(9, 10))
+    if plt is not None:
+        fig, (ax_range, ax_traj) = plt.subplots(2, 1, figsize=(9, 10))
 
-    t_rel = result.t_grid - result.t_grid[0]
-    # The marker is drawn at the ANALYTIC CPA (t, range), not at the grid argmin
-    # -- otherwise the plot would contradict the printed/reported number.
-    t_cpa_rel = result.cpa_t_utc_s - result.t_grid[0]
-    ax_range.plot(t_rel, result.range_m, lw=1.5, label="inter-aircraft range")
-    ax_range.axhline(result.lethal_radius_m, color="crimson", ls="--", lw=1,
-                      label=f"lethal radius = {result.lethal_radius_m:.2f} m")
-    ax_range.axvline(t_cpa_rel, color="grey", ls=":", lw=1)
-    ax_range.plot(t_cpa_rel, result.cpa_m, "o", color="crimson", ms=8,
-                  label=f"CPA = {result.cpa_m:.2f} m  [{result.verdict}]")
-    if abs(result.cpa_grid_m - result.cpa_m) > 1e-6:
-        ax_range.plot(result.cpa_grid_t_utc_s - result.t_grid[0],
-                      result.cpa_grid_m, "x", color="grey", ms=8,
-                      label=(f"grid argmin = {result.cpa_grid_m:.2f} m "
-                             f"(quantization the analytic CPA removes)"))
-    # SHADE EVERY DROPOUT the range curve is interpolated straight through --
-    # otherwise the "look at the PNG" backstop shows a smooth curve across a hole
-    # where nothing was measured (2026-07-26).
-    _shaded = 0
-    for _tr, _off in ((result.track_a, 0.0), (result.track_b, result.clock_offset_b_s)):
-        _t = _tr.t_utc_s + _off
-        _mx, _md = _tr.gaps()
-        if not (np.isfinite(_mx) and np.isfinite(_md)) or len(_t) < 2:
-            continue
-        for _i in np.nonzero(np.diff(_t) > max(3.0 * _md, 0.5))[0]:
-            ax_range.axvspan(_t[_i] - result.t_grid[0], _t[_i + 1] - result.t_grid[0],
-                             color="orange", alpha=0.18,
-                             label=("log dropout (range is INTERPOLATED here)"
-                                    if _shaded == 0 else None))
-            _shaded += 1
-    ax_range.set_xlabel("time since window start (s)")
-    ax_range.set_ylabel("range (m)")
-    ax_range.set_title(f"field_score: {result.track_a.label} vs {result.track_b.label}")
-    ax_range.legend(loc="best", fontsize=8)
-    ax_range.grid(alpha=0.3)
+        t_rel = result.t_grid - result.t_grid[0]
+        # The marker is drawn at the ANALYTIC CPA (t, range), not at the grid argmin
+        # -- otherwise the plot would contradict the printed/reported number.
+        t_cpa_rel = result.cpa_t_utc_s - result.t_grid[0]
+        ax_range.plot(t_rel, result.range_m, lw=1.5, label="inter-aircraft range")
+        ax_range.axhline(result.lethal_radius_m, color="crimson", ls="--", lw=1,
+                          label=f"lethal radius = {result.lethal_radius_m:.2f} m")
+        ax_range.axvline(t_cpa_rel, color="grey", ls=":", lw=1)
+        ax_range.plot(t_cpa_rel, result.cpa_m, "o", color="crimson", ms=8,
+                      label=f"CPA = {result.cpa_m:.2f} m  [{result.verdict}]")
+        if abs(result.cpa_grid_m - result.cpa_m) > 1e-6:
+            ax_range.plot(result.cpa_grid_t_utc_s - result.t_grid[0],
+                          result.cpa_grid_m, "x", color="grey", ms=8,
+                          label=(f"grid argmin = {result.cpa_grid_m:.2f} m "
+                                 f"(quantization the analytic CPA removes)"))
+        # SHADE EVERY DROPOUT the range curve is interpolated straight through --
+        # otherwise the "look at the PNG" backstop shows a smooth curve across a hole
+        # where nothing was measured (2026-07-26).
+        _shaded = 0
+        for _tr, _off in ((result.track_a, 0.0), (result.track_b, result.clock_offset_b_s)):
+            _t = _tr.t_utc_s + _off
+            _mx, _md = _tr.gaps()
+            if not (np.isfinite(_mx) and np.isfinite(_md)) or len(_t) < 2:
+                continue
+            for _i in np.nonzero(np.diff(_t) > max(3.0 * _md, 0.5))[0]:
+                ax_range.axvspan(_t[_i] - result.t_grid[0], _t[_i + 1] - result.t_grid[0],
+                                 color="orange", alpha=0.18,
+                                 label=("log dropout (range is INTERPOLATED here)"
+                                        if _shaded == 0 else None))
+                _shaded += 1
+        ax_range.set_xlabel("time since window start (s)")
+        ax_range.set_ylabel("range (m)")
+        ax_range.set_title(f"field_score: {result.track_a.label} vs {result.track_b.label}")
+        ax_range.legend(loc="best", fontsize=8)
+        ax_range.grid(alpha=0.3)
 
-    ax_traj.plot(result.pos_a[:, 0], result.pos_a[:, 1], lw=1.5,
-                 label=result.track_a.label, color="tab:blue")
-    ax_traj.plot(result.pos_b[:, 0], result.pos_b[:, 1], lw=1.5,
-                 label=result.track_b.label, color="tab:orange")
-    pa_c = result.cpa_pos_a if result.cpa_pos_a is not None else result.pos_a[result.cpa_idx]
-    pb_c = result.cpa_pos_b if result.cpa_pos_b is not None else result.pos_b[result.cpa_idx]
-    ax_traj.plot(pa_c[0], pa_c[1], "o", color="tab:blue", ms=9, mec="k")
-    ax_traj.plot(pb_c[0], pb_c[1], "o", color="tab:orange", ms=9, mec="k")
-    ax_traj.plot([pa_c[0], pb_c[0]], [pa_c[1], pb_c[1]],
-                 "k--", lw=1, label=f"CPA link ({result.cpa_m:.2f} m)")
-    ax_traj.set_xlabel("east (m)")
-    ax_traj.set_ylabel("north (m)")
-    ax_traj.set_title("top-down trajectories (local ENU)")
-    ax_traj.set_aspect("equal", adjustable="datalim")
-    ax_traj.legend(loc="best", fontsize=8)
-    ax_traj.grid(alpha=0.3)
+        ax_traj.plot(result.pos_a[:, 0], result.pos_a[:, 1], lw=1.5,
+                     label=result.track_a.label, color="tab:blue")
+        ax_traj.plot(result.pos_b[:, 0], result.pos_b[:, 1], lw=1.5,
+                     label=result.track_b.label, color="tab:orange")
+        pa_c = result.cpa_pos_a if result.cpa_pos_a is not None else result.pos_a[result.cpa_idx]
+        pb_c = result.cpa_pos_b if result.cpa_pos_b is not None else result.pos_b[result.cpa_idx]
+        ax_traj.plot(pa_c[0], pa_c[1], "o", color="tab:blue", ms=9, mec="k")
+        ax_traj.plot(pb_c[0], pb_c[1], "o", color="tab:orange", ms=9, mec="k")
+        ax_traj.plot([pa_c[0], pb_c[0]], [pa_c[1], pb_c[1]],
+                     "k--", lw=1, label=f"CPA link ({result.cpa_m:.2f} m)")
+        ax_traj.set_xlabel("east (m)")
+        ax_traj.set_ylabel("north (m)")
+        ax_traj.set_title("top-down trajectories (local ENU)")
+        ax_traj.set_aspect("equal", adjustable="datalim")
+        ax_traj.legend(loc="best", fontsize=8)
+        ax_traj.grid(alpha=0.3)
 
-    fig.tight_layout()
-    png_path = out_dir / f"field_score_{tag}.png"
-    fig.savefig(png_path, dpi=130)
-    plt.close(fig)
+        fig.tight_layout()
+        png_path = out_dir / f"field_score_{tag}.png"
+        fig.savefig(png_path, dpi=130)
+        plt.close(fig)
+
+    if plot_skip_reason is not None:
+        # Re-write the JSON so the caveat travels WITH the number it qualifies.
+        # The verdict was already on disk before the plot was attempted; this adds
+        # the warning to it rather than leaving a silently PNG-less report.
+        report.setdefault("warnings", []).append(
+            f"plot not written ({plot_skip_reason}); the JSON verdict is unaffected. "
+            f"Install matplotlib (declared in requirements.txt) to get the PNG.")
+        report["png_path"] = None
+        report, _nf2 = _sanitize_nonfinite(report)
+        json_path.write_text(json.dumps(report, indent=2, allow_nan=False))
+        print(f"[field_score] WARNING: no plot written ({plot_skip_reason}). "
+              f"Verdict JSON is complete at {json_path}.", file=sys.stderr)
 
     report["json_path"] = str(json_path)
-    report["png_path"] = str(png_path)
+    report["png_path"] = str(png_path) if png_path is not None else None
     return report
 
 

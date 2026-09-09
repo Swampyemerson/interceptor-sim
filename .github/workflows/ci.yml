@@ -37,6 +37,13 @@
 # tests/test_target_orientation.py exec-loads scripts/m4_target_mover.py, whose
 # gz imports are also module-top-level. The list is the --ignore set below.
 #
+# TWO OF THESE ARE NOT COLLECTION ERRORS (added 2026-09-09). test_ekf_tracker.py
+# imports m4_intercept INSIDE a test and test_inert_flag_guards.py runs it as a
+# SUBPROCESS, so both COLLECT fine without gz and then fail at run time, 14 tests'
+# worth. The fallback branch therefore collected clean and the stage went red
+# anyway -- the guard passed while the branch it guards was broken. The guard now
+# measures collection errors UNION run-time gz failures; see that test's docstring.
+#
 # THIS LIST IS MACHINE-CHECKED, not maintained by hand:
 # tests/test_ci_gz_deselect_list.py re-collects the whole suite in a subprocess
 # with `gz` blocked and asserts the erroring files are EXACTLY this set. It was
@@ -123,7 +130,9 @@ jobs:
               --ignore=tests/test_breakoff_deadband.py \
               --ignore=tests/test_cue_staleness.py \
               --ignore=tests/test_dash_clock.py \
+              --ignore=tests/test_ekf_tracker.py \
               --ignore=tests/test_handoff_streak.py \
+              --ignore=tests/test_inert_flag_guards.py \
               --ignore=tests/test_phantom_range_gate.py \
               --ignore=tests/test_rescore_cpa.py \
               --ignore=tests/test_solve_intercept_time.py \

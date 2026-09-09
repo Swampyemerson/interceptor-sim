@@ -1,4 +1,21 @@
-"""Correction-capacity arithmetic from repo constants only. No new runs."""
+"""Correction-capacity arithmetic from repo constants + MEASURED closing speeds.
+
+Companion to scripts/forensics/handoff_closing_speed.py, which measured the
+closing speed out of the committed per-tick logs on 2026-09-09:
+
+    during the dash            14.52 m/s   (median over 16 flights)
+    last 1.0 s pre-handoff     17.60 m/s   (median over 14)
+    after handoff, PRE-CPA     14.64 m/s   (median over 13)
+
+The money gate prices BOTH the streak burn and the surviving time-to-go at a
+single 9.0 m/s. The MEASURED rows below are the same arithmetic at the measured
+speeds, and they are the ones to trust: the gate-assumption rows are kept only
+to show what the gate believes.
+
+SCOPE: those measurements come from the cue-era two-stage DASH phase, the only
+per-tick logs committed to the repo. The coded-dash archive is gitignored. Re-run
+handoff_closing_speed.py on the dev machine with --phase CODED_DASH to confirm.
+"""
 K = 5                      # consecutive detections for handoff (real_flight acquire_streak)
 A_LAT = 8.7                # m/s^2, median achieved lateral accel in ENGAGE (terminal_diagnosis.md:53)
 A_CAP = 12.0               # m/s^2, MPC_ACC_HOR_MAX (FPV bundle)
@@ -30,8 +47,14 @@ row("tag qd=2.0, R90 7.10 m, burn@16, t_go@9", 7.10, 20, 0.9, 16.0, 9.0)
 row("tag qd=1.0, R90 8.97 m, burn@16, t_go@9", 8.97, 20, 0.9, 16.0, 9.0)
 row("tag qd=1.0, R90 8.97 m, burn@13.2, t_go@9", 8.97, 20, 0.9, 13.2, 9.0)
 
+print("\n--- AT THE MEASURED CLOSING SPEEDS (burn@17.6 pre-handoff, t_go@14.6 pre-CPA) ---")
+print("    these are the rows to trust; see handoff_closing_speed.py")
+row("tag qd=2.0, R90 7.10 m, 20 Hz, MEASURED", 7.10, 20, 0.9, 17.6, 14.64)
+row("tag qd=1.0, R90 8.97 m, 20 Hz, MEASURED", 8.97, 20, 0.9, 17.6, 14.64)
+
 print("\n--- MARKERLESS ON AN ACCELERATOR (static ceiling ~24 m; take 20 m) ---")
 row("NN R_acq 20 m, 20 Hz, p=0.9, burn@16", 20.0, 20, 0.9, 16.0, 9.0)
+row("NN R_acq 20 m, 20 Hz, MEASURED speeds", 20.0, 20, 0.9, 17.6, 14.64)
 
 print("\n--- SENSITIVITY ON LATERAL AUTHORITY, at t_go = 0.65 s ---")
 for a in (A_ACHIEVED, A_LAT, A_CAP, 20.0):
