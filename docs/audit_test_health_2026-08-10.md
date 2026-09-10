@@ -32,7 +32,7 @@ hook that does exactly what its docs claim.
 | F5 | `test_camera_fps_pinned` could never run (no `build_argparser`) | MEDIUM | ✅ FIXED |
 | F6 | `test_decode_fps_bound_contract` pointed at a never-existent path | MEDIUM | ✅ FIXED |
 | F7 | Stage 1 had no skip enforcement (the mechanism that hid F5/F6/F8) | MEDIUM | ✅ FIXED |
-| F8 | Three tests pass locally, silently skip in CI (untracked fixture) | LOW/MED | ⬜ OPEN |
+| F8 | Three tests pass locally, silently skip in CI (untracked fixture) | LOW/MED | ✅ FIXED 2026-09-10 |
 
 ### F1 — the gate was not gating (fixed, `dd0f6d4`)
 
@@ -89,7 +89,7 @@ Stage 2 failed on any skip; stage 1 — 692 of 721 tests — had no `-rs` and no
 asymmetry is precisely what let F5, F6 and F8 sit invisible. Stage 1 now requires every
 skip to be declared in `ALLOWED_SKIPS` with a human-written reason. Mutant-verified.
 
-### F8 — CI-only skips (OPEN)
+### F8 — CI-only skips (FIXED 2026-09-10)
 
 `tests/test_t18_scaffold.py`'s `rig` fixture needs
 `logs/rig_captures/full_sweep_20260709T015530Z/capture_meta.json`, which is **untracked**.
@@ -97,6 +97,25 @@ Three of four tests take that fixture, including
 `test_sigma_R_scaling_reproduces_analytic_row`. Locally: 4 passed. On a clean clone or in
 CI: 3 skip silently. Now *visible* thanks to F7's enforcement, but the fixture still needs
 either committing or an explicit allowlist entry.
+
+**CLOSED 2026-09-10, and it was worse than this entry recorded.** Reproducing stage 1's own
+gate on a clean clone found **seven** undeclared skips, not three — the T16 capture (×3), the
+gz/MAVSDK bindings (×2, `test_wind_wiring` and `flight/tests/test_real_flight`), and the
+gitignored deployed weights (×2, `test_deployed_weights`). So `scripts/run_tests.sh` could
+not be run **at all** on a fresh checkout: stage 1 printed seven UNDECLARED SKIP failures and
+exited 1. None of them fire on the dev machine, where the venv has the bindings and both
+artefacts are present, which is exactly why the hole stayed invisible where the runner is
+normally used.
+
+Fixed by declaring all seven in `ALLOWED_SKIPS`, each with a written reason and grouped under
+a comment saying what is given up: the ability to notice that a clean clone verified less,
+which every one of those skip messages already states on its own `-rs` line. The fixture was
+**not** committed — it is a multi-GB artefact and the licence policy keeps the weights out of
+git regardless.
+
+**The gate keeps its teeth, mutation-verified:** a test file added with a brand-new
+undeclared skip reason is still caught and would still fail the stage. The allowlist is
+specific substrings, not a wildcard.
 
 *(Contrast, and it is the right pattern: `test_antimirage_pairing.py`'s published-headline
 check depends on `logs/mc_loftdive_armA_line9_s123.csv`, which **is** tracked — so it

@@ -13,6 +13,11 @@ Mission + scope: `docs/goals.md` (imported below). The full operating model
 - Offline suite + drift gate: `scripts/run_tests.sh` (pytest over `tests/` +
   `flight/tests/`, then `python3 scripts/render_dashboard.py --check`).
   Green means ran AND passed — a self-test that cannot run is a FAILURE.
+- **Say WHICH environment produced a green run.** The dev machine, CI and a fresh
+  cloud clone each verify a different subset, and a commit once certified "519
+  passed" while never running the 173-test `flight/tests/` half.
+  `docs/verification_environment.md` is the table of what each can and cannot
+  check, and the substitute to use when it cannot.
 - Milestone gates are scripted: each `scripts/check_*.sh` exits 0/1 — never
   claim a milestone done without running its gate and showing the output.
 - Sim runs are headless by default (`HEADLESS=1`); see the `px4-gazebo` and

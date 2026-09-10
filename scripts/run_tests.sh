@@ -59,6 +59,44 @@ ALLOWED_SKIPS=(
     # and fresh clones it skips with this reason instead of failing the suite
     # (it kept CI red 2026-08-11..13). Accepted 2026-08-19.
     "per-tick flight CSV archive not on this machine"
+
+    # ---- CLEAN-CLONE SKIPS, declared 2026-09-10 (test-health audit F8) --------
+    # BEFORE THIS BLOCK, this runner could not be run at all on a fresh clone:
+    # seven skips fired that nothing declared, so stage 1 printed seven
+    # UNDECLARED SKIP failures and exited 1. On the DEV MACHINE none of them fire
+    # (the venv has gz/mavsdk, the weights and the T16 capture are present), so
+    # the hole was invisible exactly where the runner is normally used -- and the
+    # 2026-08-10 audit logged it as F8, "loud, but still unresolved".
+    #
+    # Every entry below is a resource that is DELIBERATELY not in git, so its
+    # absence is expected on a clean checkout and its presence is expected on the
+    # dev machine. The gate keeps its teeth: a skip for any OTHER reason, or a
+    # NEW skip, still fails the stage. What is given up is only the ability to
+    # notice that a clean clone verified less -- which each skip message already
+    # says on its own line, loudly, in the -rs output.
+    #
+    # DO NOT add an entry here to silence a skip you could fix. That is how a
+    # suite becomes decorative.
+
+    # Needs the gz-transport + MAVSDK bindings, which come from the Gazebo apt
+    # repo and are NOT pip-installable (requirements.txt says so). Present on the
+    # dev machine and in CI when the OSRF step succeeds; absent on a bare clone.
+    "needs the gz/mavsdk sim venv"
+    "sim module needs gz-transport + mavsdk"
+
+    # The deployed ONNX weights are never committed (docs/license_notice_weights.md).
+    # So on a clean clone the model-integrity check cannot run, and it says exactly
+    # that. On any machine that HAS the weights it RUNS -- which is the machine that
+    # flies them, i.e. where the check matters.
+    "absent (gitignored; expected on a clean clone / CI) -- integrity NOT verified"
+    "no manifest file present on this machine"
+
+    # The T16 rig capture (logs/rig_captures/full_sweep_*) is a multi-GB gitignored
+    # artefact. Three of test_t18_scaffold's four tests take it, including the
+    # sigma_R analytic-row check. Its sibling test_antimirage_pairing.py is the
+    # pattern to copy for anything that must run everywhere: it depends on a
+    # TRACKED CSV, so it really runs in CI.
+    "no T16 capture at"
 )
 if [ -x .venv/bin/python ]; then
     stage1_out="$(mktemp)"
