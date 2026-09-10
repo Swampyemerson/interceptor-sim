@@ -109,9 +109,13 @@ Hailo NPU**; **prop clearance is a geometry problem**, not a software one.
   *decided* a camera-driven vertical channel in July and no code was ever written.
   So "the camera does not beat a well-aimed dash" is a fact about arms whose
   guidance was structurally blind to the dominant error term. It is **not** evidence
-  the camera works — that stays untested — and the measured fix is a pre-flight
-  altitude trim (the vertical error is delivered by the dash), now built default-off
-  and never flown. [Analysis](docs/vertical_channel_analysis.md) ·
+  the camera works — that stays untested. **Where the vertical error comes from was
+  re-measured on 2026-09-10 and the first answer was wrong:** an earlier "the error is
+  delivered by the dash" rested on a baseline that included the takeoff, and altitude
+  reads zero on the ground. Against a settled hover the dash contributes **10%**; a
+  **23%** datum mismatch exists before the vehicle moves, and **66%** accumulates after
+  the camera takes over. Two levers are built default-off and neither has flown.
+  [Analysis](docs/vertical_channel_analysis.md) ·
   [pre-registration](docs/vertical_channel_prereg.md).
 - **"Works comms-denied" stays HELD** — see the box in the results section.
 

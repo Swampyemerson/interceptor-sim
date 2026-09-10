@@ -33,11 +33,15 @@ window really is too short — but that is the tag's limit, not the camera's.*
 >   baseline the short window IS close to a real limit — §2's original framing was
 >   too strong and is superseded by §2.1 below. The markerless path at 20 m
 >   acquisition still has ~3.9 m, so the limit remains the TAG's, not the camera's.
-> * **The vertical error is delivered by the DASH.**
->   `scripts/forensics/vertical_miss_anatomy.py` finds the cue-era fleet
->   off-altitude at closest approach on **24/24** flights and altitude drifting
->   **+0.320 m** across the dash — 66% of the miss, same sign. And it **refutes the
->   sag mechanism** §3.3 proposed: the vehicle climbs, it does not sag.
+> * ~~**The vertical error is delivered by the DASH**, 24/24 flights, +0.320 m of
+>   dash drift, 66% of the miss.~~ **RETRACTED 2026-09-10 — the baseline included
+>   the TAKEOFF.** `alt_m` is height above the arm point, so it reads 0.000 on the
+>   ground; the old figure was mostly the vehicle leaving the pad. Against a
+>   settled hover the dash drifts **−0.019 m**. The vertical error decomposes into
+>   `origin` **+0.127 m / 23%** (a datum mismatch, present before the dash starts),
+>   `dash_delta` **+0.012 m / 10%**, and `post_dash_delta` **+0.348 m / 66%**
+>   (after handoff). ADR-0099's reason (1) is **refuted**; its trim is a 10% lever.
+>   §7 has the corrected arithmetic and §2.1's flight count is 16/16, not 24/24.
 >
 > The §3 finding — no vertical channel, and ADR-0085 decided one that was never
 > written — is **unaffected**: it is about which axis is steered, not how long there
@@ -215,20 +219,53 @@ settles at whatever error commands enough climb. During the dash the vehicle pit
 nose-down 27–36°, so vertical thrust falls to `cos(35°) ≈ 0.82` of hover. A systematic
 **sag** is exactly what that predicts, matching the README's *the interceptor flies low*.
 
-**What the data said.** `scripts/forensics/vertical_miss_anatomy.py` over the committed
-logs: the interceptor is **above** the target on **24 of 24** flights (median +0.485 m)
-and altitude **rises +0.320 m** across the dash. So the sag form is **refuted**, and the
-general form is **supported**: the mechanism is **altitude-hold drift across the dash**,
-66% of the vertical miss, whose direction is configuration-dependent. The cue-era arms
-fly a running start and a loft, which climb; ADR-0095's fleet ended low.
+**What the data said, in two stages — and the second stage refuted the first.**
 
-**What that changes.** The mechanism transfers, the number does not — so the trim must
-be re-derived per fleet, and a wrong-signed trim **doubles** the error rather than
-leaving it unchanged. That asymmetry is why `derive_dash_alt_trim_m` takes a measured
-drift as its input and why the lever carries a `share` parameter.
+*Stage 1 (wrong).* The tool reported the interceptor **above** the target on 24 of 24
+flights (median +0.485 m) with altitude **rising +0.320 m** across the dash. Read as:
+sag refuted, general "altitude-hold drift across the dash" supported at 66% of the miss.
 
-**One honest gap:** the committed CSVs carry **no attitude columns** (deep-audit
-DEEP-R2), so the pitch-to-drift link is still reasoning rather than data.
+*Stage 2 (2026-09-10, after review).* Both halves were wrong. The **24/24** count
+included 8 files that carry no dash phase at all and were being counted as measured —
+it is **16/16** (median **+0.508 m**). And the **+0.320 m** was measured against "the
+median of every tick before the dash", which on this fleet pools 87–108 `TAKEOFF` ticks
+with 21–24 settled hover ticks. `alt_m` is AGL above the arm point, so it reads **0.000
+on the ground** and the `TAKEOFF` median is +0.005 m: the "drift" was largely **the
+takeoff climb**. Against a settled hover the dash drifts **−0.019 m**, robust from
+−0.012 to −0.025 m across six baseline windows.
+
+**So neither hypothesis survived.** Not sag, and not climb-during-the-dash either: the
+dash barely moves the altitude at all. The exact additive decomposition (verified per
+flight on 16/16, paired per-flight medians, n=13):
+
+| Term | Median | Paired share | Range |
+|---|---|---|---|
+| `origin` — settled pre-dash separation | **+0.127 m** | 23% | 15–30% |
+| `dash_delta` — hover → dash end | **+0.012 m** | 10% | 1–43% |
+| `post_dash_delta` — dash end → CPA | **+0.348 m** | 66% | 29–78% |
+
+**What that changes.** ADR-0099's reason (1) — "the error is delivered by the dash, so
+correct it there" — is refuted, and `dash_alt_trim_m` acts on the 10% term. It is still
+true that a wrong-signed trim **doubles** the error, which is why the lever takes a
+measured drift as input and carries a `share` parameter; but on the **adopted**
+coded-dash configuration there is no measured drift at all, because that configuration
+goes `TAKEOFF → CODED_DASH` with no hover and the tool now correctly **fails closed**
+rather than returning a takeoff number.
+
+**Where the error actually is.** 23% is a **two-datum mismatch**: `ALT_REF_M = 0.5` is
+AGL above the arm point while the target's altitude is world z, and nothing reconciles
+the ~0.22 m the camera sits above ground at rest. That is real separation and cannot be
+subtracted from a miss — but it is **aim, not guidance**, and one line of scenario
+setup removes it. It is the cheapest 23% in the project.
+
+**Two honest gaps.** (1) The committed CSVs carry **no attitude columns** (deep-audit
+DEEP-R2), so any pitch-to-drift link is reasoning, not data. (2) Worse, the camera rides
+a forward boom, so `gt_cam_z − alt_m` — which ought to be a fixed geometric offset —
+moves **+0.033 m** hover→dash-tail and **+0.087 m** hover→CPA. That is **24% of
+`post_dash_delta`**: roughly a quarter of the "vertical miss" is the camera swinging,
+not the airframe moving, and it cannot be removed from these logs. An earlier version of
+the tool's docstring asserted the offset "is HORIZONTAL and does not enter a vertical
+measurement", which is true only while level.
 
 ### 3.4 What was built for it (ADR-0099)
 
@@ -320,11 +357,20 @@ gate threshold**, and `qd=2.0` collapses. This is a ~$740 decision, and the dire
 the error is the flattering one — the same shape as the invented 30 fps that ADR-0082
 caught.
 
-**This is a question, not a claim.** It is not verified from a log: the actual closing
-speed at handoff, and whether the vehicle is already decelerating as the streak forms, are
-both measurable from the existing per-tick archive. `placard_sizing.md` already records
-that the 20 m/s scenario needs R90 ≥ 13.3 m and *no candidate reaches it*, so the answer
-matters. Do that read before tripod day, not after.
+**This WAS a question and it has since been ANSWERED — §2.1 above closes it.** This
+section was written saying "it is not verified from a log"; that sentence contradicted
+§2.1 of the same document, which measures it. `scripts/forensics/handoff_closing_speed.py`
+over the committed logs: **17.60 m/s** in the last second before handoff (n=14) against
+the gate's 9.0 m/s, a **1.96×** under-pricing, and **14.64 m/s** after handoff pre-CPA
+(n=13). So the concern is confirmed, at a ratio worse than the 16 m/s row above assumes.
+
+What remains open is narrower: these are cue-era `DASH` flights, not `CODED_DASH`, so the
+magnitude has to be re-read on the dev machine before it changes a published gate result
+(`--phase CODED_DASH`). `placard_sizing.md` records that the 20 m/s scenario needs
+R90 ≥ 13.3 m and *no candidate reaches it*, so the answer matters. Do that read before
+tripod day, not after — and note the gate's assumption is deliberately **not** changed
+here, because it can flip a PASS/FAIL on a ~$740 order and that must be a logged
+decision, not a side effect.
 
 ---
 

@@ -50,14 +50,34 @@ machine-checked by `tests/test_ci_gz_deselect_list.py`; copy it out of
 `.github/workflows/ci.yml`, do not retype it).
 
 **`scripts/field/selftest.sh` will still report 6 failures on a bare container, and
-that is the pack working correctly.** It shells out to `05_pi_link_check.sh`, which
-needs an `ssh` client to reach the Pi and exits **2 (USAGE)** with the remedy printed
-when there is none. The selftest expects 0 or 3 there, so a machine without `ssh`
-reads as a failure. Verified pre-existing 2026-09-10: identical 6 failures with the
-field pack untouched and with the original `field_score.py` restored. Installing
-`ssh` is an apt change outside the project directory, which CLAUDE.md says to ask
-about first — so on a cloud session, **read past this pack** rather than treating it
-as a regression. It is the one stage-4 item a fresh container cannot clear.
+that is the pack working correctly.** Enumerated 2026-09-10 so a future reader does
+not have to re-derive them, and so a SEVENTH failure is visible as a regression:
+
+```
+FAIL python venv not found at .venv/bin/python (run scripts/env/bootstrap.sh)
+FAIL 01_camera_live_check exited 2 (expected 0 or 3)
+FAIL 02_apriltag_desk_check exited 2 (expected 0 or 3)
+FAIL 03_fc_bench_check    exited 2 (expected 0 or 3)
+FAIL 05_pi_link_check     exited 2 (expected 0 or 3)
+FAIL 04 empty card        exited 2 (expected 3 NOT CONNECTED)
+```
+
+The first is the missing project venv; the rest are scripts exiting **2 (USAGE)** with
+their remedy printed because the thing they need is absent — an `ssh` client for
+`05`, a camera for `01`/`02`, a flight controller for `03`. The pack expects 0 or 3
+there, so a bare container reads as a failure. Installing `ssh` is an apt change
+outside the project directory, which CLAUDE.md says to ask about first — so on a cloud
+session, **read past this pack** rather than treating it as a regression.
+
+**Four stage-4 self-tests exit 127 here for the same reason** — `run_selftest` invokes
+`.venv/bin/python`, which a fresh clone does not have: `field_score.py`,
+`seeker_loop.py`, `parse_flight_log.py`, `fc_link_check.py`. Exit 127 is
+"command not found", not a failing test. Confirm by running one with the system
+interpreter: `python3 scripts/field_score.py --self-test` exits 0 with every case
+passing. **So `run_tests.sh` returns rc=1 on a bare container even when nothing is
+broken.** Do not report a green run from here without saying that; and do not read
+its rc=1 as a regression without first checking whether every failure is on this
+list.
 
 `scripts/run_tests.sh` itself **can** now be run on a clean clone: its stage-1 skip
 gate declares the seven clean-clone skips as of 2026-09-10 (test-health audit F8).

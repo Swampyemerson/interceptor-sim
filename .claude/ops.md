@@ -99,7 +99,12 @@ don't spawn a subagent where doing the thing inline is cheaper.
    the five were an adversarial code review, an instrument review, a harness review, a
    project-manager pass with no defence framing at all, and finally a **control probe**
    whose entire task was "print a median and a mean and say why they differ, read no
-   files". The control bounced too.
+   files". The control bounced too. The sixth (2026-09-10, a review of a measurement
+   correction) bounced identically, and the SAME prompt sent verbatim to `opus5-worker`
+   returned a 12-finding review that caught two blockers. So the variable is the MODEL,
+   not the prompt — which is also why rewording is not attempted: `.claude/ops.md`
+   forbids wording prompts to evade the classifier, and the sanctioned remedy is
+   `/feedback`, which is the builder's to send.
    * **Root cause, as far as it can be established from here:** every subagent in this
      repo inherits the auto-imported project context (`CLAUDE.md` → `@.claude/ops.md` +
      `@docs/goals.md`), which is saturated with the domain vocabulary the classifier
@@ -122,7 +127,7 @@ don't spawn a subagent where doing the thing inline is cheaper.
      than delegating it. That is the only Fable seat this repo currently has.
 
 1. **Reach for a `model: fable` subagent OCCASIONALLY and DELIBERATELY, for high-leverage work:**
-   *(⚠️ READ BULLET 0 FIRST — this currently FAILS 5/5 in this repo. Substitute
+   *(⚠️ READ BULLET 0 FIRST — this currently FAILS 6/6 in this repo. Substitute
    `opus5-worker` and keep the division of work below.)*
    - **REVIEW / gap-spotting** — a Fable pass over a build, a plan, a result set, or a
      decision to catch what was missed BEFORE it's committed or acted on (the "head builds,

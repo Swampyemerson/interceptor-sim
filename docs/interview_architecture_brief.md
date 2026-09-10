@@ -804,12 +804,35 @@ earlier claim that capacity exceeded need by two to four times was computed off 
 gate's own assumption. The markerless path at a 20 m acquisition range still has 3.9 m.
 The limit is the tag's, not the camera's.
 
-The second measurement says the vertical error is **delivered by the dash**: the fleet is
-off-altitude at closest approach on 24 of 24 committed flights, and dash-time altitude
-drift accounts for 66% of it. So the fix is a pre-flight altitude trim, the analogue of
-the crossing-bias aim calibration, not a terminal law with no authority left to spend.
-That is **ADR-0099**, built default-off and byte-identical, ten tests,
-mutation-verified, and never flown.
+The second measurement went wrong first, and the correction is the more interesting
+story. I reported that the vertical error was **delivered by the dash** — 24 of 24
+flights off-altitude, +0.320 m of dash-time drift, 66% of the miss — and built a
+pre-flight altitude trim for it. An adversarial review found the baseline: the tool
+defined it as "the median of every tick before the dash", which on this fleet pools
+87–108 takeoff ticks with 21–24 settled hover ticks, and altitude is measured above the
+arm point, so it reads **zero on the ground**. Most of that "drift" was the vehicle
+leaving the pad. The 24/24 count was wrong too — 8 files carrying no dash phase were
+being counted as measured.
+
+Measured against a settled hover the dash drifts **−0.019 m**, and the error decomposes
+exactly into a **+0.127 m (23%) datum offset that exists before the vehicle moves**,
+**+0.012 m (10%) across the dash**, and **+0.348 m (66%) after the camera takes over**.
+So my own reason for building the trim was refuted by fixing my own instrument, and the
+trim addresses 10%. The cheapest fix turned out to be the datum: the altitude reference
+is AGL above the arm point while the target's altitude is world z, and reconciling them
+removes 23% with one line and no guidance work.
+
+Two things I would say in an interview about this. First, a quarter of the post-handoff
+term is not the aircraft at all — the camera rides a forward boom, so it lifts under
+pitch, and the "vertical miss" partly measures the lens moving. Second, the terminal
+throws away its altitude hold whenever the camera blinks (vertical command zeroed on
+792 of 877 dropout ticks, latched for the rest of the terminal on 10 of the 14 flights
+that engaged). That is a real defect and it is fixed behind a default-off flag — but I
+cannot claim it explains the miss, because the same branch slams the horizontal from
+16 m/s to a dead stop on exactly the same ticks, and the four flights that kept their
+altitude hold climbed anyway while commanding a descent. So the registered prediction
+for that lever is a **null**. Both levers are default-off, byte-identical, and have
+never flown. That is **ADR-0099** and its second addendum.
 
 Full arithmetic: `docs/vertical_channel_analysis.md`. Ledger entry
 `terminal-vertical-channel-decided-not-built`. Pre-registration, committed before any
