@@ -91,7 +91,39 @@ WHAT'S MISSING — reviewing work, catching gaps, and deciding workflow/planning
 So spend it THERE, occasionally and deliberately, NOT as a firehose. Tokens are not free;
 don't spawn a subagent where doing the thing inline is cheaper.
 
+0. **⛔ MEASURED 2026-09-10: `model: fable` SUBAGENTS DO NOT RUN IN THIS REPO. Do not
+   plan around them.** The builder asked for Fable subagents "knowing safeguards will try
+   for many things". Five were spawned; **5 of 5 failed** on the first message with
+   `invalid_request ... safeguards flagged this message [general_harms]` — a HARD FAILURE,
+   not the head session's auto-switch to another model. Wording is NOT the variable:
+   the five were an adversarial code review, an instrument review, a harness review, a
+   project-manager pass with no defence framing at all, and finally a **control probe**
+   whose entire task was "print a median and a mean and say why they differ, read no
+   files". The control bounced too.
+   * **Root cause, as far as it can be established from here:** every subagent in this
+     repo inherits the auto-imported project context (`CLAUDE.md` → `@.claude/ops.md` +
+     `@docs/goals.md`), which is saturated with the domain vocabulary the classifier
+     flags. The subagent is therefore flagged before it does anything. NOT verified: the
+     alternative that Fable subagents are unavailable in this environment for an
+     unrelated reason — distinguishing them needs a Fable subagent spawned from a
+     directory with no project context, which this session could not arrange.
+   * **What to do instead:** `opus5-worker`, which is ALREADY the sanctioned lane for
+     everything the safeguard blocks (bullet 4) and which ran the same reviews without
+     incident. The routing rule below is kept because it describes the right DIVISION of
+     work — review and gap-spotting are worth spending a stronger seat on — but in this
+     repo that seat is Opus 5, not Fable, until someone re-measures.
+   * **Do NOT reword prompts to get a Fable agent through.** Standing rule, unchanged.
+     The sanctioned remedy is `/feedback`, and the probe result is the thing worth
+     reporting there: a benign arithmetic task inherits enough context to be refused.
+   * **If Fable's judgment is specifically wanted, the route is the HEAD SESSION, not a
+     subagent.** The head tolerates the classifier (a flagged turn bounces it to another
+     model and work continues); a subagent does not (hard failure, nothing runs). So
+     `/model claude-fable-5` on the head and ask the judgment question directly, rather
+     than delegating it. That is the only Fable seat this repo currently has.
+
 1. **Reach for a `model: fable` subagent OCCASIONALLY and DELIBERATELY, for high-leverage work:**
+   *(⚠️ READ BULLET 0 FIRST — this currently FAILS 5/5 in this repo. Substitute
+   `opus5-worker` and keep the division of work below.)*
    - **REVIEW / gap-spotting** — a Fable pass over a build, a plan, a result set, or a
      decision to catch what was missed BEFORE it's committed or acted on (the "head builds,
      Fable reviews" pattern; Fable earns its cost here). This is its best use.
