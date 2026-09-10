@@ -396,3 +396,68 @@ def test_the_report_carries_the_reason_the_plot_is_missing(tmp_path, monkeypatch
         f"the report must name why the plot is missing; warnings were "
         f"{written.get('warnings')!r}")
     assert not list(out_dir.glob("*.png")), "no PNG should exist in this run"
+
+
+# ---------------------------------------------------------------------------
+# M1 (2026-09-10 review): a DRAW-TIME plot failure must not fail the verdict.
+# ---------------------------------------------------------------------------
+# The earlier fix guarded only `import matplotlib`. Everything after it --
+# subplots, the plotting calls, tight_layout, savefig -- was unguarded, and
+# write_report() is called from main() OUTSIDE its try/except, so a savefig
+# failure exited non-zero with a traceback AFTER the KILL/MISS verdict had
+# already been computed and written. These break the plot at two different
+# points, which is the realistic field failure (a read-only out_dir, a full
+# disk, a stale font cache, an Agg failure inside savefig).
+
+def _m1_result():
+    """A real scored engagement -- the same construction the tests above use."""
+    a = _track("interceptor", (0.0, -30.0, 5.0), (0.0, 12.0, 0.0), 5.0, 20.0)
+    b = _track("target", (0.3, 30.0, 5.0), (0.0, -12.0, 0.0), 5.0, 20.0,
+               t0_offset=0.013)
+    return FS.score_engagement(a, b, lethal_radius_m=0.35)
+
+
+def test_a_savefig_failure_does_not_fail_the_verdict(tmp_path, monkeypatch):
+    import json
+
+    matplotlib = pytest.importorskip("matplotlib")
+    import matplotlib.figure
+
+    def boom(self, *a, **k):
+        raise OSError("simulated read-only filesystem")
+
+    monkeypatch.setattr(matplotlib.figure.Figure, "savefig", boom)
+
+    res = _m1_result()
+    rep = FS.write_report(res, tmp_path, None, None, "m1savefig")
+
+    # the verdict survives in the returned report AND on disk
+    assert rep["verdict"] == res.verdict
+    assert rep.get("png_path") is None
+    on_disk = json.loads((tmp_path / "field_score_m1savefig.json").read_text())
+    assert on_disk["verdict"] == res.verdict
+    # and the caveat travels WITH the number it qualifies, naming the cause
+    warnings = on_disk.get("warnings", [])
+    assert any("plot not written" in w for w in warnings), warnings
+    assert any("simulated read-only filesystem" in w for w in warnings), warnings
+
+
+def test_a_draw_failure_at_the_start_of_the_block_is_also_survivable(
+        tmp_path, monkeypatch):
+    import json
+
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    def boom(*a, **k):
+        raise RuntimeError("simulated backend failure")
+
+    monkeypatch.setattr(plt, "subplots", boom)
+
+    res = _m1_result()
+    rep = FS.write_report(res, tmp_path, None, None, "m1subplots")
+    assert rep["verdict"] == res.verdict
+    assert rep.get("png_path") is None
+    warnings = json.loads(
+        (tmp_path / "field_score_m1subplots.json").read_text()).get("warnings", [])
+    assert any("simulated backend failure" in w for w in warnings), warnings

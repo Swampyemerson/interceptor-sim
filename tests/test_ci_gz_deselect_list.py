@@ -62,18 +62,47 @@ CI_YML = os.path.join(REPO_ROOT, ".github", "workflows", "ci.yml")
 
 # Injected via PYTHONPATH so it runs at interpreter startup, before pytest
 # imports anything -- the same moment the real (absent) bindings would fail.
+# IT MODELS ABSENCE, NOT PROHIBITION (rewritten 2026-09-10, review finding H3).
+#
+# The previous version inserted a finder at `sys.meta_path[0]` that RAISED
+# ModuleNotFoundError for gz. That is strictly stronger than the condition it
+# claims to emulate, and the difference was load-bearing:
+# `tests/test_rescore_cpa.py` handles a missing gz correctly by APPENDING its own
+# stub finder to `sys.meta_path`. A raising finder at index 0 pre-empts every
+# later finder, so the stub was never reached and the file looked gz-unusable.
+# It was therefore listed in ci.yml's --ignore fallback, and its 14 tests were
+# dropped from CI for a condition that does not exist. Verified against a
+# genuinely gz-less machine, where the same file passes 14/14.
+#
+# This version instead hides gz from the PATH-BASED finder only -- exactly what
+# "the package is not installed" looks like -- and leaves every other finder,
+# including one a test installs later, free to behave as it really would.
+#
+# THE INSTRUMENT IS ALSO NOW CROSS-CHECKED against reality: see
+# `test_the_shim_agrees_with_a_genuinely_gz_less_interpreter` below. The
+# anti-stale test judges staleness with this same shim, so without that
+# cross-check an over-blocking shim can never be reported as the cause of a
+# stale entry -- it would mark the file unusable and thereby exonerate itself.
+# That is the shared-instrument failure mode docs/error_handling_policy.md warns
+# about: a defect in a measurement tool that a paired control cannot see.
 _SITECUSTOMIZE = '''
 import sys
+import importlib.machinery
+
+_PF = importlib.machinery.PathFinder
 
 
-class _BlockGz:
-    def find_spec(self, name, path=None, target=None):
+class _GzHidingPathFinder:
+    """Make `gz` invisible to the path-based finder, as if it were absent."""
+
+    @classmethod
+    def find_spec(cls, name, path=None, target=None):
         if name == "gz" or name.startswith("gz."):
-            raise ModuleNotFoundError("No module named %r" % name)
-        return None
+            return None
+        return _PF.find_spec(name, path, target)
 
 
-sys.meta_path.insert(0, _BlockGz())
+sys.meta_path = [_GzHidingPathFinder if m is _PF else m for m in sys.meta_path]
 '''
 
 
@@ -249,6 +278,80 @@ def test_every_gz_importing_test_file_is_deselected_in_the_ci_fallback(gz_unusab
         f"list in .github/workflows/ci.yml.")
 
 
+@pytest.fixture(scope="module")
+def gz_is_genuinely_absent():
+    """True when THIS interpreter really has no gz bindings.
+
+    On such a machine the shim is unnecessary, which makes it an INDEPENDENT
+    instrument: the same measurement can be taken with and without the shim and
+    the two must agree.
+    """
+    import importlib.util
+    try:
+        return importlib.util.find_spec("gz") is None
+    except (ImportError, ValueError):
+        return True
+
+
+def test_the_shim_agrees_with_a_genuinely_gz_less_interpreter(
+        gz_is_genuinely_absent, gz_erroring_files, tmp_path_factory):
+    """THE INSTRUMENT IS CHECKED AGAINST REALITY (2026-09-10, finding H3).
+
+    Every other test in this file measures "which files need gz" THROUGH the
+    shim, and the anti-stale test then judges ci.yml with that same measurement.
+    So a shim that over-blocks marks the file unusable and thereby exonerates
+    itself -- a defect a paired control structurally cannot see
+    (docs/error_handling_policy.md, the shared-instrument rule).
+
+    This is the missing independent instrument. Where gz is genuinely absent --
+    CI's fallback branch and every cloud session, i.e. exactly where the deselect
+    list matters -- collect the suite with NO shim at all and require the same
+    set of collection errors. A disagreement in either direction is a defect in
+    the shim, not in ci.yml, and it is reported as such.
+
+    This is what caught the raising `meta_path[0]` shim: it reported
+    tests/test_rescore_cpa.py as gz-unusable when in reality it passes 14/14,
+    which had cost 86 tests in the fallback branch.
+    """
+    if not gz_is_genuinely_absent:
+        pytest.skip("gz IS installed here, so there is no shim-free control to "
+                    "compare against -- run this on a machine without the "
+                    "bindings (CI's fallback branch, or any cloud session)")
+
+    with_shim, _out = gz_erroring_files
+
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/", "flight/tests/",
+         "--collect-only", "-q", "-p", "no:cacheprovider"],
+        cwd=REPO_ROOT, capture_output=True, text=True, timeout=300)
+    out = proc.stdout + proc.stderr
+    without_shim = set(re.findall(r"^ERROR (\S+\.py)", out, re.M))
+
+    # NOT VACUOUS: if the shim-free control finds no errors at all then either gz
+    # is importable after all or the command failed to run, and comparing two
+    # empty sets would "pass" while measuring nothing.
+    assert without_shim, (
+        "the shim-free control produced ZERO collection errors on an interpreter "
+        "that reports no gz bindings. Either the detection above is wrong or the "
+        f"pytest invocation failed; this comparison measured nothing.\n"
+        f"{out[-3000:]}")
+
+    over = sorted(with_shim - without_shim)
+    under = sorted(without_shim - with_shim)
+    assert not over, (
+        f"THE SHIM OVER-BLOCKS. It reports {over} as unable to collect without "
+        f"gz, but on this genuinely gz-less interpreter they collect fine. The "
+        f"shim is stricter than the condition it emulates, so every verdict in "
+        f"this file that rests on it -- including which ci.yml --ignore entries "
+        f"look justified -- is wrong in the direction of deselecting too much. "
+        f"Fix _SITECUSTOMIZE, not ci.yml.")
+    assert not under, (
+        f"THE SHIM UNDER-BLOCKS. {under} fail to collect on this gz-less "
+        f"interpreter but collect fine under the shim, so the shim is hiding a "
+        f"real gz dependency and the deselect list measured through it is too "
+        f"short. CI's fallback branch would go red. Fix _SITECUSTOMIZE.")
+
+
 def test_the_ci_deselect_list_has_no_stale_entries(gz_unusable_files):
     """The other direction: an --ignore for a file that runs fine silently drops
     that file's coverage from the fallback branch. Entries whose file no longer
@@ -311,3 +414,67 @@ def test_the_fallback_branch_has_no_surviving_gz_failures(gz_runtime_failing_fil
         f"with ci.yml's deselect list applied, {len(survivors)} file(s) still fail "
         f"for want of the gz bindings: {survivors}\nThe fallback branch would go "
         f"RED, not green. Add them to the --ignore list.\n{out[-2000:]}")
+
+
+def test_the_stub_finder_ordering_coupling_is_pinned(gz_is_genuinely_absent):
+    """PIN the reason the deselect list is as short as it is (2026-09-10, H3).
+
+    `tests/test_rescore_cpa.py` appends a stub finder for `gz`/`mavsdk` to
+    `sys.meta_path` at MODULE scope, so merely collecting it makes
+    `scripts/m4_intercept.py` importable for the rest of the process. Three files
+    that come after it alphabetically -- test_solve_intercept_time.py,
+    test_target_orientation.py, test_terminal_coast_latch.py -- rely on that side
+    effect and cannot collect without it. `test_ekf_tracker.py` relies on the
+    same stub at RUN time.
+
+    That is a real dependency and 106 tests in CI's fallback branch currently
+    ride on it, but it rests on COLLECTION ORDER, which nothing guarantees:
+    rename a file, add a `-p randomly`, split the run, and those files break with
+    a bare `No module named 'gz'` and no hint why.
+
+    So this pins the coupling. It does not endorse it -- the durable fix is to
+    move that stub finder into a conftest so the behaviour is deterministic
+    rather than alphabetical (queued in docs/next.md). Until then, if this test
+    fails, the message IS the explanation: either the ordering changed or the
+    stub moved, and ci.yml's --ignore list needs re-measuring, not patching.
+    """
+    if not gz_is_genuinely_absent:
+        pytest.skip("gz IS installed here, so nothing depends on the stub finder")
+
+    DEPENDENTS = {
+        "tests/test_solve_intercept_time.py",
+        "tests/test_target_orientation.py",
+        "tests/test_terminal_coast_latch.py",
+    }
+
+    def _collect_errors(extra_args):
+        proc = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests/", "flight/tests/",
+             "--collect-only", "-q", "-p", "no:cacheprovider", *extra_args],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=300)
+        out = proc.stdout + proc.stderr
+        return set(re.findall(r"^ERROR (\S+\.py)", out, re.M)), out
+
+    with_stub, out_with = _collect_errors([])
+    without_stub, out_without = _collect_errors(
+        ["--ignore=tests/test_rescore_cpa.py"])
+
+    # NOT VACUOUS: both runs must actually have produced the baseline errors.
+    assert with_stub, (
+        "the baseline collection produced ZERO errors, so this comparison "
+        f"measured nothing.\n{out_with[-2000:]}")
+
+    assert not (DEPENDENTS & with_stub), (
+        f"{sorted(DEPENDENTS & with_stub)} already fail to collect WITH "
+        f"test_rescore_cpa.py present. The stub-finder side effect no longer "
+        f"covers them, so ci.yml's --ignore list is now too short and the "
+        f"fallback branch will go red. Re-measure the list.")
+
+    newly_broken = without_stub - with_stub
+    assert newly_broken == DEPENDENTS, (
+        f"the ordering coupling changed. Ignoring test_rescore_cpa.py used to "
+        f"break exactly {sorted(DEPENDENTS)}; it now breaks "
+        f"{sorted(newly_broken)}. Re-measure ci.yml's --ignore list against a "
+        f"genuinely gz-less machine, and consider moving the stub finder into a "
+        f"conftest so this stops depending on collection order.\n"
+        f"{out_without[-2000:]}")
