@@ -55,6 +55,12 @@ import sys
 
 # The gate's own constants, so a reader can see what is being challenged.
 GATE_V_CLOSING = 9.0        # scripts/seeker/tripod_score.py
+
+# n FLOOR for the verdict. Below this many flights with a measurable
+# pre-handoff window the ratio is not reported at all -- it is quoted against
+# a hardware purchase, and a median over 1-2 flights is noise wearing a
+# decimal point.
+MIN_FLIGHTS = 6
 GATE_TGO_MIN = 0.5          # s
 DASH_SPEED_MS = 16.0        # flight/deploy/real_flight.py cfg.dash_speed_ms
 REQUIRED = ("t_sim", "phase", "gt_range")
@@ -146,6 +152,8 @@ def main(argv=None):
 
     per_file = []
     skipped_schema = 0
+    skipped_nodash = 0
+    skipped_nosegs = []
     dropped_total = 0
     for p in paths:
         try:
@@ -161,19 +169,33 @@ def main(argv=None):
         phases = {r["phase"] for r in rows}
         dash_phase = args.phase or ("CODED_DASH" if "CODED_DASH" in phases else "DASH")
         if dash_phase not in phases:
-            skipped_schema += 1
+            # COUNTED SEPARATELY from a schema miss. Folding "no dash phase" into
+            # `skipped_schema` made the two reasons indistinguishable in the
+            # output, which is how this tool and its sibling silently disagreed
+            # on the same directory for a day.
+            skipped_nodash += 1
             continue
         d, pre, eng, hr, dropped = closing_rates(rows, dash_phase)
         dropped_total += dropped
         if not d:
+            # A SHRINKING DENOMINATOR MUST BE COUNTED, NEVER ABSORBED
+            # (docs/error_handling_policy.md). This branch used to `continue`
+            # silently, so a file that HAS the columns and HAS a dash phase but
+            # yields no usable segment -- the exact shape of a dev log written
+            # with a blank `t_sim` -- vanished from both the numerator and the
+            # reported denominator. The verdict then read as if those flights had
+            # never been offered.
+            skipped_nosegs.append(p)
             continue
         per_file.append((p, dash_phase, _med(d), _med(pre), _med(eng), hr))
 
     # NO VACUOUS VERDICTS: zero measured flights is UNCERTAIN, never a PASS.
     if not per_file:
         print(f"[handoff_closing_speed] UNCERTAIN / VACUOUS: matched {len(paths)} file(s) "
-              f"but 0 carried {REQUIRED} plus a dash phase "
-              f"({skipped_schema} skipped on schema). Nothing was measured.")
+              f"but 0 yielded a measurable dash segment ({skipped_schema} lacked "
+              f"{REQUIRED}, {skipped_nodash} had no dash phase, "
+              f"{len(skipped_nosegs)} had the columns and the phase but no usable "
+              f"segment -- typically a blank t_sim). Nothing was measured.")
         return 3
 
     dash_meds = [x[2] for x in per_file if x[2] is not None]
@@ -182,8 +204,17 @@ def main(argv=None):
     phases_used = sorted({x[1] for x in per_file})
 
     print(f"[handoff_closing_speed] measured {len(per_file)} flight(s) "
-          f"of {len(paths)} matched ({skipped_schema} skipped on schema, "
+          f"of {len(paths)} matched ({skipped_schema} on schema, {skipped_nodash} "
+          f"with no dash phase, {len(skipped_nosegs)} with no usable segment, "
           f"{dropped_total} segment(s) dropped on dt)")
+    if skipped_nosegs:
+        print(f"  NO USABLE SEGMENT in {len(skipped_nosegs)} file(s) that DID carry "
+              f"the columns and the dash phase (a blank or non-monotonic t_sim does "
+              f"this). Named, not absorbed:")
+        for q in skipped_nosegs[:3]:
+            print(f"    {q}")
+        if len(skipped_nosegs) > 3:
+            print(f"    ... and {len(skipped_nosegs) - 3} more")
     print(f"  dash phase(s) used: {', '.join(phases_used)}")
     print(f"  closing speed during the dash        median {_fmt(_med(dash_meds))} "
           f"(n={len(dash_meds)} flights)")
@@ -196,6 +227,17 @@ def main(argv=None):
     v_pre = _med(pre_meds)
     if v_pre is None:
         print("  VERDICT: UNCERTAIN -- no pre-handoff window was measurable.")
+        return 3
+    if len(pre_meds) < MIN_FLIGHTS:
+        # AN n FLOOR, because this tool's ratio is quoted against a ~$740
+        # purchase decision. "n below the floor is not a small result, it is no
+        # result" -- the same rule the pre-registration applies to a flown arm.
+        print(f"  VERDICT: UNDERPOWERED -- the pre-handoff window was measurable "
+              f"on only {len(pre_meds)} flight(s), below the floor of "
+              f"{MIN_FLIGHTS}. A median over that many flights is not a "
+              f"measurement; no ratio is reported and no action is implied.")
+        print("  SCOPE: cue-era DASH unless the dash phase above says CODED_DASH. "
+              "gt_* is scoring-only.")
         return 3
     ratio = v_pre / GATE_V_CLOSING
     print(f"  ratio (pre-handoff measured / gate assumption) = {ratio:.2f}x")
@@ -275,6 +317,77 @@ def self_test():
             {"t_sim": "1.0", "phase": "DASH", "gt_range": "9.0"}]
     d3, _, _, _, dropped3 = closing_rates(zero, "DASH")
     case("zero dt dropped, no divide-by-zero", d3 == [] and dropped3 == 1)
+
+    # ---- main()-level guards (2026-09-10 review finding H4). These exercise the
+    # REPORTING path, not just the arithmetic: the two defects fixed here were
+    # both in main(), so a self-test that only calls closing_rates() cannot see
+    # them. Fixtures are written to a temp dir and read back through the real
+    # glob/CSV path, so this is a producer -> consumer check, not a hand-typed one.
+    import os
+    import tempfile
+
+    def _write(d, name, rows, header=("t_sim", "phase", "gt_range")):
+        q = os.path.join(d, name)
+        with open(q, "w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=list(header))
+            w.writeheader()
+            for r in rows:
+                w.writerow(r)
+        return q
+
+    def _good(seed=0.0):
+        out, t, r = [], 0.0, 40.0
+        while r > 12.0:
+            out.append({"t_sim": f"{t:.3f}", "phase": "DASH", "gt_range": f"{r:.4f}"})
+            t += 0.05
+            r -= 16.0 * 0.05
+        while r > 2.0:
+            out.append({"t_sim": f"{t:.3f}", "phase": "ENGAGE", "gt_range": f"{r:.4f}"})
+            t += 0.05
+            r -= 9.0 * 0.05
+        return out
+
+    def _run(argv):
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(argv)
+        return rc, buf.getvalue()
+
+    with tempfile.TemporaryDirectory() as d:
+        # A file with the columns and the dash phase but a BLANK t_sim: it yields
+        # no usable segment. It must be COUNTED and NAMED, never absorbed.
+        blank = [{"t_sim": "", "phase": "DASH", "gt_range": f"{40 - i:.3f}"}
+                 for i in range(20)]
+        for i in range(MIN_FLIGHTS + 1):
+            _write(d, f"good_{i}.csv", _good())
+        _write(d, "blank_tsim.csv", blank)
+        rc, out = _run(["--glob", os.path.join(d, "*.csv")])
+        case("H4: a blank-t_sim file is COUNTED, not absorbed",
+             "1 with no usable segment" in out)
+        case("H4: and the file is NAMED in the output", "blank_tsim.csv" in out)
+        case("H4: the measured count excludes it",
+             f"measured {MIN_FLIGHTS + 1} flight(s) of {MIN_FLIGHTS + 2} matched" in out)
+        case("H4: a full fleet still reaches a verdict", rc == 0 and "VERDICT" in out)
+
+    with tempfile.TemporaryDirectory() as d:
+        # Below the n floor the ratio must NOT be reported at all.
+        for i in range(MIN_FLIGHTS - 1):
+            _write(d, f"good_{i}.csv", _good())
+        rc, out = _run(["--glob", os.path.join(d, "*.csv")])
+        case("H4: below the n floor the verdict is UNDERPOWERED",
+             "UNDERPOWERED" in out)
+        case("H4: and no ratio is printed", "ratio (" not in out)
+        case("H4: and the exit code is 3 (UNCERTAIN), never 0", rc == 3)
+
+    with tempfile.TemporaryDirectory() as d:
+        # Nothing measurable at all is VACUOUS, never a PASS.
+        _write(d, "nodash.csv", [{"t_sim": f"{i * 0.05:.3f}", "phase": "TAKEOFF",
+                                  "gt_range": f"{40 - i:.3f}"} for i in range(20)])
+        rc, out = _run(["--glob", os.path.join(d, "*.csv")])
+        case("H4: no dash phase anywhere -> VACUOUS and exit 3",
+             rc == 3 and "VACUOUS" in out and "1 had no dash phase" in out)
 
     print(f"  [self-test] {'ALL PASS' if ok else 'FAILURES'}")
     return ok
