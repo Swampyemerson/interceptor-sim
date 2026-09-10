@@ -29,6 +29,7 @@
 | Drift checks (`render_dashboard/mbse --check`) | ✅ | ✅ | ✅ (stdlib only) |
 | AST honesty audit (`real_flight --audit`) | ✅ | ✅ | ✅ |
 | Milestone gates (`check_m*.sh`, `check_t*.sh`) | ✅ | ❌ needs the sim | ❌ |
+| `scripts/field/selftest.sh` (needs an `ssh` client) | ✅ | ✅ | ❌ 6 failures, correctly |
 | Monte-Carlo arms (`mc_batch.sh`) | ✅ idle-load only | ❌ | ❌ |
 
 ---
@@ -47,6 +48,16 @@ Then run the suite with the CI fallback deselect list applied, because the ten
 gz-importing files cannot be collected without the bindings (the list is
 machine-checked by `tests/test_ci_gz_deselect_list.py`; copy it out of
 `.github/workflows/ci.yml`, do not retype it).
+
+**`scripts/field/selftest.sh` will still report 6 failures on a bare container, and
+that is the pack working correctly.** It shells out to `05_pi_link_check.sh`, which
+needs an `ssh` client to reach the Pi and exits **2 (USAGE)** with the remedy printed
+when there is none. The selftest expects 0 or 3 there, so a machine without `ssh`
+reads as a failure. Verified pre-existing 2026-09-10: identical 6 failures with the
+field pack untouched and with the original `field_score.py` restored. Installing
+`ssh` is an apt change outside the project directory, which CLAUDE.md says to ask
+about first — so on a cloud session, **read past this pack** rather than treating it
+as a regression. It is the one stage-4 item a fresh container cannot clear.
 
 `scripts/run_tests.sh` itself **can** now be run on a clean clone: its stage-1 skip
 gate declares the seven clean-clone skips as of 2026-09-10 (test-health audit F8).
