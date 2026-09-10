@@ -18,6 +18,8 @@ from flight.guidance import (
     pronav_lateral_accel,
     dash_forward_speed,
     dash_loft_alt_ref,
+    derive_dash_alt_trim_m,
+    apply_alt_ref_trim,
     resolve_terminal_bearing_bias_deg,
     GRAVITY_MS2,
 )
@@ -477,6 +479,88 @@ def test_compensate_rotates_the_command_frame_by_the_bias():
     assert 0.7 < disp < 0.9, disp                               # ~0.79 m at 4.12 m/s
 
 
+
+# --- DASH ALTITUDE TRIM + HARD AGL FLOOR (2026-09-10) ------------------------
+# ADR-0085 decided a terminal vertical channel with a hard AGL minimum and no
+# code was ever written. These pin the half the measurements support: the
+# vertical error is delivered by the DASH (vertical_miss_anatomy.py: off-altitude
+# at CPA on 24/24 committed flights, dash drift = 66% of it) and the terminal has
+# 0.02-0.17 m of authority left at the MEASURED closing speeds
+# (handoff_closing_speed.py), so it is corrected as a pre-flight constant.
+
+
+def test_alt_trim_default_is_exact_identity():
+    """The whole point of a default-OFF lever: no arithmetic at all when inert.
+
+    Not 'close to' the input -- the SAME value. Every previously validated
+    altitude result has to survive this landing bit-for-bit, so this asserts
+    identity across a spread of references including awkward binary fractions.
+    """
+    for ref in (0.0, 0.5, 1.0, 5.0, 7.0, 0.1, 1e-9, 123.456789, 1e6):
+        out = apply_alt_ref_trim(ref)
+        assert out == ref, f"{ref} -> {out}"
+        assert out is ref or isinstance(out, float)
+        # explicit zero trim + no floor must also be a no-op
+        assert apply_alt_ref_trim(ref, 0.0, None) == ref
+
+
+def test_derive_trim_negates_the_measured_drift():
+    """Sign, which is the easy thing to get backwards.
+
+    A POSITIVE drift means the vehicle ends the dash HIGH, so the reference must
+    be LOWERED -> a NEGATIVE trim. The measured cue-era drift is +0.320 m.
+    """
+    assert derive_dash_alt_trim_m(0.320) == -0.320
+    assert derive_dash_alt_trim_m(-0.374) == 0.374      # ADR-0095's fleet ran LOW
+    assert derive_dash_alt_trim_m(0.0) == 0.0           # exactly, so it stays inert
+    # share scales without changing the sign
+    assert derive_dash_alt_trim_m(0.320, share=0.5) == -0.160
+    assert derive_dash_alt_trim_m(0.320, share=0.0) == 0.0
+
+
+def test_derive_then_apply_cancels_the_drift():
+    """END-TO-END on the arithmetic: deriving from a drift and applying the result
+    moves the reference by exactly minus that drift. This is the property the
+    lever exists for, asserted rather than assumed."""
+    for drift in (0.320, -0.374, 1.25, -0.05):
+        trim = derive_dash_alt_trim_m(drift)
+        assert abs(apply_alt_ref_trim(5.0, trim) - (5.0 - drift)) < 1e-12
+
+
+def test_agl_floor_clamps_and_wins_over_the_trim():
+    """The floor is a SAFETY backstop, so it must beat the guidance term, not
+    average with it."""
+    assert apply_alt_ref_trim(1.0, trim_m=-2.0, min_agl_m=0.8) == 0.8
+    assert apply_alt_ref_trim(5.0, trim_m=-0.32, min_agl_m=0.8) == 4.68
+    # a floor above the reference raises it even with no trim at all
+    assert apply_alt_ref_trim(0.4, min_agl_m=1.5) == 1.5
+    # a floor that does not bite must not perturb the value
+    assert apply_alt_ref_trim(5.0, min_agl_m=1.0) == 5.0
+
+
+def test_agl_floor_none_is_not_treated_as_zero():
+    """`None` means NO FLOOR; 0.0 means a floor AT zero. Collapsing the two would
+    silently let a negative reference through on the None path, or clamp a
+    legitimately negative reference on the 0.0 path. Distinguish them."""
+    assert apply_alt_ref_trim(-1.0, min_agl_m=None) == -1.0
+    assert apply_alt_ref_trim(-1.0, min_agl_m=0.0) == 0.0
+
+
+def test_trim_composes_with_the_loft_dive_reference():
+    """The trim must ride ON TOP of the existing loft-then-dive profile, not
+    replace it: the dive shape is preserved and the whole curve shifts."""
+    base, loft, dive = 5.0, 2.0, 2.5
+    trim = derive_dash_alt_trim_m(0.320)
+    for t in (0.0, 0.5, 1.25, 2.5, 4.0):
+        plain = dash_loft_alt_ref(base, loft, t, dive)
+        shifted = apply_alt_ref_trim(plain, trim)
+        assert abs(shifted - (plain + trim)) < 1e-12
+    # and with no trim the composed value is the untouched profile
+    for t in (0.0, 1.25, 2.5):
+        plain = dash_loft_alt_ref(base, loft, t, dive)
+        assert apply_alt_ref_trim(plain) == plain
+
+
 ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_north,
        test_uncatchable_falls_back_to_initial, test_lr_rl_mirror_symmetry,
        test_explicit_origin_offset, test_closing_speed_floor_and_measured,
@@ -502,7 +586,13 @@ ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_nort
        test_compensate_wraps_across_pi,
        test_compensate_lag_lead_self_signs,
        test_compensate_bias_and_lag_compose,
-       test_compensate_rotates_the_command_frame_by_the_bias]
+       test_compensate_rotates_the_command_frame_by_the_bias,
+       test_alt_trim_default_is_exact_identity,
+       test_derive_trim_negates_the_measured_drift,
+       test_derive_then_apply_cancels_the_drift,
+       test_agl_floor_clamps_and_wins_over_the_trim,
+       test_agl_floor_none_is_not_treated_as_zero,
+       test_trim_composes_with_the_loft_dive_reference]
 
 if __name__ == "__main__":
     import sys

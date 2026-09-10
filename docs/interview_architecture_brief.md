@@ -2,7 +2,7 @@
 
 > **Audience:** the builder, in an interview, on a phone. Everything here traces to
 > a source in this repo. **Nothing new is claimed** — this is a reading of
-> `docs/project_state.json` (the contract), `docs/decisions.md` (96 ADRs), the audit
+> `docs/project_state.json` (the contract), `docs/decisions.md` (97 ADRs), the audit
 > and review docs, `README.md`, and the code itself, arranged for a conversation
 > rather than for a reader working front to back.
 >
@@ -32,7 +32,7 @@ Two halves:
 - **The simulation** — PX4 SITL + Gazebo Harmonic, headless. About 109,000 lines of
   Python and 12,200 of shell; 813 test functions in 57 files (the runner reported 941
   passing tests at the most recent commit that ran it — parametrisation expands the
-  count); ten pipeline stages; 96 architecture decision records; Monte-Carlo batches
+  count); ten pipeline stages; 97 architecture decision records; Monte-Carlo batches
   on paired seeds. This is the evidence machine.
 - **The real build** — Raspberry Pi 5 seeker, Pixhawk 6C Mini, an ArduPilot target
   aircraft. In progress: the target's flight controller is flashed with all 44
@@ -793,11 +793,27 @@ ADR-0085 **decided** a camera-driven vertical channel with a hard altitude floor
 Neither half was ever written, and that ADR appears nowhere in the contract or the queue.
 
 This does not say the camera works. It says the strongest camera-versus-dash comparison
-has never been run. Full arithmetic, including why the ADR-0023 capacity bound is being
-quoted outside the regime it was measured in, and a separate question about the money
-gate computing the streak burn at the terminal's closing speed rather than the dash's:
-`docs/vertical_channel_analysis.md`, ledger entry
-`terminal-vertical-channel-decided-not-built`.
+has never been run.
+
+**Two things were then measured, and one of them corrected the first draft of this
+brief.** The closing speed in the last second before handoff is **17.60 m/s**, not the
+9.0 m/s the airframe purchase gate assumes. Re-derived at that speed the fiducial path
+has **0.02 to 0.17 m** of terminal correction capacity, against a need of roughly 0.4 m.
+So on the fiducial baseline the short window really is close to a physics limit, and the
+earlier claim that capacity exceeded need by two to four times was computed off the
+gate's own assumption. The markerless path at a 20 m acquisition range still has 3.9 m.
+The limit is the tag's, not the camera's.
+
+The second measurement says the vertical error is **delivered by the dash**: the fleet is
+off-altitude at closest approach on 24 of 24 committed flights, and dash-time altitude
+drift accounts for 66% of it. So the fix is a pre-flight altitude trim, the analogue of
+the crossing-bias aim calibration, not a terminal law with no authority left to spend.
+That is **ADR-0099**, built default-off and byte-identical, ten tests,
+mutation-verified, and never flown.
+
+Full arithmetic: `docs/vertical_channel_analysis.md`. Ledger entry
+`terminal-vertical-channel-decided-not-built`. Pre-registration, committed before any
+arm: `docs/vertical_channel_prereg.md`.
 
 ---
 
@@ -862,11 +878,13 @@ markerless detector has a 24 m static ceiling. First kills fly the tag because t
 runs the tag at 96.6 fps and the network at 6.09, so the short acquisition range is a
 consequence of deferring a $70 accelerator, not of camera guidance.
 
-The *correction capacity* is not the binding constraint at correct aim. At the planned
-decode setting it is 0.6 to 1.8 m against a need of roughly 0.4 m. At a 20 m acquisition
-range it is 11 m. Capacity scales as time-to-go squared, which is why acquisition range
-is the lever and why a human pilot tracking from 30 m has about 18 times the authority of
-a seeker whose first look is at 7 m.
+The *correction capacity* splits by seeker, and the honest numbers use the **measured**
+closing speed of 17.60 m/s before handoff rather than the gate's 9.0. On the fiducial
+path that leaves 0.02 to 0.17 m against a need of roughly 0.4 m, so there the window
+genuinely is the constraint. On the markerless path at 20 m acquisition it is 3.9 m,
+which is ten times the need. Capacity scales as time-to-go squared, which is why
+acquisition range is the lever, and why a pilot tracking from 30 m has about 18 times
+the authority of a seeker whose first look is at 7 m.
 
 **"What would you do differently?"**
 Register assumptions from day one. Every mirage traces to something never written down —
@@ -924,7 +942,7 @@ deliverable, and it is also the derived accuracy requirement for the cue.
 |---|---|
 | Canonical state: stages, assumptions, ledger | `docs/project_state.json` |
 | Human and systems views of the same | `docs/dashboard.html` · `docs/mbse.html` |
-| Every decision with rationale | `docs/decisions.md` (96 records) |
+| Every decision with rationale | `docs/decisions.md` (97 records) |
 | Portable flight core | `flight/` |
 | Real-vehicle state machine | `flight/deploy/real_flight.py` |
 | Deployed terminal loop | `flight/deploy/seeker_loop.py` |
@@ -936,3 +954,4 @@ deliverable, and it is also the derived accuracy requirement for the cue.
 | The re-score that retracted a headline | `docs/rescore_2026-08-10.md` |
 | Sim-to-real gap register | `docs/sim_to_real_gaps.md` |
 | Why the camera has not saved the aim | `docs/vertical_channel_analysis.md` |
+| Pre-registered vertical arm | `docs/vertical_channel_prereg.md` |

@@ -79,3 +79,13 @@ Bench hardware count corrected: the target's flight controller has NOT arrived, 
 **So what:** Every bench step is unblocked, so both bring-up gates can be closed now and the day the flight controller lands the only work left is building the target.
 
 *Evidence:* builder at the bench 2026-07-26
+
+
+<!-- overflowed from project_state.json plain_log on 2026-09-10 -->
+
+### 2026-07-26
+Adversarial review of every script run at the bench: 51 defects raised, 48 survived two independent skeptics. The props-off OFFBOARD gate could print PASS without testing anything -- its first setpoint came from a hallucinated detection on a frame with no target, and a single setpoint passed while the line above read 'mean cadence 0.0 Hz'.
+
+**So what:** The gate built to retire the one link the sim never tested would have retired it untested. Now gated on measured cadence, span, gap, and proof that bytes came back over the wire.
+
+*Evidence:* commit 1b89340

@@ -973,3 +973,109 @@ def test_the_mission_log_carries_the_guidance_state_not_just_the_command():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+# --------------------------------------------------------------------------
+# DASH ALTITUDE TRIM + HARD AGL FLOOR (2026-09-10)
+# --------------------------------------------------------------------------
+# ADR-0085 decided a camera-driven terminal vertical channel with a hard AGL
+# minimum. Neither half existed: grep for min_agl/agl_m/elevation in this module
+# returned nothing, and every seeker's bearing_vert_rad was discarded. The
+# measurements (scripts/forensics/vertical_miss_anatomy.py,
+# handoff_closing_speed.py) say the vertical error is DELIVERED BY THE DASH and
+# the terminal has 0.02-0.17 m of authority left, so the correction lands as a
+# pre-flight constant -- the altitude analogue of ADR-0080/0083's aim trim.
+#
+# The first of these tests is the one that matters most: a lever that is supposed
+# to be inert by default has to be PROVEN inert, over the whole state machine and
+# not just the helper.
+
+
+def test_alt_trim_and_floor_are_byte_identical_at_defaults():
+    """The full STANDBY -> DASH -> SAFE setpoint stream must be unchanged.
+
+    Compares an explicit-defaults machine against a machine that never mentions
+    the new fields, tick by tick, on every setpoint component. This is the
+    guarantee that lets the lever ship without re-flying anything.
+    """
+    def stream(config):
+        sm = RealFlightSM(config)
+        out = []
+        t = 0.0
+        for i in range(120):
+            trig = GO if i >= 5 else NO
+            # walk the altitude around the reference so v_down is genuinely
+            # exercised rather than sitting at zero the whole way
+            alt = 7.0 + 0.6 * math.sin(i * 0.25)
+            d = sm.step(obs(t, trigger=trig, alt_m=alt))
+            sp = d.setpoint
+            out.append(None if sp is None else
+                       (round(sp.v_north, 12), round(sp.v_east, 12),
+                        round(sp.v_down, 12), round(sp.yaw_deg, 12), d.state))
+            t += DT
+        return out
+
+    implicit = stream(cfg())
+    explicit = stream(cfg(dash_alt_trim_m=0.0, min_agl_m=None))
+    assert implicit == explicit, (
+        "declaring the new fields at their defaults changed the setpoint stream; "
+        "the lever is NOT byte-identical when inert")
+    # and it really did fly something, or this test proves nothing
+    assert any(x is not None and x[2] != 0.0 for x in implicit), \
+        "no non-zero v_down in the stream -- the comparison was vacuous"
+
+
+def test_a_nonzero_trim_moves_the_vertical_command():
+    """The lever must actually bite, in the right direction.
+
+    A NEGATIVE trim lowers the reference, so at a fixed altitude the vehicle is
+    now further ABOVE its target and must command more DOWN. v_down is positive
+    down (NED), so the commanded value must increase.
+    """
+    sm_plain = RealFlightSM(cfg())
+    sm_trim = RealFlightSM(cfg(dash_alt_trim_m=-0.32))
+    d_plain = sm_plain.step(obs(0.0, alt_m=7.0))
+    d_trim = sm_trim.step(obs(0.0, alt_m=7.0))
+    assert d_plain.setpoint is not None and d_trim.setpoint is not None
+    assert d_trim.setpoint.v_down > d_plain.setpoint.v_down, (
+        f"a -0.32 m trim must command MORE down: "
+        f"{d_trim.setpoint.v_down} vs {d_plain.setpoint.v_down}")
+    # magnitude: kp_alt is 1.0, so the delta is the trim, up to the clamp
+    assert abs((d_trim.setpoint.v_down - d_plain.setpoint.v_down) - 0.32) < 1e-9
+
+
+def test_the_agl_floor_refuses_to_command_below_it():
+    """ADR-0085's safety half: whatever the trim asks for, the reference is
+    floored. With a floor ABOVE the standby altitude the vehicle must be told to
+    climb (negative v_down), never to descend."""
+    sm = RealFlightSM(cfg(min_agl_m=9.0))
+    d = sm.step(obs(0.0, alt_m=7.0))
+    assert d.setpoint is not None
+    assert d.setpoint.v_down < 0.0, (
+        f"a 9.0 m floor at 7.0 m altitude must command CLIMB, got "
+        f"v_down={d.setpoint.v_down}")
+    # a huge downward trim must not defeat the floor
+    sm2 = RealFlightSM(cfg(min_agl_m=9.0, dash_alt_trim_m=-50.0))
+    d2 = sm2.step(obs(0.0, alt_m=7.0))
+    assert d2.setpoint is not None and d2.setpoint.v_down < 0.0, (
+        "the floor must beat the trim, not average with it")
+
+
+def test_the_floor_applies_in_every_state_not_just_the_dash():
+    """The floor lives in the ONE function every state's vertical command passes
+    through, so it cannot be forgotten at one of the five call sites. Drive the
+    machine through its states with a biting floor and assert it never commands
+    descent."""
+    sm = RealFlightSM(cfg(min_agl_m=9.0))
+    states, t = set(), 0.0
+    # long enough to run the dash out to its timeout and land in SAFE, so the
+    # floor is checked in the absorbing state too
+    for i in range(400):
+        d = sm.step(obs(t, trigger=(GO if i >= 5 else NO), alt_m=7.0))
+        states.add(d.state)
+        if d.setpoint is not None:
+            assert d.setpoint.v_down <= 0.0, (
+                f"state {d.state} commanded descent below the AGL floor: "
+                f"v_down={d.setpoint.v_down}")
+        t += DT
+    assert len(states) >= 3, f"too few states exercised: {sorted(states)}"

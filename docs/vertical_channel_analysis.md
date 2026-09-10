@@ -1,4 +1,7 @@
-# Why a late camera correction has never saved the aim — and why that is not physics
+# Why a late camera correction has never saved the aim
+
+*The camera has no vertical channel. And on the AprilTag path the terminal
+window really is too short — but that is the tag's limit, not the camera's.*
 
 > **Origin.** Builder question, 2026-09-09: *"I've literally watched a video of an aim
 > get completely saved by a quick adjustment at the end with the camera. And the
@@ -14,6 +17,32 @@
 > **Nothing here says the camera works.** It says the strongest camera-versus-dash test
 > has not been run. Ledger entry: `terminal-vertical-channel-decided-not-built`.
 > Arithmetic: `scripts/forensics/terminal_capacity.py` (offline, exits 0, no sim).
+>
+> ---
+>
+> ## ⚠️ CORRECTED 2026-09-10, and one half of it corrects THIS DOCUMENT
+>
+> Two measurements were taken after the first draft, and they change §2:
+>
+> * **Closing speed is not 9 m/s.** `scripts/forensics/handoff_closing_speed.py`
+>   measures **17.60 m/s** in the last second before handoff (median, n=14) and
+>   **14.64 m/s** after handoff pre-CPA, against the money gate's 9.0. Re-derived at
+>   those speeds the AprilTag path has **0.02–0.17 m** of terminal correction
+>   capacity, **not** the 0.6–1.8 m this document first claimed off the gate's own
+>   assumption. Against a ~0.4 m need that is **insufficient**. So for the TAG
+>   baseline the short window IS close to a real limit — §2's original framing was
+>   too strong and is superseded by §2.1 below. The markerless path at 20 m
+>   acquisition still has ~3.9 m, so the limit remains the TAG's, not the camera's.
+> * **The vertical error is delivered by the DASH.**
+>   `scripts/forensics/vertical_miss_anatomy.py` finds the cue-era fleet
+>   off-altitude at closest approach on **24/24** flights and altitude drifting
+>   **+0.320 m** across the dash — 66% of the miss, same sign. And it **refutes the
+>   sag mechanism** §3.3 proposed: the vehicle climbs, it does not sag.
+>
+> The §3 finding — no vertical channel, and ADR-0085 decided one that was never
+> written — is **unaffected**: it is about which axis is steered, not how long there
+> is. Decision and build: **ADR-0099**. Pre-registration:
+> `docs/vertical_channel_prereg.md`.
 
 ---
 
@@ -42,14 +71,47 @@ including the interpolation term). Against the ratified 0.35 m ram radius the me
 needs about **0.06 m** of correction, and the largest single component is a **0.374 m
 vertical bias**.
 
-So the ratio inverts. Capacity at the planned tripod-day decode setting is **0.6 to
-1.8 m** against a need of roughly **0.4 m** — capacity exceeds need by two to four times.
+So the ratio inverts **on the delivered-error side**: the geometry handed to the
+terminal at correct aim is 0.41 m, not 1.69 m. Whether the terminal can then fix it is
+a separate question, and §2.1 answers it with measured closing speeds rather than the
+gate's assumption. Short version: on the AprilTag path it cannot.
 
 Re-using a threshold across that gap is exactly the failure mode CLAUDE.md already has a
 standing rule against: *a threshold validated at one operating point is NOT validated at
 another*. The bound was earned at 1.69 m of delivered error. It is being spent at 0.41 m.
 
-### 2.1 Capacity table (`scripts/forensics/terminal_capacity.py`)
+### 2.1 The capacity at MEASURED closing speeds — the rows to trust
+
+The money gate prices both the streak burn and the surviving time-to-go at a single
+9.0 m/s. The streak actually forms during `CODED_DASH`, at `dash_speed_ms = 16.0`;
+`ENGAGE` only then commands 9.0 tapering to 5.5. Measured out of the committed
+per-tick logs:
+
+| Window | Measured closing speed |
+|---|---:|
+| During the dash | 14.52 m/s (median, n=16) |
+| Last 1.0 s before handoff | **17.60 m/s** (n=14) |
+| After handoff, pre-CPA | 14.64 m/s (n=13) |
+
+Re-deriving with the burn at 17.60 and the time-to-go at 14.64:
+
+| Configuration | Burn | t_go | Capacity |
+|---|---:|---:|---:|
+| Tag `qd=2.0`, R90 7.10 m | 6.10 m | 0.068 s | **0.02 m** |
+| Tag `qd=1.0`, R90 8.97 m | 6.10 m | 0.196 s | **0.17 m** |
+| Markerless, R_acq 20 m | 6.10 m | 0.949 s | **3.92 m** |
+
+**So the answer splits.** On the AprilTag path there is effectively no terminal
+authority, and the builder's question has a genuine "yes, close to a physics limit"
+answer — driven by the tag's ~6 m read range against dash-speed closure, not by
+camera guidance. On the markerless path at a 20 m acquisition range there is ten
+times the authority needed. The tag is the limit.
+
+**And a live consequence for the money gate**, flagged in §6 and deliberately not
+acted on: pricing the burn at 9.0 m/s when it is paid at 17.60 under-prices it by
+about 1.96×, in the flattering direction, on a ~$740 decision.
+
+### 2.2 The same arithmetic at the GATE's assumption, for comparison only
 
 Handoff needs `k=5` consecutive decodes, so the range burned forming the streak uses the
 run-length expectation `E[T] = (1−pᵏ)/(pᵏ(1−p))` (ADR-0079), not the mean rate. `a = 8.7
@@ -63,10 +125,15 @@ m/s²` is the *measured* median lateral acceleration in ENGAGE (`terminal_diagno
 | Tag `qd=1.0`, R90 8.97 m, 20 Hz loop, p=0.9 | 3.12 m | 0.650 s | **1.84 m** |
 | Tag `qd=2.0` pessimistic, R90 5.98 m, 14 Hz | 4.46 m | 0.169 s | 0.12 m |
 
-Every row except the pessimistic corner clears the ~0.4 m that matters. The middle row
-is the planned tripod-day setting.
+These are the numbers the money gate believes, and they are the ones this document
+originally quoted. **Do not use them.** Every row here except the pessimistic corner
+appears to clear the ~0.4 m that matters, and §2.1 shows that is an artefact of pricing
+the burn at 9.0 m/s when it is paid at 17.60. They are kept only so the size of the
+gate's optimism is visible.
 
-**Sensitivity to lateral authority**, at t_go = 0.65 s:
+**Sensitivity to lateral authority**, at t_go = 0.65 s — a time-to-go the AprilTag
+path does not actually reach at measured closing speeds, so read this as "what more
+authority would buy IF the acquisition range were there", i.e. the markerless case:
 
 | a (m/s²) | Capacity |
 |---:|---:|
@@ -141,14 +208,43 @@ module list — audited, never called. And `ADR-0085` appears **zero** times in
 This is the class the project already has a rule for — *a fix is not done until its
 effect is observed end-to-end* — one step earlier: an ADR with no code at all.
 
-### 3.3 A mechanism for the bias, testable offline
+### 3.3 The mechanism — proposed, tested, and half refuted
 
-A P-only altitude loop cannot null a persistent disturbance; it settles at whatever error
-commands enough climb. During the dash the vehicle pitches nose-down 27–36°, so the
-vertical thrust component falls to `cos(35°) ≈ 0.82` of hover. A systematic sag is exactly
-what that predicts, and the README already describes the symptom as *the interceptor flies
-low*. That is a hypothesis, not a result — it is checkable from the existing per-tick
-archive with no new flights.
+**What I proposed.** A P-only altitude loop cannot null a persistent disturbance; it
+settles at whatever error commands enough climb. During the dash the vehicle pitches
+nose-down 27–36°, so vertical thrust falls to `cos(35°) ≈ 0.82` of hover. A systematic
+**sag** is exactly what that predicts, matching the README's *the interceptor flies low*.
+
+**What the data said.** `scripts/forensics/vertical_miss_anatomy.py` over the committed
+logs: the interceptor is **above** the target on **24 of 24** flights (median +0.485 m)
+and altitude **rises +0.320 m** across the dash. So the sag form is **refuted**, and the
+general form is **supported**: the mechanism is **altitude-hold drift across the dash**,
+66% of the vertical miss, whose direction is configuration-dependent. The cue-era arms
+fly a running start and a loft, which climb; ADR-0095's fleet ended low.
+
+**What that changes.** The mechanism transfers, the number does not — so the trim must
+be re-derived per fleet, and a wrong-signed trim **doubles** the error rather than
+leaving it unchanged. That asymmetry is why `derive_dash_alt_trim_m` takes a measured
+drift as its input and why the lever carries a `share` parameter.
+
+**One honest gap:** the committed CSVs carry **no attitude columns** (deep-audit
+DEEP-R2), so the pitch-to-drift link is still reasoning rather than data.
+
+### 3.4 What was built for it (ADR-0099)
+
+Default-OFF and byte-identical, proven by test rather than asserted:
+
+- `flight.guidance.derive_dash_alt_trim_m(measured_drift)` — the trim, **derived** from
+  a measurement rather than tuned, per ADR-0080's rule.
+- `flight.guidance.apply_alt_ref_trim(alt_ref, trim, min_agl)` — applies it, and
+  enforces ADR-0085's **hard AGL floor**, which beats the trim rather than averaging
+  with it.
+- Applied in `real_flight._v_down`, the one function every state's vertical command
+  passes through, so the floor cannot be forgotten at one of five call sites.
+
+Ten tests, mutation-verified: making the lever inert fails six of them. Nothing has
+flown. Pre-registration with the adopt/reject criterion and what a null would mean is
+committed **before** any arm: `docs/vertical_channel_prereg.md`.
 
 ---
 

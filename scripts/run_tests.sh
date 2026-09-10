@@ -156,6 +156,16 @@ run_selftest "scripts/field/parse_flight_log.py --self-test (onboard decision-lo
 run_selftest "scripts/seeker/fc_link_check.py --self-test (FC->Pi MAVLink link verdict)" \
     "$ROOT/.venv/bin/python" "$ROOT/scripts/seeker/fc_link_check.py" --self-test
 
+# ADDED 2026-09-10. Both are VERDICT-BEARING forensics whose numbers now appear in
+# ADR-0099 (the measured pre-handoff closing speed, and the dash-delivered vertical
+# error). Review-2's rule: a new verdict-bearing script gets covered before its
+# number is quoted, or the number is standing on an unrun check. Both are offline,
+# stdlib-only and ~0.2 s; neither needs the sim, a venv or hardware.
+run_selftest "scripts/forensics/handoff_closing_speed.py --self-test (closing speed at handoff)" \
+    python3 "$ROOT/scripts/forensics/handoff_closing_speed.py" --self-test
+run_selftest "scripts/forensics/vertical_miss_anatomy.py --self-test (dash-delivered vertical error)" \
+    python3 "$ROOT/scripts/forensics/vertical_miss_anatomy.py" --self-test
+
 # NO LOG POLLUTION (audit hygiene fix, 2026-07-25): the field pack's scripts
 # each mkdir a timestamped run dir under logs/field/, so every invocation of
 # this runner used to leave ~8 REAL-LOOKING capture dirs behind (53 had piled

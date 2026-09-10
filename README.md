@@ -100,6 +100,19 @@ Hailo NPU**; **prop clearance is a geometry problem**, not a software one.
   a co-altitude target at the top of the frame; the pointing fix is a fixed
   up-tilt mount sized to the *measured* real dash pitch (build item, not
   yet validated).
+- **The terminal has no VERTICAL channel at all, and the miss is 82% vertical**
+  (found 2026-09-10, ADR-0099). Every seeker computes the target's elevation and
+  nothing in [`flight/`](flight/) consumes it: the only vertical command anywhere is
+  an altitude-hold P-loop to a preset height. ADR-0095 measured the adopted config's
+  residual as **0.374 m vertical against 0.174 m horizontal**, so nulling the
+  vertical term alone would leave 0.174 m — inside the 0.35 m ram radius. ADR-0085
+  *decided* a camera-driven vertical channel in July and no code was ever written.
+  So "the camera does not beat a well-aimed dash" is a fact about arms whose
+  guidance was structurally blind to the dominant error term. It is **not** evidence
+  the camera works — that stays untested — and the measured fix is a pre-flight
+  altitude trim (the vertical error is delivered by the dash), now built default-off
+  and never flown. [Analysis](docs/vertical_channel_analysis.md) ·
+  [pre-registration](docs/vertical_channel_prereg.md).
 - **"Works comms-denied" stays HELD** — see the box in the results section.
 
 

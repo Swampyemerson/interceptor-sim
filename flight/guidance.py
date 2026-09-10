@@ -477,3 +477,96 @@ def compensate_terminal_los(lambda_rad, bias_deg=0.0, los_rate_rad_s=None,
     if lead:
         out += lag_s * los_rate_rad_s
     return wrap_pi(out)
+
+
+# --- DASH ALTITUDE TRIM + HARD AGL FLOOR ------------------------------------
+#     ADR-0085 decided a camera-driven terminal vertical channel with a hard AGL
+#     minimum. NEITHER HALF WAS EVER WRITTEN (contradiction
+#     `terminal-vertical-channel-decided-not-built`, 2026-09-09). This is the
+#     half that the measurements say actually matters, plus the safety floor.
+#     Default-OFF and byte-identical, per this module's convention.
+#
+# WHY A DASH TRIM AND NOT A TERMINAL LAW -- the reasoning is measured, not assumed:
+#
+#  (1) The vertical error is DELIVERED BY THE DASH.
+#      `scripts/forensics/vertical_miss_anatomy.py` over the committed per-tick
+#      logs: the interceptor is off-altitude at CPA on 24 of 24 flights (median
+#      +0.485 m, i.e. ABOVE the target), and altitude drifts +0.320 m across the
+#      dash -- same sign, and 66% of the miss. The reference is not held through
+#      the dash, and whatever the terminal does afterwards inherits that offset.
+#
+#  (2) The terminal has almost no authority left to spend on it.
+#      `scripts/forensics/handoff_closing_speed.py` measured the pre-handoff
+#      closing speed at 17.60 m/s (median, 14 flights), not the 9.0 m/s the money
+#      gate assumes. Re-deriving 1/2*a*t_go^2 at the measured speeds leaves the
+#      AprilTag path 0.02-0.17 m of correction capacity. A terminal vertical law
+#      cannot null a ~0.4 m delivered offset out of 0.17 m of authority.
+#
+#  (3) The project already has the right precedent. Horizontal aim error was NOT
+#      fixed in the terminal either: ADR-0080 DERIVED the coded-dash crossing
+#      bias as a pre-flight constant ("DERIVE it, don't tune it") and ADR-0083
+#      adopted a measured +5 deg trim. This is the altitude analogue.
+#
+# DIRECTION OF THE SIGN, stated once because it is the easy thing to get backwards:
+# a POSITIVE measured drift means the vehicle ends the dash ABOVE where it should
+# be, so the reference must be LOWERED. `derive_dash_alt_trim_m` returns the
+# NEGATED drift for exactly that reason, and the test asserts it.
+#
+# NOT VALIDATED. Nothing here has flown, in sim or on hardware. The drift above
+# was measured on the CUE-ERA two-stage arms (phase `DASH`) because the coded-dash
+# per-tick archive is gitignored; the drift's SIGN is configuration-dependent (the
+# cue-era arms fly a running start and a loft, which climb) and ADR-0095's fleet
+# was LOW by 0.374 m. So the MECHANISM transfers and the NUMBER does not: re-run
+# both forensics with `--phase CODED_DASH` on the dev machine and derive the trim
+# from that fleet before any arm flies with a non-zero value.
+# Pre-registration: docs/vertical_channel_prereg.md.
+
+ALT_TRIM_SHARE_DEFAULT = 1.0     # correct the whole measured drift, not a fraction
+
+
+def derive_dash_alt_trim_m(measured_drift_m, share=ALT_TRIM_SHARE_DEFAULT):
+    """Altitude-reference trim (m) that cancels a MEASURED dash altitude drift.
+
+    `measured_drift_m` is (altitude at dash end) - (pre-dash altitude), the exact
+    quantity `scripts/forensics/vertical_miss_anatomy.py` prints as "altitude sag
+    over the dash". Positive = the vehicle ends the dash HIGH.
+
+    Returns the offset to ADD to the dash altitude reference, i.e. the negated
+    drift scaled by `share`. `share` < 1 exists so a first arm can correct only
+    part of a large drift rather than betting the whole engagement on one
+    unflown number; it is NOT a tuning knob and the default corrects in full.
+
+    DERIVED, never tuned (ADR-0080's rule): the input is a measurement, so a
+    reviewer can re-derive this from the same logs. Zero drift -> exactly 0.0, so
+    a flight with no measured drift is byte-identical to no trim at all.
+    """
+    d = float(measured_drift_m)
+    if d == 0.0:
+        return 0.0
+    return -d * float(share)
+
+
+def apply_alt_ref_trim(alt_ref_m, trim_m=0.0, min_agl_m=None):
+    """The dash/terminal altitude reference, trimmed and floored.
+
+    Two independent corrections, both default-inert:
+
+      * `trim_m`   -- the pre-flight constant from `derive_dash_alt_trim_m`.
+      * `min_agl_m` -- ADR-0085's HARD FLOOR: the reference is never allowed
+        below it, whatever the trim or a seeker elevation asks for. This is a
+        FLIGHT-SAFETY backstop, not a guidance term, and it is the reason the
+        floor lives here rather than in a caller: every reference in the flight
+        driver passes through one function, so the floor cannot be forgotten at
+        one call site. `None` = no floor (the pre-existing behaviour).
+
+    Returns `alt_ref_m` UNCHANGED (same value, no arithmetic applied) when the
+    trim is zero and no floor bites, so every previously validated result is
+    preserved exactly -- the same identity guarantee as
+    `compensate_terminal_los` and `camera_to_cg_los`.
+    """
+    if trim_m == 0.0 and min_agl_m is None:
+        return alt_ref_m
+    out = alt_ref_m + float(trim_m) if trim_m != 0.0 else alt_ref_m
+    if min_agl_m is not None and out < min_agl_m:
+        return float(min_agl_m)
+    return out

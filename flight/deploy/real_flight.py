@@ -58,6 +58,7 @@ COMPOSITION (this file adds a state machine and NOTHING else)
   * the dash aim            -> flight.guidance.collision_lead_heading_accel (ADR-0080)
   * the dash speed ramp     -> flight.guidance.dash_forward_speed
   * the loft-then-dive ref  -> flight.guidance.dash_loft_alt_ref
+  * the alt trim + AGL floor -> flight.guidance.apply_alt_ref_trim
   * the dash dead-reckoned distance -> flight.guidance.dash_ramp_distance
   * the MAVSDK connect/own-state/OFFBOARD pattern -> mirrors seeker_loop.run_mavsdk
     (including the connect() timeout + _kill_server trap measured 2026-07-24)
@@ -128,6 +129,7 @@ from flight.guidance import (  # noqa: E402
     collision_lead_heading,
     collision_lead_heading_accel,
     dash_forward_speed,
+    apply_alt_ref_trim,
     dash_loft_alt_ref,
     dash_ramp_distance,
 )
@@ -343,6 +345,28 @@ class MissionConfig:
     # --- vertical / hold control ----------------------------------------------
     kp_alt: float = 1.0
     v_vert_max_ms: float = 2.0
+    # ADR-0085 decided a camera-driven terminal vertical channel with a hard AGL
+    # minimum, and NEITHER HALF was ever written (contradiction
+    # `terminal-vertical-channel-decided-not-built`). These two land the half the
+    # measurements support plus the safety floor. Both DEFAULT-INERT: at 0.0/None
+    # `_v_down` is byte-identical to the pre-2026-09-10 behaviour.
+    #
+    # dash_alt_trim_m -- pre-flight constant from
+    #   flight.guidance.derive_dash_alt_trim_m(measured drift). The vertical error
+    #   is DELIVERED BY THE DASH (vertical_miss_anatomy.py: off-altitude at CPA on
+    #   24/24 committed flights, and dash drift is 66% of it) and the terminal has
+    #   0.02-0.17 m of authority left at measured closing speeds
+    #   (handoff_closing_speed.py) -- so it is corrected here, as ADR-0080/0083 did
+    #   for horizontal aim, not in the terminal.
+    #   TODO-BUILDER: derive from THIS airframe. The sign is
+    #   configuration-dependent (cue-era arms end HIGH, ADR-0095's fleet ended LOW),
+    #   so the mechanism transfers and the number does not. Leave 0.0 until measured.
+    # min_agl_m -- ADR-0085's hard floor. The reference never goes below it,
+    #   whatever a trim or a future seeker elevation asks for. TODO-BUILDER: set
+    #   from the site's own geometry before any props-on flight; None disables it,
+    #   which is the pre-existing (unfloored) behaviour and NOT a safe default.
+    dash_alt_trim_m: float = 0.0
+    min_agl_m: Optional[float] = None
 
     @property
     def aim_yaw_deg(self) -> float:
@@ -777,8 +801,16 @@ class RealFlightSM:
     # ---------------------------------------------------------------- setpoints
 
     def _v_down(self, obs: VehicleObs, alt_ref: float) -> float:
+        """Altitude-hold velocity toward `alt_ref`.
+
+        The trim and the hard AGL floor are applied HERE, at the one place every
+        state's vertical command passes through, so the floor cannot be forgotten
+        at one of the five call sites. Byte-identical when trim is 0.0 and no
+        floor is set (`apply_alt_ref_trim` returns its input untouched)."""
         if obs.alt_m is None:
             return 0.0
+        alt_ref = apply_alt_ref_trim(alt_ref, self.cfg.dash_alt_trim_m,
+                                     self.cfg.min_agl_m)
         return _clamp(self.cfg.kp_alt * (obs.alt_m - alt_ref),
                       -self.cfg.v_vert_max_ms, self.cfg.v_vert_max_ms)
 
