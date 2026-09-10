@@ -541,9 +541,20 @@ def derive_dash_alt_trim_m(measured_drift_m, share=ALT_TRIM_SHARE_DEFAULT):
     a flight with no measured drift is byte-identical to no trim at all.
     """
     d = float(measured_drift_m)
+    if d != d:
+        raise ValueError("derive_dash_alt_trim_m: measured_drift_m is NaN -- a "
+                         "trim derived from a missing measurement is exactly the "
+                         "substitute-a-default failure the error policy forbids")
+    sh = float(share)
+    if sh != sh or not (0.0 <= sh <= 1.0):
+        raise ValueError(f"derive_dash_alt_trim_m: share={share!r} outside [0, 1]. "
+                         f"share exists to correct only PART of a measured drift; "
+                         f"above 1.0 it is an unbounded tuning knob, which this "
+                         f"project's own rule (ADR-0080, derive don't tune) "
+                         f"forbids on a guidance path.")
     if d == 0.0:
         return 0.0
-    return -d * float(share)
+    return -d * sh
 
 
 def apply_alt_ref_trim(alt_ref_m, trim_m=0.0, min_agl_m=None):
@@ -566,7 +577,189 @@ def apply_alt_ref_trim(alt_ref_m, trim_m=0.0, min_agl_m=None):
     """
     if trim_m == 0.0 and min_agl_m is None:
         return alt_ref_m
+    # FAIL CLOSED ON NaN (review finding F10, 2026-09-10). `out < min_agl_m` is
+    # False for NaN, so a NaN trim used to sail straight past the safety floor and
+    # a NaN floor used to disable it silently -- the one input class a backstop
+    # must refuse. Neither is reachable from a config today; both are reachable
+    # from a future derived value, which is exactly how this class bites.
+    if min_agl_m is not None and min_agl_m != min_agl_m:
+        raise ValueError("apply_alt_ref_trim: min_agl_m is NaN -- a safety floor "
+                         "that cannot be compared is not a floor")
+    if trim_m != trim_m:
+        raise ValueError("apply_alt_ref_trim: trim_m is NaN -- refusing to bias "
+                         "the altitude reference by an uncomputable value")
     out = alt_ref_m + float(trim_m) if trim_m != 0.0 else alt_ref_m
     if min_agl_m is not None and out < min_agl_m:
         return float(min_agl_m)
     return out
+
+
+def floor_v_down(v_down, alt_m, min_agl_m=None, kp=1.0, v_vert_max=2.0):
+    """Clamp a COMMANDED vertical velocity so it can never fly below the floor.
+
+    THIS IS THE HALF THAT WAS MISSING (review finding F3, 2026-09-10). Trimming
+    the altitude REFERENCE only floors the states whose command is built from a
+    reference. The guided terminal does not use one: `_step_engage` returns the
+    seeker's own setpoint, and BREAKOFF and SAFE emit hardcoded vertical rates. So
+    the floor was absent from precisely the state ADR-0085 wrote it for -- "below
+    which the vehicle will not descend regardless of the seeker". A 30-line probe
+    falsified the claim: ENGAGE commanded +2.0 m/s down while 2 m under its own
+    floor.
+
+    SCOPE OF THAT CLAIM, corrected 2026-09-10 (review finding S11). This is
+    wired at ONE site: `flight/deploy/real_flight.py`'s `_decide`, the single exit
+    every state's setpoint funnels through there -- so within THAT module it
+    covers every state, including a setpoint the module never built. It is NOT
+    wired into `scripts/m4_intercept.py` at all, so the sim path has no AGL floor.
+    An earlier version of this sentence read as a project-wide guarantee, which is
+    the same over-broad "one function, so it cannot be forgotten" claim that
+    ADR-0099 finding F3 already had to retract once.
+
+    `v_down` is positive DOWN (NED). At or below the floor a descent is refused
+    and replaced by a proportional CLIMB, so the vehicle recovers rather than
+    hovering at the boundary. Above the floor the command passes through
+    UNCHANGED, so this is byte-identical whenever the floor is not set or not
+    breached.
+
+    Returns (v_down, floored) so a caller can log that it bit -- an actuator that
+    silently modifies a command is the defect class ADR-0096 was written about.
+    """
+    if min_agl_m is None or alt_m is None:
+        return v_down, False
+    if min_agl_m != min_agl_m or alt_m != alt_m:
+        raise ValueError("floor_v_down: NaN altitude or floor -- refusing to "
+                         "decide a safety clamp on an uncomputable comparison")
+    if alt_m > min_agl_m:
+        return v_down, False
+    # At or below the floor: never descend, and climb back proportionally.
+    climb = _clamp_symmetric(kp * (alt_m - min_agl_m), v_vert_max)
+    return min(v_down, climb, 0.0), True
+
+
+def _clamp_symmetric(x, lim):
+    lim = abs(float(lim))
+    return max(-lim, min(lim, x))
+
+
+# --------------------------------------------------------------------------
+# The vertical channel during a camera DROPOUT
+# --------------------------------------------------------------------------
+# WHY THIS EXISTS (2026-09-10; NOT SIM-VALIDATED, and read the ATTRIBUTION
+# section before quoting any number from it).
+#
+# WHAT IS MEASURED. `scripts/forensics/vertical_miss_anatomy.py` decomposes the
+# vertical separation at closest approach on the 16 committed cue-era flights
+# into three additive terms. Paired per-flight medians, n=13:
+#
+#     origin (settled pre-dash offset)   +0.127 m   23%  (range 15-30%)
+#     dash_delta (hover -> dash end)     +0.012 m   10%  (range  1-43%)
+#     post_dash_delta (dash end -> CPA)  +0.348 m   66%  (range 29-78%)
+#
+# So the vertical error is NOT delivered by the dash. Measured against a SETTLED
+# pre-dash hover the altitude hold is essentially perfect across the dash
+# (-0.019 m, robust from -0.012 to -0.025 across six baseline windows); most of
+# the excursion arrives after handoff. ADR-0099 reason (1) -- "the error is
+# delivered by the dash, so correct it there" -- is REFUTED on this fleet.
+#
+# THE CODE DEFECT, which is real and is why this lever exists. The ENGAGE
+# terminal recomputes an altitude-hold P-loop on every tick WITH a fresh
+# detection -- `cmd_vd` matches `clamp(KP_ALT*(alt_m - ALT_REF_M))` on 150/150
+# such ticks -- but its dropout branch does not:
+#
+#   * FAR dropout issues `cmd = (0.0, 0.0, 0.0, psi)`, abandoning the altitude
+#     hold, and stores that tuple as `last_cmd`;
+#   * NEAR dropout issues `cmd = last_cmd`, re-issuing that zero indefinitely.
+#
+# On ENGAGE ticks where the P-loop would have commanded more than 0.01 m/s the
+# vertical was zeroed on 0/150 ticks WITH a detection and 792/877 WITHOUT one,
+# and the zero latched for the rest of the terminal on 10 of the 14 flights that
+# reached ENGAGE (2 of the 16 never engaged at all -- the denominator is 14, not
+# 16).
+#
+# ATTRIBUTION -- WHAT THIS FLEET CANNOT SHOW, AND WHY THE HONEST PREDICTION IS A
+# NULL. Two independent checks say the vertical zero is NOT established as the
+# cause of the excursion:
+#
+#  1. THE VERTICAL AND HORIZONTAL ZEROS ARE THE SAME EVENT. The far-dropout
+#     branch zeroes all three velocity components together. Over the same ENGAGE
+#     ticks: both zeroed 792, vertical-only 0, horizontal-only 0 -- perfectly
+#     collinear, no discordant tick. And the horizontal event is far more
+#     energetic: commanded horizontal speed goes from 16.00 m/s at the dash tail
+#     to 0.00 m/s on the first far-dropout tick. A multicopter handed a full-stop
+#     brake at 16 m/s pitches up and BALLOONS, which is a sufficient -- and much
+#     larger -- explanation for a +0.35 m climb than a missing 0.5 m/s-authority
+#     altitude hold. This is the separately-documented `coast_zero` defect
+#     (docs/audit_2026-07-25_whats_left.md). Because the two are collinear,
+#     SEPARATING them is what makes attribution impossible, not what enables it.
+#
+#  2. THE AVAILABLE CONTROL ARM ARGUES AGAINST IT. On the 4 flights where the
+#     vertical command SURVIVED, the vehicle climbed anyway -- 0.28 to 0.65 m --
+#     while its mean commanded vertical velocity was a DESCENT (+0.07 to
+#     +0.26 m/s down). Their post-handoff term is statistically indistinguishable
+#     from the latched flights (+0.429 m for n=4 against +0.498 m for n=10). The
+#     latch is also confounded with terminal duration: latched terminals last
+#     2.2-2.8 s against 0.4-0.8 s, so "latched" is largely a proxy for "the
+#     terminal lasted longer".
+#
+# There is also a prior question neither lever answers: the altitude loop shows a
+# persistent ~-0.087 m steady-state error in hover while continuously commanding
+# -0.087 m/s, i.e. the commanded vertical velocity is not being delivered. Both
+# this lever and ADR-0099's trim assume that loop has authority. That cannot be
+# root-caused without a sim run.
+#
+# SO THE CLAIM THIS LEVER MAKES is architectural, not empirical: `alt_m` is
+# own-state (EKF/barometer), carries no target information, and is available on
+# every tick, so abandoning the altitude hold during a CAMERA dropout needs
+# nothing the vehicle has lost. It buys no robustness; it is a pure loss. Fixing
+# it is right on its own merits. It is NOT established as the fix for the 66%,
+# and the pre-registered prediction for a vertical-only arm is a NULL
+# (docs/vertical_channel_prereg.md section 8, which also registers why the arm
+# must be run as a 2x2 with the coast gate rather than standalone).
+#
+# A quarter of the post-handoff term is not the airframe at all: `gt_cam_z -
+# alt_m`, which should be a constant geometric offset, moves +0.087 m from hover
+# to CPA (24% of post_dash_delta) because the camera rides a forward boom that
+# lifts under pitch.
+#
+# SCOPE, stated plainly: the two branches above are LIVE in the current
+# `scripts/m4_intercept.py`; every magnitude here is from the cue-era two-stage
+# `--handoff` fleet of 2026-07-09 (phase `DASH`, not `CODED_DASH`), which is OFF
+# the adopted configuration, and whose terminal had a detection on only 155 of
+# 1032 ENGAGE ticks. The honesty boundary is untouched -- no `gt_*` value enters
+# this function. This lever has NEVER FLOWN, in sim or otherwise; it is
+# default-OFF and byte-identical when off.
+#
+# WHAT THIS DELIBERATELY DOES NOT DO: fix the horizontal half of the same latch.
+# That is a bigger change with its own lever (`--terminal-coast-gate`) and its own
+# evidence. Per (1) above, that ordering means a vertical-only arm is NOT
+# interpretable on its own -- which is registered as a constraint on the arm, not
+# hidden as a caveat here.
+
+
+def preserve_dropout_vertical(cmd, v_down_fresh, enable=False):
+    """Restore a FRESHLY COMPUTED vertical term on a dropout command.
+
+    `cmd` is a 4-tuple `(vn, ve, v_down, yaw)` in the NED velocity-setpoint
+    convention PX4's `set_velocity_ned` takes; `v_down` is positive DOWN.
+
+    Default OFF, and when off this returns the SAME OBJECT it was given -- not an
+    equal copy -- so the setpoint stream is byte-identical and a test can assert
+    identity rather than approximate equality. It is also a no-op when
+    `v_down_fresh` is None (no altitude estimate this tick), because inventing a
+    vertical command from a missing measurement is exactly the fail-closed
+    violation `docs/error_handling_policy.md` forbids.
+
+    Only the vertical term is touched. The horizontal hold and the yaw setpoint
+    are passed through untouched by construction, so this cannot change the
+    horizontal behaviour whose defect is tracked separately.
+    """
+    if not enable or v_down_fresh is None:
+        return cmd
+    v = float(v_down_fresh)
+    if v != v:
+        raise ValueError(
+            "preserve_dropout_vertical: v_down_fresh is NaN -- refusing to "
+            "command a vertical velocity from a broken altitude estimate. "
+            "Pass None to hold the existing command instead.")
+    vn, ve, _vd, yaw = cmd
+    return (vn, ve, v, yaw)

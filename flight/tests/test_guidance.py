@@ -20,6 +20,7 @@ from flight.guidance import (
     dash_loft_alt_ref,
     derive_dash_alt_trim_m,
     apply_alt_ref_trim,
+    floor_v_down,
     resolve_terminal_bearing_bias_deg,
     GRAVITY_MS2,
 )
@@ -499,7 +500,6 @@ def test_alt_trim_default_is_exact_identity():
     for ref in (0.0, 0.5, 1.0, 5.0, 7.0, 0.1, 1e-9, 123.456789, 1e6):
         out = apply_alt_ref_trim(ref)
         assert out == ref, f"{ref} -> {out}"
-        assert out is ref or isinstance(out, float)
         # explicit zero trim + no floor must also be a no-op
         assert apply_alt_ref_trim(ref, 0.0, None) == ref
 
@@ -561,6 +561,195 @@ def test_trim_composes_with_the_loft_dive_reference():
         assert apply_alt_ref_trim(plain) == plain
 
 
+def test_floor_v_down_is_inert_without_a_floor():
+    """No floor, or no altitude, must pass the command through untouched -- the
+    byte-identity half of the safety clamp."""
+    for v in (2.0, -2.0, 0.0, 0.37):
+        assert floor_v_down(v, 7.0, None) == (v, False)
+        assert floor_v_down(v, None, 5.0) == (v, False)
+
+
+def test_floor_v_down_refuses_descent_at_or_below_the_floor():
+    """The property ADR-0085 actually asks for: not descending, regardless of what
+    produced the command. Includes the exact-boundary case."""
+    v, floored = floor_v_down(+2.0, 4.0, 5.0)          # 1 m below
+    assert floored and v < 0.0, (v, floored)
+    v, floored = floor_v_down(+2.0, 5.0, 5.0)          # exactly at the floor
+    assert floored and v <= 0.0, (v, floored)
+    v, floored = floor_v_down(+2.0, 5.001, 5.0)        # just above -> untouched
+    assert (v, floored) == (2.0, False)
+
+
+def test_floor_v_down_never_makes_a_climb_worse():
+    """A command that is already climbing must not be weakened by the clamp."""
+    v, floored = floor_v_down(-1.5, 4.0, 5.0)
+    assert floored and v <= -1.0, (v, floored)
+
+
+def test_floor_v_down_climb_is_bounded_by_the_vertical_limit():
+    """Deep below the floor the recovery climb must respect the vehicle's clamp,
+    not command an arbitrary rate."""
+    v, floored = floor_v_down(+2.0, -50.0, 5.0, kp=1.0, v_vert_max=2.0)
+    assert floored and v == -2.0, (v, floored)
+
+
+def test_the_safety_clamp_fails_closed_on_nan():
+    """`out < floor` is False for NaN, so NaN used to sail straight past the
+    backstop and a NaN floor used to disable it silently. Both must raise."""
+    nan = float("nan")
+    for bad in (dict(trim_m=nan, min_agl_m=2.0), dict(trim_m=0.5, min_agl_m=nan)):
+        try:
+            apply_alt_ref_trim(5.0, **bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"NaN accepted: {bad}")
+    for args in ((2.0, nan, 5.0), (2.0, 4.0, nan)):
+        try:
+            floor_v_down(*args)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"NaN accepted by floor_v_down: {args}")
+    try:
+        derive_dash_alt_trim_m(nan)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("a trim derived from a NaN measurement was accepted")
+
+
+def test_share_is_bounded_so_it_cannot_become_a_tuning_knob():
+    """`share` is documented as NOT a tuning knob; unbounded it was one. Above 1.0
+    it amplifies a measured drift, which the derive-don't-tune rule forbids on a
+    guidance path."""
+    for bad in (1.5, 3.0, -0.1, float("nan")):
+        try:
+            derive_dash_alt_trim_m(0.32, share=bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"share={bad} accepted")
+    assert derive_dash_alt_trim_m(0.32, share=1.0) == -0.32
+    assert derive_dash_alt_trim_m(0.32, share=0.0) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# preserve_dropout_vertical -- the ENGAGE dropout vertical channel (2026-09-10)
+# ---------------------------------------------------------------------------
+# These pin the two properties the change is allowed to have: OFF is byte-
+# identical, and ON touches ONLY the vertical term. The byte-identity assertion
+# is `is`, not `==`, because an equal-but-new tuple is what let an earlier
+# version of this pattern pass while a +0.4 m mutant slipped through.
+
+def test_dropout_vertical_off_returns_the_same_object():
+    from flight.guidance import preserve_dropout_vertical
+    cmd = (1.5, -2.5, 0.125, 47.0)
+    assert preserve_dropout_vertical(cmd, 0.47) is cmd
+    assert preserve_dropout_vertical(cmd, 0.47, enable=False) is cmd
+    # and it must not be fooled into acting on a falsy-but-real fresh value
+    assert preserve_dropout_vertical(cmd, 0.0) is cmd
+
+
+def test_dropout_vertical_off_is_byte_identical_over_a_whole_stream():
+    """A tick-by-tick stream comparison, not a spot check.
+
+    A spot check on one tuple cannot see a lever that bites only after some
+    state accumulates. This replays a synthetic dropout stream through both the
+    OFF path and the untouched command and requires EVERY tick to be identical.
+    """
+    from flight.guidance import preserve_dropout_vertical
+    stream = [(0.1 * i, -0.2 * i, 0.01 * i, float(i)) for i in range(200)]
+    for i, cmd in enumerate(stream):
+        fresh = 0.5 - 0.01 * i           # a vertical that WOULD differ every tick
+        assert preserve_dropout_vertical(cmd, fresh) is cmd, f"tick {i}"
+
+
+def test_dropout_vertical_on_replaces_only_the_vertical():
+    from flight.guidance import preserve_dropout_vertical
+    cmd = (1.5, -2.5, 0.0, 47.0)
+    out = preserve_dropout_vertical(cmd, 0.47, enable=True)
+    assert out == (1.5, -2.5, 0.47, 47.0)
+    # horizontal and yaw pass through EXACTLY -- the horizontal zero-latch is a
+    # separate defect and this lever must not be able to touch it.
+    assert (out[0], out[1], out[3]) == (cmd[0], cmd[1], cmd[3])
+
+
+def test_dropout_vertical_on_actually_changes_a_zeroed_command():
+    """The measured failure mode: an all-zero dropout command must gain a hold."""
+    from flight.guidance import preserve_dropout_vertical
+    zeroed = (0.0, 0.0, 0.0, 90.0)
+    out = preserve_dropout_vertical(zeroed, 0.473, enable=True)
+    assert out[2] == 0.473
+    assert out is not zeroed
+
+
+def test_dropout_vertical_fails_closed_on_a_missing_altitude():
+    """No altitude estimate -> hold, never invent a command from nothing."""
+    from flight.guidance import preserve_dropout_vertical
+    cmd = (0.0, 0.0, 0.0, 90.0)
+    assert preserve_dropout_vertical(cmd, None, enable=True) is cmd
+
+
+def test_dropout_vertical_rejects_nan():
+    """No pytest.raises here: this file also runs as a plain script, and a
+    `import pytest` inside a test makes that mode impossible."""
+    from flight.guidance import preserve_dropout_vertical
+    try:
+        preserve_dropout_vertical((0.0, 0.0, 0.0, 90.0), float("nan"), enable=True)
+    except ValueError as exc:
+        assert "NaN" in str(exc)
+    else:
+        raise AssertionError("a NaN vertical must be refused, not commanded")
+
+
+def test_the_dropout_lever_is_wired_at_exactly_one_exit():
+    """AST guard: both dropout branches must funnel through ONE call.
+
+    The previous change in this area claimed "the one function every vertical
+    command passes through" and was wrong -- the floor was missing from three
+    states. So this asserts the property structurally instead of trusting prose:
+    `scripts/m4_intercept.py` calls `preserve_dropout_vertical` exactly once, and
+    the CLI flag defaults to OFF.
+    """
+    import ast
+    import pathlib
+    # REPO-ROOT ANCHORED, not cwd-relative: a cwd-relative path here was the only
+    # one in flight/tests/ and it ERRORS (does not skip) when pytest is invoked
+    # from anywhere but the repo root.
+    repo = pathlib.Path(__file__).resolve().parents[2]
+    src = (repo / "scripts" / "m4_intercept.py").read_text()
+    tree = ast.parse(src)
+    calls = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == "preserve_dropout_vertical"]
+    assert len(calls) == 1, f"expected exactly one call site, found {len(calls)}"
+
+    # AND IT MUST BE IN THE DROPOUT BRANCH. Asserting only the COUNT would let
+    # the call move into the ENGAGE body, where it would run on detected ticks
+    # too and stop being byte-identical-when-off in any meaningful sense. So walk
+    # for an `if detected: ... else: ...` whose `orelse` contains the call.
+    call = calls[0]
+    in_dropout_else = False
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If) or not node.orelse:
+            continue
+        if not (isinstance(node.test, ast.Name) and node.test.id == "detected"):
+            continue
+        if any(call is c for stmt in node.orelse for c in ast.walk(stmt)):
+            in_dropout_else = True
+            break
+    assert in_dropout_else, (
+        "preserve_dropout_vertical is called, but NOT inside the `else:` of the "
+        "ENGAGE `if detected:` branch. Outside that branch it would also rewrite "
+        "the vertical on ticks that HAVE a detection, which is a different (and "
+        "unregistered) change.")
+    # store_true means the default is False -- OFF, hence byte-identical.
+    assert '"--dropout-hold-vertical", action="store_true"' in src
+    # and it must never appear with a default that turns it on
+    assert "dropout_hold_vertical=True" not in src
+
+
 ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_north,
        test_uncatchable_falls_back_to_initial, test_lr_rl_mirror_symmetry,
        test_explicit_origin_offset, test_closing_speed_floor_and_measured,
@@ -592,7 +781,51 @@ ALL = [test_flight0_lead, test_stationary_aims_at_target, test_head_on_aims_nort
        test_derive_then_apply_cancels_the_drift,
        test_agl_floor_clamps_and_wins_over_the_trim,
        test_agl_floor_none_is_not_treated_as_zero,
-       test_trim_composes_with_the_loft_dive_reference]
+       test_trim_composes_with_the_loft_dive_reference,
+       test_floor_v_down_is_inert_without_a_floor,
+       test_floor_v_down_refuses_descent_at_or_below_the_floor,
+       test_floor_v_down_never_makes_a_climb_worse,
+       test_floor_v_down_climb_is_bounded_by_the_vertical_limit,
+       test_the_safety_clamp_fails_closed_on_nan,
+       test_share_is_bounded_so_it_cannot_become_a_tuning_knob,
+       test_dropout_vertical_off_returns_the_same_object,
+       test_dropout_vertical_off_is_byte_identical_over_a_whole_stream,
+       test_dropout_vertical_on_replaces_only_the_vertical,
+       test_dropout_vertical_on_actually_changes_a_zeroed_command,
+       test_dropout_vertical_fails_closed_on_a_missing_altitude,
+       test_dropout_vertical_rejects_nan,
+       test_the_dropout_lever_is_wired_at_exactly_one_exit]
+
+def test_every_test_in_this_file_is_registered_in_ALL():
+    """The `ALL` list drives SCRIPT mode; pytest ignores it. So a test appended
+    after the `__main__` block, or simply forgotten, runs under pytest and is
+    invisible to `python3 flight/tests/test_guidance.py` -- which then prints a
+    confident "N/N passed" for an N that is not the number of tests in the file.
+    That happened: 7 dropout tests were defined past the `__main__` block and
+    absent from `ALL`, so script mode reported 43/43 out of 50. A self-test that
+    under-reports its own coverage is the failure mode CLAUDE.md names.
+    """
+    import ast
+    import pathlib
+    src = pathlib.Path(__file__).resolve().read_text()
+    tree = ast.parse(src)
+    defined = {n.name for n in tree.body
+               if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")}
+    registered = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == "ALL" for t in node.targets):
+            registered = {e.id for e in node.value.elts if isinstance(e, ast.Name)}
+    missing = sorted(defined - registered - {
+        # this test itself cannot be in ALL: it reads the file at import time and
+        # is about the list, not about guidance.
+        "test_every_test_in_this_file_is_registered_in_ALL"})
+    assert not missing, (
+        f"{len(missing)} test(s) are defined but NOT in the ALL list, so script "
+        f"mode will silently skip them: {missing}")
+    extra = sorted(registered - defined)
+    assert not extra, f"ALL names test(s) that no longer exist: {extra}"
+
 
 if __name__ == "__main__":
     import sys

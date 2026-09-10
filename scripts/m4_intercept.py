@@ -252,6 +252,7 @@ from flight.guidance import (  # noqa: E402
     crossing_sign,
     dash_forward_speed,
     dash_loft_alt_ref,
+    preserve_dropout_vertical,
     resolve_terminal_bearing_bias_deg,
 )
 # P0.4 camera lever-arm guard (pure, no gz/gt): tie --cam-fwd-offset-m to the
@@ -2305,6 +2306,22 @@ def parse_args():
              "range disagrees with this protected coast by more than this many "
              "metres -> coast through the false lock. Typical: 6 m.")
     parser.add_argument(
+        "--dropout-hold-vertical", action="store_true",
+        help="2026-09-10 forensic finding (default OFF = byte-identical): keep "
+             "the altitude-hold P-loop RUNNING through an ENGAGE camera "
+             "dropout. Today both dropout branches abandon the vertical "
+             "command -- the far one issues an all-zero setpoint and stores it "
+             "as last_cmd, the near one re-issues that zero -- so on the 16 "
+             "committed cue-era flights the vertical was zeroed on 792/877 "
+             "dropout ticks and LATCHED for the rest of the terminal on 10 of "
+             "the 14 that reached ENGAGE. The case for fixing it is "
+             "ARCHITECTURAL: alt_m is own-state, so the hold needs nothing the "
+             "camera lost. It is NOT established as the cause of the vertical "
+             "miss -- the same branch zeroes the horizontal on the same ticks "
+             "(a 16 m/s -> 0 brake) and the flights that kept their vertical "
+             "command climbed anyway. Pre-registered prediction is a NULL: "
+             "docs/vertical_channel_prereg.md section 8. NEVER FLOWN.")
+    parser.add_argument(
         "--breakoff-deadband-m", type=float, default=0.0,
         help="Audit #37 (default 0.0 = OFF, byte-identical): noise deadband on "
              "the past-CPA range-increase breakoff. A fresh detection only "
@@ -3085,6 +3102,9 @@ async def run_acquire_and_engage(
     last_cue_seq_seen = None
     tracker_correction_count = 0
     terminal_rejects = 0   # ADR-0056: ENGAGE false-lock detections gated out
+    # One-shot notice for --dropout-hold-vertical, so a reader of the run log
+    # can see the lever bit without a new CSV column.
+    _dropout_vert_notice = False
     # Phantom range-plausibility gate (ADR-0076 add #5/#6 diagnosis; see the
     # module-level comment above phantom_range_reject() for the mechanism).
     # Env read ONCE per run (not per tick). Default OFF ("0") -> phantom_gate_on
@@ -4352,6 +4372,60 @@ async def run_acquire_and_engage(
                         abort_reason = (
                             f"lost tag for more than {LOST_TAG_ABORT_S}s (far from target)"
                         )
+
+                # THE VERTICAL CHANNEL IS NOT A CASUALTY OF A CAMERA DROPOUT
+                # (2026-09-10; default OFF, byte-identical when off).
+                #
+                # Both branches above drop the altitude hold: the far one issues
+                # an all-zero cmd (and stores it as last_cmd), the near one
+                # re-issues that stored zero. `alt_m` is own-state, so the hold
+                # needs nothing the camera just lost -- that is the argument for
+                # this lever, and it is ARCHITECTURAL, not empirical.
+                #
+                # IT IS NOT ESTABLISHED AS THE FIX FOR THE VERTICAL MISS. The
+                # far-dropout branch zeroes the horizontal on the SAME ticks
+                # (792 both, 0 discordant either way) and that is a 16 m/s -> 0
+                # brake, a larger candidate for the observed climb; and on the 4
+                # flights where the vertical command survived the vehicle climbed
+                # anyway, against a commanded descent. Full accounting and the
+                # registered NULL prediction: flight/guidance.py's
+                # preserve_dropout_vertical block and
+                # docs/vertical_channel_prereg.md section 8.
+                #
+                # This is the ONE exit both dropout branches pass through, so the
+                # vertical cannot be forgotten in one of them. It touches only the
+                # vertical term; the horizontal zero-latch is the separate
+                # `coast_zero` defect and is deliberately left alone.
+                #
+                # NaN, NOT JUST None: `_clamp` is max(lo, min(hi, x)) and
+                # max(-0.5, min(0.5, nan)) returns +0.5 -- a NaN altitude would
+                # otherwise be laundered into a FULL-RATE DESCEND command rather
+                # than caught. `alt_m == alt_m` is the NaN test.
+                _vd_fresh = (
+                    _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                    if (alt_m is not None and alt_m == alt_m) else None
+                )
+                # NOT ON AN ABORT TICK. `aborted` is set just above when the tag
+                # has been lost far from the target for too long; the hover
+                # command it leaves is the intended behaviour and a vertical
+                # velocity is not.
+                if not aborted:
+                    cmd = preserve_dropout_vertical(
+                        cmd, _vd_fresh, enable=args.dropout_hold_vertical)
+                    # `last_cmd` is refreshed too, so it keeps meaning "the last
+                    # command actually emitted". Without this the near-dropout
+                    # branch would re-issue a stale vertical on the next tick and
+                    # last_cmd would silently stop matching what was sent.
+                    if args.dropout_hold_vertical:
+                        last_cmd = cmd
+                if args.dropout_hold_vertical and not _dropout_vert_notice:
+                    _dropout_vert_notice = True
+                    print("[m4] dropout vertical hold ACTIVE (first ENGAGE "
+                          "dropout tick): the altitude-hold P-loop keeps running "
+                          "through camera dropouts. NOT SIM-VALIDATED, and NOT "
+                          "established as the cause of the vertical miss -- see "
+                          "docs/vertical_channel_prereg.md section 8.",
+                          flush=True)
 
             if not breakoff_reason and engage_elapsed > ENGAGE_TIMEOUT_S:
                 breakoff_reason = f"engage phase exceeded {ENGAGE_TIMEOUT_S}s timeout"

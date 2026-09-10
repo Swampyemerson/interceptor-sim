@@ -131,6 +131,7 @@ from flight.guidance import (  # noqa: E402
     dash_forward_speed,
     apply_alt_ref_trim,
     dash_loft_alt_ref,
+    floor_v_down,
     dash_ramp_distance,
 )
 from flight.deploy.seeker_loop import (  # noqa: E402
@@ -466,6 +467,12 @@ class Decision:
     terminated: bool = False
     safe_reason: Optional[str] = None
     telemetry: Optional[StepTelemetry] = None
+    # The EFFECTIVE vertical reference this tick's command was built from, and
+    # whether the AGL floor clamped it. Carried on the Decision so `_csv_row` can
+    # log what was APPLIED rather than re-deriving what it thinks should have been
+    # (review F11; the ADR-0096 lesson about actuators that log intent).
+    alt_ref_m: Optional[float] = None
+    floor_active: bool = False
 
 
 # ---------------------------------------------------------------- pure helpers
@@ -653,6 +660,58 @@ class RealFlightSM:
         self._gs_last_v: float = 0.0
         self._warned_own_state = False
         self.last_telemetry: Optional[StepTelemetry] = None  # for the CSV row
+        # AGL-floor bookkeeping (ADR-0085's half, review F3). `_last_alt_m` is the
+        # altitude the CURRENT tick reported, kept so the floor can be applied at
+        # `_decide` -- the one exit every state funnels through, including the
+        # states that never build a command from a reference.
+        self._last_obs_t: Optional[float] = None
+        self._last_alt_m: Optional[float] = None
+        self._last_alt_ref_m: Optional[float] = None
+        self._floor_warned = False         # the clamp is announced once, not per tick
+        self._floor_active = False         # exposed so a caller/CSV can log that it bit
+        self._validate_vertical_config()
+
+    def _validate_vertical_config(self) -> None:
+        """Refuse an incoherent vertical config at CONSTRUCTION, not at 200 m.
+
+        `MissionConfig` had no validator at all (review finding F11), so three
+        incoherent combinations were silently accepted. Each raises here with the
+        arithmetic in the message, because a guidance constant that cannot be
+        justified from a measurement is the failure this project has a rule about.
+        """
+        c = self.cfg
+        t = c.dash_alt_trim_m
+        if t != t:
+            raise ValueError("dash_alt_trim_m is NaN")
+        # DELIBERATELY NOT a rule about `alt_tol_m`. The first version of this
+        # validator refused |trim| >= alt_tol_m, which reads plausibly and is
+        # wrong: it ties the trim to the ARM GATE's tolerance, two unrelated
+        # quantities, and it rejected -0.320 m -- the exact value ADR-0099 derives.
+        # A validator that refuses the project's own documented experiment is a
+        # worse defect than the one it was guarding. The gate coupling was a real
+        # bug (review F1) and it was fixed STRUCTURALLY: the trim no longer touches
+        # the standby hold at all, so there is nothing left for a magnitude rule to
+        # protect. What remains is genuine incoherence only.
+        if abs(t) >= c.dash_base_alt_m:
+            raise ValueError(
+                f"dash_alt_trim_m={t:+.3f} m is >= dash_base_alt_m="
+                f"{c.dash_base_alt_m} m, which would drive the dash reference to "
+                f"or below zero. That is a mis-derived drift, not a trim.")
+        if c.min_agl_m is not None:
+            f = c.min_agl_m
+            if f != f:
+                raise ValueError("min_agl_m is NaN -- a floor that cannot be "
+                                 "compared is not a floor")
+            if f >= c.standby_alt_m:
+                raise ValueError(
+                    f"min_agl_m={f} m is at or above standby_alt_m="
+                    f"{c.standby_alt_m} m, so the vehicle can never satisfy the "
+                    f"arm gate and hold above the floor at the same time.")
+            if f >= c.dash_base_alt_m:
+                raise ValueError(
+                    f"min_agl_m={f} m is at or above dash_base_alt_m="
+                    f"{c.dash_base_alt_m} m: the floor would silently truncate the "
+                    f"dash profile the whole engagement is aimed with.")
 
     # ---------------------------------------------------------------- logging
 
@@ -801,16 +860,21 @@ class RealFlightSM:
     # ---------------------------------------------------------------- setpoints
 
     def _v_down(self, obs: VehicleObs, alt_ref: float) -> float:
-        """Altitude-hold velocity toward `alt_ref`.
+        """Altitude-hold velocity toward `alt_ref`. Byte-identical to the
+        pre-2026-09-10 form: the caller passes whatever reference it wants and
+        NOTHING is applied here.
 
-        The trim and the hard AGL floor are applied HERE, at the one place every
-        state's vertical command passes through, so the floor cannot be forgotten
-        at one of the five call sites. Byte-identical when trim is 0.0 and no
-        floor is set (`apply_alt_ref_trim` returns its input untouched)."""
+        The trim used to be applied here and that was WRONG in two ways (review
+        findings F1/F7): it biased the STANDBY hold, which the arm gate then
+        compared against the UNTRIMMED config value, so a trim larger than
+        `alt_tol_m` = 0.3 m failed the gate at GO and dropped the mission into
+        absorbing SAFE -- at the very value ADR-0099 derives, 0.320 m. The trim is
+        a DASH reference correction and now only the dash and terminal references
+        carry it. The FLOOR moved to the emitted command instead (`_decide`),
+        because three states never build a command from a reference at all."""
+        self._last_alt_ref_m = alt_ref        # for the CSV column
         if obs.alt_m is None:
             return 0.0
-        alt_ref = apply_alt_ref_trim(alt_ref, self.cfg.dash_alt_trim_m,
-                                     self.cfg.min_agl_m)
         return _clamp(self.cfg.kp_alt * (obs.alt_m - alt_ref),
                       -self.cfg.v_vert_max_ms, self.cfg.v_vert_max_ms)
 
@@ -830,6 +894,7 @@ class RealFlightSM:
 
             v(t)     = dash_forward_speed(speed, accel_cap, t_since_dash)
             alt_ref  = dash_loft_alt_ref(base_alt, loft, t_since_dash, dive_s)
+            alt_ref  = apply_alt_ref_trim(alt_ref, cfg.dash_alt_trim_m, None)
             v_N, v_E = v*cos(heading), v*sin(heading)     (compass azimuth)
             yaw      = heading   (nose on the dash line, so the camera looks
                                   where the aircraft is going)
@@ -840,6 +905,7 @@ class RealFlightSM:
         v = dash_forward_speed(cfg.dash_speed_ms, cfg.dash_accel_cap_ms2, elapsed)
         alt_ref = dash_loft_alt_ref(cfg.dash_base_alt_m, cfg.dash_loft_m,
                                     elapsed, cfg.dash_loft_dive_s)
+        alt_ref = apply_alt_ref_trim(alt_ref, cfg.dash_alt_trim_m, None)
         h_deg = self.dash_heading.value
         h = math.radians(h_deg)
         self._last_yaw_cmd_deg = h_deg
@@ -860,13 +926,16 @@ class RealFlightSM:
                             self._last_yaw_cmd_deg)
         d = self._last_dash_sp
         return Setpoint(d.v_north, d.v_east,
-                        self._v_down(obs, self.cfg.dash_base_alt_m),
+                        self._v_down(obs, apply_alt_ref_trim(
+                            self.cfg.dash_base_alt_m,
+                            self.cfg.dash_alt_trim_m, None)),
                         self._last_yaw_cmd_deg)
 
     # ---------------------------------------------------------------- step
 
     def step(self, obs: VehicleObs) -> Decision:
         events: List[str] = []
+        self._last_alt_m = obs.alt_m          # the floor at `_decide` reads this
         if self.t0 is None:
             self.t0 = obs.t
             self.t_state = obs.t
@@ -917,6 +986,35 @@ class RealFlightSM:
         return self._decide(before, transition_before, sp, events, None)
 
     def _decide(self, before, transition_before, sp, events, tel) -> Decision:
+        # ADR-0085's HARD FLOOR, applied to the EMITTED command (review F3/F4).
+        # It used to live in `_v_down`, which three states never call: ENGAGE
+        # returns the SEEKER's own setpoint, and BREAKOFF and SAFE emit hardcoded
+        # vertical rates. So the floor was missing from exactly the state ADR-0085
+        # wrote it for -- "below which the vehicle will not descend regardless of
+        # the seeker" -- and a probe showed ENGAGE commanding +2.0 m/s down while
+        # 2 m UNDER its own floor. Here it covers every state, including a setpoint
+        # this module never built. Byte-identical when `min_agl_m is None`.
+        obs_t_for_log = self._last_obs_t if self._last_obs_t is not None else 0.0
+        # RESET FIRST, so the CSV column cannot report a STALE True. It was set
+        # only inside the branch below, so after a tick where the floor bit, any
+        # later tick with `sp is None` (or with the floor disabled) kept
+        # reporting floor_active=1 -- in the very column that was added for
+        # observability. A flag that lies about the current tick is worse than no
+        # flag (review finding S11).
+        self._floor_active = False
+        if sp is not None and self.cfg.min_agl_m is not None:
+            v_down, floored = floor_v_down(
+                sp.v_down, self._last_alt_m, self.cfg.min_agl_m,
+                self.cfg.kp_alt, self.cfg.v_vert_max_ms)
+            if floored:
+                sp = Setpoint(sp.v_north, sp.v_east, v_down, sp.yaw_deg)
+                if not self._floor_warned:
+                    self._floor_warned = True
+                    self._emit(f"[{obs_t_for_log:7.2f}s] AGL FLOOR: refusing "
+                               f"descent at {self._last_alt_m} m (floor "
+                               f"{self.cfg.min_agl_m} m) -- clamping v_down in "
+                               f"{self.state}. Logged once.", events)
+            self._floor_active = floored
         tr = (self.transitions[-1]
               if len(self.transitions) > transition_before else None)
         terminated = False
@@ -926,7 +1024,8 @@ class RealFlightSM:
                         transition=tr, streak=self.streak,
                         land_requested=(self.state == State.SAFE),
                         terminated=terminated, safe_reason=self.safe_reason,
-                        telemetry=tel)
+                        telemetry=tel, alt_ref_m=self._last_alt_ref_m,
+                        floor_active=self._floor_active)
 
     # -- STANDBY ---------------------------------------------------------------
 
@@ -1609,7 +1708,11 @@ _CSV_FIELDS = (
     # `offb_age_s` is FAILSAFE 7 arm 2's input: without it a log cannot tell
     # "offboard=True, freshly sampled" from "offboard=True, frozen 40 s ago".
     "t_s", "state", "streak", "armed", "offboard", "offb_age_s", "mode",
-    "alt_m", "yaw_deg",
+    # `alt_ref_m` / `floor_active` added 2026-09-10 (review F11): without them a
+    # trimmed flight's log is byte-indistinguishable from an untrimmed one, and the
+    # documented procedure is "re-derive the drift from the logs" -- so a second
+    # iteration would re-derive on already-trimmed data and double-count.
+    "alt_m", "alt_ref_m", "floor_active", "yaw_deg",
     "trig_go", "trig_link", "trig_age_s", "trig_clock_fault", "trig_us",
     "det_new", "det_range_m",
     "v_north", "v_east", "v_down", "yaw_cmd_deg",
@@ -1645,10 +1748,22 @@ def _csv_row(obs: VehicleObs, dec: Decision) -> str:
     else:
         sp_source = "guided"
     health = "" if tel is None else "|".join(getattr(tel, "health", []) or [])
+    # Effective vertical reference + floor state, for the two new columns. Read
+    # off the machine rather than recomputed, so the log records what was APPLIED
+    # rather than what a reader thinks should have been (the ADR-0096 lesson: an
+    # actuator that logs intent rather than effect can diverge silently).
+    alt_ref_eff = dec.alt_ref_m
+    floor_active = bool(dec.floor_active)
     vals = [
         f"{obs.t:.3f}", dec.state, str(dec.streak), str(obs.armed),
         str(obs.offboard_active), f(obs.offboard_sample_age_s, 2),
         str(obs.mode or ""), f(obs.alt_m, 3),
+        # The EFFECTIVE reference the vertical command was built from, and whether
+        # the AGL floor clamped it. Without these a trimmed flight's log is
+        # byte-indistinguishable from an untrimmed one (review F11), and the
+        # documented procedure re-derives the drift FROM these logs -- so a second
+        # iteration would silently re-derive on already-trimmed data.
+        f(alt_ref_eff, 3), b(floor_active),
         f(obs.yaw_deg, 2),
         str(int(bool(obs.trigger.go))), str(int(bool(obs.trigger.link_ok))),
         f(obs.trigger.age_s, 2), str(int(bool(obs.trigger.clock_fault))),
@@ -2373,6 +2488,8 @@ def build_config(args) -> MissionConfig:
         mission_max_s=args.mission_max_s,
         link_timeout_s=args.link_timeout_s,
         alt_tol_m=args.alt_tol_m,
+        dash_alt_trim_m=args.dash_alt_trim_m,
+        min_agl_m=args.min_agl_m,
         yaw_tol_deg=args.yaw_tol_deg,
         offboard_lost_s=args.offboard_lost_s,
         # A NEGATIVE bound is the explicit "disable arm 2" spelling (argparse has
@@ -2444,6 +2561,29 @@ def main(argv=None) -> int:
     saf.add_argument("--mission-max-s", type=float, default=120.0)
     saf.add_argument("--link-timeout-s", type=float, default=1.0)
     saf.add_argument("--alt-tol-m", type=float, default=0.3)
+    # ADR-0099. Both were settable ONLY by editing source or building a
+    # MissionConfig in Python -- `build_config()` never set them, so every
+    # documented run path (--dry-run, --sitl-smoke, the real driver) ran with the
+    # lever hard-wired off while the pre-registration said "only the flag values
+    # change". That is the phantom-flag class tests/test_inert_flag_guards.py
+    # exists to prevent. (Review finding F2.)
+    saf.add_argument("--dash-alt-trim-m", type=float, default=0.0,
+                     help="ADR-0099 pre-flight altitude trim on the DASH and "
+                          "terminal references, metres, DERIVED from a measured "
+                          "dash altitude drift via "
+                          "flight.guidance.derive_dash_alt_trim_m -- NOT tuned. "
+                          "Positive raises the reference. Default 0.0 = inert. "
+                          "Does NOT touch the standby hold or the arm gate. "
+                          "Refused if |trim| >= --alt-tol-m.")
+    saf.add_argument("--min-agl-m", type=float, default=None,
+                     help="ADR-0085 hard floor: the vehicle is never commanded to "
+                          "descend at or below this altitude, in ANY state, "
+                          "including on a setpoint the seeker produced. Measured "
+                          "against the EKF altitude relative to the ARM POINT, so "
+                          "it is only true AGL on level ground -- set it from the "
+                          "site's own geometry. Default None = no floor, which is "
+                          "the pre-existing behaviour and NOT a safe default for "
+                          "props-on flight.")
     saf.add_argument("--yaw-tol-deg", type=float, default=2.0)
     saf.add_argument("--offboard-lost-s", type=float, default=0.5,
                      help="FAILSAFE 7 arm 1: how long PX4 may be OUT of OFFBOARD "
@@ -2522,7 +2662,16 @@ def main(argv=None) -> int:
                           mount_left_m=args.mount_left_m,
                           mount_up_m=args.mount_up_m,
                           mount_up_rad=math.radians(args.mount_tilt_deg),
-                          alt_ref_m=cfg.dash_base_alt_m)
+                          # The TERMINAL must hold the SAME trimmed reference as
+                          # the coast fallback. While these disagreed, ENGAGE
+                          # alternated between the seeker's setpoint and the coast
+                          # setpoint tick by tick, so the commanded reference jumped
+                          # by exactly the trim at up to 20 Hz -- a square wave on
+                          # the vertical channel through the terminal, and the
+                          # seeker pulled the vehicle back to the untrimmed altitude
+                          # the moment it locked (review finding F4).
+                          alt_ref_m=apply_alt_ref_trim(
+                              cfg.dash_base_alt_m, cfg.dash_alt_trim_m, None))
     from flight.camera import CameraModel
     cam = (load_camera(args.intrinsics) if os.path.exists(args.intrinsics)
            else CameraModel(539.936, 539.936, 640.0, 480.0))

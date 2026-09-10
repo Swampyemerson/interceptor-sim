@@ -976,106 +976,221 @@ if __name__ == "__main__":
 
 
 # --------------------------------------------------------------------------
-# DASH ALTITUDE TRIM + HARD AGL FLOOR (2026-09-10)
+# DASH ALTITUDE TRIM + HARD AGL FLOOR (2026-09-10, REWRITTEN after review)
 # --------------------------------------------------------------------------
 # ADR-0085 decided a camera-driven terminal vertical channel with a hard AGL
-# minimum. Neither half existed: grep for min_agl/agl_m/elevation in this module
-# returned nothing, and every seeker's bearing_vert_rad was discarded. The
-# measurements (scripts/forensics/vertical_miss_anatomy.py,
-# handoff_closing_speed.py) say the vertical error is DELIVERED BY THE DASH and
-# the terminal has 0.02-0.17 m of authority left, so the correction lands as a
-# pre-flight constant -- the altitude analogue of ADR-0080/0083's aim trim.
+# minimum and neither half existed. The FIRST version of these tests was found
+# defective by an adversarial review, in ways worth recording because each is a
+# pattern this repo has been bitten by before:
 #
-# The first of these tests is the one that matters most: a lever that is supposed
-# to be inert by default has to be PROVEN inert, over the whole state machine and
-# not just the helper.
+#   F5. The "byte-identical" test compared cfg() against
+#       cfg(dash_alt_trim_m=0.0, min_agl_m=None) -- the SAME class down the SAME
+#       code path, differing only in whether the dataclass defaults were spelled
+#       out. A mutant adding +0.4 m inside `_v_down` PASSED it. Replaced with an
+#       INDEPENDENT computation of the expected command.
+#   F6. `test_the_floor_applies_in_every_state` reached STANDBY, CODED_DASH and
+#       SAFE -- never ENGAGE or BREAKOFF, i.e. never either state that actually
+#       bypassed the floor. Its one-sided `v_down <= 0` assertion was satisfied by
+#       SAFE's hardcoded 0.0 while the floor was not applied there at all.
+#   F1/F7. `test_a_nonzero_trim_moves_the_vertical_command` exercised the STANDBY
+#       setpoint, documenting as correct the very behaviour that made a 0.320 m
+#       trim fail the arm gate and drop the mission into absorbing SAFE.
 
 
-def test_alt_trim_and_floor_are_byte_identical_at_defaults():
-    """The full STANDBY -> DASH -> SAFE setpoint stream must be unchanged.
+def _expected_hold_v_down(alt_m, alt_ref, c):
+    """The altitude-hold law, computed from the CONFIG rather than from the code
+    under test. This is the independent baseline F5 was missing: an offset
+    introduced anywhere in the reference chain shows up here as a mismatch."""
+    return max(-c.v_vert_max_ms, min(c.v_vert_max_ms, c.kp_alt * (alt_m - alt_ref)))
 
-    Compares an explicit-defaults machine against a machine that never mentions
-    the new fields, tick by tick, on every setpoint component. This is the
-    guarantee that lets the lever ship without re-flying anything.
+
+def test_standby_v_down_is_exactly_the_altitude_hold_law():
+    """INDEPENDENT baseline (fixes F5). At defaults, and with a trim set, STANDBY
+    must hold the UNTRIMMED standby reference to the last bit."""
+    for trim in (0.0, -0.32, +0.5):
+        c = cfg(dash_alt_trim_m=trim)
+        sm = RealFlightSM(c)
+        for alt in (7.0, 6.4, 7.9, 5.0):
+            d = sm.step(obs(0.0, alt_m=alt))
+            assert d.setpoint is not None
+            want = _expected_hold_v_down(alt, c.standby_alt_m, c)
+            assert d.setpoint.v_down == want, (
+                f"trim={trim} alt={alt}: standby commanded {d.setpoint.v_down}, "
+                f"the hold law says {want}. The trim must NOT reach standby -- "
+                f"the arm gate compares against the untrimmed config value.")
+
+
+def test_the_trim_does_not_reach_the_arm_gate():
+    """REGRESSION for F1, the blocker.
+
+    The trim ADR-0099 derives is -0.320 m and `alt_tol_m` is 0.300 m. While the
+    trim biased the standby hold, the vehicle settled 0.320 m off the reference the
+    arm gate checks, so the gate failed at GO -- and a GO on a failed gate goes
+    straight to SAFE, which is absorbing. One GO, mission over, at the exact value
+    the ADR publishes.
     """
-    def stream(config):
-        sm = RealFlightSM(config)
-        out = []
-        t = 0.0
-        for i in range(120):
-            trig = GO if i >= 5 else NO
-            # walk the altitude around the reference so v_down is genuinely
-            # exercised rather than sitting at zero the whole way
-            alt = 7.0 + 0.6 * math.sin(i * 0.25)
-            d = sm.step(obs(t, trigger=trig, alt_m=alt))
-            sp = d.setpoint
-            out.append(None if sp is None else
-                       (round(sp.v_north, 12), round(sp.v_east, 12),
-                        round(sp.v_down, 12), round(sp.yaw_deg, 12), d.state))
-            t += DT
-        return out
-
-    implicit = stream(cfg())
-    explicit = stream(cfg(dash_alt_trim_m=0.0, min_agl_m=None))
-    assert implicit == explicit, (
-        "declaring the new fields at their defaults changed the setpoint stream; "
-        "the lever is NOT byte-identical when inert")
-    # and it really did fly something, or this test proves nothing
-    assert any(x is not None and x[2] != 0.0 for x in implicit), \
-        "no non-zero v_down in the stream -- the comparison was vacuous"
-
-
-def test_a_nonzero_trim_moves_the_vertical_command():
-    """The lever must actually bite, in the right direction.
-
-    A NEGATIVE trim lowers the reference, so at a fixed altitude the vehicle is
-    now further ABOVE its target and must command more DOWN. v_down is positive
-    down (NED), so the commanded value must increase.
-    """
-    sm_plain = RealFlightSM(cfg())
-    sm_trim = RealFlightSM(cfg(dash_alt_trim_m=-0.32))
-    d_plain = sm_plain.step(obs(0.0, alt_m=7.0))
-    d_trim = sm_trim.step(obs(0.0, alt_m=7.0))
-    assert d_plain.setpoint is not None and d_trim.setpoint is not None
-    assert d_trim.setpoint.v_down > d_plain.setpoint.v_down, (
-        f"a -0.32 m trim must command MORE down: "
-        f"{d_trim.setpoint.v_down} vs {d_plain.setpoint.v_down}")
-    # magnitude: kp_alt is 1.0, so the delta is the trim, up to the clamp
-    assert abs((d_trim.setpoint.v_down - d_plain.setpoint.v_down) - 0.32) < 1e-9
-
-
-def test_the_agl_floor_refuses_to_command_below_it():
-    """ADR-0085's safety half: whatever the trim asks for, the reference is
-    floored. With a floor ABOVE the standby altitude the vehicle must be told to
-    climb (negative v_down), never to descend."""
-    sm = RealFlightSM(cfg(min_agl_m=9.0))
-    d = sm.step(obs(0.0, alt_m=7.0))
+    c = cfg(dash_alt_trim_m=-0.32, standby_settle_s=0.0)
+    assert abs(c.dash_alt_trim_m) > c.alt_tol_m, "fixture must exceed the tolerance"
+    sm = RealFlightSM(c)
+    sm.step(obs(0.0, trigger=NO, alt_m=7.0))
+    d = sm.step(obs(DT, trigger=GO, alt_m=7.0))
+    assert sm.state == State.CODED_DASH, (
+        f"a trim larger than alt_tol_m must not fail the arm gate; state="
+        f"{sm.state} transitions={[t.reason for t in sm.transitions]}")
     assert d.setpoint is not None
-    assert d.setpoint.v_down < 0.0, (
-        f"a 9.0 m floor at 7.0 m altitude must command CLIMB, got "
-        f"v_down={d.setpoint.v_down}")
-    # a huge downward trim must not defeat the floor
-    sm2 = RealFlightSM(cfg(min_agl_m=9.0, dash_alt_trim_m=-50.0))
-    d2 = sm2.step(obs(0.0, alt_m=7.0))
-    assert d2.setpoint is not None and d2.setpoint.v_down < 0.0, (
-        "the floor must beat the trim, not average with it")
 
 
-def test_the_floor_applies_in_every_state_not_just_the_dash():
-    """The floor lives in the ONE function every state's vertical command passes
-    through, so it cannot be forgotten at one of the five call sites. Drive the
-    machine through its states with a biting floor and assert it never commands
-    descent."""
-    sm = RealFlightSM(cfg(min_agl_m=9.0))
-    states, t = set(), 0.0
-    # long enough to run the dash out to its timeout and land in SAFE, so the
-    # floor is checked in the absorbing state too
-    for i in range(400):
-        d = sm.step(obs(t, trigger=(GO if i >= 5 else NO), alt_m=7.0))
-        states.add(d.state)
+def test_a_nonzero_trim_moves_the_DASH_reference_and_only_that():
+    """The lever must bite where its name says (fixes F7).
+
+    A negative trim lowers the dash reference, so at a fixed altitude the vehicle
+    is further above it and must command MORE down. Magnitude is checked against
+    the independent hold law, not against the code's own arithmetic.
+    """
+    c_plain, c_trim = cfg(), cfg(dash_alt_trim_m=-0.32)
+    sm_plain, sm_trim = RealFlightSM(c_plain), RealFlightSM(c_trim)
+    t_plain, t_trim = dash_now(sm_plain), dash_now(sm_trim)
+    d_plain = sm_plain.step(obs(t_plain + DT, alt_m=7.0))
+    d_trim = sm_trim.step(obs(t_trim + DT, alt_m=7.0))
+    assert d_plain.setpoint is not None and d_trim.setpoint is not None
+    assert sm_plain.state == State.CODED_DASH and sm_trim.state == State.CODED_DASH
+    delta = d_trim.setpoint.v_down - d_plain.setpoint.v_down
+    assert abs(delta - 0.32) < 1e-9, (
+        f"the dash reference must move by the trim: delta={delta}")
+
+
+def test_the_floor_covers_ENGAGE_BREAKOFF_and_SAFE():
+    """REGRESSION for F3, the blocker.
+
+    ENGAGE returns the SEEKER's own setpoint and BREAKOFF/SAFE emit hardcoded
+    vertical rates, so none of them passed through `_v_down` where the floor used
+    to live -- and ADR-0085 wrote the floor FOR the terminal. A probe showed
+    ENGAGE commanding +2.0 m/s DOWN while 2 m under its own floor. The floor now
+    clamps the EMITTED command at `_decide`, which every state funnels through.
+
+    The stub seeker commands a hard descent every tick, so the floor is the only
+    thing that can stop it. Assertion is two-sided: below the floor a descent is
+    refused outright, which SAFE's hardcoded 0.0 cannot vacuously satisfy.
+    """
+    class DivingGuidance:
+        def step(self, box, own, t):
+            tel = StepTelemetry(t=t, detected=box is not None)
+            return Setpoint(0.0, 0.0, +2.0, 0.0), tel      # +2 m/s DOWN
+
+    # COHERENT config: the floor sits BELOW the standby altitude, as the validator
+    # requires, and the vehicle is flown BELOW the floor at runtime -- which is the
+    # real hazard (it sagged), not a config that can never arm.
+    c = cfg(min_agl_m=5.0, engage_max_s=0.6, engage_lost_target_s=30.0)
+    sm = RealFlightSM(c, guidance=DivingGuidance())
+    t = dash_now(sm)
+    seen, worst = {}, {}
+    for i in range(80):
+        d = sm.step(obs(t + DT * (i + 1), det_new=True, det_range_m=9.0, alt_m=4.0))
         if d.setpoint is not None:
-            assert d.setpoint.v_down <= 0.0, (
-                f"state {d.state} commanded descent below the AGL floor: "
-                f"v_down={d.setpoint.v_down}")
-        t += DT
-    assert len(states) >= 3, f"too few states exercised: {sorted(states)}"
+            seen.setdefault(sm.state, 0)
+            seen[sm.state] += 1
+            worst[sm.state] = max(worst.get(sm.state, -9.9), d.setpoint.v_down)
+
+    assert State.ENGAGE in seen, f"setup: never reached ENGAGE, saw {sorted(seen)}"
+    assert State.BREAKOFF in seen or State.SAFE in seen, (
+        f"setup: never left ENGAGE, saw {sorted(seen)}")
+    for st, v in worst.items():
+        assert v <= 0.0, (
+            f"state {st} commanded v_down={v} while BELOW the {c.min_agl_m} m "
+            f"floor. ADR-0085: the vehicle will not descend regardless of the "
+            f"seeker.")
+    assert worst.get(State.ENGAGE, 0.0) < 0.0, (
+        "ENGAGE must be actively climbing back to the floor, not merely held at "
+        "zero -- otherwise the clamp is not doing the thing the ADR describes")
+
+
+def test_the_floor_is_inert_and_the_command_passes_through_unchanged():
+    """Byte-identity for the floor, against the INDEPENDENT law (fixes F5).
+
+    With no floor the seeker's own command must reach the vehicle untouched, and
+    the hold states must equal the hold law exactly.
+    """
+    class DivingGuidance:
+        def step(self, box, own, t):
+            tel = StepTelemetry(t=t, detected=box is not None)
+            return Setpoint(0.0, 0.0, +2.0, 0.0), tel
+
+    c = cfg(engage_max_s=30.0, engage_lost_target_s=30.0)
+    assert c.min_agl_m is None, "default must be no floor"
+    sm = RealFlightSM(c, guidance=DivingGuidance())
+    t = dash_now(sm)
+    engage_vals = []
+    for i in range(10):
+        d = sm.step(obs(t + DT * (i + 1), det_new=True, det_range_m=9.0, alt_m=7.0))
+        if sm.state == State.ENGAGE and d.setpoint is not None:
+            engage_vals.append(d.setpoint.v_down)
+    assert len(engage_vals) > 1, f"setup: too few ENGAGE ticks: {engage_vals}"
+    # The HANDOFF tick still flies the dash command by design (ENGAGE takes over
+    # on the next tick, and the sim harness does the same) -- so the seeker's
+    # command starts at index 1, not 0.
+    assert all(v == 2.0 for v in engage_vals[1:]), (
+        f"with no floor the seeker's command must pass through unchanged, got "
+        f"{engage_vals}")
+
+
+def test_the_coast_reference_agrees_with_the_seekers_own_reference():
+    """REGRESSION for F4.
+
+    `_step_engage` alternates between the seeker's setpoint and the coast
+    fallback. While the coast reference carried the trim and the seeker's did not,
+    the commanded reference jumped by exactly the trim at up to 20 Hz -- a square
+    wave on the vertical channel through the terminal. They must be built from the
+    same trimmed reference.
+    """
+    from flight.guidance import apply_alt_ref_trim
+    c = cfg(dash_alt_trim_m=-0.32)
+    sm = RealFlightSM(c)
+    # `_coast_setpoint` only takes the dash-reference branch once a dash command
+    # exists; on a fresh machine it falls back to the standby hold. So dash first,
+    # or this test would assert against the wrong branch and pass for the wrong
+    # reason.
+    t = dash_now(sm)
+    sm.step(obs(t + DT, alt_m=7.0))
+    assert sm._last_dash_sp is not None, "setup: no dash command to coast on"
+    sp = sm._coast_setpoint(obs(t + 2 * DT, alt_m=7.0))
+    want_ref = apply_alt_ref_trim(c.dash_base_alt_m, c.dash_alt_trim_m, None)
+    assert sp.v_down == _expected_hold_v_down(7.0, want_ref, c), (
+        "the coast hold must use the TRIMMED dash reference, the same one the "
+        "seeker is configured with, or the terminal square-waves between them")
+
+
+def test_the_floor_active_flag_never_reports_a_stale_true():
+    """S11 (2026-09-10): `floor_active` must describe THIS tick, not a past one.
+
+    The flag was assigned only inside `if sp is not None and min_agl_m is not
+    None:`, so once the floor had bitten, any later tick reaching `_decide` with
+    no setpoint kept reporting `floor_active=1` -- in the CSV column added
+    precisely so a reader could see when the floor bit.
+
+    SCOPE, measured and stated rather than assumed: this is a LATENT defect, not
+    an observed one. Probing every state with and without a seeker produced a
+    setpoint on every single tick -- ENGAGE's coast fallback covers the seeker
+    returning None -- so no current path feeds `_decide` a None setpoint. The fix
+    is therefore hygiene, and the honest test is a CONTRACT test on `_decide`
+    itself rather than an integration test pretending to reproduce a live bug.
+    If a future state ever emits no setpoint, this is what stops the column lying.
+    """
+    c = cfg(min_agl_m=5.0)
+    sm = RealFlightSM(c)
+    sm._last_alt_m = 4.0
+    sm._last_obs_t = 1.0
+
+    # Simulate the aftermath of a tick on which the floor bit.
+    sm._floor_active = True
+    d = sm._decide(sm.state, len(sm.transitions), None, [], None)
+    assert d.floor_active is False, (
+        "floor_active is STALE: _decide returned True for a tick that carried no "
+        "setpoint, so the CSV column reports a clamp that did not happen on it")
+
+    # And the positive control: with a setpoint that DOES need clamping it must
+    # still report True, so the reset cannot be a blanket False.
+    sm._floor_active = False
+    d2 = sm._decide(sm.state, len(sm.transitions),
+                    Setpoint(0.0, 0.0, +2.0, 0.0), [], None)
+    assert d2.floor_active is True, (
+        "the reset went too far: a genuinely floored tick must still report True")
