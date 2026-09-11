@@ -203,6 +203,8 @@ run_selftest "scripts/forensics/handoff_closing_speed.py --self-test (closing sp
     python3 "$ROOT/scripts/forensics/handoff_closing_speed.py" --self-test
 run_selftest "scripts/forensics/vertical_miss_anatomy.py --self-test (dash-delivered vertical error)" \
     python3 "$ROOT/scripts/forensics/vertical_miss_anatomy.py" --self-test
+run_selftest "scripts/forensics/range_channel_horizon.py --self-test (monocular range horizon)" \
+    python3 "$ROOT/scripts/forensics/range_channel_horizon.py" --self-test
 
 # NO LOG POLLUTION (audit hygiene fix, 2026-07-25): the field pack's scripts
 # each mkdir a timestamped run dir under logs/field/, so every invocation of
