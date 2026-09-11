@@ -500,6 +500,12 @@
   ],
   "plain_log": [
     {
+      "date": "2026-09-11",
+      "text": "Read a 2025 IEEE paper (arXiv:2409.17497) that intercepts flying targets by steering on the CAMERA IMAGE directly instead of first working out where the target is in 3-D. That made me check our own range channel, and it is worse than I thought: out to 8 m the seeker's range is within 3% of truth, but it over-reads by about 30% around 8-12 m and past 18 m it reports roughly a THIRD of the true distance (n=64 ticks, so this one is properly powered). Our plan has been to acquire the target FARTHER away, because correction room grows with the square of the time left -- but that is exactly where this channel is worst, and pro-nav's steering command scales with range, so it would be under-commanded by the same factor.",
+      "so_what": "The plan and the sensor pull against each other, which nobody had noticed. An image-space law needs range only as a gain, not as an aim point, so it is worth TRYING -- and cheaply, because the guidance layer is already handed the raw pixel box and does the 3-D conversion internally. Nothing has been built or flown.",
+      "evidence": "scripts/forensics/range_channel_horizon.py (11 self-tests, 4 mutant classes verified); arXiv:2409.17497 Yan et al., IEEE T-IE 72(11) 2025"
+    },
+    {
       "date": "2026-09-10",
       "text": "My own instrument was wrong and it flipped a conclusion. The '+0.320 m of dash altitude drift, 66% of the vertical miss, the error is delivered by the dash' finding was measured against a baseline that included the TAKEOFF -- and altitude reads zero on the ground, so most of that number was the vehicle leaving the pad. Measured properly the dash drifts -0.019 m: essentially nothing. The vertical error is 23% a datum mismatch that exists before the dash starts, 10% dash, and 66% accumulated after the camera takes over. The altitude trim I built last turn addresses the 10%. Also found: a quarter of the post-handoff term is the camera swinging on its boom, not the aircraft moving, and the terminal throws away its altitude hold whenever the camera blinks. That last one is a real bug, fixed behind a default-off flag -- but I cannot claim it explains the miss, because the same code also slams the horizontal from 16 m/s to a dead stop on exactly the same ticks, and the flights that kept their altitude hold climbed anyway.",
       "so_what": "The dash altitude trim is a 10% lever, not the fix. The cheapest win is the datum mismatch: 23% of the vertical error exists before the vehicle moves and a one-line scenario change removes it. Nothing flew; no simulator ran this session.",
@@ -564,12 +570,6 @@
       "text": "The camera was only ever getting 30 frames a second because of a default nobody set -- not the sensor (capable of 143) and not the Pi (capable of 112). Lifting it gives 96.6 sustained, with a tag in every frame and no overheating.",
       "so_what": "The interceptor burns about three times less distance while the camera locks on, and the finer decode setting is now affordable. This is the first bench number the $740 gate can legitimately use.",
       "evidence": "ADR-0090 - runs/skr07_tagged/qd2_uncapped - commit f3a9d5e"
-    },
-    {
-      "date": "2026-07-26",
-      "text": "Last night's bench ran one commit behind and published an unbounded frame rate (89.5) on a rig actually delivering 30. The gate scorer prefers exactly that field, so it would have taken it.",
-      "so_what": "Would have understated the lock-on burn threefold, always toward 'buy'. The scorer now refuses any rate that cannot show it was bounded, with a test tying the two scripts.",
-      "evidence": "commit e344c96 - tests/test_decode_fps_bound_contract.py"
     }
   ],
   "narrative": {
