@@ -401,6 +401,47 @@ the detector's cadence (ADR-0015 2nd addendum). **Both seed-777 `AE15` arms are 
 re-flown after the fleet ends**; `S10N`/`S10P` flew with nothing else running. Process fix for the
 rest of the session: no test suite and no bulk log analysis while a batch is in the air.
 
+### 5d. REPLICATION, seed 777 (clean re-fly) — the gate does its job perfectly and is STILL not adopted; the window version is registered
+
+| | gate OFF | gate ON |
+|---|---|---|
+| premature breakoffs, seed 123 | 5/16 | 1/16 |
+| premature breakoffs, seed 777 | 6/16 | **0/16** |
+| breakoff → timeout conversions | — | 0 and 0 |
+| gate-HELD flights steering > 2 s past closest approach when their twin did not | — | 1 (seed 123), **2 (seed 777; one for 7.0 s)** |
+| median miss, 10 mph rung (123 / 777) | 0.84 / 0.88 m | 1.00 / 0.79 m |
+| median miss, 15° aim-error rung (777) | 1.47 m | 1.42 m |
+
+Clauses 1 and 3 hold on both seeds (premature breakoffs **11/32 → 1/32**). Clause 2 — registered
+as ≤ 1/16 attributable phantom-chases — reads **2/16** on seed 777. **NOT ADOPTED, as registered.**
+No threshold is being moved.
+
+What the failure is telling us: the range-increase rule was doing two jobs badly. It quit EARLY
+(the gate fixes that) and it is also the only thing that ends the terminal AFTER the pass — and
+it is just as unreliable there. Hold it back and some flights simply keep steering at whatever
+the camera reports (mostly the ~1.5 m own-airframe phantom) for seconds. The same own-motion
+idea closes the other side: **across all 64 camera flights tonight, true closest approach always
+came by 1.05× the planned intercept distance** (p10 0.80, median 0.92, max 1.05 — including the
+15° aim-error arms). So a **ceiling** at 1.3× planned can never cut a flight off before its
+closest approach, and ends every long chase within a fraction of a second.
+
+**Registered now, before flying — the PASSAGE WINDOW:** `--breakoff-min-flown-frac 0.8` AND
+`--breakoff-force-flown-frac 1.3` (built, default OFF, evaluated every terminal tick on own-state
+only, never forces on a missing input). Arms `AE15W`, `S10W` against tonight's `AE15N`, `S10N`
+twins, seed 123 then 777. **Adopt iff, per seed:** premature ≤ 1/16; no flight steers > 2 s past
+true closest approach (the ceiling should make this 0, so the bar is 0); no flight is cut off
+with > 0.5 m of closing still to come (the ceiling's own failure mode — the mirror of
+"premature"); median miss per rung not worse than its N twin by > 0.10 m. **NULL:** if the ceiling
+cuts off a closing flight, the planned distance is not the bound this analysis says it is (aim
+error larger than 15°, or a geometry where the vehicle legitimately overflies) — and the window
+is wrong for that regime, which is worth knowing before a real vehicle relies on it.
+**Portability:** earned on crossing targets at 4.5–9 m/s with a solved heading and ≤ 15° aim error.
+
+**And the camera still does not earn its place.** With early quits removed on 32 flights, no
+rung's median moved by more than its own seed-to-seed spread. The one defect that only the
+camera arm could suffer is ~90% gone and the camera-vs-sprint null stands. Tonight's pointing
+work (docs/pointing_prereg.md) says why: the camera is almost never shown the target.
+
 ---
 
 ## 6. RISKS — and where the issue descriptions are wrong
