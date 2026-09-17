@@ -1,0 +1,162 @@
+<!doctype html>
+<!--
+  scripts/bench/calib_pattern.html -- the TV-side half of the "hold the camera
+  in front of the TV" calibration tool (docs/bench_specs/tv_calibration.md).
+  Open this full-screen (F11, or the button below) on the TV; it draws the
+  ChArUco calibration board at the SCREEN'S ACTUAL RESOLUTION (recomputed on
+  every resize, not a fixed pre-baked image), so the pattern stays crisp
+  whatever TV/laptop this ends up on.
+
+  PHYSICS REMINDER (see scripts/bench/calib_live.py's module docstring for the
+  full version): a flat screen is ONE plane. This page's job is ONLY to show
+  a fixed, bright, full-screen pattern -- the CAMERA is what needs to move
+  through different angles for a real calibration. Warping the pattern here
+  would not create new views.
+
+  BOARD DATA BELOW IS THE SOURCE-OF-TRUTH-DERIVED COPY, NOT HAND-DRAWN. It is
+  the exact JSON `scripts/bench/calib_live.py`'s `board_cells_json()` emits
+  (`scripts/bench/calib_live.py --emit-board-json`) for a 7x5-square,
+  DICT_4X4_50 ChArUco board (markerLength = 0.7 * squareLength, 1 border bit).
+  Every square is drawn either solid black or as a black-border/white-margin
+  ArUco marker using the exact per-cell bit matrix cv2 itself rendered, so a
+  PHOTO OF THIS SCREEN is bit-identical to what
+  cv2.aruco.CharucoBoard((7,5), squareLength, 0.7*squareLength, DICT_4X4_50)
+  expects to detect -- calib_live.py builds that same board independently and
+  detects against it. tests/test_calib_live.py's producer/consumer contract
+  test fails loudly if this literal and calib_live.py's board_cells_json()
+  ever diverge, so if you regenerate the board (different squaresX/squaresY/
+  dictionary/ratio), re-run --emit-board-json and paste the new JSON here.
+
+  7x5 is ODD x ODD deliberately: OpenCV >=4.6.0 changed the ChArUco layout
+  algorithm for EVEN row/col counts, which would silently mis-key a board
+  drawn by one OpenCV version and detected by another. Verified in this repo
+  (2026-09-17): for 7x5 the legacy and current layouts render bit-identical
+  images, so this shape needs no version-pinned flag on either side.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera calibration pattern -- full screen on the TV (F11)</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; overflow: hidden;
+               height: 100%; width: 100%; }
+  #board { display: block; }
+  #panel {
+    position: fixed; top: 10px; left: 10px; max-width: 300px;
+    background: rgba(0,0,0,0.78); color: #fff; font-family: sans-serif;
+    font-size: 14px; padding: 10px 12px; border-radius: 8px; line-height: 1.5;
+  }
+  #panel input { width: 80px; font-size: 14px; }
+  #panel .big { font-size: 1.3em; font-weight: bold; }
+  #panel button {
+    margin-top: 6px; font-size: 13px; padding: 4px 8px; cursor: pointer;
+  }
+  #panel .hint { font-size: 0.85em; color: #ccc; }
+</style>
+</head>
+<body>
+<canvas id="board"></canvas>
+<div id="panel">
+  <div>square size: <span class="big" id="pxSize">-</span> px</div>
+  <div>
+    TV visible width (mm):
+    <input id="tvWidth" type="number" placeholder="e.g. 1220" min="1">
+  </div>
+  <div>&#8594; square size: <span class="big" id="mmSize">enter TV width, or measure with a ruler</span> mm</div>
+  <div class="hint">no tape measure? measure ONE printed square on screen with a
+    ruler and type it here instead (overrides the calculation above):</div>
+  <div>measured square (ruler, mm): <input id="rulerMm" type="number" placeholder="fallback" min="0"></div>
+  <div class="hint">pass the mm number above to calib_live.py as
+    <code>--square-mm</code>.</div>
+  <button onclick="document.documentElement.requestFullscreen().catch(function(){})">
+    Fullscreen (or press F11)
+  </button>
+</div>
+<script>
+// ---------------------------------------------------------------------
+// BOARD: emitted verbatim by
+//   scripts/bench/calib_live.py --emit-board-json
+// DO NOT hand-edit the numbers below -- regenerate instead. See the header
+// comment above and tests/test_calib_live.py.
+// ---------------------------------------------------------------------
+var BOARD = {"dict": "DICT_4X4_50", "squaresX": 7, "squaresY": 5, "squareLength": 1.0, "markerLength": 0.7, "borderBits": 1, "bitsN": 4, "cellBits": 6, "ids": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16], "cells": [{"row": 0, "col": 0, "type": "black"}, {"row": 0, "col": 1, "type": "marker", "id": 0, "bits": [[0, 0, 0, 0, 0, 0], [0, 1, 0, 1, 1, 0], [0, 0, 1, 0, 1, 0], [0, 0, 0, 1, 1, 0], [0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 0, "col": 2, "type": "black"}, {"row": 0, "col": 3, "type": "marker", "id": 1, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 1, 1, 1, 1, 0], [0, 1, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 0, "col": 4, "type": "black"}, {"row": 0, "col": 5, "type": "marker", "id": 2, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 1, 0], [0, 0, 0, 1, 1, 0], [0, 0, 0, 1, 0, 0], [0, 1, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 0, "col": 6, "type": "black"}, {"row": 1, "col": 0, "type": "marker", "id": 3, "bits": [[0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 1, 0], [0, 1, 0, 0, 1, 0], [0, 0, 1, 0, 0, 0], [0, 0, 1, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 1, "col": 1, "type": "black"}, {"row": 1, "col": 2, "type": "marker", "id": 4, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 1, 0], [0, 0, 1, 0, 0, 0], [0, 1, 0, 0, 1, 0], [0, 1, 1, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 1, "col": 3, "type": "black"}, {"row": 1, "col": 4, "type": "marker", "id": 5, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 1, 1, 1, 0], [0, 1, 0, 0, 1, 0], [0, 1, 1, 0, 0, 0], [0, 1, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 1, "col": 5, "type": "black"}, {"row": 1, "col": 6, "type": "marker", "id": 6, "bits": [[0, 0, 0, 0, 0, 0], [0, 1, 0, 0, 1, 0], [0, 1, 1, 1, 0, 0], [0, 0, 0, 1, 0, 0], [0, 1, 1, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 2, "col": 0, "type": "black"}, {"row": 2, "col": 1, "type": "marker", "id": 7, "bits": [[0, 0, 0, 0, 0, 0], [0, 1, 1, 0, 0, 0], [0, 0, 1, 0, 0, 0], [0, 1, 1, 1, 1, 0], [0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 2, "col": 2, "type": "black"}, {"row": 2, "col": 3, "type": "marker", "id": 8, "bits": [[0, 0, 0, 0, 0, 0], [0, 1, 1, 1, 1, 0], [0, 1, 1, 1, 0, 0], [0, 1, 1, 0, 1, 0], [0, 1, 0, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 2, "col": 4, "type": "black"}, {"row": 2, "col": 5, "type": "marker", "id": 9, "bits": [[0, 0, 0, 0, 0, 0], [0, 1, 1, 0, 0, 0], [0, 1, 1, 1, 1, 0], [0, 0, 1, 0, 1, 0], [0, 0, 1, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 2, "col": 6, "type": "black"}, {"row": 3, "col": 0, "type": "marker", "id": 10, "bits": [[0, 0, 0, 0, 0, 0], [0, 1, 1, 1, 1, 0], [0, 1, 0, 0, 1, 0], [0, 1, 0, 0, 1, 0], [0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 3, "col": 1, "type": "black"}, {"row": 3, "col": 2, "type": "marker", "id": 11, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0], [0, 0, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 3, "col": 3, "type": "black"}, {"row": 3, "col": 4, "type": "marker", "id": 12, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 1, 1, 1, 0, 0], [0, 1, 0, 1, 1, 0], [0, 0, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 3, "col": 5, "type": "black"}, {"row": 3, "col": 6, "type": "marker", "id": 13, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0], [0, 1, 0, 1, 0, 0], [0, 0, 0, 0, 0, 0], [0, 1, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 4, "col": 0, "type": "black"}, {"row": 4, "col": 1, "type": "marker", "id": 14, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0], [0, 0, 1, 0, 0, 0], [0, 1, 0, 1, 1, 0], [0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 4, "col": 2, "type": "black"}, {"row": 4, "col": 3, "type": "marker", "id": 15, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 0, 1, 0, 0], [0, 0, 1, 1, 0, 0], [0, 0, 0, 1, 1, 0], [0, 1, 1, 1, 0, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 4, "col": 4, "type": "black"}, {"row": 4, "col": 5, "type": "marker", "id": 16, "bits": [[0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0], [0, 0, 1, 1, 0, 0], [0, 0, 1, 1, 0, 0], [0, 0, 1, 0, 1, 0], [0, 0, 0, 0, 0, 0]]}, {"row": 4, "col": 6, "type": "black"}]};
+
+var lastSqPx = 0, lastCanvasW = 0;
+
+function drawBoard() {
+  var canvas = document.getElementById('board');
+  var dpr = window.devicePixelRatio || 1;
+  var cssW = window.innerWidth, cssH = window.innerHeight;
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Native-resolution square size: the largest integer-ish px/square that
+  // fits BOARD.squaresX x BOARD.squaresY into the actual backing-store
+  // pixel grid -- recomputed every draw, never a fixed source image.
+  var sqPx = Math.floor(Math.min(canvas.width / BOARD.squaresX,
+                                 canvas.height / BOARD.squaresY));
+  var boardW = sqPx * BOARD.squaresX, boardH = sqPx * BOARD.squaresY;
+  var offX = Math.floor((canvas.width - boardW) / 2);
+  var offY = Math.floor((canvas.height - boardH) / 2);
+  var markerPx = sqPx * (BOARD.markerLength / BOARD.squareLength);
+  var bitPx = markerPx / BOARD.cellBits;
+  var margin = (sqPx - markerPx) / 2;
+
+  for (var i = 0; i < BOARD.cells.length; i++) {
+    var cell = BOARD.cells[i];
+    var x0 = offX + cell.col * sqPx, y0 = offY + cell.row * sqPx;
+    if (cell.type === 'black') {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x0, y0, sqPx, sqPx);
+      continue;
+    }
+    // white square with a centered ArUco marker (border ring + inner bits,
+    // all baked into cell.bits -- see calib_live.board_cells_json()).
+    for (var r = 0; r < BOARD.cellBits; r++) {
+      for (var c = 0; c < BOARD.cellBits; c++) {
+        ctx.fillStyle = cell.bits[r][c] ? '#ffffff' : '#000000';
+        var bx = x0 + margin + c * bitPx, by = y0 + margin + r * bitPx;
+        ctx.fillRect(Math.round(bx), Math.round(by),
+                     Math.ceil(bitPx), Math.ceil(bitPx));
+      }
+    }
+  }
+
+  document.getElementById('pxSize').textContent = sqPx.toFixed(0);
+  lastSqPx = sqPx;
+  lastCanvasW = canvas.width;
+  recomputeMm();
+}
+
+function recomputeMm() {
+  var rulerEl = document.getElementById('rulerMm');
+  var tvEl = document.getElementById('tvWidth');
+  var out = document.getElementById('mmSize');
+  var ruler = parseFloat(rulerEl.value);
+  if (ruler > 0) {
+    out.textContent = ruler.toFixed(2) + ' (measured with a ruler)';
+    return;
+  }
+  var tvW = parseFloat(tvEl.value);
+  if (tvW > 0 && lastCanvasW > 0) {
+    var mm = (lastSqPx / lastCanvasW) * tvW;
+    out.textContent = mm.toFixed(2);
+  } else {
+    out.textContent = 'enter TV width, or measure with a ruler';
+  }
+}
+
+document.getElementById('tvWidth').addEventListener('input', recomputeMm);
+document.getElementById('rulerMm').addEventListener('input', recomputeMm);
+window.addEventListener('resize', drawBoard);
+window.addEventListener('orientationchange', drawBoard);
+drawBoard();
+</script>
+</body>
+</html>
