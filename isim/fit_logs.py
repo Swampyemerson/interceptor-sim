@@ -21,11 +21,11 @@ FREE = ["kp_vel_horiz", "max_setpoint_accel_horiz", "max_accel_horiz",
         "kp_vel_vert", "ki_vel_vert"]
 # Differenced-position velocity is noisy (pose-sample jitter): weight it down,
 # lean on altitude and tilt, which are logged directly.
-WEIGHTS = {"vel": 0.3, "pos_d": 4.0, "tilt_deg": 0.1}
+WEIGHTS = {"vel": 1.0, "pos_d": 4.0, "tilt_deg": 0.1}
 
 
 def _trim(seg, max_s):
-    keep = seg["t"] <= max_s
+    keep = seg["t"] <= max_s + 0.5
     return {k: v[keep] for k, v in seg.items()}
 
 
@@ -35,6 +35,7 @@ def main() -> int:
     ap.add_argument("--n-hold", type=int, default=30)
     ap.add_argument("--max-s", type=float, default=6.0)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--latency", type=float, default=0.02)
     ap.add_argument("--out", default="isim/fits/vehicle_gazebo_x500.json")
     a = ap.parse_args()
     named = len(flights_from_batches())
@@ -48,7 +49,7 @@ def main() -> int:
     fit = [_trim(segs[p], a.max_s) for p in paths[:a.n_fit]]
     hold = [_trim(segs[p], a.max_s) for p in paths[a.n_fit:a.n_fit + a.n_hold]]
     t0 = time.time()
-    params, rep = fit_vehicle(fit, VehicleParams(), FREE, holdout_segments=hold,
+    params, rep = fit_vehicle(fit, VehicleParams(latency_s=a.latency), FREE, holdout_segments=hold,
                               weights=WEIGHTS)
     out = {"flights_named": named, "flights_usable": len(paths),
            "n_fit": a.n_fit, "n_hold": a.n_hold, "max_s": a.max_s,

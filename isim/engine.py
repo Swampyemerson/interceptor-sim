@@ -35,6 +35,9 @@ class EngagementConfig:
     guidance_dt: float = 0.02
     max_t: float = 30.0
     stop_after_cpa_s: float = 1.0
+    # The stop rule sleeps until this sim time: a vehicle holding station before
+    # its GO has a flat or growing range, which is not "past closest approach".
+    stop_not_before_s: float = 0.0
     seed: int = 0
 
 
@@ -179,7 +182,9 @@ def run_engagement(
         actual_steps += 1
         own, tgt = own_next, tgt_next
 
-        if t_next - t_at_min_running >= cfg.stop_after_cpa_s:
+        if (t_next >= cfg.stop_not_before_s
+                and t_next - max(t_at_min_running, cfg.stop_not_before_s)
+                >= cfg.stop_after_cpa_s):
             break
 
     if trace is not None:
