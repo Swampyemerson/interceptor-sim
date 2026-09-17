@@ -850,3 +850,20 @@ already knows from the accel-cap arms ("the aim must be co-sized with the dash")
    profile. Until then the adopted config stays `AE5dashZ` (ADR-0100).
 3. The left/right asymmetry keeps showing up in every table today (climb, pitch, cross-range).
    It deserves its own look before more levers are stacked on it.
+
+## 11. Height-guess error injection — pre-registration (2026-09-17, before flying)
+
+Assumption `target-height-known` says the 13/16 headline leans on the sim knowing the target's
+height exactly. The cheapest honest test: fly the adopted config as if the operator's guess were
+wrong. The batch runner hard-codes the target at 0.5 m, so the error is injected on the vehicle's
+side, which is the same relative error: `HERRp25` flies 0.25 m too HIGH (`--alt-ref-offset-m
++0.043` instead of −0.207), `HERRm10` 0.10 m too LOW (−0.307). Seed 123, n = 8, dash-only; the
+comparison arm is tonight's `TOL5` (same seed, same everything, no error).
+**Prediction:** the sprint has no vertical steering, so the error passes straight through. `TOL5`
+ended ≈ 0.19 m high; `HERRp25` should end ≈ 0.44 m high → median miss ≈ 0.50 m, **≤ 1/8 inside**.
+`HERRm10` should end ≈ 0.09 m high → median ≈ 0.20 m, **≥ 7/8 inside** — i.e. a 0.10 m "error" in
+the lucky direction HELPS, because it cancels part of the sprint climb the height fix left behind.
+**What it means either way:** the number of centimetres of height error the headline survives.
+If `HERRm10` is NOT better, the leftover 0.19 m is not a simple offset and a constant trim cannot
+remove it. **Arm asymmetry:** only `HERRm10` flies at a 0.19 m reference — check the run log's
+printed reference against the flown altitude (PX4 may floor a low takeoff) before believing it.

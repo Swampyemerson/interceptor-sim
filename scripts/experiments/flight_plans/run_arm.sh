@@ -137,6 +137,10 @@ case "$ARM" in
   TOL5)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   TOL2)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 2.5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   TOL7)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 7.5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  # HEIGHT-GUESS ERROR (assumption target-height-known): the adopted config flown as if the
+  # operator's guess of the target's height were wrong by +0.25 m / -0.10 m.
+  HERRp25) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m 0.043"; N=8; DIRS=both;;
+  HERRm10) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m -0.307"; N=8; DIRS=both;;
   TOL10)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 10 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   TOL15)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
