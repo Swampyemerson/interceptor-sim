@@ -1347,3 +1347,31 @@ re-issues the initial `(0,0,0,0)` — **a commanded full stop**. Measured: 24 ze
 ticks across 5 of 16 camera-on flights, once held 5 consecutive ticks while closing 7.3 → 4.6 m.
 **Part of the "the camera makes it worse" evidence is this bug, not the camera.** Same defect class
 as `0c80454`, different site.
+
+---
+
+## PRE-REGISTRATION — the sprint's aim-tolerance curve on the ADOPTED config (2026-09-17, before flying)
+
+**Why now.** ADR-0100 lined the flying height up with the target's, so for the first time the
+sprint-only miss is mostly HORIZONTAL — i.e. mostly aim. The cue-error sweep the project owes
+itself ("how wrong can the launch cue be?") was blocked behind the camera arm's breakoff defect;
+for the SPRINT it never needed the camera at all. This is the sprint's half of that deliverable.
+
+**Arms:** `TOLm5`, `TOL0`, `TOL5`, `TOL10`, `TOL15` — the adopted config (accel-aware lead, height
+offset −0.207 m, dash-only) with `--dash-heading-err-deg` = −5, 0, +5, +10, +15. Seed 123, n = 8,
+both directions, sequential, idle load. (`TOL5` is the adopted config itself on a fifth seed.)
+Scored on the primary ruler (airframe centre, interpolated), inside the 0.35 m contact radius.
+
+**Predictions (from the July curve 0° → 0.71 m, +5° → 0.43 m, +15° → 1.43 m, which still carried
+~0.37 m of vertical):** `TOL5` ≥ 6/8 inside (it was 13/16 on two seeds); `TOL0` and `TOL10`
+2–5/8; `TOLm5` and `TOL15` ≤ 1/8. That shape would put the usable aim window at roughly **±3–4°
+around the optimum**, against the ±2.4° budget ADR-0084 derived on paper.
+
+**What it is for:** the derived accuracy requirement for the launch cue, for the vehicle as it
+can actually be built today (sprint only). **What a surprise would mean:** a window much WIDER
+than ±4° says the paper budget was pessimistic and the cue is an easier sensor to build; much
+NARROWER says the 13/16 headline rests on a trim tuned to a degree, which no real launch will
+hold — and that belongs next to the headline wherever it is quoted. **Standing caveats:** the
+optimum is at +5°, not 0°, for a reason nobody has established (ADR-0083); tonight's
+pre-alignment side-finding suggests the sim's start heading is part of it; the curve is
+one-dimensional (azimuth only) and best-case in every other given.

@@ -130,6 +130,13 @@ case "$ARM" in
   S10W)    EXTRA="$BASE --dash-accel-aware-lead --breakoff-min-flown-frac 0.8 --breakoff-force-flown-frac 1.3"; N=8; DIRS=both; Y0MAG=7.62; TSPEED=4.47;;
   # TERMINAL SPEED FLOOR (docs/pointing_prereg.md): PYAWTA + never brake below the sprint.
   PYAWTAV) EXTRA="$BASE --dash-accel-aware-lead --alt-ref-offset-m -0.207 --dash-prealign-yaw --dash-yaw-to-predicted-los --cam-mount-up-deg 25 --terminal-vclose-min 16"; N=8; DIRS=both; WEDGE=25;;
+  # SPRINT AIM-TOLERANCE CURVE on the adopted config (docs/flight_plan_candidates.md,
+  # pre-registered 2026-09-17). Dash-only, height reference fixed, aim error swept.
+  TOLm5)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg -5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  TOL0)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 0 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  TOL5)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  TOL10)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 10 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  TOL15)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
   AE15dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY"; N=8; DIRS=both;;
   # RESIDUAL-BIAS fine sweep (dash-only): the aim curve measured 0 deg -> 0.71 m,
