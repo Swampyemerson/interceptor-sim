@@ -458,14 +458,14 @@
       ],
       "key_numbers": [],
       "test": {
-        "how": "First fly the pre-registered height-reference A/B (docs/vertical_channel_prereg.md section 9). Then inject target-height error (+/-0.25, 0.5, 1 m) and read off how much the terminal can absorb -- expected: none, until vertical steering exists (ADR-0085, never built).",
+        "how": "FIRST TEST DONE 2026-09-17: flying 0.25 m too high took the adopted config from 7 of 8 touching to 1 of 8 -- the error passes straight into the miss (0.249 of 0.250 m). The headline survives roughly +/-0.1 m of height error. Still to do: a finer sweep and a second seed.",
         "cost": "Sim batches only (free).",
-        "status": "scheduled"
+        "status": "running"
       },
       "state": "unchecked",
       "origin": "Found 2026-09-16 while building the height-reference fix: the offset that lines the camera up with the target is part vehicle geometry (measurable) and part the target's height (given).",
       "ruling": "",
-      "evidence": "docs/vertical_channel_prereg.md section 9.3; logs/m4_intercept_pronav_20260917T032639Z.csv"
+      "evidence": "docs/vertical_channel_prereg.md section 11.1; logs/mc_fp_armHERRp25_line9_s123.csv"
     }
   ],
   "builder_queue": [
@@ -1585,7 +1585,7 @@
       "label": "Inside the contact radius (corrected ruler)",
       "value": "13/16 (was 2/16)",
       "trust": "sim",
-      "plain": "13 of 16 sprint-only flights touch -- IF the aim is within ~1 degree. Best case: camera off, target known exactly.",
+      "plain": "13 of 16 sprint-only flights touch -- IF aim is within ~1 degree AND the height guess within ~0.1 m. Best case.",
       "note": "ADR-0100, 2026-09-16. Paired A/B on two fresh seeds (456, 789), n=8 each, dash-only, primary ruler = airframe centre-to-centre interpolated: control 2/16 inside 0.35 m (medians 0.563, 0.457 m), height-reference arm 13/16 (0.215, 0.249 m), closer on 14/16 pairs. Earlier figure on seeds 123+777 without the fix: 3/16 logged, 5/16 interpolated (an interim 12/16 was retracted). The vehicle passes ABOVE the target, not below as one doc said. Leans on two given-perfect inputs: launch aim and target height.",
       "provenance": "scripts/rescore_cpa.py · logs/mc_fp_armAE5dash{,Z}_line9_s{456,789}.csv · docs/vertical_channel_prereg.md §9.13-9.14 · ADR-0100"
     },

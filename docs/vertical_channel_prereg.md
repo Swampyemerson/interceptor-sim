@@ -867,3 +867,24 @@ the lucky direction HELPS, because it cancels part of the sprint climb the heigh
 If `HERRm10` is NOT better, the leftover 0.19 m is not a simple offset and a constant trim cannot
 remove it. **Arm asymmetry:** only `HERRm10` flies at a 0.19 m reference — check the run log's
 printed reference against the flown altitude (PX4 may floor a low takeoff) before believing it.
+
+### 11.1 RESULT (2026-09-17, seed 123, n = 8, primary ruler)
+
+| arm | height-guess error | median closest approach | inside 0.35 m | median vertical offset (lens, logged tick) |
+|---|---|---|---|---|
+| `TOL5` | none | 0.259 m | 7/8 | +0.158 m |
+| `HERRp25` | 0.25 m too high | **0.447 m** | **1/8** | +0.407 m |
+| `HERRm10` | 0.10 m too low | 0.207 m | 6/8 | +0.126 m |
+
+- **Too high by 0.25 m: predicted ≈ 0.50 m and ≤ 1/8 — got 0.447 m and 1/8.** The error passes
+  straight through (+0.158 → +0.407 m, i.e. +0.249 of the 0.250 injected). The vehicle has no way
+  to notice, let alone correct. **The 13/16 headline survives roughly ±0.1 m of height error and
+  is gone by 0.25 m.** For a real target that is a demand on the launch cue's ALTITUDE that the
+  project has never stated, and it sits beside the ±1° aim demand measured the same night.
+- **Too low by 0.10 m: median as predicted (0.207 vs ≈ 0.20 m), count not (6/8 vs ≥ 7/8), and the
+  arm did not really fly the test.** Its vertical offset fell only 0.03 m of the 0.10 m asked: the
+  run logs show takeoff "reached 0.16 m" against a 0.19 m reference, and the vehicle does not
+  settle lower — the asymmetry §11 flagged (ground proximity / PX4's low-altitude behaviour). So
+  "a constant trim could cancel the leftover sprint climb" is NOT established; at this flying
+  height there is no room below to test it. That is a limit of the scenario (a 0.5 m-high
+  target), not of the idea.
