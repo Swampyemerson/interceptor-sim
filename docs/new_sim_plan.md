@@ -125,3 +125,17 @@ log forensics, fitting against flight logs, the contract and all judgment.
   CODED_DASH without a flight-code change; real_flight has no yaw-to-line-of-sight or pre-align.
   **Next: WP7 -- terminal design in flight code, proven in the sweep; add scatter first.**
   Worker lanes: Opus 5 workers hard-failed 3/3 on the safeguard; Sonnet workers 5/5 fine.
+- 2026-09-17 (evening): **scatter added; first terminal built and NOT adopted; concept finding.**
+  Baseline with scatter (flight code as-is): 6% inside 0.35 m nominal, 0% for aim error >= 5 deg,
+  any height offset, or no sprint. `flight/tag_terminal.py` (3-D intercept point, Kalman,
+  look-angle cap; opt-in via `Scenario.terminal="tag"`) scores the same as stock. Root cause is the
+  CONCEPT, not the law: ~19 m/s closing + 0.30 m tag + fx 933 = decode inside ~13 m = ~0.6 s and
+  ~15 decodes, 5 of which the acquire streak eats; accelerating pitches the tag out of frame; in
+  a tail chase `real_flight`'s fly-by breakoff logic ends the engagement. Longer standoff does
+  not help (closing speed is the problem, not distance).
+  **Working recommendation: low-closing-speed "pursuit" concept** -- spec
+  `isim/specs/pursuit_concept.md`, prototype `isim/concepts.py` (worker building). If it passes
+  the sweep it becomes a builder-facing decision (ADR), because it changes the mission profile,
+  the state machine's breakoff logic, tag placement on the target (rear/side facing) and makes
+  lens focal length a first-order choice.
+  Process note: long worker prompts get cut off -- put specs in `isim/specs/*.md`.
