@@ -205,3 +205,34 @@ flights whose miss is dominated by the last 3 ticks, and the right-to-left / lef
   initial nose direction leaks into the sprint's path, and the long-standing left/right asymmetry
   is at least partly a start-condition artefact of the sim, not a property of the target's
   direction. Every historical "r2l is the bad direction" statement inherits this.
+
+## RESULT — the terminal speed floor (`PYAWTAV`, seed 123): a registered NULL
+
+| arm | median miss | paired wins over the sprint-only twin |
+|---|---|---|
+| `PYAWTA` (camera sees the target from 22 m; stock terminal) | 3.60 m | — |
+| `PYAWTAV` (same + closing speed never below 16 m/s) | **3.33 m** | **0/8** |
+| `PYAWDA` (sprint only, camera off) | **0.60 m** | — |
+
+Still ≥ 1.5 m, so by the rule written before it flew: **the speed law is not the problem, or not
+the only one — the terminal steering itself cannot do this job, and the next step is a terminal
+REDESIGN, which is a council-grade decision and not another flag.** No further terminal arms
+were flown tonight, deliberately.
+
+One diagnostic for whoever takes that decision (three flights, pre-closest-approach ENGAGE ticks):
+the terminal's sideways (pro-nav) velocity sat **at its 8 m/s clamp for essentially the whole
+engagement** (median 6.5–8.0, max 8.0 m/s) while the commanded lateral acceleration and the
+line-of-sight rate ran to absurd values (hundreds of m/s², up to 339°/s). The target crosses at
+**9 m/s**. A terminal whose sideways authority is capped at 8 m/s, closing along the line of
+sight rather than along a lead course, cannot hold a collision course against a 9 m/s crosser
+from 17 m out — it was parameterised (ADR-0010, `FPV["V_PERP_MAX"] = 8`) for a ~6 m/s target and
+a handoff in the last few metres, and it has never before been asked to fly a whole engagement.
+That is the methodology rule about constants and operating points, biting the terminal itself.
+
+**Where this leaves the camera story, stated plainly.** Three walls, in the order they were hiding
+each other: (1) the seeker was never shown the target — solved tonight in sim (2% → 99% central,
+recognised 81%); (2) shown the target, it takes over at once and the terminal flies far worse
+than the sprint it replaces — measured tonight; (3) whether ANY camera terminal can beat a
+well-aimed sprint at zero aim error is still open, and is now, for the first time, actually
+testable. The sprint-only vehicle remains the best thing this project has: 0.60 m here,
+0.2–0.25 m on the adopted config.
