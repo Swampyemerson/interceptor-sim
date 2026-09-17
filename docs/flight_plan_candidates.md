@@ -1413,3 +1413,9 @@ own answer for a reason still not established (ADR-0083; tonight's pre-alignment
 points at the sim's start heading). A real launch cue good to ±1° at 15 m is a 0.26 m
 cross-range position error on the target. That is the sensor the rest of the system would have
 to be. One seed, azimuth only, every other given still perfect.
+
+**Replication registered before flying (2026-09-17):** `TOL0`, `TOL2`, `TOL7`, `TOL10` on seed **777**
+(the adopted +5° setting already has four other seeds). Expectation: the same V within scatter —
+medians within ±0.12 m of seed 123's 0.65 / 0.35 / 0.47 / 0.75 m, and the inside-0.35 m counts
+ordered the same way. If the V's bottom moves by more than ~2.5° between seeds, the "±1°"
+statement is a one-seed artefact and must be withdrawn from the contract.
