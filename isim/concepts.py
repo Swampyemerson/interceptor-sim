@@ -37,6 +37,18 @@ difference, and trusting an unbounded KF velocity snapshot as a permanent
 new belief on fallback. See `_start_phase_b`/`_sane_fallback_vel` and the
 task's final report for the trace evidence.
 
+v3 (isim/specs/pursuit_concept_v3.md) fixed the remaining estimator bias:
+`Detection`s arrive `latency_s` after their frame was exposed, and the
+measurement was being converted to NED using the vehicle's own position/
+attitude AT ARRIVAL, not at `det.t_capture`. A short ring buffer of own
+(t, pos, vel, quat) samples (`_own_hist`/`_interp_own_state`) fixes this --
+see `step()`/`_measure_pos_ned`/`_update_kf` and the task's final report.
+(v3's item #2, "re-formulate as an absolute-state filter", needed NO code
+change: the KF here always estimated the target's ABSOLUTE NED state, never
+a relative one -- the "own acceleration looks like target motion" symptom
+was entirely the capture-time bug above, using the wrong own position as
+the absolute reference.)
+
 HONESTY. `PursuitRendezvousGuidance.step()` receives only a `VehicleState`
 and an `Optional[Detection]`, per `isim.types.Guidance` -- never a
 `TargetState` or a `FrameReport`. Its Phase-A belief trajectory
@@ -48,8 +60,9 @@ ground truth itself.
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Deque, List, Optional, Tuple
 
 import numpy as np
 
@@ -96,6 +109,35 @@ def _yaw_toward(delta_ned: np.ndarray, fallback_deg: float) -> float:
     if math.hypot(n, e) < 1e-6:
         return fallback_deg
     return math.degrees(math.atan2(e, n))
+
+
+# `_OwnSample` = (t, pos_ned, vel_ned, quat_wxyz) -- one ring-buffer entry.
+_OwnSample = Tuple[float, np.ndarray, np.ndarray, Tuple[float, float, float, float]]
+
+
+def _interp_own_state(hist: Deque[_OwnSample], t_query: float) -> _OwnSample:
+    """Linear-interpolate (nlerp + renormalize for the quaternion -- exact
+    for small angle gaps, which this always is: the ring buffer is sampled
+    every `guidance_dt`, tens of ms) the own-state ring buffer at `t_query`.
+    Clamps to the buffer's ends rather than extrapolating. `hist` must be
+    non-empty (the caller only calls this once at least one sample exists,
+    which is guaranteed by go_at_s < any det.t_capture the guidance acts on)."""
+    if t_query <= hist[0][0]:
+        return hist[0]
+    if t_query >= hist[-1][0]:
+        return hist[-1]
+    for i in range(1, len(hist)):
+        t0, p0, v0, q0 = hist[i - 1]
+        t1, p1, v1, q1 = hist[i]
+        if t0 <= t_query <= t1:
+            frac = 0.0 if t1 <= t0 else (t_query - t0) / (t1 - t0)
+            pos = p0 + frac * (p1 - p0)
+            vel = v0 + frac * (v1 - v0)
+            q = np.asarray(q0, dtype=np.float64) * (1.0 - frac) + np.asarray(q1) * frac
+            qn = float(np.linalg.norm(q))
+            quat = tuple(q / qn) if qn > _EPS else q1
+            return (t_query, pos, vel, quat)
+    return hist[-1]
 
 
 # ---------------------------------------------------------------------- config
@@ -185,12 +227,36 @@ class PursuitConfig:
     # same 10 seeds, median 0.52 m. Swept 0.05/0.10/0.15/0.20/0.25/0.30 m;
     # 0.20 m is the adopted value (see the report for the sweep table) --
     # not a bench measurement, an isim-tuning choice.
+    #
+    # v3 RE-SWEPT (pursuit_concept_v3.md #3), with the capture-time fix (#1)
+    # in place, at 0.20/0.10/0.05/0.03/0.02/0.01/0.005 m, n=60 x 2 facings:
+    # lowering the floor is NOT a clean win -- it monotonically HELPS
+    # tag_facing="rear" (median miss 0.213->0.218m but pct<=0.35m 70%->80%
+    # at 0.01m) while making tag_facing="camera" WORSE (median miss
+    # 0.325->0.355m, pct<=0.35m 57%->50% at 0.01m), even though camera's
+    # median ESTIMATOR error keeps improving (1.34->0.72m) as the floor
+    # drops -- camera decodes far more densely/rapidly during a fast
+    # crossing, and a tight floor appears to let a handful of individually
+    # noisy detections perturb the filter enough to occasionally cost more
+    # than the improved typical-case accuracy buys (a distributional/tail
+    # effect the median estimator error alone doesn't show). KEPT AT 0.20
+    # -- the best single value for the concept's stronger (camera) facing;
+    # full sweep table in the task's final report for whoever wants to
+    # trade this differently.
     cross_sigma_floor_m: float = 0.20
 
     # KF process noise: piecewise-constant-acceleration white-noise model.
     kf_q_accel_ms2: float = 1.0      # m/s^2, 1-sigma unmodelled target acceleration
     kf_p0_pos_m: float = 3.0         # m, 1-sigma initial position uncertainty
     kf_p0_vel_ms: float = 5.0        # m/s, 1-sigma initial velocity uncertainty
+
+    # v3 (pursuit_concept_v3.md #1): a Detection arrives `latency_s` after its
+    # frame was exposed (`det.t_capture` vs the tick it is handed to step()).
+    # The own (pos, vel, quat) used to turn that Detection into a NED position
+    # must be looked up AT `t_capture`, not at arrival -- own_state_history_s
+    # sizes the ring buffer `_interp_own_state` interpolates into (0.3 s is
+    # generous against latencies of tens of ms).
+    own_state_history_s: float = 0.3
 
 
 # ------------------------------------------------------------- Phase A belief
@@ -324,6 +390,7 @@ class PursuitRendezvousGuidance:
         self._prev_v_cmd = np.zeros(3)
         self._prev_yaw_deg = self.initial_yaw_deg
         self._last_t: Optional[float] = None
+        self._own_hist: Deque[_OwnSample] = deque()
         self.state_log = []
         self.events = []
         self.last_decision = None
@@ -334,6 +401,16 @@ class PursuitRendezvousGuidance:
     def step(self, t: float, own: VehicleState, det: Optional[Detection]) -> VelCmd:
         dt = 0.0 if self._last_t is None else max(0.0, t - self._last_t)
         own_pos = np.asarray(own.pos_ned, dtype=np.float64)
+
+        # v3 #1: ring buffer of own (pos, vel, quat), so a Detection can be
+        # converted to NED using the own-state AT det.t_capture, not at
+        # arrival (`t`) -- maintained unconditionally (cheap; before GO it
+        # is simply never looked up).
+        self._own_hist.append((t, own_pos.copy(), np.asarray(own.vel_ned, dtype=np.float64).copy(),
+                               tuple(float(c) for c in own.quat_wxyz)))
+        cutoff_hist = t - self.cfg.own_state_history_s
+        while len(self._own_hist) > 2 and self._own_hist[0][0] < cutoff_hist:
+            self._own_hist.popleft()
 
         if t < self.go_at_s:
             self._set_state("STANDBY", t)
@@ -346,7 +423,9 @@ class PursuitRendezvousGuidance:
             self._phase = "A"
 
         if det is not None:
-            self._decode_positions.append((det.t_capture, self._measure_pos_ned(own, det)))
+            _, pos_cap, _vel_cap, quat_cap = _interp_own_state(self._own_hist, det.t_capture)
+            self._decode_positions.append(
+                (det.t_capture, self._measure_pos_ned(pos_cap, quat_cap, det)))
             cutoff = t - self.cfg.acquire_window_s
             self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
 
@@ -356,7 +435,7 @@ class PursuitRendezvousGuidance:
         if self._phase == "B":
             self._kf.predict(dt)
             if det is not None:
-                self._update_kf(own, det, t)
+                self._update_kf(det, t)
             range_est = float(np.linalg.norm(self._kf.pos - own_pos))
             dropout_s = t - self._last_decode_t
             # v2 #4: the tag legitimately fills/leaves the frame very close
@@ -461,31 +540,45 @@ class PursuitRendezvousGuidance:
 
     # --------------------------------------------------------------- KF glue
 
-    def _dir_ned(self, own: VehicleState, det: Detection) -> np.ndarray:
+    def _dir_ned(self, quat_wxyz: Tuple[float, float, float, float],
+                det: Detection) -> np.ndarray:
         """Unit LOS direction in NED from bearing/elevation (camera-relative,
-        per `isim.types.Detection`), the nominal camera mount tilt, and the
-        vehicle's own attitude quaternion -- the same body-relative
-        bearing/elevation -> direction construction `isim.stubs.PursuitGuidance`
-        uses, extended by the mount-tilt rotation `isim.seeker.CameraParams`
-        applies (this guidance never touches the seeker's true camera)."""
+        per `isim.types.Detection`), the nominal camera mount tilt, and an
+        attitude quaternion -- the same body-relative bearing/elevation ->
+        direction construction `isim.stubs.PursuitGuidance` uses, extended
+        by the mount-tilt rotation `isim.seeker.CameraParams` applies (this
+        guidance never touches the seeker's true camera). v3 #1: the caller
+        passes the quaternion AT `det.t_capture` (interpolated from the own-
+        state ring buffer), never the quaternion at arrival."""
         b, e = math.radians(det.bearing_deg), math.radians(det.elevation_deg)
         dir_boresight = np.array([math.cos(e) * math.cos(b), math.cos(e) * math.sin(b),
                                   -math.sin(e)])
         ct, st = math.cos(self._mount_tilt_rad), math.sin(self._mount_tilt_rad)
         ry = np.array([[ct, 0.0, st], [0.0, 1.0, 0.0], [-st, 0.0, ct]])
         dir_body = ry @ dir_boresight
-        r_bn = quat_to_rot(own.quat_wxyz)
+        r_bn = quat_to_rot(quat_wxyz)
         return _unit(r_bn @ dir_body, dir_body)
 
-    def _measure_pos_ned(self, own: VehicleState, det: Detection) -> np.ndarray:
-        own_pos = np.asarray(own.pos_ned, dtype=np.float64)
-        return own_pos + det.range_m * self._dir_ned(own, det)
+    def _measure_pos_ned(self, pos_at_capture: np.ndarray,
+                         quat_at_capture: Tuple[float, float, float, float],
+                         det: Detection) -> np.ndarray:
+        """z = own position AT t_capture + range * (LOS direction using the
+        attitude AT t_capture) -- v3 #1. `pos_at_capture`/`quat_at_capture`
+        must already be looked up at `det.t_capture`, not at arrival."""
+        return np.asarray(pos_at_capture, dtype=np.float64) + \
+            det.range_m * self._dir_ned(quat_at_capture, det)
 
     def _measurement_r(self, det: Detection, dir_ned: np.ndarray) -> np.ndarray:
         """Diagonal in a (along-LOS, cross, cross) basis aligned with
         `dir_ned`, per the spec: cross-range sigma = range*sigma_px/fx
         (floored -- see `PursuitConfig.cross_sigma_floor_m`'s docstring),
-        along-range sigma = range^2*sigma_side_px/(fx*tag_side)."""
+        along-range sigma = range^2*sigma_side_px/(fx*tag_side). Algebraically
+        this IS `T @ diag(along^2, cross^2, cross^2) @ T.T` for any
+        orthonormal `T` whose first column is `dir_ned` (v3 #3 asked to
+        "build R in the camera LOS frame and rotate it into NED properly" --
+        the closed form below is exactly that rotation, since for such a T,
+        `T@diag(a,c,c)@T.T = a*dir(x)dir + c*(I - dir(x)dir)`, i.e. the line
+        below; no explicit T is needed)."""
         cfg = self.cfg
         r = max(det.range_m, 1e-3)
         cross_sigma = max(r * cfg.sigma_px / cfg.fx_px, cfg.cross_sigma_floor_m)
@@ -493,9 +586,10 @@ class PursuitRendezvousGuidance:
         outer = np.outer(dir_ned, dir_ned)
         return (cross_sigma ** 2) * np.eye(3) + (along_sigma ** 2 - cross_sigma ** 2) * outer
 
-    def _update_kf(self, own: VehicleState, det: Detection, t: float) -> None:
-        dir_ned = self._dir_ned(own, det)
-        z = np.asarray(own.pos_ned, dtype=np.float64) + det.range_m * dir_ned
+    def _update_kf(self, det: Detection, t: float) -> None:
+        _, pos_cap, _vel_cap, quat_cap = _interp_own_state(self._own_hist, det.t_capture)
+        dir_ned = self._dir_ned(quat_cap, det)
+        z = np.asarray(pos_cap, dtype=np.float64) + det.range_m * dir_ned
         self._kf.update(z, self._measurement_r(det, dir_ned))
         self._last_decode_t = t
 

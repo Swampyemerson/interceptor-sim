@@ -246,15 +246,32 @@ def test_attribution_shares_sums_to_100_and_is_uncertain_on_no_rows():
 
 
 def test_attribute_miss_never_engaged_beats_everything_else():
-    diag = {"phase": "A", "decodes_last_1s": 0, "frac_saturated_last_2s": 1.0,
+    diag = {"phase": "A", "decodes_last_1s": 0, "accel_exceed_frac_last_1s": 1.0,
            "estimator_pos_err_m": 50.0, "control_err_m": 50.0}
-    assert _attribute_miss(diag) == "never_engaged"
+    assert _attribute_miss(diag, miss_m=50.0) == "never_engaged"
+
+
+def test_attribute_miss_no_tag_only_when_zero_decodes():
+    diag = {"phase": "B", "decodes_last_1s": 0, "accel_exceed_frac_last_1s": 0.0,
+           "estimator_pos_err_m": 0.01, "control_err_m": 0.01}
+    assert _attribute_miss(diag, miss_m=5.0) == "no_tag_last_second"
 
 
 def test_attribute_miss_picks_the_larger_of_estimate_and_control():
-    base = {"phase": "B", "decodes_last_1s": 3, "frac_saturated_last_2s": 0.0}
-    assert _attribute_miss({**base, "estimator_pos_err_m": 5.0, "control_err_m": 1.0}) == "estimate"
-    assert _attribute_miss({**base, "estimator_pos_err_m": 1.0, "control_err_m": 5.0}) == "control"
+    base = {"phase": "B", "decodes_last_1s": 3, "accel_exceed_frac_last_1s": 0.0}
+    assert _attribute_miss({**base, "estimator_pos_err_m": 5.0, "control_err_m": 1.0},
+                           miss_m=1.0) == "estimate"
+    assert _attribute_miss({**base, "estimator_pos_err_m": 1.0, "control_err_m": 5.0},
+                           miss_m=1.0) == "control"
+
+
+def test_attribute_miss_saturated_needs_the_real_test_and_the_larger_magnitude():
+    base = {"phase": "B", "decodes_last_1s": 3,
+           "estimator_pos_err_m": 0.1, "control_err_m": 0.1}
+    # Real test fires (>=0.5) AND its score (miss_m) beats estimate/control.
+    assert _attribute_miss({**base, "accel_exceed_frac_last_1s": 0.8}, miss_m=3.0) == "saturated"
+    # Real test does NOT fire (<0.5): saturated scores 0, never wins.
+    assert _attribute_miss({**base, "accel_exceed_frac_last_1s": 0.2}, miss_m=3.0) != "saturated"
 
 
 def test_print_attribution_is_a_noop_for_flyby_rows(capsys):

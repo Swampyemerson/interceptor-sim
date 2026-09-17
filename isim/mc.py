@@ -22,7 +22,7 @@ import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from multiprocessing import get_context
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -77,15 +77,23 @@ _ATTRIBUTION_CATEGORIES = ("never_engaged", "no_tag_last_second", "saturated",
 # CPA-1s -- suffix "_m1s"); "attribution" itself is computed at CPA only.
 # (diag-dict key, row-column base name) -- "phase" -> "phase_at_cpa"/
 # "phase_at_cpa_m1s" to read unambiguously in a CSV alongside "attribution".
+# v3 #"Also": `frac_saturated_last_2s` (the vehicle's any-limit-active flag,
+# true almost always -- see the report) is REPLACED by
+# `accel_exceed_frac_last_1s`, a real test on commanded vs delivered accel.
 _DIAG_ROW_FIELDS = (
     ("estimator_pos_err_m", "estimator_pos_err_m"),
     ("estimator_vel_err_m", "estimator_vel_err_m"),
     ("control_err_m", "control_err_m"),
     ("tag_in_frame", "tag_in_frame"),
     ("decodes_last_1s", "decodes_last_1s"),
-    ("frac_saturated_last_2s", "frac_saturated_last_2s"),
+    ("accel_exceed_frac_last_1s", "accel_exceed_frac_last_1s"),
     ("phase", "phase_at_cpa"),
 )
+# v3 #1: own-state-history window a real Pi/autopilot pairing would use to
+# convert a Detection's t_capture -> own state; mirrors
+# isim.concepts.PursuitConfig.own_state_history_s so the accel-series stride
+# lines up with the engine's own guidance_dt (passed in via `ecfg`, not
+# hardcoded, so a non-default EngagementConfig still gets a correct stride).
 
 
 def _nearest_idx(sorted_arr: np.ndarray, value: float) -> int:
@@ -102,15 +110,47 @@ def _nearest_idx(sorted_arr: np.ndarray, value: float) -> int:
     return idx if (sorted_arr[idx] - value) < (value - sorted_arr[idx - 1]) else idx - 1
 
 
-def _diagnose(result: Any, debug_log: List[Any], t_query: float) -> Dict[str, Any]:
+def _accel_series(result: Any, ecfg: Any) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """(t, commanded_accel_mag, delivered_accel_mag) at the trace's native
+    grid, per pursuit_concept_v2.md's "Also" (v3): a real saturation test
+    needs commanded vs DELIVERED acceleration, not the vehicle's any-limit
+    `saturated` flag (which is true whenever ANY slew limit is active on
+    ANY axis, which this concept's Phase-B slew limits make true almost
+    always -- see the report). Both are the discrete derivative of the
+    `cmd`/`own_vel` trace columns over one `guidance_dt` (the cmd only
+    CHANGES every guidance tick, so differencing at the engine's finer `dt`
+    would mostly measure zero, then spike -- not a real rate)."""
+    trace = result.trace
+    if trace is None:
+        return None
+    dt = ecfg.dt
+    stride = max(1, round(ecfg.guidance_dt / dt))
+    t = trace["t"]
+    if len(t) <= stride:
+        return t, np.zeros(len(t)), np.zeros(len(t))
+    cmd_v = trace["cmd"][:, :3]
+    own_v = trace["own_vel"]
+    dt_stride = stride * dt
+    cmd_accel = np.zeros(len(t))
+    act_accel = np.zeros(len(t))
+    cmd_accel[stride:] = np.linalg.norm(cmd_v[stride:] - cmd_v[:-stride], axis=1) / dt_stride
+    act_accel[stride:] = np.linalg.norm(own_v[stride:] - own_v[:-stride], axis=1) / dt_stride
+    cmd_accel[:stride] = cmd_accel[stride] if len(t) > stride else 0.0
+    act_accel[:stride] = act_accel[stride] if len(t) > stride else 0.0
+    return t, cmd_accel, act_accel
+
+
+def _diagnose(result: Any, debug_log: List[Any], t_query: float,
+              accel_series: Optional[Tuple[np.ndarray, np.ndarray, np.ndarray]]) -> Dict[str, Any]:
     """One diagnostic snapshot near `t_query` (typically `t_cpa` or
-    `t_cpa - 1.0`), per pursuit_concept_v2.md #5. Truth (`own_pos`/`tgt_pos`/
-    `tgt_vel`) comes ONLY from `result.trace`/`result.frame_reports` -- data
-    the ENGINE already collects for scoring, read here AFTER the run ends;
-    `debug_log` never contains anything guidance was not itself handed."""
+    `t_cpa - 1.0`), per pursuit_concept_v2.md #5 (extended by v3). Truth
+    (`own_pos`/`tgt_pos`/`tgt_vel`) comes ONLY from `result.trace`/
+    `result.frame_reports` -- data the ENGINE already collects for scoring,
+    read here AFTER the run ends; `debug_log` never contains anything
+    guidance was not itself handed."""
     empty = {"estimator_pos_err_m": None, "estimator_vel_err_m": None,
             "control_err_m": None, "tag_in_frame": None, "decodes_last_1s": 0,
-            "frac_saturated_last_2s": None, "phase": None}
+            "accel_exceed_frac_last_1s": None, "phase": None}
     if not debug_log or result.trace is None:
         return empty
     debug_ts = np.array([d[0] for d in debug_log])
@@ -131,9 +171,12 @@ def _diagnose(result: Any, debug_log: List[Any], t_query: float) -> Dict[str, An
         last_rep = rep
     tag_in_frame = bool(last_rep.in_fov) if last_rep is not None else False
 
-    sat = trace["saturated"]
-    window = (trace["t"] >= t_d - 2.0) & (trace["t"] <= t_d)
-    frac_saturated_last_2s = float(np.mean(sat[window])) if np.any(window) else 0.0
+    accel_exceed_frac_last_1s = None
+    if accel_series is not None:
+        t_arr, cmd_accel, act_accel = accel_series
+        window = (t_arr >= t_d - 1.0) & (t_arr <= t_d)
+        if np.any(window):
+            accel_exceed_frac_last_1s = float(np.mean(cmd_accel[window] > act_accel[window]))
 
     return {
         "estimator_pos_err_m": float(np.linalg.norm(r_est - r_true)),
@@ -141,29 +184,37 @@ def _diagnose(result: Any, debug_log: List[Any], t_query: float) -> Dict[str, An
         "control_err_m": float(np.linalg.norm(r_est)),
         "tag_in_frame": tag_in_frame,
         "decodes_last_1s": decodes_last_1s,
-        "frac_saturated_last_2s": frac_saturated_last_2s,
+        "accel_exceed_frac_last_1s": accel_exceed_frac_last_1s,
         "phase": phase,
     }
 
 
-def _attribute_miss(diag: Dict[str, Any]) -> str:
+def _attribute_miss(diag: Dict[str, Any], miss_m: float) -> str:
     """Attribute a run's miss to the largest of five contributors, per
-    pursuit_concept_v2.md #5. A DESIGNED, DOCUMENTED heuristic, not a formal
-    decomposition: the spec's own parenthetical -- "control error (|r_true|
-    that the estimate says should be zero)" -- is read as `|r_est|` (the
-    residual the CONTROL law itself still believed existed at that instant);
-    its natural complement `|r_est - r_true|` is the ESTIMATE's own error.
-    `never_engaged`/`no_tag_last_second`/`saturated` are checked FIRST, in
-    that fixed priority order, because each is a cleaner, more certain story
-    than comparing two residual magnitudes when it applies."""
+    pursuit_concept_v2.md #5, REVISED by v3's "Also": `never_engaged` is
+    still checked first (phase != "B" is the cleanest possible story), then
+    `no_tag_last_second` fires ONLY when decodes in the last second is
+    exactly zero (a dead sensor, not a judgment call) -- otherwise
+    `estimate`/`control`/`saturated` all compete on magnitude together.
+    `estimate` = `|r_est - r_true|` (the ESTIMATE's own error); `control` =
+    `|r_est|` (the residual the CONTROL law itself still believed existed --
+    reading the original spec's parenthetical "control error (|r_true| that
+    the estimate says should be zero)" as `|r_est|`, a judgment call kept
+    from v2); `saturated` scores `miss_m` when the REAL accel-exceedance
+    test (`accel_exceed_frac_last_1s >= 0.5`) fires, else 0 -- so it only
+    wins the argmax when it fires AND the true miss is at least as large as
+    the estimate/control residuals."""
     if diag["phase"] is None or diag["phase"] != "B":
         return "never_engaged"
     if diag["decodes_last_1s"] == 0:
         return "no_tag_last_second"
-    if diag["frac_saturated_last_2s"] is not None and diag["frac_saturated_last_2s"] >= 0.5:
-        return "saturated"
+    saturated_score = 0.0
+    if (diag["accel_exceed_frac_last_1s"] is not None
+            and diag["accel_exceed_frac_last_1s"] >= 0.5):
+        saturated_score = miss_m
     scores = {"estimate": diag["estimator_pos_err_m"] or 0.0,
-             "control": diag["control_err_m"] or 0.0}
+             "control": diag["control_err_m"] or 0.0,
+             "saturated": saturated_score}
     return max(scores, key=scores.get)
 
 
@@ -221,9 +272,10 @@ def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
     )
 
     if is_pursuit:
-        diag_cpa = _diagnose(result, recorder.log, result.t_cpa)
-        diag_m1s = _diagnose(result, recorder.log, result.t_cpa - 1.0)
-        row["attribution"] = _attribute_miss(diag_cpa)
+        accel_series = _accel_series(result, ecfg)
+        diag_cpa = _diagnose(result, recorder.log, result.t_cpa, accel_series)
+        diag_m1s = _diagnose(result, recorder.log, result.t_cpa - 1.0, accel_series)
+        row["attribution"] = _attribute_miss(diag_cpa, result.miss_m)
         for diag_key, col in _DIAG_ROW_FIELDS:
             row[col] = diag_cpa[diag_key]
             row[col + "_m1s"] = diag_m1s[diag_key]

@@ -350,3 +350,59 @@ def test_closing_speed_schedule_matches_clamp_formula():
     guidance._kf.x = np.array([50.0, 0.0, 0.0, 9.0, 0.0, 0.0])
     cmd_v_far, _ = guidance._phase_b_cmd(own, np.zeros(3))
     assert cmd_v_far[0] == pytest.approx(9.0 + cfg.v_close_max_ms, abs=1e-6)
+
+
+# ----------------------------------------------------------- v3: capture-time fix
+
+def test_interp_own_state_linear_between_two_samples():
+    from isim.concepts import _interp_own_state
+    from collections import deque
+    hist = deque([
+        (1.00, np.array([0.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0]), (1.0, 0.0, 0.0, 0.0)),
+        (1.10, np.array([1.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0]), (1.0, 0.0, 0.0, 0.0)),
+    ])
+    t_q, pos, vel, quat = _interp_own_state(hist, 1.05)
+    assert t_q == pytest.approx(1.05)
+    np.testing.assert_allclose(pos, [0.5, 0.0, 0.0], atol=1e-9)
+    np.testing.assert_allclose(vel, [1.0, 0.0, 0.0], atol=1e-9)
+    # Clamped to the ends, never extrapolated.
+    _, pos_before, _, _ = _interp_own_state(hist, 0.5)
+    np.testing.assert_allclose(pos_before, [0.0, 0.0, 0.0])
+    _, pos_after, _, _ = _interp_own_state(hist, 5.0)
+    np.testing.assert_allclose(pos_after, [1.0, 0.0, 0.0])
+
+
+def test_measurement_uses_own_state_at_capture_not_at_arrival():
+    """v3 #1: a Detection with `t_capture` well before the tick it is HANDED
+    to `step()` must be converted to NED using the own position/attitude AT
+    `t_capture` (from the ring buffer), not the `own` argument's (arrival-
+    time) state -- reproduced directly: the vehicle moves 5 m north between
+    capture and arrival; using the arrival-time position would put the
+    measured target 5 m further north than using the (correct) capture-time
+    position."""
+    cfg = PursuitConfig()
+    guidance = PursuitRendezvousGuidance(
+        cfg, belief_pos0_ned=np.zeros(3), belief_vel_ned=np.array([1.0, 0.0, 0.0]),
+        go_at_s=0.0, initial_yaw_deg=0.0)
+
+    # Own flies north at 50 m/s (exaggerated on purpose -- makes the effect
+    # large and unambiguous) for 0.1 s between two step() calls; a Detection
+    # captured at the EARLIER tick arrives (is handed to step()) at the LATER
+    # one, with a bearing/elevation of dead-ahead (0, 0) and range 10 m.
+    quat0 = yaw_to_quat_wxyz(0.0)
+    own_t0 = VehicleState(t=0.0, pos_ned=np.array([0.0, 0.0, -5.0]),
+                         vel_ned=np.array([50.0, 0.0, 0.0]), quat_wxyz=quat0, yaw_rad=0.0)
+    guidance.step(0.0, own_t0, None)   # records history sample at t=0
+
+    own_t1 = VehicleState(t=0.1, pos_ned=np.array([5.0, 0.0, -5.0]),
+                         vel_ned=np.array([50.0, 0.0, 0.0]), quat_wxyz=quat0, yaw_rad=0.0)
+    det = Detection(t_capture=0.0, t_available=0.1, u_px=640.0, v_px=400.0, side_px=20.0,
+                   range_m=10.0, bearing_deg=0.0, elevation_deg=0.0)
+    guidance.step(0.1, own_t1, det)   # hands the STALE-by-0.1s detection here
+
+    # dead-ahead, yaw=0 -> dir_ned = (1,0,0); z = pos_at_capture + 10*(1,0,0).
+    # Correct (capture-time pos [0,0,-5]): z = (10, 0, -5).
+    # Wrong (arrival-time pos [5,0,-5]):    z = (15, 0, -5).
+    got = guidance._decode_positions[-1][1]
+    np.testing.assert_allclose(got, [10.0, 0.0, -5.0], atol=1e-6)
+    assert not np.allclose(got, [15.0, 0.0, -5.0], atol=1e-6)
