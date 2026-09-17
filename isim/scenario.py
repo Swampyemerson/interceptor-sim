@@ -64,6 +64,7 @@ import numpy as np
 
 from flight.deploy.real_flight import MissionConfig, resolve_preflight_heading, wrap_deg
 
+from isim.concepts import PursuitConfig, PursuitRendezvousGuidance
 from isim.engine import EngagementConfig
 from isim.flight_adapter import RealFlightGuidance, standby_init_state
 from isim.seeker import AprilTagSeeker, CameraParams, DecodeParams, TagParams
@@ -208,7 +209,14 @@ class Scenario:
     sprint_scale: float = 1.0            # 1.0 = full dash speed, 0.0 = none (see docstring)
     height_guess_error_m: float = 0.0    # added to the vehicle's own standby_alt_m
     head_on: bool = False                # target flies straight at the launch point
-    faces_camera: bool = True            # AprilTag orientation: best-case decode
+    # AprilTag mount orientation on the target: "camera" = always faces the
+    # camera (today's best case, incidence pinned to 0); "rear" = tag normal
+    # is minus the target's velocity direction (faces back at a chaser
+    # approaching from behind -- the "pursuit" concept's own story); "side" =
+    # a fixed horizontal normal perpendicular to the track, facing the launch
+    # side (see `build()`). Supersedes the old `faces_camera: bool` field
+    # (no other module referenced it; "camera" reproduces its True path).
+    tag_facing: str = "camera"
     seed: int = 0
     # Run-to-run scatter (honest noise; see `Scatter`). None = today's exact,
     # bit-identical, deterministic-given-seed behaviour.
@@ -219,13 +227,63 @@ class Scenario:
     cam_tilt_up_deg: float = 0.0
     # Passed to `RealFlightGuidance(..., terminal=...)` ONLY when != "stock"
     # (see `build()`); "stock" is the only value guaranteed to work today.
+    # Ignored when `concept="pursuit"`.
     terminal: str = "stock"
     cam_fx_px: float = 540.0             # NOMINAL focal length, px (both true camera and flight code)
     tag_side_m: float = 0.30             # printed tag side, m
+    # "flyby" = today's open-loop-dash concept (RealFlightGuidance driving
+    # the unmodified RealFlightSM), bit-identical to before this field
+    # existed. "pursuit" = isim.concepts.PursuitRendezvousGuidance instead --
+    # see isim/specs/pursuit_concept.md. Both start the vehicle hovering at
+    # the same standby point and release GO at the same time.
+    pursuit_window_s: float = 25.0       # pursuit only: engagement window, s
+    concept: str = "flyby"
+    # PursuitConfig.v_max_ms override, concept="pursuit" only. None = that
+    # config's own default (16.0). Exists so isim.mc's generic
+    # `dataclasses.replace(base, **{axis_name: value})` sweep machinery can
+    # sweep pursuit's "sprint quality" axis the same way it sweeps every
+    # other Scenario field (see the task's measurement script).
+    pursuit_v_max_ms: Optional[float] = None
 
 
 def _sign(x: float) -> float:
     return 1.0 if x >= 0.0 else -1.0
+
+
+def _unit_or(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
+    n = float(np.linalg.norm(v))
+    return (v / n) if n > 1e-9 else fallback
+
+
+def _tag_for(scn: "Scenario", vel_ned: np.ndarray) -> TagParams:
+    """Build the target's true AprilTag mount from `scn.tag_facing` -- a fact
+    about the simulated world (how the tag is bolted to the target drone),
+    never something guidance reads."""
+    if scn.tag_facing == "camera":
+        return TagParams(faces_camera=True, side_m=scn.tag_side_m)
+    if scn.tag_facing == "rear":
+        # Faces backward relative to travel -- toward a chaser approaching
+        # from behind, the "pursuit" concept's own geometry.
+        rear_normal = -_unit_or(vel_ned, np.array([1.0, 0.0, 0.0]))
+        return TagParams(faces_camera=False, faces_velocity=False,
+                         normal_ned=tuple(float(c) for c in rear_normal),
+                         side_m=scn.tag_side_m)
+    if scn.tag_facing == "side":
+        # A fixed horizontal normal perpendicular to the track, facing the
+        # launch side. Only meaningful for crossing geometry (the module
+        # docstring: cross_range_m is the launch-to-track perpendicular
+        # offset along east); head-on has no such axis, so a fixed,
+        # arbitrary-but-documented east-facing normal is used instead.
+        if scn.head_on:
+            side_normal = np.array([0.0, 1.0, 0.0])
+        else:
+            sign = -1.0 if scn.cross_range_m >= 0.0 else 1.0
+            side_normal = np.array([0.0, sign, 0.0])
+        return TagParams(faces_camera=False, faces_velocity=False,
+                         normal_ned=tuple(float(c) for c in side_normal),
+                         side_m=scn.tag_side_m)
+    raise ValueError(f"scenario.build: tag_facing={scn.tag_facing!r}, want "
+                     f"'camera', 'rear', or 'side'")
 
 
 def _target_geometry(scn: Scenario) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float],
@@ -351,17 +409,52 @@ def build(
                            fy=cam_true.fy * (1.0 + fx_fy_eps),
                            mount_tilt_up_deg=scn.cam_tilt_up_deg + tilt_err_deg)
 
-    tag = TagParams(faces_camera=scn.faces_camera, side_m=scn.tag_side_m)
+    tag = _tag_for(scn, vel_ned)
     seeker = AprilTagSeeker(cam=cam_true, tag=tag, dec=DecodeParams())
 
-    guidance_kwargs = {} if scn.terminal == "stock" else {"terminal": scn.terminal}
-    guidance = RealFlightGuidance(cfg, cam_params=cam_nominal, span_m=tag.side_m,
-                                  go_at_s=trigger_go_at_s, home_alt_m=0.0,
-                                  **guidance_kwargs)
+    if scn.concept == "flyby":
+        guidance_kwargs = {} if scn.terminal == "stock" else {"terminal": scn.terminal}
+        guidance: Guidance = RealFlightGuidance(
+            cfg, cam_params=cam_nominal, span_m=tag.side_m,
+            go_at_s=trigger_go_at_s, home_alt_m=0.0, **guidance_kwargs)
+    elif scn.concept == "pursuit":
+        # Phase A's belief geometry: the SAME belief_start_en/belief_vel_en
+        # the heading solve above used (already carries the Scatter speed-
+        # belief error, honesty-gated -- see Scatter's docstring), rotated
+        # about the launch origin by the SAME total angle
+        # (aim_error_deg + heading_noise_deg) the flyby concept adds
+        # directly to its solved heading -- so a compass/EKF or deliberate
+        # aim error distorts pursuit's belief exactly as it distorts flyby's
+        # aim, for an apples-to-apples comparison across the two concepts.
+        # Rotation (E,N) -> (E',N') by theta clockwise (azimuth convention,
+        # atan2(east, north)): E'=E*cos(t)+N*sin(t), N'=N*cos(t)-E*sin(t).
+        theta = math.radians(scn.aim_error_deg + heading_noise_deg)
+        ct, st = math.cos(theta), math.sin(theta)
+        be, bn = belief_start_en
+        bve, bvn = belief_vel_en
+        be_r, bn_r = be * ct + bn * st, bn * ct - be * st
+        bve_r, bvn_r = bve * ct + bvn * st, bvn * ct - bve * st
+        belief_pos0_ned = np.array([bn_r, be_r, -NOMINAL_ALT_M], dtype=np.float64)
+        belief_vel_ned = np.array([bvn_r, bve_r, 0.0], dtype=np.float64)
+        pcfg_kwargs = {} if scn.pursuit_v_max_ms is None else {"v_max_ms": scn.pursuit_v_max_ms}
+        pcfg = PursuitConfig(fx_px=scn.cam_fx_px, tag_side_m=scn.tag_side_m, **pcfg_kwargs)
+        guidance = PursuitRendezvousGuidance(
+            pcfg, belief_pos0_ned, belief_vel_ned, go_at_s=trigger_go_at_s,
+            initial_yaw_deg=heading, cam_mount_tilt_up_deg=scn.cam_tilt_up_deg)
+    else:
+        raise ValueError(f"scenario.build: concept={scn.concept!r}, want "
+                         f"'flyby' or 'pursuit'")
 
     target = _DelayedTarget(inner=ConstantVelocityTarget(pos0_ned, vel_ned), go_at_s=go_at_s)
     init_state = standby_init_state(cfg)
 
-    ecfg = EngagementConfig(stop_not_before_s=stop_not_before_s, seed=scn.seed)
+    if scn.concept == "pursuit":
+        # A pursuit is scored on its closest approach over the WHOLE window: the
+        # target's first fly-past is not the end of the engagement, the chase is.
+        ecfg = EngagementConfig(stop_not_before_s=stop_not_before_s, seed=scn.seed,
+                                max_t=scn.pursuit_window_s,
+                                stop_after_cpa_s=scn.pursuit_window_s)
+    else:
+        ecfg = EngagementConfig(stop_not_before_s=stop_not_before_s, seed=scn.seed)
 
     return ecfg, vehicle, target, seeker, guidance, init_state

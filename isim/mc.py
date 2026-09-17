@@ -203,6 +203,8 @@ def _base_scenario_from_args(args: argparse.Namespace) -> Scenario:
         scatter=Scatter() if args.scatter else None,
         terminal=args.terminal,
         cam_tilt_up_deg=args.cam_tilt,
+        concept=args.concept,
+        tag_facing=args.tag_facing,
     )
 
 
@@ -213,6 +215,10 @@ def _add_scatter_args(p: argparse.ArgumentParser) -> None:
                    help="passed to RealFlightGuidance(terminal=...) when != 'stock'")
     p.add_argument("--cam-tilt", type=float, default=0.0, dest="cam_tilt",
                    help="deg, nominal camera mount tilt (Scenario.cam_tilt_up_deg)")
+    p.add_argument("--concept", type=str, default="flyby",
+                   help="Scenario.concept: 'flyby' (default) or 'pursuit'")
+    p.add_argument("--tag-facing", type=str, default="camera", dest="tag_facing",
+                   help="Scenario.tag_facing: 'camera' (default), 'rear', or 'side'")
 
 
 def _cmd_sweep(args: argparse.Namespace) -> int:
