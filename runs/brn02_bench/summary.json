@@ -1,0 +1,8 @@
+{
+  "date": "2026-09-16",
+  "board": "Pixhawk 6C Mini, PX4, USB COM5 (VID:PID 3185:0038), indoors, USB power only",
+  "method": "read-only: MAVLink stream listen (fc_gps_check.py, 25 s) + PX4 shell over MAVLink SERIAL_CONTROL (px4_nsh.py). No parameter written, never armed.",
+  "gps": {"driver": "gps status: Main GPS, protocol UBX, status OK, port /dev/ttyS0 (GPS1), 115200 baud", "rate_hz": 10.01, "fix_type": 0, "satellites_used": 0, "GPS_1_CONFIG": 201, "GPS_RAW_INT_msgs_in_25s": 252},
+  "compass": {"external": "ist8310 running on I2C bus 1 addr 0x0E (the GPS1 bus) -- detected with NO extras.txt workaround", "internal": "ist8310 on I2C bus 4 addr 0x0C", "CAL_MAG0_ID": 396321, "CAL_MAG1_ID": 527633, "sys_status": "present=True healthy=False (uncalibrated; preflight check FAILED as expected on a bench)", "workaround_file": "/fs/microsd/etc/extras.txt does not exist -- nothing to delete"},
+  "not_proven": ["3D fix (needs open sky)", "compass calibration (airframe stage)", "which CAL_MAGn_ID is the external unit was not decoded"]
+}

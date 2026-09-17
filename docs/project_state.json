@@ -2036,8 +2036,8 @@
           },
           {
             "id": "brn-02",
-            "text": "Connect the M10 and verify GPS + compass appear in QGC. RESOLVED 2026-08-29: a second M10 arrived carrying the 10-pin cable, so the GPS moved to the GPS1 socket and GPS_1_CONFIG was set back to 'GPS 1' (201) -- verified by read-back on the live board. This should also fix the compass for free: the ist8310 is probed on I2C bus 1, which is GPS1's bus, so the extras.txt workaround ADR-0091 proposed should become unnecessary. TAKES EFFECT ONLY AFTER A REBOOT -- PX4 reads port assignments at boot. Confirm mag + 3D fix in QGC after the power cycle BEFORE deleting the workaround. The small M10Q-5883 goes to the TARGET's Kakute H7 instead, soldered to pads (that board has no GPS plug).",
-            "why": "The GPS itself is only a port assignment, but the compass is a bus the firmware does not scan -- it would have looked like a dead module. Separately: this M10 carries no safety switch (those are GPS1 pins 6/7), so bench.params' CBRK_IO_SAFETY=0 leaves the board unarmable at the airframe stage. Not a bench blocker (brn-05 never arms)."
+            "text": "[DONE 2026-09-16, indoors] M10 on the GPS1 socket, read back over USB: the GPS driver is talking to the module (UBX, 10 Hz) and the M10's compass is detected on GPS1's own bus with NO workaround -- the extras.txt hack from ADR-0091 was never deployed and is not needed. NOT proven yet: a 3D fix (needs open sky) and compass calibration (airframe stage; it reads 'unhealthy' until calibrated, which is expected).",
+            "why": "The compass was the risk: on the GPS2 socket the firmware never scans that bus, so it would have looked like a dead module. Moving to GPS1 fixed it for free. Still true: this M10 has no safety switch, so bench.params' CBRK_IO_SAFETY=0 leaves the board unarmable at the airframe stage. Evidence: runs/brn02_bench/summary.json."
           },
           {
             "id": "brn-03",
