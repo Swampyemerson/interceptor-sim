@@ -73,3 +73,38 @@ twin, and is the next question, not this one.
   do not remove it. Count phantoms separately; do not read "more detections" as "more real ones".
 - 40–75° is this geometry (6.5 m standoff, 9 m/s crossing). A head-on target has no lead angle
   and needs neither lever; the numbers do not transfer.
+
+## Amendment, written while the five arms above are still flying and BEFORE any was read (2026-09-17)
+
+Checking how fast the vehicle can actually turn its nose, I looked at one old camera flight's
+first second: **it begins the sprint facing 97° (roughly east, the way the sim spawns it) while
+the commanded heading is 65°, and it turns at only ~25°/s while pitching over** — 97° → 83° in
+the first 0.57 s of a ~1.5 s sprint. So in every camera arm ever flown here, the nose spent the
+whole sprint catching up with its command. The real launch procedure does not do this: the
+vehicle sits in a standby hover with the aim heading already held (stage `launch_aim`,
+assumption `standby-yaw-hold`). The sim skipped that step. It costs the sprint nothing (the
+velocity command is in world axes) but it costs the CAMERA most of its field of view — a
+scenario-realism defect that only the camera arms can suffer.
+
+**Consequence for the arms in the air:** `PYAW` asks for a 60–75° yaw change it cannot complete
+in 1.5 s. I now expect `PYAW` to **under-deliver on M1/M2 as registered**, for a reason that is
+not the lever's fault. That prediction is written here before reading it, so that a weak `PYAW`
+is neither spun as a success nor taken as the lever's verdict.
+
+**Added arms (same seed 123, same metrics M1–M3 and harm check, flown after the first five,
+on a HEAD that adds only the default-OFF `--dash-prealign-yaw`):** the vehicle first hovers and
+yaws to the sprint's first yaw command (within 3° for 0.3 s; logged as phase `STANDBY`; the
+target does not start moving until the sprint does).
+
+| arm | what |
+|---|---|
+| `PCAMA` | control + pre-align (nose on the sprint heading — what the real procedure does) |
+| `PYAWA` | yaw-to-predicted-target + pre-align |
+| `PYAWTA` | … + 25° up-tilt |
+| `PDASHA` / `PYAWDA` | dash-only twins |
+
+**Predictions for the aligned arms:** `PCAMA` M1 stays low (< 10%: the lead angle alone keeps the
+target 30–60° off the nose) — if `PCAMA` alone reaches M1 ≥ 30% then the missing standby step, not
+the lead geometry, was the wall, and the yaw lever is unnecessary. `PYAWA` M1 ≥ 30%, M2 ≥ 20.
+`PYAWTA` M1 ≥ 60%. The adopt rule is unchanged and is applied to the ALIGNED arms; the un-aligned
+five are reported alongside as the "what the sim had been doing" baseline.
