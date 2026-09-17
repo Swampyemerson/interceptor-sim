@@ -3096,10 +3096,15 @@ async def run_acquire_and_engage(
                       "m/s^2 -- pass --dash-lead-accel-ms2 to match the flown accel.",
                       flush=True)
         else:
-            coded_dash_heading_deg, _t_const, _wind_trim_result = solve_wind_trimmed_lead(
+            coded_dash_heading_deg, _, _wind_trim_result = solve_wind_trimmed_lead(
                 collision_lead_heading,
                 (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
                 (_tvx, _tvy), _vi, _wind_trim)
+            # Passage gate's plan distance. A SEPARATE pure call so the aim call
+            # above stays textually pinned (test_wind_wiring / test_guidance).
+            _, _t_const = collision_lead_heading(
+                (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
+                (_tvx, _tvy), _vi)
             if _t_const is not None:
                 coded_dash_plan_m = _vi * _t_const
         # LOG WHAT WAS APPLIED, NOT WHAT WAS INTENDED (ADR-0090 pattern). The
