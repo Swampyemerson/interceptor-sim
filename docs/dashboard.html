@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e94daab<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e967419<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1377,6 +1377,18 @@
    "rec": "Option 3 first, then 1. The sprint-only vehicle is the strongest thing the project has (13 of 16 inside touching distance, best case). Tonight's three-wall finding is itself a strong portfolio story. A terminal redesign is worth doing, but it is the 'one more experiment' risk in its purest form.",
    "blocked": "All further camera-terminal sim work. I stopped flying terminal arms by the rule I wrote before the last one flew.",
    "doc": "docs/pointing_prereg.md (last section)"
+  },
+  {
+   "id": "deletions-2026-09",
+   "question": "The flight script now has 73 switches (I added 9 overnight), the docs are 88 files / 31,000 lines, and there are 116 decision records. Nobody can hold that. What do I delete?",
+   "options": [
+    "Delete the switches whose experiments are finished and lost: the 5 m range gate, the rise dead-band / min-rise pair, the sprint height-gain pair, the terminal speed floor -- 6 switches, with their tests, keeping the write-ups",
+    "Also archive docs that only describe closed work (the two big audit files, the bird-discrimination design, the retired demo plans) into docs/archive/ so the live set is ~20 files",
+    "Leave everything; deletion risks losing the record"
+   ],
+   "rec": "Options 1 and 2 together. Every lost experiment is already written down in a pre-registration or a decision record, so the switch itself is dead weight that a future session can mis-use. I will not delete anything without your go: it touches the flight script.",
+   "blocked": "Nothing. It is housekeeping, about half a session.",
+   "doc": "CLAUDE.md -- 'deleting is a deliverable'"
   },
   {
    "id": "corrected-headline-framing",

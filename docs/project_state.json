@@ -482,6 +482,18 @@
       "doc": "docs/pointing_prereg.md (last section)"
     },
     {
+      "id": "deletions-2026-09",
+      "question": "The flight script now has 73 switches (I added 9 overnight), the docs are 88 files / 31,000 lines, and there are 116 decision records. Nobody can hold that. What do I delete?",
+      "options": [
+        "Delete the switches whose experiments are finished and lost: the 5 m range gate, the rise dead-band / min-rise pair, the sprint height-gain pair, the terminal speed floor -- 6 switches, with their tests, keeping the write-ups",
+        "Also archive docs that only describe closed work (the two big audit files, the bird-discrimination design, the retired demo plans) into docs/archive/ so the live set is ~20 files",
+        "Leave everything; deletion risks losing the record"
+      ],
+      "rec": "Options 1 and 2 together. Every lost experiment is already written down in a pre-registration or a decision record, so the switch itself is dead weight that a future session can mis-use. I will not delete anything without your go: it touches the flight script.",
+      "blocked": "Nothing. It is housekeeping, about half a session.",
+      "doc": "CLAUDE.md -- 'deleting is a deliverable'"
+    },
+    {
       "id": "corrected-headline-framing",
       "question": "The scorer was measuring to the camera lens, not the airframe centre. An interim re-score claimed the fix turned 0 of 16 flights inside the kill radius into 12 of 16 -- that was RETRACTED the same night (the '+0.208 m camera offset' was landing-gear height). The real corrected ruling is 3 of 16 at logged ticks, 5 of 16 interpolated. How do you want it said?",
       "options": [
