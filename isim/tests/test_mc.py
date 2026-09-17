@@ -6,6 +6,7 @@ verification run, not repeated here."""
 from __future__ import annotations
 
 import csv
+import dataclasses
 
 import pytest
 
@@ -291,3 +292,38 @@ def test_print_attribution_prints_for_pursuit_rows(capsys):
     assert "attribution shares" in out
     for cat in _ATTRIBUTION_CATEGORIES:
         assert cat in out
+
+
+# --------------------------------------------------- v4: "at last decode"
+
+def test_pursuit_rows_carry_estimator_error_at_last_decode():
+    """v4 #4: a second query point (the last decode before CPA, not CPA
+    itself) resolving the v3 oddity -- see the task's final report."""
+    rows = run_many([_fast_pursuit_scenario(seed=s) for s in range(5)], workers=1)
+    assert any(r["estimator_pos_err_m_at_last_decode"] is not None for r in rows)
+    for r in rows:
+        assert "estimator_pos_err_m_at_last_decode" in r
+        assert "estimator_vel_err_m_at_last_decode" in r
+
+
+def test_flyby_rows_carry_none_for_at_last_decode_too():
+    row = run_many([_fast_scenario(seed=0)], workers=1)[0]
+    assert row["estimator_pos_err_m_at_last_decode"] is None
+
+
+# --------------------------------------------------- v4: pursuit_overrides
+
+def test_pursuit_overrides_reach_a_spawned_worker():
+    """The gotcha from the last two rounds: a monkeypatched default does NOT
+    reach a `spawn` worker process, but a plain `Scenario` field value does
+    -- this is exactly that field, exercised with workers=2 to prove it."""
+    base_scn = _fast_pursuit_scenario(seed=0)
+    scn_tight = dataclasses.replace(base_scn, pursuit_overrides={"kf_q_accel_ms2": 50.0})
+    rows_default = run_many([base_scn], workers=2)
+    rows_tight = run_many([scn_tight], workers=2)
+    # Wildly different process noise must change SOMETHING measurable
+    # (estimator velocity error at CPA-1s, a real number either way).
+    v_default = rows_default[0]["estimator_vel_err_m_m1s"]
+    v_tight = rows_tight[0]["estimator_vel_err_m_m1s"]
+    assert v_default is not None and v_tight is not None
+    assert v_default != v_tight

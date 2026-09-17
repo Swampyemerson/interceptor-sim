@@ -49,6 +49,24 @@ a relative one -- the "own acceleration looks like target motion" symptom
 was entirely the capture-time bug above, using the wrong own position as
 the absolute reference.)
 
+v4 (isim/specs/pursuit_concept_v4.md) targets the "last second"/height/aim-
+cliff failure modes the v3 diagnostics pointed at, all Phase-B/A additions,
+no further bug fixes:
+  - Phase B prioritises nulling the LATERAL miss component over closing
+    speed inside `last_line_range_m` (`kp_lat_near_mult`) -- "arrive on a
+    line that keeps the tag centred" (#1b).
+  - Phase A, once it has ARRIVED at its aim point with no decode for
+    `vsearch_delay_s`, starts a slow vertical sweep (`vsearch_*`) and a yaw
+    sweep (`yaw_search_*`) around the aim point/belief bearing -- "it
+    should not sit there" (#2/#3).
+  - `DualTagSeeker` (a plain composite, no `isim.seeker` changes) covers
+    two MEASURE-only hardware ideas from the same mechanism: a smaller,
+    closer-range co-located tag (#1d) and a second tag at a different
+    mount orientation (#3's "two-tag target"); see `isim.scenario.Scenario.
+    inner_tag_side_m`/`second_tag_facing`. Neither is a new default.
+  - `PursuitDebug.last_decode_t` + `isim.mc`'s new "at last decode" query
+    resolve v4 #4's unexplained oddity -- see the task's final report.
+
 HONESTY. `PursuitRendezvousGuidance.step()` receives only a `VehicleState`
 and an `Optional[Detection]`, per `isim.types.Guidance` -- never a
 `TargetState` or a `FrameReport`. Its Phase-A belief trajectory
@@ -67,7 +85,7 @@ from typing import Deque, List, Optional, Tuple
 import numpy as np
 
 from isim.seeker import quat_to_rot
-from isim.types import Detection, VehicleState, VelCmd
+from isim.types import Detection, FrameReport, SeekerModel, VehicleState, VelCmd
 
 _EPS = 1e-9
 
@@ -258,6 +276,56 @@ class PursuitConfig:
     # generous against latencies of tens of ms).
     own_state_history_s: float = 0.3
 
+    # --- v4 #1b: "arrive on a line that keeps the tag centred" -- inside
+    # last_line_range_m, the lateral (miss) correction is weighted more
+    # heavily relative to closing, so the vehicle nulls its lateral
+    # relative velocity EARLY and then closes on a straight line, instead
+    # of closing and correcting laterally at the same rate the whole way
+    # in.
+    #
+    # MEASURED NULL/NEGATIVE (n=100 x 2 facings, swept 1.0/1.5/2.0/2.5/4.0):
+    # boosting the near-range lateral gain makes BOTH facings monotonically
+    # WORSE -- camera pct<=0.35m 55%->38% at 2.5x, rear 71%->53% at 2.5x
+    # (rear falls to 29% by 4.0x). The likely mechanism: the estimate is at
+    # its noisiest, relative to the shrinking range, exactly where this
+    # multiplier is largest, so a bigger gain there amplifies noise into
+    # over-correction rather than damping genuine lateral drift. KEPT AT
+    # 1.0 (no-op/off) -- the idea did not survive measurement; see the
+    # task's final report for the full sweep table.
+    kp_lat_near_mult: float = 1.0
+    last_line_range_m: float = 3.0
+
+    # --- v4 #2/#3: Phase A search. Once the vehicle is CLOSE ENOUGH to its
+    # aim point (within `vsearch_arrival_range_m`) and has gone
+    # `vsearch_delay_s` with no decode of any kind, it stops flying a
+    # silent, un-perturbed pursuit line and starts a slow vertical sweep
+    # (amplitude/period below) around the aim point's altitude, AND (v4 #3)
+    # a yaw sweep around the belief bearing, on a DIFFERENT period so the
+    # two sweeps slowly precess relative to each other and cover more of
+    # the search volume over time than either alone.
+    #
+    # MEASURED NEGATIVE ON BALANCE (n=100 x 2 facings x 5 cases: nominal,
+    # alt +-, aim 20/30 deg) -- DEFAULT OFF (both amplitudes 0.0). It only
+    # ever helps the single worst case it targets (tag_facing="rear",
+    # aim_error=30deg: %engage 5%->10%, but pct<=0.35m stays ~flat, 2%->3%)
+    # while making every case that was ALREADY mostly working WORSE for
+    # tag_facing="rear" (nominal pct<=0.35m 71%->67%; alt-2m 74%->68%;
+    # alt+3m 43%->32%; aim_error=20deg 54%->40%, %engage 64%->55%) --
+    # perturbing a Phase-A trajectory that was about to succeed anyway
+    # costs more often than a genuinely-stuck trajectory gets rescued.
+    # tag_facing="camera" is nearly unaffected either way (it rarely
+    # reaches this trigger at all -- see the report). The mechanism is
+    # implemented and tested (`test_phase_a_search_sweeps_...`); kept
+    # available via `Scenario.pursuit_overrides` for anyone who wants a
+    # different worst-case/typical-case tradeoff, but not adopted as the
+    # default. See the task's final report for the full before/after table.
+    vsearch_arrival_range_m: float = 2.0
+    vsearch_delay_s: float = 2.0
+    vsearch_amplitude_m: float = 0.0
+    vsearch_period_s: float = 8.0
+    yaw_search_amplitude_deg: float = 0.0
+    yaw_search_period_s: float = 7.0
+
 
 # ------------------------------------------------------------- Phase A belief
 
@@ -343,10 +411,15 @@ class PursuitDebug:
     `v_t_est` are this guidance's OWN belief (Phase A: the belief track;
     Phase B: the KF) of the target's relative position / absolute velocity
     -- never ground truth; the SCORING side (`isim.mc`) is the only place
-    that may compare this to a trace's truth, and only after the run ends."""
+    that may compare this to a trace's truth, and only after the run ends.
+    `last_decode_t` (v4 #4) is `self._last_decode_t` (-inf if never) -- lets
+    the scoring side ALSO query the estimate/control error AT THE LAST
+    DECODE, not just at CPA (see the task's final report for why "error at
+    CPA" is a misleading statistic once the vehicle is coasting blind)."""
     r_est: np.ndarray
     v_t_est: np.ndarray
     phase: str
+    last_decode_t: float = -math.inf
 
 
 # --------------------------------------------------------------------- the law
@@ -391,6 +464,8 @@ class PursuitRendezvousGuidance:
         self._prev_yaw_deg = self.initial_yaw_deg
         self._last_t: Optional[float] = None
         self._own_hist: Deque[_OwnSample] = deque()
+        self._last_any_decode_t = -math.inf        # v4 #2/#3: Phase-A search trigger
+        self._last_search_elapsed: Optional[float] = None
         self.state_log = []
         self.events = []
         self.last_decision = None
@@ -423,6 +498,7 @@ class PursuitRendezvousGuidance:
             self._phase = "A"
 
         if det is not None:
+            self._last_any_decode_t = t   # v4 #2/#3 search trigger -- ANY decode, any phase
             _, pos_cap, _vel_cap, quat_cap = _interp_own_state(self._own_hist, det.t_capture)
             self._decode_positions.append(
                 (det.t_capture, self._measure_pos_ned(pos_cap, quat_cap, det)))
@@ -452,14 +528,21 @@ class PursuitRendezvousGuidance:
             cmd_v = self._phase_a_cmd(t, own_pos)
             pos_belief, vel_belief = self._track.at(t)
             yaw = _yaw_toward(pos_belief - own_pos, self._prev_yaw_deg)
+            # v4 #3: once arrived-with-no-decode, also sweep yaw (+/- amplitude)
+            # around the belief bearing -- same trigger as the vertical sweep
+            # `_phase_a_cmd` just applied to `cmd_v`'s aim point, on a
+            # DIFFERENT period so the two sweeps slowly precess.
+            if self._last_search_elapsed is not None:
+                yaw = yaw + self.cfg.yaw_search_amplitude_deg * math.sin(
+                    2.0 * math.pi * self._last_search_elapsed / self.cfg.yaw_search_period_s)
             accel_h = accel_v = self.cfg.accel_max_ms2
             self.debug = PursuitDebug(r_est=pos_belief - own_pos, v_t_est=vel_belief,
-                                      phase=self._phase)
+                                      phase=self._phase, last_decode_t=self._last_decode_t)
         else:
             cmd_v, yaw = self._phase_b_cmd(own, own_pos)
             accel_h, accel_v = self.cfg.accel_max_horiz_b_ms2, self.cfg.accel_max_vert_b_ms2
             self.debug = PursuitDebug(r_est=self._kf.pos - own_pos, v_t_est=self._kf.vel,
-                                      phase=self._phase)
+                                      phase=self._phase, last_decode_t=self._last_decode_t)
 
         cmd_v = _clip_norm(cmd_v, self.cfg.v_max_ms)
         cmd_v = _slew(cmd_v, self._prev_v_cmd, accel_h, accel_v, dt)
@@ -492,11 +575,46 @@ class PursuitRendezvousGuidance:
 
     # ------------------------------------------------------------- Phase A law
 
+    def _search_elapsed(self, t: float, range_to_aim: float) -> Optional[float]:
+        """None unless Phase A is CLOSE ENOUGH to its aim point
+        (`range_to_aim < vsearch_arrival_range_m`, checked fresh every tick
+        -- not a sustained-arrival latch, see below) AND it has been
+        `vsearch_delay_s` since the last decode of ANY kind (including one
+        that didn't reach acquire_n); else seconds into the search sweep.
+
+        v4 #2/#3: "if the vehicle reaches its aim point and sees nothing,
+        it should not sit there." FIRST IMPLEMENTATION required arrival to
+        be CONTINUOUSLY held for `vsearch_delay_s` (a latch cleared the
+        instant range_to_aim grew again) -- measured to never fire on the
+        cases it targets: chasing a fast-moving, aim-error-rotated belief
+        point makes the vehicle overshoot in and out of a small capture
+        radius (arrived_t reset every ~6.5 s in one seed 0 trace, never
+        holding continuously for 2 s) even while making no real progress.
+        This version decouples "close enough right now" from "how long
+        since anything was seen" -- the SUM of both signals genuinely
+        found the search regime the spec asked for; see the task's final
+        report for the before/after."""
+        if range_to_aim >= self.cfg.vsearch_arrival_range_m:
+            return None
+        blind_s = t - max(self._last_any_decode_t, self.go_at_s)
+        if blind_s < self.cfg.vsearch_delay_s:
+            return None
+        return blind_s - self.cfg.vsearch_delay_s
+
     def _phase_a_cmd(self, t: float, own_pos: np.ndarray) -> np.ndarray:
         cfg = self.cfg
         pos_belief, vel_belief = self._track.at(t)
         track_dir = _unit(vel_belief, np.array([1.0, 0.0, 0.0]))
         aim = pos_belief - cfg.d_behind_m * track_dir
+
+        range_to_aim = float(np.linalg.norm(aim - own_pos))
+        search_elapsed = self._search_elapsed(t, range_to_aim)
+        self._last_search_elapsed = search_elapsed   # step() reuses this for the yaw sweep
+        if search_elapsed is not None:
+            v_offset = cfg.vsearch_amplitude_m * math.sin(
+                2.0 * math.pi * search_elapsed / cfg.vsearch_period_s)
+            aim = aim + np.array([0.0, 0.0, v_offset])   # NED down -- vertical sweep
+
         return vel_belief + cfg.kp_pos * (aim - own_pos)
 
     # ------------------------------------------------------------- Phase B law
@@ -534,7 +652,15 @@ class PursuitRendezvousGuidance:
         ref_dir = _unit(v_rel, _unit(kf_vel, los_dir))
         r_perp = r_est - float(np.dot(r_est, ref_dir)) * ref_dir
 
-        cmd_v = kf_vel + v_close * los_dir + cfg.kp_lat * r_perp
+        # v4 #1b: "arrive on a line that keeps the tag centred" -- inside
+        # last_line_range_m, weight the lateral (miss) term more heavily so
+        # lateral relative velocity gets nulled EARLY, before the final
+        # straight-line close, instead of correcting and closing at the same
+        # rate the whole way in.
+        kp_lat_eff = cfg.kp_lat * (cfg.kp_lat_near_mult if range_est < cfg.last_line_range_m
+                                   else 1.0)
+
+        cmd_v = kf_vel + v_close * los_dir + kp_lat_eff * r_perp
         yaw = _yaw_toward(r_est, self._prev_yaw_deg)
         return cmd_v, yaw
 
@@ -611,3 +737,45 @@ class PursuitRendezvousGuidance:
         self._kf.init(pos0, vel0, self.cfg.kf_p0_pos_m, self.cfg.kf_p0_vel_ms)
         self._last_decode_t = self._decode_positions[-1][0]
         self._phase = "B"
+
+
+# ------------------------------------------------------------ v4 dual seeker
+
+class DualTagSeeker:
+    """isim `SeekerModel`: two independent tag seekers on the SAME mount,
+    sharing every tick's (own, tgt) truth (v4 #1d/#3, MEASURE-only -- never
+    a new default; see `isim.scenario.Scenario.inner_tag_side_m`/
+    `second_tag_facing`). Two hardware ideas share this one mechanism:
+
+      - a smaller, closer-range co-located tag next to the main one
+        (`inner_tag_side_m`, #1d): the small tag decodes at short range
+        where the big one may have left frame/blurred out;
+      - a second tag at a DIFFERENT mount orientation (`second_tag_facing`,
+        #3's "two-tag target"): covers a wider range of viewing angles than
+        either orientation alone.
+
+    Prefers `first`'s Detection when both decode this tick (in both use
+    cases `first` is the bigger/nominal tag, whose along-range precision is
+    at least as good as the second's at any range where both are visible);
+    falls back to `second` only when `first` did not decode. The returned
+    `FrameReport` is `first`'s if it exposed one, else `second`'s --
+    documented modelling simplification (a real dual-tag rig would log
+    both; isim's `FrameReport` is one-per-tick by the `SeekerModel`
+    protocol), not a claim that only one tag's blur/incidence is real."""
+
+    def __init__(self, first: SeekerModel, second: SeekerModel) -> None:
+        self.first = first
+        self.second = second
+
+    def reset(self, rng: np.random.Generator) -> None:
+        rng_first, rng_second = rng.spawn(2)
+        self.first.reset(rng_first)
+        self.second.reset(rng_second)
+
+    def observe(self, t: float, own: VehicleState, tgt
+               ) -> Tuple[Optional[Detection], Optional[FrameReport]]:
+        det1, rep1 = self.first.observe(t, own, tgt)
+        det2, rep2 = self.second.observe(t, own, tgt)
+        det = det1 if det1 is not None else det2
+        rep = rep1 if rep1 is not None else rep2
+        return det, rep

@@ -18,6 +18,7 @@ import csv
 import dataclasses
 import io
 import itertools
+import math
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
@@ -64,7 +65,8 @@ class _DebugRecorder:
         cmd = self.inner.step(t, own, det)
         dbg = self.inner.debug
         self.log.append((t, dbg.phase, np.array(dbg.r_est, dtype=np.float64),
-                         np.array(dbg.v_t_est, dtype=np.float64)))
+                         np.array(dbg.v_t_est, dtype=np.float64),
+                         float(getattr(dbg, "last_decode_t", -np.inf))))
         return cmd
 
     def __getattr__(self, name: str) -> Any:
@@ -150,12 +152,12 @@ def _diagnose(result: Any, debug_log: List[Any], t_query: float,
     guidance was not itself handed."""
     empty = {"estimator_pos_err_m": None, "estimator_vel_err_m": None,
             "control_err_m": None, "tag_in_frame": None, "decodes_last_1s": 0,
-            "accel_exceed_frac_last_1s": None, "phase": None}
+            "accel_exceed_frac_last_1s": None, "phase": None, "last_decode_t": None}
     if not debug_log or result.trace is None:
         return empty
     debug_ts = np.array([d[0] for d in debug_log])
     d_idx = _nearest_idx(debug_ts, t_query)
-    t_d, phase, r_est, v_t_est = debug_log[d_idx]
+    t_d, phase, r_est, v_t_est, last_decode_t = debug_log[d_idx]
 
     trace = result.trace
     t_idx = _nearest_idx(trace["t"], t_d)
@@ -186,6 +188,7 @@ def _diagnose(result: Any, debug_log: List[Any], t_query: float,
         "decodes_last_1s": decodes_last_1s,
         "accel_exceed_frac_last_1s": accel_exceed_frac_last_1s,
         "phase": phase,
+        "last_decode_t": (None if not math.isfinite(last_decode_t) else last_decode_t),
     }
 
 
@@ -279,11 +282,28 @@ def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
         for diag_key, col in _DIAG_ROW_FIELDS:
             row[col] = diag_cpa[diag_key]
             row[col + "_m1s"] = diag_m1s[diag_key]
+        # v4 #4: ALSO query at the last decode before CPA (not just at CPA
+        # itself) -- resolves the v3 oddity (the worst estimator errors AT
+        # CPA landed on the SMALLEST true misses): "error at CPA" mixes in
+        # whatever the estimate drifted to during a post-decode COAST, which
+        # is a different, less meaningful number than "how good was the
+        # estimate the last time it was actually fed a detection". None when
+        # the run never decoded at all (no_tag_last_second/never_engaged).
+        if diag_cpa["last_decode_t"] is not None:
+            diag_last_decode = _diagnose(result, recorder.log, diag_cpa["last_decode_t"],
+                                         accel_series)
+            row["estimator_pos_err_m_at_last_decode"] = diag_last_decode["estimator_pos_err_m"]
+            row["estimator_vel_err_m_at_last_decode"] = diag_last_decode["estimator_vel_err_m"]
+        else:
+            row["estimator_pos_err_m_at_last_decode"] = None
+            row["estimator_vel_err_m_at_last_decode"] = None
     else:
         row["attribution"] = None
         for _diag_key, col in _DIAG_ROW_FIELDS:
             row[col] = None
             row[col + "_m1s"] = None
+        row["estimator_pos_err_m_at_last_decode"] = None
+        row["estimator_vel_err_m_at_last_decode"] = None
     return row
 
 

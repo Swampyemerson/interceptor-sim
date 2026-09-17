@@ -64,7 +64,7 @@ import numpy as np
 
 from flight.deploy.real_flight import MissionConfig, resolve_preflight_heading, wrap_deg
 
-from isim.concepts import PursuitConfig, PursuitRendezvousGuidance
+from isim.concepts import DualTagSeeker, PursuitConfig, PursuitRendezvousGuidance
 from isim.engine import EngagementConfig
 from isim.flight_adapter import RealFlightGuidance, standby_init_state
 from isim.seeker import AprilTagSeeker, CameraParams, DecodeParams, TagParams
@@ -244,6 +244,26 @@ class Scenario:
     # sweep pursuit's "sprint quality" axis the same way it sweeps every
     # other Scenario field (see the task's measurement script).
     pursuit_v_max_ms: Optional[float] = None
+    # Generic PursuitConfig kwarg overrides, concept="pursuit" only (v4 ad
+    # hoc tuning sweeps -- e.g. {"kf_q_accel_ms2": 0.5}). None/{} = no
+    # override, PursuitConfig()'s own defaults. Kept SEPARATE from
+    # `pursuit_v_max_ms` because that one field must stay individually
+    # sweepable by isim.mc's `dataclasses.replace(base, **{axis_name:
+    # value})` machinery (a dict can't be a sweep axis value there); this
+    # one is for one-off tuning scripts, not the four required axes.
+    pursuit_overrides: Optional[dict] = None
+    # v4 #1d (MEASURE-only hardware idea, never a new default): a second,
+    # SMALLER AprilTag co-located with the main one (same mount/orientation,
+    # different side_m), decodable at close range after the main tag has
+    # left frame/blurred out. None = today's single-tag seeker, bit-
+    # identical. See isim.concepts.DualTagSeeker.
+    inner_tag_side_m: Optional[float] = None
+    # v4 #3 (MEASURE-only hardware idea, never a new default): a SECOND tag,
+    # same size as the main one, at a DIFFERENT `tag_facing` mount
+    # orientation ("two-tag target"). None = today's single-tag seeker.
+    # Mutually exclusive with `inner_tag_side_m` (DualTagSeeker only
+    # combines two seekers, not three) -- `build()` raises if both are set.
+    second_tag_facing: Optional[str] = None
 
 
 def _sign(x: float) -> float:
@@ -410,7 +430,23 @@ def build(
                            mount_tilt_up_deg=scn.cam_tilt_up_deg + tilt_err_deg)
 
     tag = _tag_for(scn, vel_ned)
-    seeker = AprilTagSeeker(cam=cam_true, tag=tag, dec=DecodeParams())
+    seeker: SeekerModel = AprilTagSeeker(cam=cam_true, tag=tag, dec=DecodeParams())
+
+    # v4 #1d/#3 (MEASURE-only hardware ideas -- see isim.concepts.DualTagSeeker):
+    # a second, smaller co-located tag, or a second tag at a different mount
+    # orientation. Mutually exclusive (DualTagSeeker combines exactly two).
+    if scn.inner_tag_side_m is not None and scn.second_tag_facing is not None:
+        raise ValueError("scenario.build: inner_tag_side_m and second_tag_facing "
+                         "are mutually exclusive (DualTagSeeker combines only two)")
+    if scn.inner_tag_side_m is not None:
+        inner_tag = replace(tag, side_m=scn.inner_tag_side_m)
+        inner_seeker = AprilTagSeeker(cam=cam_true, tag=inner_tag, dec=DecodeParams())
+        seeker = DualTagSeeker(first=seeker, second=inner_seeker)
+    elif scn.second_tag_facing is not None:
+        second_scn = replace(scn, tag_facing=scn.second_tag_facing)
+        second_tag = _tag_for(second_scn, vel_ned)
+        second_seeker = AprilTagSeeker(cam=cam_true, tag=second_tag, dec=DecodeParams())
+        seeker = DualTagSeeker(first=seeker, second=second_seeker)
 
     if scn.concept == "flyby":
         guidance_kwargs = {} if scn.terminal == "stock" else {"terminal": scn.terminal}
@@ -437,6 +473,8 @@ def build(
         belief_pos0_ned = np.array([bn_r, be_r, -NOMINAL_ALT_M], dtype=np.float64)
         belief_vel_ned = np.array([bvn_r, bve_r, 0.0], dtype=np.float64)
         pcfg_kwargs = {} if scn.pursuit_v_max_ms is None else {"v_max_ms": scn.pursuit_v_max_ms}
+        if scn.pursuit_overrides:
+            pcfg_kwargs = {**pcfg_kwargs, **scn.pursuit_overrides}
         pcfg = PursuitConfig(fx_px=scn.cam_fx_px, tag_side_m=scn.tag_side_m, **pcfg_kwargs)
         guidance = PursuitRendezvousGuidance(
             pcfg, belief_pos0_ned, belief_vel_ned, go_at_s=trigger_go_at_s,

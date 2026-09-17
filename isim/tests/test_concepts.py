@@ -48,10 +48,13 @@ def test_phase_a_alone_converges_to_the_aim_point_and_target_velocity():
     """No tag ever decodes (_NeverDecodesSeeker): Phase A alone must steer
     the vehicle to within 1 m of the moving aim point (d_behind_m behind the
     EXACTLY-KNOWN belief target) and within 1 m/s of its velocity, per the
-    spec's own bound."""
+    spec's own bound. v4's Phase-A search (#2/#3) is disabled here -- this
+    test is about the underlying rendezvous law converging, not the search
+    sweep that deliberately moves off the aim point once arrived-with-no-
+    decode (that behaviour has its own test, below)."""
     pos0 = np.array([20.0, 0.0, -10.0])
     vel = np.array([6.0, 0.0, 0.0])
-    cfg = PursuitConfig()
+    cfg = PursuitConfig(vsearch_amplitude_m=0.0, yaw_search_amplitude_deg=0.0)
     guidance = PursuitRendezvousGuidance(cfg, belief_pos0_ned=pos0, belief_vel_ned=vel,
                                          go_at_s=0.0, initial_yaw_deg=0.0)
     vehicle = FirstOrderVehicle(tau_s=0.3, vmax=20.0)
@@ -81,6 +84,38 @@ def test_phase_a_alone_converges_to_the_aim_point_and_target_velocity():
     assert vel_err < 1.0
     # And it really did stay in Phase A the whole time -- no ENGAGE.
     assert all(s != "ENGAGE" for _, s in guidance.state_log)
+
+
+def test_phase_a_search_sweeps_vertically_and_in_yaw_once_arrived_with_no_decode():
+    """v4 #2/#3: once Phase A has arrived at its aim point with no decode
+    for vsearch_delay_s, it must stop sitting still -- own altitude command
+    and yaw command must both develop real variation (not converge to a
+    single fixed value) over the following sweep periods."""
+    pos0 = np.array([10.0, 0.0, -10.0])
+    vel = np.array([3.0, 0.0, 0.0])
+    cfg = PursuitConfig(vsearch_arrival_range_m=2.0, vsearch_delay_s=1.0,
+                        vsearch_amplitude_m=2.5, vsearch_period_s=4.0,
+                        yaw_search_amplitude_deg=60.0, yaw_search_period_s=3.5)
+    guidance = PursuitRendezvousGuidance(cfg, belief_pos0_ned=pos0, belief_vel_ned=vel,
+                                         go_at_s=0.0, initial_yaw_deg=0.0)
+    vehicle = FirstOrderVehicle(tau_s=0.2, vmax=20.0)
+    target = ConstantVelocityTarget(pos0, vel)
+    seeker = _NeverDecodesSeeker()
+    init = _init_state([0.0, 0.0, -10.0])
+
+    ecfg = EngagementConfig(dt=0.01, guidance_dt=0.02, max_t=20.0, stop_not_before_s=1e9, seed=0)
+    result = run_engagement(ecfg, vehicle, target, seeker, guidance, init, record_trace=True)
+
+    # Only look at the tail (well past the arrival + delay), where the
+    # sweep should be in full swing.
+    t = result.trace["t"]
+    tail = t > 12.0
+    down = result.trace["own_pos"][:, 2][tail]
+    yaw_deg = np.degrees(result.trace["yaw"][tail])
+    print(f"phase-A-search tail: down range=[{down.min():.2f},{down.max():.2f}], "
+         f"yaw range=[{yaw_deg.min():.1f},{yaw_deg.max():.1f}]")
+    assert (down.max() - down.min()) > 1.0     # real vertical excursion, not a point
+    assert (yaw_deg.max() - yaw_deg.min()) > 10.0   # real yaw excursion
 
 
 # ------------------------------------------------------------------- honesty
@@ -406,3 +441,80 @@ def test_measurement_uses_own_state_at_capture_not_at_arrival():
     got = guidance._decode_positions[-1][1]
     np.testing.assert_allclose(got, [10.0, 0.0, -5.0], atol=1e-6)
     assert not np.allclose(got, [15.0, 0.0, -5.0], atol=1e-6)
+
+
+# ------------------------------------------------------- v4: dual tag seeker
+
+def test_dual_tag_seeker_prefers_first_and_falls_back_to_second():
+    from isim.concepts import DualTagSeeker
+
+    class _FixedSeeker:
+        def __init__(self, det, rep):
+            self._det, self._rep = det, rep
+
+        def reset(self, rng):
+            pass
+
+        def observe(self, t, own, tgt):
+            return self._det, self._rep
+
+    class _NoneSeeker:
+        def reset(self, rng):
+            pass
+
+        def observe(self, t, own, tgt):
+            return None, None
+
+    det_a = Detection(t_capture=0.0, t_available=0.0, u_px=1, v_px=1, side_px=20.0,
+                     range_m=5.0, bearing_deg=0.0, elevation_deg=0.0)
+    rep_a = FrameReport(t_capture=0.0, in_fov=True, side_px=20.0, incidence_deg=0.0,
+                        blur_px=0.0, p_decode=1.0, decoded=True)
+    det_b = Detection(t_capture=0.0, t_available=0.0, u_px=2, v_px=2, side_px=5.0,
+                     range_m=1.0, bearing_deg=1.0, elevation_deg=1.0)
+    rep_b = FrameReport(t_capture=0.0, in_fov=True, side_px=5.0, incidence_deg=0.0,
+                        blur_px=0.0, p_decode=1.0, decoded=True)
+
+    # Both decode -> first wins.
+    dual = DualTagSeeker(_FixedSeeker(det_a, rep_a), _FixedSeeker(det_b, rep_b))
+    dual.reset(np.random.default_rng(0))
+    det, rep = dual.observe(0.0, None, None)
+    assert det is det_a and rep is rep_a
+
+    # First silent -> falls back to second.
+    dual2 = DualTagSeeker(_NoneSeeker(), _FixedSeeker(det_b, rep_b))
+    dual2.reset(np.random.default_rng(0))
+    det2, rep2 = dual2.observe(0.0, None, None)
+    assert det2 is det_b and rep2 is rep_b
+
+    # Neither -> (None, None).
+    dual3 = DualTagSeeker(_NoneSeeker(), _NoneSeeker())
+    dual3.reset(np.random.default_rng(0))
+    assert dual3.observe(0.0, None, None) == (None, None)
+
+
+def test_scenario_inner_tag_and_second_tag_facing_are_mutually_exclusive(vp):
+    with pytest.raises(ValueError):
+        build(Scenario(concept="pursuit", inner_tag_side_m=0.08, second_tag_facing="side"), vp)
+
+
+def test_scenario_inner_tag_side_m_builds_a_dual_tag_seeker(vp):
+    from isim.concepts import DualTagSeeker
+    scn = Scenario(concept="pursuit", inner_tag_side_m=0.08, seed=0)
+    _, _, _, seeker, _, _ = build(scn, vp)
+    assert isinstance(seeker, DualTagSeeker)
+    assert seeker.second.tag.side_m == pytest.approx(0.08)
+    assert seeker.first.tag.side_m == pytest.approx(scn.tag_side_m)
+
+
+def test_scenario_second_tag_facing_builds_a_dual_tag_seeker(vp):
+    from isim.concepts import DualTagSeeker
+    scn = Scenario(concept="pursuit", tag_facing="rear", second_tag_facing="side", seed=0)
+    _, _, _, seeker, _, _ = build(scn, vp)
+    assert isinstance(seeker, DualTagSeeker)
+    assert seeker.first.tag.side_m == pytest.approx(seeker.second.tag.side_m)
+
+
+def test_pursuit_overrides_reach_the_config(vp):
+    scn = Scenario(concept="pursuit", pursuit_overrides={"d_behind_m": 12.0}, seed=0)
+    _, _, _, _, guidance, _ = build(scn, vp)
+    assert guidance.cfg.d_behind_m == pytest.approx(12.0)
