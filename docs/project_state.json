@@ -3,8 +3,8 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-09-16",
-  "updated_by": "Fable head on the dev machine: cloud commits verified here, attitude logged, height-reference offset measured in flight",
+  "updated": "2026-09-17",
+  "updated_by": "Fable head, overnight: height fix adopted; pointing solved in sim; the terminal is the real wall",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -16,14 +16,14 @@
     "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
   },
   "now": {
-    "as_of": "2026-09-16",
-    "where": "The sprint-only sim flights pass close enough to touch the target 13 times out of 16 after lining the flying height up with the target's. On the bench, BOTH flight controllers now check out with their GPS, and the Pi is on the new Wi-Fi.",
-    "finding": "The vehicle had been flying about 0.4 m ABOVE the target the whole time -- its height scale starts at its landing gear, the target's at the ground. Best case only: camera off, and the sim knows the target's path and height exactly.",
+    "as_of": "2026-09-17",
+    "where": "Sprint-only sim flights pass close enough to touch the target 13 times out of 16 (best case). Both flight controllers check out with GPS; the Pi is on the new Wi-Fi. Overnight: the camera was finally shown the target in sim -- and flew worse for it.",
+    "finding": "Three walls were hiding each other: the camera never saw the target (fixed in sim, 2% -> 99%); seeing it, the terminal steering flies 2-5x worse than the sprint it replaces; whether any camera terminal beats a well-aimed sprint is now, for the first time, testable.",
     "next": [
-      "Bench: calibrate the camera (skr-06); target: solder + smoke-stopper power-up (tgt-03/04)",
-      "Sim: trim the ~0.2 m climb during the sprint; then inject target-height error"
+      "Your call on the terminal (top of the question queue) -- I stopped terminal flights by my own rule",
+      "Bench: calibrate the camera (skr-06); target: solder + smoke-stopper power-up (tgt-03/04)"
     ],
-    "evidence": "ADR-0100 - docs/vertical_channel_prereg.md 9.13-9.14 - runs/brn02_bench/ - runs/tgt02_gps/"
+    "evidence": "docs/pointing_prereg.md - docs/scoring_fix_plan.md 5b-5e - ADR-0100 - runs/brn02_bench/ - runs/tgt02_gps/"
   },
   "assumptions": [
     {
@@ -470,6 +470,18 @@
   ],
   "builder_queue": [
     {
+      "id": "terminal-redesign",
+      "question": "The camera can now see the target in sim (99% of frames), and with it seeing, the intercept is 2-5x WORSE than the sprint alone. The terminal steering was built for a slower target and a last-metres takeover. What do we do with it?",
+      "options": [
+        "Redesign the terminal to fly at sprint speed on a lead course (a real design project; I would convene a council)",
+        "Keep the sprint as the weapon and let the camera take over only in the last ~2 m, as a small late correction",
+        "Stop here: package the sprint-only result honestly, camera as a documented open problem"
+      ],
+      "rec": "Option 3 first, then 1. The sprint-only vehicle is the strongest thing the project has (13 of 16 inside touching distance, best case). Tonight's three-wall finding is itself a strong portfolio story. A terminal redesign is worth doing, but it is the 'one more experiment' risk in its purest form.",
+      "blocked": "All further camera-terminal sim work. I stopped flying terminal arms by the rule I wrote before the last one flew.",
+      "doc": "docs/pointing_prereg.md (last section)"
+    },
+    {
       "id": "corrected-headline-framing",
       "question": "The scorer was measuring to the camera lens, not the airframe centre. An interim re-score claimed the fix turned 0 of 16 flights inside the kill radius into 12 of 16 -- that was RETRACTED the same night (the '+0.208 m camera offset' was landing-gear height). The real corrected ruling is 3 of 16 at logged ticks, 5 of 16 interpolated. How do you want it said?",
       "options": [
@@ -519,6 +531,12 @@
     }
   ],
   "plain_log": [
+    {
+      "date": "2026-09-17",
+      "text": "Used the new tilt logging to ask why the camera never finds the target in flight. Answer: it is almost never shown it. The vehicle tips ~43 degrees nose-down to sprint, so the target sits above the top of the picture; and because it aims AHEAD of a crossing target, the target is 40-75 degrees off to the side of where the nose points. At 8-22 m the target was in the middle of the picture on 0 of 858 frames. Built and flew two fixes -- turn the nose toward where the target is predicted to be, and tilt the camera up 25 degrees -- plus a step the sim had always skipped (point the nose before launching). Result: target in the middle of the picture on 99% of frames, and the seeker really recognised it on 81% of them. Recognition was never the problem.",
+      "so_what": "Then the bad news, and it is the most important result of the night: with the camera finally seeing the target, the intercept got 2 to 5 times WORSE (3.3-3.6 m against 0.60 m for the sprint alone). The camera takes over in the first instant, before the vehicle has sprinted, and its steering was designed for a slower target and a takeover in the last few metres -- its sideways authority is capped at 8 m/s against a target crossing at 9. For the whole project the camera looked 'about as good as the sprint' only because it was blind until the last 0.2 seconds. The terminal guidance needs a redesign; that is a decision for you, queued below.",
+      "evidence": "docs/pointing_prereg.md - scripts/forensics/inframe_attribution.py - commits 3ec9ef5, 58ede84, dc6ebc2, e44770f"
+    },
     {
       "date": "2026-09-17",
       "text": "Overnight, on the two defects that made every camera-vs-sprint comparison unquotable. (1) After the sprint, a brief camera dropout made the vehicle command a full stop while closing at ~13 m/s -- a one-line bug, now fixed, with a new automatic check that finds it in the old logs and finds zero cases in 64 new flights. (2) The 'we have passed it' quit trigger fired early on about a third of slow camera flights. The fix the plan had lined up (ignore the trigger beyond 5 m measured range) failed its own offline check when I re-ran it independently, because the measured range is the broken quantity. The plan's fallback -- you cannot have passed a target you have not flown far enough to reach -- cut early quits from 5 of 16 to 1 of 16, and 4 of 8 to 0 of 8 on a second seed.",
@@ -584,12 +602,6 @@
       "text": "The contract now renders a SECOND view: a set of systems-engineering diagrams and traceability tables (MBSE), generated from the same JSON as the dashboard. Nothing on it is hand-drawn.",
       "so_what": "The systems-engineering side of the project is now showable to an interviewer, and a model that disagrees with the build fails the test suite instead of quietly misleading the reader.",
       "evidence": "scripts/render_mbse.py · docs/mbse.html · scripts/run_tests.sh [3/4]"
-    },
-    {
-      "date": "2026-08-10",
-      "text": "A correction on top of a correction. Tonight's headline was that the kill-radius scorer measured to the camera and that fixing it turned 0 of 16 flights into 12 of 16. That was WRONG, and it is now retracted. The '+0.208 m camera offset' it rested on was never a camera offset -- it came from subtracting a height-above-takeoff from a height-above-the-world, which measures the LANDING GEAR. The camera actually sits about 2 mm above the airframe centre.",
-      "so_what": "The real correction is small and sideways, not large and vertical: 3 of 16 becomes 5 of 16, from interpolating between samples. So nothing has reliably reached contact range yet -- the honest headline did not change. And the finding this briefly cast doubt on is confirmed: the interceptor flies about 0.37 m LOW, which is now essentially the whole miss, on a vehicle whose targeting math is 2-D horizontal by design.",
-      "evidence": "scripts/rescore_cpa.py - docs/rescore_2026-08-10.md - 168 flights, 36,276 rows, 0 dropped"
     }
   ],
   "narrative": {
@@ -940,7 +952,7 @@
       ],
       "status": "half-done",
       "active": "FINAL (builder 2026-07-17): FIXED up-tilt mount — no servo, adaptive tilt REJECTED for simplicity. Angle = the REAL airframe's measured steady DASH PITCH (sim ~35°, expect ~25-40°) so the boresight sits on the horizon (where a same-altitude crossing target is) during the dash. BUILD/VALIDATE pending: measure real dash pitch from the ULog -> print wedge -> bench prop-clearance at loaded throttle -> validation flight.",
-      "note": "TWO HONEST LIMITS of the chosen fixed tilt: (a) it CANNOT track the pitch swing (accel ~+40° -> brake ~-35°) — it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (acceptable: target is large close-in + the streak coasts); (b) tilt and mount are ONE decision — a >~15° tilt exceeds the flush mount's ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry. The prior up15 NULL (ADR-0068) was a different context (cue-era terminal parity, guessed +15°); this is acquisition-first, sized to the measured dash pitch.",
+      "note": "MEASURED 2026-09-17 (docs/pointing_prereg.md): pointing has TWO parts. Vertical: a 25 deg up-tilt centres the target on 100/89/69% of frames by range band (35 deg: 89/84/63) -- first number from real attitude data. Horizontal: on a lead course the target is 40-75 deg off the nose, so the vehicle must yaw toward the predicted target, not along its sprint, and must point the nose BEFORE launching. Together: 2% -> 99% central in sim. NOT in the adopted flight config, because today's terminal flies worse once it can see (see stage terminal). TWO HONEST LIMITS of the chosen fixed tilt: (a) it CANNOT track the pitch swing (accel ~+40° -> brake ~-35°) — it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (acceptable: target is large close-in + the streak coasts); (b) tilt and mount are ONE decision — a >~15° tilt exceeds the flush mount's ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry. The prior up15 NULL (ADR-0068) was a different context (cue-era terminal parity, guessed +15°); this is acquisition-first, sized to the measured dash pitch.",
       "evidence": [
         "ADR-0065 (#46)",
         "ADR-0067/0068 (fixed-tilt NO-adopt)",
@@ -1528,9 +1540,9 @@
     {
       "label": "In-flight approach recall",
       "value": "0.8%",
-      "note": "vs 100% static/centred 8-22 m — THE WALL (flight-dynamic pointing)",
+      "note": "ATTRIBUTED 2026-09-17 with attitude logging: the target is outside or at the edge of the picture -- 43 deg nose-down pitch throws it off the top, and the lead course puts it 40-75 deg off the nose. Central on 0 of 858 frames at 8-22 m. With predicted-line-of-sight yaw + a 25 deg up-tilt + a pre-launch nose alignment it is central on 99% and really recognised on 81%. vs 100% static/centred 8-22 m — THE WALL (flight-dynamic pointing)",
       "provenance": "ADR-0076 add #18i/#18k · approach_recall.py",
-      "plain": "In real flight the camera sees the target in under 1% of frames — mostly because it is pointed the wrong way.",
+      "plain": "In flight the camera almost never sees the target -- it is pointed the wrong way, not failing to recognise it.",
       "trust": "sim"
     },
     {

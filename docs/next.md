@@ -24,6 +24,16 @@ knows the target's path AND height exactly. Without the fix the best config was 
 launch-aim and target-height givens are both declared in the assumptions register; the cue-error
 sweep and a target-height-error sweep are the deliverables that replace them.
 
+**Overnight 2026-09-17, in one paragraph.** The camera story turned out to be three walls hiding
+each other. (1) The seeker was almost never shown the target — nose-down pitch puts it off the
+top of the picture and the lead course puts it 40–75° off the nose; fixed in sim (central on
+2% → 99% of frames, really recognised on 81%). (2) Shown the target, the camera takes over at
+once and the terminal flies **2–5× worse than the sprint it replaces** (3.3–3.6 m vs 0.60 m): it
+was sized for a slower target and a last-metres takeover, and a closing-speed floor did not save
+it (registered null). (3) Whether any camera terminal beats a well-aimed sprint is now, for the
+first time, testable — and is a redesign decision, queued for the builder. Details:
+`docs/pointing_prereg.md`, `docs/scoring_fix_plan.md` §5b–5e.
+
 ## Waiting on the builder
 
 | | what | where |
@@ -36,7 +46,9 @@ sweep and a target-height-error sweep are the deliverables that replace them.
 
 ## Next work, in order
 
-1. **Fix the past-CPA breakoff discriminator** — [#3](https://github.com/Swampyemerson/interceptor-sim/issues/3). **Blocks everything below it in sim.** The measured-range rise test carries no information (false rises median 0.175 m vs true 0.152 m); the dead-band is measurement-ruled-out. Needs a different signal + an A/B.
+0. **TERMINAL REDESIGN — builder decision (contract question `terminal-redesign`).** All camera-terminal sim work is parked behind it by a rule written before the last arm flew. Inputs: `docs/pointing_prereg.md` (last three RESULT sections). The pointing levers (`--dash-prealign-yaw`, `--dash-yaw-to-predicted-los`, 25° up-tilt) are built, valid, and deliberately NOT in the adopted config.
+1. **Past-CPA breakoff — NEARLY CLOSED 2026-09-17.** Issue #9 (dropout re-issued a full stop) is fixed and observed fixed on 100+ flights (auditor check (f)). The 5 m range gate FAILED its offline check and did not fly. The own-motion **passage window** (`--breakoff-min-flown-frac 0.8 --breakoff-force-flown-frac 1.3`) met every registered clause on seed 123 (premature/cut-off 0/16, long chases 0/16); **seed 777 was flying at the time of writing — read `docs/scoring_fix_plan.md` §5e/5f for the verdict before adopting.** Original text follows.
+1b. **(original) Fix the past-CPA breakoff discriminator** — [#3](https://github.com/Swampyemerson/interceptor-sim/issues/3). **Blocks everything below it in sim.** The measured-range rise test carries no information (false rises median 0.175 m vs true 0.152 m); the dead-band is measurement-ruled-out. Needs a different signal + an A/B.
 2. **The cue-error sensitivity sweep** — extend the aim-error arms to 20/25/30° and find the crossover where the seeker starts earning its place. That curve is the portfolio deliverable and the derived accuracy requirement for the cue. *(Blocked by 1 — wider-error arms trip the same false abort.)*
 3. **The vertical channel — REPRIORITISED 2026-09-10 after my own measurement was corrected (ADR-0099 second addendum).** The miss is 82% vertical on the adopted config and the terminal has no vertical steering at all; ADR-0085 decided one in July and no code was ever written. **What changed:** the "+0.320 m of dash drift, 66% of the miss, the error is delivered by the dash" finding was measured against a baseline that included the TAKEOFF (altitude reads 0.000 on the ground), and is retracted. Against a settled hover the dash drifts **−0.019 m**. The corrected split is **23% a datum offset present before the dash, 10% dash, 66% after handoff**. So the queue order is now:
    - **MEASURED IN FLIGHT 2026-09-16 (dev machine, check_m4 PASS, n=2 flights of the classic tag scenario — a lead, not a verdict).** In settled hover the camera sits **+0.161 m / +0.204 m above the tag centre** before ENGAGE begins; at CPA the pro-nav flight's miss was 0.384 m = **0.201 m vertical**, 0.327 m horizontal — the hover offset carried all the way through. Hover altitude error is **−0.022 / −0.023 m** (cmd_vd −0.021), NOT the −0.087 m suspected in 3c, so on this config the altitude loop tracks its setpoint. One oddity to chase: `gt_cam_z − alt_m` in hover was 0.184 m on one flight and 0.226 m on the other — a 4 cm flight-to-flight difference in something that should be geometry. **3b is DONE** (commit `ef9e919`: six `att_*` columns, 331/331 rows populated in flight; pitch med −6.7° in ENGAGE, +12° braking). **3a is now an A/B, not a desk edit:** it changes the scenario every baseline was flown on, so pre-register it (prediction: vertical miss at CPA falls by about the hover offset) and fly it paired on the ADOPTED coded-dash config, not just this tag gate.
