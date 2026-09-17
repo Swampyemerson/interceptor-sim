@@ -163,3 +163,16 @@ log forensics, fitting against flight logs, the contract and all judgment.
   velocity) or bound it by hardware (libcamera SensorTimestamp + MAVLink TIMESYNC -- bench
   measurement for the builder); (b) close-in steering in the CAMERA frame (pixel error -> lateral
   velocity), which is immune to attitude and position bias; (c) rear tag vs weave.**
+- 2026-09-17 (end of session): **v6 done. Honest standing: pursuit, all realistic errors on,
+  rear tag nominal 68% inside 0.35 m / 79% inside 0.5 m / 91% inside 1.0 m; camera-facing
+  49 / 66 / 83%.** Camera-frame close-in steering helps camera-facing only (not adopted);
+  timestamp-bias filter state is unobservable (negative); inner small tag re-tested after the
+  estimator fix: null. Bench requirement curves: frame timestamp <= 10 ms free, 20 ms ~ -8
+  points, 40 ms ~ -16; rear tag wants attitude better than ~1-2 deg.
+  Per-tick traces say the remaining miss is the BLIND COAST of the last 0.5-2 s (decodes stop
+  at 1-2 m range; error grows 0.05 -> 0.3-0.5 m). Ideas not yet tried: keep the tag in frame
+  by approaching along the boresight with yaw/altitude aligned BEFORE 3 m; wider lens for the
+  last metres (fx 540 second camera or lower tilt); slower final closing only once aligned;
+  contact-radius question for the builder (0.5 m radius = ~80%).
+  Worker lane: one Sonnet worker carried 6 rounds (context intact via SendMessage); specs in
+  `isim/specs/`. NEXT SESSION: builder ruling on ADR-0103 -> port to flight code -> Gazebo.
