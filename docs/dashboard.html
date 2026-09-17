@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c4e9adc<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->6f29182<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,13 +914,13 @@
  },
  "now": {
   "as_of": "2026-09-16",
-  "where": "Both GPS units are wired (the M10 on the interceptor's Pixhawk, the small M10Q on the target's Kakute) and waiting to be checked over USB. On the sim side, the flight log now records the vehicle's own tilt, proven in two real sim flights.",
-  "finding": "Measured in flight: the camera hovers 0.16-0.20 m above the target's centre before the chase starts, and that same 0.20 m is the vertical miss at closest approach. The two height references were never lined up. Two flights of the tag scenario only -- a lead, not a verdict.",
+  "where": "The sprint-only sim flights now pass close enough to touch the target 13 times out of 16, up from 2 of 16, after lining the vehicle's flying height up with the target's. On the bench, the Pixhawk's GPS and compass check out and the Pi is on the new Wi-Fi.",
+  "finding": "The vehicle had been flying about 0.4 m ABOVE the target the whole time -- its height scale starts at its landing gear, the target's at the ground. Best case only: camera off, and the sim knows the target's path and height exactly.",
   "next": [
-   "Plug each flight controller into USB so GPS + compass can be read back (brn-02, tgt-02)",
-   "Pre-register and fly the height-reference fix as a paired A/B on the adopted config"
+   "Get the Kakute to show up on USB (data cable, no boot button) so its GPS can be checked",
+   "Sim: trim the ~0.2 m climb during the sprint; then inject target-height error"
   ],
-  "evidence": "logs/m4_intercept_pronav_20260917T032639Z.csv, logs/m4_intercept_pursuit_20260917T032525Z.csv (check_m4 PASS) - commit ef9e919"
+  "evidence": "ADR-0100 - docs/vertical_channel_prereg.md 9.13-9.14 - logs/mc_fp_armAE5dash{,Z}_line9_s{456,789}.csv - runs/brn02_bench/"
  },
  "assumptions": [
   {
@@ -1418,6 +1418,12 @@
  "plain_log": [
   {
    "date": "2026-09-16",
+   "text": "Pre-registered and flew the height fix on the adopted sprint-only setup: 32 flights, two fresh seeds, each flight paired with a twin that differs only in flying height. Inside touching distance went from 2 of 16 to 13 of 16. Before flying, caught that one of our own documents had the direction backwards (it said the vehicle passes below the target; the logs say above) -- a fix built from that sentence would have doubled the error.",
+   "so_what": "This is the first time most flights meet the project's own kill distance -- but it is a best case, not a kill claim: the camera is off, and the sim knows the target's path and height exactly. A real target's height is a guess, and the camera terminal still cannot steer up or down, so that guess would go straight into the miss. Also done today: Pixhawk GPS + compass verified on the bench, Pi moved to the new Wi-Fi, test suite fixed to run the same everywhere.",
+   "evidence": "ADR-0100 - docs/vertical_channel_prereg.md section 9 - commits 0ee0ea5, 6f29182"
+  },
+  {
+   "date": "2026-09-16",
    "text": "First session back on the simulator machine since the cloud sessions. Pulled their 17 commits, ran the full test suite here (974 passed), and flew two real sim flights. The flight log now records the vehicle's own tilt (pitch and roll) on every tick -- it never did before -- and the first flights show it working: level in hover, nose-down in the chase, nose-up when braking. The classic moving-target gate still passes (pro-nav 0.38 m vs pursuit 2.09 m).",
    "so_what": "Those two flights measured directly what the cloud session could only infer. Before the chase even starts, the camera is hovering 0.16-0.20 m ABOVE the target's centre, and at closest approach the vertical miss was 0.20 m -- the same offset, carried the whole way. So the 'two height references that were never lined up' finding is real, on n=2 flights of the tag scenario. The hover itself holds height to about 2 cm, not the 9 cm suspected. And the purchase-gate speed alarm did not reproduce here: coded-dash flights close at 8.98 m/s against the gate's 9.0 -- though that pools several speeds, and the real vehicle's sprint speed is still unmeasured.",
    "evidence": "logs/m4_intercept_pursuit_20260917T032525Z.csv + logs/m4_intercept_pronav_20260917T032639Z.csv (check_m4 PASS) - commit ef9e919 - docs/next.md items 3 and 5"
@@ -1481,12 +1487,6 @@
    "text": "Three questions that had been sitting in the Waiting-on-You list are now answered, so the list is EMPTY for the first time. Retire the old demo videos. Regulatory and site: settled — the builder owns the ~50-acre site, so the FRIA-field question never applied. The second transmitter is NOT already ordered, so it becomes something to buy rather than something to check.",
    "so_what": "The board stops asking. Five stale contract lines that still described the site as an open FAA/Remote-ID problem were rewritten to match the ruling, and two more demo cuts were retired than the question named — the honesty fix to the video generator landed 2026-07-25, so EVERY cut rendered on 07-07 carries the misleading 1.5 m caption, not just the two that were flagged.",
    "evidence": "docs/regulatory_site_capture.md - demo_out/retired_2026-08-10/README.md - ADR-0089 - build_demo.py fix 759e9b0"
-  },
-  {
-   "date": "2026-08-10",
-   "text": "The evidence behind two finished bench steps was sitting on ONE microSD card. skr-07's soak results (96.6 / 38.2 / 6.09 fps) and skr-05's session meta (994 us applied exposure, spec met) are quoted all over this contract but had never been copied off the Pi. Both are now in the repo. The Pi's own checkout was also 16 days stale -- including the whole field-day scoring chain -- and carried 461 stray file copies from an old session.",
-   "so_what": "A dead SD card would have turned published numbers into unsourced claims. Every stray file was checked against the real repo before deletion, and the 445 MB training set was moved to the path the scripts read, not deleted. The Pi now matches the repo exactly. Camera calibration itself is still not done.",
-   "evidence": "commits fc0f18b + 29ec8bc - runs/skr07_tagged - runs/skr05_smoke_session"
   }
  ],
  "narrative": {
@@ -1744,7 +1744,7 @@
     1
    ],
    "status": "implemented",
-   "active": "--coded-dash + --dash-crossing-bias-deg (per-direction aim bias auto-keyed on crossing direction); dash-speed 16; cue/FusedTrack/handoff-gate/coast-search stack DROPPED (real hardware has no cue).",
+   "active": "--coded-dash, accel-aware lead, +5 deg aim trim, dash-speed 16, and (ADR-0100) --alt-ref-offset-m -0.207 so the flying height lines up with the target's. No cue, no datalink.",
    "note": "VALIDATED in sim: the architecture A/B beat the cue-guided config on r2l (ADR-0076 add #18), and the crossing-bias is a real open-loop AIM calibration — r2l dash ballistics land ~0.3-0.5 m CPA on line@9. Beware: those dash ballistics are so good they created the mirages (sub-meter CPAs with zero camera guidance). Bias magnitude is speed/aspect-specific — re-tune on real data. | CAP CONFOUND RESOLVED 2026-07-24 (EAL, cap at correct aim): the accel-cap costs ~0.34 m of closing speed EVEN correctly aimed (EAL 1.05 vs uncapped AAL 0.71); ARM B's 2.01 m regression = aim-mis-sizing (~1.3 m, fixed by the accel-aware lead) + the real cap cost (~0.34 m). ⇒ don't cap; auto-correct aim (ADR-0080); ~0.71 m dash-only is the open-loop line-9 floor at 9 m/s. | REAL EXECUTOR BUILT + SITL-VERIFIED 2026-07-24 (ADR-0081, flight/deploy/real_flight.py): the onboard STANDBY->CODED_DASH->ENGAGE->BREAKOFF->SAFE state machine -- the biggest previously-unbuilt real-build item. Composes seeker_loop terminal + flight.guidance accel-aware lead; jam-resistance in the failsafe (link watched in STANDBY only, post-GO loss ignored); AST honesty audit (0 gt). SITL gate PASS (full mission, 327 setpoints, clean land). NOT flight-ready -- safety-critical HW constants tagged TODO-BUILDER.",
    "evidence": [
     "ADR-0076 add #18/#18e/#18g/#18h",
@@ -2456,11 +2456,11 @@
   },
   {
    "label": "Inside the contact radius (corrected ruler)",
-   "value": "3/16 → 5/16",
+   "value": "13/16 (was 2/16)",
    "trust": "sim",
-   "plain": "Under the corrected scorer, 3 of 16 flights at logged ticks, 5 of 16 interpolated. An interim 12 of 16 was retracted.",
-   "note": "PRIMARY ruler = airframe centre-to-centre, interpolated between 20 Hz samples: median 0.435 m vs the 0.35 m bar (adopted AE5dash config, n=16, perfect-cue arms = best-case upper bound). The retracted '+0.208 m lens lever' was landing-gear height (relative altitude subtracted from a world z); the camera sits ~2 mm above / 0.120 m forward of the airframe centre, so the true correction is small and horizontal. The -0.37 m vertical bias stands -- essentially the whole miss.",
-   "provenance": "scripts/rescore_cpa.py · docs/rescore_2026-08-10.md · commit b47ce32 (168 flights, 36,276 rows, 0 dropped)"
+   "plain": "13 of 16 sprint-only flights now pass close enough to touch. Best case: camera off, target known exactly.",
+   "note": "ADR-0100, 2026-09-16. Paired A/B on two fresh seeds (456, 789), n=8 each, dash-only, primary ruler = airframe centre-to-centre interpolated: control 2/16 inside 0.35 m (medians 0.563, 0.457 m), height-reference arm 13/16 (0.215, 0.249 m), closer on 14/16 pairs. Earlier figure on seeds 123+777 without the fix: 3/16 logged, 5/16 interpolated (an interim 12/16 was retracted). The vehicle passes ABOVE the target, not below as one doc said. Leans on two given-perfect inputs: launch aim and target height.",
+   "provenance": "scripts/rescore_cpa.py · logs/mc_fp_armAE5dash{,Z}_line9_s{456,789}.csv · docs/vertical_channel_prereg.md §9.13-9.14 · ADR-0100"
   },
   {
    "label": "Seeker frame rate, measured on the Pi 5",

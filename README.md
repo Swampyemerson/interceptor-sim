@@ -105,7 +105,12 @@ Hailo NPU**; **prop clearance is a geometry problem**, not a software one.
   nothing in [`flight/`](flight/) consumes it: the only vertical command anywhere is
   an altitude-hold P-loop to a preset height. ADR-0095 measured the adopted config's
   residual as **0.374 m vertical against 0.174 m horizontal**, so nulling the
-  vertical term alone would leave 0.174 m — inside the 0.35 m ram radius. ADR-0085
+  vertical term alone would leave 0.174 m — inside the 0.35 m ram radius. **Update
+  2026-09-16 (ADR-0100):** about half of that vertical term was a bookkeeping offset —
+  the vehicle's height scale starts at its landing gear, the target's at the ground —
+  and lining them up moved sprint-only flights inside the contact radius from **2/16 to
+  13/16** (paired, two seeds, pre-registered). Best case only: camera off, target path
+  and height known exactly. ADR-0085
   *decided* a camera-driven vertical channel in July and no code was ever written.
   So "the camera does not beat a well-aimed dash" is a fact about arms whose
   guidance was structurally blind to the dominant error term. It is **not** evidence

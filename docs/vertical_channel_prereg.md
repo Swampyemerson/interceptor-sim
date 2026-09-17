@@ -693,3 +693,23 @@ unchanged, and a failure there overrides this).
 solved from the target's exactly-known path, target height exactly known
 (`launch-cue-error-free`, `target-height-known` — both given-perfect). It is a BEST-CASE UPPER
 BOUND on a ballistic pass, not a camera-guided kill.
+
+### 9.14 REPLICATION, seed 789 (2026-09-16) — criterion MET again; ADOPTED (ADR-0100)
+
+Same ruler, same criterion (§9.6), both arms dash-only:
+
+| seed | A inside 0.35 m | B inside 0.35 m | A median | B median | paired B closer | median vertical fell |
+|---|---|---|---|---|---|---|
+| 456 | 1/8 | 7/8 | 0.563 m | 0.215 m | 8/8 | 0.227 m |
+| 789 | 1/8 | 6/8 | 0.457 m | 0.249 m | 6/8 | 0.200 m |
+| **pooled** | **2/16** | **13/16** | | | **14/16** | |
+
+- **The seed-456 horizontal gain did NOT replicate** (789: 0.163 → 0.232 m, slightly worse).
+  So §9.5's "horizontal unchanged" stands, and the 456 gain was the 20 Hz tick-selection
+  effect or plain spread. Claim nothing horizontal.
+- **One flight per B arm got worse, and it is the SAME flight index both times** (#4,
+  left-to-right; 0.567→0.494 on 456, 0.486→0.877 on 789), each carrying the scorer's
+  `yaw-check` flag (25.9°, 29.8°). No A-arm flight carries that flag. Two of sixteen is not
+  a pattern yet, but it is arm-specific, so it is OPEN, not noise: check whether the lower
+  takeoff (0.29 m + ground effect, §9.7) disturbs the standby yaw on that geometry.
+- Still ~0.19 m high at closest approach in arm B — the dash climb (§9.13). Next lever.
