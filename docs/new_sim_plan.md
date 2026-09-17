@@ -114,3 +114,14 @@ log forensics, fitting against flight logs, the contract and all judgment.
 - 2026-09-17: plan written, directive recorded (ADR-0102, contract, memory). **Nothing built yet.**
   Builder asked to /compact first. **Next action after compact: launch WP1 + WP2 + WP3 in
   parallel (they do not share files), head starts WP6's data extraction.**
+- 2026-09-17 (later): **WP1-WP5 built, A0 PASSED by command replay, A1 seen qualitatively.**
+  `python -m isim.replay_a0` = the A0 table (13 sprint-only arms, per-flight |model - logged|
+  median 0.08-0.18 m; the pre-aligned-yaw arm PDASHA is the outlier at 0.44 m). Fitted params:
+  `isim/fits/vehicle_gazebo_x500.json` (one number, `thrust_az_bias_deg = -16`, was tuned on the
+  aim curve; everything else on other flights). Baseline `python -m isim.mc requirement --n 200`
+  (4,600 engagements, 45 s): flight code as-is is inside 0.35 m ~nowhere; full sprint -> camera
+  never reaches ENGAGE (pitch hides the target); sprint 0 -> 5.4 m miss (the A1 tail chase).
+  Known gaps: isim has NO run-to-run scatter yet (p90 == median); `sprint_scale=0` cannot skip
+  CODED_DASH without a flight-code change; real_flight has no yaw-to-line-of-sight or pre-align.
+  **Next: WP7 -- terminal design in flight code, proven in the sweep; add scatter first.**
+  Worker lanes: Opus 5 workers hard-failed 3/3 on the safeguard; Sonnet workers 5/5 fine.

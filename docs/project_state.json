@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-09-17",
-  "updated_by": "Fable head: builder ruling -- new fast simulator (isim), AprilTag target, robust closed-loop intercept",
+  "updated_by": "Fable head: isim built, passes A0 replay; baseline requirement sweep recorded",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-09-17",
-    "where": "BUILDER RULING 2026-09-17: start a new, fast simulator built around the real system (AprilTag target, Raspberry Pi seeker) and the real requirement -- intercept even with a bad sprint or a target at a different height. Plan written; nothing built yet.",
-    "finding": "The old loop measured the problem sharply (sprint-only needs aim within ~1 degree and height within ~0.1 m; the camera terminal flies worse once it can see) but cost an hour per question and tested a script that is not the flight code.",
+    "where": "The new simulator (isim) is built and passes its first test: it reproduces last night's sprint-only misses arm by arm (within 0.08-0.18 m per flight across 13 arms). It runs the real flight code and flies about 5,000 engagements a minute.",
+    "finding": "Run through it, today's flight code hits inside 0.35 m almost nowhere: at full sprint the camera never takes over (nose-down pitch hides the target), and with no sprint the camera terminal alone misses by about 5 m. That is the honest starting line for the guidance work.",
     "next": [
-      "Build the new simulator's core (vehicle, tag camera, flight-code adapter) -- docs/new_sim_plan.md",
-      "It must first reproduce last night's measured numbers, including the failure, before it is trusted"
+      "Add honest run-to-run scatter to isim, then build the camera terminal (sideways AND vertical)",
+      "Pass the requirement sweep at 90% inside 0.35 m, then cross-check the winner in Gazebo on 2+ seeds"
     ],
-    "evidence": "docs/new_sim_plan.md - ADR-0102 - docs/pointing_prereg.md - docs/flight_plan_candidates.md"
+    "evidence": "isim/replay_a0.py - isim/fits/vehicle_gazebo_x500.json - isim/mc.py - docs/new_sim_plan.md"
   },
   "assumptions": [
     {
@@ -521,6 +521,12 @@
   "plain_log": [
     {
       "date": "2026-09-17",
+      "text": "New simulator built in a day by worker agents plus the head: vehicle model fitted to 345 of last night's flights, a camera-and-AprilTag model from the Pi bench numbers, an adapter that drives the unmodified flight code, and a Monte-Carlo runner. Replaying last night's sprint commands through it gives the same misses as Gazebo (aim-tolerance curve 1.03/0.68/0.43/0.31/0.43/0.73/1.27 m against 1.20/0.71/0.40/0.24/0.42/0.74/1.34 m measured; height error passes straight through, +0.42 m against +0.39 m).",
+      "so_what": "It found two things on the way. The replay tool had a timing bug (now fixed) that would have hidden everything. And the Gazebo vehicle slides about half a metre sideways during the hard acceleration -- which is why last night's best aim was 5 degrees off-centre. One number in the model was tuned to that curve; six other arms it never saw still match. The baseline sweep says today's flight code passes almost nowhere, so the terminal is the work.",
+      "evidence": "commit 8dc72c1 - isim/replay_a0.py - docs/new_sim_plan.md"
+    },
+    {
+      "date": "2026-09-17",
       "text": "Builder ruling: build an entirely new simulator. He is not satisfied with the diagnostics or the results of the Gazebo loop, the real system is an AprilTag and a Raspberry Pi, and the vehicle must intercept even if the sprint is poor or the target is at a different height. The earlier 'no simulator change' decision (ADR-0072) is reversed. His other open questions are settled by my recommendations.",
       "so_what": "The new simulator is a fast one with no Gazebo in the loop: it runs the actual flight code against a camera-and-tag model built from our bench measurements, thousands of runs a minute, and explains every miss. It has to reproduce last night's numbers -- including the camera's failure -- before anyone trusts it. Gazebo stays only as a final cross-check.",
       "evidence": "docs/new_sim_plan.md - ADR-0102"
@@ -584,12 +590,6 @@
       "text": "Wind gate flown for the first time. It found two defects in the measurement path before it could answer its own question, then answered it: Gazebo applies the wind force almost exactly (5.259 deg measured vs 5.262 deg derived) — our own driver was cancelling it, because the fix for an earlier bug clears the force on a different topic than it publishes it, with no ordering guarantee.",
       "so_what": "The wind arm is PARKED by builder ruling, but the answer is banked and the fix written down, so unparking costs a read rather than a re-derivation. A frozen-instrument bug nearly made the probe condemn working code.",
       "evidence": "ADR-0098; logs/wind_gate0_20260829T155141Z; logs/wrench_diag_20260829_partial"
-    },
-    {
-      "date": "2026-08-19",
-      "text": "Publication sweep. The repo was de-cluttered for public view: the plaintext VM password line deleted, root files moved under docs/ and .claude/, the README repackaged around the results and the honesty machinery, and the retracted 12-of-16 kill-radius claim corrected on every surface that still carried it. CI had been red since 2026-08-11: the rescore gate test needs the machine-local flight archive and now says so as a named skip instead of failing.",
-      "so_what": "The repo turned out to be ALREADY PUBLIC, so rotate the VM password first. MIT license: CONFIRMED by the builder 2026-08-19. Still yours: re-point the desktop launcher, merge the cleanup branch, set About/topics, re-shoot the GIF.",
-      "evidence": "commits 7ea21c7, 5c40a96 - docs/publish_cleanup_work_order.md"
     }
   ],
   "narrative": {

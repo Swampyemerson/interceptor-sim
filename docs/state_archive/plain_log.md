@@ -129,3 +129,5 @@ Adversarial review of every script run at the bench: 51 defects raised, 48 survi
 **So what:** The gate built to retire the one link the sim never tested would have retired it untested. Now gated on measured cadence, span, gap, and proof that bytes came back over the wire.
 
 *Evidence:* commit 1b89340
+
+- **2026-08-19** — Publication sweep. The repo was de-cluttered for public view: the plaintext VM password line deleted, root files moved under docs/ and .claude/, the README repackaged around the results and the honesty machinery, and the retracted 12-of-16 kill-radius claim corrected on every surface that still carried it. CI had been red since 2026-08-11: the rescore gate test needs the machine-local flight archive and now says so as a named skip instead of failing. *So what:* The repo turned out to be ALREADY PUBLIC, so rotate the VM password first. MIT license: CONFIRMED by the builder 2026-08-19. Still yours: re-point the desktop launcher, merge the cleanup branch, set About/topics, re-shoot the GIF. (commits 7ea21c7, 5c40a96 - docs/publish_cleanup_work_order.md)
