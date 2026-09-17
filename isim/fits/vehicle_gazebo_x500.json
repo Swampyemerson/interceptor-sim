@@ -1,0 +1,111 @@
+{
+  "flights_named": 488,
+  "flights_usable": 345,
+  "n_fit": 20,
+  "n_hold": 30,
+  "max_s": 6.0,
+  "free": [
+    "kp_vel_horiz",
+    "max_setpoint_accel_horiz",
+    "max_accel_horiz",
+    "max_tilt_deg",
+    "tilt_time_constant_s",
+    "thrust_max",
+    "thrust_time_constant_s",
+    "drag_linear_horiz",
+    "drag_quad_horiz",
+    "kp_vel_vert",
+    "ki_vel_vert"
+  ],
+  "weights": {
+    "vel": 1.0,
+    "pos_d": 4.0,
+    "tilt_deg": 0.1
+  },
+  "fit_wall_s": 439.9,
+  "params": {
+    "kp_vel_horiz": 5.668742505373248,
+    "ki_vel_horiz": 0.4,
+    "ki_vel_horiz_limit": 3.0,
+    "kp_vel_vert": 0.811137903486918,
+    "ki_vel_vert": 0.20217578674089076,
+    "ki_vel_vert_limit": 3.0,
+    "max_setpoint_accel_horiz": 10.437948281318224,
+    "max_setpoint_accel_vert": 4.0,
+    "max_accel_horiz": 11.395755965767552,
+    "max_tilt_deg": 47.683515486586764,
+    "max_tilt_rate_deg_s": 220.0,
+    "tilt_time_constant_s": 0.05316114750888081,
+    "thrust_max": 18.83768148393035,
+    "thrust_min": 1.0,
+    "thrust_time_constant_s": 0.010000000000000002,
+    "drag_linear_horiz": 0.15856249795566268,
+    "drag_linear_vert": 0.35,
+    "drag_quad_horiz": 6.213810577675567e-14,
+    "drag_quad_vert": 0.0,
+    "yaw_rate_limit_deg_s": 120.0,
+    "yaw_time_constant_s": 0.25,
+    "latency_s": 0.14,
+    "wind_ned": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "gust_std": 0.0,
+    "thrust_az_bias_deg": -16.0
+  },
+  "report": {
+    "free": [
+      "kp_vel_horiz",
+      "max_setpoint_accel_horiz",
+      "max_accel_horiz",
+      "max_tilt_deg",
+      "tilt_time_constant_s",
+      "thrust_max",
+      "thrust_time_constant_s",
+      "drag_linear_horiz",
+      "drag_quad_horiz",
+      "kp_vel_vert",
+      "ki_vel_vert"
+    ],
+    "optimizer": "scipy.optimize.least_squares",
+    "fitted_values": {
+      "kp_vel_horiz": 5.668742505373248,
+      "max_setpoint_accel_horiz": 10.437948281318224,
+      "max_accel_horiz": 11.395755965767552,
+      "max_tilt_deg": 47.683515486586764,
+      "tilt_time_constant_s": 0.05316114750888081,
+      "thrust_max": 18.83768148393035,
+      "thrust_time_constant_s": 0.010000000000000002,
+      "drag_linear_horiz": 0.15856249795566268,
+      "drag_quad_horiz": 6.213810577675567e-14,
+      "kp_vel_vert": 0.811137903486918,
+      "ki_vel_vert": 0.20217578674089076
+    },
+    "rms_before": {
+      "vel_n": 1.963974229197223,
+      "vel_e": 3.00809531887682,
+      "vel_d": 0.2565527260812748,
+      "pos_d": 0.3911643704354511,
+      "tilt_deg": 17.162886392750604
+    },
+    "rms_after": {
+      "vel_n": 0.4437766217522743,
+      "vel_e": 0.5512152450269708,
+      "vel_d": 0.20291729337730308,
+      "pos_d": 0.10641226977905519,
+      "tilt_deg": 5.59816100855054
+    },
+    "rms_holdout": {
+      "vel_n": 0.40329059346110485,
+      "vel_e": 0.506193425549604,
+      "vel_d": 0.1257262000084891,
+      "pos_d": 0.06226207799440486,
+      "tilt_deg": 4.790942686020283
+    }
+  },
+  "thrust_az_fit": {
+    "method": "grid scan of thrust_az_bias_deg against the logged aim-tolerance curve (7 arms, 104 flights)",
+    "value_deg": -16.0
+  }
+}

@@ -100,6 +100,9 @@ class VehicleParams:
     drag_quad_horiz: float = 0.0  # (1/m), horizontal quadratic drag coefficient
     drag_quad_vert: float = 0.0  # (1/m), vertical quadratic drag coefficient
 
+    # --- thrust-azimuth error (reference-stack artefact; see step()) ---
+    thrust_az_bias_deg: float = 0.0  # deg, + = thrust rotated clockwise seen from above
+
     # --- yaw ---
     yaw_rate_limit_deg_s: float = 120.0  # deg/s
     yaw_time_constant_s: float = 0.25  # s, first-order lag towards yaw rate cmd
@@ -253,6 +256,17 @@ class QuadVelocityModel:
         self._thrust_mag = min(p.thrust_max, max(p.thrust_min, self._thrust_mag))
 
         thrust_dir = _tilt_to_dir(self._tilt)  # actual thrust direction, NED
+        # --- thrust-azimuth error (default 0 = off). The PX4/Gazebo reference
+        # slides 0.4-0.8 m sideways during a hard acceleration and then holds the
+        # offset (measured 2026-09-17, 16 flights, same side both crossing
+        # directions, larger while yaw is still slewing). Modelled as the tilt
+        # being realised rotated about vertical by a constant angle; the velocity loop
+        # then fights it, which is what makes the offset saturate. ---
+        if p.thrust_az_bias_deg != 0.0:
+            eps = math.radians(p.thrust_az_bias_deg)
+            ce, se = math.cos(eps), math.sin(eps)
+            thrust_dir = np.array([ce * thrust_dir[0] - se * thrust_dir[1],
+                                   se * thrust_dir[0] + ce * thrust_dir[1], thrust_dir[2]])
         thrust_accel_ned = thrust_dir * self._thrust_mag
 
         # --- yaw: rate-limited first-order tracking ---

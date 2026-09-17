@@ -74,6 +74,9 @@ def load_flight(path: str, phases: Iterable[str] = PHASES,
         "pos_n": pos_n, "pos_e": pos_e, "pos_d": pos_d,
         "vel_n": _local_slope(t, pos_n), "vel_e": _local_slope(t, pos_e),
         "vel_d": _local_slope(t, pos_d),
+        # logged TARGET track (scoring side only) -- lets a replay be scored
+        # as an engagement, not just as a vehicle response.
+        "tgt_n": g("gt_tag_y"), "tgt_e": g("gt_tag_x"), "tgt_d": -g("gt_tag_z"),
         "quat_w": g("att_qw"), "quat_x": g("att_qx"),
         "quat_y": g("att_qy"), "quat_z": g("att_qz"),
     }

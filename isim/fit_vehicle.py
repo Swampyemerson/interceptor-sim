@@ -37,6 +37,7 @@ BOUNDS: Dict[str, Tuple[float, float]] = {
     "drag_linear_vert": (0.0, 3.0), "drag_quad_horiz": (0.0, 1.0),
     "drag_quad_vert": (0.0, 1.0), "yaw_rate_limit_deg_s": (10.0, 720.0),
     "yaw_time_constant_s": (0.01, 2.0), "latency_s": (0.0, 0.5),
+    "thrust_az_bias_deg": (-30.0, 30.0),
     "gust_std": (0.0, 5.0),
 }
 
@@ -91,9 +92,14 @@ def simulate_segment(
             v_down=float(segment["cmd_vd"][i]),
             yaw_deg=float(segment["cmd_yaw_deg"][i]),
         )
+        # Step over the REAL interval to the next log row. The logs are
+        # irregular (20-200 ms); assuming the median interval warps time and
+        # puts metres of false along-track error into a 16 m/s sprint.
+        gap = float(t[i + 1] - t[i])
+        k_sub = max(1, round(gap / dt_model))
         st = None
-        for _ in range(n_sub):
-            st = model.step(cmd, dt_actual)
+        for _ in range(k_sub):
+            st = model.step(cmd, gap / k_sub)
         out_pos[i + 1] = st.pos_ned
         out_vel[i + 1] = st.vel_ned
         out_quat[i + 1] = st.quat_wxyz
