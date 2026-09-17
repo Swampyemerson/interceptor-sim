@@ -713,3 +713,80 @@ Same ruler, same criterion (§9.6), both arms dash-only:
   a pattern yet, but it is arm-specific, so it is OPEN, not noise: check whether the lower
   takeoff (0.29 m + ground effect, §9.7) disturbs the standby yaw on that geometry.
 - Still ~0.19 m high at closest approach in arm B — the dash climb (§9.13). Next lever.
+
+## 10. The dash climb — analysis and pre-registration (2026-09-16, head session)
+
+### 10.1 What the 32 flights show (0 dropped; per direction n = 4 per arm-seed, 16 per direction overall)
+
+Plain English: the sprint lasts only about **1.45 s**, and in that time the vehicle rises about
+**0.35 m**. The height-hold notices, but it is far too gentle to do anything about it in a
+second and a half.
+
+| | left-to-right | right-to-left |
+|---|---|---|
+| sprint duration (sim time) | 1.42–1.48 s | 1.47–1.52 s |
+| height vs reference at sprint start (own estimate) | −0.06 to −0.10 m | same |
+| height vs reference at closest approach — own estimate | **+0.23 to +0.28 m** | **+0.11 to +0.17 m** |
+| … TRUE (world z, corrected for the camera dipping 0.120·sin(pitch)) | +0.29 to +0.34 m | +0.19 to +0.22 m |
+| push-down command at closest approach | 0.23–0.28 m/s | 0.11–0.16 m/s |
+| … largest at any point | 0.29–0.35 m/s | 0.22–0.27 m/s |
+| pitch at closest approach | −43° to −44° | −41° to −43° |
+
+Medians per arm-seed-direction cell; all four arms agree, so the height-reference offset did not
+change the climb. Three readings:
+1. **The loop is barely trying, not failing.** Its clamp is 0.5 m/s and it never commands more
+   than 0.35. With `KP_ALT = 1.0 /s` the loop's time constant is ~1 s against a 1.45 s sprint. It
+   is a gain problem, not an authority problem.
+2. **The vehicle's own height estimate lags the truth by 5–8 cm during the sprint** (estimate
+   +0.11…+0.28 vs true +0.19…+0.34). No outer-loop gain can remove what the estimate cannot see.
+3. **Left-to-right climbs ~0.10 m more than right-to-left**, with ~2° more nose-down pitch.
+   Not explained. The +5° aim trim is one-signed, so the two directions do fly different turns.
+   It also starts the sprint 6–10 cm BELOW the reference — the takeoff gate releases at 80% of
+   the target height — which currently hides part of the climb.
+
+### 10.2 The lever, and why this one first
+
+`--dash-alt-kp 4 --dash-alt-vmax 1.5` — a stiffer height-hold during the sprint only (built
+today, default OFF, identity proven by test). Chosen over a constant push-down feed-forward
+because a feed-forward is a number tuned on this sim's thrust curve and would not transfer,
+whereas a gain acts on the vehicle's own measured height and needs no calibration. Honesty
+grade: **own-state only** — it reads the altitude estimate and nothing about the target.
+
+### 10.3 Configuration
+
+Control = the adopted `AE5dashZ`. Arm `AE5dashZK` = the same plus the two flags. **Seed 321**
+(disjoint from 123/777/456/789), n = 8 paired, both directions, dash-only, sequential, idle load.
+
+### 10.4 Prediction (written before flying)
+
+A disturbance that produces ~0.24 m/s of climb against a gain of 4 /s settles near
+0.24/4 ≈ 0.06 m of *estimated* error; add the 5–8 cm estimator lag → **true height at closest
+approach ≈ +0.10 to +0.15 m above the reference**, down from +0.19…+0.34 m. Median vertical
+offset at closest approach (lens, logged tick) falls from ≈0.19 m to ≈0.08 m. Horizontal
+unchanged. The left/right asymmetry should shrink with it.
+
+### 10.5 Adopt / reject
+
+**ADOPT** if the true height error at closest approach is smaller in ≥6/8 pairs AND its median
+falls by ≥0.05 m AND the median horizontal miss is not worse by more than 0.05 m.
+**REJECT** if ≤4/8, or horizontal worsens by >0.05 m, or any flight shows a vertical
+oscillation (sign change of the height error more than twice inside the sprint) — a stiff outer
+gain over PX4's own velocity loop can ring, and a ringing vehicle is worse than a high one.
+Anything between is UNDERPOWERED — say so, fly a second seed, do not pick a side.
+
+### 10.6 What a NULL would mean
+
+The outer gain is not the limit. The climb is then being set by PX4's inner vertical loop and/or
+the estimator lag — i.e. by things a setpoint cannot fix in 1.5 s — and the honest options become
+a feed-forward (tuned, non-transferable, to be labelled as such) or accepting ~0.2 m of vertical
+error as the floor of a preset-height sprint, which would make ADR-0085's camera-driven vertical
+channel the only real fix.
+
+### 10.7 Arm asymmetries and regime-dependent constants
+
+- Only arm B can ring (10.5 guards it). Only arm B can command >0.5 m/s downward at 0.29 m
+  above the ground at sprint start: check the minimum TRUE height of every B flight; any flight
+  below 0.10 m is a ground-strike risk and is reported, not averaged.
+- `KP_ALT = 1.0` and `V_VERT_MAX = 0.5` were tuned for hover-and-approach at walking speeds; this
+  changes them only inside CODED_DASH. ACQUIRE/ENGAGE keep the stock values.
+- Both arms are dash-only, so the breakoff defect reaches neither.

@@ -531,3 +531,21 @@ def test_offset_is_a_preflight_constant_not_a_ground_truth_read_MUTANT():
     attrs = {c.attr for c in _ast.walk(fn) if isinstance(c, _ast.Attribute)}
     assert not any(n.startswith("gt_") for n in names | attrs), names | attrs
     assert names <= {"args", "off", "ALT_REF_M", "getattr", "float", "None"}, names
+
+
+# ------------------------------------------- dash altitude gain (prereg §10) ---
+
+
+def test_dash_alt_gain_default_is_stock():
+    args = _args_from_cli([])
+    assert args.dash_alt_kp is None and args.dash_alt_vmax is None
+    assert M4.dash_alt_gain(args, M4.V_VERT_MAX) == (M4.KP_ALT, M4.V_VERT_MAX)
+    # the loft path's raised clamp must pass through untouched when the gain is off
+    assert M4.dash_alt_gain(args, 3.0) == (M4.KP_ALT, 3.0)
+
+
+def test_dash_alt_gain_applies_and_vmax_needs_kp():
+    args = _args_from_cli(["--dash-alt-kp", "4", "--dash-alt-vmax", "1.5"])
+    assert M4.dash_alt_gain(args, M4.V_VERT_MAX) == (4.0, 1.5)
+    args = _args_from_cli(["--dash-alt-vmax", "1.5"])
+    assert M4.dash_alt_gain(args, M4.V_VERT_MAX) == (M4.KP_ALT, M4.V_VERT_MAX)

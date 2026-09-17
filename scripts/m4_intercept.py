@@ -1749,6 +1749,17 @@ async def track_local_position(drone, state: "M4TelemetryState") -> None:
         state.vel_e = pv.velocity.east_m_s
 
 
+def dash_alt_gain(args, vvert_default):
+    """(kp, vmax) for the CODED_DASH altitude hold. Stock (KP_ALT, vvert_default)
+    unless --dash-alt-kp is set; --dash-alt-vmax only applies together with it.
+    Own-state only -- nothing here reads the target."""
+    kp = getattr(args, "dash_alt_kp", None)
+    if kp is None:
+        return KP_ALT, vvert_default
+    vmax = getattr(args, "dash_alt_vmax", None)
+    return float(kp), (vvert_default if vmax is None else float(vmax))
+
+
 def alt_ref_m(args):
     """The EFFECTIVE altitude reference (metres) the hold/takeoff aims at.
 
@@ -2127,6 +2138,19 @@ def parse_args():
              "phase ONLY -- needed so the loft-then-dive descent fits the short dash "
              "(stock V_VERT_MAX 0.5 m/s is too slow to dive 2-4 m in ~2 s). Ignored unless "
              "--dash-loft-m > 0. Default None = stock V_VERT_MAX (byte-identical).")
+    parser.add_argument(
+        "--dash-alt-kp", type=float, default=None,
+        help="--coded-dash: altitude-hold P gain (1/s) during the CODED_DASH phase ONLY. "
+             "The stock KP_ALT (%.1f 1/s) has a ~1 s time constant, but the dash lasts "
+             "~1.5 s and the vehicle climbs ~0.35 m in it while the loop commands barely "
+             "half its clamp (docs/vertical_channel_prereg.md section 10). Own-state only: "
+             "it acts on the vehicle's own altitude estimate. Default None = stock gain "
+             "(byte-identical)." % KP_ALT)
+    parser.add_argument(
+        "--dash-alt-vmax", type=float, default=None,
+        help="--coded-dash: vertical-speed clamp (m/s) used WITH --dash-alt-kp during "
+             "CODED_DASH. Ignored unless --dash-alt-kp is set. Default None = stock "
+             "V_VERT_MAX (%.1f m/s)." % V_VERT_MAX)
     parser.add_argument(
         "--dash-heading-err-deg", type=float, default=0.0,
         help="--coded-dash ROBUSTNESS sweep: add a FIXED azimuth error (deg) to the "
@@ -3800,8 +3824,9 @@ async def run_acquire_and_engage(
                                          _dash_elapsed, args.dash_loft_dive_s)
             _vvert = (args.dash_vvert_max if (args.dash_loft_m and args.dash_vvert_max)
                       else V_VERT_MAX)
+            _kp_alt, _vvert = dash_alt_gain(args, _vvert)
             v_down = (
-                _clamp(KP_ALT * (alt_m - _alt_ref), -_vvert, _vvert)
+                _clamp(_kp_alt * (alt_m - _alt_ref), -_vvert, _vvert)
                 if alt_m is not None else 0.0
             )
             _h = math.radians(coded_dash_heading_deg)
