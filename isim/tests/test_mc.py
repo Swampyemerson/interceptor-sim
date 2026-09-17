@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import csv
 
-from isim.mc import _print_table, _summarize, _write_csv, run_many, sweep
-from isim.scenario import Scenario
+from isim.mc import build_parser, _print_table, _summarize, _write_csv, run_many, sweep
+from isim.scenario import Scatter, Scenario
 
 
 def _fast_scenario(seed: int) -> Scenario:
@@ -16,6 +16,11 @@ def _fast_scenario(seed: int) -> Scenario:
     generous cross range keep n_steps/engagement small everywhere this file
     runs it."""
     return Scenario(target_speed_ms=9.0, cross_range_m=6.5, lead_dist_m=10.0, seed=seed)
+
+
+def _fast_scattered_scenario(seed: int) -> Scenario:
+    return Scenario(target_speed_ms=9.0, cross_range_m=6.5, lead_dist_m=10.0, seed=seed,
+                    scatter=Scatter())
 
 
 def test_run_many_is_deterministic_per_seed():
@@ -114,3 +119,66 @@ def test_sweep_tags_each_row_with_its_axis_value():
     assert values_seen == {2.0, 9.0}
     for r in rows:
         assert r["target_speed_ms"] == r["_axis_value"]
+
+
+# --------------------------------------------------------------------- scatter
+
+def test_run_many_result_independent_of_worker_count_with_scatter_on():
+    scns = [_fast_scattered_scenario(seed=s) for s in range(3)]
+    seq = run_many(scns, workers=1)
+    par = run_many(scns, workers=2)
+    seq_by_seed = {r["seed"]: r for r in seq}
+    par_by_seed = {r["seed"]: r for r in par}
+    assert set(seq_by_seed) == set(par_by_seed)
+    for seed, r_seq in seq_by_seed.items():
+        r_par = par_by_seed[seed]
+        assert r_seq["miss_m"] == r_par["miss_m"]
+        assert r_seq["transitions"] == r_par["transitions"]
+
+
+def test_run_many_deterministic_per_seed_with_scatter_on():
+    scns = [_fast_scattered_scenario(seed=4)]
+    r1 = run_many(scns, workers=1)
+    r2 = run_many(scns, workers=1)
+    assert r1[0]["miss_m"] == r2[0]["miss_m"]
+    assert r1[0]["transitions"] == r2[0]["transitions"]
+
+
+def test_result_row_carries_n_fault_lines():
+    row = run_many([_fast_scenario(seed=0)], workers=1)[0]
+    assert "n_fault_lines" in row
+    assert row["n_fault_lines"] >= 0
+
+
+def test_summarize_has_p10_and_pct_hit_loose():
+    rows = run_many([_fast_scenario(seed=s) for s in range(3)], workers=1)
+    s = _summarize(rows)
+    assert "p10_miss_m" in s
+    assert "p90_miss_m" in s
+    assert s["p10_miss_m"] <= s["p90_miss_m"]
+    assert "pct_hit_loose" in s
+    assert s["pct_hit"] <= s["pct_hit_loose"] + 1e-9   # 0.35 m hit implies 1.0 m hit
+
+
+def test_cli_accepts_scatter_terminal_camtilt_flags():
+    p = build_parser()
+    args = p.parse_args(["sweep", "--axis", "target_speed_ms", "--values", "9.0",
+                         "--n", "1", "--scatter", "--terminal", "stock",
+                         "--cam-tilt", "3.0"])
+    assert args.scatter is True
+    assert args.terminal == "stock"
+    assert args.cam_tilt == 3.0
+
+    args2 = p.parse_args(["requirement", "--out", "/tmp/does_not_matter.csv"])
+    assert args2.scatter is False
+    assert args2.terminal == "stock"
+    assert args2.cam_tilt == 0.0
+
+
+def test_sweep_cli_scatter_flag_builds_scattered_scenarios(tmp_path):
+    rows = sweep("target_speed_ms", [9.0], n_seeds=2,
+                base=Scenario(cross_range_m=6.5, lead_dist_m=10.0, scatter=Scatter()),
+                workers=1)
+    assert len(rows) == 2
+    for r in rows:
+        assert "n_fault_lines" in r

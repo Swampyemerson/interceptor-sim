@@ -13,8 +13,10 @@ not stand in for a Gazebo gate.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import dataclasses
+import io
 import itertools
 import os
 import sys
@@ -26,11 +28,18 @@ import numpy as np
 
 from isim.engine import run_engagement
 from isim.replay_a0 import load_params
-from isim.scenario import Scenario, build
+from isim.scenario import Scatter, Scenario, build
 from isim.vehicle import VehicleParams
 
 # Scenario fields carried straight through into every result dict.
 _SCENARIO_FIELDS = tuple(f.name for f in dataclasses.fields(Scenario))
+
+# The flight code's own "[seeker] FAULT ..." (and similar) stdout chatter --
+# see `flight.deploy.seeker_loop._emit_fault` -- fires on ~every engagement
+# with any scatter on it and would otherwise flood a batch's console. It is
+# COUNTED, never silently dropped (no-silent-failure): `n_fault_lines` on the
+# result row.
+_FAULT_LINE_MARKER = "FAULT"
 
 
 def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
@@ -38,8 +47,13 @@ def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
     (module-scope) so a `spawn`-context worker process can import and call it
     -- a closure or bound method cannot be pickled for `spawn`."""
     ecfg, vehicle, target, seeker, guidance, init_state = build(scn, vehicle_params)
-    result = run_engagement(ecfg, vehicle, target, seeker, guidance, init_state,
-                            record_trace=False)
+
+    captured = io.StringIO()
+    with contextlib.redirect_stdout(captured):
+        result = run_engagement(ecfg, vehicle, target, seeker, guidance, init_state,
+                                record_trace=False)
+    n_fault_lines = sum(1 for line in captured.getvalue().splitlines()
+                        if _FAULT_LINE_MARKER in line)
 
     state_log = list(guidance.state_log)
     reached_engage = any(s == "ENGAGE" for _, s in state_log)
@@ -60,6 +74,7 @@ def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
         final_state=final_state,
         reached_engage=reached_engage,
         transitions=transitions,
+        n_fault_lines=n_fault_lines,
     )
     return row
 
@@ -104,10 +119,11 @@ def sweep(axis_name: str, values: Sequence[float], n_seeds: int,
 
 # --------------------------------------------------------------- summarizing
 
-_MISS_HIT_M = 0.35   # the binary-kill proximity radius this project targets
+_MISS_HIT_M = 0.35        # the binary-kill proximity radius this project targets
+_MISS_HIT_LOOSE_M = 1.0   # a looser reference radius, for scatter's wider tails
 
-_TABLE_COLS = ("value", "n", "med_miss_m", "p90_miss_m", "pct_hit", "med_horiz_m",
-              "med_vert_m", "pct_engage", "med_decoded")
+_TABLE_COLS = ("value", "n", "med_miss_m", "p10_miss_m", "p90_miss_m", "pct_hit",
+              "pct_hit_loose", "med_horiz_m", "med_vert_m", "pct_engage", "med_decoded")
 
 
 def _summarize(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -126,8 +142,10 @@ def _summarize(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         "n": n,
         "verdict": "ok",
         "med_miss_m": float(np.median(miss)),
+        "p10_miss_m": float(np.percentile(miss, 10)),
         "p90_miss_m": float(np.percentile(miss, 90)),
         "pct_hit": float(np.mean(miss <= _MISS_HIT_M) * 100.0),
+        "pct_hit_loose": float(np.mean(miss <= _MISS_HIT_LOOSE_M) * 100.0),
         "med_horiz_m": float(np.median(horiz)),
         "med_vert_m": float(np.median(vert)),
         "pct_engage": float(np.mean(engage) * 100.0),
@@ -136,9 +154,10 @@ def _summarize(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _print_table(axis_name: str, rows: List[Dict[str, Any]], values: Sequence[float]) -> None:
-    hit_col = f"%hit<={_MISS_HIT_M:.2f}m"
-    header = (f"{'value':>10s} {'n':>4s} {'med_miss':>9s} {'p90_miss':>9s} "
-             f"{hit_col:>11s} {'med_|h|':>8s} {'med_v':>7s} "
+    hit_col = f"%<={_MISS_HIT_M:.2f}m"
+    hit_loose_col = f"%<={_MISS_HIT_LOOSE_M:.2f}m"
+    header = (f"{'value':>10s} {'n':>4s} {'med_miss':>9s} {'p10_miss':>9s} {'p90_miss':>9s} "
+             f"{hit_col:>9s} {hit_loose_col:>9s} {'med_|h|':>8s} {'med_v':>7s} "
              f"{'%engage':>8s} {'med_dec':>8s}")
     print(f"axis={axis_name}")
     print(header)
@@ -148,8 +167,9 @@ def _print_table(axis_name: str, rows: List[Dict[str, Any]], values: Sequence[fl
         if s["verdict"] == "UNCERTAIN":
             print(f"{v!s:>10s} {0:>4d}  UNCERTAIN -- zero engagements, no verdict")
             continue
-        print(f"{v!s:>10s} {s['n']:>4d} {s['med_miss_m']:>9.3f} {s['p90_miss_m']:>9.3f} "
-              f"{s['pct_hit']:>10.1f}% {s['med_horiz_m']:>8.3f} {s['med_vert_m']:>7.3f} "
+        print(f"{v!s:>10s} {s['n']:>4d} {s['med_miss_m']:>9.3f} {s['p10_miss_m']:>9.3f} "
+              f"{s['p90_miss_m']:>9.3f} {s['pct_hit']:>8.1f}% {s['pct_hit_loose']:>8.1f}% "
+              f"{s['med_horiz_m']:>8.3f} {s['med_vert_m']:>7.3f} "
               f"{s['pct_engage']:>7.1f}% {s['med_decoded']:>8.1f}")
 
 
@@ -174,9 +194,31 @@ def _write_csv(path: str, rows: List[Dict[str, Any]]) -> None:
             w.writerow(r)
 
 
+def _base_scenario_from_args(args: argparse.Namespace) -> Scenario:
+    """The `--scatter`/`--terminal`/`--cam-tilt` pass-throughs, common to both
+    `sweep` and `requirement`. `--scatter` uses `Scatter()`'s own defaults --
+    there is no per-field CLI override; edit `Scatter` (and its source notes)
+    if a different magnitude is wanted."""
+    return Scenario(
+        scatter=Scatter() if args.scatter else None,
+        terminal=args.terminal,
+        cam_tilt_up_deg=args.cam_tilt,
+    )
+
+
+def _add_scatter_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--scatter", action="store_true",
+                   help="apply Scatter() defaults' run-to-run noise to every scenario")
+    p.add_argument("--terminal", type=str, default="stock",
+                   help="passed to RealFlightGuidance(terminal=...) when != 'stock'")
+    p.add_argument("--cam-tilt", type=float, default=0.0, dest="cam_tilt",
+                   help="deg, nominal camera mount tilt (Scenario.cam_tilt_up_deg)")
+
+
 def _cmd_sweep(args: argparse.Namespace) -> int:
     values = _parse_values(args.values)
-    rows = sweep(args.axis, values, args.n, workers=args.workers)
+    base = _base_scenario_from_args(args)
+    rows = sweep(args.axis, values, args.n, base=base, workers=args.workers)
     _print_table(args.axis, rows, values)
     if args.out:
         _write_csv(args.out, rows)
@@ -194,10 +236,11 @@ _REQUIREMENT_AXES = (
 
 
 def _cmd_requirement(args: argparse.Namespace) -> int:
+    base = _base_scenario_from_args(args)
     all_rows: List[Dict[str, Any]] = []
     any_engagement = False
     for axis, values in _REQUIREMENT_AXES:
-        rows = sweep(axis, values, args.n, workers=args.workers)
+        rows = sweep(axis, values, args.n, base=base, workers=args.workers)
         for r in rows:
             r["_axis_name"] = axis
         _print_table(axis, rows, values)
@@ -222,12 +265,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_sweep.add_argument("--n", type=int, default=50, help="seeds per value")
     p_sweep.add_argument("--workers", type=int, default=None)
     p_sweep.add_argument("--out", type=str, default=None, help="optional CSV output path")
+    _add_scatter_args(p_sweep)
     p_sweep.set_defaults(func=_cmd_sweep)
 
     p_req = sub.add_parser("requirement", help="run the four requirement axes, write one CSV")
     p_req.add_argument("--out", required=True, help="CSV output path")
     p_req.add_argument("--n", type=int, default=50, help="seeds per value")
     p_req.add_argument("--workers", type=int, default=None)
+    _add_scatter_args(p_req)
     p_req.set_defaults(func=_cmd_requirement)
 
     return p

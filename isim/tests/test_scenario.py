@@ -9,10 +9,19 @@ import math
 import numpy as np
 import pytest
 
-from flight.deploy.real_flight import MissionConfig
+from flight.deploy.real_flight import MissionConfig, resolve_preflight_heading, wrap_deg
 
 from isim.replay_a0 import load_params
-from isim.scenario import GO_SETTLE_BUFFER_S, Scenario, build
+from isim.scenario import (
+    GO_SETTLE_BUFFER_S,
+    NOMINAL_ALT_M,
+    Scatter,
+    Scenario,
+    _BASE_DASH_ACCEL_MS2,
+    _BASE_DASH_SPEED_MS,
+    _target_geometry,
+    build,
+)
 
 
 @pytest.fixture(scope="module")
@@ -135,3 +144,135 @@ def test_sprint_scale_one_uses_the_full_missionconfig_default_speed(vp):
     scn = Scenario(sprint_scale=1.0)
     _, _, _, _, guidance, _ = build(scn, vp)
     assert guidance.cfg.dash_speed_ms == pytest.approx(MissionConfig().dash_speed_ms, abs=1e-9)
+
+
+# --------------------------------------------------------------------- scatter
+
+def test_scatter_none_is_bit_identical_to_no_scatter(vp):
+    """Pin: `scatter=None` (the default) must reproduce the pre-scatter
+    arithmetic exactly -- no noise term may leak in even as a `+0.0`, and the
+    vehicle model must not be copied/perturbed at all."""
+    scn = Scenario(aim_error_deg=7.0, height_guess_error_m=-0.4, seed=11)
+    assert scn.scatter is None
+
+    ecfg, vehicle, target, seeker, guidance, init = build(scn, vp)
+
+    _, _, start_en, vel_en = _target_geometry(scn)
+    heading0, _ = resolve_preflight_heading(
+        start_en, vel_en, _BASE_DASH_SPEED_MS, dash_accel_ms2=_BASE_DASH_ACCEL_MS2,
+        accel_aware=True, origin=(0.0, 0.0))
+    expected_heading = wrap_deg(heading0 + scn.aim_error_deg)
+
+    assert guidance.cfg.preflight_heading_deg == pytest.approx(expected_heading, abs=1e-12)
+    assert guidance.cfg.standby_alt_m == pytest.approx(
+        NOMINAL_ALT_M + scn.height_guess_error_m, abs=1e-12)
+    assert vehicle.p is vp   # same object -- the no-scatter path never copies it
+    assert seeker.cam.fx == pytest.approx(540.0)
+    assert seeker.cam.mount_tilt_up_deg == pytest.approx(0.0)
+
+
+def test_scatter_same_seed_identical_draws_different_seed_differs(vp):
+    scat = Scatter()
+    scn_a = Scenario(scatter=scat, seed=5)
+    scn_b = Scenario(scatter=scat, seed=5)
+    scn_c = Scenario(scatter=scat, seed=6)
+
+    _, veh_a, _, seeker_a, g_a, _ = build(scn_a, vp)
+    _, veh_b, _, seeker_b, g_b, _ = build(scn_b, vp)
+    _, veh_c, _, seeker_c, g_c, _ = build(scn_c, vp)
+
+    assert g_a.cfg.preflight_heading_deg == g_b.cfg.preflight_heading_deg
+    assert g_a.cfg.standby_alt_m == g_b.cfg.standby_alt_m
+    assert veh_a.p.wind_ned == veh_b.p.wind_ned
+    assert seeker_a.cam.fx == seeker_b.cam.fx
+
+    differs = (g_a.cfg.preflight_heading_deg != g_c.cfg.preflight_heading_deg
+              or g_a.cfg.standby_alt_m != g_c.cfg.standby_alt_m
+              or veh_a.p.wind_ned != veh_c.p.wind_ned
+              or seeker_a.cam.fx != seeker_c.cam.fx)
+    assert differs
+
+
+def test_scatter_target_start_jitter_never_reaches_preflight_solve(vp):
+    """The TRUE start-position jitter (`target_start_sigma_m`) must not change
+    the solved heading (or anything drawn after it) at all -- honesty
+    boundary: the pre-flight solve is never told the true target moved."""
+    scat_full = Scatter()
+    scat_no_start_jitter = dataclasses.replace(scat_full, target_start_sigma_m=0.0)
+
+    scn_full = Scenario(scatter=scat_full, seed=3)
+    scn_no_jitter = Scenario(scatter=scat_no_start_jitter, seed=3)
+
+    _, veh_full, tgt_full, _, g_full, _ = build(scn_full, vp)
+    _, veh_no_jitter, tgt_no_jitter, _, g_no_jitter, _ = build(scn_no_jitter, vp)
+
+    # Every later draw (heading noise, height noise, speed belief, wind,
+    # vehicle params, latency, go jitter, camera error) is bit-identical --
+    # a Gaussian draw with sigma=0 still consumes exactly the same amount of
+    # RNG state as a nonzero one, so the sequence downstream is untouched.
+    assert g_full.cfg.preflight_heading_deg == g_no_jitter.cfg.preflight_heading_deg
+    assert g_full.cfg.standby_alt_m == g_no_jitter.cfg.standby_alt_m
+    assert veh_full.p.wind_ned == veh_no_jitter.p.wind_ned
+
+    # But the TRUE target start position really did move.
+    pos_full = tgt_full.inner.state(0.0).pos_ned
+    pos_no_jitter = tgt_no_jitter.inner.state(0.0).pos_ned
+    assert pos_full[0] != pytest.approx(pos_no_jitter[0])
+
+
+def test_scatter_speed_belief_error_feeds_the_solve_not_the_true_target(vp):
+    """`target_speed_belief_sigma_frac` perturbs what the SOLVE is handed; the
+    true target's flown speed is untouched."""
+    scat = dataclasses.replace(Scatter(), heading_sigma_deg=0.0, height_guess_sigma_m=0.0,
+                               target_start_sigma_m=0.0)
+    scat_zero_belief = dataclasses.replace(scat, target_speed_belief_sigma_frac=0.0)
+
+    scn = Scenario(scatter=scat, seed=9)
+    scn_zero_belief = Scenario(scatter=scat_zero_belief, seed=9)
+
+    _, _, tgt, _, g, _ = build(scn, vp)
+    _, _, tgt_zero, _, g_zero, _ = build(scn_zero_belief, vp)
+
+    # The solved heading differs (the belief speed the solve saw differed)...
+    assert g.cfg.preflight_heading_deg != g_zero.cfg.preflight_heading_deg
+    # ...but the TRUE target's speed (norm of vel_ned) is identical either way.
+    true_speed = float(np.linalg.norm(tgt.inner.vel_ned))
+    true_speed_zero = float(np.linalg.norm(tgt_zero.inner.vel_ned))
+    assert true_speed == pytest.approx(true_speed_zero, abs=1e-12)
+    assert true_speed == pytest.approx(scn.target_speed_ms, abs=1e-9)
+
+
+def test_scatter_wind_reaches_vehicle_params(vp):
+    scn = Scenario(scatter=Scatter(), seed=42)
+    _, vehicle, _, _, _, _ = build(scn, vp)
+    wn, we, wd = vehicle.p.wind_ned
+    mag = math.hypot(wn, we)
+    assert 0.0 <= mag <= Scatter().wind_mean_max_ms + 1e-9
+    assert wd == pytest.approx(0.0)
+    assert vehicle.p.gust_std == pytest.approx(Scatter().gust_std_ms)
+    # Vehicle params only touched on the scatter-on path -- never the shared
+    # caller-supplied object.
+    assert vehicle.p is not vp
+
+
+def test_scatter_camera_error_is_true_camera_only(vp):
+    """fx/fy scale + mount-tilt error land on the TRUE (seeker) camera only;
+    the flight code's nominal camera stays at the Scenario's nominal tilt."""
+    scn = Scenario(scatter=Scatter(), cam_tilt_up_deg=5.0, seed=1)
+    _, _, _, seeker, guidance, _ = build(scn, vp)
+    assert seeker.cam.mount_tilt_up_deg != pytest.approx(5.0)
+    assert guidance._gcfg.mount_up_rad == pytest.approx(math.radians(5.0))
+
+
+def test_terminal_stock_default_matches_pre_terminal_kwarg_behaviour(vp):
+    scn = Scenario(terminal="stock")
+    ecfg, vehicle, target, seeker, guidance, init = build(scn, vp)
+    assert guidance is not None   # builds without a TypeError
+
+
+def test_terminal_tag_is_import_guarded(vp):
+    """`terminal="tag"` is only exercised once `flight.tag_terminal` lands
+    (another worker's task); until then this must not fail collection."""
+    pytest.importorskip("flight.tag_terminal")
+    scn = Scenario(terminal="tag")
+    build(scn, vp)
