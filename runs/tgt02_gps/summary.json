@@ -1,0 +1,16 @@
+{
+  "gate": "tgt-02 (target FC writes a .BIN our scorer can read a POSITION track from)",
+  "date": "2026-09-17",
+  "board": "Holybro Kakute H7 v1.5, ArduCopter V4.7.0 (1511f271), Matek M10Q-5883 soldered to the UART3 pads",
+  "live_check": "fc_gps_check.py over USB, 25 s: 97 GPS_RAW_INT, best fix 3D, 11 satellites, SYS_STATUS GPS present+healthy, compass present+healthy",
+  "log": "00000304.BIN, 106496/106496 bytes, downloaded over MAVLink (card never removed), LOG_DISARMED restored to 0 and READ BACK twice",
+  "log_contents": {"messages": 2611, "types": 49, "GPS_rows": 13, "GPS_rows_with_3D_fix": 13, "sats_max": 11, "hdop_min": 0.99, "POS_rows": 27, "MAG_rows": 27, "prearm_messages": 0},
+  "consumer_check": "scripts/field_score.py load_track_from_bin(): source='dataflash:POS', 27 samples, utc_synced=True, 0 non-finite dropped, 0 invalid dropped, no warnings",
+  "verdict": "PASS for what tgt-02 asks: the scorer's own .BIN reader extracts a UTC-synced position track from a log this board wrote with a real 3D fix.",
+  "limits": [
+    "the log is ~3 s long and the board was stationary on the bench (position span 0.16 m) -- it proves the PATH, not a flight",
+    "the first attempt (logproof.py, 25 min cap) was killed mid-download and left LOG_DISARMED=1 for ~25 min; 304 logs are now on the card, most of them ground logs from that window -- worth clearing the card before the maiden",
+    "compass reads healthy but is NOT calibrated for the airframe (tgt-06)",
+    "an earlier USB 'Device Descriptor Request Failed' cleared on re-plug; cause not established"
+  ]
+}

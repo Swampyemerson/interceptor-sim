@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-09-16",
-    "where": "The sprint-only sim flights now pass close enough to touch the target 13 times out of 16, up from 2 of 16, after lining the vehicle's flying height up with the target's. On the bench, the Pixhawk's GPS and compass check out and the Pi is on the new Wi-Fi.",
+    "where": "The sprint-only sim flights pass close enough to touch the target 13 times out of 16 after lining the flying height up with the target's. On the bench, BOTH flight controllers now check out with their GPS, and the Pi is on the new Wi-Fi.",
     "finding": "The vehicle had been flying about 0.4 m ABOVE the target the whole time -- its height scale starts at its landing gear, the target's at the ground. Best case only: camera off, and the sim knows the target's path and height exactly.",
     "next": [
-      "Get the Kakute to show up on USB (data cable, no boot button) so its GPS can be checked",
+      "Bench: calibrate the camera (skr-06); target: solder + smoke-stopper power-up (tgt-03/04)",
       "Sim: trim the ~0.2 m climb during the sprint; then inject target-height error"
     ],
-    "evidence": "ADR-0100 - docs/vertical_channel_prereg.md 9.13-9.14 - logs/mc_fp_armAE5dash{,Z}_line9_s{456,789}.csv - runs/brn02_bench/"
+    "evidence": "ADR-0100 - docs/vertical_channel_prereg.md 9.13-9.14 - runs/brn02_bench/ - runs/tgt02_gps/"
   },
   "assumptions": [
     {
@@ -1837,8 +1837,8 @@
           },
           {
             "id": "tgt-02",
-            "text": "Fit the 32-64 GB microSD in the Kakute and confirm DataFlash .BIN logging on the bench.",
-            "why": "field_score reads the target's position from this log, via CSV export (its native ULog reader is PX4-only) — prove the export path now, not after a burned field day."
+            "text": "[DONE 2026-09-17] With the GPS soldered on, the Kakute gets a 3D fix (11 satellites) and writes a log our own scoring code reads a position track from -- pulled over USB, card never removed. Proves the path, not a flight: the log is ~3 s long, board sitting on the bench.",
+            "why": "field_score reads the target's position from this log; proving that path now beats finding out after a burned field day. Housekeeping before the maiden: the SD card now holds ~300 mostly-empty ground logs from the test -- clear it. Evidence: runs/tgt02_gps/summary.json."
           },
           {
             "id": "tgt-03",
