@@ -31,18 +31,23 @@
 # treats a missing .venv-seeker as a failure by design.
 #
 # THE ONE NON-OBVIOUS DEPENDENCY: the suite is sim-free (nothing boots
-# Gazebo/PX4, no display), but TEN test files pull in gz python bindings at
-# import/collection time. Nine import scripts/m4_intercept.py at module scope
-# (it does `from gz.transport13 import Node` unconditionally at line 201) and
+# Gazebo/PX4, no display), but about a dozen test files pull in gz python
+# bindings at import time. Most import scripts/m4_intercept.py at module scope
+# (it does `from gz.transport13 import Node` unconditionally) and
 # tests/test_target_orientation.py exec-loads scripts/m4_target_mover.py, whose
-# gz imports are also module-top-level. The list is the --ignore set below.
+# gz imports are also module-top-level.
 #
-# TWO OF THESE ARE NOT COLLECTION ERRORS (added 2026-09-09). test_ekf_tracker.py
-# imports m4_intercept INSIDE a test and test_inert_flag_guards.py runs it as a
-# SUBPROCESS, so both COLLECT fine without gz and then fail at run time, 14 tests'
-# worth. The fallback branch therefore collected clean and the stage went red
-# anyway -- the guard passed while the branch it guards was broken. The guard now
-# measures collection errors UNION run-time gz failures; see that test's docstring.
+# SINCE 2026-09-16 THAT IS NO LONGER A CI PROBLEM: the repo-root conftest.py
+# installs a stub import finder for gz.*/mavsdk.* when -- and only when -- the
+# real packages are absent, before pytest collects anything. Those files import
+# and run fine without the bindings, so the fallback --ignore list below is down
+# to ONE file: tests/test_inert_flag_guards.py, which launches m4_intercept.py in
+# a SUBPROCESS (a child interpreter loads no conftest, so the real import runs).
+#
+# THE RUN-TIME HALF IS WHY THE GUARD MEASURES BOTH (added 2026-09-09): a file can
+# COLLECT clean without gz and then fail when run, which once turned this stage
+# red while the guard stayed green. tests/test_ci_gz_deselect_list.py measures
+# collection errors UNION run-time gz failures; see that test's docstring.
 #
 # THIS LIST IS MACHINE-CHECKED, not maintained by hand:
 # tests/test_ci_gz_deselect_list.py re-collects the whole suite in a subprocess
@@ -58,9 +63,10 @@
 # python binding packages (no rendering/GUI meta-package) and expose them
 # to .venv via --system-site-packages, the same mechanism the local .venv
 # uses. FALLBACK, so CI stays green if the OSRF apt step ever breaks on a
-# runner image drift: if the bindings don't import, those ten files are
-# deselected -- they hold pure-function unit tests that merely import a
-# flight script for helpers; nothing skipped that way touches a sim.
+# runner image drift: if the bindings don't import, the conftest stub carries
+# every import-time user of them and the single subprocess-based file is
+# deselected -- it holds CLI-guard unit tests; nothing skipped that way
+# touches a sim.
 # tests/test_ci_gz_deselect_list.py MACHINE-CHECKS that this list covers every
 # gz-importing test file, so the sync note above is data, not a promise.
 #
@@ -124,44 +130,42 @@ jobs:
           if .venv/bin/python -c "import gz.transport13, gz.msgs10" 2>/dev/null; then
             .venv/bin/python -m pytest tests/ flight/tests/ -v
           else
-            echo "::warning::gz bindings unavailable -- deselecting the 10 gz-importing test files"
+            echo "::warning::gz bindings unavailable -- deselecting the 1 subprocess-based test file"
             .venv/bin/python -m pytest tests/ flight/tests/ -v \
-              --ignore=tests/test_bearing_derotation.py \
-              --ignore=tests/test_breakoff_deadband.py \
-              --ignore=tests/test_cue_staleness.py \
-              --ignore=tests/test_dash_clock.py \
-              --ignore=tests/test_handoff_streak.py \
-              --ignore=tests/test_inert_flag_guards.py \
-              --ignore=tests/test_phantom_range_gate.py
-          # FIVE ENTRIES REMOVED 2026-09-10 (review finding H3), recovering 106
-          # tests in this fallback branch (772 -> 878 passing, measured on a
-          # machine where gz is genuinely absent):
-          #   test_rescore_cpa.py, test_solve_intercept_time.py,
-          #   test_target_orientation.py, test_terminal_coast_latch.py,
-          #   test_ekf_tracker.py
-          # test_inert_flag_guards.py was CHECKED and KEPT: dropping it too puts
-          # 11 real failures back in the branch.
-          # test_rescore_cpa.py was never gz-dependent -- it installs its own
-          # stub finder and passes 14/14 without the bindings. It was listed
-          # because the measuring shim in tests/test_ci_gz_deselect_list.py was
-          # STRICTER THAN REALITY: it raised from sys.meta_path[0], which
-          # pre-empts the stub finder the file appends. And because the
-          # anti-stale test judged staleness with that same shim, it could never
-          # report the shim as the cause -- the shared-instrument failure mode.
+              --ignore=tests/test_inert_flag_guards.py
+          # SIX MORE ENTRIES REMOVED 2026-09-16 -- the list is now ONE file.
+          # The gz/mavsdk stub import finder moved out of tests/test_rescore_cpa.py
+          # (where it was installed at module scope, i.e. effective only for test
+          # files collected LATER in the alphabet) into the repo-root conftest.py,
+          # which pytest imports before collecting anything. Every module-scope
+          # `from gz.transport13 import Node` is therefore satisfiable without the
+          # bindings, and nothing in this branch errors at COLLECTION any more.
+          # Measured 2026-09-16 on a from-scratch venv built WITHOUT
+          # --system-site-packages (so gz is genuinely absent), pip install
+          # -r requirements.txt, on a clean `git archive HEAD` tree:
+          #   old 7-entry list, before the conftest:  884 passed,  9 skipped
+          #   this 1-entry list, after:               962 passed,  8 skipped
+          #   no --ignore at all:            963 passed, 10 FAILED
+          # and all 10 of those failures are tests/test_inert_flag_guards.py.
           #
-          # The other three then followed, and this is the part worth knowing:
-          # test_rescore_cpa.py's stub finder is a PROCESS-WIDE side effect, so
-          # once it has been collected, every LATER module can import
-          # scripts/m4_intercept.py too. Ignoring it therefore BROKE three files
-          # that come after it alphabetically. Verified both directions: with it
-          # the suite collects with 6 errors, without it 9.
+          # WHY THAT ONE FILE STAYS: it runs `python scripts/m4_intercept.py ...`
+          # as a SUBPROCESS and asserts on the exit code. A child interpreter
+          # never loads our conftest, so the real gz import runs and the process
+          # dies with ModuleNotFoundError. Dropping it puts 10 real failures back.
           #
-          # That coupling is real but fragile -- it rests on collection order.
-          # tests/test_ci_gz_deselect_list.py now pins it end-to-end, so if the
-          # ordering ever changes CI fails with an explanation instead of a
-          # mystery. The durable fix is to move the stub finder into a conftest
-          # so it is deterministic rather than alphabetical; that is queued in
-          # docs/next.md, not done here.
+          # PRIOR CHAPTER, kept because it explains the shape of this guard:
+          # five entries came off on 2026-09-10 (review finding H3), recovering
+          # 106 tests (772 -> 878). test_rescore_cpa.py had never been
+          # gz-dependent; it was listed because the measuring shim in
+          # tests/test_ci_gz_deselect_list.py RAISED from sys.meta_path[0], which
+          # pre-empts an appended stub finder -- and the anti-stale test judged
+          # staleness with that same shim, so it could never report the shim as
+          # the cause (the shared-instrument failure mode).
+          #
+          # THIS LIST REMAINS MACHINE-CHECKED by tests/test_ci_gz_deselect_list.py,
+          # in both directions: a missing entry fails, and a STALE entry fails too
+          # (which is what will flag it if the conftest is ever removed or a file
+          # starts reaching gz another way).
           fi
 
       # WHY `if: ${{ !cancelled() }}` ON THE REMAINING STAGES (audit fix,

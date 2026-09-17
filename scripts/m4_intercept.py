@@ -1749,15 +1749,49 @@ async def track_local_position(drone, state: "M4TelemetryState") -> None:
         state.vel_e = pv.velocity.east_m_s
 
 
-def acquire_command(detected: bool, meas: "Optional[Measurement]", alt_m, psi_deg):
+def alt_ref_m(args):
+    """The EFFECTIVE altitude reference (metres) the hold/takeoff aims at.
+
+    `ALT_REF_M` is the height above the ARM POINT that the altitude P-loop has
+    always regulated `alt_m` to. `--alt-ref-offset-m` shifts that reference by
+    a PRE-FLIGHT CONSTANT describing the VEHICLE'S OWN GEOMETRY -- how far the
+    camera sits above the `alt_m` datum -- so the lens, rather than the
+    altitude datum, can be put level with whatever the vehicle is looking at.
+
+    CARRY THE DATUM (ADR-0095, the retracted "+0.208 m camera lever arm"): that
+    height is ~0.229 m and it is LANDING-GEAR REST HEIGHT, not a camera boom.
+    The camera is 2 mm above base_link; `alt_m` (MAVSDK relative_altitude_m)
+    reads 0.000 while the aircraft stands on its gear, and base_link rests
+    0.227 m above the ground plane (rescore_cpa.py BASE_REST_ABOVE_GROUND_M /
+    CAM_UP_M, cross-checked against the on-pad ticks of every flight in logs/).
+
+    HONESTY BOUNDARY: this is typed at launch exactly like `--wind-trim-mps`,
+    from a measurement of the airframe (a hover, a tape measure, the CAD). It
+    reads NOTHING about the target and NOTHING from `gt_*`; the function's only
+    input is the parsed CLI namespace. Do not "auto-derive" it in flight.
+
+    Default 0.0 returns `ALT_REF_M` unchanged, exactly (0.5 + 0.0 == 0.5), and
+    that identity is PROVEN, not asserted -- tests/test_rescore_cpa.py
+    ::test_alt_ref_default_is_identity and the mutant test beside it.
+    """
+    off = getattr(args, "alt_ref_offset_m", None)
+    return ALT_REF_M + (0.0 if off is None else float(off))
+
+
+def acquire_command(detected: bool, meas: "Optional[Measurement]", alt_m, psi_deg,
+                    alt_ref=None):
     """ACQUIRE-phase command: hover + point the nose at the tag, NO closing
     (the tag is still stationary at this point -- see check_m4.sh, which
     pre-places it before this script even starts). Commands are NED velocity
     + ABSOLUTE yaw angle (see the "why NED" note in the module docstring):
     when the tag is visible, yaw setpoint = psi + beta (the tag's absolute
-    azimuth); when it isn't, hold the current heading."""
+    azimuth); when it isn't, hold the current heading.
+
+    `alt_ref` is the effective altitude reference (alt_ref_m(args)); None keeps
+    the historical bare ALT_REF_M so existing unit callers are unchanged."""
+    _ref = ALT_REF_M if alt_ref is None else alt_ref
     v_down = (
-        _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+        _clamp(KP_ALT * (alt_m - _ref), -V_VERT_MAX, V_VERT_MAX)
         if alt_m is not None else 0.0
     )
     psi = psi_deg if psi_deg is not None else 0.0
@@ -2381,6 +2415,27 @@ def parse_args():
              "phantom can corrupt UPWARD on a genuine intercept). Deployment: "
              "TERMINAL_RANGE_M (5.0 m under --fpv).")
     parser.add_argument(
+        "--alt-ref-offset-m", type=float, default=0.0,
+        help="VERTICAL DATUM RECONCILIATION (default 0.0 = OFF, "
+             "behaviour-identical, proven by test): metres ADDED to the "
+             "altitude reference the hold and the takeoff aim at "
+             "(ALT_REF_M = %.1f m above the arm point). Two different height "
+             "datums were never lined up: the vehicle regulates its own "
+             "RELATIVE altitude (alt_m reads 0.000 while it is still standing "
+             "on its LANDING GEAR), while the target sits at a world height. "
+             "The camera therefore ends up ~0.229 m above the alt_m datum -- "
+             "that is GEAR REST HEIGHT, not a camera boom (the camera is 2 mm "
+             "above base_link; ADR-0095) -- so in hover the lens sits "
+             "~0.16-0.20 m above the target centre and the same ~0.20 m "
+             "reappears as the VERTICAL part of closest approach (measured "
+             "2026-09-16, docs/next.md item 3). A "
+             "NEGATIVE value lowers the vehicle to put the lens level with the "
+             "target. This is a PRE-FLIGHT CONSTANT of the vehicle's own "
+             "geometry, measured from a hover or the CAD and typed at launch "
+             "like --wind-trim-mps; it is NEVER computed from a gt_* value in "
+             "flight. Pre-registered: docs/vertical_channel_prereg.md section 9."
+             % ALT_REF_M)
+    parser.add_argument(
         "--cam-mount-up-deg", type=float, default=0.0,
         help="#40 mount-compose (ADR-0062 follow-up / ADR-0067; default 0.0 = "
              "OFF, byte-identical): FIXED camera-mount UP-tilt in degrees. "
@@ -2825,6 +2880,10 @@ async def run_acquire_and_engage(
     main() to print the summary and decide the process exit code.
     """
     dt = 1.0 / CONTROL_RATE_HZ
+    # The altitude reference every hold in this function regulates to. Resolved
+    # ONCE, from the CLI only (alt_ref_m()'s docstring has the honesty note);
+    # --alt-ref-offset-m defaults to 0.0, so this is ALT_REF_M exactly.
+    alt_ref = alt_ref_m(args)
 
     # --kalata (tracking-refinement PORT 1, default OFF): swap the lambda/
     # range channels' FIXED alpha/beta for gains recomputed every
@@ -3637,7 +3696,8 @@ async def run_acquire_and_engage(
             breakoff_armed = True
 
         if phase == "ACQUIRE":
-            cmd = acquire_command(detected, meas, alt_m, psi_deg)
+            cmd = acquire_command(detected, meas, alt_m, psi_deg,
+                                  alt_ref=alt_ref)
             # Streak counts consecutive DETECTIONS in the detection stream:
             # a tick with no new detector result leaves it untouched (see
             # new_meas comment above); only a new result WITHOUT a tag
@@ -3736,7 +3796,7 @@ async def run_acquire_and_engage(
             # LOFT-THEN-DIVE: hold +loft then dive to co-altitude; a raised vertical
             # clamp lets the dive fit the short dash (default loft 0 -> ALT_REF,
             # stock clamp -> byte-identical).
-            _alt_ref = dash_loft_alt_ref(ALT_REF_M, args.dash_loft_m,
+            _alt_ref = dash_loft_alt_ref(alt_ref, args.dash_loft_m,
                                          _dash_elapsed, args.dash_loft_dive_s)
             _vvert = (args.dash_vvert_max if (args.dash_loft_m and args.dash_vvert_max)
                       else V_VERT_MAX)
@@ -3786,7 +3846,7 @@ async def run_acquire_and_engage(
             # has enough corrections to carry a usable position+velocity
             # estimate into DASH.
             v_down = (
-                _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                _clamp(KP_ALT * (alt_m - alt_ref), -V_VERT_MAX, V_VERT_MAX)
                 if alt_m is not None else 0.0
             )
             yaw_deg = psi_deg if psi_deg is not None else 0.0
@@ -3948,7 +4008,7 @@ async def run_acquire_and_engage(
                 yaw_deg = psi_deg if psi_deg is not None else 0.0
 
             v_down = (
-                _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                _clamp(KP_ALT * (alt_m - alt_ref), -V_VERT_MAX, V_VERT_MAX)
                 if alt_m is not None else 0.0
             )
             cmd = (vh0, vh1, v_down, yaw_deg)
@@ -4331,7 +4391,7 @@ async def run_acquire_and_engage(
                     vh0, vh1 = frozen_vworld
 
                 v_down = (
-                    _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                    _clamp(KP_ALT * (alt_m - alt_ref), -V_VERT_MAX, V_VERT_MAX)
                     if alt_m is not None else 0.0
                 )
                 # Absolute yaw setpoint at the tag's azimuth (psi + beta) --
@@ -4433,7 +4493,7 @@ async def run_acquire_and_engage(
                 # otherwise be laundered into a FULL-RATE DESCEND command rather
                 # than caught. `alt_m == alt_m` is the NaN test.
                 _vd_fresh = (
-                    _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+                    _clamp(KP_ALT * (alt_m - alt_ref), -V_VERT_MAX, V_VERT_MAX)
                     if (alt_m is not None and alt_m == alt_m) else None
                 )
                 # NOT ON AN ABORT TICK. `aborted` is set just above when the tag
@@ -4767,6 +4827,9 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
         return False, float("nan"), float("nan")
 
     dt = 1.0 / CONTROL_RATE_HZ
+    # Same single resolution of the altitude reference the flight path uses;
+    # --alt-ref-offset-m defaults to 0.0 -> ALT_REF_M exactly.
+    alt_ref = alt_ref_m(args)
     lambda_filter = AlphaBetaFilter(ALPHA, BETA_GAIN_LAMBDA, angular=True)
 
     wave_total_s = BENCH_SEG_S * 2 * BENCH_CYCLES
@@ -4800,7 +4863,7 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
                 tick_start)
 
         v_down = (
-            _clamp(KP_ALT * (alt_m - ALT_REF_M), -V_VERT_MAX, V_VERT_MAX)
+            _clamp(KP_ALT * (alt_m - alt_ref), -V_VERT_MAX, V_VERT_MAX)
             if alt_m is not None else 0.0
         )
 
@@ -5224,10 +5287,19 @@ async def main():
             args, args.wind_driver_log or os.path.join(
                 LOGS_DIR, f"wind_{suffix}_{timestamp}.csv"))
 
-        takeoff_alt = ALT_REF_M + (args.dash_loft_m if args.coded_dash else 0.0)
+        # EFFECTIVE ALTITUDE REFERENCE, printed ONCE into the run log so a
+        # reader of the log never has to guess which datum a flight held. It is
+        # a pre-flight constant of the vehicle's own geometry (see alt_ref_m).
+        alt_ref = alt_ref_m(args)
+        print(f"[m4] Altitude reference: {alt_ref:.3f} m "
+              f"(ALT_REF_M {ALT_REF_M} + --alt-ref-offset-m "
+              f"{args.alt_ref_offset_m:+.3f} m) -- pre-flight vehicle geometry, "
+              "not a measurement of the target")
+
+        takeoff_alt = alt_ref + (args.dash_loft_m if args.coded_dash else 0.0)
         print(f"[m4] Setting takeoff altitude to {takeoff_alt} m..."
-              + (f" (ALT_REF {ALT_REF_M} + loft {args.dash_loft_m})"
-                 if takeoff_alt != ALT_REF_M else ""))
+              + (f" (ALT_REF {alt_ref} + loft {args.dash_loft_m})"
+                 if takeoff_alt != alt_ref else ""))
         await drone.action.set_takeoff_altitude(takeoff_alt)
 
         print("[m4] Arming...")

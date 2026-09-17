@@ -37,7 +37,6 @@ import importlib.util
 import math
 import os
 import sys
-import types
 
 import pytest
 
@@ -56,48 +55,29 @@ import rescore_cpa  # noqa: E402
 def _import_m4():
     """The PRODUCER module. Never skipped: if the gz/mavsdk bindings are absent
     (CI's OSRF apt step is best-effort) they are stubbed so the REAL
-    write_row_m4/CSV_HEADER still run -- green must mean the contract ran."""
+    write_row_m4/CSV_HEADER still run -- green must mean the contract ran.
+
+    MOVED OUT 2026-09-16 (docs/next.md item 4). The stub meta-path finder used
+    to be built and APPENDED right here, at this module's scope. It worked, but
+    `sys.meta_path` is PROCESS-WIDE state, so it also silently fixed the import
+    for every test module collected after this one alphabetically and for none
+    collected before -- four other files depended on that ordering. It now lives
+    in the repo-root `conftest.py`, which pytest imports before collecting
+    anything, so the behaviour is deterministic. That file documents the three
+    properties the finder has to keep (real bindings win, it never raises, stub
+    packages carry __path__)."""
     try:
         import m4_intercept
         return m4_intercept
-    except ImportError:
-        pass
-    # REWRITTEN 2026-08-19: the original hand-listed sys.modules stubs had
-    # never once executed in a gz-less environment (the CI fallback deselects
-    # this file, and with real gz installed the first import above succeeds),
-    # and they were broken three ways when finally run: package parents
-    # lacked __path__ (the import machinery iterates parent.__path__ and the
-    # catch-all __getattr__ handed it a CLASS -> "TypeError: 'type' object is
-    # not iterable" at collection), the list was missing submodules the chain
-    # actually imports (gz.msgs10.camera_info_pb2 via m2_detect), and the
-    # "not in sys.modules" test shadowed REAL installed-but-not-yet-imported
-    # numpy/cv2 with fakes (breaking pupil_apriltags' numpy.typing import).
-    # A meta-path finder serves any gz.*/mavsdk.* on demand instead; it is
-    # APPENDED, so real bindings always win when present.
-    import importlib.abc
-    import importlib.util
-
-    class _StubLoader(importlib.abc.Loader):
-        def create_module(self, spec):
-            mod = types.ModuleType(spec.name)
-            mod.__path__ = []
-            mod.__getattr__ = lambda _n: type("_S", (), {})  # noqa: E731
-            return mod
-
-        def exec_module(self, mod):
-            pass
-
-    class _StubFinder(importlib.abc.MetaPathFinder):
-        def find_spec(self, fullname, path=None, target=None):
-            root = fullname.split(".", 1)[0]
-            if root in ("gz", "mavsdk"):
-                return importlib.util.spec_from_loader(
-                    fullname, _StubLoader(), is_package=True)
-            return None
-
-    sys.meta_path.append(_StubFinder())
-    import m4_intercept  # noqa: F811
-    return m4_intercept
+    except ImportError as exc:                 # pragma: no cover - env failure
+        raise RuntimeError(
+            "could not import the PRODUCER module scripts/m4_intercept.py. If "
+            "this says 'No module named gz' (or mavsdk), the repo-root "
+            "conftest.py did not install its stub finder -- pytest was probably "
+            "run from inside tests/ instead of the repo root. Run it as "
+            "scripts/run_tests.sh does: `.venv/bin/python -m pytest "
+            "tests/test_rescore_cpa.py -v` from the repo root."
+        ) from exc
 
 
 M4 = _import_m4()
@@ -426,3 +406,128 @@ def test_missing_attitude_is_blank_not_level():
     for col in ("att_qw", "att_qx", "att_qy", "att_qz",
                 "att_roll_deg", "att_pitch_deg"):
         assert row[col] == "", f"{col} must be BLANK with no sample, got {row[col]!r}"
+
+
+# --------------------------------------------- the altitude reference offset --
+#
+# `--alt-ref-offset-m` (default 0.0) shifts the altitude reference the hold and
+# the takeoff aim at. Its whole reason to exist is that two height datums were
+# never lined up: the vehicle regulates its RELATIVE altitude (`alt_m`, above
+# the arm point) to ALT_REF_M = 0.5 while the target's centre sits at world
+# z = 0.5. `alt_m` reads 0.000 with the aircraft still on its LANDING GEAR, so
+# the camera ends up ~0.229 m above that datum -- GEAR REST HEIGHT, not a
+# camera boom (the camera is 2 mm above base_link; ADR-0095, and the constants
+# BASE_REST_ABOVE_GROUND_M / CAM_UP_M in the scorer this file tests) -- so in
+# hover the lens is ~0.16-0.20 m above the target centre, and the same ~0.20 m
+# turns up as the vertical component of closest approach (measured in flight
+# 2026-09-16, docs/next.md item 3; pre-registered in
+# docs/vertical_channel_prereg.md section 9).
+#
+# These tests PROVE the default is behaviour-identical rather than asserting
+# it, and the two mutant-style tests below fail if the offset is ignored --
+# either inside the helper, or at any of the altitude-hold sites.
+
+
+def _args_from_cli(argv_tail):
+    """The REAL parser, so the DEFAULT under test is the shipped default and
+    not a value re-typed into the test (the hand-typed-fixture trap)."""
+    argv = ["m4_intercept.py", "--law", "pronav"] + list(argv_tail)
+    old = sys.argv
+    sys.argv = argv
+    try:
+        return M4.parse_args()
+    finally:
+        sys.argv = old
+
+
+def test_alt_ref_default_is_identity():
+    args = _args_from_cli([])
+    assert args.alt_ref_offset_m == 0.0, "the shipped default must be 0.0"
+    # EXACT equality, not approx: 0.5 + 0.0 is 0.5 in IEEE-754, and "byte
+    # identical when off" is the claim this project makes about every new flag.
+    assert M4.alt_ref_m(args) == M4.ALT_REF_M
+
+
+def test_alt_ref_default_leaves_the_hold_command_untouched():
+    args = _args_from_cli([])
+    alt_ref = M4.alt_ref_m(args)
+    for alt_m in (0.0, 0.25, 0.5, 0.62, 1.4):
+        off = M4.acquire_command(False, None, alt_m, 0.0, alt_ref=alt_ref)
+        bare = M4.acquire_command(False, None, alt_m, 0.0)
+        assert off == bare, f"default offset changed the command at alt_m={alt_m}"
+
+
+def test_negative_offset_lowers_the_reference_by_exactly_that_much():
+    for offset in (-0.20, -0.161, -0.204, -0.5):
+        args = _args_from_cli(["--alt-ref-offset-m", str(offset)])
+        assert args.alt_ref_offset_m == pytest.approx(offset, abs=0.0)
+        assert M4.alt_ref_m(args) == pytest.approx(M4.ALT_REF_M + offset, abs=1e-12)
+    # and a positive one raises it, so the sign convention is pinned both ways
+    args = _args_from_cli(["--alt-ref-offset-m", "0.30"])
+    assert M4.alt_ref_m(args) == pytest.approx(0.80, abs=1e-12)
+
+
+def test_offset_reaches_the_altitude_command_MUTANT():
+    """MUTANT-STYLE: this fails if the offset is parsed but IGNORED downstream.
+
+    A hold that is 0.20 m lower must command a 0.20 m/s DESCENT at the height
+    the unshifted hold called perfect (KP_ALT = 1.0 /s, well inside V_VERT_MAX),
+    and must command ZERO at the new, lower reference. A build that dropped
+    `alt_ref` on the floor returns 0.0 for the first case and -0.20 for the
+    second, so both halves flip.
+    """
+    offset = -0.20
+    args = _args_from_cli(["--alt-ref-offset-m", str(offset)])
+    alt_ref = M4.alt_ref_m(args)
+    assert abs(M4.KP_ALT * offset) < M4.V_VERT_MAX, "test point must not be clamped"
+
+    # at the OLD reference the lowered hold now wants to come down
+    v_down_at_old_ref = M4.acquire_command(
+        False, None, M4.ALT_REF_M, 0.0, alt_ref=alt_ref)[2]
+    assert v_down_at_old_ref == pytest.approx(-M4.KP_ALT * offset, abs=1e-12)
+    assert v_down_at_old_ref > 0.0, "NED: +v_down is DOWN; the vehicle must descend"
+
+    # at the NEW reference it is satisfied
+    v_down_at_new_ref = M4.acquire_command(
+        False, None, M4.ALT_REF_M + offset, 0.0, alt_ref=alt_ref)[2]
+    assert v_down_at_new_ref == pytest.approx(0.0, abs=1e-12)
+
+    # and the unshifted call at that same height wants to climb back up
+    assert M4.acquire_command(
+        False, None, M4.ALT_REF_M + offset, 0.0)[2] == pytest.approx(
+            M4.KP_ALT * offset, abs=1e-12)
+
+
+def test_no_altitude_hold_site_still_reads_the_bare_constant_MUTANT():
+    """MUTANT-STYLE, structural: re-hardcoding ALT_REF_M at ANY hold site inside
+    the two flight functions would silently ignore the offset on that phase
+    only -- a per-phase partial revert that no single-phase behaviour test
+    catches. AST, so a comment mentioning ALT_REF_M is not a finding."""
+    import ast as _ast
+    tree = _ast.parse(open(M4.__file__.replace(".pyc", ".py")).read())
+    offenders = {}
+    for node in _ast.walk(tree):
+        if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and \
+                node.name in ("run_acquire_and_engage", "run_bench"):
+            hits = sorted({c.lineno for c in _ast.walk(node)
+                           if isinstance(c, _ast.Name) and c.id == "ALT_REF_M"})
+            if hits:
+                offenders[node.name] = hits
+    assert offenders == {}, (
+        "ALT_REF_M is read directly inside a flight loop; it must come from "
+        f"alt_ref = alt_ref_m(args) so --alt-ref-offset-m applies: {offenders}")
+
+
+def test_offset_is_a_preflight_constant_not_a_ground_truth_read_MUTANT():
+    """The offset describes the VEHICLE's own geometry. It must never be
+    derived in flight from a gt_* value -- that would be the launch-aim
+    loophole again, one datum over. AST: alt_ref_m's body reads only its
+    `args` parameter and the module constant."""
+    import ast as _ast
+    tree = _ast.parse(open(M4.__file__.replace(".pyc", ".py")).read())
+    fn = next(n for n in _ast.walk(tree)
+              if isinstance(n, _ast.FunctionDef) and n.name == "alt_ref_m")
+    names = {c.id for c in _ast.walk(fn) if isinstance(c, _ast.Name)}
+    attrs = {c.attr for c in _ast.walk(fn) if isinstance(c, _ast.Attribute)}
+    assert not any(n.startswith("gt_") for n in names | attrs), names | attrs
+    assert names <= {"args", "off", "ALT_REF_M", "getattr", "float", "None"}, names

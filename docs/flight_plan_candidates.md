@@ -1219,7 +1219,7 @@ truth by the head, independent of the workflow):
 
 **The horizontal guidance is already good enough.** Fourteen of sixteen flights pass inside the
 contact radius *in the horizontal plane*. What stops them being contacts is a **constant ~0.37 m
-vertical offset** — the interceptor flies consistently BELOW the target — that nothing in the
+vertical offset** — the interceptor passes consistently **ABOVE** the target *(corrected 2026-09-16: this line said BELOW; the −0.370 is target-minus-interceptor. The per-tick logs of all 8 seed-123 flights show the camera at z = 0.79–0.94 m against the target's 0.50 m, and the estimated altitude at 0.58–0.73 m against a 0.5 m reference — it climbs during the dash. A fix that RAISED the vehicle would have doubled the error)* — that nothing in the
 system ever measures or corrects.
 
 **It is a BIAS, not scatter.** Mean ≈ median ≈ −0.37 m; the aim-bias decomposition puts vertical

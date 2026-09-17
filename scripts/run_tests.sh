@@ -99,15 +99,23 @@ ALLOWED_SKIPS=(
     "no T16 capture at"
 
     # ---- DEV-MACHINE SKIPS, declared 2026-09-16 (the mirror of the block above) --
-    # Two tests in test_ci_gz_deselect_list.py were written in a cloud session and
-    # can only run where gz is GENUINELY ABSENT (they compare against a shim-free,
-    # gz-less collection). On the dev machine gz is installed, so they skip -- and
-    # this runner went red on the first dev-machine run after the pull. They run
-    # in CI's fallback branch and in every cloud session, which is where the
-    # deselect list they guard matters. The second one goes away entirely once
-    # the stub finder moves into a conftest (docs/next.md item 4).
+    # test_ci_gz_deselect_list.py compares its gz-hiding shim against a genuinely
+    # gz-less interpreter; on the dev machine gz IS installed, so there is no
+    # shim-free control and the test skips. It runs in CI's fallback branch and in
+    # every cloud session, which is where the deselect list it guards matters.
+    #
+    # ONE ENTRY REMOVED the same day, and this is the good kind of shrink: the
+    # ordering-coupling pin ("nothing depends on the stub finder") is GONE because
+    # the coupling is gone -- the stub finder moved into the repo-root conftest.py
+    # (docs/next.md item 4), and its replacement,
+    # test_the_dependents_no_longer_need_test_rescore_cpa, runs everywhere because
+    # it uses the shim instead of requiring a gz-less machine. A skip you can
+    # delete by fixing the design beats a skip you declare.
     "gz IS installed here, so there is no shim-free control"
-    "gz IS installed here, so nothing depends on the stub finder"
+    # The dev machine has gz, so the mirror half of the shim probe is a no-op
+    # there; on a gz-less machine the shim is emulating nothing that is not
+    # already true, and the probe says so instead of pretending to measure.
+    "gz IS genuinely absent on this interpreter"
 )
 if [ -x .venv/bin/python ]; then
     stage1_out="$(mktemp)"

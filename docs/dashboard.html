@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->71af8c9<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c4e9adc<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1343,6 +1343,26 @@
    "ruling": "",
    "origin": "Builder ruling 2026-08-29: 'the camera pro nav should combat it enough' (ADR-0098)",
    "evidence": "NOT evidence-backed. The camera has not beaten a well-aimed blind dash at any speed or aim error tested. Recorded so this is never read as validated."
+  },
+  {
+   "id": "target-height-known",
+   "statement": "The sim target sits at an exactly known height, almost equal to the interceptor's preset flying height. A real threat's height is an operator's guess.",
+   "grade": "given-perfect",
+   "if_wrong": "The vertical part of every reported miss is a best case: the camera terminal has no up-and-down steering, so a height error passes straight into the miss.",
+   "stages": [
+    "launch_aim",
+    "terminal"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "First fly the pre-registered height-reference A/B (docs/vertical_channel_prereg.md section 9). Then inject target-height error (+/-0.25, 0.5, 1 m) and read off how much the terminal can absorb -- expected: none, until vertical steering exists (ADR-0085, never built).",
+    "cost": "Sim batches only (free).",
+    "status": "scheduled"
+   },
+   "state": "unchecked",
+   "origin": "Found 2026-09-16 while building the height-reference fix: the offset that lines the camera up with the target is part vehicle geometry (measurable) and part the target's height (given).",
+   "ruling": "",
+   "evidence": "docs/vertical_channel_prereg.md section 9.3; logs/m4_intercept_pronav_20260917T032639Z.csv"
   }
  ],
  "builder_queue": [

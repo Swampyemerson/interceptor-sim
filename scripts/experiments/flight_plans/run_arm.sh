@@ -100,6 +100,10 @@ case "$ARM" in
   # Pre-registered: camera earns it iff it beats its own twin >=6/8, replicated on 777.
   AE5)     EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5"; N=8; DIRS=both;;
   AE5dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY"; N=8; DIRS=both;;
+  # HEIGHT-REFERENCE A/B (docs/vertical_channel_prereg.md section 9, pre-registered
+  # 2026-09-16). AE5dash with the altitude reference lowered by the vehicle's own
+  # rest height minus the hover error (0.2290 - 0.022). Control = AE5dash, same seed.
+  AE5dashZ) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
   AE15dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY"; N=8; DIRS=both;;
   # RESIDUAL-BIAS fine sweep (dash-only): the aim curve measured 0 deg -> 0.71 m,

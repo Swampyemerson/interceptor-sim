@@ -40,12 +40,38 @@ Measured on a clean clone with no gz bindings. The fix is `gz_unusable_files`
 below = collection-erroring UNION run-time-gz-failing, and both direction tests
 now use that union.
 
+THE THIRD CHAPTER, 2026-09-16 -- THE STUB MOVED TO A CONFTEST (docs/next.md
+item 4). The stub meta-path finder that made `m4_intercept` importable without
+gz used to be installed at MODULE SCOPE inside `tests/test_rescore_cpa.py`, so
+which test files it rescued depended on ALPHABETICAL COLLECTION ORDER. It now
+lives in the repo-root `conftest.py`, imported before any collection.
+
+That changes what this file measures, and the change is large: with the stub
+installed deterministically, NO test file errors at collection without gz any
+more, and the only file that still cannot run is `test_inert_flag_guards.py`,
+which launches `scripts/m4_intercept.py` as a SUBPROCESS (a child interpreter
+never loads our conftest). Measured on a from-scratch gz-less venv: the fallback
+branch went from 884 passed to 954 passed + 10 failed with no deselect list at
+all, i.e. exactly one file still needs deselecting.
+
+So "zero collection errors" is now the EXPECTED answer, which would make the old
+`>= 5 erroring files` sanity check backwards and every verdict here vacuous. The
+non-vacuity guarantee is therefore re-grounded on two independent probes:
+`test_the_shim_is_provably_active` (a bare `find_spec('gz')` in the shimmed
+subprocess) and `test_the_conftest_stub_is_what_keeps_collection_clean` (the same
+collection with `--noconftest`, which must still break ~9 files). Together they
+say: the shim really bites, and the conftest really is what neutralises it.
+
 RESIDUAL, stated rather than papered over: the run-time half runs only the
 CANDIDATE files (those whose source names a gz-importing script -- see
 `_candidate_files`), because running the entire suite in a subprocess on every
 suite run would roughly double its wall time. A file that reaches gz without
 naming any of those scripts would still be missed. That is a much smaller hole
-than the one it replaces, and it is a NAMED one.
+than the one it replaces, and it is a NAMED one. Second residual: a stub
+attribute is an empty class, so a test that asserted on real gz BEHAVIOUR could
+in principle now pass vacuously without the bindings. The files involved hold
+pure-function unit tests that merely import the module for helpers; conftest.py
+names this residual too.
 
 Run: `.venv/bin/python -m pytest tests/test_ci_gz_deselect_list.py -v`
 """
@@ -66,13 +92,14 @@ CI_YML = os.path.join(REPO_ROOT, ".github", "workflows", "ci.yml")
 #
 # The previous version inserted a finder at `sys.meta_path[0]` that RAISED
 # ModuleNotFoundError for gz. That is strictly stronger than the condition it
-# claims to emulate, and the difference was load-bearing:
-# `tests/test_rescore_cpa.py` handles a missing gz correctly by APPENDING its own
-# stub finder to `sys.meta_path`. A raising finder at index 0 pre-empts every
-# later finder, so the stub was never reached and the file looked gz-unusable.
-# It was therefore listed in ci.yml's --ignore fallback, and its 14 tests were
-# dropped from CI for a condition that does not exist. Verified against a
-# genuinely gz-less machine, where the same file passes 14/14.
+# claims to emulate, and the difference was load-bearing: the repo-root
+# `conftest.py` handles a missing gz correctly by APPENDING a stub finder to
+# `sys.meta_path` (in 2026-09-10 that stub still lived inside
+# tests/test_rescore_cpa.py). A raising finder at index 0 pre-empts every later
+# finder, so the stub was never reached and the file looked gz-unusable. It was
+# therefore listed in ci.yml's --ignore fallback, and its 14 tests were dropped
+# from CI for a condition that does not exist. Verified against a genuinely
+# gz-less machine, where the same file passes 14/14.
 #
 # This version instead hides gz from the PATH-BASED finder only -- exactly what
 # "the package is not installed" looks like -- and leaves every other finder,
@@ -135,6 +162,25 @@ def _candidate_files():
     return out
 
 
+def _shim_env(shim_dir):
+    """An environment whose interpreter cannot see gz via the path finder."""
+    with open(os.path.join(str(shim_dir), "sitecustomize.py"), "w") as f:
+        f.write(_SITECUSTOMIZE)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(shim_dir) + os.pathsep + env.get("PYTHONPATH", "")
+    env.pop("PYTHONDONTWRITEBYTECODE", None)
+    return env
+
+
+def _gz_visible(env=None):
+    """Can a BARE interpreter (no pytest, no conftest) find gz under `env`?"""
+    proc = subprocess.run(
+        [sys.executable, "-c",
+         "import importlib.util as u; print(u.find_spec('gz') is not None)"],
+        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=120)
+    return proc.stdout.strip().endswith("True")
+
+
 def ci_ignore_set():
     """The `--ignore=<path>` arguments in ci.yml's stage-1 fallback branch."""
     with open(CI_YML) as f:
@@ -144,12 +190,7 @@ def ci_ignore_set():
 @pytest.fixture(scope="module")
 def gz_erroring_files(tmp_path_factory):
     """Repo-relative test files whose COLLECTION fails when gz is unavailable."""
-    shim_dir = tmp_path_factory.mktemp("gzblock")
-    (shim_dir / "sitecustomize.py").write_text(_SITECUSTOMIZE)
-
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(shim_dir) + os.pathsep + env.get("PYTHONPATH", "")
-    env.pop("PYTHONDONTWRITEBYTECODE", None)
+    env = _shim_env(tmp_path_factory.mktemp("gzblock"))
 
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", "tests/", "flight/tests/",
@@ -160,7 +201,14 @@ def gz_erroring_files(tmp_path_factory):
     # Sanity: the shim must actually have bitten. If gz were importable in the
     # subprocess we would find zero errors and every assertion below would pass
     # while measuring nothing -- the vacuous-verdict shape.
-    assert "No module named" in out and "gz" in out, (
+    #
+    # REWRITTEN 2026-09-16: this used to look for "No module named ... gz" in the
+    # OUTPUT, which was only a valid proxy while a missing gz still broke
+    # collection. Since the stub finder moved to the repo-root conftest.py, clean
+    # output is the expected result, and that check would have failed for the
+    # right behaviour. The probe below asks the interpreter directly instead --
+    # no pytest, no conftest, so nothing can mask it.
+    assert not _gz_visible(env), (
         "the gz-blocking shim did not take effect in the subprocess -- this "
         f"test measured nothing.\n{out[-3000:]}")
     return set(re.findall(r"^ERROR (\S+\.py)", out, re.M)), out
@@ -188,11 +236,7 @@ def gz_runtime_failing_files(tmp_path_factory, gz_erroring_files):
                     "is broken -- either way the run-time half of this guard "
                     "would measure nothing")
 
-    shim_dir = tmp_path_factory.mktemp("gzblock_run")
-    (shim_dir / "sitecustomize.py").write_text(_SITECUSTOMIZE)
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(shim_dir) + os.pathsep + env.get("PYTHONPATH", "")
-    env.pop("PYTHONDONTWRITEBYTECODE", None)
+    env = _shim_env(tmp_path_factory.mktemp("gzblock_run"))
 
     def _run(paths):
         proc = subprocess.run(
@@ -252,12 +296,76 @@ def test_the_runtime_half_is_not_vacuous(gz_runtime_failing_files):
     assert m, f"pass 1 produced no pytest summary line at all\n{out[-2000:]}"
 
 
-def test_the_measurement_is_not_vacuous(gz_erroring_files):
-    files, out = gz_erroring_files
-    assert files, (
-        "collection with gz blocked produced ZERO erroring files, which "
-        f"contradicts m4_intercept.py's unconditional gz import.\n{out[-2000:]}")
-    assert len(files) >= 5, f"suspiciously few: {sorted(files)}"
+def test_the_shim_is_provably_active(tmp_path_factory):
+    """NON-VACUITY, probe 1 of 2 (2026-09-16).
+
+    Every collection measurement in this file is taken through the gz-hiding
+    shim, and since the stub finder moved to conftest.py the expected result of
+    those measurements is ZERO errors -- indistinguishable from "the shim did
+    nothing". So ask the interpreter directly, in a subprocess with no pytest and
+    no conftest in the way: under the shim, `find_spec('gz')` must come back
+    None, and (on this dev machine, where the bindings are really installed)
+    without the shim it must come back not-None. If the second half ever stops
+    holding here it only means this machine has no gz, which is fine -- it is
+    then the real thing rather than an emulation."""
+    env = _shim_env(tmp_path_factory.mktemp("gzprobe"))
+    assert not _gz_visible(env), (
+        "the gz-blocking shim did NOT hide gz from a bare interpreter, so every "
+        "collection measured through it is measuring an unblocked environment. "
+        "Fix _SITECUSTOMIZE.")
+    # The mirror half: on a machine WITH the bindings, the un-shimmed control
+    # must see them. Otherwise the probe above proves nothing about the shim.
+    if not _gz_visible():
+        pytest.skip("gz IS genuinely absent on this interpreter, so the shim has "
+                    "nothing to hide -- the real condition, not an emulation")
+
+
+@pytest.fixture(scope="module")
+def gz_erroring_files_noconftest(tmp_path_factory):
+    """Collection errors with gz blocked AND the repo-root conftest disabled.
+
+    The control for the conftest's own effect: `--noconftest` is the one switch
+    that turns the stub finder off without editing anything.
+    """
+    env = _shim_env(tmp_path_factory.mktemp("gzblock_noconftest"))
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/", "flight/tests/",
+         "--collect-only", "-q", "-p", "no:cacheprovider", "--noconftest"],
+        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=300)
+    out = proc.stdout + proc.stderr
+    return set(re.findall(r"^ERROR (\S+\.py)", out, re.M)), out
+
+
+def test_the_conftest_stub_is_what_keeps_collection_clean(
+        gz_erroring_files, gz_erroring_files_noconftest):
+    """NON-VACUITY, probe 2 of 2 -- AND the effect of conftest.py, observed.
+
+    With gz blocked, the suite now collects CLEAN. That is only meaningful if
+    something is actively making it so; otherwise "no errors" could equally mean
+    "nothing was measured". Re-run the same collection with `--noconftest`, which
+    is the one switch that turns the repo-root stub finder off: it must break a
+    pile of files with `No module named 'gz'`.
+
+    This is the fix-is-not-done-until-its-effect-is-observed rule applied to the
+    conftest itself (CLAUDE.md): the mutant (no conftest) fails, the real path
+    passes."""
+    clean, out_clean = gz_erroring_files
+    assert not clean, (
+        f"collection with gz blocked now errors on {sorted(clean)}. The "
+        f"repo-root conftest.py stub finder should make every module importable "
+        f"without the bindings; a file listed here either imports gz under "
+        f"another root name or fails for an unrelated reason.\n{out_clean[-2000:]}")
+
+    without_conftest, out = gz_erroring_files_noconftest
+    assert len(without_conftest) >= 5, (
+        f"with gz blocked AND --noconftest, only {sorted(without_conftest)} "
+        f"failed to collect. m4_intercept.py imports gz.transport13 "
+        f"unconditionally and ~9 test files import it at module scope, so this "
+        f"should be a long list. Either the shim stopped working or this guard "
+        f"has gone blind.\n{out[-2000:]}")
+    assert _GZ_FAILURE_RE.search(out), (
+        "the --noconftest collection failed for some reason OTHER than the "
+        f"missing gz bindings, so it does not prove what it claims.\n{out[-2000:]}")
 
 
 def test_ci_deselect_list_is_not_empty():
@@ -280,21 +388,26 @@ def test_every_gz_importing_test_file_is_deselected_in_the_ci_fallback(gz_unusab
 
 @pytest.fixture(scope="module")
 def gz_is_genuinely_absent():
-    """True when THIS interpreter really has no gz bindings.
+    """True when this MACHINE really has no gz bindings.
 
     On such a machine the shim is unnecessary, which makes it an INDEPENDENT
     instrument: the same measurement can be taken with and without the shim and
     the two must agree.
+
+    MEASURED IN A SUBPROCESS, and that is not fussiness (caught 2026-09-16 by a
+    run in a from-scratch gz-less venv). This used to call
+    `importlib.util.find_spec("gz")` in-process -- but the repo-root conftest.py
+    has by then APPENDED a stub finder for exactly that name, so on a genuinely
+    gz-less machine find_spec returns a STUB spec and the fixture answered
+    "installed". The cross-check below then skipped itself in the one place it
+    was designed to run. An availability probe must not run inside the process
+    whose availability it fakes.
     """
-    import importlib.util
-    try:
-        return importlib.util.find_spec("gz") is None
-    except (ImportError, ValueError):
-        return True
+    return not _gz_visible()
 
 
 def test_the_shim_agrees_with_a_genuinely_gz_less_interpreter(
-        gz_is_genuinely_absent, gz_erroring_files, tmp_path_factory):
+        gz_is_genuinely_absent, gz_erroring_files_noconftest, tmp_path_factory):
     """THE INSTRUMENT IS CHECKED AGAINST REALITY (2026-09-10, finding H3).
 
     Every other test in this file measures "which files need gz" THROUGH the
@@ -312,17 +425,23 @@ def test_the_shim_agrees_with_a_genuinely_gz_less_interpreter(
     This is what caught the raising `meta_path[0]` shim: it reported
     tests/test_rescore_cpa.py as gz-unusable when in reality it passes 14/14,
     which had cost 86 tests in the fallback branch.
+
+    BOTH SIDES NOW RUN WITH `--noconftest` (2026-09-16). With the repo-root
+    conftest's stub finder in play, both sides are legitimately EMPTY, and
+    comparing two empty sets is a verdict computed on zero units. Turning the
+    stub off on both sides keeps the comparison about the SHIM, which is what
+    this test exists to check, and keeps it non-vacuous.
     """
     if not gz_is_genuinely_absent:
         pytest.skip("gz IS installed here, so there is no shim-free control to "
                     "compare against -- run this on a machine without the "
                     "bindings (CI's fallback branch, or any cloud session)")
 
-    with_shim, _out = gz_erroring_files
+    with_shim, _out = gz_erroring_files_noconftest
 
     proc = subprocess.run(
         [sys.executable, "-m", "pytest", "tests/", "flight/tests/",
-         "--collect-only", "-q", "-p", "no:cacheprovider"],
+         "--collect-only", "-q", "-p", "no:cacheprovider", "--noconftest"],
         cwd=REPO_ROOT, capture_output=True, text=True, timeout=300)
     out = proc.stdout + proc.stderr
     without_shim = set(re.findall(r"^ERROR (\S+\.py)", out, re.M))
@@ -416,65 +535,68 @@ def test_the_fallback_branch_has_no_surviving_gz_failures(gz_runtime_failing_fil
         f"RED, not green. Add them to the --ignore list.\n{out[-2000:]}")
 
 
-def test_the_stub_finder_ordering_coupling_is_pinned(gz_is_genuinely_absent):
-    """PIN the reason the deselect list is as short as it is (2026-09-10, H3).
+def test_the_dependents_no_longer_need_test_rescore_cpa(tmp_path_factory):
+    """THE PROPERTY THAT REPLACED THE ORDERING PIN (2026-09-16, next.md item 4).
 
-    `tests/test_rescore_cpa.py` appends a stub finder for `gz`/`mavsdk` to
-    `sys.meta_path` at MODULE scope, so merely collecting it makes
-    `scripts/m4_intercept.py` importable for the rest of the process. Three files
-    that come after it alphabetically -- test_solve_intercept_time.py,
-    test_target_orientation.py, test_terminal_coast_latch.py -- rely on that side
-    effect and cannot collect without it. `test_ekf_tracker.py` relies on the
-    same stub at RUN time.
+    Until today `tests/test_rescore_cpa.py` installed the gz/mavsdk stub finder
+    at MODULE scope, so four other files -- test_solve_intercept_time.py,
+    test_target_orientation.py, test_terminal_coast_latch.py (collection) and
+    test_ekf_tracker.py (run time) -- only worked without gz when that file
+    happened to be collected FIRST, which is nothing but alphabetical luck.
+    Ignoring that one file broke the other four, and the old test in this slot
+    PINNED that coupling so it would at least fail loudly.
 
-    That is a real dependency and 106 tests in CI's fallback branch currently
-    ride on it, but it rests on COLLECTION ORDER, which nothing guarantees:
-    rename a file, add a `-p randomly`, split the run, and those files break with
-    a bare `No module named 'gz'` and no hint why.
+    The stub now lives in the repo-root conftest.py, so the coupling is gone and
+    the assertion inverts: with gz blocked, those four files must collect AND
+    pass with test_rescore_cpa.py nowhere in the invocation. Both halves are
+    asserted, because collecting clean and then failing at run time is exactly
+    the hole this file grew in 2026-09-09.
 
-    So this pins the coupling. It does not endorse it -- the durable fix is to
-    move that stub finder into a conftest so the behaviour is deterministic
-    rather than alphabetical (queued in docs/next.md). Until then, if this test
-    fails, the message IS the explanation: either the ordering changed or the
-    stub moved, and ci.yml's --ignore list needs re-measuring, not patching.
+    Runs everywhere, including the dev machine, because it uses the shim rather
+    than requiring a genuinely gz-less interpreter -- which is why its old
+    "gz IS installed here" entry could come out of run_tests.sh's ALLOWED_SKIPS.
     """
-    if not gz_is_genuinely_absent:
-        pytest.skip("gz IS installed here, so nothing depends on the stub finder")
-
-    DEPENDENTS = {
+    DEPENDENTS = [
+        "tests/test_ekf_tracker.py",
         "tests/test_solve_intercept_time.py",
         "tests/test_target_orientation.py",
         "tests/test_terminal_coast_latch.py",
-    }
+    ]
+    env = _shim_env(tmp_path_factory.mktemp("gzblock_nostub"))
 
-    def _collect_errors(extra_args):
-        proc = subprocess.run(
-            [sys.executable, "-m", "pytest", "tests/", "flight/tests/",
-             "--collect-only", "-q", "-p", "no:cacheprovider", *extra_args],
-            cwd=REPO_ROOT, capture_output=True, text=True, timeout=300)
-        out = proc.stdout + proc.stderr
-        return set(re.findall(r"^ERROR (\S+\.py)", out, re.M)), out
+    # NOT VACUOUS: the shim must really be hiding gz from this environment,
+    # otherwise the whole test is a tautology about an unblocked interpreter.
+    assert not _gz_visible(env), "the gz-blocking shim did not take effect"
 
-    with_stub, out_with = _collect_errors([])
-    without_stub, out_without = _collect_errors(
-        ["--ignore=tests/test_rescore_cpa.py"])
+    # (a) the whole suite still collects clean with that file EXCLUDED
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/", "flight/tests/",
+         "--collect-only", "-q", "-p", "no:cacheprovider",
+         "--ignore=tests/test_rescore_cpa.py"],
+        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=300)
+    out = proc.stdout + proc.stderr
+    errors = set(re.findall(r"^ERROR (\S+\.py)", out, re.M))
+    assert not errors, (
+        f"with gz blocked and tests/test_rescore_cpa.py ignored, {sorted(errors)} "
+        f"fail to COLLECT. The repo-root conftest.py stub finder is supposed to "
+        f"make that file irrelevant to everyone else; if it is back to being "
+        f"load-bearing, the ordering coupling has returned.\n{out[-2000:]}")
+    for rel in DEPENDENTS:
+        assert rel + "::" in out, (
+            f"{rel} produced no collected items in the shimmed run, so this "
+            f"test proved nothing about it.\n{out[-2000:]}")
 
-    # NOT VACUOUS: both runs must actually have produced the baseline errors.
-    assert with_stub, (
-        "the baseline collection produced ZERO errors, so this comparison "
-        f"measured nothing.\n{out_with[-2000:]}")
-
-    assert not (DEPENDENTS & with_stub), (
-        f"{sorted(DEPENDENTS & with_stub)} already fail to collect WITH "
-        f"test_rescore_cpa.py present. The stub-finder side effect no longer "
-        f"covers them, so ci.yml's --ignore list is now too short and the "
-        f"fallback branch will go red. Re-measure the list.")
-
-    newly_broken = without_stub - with_stub
-    assert newly_broken == DEPENDENTS, (
-        f"the ordering coupling changed. Ignoring test_rescore_cpa.py used to "
-        f"break exactly {sorted(DEPENDENTS)}; it now breaks "
-        f"{sorted(newly_broken)}. Re-measure ci.yml's --ignore list against a "
-        f"genuinely gz-less machine, and consider moving the stub finder into a "
-        f"conftest so this stops depending on collection order.\n"
-        f"{out_without[-2000:]}")
+    # (b) and they PASS when run entirely on their own, gz blocked. This is the
+    # half a collection-only check cannot see (test_ekf_tracker.py imports
+    # m4_intercept INSIDE a test).
+    proc = subprocess.run(
+        [sys.executable, "-m", "pytest", *DEPENDENTS, "-q", "--tb=line",
+         "-p", "no:cacheprovider"],
+        cwd=REPO_ROOT, env=env, capture_output=True, text=True, timeout=600)
+    run_out = proc.stdout + proc.stderr
+    assert proc.returncode == 0, (
+        f"with gz blocked, the four ex-dependents fail when run WITHOUT "
+        f"tests/test_rescore_cpa.py in the invocation:\n{run_out[-3000:]}")
+    assert re.search(r"\d+ passed", run_out), (
+        f"no tests ran in the dependent-only invocation -- nothing was "
+        f"measured.\n{run_out[-2000:]}")

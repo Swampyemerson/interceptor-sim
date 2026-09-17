@@ -44,10 +44,18 @@ pip install pytest numpy matplotlib opencv-python-headless \
             pyulog==1.2.3 pymavlink==2.4.49 pupil-apriltags==1.0.4.post11
 ```
 
-Then run the suite with the CI fallback deselect list applied, because the ten
-gz-importing files cannot be collected without the bindings (the list is
-machine-checked by `tests/test_ci_gz_deselect_list.py`; copy it out of
-`.github/workflows/ci.yml`, do not retype it).
+Then run the suite with the CI fallback deselect list applied — which since
+2026-09-16 is **one file**, `tests/test_inert_flag_guards.py`. The repo-root
+`conftest.py` installs a stub import finder for `gz.*`/`mavsdk.*` when (and only
+when) the real packages are absent, so every file that imports them at module
+scope collects and runs without the bindings; the one exception launches
+`scripts/m4_intercept.py` as a subprocess, and a child interpreter loads no
+conftest. The list is machine-checked by `tests/test_ci_gz_deselect_list.py`;
+copy it out of `.github/workflows/ci.yml`, do not retype it. Measured 2026-09-16
+in a from-scratch venv built without `--system-site-packages` and filled with
+`pip install -r requirements.txt` (so gz is genuinely absent, mavsdk present):
+**962 passed, 8 skipped, 0 failed** — it was 884 passed with the previous
+seven-entry list, on the same tree and the same venv.
 
 **`scripts/field/selftest.sh` will still report 6 failures on a bare container, and
 that is the pack working correctly.** Enumerated 2026-09-10 so a future reader does
