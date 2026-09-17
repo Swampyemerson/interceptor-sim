@@ -148,7 +148,12 @@ don't spawn a subagent where doing the thing inline is cheaper.
    prose, commits, management-file upkeep — accepting Opus quality when the safeguard has
    pinned the head there, rather than spawning a Fable agent for each small thing. Reserve
    Fable for where its edge (review, complexity, gap-spotting) actually pays.
-3. **~~SONNET subagents for volume~~ — REVOKED by the builder 2026-07-25: NO Sonnet workers.**
+3. **SONNET WORKERS ARE ALLOWED AGAIN — builder directive 2026-09-17 ("use opus and sonnet agents
+   where possible", for the new-simulator build; ADR-0102).** Use `sonnet-worker` for mechanical,
+   well-specified volume work (scaffolding, runners, boilerplate, tests); `opus5-worker` for
+   anything with modelling or judgment in it; the head keeps review, fitting against logs and
+   the contract. The 2026-07-25 text below is kept for history and is SUPERSEDED.
+   **~~SONNET subagents for volume~~ — (historical) REVOKED by the builder 2026-07-25: NO Sonnet workers.**
    The lanes are now Opus 5 (`opus5-worker`) for every build/analysis, and Fable for review /
    judgment / planning / the contract. `.claude/agents/{sonnet-worker,verifier,council-member}.md`
    are still Sonnet-pinned on disk — **override with `model:` or use `opus5-worker` instead**;

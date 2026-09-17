@@ -1,3 +1,11 @@
+### 2026-08-12
+
+The contract now renders a SECOND view: a set of systems-engineering diagrams and traceability tables (MBSE), generated from the same JSON as the dashboard. Nothing on it is hand-drawn.
+
+**So what:** The systems-engineering side of the project is now showable to an interviewer, and a model that disagrees with the build fails the test suite instead of quietly misleading the reader.
+
+*Evidence: scripts/render_mbse.py · docs/mbse.html · scripts/run_tests.sh [3/4]*
+
 ### 2026-08-10
 
 A correction on top of a correction. Tonight's headline was that the kill-radius scorer measured to the camera and that fixing it turned 0 of 16 flights into 12 of 16. That was WRONG, and it is now retracted. The '+0.208 m camera offset' it rested on was never a camera offset -- it came from subtracting a height-above-takeoff from a height-above-the-world, which measures the LANDING GEAR. The camera actually sits about 2 mm above the airframe centre.

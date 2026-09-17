@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-09-17",
-  "updated_by": "Fable head, overnight: height fix adopted; pointing solved in sim; the terminal is the real wall",
+  "updated_by": "Fable head: builder ruling -- new fast simulator (isim), AprilTag target, robust closed-loop intercept",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-09-17",
-    "where": "Sprint-only sim flights pass close enough to touch the target 13 times out of 16 (best case). Both flight controllers check out with GPS; the Pi is on the new Wi-Fi. Overnight: the camera was finally shown the target in sim -- and flew worse for it.",
-    "finding": "Three walls were hiding each other: the camera never saw the target (fixed in sim, 2% -> 99%); seeing it, the terminal steering flies 2-5x worse than the sprint it replaces; whether any camera terminal beats a well-aimed sprint is now, for the first time, testable.",
+    "where": "BUILDER RULING 2026-09-17: start a new, fast simulator built around the real system (AprilTag target, Raspberry Pi seeker) and the real requirement -- intercept even with a bad sprint or a target at a different height. Plan written; nothing built yet.",
+    "finding": "The old loop measured the problem sharply (sprint-only needs aim within ~1 degree and height within ~0.1 m; the camera terminal flies worse once it can see) but cost an hour per question and tested a script that is not the flight code.",
     "next": [
-      "Your call on the terminal (top of the question queue) -- I stopped terminal flights by my own rule",
-      "Bench: calibrate the camera (skr-06); target: solder + smoke-stopper power-up (tgt-03/04)"
+      "Build the new simulator's core (vehicle, tag camera, flight-code adapter) -- docs/new_sim_plan.md",
+      "It must first reproduce last night's measured numbers, including the failure, before it is trusted"
     ],
-    "evidence": "docs/pointing_prereg.md - docs/scoring_fix_plan.md 5b-5e - ADR-0100 - runs/brn02_bench/ - runs/tgt02_gps/"
+    "evidence": "docs/new_sim_plan.md - ADR-0102 - docs/pointing_prereg.md - docs/flight_plan_candidates.md"
   },
   "assumptions": [
     {
@@ -470,30 +470,6 @@
   ],
   "builder_queue": [
     {
-      "id": "terminal-redesign",
-      "question": "The camera can now see the target in sim (99% of frames), and with it seeing, the intercept is 2-5x WORSE than the sprint alone. The terminal steering was built for a slower target and a last-metres takeover. What do we do with it?",
-      "options": [
-        "Redesign the terminal to fly at sprint speed on a lead course (a real design project; I would convene a council)",
-        "Keep the sprint as the weapon and let the camera take over only in the last ~2 m, as a small late correction",
-        "Stop here: package the sprint-only result honestly, camera as a documented open problem"
-      ],
-      "rec": "Option 3 first, then 1. The sprint-only vehicle is the strongest thing the project has (13 of 16 inside touching distance, best case). Tonight's three-wall finding is itself a strong portfolio story. A terminal redesign is worth doing, but it is the 'one more experiment' risk in its purest form.",
-      "blocked": "All further camera-terminal sim work. I stopped flying terminal arms by the rule I wrote before the last one flew.",
-      "doc": "docs/pointing_prereg.md (last section)"
-    },
-    {
-      "id": "deletions-2026-09",
-      "question": "The flight script now has 73 switches (I added 9 overnight), the docs are 88 files / 31,000 lines, and there are 116 decision records. Nobody can hold that. What do I delete?",
-      "options": [
-        "Delete the switches whose experiments are finished and lost: the 5 m range gate, the rise dead-band / min-rise pair, the sprint height-gain pair, the terminal speed floor -- 6 switches, with their tests, keeping the write-ups",
-        "Also archive docs that only describe closed work (the two big audit files, the bird-discrimination design, the retired demo plans) into docs/archive/ so the live set is ~20 files",
-        "Leave everything; deletion risks losing the record"
-      ],
-      "rec": "Options 1 and 2 together. Every lost experiment is already written down in a pre-registration or a decision record, so the switch itself is dead weight that a future session can mis-use. I will not delete anything without your go: it touches the flight script.",
-      "blocked": "Nothing. It is housekeeping, about half a session.",
-      "doc": "CLAUDE.md -- 'deleting is a deliverable'"
-    },
-    {
       "id": "corrected-headline-framing",
       "question": "The scorer was measuring to the camera lens, not the airframe centre. An interim re-score claimed the fix turned 0 of 16 flights inside the kill radius into 12 of 16 -- that was RETRACTED the same night (the '+0.208 m camera offset' was landing-gear height). The real corrected ruling is 3 of 16 at logged ticks, 5 of 16 interpolated. How do you want it said?",
       "options": [
@@ -543,6 +519,12 @@
     }
   ],
   "plain_log": [
+    {
+      "date": "2026-09-17",
+      "text": "Builder ruling: build an entirely new simulator. He is not satisfied with the diagnostics or the results of the Gazebo loop, the real system is an AprilTag and a Raspberry Pi, and the vehicle must intercept even if the sprint is poor or the target is at a different height. The earlier 'no simulator change' decision (ADR-0072) is reversed. His other open questions are settled by my recommendations.",
+      "so_what": "The new simulator is a fast one with no Gazebo in the loop: it runs the actual flight code against a camera-and-tag model built from our bench measurements, thousands of runs a minute, and explains every miss. It has to reproduce last night's numbers -- including the camera's failure -- before anyone trusts it. Gazebo stays only as a final cross-check.",
+      "evidence": "docs/new_sim_plan.md - ADR-0102"
+    },
     {
       "date": "2026-09-17",
       "text": "Used the new tilt logging to ask why the camera never finds the target in flight. Answer: it is almost never shown it. The vehicle tips ~43 degrees nose-down to sprint, so the target sits above the top of the picture; and because it aims AHEAD of a crossing target, the target is 40-75 degrees off to the side of where the nose points. At 8-22 m the target was in the middle of the picture on 0 of 858 frames. Built and flew two fixes -- turn the nose toward where the target is predicted to be, and tilt the camera up 25 degrees -- plus a step the sim had always skipped (point the nose before launching). Result: target in the middle of the picture on 99% of frames, and the seeker really recognised it on 81% of them. Recognition was never the problem.",
@@ -608,12 +590,6 @@
       "text": "Publication sweep. The repo was de-cluttered for public view: the plaintext VM password line deleted, root files moved under docs/ and .claude/, the README repackaged around the results and the honesty machinery, and the retracted 12-of-16 kill-radius claim corrected on every surface that still carried it. CI had been red since 2026-08-11: the rescore gate test needs the machine-local flight archive and now says so as a named skip instead of failing.",
       "so_what": "The repo turned out to be ALREADY PUBLIC, so rotate the VM password first. MIT license: CONFIRMED by the builder 2026-08-19. Still yours: re-point the desktop launcher, merge the cleanup branch, set About/topics, re-shoot the GIF.",
       "evidence": "commits 7ea21c7, 5c40a96 - docs/publish_cleanup_work_order.md"
-    },
-    {
-      "date": "2026-08-12",
-      "text": "The contract now renders a SECOND view: a set of systems-engineering diagrams and traceability tables (MBSE), generated from the same JSON as the dashboard. Nothing on it is hand-drawn.",
-      "so_what": "The systems-engineering side of the project is now showable to an interviewer, and a model that disagrees with the build fails the test suite instead of quietly misleading the reader.",
-      "evidence": "scripts/render_mbse.py · docs/mbse.html · scripts/run_tests.sh [3/4]"
     }
   ],
   "narrative": {
