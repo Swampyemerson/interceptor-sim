@@ -1,0 +1,50 @@
+{
+  "n_frames": 2291,
+  "duration_s_requested": 20.0,
+  "width": 1280,
+  "height": 800,
+  "exposure_us_requested": 1000,
+  "exposure_us_applied_mean": 994,
+  "detector_backend": "pyapriltags",
+  "tag_family": "tag36h11",
+  "quad_decimate": 2.0,
+  "frame_interval_ns": {
+    "mean": 8710506.986899564,
+    "std": 898.4188463123226,
+    "median": 8711000.0,
+    "max": 8723000
+  },
+  "frame_interval_ms": {
+    "mean": 8.710506986899563,
+    "std": 0.0008984188463123225,
+    "max": 8.723
+  },
+  "implied_fps_mean": 114.80388013051144,
+  "capture_to_python_latency_ms": {
+    "mean_if_monotonic": 10.937290258402445,
+    "std_if_monotonic": 0.5724103973425009,
+    "p99_if_monotonic": 12.251273,
+    "mean_if_boottime": 10.938062707987777,
+    "std_if_boottime": 0.5724191321564556,
+    "p99_if_boottime": 12.251884
+  },
+  "capture_to_after_detect_latency_ms": {
+    "mean_if_monotonic": 14.251364870362288,
+    "std_if_monotonic": 0.630513999287196,
+    "p99_if_monotonic": 15.73384
+  },
+  "detect_only_ms": {
+    "mean": 3.314074611959843,
+    "std": 0.176014699929877,
+    "max": 6.612715
+  },
+  "boottime_minus_monotonic_ns": {
+    "mean": 772.4495853339154,
+    "std": 165.4441041712345
+  },
+  "clock_verdict": "INDETERMINATE -- BOOTTIME and MONOTONIC differ by 772 ns (std 165 ns) on this Pi (it has not suspended since boot), so the two latency hypotheses cannot be told apart by this measurement.",
+  "dropped_frames_estimate": 0,
+  "gap_events_gt_1p5x_median": 0,
+  "n_tag_detections_total": 0,
+  "does_not_measure": "Pi <-> flight-controller clock offset -- needs the FC's clock wired in over UART/telemetry, a separate later bench."
+}
