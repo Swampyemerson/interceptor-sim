@@ -3,8 +3,8 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-09-10",
-  "updated_by": "Opus 5 head — vertical error is dash-delivered (ADR-0099); gate closing speed 2x optimistic",
+  "updated": "2026-09-16",
+  "updated_by": "Fable head on the dev machine: cloud commits verified here, attitude logged, height-reference offset measured in flight",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -16,14 +16,14 @@
     "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
   },
   "now": {
-    "as_of": "2026-08-29",
-    "where": "The target aircraft's flight controller is real. ArduPilot 4.7.0 is on the Kakute H7, all 44 settings verified by reading them back off the board, and it writes flight logs our scoring code can open. Done over USB with the board loose on the desk.",
-    "finding": "The board's own start-up message names the exact firmware build we flashed, and its motor output already reads DShot600 -- so the settings did not just save, they took effect. What is NOT proven is a position track: no GPS is wired yet.",
+    "as_of": "2026-09-16",
+    "where": "Both GPS units are wired (the M10 on the interceptor's Pixhawk, the small M10Q on the target's Kakute) and waiting to be checked over USB. On the sim side, the flight log now records the vehicle's own tilt, proven in two real sim flights.",
+    "finding": "Measured in flight: the camera hovers 0.16-0.20 m above the target's centre before the chase starts, and that same 0.20 m is the vertical miss at closest approach. The two height references were never lined up. Two flights of the tag scenario only -- a lead, not a verdict.",
     "next": [
-      "Wire the GPS and re-run the log check outdoors — that is what closes tgt-02",
-      "Calibrate the camera (skr-06) — the last bench step needing hands"
+      "Plug each flight controller into USB so GPS + compass can be read back (brn-02, tgt-02)",
+      "Pre-register and fly the height-reference fix as a paired A/B on the adopted config"
     ],
-    "evidence": "runs/tgt02_bench/ (the first .BIN the board ever wrote, + its limits) - configs/target_kakute/upload_params.py - commits d191d50, bc9957b"
+    "evidence": "logs/m4_intercept_pronav_20260917T032639Z.csv, logs/m4_intercept_pursuit_20260917T032525Z.csv (check_m4 PASS) - commit ef9e919"
   },
   "assumptions": [
     {
@@ -500,6 +500,12 @@
   ],
   "plain_log": [
     {
+      "date": "2026-09-16",
+      "text": "First session back on the simulator machine since the cloud sessions. Pulled their 17 commits, ran the full test suite here (974 passed), and flew two real sim flights. The flight log now records the vehicle's own tilt (pitch and roll) on every tick -- it never did before -- and the first flights show it working: level in hover, nose-down in the chase, nose-up when braking. The classic moving-target gate still passes (pro-nav 0.38 m vs pursuit 2.09 m).",
+      "so_what": "Those two flights measured directly what the cloud session could only infer. Before the chase even starts, the camera is hovering 0.16-0.20 m ABOVE the target's centre, and at closest approach the vertical miss was 0.20 m -- the same offset, carried the whole way. So the 'two height references that were never lined up' finding is real, on n=2 flights of the tag scenario. The hover itself holds height to about 2 cm, not the 9 cm suspected. And the purchase-gate speed alarm did not reproduce here: coded-dash flights close at 8.98 m/s against the gate's 9.0 -- though that pools several speeds, and the real vehicle's sprint speed is still unmeasured.",
+      "evidence": "logs/m4_intercept_pursuit_20260917T032525Z.csv + logs/m4_intercept_pronav_20260917T032639Z.csv (check_m4 PASS) - commit ef9e919 - docs/next.md items 3 and 5"
+    },
+    {
       "date": "2026-09-11",
       "text": "Read a 2025 IEEE paper (arXiv:2409.17497) that intercepts flying targets by steering on the CAMERA IMAGE directly instead of first working out where the target is in 3-D. That made me check our own range channel, and it is worse than I thought: out to 8 m the seeker's range is within 3% of truth, but it over-reads by about 30% around 8-12 m and past 18 m it reports roughly a THIRD of the true distance (n=64 ticks, so this one is properly powered). Our plan has been to acquire the target FARTHER away, because correction room grows with the square of the time left -- but that is exactly where this channel is worst, and pro-nav's steering command scales with range, so it would be under-commanded by the same factor.",
       "so_what": "The plan and the sensor pull against each other, which nobody had noticed. An image-space law needs range only as a gain, not as an aim point, so it is worth TRYING -- and cheaply, because the guidance layer is already handed the raw pixel box and does the 3-D conversion internally. Nothing has been built or flown.",
@@ -564,12 +570,6 @@
       "text": "The evidence behind two finished bench steps was sitting on ONE microSD card. skr-07's soak results (96.6 / 38.2 / 6.09 fps) and skr-05's session meta (994 us applied exposure, spec met) are quoted all over this contract but had never been copied off the Pi. Both are now in the repo. The Pi's own checkout was also 16 days stale -- including the whole field-day scoring chain -- and carried 461 stray file copies from an old session.",
       "so_what": "A dead SD card would have turned published numbers into unsourced claims. Every stray file was checked against the real repo before deletion, and the 445 MB training set was moved to the path the scripts read, not deleted. The Pi now matches the repo exactly. Camera calibration itself is still not done.",
       "evidence": "commits fc0f18b + 29ec8bc - runs/skr07_tagged - runs/skr05_smoke_session"
-    },
-    {
-      "date": "2026-07-26",
-      "text": "The camera was only ever getting 30 frames a second because of a default nobody set -- not the sensor (capable of 143) and not the Pi (capable of 112). Lifting it gives 96.6 sustained, with a tag in every frame and no overheating.",
-      "so_what": "The interceptor burns about three times less distance while the camera locks on, and the finer decode setting is now affordable. This is the first bench number the $740 gate can legitimately use.",
-      "evidence": "ADR-0090 - runs/skr07_tagged/qd2_uncapped - commit f3a9d5e"
     }
   ],
   "narrative": {

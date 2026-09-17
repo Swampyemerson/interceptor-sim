@@ -1,5 +1,13 @@
 ### 2026-07-26
 
+The camera was only ever getting 30 frames a second because of a default nobody set -- not the sensor (capable of 143) and not the Pi (capable of 112). Lifting it gives 96.6 sustained, with a tag in every frame and no overheating.
+
+**So what:** The interceptor burns about three times less distance while the camera locks on, and the finer decode setting is now affordable. This is the first bench number the $740 gate can legitimately use.
+
+*Evidence: ADR-0090 - runs/skr07_tagged/qd2_uncapped - commit f3a9d5e*
+
+### 2026-07-26
+
 Threw away an aim-trim experiment: I ran heavy background work while a measured batch was flying, 3 of 8 flights failed to boot, and my own summary script averaged through the failures.
 
 **So what:** Re-fly at idle with a load guard; the trim question is still open.
