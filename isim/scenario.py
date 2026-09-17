@@ -67,8 +67,9 @@ from flight.deploy.real_flight import MissionConfig, resolve_preflight_heading, 
 from isim.concepts import DualTagSeeker, PursuitConfig, PursuitRendezvousGuidance
 from isim.engine import EngagementConfig
 from isim.flight_adapter import RealFlightGuidance, standby_init_state
+from isim.ownstate import OwnStateNoise, OwnStateNoiseConfig
 from isim.seeker import AprilTagSeeker, CameraParams, DecodeParams, TagParams
-from isim.targets import ConstantVelocityTarget
+from isim.targets import ConstantVelocityTarget, SpeedChangeTarget, WeaveTarget
 from isim.types import Guidance, SeekerModel, TargetState, VehicleModel, VehicleState
 from isim.vehicle import QuadVelocityModel, VehicleParams
 
@@ -172,6 +173,75 @@ class Scatter:
     # deg. 1-sigma mount-tilt error, TRUE-camera-only, same rationale as
     # `cam_fx_fy_sigma_frac`. estimate.
 
+    # --- v5 (pursuit_hardening_v5.md): own-state noise, GUIDANCE-visible
+    # only (isim.ownstate.OwnStateNoise; concept="pursuit" only -- see
+    # build()). Each is independently zeroable to isolate its cost. --------
+    ownstate_attitude_bias_rp_sigma_deg: float = 1.0
+    # deg. Slowly-varying (Ornstein-Uhlenbeck, tau=ownstate_attitude_bias_tau_s)
+    # roll/pitch bias GUIDANCE sees on its own attitude. estimate.
+    ownstate_attitude_bias_yaw_sigma_deg: float = 3.0
+    # deg. Same OU process, yaw axis -- typically the noisiest axis on a
+    # real EKF (no magnetometer/GPS-course fix as good as accel-derived
+    # roll/pitch). estimate.
+    ownstate_attitude_white_sigma_deg: float = 0.3
+    # deg. White noise, per axis, per guidance tick, on top of the OU bias
+    # above. estimate.
+    ownstate_attitude_bias_tau_s: float = 20.0
+    # s. OU correlation time shared by both attitude biases above -- long
+    # relative to one engagement (25 s), so "slowly varying" in practice
+    # means "close to a per-run constant, with a slow drift on top". estimate.
+    ownstate_vel_bias_sigma_ms: float = 0.15
+    # m/s per axis (NED). ONE draw, held constant for the whole run --
+    # GUIDANCE's own-velocity bias (accelerometer/EKF bias). estimate.
+    ownstate_vel_white_sigma_ms: float = 0.1
+    # m/s per axis (NED), white noise per guidance tick. estimate.
+    ownstate_pos_randomwalk_sigma_ms_sqrt_s: float = 0.05
+    # m/sqrt(s) per axis (NED) -- a random-WALK rate (variance grows with
+    # time), not a bias: GUIDANCE's own-position estimate slowly wanders
+    # from truth. The task's brief claims this "should mostly cancel
+    # because estimate and control share the frame" -- see the report for
+    # the measured check. estimate.
+    ownstate_frame_ts_bias_max_s: float = 0.020
+    # s. ONE draw, uniform +/- this, held constant for the whole run --
+    # GUIDANCE's belief about WHEN a frame was captured (`Detection.t_capture`)
+    # is offset from the true value by a per-run camera/driver clock bias.
+    # estimate.
+    ownstate_frame_ts_jitter_sigma_s: float = 0.005
+    # s, 1-sigma, drawn fresh for every DECODED frame -- timestamp jitter on
+    # top of the per-run bias above. estimate.
+
+    # --- v5: tag decode realism (TRUE seeker parameters, not a
+    # guidance-visible term -- these widen how good/bad the REAL tag
+    # decode can be, per run; guidance's OWN assumed noise model
+    # (isim.concepts.PursuitConfig.sigma_px, fixed) is deliberately left
+    # untouched, since a real system calibrates once and does not know a
+    # given run drew a worse camera/lighting day). ---------------------------
+    decode_p_max_min: float = 0.6
+    # `isim.seeker.DecodeParams.p_max` (default 0.98) drawn UNIFORM
+    # [this, 0.98] per run -- lighting/exposure/decoder-version variation.
+    # Set to 0.98 to disable (collapses the draw to today's fixed value).
+    # estimate.
+    decode_pixel_noise_min_px: float = 0.3
+    decode_pixel_noise_max_px: float = 1.0
+    # `isim.seeker.DecodeParams.pixel_noise_px` (default 0.3) drawn UNIFORM
+    # [min, max] per run. Set min=max=0.3 to disable. estimate.
+
+    # --- v5: target motion realism (only drawn when
+    # `Scenario.target_motion != "straight"`; requires `scatter is not
+    # None`, since these draws come from the same per-run Scatter rng). ----
+    weave_amp_min_m: float = 1.0
+    weave_amp_max_m: float = 3.0
+    # `isim.targets.WeaveTarget.amp_m` drawn UNIFORM [min, max] per run. estimate.
+    weave_period_min_s: float = 4.0
+    weave_period_max_s: float = 8.0
+    # `isim.targets.WeaveTarget.period_s` drawn UNIFORM [min, max] per run. estimate.
+    speed_change_delta_max_ms: float = 2.0
+    # `isim.targets.SpeedChangeTarget.delta_ms` drawn UNIFORM
+    # [-this, +this] per run (sign random). estimate.
+    speed_change_time_max_s: float = 15.0
+    # `isim.targets.SpeedChangeTarget.change_t` drawn UNIFORM [2.0, this]
+    # per run (relative to the TARGET's own t=0, i.e. its GO edge). estimate.
+
 
 def _scatter_vehicle_params(vp: VehicleParams, scat: Scatter,
                             rng: np.random.Generator) -> VehicleParams:
@@ -264,6 +334,15 @@ class Scenario:
     # Mutually exclusive with `inner_tag_side_m` (DualTagSeeker only
     # combines two seekers, not three) -- `build()` raises if both are set.
     second_tag_facing: Optional[str] = None
+    # v5 (pursuit_hardening_v5.md #6): the TRUE target's motion.  "straight"
+    # (default) = today's ConstantVelocityTarget, bit-identical.  "weave" =
+    # isim.targets.WeaveTarget with amp_m/period_s drawn per run from
+    # Scatter's weave_* fields.  "speed_change" = isim.targets.
+    # SpeedChangeTarget with delta_ms/change_t drawn per run from Scatter's
+    # speed_change_* fields.  Requires `scatter is not None` for anything
+    # but "straight" (the draw needs a per-run rng; `build()` raises
+    # otherwise).
+    target_motion: str = "straight"
 
 
 def _sign(x: float) -> float:
@@ -336,9 +415,10 @@ class _DelayedTarget:
     `state(go_at_s) == inner.state(0.0)`. The GO edge is when the real vehicle
     would release the coded dash, so the target is scripted to start moving at
     the same instant -- honest for a Monte-Carlo geometry study, not a claim
-    about a real target's behaviour."""
+    about a real target's behaviour. `inner` is any TargetModel (v5 #6 adds
+    WeaveTarget/SpeedChangeTarget alongside the default ConstantVelocityTarget)."""
 
-    inner: ConstantVelocityTarget
+    inner: object   # isim.types.TargetModel (duck-typed; any of the three isim.targets classes)
     go_at_s: float
 
     def state(self, t: float) -> TargetState:
@@ -430,7 +510,16 @@ def build(
                            mount_tilt_up_deg=scn.cam_tilt_up_deg + tilt_err_deg)
 
     tag = _tag_for(scn, vel_ned)
-    seeker: SeekerModel = AprilTagSeeker(cam=cam_true, tag=tag, dec=DecodeParams())
+    # v5 #5: tag decode realism -- TRUE seeker parameters only (guidance's
+    # own assumed noise model is deliberately left at its fixed, pre-
+    # calibrated values; see the module's new Scatter fields' docstrings).
+    dec_params = DecodeParams()
+    if scat is not None:
+        p_max = float(rng.uniform(scat.decode_p_max_min, 0.98))
+        pixel_noise_px = float(rng.uniform(scat.decode_pixel_noise_min_px,
+                                           scat.decode_pixel_noise_max_px))
+        dec_params = replace(dec_params, p_max=p_max, pixel_noise_px=pixel_noise_px)
+    seeker: SeekerModel = AprilTagSeeker(cam=cam_true, tag=tag, dec=dec_params)
 
     # v4 #1d/#3 (MEASURE-only hardware ideas -- see isim.concepts.DualTagSeeker):
     # a second, smaller co-located tag, or a second tag at a different mount
@@ -440,12 +529,12 @@ def build(
                          "are mutually exclusive (DualTagSeeker combines only two)")
     if scn.inner_tag_side_m is not None:
         inner_tag = replace(tag, side_m=scn.inner_tag_side_m)
-        inner_seeker = AprilTagSeeker(cam=cam_true, tag=inner_tag, dec=DecodeParams())
+        inner_seeker = AprilTagSeeker(cam=cam_true, tag=inner_tag, dec=dec_params)
         seeker = DualTagSeeker(first=seeker, second=inner_seeker)
     elif scn.second_tag_facing is not None:
         second_scn = replace(scn, tag_facing=scn.second_tag_facing)
         second_tag = _tag_for(second_scn, vel_ned)
-        second_seeker = AprilTagSeeker(cam=cam_true, tag=second_tag, dec=DecodeParams())
+        second_seeker = AprilTagSeeker(cam=cam_true, tag=second_tag, dec=dec_params)
         seeker = DualTagSeeker(first=seeker, second=second_seeker)
 
     if scn.concept == "flyby":
@@ -479,11 +568,55 @@ def build(
         guidance = PursuitRendezvousGuidance(
             pcfg, belief_pos0_ned, belief_vel_ned, go_at_s=trigger_go_at_s,
             initial_yaw_deg=heading, cam_mount_tilt_up_deg=scn.cam_tilt_up_deg)
+        # v5 #1-4: own-state noise, GUIDANCE-visible only -- "flyby" is
+        # untouched (its own, separate Scatter story), so it stays exactly
+        # bit-identical to before this field existed regardless of these
+        # new fields' values. Gated on `scat is not None`, same convention
+        # as every other Scatter-driven perturbation in this function --
+        # `scat is None` reproduces the exact pre-v5 pursuit code path.
+        if scat is not None:
+            ownstate_cfg = OwnStateNoiseConfig(
+                attitude_bias_rp_sigma_deg=scat.ownstate_attitude_bias_rp_sigma_deg,
+                attitude_bias_yaw_sigma_deg=scat.ownstate_attitude_bias_yaw_sigma_deg,
+                attitude_white_sigma_deg=scat.ownstate_attitude_white_sigma_deg,
+                attitude_bias_tau_s=scat.ownstate_attitude_bias_tau_s,
+                vel_bias_sigma_ms=scat.ownstate_vel_bias_sigma_ms,
+                vel_white_sigma_ms=scat.ownstate_vel_white_sigma_ms,
+                pos_randomwalk_sigma_ms_sqrt_s=scat.ownstate_pos_randomwalk_sigma_ms_sqrt_s,
+                frame_ts_bias_max_s=scat.ownstate_frame_ts_bias_max_s,
+                frame_ts_jitter_sigma_s=scat.ownstate_frame_ts_jitter_sigma_s,
+            )
+            ownstate_rng = rng.spawn(1)[0]
+            guidance = OwnStateNoise(guidance, ownstate_cfg, ownstate_rng)
     else:
         raise ValueError(f"scenario.build: concept={scn.concept!r}, want "
                          f"'flyby' or 'pursuit'")
 
-    target = _DelayedTarget(inner=ConstantVelocityTarget(pos0_ned, vel_ned), go_at_s=go_at_s)
+    # v5 #6: TRUE target motion realism. "straight" (default) is exactly
+    # today's ConstantVelocityTarget; the other two need a per-run rng draw
+    # (from the SAME scatter rng, so `scatter is not None` is required).
+    if scn.target_motion == "straight":
+        inner_target = ConstantVelocityTarget(pos0_ned, vel_ned)
+    elif scn.target_motion in ("weave", "speed_change"):
+        if scat is None:
+            raise ValueError(f"scenario.build: target_motion={scn.target_motion!r} "
+                             "needs scatter is not None (its parameters are drawn "
+                             "from the per-run Scatter rng)")
+        if scn.target_motion == "weave":
+            amp_m = float(rng.uniform(scat.weave_amp_min_m, scat.weave_amp_max_m))
+            period_s = float(rng.uniform(scat.weave_period_min_s, scat.weave_period_max_s))
+            inner_target = WeaveTarget(pos0_ned, vel_ned, amp_m=amp_m, period_s=period_s)
+        else:
+            delta_ms = float(rng.uniform(-scat.speed_change_delta_max_ms,
+                                         scat.speed_change_delta_max_ms))
+            change_t = float(rng.uniform(2.0, scat.speed_change_time_max_s))
+            inner_target = SpeedChangeTarget(pos0_ned, vel_ned, delta_ms=delta_ms,
+                                             change_t=change_t)
+    else:
+        raise ValueError(f"scenario.build: target_motion={scn.target_motion!r}, want "
+                         "'straight', 'weave', or 'speed_change'")
+
+    target = _DelayedTarget(inner=inner_target, go_at_s=go_at_s)
     init_state = standby_init_state(cfg)
 
     if scn.concept == "pursuit":

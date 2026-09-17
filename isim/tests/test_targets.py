@@ -1,6 +1,6 @@
 import numpy as np
 
-from isim.targets import ConstantVelocityTarget, HoverTarget, WeaveTarget
+from isim.targets import ConstantVelocityTarget, HoverTarget, SpeedChangeTarget, WeaveTarget
 
 
 def test_constant_velocity_target():
@@ -45,3 +45,43 @@ def test_weave_perpendicular_to_cruise_velocity():
     lateral = st.pos_ned - (pos0 + vel * 1.25)
     assert abs(lateral[0]) < 1e-9  # no residual north component
     assert abs(abs(lateral[1]) - 2.0) < 1e-6
+
+
+# --------------------------------------------------------- v5: SpeedChangeTarget
+
+def test_speed_change_target_is_straight_before_and_after_the_change():
+    pos0 = np.array([0.0, 0.0, -10.0])
+    vel = np.array([9.0, 0.0, 0.0])
+    tgt = SpeedChangeTarget(pos0, vel, delta_ms=2.0, change_t=5.0)
+
+    before = tgt.state(2.0)
+    np.testing.assert_allclose(before.pos_ned, pos0 + vel * 2.0)
+    np.testing.assert_allclose(before.vel_ned, vel)
+
+    at = tgt.state(5.0)
+    np.testing.assert_allclose(at.vel_ned, vel)   # still the OLD speed exactly at change_t
+
+    after = tgt.state(7.0)
+    expected_vel_after = np.array([11.0, 0.0, 0.0])   # 9 + 2 m/s, same direction
+    np.testing.assert_allclose(after.vel_ned, expected_vel_after)
+    pos_at_change = pos0 + vel * 5.0
+    np.testing.assert_allclose(after.pos_ned, pos_at_change + expected_vel_after * 2.0)
+
+
+def test_speed_change_target_position_is_continuous_at_the_change():
+    pos0 = np.array([0.0, 0.0, -10.0])
+    vel = np.array([9.0, 0.0, 0.0])
+    tgt = SpeedChangeTarget(pos0, vel, delta_ms=-2.0, change_t=5.0)
+    just_before = tgt.state(5.0 - 1e-9).pos_ned
+    just_after = tgt.state(5.0 + 1e-9).pos_ned
+    np.testing.assert_allclose(just_before, just_after, atol=1e-6)
+    # ...but velocity has a real step (that IS the point).
+    assert not np.allclose(tgt.state(4.999).vel_ned, tgt.state(5.001).vel_ned, atol=1e-3)
+
+
+def test_speed_change_target_never_goes_negative_speed():
+    pos0 = np.array([0.0, 0.0, -10.0])
+    vel = np.array([1.0, 0.0, 0.0])   # slow target
+    tgt = SpeedChangeTarget(pos0, vel, delta_ms=-5.0, change_t=1.0)   # would go to -4 m/s
+    after = tgt.state(3.0)
+    assert float(np.linalg.norm(after.vel_ned)) == 0.0

@@ -78,3 +78,37 @@ class WeaveTarget:
         pos = self.pos0_ned + self.vel_ned * t + (self.amp_m * math.sin(wt)) * self._perp
         vel = self.vel_ned + (self.amp_m * self._omega * math.cos(wt)) * self._perp
         return TargetState(t=t, pos_ned=pos, vel_ned=vel)
+
+
+@dataclass
+class SpeedChangeTarget:
+    """Straight-line target whose SPEED (not direction) steps by `delta_ms`
+    at `change_t` -- pursuit_hardening_v5.md #6, "a target that changes
+    speed by +/- 2 m/s at a random time". Position is continuous at the
+    step (no teleport); velocity has a genuine discontinuity there, which
+    is the point (a constant-velocity KF sees a real, sudden model
+    mismatch, not just noise). `change_t`/`delta_ms` are plain constructor
+    values -- the RANDOM draw happens in the caller (`isim.scenario.build`),
+    same convention as `WeaveTarget`'s `amp_m`/`period_s`."""
+    pos0_ned: Vec3
+    vel_ned: Vec3          # direction is fixed; this is the speed BEFORE change_t
+    delta_ms: float
+    change_t: float
+
+    def __post_init__(self) -> None:
+        self.pos0_ned = _as_vec3(self.pos0_ned)
+        self.vel_ned = _as_vec3(self.vel_ned)
+        speed0 = float(np.linalg.norm(self.vel_ned))
+        self._dir = self.vel_ned / speed0 if speed0 > 1e-9 else np.zeros(3)
+        speed1 = max(0.0, speed0 + self.delta_ms)
+        self._vel_after = self._dir * speed1
+        self._pos_at_change = self.pos0_ned + self.vel_ned * self.change_t
+
+    def state(self, t: float) -> TargetState:
+        if t <= self.change_t:
+            pos = self.pos0_ned + self.vel_ned * t
+            vel = self.vel_ned.copy()
+        else:
+            pos = self._pos_at_change + self._vel_after * (t - self.change_t)
+            vel = self._vel_after.copy()
+        return TargetState(t=t, pos_ned=pos, vel_ned=vel)

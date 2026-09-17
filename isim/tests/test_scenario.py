@@ -276,3 +276,203 @@ def test_terminal_tag_is_import_guarded(vp):
     pytest.importorskip("flight.tag_terminal")
     scn = Scenario(terminal="tag")
     build(scn, vp)
+
+
+# ------------------------------------------------------------- v5 hardening
+
+def test_flyby_ignores_the_new_ownstate_fields_whatever_their_value(vp):
+    """pursuit_hardening_v5.md's "Also check": concept="flyby" must stay
+    bit-identical however loud the new OWN-STATE fields are -- flyby never
+    wraps its guidance in `OwnStateNoise` at all (that path is
+    concept="pursuit" only). Deliberately excludes the decode-realism
+    fields here: those DO reach flyby too (the TRUE seeker/camera is
+    shared infrastructure, not pursuit-specific) -- see the next test for
+    THEIR "zero -> old behaviour" claim instead."""
+    scat_default = Scatter()
+    scat_loud = dataclasses.replace(
+        scat_default, ownstate_attitude_bias_rp_sigma_deg=50.0,
+        ownstate_attitude_bias_yaw_sigma_deg=50.0, ownstate_vel_bias_sigma_ms=50.0,
+        ownstate_pos_randomwalk_sigma_ms_sqrt_s=50.0, ownstate_frame_ts_bias_max_s=50.0)
+    scn_a = Scenario(concept="flyby", scatter=scat_default, seed=3)
+    scn_b = Scenario(concept="flyby", scatter=scat_loud, seed=3)
+    _, veh_a, _, seeker_a, g_a, init_a = build(scn_a, vp)
+    _, veh_b, _, seeker_b, g_b, init_b = build(scn_b, vp)
+    assert g_a.cfg.preflight_heading_deg == pytest.approx(g_b.cfg.preflight_heading_deg, abs=1e-12)
+    assert g_a.cfg.standby_alt_m == pytest.approx(g_b.cfg.standby_alt_m, abs=1e-12)
+    assert seeker_a.dec.p_max == pytest.approx(seeker_b.dec.p_max)
+    assert veh_a.p.wind_ned == veh_b.p.wind_ned
+    np.testing.assert_array_equal(init_a.pos_ned, init_b.pos_ned)
+
+
+def test_decode_realism_fields_at_zero_reproduce_old_fixed_decodeparams(vp):
+    """The OTHER half of "bit-identical when the new scatter terms are
+    zero": with `decode_p_max_min=0.98`/`decode_pixel_noise_min_px=
+    decode_pixel_noise_max_px=0.3` (their "off" values -- the draw range
+    collapses to a point), EITHER concept gets exactly today's fixed
+    `DecodeParams()` defaults, regardless of `scatter` otherwise being on."""
+    scat_off = dataclasses.replace(Scatter(), decode_p_max_min=0.98,
+                                   decode_pixel_noise_min_px=0.3, decode_pixel_noise_max_px=0.3)
+    for concept in ("flyby", "pursuit"):
+        scn = Scenario(concept=concept, scatter=scat_off, seed=5)
+        _, _, _, seeker, _, _ = build(scn, vp)
+        assert seeker.dec.p_max == pytest.approx(0.98)
+        assert seeker.dec.pixel_noise_px == pytest.approx(0.3)
+
+
+def test_pursuit_ownstate_noise_only_wraps_when_scatter_is_set(vp):
+    """`scatter=None` -> no `OwnStateNoise` wrapper at all (bit-identical to
+    pre-v5 pursuit); `scatter=Scatter()` -> wrapped."""
+    from isim.concepts import PursuitRendezvousGuidance
+    from isim.ownstate import OwnStateNoise
+
+    scn_none = Scenario(concept="pursuit", seed=0)
+    _, _, _, _, g_none, _ = build(scn_none, vp)
+    assert isinstance(g_none, PursuitRendezvousGuidance)
+
+    scn_scat = Scenario(concept="pursuit", scatter=Scatter(), seed=0)
+    _, _, _, _, g_scat, _ = build(scn_scat, vp)
+    assert isinstance(g_scat, OwnStateNoise)
+    assert isinstance(g_scat.inner, PursuitRendezvousGuidance)
+
+
+def test_decode_realism_draws_p_max_and_pixel_noise_within_range(vp):
+    scat = Scatter()
+    seen_p_max, seen_px = set(), set()
+    for seed in range(20):
+        scn = Scenario(scatter=scat, seed=seed)
+        _, _, _, seeker, _, _ = build(scn, vp)
+        assert scat.decode_p_max_min <= seeker.dec.p_max <= 0.98 + 1e-9
+        assert scat.decode_pixel_noise_min_px <= seeker.dec.pixel_noise_px \
+            <= scat.decode_pixel_noise_max_px + 1e-9
+        seen_p_max.add(seeker.dec.p_max)
+        seen_px.add(seeker.dec.pixel_noise_px)
+    assert len(seen_p_max) > 1 and len(seen_px) > 1   # really varies run to run
+
+
+def test_decode_realism_off_when_scatter_is_none(vp):
+    scn = Scenario(scatter=None, seed=0)
+    _, _, _, seeker, _, _ = build(scn, vp)
+    assert seeker.dec.p_max == pytest.approx(0.98)
+    assert seeker.dec.pixel_noise_px == pytest.approx(0.3)
+
+
+def test_target_motion_straight_is_the_default_and_unaffected_by_scatter(vp):
+    from isim.targets import ConstantVelocityTarget
+    scn = Scenario(scatter=Scatter(), seed=0)
+    assert scn.target_motion == "straight"
+    _, _, target, _, _, _ = build(scn, vp)
+    assert isinstance(target.inner, ConstantVelocityTarget)
+
+
+def test_target_motion_weave_builds_a_weave_target_with_drawn_params(vp):
+    from isim.targets import WeaveTarget
+    scat = Scatter()
+    scn = Scenario(target_motion="weave", scatter=scat, seed=0)
+    _, _, target, _, _, _ = build(scn, vp)
+    assert isinstance(target.inner, WeaveTarget)
+    assert scat.weave_amp_min_m <= target.inner.amp_m <= scat.weave_amp_max_m
+    assert scat.weave_period_min_s <= target.inner.period_s <= scat.weave_period_max_s
+
+
+def test_target_motion_speed_change_builds_with_drawn_params(vp):
+    from isim.targets import SpeedChangeTarget
+    scat = Scatter()
+    scn = Scenario(target_motion="speed_change", scatter=scat, seed=0)
+    _, _, target, _, _, _ = build(scn, vp)
+    assert isinstance(target.inner, SpeedChangeTarget)
+    assert abs(target.inner.delta_ms) <= scat.speed_change_delta_max_ms + 1e-9
+    assert 2.0 <= target.inner.change_t <= scat.speed_change_time_max_s
+
+
+def test_target_motion_non_straight_requires_scatter(vp):
+    scn = Scenario(target_motion="weave", scatter=None, seed=0)
+    with pytest.raises(ValueError):
+        build(scn, vp)
+
+
+# ----------------------------------------------------- v5 honesty (the spy)
+
+class _OwnStateSpyGuidance:
+    """Wraps the (already `OwnStateNoise`-wrapped) guidance `build()`
+    returns and records the exact `own`/`det` the ENGINE handed to IT --
+    i.e. one layer OUTSIDE `OwnStateNoise`, so this sees the TRUE state (the
+    engine never perturbs anything); `OwnStateNoise` sits between this spy
+    and the real `PursuitRendezvousGuidance` and does the perturbing."""
+
+    def __init__(self, inner) -> None:
+        self.inner = inner
+        self.seen_true = []
+
+    def reset(self) -> None:
+        self.inner.reset()
+
+    def step(self, t, own, det):
+        self.seen_true.append((t, own, det))
+        return self.inner.step(t, own, det)
+
+
+def test_guidance_sees_the_perturbed_state_not_the_true_state(vp):
+    """pursuit_hardening_v5.md "Also check": guidance receives only the
+    (perturbed) own state and detections, and scoring uses the true state.
+    Proven two ways in one run: (1) the innermost `PursuitRendezvousGuidance`
+    is fed a DIFFERENT own-position than the engine's true trace at the
+    same tick (perturbation reached guidance); (2) `EngagementResult.trace`
+    -- what scoring reads -- matches the TRUE vehicle-model output exactly,
+    never the perturbed one."""
+    from isim.engine import run_engagement
+    from isim.concepts import PursuitRendezvousGuidance
+
+    scat = dataclasses.replace(Scatter(), ownstate_pos_randomwalk_sigma_ms_sqrt_s=5.0,
+                               ownstate_vel_bias_sigma_ms=0.0, ownstate_vel_white_sigma_ms=0.0,
+                               ownstate_attitude_white_sigma_deg=0.0,
+                               ownstate_attitude_bias_rp_sigma_deg=0.0,
+                               ownstate_attitude_bias_yaw_sigma_deg=0.0,
+                               ownstate_frame_ts_bias_max_s=0.0,
+                               ownstate_frame_ts_jitter_sigma_s=0.0)
+    scn = Scenario(concept="pursuit", target_speed_ms=9.0, cross_range_m=6.5,
+                   lead_dist_m=16.2, scatter=scat, seed=0)
+    ecfg, vehicle, target, seeker, guidance, init = build(scn, vp)
+
+    # guidance == OwnStateNoise(PursuitRendezvousGuidance(...)); tap the
+    # innermost real guidance's OWN record of what it was handed by
+    # wrapping the pursuit guidance a SECOND layer down.
+    assert hasattr(guidance, "inner")
+    real_guidance = guidance.inner
+    assert isinstance(real_guidance, PursuitRendezvousGuidance)
+    inner_spy = _OwnStateSpyGuidance(real_guidance)
+    guidance.inner = inner_spy   # swap: OwnStateNoise now forwards to the spy
+
+    outer_spy = _OwnStateSpyGuidance(guidance)   # sees the TRUE state (engine side)
+    result = run_engagement(ecfg, vehicle, target, seeker, outer_spy, init, record_trace=True)
+
+    assert len(outer_spy.seen_true) > 5
+    assert len(inner_spy.seen_true) > 5
+    # Find a tick recorded on BOTH sides (same t) well after GO, and compare.
+    true_by_t = {round(t, 6): own for t, own, _ in outer_spy.seen_true}
+    diffs = []
+    for t, pert_own, _ in inner_spy.seen_true:
+        true_own = true_by_t.get(round(t, 6))
+        if true_own is not None and t > scn_go_estimate(vp):
+            diffs.append(float(np.linalg.norm(pert_own.pos_ned - true_own.pos_ned)))
+    assert diffs, "no matching ticks found -- test setup problem"
+    assert max(diffs) > 0.0, "guidance's own state never differed from truth -- wrapper is inert"
+
+    # Scoring (the trace) must be the TRUE vehicle output -- untouched. The
+    # trace is recorded every fine engine tick, while guidance.step() (and
+    # hence outer_spy) only fires every guidance_dt -- compare at a
+    # matching t, not just the trace's last row (which can be a few fine
+    # ticks past the last guidance call).
+    checked_any = False
+    for i, t_trace in enumerate(result.trace["t"]):
+        true_own = true_by_t.get(round(float(t_trace), 6))
+        if true_own is not None:
+            np.testing.assert_array_equal(result.trace["own_pos"][i], true_own.pos_ned)
+            checked_any = True
+    assert checked_any, "no matching (trace, outer_spy) ticks found -- test setup problem"
+
+
+def scn_go_estimate(vp) -> float:
+    """A cheap lower bound on go_at_s for the default MissionConfig, so the
+    honesty test above only compares post-GO ticks (before GO, own_pos is
+    identically the standby point and a 0.0 diff would prove nothing)."""
+    return MissionConfig().standby_settle_s
