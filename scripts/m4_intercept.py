@@ -252,6 +252,7 @@ from flight.guidance import (  # noqa: E402
     crossing_sign,
     dash_forward_speed,
     dash_loft_alt_ref,
+    dash_ramp_distance,
     preserve_dropout_vertical,
     resolve_terminal_bearing_bias_deg,
 )
@@ -1749,6 +1750,25 @@ async def track_local_position(drone, state: "M4TelemetryState") -> None:
         state.vel_e = pv.velocity.east_m_s
 
 
+def passage_gate_ok(flown_m, planned_m, min_frac):
+    """PASSAGE GATE for the past-closest-approach breakoff (issue #3's registered
+    fallback, docs/scoring_fix_plan.md section 5b): you cannot have PASSED a target
+    you have not yet flown far enough to REACH. True = the breakoff may fire.
+
+      flown_m   own displacement since the dash began (own EKF position)
+      planned_m the PRE-FLIGHT lead solve's own intercept distance
+      min_frac  None = gate OFF (always True, byte-identical)
+
+    FAIL-CLOSED on a missing input while the gate is ON: an unmeasured distance
+    must not read as 'far enough' (the ENGAGE timeout remains the backstop).
+    Reads nothing about the target in flight and nothing from gt_*."""
+    if min_frac is None:
+        return True
+    if flown_m is None or planned_m is None or planned_m <= 0.0:
+        return False
+    return flown_m >= min_frac * planned_m
+
+
 def dash_alt_gain(args, vvert_default):
     """(kp, vmax) for the CODED_DASH altitude hold. Stock (KP_ALT, vvert_default)
     unless --dash-alt-kp is set; --dash-alt-vmax only applies together with it.
@@ -2138,6 +2158,16 @@ def parse_args():
              "phase ONLY -- needed so the loft-then-dive descent fits the short dash "
              "(stock V_VERT_MAX 0.5 m/s is too slow to dive 2-4 m in ~2 s). Ignored unless "
              "--dash-loft-m > 0. Default None = stock V_VERT_MAX (byte-identical).")
+    parser.add_argument(
+        "--breakoff-min-flown-frac", type=float, default=None,
+        help="--coded-dash PASSAGE GATE on the past-closest-approach breakoff: the "
+             "range-increase breakoff may only fire once the vehicle's OWN displacement "
+             "since the dash began is at least this fraction of the pre-flight lead "
+             "solve's intercept distance. Offline over 47 flown breakoff events a 0.8 "
+             "gate blocks 9/9 premature and 3/38 legitimate (all three after CPA was "
+             "already recorded) -- scripts/forensics/breakoff_gate_replay.py, "
+             "docs/scoring_fix_plan.md 5b. Needs a SOLVED dash heading (not "
+             "--dash-heading-deg). Default None = OFF (byte-identical).")
     parser.add_argument(
         "--dash-alt-kp", type=float, default=None,
         help="--coded-dash: altitude-hold P gain (1/s) during the CODED_DASH phase ONLY. "
@@ -3002,6 +3032,8 @@ async def run_acquire_and_engage(
     # nominal speed and return its heading untouched: byte-identical to before.
     _wind_trim = build_wind_trim(args)
     _wind_trim_result = None
+    coded_dash_plan_m = None      # pre-flight intercept distance (passage gate)
+    coded_dash_start_ne = None    # own (n, e) at dash entry (passage gate)
     if args.coded_dash and coded_dash_heading_deg is None:
         _tx, _ty = (float(v) for v in args.target_start.split(",")[:2])
         _tvx, _tvy = (float(v) for v in args.target_vel.split(",")[:2])
@@ -3042,6 +3074,8 @@ async def run_acquire_and_engage(
             _csign_lead = crossing_sign(_h_const, (_tvx, _tvy))
             _bias_equiv = ((_h_const - coded_dash_heading_deg) * _csign_lead
                            if _csign_lead else 0.0)
+            if _t_lead is not None:
+                coded_dash_plan_m = dash_ramp_distance(_vi, _lead_accel, _t_lead)
             print(f"[m4] Accel-aware collision lead ON: a={_lead_accel:.2f} m/s^2 "
                   f"({_lead_src}), v_max={_vi:.1f} m/s -> heading "
                   f"{coded_dash_heading_deg:.2f} deg, t_lead="
@@ -3062,10 +3096,12 @@ async def run_acquire_and_engage(
                       "m/s^2 -- pass --dash-lead-accel-ms2 to match the flown accel.",
                       flush=True)
         else:
-            coded_dash_heading_deg, _, _wind_trim_result = solve_wind_trimmed_lead(
+            coded_dash_heading_deg, _t_const, _wind_trim_result = solve_wind_trimmed_lead(
                 collision_lead_heading,
                 (_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
                 (_tvx, _tvy), _vi, _wind_trim)
+            if _t_const is not None:
+                coded_dash_plan_m = _vi * _t_const
         # LOG WHAT WAS APPLIED, NOT WHAT WAS INTENDED (ADR-0090 pattern). The
         # line names the operator's raw reading, the resolved head/crosswind, the
         # MEASURED sag, and the before->after dash speed -- so a re-read months
@@ -3155,6 +3191,7 @@ async def run_acquire_and_engage(
               f"filter rate, no gt)", flush=True)
 
     coded_dash_start_mono = None
+    passage_held_logged = False
     coded_dash_start_sim = None   # sim-clock t at dash entry -- drives the Phase-A
     #  pointing levers (accel-cap ramp + loft dive) AND the --coded-dash-max-s abort
     #  window, so RTF sag can't distort them (CLAUDE.md: durations are sim-clock,
@@ -3783,6 +3820,8 @@ async def run_acquire_and_engage(
             # target is moving through the dash.
             if coded_dash_start_mono is None:
                 coded_dash_start_mono = tick_start
+                if state.pos_n is not None and state.pos_e is not None:
+                    coded_dash_start_ne = (state.pos_n, state.pos_e)
                 coded_dash_start_sim = (sim_clock.t if sim_clock is not None
                                         and sim_clock.t is not None else None)
                 if mover_proc is None:
@@ -4459,12 +4498,36 @@ async def run_acquire_and_engage(
                         args.breakoff_max_range_m is None
                         or meas.range_m <= args.breakoff_max_range_m
                     )
+                    _flown_m = (
+                        math.hypot(state.pos_n - coded_dash_start_ne[0],
+                                   state.pos_e - coded_dash_start_ne[1])
+                        if (coded_dash_start_ne is not None
+                            and state.pos_n is not None and state.pos_e is not None)
+                        else None)
+                    passage_ok = passage_gate_ok(
+                        _flown_m, coded_dash_plan_m, args.breakoff_min_flown_frac)
                     if (
                         not breakoff_reason
                         and breakoff_armed
                         and range_increase_streak >= BREAKOFF_RANGE_INCREASES
                         and range_ok
                         and rise_ok
+                        and not passage_ok
+                        and not passage_held_logged
+                    ):
+                        passage_held_logged = True
+                        print(f"[m4] past-CPA count met but HELD by the passage gate: "
+                              f"flown {_flown_m if _flown_m is None else round(_flown_m, 2)} m "
+                              f"< {args.breakoff_min_flown_frac} x planned "
+                              f"{coded_dash_plan_m if coded_dash_plan_m is None else round(coded_dash_plan_m, 2)} m",
+                              flush=True)
+                    if (
+                        not breakoff_reason
+                        and breakoff_armed
+                        and range_increase_streak >= BREAKOFF_RANGE_INCREASES
+                        and range_ok
+                        and rise_ok
+                        and passage_ok
                     ):
                         breakoff_reason = (
                             f"measured range increased for {range_increase_streak} "

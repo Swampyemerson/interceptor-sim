@@ -306,6 +306,51 @@ these logs cover. Every new speed rung re-earns the threshold OFFLINE from that 
 camera logs (fire-range distributions, legit vs premature) before that rung's verdict counts
 — per the "a threshold validated at one operating point is not validated at another" rule.
 
+### 5b. The first candidate FAILED its offline check; the registered fallback is promoted (2026-09-17, written before any flying)
+
+**The 5.0 m absolute-range gate does not reproduce.** §5 rests on "blocks 6/7 premature, suppresses
+2/24 legitimate, across 27 events". An independent replay written tonight
+(`scripts/forensics/breakoff_gate_replay.py`, 5 self-tests, every arm row bucketed: 56 rows →
+47 judged, 7 never broke off, 2 broke off for another reason, 0 dropped) over seven camera arms
+finds **47** range-increase breakoffs, **9 premature**, and the 5.0 m gate blocks only **5/9** of
+them while suppressing 4/38 legitimate. The four it misses fired at a *measured* range of 1.76,
+1.89, 3.13 and 4.92 m while the target was truly 4–9 m away — the monocular range under-reads
+badly far out (`range_channel_horizon.py`, 2026-09-11), so **any gate built on the measured range
+inherits the fault it is trying to catch.** §3 of this plan required the offline separation to be
+reproduced before the gate flies; it was not, so the gate does **not** fly. Both threshold
+families (per-step rise, absolute range) are now measured out.
+
+**Promoted: the own-state passage test** — *you cannot have passed a target you have not yet flown
+far enough to reach.* `--breakoff-min-flown-frac F`: the range-increase breakoff may fire only
+once the vehicle's own displacement since the dash began (own EKF position) is ≥ F × the
+pre-flight lead solve's own intercept distance. Built tonight, default OFF, truth-tabled,
+fail-closed on a missing input, wiring pinned by test. Honesty: own-state plus a pre-flight
+constant that comes from the same launch cue already declared given (`launch-cue-error-free`);
+nothing about the target is read in flight. Offline on the same 47 events it blocks **9/9
+premature** at F = 0.7, 0.8 and 0.9 alike (largest premature fraction 0.70; smallest clearly
+legitimate 0.80+), and **3/38 legitimate**, all three with closest approach already recorded.
+F = **0.8**, mid-gap. The offline replay uses true position as a stand-in for the EKF's.
+
+**Fleet (seed 123 — the canonical geometry the events came from; HEAD carries issue #9's fix):**
+`AE15N`/`AE15P` (9 m/s, 15° aim error) and `S10N`/`S10P` (10 mph rung). N = gate off, P = gate on
+at 0.8, so #9's effect is not credited to the gate. n = 8 each, sequential, idle load.
+
+**Predictions (same three as §5, restated for this gate; premature = fires, then true range closes
+> 0.5 m more):** (1) premature breakoffs across the 16 P-flights ≤ 1, against ≥ 2 across the 16
+N-flights; (2) no P-flight that the gate holds keeps steering > 2 s past true closest approach;
+(3) at most one P-flight ends by ENGAGE timeout that its N-twin ended by breakoff.
+**Adopt iff all three hold.** Auditor check (f) must read 0 offending ticks on all 32 flights
+(issue #9 observed fixed end-to-end).
+
+**What a NULL means:** if ≥ 2 premature breakoffs survive with the gate ON, the own position or
+the plan distance is not what the offline replay assumed (EKF position vs truth, or the dash
+start latch) — debug that before touching the threshold. If the N-arms show < 2 premature, the
+fleet is underpowered to show anything and says so. The speed ladder stays blocked either way
+until this adopts.
+
+**Portability (binding):** F = 0.8 is earned at 4.5–9 m/s crossing targets with a solved heading.
+An explicit `--dash-heading-deg` has no plan distance, and the gate then fails closed by design.
+
 ---
 
 ## 6. RISKS — and where the issue descriptions are wrong

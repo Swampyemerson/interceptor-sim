@@ -106,6 +106,13 @@ case "$ARM" in
   AE5dashZ) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   # DASH-CLIMB gain A/B (prereg section 10). Control = AE5dashZ, same seed.
   AE5dashZK) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m -0.207 --dash-alt-kp 4 --dash-alt-vmax 1.5"; N=8; DIRS=both;;
+  # PASSAGE-GATE fleet (docs/scoring_fix_plan.md 5b, pre-registered 2026-09-17), on a
+  # HEAD carrying issue #9's fix. P = gate ON at 0.8; N = gate OFF (separates #9's
+  # effect from the gate's). S10 = the 10 mph rung (time-consistent geometry).
+  AE15P)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 --breakoff-min-flown-frac 0.8"; N=8; DIRS=both;;
+  AE15N)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
+  S10P)    EXTRA="$BASE --dash-accel-aware-lead --breakoff-min-flown-frac 0.8"; N=8; DIRS=both; Y0MAG=7.62; TSPEED=4.47;;
+  S10N)    EXTRA="$BASE --dash-accel-aware-lead"; N=8; DIRS=both; Y0MAG=7.62; TSPEED=4.47;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
   AE15dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY"; N=8; DIRS=both;;
   # RESIDUAL-BIAS fine sweep (dash-only): the aim curve measured 0 deg -> 0.71 m,
@@ -162,7 +169,7 @@ UPDIR="$MOUNT_DIR/up$(printf '%02d' "$WEDGE")/mono_cam"
 
 CMD=(scripts/mc_batch.sh
      --mode m4 --laws pronav --path line --geometry standard
-     --x0 6.5 --y0-mag 15.343 --speeds 9.0
+     --x0 6.5 --y0-mag "${Y0MAG:-15.343}" --speeds "${TSPEED:-9.0}"
      --directions "$DIRS" --n "$N" --master-seed "$SEED"
      --extra-args "$EXTRA"
      --out "$OUT")

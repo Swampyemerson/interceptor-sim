@@ -549,3 +549,26 @@ def test_dash_alt_gain_applies_and_vmax_needs_kp():
     assert M4.dash_alt_gain(args, M4.V_VERT_MAX) == (4.0, 1.5)
     args = _args_from_cli(["--dash-alt-vmax", "1.5"])
     assert M4.dash_alt_gain(args, M4.V_VERT_MAX) == (M4.KP_ALT, M4.V_VERT_MAX)
+
+
+# --------------------------------- passage gate (issue #3 fallback, plan 5b) ---
+
+
+def test_passage_gate_truth_table():
+    g = M4.passage_gate_ok
+    assert g(0.1, 8.0, None) is True          # OFF: always allows (byte-identical)
+    assert g(None, None, None) is True
+    assert g(6.3, 8.0, 0.8) is False          # 79% of the way: cannot have passed it
+    assert g(6.4, 8.0, 0.8) is True
+    assert g(None, 8.0, 0.8) is False         # FAIL-CLOSED on a missing own position
+    assert g(6.4, None, 0.8) is False         # ... and on a missing plan
+    assert g(6.4, 0.0, 0.8) is False
+
+
+def test_passage_gate_is_wired_into_the_breakoff_and_default_off():
+    args = _args_from_cli([])
+    assert args.breakoff_min_flown_frac is None
+    src = open(M4.__file__).read()
+    assert src.count("and passage_ok\n                    ):") == 1, "gate not in the trigger"
+    assert "coded_dash_plan_m = dash_ramp_distance(_vi, _lead_accel, _t_lead)" in src
+    assert "coded_dash_start_ne = (state.pos_n, state.pos_e)" in src
