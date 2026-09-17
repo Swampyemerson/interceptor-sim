@@ -892,3 +892,17 @@ printed reference against the flown altitude (PX4 may floor a low takeoff) befor
 **Replication registered before flying:** `TOL5` and `HERRp25` on seed 777. Same prediction: the
 no-error arm ≥ 6/8 inside 0.35 m, the 0.25 m-too-high arm ≤ 1/8, vertical offset shifted by
 0.25 ± 0.03 m.
+
+### 11.2 REPLICATION, seed 777 — the direction replicates; two of my numbers were slightly off
+
+| arm | median closest approach | inside 0.35 m | median vertical offset |
+|---|---|---|---|
+| `TOL5` (no error) | 0.281 m | 6/8 | +0.178 m |
+| `HERRp25` (0.25 m too high) | 0.441 m | **2/8** | +0.384 m |
+
+The no-error arm met its prediction (≥ 6/8). The error arm read 2/8 against a predicted ≤ 1/8, and
+the vertical shift was 0.206 m against a predicted 0.25 ± 0.03 m — both narrowly outside what I
+wrote down, so they are reported as misses, not rounded into agreement. The conclusion does not
+move: a quarter-metre height error takes the adopted config from 13/16 touching to 3/16 across
+the two seeds. (The adopted setting itself has now flown six seeds: 7, 6, 6, 6, 7 and 6 of 8
+inside the contact radius — **38/48**.)
