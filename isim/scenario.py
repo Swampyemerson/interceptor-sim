@@ -381,8 +381,35 @@ def _tag_for(scn: "Scenario", vel_ned: np.ndarray) -> TagParams:
         return TagParams(faces_camera=False, faces_velocity=False,
                          normal_ned=tuple(float(c) for c in side_normal),
                          side_m=scn.tag_side_m)
+    if scn.tag_facing == "rear_dual35":
+        # v6 #D: not a single TagParams -- see `_rear_dual35_tags` and
+        # `build()`'s special-case (a DualTagSeeker of two angled "rear"
+        # tags), raised here only if someone calls `_tag_for` on it directly.
+        raise ValueError("scenario._tag_for: tag_facing='rear_dual35' needs "
+                         "build()'s DualTagSeeker special-case, not a single TagParams")
     raise ValueError(f"scenario.build: tag_facing={scn.tag_facing!r}, want "
-                     f"'camera', 'rear', or 'side'")
+                     f"'camera', 'rear', 'side', or 'rear_dual35'")
+
+
+def _rear_dual35_tags(vel_ned: np.ndarray, tag_side_m: float,
+                      angle_deg: float = 35.0) -> Tuple[TagParams, TagParams]:
+    """v6 #D: two "rear"-like tags, their normals rotated +/-`angle_deg`
+    from the pure rear normal (-unit(vel)) in the HORIZONTAL plane (about
+    the down axis) -- "mounting two rear tags angled +/-35 deg" to relax
+    the single rear tag's narrow low-incidence viewing cone. Rotation
+    reuses the SAME (E,N) clockwise-azimuth formula `build()` uses for
+    `aim_error_deg` (rotating only the north/east components; a "rear"
+    normal's down component is always 0, per `_tag_for`)."""
+    rear_normal = -_unit_or(vel_ned, np.array([1.0, 0.0, 0.0]))
+    n0, e0 = float(rear_normal[0]), float(rear_normal[1])
+    tags = []
+    for sign in (+1.0, -1.0):
+        theta = math.radians(sign * angle_deg)
+        ct, st = math.cos(theta), math.sin(theta)
+        e_r, n_r = e0 * ct + n0 * st, n0 * ct - e0 * st
+        tags.append(TagParams(faces_camera=False, faces_velocity=False,
+                              normal_ned=(n_r, e_r, 0.0), side_m=tag_side_m))
+    return tags[0], tags[1]
 
 
 def _target_geometry(scn: Scenario) -> Tuple[np.ndarray, np.ndarray, Tuple[float, float],
@@ -509,7 +536,6 @@ def build(
                            fy=cam_true.fy * (1.0 + fx_fy_eps),
                            mount_tilt_up_deg=scn.cam_tilt_up_deg + tilt_err_deg)
 
-    tag = _tag_for(scn, vel_ned)
     # v5 #5: tag decode realism -- TRUE seeker parameters only (guidance's
     # own assumed noise model is deliberately left at its fixed, pre-
     # calibrated values; see the module's new Scatter fields' docstrings).
@@ -519,23 +545,37 @@ def build(
         pixel_noise_px = float(rng.uniform(scat.decode_pixel_noise_min_px,
                                            scat.decode_pixel_noise_max_px))
         dec_params = replace(dec_params, p_max=p_max, pixel_noise_px=pixel_noise_px)
-    seeker: SeekerModel = AprilTagSeeker(cam=cam_true, tag=tag, dec=dec_params)
 
-    # v4 #1d/#3 (MEASURE-only hardware ideas -- see isim.concepts.DualTagSeeker):
-    # a second, smaller co-located tag, or a second tag at a different mount
-    # orientation. Mutually exclusive (DualTagSeeker combines exactly two).
-    if scn.inner_tag_side_m is not None and scn.second_tag_facing is not None:
-        raise ValueError("scenario.build: inner_tag_side_m and second_tag_facing "
-                         "are mutually exclusive (DualTagSeeker combines only two)")
-    if scn.inner_tag_side_m is not None:
-        inner_tag = replace(tag, side_m=scn.inner_tag_side_m)
-        inner_seeker = AprilTagSeeker(cam=cam_true, tag=inner_tag, dec=dec_params)
-        seeker = DualTagSeeker(first=seeker, second=inner_seeker)
-    elif scn.second_tag_facing is not None:
-        second_scn = replace(scn, tag_facing=scn.second_tag_facing)
-        second_tag = _tag_for(second_scn, vel_ned)
-        second_seeker = AprilTagSeeker(cam=cam_true, tag=second_tag, dec=dec_params)
-        seeker = DualTagSeeker(first=seeker, second=second_seeker)
+    # v4 #1d/#3 / v6 #D (MEASURE-only hardware ideas -- see
+    # isim.concepts.DualTagSeeker): a second, smaller co-located tag, a
+    # second tag at a different mount orientation, or (v6 #D) two "rear"
+    # tags angled +/-35deg. `inner_tag_side_m`/`second_tag_facing` are
+    # mutually exclusive with EACH OTHER and with `tag_facing="rear_dual35"`
+    # (DualTagSeeker only ever combines two seekers).
+    if scn.tag_facing == "rear_dual35":
+        if scn.inner_tag_side_m is not None or scn.second_tag_facing is not None:
+            raise ValueError("scenario.build: tag_facing='rear_dual35' is mutually "
+                             "exclusive with inner_tag_side_m/second_tag_facing")
+        tag_a, tag_b = _rear_dual35_tags(vel_ned, scn.tag_side_m)
+        tag = tag_a   # for span_m/RealFlightGuidance below (flyby path only)
+        seeker: SeekerModel = DualTagSeeker(
+            first=AprilTagSeeker(cam=cam_true, tag=tag_a, dec=dec_params),
+            second=AprilTagSeeker(cam=cam_true, tag=tag_b, dec=dec_params))
+    else:
+        tag = _tag_for(scn, vel_ned)
+        seeker = AprilTagSeeker(cam=cam_true, tag=tag, dec=dec_params)
+        if scn.inner_tag_side_m is not None and scn.second_tag_facing is not None:
+            raise ValueError("scenario.build: inner_tag_side_m and second_tag_facing "
+                             "are mutually exclusive (DualTagSeeker combines only two)")
+        if scn.inner_tag_side_m is not None:
+            inner_tag = replace(tag, side_m=scn.inner_tag_side_m)
+            inner_seeker = AprilTagSeeker(cam=cam_true, tag=inner_tag, dec=dec_params)
+            seeker = DualTagSeeker(first=seeker, second=inner_seeker)
+        elif scn.second_tag_facing is not None:
+            second_scn = replace(scn, tag_facing=scn.second_tag_facing)
+            second_tag = _tag_for(second_scn, vel_ned)
+            second_seeker = AprilTagSeeker(cam=cam_true, tag=second_tag, dec=dec_params)
+            seeker = DualTagSeeker(first=seeker, second=second_seeker)
 
     if scn.concept == "flyby":
         guidance_kwargs = {} if scn.terminal == "stock" else {"terminal": scn.terminal}

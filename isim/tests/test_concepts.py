@@ -365,7 +365,10 @@ def test_closing_speed_schedule_matches_clamp_formula():
     checked at a range where the schedule is BELOW the ceiling (so the
     along-LOS speed component is exactly k_close*range) and at a range where
     it is clamped to the ceiling."""
-    cfg = PursuitConfig(k_close=0.6, v_close_min_ms=1.5, v_close_max_ms=6.0, kp_lat=0.0)
+    # cam_frame_range_m=0.0 -- disables v6 #A's camera-frame steering, so
+    # this test stays purely about the NED-frame law's closing schedule.
+    cfg = PursuitConfig(k_close=0.6, v_close_min_ms=1.5, v_close_max_ms=6.0, kp_lat=0.0,
+                        cam_frame_range_m=0.0)
     guidance = PursuitRendezvousGuidance(
         cfg, belief_pos0_ned=np.zeros(3), belief_vel_ned=np.array([9.0, 0.0, 0.0]),
         go_at_s=0.0, initial_yaw_deg=0.0)
@@ -373,7 +376,7 @@ def test_closing_speed_schedule_matches_clamp_formula():
     guidance._kf.x = np.array([5.0, 0.0, 0.0, 9.0, 0.0, 0.0])   # range 5 m, vel (9,0,0)
     own = VehicleState(t=0.0, pos_ned=np.zeros(3), vel_ned=np.array([9.0, 0.0, 0.0]),
                       quat_wxyz=yaw_to_quat_wxyz(0.0), yaw_rad=0.0)
-    cmd_v, _yaw = guidance._phase_b_cmd(own, np.zeros(3))
+    cmd_v, _yaw = guidance._phase_b_cmd(0.02, own, np.zeros(3), None)
     # kp_lat=0 and own_vel==kf_vel (v_rel~0, degenerate) -> ref_dir falls back
     # to unit(kf_vel)==los_dir here (target due north), so r_perp==0 exactly;
     # the along-LOS speed is v_target_est[0] + v_close.
@@ -383,7 +386,7 @@ def test_closing_speed_schedule_matches_clamp_formula():
 
     # Far range: schedule clamps to v_close_max_ms.
     guidance._kf.x = np.array([50.0, 0.0, 0.0, 9.0, 0.0, 0.0])
-    cmd_v_far, _ = guidance._phase_b_cmd(own, np.zeros(3))
+    cmd_v_far, _ = guidance._phase_b_cmd(0.02, own, np.zeros(3), None)
     assert cmd_v_far[0] == pytest.approx(9.0 + cfg.v_close_max_ms, abs=1e-6)
 
 
@@ -518,3 +521,129 @@ def test_pursuit_overrides_reach_the_config(vp):
     scn = Scenario(concept="pursuit", pursuit_overrides={"d_behind_m": 12.0}, seed=0)
     _, _, _, _, guidance, _ = build(scn, vp)
     assert guidance.cfg.d_behind_m == pytest.approx(12.0)
+
+
+# ------------------------------------------------------------- v6: #A camera-frame
+
+def test_dir_body_boresight_is_independent_of_attitude():
+    """v6 #A's whole premise: `_dir_body_boresight` takes no quaternion at
+    all -- it is a pure function of bearing/elevation/mount-tilt."""
+    cfg = PursuitConfig()
+    g = PursuitRendezvousGuidance(cfg, belief_pos0_ned=np.zeros(3),
+                                  belief_vel_ned=np.array([1.0, 0.0, 0.0]),
+                                  go_at_s=0.0, initial_yaw_deg=0.0, cam_mount_tilt_up_deg=5.0)
+    det = Detection(t_capture=0.0, t_available=0.0, u_px=1, v_px=1, side_px=20.0,
+                   range_m=3.0, bearing_deg=10.0, elevation_deg=-5.0)
+    dir1 = g._dir_body_boresight(det)
+    dir2 = g._dir_body_boresight(det)   # nothing attitude-related to vary it by
+    np.testing.assert_array_equal(dir1, dir2)
+    # Sanity: bearing>0 (right) -> body Y (right) component > 0.
+    assert dir1[1] > 0.0
+
+
+def test_camera_frame_command_shift_under_attitude_error_does_not_grow_with_range():
+    """v6 #A's claim, checked directly on the camera-frame law alone: the
+    SAME detection (bearing=elevation=0, i.e. dead-on) and the SAME
+    attitude error, at two DIFFERENT ranges (both inside cam_frame_range_m)
+    -- the resulting NED command shift must be driven by the command's own
+    magnitude (bounded, ~sin(attitude error) x |cmd|), NOT by range, unlike
+    the old absolute-frame law where a fixed attitude error's induced
+    POSITION error is range x bias (grows linearly with range)."""
+    def _cmd(range_m, yaw_err_deg):
+        cfg = PursuitConfig(cam_frame_range_m=100.0, kp_cam=1.5)
+        g = PursuitRendezvousGuidance(cfg, belief_pos0_ned=np.zeros(3),
+                                      belief_vel_ned=np.array([9.0, 0.0, 0.0]),
+                                      go_at_s=0.0, initial_yaw_deg=0.0)
+        g._phase = "B"
+        g._kf.x = np.array([range_m, 0.0, 0.0, 9.0, 0.0, 0.0])   # dead ahead, north
+        yaw = math.radians(yaw_err_deg)
+        quat = (math.cos(yaw / 2), 0.0, 0.0, math.sin(yaw / 2))
+        own = VehicleState(t=0.0, pos_ned=np.zeros(3), vel_ned=np.array([9.0, 0.0, 0.0]),
+                          quat_wxyz=quat, yaw_rad=yaw)
+        det = Detection(t_capture=0.0, t_available=0.0, u_px=1, v_px=1, side_px=20.0,
+                       range_m=range_m, bearing_deg=0.0, elevation_deg=0.0)
+        cmd_v, _yaw = g._phase_b_cmd(0.02, own, np.zeros(3), det)
+        return cmd_v
+
+    shift_close = float(np.linalg.norm(_cmd(1.0, 10.0) - _cmd(1.0, 0.0)))
+    shift_far = float(np.linalg.norm(_cmd(4.0, 10.0) - _cmd(4.0, 0.0)))
+    print(f"10deg yaw error, camera-frame law: cmd shift at range=1m -> {shift_close:.3f} m/s, "
+         f"at range=4m -> {shift_far:.3f} m/s (4x range)")
+    # NOT proportional to the 4x range increase (would be ~4x if it were
+    # inheriting the old law's range x bias behaviour); allow some growth
+    # from the feed-forward/closing-speed terms but nowhere near 4x.
+    assert shift_far < 2.0 * shift_close
+
+
+# --------------------------------------------------------------- v6: #B2 bias state
+
+def test_kf_bias_state_does_not_diverge_and_residual_shrinks():
+    """v6 #B2's own spec text warns t_bias "may be weakly observable --
+    report honestly" -- and an isolated KF-only test (target at exactly
+    constant velocity, `own` never appearing in the measurement equation
+    at all, unlike the real simulation) is close to the WORST case for
+    observability: `h(x) = pos - vel*(age+t_bias)` lets a `pos` shift of
+    `+vel*t_bias` mimic `t_bias_hat=0` for any `age_s`. This test only pins
+    that the 7-state filter stays NUMERICALLY WELL-BEHAVED under a real
+    (if partly degenerate) bias -- it does not assert `t_bias` converges
+    to the true value (the honest full-simulation measurement, where own
+    genuinely moves/rotates and can break this degeneracy, is in the
+    task's final report)."""
+    from isim.concepts import _ConstVelKF
+    true_vel = np.array([9.0, 0.0, 0.0])
+    true_pos0 = np.array([10.0, 0.0, -5.0])
+    true_bias_s = 0.030
+    kf = _ConstVelKF(q_accel_ms2=0.5, estimate_ts_bias=True)
+    kf.init(pos=true_pos0, vel=true_vel, p0_pos=3.0, p0_vel=5.0, p0_bias_s=0.05)
+    pos_true_now = true_pos0.copy()
+    rng = np.random.default_rng(0)
+    residuals = []
+    for _ in range(200):
+        kf.predict(0.02)
+        pos_true_now = pos_true_now + true_vel * 0.02
+        believed_age_s = float(rng.uniform(0.01, 0.08))
+        true_age_s = believed_age_s + true_bias_s
+        z = pos_true_now - true_vel * true_age_s + rng.normal(0.0, 0.02, size=3)
+        h = kf.pos - kf.vel * (believed_age_s + kf.bias_s)
+        residuals.append(float(np.linalg.norm(z - h)))
+        kf.update(z, np.eye(3) * (0.02 ** 2), age_s=believed_age_s)
+    print(f"final bias_hat={kf.bias_s * 1000:.1f} ms (true {true_bias_s * 1000:.0f} ms), "
+         f"vel_err={float(np.linalg.norm(kf.vel - true_vel)):.3f} m/s, "
+         f"early residual={np.mean(residuals[:10]):.3f} m, late residual={np.mean(residuals[-10:]):.3f} m")
+    assert np.all(np.isfinite(kf.x)) and np.all(np.isfinite(kf.P))
+    assert abs(kf.bias_s) < 1.0   # stays in a physically sane range, doesn't blow up
+    assert np.mean(residuals[-10:]) <= np.mean(residuals[:10]) + 1e-6   # fit doesn't worsen
+
+
+def test_kf_without_bias_state_is_unaffected_shape_wise():
+    from isim.concepts import _ConstVelKF
+    kf = _ConstVelKF(q_accel_ms2=1.0)   # estimate_ts_bias=False, the default
+    assert kf.n == 6
+    assert kf.bias_s == pytest.approx(0.0)
+    kf.init(pos=np.zeros(3), vel=np.zeros(3), p0_pos=1.0, p0_vel=1.0)
+    assert kf.x.shape == (6,)
+
+
+# ------------------------------------------------------------------- v6: #D dual rear
+
+def test_rear_dual35_builds_two_tags_angled_from_pure_rear(vp):
+    from isim.concepts import DualTagSeeker
+    scn = Scenario(concept="pursuit", tag_facing="rear_dual35", target_speed_ms=9.0,
+                   cross_range_m=6.5, lead_dist_m=16.2, seed=0)
+    _, _, target, seeker, _, _ = build(scn, vp)
+    assert isinstance(seeker, DualTagSeeker)
+    tgt = target.state(20.0)
+    n_a = np.asarray(seeker.first.tag.normal_ned)
+    n_b = np.asarray(seeker.second.tag.normal_ned)
+    pure_rear = -tgt.vel_ned / np.linalg.norm(tgt.vel_ned)
+    ang_a = math.degrees(math.acos(np.clip(np.dot(n_a, pure_rear), -1.0, 1.0)))
+    ang_b = math.degrees(math.acos(np.clip(np.dot(n_b, pure_rear), -1.0, 1.0)))
+    assert ang_a == pytest.approx(35.0, abs=1e-6)
+    assert ang_b == pytest.approx(35.0, abs=1e-6)
+    # opposite sides
+    assert np.dot(n_a, n_b) < np.dot(n_a, pure_rear)
+
+
+def test_rear_dual35_mutually_exclusive_with_other_dual_tag_options(vp):
+    with pytest.raises(ValueError):
+        build(Scenario(concept="pursuit", tag_facing="rear_dual35", inner_tag_side_m=0.08), vp)

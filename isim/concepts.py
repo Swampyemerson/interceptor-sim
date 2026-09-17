@@ -326,6 +326,72 @@ class PursuitConfig:
     yaw_search_amplitude_deg: float = 0.0
     yaw_search_period_s: float = 7.0
 
+    # --- v6 #A: close-in steering in the CAMERA/BODY frame (isim/specs/
+    # pursuit_v6.md). Inside cam_frame_range_m, the lateral/vertical
+    # command is built from the detection's bearing/elevation/range
+    # directly (NO attitude needed to place the tag in the image) rather
+    # than from the attitude-dependent absolute-frame KF; only the FINAL
+    # body->NED rotation (to issue a NED velocity setpoint) touches the
+    # (possibly-perturbed) attitude, which is now a bounded, second-order
+    # rotation of a command rather than a first-order corruption of an
+    # absolute position estimate that WORSENS as range closes.
+    #
+    # MEASURED (n=100 x 2 facings, v5 all-errors-on): NOT the "expected
+    # biggest win" -- mixed and mostly disappointing. A REAL BUG was found
+    # first: the literal spec (yaw = atan2 of the camera-frame offset)
+    # combined with a defensive `max(forward, 1e-6)` clamp created a
+    # discontinuous ~180deg yaw JUMP every time the target's forward
+    # offset crossed zero (an overshoot) -- the vehicle then spun trying
+    # to chase the jump and never recovered (traced directly, seed 0,
+    # tag_facing="camera": yaw commands cycling through the full circle
+    # for 3+ seconds with zero decodes). Fixed (plain `atan2`, no clamp --
+    # see `_phase_b_cmd_camera_frame`), which alone recovered much of the
+    # loss but still left the mechanism net-negative for tag_facing=
+    # "camera" at the literal spec's cam_frame_range_m=5m (49%->48%
+    # pct<=0.35m, i.e. flat/slightly worse). Swept kp_cam
+    # (0/0.75/1.5/3/5) x cam_frame_range_m (1/2/3/5) x the `cam_frame_yaw`
+    # ablation below: the best found combination (kp_cam=0.75,
+    # cam_frame_yaw=False, cam_frame_range_m=2.0) gives camera 49%->55%
+    # (a real but modest +6 point gain) while making REAR WORSE AT EVERY
+    # RADIUS TRIED (68%->50-55%, worse the larger the radius). Net: NOT
+    # adopted as the default (mixed across facings, and rear is the
+    # STRONGER facing in the v5 baseline) -- kept at 0.0 (off); the report
+    # measures "A" with the best-found override
+    # (kp_cam=0.75/cam_frame_yaw=False/cam_frame_range_m=2.0) applied via
+    # `pursuit_overrides`, not as a new default.
+    cam_frame_range_m: float = 0.0
+    kp_cam: float = 1.5              # 1/s, lateral/vertical body-frame gain; 0.75 measured best
+    # Ablation (see cam_frame_range_m's note above for the measured
+    # numbers): False (fall back to the OLD absolute-frame LOS yaw while
+    # still using camera-frame steering for the VELOCITY command) measured
+    # BETTER than True (the literal spec's atan2-based yaw, which remains
+    # geometrically sensitive near a small/negative forward offset even
+    # after the discontinuity bug above was fixed) -- kept True as the
+    # dataclass default (matches the literal spec unless overridden); the
+    # report's "A" config overrides it to False.
+    cam_frame_yaw: bool = True
+
+    # --- v6 #B2: estimate the guidance-visible frame-timestamp bias as a
+    # 7th KF state (see `_ConstVelKF`) instead of trusting the believed
+    # age_s outright.
+    #
+    # MEASURED NEGATIVE (n=100 x 2 facings, v5 all-errors-on, WITH the
+    # measured-best "A" config already applied): camera 55%->41%, rear
+    # 55%->29% -- a clear, uniform regression on TOP of A, not a further
+    # gain. Matches the spec's own warning ("may be weakly observable --
+    # report honestly"): an isolated synthetic KF test (see
+    # `test_kf_bias_state_does_not_diverge_and_residual_shrinks`) shows
+    # `t_bias` is ALGEBRAICALLY DEGENERATE with a constant shift of the
+    # position state (`h(x)=pos-vel*(age+t_bias)`; a `pos` shift of
+    # `+vel*t_bias` mimics `t_bias_hat=0` for ANY age_s) when the target
+    # moves at exactly constant velocity and `own` never otherwise enters
+    # the measurement -- adding a 7th, weakly-observable state to a
+    # 6-state filter that was already only weakly excited (v5's own noise
+    # sources reduce decode density) adds estimation VARIANCE that costs
+    # more than the bias-removal buys. NOT adopted; off by default.
+    estimate_ts_bias: bool = False
+    kf_p0_bias_s: float = 0.030       # s, 1-sigma initial uncertainty on t_bias
+
 
 # ------------------------------------------------------------- Phase A belief
 
@@ -349,32 +415,48 @@ class _BeliefTrack:
 # ------------------------------------------------------------------ Phase B KF
 
 class _ConstVelKF:
-    """6-state (pos, vel) constant-velocity Kalman filter in NED. Q is the
-    standard piecewise-constant-acceleration white-noise-acceleration model;
-    R is supplied per-update by the caller (it depends on that detection's
-    range, per the spec)."""
+    """6-state (pos, vel) constant-velocity Kalman filter in NED, OPTIONALLY
+    extended to a 7th state `t_bias` (v6 #B2 -- isim/specs/pursuit_v6.md):
+    the guidance-visible frame-timestamp bias is unknown but roughly
+    CONSTANT for a run, so it is estimable the same way `_start_phase_b`'s
+    velocity is -- as an extra state the measurement updates refine. Q is
+    the standard piecewise-constant-acceleration white-noise-acceleration
+    model on (pos, vel); R is supplied per-update by the caller."""
 
-    def __init__(self, q_accel_ms2: float) -> None:
+    def __init__(self, q_accel_ms2: float, estimate_ts_bias: bool = False) -> None:
         self.q = q_accel_ms2 ** 2
-        self.x = np.zeros(6)
-        self.P = np.eye(6)
+        self.estimate_ts_bias = estimate_ts_bias
+        self.n = 7 if estimate_ts_bias else 6
+        self.x = np.zeros(self.n)
+        self.P = np.eye(self.n)
 
-    def init(self, pos: np.ndarray, vel: np.ndarray, p0_pos: float, p0_vel: float) -> None:
-        self.x = np.concatenate([np.asarray(pos, dtype=np.float64),
-                                 np.asarray(vel, dtype=np.float64)])
-        self.P = np.diag([p0_pos ** 2] * 3 + [p0_vel ** 2] * 3)
+    def init(self, pos: np.ndarray, vel: np.ndarray, p0_pos: float, p0_vel: float,
+            p0_bias_s: float = 0.030) -> None:
+        parts = [np.asarray(pos, dtype=np.float64), np.asarray(vel, dtype=np.float64)]
+        diag = [p0_pos ** 2] * 3 + [p0_vel ** 2] * 3
+        if self.estimate_ts_bias:
+            parts.append(np.zeros(1))       # no prior belief about the sign/size
+            diag.append(p0_bias_s ** 2)
+        self.x = np.concatenate(parts)
+        self.P = np.diag(diag)
 
     def predict(self, dt: float) -> None:
         if dt <= 0.0:
             return
-        F = np.eye(6)
+        n = self.n
+        F = np.eye(n)
         F[0:3, 3:6] = np.eye(3) * dt
         qpp, qpv, qvv = (dt ** 3 / 3.0) * self.q, (dt ** 2 / 2.0) * self.q, dt * self.q
-        Q = np.zeros((6, 6))
+        Q = np.zeros((n, n))
         Q[0:3, 0:3] = np.eye(3) * qpp
         Q[0:3, 3:6] = np.eye(3) * qpv
         Q[3:6, 0:3] = np.eye(3) * qpv
         Q[3:6, 3:6] = np.eye(3) * qvv
+        # t_bias has NO process noise: it is modelled as a true per-run
+        # constant (a random walk here would let it silently re-absorb
+        # noise the way the position bias in v5 #3 partly, imperfectly,
+        # canceled -- the point of estimating it explicitly is to pin it
+        # down, not to let it wander).
         self.x = F @ self.x
         self.P = F @ self.P @ F.T + Q
 
@@ -382,14 +464,24 @@ class _ConstVelKF:
         # `z_pos` is where the target WAS `age_s` ago (frame capture), while the
         # state is "now": the measurement model is pos - vel*age. Ignoring this
         # makes the estimate trail a 9 m/s target by speed x latency (~0.4 m).
-        H = np.zeros((3, 6))
+        # v6 #B2: `age_s` is the GUIDANCE-BELIEVED age (built from a possibly
+        # timestamp-biased `det.t_capture`); when `estimate_ts_bias`, the TRUE
+        # age is modelled as `age_s + t_bias` and `t_bias` is a 7th state, so
+        # H is linearized (EKF-style) around the CURRENT bias estimate:
+        # h(x) = pos - vel*(age_s + t_bias); dh/dvel = -(age_s+t_bias)*I;
+        # dh/d(t_bias) = -vel (evaluated at the current vel estimate).
+        n = self.n
+        H = np.zeros((3, n))
         H[:, 0:3] = np.eye(3)
-        H[:, 3:6] = -float(age_s) * np.eye(3)
+        eff_age = float(age_s) + (float(self.x[6]) if self.estimate_ts_bias else 0.0)
+        H[:, 3:6] = -eff_age * np.eye(3)
+        if self.estimate_ts_bias:
+            H[:, 6] = -self.x[3:6]
         y = np.asarray(z_pos, dtype=np.float64) - H @ self.x
         S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)
         self.x = self.x + K @ y
-        self.P = (np.eye(6) - K @ H) @ self.P
+        self.P = (np.eye(n) - K @ H) @ self.P
 
     @property
     def pos(self) -> np.ndarray:
@@ -398,6 +490,10 @@ class _ConstVelKF:
     @property
     def vel(self) -> np.ndarray:
         return self.x[3:6].copy()
+
+    @property
+    def bias_s(self) -> float:
+        return float(self.x[6]) if self.estimate_ts_bias else 0.0
 
 
 @dataclass
@@ -461,7 +557,8 @@ class PursuitRendezvousGuidance:
         self._track = _BeliefTrack(self._belief_pos0.copy(), self._belief_vel0.copy(),
                                     self.go_at_s)
         self._phase = "STANDBY"
-        self._kf = _ConstVelKF(self.cfg.kf_q_accel_ms2)
+        self._kf = _ConstVelKF(self.cfg.kf_q_accel_ms2, estimate_ts_bias=self.cfg.estimate_ts_bias)
+        self._cam_offset_body: Optional[np.ndarray] = None   # v6 #A state
         self._decode_positions: List[Tuple[float, np.ndarray]] = []
         self._last_decode_t = -math.inf
         self._prev_v_cmd = np.zeros(3)
@@ -524,6 +621,7 @@ class PursuitRendezvousGuidance:
             if dropout_s > self.cfg.fallback_s and range_est >= self.cfg.no_fallback_range_m:
                 safe_vel = self._sane_fallback_vel(self._kf.vel)
                 self._track = _BeliefTrack(self._kf.pos, safe_vel, t)
+                self._cam_offset_body = None
                 self._phase = "A"
 
         self._set_state("ENGAGE" if self._phase == "B" else "APPROACH", t)
@@ -543,7 +641,7 @@ class PursuitRendezvousGuidance:
             self.debug = PursuitDebug(r_est=pos_belief - own_pos, v_t_est=vel_belief,
                                       phase=self._phase, last_decode_t=self._last_decode_t)
         else:
-            cmd_v, yaw = self._phase_b_cmd(own, own_pos)
+            cmd_v, yaw = self._phase_b_cmd(dt, own, own_pos, det)
             accel_h, accel_v = self.cfg.accel_max_horiz_b_ms2, self.cfg.accel_max_vert_b_ms2
             self.debug = PursuitDebug(r_est=self._kf.pos - own_pos, v_t_est=self._kf.vel,
                                       phase=self._phase, last_decode_t=self._last_decode_t)
@@ -623,8 +721,28 @@ class PursuitRendezvousGuidance:
 
     # ------------------------------------------------------------- Phase B law
 
-    def _phase_b_cmd(self, own: VehicleState, own_pos: np.ndarray) -> Tuple[np.ndarray, float]:
-        """v2 (pursuit_concept_v2.md #2/#3):
+    def _phase_b_cmd(self, dt: float, own: VehicleState, own_pos: np.ndarray,
+                     det: Optional[Detection]) -> Tuple[np.ndarray, float]:
+        """Dispatch: `hold_range_m` freeze, then CAMERA-FRAME steering
+        (v6 #A) inside `cam_frame_range_m`, else the original NED-frame law
+        (v2-v4). `cam_frame_range_m` is compared against the ABSOLUTE-FRAME
+        filter's own `range_est` -- v6 #A keeps that filter running for far
+        range and for the target-velocity feed-forward, per the spec."""
+        cfg = self.cfg
+        kf_pos, kf_vel = self._kf.pos, self._kf.vel
+        r_est = kf_pos - own_pos
+        range_est = float(np.linalg.norm(r_est))
+        if range_est < cfg.hold_range_m:
+            return self._prev_v_cmd.copy(), self._prev_yaw_deg   # "fly through"
+        if range_est < cfg.cam_frame_range_m:
+            return self._phase_b_cmd_camera_frame(dt, own, own_pos, det, kf_vel, range_est)
+        self._cam_offset_body = None   # re-entry later always re-seeds fresh
+        return self._phase_b_cmd_ned_frame(own, own_pos, kf_pos, kf_vel, r_est, range_est)
+
+    def _phase_b_cmd_ned_frame(self, own: VehicleState, own_pos: np.ndarray,
+                               kf_pos: np.ndarray, kf_vel: np.ndarray, r_est: np.ndarray,
+                               range_est: float) -> Tuple[np.ndarray, float]:
+        """v2 (pursuit_concept_v2.md #2/#3), used OUTSIDE `cam_frame_range_m`:
 
         v_close = clamp(k_close*range_est, v_close_min_ms, v_close_max_ms)
         v_cmd   = v_target_est + v_close*unit(r_est) + kp_lat*r_perp
@@ -642,12 +760,6 @@ class PursuitRendezvousGuidance:
         itself is the last-resort fallback (guaranteeing r_perp=0, i.e. no
         lateral term, rather than a divide-by-~0 direction)."""
         cfg = self.cfg
-        kf_pos, kf_vel = self._kf.pos, self._kf.vel
-        r_est = kf_pos - own_pos
-        range_est = float(np.linalg.norm(r_est))
-        if range_est < cfg.hold_range_m:
-            return self._prev_v_cmd.copy(), self._prev_yaw_deg   # "fly through"
-
         los_dir = _unit(r_est, np.array([1.0, 0.0, 0.0]))
         v_close = float(np.clip(cfg.k_close * range_est, cfg.v_close_min_ms, cfg.v_close_max_ms))
 
@@ -668,24 +780,109 @@ class PursuitRendezvousGuidance:
         yaw = _yaw_toward(r_est, self._prev_yaw_deg)
         return cmd_v, yaw
 
+    def _phase_b_cmd_camera_frame(self, dt: float, own: VehicleState, own_pos: np.ndarray,
+                                  det: Optional[Detection], kf_vel: np.ndarray,
+                                  range_est: float) -> Tuple[np.ndarray, float]:
+        """v6 #A (isim/specs/pursuit_v6.md): steer on the tag's position IN
+        THE IMAGE, not on an attitude-dependent absolute-frame position
+        difference. An attitude bias rotates every NED-converted
+        measurement by (bias x range), and that error GROWS as range
+        closes -- worse, a filter reads the CHANGE as target velocity. The
+        tag's body-frame offset (from bearing/elevation/range) needs no
+        attitude at all; only the FINAL body->NED rotation (to issue a NED
+        setpoint) touches the (possibly-perturbed) attitude, and that is
+        now a bounded, SECOND-ORDER rotation of a command, not a growing
+        first-order corruption of a position estimate.
+
+        `self._cam_offset_body` (FRD: forward, right, down) is:
+          - RECOMPUTED exactly from a fresh detection's bearing/elevation/
+            range (no attitude);
+          - else PROPAGATED using the relative body-frame velocity (own's
+            own velocity and the filter's target-velocity feed-forward,
+            BOTH rotated into body via the CURRENT attitude -- attitude
+            error here is a per-tick rotation of a SHORT-lived integration,
+            not a compounding absolute-position bias);
+          - else (very first tick in this regime, no detection yet) seeded
+            ONCE from the absolute-frame filter (an attitude-dependent
+            seed, but a one-time one, not an ongoing corruption source).
+
+        Command: body-frame forward = the filter's forward feed-forward +
+        the EXISTING closing schedule (`k_close*range_est`, from the
+        absolute-frame filter, per the spec); body-frame lateral/vertical =
+        the filter's feed-forward + `kp_cam * offset`. The whole body-frame
+        vector is rotated to NED by the (possibly-perturbed) attitude --
+        the ONLY place attitude enters this command."""
+        cfg = self.cfg
+        r_bn = quat_to_rot(own.quat_wxyz)   # CURRENT (possibly perturbed) attitude
+
+        if det is not None:
+            dir_body = self._dir_body_boresight(det)
+            self._cam_offset_body = det.range_m * dir_body
+        elif self._cam_offset_body is None:
+            self._cam_offset_body = r_bn.T @ (self._kf.pos - own_pos)
+        else:
+            own_vel_body = r_bn.T @ np.asarray(own.vel_ned, dtype=np.float64)
+            v_ff_body = r_bn.T @ kf_vel
+            self._cam_offset_body = self._cam_offset_body + (v_ff_body - own_vel_body) * dt
+
+        v_ff_body = r_bn.T @ kf_vel
+        v_close = float(np.clip(cfg.k_close * range_est, cfg.v_close_min_ms, cfg.v_close_max_ms))
+        cmd_body = v_ff_body + np.array([v_close,
+                                        cfg.kp_cam * self._cam_offset_body[1],
+                                        cfg.kp_cam * self._cam_offset_body[2]])
+        cmd_ned = r_bn @ cmd_body
+        if not cfg.cam_frame_yaw:
+            # ABLATION (measured -- see the task's final report): fall back
+            # to the OLD, absolute-frame LOS yaw. `_dir_body_boresight`-based
+            # yaw is sensitive to atan2 near a small/negative forward offset
+            # (an overshoot, or a target that has passed abeam) -- a real,
+            # continuous geometric sensitivity (fixed the discontinuous
+            # version of this bug below), not just a tuning artifact; this
+            # flag lets the VELOCITY command benefit from camera-frame
+            # steering (v6 #A) while the YAW command keeps using the
+            # (attitude-dependent, but empirically steadier) absolute-frame
+            # law from v2-v4.
+            r_est = self._kf.pos - own_pos
+            return cmd_ned, _yaw_toward(r_est, self._prev_yaw_deg)
+        # BUG FOUND BY MEASUREMENT (v6, see the task's final report): clamping
+        # the forward component to a tiny POSITIVE floor before atan2 (instead
+        # of just calling atan2, which already handles negative x correctly)
+        # forced a ~180deg yaw DISCONTINUITY every time the target's body-
+        # forward offset crossed zero (e.g. on an overshoot) -- the vehicle
+        # then span trying to chase the artificial jump, corrupting the
+        # attitude the propagation step (above) itself depends on, and never
+        # recovered. `atan2(y, x)` alone is continuous and correct for a
+        # target BEHIND the vehicle (x<0) too; only true (0,0) is degenerate,
+        # guarded by `_unit`'s fallback via the offset's own norm instead.
+        offset_body = self._cam_offset_body
+        if float(np.linalg.norm(offset_body[:2])) < 1e-6:
+            yaw = self._prev_yaw_deg
+        else:
+            yaw = math.degrees(own.yaw_rad) + math.degrees(
+                math.atan2(offset_body[1], offset_body[0]))
+        return cmd_ned, yaw
+
     # --------------------------------------------------------------- KF glue
 
-    def _dir_ned(self, quat_wxyz: Tuple[float, float, float, float],
-                det: Detection) -> np.ndarray:
-        """Unit LOS direction in NED from bearing/elevation (camera-relative,
-        per `isim.types.Detection`), the nominal camera mount tilt, and an
-        attitude quaternion -- the same body-relative bearing/elevation ->
-        direction construction `isim.stubs.PursuitGuidance` uses, extended
-        by the mount-tilt rotation `isim.seeker.CameraParams` applies (this
-        guidance never touches the seeker's true camera). v3 #1: the caller
-        passes the quaternion AT `det.t_capture` (interpolated from the own-
-        state ring buffer), never the quaternion at arrival."""
+    def _dir_body_boresight(self, det: Detection) -> np.ndarray:
+        """Mount-tilt-corrected boresight direction in body FRD -- v6 #A:
+        ATTITUDE-INDEPENDENT by construction. Only `det.bearing_deg`/
+        `elevation_deg` (camera-relative) and the FIXED, always-correctly-
+        known camera mount tilt are used; no vehicle attitude at all."""
         b, e = math.radians(det.bearing_deg), math.radians(det.elevation_deg)
         dir_boresight = np.array([math.cos(e) * math.cos(b), math.cos(e) * math.sin(b),
                                   -math.sin(e)])
         ct, st = math.cos(self._mount_tilt_rad), math.sin(self._mount_tilt_rad)
         ry = np.array([[ct, 0.0, st], [0.0, 1.0, 0.0], [-st, 0.0, ct]])
-        dir_body = ry @ dir_boresight
+        return ry @ dir_boresight
+
+    def _dir_ned(self, quat_wxyz: Tuple[float, float, float, float],
+                det: Detection) -> np.ndarray:
+        """Unit LOS direction in NED: `_dir_body_boresight` (attitude-
+        independent) rotated into NED by an attitude quaternion. v3 #1: the
+        caller passes the quaternion AT `det.t_capture` (interpolated from
+        the own-state ring buffer), never the quaternion at arrival."""
+        dir_body = self._dir_body_boresight(det)
         r_bn = quat_to_rot(quat_wxyz)
         return _unit(r_bn @ dir_body, dir_body)
 
@@ -739,7 +936,8 @@ class PursuitRendezvousGuidance:
         there as real decodes accumulate."""
         pos0 = self._decode_positions[-1][1]
         _, vel0 = self._track.at(t)
-        self._kf.init(pos0, vel0, self.cfg.kf_p0_pos_m, self.cfg.kf_p0_vel_ms)
+        self._kf.init(pos0, vel0, self.cfg.kf_p0_pos_m, self.cfg.kf_p0_vel_ms,
+                     p0_bias_s=self.cfg.kf_p0_bias_s)
         self._last_decode_t = self._decode_positions[-1][0]
         self._phase = "B"
 
