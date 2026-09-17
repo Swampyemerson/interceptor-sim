@@ -47,3 +47,4 @@ pymavlink==2.4.49  # ArduPilot .BIN DFReader -- scripts/field_score.py's --self-
 # .venv-seeker so they EXECUTE instead of `importorskip`-ing. One merged
 # environment would silently re-merge those two stages into one.
 # scripts/pi_setup/requirements-pi.txt is the aarch64 (Pi 5) field-day set.
+scipy==1.18.1  # isim/fit_vehicle.py (least_squares); fit tooling only, not flight code
