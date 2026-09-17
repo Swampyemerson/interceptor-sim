@@ -393,6 +393,14 @@ gate-off twin did not; timeouts ≤ 1). Adopt iff seed 777 meets all three AND s
 miss stays the only one across the 32 gate-ON flights. Anything else: not adopted, and the speed
 ladder runs with the breakoff disabled and the timeout as backstop, disclosed as a sim concession.
 
+**LOAD CONTAMINATION, MY ERROR (2026-09-17 ~07:33–07:38Z).** While the seed-777 replication was
+flying I ran pytest and then the full `scripts/run_tests.sh` on the same machine; 1-minute load
+reached 7.1 against the ≤ 1.5 the batches are gated on. That overlapped the end of `AE15N` and the
+start of `AE15P`. The idle-load rule exists because load changes the sim's real-time factor and
+the detector's cadence (ADR-0015 2nd addendum). **Both seed-777 `AE15` arms are DISCARDED unread and
+re-flown after the fleet ends**; `S10N`/`S10P` flew with nothing else running. Process fix for the
+rest of the session: no test suite and no bulk log analysis while a batch is in the air.
+
 ---
 
 ## 6. RISKS — and where the issue descriptions are wrong

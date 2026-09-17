@@ -1,5 +1,13 @@
 ### 2026-08-10
 
+Three questions that had been sitting in the Waiting-on-You list are now answered, so the list is EMPTY for the first time. Retire the old demo videos. Regulatory and site: settled — the builder owns the ~50-acre site, so the FRIA-field question never applied. The second transmitter is NOT already ordered, so it becomes something to buy rather than something to check.
+
+**So what:** The board stops asking. Five stale contract lines that still described the site as an open FAA/Remote-ID problem were rewritten to match the ruling, and two more demo cuts were retired than the question named — the honesty fix to the video generator landed 2026-07-25, so EVERY cut rendered on 07-07 carries the misleading 1.5 m caption, not just the two that were flagged.
+
+*Evidence: docs/regulatory_site_capture.md - demo_out/retired_2026-08-10/README.md - ADR-0089 - build_demo.py fix 759e9b0*
+
+### 2026-08-10
+
 The evidence behind two finished bench steps was sitting on ONE microSD card. skr-07's soak results (96.6 / 38.2 / 6.09 fps) and skr-05's session meta (994 us applied exposure, spec met) are quoted all over this contract but had never been copied off the Pi. Both are now in the repo. The Pi's own checkout was also 16 days stale -- including the whole field-day scoring chain -- and carried 461 stray file copies from an old session.
 
 **So what:** A dead SD card would have turned published numbers into unsourced claims. Every stray file was checked against the real repo before deletion, and the 445 MB training set was moved to the path the scripts read, not deleted. The Pi now matches the repo exactly. Camera calibration itself is still not done.

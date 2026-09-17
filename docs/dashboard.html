@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->226eb1a<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->7392dfe<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1169,9 +1169,9 @@
    ],
    "key_numbers": [],
    "test": {
-    "how": "A CANDIDATE FIX ALREADY EXISTS IN THE CODEBASE (found by red-team 2026-07-26): --breakoff-max-range-m (m4_intercept.py:2169, default off, documented deployment value 5.0 m under --fpv) gates on the ABSOLUTE range at which the breakoff fires -- a different signal from the rise MAGNITUDE the dead-band measurement ruled out. Across 27 events the distributions separate: 20/22 legitimate breakoffs fire at 1.60-2.40 m, 6/7 premature ones above 3.1 m. Setting 5.0 blocks 6/7 premature (every catastrophic r2l flight) and suppresses 2/24 legitimate, both AFTER CPA was recorded (costs the miss metric nothing). NEXT: one paired A/B arm, ~50 min. NOT a design project.",
+    "how": "The 5 m absolute-range gate FAILED an independent offline replay (blocks 5 of 9 early quits, not 6 of 7 -- four fire at a measured 1.8-4.9 m while the target is truly 4-9 m away). Promoted instead: the own-motion passage gate (--breakoff-min-flown-frac 0.8), offline 9/9 blocked, in flight 5/16 -> 1/16 and 4/8 -> 0/8. Adoption waits on the clean re-fly (docs/scoring_fix_plan.md 5b-5c).",
     "cost": "A build + one paired sim batch",
-    "status": "not_run"
+    "status": "running"
    },
    "state": "violated",
    "ruling": "Confound logged same turn; NULL verdicts survive even crediting both bad flights to the camera (4/8 vs a 6/8 bar), but margins are unquantifiable until fixed — the '0.853 vs 0.730 m' margin claim is retracted as stated.",
@@ -1417,6 +1417,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-09-17",
+   "text": "Overnight, on the two defects that made every camera-vs-sprint comparison unquotable. (1) After the sprint, a brief camera dropout made the vehicle command a full stop while closing at ~13 m/s -- a one-line bug, now fixed, with a new automatic check that finds it in the old logs and finds zero cases in 64 new flights. (2) The 'we have passed it' quit trigger fired early on about a third of slow camera flights. The fix the plan had lined up (ignore the trigger beyond 5 m measured range) failed its own offline check when I re-ran it independently, because the measured range is the broken quantity. The plan's fallback -- you cannot have passed a target you have not flown far enough to reach -- cut early quits from 5 of 16 to 1 of 16, and 4 of 8 to 0 of 8 on a second seed.",
+   "so_what": "With the early quits gone the camera flights got NO closer (10 mph median 0.84 m before, 1.00 m after, against 0.73 m for the sprint alone). That matters: the early quit was the one defect only the camera flights could suffer, and it was the standing excuse for why the camera had not beaten the sprint. The excuse is mostly gone and the result stands. The gate itself is not adopted yet -- one clause of the criterion I wrote failed by the letter, and I contaminated two replication arms by running tests while they flew; both are being re-flown.",
+   "evidence": "docs/scoring_fix_plan.md 5b-5c - scripts/forensics/breakoff_gate_replay.py - commits d95c787, 3e1a475, c75bfb8"
+  },
+  {
    "date": "2026-09-16",
    "text": "Pre-registered and flew the height fix on the adopted sprint-only setup: 32 flights, two fresh seeds, each flight paired with a twin that differs only in flying height. Inside touching distance went from 2 of 16 to 13 of 16. Before flying, caught that one of our own documents had the direction backwards (it said the vehicle passes below the target; the logs say above) -- a fix built from that sentence would have doubled the error.",
    "so_what": "This is the first time most flights meet the project's own kill distance -- but it is a best case, not a kill claim: the camera is off, and the sim knows the target's path and height exactly. A real target's height is a guess, and the camera terminal still cannot steer up or down, so that guess would go straight into the miss. Also done today: Pixhawk GPS + compass verified on the bench, Pi moved to the new Wi-Fi, test suite fixed to run the same everywhere.",
@@ -1481,12 +1487,6 @@
    "text": "A correction on top of a correction. Tonight's headline was that the kill-radius scorer measured to the camera and that fixing it turned 0 of 16 flights into 12 of 16. That was WRONG, and it is now retracted. The '+0.208 m camera offset' it rested on was never a camera offset -- it came from subtracting a height-above-takeoff from a height-above-the-world, which measures the LANDING GEAR. The camera actually sits about 2 mm above the airframe centre.",
    "so_what": "The real correction is small and sideways, not large and vertical: 3 of 16 becomes 5 of 16, from interpolating between samples. So nothing has reliably reached contact range yet -- the honest headline did not change. And the finding this briefly cast doubt on is confirmed: the interceptor flies about 0.37 m LOW, which is now essentially the whole miss, on a vehicle whose targeting math is 2-D horizontal by design.",
    "evidence": "scripts/rescore_cpa.py - docs/rescore_2026-08-10.md - 168 flights, 36,276 rows, 0 dropped"
-  },
-  {
-   "date": "2026-08-10",
-   "text": "Three questions that had been sitting in the Waiting-on-You list are now answered, so the list is EMPTY for the first time. Retire the old demo videos. Regulatory and site: settled — the builder owns the ~50-acre site, so the FRIA-field question never applied. The second transmitter is NOT already ordered, so it becomes something to buy rather than something to check.",
-   "so_what": "The board stops asking. Five stale contract lines that still described the site as an open FAA/Remote-ID problem were rewritten to match the ruling, and two more demo cuts were retired than the question named — the honesty fix to the video generator landed 2026-07-25, so EVERY cut rendered on 07-07 carries the misleading 1.5 m caption, not just the two that were flagged.",
-   "evidence": "docs/regulatory_site_capture.md - demo_out/retired_2026-08-10/README.md - ADR-0089 - build_demo.py fix 759e9b0"
   }
  ],
  "narrative": {
