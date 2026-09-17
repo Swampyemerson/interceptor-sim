@@ -176,3 +176,8 @@ log forensics, fitting against flight logs, the contract and all judgment.
   contact-radius question for the builder (0.5 m radius = ~80%).
   Worker lane: one Sonnet worker carried 6 rounds (context intact via SendMessage); specs in
   `isim/specs/`. NEXT SESSION: builder ruling on ADR-0103 -> port to flight code -> Gazebo.
+- 2026-09-17 (hybrid): builder ruled HYBRID; built (`concept="hybrid"`) and measured: fly-by 7% /
+  hybrid 46% / pursuit 82% nominal (fx 385, all errors, rear tag). Hybrid NOT recommended; back
+  to the builder. Bench done by workers: Kakute logs cleared, Pi frame timing (14.3 ms, 0.6 ms
+  jitter, `runs/frame_timing/`), TV calibration tool (`scripts/bench/calib_live.py`, untested
+  against a real screen). Nominal lens is now fx 385 (118 deg HFOV per the order log).

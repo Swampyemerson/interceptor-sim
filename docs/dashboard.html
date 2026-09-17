@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->d375eb2<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->9b59067<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-09-17",
- "updated_by": "Fable head: builder ruled hybrid (fly-by then slow arrival); lens corrected to 118 deg",
+ "updated_by": "Fable head: hybrid measured -- loses to slow arrival alone; bench items done",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -914,11 +914,11 @@
  },
  "now": {
   "as_of": "2026-09-17",
-  "where": "Builder ruling: a hybrid -- sprint-and-fly-by first, then a rapid turn-around into a slow arrival if it misses. Contact radius stays 0.35 m; two tags on the target are fine. All of this is simulator work so far; nothing is in the flight code or Gazebo yet.",
-  "finding": "With the camera actually ordered (118 degree lens) and realistic sensor errors, the slow arrival touches the target on 82% of nominal runs, 75% with the target 2 m higher, 59% with 20 degrees of aim error. The fly-by alone: 6%.",
+  "where": "The hybrid the builder asked for (sprint fly-by, then turn-around into a slow arrival) was built in the simulator and it loses to the slow arrival alone. Simulator only; nothing is in the flight code or Gazebo yet.",
+  "finding": "Touching the target (0.35 m), realistic errors, real 118 degree lens, rear tag: fly-by 7%, hybrid 46% (the first pass connects 2% of the time), slow arrival 82%. With 20 degrees of aim error: 0%, 0%, 59%. The crossing sprint leaves the vehicle about 5 m worse placed.",
   "next": [
-   "Build the hybrid in the simulator (fly-by, then turn-around to slow arrival); improve the fly-by",
-   "Bench, handled by Claude: Pi frame timing, TV-based camera calibration tool, Kakute log clear"
+   "Builder: choose -- slow arrival alone (recommended), or keep a sprint that aims BEHIND the target",
+   "Claude: port slow arrival to the flight code and cross-check in Gazebo once chosen"
   ],
   "evidence": "ADR-0103 - isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
  },
@@ -1418,6 +1418,12 @@
  "plain_log": [
   {
    "date": "2026-09-17",
+   "text": "Built the hybrid in the simulator as ruled and measured it against the other two on the same 6,600 runs. The opening sprint almost never touches a 9 m/s crossing target (first-pass contact 0-2%) and costs position: at the moment it turns around it is about 10.6 m from the target where the slow arrival is already at 5.6 m. Hybrid only wins against slow targets (80-84% at hover).",
+   "so_what": "The slow arrival already contains a fast leg -- it flies at up to 16 m/s to get behind the target. The part that does not pay is aiming that fast leg ACROSS the target's path. Bench this week: Kakute log card cleared (488 logs), Pi frame timing measured (14 ms, 0.6 ms jitter), TV calibration tool ready, lens corrected to 118 degrees from the order log.",
+   "evidence": "isim/specs/hybrid_v7.md - isim/concepts.py - runs/frame_timing/ - scripts/bench/"
+  },
+  {
+   "date": "2026-09-17",
    "text": "Tried to break the pursuit result on purpose. With perfect self-knowledge it scored 92-98% inside 0.35 m; adding realistic errors took it to 49% (tag facing camera) and 68% (rear tag), and to 22-26% at double the errors. One at a time: frame-timestamp error 68/88%, attitude error 76/90%, position drift 81/95%, worse tag decoding 77/98%, velocity error no cost. A weaving target: 45% and 22%.",
    "so_what": "The 92-98% was a best case and is labelled as one. The two things that matter most are measurable on the bench: how accurately the Pi timestamps a frame against the flight controller's clock, and attitude accuracy. Both also have software answers that are next in the simulator.",
    "evidence": "isim/ownstate.py - isim/specs/pursuit_hardening_v5.md - ADR-0103"
@@ -1481,12 +1487,6 @@
    "text": "My own instrument was wrong and it flipped a conclusion. The '+0.320 m of dash altitude drift, 66% of the vertical miss, the error is delivered by the dash' finding was measured against a baseline that included the TAKEOFF -- and altitude reads zero on the ground, so most of that number was the vehicle leaving the pad. Measured properly the dash drifts -0.019 m: essentially nothing. The vertical error is 23% a datum mismatch that exists before the dash starts, 10% dash, and 66% accumulated after the camera takes over. The altitude trim I built last turn addresses the 10%. Also found: a quarter of the post-handoff term is the camera swinging on its boom, not the aircraft moving, and the terminal throws away its altitude hold whenever the camera blinks. That last one is a real bug, fixed behind a default-off flag -- but I cannot claim it explains the miss, because the same code also slams the horizontal from 16 m/s to a dead stop on exactly the same ticks, and the flights that kept their altitude hold climbed anyway.",
    "so_what": "The dash altitude trim is a 10% lever, not the fix. The cheapest win is the datum mismatch: 23% of the vertical error exists before the vehicle moves and a one-line scenario change removes it. Nothing flew; no simulator ran this session.",
    "evidence": "scripts/forensics/vertical_miss_anatomy.py (19 self-tests, mutation-verified); ADR-0099 second addendum; docs/vertical_channel_prereg.md section 8"
-  },
-  {
-   "date": "2026-09-10",
-   "text": "Measured two things the project had been assuming. The vehicle is off-altitude at the closest point on every single one of the 24 flights whose per-tick data is in the repo, and most of that is altitude it loses or gains during the sprint itself. And the sprint closes on the target at about 17.6 m/s while the purchase gate for the airframe assumes 9.",
-   "so_what": "The up-and-down error is made during the sprint, so it has to be fixed there -- which is now built and switched off, waiting on a number measured from the right set of flights. The camera terminal has almost no time to fix anything on the AprilTag setup, so my previous answer that it had plenty was wrong and is corrected. And the airframe gate looks about twice as optimistic as it should be, which is worth checking before spending.",
-   "evidence": "ADR-0099; scripts/forensics/{vertical_miss_anatomy,handoff_closing_speed}.py; docs/vertical_channel_prereg.md"
   }
  ],
  "narrative": {
