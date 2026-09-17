@@ -790,3 +790,27 @@ channel the only real fix.
 - `KP_ALT = 1.0` and `V_VERT_MAX = 0.5` were tuned for hover-and-approach at walking speeds; this
   changes them only inside CODED_DASH. ACQUIRE/ENGAGE keep the stock values.
 - Both arms are dash-only, so the breakoff defect reaches neither.
+
+### 10.8 RESULT, seed 321 (2026-09-17) — criterion MET; replication on seed 654 launched under the same criterion
+
+| | A: adopted (`AE5dashZ`) | B: + `--dash-alt-kp 4 --dash-alt-vmax 1.5` |
+|---|---|---|
+| TRUE height error at closest approach, median | **+0.271 m** | **−0.031 m** |
+| pairs where B's height error is smaller | — | **8/8** |
+| median horizontal (lens, logged tick) | 0.276 m | 0.261 m |
+| primary ruler (centre, interpolated): inside 0.35 m | 6/8 | 7/8 |
+| … median closest approach | 0.273 m | **0.192 m** |
+| height-error sign changes inside the sprint (ringing guard: >2) | — | 1–2 on every flight |
+| lowest TRUE height of any B flight (guard: <0.10 m) | — | 0.21 m |
+| largest push-down/up command | ≤0.35 m/s | 0.79–1.05 m/s |
+
+All three ADOPT conditions met. **Better than predicted** (+0.10…+0.15 m predicted, −0.03 m
+got), and the reason is partly luck, so it is written down: in arm B the vehicle's own estimate
+reads **−0.137 m** at closest approach while the truth is −0.031 m. The estimator's lag (~0.10 m
+here, larger than the 5–8 cm seen in arm A) happens to cancel most of what the stiffer loop
+over-corrects. **The loop is steering the estimate, not the truth; landing near zero is not a
+designed property** and should not be expected to hold at another speed, pitch or sprint length.
+
+With the vertical error gone, **what is left is horizontal**, and it is scatter, not bias:
+per-flight 0.009–0.49 m in arm B. That is the launch-aim term, and it is the one the camera
+terminal is supposed to earn its place on.
