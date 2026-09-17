@@ -3830,8 +3830,14 @@ async def run_acquire_and_engage(
                 if alt_m is not None else 0.0
             )
             _h = math.radians(coded_dash_heading_deg)
-            cmd = (_dash_v * math.cos(_h), _dash_v * math.sin(_h),
-                   v_down, coded_dash_heading_deg)
+            # ISSUE #9 (fixed 2026-09-17): this branch built `cmd` and never wrote
+            # `last_cmd`, so a camera dropout on the first ENGAGE ticks -- where the
+            # near-range handler re-issues `last_cmd` "to hold through a brief loss"
+            # -- re-issued the (0, 0, 0, 0) INITIALISER instead: a full stop while
+            # closing at ~13 m/s (24 ticks across 5/16 flights on the G20 arm). The
+            # dash command is now what gets held. Mirrors the S2 DASH branch.
+            cmd = last_cmd = (_dash_v * math.cos(_h), _dash_v * math.sin(_h),
+                              v_down, coded_dash_heading_deg)
             # HANDOFF PLAUSIBILITY GATE (add #18f): a NEW detector result only
             # advances the acquire streak if its implied range is inside the
             # pre-flight-plausible window -- rejects the own-prop phantom (implies

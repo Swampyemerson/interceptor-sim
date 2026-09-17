@@ -111,9 +111,9 @@ what each check returned, so "N/N passed (a)/(b)/(c)" can no longer be printed
 for a run in which (c) gated on zero flights.
 
 Exit code: 0 if every audited flight passes the gating checks it could run
-((a)/(b)/(c)/(e); SKIPPED flights don't count either way, (d) never gates) --
+((a)/(b)/(c)/(e)/(f); SKIPPED flights don't count either way, (d) never gates) --
 a PASS_PARTIAL run still exits 0 but says so in the banner; 1 if any audited
-flight FAILS (a)/(b)/(c)/(e) (only in --strict mode, the default); 2 on a usage error or a
+flight FAILS (a)/(b)/(c)/(e)/(f) (only in --strict mode, the default); 2 on a usage error or a
 missing/unreadable arm CSV / flight CSV (a file-existence problem, as
 distinct from an audit finding a dishonest flight); 3 if any arm's verdict
 is VACUOUS -- zero flights were actually scored (every flight SKIPPED, or
@@ -267,7 +267,7 @@ DASH_PHASES = ("DASH", "CODED_DASH")
 # (no bound separates honest from leaking at this sample size) and is
 # deliberately absent. Anything listed here that did not return PASS/FAIL on a
 # given flight makes that flight PASS_PARTIAL, never PASS.
-GATING_CHECKS = ("a", "b", "c", "e")
+GATING_CHECKS = ("a", "b", "c", "e", "f")
 
 
 def audit_flight_csv(csv_path, law):
@@ -763,6 +763,65 @@ def audit_flight_csv(csv_path, law):
         "n_zerocmd_all": n_zerocmd_all,
     }
 
+    # ---- (f) a dropout must never re-issue the ZERO INITIALISER -- FAIL-able -
+    # Issue #9 (2026-09-17). m4_intercept.py's near-range dropout handler holds
+    # `last_cmd` through a brief detection loss. The --coded-dash branch never
+    # wrote `last_cmd`, so a dropout on the first ENGAGE ticks re-issued the
+    # module initialiser (0, 0, 0, 0): a full stop while still closing. Check
+    # (e) could not see it -- it only looks at DETECTED ticks and fails above
+    # 50%; this defect lives on UNDETECTED ticks and was 24 ticks over 5/16
+    # flights. The initialiser is recognisable: all four command fields are
+    # exactly zero, INCLUDING yaw (the deliberate far-range stop commands the
+    # current heading, which is essentially never 0.000).
+    # "pre-CPA" here = before the tick of minimum gt_range (scoring-side use of
+    # ground truth, which is what an auditor is for).
+    f_need = ("cmd_vn", "cmd_ve", "cmd_vd", "cmd_yaw_deg", "gt_range", "detected")
+    if any(c not in cols for c in f_need):
+        result["checks"]["f"] = {
+            "result": "WARN",
+            "detail": "missing column(s) for (f): "
+                      + ", ".join(c for c in f_need if c not in cols),
+        }
+    else:
+        ranged = [(i, float(r["gt_range"])) for i, r in enumerate(rows)
+                  if r.get("gt_range")]
+        cpa_i = min(ranged, key=lambda t: t[1])[0] if ranged else -1
+        n_f_pop = n_f_zero = 0
+        for i, r in enumerate(rows[:max(cpa_i, 0)]):
+            if r.get("phase") != "ENGAGE" or r.get("detected") == "1":
+                continue
+            try:
+                c4 = [float(r[k]) for k in ("cmd_vn", "cmd_ve", "cmd_vd", "cmd_yaw_deg")]
+            except (TypeError, ValueError):
+                continue
+            n_f_pop += 1
+            if all(abs(v) < 1e-9 for v in c4):
+                n_f_zero += 1
+        result.setdefault("counts_f", {}).update(
+            {"n_f_pop": n_f_pop, "n_f_zero": n_f_zero})
+        if n_f_pop == 0:
+            # n = 0 is a real PASS here, not a vacuous one: (f) asserts "this
+            # flight did not suffer the defect", and a flight with no dropout
+            # tick gave the defect no opportunity. (Contrast (e), which asserts
+            # the terminal DID something and so cannot pass on zero ticks.)
+            result["checks"]["f"] = {
+                "result": "PASS",
+                "detail": "no undetected pre-CPA ENGAGE ticks (n=0) -- the defect "
+                          "had no opportunity on this flight",
+            }
+        elif n_f_zero:
+            ok = False
+            detail = (f"{n_f_zero}/{n_f_pop} pre-CPA ENGAGE dropout ticks re-issued "
+                      "the (0,0,0,0) INITIALISER -- a full stop while closing "
+                      "(issue #9: the dash branch never wrote last_cmd)")
+            result["checks"]["f"] = {"result": "FAIL", "detail": detail}
+            result["fail_reasons"].append("(f) " + detail)
+        else:
+            result["checks"]["f"] = {
+                "result": "PASS",
+                "detail": f"0/{n_f_pop} pre-CPA ENGAGE dropout ticks were the zero initialiser",
+            }
+
     # ---- (d) residual-leak, ADVISORY ONLY -- never gates pass/fail --------
     # See check_s2.sh's own comment block above its (d) for the full
     # calibration reasoning (ported verbatim in spirit): offline over every
@@ -941,7 +1000,7 @@ def print_flight_table(records):
 
 def arm_verdict(records_for_arm):
     """PASS only if every non-SKIPPED, non-ERROR flight in the arm PASSed
-    EVERY gating check -- (a)/(b)/(c)/(e) -- AND at least one flight was
+    EVERY gating check -- (a)/(b)/(c)/(e)/(f) -- AND at least one flight was
     actually scored. A flight that failed nothing but had a gating check
     WARN-skip is PASS_PARTIAL and makes the ARM PASS_PARTIAL: the arm did not
     fail, and it also was not fully checked, and those are different facts.
@@ -1173,7 +1232,7 @@ def main(argv=None):
 
     if any_fail:
         print("[audit_per_tick] FAIL: at least one arm has a flight that "
-              "failed a gating check (a)/(b)/(c)/(e).")
+              "failed a gating check (a)/(b)/(c)/(e)/(f).")
         return 1
 
     if any_vacuous:
@@ -1192,12 +1251,12 @@ def main(argv=None):
         print(f"[audit_per_tick] PASS_PARTIAL: {n_scored}/{n_scored} audited "
               f"flights failed NO gating check, but {n_partial_total} of them "
               f"had at least one check that never gated (see the PASS_PARTIAL "
-              f"detail above) -- this run did NOT verify (a)/(b)/(c)/(e) on "
+              f"detail above) -- this run did NOT verify (a)/(b)/(c)/(e)/(f) on "
               f"every flight ({n_skip_total} SKIPPED aborts excluded, "
               f"(d) advisory-only).")
         return 0
     print(f"[audit_per_tick] PASS: {n_scored}/{n_scored} audited "
-          f"flights passed every gating check (a)/(b)/(c)/(e) "
+          f"flights passed every gating check (a)/(b)/(c)/(e)/(f) "
           f"({n_skip_total} SKIPPED aborts excluded, (d) advisory-only).")
     return 0
 

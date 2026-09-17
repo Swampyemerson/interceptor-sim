@@ -147,7 +147,7 @@ def test_an_honest_flight_is_untouched(tmp_path):
     assert res["status"] == "PASS", res["fail_reasons"]
     assert res["checks"]["e"]["result"] == "PASS"
     assert res["counts"]["n_zerocmd"] == 0
-    assert res["gated_checks"] == ["a", "b", "c", "e"]
+    assert res["gated_checks"] == ["a", "b", "c", "e", "f"]
     assert res["ungated_checks"] == []
 
 
@@ -219,7 +219,7 @@ def test_cli_on_an_honest_arm_still_exits_zero(tmp_path):
         for k, fp in enumerate(flights)])
     r = _cli(arm)
     assert r.returncode == 0, r.stdout
-    assert "passed every gating check (a)/(b)/(c)/(e)" in r.stdout
+    assert "passed every gating check (a)/(b)/(c)/(e)/(f)" in r.stdout
 
 
 # --- 3. the latched-coast exclusion (2026-07-25, first re-fly arm) ----------
@@ -360,3 +360,65 @@ def test_c_lifts_azimuth_across_multiple_lambda_windings(tmp_path):
     c = res["checks"]["c"]
     assert c["result"] == "PASS", c
     assert "0.99" in c["detail"] or "1.000" in c["detail"], c["detail"]
+
+
+# ------------------------------------------------ check (f), issue #9 -------
+# A dropout tick that re-issues the (0,0,0,0) INITIALISER is a full stop while
+# closing. The fixture is the honest-flight writer above with dropout rows
+# spliced in, so the schema still comes from the producer.
+
+
+def _with_dropout_rows(src, dst, zero_initialiser):
+    rows = list(csv.DictReader(open(src)))
+    cols = list(rows[0].keys())
+    eng = [i for i, r in enumerate(rows) if r["phase"] == "ENGAGE"]
+    assert len(eng) > 6, "fixture has too few ENGAGE rows to splice into"
+    for i in eng[1:4]:                       # early ENGAGE = pre-CPA
+        rows[i]["detected"] = "0"
+        if zero_initialiser:
+            for k in ("cmd_vn", "cmd_ve", "cmd_vd", "cmd_yaw_deg"):
+                rows[i][k] = "0.0000"
+        else:
+            # what the fixed code holds: the previous real command, real heading
+            rows[i]["cmd_yaw_deg"] = "37.000"
+    with open(dst, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        w.writerows(rows)
+    return dst
+
+
+def _honest_csv(tmp_path):
+    # reuse whichever honest-flight writer this file already defines
+    for name in ("write_honest_flight", "write_real_flight", "write_zerocmd_flight"):
+        fn = globals().get(name)
+        if fn is not None:
+            p = str(tmp_path / "base.csv")
+            if name == "write_zerocmd_flight":
+                fn(p, n_zero=0, n_real=20)
+            else:
+                fn(p)
+            return p
+    raise AssertionError("no flight writer found in this test module")
+
+
+def test_f_fails_on_a_dropout_that_reissues_the_zero_initialiser(tmp_path):
+    bad = _with_dropout_rows(_honest_csv(tmp_path), str(tmp_path / "bad.csv"), True)
+    res = audit_per_tick.audit_flight_csv(bad, "pronav")
+    assert res["checks"]["f"]["result"] == "FAIL", res["checks"]["f"]
+    assert res["status"] == "FAIL"
+    assert res["counts_f"]["n_f_zero"] == 3
+
+
+def test_f_passes_when_the_dropout_holds_a_real_command(tmp_path):
+    ok = _with_dropout_rows(_honest_csv(tmp_path), str(tmp_path / "ok.csv"), False)
+    res = audit_per_tick.audit_flight_csv(ok, "pronav")
+    assert res["checks"]["f"]["result"] == "PASS", res["checks"]["f"]
+    assert res["counts_f"] == {"n_f_pop": 3, "n_f_zero": 0}
+
+
+def test_issue9_fix_is_wired_into_the_coded_dash_branch():
+    """NOT INERT: the dash branch must write last_cmd at the site that builds cmd."""
+    src = open(os.path.join(os.path.dirname(audit_per_tick.__file__),
+                            "m4_intercept.py")).read()
+    assert src.count("cmd = last_cmd = (_dash_v * math.cos(_h)") == 1
