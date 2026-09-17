@@ -814,3 +814,39 @@ designed property** and should not be expected to hold at another speed, pitch o
 With the vertical error gone, **what is left is horizontal**, and it is scatter, not bias:
 per-flight 0.009–0.49 m in arm B. That is the launch-aim term, and it is the one the camera
 terminal is supposed to earn its place on.
+
+### 10.9 REPLICATION, seed 654 (2026-09-17) — vertical confirmed, but the HORIZONTAL clause REJECTS. NOT ADOPTED.
+
+| seed | true height error A → B | pairs B smaller | median horizontal A → B | inside 0.35 m (primary ruler) A → B |
+|---|---|---|---|---|
+| 321 | +0.271 → −0.031 m | 8/8 | 0.276 → 0.261 m | 6/8 → 7/8 |
+| 654 | +0.286 → −0.053 m | 8/8 | 0.275 → **0.347 m** | 6/8 → **4/8** |
+
+The vertical effect is as solid as anything this project has measured: 16/16 pairs, both seeds
+within 2 cm of each other. But §10.5 says REJECT if the median horizontal worsens by more than
+0.05 m, and on seed 654 it worsened by 0.072 m and cost two contacts. One seed adopts, one
+rejects → **not adopted**. The criterion was written to stop exactly this trade being waved
+through.
+
+**Why it happens (mechanism evidence, pooled over both seeds, n = 8 per cell):**
+
+| | pitch at closest approach | speed at closest approach | cross-range error (left-to-right flights) |
+|---|---|---|---|
+| A | −43° | 11.5 m/s | −0.06 m |
+| B | **−36°** | 11.1 m/s | **+0.29 m** |
+
+Pushing down harder changes the sprint itself: the vehicle flies ~7° less nose-down and a
+little slower, so on left-to-right flights it stops ~0.3 m short of the target's track.
+Right-to-left flights are unaffected (+0.08 → −0.04 m). Pooled horizontal medians: left-to-right
+0.27 → 0.41 m, right-to-left 0.29 → 0.25 m. The launch aim was solved for the OLD sprint
+profile; change the sprint and the aim no longer fits. This is the same coupling the project
+already knows from the accel-cap arms ("the aim must be co-sized with the dash").
+
+**What this means, in order:**
+1. The vertical and horizontal problems are **not independent** on this vehicle — a fix to one
+   moves the other. Any future vertical lever must be flown with the aim re-derived for the
+   sprint it produces, and judged on the 3-D result.
+2. Next arm (not yet registered): `AE5dashZK` with the lead re-solved for the measured B
+   profile. Until then the adopted config stays `AE5dashZ` (ADR-0100).
+3. The left/right asymmetry keeps showing up in every table today (climb, pitch, cross-range).
+   It deserves its own look before more levers are stacked on it.
