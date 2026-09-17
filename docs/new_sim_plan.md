@@ -148,3 +148,11 @@ log forensics, fitting against flight logs, the contract and all judgment.
   smallest true misses (unexplained). Specs: `isim/specs/pursuit_concept*.md`.
   **Next: v4 (height offsets, last second, aim cliff) -> 90% -> ADR + builder decision -> port
   to flight code (real_flight's fly-by breakoff logic must change) -> Gazebo cross-check.**
+- 2026-09-17 (late): **pursuit 92-98% inside 0.35 m nominal after the delayed-measurement fix**
+  (estimate trailed the target by speed x 45 ms). Grid in ADR-0103 (PROPOSED, builder decides).
+  Reproduce: scratch `grid5.py` pattern = `run_many([Scenario(seed=s, scatter=Scatter(),
+  concept="pursuit", cam_fx_px=933, cam_tilt_up_deg=12, tag_facing=...)])`.
+  **Hardening queue (in order): own-state noise (attitude 1-2 deg, velocity 0.2 m/s) + frame
+  timestamp error (+/-20 ms) in Scatter; manoeuvring/weaving target; target-below with a
+  camera-facing tag (tag leaves the frame -- try tilt 0-6 deg or approach from below);
+  rear-tag aim cliff; then port to flight code + Gazebo cross-check.**

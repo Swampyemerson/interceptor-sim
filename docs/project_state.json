@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-09-17",
-  "updated_by": "Fable head: fly-by concept shown to be the limit in isim; pursuit prototype at 55-71%",
+  "updated_by": "Fable head: pursuit concept passes most of the sweep in isim; ADR-0103 proposed",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-09-17",
-    "where": "The new simulator works and reproduces last night's flights. In it, the sprint-and-fly-by concept cannot meet the requirement: at ~19 m/s closing the camera gets about 0.6 s of tag. A slow-arrival 'pursuit' concept is being developed in its place.",
-    "finding": "Pursuit prototype, with honest scatter, 100 runs per case: 9 m/s crossing target 55-71% inside 0.35 m and 97-100% inside 1 m; a 30 degree aim error barely matters (53%). Today's fly-by flight code scores 6% and 0%. Not yet at the 90% bar; height offsets are the weak axis.",
+    "where": "In the new simulator, a slow-arrival 'pursuit' engagement passes most of the robustness sweep; the sprint-and-fly-by concept cannot. This is a proposal (ADR-0103) awaiting the builder, and the numbers are simulator best-case until own-state noise and a Gazebo cross-check are added.",
+    "finding": "Pursuit, honest scatter, 100 runs per case: 92-98% inside 0.35 m nominal; 91-96% with 10-30 degrees of aim error (tag facing camera); 85-90% with the target 1-3 m higher. Weak: target below with a camera-facing tag (54-67%), rear tag with aim error of 20 degrees or more.",
     "next": [
-      "Get pursuit to 90%: last-second tag loss, target 2 m above/below, rear-tag aim cliff",
-      "Then: builder decision on the concept change, port to flight code, Gazebo cross-check"
+      "Builder: read ADR-0103 (slow-arrival pursuit replaces the fly-by) and decide",
+      "Harden the result: own-state noise, timestamp error, manoeuvring target, then a Gazebo cross-check"
     ],
-    "evidence": "isim/concepts.py - isim/specs/pursuit_concept_v3.md - docs/new_sim_plan.md - commits c55ec82, 8dc72c1"
+    "evidence": "ADR-0103 - isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
   },
   "assumptions": [
     {
@@ -521,6 +521,12 @@
   "plain_log": [
     {
       "date": "2026-09-17",
+      "text": "The pursuit prototype went from 55-71% to 92-98% inside 0.35 m from one fix: a tag detection says where the target WAS when the frame was taken (45 ms earlier), and the filter was treating it as now, so the estimate trailed a 9 m/s target by 0.4 m. A per-tick estimator trace (the diagnostics the new simulator was built for) showed the constant lag in one look, after a worker's six tuning ideas had all come back null.",
+      "so_what": "A bad sprint and a target at a different height now mostly do not matter in the simulator. It is written up as a proposal (ADR-0103) because it changes the flight profile, the flight code's breakoff logic and where the tag goes. The simulator's own-state is perfect, so treat the numbers as best-case until noise is added and Gazebo agrees.",
+      "evidence": "commit 'isim pursuit: delayed-measurement Kalman update' - ADR-0103"
+    },
+    {
+      "date": "2026-09-17",
       "text": "In the new simulator the fly-by concept was shown to be the limit, not the steering law: a purpose-built tag terminal scored the same as the old one, because a 0.30 m tag is readable for only ~0.6 s at 19 m/s closing. A slow-arrival pursuit concept (match the target's speed, close at a few m/s) went from 0% to 55-71% inside 0.35 m over three worker rounds; each round's gain came from a bug the new per-miss diagnostics exposed (run scored at the wrong moment, estimator seeded from noise, detection paired with the wrong instant of attitude).",
       "so_what": "A bad sprint stops mattering (30 degrees of aim error: 53% vs 0%). Height offsets and the last second, when the tag leaves the picture, are what is left. A longer lens made it worse, not better, at this geometry. If pursuit reaches 90% it changes the flight profile and tag placement, which is the builder's call.",
       "evidence": "isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
@@ -584,12 +590,6 @@
       "text": "The builder asked why a late camera adjustment cannot save a slightly-off aim, since he has watched exactly that happen on video. Checked it properly. He is right that nothing in the physics forbids it, and the reason it has never happened here is that the camera terminal has no up-and-down steering at all: it holds a preset height and throws away the target's measured elevation on every single frame.",
       "so_what": "The miss we cannot close is 0.37 m vertical against 0.17 m sideways, so the guidance is blind to about 82% of it, and closing the vertical part alone would already be inside the 0.35 m contact radius. A vertical channel was DECIDED in ADR-0085 and never written; it is not in this contract or the queue. So 'the camera does not beat a well-aimed dash' describes the arms we flew, not what a camera can do.",
       "evidence": "contradiction terminal-vertical-channel-decided-not-built; docs/vertical_channel_analysis.md"
-    },
-    {
-      "date": "2026-08-29",
-      "text": "Target flight controller brought up end to end over USB: ArduPilot flashed after a full chip erase, all 44 settings written AND read back to confirm they landed, and the board proved it writes a flight log we can pull off it without touching the SD card. Its own start-up banner names the same firmware build we flashed.",
-      "so_what": "The first pass reported '23 of 23 written' and looked perfect -- four settings had not actually taken. Only reading them back caught it. The log still has no position track because no GPS is wired, so that gate stays open.",
-      "evidence": "runs/tgt02_bench/summary.json; commit d191d50"
     }
   ],
   "narrative": {
