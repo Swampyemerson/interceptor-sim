@@ -139,3 +139,12 @@ log forensics, fitting against flight logs, the contract and all judgment.
   the state machine's breakoff logic, tag placement on the target (rear/side facing) and makes
   lens focal length a first-order choice.
   Process note: long worker prompts get cut off -- put specs in `isim/specs/*.md`.
+- 2026-09-17 (night): **pursuit concept v3: 55-71% inside 0.35 m, 97-100% inside 1 m** (scatter on,
+  n=100, fx 933, tilt 12; `python -m isim.mc sweep ... --concept pursuit --tag-facing rear|camera`).
+  30 deg aim error: 53% (fly-by: 0%). Weak axes: target +/-2 m (16% at -2 m), rear tag beyond
+  ~20 deg aim error (never engages), last-second tag loss (52% of camera-facing misses).
+  fx 1400 is WORSE than 933 here (half the frames in view). Gains came from three bugs the
+  per-miss diagnostics exposed. Open oddity: worst estimator errors at CPA occur on the
+  smallest true misses (unexplained). Specs: `isim/specs/pursuit_concept*.md`.
+  **Next: v4 (height offsets, last second, aim cliff) -> 90% -> ADR + builder decision -> port
+  to flight code (real_flight's fly-by breakoff logic must change) -> Gazebo cross-check.**

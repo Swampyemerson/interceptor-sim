@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-09-17",
-  "updated_by": "Fable head: isim built, passes A0 replay; baseline requirement sweep recorded",
+  "updated_by": "Fable head: fly-by concept shown to be the limit in isim; pursuit prototype at 55-71%",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-09-17",
-    "where": "The new simulator (isim) is built and passes its first test: it reproduces last night's sprint-only misses arm by arm (within 0.08-0.18 m per flight across 13 arms). It runs the real flight code and flies about 5,000 engagements a minute.",
-    "finding": "Run through it, today's flight code hits inside 0.35 m almost nowhere: at full sprint the camera never takes over (nose-down pitch hides the target), and with no sprint the camera terminal alone misses by about 5 m. That is the honest starting line for the guidance work.",
+    "where": "The new simulator works and reproduces last night's flights. In it, the sprint-and-fly-by concept cannot meet the requirement: at ~19 m/s closing the camera gets about 0.6 s of tag. A slow-arrival 'pursuit' concept is being developed in its place.",
+    "finding": "Pursuit prototype, with honest scatter, 100 runs per case: 9 m/s crossing target 55-71% inside 0.35 m and 97-100% inside 1 m; a 30 degree aim error barely matters (53%). Today's fly-by flight code scores 6% and 0%. Not yet at the 90% bar; height offsets are the weak axis.",
     "next": [
-      "Add honest run-to-run scatter to isim, then build the camera terminal (sideways AND vertical)",
-      "Pass the requirement sweep at 90% inside 0.35 m, then cross-check the winner in Gazebo on 2+ seeds"
+      "Get pursuit to 90%: last-second tag loss, target 2 m above/below, rear-tag aim cliff",
+      "Then: builder decision on the concept change, port to flight code, Gazebo cross-check"
     ],
-    "evidence": "isim/replay_a0.py - isim/fits/vehicle_gazebo_x500.json - isim/mc.py - docs/new_sim_plan.md"
+    "evidence": "isim/concepts.py - isim/specs/pursuit_concept_v3.md - docs/new_sim_plan.md - commits c55ec82, 8dc72c1"
   },
   "assumptions": [
     {
@@ -521,6 +521,12 @@
   "plain_log": [
     {
       "date": "2026-09-17",
+      "text": "In the new simulator the fly-by concept was shown to be the limit, not the steering law: a purpose-built tag terminal scored the same as the old one, because a 0.30 m tag is readable for only ~0.6 s at 19 m/s closing. A slow-arrival pursuit concept (match the target's speed, close at a few m/s) went from 0% to 55-71% inside 0.35 m over three worker rounds; each round's gain came from a bug the new per-miss diagnostics exposed (run scored at the wrong moment, estimator seeded from noise, detection paired with the wrong instant of attitude).",
+      "so_what": "A bad sprint stops mattering (30 degrees of aim error: 53% vs 0%). Height offsets and the last second, when the tag leaves the picture, are what is left. A longer lens made it worse, not better, at this geometry. If pursuit reaches 90% it changes the flight profile and tag placement, which is the builder's call.",
+      "evidence": "isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
+    },
+    {
+      "date": "2026-09-17",
       "text": "New simulator built in a day by worker agents plus the head: vehicle model fitted to 345 of last night's flights, a camera-and-AprilTag model from the Pi bench numbers, an adapter that drives the unmodified flight code, and a Monte-Carlo runner. Replaying last night's sprint commands through it gives the same misses as Gazebo (aim-tolerance curve 1.03/0.68/0.43/0.31/0.43/0.73/1.27 m against 1.20/0.71/0.40/0.24/0.42/0.74/1.34 m measured; height error passes straight through, +0.42 m against +0.39 m).",
       "so_what": "It found two things on the way. The replay tool had a timing bug (now fixed) that would have hidden everything. And the Gazebo vehicle slides about half a metre sideways during the hard acceleration -- which is why last night's best aim was 5 degrees off-centre. One number in the model was tuned to that curve; six other arms it never saw still match. The baseline sweep says today's flight code passes almost nowhere, so the terminal is the work.",
       "evidence": "commit 8dc72c1 - isim/replay_a0.py - docs/new_sim_plan.md"
@@ -584,12 +590,6 @@
       "text": "Target flight controller brought up end to end over USB: ArduPilot flashed after a full chip erase, all 44 settings written AND read back to confirm they landed, and the board proved it writes a flight log we can pull off it without touching the SD card. Its own start-up banner names the same firmware build we flashed.",
       "so_what": "The first pass reported '23 of 23 written' and looked perfect -- four settings had not actually taken. Only reading them back caught it. The log still has no position track because no GPS is wired, so that gate stays open.",
       "evidence": "runs/tgt02_bench/summary.json; commit d191d50"
-    },
-    {
-      "date": "2026-08-29",
-      "text": "Wind gate flown for the first time. It found two defects in the measurement path before it could answer its own question, then answered it: Gazebo applies the wind force almost exactly (5.259 deg measured vs 5.262 deg derived) — our own driver was cancelling it, because the fix for an earlier bug clears the force on a different topic than it publishes it, with no ordering guarantee.",
-      "so_what": "The wind arm is PARKED by builder ruling, but the answer is banked and the fix written down, so unparking costs a read rather than a re-derivation. A frozen-instrument bug nearly made the probe condemn working code.",
-      "evidence": "ADR-0098; logs/wind_gate0_20260829T155141Z; logs/wrench_diag_20260829_partial"
     }
   ],
   "narrative": {
