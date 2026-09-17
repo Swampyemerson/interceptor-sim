@@ -652,3 +652,44 @@ It also sharpens the prediction for this config, in writing before the flight:
   the past-closest-approach breakoff defect cannot reach either arm.
 - **Whatever it shows is a BEST-CASE number**: it leans on the target's exactly-known height
   (assumption `target-height-known`, grade given-perfect).
+
+### 9.13 RESULT, seed 456 (2026-09-16) — criterion MET; replication on seed 789 launched under the SAME criterion
+
+Both arms dash-only (0 ENGAGE ticks on 16/16 flights, so the breakoff defect reached neither).
+Arm B's run log printed `Altitude reference: 0.293 m`, so the lever was live. Scored with the
+project's primary ruler (`scripts/rescore_cpa.py`, airframe centre, interpolated):
+
+| | A: adopted config | B: + `--alt-ref-offset-m -0.207` |
+|---|---|---|
+| median closest approach | **0.563 m** | **0.215 m** |
+| inside the 0.35 m contact radius | **1/8** | **7/8** |
+| median vertical offset at closest approach (lens, logged tick) | +0.412 m (above) | +0.185 m (above) |
+| median horizontal (lens, logged tick) | 0.287 m | 0.114 m |
+
+Paired by seed, B is closer on **8/8** flights (0.657→0.257, 0.541→0.148, 0.581→0.335,
+0.392→0.173, 0.567→0.494, 0.313→0.073, 0.559→0.298, 0.643→0.144). Median vertical fell
+0.227 m against the 0.207 m commanded — §9.6's bar was ≥6/8 and ≥0.10 m. **ADOPT, pending the
+seed-789 replication** (launched before this section was written; its criterion is §9.6,
+unchanged, and a failure there overrides this).
+
+**What did NOT go as predicted, and is not explained:**
+- **Horizontal got better too (0.287 → 0.114 m). §9.5 predicted "unchanged".** I do not have
+  a mechanism. Candidates, none tested: at ~17 m/s closing and 20 Hz logging the vehicle moves
+  ~0.85 m per tick, so "horizontal at the 3-D-closest tick" is not the horizontal closest
+  approach and a big vertical offset shifts which tick is picked; or flying 0.2 m lower changes
+  the dash itself. Until that is explained, quote the 3-D number and do not claim a horizontal gain.
+- **The control is worse than the seeds the 0.37 figure came from** (vertical +0.41 vs +0.35;
+  1/8 vs 3/16 inside). Same config, different seed — run-to-run spread, or something changed
+  since July. The replication's control arm is the check.
+- **The vehicle still ends ~0.19 m high**, because it CLIMBS during the dash: estimated altitude
+  at closest approach is 0.57–0.78 m against a 0.50 m reference in arm A, at **−41° to −45° of
+  pitch** (the new attitude columns — first time this has been visible). Left-to-right flights
+  climb more (0.74–0.78 m) than right-to-left (0.57–0.65 m). That is the next ~0.2 m, and it is
+  what `dash_alt_trim_m` was built for.
+- One arm-B flight (#4, 0.494 m) carries the scorer's `yaw-check 25.9 deg` flag and barely
+  improved. Counted, not dropped.
+
+**Scope, so this cannot be over-read:** n = 8, one seed, sim only, camera OFF, launch aim
+solved from the target's exactly-known path, target height exactly known
+(`launch-cue-error-free`, `target-height-known` — both given-perfect). It is a BEST-CASE UPPER
+BOUND on a ballistic pass, not a camera-guided kill.
