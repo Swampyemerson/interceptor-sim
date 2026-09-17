@@ -18,7 +18,8 @@ The camera has not beaten a well-aimed blind dash at any speed or aim error test
 **New 2026-09-16 (ADR-0100):** the vehicle had been flying ~0.4 m ABOVE the target — its height
 scale starts at its landing gear, the target's at the ground. With the two lined up, sprint-only
 flights inside the 0.35 m contact radius went **2/16 → 13/16** (paired, two fresh seeds,
-pre-registered). That is a **best-case upper bound, not a kill claim**: camera off, and the sim
+pre-registered) — **and only while the launch aim is within about ±1° of optimum** (seven-point
+curve, two seeds: ~0.1 m of miss per degree, 0/8 inside at 5° off). That is a **best-case upper bound, not a kill claim**: camera off, and the sim
 knows the target's path AND height exactly. Without the fix the best config was 3/16 logged,
 5/16 interpolated (`docs/rescore_2026-08-10.md`, which retracted an interim 12/16 claim). The
 launch-aim and target-height givens are both declared in the assumptions register; the cue-error

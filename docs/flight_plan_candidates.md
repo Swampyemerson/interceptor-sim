@@ -1419,3 +1419,13 @@ to be. One seed, azimuth only, every other given still perfect.
 medians within ±0.12 m of seed 123's 0.65 / 0.35 / 0.47 / 0.75 m, and the inside-0.35 m counts
 ordered the same way. If the V's bottom moves by more than ~2.5° between seeds, the "±1°"
 statement is a one-seed artefact and must be withdrawn from the contract.
+
+### REPLICATION, seed 777 — the V holds (2026-09-17)
+
+| aim error | 0° | +2.5° | +7.5° | +10° |
+|---|---|---|---|---|
+| seed 123 median / inside 0.35 m | 0.65 m, 1/8 | 0.35 m, 4/8 | 0.47 m, 2/8 | 0.75 m, 0/8 |
+| seed 777 median / inside 0.35 m | 0.74 m, 0/8 | 0.40 m, 4/8 | 0.45 m, 1/8 | 0.82 m, 0/8 |
+
+Every median within the registered ±0.12 m, the counts ordered the same way, the bottom of the V
+in the same place. The "about ±1° for most flights, ±2° for half" statement stands on two seeds.

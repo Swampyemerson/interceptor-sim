@@ -110,7 +110,9 @@ Hailo NPU**; **prop clearance is a geometry problem**, not a software one.
   the vehicle's height scale starts at its landing gear, the target's at the ground —
   and lining them up moved sprint-only flights inside the contact radius from **2/16 to
   13/16** (paired, two seeds, pre-registered). Best case only: camera off, target path
-  and height known exactly. ADR-0085
+  and height known exactly — **and only while the launch aim is within about ±1° of its
+  optimum** (measured the same night: ~0.1 m of miss per degree; 4/8 at 2.5° off, 0/8 at
+  5° off; `docs/flight_plan_candidates.md`). ADR-0085
   *decided* a camera-driven vertical channel in July and no code was ever written.
   So "the camera does not beat a well-aimed dash" is a fact about arms whose
   guidance was structurally blind to the dominant error term. It is **not** evidence
