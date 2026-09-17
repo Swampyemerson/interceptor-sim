@@ -572,3 +572,30 @@ def test_passage_gate_is_wired_into_the_breakoff_and_default_off():
     assert src.count("and passage_ok\n                    ):") == 1, "gate not in the trigger"
     assert "coded_dash_plan_m = dash_ramp_distance(_vi, _lead_accel, _t_lead)" in src
     assert "coded_dash_start_ne = (state.pos_n, state.pos_e)" in src
+
+
+# ------------------------------- predicted-LOS yaw (docs/pointing_prereg.md) ---
+
+
+def test_predicted_los_yaw_geometry_and_fallbacks():
+    f = M4.predicted_los_yaw_deg
+    # target due NORTH of a vehicle that has not moved -> azimuth 0
+    assert f((0.0, 10.0), (0.0, 0.0), 0.0, (0.0, 0.0), 54.0) == pytest.approx(0.0)
+    # target due EAST -> +90 (compass, atan2(east, north))
+    assert f((10.0, 0.0), (0.0, 0.0), 0.0, (0.0, 0.0), 54.0) == pytest.approx(90.0)
+    # the target MOVES: 6.5 m east, starting 15 m north, 9 m/s southward, after 1 s
+    assert f((6.5, 15.0), (0.0, -9.0), 1.0, (0.0, 0.0), 54.0) == pytest.approx(
+        math.degrees(math.atan2(6.5, 6.0)))
+    # own displacement is subtracted
+    assert f((6.5, 15.0), (0.0, -9.0), 1.0, (6.5, 0.0), 54.0) == pytest.approx(0.0)
+    # FALLBACKS: a missing input or a degenerate geometry returns the dash heading
+    assert f((6.5, 15.0), (0.0, -9.0), None, (0.0, 0.0), 54.0) == 54.0
+    assert f((6.5, 15.0), (0.0, -9.0), 1.0, None, 54.0) == 54.0
+    assert f((0.1, 0.1), (0.0, 0.0), 0.0, (0.0, 0.0), 54.0) == 54.0
+
+
+def test_predicted_los_yaw_is_default_off_and_wired():
+    assert _args_from_cli([]).dash_yaw_to_predicted_los is False
+    src = open(M4.__file__).read()
+    assert "v_down, _dash_yaw_deg)" in src
+    assert src.count("_dash_yaw_deg = coded_dash_heading_deg") == 1   # the OFF path

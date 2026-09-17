@@ -113,6 +113,12 @@ case "$ARM" in
   AE15N)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
   S10P)    EXTRA="$BASE --dash-accel-aware-lead --breakoff-min-flown-frac 0.8"; N=8; DIRS=both; Y0MAG=7.62; TSPEED=4.47;;
   S10N)    EXTRA="$BASE --dash-accel-aware-lead"; N=8; DIRS=both; Y0MAG=7.62; TSPEED=4.47;;
+  # POINTING (docs/pointing_prereg.md, pre-registered 2026-09-17).
+  PCAM)    EXTRA="$BASE --dash-accel-aware-lead --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  PYAW)    EXTRA="$BASE --dash-accel-aware-lead --alt-ref-offset-m -0.207 --dash-yaw-to-predicted-los"; N=8; DIRS=both;;
+  PYAWT)   EXTRA="$BASE --dash-accel-aware-lead --alt-ref-offset-m -0.207 --dash-yaw-to-predicted-los --cam-mount-up-deg 25"; N=8; DIRS=both; WEDGE=25;;
+  PDASH)   EXTRA="$BASE --dash-accel-aware-lead --alt-ref-offset-m -0.207 $DASHONLY"; N=8; DIRS=both;;
+  PYAWD)   EXTRA="$BASE --dash-accel-aware-lead --alt-ref-offset-m -0.207 --dash-yaw-to-predicted-los $DASHONLY"; N=8; DIRS=both;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
   AE15dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY"; N=8; DIRS=both;;
   # RESIDUAL-BIAS fine sweep (dash-only): the aim curve measured 0 deg -> 0.71 m,

@@ -1750,6 +1750,30 @@ async def track_local_position(drone, state: "M4TelemetryState") -> None:
         state.vel_e = pv.velocity.east_m_s
 
 
+def predicted_los_yaw_deg(target_start_en, target_vel_en, elapsed_s, own_disp_en,
+                          fallback_deg):
+    """Compass azimuth (deg, atan2(east, north)) from the vehicle to where the target
+    is PREDICTED to be `elapsed_s` after the dash began -- the pre-flight target
+    kinematics (the same launch cue the lead solve already uses) plus the vehicle's
+    OWN displacement since the dash began. No live target sensing, no gt_*.
+
+    WHY (docs/pointing_prereg.md): on a lead-collision course against a CROSSING
+    target the line of sight sits 40-75 deg off the velocity vector, outside the
+    seeker's +/-30 deg acceptance and often outside the +/-50 deg picture. A quad
+    does not have to point where it is going.
+
+    Returns `fallback_deg` (the dash heading) when an input is missing or the
+    predicted target is within 0.5 m (azimuth undefined) -- never a made-up angle."""
+    if (elapsed_s is None or own_disp_en is None or target_start_en is None
+            or target_vel_en is None):
+        return fallback_deg
+    de = target_start_en[0] + target_vel_en[0] * elapsed_s - own_disp_en[0]
+    dn = target_start_en[1] + target_vel_en[1] * elapsed_s - own_disp_en[1]
+    if math.hypot(de, dn) < 0.5:
+        return fallback_deg
+    return math.degrees(math.atan2(de, dn))
+
+
 def passage_gate_ok(flown_m, planned_m, min_frac):
     """PASSAGE GATE for the past-closest-approach breakoff (issue #3's registered
     fallback, docs/scoring_fix_plan.md section 5b): you cannot have PASSED a target
@@ -2158,6 +2182,14 @@ def parse_args():
              "phase ONLY -- needed so the loft-then-dive descent fits the short dash "
              "(stock V_VERT_MAX 0.5 m/s is too slow to dive 2-4 m in ~2 s). Ignored unless "
              "--dash-loft-m > 0. Default None = stock V_VERT_MAX (byte-identical).")
+    parser.add_argument(
+        "--dash-yaw-to-predicted-los", action="store_true",
+        help="--coded-dash POINTING lever (docs/pointing_prereg.md): during CODED_DASH "
+             "command YAW toward where the target is PREDICTED to be (pre-flight "
+             "kinematics + own displacement) instead of along the dash velocity. The "
+             "velocity command is unchanged, so the dash ballistics should be too. "
+             "Needs a SOLVED heading (uses --target-start/--target-vel). Default OFF "
+             "(byte-identical).")
     parser.add_argument(
         "--breakoff-min-flown-frac", type=float, default=None,
         help="--coded-dash PASSAGE GATE on the past-closest-approach breakoff: the "
@@ -3033,11 +3065,15 @@ async def run_acquire_and_engage(
     _wind_trim = build_wind_trim(args)
     _wind_trim_result = None
     coded_dash_plan_m = None      # pre-flight intercept distance (passage gate)
+    coded_dash_los_inputs = None  # ((te, tn), (tve, tvn)) the OPERATOR's target estimate
     coded_dash_start_ne = None    # own (n, e) at dash entry (passage gate)
     if args.coded_dash and coded_dash_heading_deg is None:
         _tx, _ty = (float(v) for v in args.target_start.split(",")[:2])
         _tvx, _tvy = (float(v) for v in args.target_vel.split(",")[:2])
         _vi = args.dash_speed if args.dash_speed else S2["DASH_SPEED"]
+        # the same (possibly error-injected) estimate the lead solve is given below
+        coded_dash_los_inputs = ((_tx + args.dash_target_err_e, _ty + args.dash_target_err_n),
+                                 (_tvx, _tvy))
         # Collision-lead aim from the portable flight/ core (ADR-0076 add #18).
         # ROBUSTNESS sweep: perturb the ESTIMATED target position fed to the lead
         # solve (real target/mover unchanged) -> models operator position error
@@ -3880,8 +3916,18 @@ async def run_acquire_and_engage(
             # -- re-issued the (0, 0, 0, 0) INITIALISER instead: a full stop while
             # closing at ~13 m/s (24 ticks across 5/16 flights on the G20 arm). The
             # dash command is now what gets held. Mirrors the S2 DASH branch.
+            _dash_yaw_deg = coded_dash_heading_deg
+            if args.dash_yaw_to_predicted_los and coded_dash_los_inputs is not None:
+                _own = ((state.pos_e - coded_dash_start_ne[1],
+                         state.pos_n - coded_dash_start_ne[0])
+                        if (coded_dash_start_ne is not None
+                            and state.pos_n is not None and state.pos_e is not None)
+                        else None)
+                _dash_yaw_deg = predicted_los_yaw_deg(
+                    coded_dash_los_inputs[0], coded_dash_los_inputs[1],
+                    _dash_elapsed, _own, coded_dash_heading_deg)
             cmd = last_cmd = (_dash_v * math.cos(_h), _dash_v * math.sin(_h),
-                              v_down, coded_dash_heading_deg)
+                              v_down, _dash_yaw_deg)
             # HANDOFF PLAUSIBILITY GATE (add #18f): a NEW detector result only
             # advances the acquire streak if its implied range is inside the
             # pre-flight-plausible window -- rejects the own-prop phantom (implies

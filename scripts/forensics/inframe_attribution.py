@@ -9,8 +9,8 @@ attitude quaternion and cross-tabulates in-frame x detected.
 SCORING/FORENSIC tool: reads gt_* (ground truth). Not on any guidance path.
 
 Geometry: world is ENU (x east, y north, z up); att_q* is body(FRD)->NED; the camera
-looks along body +x (level mount assumed -- a --cam-mount-up-deg arm must not be fed
-to this without adding the tilt), pinhole fx=fy=539.94, 1280x960.
+looks along body +x, pitched up by --mount-up-deg (default 0; a tilted-mount arm MUST
+be analysed with its tilt or every number below is wrong), pinhole fx=fy=539.94, 1280x960.
 
 INSTRUMENT CHECK: --validate-tag runs the projection against AprilTag flights, where
 every detection IS the target (the markerless seeker's detections are mostly own-prop
@@ -50,6 +50,9 @@ def quat_conj_rotate(q, v):
             vz + w * tz + (x * ty - y * tx))
 
 
+MOUNT_UP_DEG = 0.0      # physical camera up-tilt of the arm being analysed (--mount-up-deg)
+
+
 def project(row):
     """-> (u, v, in_frame, elev_deg) or None when an input is missing."""
     need = ("gt_cam_x", "gt_cam_y", "gt_cam_z", "gt_tag_x", "gt_tag_y", "gt_tag_z",
@@ -60,6 +63,12 @@ def project(row):
     cx, cy, cz, tx, ty, tz, qw, qx, qy, qz = vals
     ned = (ty - cy, tx - cx, -(tz - cz))            # ENU diff -> NED
     bx, by, bz = quat_conj_rotate((qw, qx, qy, qz), ned)   # FRD: x fwd, y right, z down
+    if MOUNT_UP_DEG:
+        # camera pitched UP by th about body +y: boresight = (cos th, 0, -sin th) in FRD,
+        # camera-down = (sin th, 0, cos th). Re-express the body vector in that frame.
+        th = math.radians(MOUNT_UP_DEG)
+        bx, bz = (bx * math.cos(th) - bz * math.sin(th),
+                  bx * math.sin(th) + bz * math.cos(th))
     if bx <= 0.05:
         return (None, None, False, None)
     u = CX + FX * by / bx
@@ -189,12 +198,26 @@ def self_test():
     case("missing attitude -> None, never 'level'", project(dict(r, att_qw="")) is None)
     u, v, inside, _ = project(dict(r, gt_tag_y="-10"))
     case("target behind the camera is never in frame", inside is False)
+    global MOUNT_UP_DEG
+    MOUNT_UP_DEG = 35.0
+    up = 10.0 * math.tan(math.radians(35.0))
+    u, v, inside, _ = project(dict(r, gt_tag_z=str(1.0 + up)))
+    case("35 deg up-tilt puts a target 35 deg above a level vehicle at the image centre",
+         abs(u - CX) < 1e-6 and abs(v - CY) < 1e-6 and inside)
+    u, v, inside, _ = project(r)
+    case("... and a level target then sits BELOW centre", v > CY)
+    MOUNT_UP_DEG = 0.0
     return 0 if ok else 1
 
 
 if __name__ == "__main__":
     if "--self-test" in sys.argv:
         sys.exit(self_test())
+    if "--mount-up-deg" in sys.argv:
+        k = sys.argv.index("--mount-up-deg")
+        MOUNT_UP_DEG = float(sys.argv[k + 1])
+        del sys.argv[k:k + 2]
+        print(f"camera mount up-tilt: {MOUNT_UP_DEG:.1f} deg")
     if len(sys.argv) > 2 and sys.argv[1] == "--validate-tag":
         validate_on_tag_flights(sys.argv[2:])
         sys.exit(0)
