@@ -19,6 +19,7 @@ import numpy as np
 from flight.camera import CameraModel
 from flight.deploy.real_flight import MissionConfig, RealFlightSM, ScriptedTrigger, VehicleObs
 from flight.deploy.seeker_loop import GuidanceConfig, SeekerGuidance
+from flight.tag_terminal import TagInterceptGuidance, TagTerminalConfig
 
 from isim.seeker import CameraParams
 from isim.types import Detection, VehicleState, VelCmd
@@ -84,7 +85,19 @@ class RealFlightGuidance:
 
     def __init__(self, cfg: MissionConfig, guidance: Optional[SeekerGuidance] = None,
                  cam_params: Optional[CameraParams] = None, span_m: float = 1.0,
-                 go_at_s: float = 0.0, home_alt_m: float = 0.0) -> None:
+                 go_at_s: float = 0.0, home_alt_m: float = 0.0,
+                 terminal: str = "stock",
+                 tag_cfg: Optional[TagTerminalConfig] = None) -> None:
+        # `terminal`: "stock" (default) builds the SAME SeekerGuidance (LOS-rate
+        # pro-nav) this class always built; "tag" builds flight.tag_terminal.
+        # TagInterceptGuidance (3-D predicted-intercept-point law) instead. Only
+        # ever consulted in reset(), so an explicit `guidance=` (SeekerGuidance
+        # override) is unaffected unless terminal="tag" is also requested.
+        if terminal not in ("stock", "tag"):
+            raise ValueError(f"RealFlightGuidance: terminal={terminal!r}, want "
+                             f"'stock' or 'tag'")
+        self.terminal = terminal
+        self.tag_cfg = tag_cfg
         self.cfg = cfg
         self.go_at_s = go_at_s
         self.home_alt_m = home_alt_m
@@ -113,7 +126,12 @@ class RealFlightGuidance:
         """Fresh `RealFlightSM`, fresh `SeekerGuidance`, fresh trigger -- no
         state (latch, streak, alpha-beta filters, RC edge memory) may survive
         into the next engagement."""
-        fresh_guidance = SeekerGuidance(self._gcfg, self._cam_model, self._span_m)
+        if self.terminal == "tag":
+            fresh_guidance = TagInterceptGuidance(
+                self.tag_cfg or TagTerminalConfig(), self._cam_model, self._span_m,
+                self._gcfg)
+        else:
+            fresh_guidance = SeekerGuidance(self._gcfg, self._cam_model, self._span_m)
         self._sm = RealFlightSM(self.cfg, guidance=fresh_guidance)
         self._trigger = ScriptedTrigger(go_at_s=self.go_at_s)
         self.state_log = []
@@ -138,6 +156,7 @@ class RealFlightGuidance:
             mode="OFFBOARD", alt_m=(-float(own.pos_ned[2]) + self.home_alt_m),
             yaw_deg=math.degrees(own.yaw_rad), quat=tuple(float(c) for c in own.quat_wxyz),
             ground_speed_ms=math.hypot(float(own.vel_ned[0]), float(own.vel_ned[1])),
+            vel_ned=tuple(float(c) for c in own.vel_ned),
             trigger=trig, det_new=(det is not None), det_box_xywh=box,
             det_range_m=det_range_m, det_bearing_deg=det_bearing_deg)
 

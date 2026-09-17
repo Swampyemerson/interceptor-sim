@@ -232,6 +232,11 @@ class OwnState:
     # A telemetry generator that dies leaves this dict FROZEN at its last value
     # with no other trace, so the age is the only thing that can see it.
     age_s: Optional[float] = None
+    # Own-state EKF ground velocity, NED (m/s) -- the vector twin of the scalar
+    # `ground_speed_ms` real_flight already carries. OPTIONAL (default None, so
+    # every existing caller/test is unaffected): only flight/tag_terminal.py's
+    # 3-D relative-velocity estimator reads it (own-state, not ground truth).
+    vel_ned: Optional[Tuple[float, float, float]] = None
 
     @staticmethod
     def level(alt_m: float) -> "OwnState":

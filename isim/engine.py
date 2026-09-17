@@ -96,6 +96,7 @@ def run_engagement(
     best_vrel = np.zeros(3)
 
     min_range_running = math.inf
+    initial_range = None
     t_at_min_running = 0.0
 
     n_frames = 0
@@ -182,7 +183,13 @@ def run_engagement(
         actual_steps += 1
         own, tgt = own_next, tgt_next
 
+        # "Past closest approach" only counts once the vehicle has actually
+        # CLOSED on the target: in a tail chase the range grows from t=0 while
+        # the vehicle is still accelerating, and that is not a fly-by.
+        if initial_range is None:
+            initial_range = range_tau
         if (t_next >= cfg.stop_not_before_s
+                and min_range_running < initial_range - 1.0
                 and t_next - max(t_at_min_running, cfg.stop_not_before_s)
                 >= cfg.stop_after_cpa_s):
             break

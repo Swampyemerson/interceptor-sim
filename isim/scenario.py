@@ -220,6 +220,8 @@ class Scenario:
     # Passed to `RealFlightGuidance(..., terminal=...)` ONLY when != "stock"
     # (see `build()`); "stock" is the only value guaranteed to work today.
     terminal: str = "stock"
+    cam_fx_px: float = 540.0             # NOMINAL focal length, px (both true camera and flight code)
+    tag_side_m: float = 0.30             # printed tag side, m
 
 
 def _sign(x: float) -> float:
@@ -337,8 +339,10 @@ def build(
     # -- an uncalibrated lens, not a live read. `cam_tilt_up_deg` is the
     # shared NOMINAL mount tilt; only the true camera also carries the
     # Scatter error terms.
-    cam_true = CameraParams(mount_tilt_up_deg=scn.cam_tilt_up_deg)
-    cam_nominal = CameraParams(mount_tilt_up_deg=scn.cam_tilt_up_deg)
+    cam_true = CameraParams(fx=scn.cam_fx_px, fy=scn.cam_fx_px,
+                            mount_tilt_up_deg=scn.cam_tilt_up_deg)
+    cam_nominal = CameraParams(fx=scn.cam_fx_px, fy=scn.cam_fx_px,
+                               mount_tilt_up_deg=scn.cam_tilt_up_deg)
     if scat is not None:
         fx_fy_eps = float(rng.normal(0.0, scat.cam_fx_fy_sigma_frac))
         tilt_err_deg = float(rng.normal(0.0, scat.cam_tilt_sigma_deg))
@@ -347,7 +351,7 @@ def build(
                            fy=cam_true.fy * (1.0 + fx_fy_eps),
                            mount_tilt_up_deg=scn.cam_tilt_up_deg + tilt_err_deg)
 
-    tag = TagParams(faces_camera=scn.faces_camera)
+    tag = TagParams(faces_camera=scn.faces_camera, side_m=scn.tag_side_m)
     seeker = AprilTagSeeker(cam=cam_true, tag=tag, dec=DecodeParams())
 
     guidance_kwargs = {} if scn.terminal == "stock" else {"terminal": scn.terminal}

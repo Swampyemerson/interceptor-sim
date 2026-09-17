@@ -208,14 +208,16 @@ def test_guidance_never_receives_target_state_or_frame_report():
 
 
 def test_stop_after_cpa_terminates_early():
-    # Target flies away fast; engagement should end well before max_t once
-    # range has been increasing for stop_after_cpa_s.
+    # A fly-by: the target closes, passes 3 m abeam and recedes; the engagement
+    # should end well before max_t once range has been increasing for
+    # stop_after_cpa_s. (A target that only ever recedes is a tail chase, not a
+    # fly-by, and deliberately does NOT stop early -- see engine.py.)
     init = _init_state([0.0, 0.0, 0.0], yaw=0.0)
-    target = ConstantVelocityTarget(np.array([20.0, 0.0, 0.0]), np.array([50.0, 0.0, 0.0]))
+    target = ConstantVelocityTarget(np.array([20.0, 3.0, 0.0]), np.array([-20.0, 0.0, 0.0]))
     cfg = EngagementConfig(max_t=30.0, stop_after_cpa_s=1.0, seed=1)
     vehicle = FirstOrderVehicle()
     seeker = PerfectSeeker()
-    guidance = PursuitGuidance(speed=5.0)
+    guidance = PursuitGuidance(speed=0.5)
 
     result = run_engagement(cfg, vehicle, target, seeker, guidance, init, record_trace=True)
 

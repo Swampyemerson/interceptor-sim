@@ -436,12 +436,17 @@ class VehicleObs:
     # Bearing for the OPTIONAL pre-launch bearing latch (degrees, camera-relative).
     # Read ONLY at the GO edge and only when cfg.bearing_latch_enabled.
     det_bearing_deg: Optional[float] = None
+    # Own-state EKF ground velocity, NED (m/s). Optional (default None, so every
+    # existing caller/test is unaffected): only flight/tag_terminal.py's 3-D
+    # relative-velocity estimator reads it via own_state() below -- own-state,
+    # not ground truth, the vector twin of `ground_speed_ms` above.
+    vel_ned: Optional[Tuple[float, float, float]] = None
 
     def own_state(self) -> OwnState:
         return OwnState(quat=self.quat,
                         psi_rad=(None if self.yaw_deg is None
                                  else math.radians(self.yaw_deg)),
-                        alt_m=self.alt_m)
+                        alt_m=self.alt_m, vel_ned=self.vel_ned)
 
 
 @dataclass
@@ -1526,6 +1531,7 @@ _AUDITED_MODULES = (
     os.path.join("flight", "range_fusion.py"),
     os.path.join("flight", "terminal_coast.py"),
     os.path.join("flight", "fov_guidance.py"),
+    os.path.join("flight", "tag_terminal.py"),
 )
 
 
