@@ -888,3 +888,7 @@ printed reference against the flown altitude (PX4 may floor a low takeoff) befor
   "a constant trim could cancel the leftover sprint climb" is NOT established; at this flying
   height there is no room below to test it. That is a limit of the scenario (a 0.5 m-high
   target), not of the idea.
+
+**Replication registered before flying:** `TOL5` and `HERRp25` on seed 777. Same prediction: the
+no-error arm ≥ 6/8 inside 0.35 m, the 0.25 m-too-high arm ≤ 1/8, vertical offset shifted by
+0.25 ± 0.03 m.
