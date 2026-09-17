@@ -7,7 +7,20 @@ from __future__ import annotations
 
 import csv
 
-from isim.mc import build_parser, _print_table, _summarize, _write_csv, run_many, sweep
+import pytest
+
+from isim.mc import (
+    _ATTRIBUTION_CATEGORIES,
+    _attribute_miss,
+    _print_attribution,
+    _print_table,
+    _summarize,
+    _write_csv,
+    attribution_shares,
+    build_parser,
+    run_many,
+    sweep,
+)
 from isim.scenario import Scatter, Scenario
 
 
@@ -21,6 +34,15 @@ def _fast_scenario(seed: int) -> Scenario:
 def _fast_scattered_scenario(seed: int) -> Scenario:
     return Scenario(target_speed_ms=9.0, cross_range_m=6.5, lead_dist_m=10.0, seed=seed,
                     scatter=Scatter())
+
+
+def _fast_pursuit_scenario(seed: int) -> Scenario:
+    """A pursuit scenario cheap enough for these tests: same fast geometry,
+    plus a short `pursuit_window_s` (the default 25 s would be needlessly
+    slow for a contract test)."""
+    return Scenario(concept="pursuit", target_speed_ms=9.0, cross_range_m=6.5,
+                    lead_dist_m=10.0, cam_fx_px=933.0, tag_facing="camera",
+                    cam_tilt_up_deg=12.0, pursuit_window_s=6.0, seed=seed)
 
 
 def test_run_many_is_deterministic_per_seed():
@@ -182,3 +204,73 @@ def test_sweep_cli_scatter_flag_builds_scattered_scenarios(tmp_path):
     assert len(rows) == 2
     for r in rows:
         assert "n_fault_lines" in r
+
+
+def test_cli_accepts_concept_and_tag_facing_flags():
+    p = build_parser()
+    args = p.parse_args(["sweep", "--axis", "target_speed_ms", "--values", "9.0",
+                         "--n", "1", "--concept", "pursuit", "--tag-facing", "rear"])
+    assert args.concept == "pursuit"
+    assert args.tag_facing == "rear"
+
+
+# ------------------------------------------------------- v2: miss attribution
+
+def test_flyby_rows_carry_no_attribution():
+    """`concept="flyby"` rows must carry the diagnostic columns (so a mixed
+    CSV has a uniform header) but every value is None -- the diagnostics are
+    pursuit-only (isim/specs/pursuit_concept_v2.md #5)."""
+    row = run_many([_fast_scenario(seed=0)], workers=1)[0]
+    assert row["attribution"] is None
+    assert row["estimator_pos_err_m"] is None
+    assert row["phase_at_cpa"] is None
+
+
+def test_pursuit_rows_carry_a_valid_attribution():
+    row = run_many([_fast_pursuit_scenario(seed=0)], workers=1)[0]
+    assert row["attribution"] in _ATTRIBUTION_CATEGORIES
+    assert row["estimator_pos_err_m"] is not None
+    assert row["control_err_m"] is not None
+    # The "_m1s" (one second before CPA) twin columns exist alongside the
+    # at-CPA ones.
+    assert "estimator_pos_err_m_m1s" in row
+    assert "phase_at_cpa_m1s" in row
+
+
+def test_attribution_shares_sums_to_100_and_is_uncertain_on_no_rows():
+    rows = run_many([_fast_pursuit_scenario(seed=s) for s in range(4)], workers=1)
+    shares = attribution_shares(rows)
+    assert set(shares) == set(_ATTRIBUTION_CATEGORIES)
+    assert sum(shares.values()) == pytest.approx(100.0, abs=1e-6)
+    assert attribution_shares([]) == {}   # no-vacuous-verdicts: empty, not a fabricated 0%
+
+
+def test_attribute_miss_never_engaged_beats_everything_else():
+    diag = {"phase": "A", "decodes_last_1s": 0, "frac_saturated_last_2s": 1.0,
+           "estimator_pos_err_m": 50.0, "control_err_m": 50.0}
+    assert _attribute_miss(diag) == "never_engaged"
+
+
+def test_attribute_miss_picks_the_larger_of_estimate_and_control():
+    base = {"phase": "B", "decodes_last_1s": 3, "frac_saturated_last_2s": 0.0}
+    assert _attribute_miss({**base, "estimator_pos_err_m": 5.0, "control_err_m": 1.0}) == "estimate"
+    assert _attribute_miss({**base, "estimator_pos_err_m": 1.0, "control_err_m": 5.0}) == "control"
+
+
+def test_print_attribution_is_a_noop_for_flyby_rows(capsys):
+    rows = run_many([_fast_scenario(seed=0)], workers=1)
+    for r in rows:
+        r["_axis_value"] = r["target_speed_ms"]
+    _print_attribution("target_speed_ms", rows, [9.0])
+    assert capsys.readouterr().out == ""
+
+
+def test_print_attribution_prints_for_pursuit_rows(capsys):
+    rows = run_many([_fast_pursuit_scenario(seed=s) for s in range(3)], workers=1)
+    for r in rows:
+        r["_axis_value"] = r["target_speed_ms"]
+    _print_attribution("target_speed_ms", rows, [9.0])
+    out = capsys.readouterr().out
+    assert "attribution shares" in out
+    for cat in _ATTRIBUTION_CATEGORIES:
+        assert cat in out

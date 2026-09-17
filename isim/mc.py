@@ -42,16 +42,159 @@ _SCENARIO_FIELDS = tuple(f.name for f in dataclasses.fields(Scenario))
 _FAULT_LINE_MARKER = "FAULT"
 
 
+class _DebugRecorder:
+    """Wraps a `concept="pursuit"` Guidance and snapshots its `.debug`
+    (isim.concepts.PursuitDebug) after every `step()` call -- installed only
+    inside `_run_one`, in the SAME process that calls `run_engagement`, so
+    the recording never crosses a `multiprocessing` boundary (only the
+    plain-dict return value of `_run_one` does). Read-only pass-through: it
+    never alters the command `step()` returns, and every OTHER attribute
+    (`state_log`, `last_decision`, ...) resolves straight to the wrapped
+    guidance via `__getattr__` -- pursuit_concept_v2.md #5's diagnostics."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+        self.log: List[Any] = []   # (t, phase, r_est copy, v_t_est copy)
+
+    def reset(self) -> None:
+        self.log = []
+        self.inner.reset()
+
+    def step(self, t: float, own: Any, det: Any) -> Any:
+        cmd = self.inner.step(t, own, det)
+        dbg = self.inner.debug
+        self.log.append((t, dbg.phase, np.array(dbg.r_est, dtype=np.float64),
+                         np.array(dbg.v_t_est, dtype=np.float64)))
+        return cmd
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self.inner, name)
+
+
+_ATTRIBUTION_CATEGORIES = ("never_engaged", "no_tag_last_second", "saturated",
+                          "estimate", "control")
+# Diagnostic dict fields carried into the row twice (at CPA, and at
+# CPA-1s -- suffix "_m1s"); "attribution" itself is computed at CPA only.
+# (diag-dict key, row-column base name) -- "phase" -> "phase_at_cpa"/
+# "phase_at_cpa_m1s" to read unambiguously in a CSV alongside "attribution".
+_DIAG_ROW_FIELDS = (
+    ("estimator_pos_err_m", "estimator_pos_err_m"),
+    ("estimator_vel_err_m", "estimator_vel_err_m"),
+    ("control_err_m", "control_err_m"),
+    ("tag_in_frame", "tag_in_frame"),
+    ("decodes_last_1s", "decodes_last_1s"),
+    ("frac_saturated_last_2s", "frac_saturated_last_2s"),
+    ("phase", "phase_at_cpa"),
+)
+
+
+def _nearest_idx(sorted_arr: np.ndarray, value: float) -> int:
+    """Index of the entry in a SORTED array nearest `value` (ties -> lower
+    index); clamps to the array's bounds rather than raising on an
+    out-of-range `value`."""
+    if len(sorted_arr) == 0:
+        return 0
+    idx = int(np.searchsorted(sorted_arr, value))
+    if idx <= 0:
+        return 0
+    if idx >= len(sorted_arr):
+        return len(sorted_arr) - 1
+    return idx if (sorted_arr[idx] - value) < (value - sorted_arr[idx - 1]) else idx - 1
+
+
+def _diagnose(result: Any, debug_log: List[Any], t_query: float) -> Dict[str, Any]:
+    """One diagnostic snapshot near `t_query` (typically `t_cpa` or
+    `t_cpa - 1.0`), per pursuit_concept_v2.md #5. Truth (`own_pos`/`tgt_pos`/
+    `tgt_vel`) comes ONLY from `result.trace`/`result.frame_reports` -- data
+    the ENGINE already collects for scoring, read here AFTER the run ends;
+    `debug_log` never contains anything guidance was not itself handed."""
+    empty = {"estimator_pos_err_m": None, "estimator_vel_err_m": None,
+            "control_err_m": None, "tag_in_frame": None, "decodes_last_1s": 0,
+            "frac_saturated_last_2s": None, "phase": None}
+    if not debug_log or result.trace is None:
+        return empty
+    debug_ts = np.array([d[0] for d in debug_log])
+    d_idx = _nearest_idx(debug_ts, t_query)
+    t_d, phase, r_est, v_t_est = debug_log[d_idx]
+
+    trace = result.trace
+    t_idx = _nearest_idx(trace["t"], t_d)
+    r_true = trace["tgt_pos"][t_idx] - trace["own_pos"][t_idx]
+    v_true = trace["tgt_vel"][t_idx]
+
+    decodes_last_1s = sum(1 for rep in result.frame_reports
+                          if rep.decoded and (t_d - 1.0) <= rep.t_capture <= t_d)
+    last_rep = None
+    for rep in result.frame_reports:
+        if rep.t_capture > t_d:
+            break
+        last_rep = rep
+    tag_in_frame = bool(last_rep.in_fov) if last_rep is not None else False
+
+    sat = trace["saturated"]
+    window = (trace["t"] >= t_d - 2.0) & (trace["t"] <= t_d)
+    frac_saturated_last_2s = float(np.mean(sat[window])) if np.any(window) else 0.0
+
+    return {
+        "estimator_pos_err_m": float(np.linalg.norm(r_est - r_true)),
+        "estimator_vel_err_m": float(np.linalg.norm(v_t_est - v_true)),
+        "control_err_m": float(np.linalg.norm(r_est)),
+        "tag_in_frame": tag_in_frame,
+        "decodes_last_1s": decodes_last_1s,
+        "frac_saturated_last_2s": frac_saturated_last_2s,
+        "phase": phase,
+    }
+
+
+def _attribute_miss(diag: Dict[str, Any]) -> str:
+    """Attribute a run's miss to the largest of five contributors, per
+    pursuit_concept_v2.md #5. A DESIGNED, DOCUMENTED heuristic, not a formal
+    decomposition: the spec's own parenthetical -- "control error (|r_true|
+    that the estimate says should be zero)" -- is read as `|r_est|` (the
+    residual the CONTROL law itself still believed existed at that instant);
+    its natural complement `|r_est - r_true|` is the ESTIMATE's own error.
+    `never_engaged`/`no_tag_last_second`/`saturated` are checked FIRST, in
+    that fixed priority order, because each is a cleaner, more certain story
+    than comparing two residual magnitudes when it applies."""
+    if diag["phase"] is None or diag["phase"] != "B":
+        return "never_engaged"
+    if diag["decodes_last_1s"] == 0:
+        return "no_tag_last_second"
+    if diag["frac_saturated_last_2s"] is not None and diag["frac_saturated_last_2s"] >= 0.5:
+        return "saturated"
+    scores = {"estimate": diag["estimator_pos_err_m"] or 0.0,
+             "control": diag["control_err_m"] or 0.0}
+    return max(scores, key=scores.get)
+
+
+def attribution_shares(rows: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Percentage share of each attribution category, over the rows that
+    HAVE one (i.e. `concept="pursuit"` rows) -- pursuit_concept_v2.md #5:
+    "print the attribution shares per sweep cell next to the miss numbers".
+    `{}` (no-vacuous-verdicts) when no row in the group carries one."""
+    labelled = [r["attribution"] for r in rows if r.get("attribution") is not None]
+    if not labelled:
+        return {}
+    n = len(labelled)
+    return {cat: 100.0 * labelled.count(cat) / n for cat in _ATTRIBUTION_CATEGORIES}
+
+
 def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
     """Run one engagement and flatten it to a plain, picklable dict. Top-level
     (module-scope) so a `spawn`-context worker process can import and call it
     -- a closure or bound method cannot be pickled for `spawn`."""
     ecfg, vehicle, target, seeker, guidance, init_state = build(scn, vehicle_params)
 
+    is_pursuit = scn.concept == "pursuit"
+    recorder = _DebugRecorder(guidance) if is_pursuit else None
+    run_guidance = recorder if recorder is not None else guidance
+
     captured = io.StringIO()
     with contextlib.redirect_stdout(captured):
-        result = run_engagement(ecfg, vehicle, target, seeker, guidance, init_state,
-                                record_trace=False)
+        # record_trace=True only for pursuit: the diagnostics (#5) need the
+        # truth trace; flyby doesn't use it, so it stays off there (cost).
+        result = run_engagement(ecfg, vehicle, target, seeker, run_guidance, init_state,
+                                record_trace=is_pursuit)
     n_fault_lines = sum(1 for line in captured.getvalue().splitlines()
                         if _FAULT_LINE_MARKER in line)
 
@@ -76,6 +219,19 @@ def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
         transitions=transitions,
         n_fault_lines=n_fault_lines,
     )
+
+    if is_pursuit:
+        diag_cpa = _diagnose(result, recorder.log, result.t_cpa)
+        diag_m1s = _diagnose(result, recorder.log, result.t_cpa - 1.0)
+        row["attribution"] = _attribute_miss(diag_cpa)
+        for diag_key, col in _DIAG_ROW_FIELDS:
+            row[col] = diag_cpa[diag_key]
+            row[col + "_m1s"] = diag_m1s[diag_key]
+    else:
+        row["attribution"] = None
+        for _diag_key, col in _DIAG_ROW_FIELDS:
+            row[col] = None
+            row[col + "_m1s"] = None
     return row
 
 
@@ -173,6 +329,25 @@ def _print_table(axis_name: str, rows: List[Dict[str, Any]], values: Sequence[fl
               f"{s['pct_engage']:>7.1f}% {s['med_decoded']:>8.1f}")
 
 
+def _print_attribution(axis_name: str, rows: List[Dict[str, Any]],
+                       values: Sequence[float]) -> None:
+    """Attribution shares per axis value, next to the miss numbers --
+    pursuit_concept_v2.md #5. A no-op (prints nothing) when no row in `rows`
+    carries an attribution (e.g. `concept="flyby"`, no-vacuous-verdicts)."""
+    if not any(r.get("attribution") is not None for r in rows):
+        return
+    header = f"{'value':>10s} " + " ".join(f"{c:>11s}" for c in _ATTRIBUTION_CATEGORIES)
+    print(f"attribution shares, axis={axis_name}")
+    print(header)
+    for v in values:
+        group = [r for r in rows if r["_axis_value"] == v]
+        shares = attribution_shares(group)
+        if not shares:
+            print(f"{v!s:>10s}  UNCERTAIN -- no attributed rows")
+            continue
+        print(f"{v!s:>10s} " + " ".join(f"{shares[c]:>10.1f}%" for c in _ATTRIBUTION_CATEGORIES))
+
+
 # --------------------------------------------------------------------- CLI
 
 def _parse_values(spec: str) -> List[float]:
@@ -226,6 +401,7 @@ def _cmd_sweep(args: argparse.Namespace) -> int:
     base = _base_scenario_from_args(args)
     rows = sweep(args.axis, values, args.n, base=base, workers=args.workers)
     _print_table(args.axis, rows, values)
+    _print_attribution(args.axis, rows, values)
     if args.out:
         _write_csv(args.out, rows)
     return 0 if rows else 1
@@ -250,6 +426,7 @@ def _cmd_requirement(args: argparse.Namespace) -> int:
         for r in rows:
             r["_axis_name"] = axis
         _print_table(axis, rows, values)
+        _print_attribution(axis, rows, values)
         print()
         all_rows.extend(rows)
         any_engagement = any_engagement or any(r["reached_engage"] for r in rows)
