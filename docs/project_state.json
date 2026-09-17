@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-09-17",
-  "updated_by": "Fable head: pursuit concept passes most of the sweep in isim; ADR-0103 proposed",
+  "updated_by": "Fable head: pursuit hardened -- 49-68% with realistic errors (92-98% was best case)",
   "goal": {
     "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,11 +17,11 @@
   },
   "now": {
     "as_of": "2026-09-17",
-    "where": "In the new simulator, a slow-arrival 'pursuit' engagement passes most of the robustness sweep; the sprint-and-fly-by concept cannot. This is a proposal (ADR-0103) awaiting the builder, and the numbers are simulator best-case until own-state noise and a Gazebo cross-check are added.",
-    "finding": "Pursuit, honest scatter, 100 runs per case: 92-98% inside 0.35 m nominal; 91-96% with 10-30 degrees of aim error (tag facing camera); 85-90% with the target 1-3 m higher. Weak: target below with a camera-facing tag (54-67%), rear tag with aim error of 20 degrees or more.",
+    "where": "In the new simulator a slow-arrival 'pursuit' engagement is far more robust than the sprint-and-fly-by, but with realistic sensor errors added it is at 49-68% inside 0.35 m, not the 92-98% best case. Proposal ADR-0103 awaits the builder.",
+    "finding": "What costs most is knowing WHEN each camera frame was taken (20 ms of error) and the vehicle's own attitude (1-3 degrees). Velocity error costs nothing. A weaving target hurts a rear-facing tag badly (22%). Today's fly-by code scores 6% on the same test.",
     "next": [
-      "Builder: read ADR-0103 (slow-arrival pursuit replaces the fly-by) and decide",
-      "Harden the result: own-state noise, timestamp error, manoeuvring target, then a Gazebo cross-check"
+      "Make pursuit tolerate timestamp and attitude error (estimate the delay; camera-frame steering)",
+      "Builder: decide ADR-0103; measure the Pi's real frame-timestamp error on the bench"
     ],
     "evidence": "ADR-0103 - isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
   },
@@ -521,6 +521,12 @@
   "plain_log": [
     {
       "date": "2026-09-17",
+      "text": "Tried to break the pursuit result on purpose. With perfect self-knowledge it scored 92-98% inside 0.35 m; adding realistic errors took it to 49% (tag facing camera) and 68% (rear tag), and to 22-26% at double the errors. One at a time: frame-timestamp error 68/88%, attitude error 76/90%, position drift 81/95%, worse tag decoding 77/98%, velocity error no cost. A weaving target: 45% and 22%.",
+      "so_what": "The 92-98% was a best case and is labelled as one. The two things that matter most are measurable on the bench: how accurately the Pi timestamps a frame against the flight controller's clock, and attitude accuracy. Both also have software answers that are next in the simulator.",
+      "evidence": "isim/ownstate.py - isim/specs/pursuit_hardening_v5.md - ADR-0103"
+    },
+    {
+      "date": "2026-09-17",
       "text": "The pursuit prototype went from 55-71% to 92-98% inside 0.35 m from one fix: a tag detection says where the target WAS when the frame was taken (45 ms earlier), and the filter was treating it as now, so the estimate trailed a 9 m/s target by 0.4 m. A per-tick estimator trace (the diagnostics the new simulator was built for) showed the constant lag in one look, after a worker's six tuning ideas had all come back null.",
       "so_what": "A bad sprint and a target at a different height now mostly do not matter in the simulator. It is written up as a proposal (ADR-0103) because it changes the flight profile, the flight code's breakoff logic and where the tag goes. The simulator's own-state is perfect, so treat the numbers as best-case until noise is added and Gazebo agrees.",
       "evidence": "commit 'isim pursuit: delayed-measurement Kalman update' - ADR-0103"
@@ -584,12 +590,6 @@
       "text": "Measured two things the project had been assuming. The vehicle is off-altitude at the closest point on every single one of the 24 flights whose per-tick data is in the repo, and most of that is altitude it loses or gains during the sprint itself. And the sprint closes on the target at about 17.6 m/s while the purchase gate for the airframe assumes 9.",
       "so_what": "The up-and-down error is made during the sprint, so it has to be fixed there -- which is now built and switched off, waiting on a number measured from the right set of flights. The camera terminal has almost no time to fix anything on the AprilTag setup, so my previous answer that it had plenty was wrong and is corrected. And the airframe gate looks about twice as optimistic as it should be, which is worth checking before spending.",
       "evidence": "ADR-0099; scripts/forensics/{vertical_miss_anatomy,handoff_closing_speed}.py; docs/vertical_channel_prereg.md"
-    },
-    {
-      "date": "2026-09-09",
-      "text": "The builder asked why a late camera adjustment cannot save a slightly-off aim, since he has watched exactly that happen on video. Checked it properly. He is right that nothing in the physics forbids it, and the reason it has never happened here is that the camera terminal has no up-and-down steering at all: it holds a preset height and throws away the target's measured elevation on every single frame.",
-      "so_what": "The miss we cannot close is 0.37 m vertical against 0.17 m sideways, so the guidance is blind to about 82% of it, and closing the vertical part alone would already be inside the 0.35 m contact radius. A vertical channel was DECIDED in ADR-0085 and never written; it is not in this contract or the queue. So 'the camera does not beat a well-aimed dash' describes the arms we flew, not what a camera can do.",
-      "evidence": "contradiction terminal-vertical-channel-decided-not-built; docs/vertical_channel_analysis.md"
     }
   ],
   "narrative": {

@@ -156,3 +156,10 @@ log forensics, fitting against flight logs, the contract and all judgment.
   timestamp error (+/-20 ms) in Scatter; manoeuvring/weaving target; target-below with a
   camera-facing tag (tag leaves the frame -- try tilt 0-6 deg or approach from below);
   rear-tag aim cliff; then port to flight code + Gazebo cross-check.**
+- 2026-09-17 (last): **hardening v5: pursuit 92/98% -> 49/68% with realistic errors** (22/26% at 2x).
+  Co-dominant: frame-timestamp error (+/-20 ms) and own-attitude error (1-3 deg). Velocity
+  error free. Weave: camera 45%, rear 22%. ADR-0103 amended: best-case grid is an upper bound.
+  **Next (v6): (a) estimate the timestamp bias online (it shows up as a lag along the target's
+  velocity) or bound it by hardware (libcamera SensorTimestamp + MAVLink TIMESYNC -- bench
+  measurement for the builder); (b) close-in steering in the CAMERA frame (pixel error -> lateral
+  velocity), which is immune to attitude and position bias; (c) rear tag vs weave.**
