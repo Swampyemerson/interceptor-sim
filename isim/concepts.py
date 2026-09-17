@@ -84,6 +84,8 @@ from typing import Deque, List, Optional, Tuple
 
 import numpy as np
 
+from flight.guidance import dash_forward_speed
+
 from isim.seeker import quat_to_rot
 from isim.types import Detection, FrameReport, SeekerModel, VehicleState, VelCmd
 
@@ -982,3 +984,281 @@ class DualTagSeeker:
         det = det1 if det1 is not None else det2
         rep = rep1 if rep1 is not None else rep2
         return det, rep
+
+
+# ---------------------------------------------------------------- v7 hybrid
+
+@dataclass
+class HybridSprintConfig:
+    """Every tunable of Phase S/T (isim/specs/hybrid_v7.md). Defaults are
+    reasonable starting points, not bench-fit -- see the task's final
+    report for what was measured/tuned."""
+
+    # --- Phase S: open-loop sprint (same kinematics as the flyby's dash) ---
+    # TUNED 2026-09-17 (task's final report): the old 8.0 s default (matching
+    # MissionConfig.dash_max_s) let Phase S run ~6.5 s PAST the target's true
+    # crossing (t_cpa really lands ~1.4 s after go, at this nominal
+    # geometry/speed) before the timer finally cut it -- at 9 m/s rear-tag,
+    # all v5 errors on, that cost was catastrophic: 8.0 s -> 3% overall hit
+    # vs plain pursuit's 82%, because it burned 8+ of the pursuit_window_s=25 s
+    # scoring budget on a sprint that (honestly) almost never converts to a
+    # first-pass hit for a rear tag (0-3/100 across every sprint_max_s tried,
+    # rear or rear_dual35) before falling back to the same Phase A/B pursuit
+    # law that alone gets 82%. Shorter sprints uniformly score higher because
+    # they leave more of the budget for that proven fallback -- 0.5 s -> 81%
+    # (a rear tag), i.e. sprint_max_s this short means Phase T fires almost
+    # immediately after go_at_s and hybrid degenerates to near-pure-pursuit.
+    # 2.0 s is chosen as the default -- NOT the top scorer (0.5 s scores
+    # higher, see the report) -- because it is the shortest value at which
+    # the sprint genuinely reaches the natural pass (t_cpa) and the
+    # `growing`-after-pass trigger becomes reachable at all (11/100 dual-tag
+    # runs) rather than the timer firing before the pass ever happens; the
+    # spec calls for a sprint that "opportunistically" tries the pass, and a
+    # sprint that never reaches the pass point cannot try anything. This is a
+    # disclosed tradeoff, not a free win -- see the report's sprint_max_s
+    # sweep table for the full curve and reconsider if the geometry changes.
+    sprint_max_s: float = 2.0
+    kp_alt_sprint: float = 1.0       # 1/s, altitude-hold gain during the sprint
+    v_vert_max_sprint_ms: float = 3.0   # m/s, vertical speed cap during the sprint
+
+    # --- Phase S: "steer the pass" -- a BOUNDED correction near the pass,
+    # only while the background filter is healthy and the estimated time-
+    # to-closest-approach is inside `correction_window_s` ("the last ~1s
+    # before the pass"). Bounded to `max_correction_ms` -- "limited to what
+    # keeps the tag in view", i.e. a nudge, not a re-aim. ---
+    correction_window_s: float = 1.0
+    kp_correction: float = 1.0       # 1/s, lateral/vertical correction gain
+    max_correction_ms: float = 3.0   # m/s, correction magnitude cap
+
+    # --- Phase S -> T trigger: range (from the background filter, if
+    # healthy) growing for `growth_hold_s` past its own running minimum by
+    # more than `growth_margin_m`, OR the sprint timer expires first. ---
+    growth_margin_m: float = 0.5
+    growth_hold_s: float = 0.3
+
+
+class HybridGuidance:
+    """isim `Guidance`: Phase S (open-loop sprint, same aim/speed/accel
+    profile as the "flyby" concept's coded dash, holding the believed
+    altitude, with a background target filter and a bounded pass-steering
+    correction) -> Phase T (turn-around: brake + hand over to a fresh
+    `PursuitRendezvousGuidance`, seeded with the REAL current velocity/yaw
+    for a physically continuous brake, and with the background filter's
+    state if it is healthy). See isim/specs/hybrid_v7.md.
+
+    Phase S's OWN filter reuses `self._pursuit`'s pure geometry helpers
+    (`_dir_body_boresight`/`_dir_ned`/`_measure_pos_ned`/`_measurement_r`)
+    by calling them directly on the held (not-yet-driving) instance --
+    zero duplication, and `self._pursuit` itself is never mutated by this
+    until the Phase S->T handover, so its own Phase-A/B state machine
+    cannot be polluted by Phase S's activity."""
+
+    def __init__(self, scfg: HybridSprintConfig, pcfg: PursuitConfig,
+                heading_deg: float, dash_speed_ms: float, dash_accel_ms2: float,
+                believed_alt_m: float, go_at_s: float,
+                belief_pos0_ned: np.ndarray, belief_vel_ned: np.ndarray,
+                cam_mount_tilt_up_deg: float = 0.0) -> None:
+        self.scfg = scfg
+        self.pcfg = pcfg
+        self.heading_deg = float(heading_deg)
+        self.dash_speed_ms = float(dash_speed_ms)
+        self.dash_accel_ms2 = float(dash_accel_ms2)
+        self.believed_alt_m = float(believed_alt_m)
+        self.go_at_s = float(go_at_s)
+        self.belief_vel_ned = np.asarray(belief_vel_ned, dtype=np.float64).copy()
+        self._mount_tilt_rad = math.radians(cam_mount_tilt_up_deg)
+        # Held from construction so Phase S can reuse its pure helpers; only
+        # DRIVES the vehicle once Phase T hands over (see `_start_turn`).
+        self._pursuit = PursuitRendezvousGuidance(
+            pcfg, belief_pos0_ned, belief_vel_ned, go_at_s=go_at_s,
+            initial_yaw_deg=heading_deg, cam_mount_tilt_up_deg=cam_mount_tilt_up_deg)
+        self.state_log: List[Tuple[float, str]] = []
+        self.events: List[str] = []
+        self.last_decision: Optional[_Decision] = None
+        # v7: "report the time lost in the turn-around and how far behind
+        # the vehicle ends up" -- read directly by isim.mc (plain public
+        # attributes, matching how `state_log`/`last_decision` are already
+        # read off guidance objects elsewhere in this codebase).
+        self.t_turn_start: Optional[float] = None
+        self.turn_reason: Optional[str] = None
+        self.range_est_at_turn: Optional[float] = None
+        self.reset()
+
+    def reset(self) -> None:
+        self._phase = "STANDBY"
+        self._dash_start_t: Optional[float] = None
+        self._last_t: Optional[float] = None
+        self._kf = _ConstVelKF(self.pcfg.kf_q_accel_ms2, estimate_ts_bias=self.pcfg.estimate_ts_bias)
+        self._decode_positions: List[Tuple[float, np.ndarray]] = []
+        self._last_decode_t = -math.inf
+        self._own_hist: Deque[_OwnSample] = deque()
+        self._healthy = False
+        self._min_range_seen = math.inf
+        self._t_min_range = 0.0
+        self.t_turn_start = None
+        self.turn_reason = None
+        self.range_est_at_turn = None
+        self._pursuit.reset()
+        self.state_log = []
+        self.events = []
+        self.last_decision = None
+
+    def _set_state(self, state: str, t: float) -> None:
+        if not self.state_log or self.state_log[-1][1] != state:
+            self.state_log.append((t, state))
+        self.last_decision = _Decision(state=state)
+
+    # ------------------------------------------------------- Phase S filter
+
+    def _observe_own(self, t: float, own: VehicleState) -> None:
+        own_pos = np.asarray(own.pos_ned, dtype=np.float64)
+        self._own_hist.append((t, own_pos.copy(), np.asarray(own.vel_ned, dtype=np.float64).copy(),
+                               tuple(float(c) for c in own.quat_wxyz)))
+        cutoff = t - self.pcfg.own_state_history_s
+        while len(self._own_hist) > 2 and self._own_hist[0][0] < cutoff:
+            self._own_hist.popleft()
+
+    def _observe_detection(self, t: float, det: Optional[Detection]) -> None:
+        """Phase S's background filter: accumulate toward acquisition, or
+        (once healthy) update the KF -- the SAME acquisition/measurement
+        logic as `PursuitRendezvousGuidance`, reusing its pure helpers on
+        `self._pursuit` (never mutating it) rather than duplicating them."""
+        if det is None:
+            return
+        _, pos_cap, _vel_cap, quat_cap = _interp_own_state(self._own_hist, det.t_capture)
+        if not self._healthy:
+            self._decode_positions.append(
+                (det.t_capture, self._pursuit._measure_pos_ned(pos_cap, quat_cap, det)))
+            cutoff = t - self.pcfg.acquire_window_s
+            self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
+            if len(self._decode_positions) >= self.pcfg.acquire_n:
+                pos0 = self._decode_positions[-1][1]
+                # v2 Bug A fix, reused: seed velocity from the pre-flight
+                # belief, never a 2-point finite difference.
+                self._kf.init(pos0, self.belief_vel_ned, self.pcfg.kf_p0_pos_m,
+                             self.pcfg.kf_p0_vel_ms, p0_bias_s=self.pcfg.kf_p0_bias_s)
+                self._last_decode_t = self._decode_positions[-1][0]
+                self._healthy = True
+        else:
+            dir_ned = self._pursuit._dir_ned(quat_cap, det)
+            z = np.asarray(pos_cap, dtype=np.float64) + det.range_m * dir_ned
+            self._kf.update(z, self._pursuit._measurement_r(det, dir_ned),
+                            age_s=max(0.0, t - det.t_capture))
+            self._last_decode_t = t
+
+    # -------------------------------------------------------- Phase S: sprint
+
+    def _sprint_cmd(self, t: float, own: VehicleState, own_pos: np.ndarray) -> np.ndarray:
+        """Open-loop sprint (same aim/speed/accel as the flyby's coded
+        dash) holding the believed altitude, plus a BOUNDED lateral/
+        vertical correction in the last `correction_window_s` before the
+        estimated pass, if the background filter is healthy -- "an
+        improved fly-by, not a blind one"."""
+        # BUG FOUND BY THE TEST SUITE (v7): `self._dash_start_t or t` returns
+        # `t` whenever `_dash_start_t` is falsy -- which includes the
+        # perfectly legitimate value 0.0 (a `go_at_s=0.0` engagement), not
+        # just `None`. Must be an explicit `is not None` check.
+        dash_start = self._dash_start_t if self._dash_start_t is not None else t
+        elapsed = t - dash_start
+        fwd_speed = dash_forward_speed(self.dash_speed_ms, self.dash_accel_ms2, elapsed)
+        heading_rad = math.radians(self.heading_deg)
+        v_n = fwd_speed * math.cos(heading_rad)
+        v_e = fwd_speed * math.sin(heading_rad)
+        alt_now_m = -float(own_pos[2])
+        alt_err = self.believed_alt_m - alt_now_m
+        v_d = float(np.clip(-self.scfg.kp_alt_sprint * alt_err,
+                            -self.scfg.v_vert_max_sprint_ms, self.scfg.v_vert_max_sprint_ms))
+        cmd = np.array([v_n, v_e, v_d])
+
+        if self._healthy:
+            r_est = self._kf.pos - own_pos
+            v_rel = self._kf.vel - np.asarray(own.vel_ned, dtype=np.float64)
+            denom = float(np.dot(v_rel, v_rel))
+            t_to_cpa = (-float(np.dot(r_est, v_rel)) / denom) if denom > 1e-9 else math.inf
+            if 0.0 <= t_to_cpa <= self.scfg.correction_window_s:
+                ref_dir = _unit(v_rel, np.array([1.0, 0.0, 0.0]))
+                r_perp = r_est - float(np.dot(r_est, ref_dir)) * ref_dir
+                correction = _clip_norm(self.scfg.kp_correction * r_perp,
+                                        self.scfg.max_correction_ms)
+                cmd = cmd + correction
+        return cmd
+
+    # -------------------------------------------------- Phase S -> T handover
+
+    def _start_turn(self, t: float, own: VehicleState, own_pos: np.ndarray, reason: str) -> None:
+        self._phase = "T"
+        self.t_turn_start = t
+        self.turn_reason = reason
+        self.range_est_at_turn = (float(np.linalg.norm(self._kf.pos - own_pos))
+                                  if self._healthy else None)
+        self._pursuit.reset()
+        if self._healthy:
+            # Hand the ALREADY-ACQUIRED filter state straight to pursuit's
+            # Phase B -- "turn toward the target's predicted position using
+            # the filter if it has one". Sharing the object is fine: Phase
+            # S never touches it again after this call.
+            self._pursuit._kf = self._kf
+            self._pursuit._phase = "B"
+            self._pursuit._last_decode_t = self._last_decode_t
+        # else: pursuit stays in its freshly-reset Phase A, which already
+        # extrapolates belief_pos0/vel0 forward from go_at_s -- "else the
+        # pre-flight belief", with no extra code needed.
+
+        # "Brake": seed pursuit's OWN slew-limiter with the REAL current
+        # velocity/yaw (not the zero/initial-yaw its reset() assumes), so
+        # its first commands decelerate FROM the true fast sprint velocity
+        # at accel_max_horiz_b_ms2/accel_max_vert_b_ms2, not from a
+        # fictitious rest state.
+        self._pursuit._prev_v_cmd = np.asarray(own.vel_ned, dtype=np.float64).copy()
+        self._pursuit._prev_yaw_deg = math.degrees(own.yaw_rad)
+
+    # ------------------------------------------------------------------ step
+
+    def step(self, t: float, own: VehicleState, det: Optional[Detection]) -> VelCmd:
+        own_pos = np.asarray(own.pos_ned, dtype=np.float64)
+        dt = 0.0 if self._last_t is None else max(0.0, t - self._last_t)
+
+        if t < self.go_at_s:
+            self._set_state("STANDBY", t)
+            self._last_t = t
+            return VelCmd(0.0, 0.0, 0.0, self.heading_deg)
+
+        if self._phase == "STANDBY":
+            self._phase = "S"
+            self._dash_start_t = t
+
+        if self._phase == "S":
+            self._observe_own(t, own)
+            if self._healthy:
+                self._kf.predict(dt)
+            self._observe_detection(t, det)
+
+            if self._healthy:
+                range_est = float(np.linalg.norm(self._kf.pos - own_pos))
+                if range_est < self._min_range_seen:
+                    self._min_range_seen = range_est
+                    self._t_min_range = t
+                growing = (range_est > self._min_range_seen + self.scfg.growth_margin_m
+                          and t - self._t_min_range > self.scfg.growth_hold_s)
+            else:
+                growing = False
+            dash_start = self._dash_start_t if self._dash_start_t is not None else t
+            timer_expired = (t - dash_start) > self.scfg.sprint_max_s
+            if growing or timer_expired:
+                self._start_turn(t, own, own_pos, "growing" if growing else "timer")
+
+        if self._phase == "S":
+            cmd_v = self._sprint_cmd(t, own, own_pos)
+            yaw = self.heading_deg
+            self._set_state("SPRINT", t)
+        else:
+            pursuit_cmd = self._pursuit.step(t, own, det)
+            cmd_v = np.array([pursuit_cmd.v_north, pursuit_cmd.v_east, pursuit_cmd.v_down])
+            yaw = pursuit_cmd.yaw_deg
+            inner_state = (self._pursuit.last_decision.state
+                           if self._pursuit.last_decision is not None else "T")
+            self._set_state(inner_state, t)
+
+        self._last_t = t
+        return VelCmd(v_north=float(cmd_v[0]), v_east=float(cmd_v[1]), v_down=float(cmd_v[2]),
+                      yaw_deg=yaw)

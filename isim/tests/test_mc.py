@@ -327,3 +327,39 @@ def test_pursuit_overrides_reach_a_spawned_worker():
     v_tight = rows_tight[0]["estimator_vel_err_m_m1s"]
     assert v_default is not None and v_tight is not None
     assert v_default != v_tight
+
+
+# ---------------------------------------------------------------- v7: hybrid
+
+def _fast_hybrid_scenario(seed: int) -> Scenario:
+    return Scenario(concept="hybrid", target_speed_ms=9.0, cross_range_m=6.5,
+                    lead_dist_m=10.0, cam_fx_px=385.0, tag_facing="rear",
+                    cam_tilt_up_deg=12.0, pursuit_window_s=6.0, seed=seed)
+
+
+def test_hybrid_rows_carry_contact_columns():
+    rows = run_many([_fast_hybrid_scenario(seed=s) for s in range(5)], workers=1)
+    for r in rows:
+        assert "contact" in r and "contact_first_pass" in r and "t_contact" in r
+        assert "t_turn_start" in r and "turn_reason" in r and "range_est_at_turn" in r
+        if r["contact"]:
+            assert r["t_contact"] is not None
+        else:
+            assert r["t_contact"] is None
+            assert r["contact_first_pass"] is False
+
+
+def test_hybrid_contact_first_pass_implies_contact():
+    rows = run_many([_fast_hybrid_scenario(seed=s) for s in range(20)], workers=1)
+    for r in rows:
+        if r["contact_first_pass"]:
+            assert r["contact"] is True
+
+
+def test_flyby_and_pursuit_rows_carry_none_for_hybrid_columns():
+    row_flyby = run_many([_fast_scenario(seed=0)], workers=1)[0]
+    row_pursuit = run_many([_fast_pursuit_scenario(seed=0)], workers=1)[0]
+    for row in (row_flyby, row_pursuit):
+        assert row["contact"] is None
+        assert row["contact_first_pass"] is None
+        assert row["t_turn_start"] is None

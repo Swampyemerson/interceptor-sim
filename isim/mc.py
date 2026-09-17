@@ -240,13 +240,14 @@ def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
     ecfg, vehicle, target, seeker, guidance, init_state = build(scn, vehicle_params)
 
     is_pursuit = scn.concept == "pursuit"
+    is_hybrid = scn.concept == "hybrid"
     recorder = _DebugRecorder(guidance) if is_pursuit else None
     run_guidance = recorder if recorder is not None else guidance
 
     captured = io.StringIO()
     with contextlib.redirect_stdout(captured):
         # record_trace=True only for pursuit: the diagnostics (#5) need the
-        # truth trace; flyby doesn't use it, so it stays off there (cost).
+        # truth trace; flyby/hybrid don't use it, so it stays off there (cost).
         result = run_engagement(ecfg, vehicle, target, seeker, run_guidance, init_state,
                                 record_trace=is_pursuit)
     n_fault_lines = sum(1 for line in captured.getvalue().splitlines()
@@ -304,6 +305,29 @@ def _run_one(scn: Scenario, vehicle_params: VehicleParams) -> Dict[str, Any]:
             row[col + "_m1s"] = None
         row["estimator_pos_err_m_at_last_decode"] = None
         row["estimator_vel_err_m_at_last_decode"] = None
+
+    # v7 #hybrid: "% contact first pass, % contact total, median time to
+    # contact" + "report the time lost in the turn-around and how far
+    # behind the vehicle ends up" -- read directly off the guidance object
+    # (its OWN honestly-logged turn instant), never a truth comparison.
+    if is_hybrid:
+        contact = result.miss_m <= _MISS_HIT_M
+        t_turn_start = getattr(guidance, "t_turn_start", None)
+        contact_first_pass = bool(contact and (t_turn_start is None
+                                               or result.t_cpa <= t_turn_start))
+        row["contact"] = contact
+        row["contact_first_pass"] = contact_first_pass
+        row["t_contact"] = result.t_cpa if contact else None
+        row["t_turn_start"] = t_turn_start
+        row["turn_reason"] = getattr(guidance, "turn_reason", None)
+        row["range_est_at_turn"] = getattr(guidance, "range_est_at_turn", None)
+    else:
+        row["contact"] = None
+        row["contact_first_pass"] = None
+        row["t_contact"] = None
+        row["t_turn_start"] = None
+        row["turn_reason"] = None
+        row["range_est_at_turn"] = None
     return row
 
 

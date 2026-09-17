@@ -167,7 +167,7 @@ def test_scatter_none_is_bit_identical_to_no_scatter(vp):
     assert guidance.cfg.standby_alt_m == pytest.approx(
         NOMINAL_ALT_M + scn.height_guess_error_m, abs=1e-12)
     assert vehicle.p is vp   # same object -- the no-scatter path never copies it
-    assert seeker.cam.fx == pytest.approx(540.0)
+    assert seeker.cam.fx == pytest.approx(scn.cam_fx_px)   # v7: nominal is 385, not a magic 540
     assert seeker.cam.mount_tilt_up_deg == pytest.approx(0.0)
 
 

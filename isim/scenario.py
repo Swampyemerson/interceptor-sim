@@ -64,7 +64,13 @@ import numpy as np
 
 from flight.deploy.real_flight import MissionConfig, resolve_preflight_heading, wrap_deg
 
-from isim.concepts import DualTagSeeker, PursuitConfig, PursuitRendezvousGuidance
+from isim.concepts import (
+    DualTagSeeker,
+    HybridGuidance,
+    HybridSprintConfig,
+    PursuitConfig,
+    PursuitRendezvousGuidance,
+)
 from isim.engine import EngagementConfig
 from isim.flight_adapter import RealFlightGuidance, standby_init_state
 from isim.ownstate import OwnStateNoise, OwnStateNoiseConfig
@@ -299,7 +305,15 @@ class Scenario:
     # (see `build()`); "stock" is the only value guaranteed to work today.
     # Ignored when `concept="pursuit"`.
     terminal: str = "stock"
-    cam_fx_px: float = 540.0             # NOMINAL focal length, px (both true camera and flight code)
+    # v7 LENS CORRECTION (isim/specs/hybrid_v7.md): the actual ordered part
+    # is an innomaker OV9281 at 118deg HFOV, not the earlier 540/933px
+    # placeholders -- fx = (width/2) / tan(HFOV/2) = (1280/2)/tan(59deg)
+    # ~= 385px. This is the NOMINAL focal length from v7 on (both the TRUE
+    # camera and the flight code's nominal belief); reproduced against the
+    # builder's own re-measured reference numbers (rear tag, all v5 errors
+    # on: 82% nominal / 59% aim20deg / 75% target+2m -- see the task's
+    # final report) before anything else in this round was built.
+    cam_fx_px: float = 385.0
     tag_side_m: float = 0.30             # printed tag side, m
     # "flyby" = today's open-loop-dash concept (RealFlightGuidance driving
     # the unmodified RealFlightSM), bit-identical to before this field
@@ -343,6 +357,12 @@ class Scenario:
     # but "straight" (the draw needs a per-run rng; `build()` raises
     # otherwise).
     target_motion: str = "straight"
+    # v7 (hybrid_v7.md): "hybrid" concept only -- generic HybridSprintConfig
+    # kwarg overrides, mirroring `pursuit_overrides`'s pattern exactly (kept
+    # SEPARATE because that field is PursuitConfig-specific and this one is
+    # HybridSprintConfig-specific; both travel through the same mc.py sweep
+    # machinery via a plain dict, never a monkeypatch).
+    hybrid_overrides: Optional[dict] = None
 
 
 def _sign(x: float) -> float:
@@ -582,17 +602,18 @@ def build(
         guidance: Guidance = RealFlightGuidance(
             cfg, cam_params=cam_nominal, span_m=tag.side_m,
             go_at_s=trigger_go_at_s, home_alt_m=0.0, **guidance_kwargs)
-    elif scn.concept == "pursuit":
-        # Phase A's belief geometry: the SAME belief_start_en/belief_vel_en
-        # the heading solve above used (already carries the Scatter speed-
-        # belief error, honesty-gated -- see Scatter's docstring), rotated
-        # about the launch origin by the SAME total angle
-        # (aim_error_deg + heading_noise_deg) the flyby concept adds
-        # directly to its solved heading -- so a compass/EKF or deliberate
-        # aim error distorts pursuit's belief exactly as it distorts flyby's
-        # aim, for an apples-to-apples comparison across the two concepts.
-        # Rotation (E,N) -> (E',N') by theta clockwise (azimuth convention,
-        # atan2(east, north)): E'=E*cos(t)+N*sin(t), N'=N*cos(t)-E*sin(t).
+    elif scn.concept in ("pursuit", "hybrid"):
+        # Phase A's (or v7 hybrid's Phase S/T) belief geometry: the SAME
+        # belief_start_en/belief_vel_en the heading solve above used
+        # (already carries the Scatter speed-belief error, honesty-gated --
+        # see Scatter's docstring), rotated about the launch origin by the
+        # SAME total angle (aim_error_deg + heading_noise_deg) the flyby
+        # concept adds directly to its solved heading -- so a compass/EKF
+        # or deliberate aim error distorts the belief exactly as it
+        # distorts flyby's aim, for an apples-to-apples comparison across
+        # concepts. Rotation (E,N) -> (E',N') by theta clockwise (azimuth
+        # convention, atan2(east, north)): E'=E*cos(t)+N*sin(t),
+        # N'=N*cos(t)-E*sin(t).
         theta = math.radians(scn.aim_error_deg + heading_noise_deg)
         ct, st = math.cos(theta), math.sin(theta)
         be, bn = belief_start_en
@@ -605,15 +626,35 @@ def build(
         if scn.pursuit_overrides:
             pcfg_kwargs = {**pcfg_kwargs, **scn.pursuit_overrides}
         pcfg = PursuitConfig(fx_px=scn.cam_fx_px, tag_side_m=scn.tag_side_m, **pcfg_kwargs)
-        guidance = PursuitRendezvousGuidance(
-            pcfg, belief_pos0_ned, belief_vel_ned, go_at_s=trigger_go_at_s,
-            initial_yaw_deg=heading, cam_mount_tilt_up_deg=scn.cam_tilt_up_deg)
+
+        if scn.concept == "pursuit":
+            guidance = PursuitRendezvousGuidance(
+                pcfg, belief_pos0_ned, belief_vel_ned, go_at_s=trigger_go_at_s,
+                initial_yaw_deg=heading, cam_mount_tilt_up_deg=scn.cam_tilt_up_deg)
+        else:
+            # v7 hybrid: Phase S flies the SAME open-loop sprint the flyby
+            # flies (same heading, dash_speed*sprint_scale, dash_accel,
+            # believed altitude = cfg.standby_alt_m -- the same belief the
+            # flyby concept's coded dash holds).
+            scfg_kwargs = dict(scn.hybrid_overrides) if scn.hybrid_overrides else {}
+            scfg = HybridSprintConfig(**scfg_kwargs)
+            guidance = HybridGuidance(
+                scfg, pcfg, heading_deg=heading, dash_speed_ms=dash_speed,
+                dash_accel_ms2=dash_accel, believed_alt_m=cfg.standby_alt_m,
+                go_at_s=trigger_go_at_s, belief_pos0_ned=belief_pos0_ned,
+                belief_vel_ned=belief_vel_ned, cam_mount_tilt_up_deg=scn.cam_tilt_up_deg)
+
         # v5 #1-4: own-state noise, GUIDANCE-visible only -- "flyby" is
         # untouched (its own, separate Scatter story), so it stays exactly
         # bit-identical to before this field existed regardless of these
         # new fields' values. Gated on `scat is not None`, same convention
         # as every other Scatter-driven perturbation in this function --
-        # `scat is None` reproduces the exact pre-v5 pursuit code path.
+        # `scat is None` reproduces the exact pre-v5 code path for either
+        # concept. Applies to "hybrid" too (both its Phase S filter AND the
+        # Phase T hand-over guidance see the SAME perturbed own-state, by
+        # construction -- this wrapper is OUTSIDE HybridGuidance, so
+        # whatever it hands to HybridGuidance.step() is what HybridGuidance
+        # then hands onward to `self._pursuit.step()` at Phase T).
         if scat is not None:
             ownstate_cfg = OwnStateNoiseConfig(
                 attitude_bias_rp_sigma_deg=scat.ownstate_attitude_bias_rp_sigma_deg,
@@ -630,7 +671,7 @@ def build(
             guidance = OwnStateNoise(guidance, ownstate_cfg, ownstate_rng)
     else:
         raise ValueError(f"scenario.build: concept={scn.concept!r}, want "
-                         f"'flyby' or 'pursuit'")
+                         f"'flyby', 'pursuit', or 'hybrid'")
 
     # v5 #6: TRUE target motion realism. "straight" (default) is exactly
     # today's ConstantVelocityTarget; the other two need a per-run rng draw
@@ -659,9 +700,10 @@ def build(
     target = _DelayedTarget(inner=inner_target, go_at_s=go_at_s)
     init_state = standby_init_state(cfg)
 
-    if scn.concept == "pursuit":
-        # A pursuit is scored on its closest approach over the WHOLE window: the
-        # target's first fly-past is not the end of the engagement, the chase is.
+    if scn.concept in ("pursuit", "hybrid"):
+        # Both are scored on closest approach over the WHOLE window (v7:
+        # "as pursuit") -- the first fly-past is not the end of the
+        # engagement, the chase is.
         ecfg = EngagementConfig(stop_not_before_s=stop_not_before_s, seed=scn.seed,
                                 max_t=scn.pursuit_window_s,
                                 stop_after_cpa_s=scn.pursuit_window_s)

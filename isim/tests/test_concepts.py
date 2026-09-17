@@ -647,3 +647,135 @@ def test_rear_dual35_builds_two_tags_angled_from_pure_rear(vp):
 def test_rear_dual35_mutually_exclusive_with_other_dual_tag_options(vp):
     with pytest.raises(ValueError):
         build(Scenario(concept="pursuit", tag_facing="rear_dual35", inner_tag_side_m=0.08), vp)
+
+
+# --------------------------------------------------------------- v7: hybrid
+
+def test_hybrid_phase_s_flies_the_open_loop_sprint_speed_schedule():
+    """Phase S's forward speed must match `dash_forward_speed` exactly (the
+    SAME accel-limited ramp the flyby's coded dash uses), along the given
+    heading, with no lateral/vertical correction while the background
+    filter has never acquired (no detections at all in this test)."""
+    from isim.concepts import HybridGuidance, HybridSprintConfig
+    from flight.guidance import dash_forward_speed
+
+    scfg = HybridSprintConfig()
+    pcfg = PursuitConfig()
+    g = HybridGuidance(scfg, pcfg, heading_deg=30.0, dash_speed_ms=16.0, dash_accel_ms2=10.0,
+                       believed_alt_m=7.0, go_at_s=0.0,
+                       belief_pos0_ned=np.array([50.0, 0.0, -7.0]),
+                       belief_vel_ned=np.array([9.0, 0.0, 0.0]))
+    own = VehicleState(t=0.0, pos_ned=np.array([0.0, 0.0, -7.0]), vel_ned=np.zeros(3),
+                      quat_wxyz=yaw_to_quat_wxyz(0.0), yaw_rad=0.0)
+    for i, t in enumerate((0.0, 0.5, 1.0, 1.5)):
+        cmd = g.step(t, own, None)
+        expected_speed = dash_forward_speed(16.0, 10.0, t)   # go_at_s=0 -> dash starts at t
+        expected_vn = expected_speed * math.cos(math.radians(30.0))
+        expected_ve = expected_speed * math.sin(math.radians(30.0))
+        assert cmd.v_north == pytest.approx(expected_vn, abs=1e-6)
+        assert cmd.v_east == pytest.approx(expected_ve, abs=1e-6)
+        assert cmd.yaw_deg == pytest.approx(30.0, abs=1e-9)
+    assert all(s in ("STANDBY", "SPRINT") for _, s in g.state_log)
+
+
+def test_hybrid_turns_around_on_sprint_timer_expiry_when_never_acquired():
+    from isim.concepts import HybridGuidance, HybridSprintConfig
+    scfg = HybridSprintConfig(sprint_max_s=2.0)
+    pcfg = PursuitConfig()
+    g = HybridGuidance(scfg, pcfg, heading_deg=0.0, dash_speed_ms=16.0, dash_accel_ms2=10.0,
+                       believed_alt_m=7.0, go_at_s=0.0,
+                       belief_pos0_ned=np.array([50.0, 0.0, -7.0]),
+                       belief_vel_ned=np.array([9.0, 0.0, 0.0]))
+    own = VehicleState(t=0.0, pos_ned=np.array([0.0, 0.0, -7.0]), vel_ned=np.array([16.0, 0.0, 0.0]),
+                      quat_wxyz=yaw_to_quat_wxyz(0.0), yaw_rad=0.0)
+    t = 0.0
+    for _ in range(160):   # 3.2 s at dt=0.02, past sprint_max_s=2.0
+        g.step(t, own, None)
+        t += 0.02
+    assert g.turn_reason == "timer"
+    assert g.t_turn_start is not None and g.t_turn_start == pytest.approx(2.02, abs=0.03)
+    assert g.range_est_at_turn is None   # never acquired -- honestly None, not a guess
+    assert any(s not in ("STANDBY", "SPRINT") for _, s in g.state_log)   # handed to pursuit
+
+
+def test_hybrid_handover_seeds_pursuit_with_the_real_current_velocity_and_yaw():
+    """The 'brake': at the Phase S->T handover, `self._pursuit`'s own
+    slew-limiter must start from the REAL current (fast sprint) velocity/
+    yaw, not from zero/its own reset() default."""
+    from isim.concepts import HybridGuidance, HybridSprintConfig
+    scfg = HybridSprintConfig(sprint_max_s=1.0)
+    pcfg = PursuitConfig()
+    g = HybridGuidance(scfg, pcfg, heading_deg=0.0, dash_speed_ms=16.0, dash_accel_ms2=10.0,
+                       believed_alt_m=7.0, go_at_s=0.0,
+                       belief_pos0_ned=np.array([50.0, 0.0, -7.0]),
+                       belief_vel_ned=np.array([9.0, 0.0, 0.0]))
+    fast_vel = np.array([15.5, 1.2, -0.3])
+    own = VehicleState(t=0.0, pos_ned=np.array([0.0, 0.0, -7.0]), vel_ned=fast_vel,
+                      quat_wxyz=yaw_to_quat_wxyz(0.3), yaw_rad=0.3)
+    t = 0.0
+    handover_cmd = None
+    dt = 0.02
+    for _ in range(60):   # 1.2 s, past sprint_max_s=1.0
+        was_turned = g.t_turn_start is not None
+        cmd = g.step(t, own, None)
+        if handover_cmd is None and not was_turned and g.t_turn_start is not None:
+            handover_cmd = cmd   # the FIRST command issued on the turn tick itself
+        t += dt
+    assert handover_cmd is not None, "never turned -- test setup problem"
+    # Pursuit's own Phase-B slew limiter (accel_max_horiz_b_ms2/vert) bounds
+    # how far ONE tick can move away from the seeded `fast_vel` -- a real
+    # "brake" (bounded deceleration), not a jump to/from zero.
+    cmd_v = np.array([handover_cmd.v_north, handover_cmd.v_east, handover_cmd.v_down])
+    one_tick_bound = max(PursuitConfig().accel_max_horiz_b_ms2,
+                         PursuitConfig().accel_max_vert_b_ms2) * dt * 3.0   # generous margin
+    shift = float(np.linalg.norm(cmd_v - fast_vel))
+    print(f"handover tick command shift from fast_vel: {shift:.3f} m/s (bound {one_tick_bound:.3f})")
+    assert shift < one_tick_bound
+    assert shift < float(np.linalg.norm(fast_vel)) * 0.5   # nowhere near "jumped to/from zero"
+
+
+def test_hybrid_never_receives_target_state_or_frame_report(vp):
+    """Honesty spy, mirroring the pursuit/flyby versions."""
+    from isim.concepts import HybridGuidance
+
+    class _Spy:
+        def __init__(self, inner):
+            self.inner = inner
+            self.seen_own_types = []
+            self.seen_det_types = []
+
+        def reset(self):
+            self.inner.reset()
+
+        def step(self, t, own, det):
+            self.seen_own_types.append(type(own))
+            self.seen_det_types.append(type(det))
+            assert isinstance(own, VehicleState) and not isinstance(own, TargetState)
+            assert det is None or isinstance(det, Detection)
+            assert not isinstance(det, FrameReport)
+            return self.inner.step(t, own, det)
+
+    scn = Scenario(concept="hybrid", target_speed_ms=9.0, cross_range_m=6.5, lead_dist_m=16.2,
+                   cam_fx_px=385.0, tag_facing="rear", cam_tilt_up_deg=12.0, seed=0)
+    ecfg, vehicle, target, seeker, guidance, init = build(scn, vp)
+    assert isinstance(guidance, HybridGuidance)
+    spy = _Spy(guidance)
+    run_engagement(ecfg, vehicle, target, seeker, spy, init)
+    assert len(spy.seen_own_types) > 0
+    assert set(spy.seen_own_types) == {VehicleState}
+    assert set(spy.seen_det_types) <= {Detection, type(None)}
+
+
+def test_hybrid_scoring_window_matches_pursuit(vp):
+    scn_h = Scenario(concept="hybrid", seed=0)
+    scn_p = Scenario(concept="pursuit", seed=0)
+    ecfg_h, *_ = build(scn_h, vp)
+    ecfg_p, *_ = build(scn_p, vp)
+    assert ecfg_h.max_t == pytest.approx(ecfg_p.max_t)
+    assert ecfg_h.stop_after_cpa_s == pytest.approx(ecfg_p.stop_after_cpa_s)
+
+
+def test_hybrid_overrides_reach_the_sprint_config(vp):
+    scn = Scenario(concept="hybrid", hybrid_overrides={"sprint_max_s": 3.5}, seed=0)
+    _, _, _, _, guidance, _ = build(scn, vp)
+    assert guidance.scfg.sprint_max_s == pytest.approx(3.5)
