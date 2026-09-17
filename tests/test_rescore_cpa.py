@@ -634,3 +634,13 @@ def test_passage_ceiling_truth_table_and_wiring():
     assert _args_from_cli([]).breakoff_force_flown_frac is None
     src = open(M4.__file__).read()
     assert src.count("if passage_ceiling_hit(_ceil_flown, coded_dash_plan_m,") == 1
+
+
+def test_terminal_vclose_floor():
+    f = M4.apply_vclose_floor
+    assert f(5.5, None) == 5.5                 # OFF: the stock law, untouched
+    assert f(5.5, 16.0) == 16.0 and f(9.0, 16.0) == 16.0
+    assert f(20.0, 16.0) == 20.0               # a floor, never a cap
+    assert _args_from_cli([]).terminal_vclose_min is None
+    src = open(M4.__file__).read()
+    assert src.count("v_close = apply_vclose_floor(v_close, args.terminal_vclose_min)") == 1

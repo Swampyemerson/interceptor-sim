@@ -128,6 +128,8 @@ case "$ARM" in
   # PASSAGE WINDOW (docs/scoring_fix_plan.md 5d): floor 0.8 + ceiling 1.3.
   AE15W)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 --breakoff-min-flown-frac 0.8 --breakoff-force-flown-frac 1.3"; N=8; DIRS=both;;
   S10W)    EXTRA="$BASE --dash-accel-aware-lead --breakoff-min-flown-frac 0.8 --breakoff-force-flown-frac 1.3"; N=8; DIRS=both; Y0MAG=7.62; TSPEED=4.47;;
+  # TERMINAL SPEED FLOOR (docs/pointing_prereg.md): PYAWTA + never brake below the sprint.
+  PYAWTAV) EXTRA="$BASE --dash-accel-aware-lead --alt-ref-offset-m -0.207 --dash-prealign-yaw --dash-yaw-to-predicted-los --cam-mount-up-deg 25 --terminal-vclose-min 16"; N=8; DIRS=both; WEDGE=25;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
   AE15dash) EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY"; N=8; DIRS=both;;
   # RESIDUAL-BIAS fine sweep (dash-only): the aim curve measured 0 deg -> 0.71 m,

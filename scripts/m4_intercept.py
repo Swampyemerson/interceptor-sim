@@ -595,6 +595,17 @@ def compute_v_close(r_hat, fpv_on):
     return term + frac * (runin - term)
 
 
+def apply_vclose_floor(v_close, floor_ms):
+    """--terminal-vclose-min: never let the terminal command LESS along-LOS closing
+    speed than this. The FPV two-speed law (9 -> 5.5 m/s) was sized for a ~6 m/s
+    target and a short-range handoff; when the camera takes over EARLY from a 16 m/s
+    sprint against a 9 m/s crossing target it brakes into a tail chase
+    (docs/pointing_prereg.md, aligned-arm result). None = OFF (byte-identical)."""
+    if floor_ms is None:
+        return v_close
+    return max(v_close, float(floor_ms))
+
+
 def cue_is_stale(last_cue_recv_sim_t, sim_now, horizon):
     """ADR-0059: has the external cue link gone silent (jammed) for longer than
     `horizon` SIM seconds?
@@ -2213,6 +2224,11 @@ def parse_args():
              "phase ONLY -- needed so the loft-then-dive descent fits the short dash "
              "(stock V_VERT_MAX 0.5 m/s is too slow to dive 2-4 m in ~2 s). Ignored unless "
              "--dash-loft-m > 0. Default None = stock V_VERT_MAX (byte-identical).")
+    parser.add_argument(
+        "--terminal-vclose-min", type=float, default=None,
+        help="ENGAGE: floor on the commanded along-LOS closing speed (m/s). Use the dash "
+             "speed to stop the terminal braking out of the sprint when it takes over "
+             "early. Default None = the stock two-speed law (byte-identical).")
     parser.add_argument(
         "--dash-prealign-yaw", action="store_true",
         help="--coded-dash: before the dash begins (and before the target mover is "
@@ -4497,6 +4513,7 @@ async def run_acquire_and_engage(
                 # were commanding zero.
                 if terminal_must_build_command(in_terminal_coast, vh_cmd_valid):
                     v_close = compute_v_close(r_hat, args.fpv)  # two-speed under --fpv
+                    v_close = apply_vclose_floor(v_close, args.terminal_vclose_min)
 
                     # TERMINAL LOS BIAS COMPENSATION (flight.guidance, default
                     # OFF). Applied HERE -- to the COMMAND's LOS basis, not to
