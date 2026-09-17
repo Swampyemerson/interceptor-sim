@@ -379,3 +379,50 @@ def test_gate_arms_exist_and_the_legacy_table_reproduces():
     # not, the fix is inert.
     assert abs(pooled["centre"]["interp"]["median_hi"]
                - pooled["adhoc-published"]["interp"]["median_hi"]) > 0.05
+
+
+# ------------------------------------------------ attitude columns (3b) ---
+# 2026-09-16, docs/next.md 3b. They live in THIS file because it owns the
+# producer import (M4); a second importer would add to the collection-order
+# coupling pinned in test_ci_gz_deselect_list.py.
+
+
+def _one_row(att_quat):
+    buf = []
+
+    class _Sink:
+        def writerow(self, row):
+            buf.append(row)
+
+    class _F:
+        def flush(self):
+            pass
+
+    M4.write_row_m4(
+        _Sink(), _F(), 0.0, "CODED_DASH", "pronav", False, None,
+        PSI_DEG, None, None, None, None, None, None, None,
+        (0.0, 0.0, 0.0, 0.0), 0.5, PAD_CAM, TGT, 1.0, att_quat=att_quat)
+    assert len(buf) == 1
+    assert len(buf[0]) == len(M4.CSV_HEADER), "row and header disagree on width"
+    return dict(zip(M4.CSV_HEADER, buf[0]))
+
+
+def test_attitude_is_logged_through_the_producer():
+    # 20 deg nose-DOWN about body y (a dash attitude), no roll, no yaw.
+    half = math.radians(-20.0) / 2.0
+    row = _one_row((math.cos(half), 0.0, math.sin(half), 0.0))
+    assert float(row["att_pitch_deg"]) == pytest.approx(-20.0, abs=1e-3)
+    assert float(row["att_roll_deg"]) == pytest.approx(0.0, abs=1e-3)
+    assert float(row["att_qw"]) == pytest.approx(math.cos(half), abs=1e-6)
+    # 15 deg right-wing-down roll about body x.
+    half = math.radians(15.0) / 2.0
+    row = _one_row((math.cos(half), math.sin(half), 0.0, 0.0))
+    assert float(row["att_roll_deg"]) == pytest.approx(15.0, abs=1e-3)
+    assert float(row["att_pitch_deg"]) == pytest.approx(0.0, abs=1e-3)
+
+
+def test_missing_attitude_is_blank_not_level():
+    row = _one_row(None)
+    for col in ("att_qw", "att_qx", "att_qy", "att_qz",
+                "att_roll_deg", "att_pitch_deg"):
+        assert row[col] == "", f"{col} must be BLANK with no sample, got {row[col]!r}"

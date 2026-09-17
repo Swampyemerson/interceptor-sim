@@ -941,6 +941,17 @@ CSV_HEADER = [
     #   TERMINAL_FREEZE_RANGE_M, so the whole ENGAGE phase re-issued (0, 0) --
     #   and nothing in the log said so.
     "dash_clock", "coast_zero",
+    # --- 2026-09-16 (docs/next.md 3b, deep-audit DEEP-R2). Appended at the END
+    #     so every existing by-name DictReader consumer is unaffected.
+    # The vehicle's OWN attitude (PX4 EKF, MAVSDK attitude_quaternion, body FRD
+    # -> NED; w,x,y,z) -- own-state, honesty-legal, LOGGING ONLY here. The raw
+    # quaternion is the measurement; att_roll_deg / att_pitch_deg are derived
+    # from it for readability (nose-up +, right-wing-down +). Blank until the
+    # first attitude sample arrives. Why it is logged: the camera sits on a
+    # forward boom, so pitch swings it vertically and that was being counted as
+    # vertical miss; and it is the only way to tell whether undetected dash
+    # ticks are an attitude (FOV) problem.
+    "att_qw", "att_qx", "att_qy", "att_qz", "att_roll_deg", "att_pitch_deg",
 ]
 
 
@@ -1756,6 +1767,25 @@ def acquire_command(detected: bool, meas: "Optional[Measurement]", alt_m, psi_de
     return 0.0, 0.0, v_down, yaw_deg
 
 
+def quat_roll_pitch_deg(quat):
+    """(roll_deg, pitch_deg) from a body(FRD)->NED unit quaternion (w, x, y, z),
+    aerospace ZYX convention -- the same one MAVSDK's attitude_euler() reports,
+    so att_pitch_deg agrees with M4TelemetryState.pitch_deg (nose-up +)."""
+    w, x, y, z = quat
+    roll = math.atan2(2.0 * (w * x + y * z), 1.0 - 2.0 * (x * x + y * y))
+    sp = max(-1.0, min(1.0, 2.0 * (w * y - z * x)))
+    return math.degrees(roll), math.degrees(math.asin(sp))
+
+
+def _att_cells(att_quat):
+    """The six att_* CSV cells (see CSV_HEADER). Blank, never zero, when no
+    attitude sample has arrived -- a default would read as 'level'."""
+    if att_quat is None:
+        return [""] * 6
+    roll_deg, pitch_deg = quat_roll_pitch_deg(att_quat)
+    return [f"{q:.6f}" for q in att_quat] + [f"{roll_deg:.3f}", f"{pitch_deg:.3f}"]
+
+
 def write_row_m4(
     writer, log_file, t: float, phase: str, law: str,
     detected: Optional[bool], meas: "Optional[Measurement]",
@@ -1763,7 +1793,7 @@ def write_row_m4(
     vc_m_s, a_cmd_m_s2, v_perp_m_s, cmd, alt_m, gt_cam, gt_tag, gt_range,
     ext_xyz=None, ext_fresh=None, tgt_state=None, ext_age_s=None,
     cue_stale=None, coast_phase=None, t_sim=None, ekf_state=None,
-    dash_clock=None, coast_zero=None,
+    dash_clock=None, coast_zero=None, att_quat=None,
 ):
     def fmt(value, spec="{:.4f}"):
         return "" if value is None else spec.format(value)
@@ -1842,6 +1872,7 @@ def write_row_m4(
         dash_clock or "",
         "" if not coast_zero else 1,
     ]
+    row.extend(_att_cells(att_quat))
     writer.writerow(row)
     log_file.flush()
 
@@ -4512,6 +4543,7 @@ async def run_acquire_and_engage(
             # coast_zero marks every ENGAGE tick flown under a ~zero coast latch.
             dash_clock=dash_clock_basis if phase == "CODED_DASH" else None,
             coast_zero=coast_zero_flag if phase == "ENGAGE" else None,
+            att_quat=state.att_quat,
         )
 
         if aborted:
@@ -4795,6 +4827,7 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
                     None, None, None, None, None, (0.0, 0.0, 0.0, 0.0), alt_m,
                     gt_cam, gt_tag, gt_range,
                     t_sim=sim_clock.t if sim_clock is not None else None,
+                    att_quat=state.att_quat,
                 )
                 break
             if detected:
@@ -4818,6 +4851,7 @@ async def run_bench(drone, state, meas_holder, tracker, writer, log_file, starte
             detected, meas, psi_deg, lambda_filter.x_hat, lambda_filter.xdot_hat,
             None, None, None, None, None, cmd, alt_m, gt_cam, gt_tag, gt_range,
             t_sim=sim_clock.t if sim_clock is not None else None,
+            att_quat=state.att_quat,
         )
 
         tick_elapsed = time.monotonic() - tick_start
@@ -5221,6 +5255,7 @@ async def main():
                 detected, meas, state.yaw_deg, None, None, None, None, None, None,
                 0.0, None, state.relative_altitude_m, gt_cam, gt_tag, gt_range,
                 t_sim=sim_clock.t if sim_clock is not None else None,
+                att_quat=state.att_quat,
             )
             if (
                 state.relative_altitude_m is not None
