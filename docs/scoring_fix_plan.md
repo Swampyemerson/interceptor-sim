@@ -351,6 +351,48 @@ until this adopts.
 **Portability (binding):** F = 0.8 is earned at 4.5–9 m/s crossing targets with a solved heading.
 An explicit `--dash-heading-deg` has no plan distance, and the gate then fails closed by design.
 
+### 5c. RESULT of the §5b fleet, seed 123 (2026-09-17) — the gate works; the criterion as I wrote it is NOT met; the camera is no better for it
+
+32 flights, HEAD `226eb1a`. Auditor check (f): **0 offending ticks on 32/32 flights** — issue #9 is
+observed fixed end-to-end.
+
+| | gate OFF (`AE15N`+`S10N`) | gate ON (`AE15P`+`S10P`) |
+|---|---|---|
+| premature breakoffs (fires, then true range closes > 0.5 m) | **5/16** (closing 1.5–2.8 m more) | **1/16** |
+| flights ended by ENGAGE timeout | 0 | 0 |
+| 10 mph rung, median miss | 0.84 m | 1.00 m |
+
+- **Prediction 1 HOLDS** (≤ 1 with the gate, ≥ 2 without). The one survivor (`AE15P` #1) sat at an
+  offline flown/planned fraction of 0.76 — inside the 0.8 gate on true position, yet the in-flight
+  gate let it through. The vehicle's own position estimate and the truth differ by a few tenths of
+  a metre at 16 m/s; the gate has no margin for events that close to the line. Named in §5b's null
+  clause; not a threshold to retune on one event.
+- **Prediction 3 HOLDS** (no breakoff converted into a timeout).
+- **Prediction 2 FAILS as I wrote it.** §5b says *no* gate-held flight may keep steering > 2 s past
+  true closest approach; `S10P` #5 was held and steered on for 2.54 s. §5's original wording
+  tolerated ≤ 1/40 and would have passed; I wrote the stricter word and am held to it.
+  **NOT ADOPTED on this fleet.** Context, not excuse: steering 2–3.7 s past closest approach
+  happens on 6/8 `S10P` flights and on 2 of the 4 `S10N` flights that reached closest approach at
+  all, including flights the gate never touched — the breakoff fires LATE as well as early. That is
+  its own defect (irrelevant to the miss number, relevant to a real vehicle flying on past its
+  target) and is logged as such.
+
+**The result that matters more than the gate.** Taking the early quits away did not help the camera:
+pair by pair on the 10 mph rung the four flights that used to quit early went 1.70→0.83,
+0.89→1.72, 0.84→1.09, 1.45→1.22 m, and the arm median went 0.84→1.00 m against the dash-only
+twin's 0.73 m. The plan warned of exactly this ("suppressing an early breakoff does not
+automatically help"). The premature breakoff was the one defect only the camera arm could suffer,
+and it was the standing reason the camera-vs-dash margins could not be quoted. With it 80%
+removed, the camera still does not beat a well-aimed sprint at 10 mph. **The null is no longer
+confounded by this defect** — n = 8, one seed, so it is a direction, not a margin.
+
+**Replication, registered now, before it flies:** the same four arms on seed **777**, judged on
+§5's ORIGINAL wording (premature ≤ 1/16 with the gate; phantom-chase attributable to the gate
+≤ 1/16, where "attributable" = a gate-HELD flight steering > 2 s past closest approach whose
+gate-off twin did not; timeouts ≤ 1). Adopt iff seed 777 meets all three AND seed 123's clause-2
+miss stays the only one across the 32 gate-ON flights. Anything else: not adopted, and the speed
+ladder runs with the breakoff disabled and the timeout as backstop, disclosed as a sim concession.
+
 ---
 
 ## 6. RISKS — and where the issue descriptions are wrong
