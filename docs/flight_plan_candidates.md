@@ -1390,3 +1390,26 @@ the adopted setting). `TOL0` and `TOL10` came in BELOW my 2–5/8 prediction: th
 V, roughly **0.08–0.12 m of miss per degree** either side of the optimum. **Adding `TOL2` (+2.5°)
 and `TOL7` (+7.5°) to pin the width; predicted by straight-line interpolation: medians ≈ 0.45 and
 ≈ 0.50 m, 1–3/8 inside.**
+
+### RESULT — the full seven-point curve (2026-09-17, seed 123, n = 8 per point, primary ruler)
+
+| aim error | −5° | 0° | +2.5° | **+5°** | +7.5° | +10° | +15° |
+|---|---|---|---|---|---|---|---|
+| median closest approach | 1.15 | 0.65 | 0.35 | **0.26** | 0.47 | 0.75 | 1.37 m |
+| inside the 0.35 m contact radius | 0/8 | 1/8 | 4/8 | **7/8** | 2/8 | 0/8 | 0/8 |
+
+The fill-in points landed close to the straight-line guess on one side (+7.5°: 0.47 vs ≈ 0.50)
+and better on the other (+2.5°: 0.35 vs ≈ 0.45), so the V is a little lopsided with its bottom
+near +4° to +5°.
+
+**The derived requirement, in plain words:** for the sprint-only vehicle to touch the target
+**most of the time (≥ 6 of 8), the launch aim must be right to about ±1°; for half the time,
+about ±2°** (+2.5° to roughly +6.5°). Each degree beyond that costs about 0.1 m of miss. ADR-0084's
+paper budget of ±2.4° was the right size for "half the time" and optimistic for "most of the time".
+
+**This belongs next to the 13/16 headline wherever it is quoted:** that number is what the vehicle
+does when its aim is within about a degree of optimum — and the optimum is +5° off the solver's
+own answer for a reason still not established (ADR-0083; tonight's pre-alignment side-finding
+points at the sim's start heading). A real launch cue good to ±1° at 15 m is a 0.26 m
+cross-range position error on the target. That is the sensor the rest of the system would have
+to be. One seed, azimuth only, every other given still perfect.

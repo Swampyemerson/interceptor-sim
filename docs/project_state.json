@@ -1547,10 +1547,10 @@
     },
     {
       "label": "Open-loop aim tolerance",
-      "value": "±30°",
-      "note": "48/48 flights engaged (dash-robustness only, per #18g)",
-      "provenance": "ADR-0076 add #18b/#18c",
-      "plain": "The dash kept engaging with aim off by up to 30 degrees — sprint robustness, not proof the camera works.",
+      "value": "about ±1° (most flights) / ±2° (half)",
+      "note": "MEASURED 2026-09-17 on the adopted sprint-only config with the height fix (seed 123, n=8 per point, primary ruler): aim error -5/0/+2.5/+5/+7.5/+10/+15 deg -> median miss 1.15/0.65/0.35/0.26/0.47/0.75/1.37 m, inside 0.35 m on 0/1/4/7/2/0/0 of 8. About 0.1 m of miss per degree. The optimum sits +5 deg off the solver's answer for an unestablished reason (ADR-0083). Azimuth only; every other given perfect. Previous paper budget: +/-2.4 deg (ADR-0084). This entry used to read '+/-30 deg' -- that was how far off the aim could be and the camera still 'acquire', which tonight's work showed was mostly acquisition of the vehicle's own airframe (phantoms), not the target. It now states the tolerance that matters: aim error versus touching the target.",
+      "provenance": "docs/flight_plan_candidates.md (seven-point curve) - logs/mc_fp_armTOL*_line9_s123.csv - scripts/rescore_cpa.py",
+      "plain": "How wrong the launch aim can be: within about 1 degree for most flights to touch, 2 degrees for half.",
       "trust": "sim"
     },
     {
@@ -1573,7 +1573,7 @@
       "label": "Inside the contact radius (corrected ruler)",
       "value": "13/16 (was 2/16)",
       "trust": "sim",
-      "plain": "13 of 16 sprint-only flights now pass close enough to touch. Best case: camera off, target known exactly.",
+      "plain": "13 of 16 sprint-only flights touch -- IF the aim is within ~1 degree. Best case: camera off, target known exactly.",
       "note": "ADR-0100, 2026-09-16. Paired A/B on two fresh seeds (456, 789), n=8 each, dash-only, primary ruler = airframe centre-to-centre interpolated: control 2/16 inside 0.35 m (medians 0.563, 0.457 m), height-reference arm 13/16 (0.215, 0.249 m), closer on 14/16 pairs. Earlier figure on seeds 123+777 without the fix: 3/16 logged, 5/16 interpolated (an interim 12/16 was retracted). The vehicle passes ABOVE the target, not below as one doc said. Leans on two given-perfect inputs: launch aim and target height.",
       "provenance": "scripts/rescore_cpa.py · logs/mc_fp_armAE5dash{,Z}_line9_s{456,789}.csv · docs/vertical_channel_prereg.md §9.13-9.14 · ADR-0100"
     },
