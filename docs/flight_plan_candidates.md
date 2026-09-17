@@ -1375,3 +1375,18 @@ hold — and that belongs next to the headline wherever it is quoted. **Standing
 optimum is at +5°, not 0°, for a reason nobody has established (ADR-0083); tonight's
 pre-alignment side-finding suggests the sim's start heading is part of it; the curve is
 one-dimensional (azimuth only) and best-case in every other given.
+
+### RESULT so far, and two points added before flying them (2026-09-17)
+
+Primary ruler (airframe centre, interpolated), seed 123, n = 8 each:
+
+| aim error | −5° | 0° | **+5° (adopted)** | +10° | +15° |
+|---|---|---|---|---|---|
+| median closest approach | 1.15 m | 0.65 m | **0.26 m** | 0.75 m | 1.37 m |
+| inside 0.35 m | 0/8 | 1/8 | **7/8** | 0/8 | 0/8 |
+
+`TOL5` met its prediction (≥ 6/8; with the three earlier seeds the adopted config is now 27/32 at
+the adopted setting). `TOL0` and `TOL10` came in BELOW my 2–5/8 prediction: the curve is a steep
+V, roughly **0.08–0.12 m of miss per degree** either side of the optimum. **Adding `TOL2` (+2.5°)
+and `TOL7` (+7.5°) to pin the width; predicted by straight-line interpolation: medians ≈ 0.45 and
+≈ 0.50 m, 1–3/8 inside.**

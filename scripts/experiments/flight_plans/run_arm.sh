@@ -135,6 +135,8 @@ case "$ARM" in
   TOLm5)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg -5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   TOL0)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 0 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   TOL5)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  TOL2)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 2.5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
+  TOL7)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 7.5 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   TOL10)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 10 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   TOL15)   EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15 $DASHONLY --alt-ref-offset-m -0.207"; N=8; DIRS=both;;
   AE15)    EXTRA="$BASE --dash-accel-aware-lead --dash-heading-err-deg 15"; N=8; DIRS=both;;
