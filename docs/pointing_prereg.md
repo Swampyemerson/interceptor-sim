@@ -191,3 +191,17 @@ look-angle-constrained), which is a council-grade decision, not a flag. If it la
 **Asymmetry check:** only the floor arm can overshoot at 25 m/s closure inside the last metres
 (line-of-sight rate blow-up — the reason ADR-0010 slowed the terminal). Report the fraction of
 flights whose miss is dominated by the last 3 ticks, and the right-to-left / left-to-right split.
+
+## RESULT — the remaining aligned arms (seed 123)
+
+- **`PCAMA`, aligned but no yaw lever: target central on 4 of 224 ticks at 8–22 m (2%)**, at the
+  picture's EDGE on 146. Prediction (< 10%) met: pointing the nose along the sprint before
+  launch is not enough, because on a lead course the target simply is not along the sprint. The
+  yaw lever is doing real work (2% → 59% → 99% with the tilt).
+- **Harm check, aligned twins:** `PYAWDA` 0.601 m vs `PDASHA` 0.667 m median (n = 8 each) — passes;
+  yawing off the velocity vector does not damage the sprint.
+- **A side-finding to keep:** pre-aligning flips WHICH crossing direction the sprint favours
+  (`PDASH` left-to-right 0.54 / right-to-left 0.90 m → `PDASHA` 0.84 / 0.48 m, medians). So the
+  initial nose direction leaks into the sprint's path, and the long-standing left/right asymmetry
+  is at least partly a start-condition artefact of the sim, not a property of the target's
+  direction. Every historical "r2l is the bad direction" statement inherits this.

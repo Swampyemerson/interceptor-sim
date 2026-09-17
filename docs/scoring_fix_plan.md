@@ -442,6 +442,18 @@ rung's median moved by more than its own seed-to-seed spread. The one defect tha
 camera arm could suffer is ~90% gone and the camera-vs-sprint null stands. Tonight's pointing
 work (docs/pointing_prereg.md) says why: the camera is almost never shown the target.
 
+### 5e. PASSAGE WINDOW, seed 123 (2026-09-17) — every clause met; seed 777 is flying under the same rule
+
+| rung | cut off / premature (> 0.5 m still to close) | steering > 2 s past closest approach | longest past-closest-approach | median miss, window vs gate-off twin |
+|---|---|---|---|---|
+| 10 mph (`S10W`) | 0/8 | **0/8** (twin 2/8) | 0.66 s | 0.92 vs 0.84 m |
+| 15° aim error (`AE15W`) | 0/8 | **0/8** (twin 4/8) | 0.64 s | 1.41 vs 1.40 m |
+
+12 of the 13 flights that reached a breakoff were ended by the ceiling itself, none before its
+closest approach. The window does both jobs the range-increase rule was doing badly, using
+nothing but the vehicle's own position and one pre-flight number. Not adopted until seed 777 reads
+the same (registered in §5d).
+
 ---
 
 ## 6. RISKS — and where the issue descriptions are wrong
