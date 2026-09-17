@@ -142,3 +142,52 @@ shown the target.
 **Miss:** no arm's median moved beyond the scatter (0.85–1.15 m, n = 8). Seeing the target earlier
 has not yet made the terminal land closer — that is the next question, and it is the one the
 whole camera story hangs on.
+
+## RESULT — the first two ALIGNED arms (seed 123), and the finding they forced (2026-09-17)
+
+| arm | 8–22 m: target CENTRAL | … really seen when central | median miss, left-to-right / right-to-left |
+|---|---|---|---|
+| `PCAM` (un-aligned control, for scale) | 2% | — | ≈ 0.9 m overall |
+| `PYAWA` aligned + yaw | **151 of 257 = 59%** | 77% | **1.98 / 5.13 m** |
+| `PYAWTA` aligned + yaw + 25° tilt | **245 of 248 = 99%** | 81% | **1.79 / 4.85 m** |
+
+Pre-alignment works in flight (nose within ~3° of its command after ~2.5 s of hover).
+**M1 and M2 are met overwhelmingly — the pointing problem is solved in this sim: the seeker is
+shown the target on 99% of ticks from 22 m in, and recognises it on 81% of them.**
+
+**And the miss got two to five times WORSE.** Mechanism, measured, not guessed: with the target
+in view from the first tick, the "5 fresh detections" handoff fires at **~17.5 m, with the vehicle
+still at 0.1 m/s** — before the sprint has happened. The camera terminal then commands its own
+closing-speed law, **9 m/s tapering to 5.5 m/s** (sized in ADR-0010 for a ~6 m/s target and a
+short-range handoff), against a target crossing at 9 m/s. The vehicle never sprints; it
+tail-chases. In the un-aligned control the good flights are exactly the ones whose handoff came
+LATE (2–4 m, at 11.5 m/s true speed) and the bad ones handed off early (11–14 m).
+
+**So for the whole history of this project the camera terminal looked "about as good as the
+sprint" only because it was blind until the last 0.2 s. Shown the target early — tonight, for the
+first time — it is far worse than not using it.** That is the most important thing learned
+tonight, and it re-ranks the project: pointing was the wall in front of the real wall.
+
+**Decision on the levers (adopt rule as registered):** M1/M2/harm-check are met, so the pointing
+levers are VALID as pointing levers. They are **NOT put into the adopted flight config**, because
+with today's terminal they make the intercept worse — adopting them now would be obeying the
+letter of my own criterion against its purpose. They become the test bench for the terminal.
+
+## Pre-registration — does the terminal's SPEED LAW explain it? (written before flying)
+
+**Lever:** `--terminal-vclose-min 16` (built, default OFF): the terminal may never command less
+along-line-of-sight closing speed than the sprint. One change; the steering law is untouched.
+**Arms (seed 123, n = 8):** `PYAWTAV` = `PYAWTA` + the floor, against tonight's `PYAWTA` and the
+sprint-only twin `PYAWDA`.
+**Prediction:** the early handoff stops costing speed, so `PYAWTAV`'s median falls from ~3.3 m to
+**under 1.0 m**; if the steering law is sound it should then BEAT its sprint-only twin (≈ 0.65 m)
+on ≥ 6/8 pairs — the first time in this project the camera would have earned its handoff.
+**Adopt iff** ≥ 6/8 paired wins over `PYAWDA` AND median ≤ 0.65 m; then replicate on seed 777.
+**NULL (stated now):** if `PYAWTAV` is still ≥ 1.5 m, the speed law is not the (only) problem —
+the pro-nav steering itself cannot hold a 25 m/s closure against a crossing target with this
+range/rate channel, and the honest next step is a terminal REDESIGN (sprint-speed,
+look-angle-constrained), which is a council-grade decision, not a flag. If it lands between
+0.65 and 1.5 m: better, not earning — say exactly that.
+**Asymmetry check:** only the floor arm can overshoot at 25 m/s closure inside the last metres
+(line-of-sight rate blow-up — the reason ADR-0010 slowed the terminal). Report the fraction of
+flights whose miss is dominated by the last 3 ticks, and the right-to-left / left-to-right split.
