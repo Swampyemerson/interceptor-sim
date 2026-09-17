@@ -108,3 +108,37 @@ target 30–60° off the nose) — if `PCAMA` alone reaches M1 ≥ 30% then the 
 the lead geometry, was the wall, and the yaw lever is unnecessary. `PYAWA` M1 ≥ 30%, M2 ≥ 20.
 `PYAWTA` M1 ≥ 60%. The adopt rule is unchanged and is applied to the ALIGNED arms; the un-aligned
 five are reported alongside as the "what the sim had been doing" baseline.
+
+## RESULT — the first five arms (un-aligned), seed 123, HEAD `7392dfe` (2026-09-17)
+
+`scripts/forensics/inframe_attribution.py` (with `--mount-up-deg 25` for `PYAWT`), pre-closest-approach ticks:
+
+| arm | 8–22 m: outside (top / side) | 8–22 m: CENTRAL | … really seen when central | 4–8 m: central, really seen | real detections at 8–22 m (M2) | median miss |
+|---|---|---|---|---|---|---|
+| `PCAM` control | 92% (157 / 82) | 5 of 261 = 2% | 1 of 5 | 23 of 70, 87% | 3 | 0.94 m |
+| `PYAW` yaw only | 98% (171 / 83) | 2 of 260 = 1% | 0 of 2 | 2 of 28, 50% | 1 | 1.15 m |
+| `PYAWT` yaw + 25° tilt | **49% (0 / 121)** | **54 of 249 = 22%** | **35 of 54 = 65%** | **49 of 51, 94%** | **43** | 0.85 m |
+
+Against the registered predictions:
+- `PCAM` M1 ≈ 0% — **met** (2%).
+- `PYAW` M1 ≥ 30%, M2 ≥ 20 — **NOT met (1%, 1).** As the amendment predicted before reading: the nose
+  cannot slew 60–75° in a 1.5 s sprint, and with no tilt the target leaves by the TOP on even
+  more ticks (171) than the control. Yaw alone, un-aligned, does nothing.
+- `PYAWT` M1 ≥ 60% — **NOT met (22%)**; M2 ≥ 20 — **met (43)**. The tilt removed the top-edge loss
+  completely (157 → 0 ticks); what is left is 121 ticks off the SIDE — the slow yaw again.
+- Harm check: `PYAWD` 0.675 m vs `PDASH` 0.648 m median (lens ruler, n = 7 vs 8 — one `PYAWD` flight
+  failed to enter OFFBOARD before the sprint, a boot failure, counted not dropped). Within 0.10 m:
+  **passes.** NOTE the airframe-centre scorer correctly REFUSES yawed flights (it reconstructs
+  the body from the velocity heading); yawed arms are scored on the lens ruler until it is
+  taught the logged attitude.
+
+**The registered NULL question is answered, in the good direction.** "Target central but not
+detected at 8–22 m → recognition in flight at range is a wall": with the target central the
+seeker really found it on **65% of ticks at 8–22 m, 94% at 4–8 m, 100% under 4 m**, in flight, at
+~43° of pitch and with the image rolled. Recognition is not the wall. The seeker had never been
+shown the target.
+
+**Adopt rule:** applies to the ALIGNED arms (amendment). Nothing is adopted from this table.
+**Miss:** no arm's median moved beyond the scatter (0.85–1.15 m, n = 8). Seeing the target earlier
+has not yet made the terminal land closer — that is the next question, and it is the one the
+whole camera story hangs on.
