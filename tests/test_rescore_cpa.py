@@ -599,3 +599,38 @@ def test_predicted_los_yaw_is_default_off_and_wired():
     src = open(M4.__file__).read()
     assert "v_down, _dash_yaw_deg)" in src
     assert src.count("_dash_yaw_deg = coded_dash_heading_deg") == 1   # the OFF path
+
+
+# ------------------------- pre-dash yaw alignment (pointing_prereg amendment) ---
+
+
+def test_prealign_step_logic():
+    f = M4.prealign_step
+    assert f(10.0, 0, 0) == (False, 0, 1, False)
+    ok = tot = 0
+    for _ in range(M4.PREALIGN_HOLD_TICKS):
+        done, ok, tot, timed_out = f(1.0, ok, tot)
+    assert done and not timed_out and tot == M4.PREALIGN_HOLD_TICKS
+    done, ok, tot, _ = f(None, 5, 3)
+    assert not done and ok == 0, "a missing yaw reading must never count as aligned"
+    done, ok, tot, timed_out = f(50.0, 0, M4.PREALIGN_MAX_TICKS - 1)
+    assert done and timed_out, "must give up and SAY so, not hover forever"
+
+
+def test_prealign_is_default_off_and_wired():
+    assert _args_from_cli([]).dash_prealign_yaw is False
+    src = open(M4.__file__).read()
+    assert src.count('elif phase == "STANDBY":') == 1
+    assert 'if phase == "CODED_DASH" and getattr(args, "dash_prealign_yaw", False):' in src
+
+
+def test_passage_ceiling_truth_table_and_wiring():
+    c = M4.passage_ceiling_hit
+    assert c(100.0, 8.0, None) is False            # OFF
+    assert c(10.3, 8.0, 1.3) is False
+    assert c(10.4, 8.0, 1.3) is True
+    assert c(None, 8.0, 1.3) is False              # a missing input never FORCES a breakoff
+    assert c(10.4, None, 1.3) is False
+    assert _args_from_cli([]).breakoff_force_flown_frac is None
+    src = open(M4.__file__).read()
+    assert src.count("if passage_ceiling_hit(_ceil_flown, coded_dash_plan_m,") == 1

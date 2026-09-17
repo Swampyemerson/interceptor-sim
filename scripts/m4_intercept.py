@@ -1750,6 +1750,25 @@ async def track_local_position(drone, state: "M4TelemetryState") -> None:
         state.vel_e = pv.velocity.east_m_s
 
 
+PREALIGN_TOL_DEG = 3.0       # yaw error that counts as "pointed"
+PREALIGN_HOLD_TICKS = 6      # ... held this many consecutive ticks (0.3 s at 20 Hz)
+PREALIGN_MAX_TICKS = 200     # give up after 10 s of ticks and dash anyway (said in the log)
+
+
+def prealign_step(yaw_err_deg, ok_ticks, total_ticks):
+    """One tick of the pre-dash yaw alignment. -> (done, ok_ticks, total_ticks,
+    timed_out). Tick-counted, not wall-timed (ADR-0009). A missing yaw reading
+    never counts as aligned."""
+    total_ticks += 1
+    ok_ticks = ok_ticks + 1 if (yaw_err_deg is not None
+                                and abs(yaw_err_deg) <= PREALIGN_TOL_DEG) else 0
+    if ok_ticks >= PREALIGN_HOLD_TICKS:
+        return True, ok_ticks, total_ticks, False
+    if total_ticks >= PREALIGN_MAX_TICKS:
+        return True, ok_ticks, total_ticks, True
+    return False, ok_ticks, total_ticks, False
+
+
 def predicted_los_yaw_deg(target_start_en, target_vel_en, elapsed_s, own_disp_en,
                           fallback_deg):
     """Compass azimuth (deg, atan2(east, north)) from the vehicle to where the target
@@ -1791,6 +1810,18 @@ def passage_gate_ok(flown_m, planned_m, min_frac):
     if flown_m is None or planned_m is None or planned_m <= 0.0:
         return False
     return flown_m >= min_frac * planned_m
+
+
+def passage_ceiling_hit(flown_m, planned_m, force_frac):
+    """PASSAGE CEILING, the mirror of passage_gate_ok: once the vehicle's OWN
+    displacement since the dash began exceeds force_frac x the pre-flight intercept
+    distance it MUST have passed the target, whatever the camera says. Over 64 flown
+    camera flights true closest approach always came by 1.05 x planned
+    (docs/scoring_fix_plan.md 5d). None = OFF. A missing input never forces a
+    breakoff (the ENGAGE timeout stays the backstop)."""
+    if force_frac is None or flown_m is None or planned_m is None or planned_m <= 0.0:
+        return False
+    return flown_m >= force_frac * planned_m
 
 
 def dash_alt_gain(args, vvert_default):
@@ -2183,6 +2214,15 @@ def parse_args():
              "(stock V_VERT_MAX 0.5 m/s is too slow to dive 2-4 m in ~2 s). Ignored unless "
              "--dash-loft-m > 0. Default None = stock V_VERT_MAX (byte-identical).")
     parser.add_argument(
+        "--dash-prealign-yaw", action="store_true",
+        help="--coded-dash: before the dash begins (and before the target mover is "
+             "spawned), hover and YAW to the dash's first yaw command until within "
+             "%.0f deg for %d ticks. The real launch procedure holds the aim heading in a "
+             "standby hover; the sim spawned facing ~east and spent the whole ~1.5 s dash "
+             "slewing at ~25 deg/s, so the camera started every dash ~30-70 deg off "
+             "(docs/pointing_prereg.md amendment). Logged as phase STANDBY. Default OFF "
+             "(byte-identical)." % (PREALIGN_TOL_DEG, PREALIGN_HOLD_TICKS))
+    parser.add_argument(
         "--dash-yaw-to-predicted-los", action="store_true",
         help="--coded-dash POINTING lever (docs/pointing_prereg.md): during CODED_DASH "
              "command YAW toward where the target is PREDICTED to be (pre-flight "
@@ -2190,6 +2230,13 @@ def parse_args():
              "velocity command is unchanged, so the dash ballistics should be too. "
              "Needs a SOLVED heading (uses --target-start/--target-vel). Default OFF "
              "(byte-identical).")
+    parser.add_argument(
+        "--breakoff-force-flown-frac", type=float, default=None,
+        help="--coded-dash PASSAGE CEILING: force the breakoff once the vehicle's own "
+             "displacement since the dash began reaches this fraction of the pre-flight "
+             "intercept distance -- it must have passed the target by then. Stops the "
+             "2-7 s of steering on past the target that the passage gate exposed. "
+             "Default None = OFF (byte-identical).")
     parser.add_argument(
         "--breakoff-min-flown-frac", type=float, default=None,
         help="--coded-dash PASSAGE GATE on the past-closest-approach breakoff: the "
@@ -3233,6 +3280,10 @@ async def run_acquire_and_engage(
 
     coded_dash_start_mono = None
     passage_held_logged = False
+    prealign_ok_ticks = 0
+    prealign_total_ticks = 0
+    if phase == "CODED_DASH" and getattr(args, "dash_prealign_yaw", False):
+        phase = "STANDBY"
     coded_dash_start_sim = None   # sim-clock t at dash entry -- drives the Phase-A
     #  pointing levers (accel-cap ramp + loft dive) AND the --coded-dash-max-s abort
     #  window, so RTF sag can't distort them (CLAUDE.md: durations are sim-clock,
@@ -3847,6 +3898,29 @@ async def run_acquire_and_engage(
                 aborted = True
                 abort_reason = f"failed to acquire tag within {ACQUIRE_TIMEOUT_S}s"
 
+        elif phase == "STANDBY":
+            # --dash-prealign-yaw: hover in place and point the nose (camera) at the
+            # dash's FIRST yaw command before anything starts. The mover is spawned by
+            # CODED_DASH entry, so the target has not moved yet and t = 0 geometry holds.
+            _pa_yaw = coded_dash_heading_deg
+            if args.dash_yaw_to_predicted_los and coded_dash_los_inputs is not None:
+                _pa_yaw = predicted_los_yaw_deg(
+                    coded_dash_los_inputs[0], coded_dash_los_inputs[1], 0.0,
+                    (0.0, 0.0), coded_dash_heading_deg)
+            _pa_err = (math.degrees(wrap_pi(math.radians(psi_deg - _pa_yaw)))
+                       if psi_deg is not None else None)
+            _pa_done, prealign_ok_ticks, prealign_total_ticks, _pa_timeout = prealign_step(
+                _pa_err, prealign_ok_ticks, prealign_total_ticks)
+            _pa_vd = (_clamp(KP_ALT * (alt_m - alt_ref), -V_VERT_MAX, V_VERT_MAX)
+                      if alt_m is not None else 0.0)
+            cmd = last_cmd = (0.0, 0.0, _pa_vd, _pa_yaw)
+            if _pa_done:
+                print(f"[coded-dash] pre-align "
+                      f"{'TIMED OUT' if _pa_timeout else 'done'} after "
+                      f"{prealign_total_ticks} ticks: yaw {psi_deg} deg vs commanded "
+                      f"{_pa_yaw:.1f} deg", flush=True)
+                phase = "CODED_DASH"
+
         elif phase == "CODED_DASH":
             # --coded-dash (real-build flight architecture, P0.1): fly an
             # OPEN-LOOP dash at a fixed heading+speed (NO cue / fusion / handoff
@@ -4345,6 +4419,21 @@ async def run_acquire_and_engage(
 
         elif phase == "ENGAGE":
             engage_elapsed = tick_start - engage_t0
+            # PASSAGE CEILING: evaluated EVERY ENGAGE tick (detected or not), on
+            # own-state only -- a dropout must not be able to hide it.
+            if args.breakoff_force_flown_frac is not None and not breakoff_reason:
+                _ceil_flown = (
+                    math.hypot(state.pos_n - coded_dash_start_ne[0],
+                               state.pos_e - coded_dash_start_ne[1])
+                    if (coded_dash_start_ne is not None
+                        and state.pos_n is not None and state.pos_e is not None)
+                    else None)
+                if passage_ceiling_hit(_ceil_flown, coded_dash_plan_m,
+                                       args.breakoff_force_flown_frac):
+                    breakoff_reason = (
+                        f"passage ceiling: flown {_ceil_flown:.2f} m >= "
+                        f"{args.breakoff_force_flown_frac} x planned "
+                        f"{coded_dash_plan_m:.2f} m (must be past closest approach)")
 
             if detected:
                 if args.split_freeze:
