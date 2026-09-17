@@ -378,9 +378,13 @@ class _ConstVelKF:
         self.x = F @ self.x
         self.P = F @ self.P @ F.T + Q
 
-    def update(self, z_pos: np.ndarray, R: np.ndarray) -> None:
+    def update(self, z_pos: np.ndarray, R: np.ndarray, age_s: float = 0.0) -> None:
+        # `z_pos` is where the target WAS `age_s` ago (frame capture), while the
+        # state is "now": the measurement model is pos - vel*age. Ignoring this
+        # makes the estimate trail a 9 m/s target by speed x latency (~0.4 m).
         H = np.zeros((3, 6))
         H[:, 0:3] = np.eye(3)
+        H[:, 3:6] = -float(age_s) * np.eye(3)
         y = np.asarray(z_pos, dtype=np.float64) - H @ self.x
         S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)
@@ -716,7 +720,8 @@ class PursuitRendezvousGuidance:
         _, pos_cap, _vel_cap, quat_cap = _interp_own_state(self._own_hist, det.t_capture)
         dir_ned = self._dir_ned(quat_cap, det)
         z = np.asarray(pos_cap, dtype=np.float64) + det.range_m * dir_ned
-        self._kf.update(z, self._measurement_r(det, dir_ned))
+        self._kf.update(z, self._measurement_r(det, dir_ned),
+                        age_s=max(0.0, t - det.t_capture))
         self._last_decode_t = t
 
     def _start_phase_b(self, t: float) -> None:
