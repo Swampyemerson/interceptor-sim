@@ -117,6 +117,11 @@ don't spawn a subagent where doing the thing inline is cheaper.
      incident. The routing rule below is kept because it describes the right DIVISION of
      work — review and gap-spotting are worth spending a stronger seat on — but in this
      repo that seat is Opus 5, not Fable, until someone re-measures.
+   * **2026-09-16: `opus5-worker` is not immune either.** A read-only closing-speed analysis
+     bounced 1 of 1 with the same `[general_harms]` hard failure, mid-task, after it had
+     started reading the repo. Not retried or reworded; the head did the work inline. So a
+     subagent is a lane that MAY fail, not one to plan a session around — keep the task
+     small enough that the head can absorb it.
    * **Do NOT reword prompts to get a Fable agent through.** Standing rule, unchanged.
      The sanctioned remedy is `/feedback`, and the probe result is the thing worth
      reporting there: a benign arithmetic task inherits enough context to be refused.
