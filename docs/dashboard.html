@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e44770f<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4d3e439<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1169,12 +1169,12 @@
    ],
    "key_numbers": [],
    "test": {
-    "how": "The 5 m absolute-range gate FAILED an independent offline replay (blocks 5 of 9 early quits, not 6 of 7 -- four fire at a measured 1.8-4.9 m while the target is truly 4-9 m away). Promoted instead: the own-motion passage gate (--breakoff-min-flown-frac 0.8), offline 9/9 blocked, in flight 5/16 -> 1/16 and 4/8 -> 0/8. Adoption waits on the clean re-fly (docs/scoring_fix_plan.md 5b-5c).",
+    "how": "REPLACED (ADR-0101): the terminal now ends on the vehicle's own motion -- no quit before 0.8x the planned intercept distance, forced end at 1.3x. Two seeds: 0 of 32 flights cut off early, 0 of 32 long chases (was 10 of 32). The 5 m range gate failed its offline check and never flew.",
     "cost": "A build + one paired sim batch",
-    "status": "running"
+    "status": "done"
    },
    "state": "violated",
-   "ruling": "Confound logged same turn; NULL verdicts survive even crediting both bad flights to the camera (4/8 vs a 6/8 bar), but margins are unquantifiable until fixed — the '0.853 vs 0.730 m' margin claim is retracted as stated.",
+   "ruling": "ADR-0101, 2026-09-17: the camera-arm confound is removed. With it gone the camera still does not beat the sprint -- see docs/pointing_prereg.md for why. Still to do: port the window to flight/deploy/real_flight.py deliberately.",
    "origin": "docs/flight_plan_candidates.md lines 1050–1089 ('CONFOUND FOUND AFTER PUBLISHING'); false rises while closing median 0.175 vs 0.152 m receding",
    "evidence": "False-rise table (n=129/278 etc.); 'past closest approach' fires on ~every camera flight, 0/8 dash-only; real_flight.py:273–287 carries the same sim-derived 0.30 m threshold"
   },

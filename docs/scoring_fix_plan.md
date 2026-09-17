@@ -454,6 +454,18 @@ closest approach. The window does both jobs the range-increase rule was doing ba
 nothing but the vehicle's own position and one pre-flight number. Not adopted until seed 777 reads
 the same (registered in §5d).
 
+### 5f. PASSAGE WINDOW, seed 777 — every clause met again. ADOPTED (ADR-0101).
+
+| seed | cut off / premature | > 2 s past closest approach (twin) | longest | median miss, window vs twin (10 mph / 15° rung) |
+|---|---|---|---|---|
+| 123 | 0/16 | 0/16 (6/16) | 0.66 s | 0.92 vs 0.84 / 1.41 vs 1.40 m |
+| 777 | 0/16 | 0/16 (4/16) | 0.90 s | 0.79 vs 0.88 / 1.22 vs 1.47 m |
+
+Process note, mine: I edited `run_arm.sh` while the seed-777 `S10W` arm was flying. Bash reads a
+running script incrementally, so that arm's wrapper died with a syntax error AFTER its 8 flights
+had completed and been written (rc=2; flights and scoring unaffected; only the wrapper's closing
+GPU-health print was lost). Do not edit a script a fleet is executing.
+
 ---
 
 ## 6. RISKS — and where the issue descriptions are wrong
