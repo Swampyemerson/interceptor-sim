@@ -1,0 +1,501 @@
+"""flight.pursuit_terminal -- the "chase only" camera terminal (ADR-0103,
+supersedes the sprint-and-fly-by hybrid ruling; docs/pursuit_port_2026-09-17.md).
+
+Ported from `isim.concepts.PursuitRendezvousGuidance` -- validated ONLY inside
+isim's own prototype so far (82% inside 0.35 m nominal, all realistic errors
+on, fx 385, rear tag -- ADR-0103 v7) -- into the SAME duck-typed contract as
+`flight.tag_terminal.TagInterceptGuidance`, so it drops into an UNMODIFIED
+`flight.deploy.real_flight.RealFlightSM`:
+
+    step(det_box_xywh, own: OwnState, t: float) -> (Optional[Setpoint], StepTelemetry)
+
+CONCEPT: arrive slowly instead of crossing fast. Phase A flies to a point
+`d_behind_m` behind a BELIEF of the target's track (seeded from the same
+pre-flight constant `flight.guidance.collision_lead_heading` already uses --
+honesty-clean, never a live/ground-truth read), aiming to arrive at the
+target's own believed speed. Once enough fresh tag decodes land inside a short
+window, Phase B takes over: a Kalman filter tracks the target's RELATIVE
+position and ABSOLUTE velocity from the camera, and the vehicle closes the
+last few metres on a SCHEDULE (1.5-6 m/s, not a hard dash) with a lateral
+term that nulls the eventual miss component directly.
+
+RELATIVE STATE, NOT ABSOLUTE OWN POSITION -- this is the one significant
+deviation from `isim.concepts.PursuitRendezvousGuidance`'s own internals, and
+it is load-bearing, not cosmetic. isim's own-state is ground truth inside the
+engine, so its port `_ConstVelKF` tracks the TARGET's absolute (pos, vel) and
+subtracts a known `own_pos` to get range. The real flight-code contract's
+`OwnState` carries NO position field at all (only attitude/altitude/velocity
+-- see `flight.deploy.real_flight.VehicleObs`/`OwnState`), by the SAME design
+choice that made `flight.tag_terminal._RelStateKF` track (r, v_target) in
+RELATIVE coordinates instead of needing an absolute own-position estimate. An
+earlier draft of this module dead-reckoned an absolute own position from
+integrated `vel_ned` as a workaround; that reintroduces unbounded drift this
+codebase deliberately designed around, so it is NOT what shipped. Instead,
+EVERYTHING here is relative: the state is `(r, v_t)` = (target position minus
+own position, target's absolute velocity), predicted forward each tick using
+the INSTANTANEOUS own velocity as a control input (`r' = r + (v_t -
+v_own)*dt`), exactly `_RelStateKF`'s own pattern, generalized to Phase A's
+open-loop (pre-acquisition, no KF yet) propagation too. `d_behind_m`'s aim
+offset is a CONSTANT vector subtracted from `r`, so it needs no separate
+integrator. The one place this needs a genuine pre-flight input is the
+CONSTRUCTOR: `belief_r0_ned`, the target's position relative to the vehicle
+AT THE INSTANT ENGAGE BEGINS -- derived by the caller from the same pre-flight
+target belief and dash-endpoint kinematics `collision_lead_heading` already
+uses (honesty-clean; not a live read).
+
+REUSED, NOT RE-DERIVED (`flight.tag_terminal`/`flight.deploy.seeker_loop`):
+`measurement_from_box` (box -> undistorted bearing/range/optical ray),
+`_optical_vec_to_ned`, `_cam_offset_ned` (the same box->NED-RELATIVE-vector
+geometry `TagInterceptGuidance` already uses -- note this already returns a
+vector relative to the vehicle's own CG, which is exactly the `r` this module
+needs, no own-position subtraction required), `own_state_status` (own-state
+precondition).
+
+NOT REUSED: `_RelStateKF`'s TUNING or `range_measurement_noise`'s formula --
+pursuit's validated numbers depend on its OWN tuned constants
+(`cross_sigma_floor_m`, `kf_q_accel_ms2`, the closing schedule; swept v2-v6,
+`isim/specs/pursuit_concept*.md`), so mixing in the PIP terminal's differently
+-tuned filter would invalidate them. This module's KF is its own class,
+`_ConstVelKF`, structurally like `_RelStateKF` (relative-state, control-input
+predict) but with pursuit's own Q/R.
+
+LATENCY -- a deliberate, disclosed simplification vs. the isim original. isim
+interpolates an own-state ring buffer at each detection's own `t_capture`.
+This module has no per-detection capture timestamp in its contract (`step`
+gets only `t`, "now"), so it mirrors `TagInterceptGuidance`'s existing,
+already-shipped simplification instead: a fixed `meas_latency_s` constant,
+extrapolating the measured relative position forward by
+`v_rel_hat * meas_latency_s`.
+
+SKIPPED ON PURPOSE (measured negative or not adopted in the source concept,
+default OFF there too): camera-frame close-in steering, a KF timestamp-bias
+state, Phase-A vertical/yaw search sweeps. Only the core, adopted-default
+path is built here.
+
+HONESTY (CLAUDE.md; ADR-0008/0010). Inputs are (a) a detector box (camera
+pixels), (b) `own: OwnState` (own-state EKF), and (c) `belief_r0_ned`/
+`belief_vel0_ned` -- a PRE-FLIGHT constant, not a live or ground-truth read.
+No `gt_*` anywhere. This module belongs in `real_flight._AUDITED_MODULES`
+(the no-cheat AST audit), same as `seeker_loop.py`/`tag_terminal.py`.
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
+
+import numpy as np
+
+from flight.camera import CameraModel
+from flight.tag_terminal import _cam_offset_ned, _optical_vec_to_ned
+from flight.deploy.seeker_loop import (
+    GuidanceConfig,
+    OwnState,
+    Setpoint,
+    StepTelemetry,
+    measurement_from_box,
+    own_state_status,
+)
+
+__all__ = ["PursuitTerminalConfig", "PursuitTerminalGuidance"]
+
+
+@dataclass
+class PursuitTerminalConfig:
+    """Every tunable of the "pursuit" concept. Defaults are the validated
+    concept's own (`isim/specs/pursuit_concept*.md`, ADR-0103) -- none of
+    these are bench-fit; they are isim-swept."""
+
+    # --- Phase A: belief-only rendezvous, no tag required -------------------
+    d_behind_m: float = 8.0
+    kp_pos: float = 0.8
+    v_max_ms: float = 16.0
+    accel_max_ms2: float = 6.0
+
+    # --- acquisition gate: Phase A -> Phase B --------------------------------
+    acquire_n: int = 2
+    acquire_window_s: float = 0.3
+
+    # --- Phase B: KF-tracked terminal ----------------------------------------
+    k_close: float = 0.6
+    v_close_min_ms: float = 1.5
+    v_close_max_ms: float = 6.0
+    kp_lat: float = 1.5
+    accel_max_horiz_b_ms2: float = 8.0
+    accel_max_vert_b_ms2: float = 6.0
+    fallback_s: float = 3.0
+    hold_range_m: float = 1.0
+    no_fallback_range_m: float = 3.0
+    fallback_speed_cap_mult: float = 2.0
+    fallback_speed_floor_ms: float = 3.0
+
+    # --- KF tuning ------------------------------------------------------------
+    kf_q_accel_ms2: float = 1.0
+    kf_p0_pos_m: float = 3.0
+    kf_p0_vel_ms: float = 5.0
+
+    # --- measurement-noise model (own, NOT tag_terminal's) --------------------
+    sigma_px: float = 0.3
+    sigma_side_px: float = 0.3 * math.sqrt(2.0)
+    cross_sigma_floor_m: float = 0.20
+
+    # --- latency (fixed constant, mirrors TagTerminalConfig) ------------------
+    meas_latency_s: float = 0.045
+
+    # --- yaw slew ---------------------------------------------------------------
+    yaw_rate_max_deg_s: float = 180.0
+
+
+def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
+    n = float(np.linalg.norm(v))
+    return (v / n) if n > 1e-9 else np.asarray(fallback, dtype=np.float64)
+
+
+def _clip_norm(v: np.ndarray, max_norm: float) -> np.ndarray:
+    n = float(np.linalg.norm(v))
+    return v if n <= max_norm or n < 1e-12 else v * (max_norm / n)
+
+
+def _wrap_deg(a: float) -> float:
+    return (float(a) + 180.0) % 360.0 - 180.0
+
+
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
+def _yaw_toward(delta_ned: np.ndarray, fallback_deg: float) -> float:
+    n = float(np.linalg.norm(delta_ned[0:2]))
+    if n < 1e-6:
+        return fallback_deg
+    return math.degrees(math.atan2(float(delta_ned[1]), float(delta_ned[0])))
+
+
+def _slew_combined(cmd: np.ndarray, prev: np.ndarray, accel_max_ms2: float,
+                    dt: float) -> np.ndarray:
+    """Phase A: ONE combined-norm slew budget across all three axes."""
+    if dt <= 0.0:
+        return prev.copy()
+    step = np.clip(cmd - prev, -accel_max_ms2 * dt, accel_max_ms2 * dt)
+    return prev + step
+
+
+def _slew_split(cmd: np.ndarray, prev: np.ndarray, accel_horiz_ms2: float,
+                 accel_vert_ms2: float, dt: float) -> np.ndarray:
+    """Phase B: SEPARATE horizontal (north/east) / vertical (down) budgets."""
+    if dt <= 0.0:
+        return prev.copy()
+    max_h = accel_horiz_ms2 * dt
+    dv_h = cmd[0:2] - prev[0:2]
+    n = float(np.linalg.norm(dv_h))
+    if n > max_h and n > 1e-12:
+        dv_h = dv_h * (max_h / n)
+    dv_v = _clamp(float(cmd[2] - prev[2]), -accel_vert_ms2 * dt, accel_vert_ms2 * dt)
+    return np.array([prev[0] + dv_h[0], prev[1] + dv_h[1], prev[2] + dv_v])
+
+
+def _pursuit_measurement_noise(range_m: float, dir_ned: np.ndarray,
+                                cfg: "PursuitTerminalConfig", cam: CameraModel,
+                                tag_side_m: float) -> np.ndarray:
+    """3x3 measurement-noise covariance for one fix, NED -- pursuit's OWN
+    tuning (a `cross_sigma_floor_m` floor `tag_terminal.range_measurement_
+    noise` does not have; see module docstring for why this is not shared
+    code with the PIP terminal)."""
+    r = max(range_m, 0.0)
+    cross_sigma = max(r * cfg.sigma_px / cam.fx, cfg.cross_sigma_floor_m)
+    along_sigma = (r ** 2) * cfg.sigma_side_px / (cam.fx * max(tag_side_m, 1e-6))
+    n = np.asarray(dir_ned, dtype=np.float64)
+    norm = float(np.linalg.norm(n))
+    if norm < 1e-9:
+        return np.eye(3) * max(cross_sigma, 1e-3) ** 2
+    e_los = n / norm
+    outer = np.outer(e_los, e_los)
+    return (cross_sigma ** 2) * np.eye(3) + (along_sigma ** 2 - cross_sigma ** 2) * outer
+
+
+class _ConstVelKF:
+    """6-state (r, v_t) constant-velocity Kalman filter in RELATIVE
+    coordinates -- `r` = target position MINUS own position, `v_t` = the
+    target's ABSOLUTE velocity, NED. Predict takes the CURRENT own velocity
+    as a known control input (`r' = r + (v_t - v_own)*dt`), exactly
+    `flight.tag_terminal._RelStateKF`'s pattern, so this filter never needs
+    (and never accumulates) an absolute own-position estimate. Deliberately
+    NOT `_RelStateKF` itself -- see module docstring for why the tuning is
+    not shared."""
+
+    def __init__(self, q_accel_ms2: float) -> None:
+        self.q = q_accel_ms2 ** 2
+        self.x = np.zeros(6)
+        self.P = np.eye(6)
+        self.initialized = False
+
+    def init(self, r0: np.ndarray, v_t0: np.ndarray, p0_pos: float, p0_vel: float) -> None:
+        self.x = np.concatenate([np.asarray(r0, dtype=np.float64),
+                                  np.asarray(v_t0, dtype=np.float64)])
+        self.P = np.diag([p0_pos ** 2] * 3 + [p0_vel ** 2] * 3)
+        self.initialized = True
+
+    def predict(self, dt: float, v_own: np.ndarray) -> None:
+        if dt <= 0.0 or not self.initialized:
+            return
+        r, v_t = self.x[0:3], self.x[3:6]
+        r = r + (v_t - np.asarray(v_own, dtype=np.float64)) * dt
+        self.x = np.concatenate([r, v_t])
+        F = np.eye(6)   # v_t is a random walk (own-velocity control input is
+        # applied above, additively, not through F -- F stays identity on
+        # (r, v_t) themselves; the (v_t - v_own)*dt term already advanced r).
+        qpp, qpv, qvv = (dt ** 3 / 3.0) * self.q, (dt ** 2 / 2.0) * self.q, dt * self.q
+        Q = np.zeros((6, 6))
+        Q[0:3, 0:3] = np.eye(3) * qpp
+        Q[0:3, 3:6] = np.eye(3) * qpv
+        Q[3:6, 0:3] = np.eye(3) * qpv
+        Q[3:6, 3:6] = np.eye(3) * qvv
+        self.P = F @ self.P @ F.T + Q
+
+    def update(self, z_r: np.ndarray, R: np.ndarray) -> None:
+        H = np.zeros((3, 6))
+        H[:, 0:3] = np.eye(3)
+        y = np.asarray(z_r, dtype=np.float64) - H @ self.x
+        S = H @ self.P @ H.T + R
+        K = self.P @ H.T @ np.linalg.inv(S)
+        self.x = self.x + K @ y
+        self.P = (np.eye(6) - K @ H) @ self.P
+
+    @property
+    def r(self) -> np.ndarray:
+        return self.x[0:3].copy()
+
+    @property
+    def v_t(self) -> np.ndarray:
+        return self.x[3:6].copy()
+
+
+class PursuitTerminalGuidance:
+    """SAME CONTRACT AS `TagInterceptGuidance` (duck-typed, no `isinstance`
+    check anywhere on `RealFlightSM.guidance`):
+
+        step(det_box_xywh, own: OwnState, t: float) -> (Optional[Setpoint], StepTelemetry)
+
+    `step()` never raises: a fault is reported on `StepTelemetry.health`;
+    returning `(None, tel)` means "no trustworthy command" -- the caller
+    holds the last dash velocity, exactly as for `SeekerGuidance`/
+    `TagInterceptGuidance`.
+    """
+
+    def __init__(self, cfg: PursuitTerminalConfig, cam: CameraModel, tag_side_m: float,
+                 gcfg: GuidanceConfig, belief_r0_ned, belief_vel0_ned,
+                 go_at_s: float, initial_yaw_deg: float = 0.0) -> None:
+        self.cfg = cfg
+        self.cam = cam
+        self.tag_side_m = tag_side_m
+        self.gcfg = gcfg
+        self.go_at_s = float(go_at_s)
+        self.initial_yaw_deg = float(initial_yaw_deg)
+        self._belief_vel0 = np.asarray(belief_vel0_ned, dtype=np.float64).copy()
+        # Phase A running state: `r_track` = target belief position minus own
+        # position (relative, per the module docstring); `v_track` = the
+        # believed target velocity (constant while in Phase A).
+        self._r_track = np.asarray(belief_r0_ned, dtype=np.float64).copy()
+        self._v_track = self._belief_vel0.copy()
+        self._phase = "A"
+        self._kf = _ConstVelKF(cfg.kf_q_accel_ms2)
+        self._decode_positions: List[Tuple[float, np.ndarray]] = []
+        self._last_decode_t: float = -math.inf
+        self._last_t: Optional[float] = None
+        self._prev_v_cmd = np.zeros(3)
+        self._prev_yaw_deg = self.initial_yaw_deg
+        self._warned: set = set()
+        self.n_track_broken = 0
+
+    def _emit_fault(self, tel: StepTelemetry, flag: str, msg: str, once: bool = False) -> None:
+        tel.health.append(flag)
+        if not once or flag not in self._warned:
+            self._warned.add(flag)
+            print(f"[pursuit_terminal] FAULT {flag}: {msg}")
+
+    # ------------------------------------------------------------- geometry
+
+    def _measured_r_ned(self, det_box_xywh, quat) -> Tuple[np.ndarray, np.ndarray, float]:
+        """-> (measured target-relative-to-own NED vector, unit LOS
+        direction NED, range_m). `_optical_vec_to_ned`/`_cam_offset_ned`
+        already yield a vector relative to the vehicle's own CG -- no own-
+        position subtraction needed (see module docstring)."""
+        _bearing_h, range_m, meas_xyz = measurement_from_box(
+            det_box_xywh, self.gcfg, self.cam, self.tag_side_m)
+        cam_to_tgt_ned = _optical_vec_to_ned(meas_xyz, quat, self.gcfg.mount_up_rad)
+        cam_ofs_ned = _cam_offset_ned(quat, self.gcfg.cam_offset_body)
+        r_ned = cam_to_tgt_ned + cam_ofs_ned          # target relative to own CG, NED
+        dir_ned = _unit(r_ned, np.array([1.0, 0.0, 0.0]))
+        return r_ned, dir_ned, range_m
+
+    # ------------------------------------------------------------------ step
+
+    def step(self, det_box_xywh, own: OwnState, t: float
+              ) -> Tuple[Optional[Setpoint], StepTelemetry]:
+        cfg = self.cfg
+        dt = 0.05 if self._last_t is None else max(1e-3, t - self._last_t)
+        self._last_t = t
+
+        tel = StepTelemetry(t=t, detected=det_box_xywh is not None)
+        tel.own_age_s = own.age_s
+
+        own_ok, own_why = own_state_status(own, self.gcfg)
+        tel.own_state_ok = own_ok
+        if not own_ok:
+            self._emit_fault(
+                tel, own_why,
+                "own-state EKF unavailable/stale -- pursuit_terminal refusing "
+                "to steer (see GuidanceConfig.require_own_attitude)", once=True)
+            return None, tel
+
+        quat = own.quat
+        if own.vel_ned is not None:
+            own_vel = np.array(own.vel_ned, dtype=float)
+        else:
+            own_vel = self._prev_v_cmd.copy()
+            self._emit_fault(
+                tel, "own_vel_fallback",
+                "OwnState.vel_ned is None -- falling back to the last "
+                "COMMANDED velocity for the relative-velocity bookkeeping",
+                once=True)
+
+        if t < self.go_at_s:
+            tel.phase = "STANDBY"
+            self._prev_v_cmd = np.zeros(3)
+            self._prev_yaw_deg = self.initial_yaw_deg
+            sp = Setpoint(0.0, 0.0, 0.0, self.initial_yaw_deg)
+            tel.setpoint = sp
+            return sp, tel
+
+        # Phase A's relative belief propagates on EVERY tick (own_vel is
+        # known instantaneously; no absolute position needed) -- this is the
+        # same "control-input predict" the KF uses, just without a filter
+        # (nothing to correct yet in Phase A).
+        if self._phase == "A":
+            self._r_track = self._r_track + (self._v_track - own_vel) * dt
+
+        if det_box_xywh is not None:
+            meas_r, _dir, _rng = self._measured_r_ned(det_box_xywh, quat)
+            self._decode_positions.append((t, meas_r))
+            cutoff = t - cfg.acquire_window_s
+            self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
+
+        if self._phase == "A" and len(self._decode_positions) >= cfg.acquire_n:
+            self._start_phase_b(t)
+
+        if self._phase == "B":
+            self._kf.predict(dt, own_vel)
+            if det_box_xywh is not None:
+                self._update_kf(det_box_xywh, quat, own_vel, t)
+            range_est = float(np.linalg.norm(self._kf.r))
+            dropout_s = t - self._last_decode_t
+            if dropout_s > cfg.fallback_s and range_est >= cfg.no_fallback_range_m:
+                safe_vel = self._sane_fallback_vel(self._kf.v_t)
+                self._r_track = self._kf.r.copy()
+                self._v_track = safe_vel
+                self._phase = "A"
+
+        broken = self._phase == "B" and not (
+            np.all(np.isfinite(self._kf.r)) and np.all(np.isfinite(self._kf.v_t)))
+        if broken:
+            tel.track_broken = True
+            self.n_track_broken += 1
+            self._emit_fault(tel, "track_broken",
+                              "relative-position/velocity estimate is non-finite",
+                              once=True)
+            return None, tel
+
+        if self._phase == "A":
+            cmd_v, yaw = self._phase_a_cmd()
+            cmd_v = _clip_norm(cmd_v, cfg.v_max_ms)
+            cmd_v = _slew_combined(cmd_v, self._prev_v_cmd, cfg.accel_max_ms2, dt)
+            tel.phase = "A"
+        else:
+            cmd_v, yaw, coasting = self._phase_b_cmd(own_vel)
+            cmd_v = _clip_norm(cmd_v, cfg.v_max_ms)
+            if not coasting:
+                cmd_v = _slew_split(cmd_v, self._prev_v_cmd,
+                                     cfg.accel_max_horiz_b_ms2,
+                                     cfg.accel_max_vert_b_ms2, dt)
+            tel.phase = "B"
+            tel.r_hat_m = float(np.linalg.norm(self._kf.r))
+            tel.terminal_coast = coasting
+
+        yaw = self._slew_yaw(yaw, dt)
+        self._prev_v_cmd = cmd_v
+        self._prev_yaw_deg = yaw
+
+        sp = Setpoint(float(cmd_v[0]), float(cmd_v[1]), float(cmd_v[2]), yaw)
+        tel.setpoint = sp
+        return sp, tel
+
+    # --------------------------------------------------------------- helpers
+
+    def _slew_yaw(self, yaw_target: float, dt: float) -> float:
+        delta = _wrap_deg(yaw_target - self._prev_yaw_deg)
+        max_step = self.cfg.yaw_rate_max_deg_s * dt
+        delta = _clamp(delta, -max_step, max_step)
+        return _wrap_deg(self._prev_yaw_deg + delta)
+
+    def _phase_a_cmd(self) -> Tuple[np.ndarray, float]:
+        """`self._r_track` is already RELATIVE (target belief minus own
+        position), so the aim offset (a constant `d_behind_m` behind along
+        the believed track) needs no separate integrator: `r_aim = r_track -
+        d_behind_m*track_dir` has exactly `r_track`'s own dynamics, since the
+        subtracted term is constant."""
+        cfg = self.cfg
+        track_dir = _unit(self._v_track, np.array([1.0, 0.0, 0.0]))
+        r_aim = self._r_track - cfg.d_behind_m * track_dir
+        cmd_v = self._v_track + cfg.kp_pos * r_aim
+        yaw = _yaw_toward(r_aim, self._prev_yaw_deg)
+        return cmd_v, yaw
+
+    def _phase_b_cmd(self, own_vel: np.ndarray) -> Tuple[np.ndarray, float, bool]:
+        """-> (cmd_v, yaw, coasting). `coasting=True` means the previous
+        command is held unchanged (inside `hold_range_m` -- "fly through";
+        mirrors `TagInterceptGuidance`'s `freeze_range_m` latch semantics so
+        `RealFlightSM` reads `tel.terminal_coast` the same way for either
+        terminal)."""
+        cfg = self.cfg
+        r_est, v_t = self._kf.r, self._kf.v_t
+        range_est = float(np.linalg.norm(r_est))
+        if range_est < cfg.hold_range_m:
+            return self._prev_v_cmd.copy(), self._prev_yaw_deg, True
+
+        los_dir = _unit(r_est, np.array([1.0, 0.0, 0.0]))
+        v_close = _clamp(cfg.k_close * range_est, cfg.v_close_min_ms, cfg.v_close_max_ms)
+        v_rel = v_t - own_vel
+        ref_dir = _unit(v_rel, _unit(v_t, los_dir))
+        r_perp = r_est - float(np.dot(r_est, ref_dir)) * ref_dir
+
+        cmd_v = v_t + v_close * los_dir + cfg.kp_lat * r_perp
+        yaw = _yaw_toward(r_est, self._prev_yaw_deg)
+        return cmd_v, yaw, False
+
+    def _sane_fallback_vel(self, kf_v_t: np.ndarray) -> np.ndarray:
+        """Clamp a KF-derived velocity before trusting it as a fresh Phase-A
+        belief: a velocity estimate seeded/corrupted by a brief noisy
+        acquisition can be tens of m/s off, and Phase A has no further
+        correction once it adopts one. Clamp to a multiple of the ORIGINAL
+        pre-flight believed target speed (never a live read)."""
+        belief_speed = float(np.linalg.norm(self._belief_vel0))
+        cap = max(belief_speed * self.cfg.fallback_speed_cap_mult,
+                   self.cfg.fallback_speed_floor_ms)
+        n = float(np.linalg.norm(kf_v_t))
+        return kf_v_t * (cap / n) if n > cap else kf_v_t
+
+    def _update_kf(self, det_box_xywh, quat, own_vel: np.ndarray, t: float) -> None:
+        meas_r, dir_ned, range_m = self._measured_r_ned(det_box_xywh, quat)
+        if self.cfg.meas_latency_s:
+            v_rel_hat = self._kf.v_t - own_vel
+            meas_r = meas_r + v_rel_hat * self.cfg.meas_latency_s
+        r_noise = _pursuit_measurement_noise(range_m, dir_ned, self.cfg, self.cam,
+                                              self.tag_side_m)
+        self._kf.update(meas_r, r_noise)
+        self._last_decode_t = t
+
+    def _start_phase_b(self, t: float) -> None:
+        r0 = self._decode_positions[-1][1]
+        self._kf.init(r0, self._v_track, self.cfg.kf_p0_pos_m, self.cfg.kf_p0_vel_ms)
+        self._last_decode_t = self._decode_positions[-1][0]
+        self._phase = "B"

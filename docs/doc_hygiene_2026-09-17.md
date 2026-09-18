@@ -44,6 +44,22 @@ self-contained code tasks succeed").
   who needs the sim-phase history to the archive.
 - This is the ADR-lite decision itself: logged as **ADR-0104** in `docs/decisions.md`.
 
+## Counter-evidence, same session, right after this fix
+
+Immediately after the archive split, an `opus5-worker` was dispatched for the pursuit-terminal
+port (`docs/pursuit_port_2026-09-17.md`) with a prompt that read NO project docs at all — only
+`flight/deploy/seeker_loop.py`, `flight/tag_terminal.py`, `flight/camera.py`,
+`isim/flight_adapter.py`, explicitly told not to touch `CLAUDE.md`/`docs/*`. It still hard-failed
+with `[general_harms]` on its very first action ("I'll start by reading the specified source
+files"). This is a DIRECT counter to the doc-bloat theory this fix was built on: a docs-free,
+code-only, fully self-contained prompt failed anyway, matching the 2026-09-16 control-probe
+result already on record (`.claude/ops.md` bullet 0) more than it matches "the docs were too
+dense." **Updated read: the decisions.md archive is still good hygiene (smaller orientation
+surface, real housekeeping value), but it should not be sold as a fix for the safeguard
+flagging** — the evidence continues to point at the model/environment for subagents in this
+repo, not prompt or doc content. Per the established fallback (ops.md bullet 0), the head did
+the port inline instead of retrying a subagent.
+
 ## Not done (flagged, not fixed, this turn — scope call)
 
 - `docs/project_state.json` (44,419 words) was not restructured. Its own update ritual already

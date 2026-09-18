@@ -19,6 +19,7 @@ import numpy as np
 from flight.camera import CameraModel
 from flight.deploy.real_flight import MissionConfig, RealFlightSM, ScriptedTrigger, VehicleObs
 from flight.deploy.seeker_loop import GuidanceConfig, SeekerGuidance
+from flight.pursuit_terminal import PursuitTerminalConfig, PursuitTerminalGuidance
 from flight.tag_terminal import TagInterceptGuidance, TagTerminalConfig
 
 from isim.seeker import CameraParams
@@ -75,6 +76,13 @@ class RealFlightGuidance:
     `CameraParams()`): fx/fy/cx/cy/width/height feed `CameraModel`, and
     `mount_tilt_up_deg` feeds `GuidanceConfig.mount_up_rad`.
 
+    `terminal="pursuit"` builds `flight.pursuit_terminal.PursuitTerminalGuidance`
+    (ADR-0103's "chase only" concept) instead, and REQUIRES `belief_r0_ned`/
+    `belief_vel0_ned` -- the target's pre-flight-believed position-relative-to-
+    own and absolute velocity at `go_at_s`. This adapter does not compute them
+    (it would need the dash's own endpoint kinematics, not just the target's);
+    the caller supplies them, the same way it already supplies `tag_cfg`.
+
     NOT representable in `(CameraModel, GuidanceConfig)`, so not carried over:
     `CameraParams.fps`/`exposure_s`/`latency_s`/`latency_jitter_s` (pipeline
     timing -- the seeker model's concern; by the time a `Detection` reaches
@@ -87,17 +95,32 @@ class RealFlightGuidance:
                  cam_params: Optional[CameraParams] = None, span_m: float = 1.0,
                  go_at_s: float = 0.0, home_alt_m: float = 0.0,
                  terminal: str = "stock",
-                 tag_cfg: Optional[TagTerminalConfig] = None) -> None:
+                 tag_cfg: Optional[TagTerminalConfig] = None,
+                 pursuit_cfg: Optional[PursuitTerminalConfig] = None,
+                 belief_r0_ned: Optional[Tuple[float, float, float]] = None,
+                 belief_vel0_ned: Optional[Tuple[float, float, float]] = None) -> None:
         # `terminal`: "stock" (default) builds the SAME SeekerGuidance (LOS-rate
         # pro-nav) this class always built; "tag" builds flight.tag_terminal.
-        # TagInterceptGuidance (3-D predicted-intercept-point law) instead. Only
-        # ever consulted in reset(), so an explicit `guidance=` (SeekerGuidance
-        # override) is unaffected unless terminal="tag" is also requested.
-        if terminal not in ("stock", "tag"):
+        # TagInterceptGuidance (3-D predicted-intercept-point law); "pursuit"
+        # builds flight.pursuit_terminal.PursuitTerminalGuidance (ADR-0103's
+        # "chase only" concept, docs/pursuit_port_2026-09-17.md). Only ever
+        # consulted in reset(), so an explicit `guidance=` (SeekerGuidance
+        # override) is unaffected unless terminal="tag"/"pursuit" is requested.
+        if terminal not in ("stock", "tag", "pursuit"):
             raise ValueError(f"RealFlightGuidance: terminal={terminal!r}, want "
-                             f"'stock' or 'tag'")
+                             f"'stock', 'tag' or 'pursuit'")
+        if terminal == "pursuit" and (belief_r0_ned is None or belief_vel0_ned is None):
+            raise ValueError("RealFlightGuidance: terminal='pursuit' requires "
+                             "belief_r0_ned and belief_vel0_ned (the target's "
+                             "position-relative-to-own and absolute velocity at "
+                             "go_at_s -- a PRE-FLIGHT belief, the caller's to "
+                             "supply; see flight.pursuit_terminal's module "
+                             "docstring for why this can't be computed here).")
         self.terminal = terminal
         self.tag_cfg = tag_cfg
+        self.pursuit_cfg = pursuit_cfg
+        self.belief_r0_ned = belief_r0_ned
+        self.belief_vel0_ned = belief_vel0_ned
         self.cfg = cfg
         self.go_at_s = go_at_s
         self.home_alt_m = home_alt_m
@@ -130,6 +153,11 @@ class RealFlightGuidance:
             fresh_guidance = TagInterceptGuidance(
                 self.tag_cfg or TagTerminalConfig(), self._cam_model, self._span_m,
                 self._gcfg)
+        elif self.terminal == "pursuit":
+            fresh_guidance = PursuitTerminalGuidance(
+                self.pursuit_cfg or PursuitTerminalConfig(), self._cam_model, self._span_m,
+                self._gcfg, belief_r0_ned=self.belief_r0_ned,
+                belief_vel0_ned=self.belief_vel0_ned, go_at_s=self.go_at_s)
         else:
             fresh_guidance = SeekerGuidance(self._gcfg, self._cam_model, self._span_m)
         self._sm = RealFlightSM(self.cfg, guidance=fresh_guidance)

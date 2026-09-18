@@ -264,6 +264,19 @@ class MissionConfig:
     # --- terminal / breakoff (all TODO-BUILDER: sim-derived) -------------------
     engage_max_s: float = 12.0
     engage_lost_target_s: float = 2.0      # no fresh detection this long -> BREAKOFF
+    # ADR-0103 "chase only": the pursuit terminal deliberately does NOT fly a
+    # fly-by -- Phase A matches the target's speed at a standoff, so range can
+    # legitimately hold flat or wobble for seconds before Phase B ever starts
+    # closing. The past-CPA RECESSION trigger below (count-and-magnitude on a
+    # RISING range) was tuned for a fast crossing dash that flies THROUGH the
+    # target and must detect having passed it; against pursuit's slow, non-
+    # monotonic approach it is a false-abort hazard, not a real recession.
+    # `pursuit_mode=True` suppresses ONLY that trigger -- `breakoff_hard_floor_m`
+    # (contact, the 0.35 m ram radius, ADR-0084), `engage_lost_target_s`, and
+    # `engage_max_s` all stay active; a pursuit engagement still ends on
+    # contact or a real failsafe, never on an untested "it must be a fly-by"
+    # assumption. docs/pursuit_port_2026-09-17.md work item 3.
+    pursuit_mode: bool = False
     breakoff_arm_range_m: float = 4.0      # arms past-CPA logic (m4 FPV profile)
     breakoff_range_increases: int = 3
     breakoff_range_deadband_m: float = 0.05
@@ -1220,7 +1233,10 @@ class RealFlightSM:
             rise_ok = (rise is None or rise >= cfg.breakoff_min_rise_m)
             range_ok = (cfg.breakoff_max_range_m is None
                         or r <= cfg.breakoff_max_range_m)
-            if self._breakoff_armed and \
+            # ADR-0103 "chase only": pursuit_mode suppresses ONLY this
+            # recession trigger (see MissionConfig.pursuit_mode's docstring)
+            # -- hard_floor above and the failsafes below stay active.
+            if not cfg.pursuit_mode and self._breakoff_armed and \
                     self._recede_streak >= cfg.breakoff_range_increases:
                 if rise_ok and range_ok:
                     self._transition(
@@ -1532,6 +1548,7 @@ _AUDITED_MODULES = (
     os.path.join("flight", "terminal_coast.py"),
     os.path.join("flight", "fov_guidance.py"),
     os.path.join("flight", "tag_terminal.py"),
+    os.path.join("flight", "pursuit_terminal.py"),
 )
 
 

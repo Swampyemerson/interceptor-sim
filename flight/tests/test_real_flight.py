@@ -521,6 +521,34 @@ def test_a_receding_range_past_cpa_breaks_off():
     assert "past_cpa" in sm.transitions[-1].reason
 
 
+def test_pursuit_mode_suppresses_the_past_cpa_recession_trigger():
+    """ADR-0103 'chase only': the SAME receding-range sequence that fires
+    past-CPA breakoff in test_a_receding_range_past_cpa_breaks_off must NOT
+    fire it when `pursuit_mode=True` -- pursuit's Phase A legitimately holds
+    or wobbles in range for seconds before ever closing, so that trigger is a
+    false-abort hazard for it, not a real recession (docs/pursuit_port_
+    2026-09-17.md work item 3)."""
+    sm, t = engaged(cfg(breakoff_arm_range_m=4.0, breakoff_range_increases=3,
+                        engage_max_s=60.0, pursuit_mode=True))
+    for r in (3.0, 2.0, 1.0):                      # closing: would arm the logic
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    assert sm.state == State.ENGAGE
+    for r in (1.5, 2.2, 3.1):                      # would-be past-CPA recession
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    assert sm.state == State.ENGAGE, "pursuit_mode must not let this fire BREAKOFF"
+
+
+def test_pursuit_mode_still_breaks_off_on_the_hard_floor():
+    """pursuit_mode suppresses ONLY the recession trigger -- contact
+    (breakoff_hard_floor_m, the 0.35 m ram radius) must still fire."""
+    sm, t = engaged(cfg(breakoff_hard_floor_m=0.5, pursuit_mode=True))
+    d = sm.step(obs(t + DT, det_new=True, det_range_m=0.4))
+    assert d.state == State.BREAKOFF
+    assert "hard_floor" in sm.transitions[-1].reason
+
+
 def test_breakoff_does_not_arm_before_the_arm_range():
     """A range that only ever INCREASES far away (e.g. a bad early estimate) must
     not fire the past-CPA breakoff."""

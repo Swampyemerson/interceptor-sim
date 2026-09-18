@@ -521,6 +521,12 @@
   "plain_log": [
     {
       "date": "2026-09-17",
+      "text": "Builder ruled pursuit alone (\"chase only\"), dropping the sprint-and-fly-by hybrid ADR-0103 had measured as worse (46% vs pursuit's 82% inside 0.35 m, all realistic errors on). Ported the pursuit concept out of the isim prototype into the actual flight code that will fly (flight/pursuit_terminal.py, a relative-state Kalman filter reusing the tag terminal's camera geometry, not its differently-tuned filter), wired it into the isim adapter, and ran it end-to-end through the real state machine -- it acquires, tracks, and closes range on a moving target. Also added a pursuit_mode flag so the existing past-CPA fly-by breakoff, tuned for a fast crossing dash, does not falsely abort pursuit's slow speed-matching approach.",
+      "so_what": "The concept is no longer isim-only prototype code; it is unit-tested (10 tests), no-cheat-audited, and validated running through the code path that actually flies. NOT done: the CLI wiring for real hardware (--terminal pursuit needs the dash-endpoint kinematics to seed the pre-flight belief, deferred rather than rushed into the hardware entrypoint) and the A0-style numeric parity check against ADR-0103's own isim numbers. Also: a builder question about safeguard flags being caused by dense project docs was audited (docs/decisions.md was 118 ADRs/93.5k words, now split/archived) but a docs-free opus5-worker subagent still hard-failed right after, so the fix is good hygiene, not a fix for the flagging.",
+      "evidence": "flight/pursuit_terminal.py; flight/tests/test_pursuit_terminal.py; isim/tests/test_pursuit_terminal_isim.py; ADR-0103, ADR-0104; docs/pursuit_port_2026-09-17.md; docs/doc_hygiene_2026-09-17.md"
+    },
+    {
+      "date": "2026-09-17",
       "text": "Built the hybrid in the simulator as ruled and measured it against the other two on the same 6,600 runs. The opening sprint almost never touches a 9 m/s crossing target (first-pass contact 0-2%) and costs position: at the moment it turns around it is about 10.6 m from the target where the slow arrival is already at 5.6 m. Hybrid only wins against slow targets (80-84% at hover).",
       "so_what": "The slow arrival already contains a fast leg -- it flies at up to 16 m/s to get behind the target. The part that does not pay is aiming that fast leg ACROSS the target's path. Bench this week: Kakute log card cleared (488 logs), Pi frame timing measured (14 ms, 0.6 ms jitter), TV calibration tool ready, lens corrected to 118 degrees from the order log.",
       "evidence": "isim/specs/hybrid_v7.md - isim/concepts.py - runs/frame_timing/ - scripts/bench/"
@@ -584,12 +590,6 @@
       "text": "Read a 2025 IEEE paper (arXiv:2409.17497) that intercepts flying targets by steering on the CAMERA IMAGE directly instead of first working out where the target is in 3-D. That made me check our own range channel, and it is worse than I thought: out to 8 m the seeker's range is within 3% of truth, but it over-reads by about 30% around 8-12 m and past 18 m it reports roughly a THIRD of the true distance (n=64 ticks, so this one is properly powered). Our plan has been to acquire the target FARTHER away, because correction room grows with the square of the time left -- but that is exactly where this channel is worst, and pro-nav's steering command scales with range, so it would be under-commanded by the same factor.",
       "so_what": "The plan and the sensor pull against each other, which nobody had noticed. An image-space law needs range only as a gain, not as an aim point, so it is worth TRYING -- and cheaply, because the guidance layer is already handed the raw pixel box and does the 3-D conversion internally. Nothing has been built or flown.",
       "evidence": "scripts/forensics/range_channel_horizon.py (11 self-tests, 4 mutant classes verified); arXiv:2409.17497 Yan et al., IEEE T-IE 72(11) 2025"
-    },
-    {
-      "date": "2026-09-10",
-      "text": "My own instrument was wrong and it flipped a conclusion. The '+0.320 m of dash altitude drift, 66% of the vertical miss, the error is delivered by the dash' finding was measured against a baseline that included the TAKEOFF -- and altitude reads zero on the ground, so most of that number was the vehicle leaving the pad. Measured properly the dash drifts -0.019 m: essentially nothing. The vertical error is 23% a datum mismatch that exists before the dash starts, 10% dash, and 66% accumulated after the camera takes over. The altitude trim I built last turn addresses the 10%. Also found: a quarter of the post-handoff term is the camera swinging on its boom, not the aircraft moving, and the terminal throws away its altitude hold whenever the camera blinks. That last one is a real bug, fixed behind a default-off flag -- but I cannot claim it explains the miss, because the same code also slams the horizontal from 16 m/s to a dead stop on exactly the same ticks, and the flights that kept their altitude hold climbed anyway.",
-      "so_what": "The dash altitude trim is a 10% lever, not the fix. The cheapest win is the datum mismatch: 23% of the vertical error exists before the vehicle moves and a one-line scenario change removes it. Nothing flew; no simulator ran this session.",
-      "evidence": "scripts/forensics/vertical_miss_anatomy.py (19 self-tests, mutation-verified); ADR-0099 second addendum; docs/vertical_channel_prereg.md section 8"
     }
   ],
   "narrative": {
@@ -1084,6 +1084,10 @@
         {
           "date": "2026-07-24",
           "note": "Aim-error sweep COMPLETE (0/5/15°, each vs its own dash-only twin): camera never earns its handoff; 'defends imperfect aim' REFUTED in sim; binding cause = r2l ADR-0056 aspect bias. ENGAGE-on-markerless not justified by sim evidence."
+        },
+        {
+          "date": "2026-09-17",
+          "note": "ADR-0103 \"chase only\": pursuit ported from the isim prototype into flight/pursuit_terminal.py (relative-state KF, reuses tag_terminal's box->NED geometry, not its filter tuning), wired into isim/flight_adapter.py (terminal=\"pursuit\"), and run end-to-end through the real state machine (acquires, tracks, closes range on a moving target). A pursuit_mode config flag suppresses the fly-by-tuned past-CPA recession breakoff without touching the contact/failsafe triggers. NOT done: the real-hardware CLI's belief seed (needs the dash-endpoint kinematics) and the A0-style numeric parity check against ADR-0103's own isim grid. docs/pursuit_port_2026-09-17.md."
         }
       ],
       "caption": "Camera-steered final homing. The law works but hasn't beaten the dash alone in any test.",

@@ -310,6 +310,10 @@ class StepTelemetry:
     yaw_hold: bool = False               # yaw cmd coasted, not re-derived
     track_broken: bool = False           # r_hat <= 0 or |rdot_hat| non-physical
     coast_age_s: Optional[float] = None  # seconds since the freeze armed
+    # `flight.pursuit_terminal.PursuitTerminalGuidance`'s Phase A/B/STANDBY --
+    # None for every other terminal (SeekerGuidance/TagInterceptGuidance have
+    # no phases). Backward-compatible: default None, nothing else reads it.
+    phase: Optional[str] = None
     health: List[str] = field(default_factory=list)
 
 
