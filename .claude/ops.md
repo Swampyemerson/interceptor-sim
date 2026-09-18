@@ -112,6 +112,17 @@ don't spawn a subagent where doing the thing inline is cheaper.
      alternative that Fable subagents are unavailable in this environment for an
      unrelated reason — distinguishing them needs a Fable subagent spawned from a
      directory with no project context, which this session could not arrange.
+   * **REFINED 2026-09-17 (builder-prompted doc-hygiene audit, `docs/doc_hygiene_2026-09-17.md`):**
+     the always-imported `@`-chain itself is moderate (6,353 words, ~92 flagged-term hits) — the
+     real concentration was `docs/decisions.md`, which had grown to 118 ADRs / 93,536 words / 408
+     hits in one file that this very orientation instruction ("check the contradiction ledger")
+     points every session and worker at. Split 2026-09-17: the closed sim-phase ADRs
+     (ADR-0001–0080) moved to `docs/decisions_archive.md`; `docs/decisions.md` is now 16,141
+     words / 84 hits. **CODIFIED RULE: a subagent prompt must never tell a worker to read
+     `docs/project_state.json` or `docs/decisions.md`** — give it the specific facts inline
+     instead, the way `docs/new_sim_plan.md`'s WP table already does ("each is self-contained,
+     facts inline, no 'go read the docs'"). This is length/structure hygiene, not classifier
+     evasion — the wording-doesn't-matter rule two bullets below is unaffected.
    * **What to do instead:** `opus5-worker`, which is ALREADY the sanctioned lane for
      everything the safeguard blocks (bullet 4) and which ran the same reviews without
      incident. The routing rule below is kept because it describes the right DIVISION of
