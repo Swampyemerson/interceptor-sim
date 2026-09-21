@@ -91,8 +91,23 @@ WHAT'S MISSING — reviewing work, catching gaps, and deciding workflow/planning
 So spend it THERE, occasionally and deliberately, NOT as a firehose. Tokens are not free;
 don't spawn a subagent where doing the thing inline is cheaper.
 
-0. **⛔ MEASURED 2026-09-10: `model: fable` SUBAGENTS DO NOT RUN IN THIS REPO. Do not
-   plan around them.** The builder asked for Fable subagents "knowing safeguards will try
+0. **⛔ MEASURED 2026-09-10 ONWARD: `model: fable` SUBAGENTS HARD-FAIL IN THIS REPO. Do not
+   plan around them right now.** *(CORRECTED 2026-09-21 — builder pushback, checked against
+   primary sources: this bullet used to read as if subagents "never worked," which is not
+   what the record shows. `.claude/SESSION-PROMPT.md` (2026-07-10) documents a working regime —
+   "filter-neutral framings... tend to hold on Fable; inherently defense-framed tasks will
+   bounce to Opus — let them" — a soft per-task bounce, not a hard refusal. `docs/build_log.md`
+   confirms real, sustained use: "I initially worked around [the head's auto-switch] with Fable
+   subagents to review the work... I got the head pretty good at using subagents for all
+   potentially flagged work." So subagents ran successfully for weeks. What is actually new,
+   dated to 2026-09-10, is a DIFFERENT failure mode: a hard `invalid_request` that fires even on
+   content with zero project framing (the control probe below, and a second content-free probe
+   reconfirmed 2026-09-21) — not the old soft bounce-to-Opus. That shift is more consistent with
+   something changing on the classifier/model side between July and September than with this
+   project's substance newly becoming disqualifying. The practical guidance is unchanged
+   (subagents fail NOW, so still don't plan around them) but the reason is open, not settled —
+   worth an actual `/feedback` report carrying this timeline.)* The builder asked for Fable
+   subagents "knowing safeguards will try
    for many things". Five were spawned; **5 of 5 failed** on the first message with
    `invalid_request ... safeguards flagged this message [general_harms]` — a HARD FAILURE,
    not the head session's auto-switch to another model. Wording is NOT the variable:
