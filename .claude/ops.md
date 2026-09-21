@@ -91,36 +91,38 @@ WHAT'S MISSING — reviewing work, catching gaps, and deciding workflow/planning
 So spend it THERE, occasionally and deliberately, NOT as a firehose. Tokens are not free;
 don't spawn a subagent where doing the thing inline is cheaper.
 
-0. **⛔ Fable AND Opus subagents are currently unreliable in this repo — Sonnet is the
-   current fallback. Full evidence log: `docs/subagent_safeguard_log.md` (not
-   always-loaded; read it before re-testing or filing `/feedback`, not before routine
-   work).** Short version: subagents worked fine for weeks through mid-2026-07 (soft
-   bounce-to-Opus on defense-framed tasks only); a harder, content-independent
-   `invalid_request [general_harms]` failure appeared 2026-09-10 and has reconfirmed on
-   every retest since, including a 2026-09-16 `opus5-worker` bounce and a maximally
-   sanitized zero-jargon probe on 2026-09-21. **2026-09-21, builder-reported and not yet
-   independently measured: Opus is now tripping widely enough that the builder is
-   running the head on Sonnet.** Ruled out 2026-09-21, by direct test, not by assumption:
-   density in the always-loaded chain (flat at 42 hits, then cut below the pre-pivot
-   baseline — no change in outcome); growth anywhere in the ~17,000 lines added since
-   the pivot (an 8-agent diff fan-out found it clean); needing to read `project_state.json`
-   or any project file at all (a no-file-read subagent still bounced on message one).
-   **Current best read, by elimination: a categorical reaction to this project's subject
-   matter, not a fixable wording/density issue** — stop re-proposing content edits as a
-   fix without new evidence. `/feedback` (the builder's to send) is the sanctioned path
-   to actually resolve this. **Do not word prompts to evade the classifier** — standing
-   rule, unaffected by any of the above.
-   * **What to do instead, right now:** route substantive/flagged work to `sonnet-worker`
-     or the Sonnet-pinned head; treat `opus5-worker` as may-fail (keep tasks small enough
-     the head can absorb a bounce); don't spawn `model: fable` subagents until re-verified.
+0. **⛔ Fable AND Opus subagents are currently unreliable in this repo — SONNET IS THE
+   STANDARD FOR ALL SUBAGENT WORK, not a fallback.** Full evidence log:
+   `docs/subagent_safeguard_log.md` (not always-loaded; read it before re-testing or
+   filing `/feedback`, not before routine work). Short version: subagents worked fine
+   for weeks through mid-2026-07 (soft bounce-to-Opus on defense-framed tasks only); a
+   harder, content-independent `invalid_request [general_harms]` failure appeared
+   2026-09-10 and reconfirmed on every retest since; the builder separately reports
+   Fable HEAD worked normally through last week until 2026-09-16/17, then also started
+   tripping, and Opus is now tripping too. **DECISIVE TEST, 2026-09-21: a blank
+   environment with zero project context passed cleanly (rules out an account-level
+   blacklist); the exact 2026-09-11 codebase state — from when Fable head was reportedly
+   still working — fails identically under today's model.** There is no earlier "good"
+   commit in this repo to fall back to; every version tested fails today. Best-supported
+   read: something about the model/classifier changed independently of this repo's
+   content (leading hypothesis: a Fable 5.1 release with tightened dual-use safeguards),
+   not a fixable wording/density issue in this project — **stop re-proposing content
+   edits as a fix without new evidence.** `/feedback` (the builder's to send) is the
+   sanctioned path to actually resolve this. **Do not word prompts to evade the
+   classifier** — standing rule, unaffected by any of the above.
+   * **The routing rule, simplified:** all subagent work goes through `sonnet-worker`.
+     Don't spawn `model: fable` or treat `opus5-worker` as dependable until re-verified
+     — both are may-fail-or-worse right now, not a workhorse and not a review lane.
    * **If Fable's judgment is specifically wanted:** that seat is the HEAD SESSION, not a
-     subagent — `/model claude-fable-5` and ask directly (the head degrades gracefully,
-     a subagent does not) — though per the 2026-09-21 report even that may currently
-     bounce to Opus and then to whatever the builder has pinned.
+     subagent — `/model claude-fable-5-1` and ask directly, because an interactive head
+     degrades gracefully (bounces to another model) where a subagent hard-fails — but
+     per the 2026-09-21 reports this is no longer guaranteed either. Treat it as worth
+     trying, not as dependable.
 
 1. **Reach for a `model: fable` subagent OCCASIONALLY and DELIBERATELY, for high-leverage work:**
-   *(⚠️ READ BULLET 0 FIRST — this currently FAILS 6/6 in this repo. Substitute
-   `opus5-worker` and keep the division of work below.)*
+   *(⚠️ READ BULLET 0 FIRST — this currently fails 100% of tests run in this repo, and a
+   decisive 2026-09-21 test shows it's not this repo's content driving it. Substitute
+   `sonnet-worker` and keep the division of work below.)*
    - **REVIEW / gap-spotting** — a Fable pass over a build, a plan, a result set, or a
      decision to catch what was missed BEFORE it's committed or acted on (the "head builds,
      Fable reviews" pattern; Fable earns its cost here). This is its best use.

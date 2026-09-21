@@ -91,6 +91,46 @@
   (no session should need 44,000 words to say hello), but treat it as hygiene, not a
   fix for the instant-flag behavior.
 
+- **2026-09-21 (Fable-reasoned test, decisive).** The builder relayed this synthesis to a
+  Fable head session and asked it to reason through the whole investigation. Fable's critique
+  was substantially correct on one key point: the earlier "read no files" subagent test was
+  NOT a true zero-content test — every Claude Code request from inside this repo carries the
+  auto-imported `CLAUDE.md` chain, the subagent's own definition, working directory, branch,
+  recent commit messages, and tool descriptions regardless of what the task itself says. So
+  "wording isn't the variable" was correct, but "content isn't the variable" was not yet
+  proven. Fable proposed two real controls and both were run immediately:
+  1. **A brand-new session, no `source_url`, no repo, no `CLAUDE.md` at all, same account,
+     run today.** Given the same trivial arithmetic probe. Result: completed normally,
+     correct answer, no flag at all. This rules out a pure account-level blacklist — an
+     account-wide standing flag would have caught this too, and didn't.
+  2. **A fresh session checked out at commit `c98ca7fa08b4272568dc84b2462b68759c212469`
+     (2026-09-11, the last commit before the multi-day gap and the 9/16-17 pivot — i.e. the
+     codebase state from around when the builder reports Fable head was still working
+     normally), run today.** Result: **failed identically** —
+     `invalid_request ... [general_harms]`, Request ID `req_011CfHGjLrCaz9ARbqwCWX7A`, 0 tokens
+     used before the refusal. The exact old, previously-working codebase state, evaluated by
+     today's Fable 5.1, fails exactly like current HEAD does.
+  Per Fable's own stated interpretation of this outcome: failing on a commit that worked
+  before, combined with a clean blank-environment result, means **the classifier or model
+  changed, not the project's content** — no bisection needed, since there's no commit
+  boundary to find; the boundary is in time/model version, not in this repo's history.
+  Fable's specific hypothesis: this project's `CLAUDE.md`-driven vocabulary was always
+  borderline, and a Fable 5.1 release in September 2026 (this model explicitly ships
+  "additional safety measures for dual-use capabilities" beyond the unrestricted Mythos-tier
+  release, per its own system context) plausibly tightened enough to newly and uniformly
+  catch it, independent of anything in this repo changing. This is a hypothesis consistent
+  with all evidence gathered, not an independently confirmed fact.
+  Also from Fable, a fair methodological critique of the earlier density work: keyword counts
+  don't capture meaning. The pivot week changed what the always-loaded docs describe (a
+  purpose-built simulator plus guidance code being ported toward real hardware this fall)
+  even though the raw term tally didn't move, and the project's own meta-commentary about the
+  safeguard problem (routing tables for "everything the safeguard blocks," language about
+  which framings "hold" vs. "bounce") could itself read as safeguard-evasion-adjacent to a
+  classifier, even though the actual standing rule has always been the opposite. Both are
+  real, unresolved possibilities that the two tests above don't distinguish from a pure
+  time/model-version explanation — they're only inconsistent with a repo- or account-level
+  blacklist, which is now the most confidently ruled-out hypothesis of the three.
+
 ## What this does and doesn't tell us
 
 - Ruled out empirically (2026-09-21): raw weapons-vocabulary density in the
@@ -101,21 +141,34 @@
 - Ruled out empirically (2026-09-21): needing to read `project_state.json`, or any
   project file at all, is not necessary to trigger the failure — the no-file-read
   control subagent still bounced on message one.
-- Not ruled out: a same-content test from a directory with zero project context (never
-  run — would distinguish "this repo's identity/subject matter" from "something in the
-  environment unrelated to content"); a pure model/classifier-side change independent
-  of any project content (now the leading explanation by elimination, not just a
-  default guess — everything else has been tested and ruled out).
-- **Current best read, by elimination rather than by direct proof:** this looks like
-  Fable's (and reportedly now Opus's) classifier reacting to this project's basic
-  subject matter — a real, physical, autonomous drone-intercept system — at a
-  categorical level, not to any specific wording, density, or newly-added content that
-  editing can fix. Content edits (this file's own history included) have not moved the
-  outcome despite real, measured attempts.
-- The practical, load-bearing conclusion for day-to-day work: Fable and Opus subagents
-  are both currently unreliable enough not to plan around; Sonnet is the current
-  fallback; the sanctioned path to actually get this fixed or explained is `/feedback`,
-  which is the builder's to send, with this timeline attached — it is now a
-  substantially stronger case than it was on 2026-09-10, having ruled out the "maybe
-  it's just this project's sloppy docs" explanation about as thoroughly as this repo
-  can from the inside.
+- Ruled out empirically (2026-09-21, decisive): **a repo- or account-level blacklist.** A
+  blank environment with zero project context, same account, run today, passed cleanly.
+  If the account itself carried a standing flag independent of content, this would have
+  failed too. It didn't.
+- Ruled out empirically (2026-09-21, decisive): **that fixing this is about which version
+  of this project's content gets shown.** The exact codebase state from 2026-09-11 (before
+  the multi-day gap, before the 9/16-17 pivot, from around when Fable head was reportedly
+  still working normally) fails identically under today's classifier. There is no earlier
+  "good" commit to bisect to — every version of this project tested so far fails today.
+- **Current best-supported read, elimination plus two decisive controls (not just
+  elimination alone anymore):** something about the model or classifier changed between
+  the builder's last confirmed normal use of Fable head (last week, until Wednesday or
+  Thursday, 2026-09-16/17) and now, independent of this repo's content, which was already
+  similar in substance and vocabulary back when things worked. Leading hypothesis (Fable's
+  own, not independently confirmed): a Fable 5.1 release in September 2026 — which per its
+  own system context explicitly ships "additional safety measures for dual-use
+  capabilities" beyond the unrestricted Mythos-tier release — plausibly tightened enough to
+  newly and uniformly catch a project like this one. Not fully closed: whether the
+  project's own meta-commentary about the safeguard (this file included) or the pivot's
+  shift in framing (simulated system -> guidance code headed for real hardware this fall)
+  are contributing on top of a version change, since neither test above rules those out —
+  they only rule out a sticky blacklist.
+- The practical, load-bearing conclusion for day-to-day work: Fable and Opus subagents are
+  both currently unreliable enough not to plan around; Sonnet is the dependable tier for
+  all subagent work; Fable's judgment, when specifically wanted, is only worth seeking
+  through an interactive head session (which degrades gracefully via bounce) and even that
+  is no longer guaranteed per the builder's 2026-09-21 report. The sanctioned path to
+  actually get this fixed or explained is `/feedback`, which is the builder's to send. It
+  is now a much stronger, evidence-backed case than it was on 2026-09-10: a repo/account
+  blacklist is ruled out, content growth is ruled out, and the same content that worked a
+  week and a half ago now fails identically under today's model.
