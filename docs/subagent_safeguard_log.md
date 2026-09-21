@@ -54,19 +54,68 @@
   2026-09-16 single Opus bounce: from "may fail" to "unreliable enough to avoid," which
   would make Sonnet the only currently-dependable seat. **Not yet corroborated with a
   fresh measurement — treat as a strong lead, not a settled fact, until re-tested.**
+- **2026-09-21 (8-way diff fan-out, builder-directed).** Dispatched 8 `sonnet-worker`
+  agents to diff every substantial file changed between the pre-pivot baseline
+  (`8369645`) and current HEAD — the entire new `isim/` simulator and its tests, the
+  ported pursuit-guidance flight code, bench tooling, new docs, new ADRs, and
+  `project_state.json` — for new/grown weapons vocabulary or dramatization. Result:
+  **clean everywhere except one already-known, already-flagged case.** All ~17,000
+  lines of new code, tests, and docs added since the pivot carry zero new weapons
+  vocabulary beyond pre-existing, established terms (`ENGAGE`/`BREAKOFF` states, the
+  `binary-kill proximity radius` constant, etc.) and zero dramatization — one agent
+  found a comment that explicitly de-escalates ("only needs to touch the target, not
+  hit it hard"). `docs/doc_hygiene_2026-09-17.md` was flagged for literally enumerating
+  the classifier's own watch-list as a word-list (diagnostic self-reference, not
+  narrative) — it is not in the always-loaded chain and ops.md's one pointer to it was
+  already removed earlier the same day. `project_state.json` itself carries ~365 raw
+  hits ("kill" alone 164 times) and is what `CLAUDE.md` tells every session to read
+  FIRST — but its diff since the baseline *removed* 2 flagged terms and added 0, so
+  this is pre-existing scale, not recent growth. (Side note, not safety-relevant: two
+  of the 8 agents independently caught the shared scratchpad directory returning
+  stale/foreign content on repeated reads of their own generically-named scratch
+  files — almost certainly concurrent agents colliding on shared paths. Both
+  re-verified with hashing before trusting their numbers; use unique scratch filenames
+  per agent in any future fan-out like this.)
+- **2026-09-21 (walk-back, same day).** Proposed reordering `CLAUDE.md`'s orientation
+  instruction so a fresh session doesn't read all of `project_state.json` as its first
+  move, on the theory that its scale+density was the likely trigger for instant flags
+  on brand-new sessions. **This does not hold up.** The 2026-09-21 sanitized-prompt
+  Fable subagent (above) was told to read no files at all and still bounced on the
+  first message, before any tool call could have run — proof that reading
+  `project_state.json` is not necessary to trigger the failure. A same-day report of a
+  fresh session instructed not to read the file, which still instantly flagged,
+  is consistent with this but not independently conclusive (can't confirm from outside
+  that session whether the instruction was actually followed before the flag). The
+  clean control is the no-file-read subagent test, and it already settles the
+  question. Reordering orientation may still be reasonable practice on its own merits
+  (no session should need 44,000 words to say hello), but treat it as hygiene, not a
+  fix for the instant-flag behavior.
 
 ## What this does and doesn't tell us
 
 - Ruled out empirically (2026-09-21): raw weapons-vocabulary density in the
-  always-loaded chain is not the variable. It hasn't moved.
-- Not ruled out: total density including `decisions.md` before the split; density of
-  *meta*-commentary about the safeguard itself (a plausible independent contributor —
-  seven-plus paragraphs strategizing about why a safety classifier keeps firing is
-  arguably its own recognizable pattern, separate from the underlying defense vocabulary);
-  a same-content test from a directory with zero project context (never run); a pure
-  model/classifier-side change independent of any project content (consistent with
-  everything measured so far, but not provable from inside this repo).
+  always-loaded chain is not the variable — flat before/after the pivot, and reduced
+  below the pre-pivot baseline by the same-day cleanup, with no change in outcome.
+- Ruled out empirically (2026-09-21): growth in the ~17,000 lines added since the pivot
+  is not the variable — the 8-way fan-out found it clean.
+- Ruled out empirically (2026-09-21): needing to read `project_state.json`, or any
+  project file at all, is not necessary to trigger the failure — the no-file-read
+  control subagent still bounced on message one.
+- Not ruled out: a same-content test from a directory with zero project context (never
+  run — would distinguish "this repo's identity/subject matter" from "something in the
+  environment unrelated to content"); a pure model/classifier-side change independent
+  of any project content (now the leading explanation by elimination, not just a
+  default guess — everything else has been tested and ruled out).
+- **Current best read, by elimination rather than by direct proof:** this looks like
+  Fable's (and reportedly now Opus's) classifier reacting to this project's basic
+  subject matter — a real, physical, autonomous drone-intercept system — at a
+  categorical level, not to any specific wording, density, or newly-added content that
+  editing can fix. Content edits (this file's own history included) have not moved the
+  outcome despite real, measured attempts.
 - The practical, load-bearing conclusion for day-to-day work: Fable and Opus subagents
   are both currently unreliable enough not to plan around; Sonnet is the current
   fallback; the sanctioned path to actually get this fixed or explained is `/feedback`,
-  which is the builder's to send, with this timeline attached.
+  which is the builder's to send, with this timeline attached — it is now a
+  substantially stronger case than it was on 2026-09-10, having ruled out the "maybe
+  it's just this project's sloppy docs" explanation about as thoroughly as this repo
+  can from the inside.

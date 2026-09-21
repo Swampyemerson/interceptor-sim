@@ -100,12 +100,16 @@ don't spawn a subagent where doing the thing inline is cheaper.
    every retest since, including a 2026-09-16 `opus5-worker` bounce and a maximally
    sanitized zero-jargon probe on 2026-09-21. **2026-09-21, builder-reported and not yet
    independently measured: Opus is now tripping widely enough that the builder is
-   running the head on Sonnet.** Ruled out 2026-09-21: raw weapons-vocabulary density in
-   the always-loaded chain (`CLAUDE.md`+`ops.md`+`goals.md`) is flat at 42 hits before
-   and after the 2026-09-17 sim pivot — not the variable. Root cause otherwise
-   unsettled; `/feedback` (the builder's to send) is the sanctioned path to actually
-   resolve this, not further rewording. **Do not word prompts to evade the classifier** —
-   standing rule, unaffected by any of the above.
+   running the head on Sonnet.** Ruled out 2026-09-21, by direct test, not by assumption:
+   density in the always-loaded chain (flat at 42 hits, then cut below the pre-pivot
+   baseline — no change in outcome); growth anywhere in the ~17,000 lines added since
+   the pivot (an 8-agent diff fan-out found it clean); needing to read `project_state.json`
+   or any project file at all (a no-file-read subagent still bounced on message one).
+   **Current best read, by elimination: a categorical reaction to this project's subject
+   matter, not a fixable wording/density issue** — stop re-proposing content edits as a
+   fix without new evidence. `/feedback` (the builder's to send) is the sanctioned path
+   to actually resolve this. **Do not word prompts to evade the classifier** — standing
+   rule, unaffected by any of the above.
    * **What to do instead, right now:** route substantive/flagged work to `sonnet-worker`
      or the Sonnet-pinned head; treat `opus5-worker` as may-fail (keep tasks small enough
      the head can absorb a bounce); don't spawn `model: fable` subagents until re-verified.
