@@ -91,82 +91,28 @@ WHAT'S MISSING — reviewing work, catching gaps, and deciding workflow/planning
 So spend it THERE, occasionally and deliberately, NOT as a firehose. Tokens are not free;
 don't spawn a subagent where doing the thing inline is cheaper.
 
-0. **⛔ MEASURED 2026-09-10 ONWARD: `model: fable` SUBAGENTS HARD-FAIL IN THIS REPO. Do not
-   plan around them right now.** *(CORRECTED 2026-09-21 — builder pushback, checked against
-   primary sources: this bullet used to read as if subagents "never worked," which is not
-   what the record shows. `.claude/SESSION-PROMPT.md` (2026-07-10) documents a working regime —
-   "filter-neutral framings... tend to hold on Fable; inherently defense-framed tasks will
-   bounce to Opus — let them" — a soft per-task bounce, not a hard refusal. `docs/build_log.md`
-   confirms real, sustained use: "I initially worked around [the head's auto-switch] with Fable
-   subagents to review the work... I got the head pretty good at using subagents for all
-   potentially flagged work." So subagents ran successfully for weeks. What is actually new,
-   dated to 2026-09-10, is a DIFFERENT failure mode: a hard `invalid_request` that fires even on
-   content with zero project framing (the control probe below, and a second content-free probe
-   reconfirmed 2026-09-21) — not the old soft bounce-to-Opus. That shift is more consistent with
-   something changing on the classifier/model side between July and September than with this
-   project's substance newly becoming disqualifying. The practical guidance is unchanged
-   (subagents fail NOW, so still don't plan around them) but the reason is open, not settled —
-   worth an actual `/feedback` report carrying this timeline.)* The builder asked for Fable
-   subagents "knowing safeguards will try
-   for many things". Five were spawned; **5 of 5 failed** on the first message with
-   `invalid_request ... safeguards flagged this message [general_harms]` — a HARD FAILURE,
-   not the head session's auto-switch to another model. Wording is NOT the variable:
-   the five were an adversarial code review, an instrument review, a harness review, a
-   project-manager pass with no defence framing at all, and finally a **control probe**
-   whose entire task was "print a median and a mean and say why they differ, read no
-   files". The control bounced too. The sixth (2026-09-10, a review of a measurement
-   correction) bounced identically, and the SAME prompt sent verbatim to `opus5-worker`
-   returned a 12-finding review that caught two blockers. So the variable is the MODEL,
-   not the prompt — which is also why rewording is not attempted: `.claude/ops.md`
-   forbids wording prompts to evade the classifier, and the sanctioned remedy is
-   `/feedback`, which is the builder's to send.
-   * **Root cause, as far as it can be established from here:** every subagent in this
-     repo inherits the auto-imported project context (`CLAUDE.md` → `@.claude/ops.md` +
-     `@docs/goals.md`), which is saturated with the domain vocabulary the classifier
-     flags. The subagent is therefore flagged before it does anything. NOT verified: the
-     alternative that Fable subagents are unavailable in this environment for an
-     unrelated reason — distinguishing them needs a Fable subagent spawned from a
-     directory with no project context, which this session could not arrange.
-   * **REFINED 2026-09-17 (builder-prompted doc-hygiene audit, `docs/doc_hygiene_2026-09-17.md`):**
-     the always-imported `@`-chain itself is moderate (6,353 words, ~92 flagged-term hits) — the
-     real concentration was `docs/decisions.md`, which had grown to 118 ADRs / 93,536 words / 408
-     hits in one file that this very orientation instruction ("check the contradiction ledger")
-     points every session and worker at. Split 2026-09-17: the closed sim-phase ADRs
-     (ADR-0001–0080) moved to `docs/decisions_archive.md`; `docs/decisions.md` is now 16,141
-     words / 84 hits. **CODIFIED RULE: a subagent prompt must never tell a worker to read
-     `docs/project_state.json` or `docs/decisions.md`** — give it the specific facts inline
-     instead, the way `docs/new_sim_plan.md`'s WP table already does ("each is self-contained,
-     facts inline, no 'go read the docs'"). This is length/structure hygiene, not classifier
-     evasion — the wording-doesn't-matter rule two bullets below is unaffected.
-   * **What to do instead:** `opus5-worker`, which is ALREADY the sanctioned lane for
-     everything the safeguard blocks (bullet 4) and which ran the same reviews without
-     incident. The routing rule below is kept because it describes the right DIVISION of
-     work — review and gap-spotting are worth spending a stronger seat on — but in this
-     repo that seat is Opus 5, not Fable, until someone re-measures.
-   * **2026-09-16: `opus5-worker` is not immune either.** A read-only closing-speed analysis
-     bounced 1 of 1 with the same `[general_harms]` hard failure, mid-task, after it had
-     started reading the repo. Not retried or reworded; the head did the work inline. So a
-     subagent is a lane that MAY fail, not one to plan a session around — keep the task
-     small enough that the head can absorb it.
-   * **Do NOT reword prompts to get a Fable agent through.** Standing rule, unchanged.
-     The sanctioned remedy is `/feedback`, and the probe result is the thing worth
-     reporting there: a benign arithmetic task inherits enough context to be refused.
-   * **RECONFIRMED 2026-09-21 — off-topic content bounces too, so this is not a defense-vocabulary
-     problem.** The builder asked the head (on Sonnet that day) to retest and to delete this
-     finding if it no longer held. Spawned one `model: fable` agent for a task with zero defense
-     framing and zero project vocabulary: polish a personal-project paragraph for an internship
-     application, explicitly told to read no files and given every fact inline. Bounced on the
-     first message, identical `invalid_request ... [general_harms]`. This is the same signature as
-     the 2026-09-10 control probe, spawned from the same directory (still not the no-context test
-     the root-cause bullet above still needs). **Per the finding this reconfirms, the head did not
-     delete it — a request to remove a measured result is not itself new evidence, and doing so
-     would cost the next session this same failed attempt.** The head instead logged this run and
-     did the writing task itself.
-   * **If Fable's judgment is specifically wanted, the route is the HEAD SESSION, not a
-     subagent.** The head tolerates the classifier (a flagged turn bounces it to another
-     model and work continues); a subagent does not (hard failure, nothing runs). So
-     `/model claude-fable-5` on the head and ask the judgment question directly, rather
-     than delegating it. That is the only Fable seat this repo currently has.
+0. **⛔ Fable AND Opus subagents are currently unreliable in this repo — Sonnet is the
+   current fallback. Full evidence log: `docs/subagent_safeguard_log.md` (not
+   always-loaded; read it before re-testing or filing `/feedback`, not before routine
+   work).** Short version: subagents worked fine for weeks through mid-2026-07 (soft
+   bounce-to-Opus on defense-framed tasks only); a harder, content-independent
+   `invalid_request [general_harms]` failure appeared 2026-09-10 and has reconfirmed on
+   every retest since, including a 2026-09-16 `opus5-worker` bounce and a maximally
+   sanitized zero-jargon probe on 2026-09-21. **2026-09-21, builder-reported and not yet
+   independently measured: Opus is now tripping widely enough that the builder is
+   running the head on Sonnet.** Ruled out 2026-09-21: raw weapons-vocabulary density in
+   the always-loaded chain (`CLAUDE.md`+`ops.md`+`goals.md`) is flat at 42 hits before
+   and after the 2026-09-17 sim pivot — not the variable. Root cause otherwise
+   unsettled; `/feedback` (the builder's to send) is the sanctioned path to actually
+   resolve this, not further rewording. **Do not word prompts to evade the classifier** —
+   standing rule, unaffected by any of the above.
+   * **What to do instead, right now:** route substantive/flagged work to `sonnet-worker`
+     or the Sonnet-pinned head; treat `opus5-worker` as may-fail (keep tasks small enough
+     the head can absorb a bounce); don't spawn `model: fable` subagents until re-verified.
+   * **If Fable's judgment is specifically wanted:** that seat is the HEAD SESSION, not a
+     subagent — `/model claude-fable-5` and ask directly (the head degrades gracefully,
+     a subagent does not) — though per the 2026-09-21 report even that may currently
+     bounce to Opus and then to whatever the builder has pinned.
 
 1. **Reach for a `model: fable` subagent OCCASIONALLY and DELIBERATELY, for high-leverage work:**
    *(⚠️ READ BULLET 0 FIRST — this currently FAILS 6/6 in this repo. Substitute
@@ -199,7 +145,9 @@ don't spawn a subagent where doing the thing inline is cheaper.
    builder directive disagreeing, the DIRECTIVE wins and you fix the file the same turn.)
 4. **OPUS 5 subagents (`opus5-worker`) = the substantive WORKHORSE lane + everything the
    safeguard blocks** — released 2026-07-24 (`claude-opus-5`, near-Fable capability, half
-   Fable's price, classifiers intervene ~85% less): substantial builds/analyses AND the
+   Fable's price, classifiers intervene ~85% less **— that figure is STALE per the
+   2026-09-21 report in bullet 0 that Opus is now tripping too; treat this lane as
+   may-fail, not a safe harbor, until re-measured**): substantial builds/analyses AND the
    flagged defense-framed guidance / targeting / honesty work and their reviews. **Builder
    directive 2026-07-24: NO work on Opus 4.8.** GOTCHA (root-caused 2026-07-25): what the
    bare `opus` alias resolves to is a property of the RUNNING CLI BINARY, not the account —

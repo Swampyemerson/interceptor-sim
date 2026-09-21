@@ -70,7 +70,7 @@ fiducial that lets us focus on the *guidance and control* problem instead of the
 | Onboard terminal seeker (Pi + cam, classical CV) | `gz_x500_mono_cam` monocular camera + AprilTag | Isolate guidance/control from perception; robust ground truth for detection |
 | Ground stereo triangulation + EKF track + pro-nav mid-course | Interceptor's own camera -> relative position -> pro-nav | Collapse to a single, self-contained terminal-intercept problem |
 | PX4 OFFBOARD via MAVLink-over-ExpressLRS + Pi-over-UART | PX4 OFFBOARD via **MAVSDK-Python** over local UDP | One clean interface, no radio / ROS complexity |
-| Hostile UAS being intercepted | Second drone / scripted model carrying the AprilTag | The threat to intercept |
+| Hostile UAS being intercepted | Second drone / scripted model carrying the AprilTag | Stand-in target; the sim's target is cooperative/scripted, not adversarial — the counter-UAS motivation lives in the parent project, not in what this artifact does |
 | Comms-denied terminal handoff (the jam-resistance story) | Onboard-camera-only intercept, no ground-truth "cheating" | This is the headline capability the whole project exists to prove |
 
 ## The guidance arc (this is the resume line)
