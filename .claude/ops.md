@@ -113,11 +113,15 @@ don't spawn a subagent where doing the thing inline is cheaper.
    * **The routing rule, simplified:** all subagent work goes through `sonnet-worker`.
      Don't spawn `model: fable` or treat `opus5-worker` as dependable until re-verified
      — both are may-fail-or-worse right now, not a workhorse and not a review lane.
-   * **If Fable's judgment is specifically wanted:** that seat is the HEAD SESSION, not a
-     subagent — `/model claude-fable-5-1` and ask directly, because an interactive head
-     degrades gracefully (bounces to another model) where a subagent hard-fails — but
-     per the 2026-09-21 reports this is no longer guaranteed either. Treat it as worth
-     trying, not as dependable.
+   * **If Fable's judgment is specifically wanted, use Fable 5, NOT 5.1.** Confirmed by a
+     version-only paired control 2026-09-21: `claude-fable-5` completes this project's tasks;
+     `claude-fable-5-1` hard-fails on the identical task in the identical repo. So the seat
+     is a HEAD SESSION on `/model claude-fable-5` (Fable **5**). Do NOT try to get 5.1
+     working on this project — that would require keeping context from the classifier, i.e.
+     evasion, which the standing rule forbids; the 5→5.1 block is the safeguard working as
+     designed, not a bug. Even Fable 5 as head may bounce on a flagged turn (product
+     behavior, the sanctioned fallback — `/model` back when noticed); accept it and keep
+     working.
 
 1. **Reach for a `model: fable` subagent OCCASIONALLY and DELIBERATELY, for high-leverage work:**
    *(⚠️ READ BULLET 0 FIRST — this currently fails 100% of tests run in this repo, and a
