@@ -136,6 +136,17 @@ don't spawn a subagent where doing the thing inline is cheaper.
    * **Do NOT reword prompts to get a Fable agent through.** Standing rule, unchanged.
      The sanctioned remedy is `/feedback`, and the probe result is the thing worth
      reporting there: a benign arithmetic task inherits enough context to be refused.
+   * **RECONFIRMED 2026-09-21 — off-topic content bounces too, so this is not a defense-vocabulary
+     problem.** The builder asked the head (on Sonnet that day) to retest and to delete this
+     finding if it no longer held. Spawned one `model: fable` agent for a task with zero defense
+     framing and zero project vocabulary: polish a personal-project paragraph for an internship
+     application, explicitly told to read no files and given every fact inline. Bounced on the
+     first message, identical `invalid_request ... [general_harms]`. This is the same signature as
+     the 2026-09-10 control probe, spawned from the same directory (still not the no-context test
+     the root-cause bullet above still needs). **Per the finding this reconfirms, the head did not
+     delete it — a request to remove a measured result is not itself new evidence, and doing so
+     would cost the next session this same failed attempt.** The head instead logged this run and
+     did the writing task itself.
    * **If Fable's judgment is specifically wanted, the route is the HEAD SESSION, not a
      subagent.** The head tolerates the classifier (a flagged turn bounces it to another
      model and work continues); a subagent does not (hard failure, nothing runs). So
