@@ -139,6 +139,10 @@ scripts/experiments/downtilt_mounts/
 !logs/wind_gate0_*/probe.log
 !logs/wind_gate0_*/wind_applied.csv
 !logs/wind_gate0_*/wind_driver.log
+# Un-ignoring the DIRECTORY above makes everything inside it visible again, so
+# the "sim log stays ignored" intent needs its own explicit rule (it sat as ??
+# noise in git status from 2026-08-29 until 2026-09-21 because of this).
+logs/wind_gate0_*/sim.log
 !logs/wrench_diag_*/
 !logs/wrench_diag_*/diag.json
 !logs/wrench_diag_*/attitude.csv

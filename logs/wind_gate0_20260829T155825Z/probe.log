@@ -1,0 +1,9 @@
+[diag] force 1.9095 N -> predicted tilt 5.262 deg
+[diag] pose topics: ['/world/apriltag/pose/info', '/world/apriltag/dynamic_pose/info']
+[diag] taking off to 6.0 m
+[diag] at 5.42 m, settling
+[diag] --- A_baseline ---
+[diag]   tilt 0.160 deg (max 0.349), lean 246.2, publishes=0, drift 0.09 m
+[diag] --- B_persistent_scoped_once ---
+[diag]   tilt 5.259 deg (max 5.453), lean 270.2, publishes=1, drift 0.16 m
+[diag] --- C_persistent_bare_once ---
