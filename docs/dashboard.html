@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->052cd1f<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3d1a5e4<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,11 +914,11 @@
  },
  "now": {
   "as_of": "2026-09-22",
-  "where": "Chase-only interception (ADR-0103) is ruled and flyable from the real flight code (ADR-0105), but the port's final approach is 3-7x worse than the prototype (0.4-0.9 m vs 0.12 m). Field-readiness push running: miss-abort safety, GPS cue relay, launch mechanics. Hardware is on the bench.",
-  "finding": "Abort-timer suspicion WRONG: 2 s or 30 s of extra engagement time gives byte-identical results -- once the camera loses the target close in, more time buys nothing. The miss is made on the FIRST pass; that close is where the fix lives.",
+  "where": "Chase-only (ADR-0103/0105) is ruled, flyable, and as of today the port MATCHES its prototype (a registered trace fixed four defects: 24% to 100% inside 0.35 m, median 0.068 m). The field push LANDED: miss-abort safe modes (hover/return-home), the GPS cue relay built and wired in.",
+  "finding": "The GPS cue relay's error budget (real bench GPS data) says a relayed cue CANNOT serve the sprint terminal (needs ~1 deg; worst-credible is 8-27 deg) but comfortably serves chase-only kept under ~2 s stale -- independent support for the chase-only ruling.",
   "next": [
-   "Land the 3 running builds: first-pass-close fix, miss-abort safe modes, GPS cue relay",
-   "Builder: apply the blocked ops.md/.claude routing edits; delete merged branch upbeat-wright"
+   "Bench the ELRS WiFi-backpack telemetry hop (the one unbuilt cue-relay leg); Gazebo cross-check",
+   "Builder rulings queued: slant under-range in the stock seeker paths; re-approach after a miss"
   ],
   "evidence": "isim/specs/parity_flightcode_2026-09-21.md - ADR-0103/0105/0106 - docs/next.md item 0"
  },
@@ -1418,9 +1418,9 @@
  "plain_log": [
   {
    "date": "2026-09-22",
-   "text": "Field-readiness push, all flight hardware on the bench. Subagent lanes re-ruled (Fable 5 / Opus 4.8 / Sonnet 5; the 4.8 block hook now allows explicit pins). Three parallel builds launched: miss-abort safety with hover/return-home modes, the GPS cue relay (target GPS to ground to interceptor, ~2 s window, latched at trigger), and the first-pass-close parity trace.",
-   "so_what": "The flight software is being hardened for a real open-field attempt: a miss now has a defined safe ending, and the launch aim gets a realistic, honestly-noisy data source instead of a hand-entered constant.",
-   "evidence": "ADR-0106 - isim/specs/parity_flightcode_2026-09-21.md - docs/next.md item 0"
+   "text": "Field-readiness push, all flight hardware on the bench; all three parallel builds LANDED. (1) The pursuit-port parity gap CLOSED -- a registered tick-by-tick trace found four coupled defects (KF covariance Jacobian, capture-instant attitude, yaw seed, slant under-range); the fixed port went 24% to 100% inside 0.35 m nominal, median 0.068 m, verified independently. (2) The GPS cue relay was designed, built off real bench GPS data, and wired into the flight CLI (--cue-json, fail-closed): serves chase-only (8-13 deg worst-credible vs 10-30 deg tolerance), never the sprint. (3) Miss-abort safety: passage window ported, SAFE now offers hover / land / return-home, and a pursuit miss aborts straight to SAFE. Bench: the real Pi-to-Pixhawk link measured live confirms the failsafe staleness sizing. Full offline suite ALL GREEN (dev machine).",
+   "so_what": "The ruled chase-only design is no longer the weaker twin of its prototype, a miss now has a defined safe ending, and the launch cue has honest piping with a measured error budget instead of a hand-typed perfect number. Two rulings queued: the slant under-range geometry also ships in the older stock seeker paths, and whether the vehicle may re-approach after a missed first pass.",
+   "evidence": "isim/specs/parity_trace_2026-09-22.md - docs/cue_relay_plan.md - ADR-0106 - logs/bench_telem2_cadence_20260922.json - commits 8a5886c, fa54d7d, 3d1a5e4, 9efbc84"
   },
   {
    "date": "2026-09-21",
