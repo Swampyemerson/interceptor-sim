@@ -81,3 +81,13 @@ Drops into `RealFlightSM` unmodified (no `isinstance` anywhere on `RealFlightSM.
 ## Status
 
 - 2026-09-17: plan written, work items 1–2 dispatched to `opus5-worker`.
+- 2026-09-17: items 1–2 landed (commit 1309d1b) plus the `pursuit_mode` half of item 3.
+- 2026-09-21: item 3 COMPLETE (ADR-0105): `--terminal {stock,tag,pursuit}` on the real
+  CLI via `build_terminal()`; in pursuit mode the GO edge enters ENGAGE directly (the
+  acquire-streak gate is a sprint-era mechanism a chase can never satisfy); belief seed
+  = `--target-start`/`--target-vel` → relative NED `[N, E, +dash_loft_m]`, `go_at_s=0`
+  (the SM gates entry, which is what makes rc/gate triggers seedable). 7 directed tests
+  (`flight/tests/test_terminal_cli.py`); audit + self-test PASS; full suite 1064 passed.
+  Disclosed open interaction: `engage_lost_target_s=2.0` fires before pursuit's
+  `fallback_s=3.0` recovery can act — needs a ruling before either number moves.
+- Items 4 (isim parity) and 5 (Gazebo) remain open.

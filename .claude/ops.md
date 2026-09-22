@@ -136,6 +136,13 @@ don't spawn a subagent where doing the thing inline is cheaper.
    * **Do NOT reword prompts to get a Fable agent through.** Standing rule, unchanged.
      The sanctioned remedy is `/feedback`, and the probe result is the thing worth
      reporting there: a benign arithmetic task inherits enough context to be refused.
+   * **Builder routing note 2026-09-21: for subagents, prefer Fable 5 (not 5.1), with
+     Opus 4.8 named as his fallback ("the opus 5 and 5.1 have had trouble").** Context:
+     that day an `opus5-worker` spawn for a flight-code CLI task hard-failed
+     `[general_harms]` on its first message (like 2026-09-16) and the head absorbed the
+     task. Note the Opus 4.8 fallback conflicts with the 2026-07-24/25 ban and its
+     enforcement hook — that conflict is the builder's to resolve explicitly before any
+     4.8 worker runs; do not treat this note as authorization to alter the hook.
    * **If Fable's judgment is specifically wanted, the route is the HEAD SESSION, not a
      subagent.** The head tolerates the classifier (a flagged turn bounces it to another
      model and work continues); a subagent does not (hard failure, nothing runs). So

@@ -1099,6 +1099,20 @@ class RealFlightSM:
                        f"{self.dash_heading.value:+.2f} deg ({src}) -- this value "
                        "is now immutable for the rest of the flight", events)
             self.t_dash_start = obs.t
+            # ADR-0103 "chase only": pursuit flies the WHOLE approach itself
+            # (Phase A belief rendezvous needs no detection), so GO enters
+            # ENGAGE directly -- the acquire-streak DASH gate is a sprint-era
+            # mechanism a rear-aspect chase can never satisfy from standby.
+            # t_dash_start is still latched above: run_offline's stub seeker
+            # and the log tooling key off it.
+            if cfg.pursuit_mode:
+                self.t_engage_start = obs.t
+                self._transition(State.ENGAGE, "go_edge_pursuit(chase_only)",
+                                 obs, events)
+                # The GO tick itself flies the standby hold; ENGAGE takes over
+                # next tick -- the same transition-tick ordering the coded dash
+                # uses (see _step_coded_dash's handoff comment).
+                return self._standby_setpoint(obs)
             self._transition(State.CODED_DASH, "go_edge", obs, events)
             return self._dash_setpoint(obs)
 
@@ -2522,10 +2536,61 @@ def build_config(args) -> MissionConfig:
                           and args.offboard_stale_s < 0 else args.offboard_stale_s),
         breakoff_min_rise_m=args.breakoff_min_rise_m,
         breakoff_max_range_m=args.breakoff_max_range_m,
+        # ADR-0103 "chase only": --terminal pursuit implies pursuit_mode (the
+        # receding-range breakoff suppression AND the GO->ENGAGE direct
+        # transition). Never settable independently from this CLI -- a pursuit
+        # terminal under the fly-by breakoff rule is a false-abort machine.
+        pursuit_mode=(getattr(args, "terminal", "stock") == "pursuit"),
     )
 
 
-def main(argv=None) -> int:
+def build_terminal(args, cfg: MissionConfig, gcfg, cam):
+    """Construct the ENGAGE terminal `main()` hands to `RealFlightSM` --
+    factored out of `main()` so tests can assert the class and the belief
+    seed without running a mission. 'stock' is byte-for-byte the historical
+    path (SeekerGuidance)."""
+    which = getattr(args, "terminal", "stock")
+    if which == "stock":
+        return SeekerGuidance(gcfg, cam, gcfg.target_span_m)
+    if which == "tag":
+        from flight.tag_terminal import TagInterceptGuidance, TagTerminalConfig
+        return TagInterceptGuidance(TagTerminalConfig(), cam, gcfg.target_span_m,
+                                    gcfg)
+    assert which == "pursuit", which
+    from flight.pursuit_terminal import (PursuitTerminalConfig,
+                                         PursuitTerminalGuidance)
+    # Phase-A belief seed -- the SAME pre-flight constants the C1 lead solve
+    # reads (--target-start/--target-vel, east-north metres about the launch
+    # point, latched at trigger; honesty-clean, never a live/gt read). NED:
+    # [north, east, down]. Vertical: at GO the vehicle stands at
+    # standby_alt_m and the target is believed at dash_base_alt_m (=
+    # standby - loft, see MissionConfig.dash_base_alt_m), so the relative
+    # down component is exactly +dash_loft_m.
+    t_e, t_n = (float(v) for v in args.target_start.split(",")[:2])
+    v_e, v_n = (float(v) for v in args.target_vel.split(",")[:2])
+    belief_r0_ned = (t_n, t_e, cfg.dash_loft_m)
+    belief_vel0_ned = (v_n, v_e, 0.0)
+    print(f"[terminal] pursuit (ADR-0103 chase only): belief seed rel NED "
+          f"({belief_r0_ned[0]:+.1f}, {belief_r0_ned[1]:+.1f}, "
+          f"{belief_r0_ned[2]:+.1f}) m at {belief_vel0_ned[0]:+.1f}/"
+          f"{belief_vel0_ned[1]:+.1f} m/s -- receding-range breakoff "
+          f"SUPPRESSED (contact floor / lost-target / engage-max-s active, "
+          f"engage_max_s={cfg.engage_max_s:.0f}s)")
+    # go_at_s=0.0: the state machine already gates the terminal -- step() is
+    # first called the tick ENGAGE begins (= the GO edge in pursuit_mode), so
+    # the class's own pre-GO zero-velocity hold must never re-trigger here.
+    # For a non-timer trigger (rc/gate) the GO instant is not a pre-flight
+    # constant anyway; the SM's gating is what makes this seedable at all.
+    return PursuitTerminalGuidance(
+        PursuitTerminalConfig(), cam, gcfg.target_span_m, gcfg,
+        belief_r0_ned=belief_r0_ned, belief_vel0_ned=belief_vel0_ned,
+        go_at_s=0.0, initial_yaw_deg=cfg.preflight_heading_deg)
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    """The real CLI parser, factored out of `main()` so tests can parse the
+    same flags `main()` does (`--terminal` construction tests) without
+    running a mission."""
     ap = argparse.ArgumentParser(
         description="Real interceptor onboard flight state machine "
                     "(STANDBY -> CODED_DASH -> ENGAGE -> BREAKOFF -> SAFE). "
@@ -2637,6 +2702,16 @@ def main(argv=None) -> int:
                      help="--trigger timer: synthesise the GO edge at this time")
 
     trm = ap.add_argument_group("terminal seeker (composed from seeker_loop)")
+    trm.add_argument("--terminal", choices=("stock", "tag", "pursuit"),
+                     default="stock",
+                     help="which terminal law flies ENGAGE: 'stock' = "
+                          "SeekerGuidance (LOS-rate pro-nav, today's default, "
+                          "unchanged), 'tag' = flight.tag_terminal (3-D "
+                          "predicted-intercept-point), 'pursuit' = flight."
+                          "pursuit_terminal (ADR-0103 'chase only': GO enters "
+                          "ENGAGE directly -- no coded dash -- and the receding-"
+                          "range breakoff is suppressed; contact floor, lost-"
+                          "target and engage-max-s stay active)")
     trm.add_argument("--intrinsics",
                      default=os.path.join(_REPO_ROOT, "configs/camera_intrinsics.json"))
     trm.add_argument("--n-pronav", type=float, default=5.0)
@@ -2661,6 +2736,11 @@ def main(argv=None) -> int:
                           "seconds into the dash")
     run.add_argument("--log-csv", default=None,
                      help="per-tick CSV (default: auto-named under logs/)")
+    return ap
+
+
+def main(argv=None) -> int:
+    ap = build_arg_parser()
     args = ap.parse_args(argv)
 
     if args.audit:
@@ -2710,7 +2790,7 @@ def main(argv=None) -> int:
     else:
         print(f"[terminal] target span {gcfg.target_span_m:.3f} m (config "
               f"default -- NOT range-calibrated; synthetic-detector modes only)")
-    guidance = SeekerGuidance(gcfg, cam, gcfg.target_span_m)
+    guidance = build_terminal(args, cfg, gcfg, cam)
 
     ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     if args.log_csv is None:

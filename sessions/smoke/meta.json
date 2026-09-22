@@ -1,0 +1,47 @@
+{
+  "session": "session",
+  "created_utc": "2026-07-26T21:30:30Z",
+  "source": "picamera2",
+  "backend_detail": {
+    "sensor": "OV9281 (mono global-shutter)"
+  },
+  "resolution": {
+    "width": 1280,
+    "height": 800
+  },
+  "requested_resolution": {
+    "width": 1280,
+    "height": 800
+  },
+  "n_frames": 30,
+  "family": "tag36h11",
+  "quad_decimate": 2.0,
+  "quad_decimate_source": "DEFAULT 2.0 (the pupil-apriltags library default, made explicit; ADR-0082 PLANS 1.0 for the tripod day)",
+  "tag_decode": true,
+  "n_tag_frames": 0,
+  "requested_exposure_us": 1000,
+  "applied_exposure_us": 994.0,
+  "exposure_source": "sensor-metadata",
+  "requested_gain": 1.0,
+  "applied_gain": 1.0,
+  "stream_fps": 30.14,
+  "stream_fps_source": "measured: median inter-frame dt (t_mono_s) -- RECORDER LOOP, INCLUDES the per-frame PNG write the flight loop never pays",
+  "stream_fps_p10_slow_tail": 28.738,
+  "frame_dt_median_s": 0.033179,
+  "decode_loop_fps": 89.532,
+  "decode_loop_dt_median_s": 0.011169,
+  "decode_loop_fps_source": "measured: median AprilTag decode wall-time per frame, PNG WRITE EXCLUDED (the modelled handoff cadence; still this rig's CPU, not the flying Pi 5 -- protocol \u00a77.3)",
+  "exposure_spec_us": 1000,
+  "exposure_meets_spec": true,
+  "calib": false,
+  "tag_size_m": null,
+  "requested_n_frames": 30,
+  "capture_truncated": false,
+  "terminated_early": false,
+  "terminated_early_reason": null,
+  "git_rev": "15b88b0",
+  "frames_dir": "frames",
+  "index_csv": "index.csv",
+  "tags_csv": "tags.csv",
+  "note": "gt-free real capture; AprilTag decode is capture-time QC (sanctioned: calibration/auto-labels/baseline seeker), not a guidance input (CLAUDE.md honesty boundary)."
+}

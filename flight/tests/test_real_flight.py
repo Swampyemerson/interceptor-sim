@@ -465,12 +465,20 @@ def test_the_optional_dead_reckoned_distance_bound_fires():
 
 def engaged(c=None):
     """A machine parked in ENGAGE with no seeker attached (so ENGAGE flies the
-    open-loop coast fallback and the terminal's own math stays out of the way)."""
-    sm = RealFlightSM(c or cfg())
-    t = dash_now(sm)
-    for i in range(5):
-        t += DT
-        sm.step(obs(t, det_new=True, det_range_m=9.0))
+    open-loop coast fallback and the terminal's own math stays out of the way).
+    In pursuit_mode the GO edge enters ENGAGE directly (ADR-0103 chase only --
+    no coded dash, no acquire streak), so the dash/streak drive is skipped."""
+    conf = c or cfg()
+    sm = RealFlightSM(conf)
+    if conf.pursuit_mode:
+        sm.step(obs(0.0, trigger=NO))
+        sm.step(obs(DT, trigger=GO))
+        t = DT
+    else:
+        t = dash_now(sm)
+        for i in range(5):
+            t += DT
+            sm.step(obs(t, det_new=True, det_range_m=9.0))
     assert sm.state == State.ENGAGE
     return sm, t
 
