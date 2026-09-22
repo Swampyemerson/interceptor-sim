@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: block any subagent spawn on Opus 4.8.
+"""PreToolUse hook: block AMBIGUOUS or unsanctioned Opus-4 subagent spawns.
 
-Builder directive 2026-07-24: NO work on Opus 4.8. What the bare 'opus'
-alias resolves to is VERSION-DEPENDENT on the running CLI binary (root-caused
-2026-07-25: a long-lived `claude --continue` process on 2.1.204 mapped
+HISTORY. Builder directive 2026-07-24: NO work on Opus 4.8 ("I don't want it
+accidentally used"). AMENDED by builder directive 2026-09-22: with Opus 5 and
+Fable 5.1 subagents bouncing on this repo (docs/subagent_safeguard_log.md),
+the sanctioned subagent lanes are now Fable 5, **Opus 4.8**, and Sonnet 5 —
+so an EXPLICIT `claude-opus-4-8` pin is ALLOWED again (use subagent_type:
+opus48-worker). What stays blocked is the ACCIDENT surface the 2026-07-24
+rule was really about: the bare 'opus' alias, whose resolution is
+VERSION-DEPENDENT on the running CLI binary (root-caused 2026-07-25: a
+long-lived `claude --continue` process on 2.1.204 mapped
 opus->claude-opus-4-8 while the on-disk 2.1.220 maps opus->claude-opus-5),
-so the ambiguous alias is denied categorically alongside any explicit
-claude-opus-4* id. Opus 5 stays available via subagent_type: opus5-worker
-(pinned claude-opus-5) or an explicit 'claude-opus-5' model string.
+and any OTHER claude-opus-4* id (4-1, 4-5, ...), which nobody sanctioned.
 
 Covers the two spawn surfaces:
   - Agent tool calls with model: "opus" or "claude-opus-4*"
@@ -28,9 +32,11 @@ import json
 import re
 import sys
 
-BLOCKED_MODEL = re.compile(r"^(opus|claude-opus-4.*)$", re.IGNORECASE)
+# `claude-opus-4-8...` (any suffix: dated ids, [1m]) is the 2026-09-22
+# sanctioned lane and passes; the bare alias and every OTHER opus-4 id deny.
+BLOCKED_MODEL = re.compile(r"^(opus|claude-opus-4(?!-8).*)$", re.IGNORECASE)
 BLOCKED_IN_SCRIPT = re.compile(
-    r"model\s*:\s*['\"](opus|claude-opus-4[^'\"]*)['\"]", re.IGNORECASE
+    r"model\s*:\s*['\"](opus|claude-opus-4(?!-8)[^'\"]*)['\"]", re.IGNORECASE
 )
 
 
@@ -115,12 +121,13 @@ def main() -> None:
         model = tool_input.get("model")
         if isinstance(model, str) and BLOCKED_MODEL.match(model.strip()):
             deny(
-                f"BLOCKED by scripts/hooks/block_opus48.py: model '{model}' is Opus 4.8 "
-                "or the ambiguous 'opus' alias, whose resolution depends on the running "
-                "CLI binary (a stale --continue process resolved it to claude-opus-4-8 "
-                "on 2026-07-25). Builder directive 2026-07-24: NO work on Opus 4.8. "
-                "Spawn via subagent_type: 'opus5-worker' (pinned claude-opus-5) or "
-                "pass model 'claude-opus-5' explicitly."
+                f"BLOCKED by scripts/hooks/block_opus48.py: model '{model}' is the "
+                "ambiguous 'opus' alias (resolution depends on the running CLI "
+                "binary; a stale --continue process resolved it to claude-opus-4-8 "
+                "on 2026-07-25) or an unsanctioned claude-opus-4* id. Sanctioned "
+                "subagent lanes (builder 2026-09-22): subagent_type 'opus48-worker' "
+                "(pinned claude-opus-4-8), 'opus5-worker' (pinned claude-opus-5), "
+                "'sonnet-worker', or an explicit model id."
             )
 
     elif tool == "Workflow":
@@ -136,10 +143,11 @@ def main() -> None:
         if match:
             deny(
                 f"BLOCKED by scripts/hooks/block_opus48.py: this workflow script pins "
-                f"an agent to Opus 4.8 (found model: '{match.group(1)}'; the bare "
-                "'opus' alias resolves to claude-opus-4-8). Builder directive "
-                "2026-07-24: NO work on Opus 4.8. Use agentType: 'opus5-worker' or "
-                "model: 'claude-opus-5' in the agent() opts instead."
+                f"an agent to '{match.group(1)}' -- the ambiguous 'opus' alias or an "
+                "unsanctioned claude-opus-4* id. Sanctioned (builder 2026-09-22): "
+                "agentType 'opus48-worker'/'opus5-worker'/'sonnet-worker', or an "
+                "explicit model id ('claude-opus-4-8', 'claude-opus-5') in the "
+                "agent() opts."
             )
 
     sys.exit(0)

@@ -66,15 +66,14 @@ def workflow(script):
     "opus",             # THE ambiguous alias -- resolves per running CLI binary
     "Opus",             # case
     "  opus  ",         # whitespace (the hook .strip()s)
-    "claude-opus-4-8",
-    "claude-opus-4-1-20250805",
+    "claude-opus-4-1-20250805",   # opus-4 ids OTHER than 4-8 stay unsanctioned
     "CLAUDE-OPUS-4-5",
 ])
-def test_agent_spawn_on_opus48_or_the_bare_alias_is_denied(model):
+def test_agent_spawn_on_the_bare_alias_or_unsanctioned_opus4_is_denied(model):
     rc, decision, reason = run_hook(agent(model=model, prompt="do a thing"))
     assert rc == 0, "the hook must always exit 0; it signals via JSON, not status"
     assert decision == "deny", f"model {model!r} must be denied"
-    assert "block_opus48" in reason and "opus5-worker" in reason, (
+    assert "block_opus48" in reason and "opus48-worker" in reason, (
         "the deny reason must name the blocker and the sanctioned way forward")
 
 
@@ -84,6 +83,12 @@ def test_agent_spawn_on_opus48_or_the_bare_alias_is_denied(model):
     {"model": "claude-opus-5[1m]", "prompt": "x"},      # long-context variant
     {"model": "claude-sonnet-5", "prompt": "x"},        # the volume lane
     {"model": "claude-fable-5", "prompt": "x"},         # review/judgment lane
+    # Opus 4.8: SANCTIONED subagent lane again (builder directive 2026-09-22 --
+    # Opus 5/Fable 5.1 workers bounce on this repo; explicit 4-8 pins pass, the
+    # ambiguous bare alias still denies).
+    {"model": "claude-opus-4-8", "prompt": "x"},
+    {"model": "claude-opus-4-8-20250514", "prompt": "x"},
+    {"subagent_type": "opus48-worker", "prompt": "x"},
     {"prompt": "x"},                                    # no model key at all
     {"model": None, "prompt": "x"},                     # explicit null
     {"subagent_type": "opus5-worker", "prompt": "x"},   # the pinned agent type
@@ -122,11 +127,18 @@ await a.result();
     assert "opus" in reason
 
 
-def test_workflow_script_pinning_an_explicit_opus4_id_is_denied():
-    script = "agent({ model: \"claude-opus-4-8\", prompt: 'go' })"
+def test_workflow_script_pinning_an_unsanctioned_opus4_id_is_denied():
+    script = "agent({ model: \"claude-opus-4-5\", prompt: 'go' })"
     rc, decision, reason = run_hook(workflow(script))
     assert decision == "deny"
-    assert "claude-opus-4-8" in reason
+    assert "claude-opus-4-5" in reason
+
+
+def test_workflow_pinning_claude_opus_4_8_explicitly_is_allowed():
+    """Builder directive 2026-09-22: an explicit 4-8 pin is a sanctioned lane."""
+    script = "agent({ model: 'claude-opus-4-8', prompt: 'go' })"
+    rc, decision, _ = run_hook(workflow(script))
+    assert rc == 0 and decision is None
 
 
 def test_workflow_scriptpath_is_read_and_denied(tmp_path):

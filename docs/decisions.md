@@ -500,3 +500,29 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
 - **Open, disclosed.** (a) `engage_lost_target_s=2.0 s` fires before pursuit's own Phase-B→A dropout fallback (`fallback_s=3.0 s`) can ever act at range ≥ `no_fallback_range_m` — after first detection, a 2 s gap aborts the engagement where the validated concept would have re-entered belief rendezvous. Validated-in-isim behavior vs. a deliberate flight-code failsafe; needs a ruling (raise the failsafe in pursuit_mode, or accept the tighter abort) + an isim A/B before either number moves. (b) `engage_max_s=12 s` default is sized for a fly-by; ADR-0103 measured 6–13 s time-to-contact, so real chase configs need `--engage-max-s` raised — printed in the `[terminal]` banner, not silently changed. (c) Work item 4 (A0-style parity vs the native isim grid) still open.
 - **Evidence.** `flight/tests/test_terminal_cli.py` (7 directed tests: class construction per flag, `pursuit_mode` set, belief seed follows `--target-start`/`--dash-loft-m`, GO→ENGAGE direct, stock still dashes, subprocess dry-run exit 0); flight+isim suites 406 passed; `--audit` PASS; `--self-test` PASS (dev machine).
 - **Date.** 2026-09-21.
+
+## ADR-0106 — Subagent routing: Fable 5 / Opus 4.8 / Sonnet 5 lanes; block_opus48 hook amended (2026-09-22)
+
+- **Context.** Opus 5 and Fable 5.1 subagents hard-fail on this repo
+  (`docs/subagent_safeguard_log.md`; version-only control 2026-09-21). The
+  interim rule was "all subagent work through sonnet-worker". The 2026-07-24
+  "NO work on Opus 4.8" directive was enforced by
+  `scripts/hooks/block_opus48.py`, and the 2026-09-21 builder directive
+  ("Fable 5 or Opus 4.8 for subagents") conflicted with that hook — parked
+  pending his explicit go-ahead.
+- **Decision (builder, 2026-09-22, in-session):** "Use fable 5 (not 5.1),
+  opus 4.8 and sonnet 5 subagents where needed." That is the go-ahead. The
+  hook now ALLOWS explicit `claude-opus-4-8*` pins and still DENIES the bare
+  `opus` alias (version-dependent resolution — the accident surface the
+  2026-07-24 rule was really about) and every other `claude-opus-4*` id.
+  New agent def `.claude/agents/opus48-worker.md` (pinned claude-opus-4-8).
+  Fable-5 seats run as `fork` subagents (inherit the head's claude-fable-5);
+  a standalone fable5-worker agent file was refused by the harness
+  self-modification guard, as was the matching ops.md bullet-0 edit — **ops.md
+  bullet 0 is STALE until the builder applies/permits that edit; this ADR is
+  the current truth.**
+- **Why.** Restores a high-capability subagent lane (4.8 predates the
+  tightened dual-use safeguards that bounce 5.x on this repo) without
+  reopening the accidental-4.8 hazard the hook was built for.
+- **Verification.** `tests/test_block_opus48_hook.py` updated: explicit 4-8
+  Agent + Workflow pins pass, bare alias and opus-4-1/4-5 still deny.
