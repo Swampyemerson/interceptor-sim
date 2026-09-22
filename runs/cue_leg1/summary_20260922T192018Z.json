@@ -1,0 +1,17 @@
+{
+ "stamp": "20260922T192018Z",
+ "conn": "COM7",
+ "n_gpi": 175,
+ "span_s": 35.09,
+ "rate_hz": 4.96,
+ "max_gap_s": 0.502,
+ "fix_type": null,
+ "transport": "TRANSPORT-PASS",
+ "cue": "CUE-UNTESTED",
+ "cue_detail": "no 3D fix during the window",
+ "criteria": {
+  "min_stream_s": 30.0,
+  "min_rate_hz": 2.0,
+  "max_gap_s": 2.0
+ }
+}

@@ -365,9 +365,14 @@ checkout). Full flight suite: see the handback report for the combined run.
 
 ## 11. Open risks / TODO-BUILDER
 
-- **Leg 1 (target→ground) is the one real gap** — bench the ELRS WiFi
-  backpack telemetry passthrough first ($0); fall back to a small dedicated
-  telemetry radio on the target (~$20–40) if it doesn't pan out.
+- **Leg 1 (target→ground) — gate BUILT + wired-control-proven 2026-09-22; RF half needs hands.**
+  `scripts/bench/cue_leg1_gate.py` is the pre-registered PASS/FAIL instrument
+  (TRANSPORT: ≥30 s stream, ≥2 Hz GLOBAL_POSITION_INT, gaps ≤2 s; CUE: +3D
+  fix and `fit_cue` emits). Proven against the wired USB truth first
+  (COM7: 4.96 Hz, max gap 0.502 s, TRANSPORT-PASS / CUE-UNTESTED-no-fix —
+  `runs/cue_leg1/summary_20260922T192018Z.json`). See §13 for the runbook;
+  the dedicated-radio fallback stays (~$20–40; the Kakute's SERIAL2 is
+  already MAVLink2, probe-verified).
 - **§5's numbers are a STATIC bench sample** — re-run the same contract test
   against a moving-target `.BIN` once one exists; the position/velocity
   numbers here are a noise floor, not a full characterization.
@@ -480,3 +485,33 @@ terminal and its measured tolerance), `docs/next.md` ("Launch-aim cue" ruling),
 `flight/deploy/real_flight.py` (`resolve_preflight_heading`, `MissionConfig`,
 `build_config`/`build_terminal` — read-only in this task), ledger entry
 `launch-aim-derived-from-ground-truth` (why a noisy cue is the honest choice).*
+
+
+## 13. Leg-1 bench runbook (the ~10 hands-on minutes + what runs from the desk)
+
+Bench state probed 2026-09-22 from the desk (read-only, evidence in
+`runs/cue_leg1/`): the Kakute is live on **COM7** (ArduCopter 4.7.0), streams
+`GLOBAL_POSITION_INT` at 5 Hz on request, ELRS RX is on SERIAL6 as plain RC
+(protocol 23), **SERIAL2 is already MAVLink2 and unused** (the radio-fallback
+port). The Pocket M2 TX was **off** (RC_CHANNELS chancount 0) — everything
+below the line needs it powered.
+
+**Builder steps (in order; stop and report at any surprise):**
+1. Power the Pocket M2 (2×18650) and confirm it binds to the target (TX
+   screen shows link stats / telemetry).
+2. In the TX's ExpressLRS Lua/menu, note the **ELRS version** and **Backpack
+   version** (MAVLink-over-ELRS needs **ELRS ≥ 3.4** on TX *and* RX).
+3. Backpack WiFi: prefer **joining the home network** (so the desk PC can
+   reach it and the gate runs remotely); otherwise enable its own AP and run
+   the gate from the laptop joined to that AP.
+4. If ELRS ≥ 3.4: set **Link Mode → MAVLink** in the Lua script, then say so
+   — the SERIAL6 23→2 param flip on the Kakute happens from the desk, followed
+   by a **mandatory props-off RC + kill-switch re-verification** (this changes
+   the aircraft's control path; nothing flies before the kill switch is
+   re-proven).
+5. Run the gate on whichever machine is on the backpack's network:
+   `python scripts/bench/cue_leg1_gate.py --conn udpin:0.0.0.0:14550`
+   (45 s, criteria in the header). Indoors expect TRANSPORT-PASS /
+   CUE-UNTESTED; an outdoor run with a 3D fix upgrades it to CUE-PASS.
+6. If ELRS < 3.4: report the versions and stop — the choice is flash (a
+   separate, deliberate step) or the SERIAL2 dedicated-radio fallback.
