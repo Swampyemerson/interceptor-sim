@@ -1583,3 +1583,82 @@ def test_the_new_cli_flags_default_to_the_byte_identical_pre_existing_behaviour(
     assert c.breakoff_force_flown_frac is None
     assert c.safe_behavior == "land"
     assert c.pursuit_miss_range_m == 3.0
+
+
+# ===================================== miss vs failsafe SAFE behavior (ADR-0107)
+# Builder ruling 2026-09-22: "let's go to hover after miss for now, I can add
+# that second attempt again later." A MISS-class SAFE (pursuit_miss /
+# breakoff_complete) takes `miss_safe_behavior` (default hover); SYSTEM-HEALTH
+# aborts keep `safe_behavior` (default land) -- when the control path is
+# suspect, coming down beats loitering.
+
+
+def _pursuit_missed(**over):
+    base = dict(pursuit_mode=True, engage_lost_target_s=0.5,
+                pursuit_miss_range_m=3.0, engage_max_s=60.0,
+                safe_hold_s=0.5, mission_max_s=120.0)
+    base.update(over)
+    sm, t = engaged(cfg(**base))
+    t += DT
+    sm.step(obs(t, det_new=True, det_range_m=2.0))
+    sm._last_r_hat_m = 2.0
+    d, t = _run_until_not_engage(sm, t)
+    assert sm.safe_reason == "pursuit_miss"
+    return sm, d, t
+
+
+def test_miss_safe_behavior_defaults_to_hover():
+    assert MissionConfig().miss_safe_behavior == "hover"
+    assert MissionConfig().safe_behavior == "land"   # failsafe default unchanged
+
+
+def test_pursuit_miss_hovers_by_default():
+    """After a close-range miss the vehicle HOLDS -- no land request, no
+    termination at safe_hold_s -- until the mission_max_s backstop."""
+    sm, d, t = _pursuit_missed()
+    assert d.land_requested is False and d.terminated is False
+    d2 = sm.step(obs(t + 5.0))                 # well past safe_hold_s
+    assert d2.land_requested is False and d2.terminated is False
+    assert d2.setpoint.v_north == 0.0 and d2.setpoint.v_east == 0.0
+    d3 = sm.step(obs(t + 200.0))               # past mission_max_s
+    assert d3.land_requested is True and d3.terminated is True
+
+
+def test_failsafe_aborts_still_land_with_the_miss_default_hover():
+    """The hover-after-miss default must NOT leak into system-health aborts:
+    a link-denied SAFE keeps safe_behavior='land' timing."""
+    sm = RealFlightSM(cfg(safe_hold_s=0.5))
+    sm.step(obs(0.0, trigger=NO))
+    sm.step(obs(DT, trigger=DEAD))
+    assert sm.state == State.SAFE
+    assert sm.safe_reason not in RealFlightSM.MISS_SAFE_REASONS
+    d = sm.step(obs(1.0, trigger=DEAD))
+    assert d.land_requested is True and d.terminated is True
+
+
+def test_miss_safe_behavior_land_restores_the_pre_ruling_timing():
+    sm, d, t = _pursuit_missed(miss_safe_behavior="land")
+    d2 = sm.step(obs(t + 1.0))
+    assert d2.land_requested is True and d2.terminated is True
+
+
+def test_stock_breakoff_complete_also_takes_the_miss_behavior():
+    """The stock path's engagement-over SAFE (reason breakoff_complete) is a
+    MISS class too -- it hovers under the default."""
+    sm, t = engaged(cfg(engage_lost_target_s=0.5, engage_max_s=60.0,
+                        breakoff_s=0.2, safe_hold_s=0.5, mission_max_s=120.0))
+    d, t = _run_until_not_engage(sm, t)
+    assert d.state == State.BREAKOFF
+    for _ in range(10):                         # ride the breakoff climb out
+        t += DT
+        d = sm.step(obs(t))
+        if d.state == State.SAFE:
+            break
+    assert sm.safe_reason == "breakoff_complete"
+    d2 = sm.step(obs(t + 5.0))
+    assert d2.land_requested is False and d2.terminated is False
+
+
+def test_invalid_miss_safe_behavior_is_rejected_at_construction():
+    with pytest.raises(ValueError, match="miss_safe_behavior"):
+        RealFlightSM(cfg(miss_safe_behavior="loiter"))

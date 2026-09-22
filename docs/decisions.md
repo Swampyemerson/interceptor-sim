@@ -526,3 +526,25 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
   reopening the accidental-4.8 hazard the hook was built for.
 - **Verification.** `tests/test_block_opus48_hook.py` updated: explicit 4-8
   Agent + Workflow pins pass, bare alias and opus-4-1/4-5 still deny.
+
+## ADR-0107 — Hover after a miss; re-approach deferred (builder ruling, 2026-09-22)
+
+- **Context.** The 2026-09-22 field-readiness build gave a missed intercept a
+  defined ending (`pursuit_miss` -> SAFE) and gave SAFE three behaviors
+  (land / hover / rtl) behind one `safe_behavior` knob. Separately, the
+  parity work showed the port's only remaining deficits vs the native
+  prototype (aim20 70%, alt+2 76% vs 100%) come from having no re-approach
+  after a missed first pass — queued as a builder design question.
+- **Ruling (builder, in-session):** "let's go to hover after miss for now,
+  I can add that second attempt again later."
+- **Decision.** `MissionConfig.miss_safe_behavior` (default **"hover"**)
+  applies to MISS-class SAFE entries — the engagement ended without contact
+  (`pursuit_miss`, `breakoff_complete`). SYSTEM-HEALTH aborts (offboard
+  lost, link denied, timeouts, gate failures) keep `safe_behavior` (default
+  "land"): when the control path itself is suspect, coming down beats
+  loitering. The `mission_max_s` backstop still lands a hover. A future
+  re-approach feature slots in exactly where the hover starts.
+- **Verification.** 7 new tests (default split, hover-until-backstop,
+  failsafe-still-lands, land override, stock breakoff_complete coverage,
+  validator); flight/tests 289 passed, `--self-test` + `--audit` PASS
+  (dev machine).

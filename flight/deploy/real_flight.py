@@ -406,6 +406,17 @@ class MissionConfig:
     #           then land) -- it is a SAFETY fallback, NOT a guidance
     #           decision, and must never be read as one.
     safe_behavior: str = "land"
+    # BUILDER RULING 2026-09-22 ("let's go to hover after miss for now, I can
+    # add that second attempt again later" -- ADR-0107): a MISS-class SAFE
+    # (the ENGAGEMENT ended without contact: `pursuit_miss`,
+    # `breakoff_complete`) hovers by default instead of landing, holding
+    # position for the operator while the option of a future re-approach
+    # feature stays open. SYSTEM-HEALTH aborts (offboard lost, link denied,
+    # timeouts, gate failures) deliberately keep `safe_behavior` -- when the
+    # control path itself is suspect, coming down is safer than loitering.
+    # Same three values as `safe_behavior`; the `mission_max_s` backstop
+    # still lands a hover (a hover that can never end is not a safe default).
+    miss_safe_behavior: str = "hover"
 
     # --- FAILSAFE 7: POST-GO OFFBOARD LOSS (builder decision #22) --------------
     # The RF LINK may die after GO (expected, ignored -- constraint no-datalink).
@@ -860,14 +871,28 @@ class RealFlightSM:
                              "non-negative number")
 
     def _validate_safe_behavior(self) -> None:
-        """`MissionConfig.safe_behavior` is read by string in both the state
-        machine and the live driver (which command it issues after SAFE) --
-        an unrecognised value must fail LOUD at construction, not silently
-        fall through to whichever branch a stale if/elif happens to match."""
-        if self.cfg.safe_behavior not in ("land", "hover", "rtl"):
-            raise ValueError(
-                f"safe_behavior={self.cfg.safe_behavior!r} must be one of "
-                "'land' / 'hover' / 'rtl'")
+        """`MissionConfig.safe_behavior`/`miss_safe_behavior` are read by
+        string in both the state machine and the live driver (which command it
+        issues after SAFE) -- an unrecognised value must fail LOUD at
+        construction, not silently fall through to whichever branch a stale
+        if/elif happens to match."""
+        for name in ("safe_behavior", "miss_safe_behavior"):
+            v = getattr(self.cfg, name)
+            if v not in ("land", "hover", "rtl"):
+                raise ValueError(
+                    f"{name}={v!r} must be one of 'land' / 'hover' / 'rtl'")
+
+    # SAFE entries whose CAUSE is a missed/ended engagement, not a sick
+    # system -- these take `miss_safe_behavior` (ADR-0107: hover by default).
+    MISS_SAFE_REASONS = ("pursuit_miss", "breakoff_complete")
+
+    def effective_safe_behavior(self) -> str:
+        """Which of the two configured SAFE behaviours applies RIGHT NOW.
+        Public + pure so the state machine (`_decide`), both drivers, and the
+        tests all ask the same one question of the same one place."""
+        if self.safe_reason in self.MISS_SAFE_REASONS:
+            return self.cfg.miss_safe_behavior
+        return self.cfg.safe_behavior
 
     def _validate_vertical_config(self) -> None:
         """Refuse an incoherent vertical config at CONSTRUCTION, not at 200 m.
@@ -1267,7 +1292,7 @@ class RealFlightSM:
         terminated = False
         land_requested = False
         if self.state == State.SAFE and self.t_state is not None:
-            if self.cfg.safe_behavior == "hover":
+            if self.effective_safe_behavior() == "hover":
                 past_backstop = (self.t0 is not None and
                                  (self._last_obs_t - self.t0) >= self.cfg.mission_max_s)
                 terminated = past_backstop
@@ -2175,9 +2200,12 @@ def run_offline(cfg: MissionConfig, trigger, guidance: Optional[SeekerGuidance] 
         veh.apply(dec.setpoint, dt)
         if dec.terminated:
             if verbose:
+                _eff = (cfg.miss_safe_behavior
+                        if dec.safe_reason in RealFlightSM.MISS_SAFE_REASONS
+                        else cfg.safe_behavior)
                 _action = {"land": "LAND", "rtl": "RETURN-TO-LAUNCH",
                           "hover": "LAND (mission_max_s backstop reached)"
-                          }[cfg.safe_behavior]
+                          }[_eff]
                 print(f"  t={t:6.2f}  TERMINATED in SAFE "
                       f"(reason={dec.safe_reason}); driver would now {_action}")
             break
@@ -2506,13 +2534,14 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
             # the UNCONDITIONAL teardown path (also reached on the outer
             # smoke-duration forced-shutdown bound), so 'hover' still comes
             # down here rather than being stranded airborne forever.
-            if cfg.safe_behavior == "rtl":
+            if sm.effective_safe_behavior() == "rtl":
                 await drone.action.return_to_launch()
-                print(f"[mavsdk] RETURN-TO-LAUNCH commanded (safe_behavior="
-                      f"rtl); waiting up to {_LAND_TIMEOUT_S}s for touchdown "
-                      f"+ disarm (PX4 flies home first -- may not complete "
-                      f"within this bound; that is a teardown-wait timeout, "
-                      f"not a failsafe) ...")
+                print(f"[mavsdk] RETURN-TO-LAUNCH commanded (effective safe "
+                      f"behavior 'rtl', reason={sm.safe_reason}); waiting up "
+                      f"to {_LAND_TIMEOUT_S}s for touchdown + disarm (PX4 "
+                      f"flies home first -- may not complete within this "
+                      f"bound; that is a teardown-wait timeout, not a "
+                      f"failsafe) ...")
             else:
                 await drone.action.land()
                 print(f"[mavsdk] landing; waiting up to {_LAND_TIMEOUT_S}s for "
@@ -2928,6 +2957,7 @@ def build_config(args) -> MissionConfig:
         dash_plan_m=dash_plan_m,
         pursuit_miss_range_m=args.pursuit_miss_range_m,
         safe_behavior=args.safe_behavior,
+        miss_safe_behavior=args.miss_safe_behavior,
         # ADR-0103 "chase only": --terminal pursuit implies pursuit_mode (the
         # receding-range breakoff suppression AND the GO->ENGAGE direct
         # transition). Never settable independently from this CLI -- a pursuit
@@ -3119,7 +3149,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "instead of LAND (PX4's own GPS-based safety "
                           "behavior, not a guidance decision). The state "
                           "machine keeps emitting SAFE's hold setpoint every "
-                          "tick regardless of this choice.")
+                          "tick regardless of this choice. Applies to "
+                          "SYSTEM-HEALTH aborts; a MISS takes "
+                          "--miss-safe-behavior instead.")
+    saf.add_argument("--miss-safe-behavior", choices=("land", "hover", "rtl"),
+                     default="hover",
+                     help="SAFE behavior when the ENGAGEMENT ended without "
+                          "contact (reasons pursuit_miss / breakoff_complete) "
+                          "-- builder ruling 2026-09-22 (ADR-0107): HOVER by "
+                          "default, holding position for the operator; a "
+                          "future re-approach feature slots in here. The "
+                          "mission_max_s backstop still lands a hover.")
 
     trg = ap.add_argument_group("trigger")
     trg.add_argument("--trigger", choices=("rc", "timer", "gate-ready"),
