@@ -87,3 +87,24 @@ def test_pursuit_terminal_closes_meaningfully_on_a_moving_target():
     assert "ENGAGE" in states, f"never reached Phase B/ENGAGE -- states={states}"
     print(f"\n[pursuit smoke, moving target] miss={miss:.2f} m, states={sorted(set(states))}")
     assert miss < 5.0, f"miss={miss:.2f} m -- too far to call this 'closing meaningfully'"
+
+
+def test_flyby_terminal_pursuit_runs_through_the_scenario_harness():
+    """The FULL scenario harness path (isim.scenario.build, not this file's
+    hand-rolled _run_one): Scenario(concept="flyby", terminal="pursuit") must
+    wire belief_r0_ned/belief_vel0_ned + pursuit_mode itself, reach ENGAGE
+    directly off the GO edge (pursuit_mode's chase-only entry), and CLOSE
+    RANGE on the default crossing geometry (start range ~17.5 m; n=1 seed,
+    smoke-level claim only -- the parity numbers live in
+    isim/specs/parity_flightcode_2026-09-21.md)."""
+    from isim.replay_a0 import load_params
+    from isim.scenario import Scenario, build
+
+    scn = Scenario(concept="flyby", terminal="pursuit", tag_facing="rear", seed=0)
+    ecfg, vehicle, target, seeker, guidance, init = build(scn, load_params())
+    res = run_engagement(ecfg, vehicle, target, seeker, guidance, init)
+    states = [s for _, s in guidance.state_log]
+    assert "ENGAGE" in states, f"never reached ENGAGE -- states={states}"
+    r0 = float(np.linalg.norm(target.state(0.0).pos_ned - init.pos_ned))
+    assert res.miss_m < 2.0, (f"miss={res.miss_m:.2f} m from a {r0:.1f} m start -- "
+                              "the port did not close range through the harness")

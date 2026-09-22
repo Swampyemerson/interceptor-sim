@@ -597,31 +597,55 @@ def build(
             second_seeker = AprilTagSeeker(cam=cam_true, tag=second_tag, dec=dec_params)
             seeker = DualTagSeeker(first=seeker, second=second_seeker)
 
+    # Pursuit-family belief geometry (concept="pursuit"/"hybrid" Phase A/S/T,
+    # AND flyby's terminal="pursuit" port below -- hoisted so both reuse ONE
+    # computation): the SAME belief_start_en/belief_vel_en the heading solve
+    # above used (already carries the Scatter speed-belief error, honesty-
+    # gated -- see Scatter's docstring), rotated about the launch origin by
+    # the SAME total angle (aim_error_deg + heading_noise_deg) the flyby
+    # concept adds directly to its solved heading -- so a compass/EKF
+    # or deliberate aim error distorts the belief exactly as it
+    # distorts flyby's aim, for an apples-to-apples comparison across
+    # concepts. Rotation (E,N) -> (E',N') by theta clockwise (azimuth
+    # convention, atan2(east, north)): E'=E*cos(t)+N*sin(t),
+    # N'=N*cos(t)-E*sin(t).
+    theta = math.radians(scn.aim_error_deg + heading_noise_deg)
+    ct, st = math.cos(theta), math.sin(theta)
+    be, bn = belief_start_en
+    bve, bvn = belief_vel_en
+    be_r, bn_r = be * ct + bn * st, bn * ct - be * st
+    bve_r, bvn_r = bve * ct + bvn * st, bvn * ct - bve * st
+    belief_pos0_ned = np.array([bn_r, be_r, -NOMINAL_ALT_M], dtype=np.float64)
+    belief_vel_ned = np.array([bvn_r, bve_r, 0.0], dtype=np.float64)
+
     if scn.concept == "flyby":
         guidance_kwargs = {} if scn.terminal == "stock" else {"terminal": scn.terminal}
+        if scn.terminal == "pursuit":
+            # ADR-0103 "chase only" through the REAL flight code
+            # (flight.pursuit_terminal via RealFlightGuidance). Two cfg
+            # changes, made ONLY on this path so every other terminal's
+            # MissionConfig stays byte-identical: `pursuit_mode=True`
+            # (suppresses the fly-by-tuned past-CPA recession trigger and
+            # makes GO enter ENGAGE directly -- real_flight._step_standby),
+            # and `engage_max_s` lengthened to the pursuit window (the
+            # concept arrives slowly, 6-13 s to contact; the fly-by default
+            # 12 s would truncate the tail of the chase).
+            cfg = replace(cfg, pursuit_mode=True, engage_max_s=scn.pursuit_window_s)
+            # Seed convention (mirrors isim/tests/test_pursuit_terminal_isim.py):
+            # belief_r0_ned = belief_pos0_ned - own_pos0, where own_pos0 is the
+            # scripted standby hover position `standby_init_state(cfg)` returns
+            # -- a PRE-FLIGHT belief derived from the same solve inputs, never
+            # a live read (its down component is the height-guess error itself:
+            # believed target alt is NOMINAL, believed own alt is the
+            # operator-programmed standby_alt_m).
+            own_pos0 = standby_init_state(cfg).pos_ned
+            guidance_kwargs["belief_r0_ned"] = tuple(
+                float(c) for c in (belief_pos0_ned - own_pos0))
+            guidance_kwargs["belief_vel0_ned"] = tuple(float(c) for c in belief_vel_ned)
         guidance: Guidance = RealFlightGuidance(
             cfg, cam_params=cam_nominal, span_m=tag.side_m,
             go_at_s=trigger_go_at_s, home_alt_m=0.0, **guidance_kwargs)
     elif scn.concept in ("pursuit", "hybrid"):
-        # Phase A's (or v7 hybrid's Phase S/T) belief geometry: the SAME
-        # belief_start_en/belief_vel_en the heading solve above used
-        # (already carries the Scatter speed-belief error, honesty-gated --
-        # see Scatter's docstring), rotated about the launch origin by the
-        # SAME total angle (aim_error_deg + heading_noise_deg) the flyby
-        # concept adds directly to its solved heading -- so a compass/EKF
-        # or deliberate aim error distorts the belief exactly as it
-        # distorts flyby's aim, for an apples-to-apples comparison across
-        # concepts. Rotation (E,N) -> (E',N') by theta clockwise (azimuth
-        # convention, atan2(east, north)): E'=E*cos(t)+N*sin(t),
-        # N'=N*cos(t)-E*sin(t).
-        theta = math.radians(scn.aim_error_deg + heading_noise_deg)
-        ct, st = math.cos(theta), math.sin(theta)
-        be, bn = belief_start_en
-        bve, bvn = belief_vel_en
-        be_r, bn_r = be * ct + bn * st, bn * ct - be * st
-        bve_r, bvn_r = bve * ct + bvn * st, bvn * ct - bve * st
-        belief_pos0_ned = np.array([bn_r, be_r, -NOMINAL_ALT_M], dtype=np.float64)
-        belief_vel_ned = np.array([bvn_r, bve_r, 0.0], dtype=np.float64)
         pcfg_kwargs = {} if scn.pursuit_v_max_ms is None else {"v_max_ms": scn.pursuit_v_max_ms}
         if scn.pursuit_overrides:
             pcfg_kwargs = {**pcfg_kwargs, **scn.pursuit_overrides}
@@ -700,10 +724,13 @@ def build(
     target = _DelayedTarget(inner=inner_target, go_at_s=go_at_s)
     init_state = standby_init_state(cfg)
 
-    if scn.concept in ("pursuit", "hybrid"):
-        # Both are scored on closest approach over the WHOLE window (v7:
+    if scn.concept in ("pursuit", "hybrid") or (
+            scn.concept == "flyby" and scn.terminal == "pursuit"):
+        # All three are scored on closest approach over the WHOLE window (v7:
         # "as pursuit") -- the first fly-past is not the end of the
-        # engagement, the chase is.
+        # engagement, the chase is. flyby+terminal="pursuit" (the flight-code
+        # port of the same concept) gets the SAME window so its numbers are
+        # comparable to the native prototype's, cell for cell.
         ecfg = EngagementConfig(stop_not_before_s=stop_not_before_s, seed=scn.seed,
                                 max_t=scn.pursuit_window_s,
                                 stop_after_cpa_s=scn.pursuit_window_s)
