@@ -20,6 +20,7 @@ Run: .venv/bin/python -m pytest flight/tests/test_real_flight.py -q
 
 import math
 import os
+import random
 import sys
 
 import pytest
@@ -46,10 +47,14 @@ from flight.deploy.real_flight import (  # noqa: E402
     TriggerState,
     VehicleObs,
     audited_module_paths,
+    build_arg_parser,
+    build_config,
     honesty_audit,
     is_offboard_mode,
     latch_heading_from_bearing,
     make_mode_subscriber,
+    passage_ceiling_hit,
+    passage_gate_ok,
     resolve_preflight_heading,
     run_offline,
     trigger_poll_time,
@@ -166,6 +171,71 @@ def test_recede_streak_has_a_deadband():
     assert (s2, last2) == (1, 3.5)                # within-deadband creep: HOLD
     s3, _ = update_recede_streak(s2, last2, 2.0, 0.05)
     assert s3 == 0                                # a genuine drop: RESET
+
+
+# ============================================================ ADR-0101 passage window
+
+
+def test_passage_gate_and_ceiling_are_pure_contracts():
+    # the FLOOR (passage_gate_ok): True = the breakoff may fire
+    assert passage_gate_ok(1.0, 10.0, None) is True          # gate OFF
+    assert passage_gate_ok(None, 10.0, 0.5) is False         # fail closed: no flown
+    assert passage_gate_ok(1.0, None, 0.5) is False          # fail closed: no plan
+    assert passage_gate_ok(1.0, 0.0, 0.5) is False           # fail closed: planned<=0
+    assert passage_gate_ok(5.0, 10.0, 0.5) is True           # exactly at the floor
+    assert passage_gate_ok(4.999, 10.0, 0.5) is False
+
+    # the CEILING (passage_ceiling_hit): True = FORCE the breakoff
+    assert passage_ceiling_hit(100.0, 10.0, None) is False   # ceiling OFF
+    assert passage_ceiling_hit(None, 10.0, 1.3) is False     # missing input never forces
+    assert passage_ceiling_hit(10.0, None, 1.3) is False
+    assert passage_ceiling_hit(13.0, 10.0, 1.3) is True      # exactly at the ceiling
+    assert passage_ceiling_hit(12.999, 10.0, 1.3) is False
+
+
+def test_passage_gate_and_ceiling_match_the_flown_sim_logic():
+    """PARITY + FUZZ: real_flight's ADR-0101 helpers must agree with
+    scripts/m4_intercept.py's `passage_gate_ok`/`passage_ceiling_hit`,
+    case-for-case, across a randomised grid that hits the None/degenerate
+    branches as well as the ordinary numeric ones. Skipped (not failed) if
+    the sim module's heavy gz/mavsdk imports are unavailable in this venv."""
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
+    m4 = pytest.importorskip("m4_intercept",
+                             reason="sim module needs gz-transport + mavsdk")
+    rng = random.Random(20260922)
+    for _ in range(500):
+        flown = rng.choice([None, 0.0, rng.uniform(-5.0, 50.0)])
+        planned = rng.choice([None, 0.0, -1.0, rng.uniform(0.01, 50.0)])
+        gate_frac = rng.choice([None, rng.uniform(0.0, 2.0)])
+        ceil_frac = rng.choice([None, rng.uniform(0.0, 2.0)])
+        assert passage_gate_ok(flown, planned, gate_frac) == \
+            m4.passage_gate_ok(flown, planned, gate_frac), \
+            (flown, planned, gate_frac)
+        assert passage_ceiling_hit(flown, planned, ceil_frac) == \
+            m4.passage_ceiling_hit(flown, planned, ceil_frac), \
+            (flown, planned, ceil_frac)
+
+
+def test_the_passage_validator_rejects_an_inverted_or_degenerate_window():
+    """`_validate_passage_config`: refuse an incoherent floor/ceiling at
+    CONSTRUCTION, not at 200 m -- mirrors `_validate_vertical_config`'s own
+    philosophy for the ADR-0099 trim/floor."""
+    with pytest.raises(ValueError, match="breakoff_min_flown_frac"):
+        RealFlightSM(cfg(breakoff_min_flown_frac=1.0, breakoff_force_flown_frac=1.0))
+    with pytest.raises(ValueError, match="breakoff_min_flown_frac"):
+        RealFlightSM(cfg(breakoff_min_flown_frac=1.3, breakoff_force_flown_frac=0.8))
+    with pytest.raises(ValueError):
+        RealFlightSM(cfg(breakoff_min_flown_frac=0.0))       # non-satisfiable floor
+    with pytest.raises(ValueError):
+        RealFlightSM(cfg(breakoff_force_flown_frac=-0.1))    # fires on tick 1
+    # a coherent, ordered window with matching fractions must NOT raise
+    RealFlightSM(cfg(breakoff_min_flown_frac=0.8, breakoff_force_flown_frac=1.3))
+
+
+def test_pursuit_miss_range_must_be_non_negative():
+    with pytest.raises(ValueError, match="pursuit_miss_range_m"):
+        RealFlightSM(cfg(pursuit_miss_range_m=-1.0))
+    RealFlightSM(cfg(pursuit_miss_range_m=0.0))               # zero is allowed
 
 
 def test_preflight_heading_is_accel_aware_by_default():
@@ -529,6 +599,95 @@ def test_a_receding_range_past_cpa_breaks_off():
     assert "past_cpa" in sm.transitions[-1].reason
 
 
+def test_the_passage_floor_holds_an_early_past_cpa_until_flown_enough():
+    """ADR-0101 FLOOR: 'you cannot have PASSED a target you have not yet
+    flown far enough to REACH'. The SAME receding-range sequence that fires
+    past-CPA breakoff immediately (test_a_receding_range_past_cpa_breaks_off)
+    must be HELD while the vehicle's own displacement since the dash began
+    (MODELLED here -- no ground_speed_ms in these fixtures, so
+    _flown_since_dash_m dead-reckons off the dash's own kinematics) is still
+    short of breakoff_min_flown_frac x the plan distance, and must fire the
+    moment that own-motion floor clears -- on a detection tick, even one that
+    barely creeps the measured range."""
+    c = cfg(dash_speed_ms=10.0, dash_accel_ms2=10.0, breakoff_arm_range_m=4.0,
+            breakoff_range_increases=3, breakoff_range_deadband_m=0.0,
+            breakoff_min_rise_m=0.0, engage_max_s=60.0,
+            dash_plan_m=20.0, breakoff_min_flown_frac=0.8)   # floor = 16 m
+    sm, t = engaged(c)
+    for r in (3.0, 2.0, 1.0):                      # closing: arms the logic
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    for r in (1.5, 2.2, 3.1):                      # receding past CPA
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    assert sm.state == State.ENGAGE, \
+        "held: not yet flown 0.8x the plan distance (passage floor)"
+    # let sim time pass with NO further detection -- the passage check only
+    # re-evaluates on a detection tick -- until the MODELLED distance clears
+    # the 16 m floor (dash_ramp_distance(10, 10, t): well past it by t=3.55s
+    # since the dash began), then supply one more tiny (non-resetting) rise.
+    t += 3.0
+    d = sm.step(obs(t, det_new=True, det_range_m=3.15))
+    assert d.state == State.BREAKOFF
+    assert "past_cpa" in sm.transitions[-1].reason
+
+
+def test_passage_floor_fails_closed_when_no_plan_distance_was_solved():
+    """ADR-0101 Portability: an explicit dash heading solves NO plan distance
+    (`dash_plan_m` stays None) -- the floor must fail CLOSED (never armed,
+    the breakoff cannot fire early OR late through this trigger), not
+    silently degrade to 'gate off'."""
+    c = cfg(breakoff_arm_range_m=4.0, breakoff_range_increases=3,
+            breakoff_range_deadband_m=0.0, breakoff_min_rise_m=0.0,
+            engage_max_s=60.0, breakoff_min_flown_frac=0.8)
+    assert c.dash_plan_m is None
+    sm, t = engaged(c)
+    for r in (3.0, 2.0, 1.0):
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    for r in (1.5, 2.2, 3.1):
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    assert sm.state == State.ENGAGE
+    t += 3.0
+    d = sm.step(obs(t, det_new=True, det_range_m=3.2))
+    assert d.state == State.ENGAGE, "floor fails CLOSED with no plan distance"
+
+
+def test_the_passage_ceiling_forces_breakoff_on_own_motion_alone():
+    """ADR-0101 CEILING: forced once own displacement since the dash began
+    clears breakoff_force_flown_frac x plan -- evaluated EVERY ENGAGE tick,
+    detected or not, own-state only. No detection at all is fed in ENGAGE."""
+    c = cfg(dash_speed_ms=10.0, dash_accel_ms2=10.0, engage_max_s=60.0,
+            engage_lost_target_s=60.0,   # isolate from FAILSAFE 5
+            dash_plan_m=20.0, breakoff_force_flown_frac=1.3)   # ceiling = 26 m
+    sm, t = engaged(c)
+    d = sm.step(obs(t + DT, det_new=False))
+    assert d.state == State.ENGAGE, "not yet past the ceiling"
+    t += 10.0   # dash_ramp_distance(10, 10, ~10.25s) is well past 26 m
+    d = sm.step(obs(t, det_new=False))
+    assert d.state == State.BREAKOFF
+    assert "passage_ceiling" in sm.transitions[-1].reason
+
+
+def test_passage_window_is_inert_by_default():
+    """Both knobs default None -- BYTE-IDENTICAL to the pre-ADR-0101-port
+    behaviour (the exact sequence from test_a_receding_range_past_cpa_breaks_off,
+    re-run with a plan distance PRESENT but no floor/ceiling configured)."""
+    c = cfg(dash_speed_ms=10.0, dash_accel_ms2=10.0, breakoff_arm_range_m=4.0,
+            breakoff_range_increases=3, engage_max_s=60.0, dash_plan_m=20.0)
+    assert c.breakoff_min_flown_frac is None and c.breakoff_force_flown_frac is None
+    sm, t = engaged(c)
+    for r in (3.0, 2.0, 1.0):
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    for r in (1.5, 2.2, 3.1):
+        t += DT
+        sm.step(obs(t, det_new=True, det_range_m=r))
+    assert sm.state == State.BREAKOFF
+    assert "past_cpa" in sm.transitions[-1].reason
+
+
 def test_pursuit_mode_suppresses_the_past_cpa_recession_trigger():
     """ADR-0103 'chase only': the SAME receding-range sequence that fires
     past-CPA breakoff in test_a_receding_range_past_cpa_breaks_off must NOT
@@ -557,6 +716,100 @@ def test_pursuit_mode_still_breaks_off_on_the_hard_floor():
     assert "hard_floor" in sm.transitions[-1].reason
 
 
+# --- pursuit-mode MISS POLICY (builder ruling 2026-09-22) ------------------
+#
+# isim/specs/parity_flightcode_2026-09-21.md's PRE-REGISTERED abort-timer A/B
+# (n=50/cell, engage_lost_target_s 2.0/4.0/10.0/30.0 s) came back a
+# byte-identical NULL: a close-range dropout is PERMANENT and lengthening the
+# lost-target clock buys nothing. So a CLOSE miss skips BREAKOFF's
+# climb-and-search and goes straight to SAFE.
+
+
+class _StubRangeGuidance:
+    """Minimal guidance stub: reports a FIXED r_hat_m EVERY tick, detected or
+    not -- mirrors `PursuitTerminalGuidance` Phase B, whose KF predicts/
+    coasts the range estimate through a dropout rather than freezing it."""
+
+    def __init__(self, r_hat_m):
+        self.r_hat_m = r_hat_m
+
+    def step(self, box, own_state, t):
+        sp = Setpoint(0.0, 0.0, 0.0, 0.0)
+        tel = StepTelemetry(t=t, detected=box is not None, r_hat_m=self.r_hat_m)
+        return sp, tel
+
+
+def test_last_r_hat_m_tracks_the_terminals_continuous_estimate():
+    """`_last_r_hat_m` must update from `tel.r_hat_m` on EVERY tick the
+    terminal reports one -- not just on a fresh detection."""
+    conf = cfg(pursuit_mode=True)
+    sm = RealFlightSM(conf, guidance=_StubRangeGuidance(2.5))
+    sm.step(obs(0.0, trigger=NO))
+    sm.step(obs(DT, trigger=GO))
+    assert sm.state == State.ENGAGE
+    sm.step(obs(2 * DT, det_new=False))       # NO detection this tick
+    assert sm._last_r_hat_m == 2.5
+
+
+def _run_until_not_engage(sm, t, n=20):
+    d = None
+    for _ in range(n):
+        t += DT
+        d = sm.step(obs(t, det_new=False))
+        if d.state != State.ENGAGE:
+            break
+    return d, t
+
+
+def test_pursuit_close_miss_goes_directly_to_safe():
+    sm, t = engaged(cfg(pursuit_mode=True, engage_lost_target_s=0.5,
+                        pursuit_miss_range_m=3.0, engage_max_s=60.0))
+    t += DT
+    sm.step(obs(t, det_new=True, det_range_m=2.0))   # sets _last_det_t
+    sm._last_r_hat_m = 2.0                            # last KF estimate: INSIDE range
+    d, t = _run_until_not_engage(sm, t)
+    assert d.state == State.SAFE
+    assert sm.safe_reason == "pursuit_miss"
+    assert "pursuit_miss" in sm.transitions[-1].reason
+    assert d.setpoint.v_north == 0.0 and d.setpoint.v_east == 0.0  # SAFE hold, not BREAKOFF's climb
+
+
+def test_pursuit_far_miss_still_breaks_off():
+    """Outside pursuit_miss_range_m the ORIGINAL target_lost -> BREAKOFF path
+    stands: a belief re-acquire may still help at range."""
+    sm, t = engaged(cfg(pursuit_mode=True, engage_lost_target_s=0.5,
+                        pursuit_miss_range_m=3.0, engage_max_s=60.0))
+    t += DT
+    sm.step(obs(t, det_new=True, det_range_m=8.0))
+    sm._last_r_hat_m = 8.0                            # last KF estimate: OUTSIDE range
+    d, t = _run_until_not_engage(sm, t)
+    assert d.state == State.BREAKOFF
+    assert "target_lost" in sm.transitions[-1].reason
+
+
+def test_pursuit_miss_policy_is_inert_without_a_range_estimate():
+    """No `r_hat_m` was ever observed (e.g. Phase A never reached Phase B) --
+    the ORIGINAL target_lost -> BREAKOFF path must stand, never guess."""
+    sm, t = engaged(cfg(pursuit_mode=True, engage_lost_target_s=0.5,
+                        engage_max_s=60.0))
+    t += DT
+    sm.step(obs(t, det_new=True, det_range_m=2.0))
+    assert sm._last_r_hat_m is None
+    d, t = _run_until_not_engage(sm, t)
+    assert d.state == State.BREAKOFF
+
+
+def test_pursuit_miss_policy_does_not_apply_outside_pursuit_mode():
+    """Even if a range estimate happens to be set, pursuit_mode=False must
+    take the ORIGINAL target_lost -> BREAKOFF path unconditionally."""
+    sm, t = engaged(cfg(engage_lost_target_s=0.5, engage_max_s=60.0))
+    t += DT
+    sm.step(obs(t, det_new=True, det_range_m=2.0))
+    sm._last_r_hat_m = 2.0
+    d, t = _run_until_not_engage(sm, t)
+    assert d.state == State.BREAKOFF
+
+
 def test_breakoff_does_not_arm_before_the_arm_range():
     """A range that only ever INCREASES far away (e.g. a bad early estimate) must
     not fire the past-CPA breakoff."""
@@ -579,6 +832,64 @@ def test_safe_is_absorbing_and_terminates_after_the_hold():
     assert sm.state == State.SAFE, "nothing may leave SAFE -- not even a new GO"
     assert d.terminated is True and d.land_requested is True
     assert d.setpoint.v_north == 0.0 and d.setpoint.v_east == 0.0
+
+
+def test_safe_behavior_defaults_to_land():
+    assert MissionConfig().safe_behavior == "land"
+
+
+def test_safe_behavior_land_is_byte_identical_to_the_pre_existing_default():
+    """The scenario above, re-run with `safe_behavior` EXPLICIT, must produce
+    the identical land_requested/terminated timing -- 'land' changed nothing."""
+    sm = RealFlightSM(cfg(safe_hold_s=0.5, safe_behavior="land"))
+    sm.step(obs(0.0, trigger=NO))
+    sm.step(obs(DT, trigger=DEAD))
+    d = run(sm, 40, t0=2 * DT, trigger=GO, det_new=True, det_range_m=9.0)
+    assert d.terminated is True and d.land_requested is True
+
+
+def test_safe_behavior_hover_holds_indefinitely_until_the_mission_backstop():
+    """Builder ruling 2026-09-22: 'hover in place' -- no land request while
+    holding, and the setpoint stream keeps emitting the SAFE hold every tick
+    regardless. Only the mission_max_s ABSOLUTE BACKSTOP (measured from
+    mission START, not from SAFE entry) ends the hover."""
+    sm = RealFlightSM(cfg(safe_hold_s=0.5, mission_max_s=5.0,
+                          safe_behavior="hover"))
+    sm.step(obs(0.0, trigger=NO))
+    sm.step(obs(DT, trigger=DEAD))            # -> SAFE via link_denied
+    assert sm.state == State.SAFE
+    # well past safe_hold_s (0.5 s) but well short of mission_max_s (5.0 s):
+    # NO land request, NO termination -- still holding.
+    d = sm.step(obs(2.0, trigger=DEAD))
+    assert d.state == State.SAFE
+    assert d.land_requested is False and d.terminated is False
+    assert d.setpoint.v_north == 0.0 and d.setpoint.v_east == 0.0
+    assert math.isfinite(d.setpoint.v_down)   # still a REAL setpoint, not None
+    # past the mission_max_s backstop:
+    d2 = sm.step(obs(5.5, trigger=DEAD))
+    assert d2.land_requested is True and d2.terminated is True
+
+
+def test_safe_behavior_rtl_is_byte_identical_to_land_at_the_state_machine_level():
+    """RTL is DRIVER-level ONLY (run_mavsdk_mission picks the PX4 action; not
+    unit-testable without a vehicle, `# pragma: no cover`) -- the state
+    machine's own land_requested/terminated timing must be IDENTICAL to
+    'land', because the machine does not know what RTL is, by design."""
+    land = RealFlightSM(cfg(safe_hold_s=0.5, safe_behavior="land"))
+    rtl = RealFlightSM(cfg(safe_hold_s=0.5, safe_behavior="rtl"))
+    for sm in (land, rtl):
+        sm.step(obs(0.0, trigger=NO))
+        sm.step(obs(DT, trigger=DEAD))
+    d_land = land.step(obs(1.0, trigger=DEAD))
+    d_rtl = rtl.step(obs(1.0, trigger=DEAD))
+    assert (d_land.land_requested, d_land.terminated) == (True, True)
+    assert (d_rtl.land_requested, d_rtl.terminated) == (True, True)
+    assert (d_land.setpoint.as_tuple() == d_rtl.setpoint.as_tuple())
+
+
+def test_invalid_safe_behavior_is_rejected_at_construction():
+    with pytest.raises(ValueError, match="safe_behavior"):
+        RealFlightSM(cfg(safe_behavior="explode"))
 
 
 def test_standby_timeout_is_a_battery_failsafe():
@@ -1230,3 +1541,45 @@ def test_the_floor_active_flag_never_reports_a_stale_true():
                     Setpoint(0.0, 0.0, +2.0, 0.0), [], None)
     assert d2.floor_active is True, (
         "the reset went too far: a genuinely floored tick must still report True")
+
+
+# ============================================================ CLI / build_config
+
+
+def test_build_config_computes_the_passage_plan_distance_when_the_heading_is_solved():
+    """A SOLVED heading (no --dash-heading-deg) must also solve `dash_plan_m`
+    (ADR-0101), so the passage window has something to compare against."""
+    args = build_arg_parser().parse_args([
+        "--dry-run", "--target-start", "0,16.7", "--target-vel", "9,0",
+        "--dash-speed", "16.0", "--dash-accel-ms2", "10.0"])
+    c = build_config(args)
+    assert c.dash_plan_m is not None and c.dash_plan_m > 0.0
+
+
+def test_build_config_leaves_the_plan_distance_none_for_an_explicit_heading():
+    """ADR-0101 Portability: an explicit --dash-heading-deg solves no
+    intercept time, so `dash_plan_m` must stay None (the floor then fails
+    closed and the ceiling never fires, by design -- not silently guessed)."""
+    args = build_arg_parser().parse_args(["--dry-run", "--dash-heading-deg", "45.0"])
+    c = build_config(args)
+    assert c.dash_plan_m is None
+
+
+def test_the_new_cli_flags_thread_through_build_config():
+    args = build_arg_parser().parse_args([
+        "--dry-run",
+        "--breakoff-min-flown-frac", "0.8", "--breakoff-force-flown-frac", "1.3",
+        "--safe-behavior", "hover", "--pursuit-miss-range-m", "2.5"])
+    c = build_config(args)
+    assert (c.breakoff_min_flown_frac, c.breakoff_force_flown_frac) == (0.8, 1.3)
+    assert c.safe_behavior == "hover"
+    assert c.pursuit_miss_range_m == 2.5
+
+
+def test_the_new_cli_flags_default_to_the_byte_identical_pre_existing_behaviour():
+    args = build_arg_parser().parse_args(["--dry-run"])
+    c = build_config(args)
+    assert c.breakoff_min_flown_frac is None
+    assert c.breakoff_force_flown_frac is None
+    assert c.safe_behavior == "land"
+    assert c.pursuit_miss_range_m == 3.0

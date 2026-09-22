@@ -277,6 +277,30 @@ class MissionConfig:
     # contact or a real failsafe, never on an untested "it must be a fly-by"
     # assumption. docs/pursuit_port_2026-09-17.md work item 3.
     pursuit_mode: bool = False
+    # PURSUIT-MODE MISS POLICY (builder ruling 2026-09-22, ADR-0105 open item
+    # (a)). `isim/specs/parity_flightcode_2026-09-21.md`'s PRE-REGISTERED
+    # abort-timer A/B (n=50/cell, identical seeds, engage_lost_target_s
+    # 2.0/4.0/10.0/30.0 s) came back a byte-identical NULL at every window: at
+    # close range a decode dropout is PERMANENT and pursuit's own Phase-B->A
+    # fallback never produces a second converging pass through this state
+    # machine, so lengthening the lost-target clock buys nothing -- the
+    # engagement's scored CPA is already made on the FIRST pass. So instead
+    # of raising the timer, the miss is handled explicitly: if the last KF
+    # range estimate (`StepTelemetry.r_hat_m`, tracked continuously through
+    # Phase B whether or not this tick decoded) was inside
+    # `pursuit_miss_range_m` when `engage_lost_target_s` expires, the miss has
+    # already happened at close quarters and FAILSAFE 5 (`_step_engage`)
+    # transitions ENGAGE -> SAFE DIRECTLY (reason `pursuit_miss`), skipping
+    # BREAKOFF's climb-and-search -- which assumes a fly-by pursuit never
+    # flies -- so the vehicle gets OUT of the target's airspace and
+    # hovers/RTLs/lands per `safe_behavior` instead. Outside that range the
+    # ORIGINAL target_lost -> BREAKOFF path stands (a belief re-acquire may
+    # still help at range). Default matches
+    # `flight.pursuit_terminal.PursuitTerminalConfig.no_fallback_range_m`
+    # (3.0 m) -- the same range pursuit's own internal fallback uses to judge
+    # "close enough that a re-approach would not help". Inert outside
+    # pursuit_mode (the past-CPA/BREAKOFF path there is unaffected).
+    pursuit_miss_range_m: float = 3.0
     breakoff_arm_range_m: float = 4.0      # arms past-CPA logic (m4 FPV profile)
     breakoff_range_increases: int = 3
     breakoff_range_deadband_m: float = 0.05
@@ -308,6 +332,40 @@ class MissionConfig:
     breakoff_s: float = 1.5
     breakoff_climb_ms: float = 1.0
 
+    # --- ADR-0101 PASSAGE WINDOW (ported from scripts/m4_intercept.py's
+    # --breakoff-min-flown-frac / --breakoff-force-flown-frac -- that ADR's OWN
+    # disclosed open item: "real_flight.py still carries the old rule ... port
+    # deliberately, not silently"). An own-motion FLOOR and CEILING on the
+    # past-CPA `past_cpa` trigger in `_step_engage`:
+    #   FLOOR   (breakoff_min_flown_frac) the range-increase breakoff may not
+    #           fire until the vehicle's own displacement since the dash began
+    #           reaches this fraction of the pre-flight PLAN distance -- you
+    #           cannot have PASSED a target you have not yet flown far enough
+    #           to REACH (m4 offline replay: a 0.8 gate blocks 9/9 premature
+    #           breakoffs and only 3/38 legitimate ones, all three already
+    #           past a recorded CPA).
+    #   CEILING (breakoff_force_flown_frac) the terminal is FORCED to
+    #           breakoff once that same displacement reaches this fraction,
+    #           whatever the camera says -- m4 measured true closest approach
+    #           always arriving by 1.05x planned over 64 flown flights.
+    # Both read OWN-STATE (integrated ground speed, `_flown_since_dash_m`) and
+    # ONE pre-flight constant (`dash_plan_m`, below) -- no live target read,
+    # no gt_*. Defaults None = OFF, byte-identical (matches m4's own inert
+    # default). APPLIES ONLY to the stock dash+terminal path: pursuit_mode has
+    # no coded dash and already suppresses the past-CPA trigger entirely
+    # (ADR-0103), so both knobs are inert there regardless of value.
+    breakoff_min_flown_frac: Optional[float] = None
+    breakoff_force_flown_frac: Optional[float] = None
+    # The pre-flight lead solve's OWN intercept distance (m) -- set by
+    # `build_config()` from the SOLVED heading's t_lead (m4's
+    # `coded_dash_plan_m`). None when the heading is an explicit
+    # --dash-heading-deg override: no solved distance exists then, so per
+    # ADR-0101 "Portability" the floor fails CLOSED (breakoff never fires
+    # early) and the ceiling never fires, by design -- not a bug to chase.
+    # Honesty class: pre-flight constant, same as preflight_heading_deg --
+    # not a live read.
+    dash_plan_m: Optional[float] = None
+
     # --- safety / failsafe (ALL TODO-BUILDER) ----------------------------------
     standby_settle_s: float = 2.0          # min hold before a GO may be accepted
     standby_max_s: float = 60.0            # battery budget, Sec 1 "cost"
@@ -325,6 +383,29 @@ class MissionConfig:
     engage_track_broken_ticks: int = 3
     require_low_before_go: bool = True     # a switch HIGH at boot is NEVER a GO
     safe_hold_s: float = 2.0               # hold in SAFE before the driver lands
+
+    # --- SAFE behavior (builder ruling 2026-09-22: "as soon as an intercept
+    # is MISSED, abort immediately and either hover in place or return home --
+    # for real flights in a large open field"). The STATE MACHINE keeps
+    # emitting SAFE's hold setpoint every tick regardless of this value (PX4
+    # drops OFFBOARD on a stream gap of ~0.5 s) -- only WHEN a land/RTL
+    # request is issued, and by whom, changes.
+    #   'land'  (default, UNCHANGED byte-for-byte): hold safe_hold_s, then
+    #           `Decision.land_requested` goes True and the driver requests
+    #           PX4 LAND, exactly as before this option existed.
+    #   'hover' hold position INDEFINITELY: `land_requested` stays False and
+    #           `Decision.terminated` does not fire at safe_hold_s. The
+    #           `mission_max_s` ABSOLUTE BACKSTOP still applies and THEN
+    #           lands (a hover that can never end is not a safe default).
+    #   'rtl'   DRIVER-LEVEL ONLY. The state machine's own behaviour is
+    #           BYTE-IDENTICAL to 'land' (terminates at safe_hold_s,
+    #           land_requested=True) -- it does not know what RTL is, by
+    #           design. Only the LIVE MAVSDK driver reads this value, and at
+    #           that same instant commands PX4 RETURN-TO-LAUNCH instead of
+    #           LAND. RTL is PX4's OWN GPS-based safety behaviour (fly home,
+    #           then land) -- it is a SAFETY fallback, NOT a guidance
+    #           decision, and must never be read as one.
+    safe_behavior: str = "land"
 
     # --- FAILSAFE 7: POST-GO OFFBOARD LOSS (builder decision #22) --------------
     # The RF LINK may die after GO (expected, ignored -- constraint no-datalink).
@@ -349,11 +430,20 @@ class MissionConfig:
     # None disables the arm (arm 1 still stands).
     # MEASURED (not assumed): the MAVSDK flight_mode stream arrives at the ~1 Hz
     # heartbeat rate -- max observed sample age 1.00 s over a full 328-tick
-    # mission (logs/real_flight_sitl_20260725T200929Z.csv, offb_age_s column;
-    # scripts/check_real_flight_sitl.sh PASS 2026-07-25). 3.0 s is 3x that.
-    # TODO-BUILDER: re-measure on the REAL Pi->TELEM2 link (bench L3/L6) -- the
-    # driver PRINTS the max observed age every run -- and if the real stream
-    # turns out to be on-change-only, set this to None and rely on arm 1.
+    # SITL mission (logs/real_flight_sitl_20260725T200929Z.csv, offb_age_s
+    # column; scripts/check_real_flight_sitl.sh PASS 2026-07-25). 3.0 s is 3x
+    # that. RE-MEASURED ON THE REAL Pi5<-Pixhawk 6C Mini TELEM2 LINK
+    # (bench L3/L6, 2026-09-22, /dev/serial0 @ 921600, props off, one 30 s
+    # window; logs/bench_telem2_cadence_20260922.json): HEARTBEAT (what
+    # carries flight_mode) max inter-arrival 1.002 s -- the SAME ~1 Hz
+    # cadence SITL showed, so the 3x-heartbeat sizing HOLDS on real hardware.
+    # (Same bench window: ATTITUDE 100 Hz, ATTITUDE_QUATERNION 50 Hz,
+    # LOCAL_POSITION_NED 30 Hz -- not this arm's concern, noted for the other
+    # own-state consumers.) NOT YET RE-CONFIRMED: this was a raw pymavlink
+    # listen, not MAVSDK's own `telemetry.flight_mode()` subscription --
+    # worth a quick check in the first SITL/bench driver run (the driver
+    # PRINTS the max observed sample age every run) before treating the
+    # MAVSDK-side cadence as identical.
     offboard_stale_s: Optional[float] = 3.0
 
     # --- vertical / hold control ----------------------------------------------
@@ -576,6 +666,48 @@ def update_recede_streak(streak: int, last_range: Optional[float],
     return s, last
 
 
+def passage_gate_ok(flown_m: Optional[float], planned_m: Optional[float],
+                    min_frac: Optional[float]) -> bool:
+    """ADR-0101 PASSAGE GATE (the FLOOR) on the past-CPA breakoff: you cannot
+    have PASSED a target you have not yet flown far enough to REACH.
+
+    CONTRACT-IDENTICAL to `scripts/m4_intercept.passage_gate_ok` -- same
+    name, same signature, same branches, so the two can be fuzzed against
+    each other case-for-case (the executor may not IMPORT the sim module:
+    `_FORBIDDEN_IMPORT_ROOTS`).
+
+      flown_m   own displacement since the dash began (own-state only)
+      planned_m the PRE-FLIGHT lead solve's own intercept distance
+      min_frac  None = gate OFF (always True, byte-identical)
+
+    True = the breakoff may fire. FAIL-CLOSED on a missing input while the
+    gate is ON: an unmeasured distance must not read as 'far enough' (the
+    lost-target/engage-timeout failsafes remain the backstop). Reads nothing
+    about the target in flight and nothing from gt_*."""
+    if min_frac is None:
+        return True
+    if flown_m is None or planned_m is None or planned_m <= 0.0:
+        return False
+    return flown_m >= min_frac * planned_m
+
+
+def passage_ceiling_hit(flown_m: Optional[float], planned_m: Optional[float],
+                        force_frac: Optional[float]) -> bool:
+    """ADR-0101 PASSAGE CEILING, the mirror of `passage_gate_ok`: once the
+    vehicle's OWN displacement since the dash began exceeds
+    `force_frac * planned_m` it MUST have passed the target, whatever the
+    camera says (m4 measured true closest approach always arriving by 1.05x
+    planned, over 64 flown camera flights).
+
+    CONTRACT-IDENTICAL to `scripts/m4_intercept.passage_ceiling_hit`.
+    None/missing input -> never forces (False): a missing input must not
+    force a breakoff (the engage-timeout/lost-target failsafes stay the
+    backstop)."""
+    if force_frac is None or flown_m is None or planned_m is None or planned_m <= 0.0:
+        return False
+    return flown_m >= force_frac * planned_m
+
+
 def resolve_preflight_heading(target_start, target_vel, dash_speed,
                               dash_accel_ms2=None, accel_aware=True,
                               origin=(0.0, 0.0)):
@@ -673,9 +805,13 @@ class RealFlightSM:
         self._offboard_bad_since: Optional[float] = None
         self.max_offboard_sample_age_s: float = 0.0        # evidence for the log
         self._broken_streak = 0            # FAILSAFE 8 persistence counter
-        self._flown_m = 0.0                # FAILSAFE 4: integrated EKF distance
+        # Own displacement since the dash began -- ONE running integrator that
+        # feeds BOTH FAILSAFE 4's optional distance bound (CODED_DASH) and the
+        # ADR-0101 passage window (ENGAGE); see `_flown_since_dash_m`.
+        self._flown_m = 0.0
         self._gs_last_t: Optional[float] = None
         self._gs_last_v: float = 0.0
+        self._last_r_hat_m: Optional[float] = None  # pursuit miss-policy input
         self._warned_own_state = False
         self.last_telemetry: Optional[StepTelemetry] = None  # for the CSV row
         # AGL-floor bookkeeping (ADR-0085's half, review F3). `_last_alt_m` is the
@@ -688,6 +824,50 @@ class RealFlightSM:
         self._floor_warned = False         # the clamp is announced once, not per tick
         self._floor_active = False         # exposed so a caller/CSV can log that it bit
         self._validate_vertical_config()
+        self._validate_passage_config()
+        self._validate_safe_behavior()
+
+    def _validate_passage_config(self) -> None:
+        """ADR-0101 passage window: refuse an incoherent floor/ceiling at
+        CONSTRUCTION, `_validate_vertical_config`-style -- a guidance constant
+        that cannot be justified from a measurement is the failure this
+        project has a rule about."""
+        c = self.cfg
+        for name, frac in (("breakoff_min_flown_frac", c.breakoff_min_flown_frac),
+                           ("breakoff_force_flown_frac", c.breakoff_force_flown_frac)):
+            if frac is None:
+                continue
+            if frac != frac:
+                raise ValueError(f"{name} is NaN")
+            if frac <= 0.0:
+                raise ValueError(
+                    f"{name}={frac} must be > 0 -- a non-positive fraction of "
+                    "the plan distance is never satisfiable (the floor) or "
+                    "fires on the very first tick (the ceiling), neither of "
+                    "which is a coherent passage window.")
+        if c.breakoff_min_flown_frac is not None \
+                and c.breakoff_force_flown_frac is not None \
+                and c.breakoff_min_flown_frac >= c.breakoff_force_flown_frac:
+            raise ValueError(
+                f"breakoff_min_flown_frac={c.breakoff_min_flown_frac} >= "
+                f"breakoff_force_flown_frac={c.breakoff_force_flown_frac}: the "
+                "floor that ARMS the past-CPA breakoff cannot sit at or past "
+                "the ceiling that FORCES it -- the window would be empty or "
+                "inverted (the breakoff could never legally fire).")
+        p = c.pursuit_miss_range_m
+        if p != p or p < 0.0:
+            raise ValueError(f"pursuit_miss_range_m={p} must be a "
+                             "non-negative number")
+
+    def _validate_safe_behavior(self) -> None:
+        """`MissionConfig.safe_behavior` is read by string in both the state
+        machine and the live driver (which command it issues after SAFE) --
+        an unrecognised value must fail LOUD at construction, not silently
+        fall through to whichever branch a stale if/elif happens to match."""
+        if self.cfg.safe_behavior not in ("land", "hover", "rtl"):
+            raise ValueError(
+                f"safe_behavior={self.cfg.safe_behavior!r} must be one of "
+                "'land' / 'hover' / 'rtl'")
 
     def _validate_vertical_config(self) -> None:
         """Refuse an incoherent vertical config at CONSTRUCTION, not at 200 m.
@@ -949,6 +1129,45 @@ class RealFlightSM:
                             self.cfg.dash_alt_trim_m, None)),
                         self._last_yaw_cmd_deg)
 
+    def _flown_since_dash_m(self, obs: VehicleObs, elapsed_since_dash: float
+                            ) -> Tuple[float, str]:
+        """Own displacement (m) since the dash began. ONE running integrator
+        that feeds BOTH FAILSAFE 4's optional distance bound (`_step_coded_
+        dash`) and the ADR-0101 passage window (`_step_engage`), so the two
+        measurements can never disagree or double-count -- call this AT MOST
+        ONCE per tick.
+
+        PREFERS THE MEASUREMENT, exactly like FAILSAFE 4 already did:
+        trapezoid-integrates the EKF ground speed when the vehicle reports
+        it, and only dead-reckons off the dash's own kinematic model when it
+        does not -- and SAYS so in the returned source tag ("EKF"/
+        "MODELLED"), so no log reader can mistake a modelled metre for a
+        flown one.
+
+        DIVERGENCE FROM THE SIM TWIN, disclosed (not hidden): m4's passage
+        functions (`scripts/m4_intercept.py`) read the own EKF's HORIZONTAL
+        POSITION and take a straight-line hypot from the dash-entry point --
+        exact through a turn. This state machine's `VehicleObs` carries no
+        horizontal position (own-state EKF exposes only a ground-speed
+        SCALAR here), so this integrates SPEED instead, which is exact on
+        the straight coded-dash leg and an OVERESTIMATE on any curved path (a
+        turn keeps adding speed*dt while displacement grows more slowly).
+        Acceptable because both consumers are gated `not cfg.pursuit_mode` --
+        the one path that actually turns (the pursuit chase) never reaches
+        either. TODO-BUILDER if that gate is ever loosened for a turning
+        stock/tag profile: wire `VehicleObs.vel_ned` into a real 2-D running
+        displacement instead of a speed integral."""
+        if obs.ground_speed_ms is not None:
+            if self._gs_last_t is not None:
+                self._flown_m += 0.5 * (obs.ground_speed_ms + self._gs_last_v) \
+                    * max(0.0, obs.t - self._gs_last_t)
+            self._gs_last_t, self._gs_last_v = obs.t, obs.ground_speed_ms
+            return self._flown_m, "EKF"
+        cfg = self.cfg
+        return dash_ramp_distance(
+            cfg.dash_speed_ms, cfg.dash_accel_cap_ms2 or cfg.dash_accel_ms2,
+            elapsed_since_dash), "MODELLED"
+
     # ---------------------------------------------------------------- step
 
     def step(self, obs: VehicleObs) -> Decision:
@@ -1035,12 +1254,30 @@ class RealFlightSM:
             self._floor_active = floored
         tr = (self.transitions[-1]
               if len(self.transitions) > transition_before else None)
+        # SAFE behavior (builder ruling 2026-09-22). 'land'/'rtl' are
+        # BYTE-IDENTICAL at this layer to the pre-existing behaviour --
+        # land_requested goes True the INSTANT SAFE is entered, terminated
+        # follows safe_hold_s later; 'rtl' differs only in which PX4 action
+        # the LIVE DRIVER issues once those fire (see run_mavsdk_mission).
+        # 'hover' withholds BOTH indefinitely -- the setpoint stream above
+        # still emits SAFE's zero-velocity hold every tick regardless -- until
+        # the mission_max_s ABSOLUTE BACKSTOP (measured from mission start,
+        # t0, not from SAFE entry) fires, at which point it lands like any
+        # other SAFE.
         terminated = False
+        land_requested = False
         if self.state == State.SAFE and self.t_state is not None:
-            terminated = (self._last_obs_t - self.t_state) >= self.cfg.safe_hold_s
+            if self.cfg.safe_behavior == "hover":
+                past_backstop = (self.t0 is not None and
+                                 (self._last_obs_t - self.t0) >= self.cfg.mission_max_s)
+                terminated = past_backstop
+                land_requested = past_backstop
+            else:
+                land_requested = True
+                terminated = (self._last_obs_t - self.t_state) >= self.cfg.safe_hold_s
         return Decision(state=self.state, setpoint=sp, events=events,
                         transition=tr, streak=self.streak,
-                        land_requested=(self.state == State.SAFE),
+                        land_requested=land_requested,
                         terminated=terminated, safe_reason=self.safe_reason,
                         telemetry=tel, alt_ref_m=self._last_alt_ref_m,
                         floor_active=self._floor_active)
@@ -1153,30 +1390,24 @@ class RealFlightSM:
             self.safe_reason = "dash_timeout_no_acquire"
             return self._safe_setpoint(obs)
 
+        # Own displacement since the dash began -- ONE running integrator
+        # (PREFERS THE MEASUREMENT: trapezoid-integrates EKF ground speed when
+        # available, else dead-reckons off the dash model and SAYS so in the
+        # source tag) that feeds BOTH FAILSAFE 4 below AND the ADR-0101
+        # passage window evaluated in `_step_engage`. Updated every
+        # CODED_DASH tick regardless of whether the distance bound is armed,
+        # so the integrator/dead-reckon state is already current the moment
+        # ENGAGE starts.
+        flown, src = self._flown_since_dash_m(obs, elapsed)
+
         # FAILSAFE 4 -- optional dead-reckoned DISTANCE bound (own dash model, no
         # position read needed). Off by default; size it to the range box.
-        if cfg.dash_max_dist_m is not None:
-            # PREFER THE MEASUREMENT. Trapezoid-integrate the EKF ground speed
-            # when the vehicle reports it; only dead-reckon when it does not, and
-            # then SAY SO in the reason string, so no log reader can mistake a
-            # MODELLED metre for a flown one (review2 safety).
-            if obs.ground_speed_ms is not None:
-                if self._gs_last_t is not None:
-                    self._flown_m += 0.5 * (obs.ground_speed_ms + self._gs_last_v) \
-                        * max(0.0, obs.t - self._gs_last_t)
-                self._gs_last_t, self._gs_last_v = obs.t, obs.ground_speed_ms
-                flown, src = self._flown_m, "EKF"
-            else:
-                flown = dash_ramp_distance(
-                    cfg.dash_speed_ms,
-                    cfg.dash_accel_cap_ms2 or cfg.dash_accel_ms2, elapsed)
-                src = "MODELLED"
-            if flown > cfg.dash_max_dist_m:
-                self._transition(State.SAFE,
-                                 f"dash_distance_bound({src} {flown:.1f} m > "
-                                 f"{cfg.dash_max_dist_m:.1f} m)", obs, events)
-                self.safe_reason = "dash_distance_bound"
-                return self._safe_setpoint(obs)
+        if cfg.dash_max_dist_m is not None and flown > cfg.dash_max_dist_m:
+            self._transition(State.SAFE,
+                             f"dash_distance_bound({src} {flown:.1f} m > "
+                             f"{cfg.dash_max_dist_m:.1f} m)", obs, events)
+            self.safe_reason = "dash_distance_bound"
+            return self._safe_setpoint(obs)
         return sp
 
     # -- ENGAGE ----------------------------------------------------------------
@@ -1193,6 +1424,15 @@ class RealFlightSM:
             sp, tel = self.guidance.step(box, obs.own_state(), obs.t)
         if sp is not None:
             self._last_yaw_cmd_deg = sp.yaw_deg
+        # PURSUIT-MODE MISS POLICY input (builder ruling 2026-09-22,
+        # MissionConfig.pursuit_miss_range_m's docstring): the last KF range
+        # estimate. `pursuit_terminal.PursuitTerminalGuidance.step` sets
+        # `tel.r_hat_m` every tick Phase B is active -- predicted/coasted,
+        # not just on a fresh decode -- so this tracks the CURRENT best
+        # estimate continuously, not a value frozen at the last detection.
+        # Read by FAILSAFE 5 below.
+        if tel is not None and tel.r_hat_m is not None:
+            self._last_r_hat_m = tel.r_hat_m
 
         # FAILSAFE 8 -- the terminal's RANGE CHANNEL DIVERGED (review2 BLOCKER).
         # r_hat <= 0 or a non-physical |rdot_hat| is proof the estimate is not the
@@ -1224,6 +1464,34 @@ class RealFlightSM:
                        f"ENGAGE ({','.join(tel.health)}) -- terminal is HOLDING, "
                        f"not guiding", events)
 
+        # ADR-0101 PASSAGE CEILING (ported from scripts/m4_intercept.py
+        # `passage_ceiling_hit`; that ADR's own disclosed open item --
+        # "real_flight.py still carries the old rule ... port deliberately,
+        # not silently"). Evaluated EVERY ENGAGE tick, detected or not, on
+        # OWN-STATE ONLY -- a camera dropout must not be able to hide it.
+        # Once the vehicle's own displacement since the dash began reaches
+        # breakoff_force_flown_frac x the pre-flight PLAN distance it MUST
+        # have passed the target, whatever the camera says. Inert in
+        # pursuit_mode (no coded dash, no plan distance -- and the trigger
+        # this window governs is already suppressed there, ADR-0103), and
+        # inert with no `t_dash_start` (should not happen outside
+        # pursuit_mode, but fails closed rather than crashing if it ever
+        # does).
+        flown_since_dash: Optional[float] = None
+        flown_src: Optional[str] = None
+        if not cfg.pursuit_mode and self.t_dash_start is not None:
+            flown_since_dash, flown_src = self._flown_since_dash_m(
+                obs, obs.t - self.t_dash_start)
+            if cfg.breakoff_force_flown_frac is not None and passage_ceiling_hit(
+                    flown_since_dash, cfg.dash_plan_m, cfg.breakoff_force_flown_frac):
+                self._transition(
+                    State.BREAKOFF,
+                    f"passage_ceiling(flown {flown_since_dash:.2f} m "
+                    f"[{flown_src}] >= {cfg.breakoff_force_flown_frac} x "
+                    f"planned {cfg.dash_plan_m:.2f} m -- must be past "
+                    "closest approach)", obs, events)
+                return self._breakoff_setpoint(obs), tel
+
         if obs.det_new and obs.det_range_m is not None:
             self._last_det_t = obs.t
             r = obs.det_range_m
@@ -1247,12 +1515,20 @@ class RealFlightSM:
             rise_ok = (rise is None or rise >= cfg.breakoff_min_rise_m)
             range_ok = (cfg.breakoff_max_range_m is None
                         or r <= cfg.breakoff_max_range_m)
+            # ADR-0101 PASSAGE GATE (the FLOOR half of the passage window --
+            # the ceiling was already checked above, every tick). Ported from
+            # scripts/m4_intercept.py `passage_gate_ok`: the breakoff may not
+            # fire until the vehicle's own displacement since the dash began
+            # reaches breakoff_min_flown_frac x the plan distance. None =
+            # gate OFF (byte-identical).
+            passage_ok = passage_gate_ok(flown_since_dash, cfg.dash_plan_m,
+                                         cfg.breakoff_min_flown_frac)
             # ADR-0103 "chase only": pursuit_mode suppresses ONLY this
             # recession trigger (see MissionConfig.pursuit_mode's docstring)
             # -- hard_floor above and the failsafes below stay active.
             if not cfg.pursuit_mode and self._breakoff_armed and \
                     self._recede_streak >= cfg.breakoff_range_increases:
-                if rise_ok and range_ok:
+                if rise_ok and range_ok and passage_ok:
                     self._transition(
                         State.BREAKOFF,
                         f"past_cpa({self._recede_streak} rising, "
@@ -1266,12 +1542,22 @@ class RealFlightSM:
                 # per rising run (reset below when the run breaks), not per tick.
                 if not self._breakoff_held_logged:
                     self._breakoff_held_logged = True
-                    why = (
-                        f"rise +{0.0 if rise is None else rise:.2f} m < min_rise "
-                        f"{cfg.breakoff_min_rise_m:.2f} m (drift, not recession)"
-                        if not rise_ok else
-                        f"range {r:.2f} m > breakoff_max_range "
-                        f"{cfg.breakoff_max_range_m}")
+                    if not rise_ok:
+                        why = (
+                            f"rise +{0.0 if rise is None else rise:.2f} m < "
+                            f"min_rise {cfg.breakoff_min_rise_m:.2f} m (drift, "
+                            "not recession)")
+                    elif not range_ok:
+                        why = (f"range {r:.2f} m > breakoff_max_range "
+                              f"{cfg.breakoff_max_range_m}")
+                    else:
+                        why = (
+                            f"flown "
+                            f"{'?' if flown_since_dash is None else f'{flown_since_dash:.2f}'}"
+                            f" m < {cfg.breakoff_min_flown_frac} x planned "
+                            f"{'?' if cfg.dash_plan_m is None else f'{cfg.dash_plan_m:.2f}'}"
+                            " m (ADR-0101 passage gate: not yet flown far "
+                            "enough to have passed it)")
                     self._emit(f"[{obs.t:7.2f}s] past-CPA count met "
                                f"({self._recede_streak} rising) but HELD: {why}",
                                events)
@@ -1281,6 +1567,29 @@ class RealFlightSM:
         # FAILSAFE 5 -- the terminal lost the target and did not recover.
         if self._last_det_t is not None and \
                 (obs.t - self._last_det_t) > cfg.engage_lost_target_s:
+            # PURSUIT-MODE MISS POLICY (builder ruling 2026-09-22, builder's
+            # words: "as soon as an intercept is MISSED, abort immediately
+            # and either hover in place or return home"). isim/specs/
+            # parity_flightcode_2026-09-21.md's pre-registered abort-timer
+            # A/B (n=50/cell, engage_lost_target_s 2.0/4.0/10.0/30.0 s) came
+            # back a byte-identical NULL: at close range the dropout is
+            # PERMANENT and lengthening this clock buys nothing (pursuit's
+            # own Phase-B->A fallback never produces a second converging
+            # pass through this wrapper). So a CLOSE miss does not wait
+            # longer or search via BREAKOFF's climb (which assumes a fly-by
+            # pursuit never flies) -- it goes straight to SAFE and gets out
+            # of the target's airspace. Outside pursuit_miss_range_m the
+            # original BREAKOFF path stands: a belief re-acquire may still
+            # help at range.
+            if cfg.pursuit_mode and self._last_r_hat_m is not None \
+                    and self._last_r_hat_m <= cfg.pursuit_miss_range_m:
+                self._transition(
+                    State.SAFE,
+                    f"pursuit_miss(r_hat={self._last_r_hat_m:.2f} m <= "
+                    f"{cfg.pursuit_miss_range_m:.2f} m, target lost "
+                    f"{cfg.engage_lost_target_s:.1f}s)", obs, events)
+                self.safe_reason = "pursuit_miss"
+                return self._safe_setpoint(obs), tel
             self._transition(State.BREAKOFF,
                              f"target_lost({cfg.engage_lost_target_s:.1f}s)",
                              obs, events)
@@ -1866,8 +2175,11 @@ def run_offline(cfg: MissionConfig, trigger, guidance: Optional[SeekerGuidance] 
         veh.apply(dec.setpoint, dt)
         if dec.terminated:
             if verbose:
+                _action = {"land": "LAND", "rtl": "RETURN-TO-LAUNCH",
+                          "hover": "LAND (mission_max_s backstop reached)"
+                          }[cfg.safe_behavior]
                 print(f"  t={t:6.2f}  TERMINATED in SAFE "
-                      f"(reason={dec.safe_reason}); driver would now LAND")
+                      f"(reason={dec.safe_reason}); driver would now {_action}")
             break
         t += dt
         n += 1
@@ -2183,9 +2495,28 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
             except Exception as e:  # noqa: BLE001 -- best-effort teardown
                 print(f"[mavsdk] offboard.stop skipped: {e}")
         try:
-            await drone.action.land()
-            print(f"[mavsdk] landing; waiting up to {_LAND_TIMEOUT_S}s for "
-                  f"touchdown + disarm ...")
+            # SAFE behavior (builder ruling 2026-09-22): the STATE MACHINE
+            # never knows what RTL is -- it stays exactly as pure for
+            # safe_behavior='rtl' as for the 'land' default (same
+            # land_requested/terminated timing, see RealFlightSM._decide).
+            # Only the LIVE DRIVER, here, picks which PX4 ACTION to issue.
+            # RETURN-TO-LAUNCH is PX4's OWN GPS-based safety behaviour (fly
+            # home at a safe altitude, then auto-land) -- a SAFETY fallback,
+            # NOT a guidance decision, and must never be read as one. This is
+            # the UNCONDITIONAL teardown path (also reached on the outer
+            # smoke-duration forced-shutdown bound), so 'hover' still comes
+            # down here rather than being stranded airborne forever.
+            if cfg.safe_behavior == "rtl":
+                await drone.action.return_to_launch()
+                print(f"[mavsdk] RETURN-TO-LAUNCH commanded (safe_behavior="
+                      f"rtl); waiting up to {_LAND_TIMEOUT_S}s for touchdown "
+                      f"+ disarm (PX4 flies home first -- may not complete "
+                      f"within this bound; that is a teardown-wait timeout, "
+                      f"not a failsafe) ...")
+            else:
+                await drone.action.land()
+                print(f"[mavsdk] landing; waiting up to {_LAND_TIMEOUT_S}s for "
+                      f"touchdown + disarm ...")
             deadline = time.monotonic() + _LAND_TIMEOUT_S
             touch_t = None
             forced = False
@@ -2493,20 +2824,46 @@ def build_config(args) -> MissionConfig:
     """Resolve the pre-flight constants ONCE, before anything flies."""
     heading = args.dash_heading_deg
     t_lead = None
+    dash_plan_m = None
     if heading is None:
         tstart = tuple(float(v) for v in args.target_start.split(",")[:2])
         tvel = tuple(float(v) for v in args.target_vel.split(",")[:2])
         heading, t_lead = resolve_preflight_heading(
             tstart, tvel, args.dash_speed, args.dash_accel_ms2,
             accel_aware=not args.no_accel_aware_lead)
+        if t_lead is not None:
+            # ADR-0101 passage window's plan distance: the along-heading
+            # distance the pre-flight lead solve itself assumed the dash
+            # would cover by t_lead. Mirrors scripts/m4_intercept.py's
+            # `coded_dash_plan_m` exactly -- the accel-aware ramp INTEGRAL
+            # (dash_ramp_distance, the same function collision_lead_heading_
+            # accel roots against to find t_lead) when that solve was used,
+            # the constant-speed product otherwise.
+            dash_plan_m = (
+                dash_ramp_distance(args.dash_speed, args.dash_accel_ms2, t_lead)
+                if not args.no_accel_aware_lead
+                else args.dash_speed * t_lead)
         print(f"[aim] pre-flight collision lead "
               f"({'accel-aware, ADR-0080' if not args.no_accel_aware_lead else 'constant-speed'}"
               f", a={args.dash_accel_ms2:.1f} m/s^2, v={args.dash_speed:.1f} m/s) "
               f"-> C1 = {heading:.2f} deg"
-              + (f", t_lead={t_lead:.2f} s" if t_lead is not None else
-                 ", t_lead=None (uncatchable by pure lead)"))
+              + (f", t_lead={t_lead:.2f} s, plan distance="
+                 f"{dash_plan_m:.2f} m (ADR-0101 passage window)"
+                 if t_lead is not None else
+                 ", t_lead=None (uncatchable by pure lead; ADR-0101 passage "
+                 "window has no plan distance and stays OFF)"))
     else:
-        print(f"[aim] C1 = {heading:.2f} deg (operator-entered --dash-heading-deg)")
+        print(f"[aim] C1 = {heading:.2f} deg (operator-entered --dash-heading-deg)"
+              " -- ADR-0101 passage window has no plan distance here: the "
+              "floor fails CLOSED, the ceiling never fires, by design "
+              "(Portability note, ADR-0101)")
+    if (args.breakoff_min_flown_frac is not None
+            or args.breakoff_force_flown_frac is not None) and dash_plan_m is None:
+        print("[aim] WARNING: --breakoff-min-flown-frac/--breakoff-force-flown-frac "
+              "set but no plan distance was solved (explicit --dash-heading-deg) -- "
+              "the floor will fail closed (breakoff never gated early) and the "
+              "ceiling will never fire. This is by design (ADR-0101 Portability), "
+              "not a bug -- pass a solved heading if the passage window matters.")
     return MissionConfig(
         preflight_heading_deg=heading,
         standby_alt_m=args.standby_alt_m,
@@ -2536,6 +2893,11 @@ def build_config(args) -> MissionConfig:
                           and args.offboard_stale_s < 0 else args.offboard_stale_s),
         breakoff_min_rise_m=args.breakoff_min_rise_m,
         breakoff_max_range_m=args.breakoff_max_range_m,
+        breakoff_min_flown_frac=args.breakoff_min_flown_frac,
+        breakoff_force_flown_frac=args.breakoff_force_flown_frac,
+        dash_plan_m=dash_plan_m,
+        pursuit_miss_range_m=args.pursuit_miss_range_m,
+        safe_behavior=args.safe_behavior,
         # ADR-0103 "chase only": --terminal pursuit implies pursuit_mode (the
         # receding-range breakoff suppression AND the GO->ENGAGE direct
         # transition). Never settable independently from this CLI -- a pursuit
@@ -2687,6 +3049,32 @@ def build_arg_parser() -> argparse.ArgumentParser:
     saf.add_argument("--breakoff-max-range-m", type=float, default=None,
                      help="past-CPA breakoff is ignored beyond this range "
                           "(mirrors m4's --breakoff-max-range-m; default inert)")
+    saf.add_argument("--breakoff-min-flown-frac", type=float, default=None,
+                     help="ADR-0101 passage window FLOOR: the past-CPA "
+                          "breakoff may not fire until the vehicle's own "
+                          "displacement since the dash began reaches this "
+                          "fraction of the pre-flight PLAN distance (mirrors "
+                          "m4's --breakoff-min-flown-frac). Needs a SOLVED "
+                          "dash heading (not --dash-heading-deg) -- see the "
+                          "[aim] log line. Default None = OFF (byte-identical).")
+    saf.add_argument("--breakoff-force-flown-frac", type=float, default=None,
+                     help="ADR-0101 passage window CEILING: force the "
+                          "breakoff once that same displacement reaches this "
+                          "fraction of the plan distance, whatever the "
+                          "camera says (mirrors m4's "
+                          "--breakoff-force-flown-frac). Default None = OFF "
+                          "(byte-identical).")
+    saf.add_argument("--safe-behavior", choices=("land", "hover", "rtl"),
+                     default="land",
+                     help="what happens after the safe_hold_s hold in SAFE: "
+                          "'land' (default, unchanged) -- the driver requests "
+                          "PX4 LAND; 'hover' -- hold position indefinitely, no "
+                          "land request, until the mission_max_s backstop; "
+                          "'rtl' -- the DRIVER commands PX4 RETURN-TO-LAUNCH "
+                          "instead of LAND (PX4's own GPS-based safety "
+                          "behavior, not a guidance decision). The state "
+                          "machine keeps emitting SAFE's hold setpoint every "
+                          "tick regardless of this choice.")
 
     trg = ap.add_argument_group("trigger")
     trg.add_argument("--trigger", choices=("rc", "timer", "gate-ready"),
@@ -2712,6 +3100,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "ENGAGE directly -- no coded dash -- and the receding-"
                           "range breakoff is suppressed; contact floor, lost-"
                           "target and engage-max-s stay active)")
+    trm.add_argument("--pursuit-miss-range-m", type=float, default=3.0,
+                     help="pursuit-mode MISS POLICY (builder ruling "
+                          "2026-09-22): if the last KF range estimate at a "
+                          "lost-target abort was inside this range, "
+                          "transition ENGAGE -> SAFE DIRECTLY (reason "
+                          "pursuit_miss) instead of BREAKOFF's climb-and-"
+                          "search -- isim/specs/parity_flightcode_2026-09-21"
+                          ".md's abort-timer A/B measured that a close-range "
+                          "dropout is permanent, so lengthening the timer "
+                          "buys nothing. Default matches "
+                          "PursuitTerminalConfig.no_fallback_range_m. Inert "
+                          "outside --terminal pursuit.")
     trm.add_argument("--intrinsics",
                      default=os.path.join(_REPO_ROOT, "configs/camera_intrinsics.json"))
     trm.add_argument("--n-pronav", type=float, default=5.0)
