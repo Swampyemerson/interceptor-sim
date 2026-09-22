@@ -59,13 +59,27 @@ pursuit's validated numbers depend on its OWN tuned constants
 `_ConstVelKF`, structurally like `_RelStateKF` (relative-state, control-input
 predict) but with pursuit's own Q/R.
 
-LATENCY -- a deliberate, disclosed simplification vs. the isim original. isim
-interpolates an own-state ring buffer at each detection's own `t_capture`.
-This module has no per-detection capture timestamp in its contract (`step`
-gets only `t`, "now"), so it mirrors `TagInterceptGuidance`'s existing,
-already-shipped simplification instead: a fixed `meas_latency_s` constant,
-extrapolating the measured relative position forward by
-`v_rel_hat * meas_latency_s`.
+LATENCY (revised 2026-09-22, isim/specs/parity_trace_2026-09-22.md). The
+contract still has no per-detection capture timestamp (`step` gets only `t`,
+"now"), so a fixed `meas_latency_s` stands in for the true age -- that part
+of the simplification is unchanged and disclosed. What CHANGED, after the
+registered parity trace attributed the port's 0.3-0.8 m first-pass loss:
+  (1) the pixel box is converted to NED with the own attitude interpolated
+      from a short internal ring buffer AT the assumed capture instant
+      `t - meas_latency_s`, not with the current-tick attitude (the native
+      prototype's v3 #1, rebuilt in-contract: the buffer is filled from the
+      `own` handed to every `step()` call, no new inputs). The current-tick
+      conversion injected a 0.2-0.3 m median (1.5 m max) error per fix while
+      the vehicle's attitude swung during the braking close.
+  (2) the KF's measurement model carries the age explicitly
+      (H = [I, -age*I] plus the known own-displacement term) instead of
+      pre-extrapolating the measurement by `v_rel_hat * meas_latency_s` with
+      H = [I, 0] -- so position fixes correctly update the VELOCITY states.
+  (3) the covariance predict uses the true Jacobian (dr'/dv_t = dt*I). The
+      old F = I propagated the STATE with the control-input coupling but the
+      COVARIANCE without it, leaving v_t nearly unobservable; the traced
+      consequence was a velocity estimate 5-6.5 m/s wrong at CPA (native:
+      0.05-0.12 m/s) feeding Phase B's velocity feed-forward.
 
 SKIPPED ON PURPOSE (measured negative or not adopted in the source concept,
 default OFF there too): camera-frame close-in steering, a KF timestamp-bias
@@ -141,6 +155,9 @@ class PursuitTerminalConfig:
 
     # --- latency (fixed constant, mirrors TagTerminalConfig) ------------------
     meas_latency_s: float = 0.045
+    # Own-attitude ring-buffer depth for the capture-instant conversion (module
+    # docstring LATENCY (1)). Must exceed meas_latency_s by a healthy margin.
+    att_history_s: float = 0.4
 
     # --- yaw slew ---------------------------------------------------------------
     yaw_rate_max_deg_s: float = 180.0
@@ -149,6 +166,35 @@ class PursuitTerminalConfig:
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
     return (v / n) if n > 1e-9 else np.asarray(fallback, dtype=np.float64)
+
+
+def _nlerp_quat(q0, q1, w: float):
+    """Normalized linear interpolation between two (w,x,y,z) quaternions --
+    exact enough for the tens-of-ms gaps the attitude ring buffer holds
+    (the native prototype's `_interp_own_state` uses the same approach)."""
+    a = np.asarray(q0, dtype=np.float64)
+    b = np.asarray(q1, dtype=np.float64)
+    if float(np.dot(a, b)) < 0.0:
+        b = -b
+    q = (1.0 - w) * a + w * b
+    n = float(np.linalg.norm(q))
+    return tuple(q / n) if n > 1e-12 else tuple(a)
+
+
+def _interp_att_hist(hist, t_query: float):
+    """Interpolate the (t, quat) ring buffer at `t_query`. Clamped at both
+    ends (a query before the first sample returns the first sample)."""
+    if not hist:
+        return None
+    if t_query <= hist[0][0]:
+        return hist[0][1]
+    for i in range(len(hist) - 1, 0, -1):
+        t0, q0 = hist[i - 1]
+        t1, q1 = hist[i]
+        if t0 <= t_query <= t1:
+            w = 0.0 if t1 <= t0 else (t_query - t0) / (t1 - t0)
+            return _nlerp_quat(q0, q1, w)
+    return hist[-1][1]
 
 
 def _clip_norm(v: np.ndarray, max_norm: float) -> np.ndarray:
@@ -241,9 +287,17 @@ class _ConstVelKF:
         r, v_t = self.x[0:3], self.x[3:6]
         r = r + (v_t - np.asarray(v_own, dtype=np.float64)) * dt
         self.x = np.concatenate([r, v_t])
-        F = np.eye(6)   # v_t is a random walk (own-velocity control input is
-        # applied above, additively, not through F -- F stays identity on
-        # (r, v_t) themselves; the (v_t - v_own)*dt term already advanced r).
+        # COVARIANCE JACOBIAN (parity-trace fix, isim/specs/parity_trace_
+        # 2026-09-22.md): dr'/dv_t = dt*I even though the STATE was advanced
+        # explicitly above -- the known own-velocity term is a control INPUT
+        # (no state dependence, so it does not appear in F), but v_t's effect
+        # on r' does. The previous F = I propagated the state with the
+        # coupling and the covariance without it, so P never built the
+        # pos-vel correlation the update needs to correct v_t from position
+        # fixes, and the traced velocity estimate diverged to 5-6.5 m/s of
+        # error by CPA (native prototype, correct F: 0.05-0.12 m/s).
+        F = np.eye(6)
+        F[0:3, 3:6] = np.eye(3) * dt
         qpp, qpv, qvv = (dt ** 3 / 3.0) * self.q, (dt ** 2 / 2.0) * self.q, dt * self.q
         Q = np.zeros((6, 6))
         Q[0:3, 0:3] = np.eye(3) * qpp
@@ -252,10 +306,26 @@ class _ConstVelKF:
         Q[3:6, 3:6] = np.eye(3) * qvv
         self.P = F @ self.P @ F.T + Q
 
-    def update(self, z_r: np.ndarray, R: np.ndarray) -> None:
+    def update(self, z_r: np.ndarray, R: np.ndarray, age_s: float = 0.0,
+               v_own: Optional[np.ndarray] = None) -> None:
+        """`z_r` is the relative position AT CAPTURE (age_s ago), while the
+        state is "now". With r(t) = p_tgt(t) - p_own(t) and a CV target:
+
+            z = r(t) - v_t*age + v_own*age    (own displacement over the age,
+                                               approximated with the current
+                                               own velocity -- a known input)
+
+        so H = [I, -age*I] and the known v_own*age term joins the predicted
+        measurement. This replaces the old pre-extrapolation of z by
+        `v_rel_hat*age` with H = [I, 0], which had the same mean but gave
+        position fixes no gain into the velocity states (parity-trace fix,
+        with the predict() Jacobian above)."""
         H = np.zeros((3, 6))
         H[:, 0:3] = np.eye(3)
-        y = np.asarray(z_r, dtype=np.float64) - H @ self.x
+        H[:, 3:6] = -float(age_s) * np.eye(3)
+        vo = np.zeros(3) if v_own is None else np.asarray(v_own, dtype=np.float64)
+        z_pred = H @ self.x + vo * float(age_s)
+        y = np.asarray(z_r, dtype=np.float64) - z_pred
         S = H @ self.P @ H.T + R
         K = self.P @ H.T @ np.linalg.inv(S)
         self.x = self.x + K @ y
@@ -299,11 +369,20 @@ class PursuitTerminalGuidance:
         self._v_track = self._belief_vel0.copy()
         self._phase = "A"
         self._kf = _ConstVelKF(cfg.kf_q_accel_ms2)
+        # (t, quat) ring buffer for the capture-instant attitude lookup --
+        # filled from every step()'s own-state, module docstring LATENCY (1).
+        self._att_hist: List[Tuple[float, Tuple[float, float, float, float]]] = []
         self._decode_positions: List[Tuple[float, np.ndarray]] = []
         self._last_decode_t: float = -math.inf
         self._last_t: Optional[float] = None
         self._prev_v_cmd = np.zeros(3)
         self._prev_yaw_deg = self.initial_yaw_deg
+        # The yaw-slew seed is re-anchored to the vehicle's OWN EKF yaw on the
+        # first post-GO tick (parity-trace fix: both real callers construct
+        # this object without `initial_yaw_deg`, so the slew walked the yaw
+        # command from 0 deg through a ~75 deg off-target sweep at ENGAGE
+        # entry and the camera missed the whole first close pass of decodes).
+        self._yaw_seeded = False
         self._warned: set = set()
         self.n_track_broken = 0
 
@@ -322,6 +401,17 @@ class PursuitTerminalGuidance:
         position subtraction needed (see module docstring)."""
         _bearing_h, range_m, meas_xyz = measurement_from_box(
             det_box_xywh, self.gcfg, self.cam, self.tag_side_m)
+        # SLANT CORRECTION (parity-trace fix, candidate (e)): the box width
+        # measures the pinhole DEPTH z (side_px = fx*side/z), but
+        # `measurement_from_box` places that depth along the UNIT ray, leaving
+        # the vector short of the true slant by cos(off-axis) -- a systematic
+        # 0.15-0.37 m along-LOS under-range in the traced close. The unit
+        # ray's z-component IS cos(off-axis), so dividing by it restores
+        # v = (x_n, y_n, 1)*z exactly.
+        ray_z = float(meas_xyz[2]) / max(range_m, 1e-9)
+        if ray_z > 1e-6:
+            meas_xyz = np.asarray(meas_xyz, dtype=np.float64) / ray_z
+            range_m = range_m / ray_z
         cam_to_tgt_ned = _optical_vec_to_ned(meas_xyz, quat, self.gcfg.mount_up_rad)
         cam_ofs_ned = _cam_offset_ned(quat, self.gcfg.cam_offset_body)
         r_ned = cam_to_tgt_ned + cam_ofs_ned          # target relative to own CG, NED
@@ -349,6 +439,18 @@ class PursuitTerminalGuidance:
             return None, tel
 
         quat = own.quat
+        # Capture-instant attitude (LATENCY (1)): buffer the current attitude,
+        # then look up the attitude at the assumed exposure instant
+        # `t - meas_latency_s` for the pixel->NED conversion. Falls back to
+        # the current quat while the buffer is still filling.
+        self._att_hist.append((t, tuple(float(c) for c in quat)))
+        cutoff_att = t - max(self.cfg.att_history_s, 2.0 * self.cfg.meas_latency_s)
+        while len(self._att_hist) > 2 and self._att_hist[0][0] < cutoff_att:
+            self._att_hist.pop(0)
+        quat_cap = _interp_att_hist(self._att_hist, t - self.cfg.meas_latency_s) \
+            if self.cfg.meas_latency_s else quat
+        if quat_cap is None:
+            quat_cap = quat
         if own.vel_ned is not None:
             own_vel = np.array(own.vel_ned, dtype=float)
         else:
@@ -367,6 +469,15 @@ class PursuitTerminalGuidance:
             tel.setpoint = sp
             return sp, tel
 
+        # First post-GO tick: seed the yaw-slew state from the OWN EKF yaw
+        # (own-state, honesty-clean) -- the vehicle is holding the standby aim
+        # yaw at the GO edge, and slewing from the constructor default instead
+        # points the camera away exactly when Phase A needs it on the belief.
+        if not self._yaw_seeded:
+            self._yaw_seeded = True
+            if own.psi_rad is not None:
+                self._prev_yaw_deg = math.degrees(float(own.psi_rad))
+
         # Phase A's relative belief propagates on EVERY tick (own_vel is
         # known instantaneously; no absolute position needed) -- this is the
         # same "control-input predict" the KF uses, just without a filter
@@ -375,7 +486,7 @@ class PursuitTerminalGuidance:
             self._r_track = self._r_track + (self._v_track - own_vel) * dt
 
         if det_box_xywh is not None:
-            meas_r, _dir, _rng = self._measured_r_ned(det_box_xywh, quat)
+            meas_r, _dir, _rng = self._measured_r_ned(det_box_xywh, quat_cap)
             self._decode_positions.append((t, meas_r))
             cutoff = t - cfg.acquire_window_s
             self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
@@ -386,7 +497,7 @@ class PursuitTerminalGuidance:
         if self._phase == "B":
             self._kf.predict(dt, own_vel)
             if det_box_xywh is not None:
-                self._update_kf(det_box_xywh, quat, own_vel, t)
+                self._update_kf(det_box_xywh, quat_cap, own_vel, t)
             range_est = float(np.linalg.norm(self._kf.r))
             dropout_s = t - self._last_decode_t
             if dropout_s > cfg.fallback_s and range_est >= cfg.no_fallback_range_m:
@@ -484,14 +595,16 @@ class PursuitTerminalGuidance:
         n = float(np.linalg.norm(kf_v_t))
         return kf_v_t * (cap / n) if n > cap else kf_v_t
 
-    def _update_kf(self, det_box_xywh, quat, own_vel: np.ndarray, t: float) -> None:
-        meas_r, dir_ned, range_m = self._measured_r_ned(det_box_xywh, quat)
-        if self.cfg.meas_latency_s:
-            v_rel_hat = self._kf.v_t - own_vel
-            meas_r = meas_r + v_rel_hat * self.cfg.meas_latency_s
+    def _update_kf(self, det_box_xywh, quat_cap, own_vel: np.ndarray, t: float) -> None:
+        """`quat_cap` is the attitude at the ASSUMED capture instant
+        (t - meas_latency_s), so `meas_r` is the relative position AT
+        CAPTURE; the KF's measurement model carries the age explicitly
+        (see `_ConstVelKF.update`) instead of pre-extrapolating here."""
+        meas_r, dir_ned, range_m = self._measured_r_ned(det_box_xywh, quat_cap)
         r_noise = _pursuit_measurement_noise(range_m, dir_ned, self.cfg, self.cam,
                                               self.tag_side_m)
-        self._kf.update(meas_r, r_noise)
+        self._kf.update(meas_r, r_noise, age_s=self.cfg.meas_latency_s,
+                        v_own=own_vel)
         self._last_decode_t = t
 
     def _start_phase_b(self, t: float) -> None:
