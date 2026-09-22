@@ -20,7 +20,7 @@
   "where": "Chase-only (ADR-0103/0105) is ruled, flyable, and as of today the port MATCHES its prototype (a registered trace fixed four defects: 24% to 100% inside 0.35 m, median 0.068 m). The field push LANDED: miss-abort safe modes (hover/return-home), the GPS cue relay built and wired in.",
   "finding": "The GPS cue relay's error budget (real bench GPS data) says a relayed cue CANNOT serve the sprint terminal (needs ~1 deg; worst-credible is 8-27 deg) but comfortably serves chase-only kept under ~2 s stale -- independent support for the chase-only ruling.",
   "next": [
-   "Bench the ELRS WiFi-backpack telemetry hop (the one unbuilt cue-relay leg); Gazebo cross-check",
+   "Leg-1 bench: desk half DONE (gate proven on wire); needs ~10 builder-minutes -- plan doc section 13",
    "Builder ruling still queued: slant under-range in the stock seeker paths (rec: document, don't fix)"
   ],
   "evidence": "isim/specs/parity_flightcode_2026-09-21.md - ADR-0103/0105/0106 - docs/next.md item 0"
