@@ -121,3 +121,69 @@ the fast fly-by (`engage_lost_target_s=2.0` vs the concept's own
 `pursuit_mode` should also relax those is a flight-code design decision
 (ADR territory), not a sim-side patch -- deliberately not changed in this
 round, whose brief was to measure the port as it stands.
+
+## PRE-REGISTERED FOLLOW-UP A/B (written 2026-09-21, BEFORE the runs): the lost-target window
+
+**Config.** Same four cells, same seeds 0..49, port arm only. Control =
+`engage_lost_target_s = 2.0` (as measured above). Arm =
+`engage_lost_target_s = 4.0` (pursuit's own `fallback_s = 3.0` + 1 s margin,
+so the guidance's Phase-B->A recovery gets to fire before the state machine
+aborts), applied by mutating the built guidance's MissionConfig, pursuit path
+only — no flight-code default changes. Two scores per cell: raw CPA <= 0.35 m,
+and "ram-credited" (a `hard_floor` BREAKOFF counted as contact regardless of
+scored CPA, per attribution point 2).
+
+**Prediction.** The nominal / aim10 / alt+2 cells improve substantially
+(attribution point 1 says the 2 s clock is the dominant killer: 42-47 of 50
+runs per cell die of it while the native re-acquires). aim20 improves less or
+not at all — its ~5 decodes happen early on the deterministic Phase-A leg,
+and a 4 s clock may still expire before the KF close.
+
+**Adopt/recommend criterion.** Recommend `pursuit_mode` relax the window (a
+flight-code change, builder-ruled) iff the ram-credited nominal cell at least
+doubles AND reaches >= 50%. Below that, the window is NOT the dominant lever
+and the recommendation instead becomes "attribute the remainder first".
+
+**What a NULL means.** If lengthening the window does not move the cells, the
+dominant cost is elsewhere (the hard-floor scoring cap, or the KF close
+itself under the fixed-latency simplification) and attribution point 1 is
+WRONG as stated — the spec must then be corrected, not just extended.
+
+## A/B RESULT (same day): NULL — and the null clause fires
+
+Ran exactly as registered (n=50/cell, seeds identical, window 2.0 vs 4.0 s):
+**every cell byte-identical between arms** — raw and ram-credited fractions,
+median misses, and even the terminator counts (nominal 12/50 raw & 14/50
+ram-credited & 42 target_lost & 8 hard_floor in BOTH arms; aim10 8/9/47/3;
+aim20 0/0/50/0; alt+2 5/5/47/3).
+
+Instrument checks before believing it (silent-failure rule):
+- The override provably reaches the state machine (`sm.cfg` reads 4.0/10.0/
+  25.0), and the abort TIME tracks the window exactly (seed 2: target_lost at
+  10.34 / 12.34 / 18.34 s for 2/4/10 s windows). The manipulation is live.
+- The miss does not move at ANY window — including a probe with the failsafe
+  effectively OFF (30 s > max_t, never fires): seed 2 stays 0.436 m and
+  seed 4 stays 0.671 m while the engagement runs the full 25 s window.
+
+**Correction to attribution point 1, per the registered null clause.** The
+2.0 s lost-target clock correctly describes when port runs END, but ending
+early costs NOTHING: the scored CPA is already made on the first pass before
+the terminal dropout, the dropout is PERMANENT at close range, and the port
+never re-acquires or tightens no matter how long it flies — pursuit's own
+Phase-B→A fallback does not produce a second converging pass through the
+RealFlightSM wrapper the way the native prototype's ENGAGE↔APPROACH bouncing
+does. So: do NOT spend a flight-code ruling on relaxing
+`engage_lost_target_s` — it is exonerated as the miss driver in this
+condition. (Attribution point 2, the hard-floor CPA cap, stands — the
+ram-credited column already prices it.)
+
+**Where the gap actually lives: the FIRST-PASS CLOSE.** Native median
+0.120 m vs port first-pass 0.4–0.9 m. Checked and ruled out as the crude
+version: the harness DOES model pipeline latency (0.045 s ± 5 ms jitter,
+`isim/seeker.py`) and the port's fixed `meas_latency_s = 0.045` matches it
+in the mean. The remaining candidates need a per-tick estimator trace, the
+diagnostic isim was built for: (a) the native interpolates OWN ATTITUDE at
+each detection's t_capture while the port converts the box with the
+CURRENT-tick attitude (a bearing error whenever attitude moved during the
+latency); (b) latency JITTER around the fixed constant; (c) any residual
+wrapper difference in the command path. NEXT: trace one seed side-by-side.

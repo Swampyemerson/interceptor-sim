@@ -4,7 +4,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-09-21",
- "updated_by": "Fable head: --terminal pursuit CLI + GO->ENGAGE direct (ADR-0105)",
+ "updated_by": "Fable head: port parity measured, abort-timer A/B null (ADR-0105 follow-up)",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -521,6 +521,12 @@
  "plain_log": [
   {
    "date": "2026-09-21",
+   "text": "Parity check on the ported terminal (isim, 400 paired runs, clean conditions): the prototype meets the 0.35 m bar on every run; the flight-code port on 24% or fewer. A pre-registered A/B on the first suspect (the 2 s abort timer vs the guidance's 3 s recovery) came back NULL -- lengthening or disabling the timer changes nothing, verified with the override proven live in the state machine. The difference sits in the first-pass close (prototype ~0.12 m median, port 0.4-0.9 m); latency-constant mismatch checked and ruled out in the mean.",
+   "so_what": "The port needs a per-tick trace comparison before it is trusted -- the leading candidate is attitude-at-capture handling. Do not spend a ruling on the abort timer; it is exonerated. Built and measured by a Fable 5 worker, the first to complete here since 2026-09-10.",
+   "evidence": "isim/specs/parity_flightcode_2026-09-21.md; commit 3a27a58; docs/subagent_safeguard_log.md"
+  },
+  {
+   "date": "2026-09-21",
    "evidence": "flight/tests/test_terminal_cli.py (7 tests); flight+isim 406 passed; real_flight.py --audit PASS; ADR-0105; configs/px4_6cmini/verify_params.py (COM5, 2 passes across a reboot); Pi at 547042b",
    "so_what": "The ruled engagement concept can now actually be flown/configured on hardware, not just in the prototype sim; the lost-target-timer ruling and the parity run are the remaining gates before it is trusted.",
    "text": "Chase only is now flyable from the real CLI: --terminal pursuit selects the ported pursuit terminal and the GO trigger enters the engagement directly (the old sprint's acquire gate can never fire for a chase that starts before the camera sees anything). The pre-launch aim belief comes from the same latched cue constants the dash aim already used -- audit green, 406 tests passed. Still open: the 2 s lost-target abort fires before pursuit's own 3 s recovery can act (needs a ruling), and the isim parity run (work item 4). ADR-0105. Same session: the Pi pulled the new code over the network and ran the chase-only dry run on its own CPU (audit and dry-run both pass there), and the Pixhawk got a proper read-back check -- a new PX4-safe verifier found the safety-switch parameter added to the pack in July had NEVER landed on the board (it still read the factory bypass value); written, rebooted, re-verified 10 of 10."
@@ -584,12 +590,6 @@
    "text": "Pre-registered and flew the height fix on the adopted sprint-only setup: 32 flights, two fresh seeds, each flight paired with a twin that differs only in flying height. Inside touching distance went from 2 of 16 to 13 of 16. Before flying, caught that one of our own documents had the direction backwards (it said the vehicle passes below the target; the logs say above) -- a fix built from that sentence would have doubled the error.",
    "so_what": "This is the first time most flights meet the project's own kill distance -- but it is a best case, not a kill claim: the camera is off, and the sim knows the target's path and height exactly. A real target's height is a guess, and the camera terminal still cannot steer up or down, so that guess would go straight into the miss. Also done today: Pixhawk GPS + compass verified on the bench, Pi moved to the new Wi-Fi, test suite fixed to run the same everywhere.",
    "evidence": "ADR-0100 - docs/vertical_channel_prereg.md section 9 - commits 0ee0ea5, 6f29182"
-  },
-  {
-   "date": "2026-09-16",
-   "text": "First session back on the simulator machine since the cloud sessions. Pulled their 17 commits, ran the full test suite here (974 passed), and flew two real sim flights. The flight log now records the vehicle's own tilt (pitch and roll) on every tick -- it never did before -- and the first flights show it working: level in hover, nose-down in the chase, nose-up when braking. The classic moving-target gate still passes (pro-nav 0.38 m vs pursuit 2.09 m).",
-   "so_what": "Those two flights measured directly what the cloud session could only infer. Before the chase even starts, the camera is hovering 0.16-0.20 m ABOVE the target's centre, and at closest approach the vertical miss was 0.20 m -- the same offset, carried the whole way. So the 'two height references that were never lined up' finding is real, on n=2 flights of the tag scenario. The hover itself holds height to about 2 cm, not the 9 cm suspected. And the purchase-gate speed alarm did not reproduce here: coded-dash flights close at 8.98 m/s against the gate's 9.0 -- though that pools several speeds, and the real vehicle's sprint speed is still unmeasured.",
-   "evidence": "logs/m4_intercept_pursuit_20260917T032525Z.csv + logs/m4_intercept_pronav_20260917T032639Z.csv (check_m4 PASS) - commit ef9e919 - docs/next.md items 3 and 5"
   }
  ],
  "narrative": {
