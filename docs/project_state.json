@@ -1846,7 +1846,7 @@
      },
      {
       "id": "tgt-03",
-      "text": "Assemble + solder: motors to arms, Tekko32 + Kakute stacked, motor leads and XT60 pigtail soldered; multimeter continuity check across the pads before any power. [2026-07-29 MECHANICAL HALF DONE] All four EMAX ECO II 2207s mounted on the included M3x8 (M3x6 would have given ZERO thread engagement in the 6.0 mm V6 arm -- ADR-0092). Threadlocker + witness marks still to do (ADR-0092 addendum). NOT WIRED, correctly: leads stay at the full 120 mm until the ESC is in its final position, since only ~20-25 mm is spare. Remaining electrical work is blocked on the Kakute H7 + Tekko32, still in transit.",
+      "text": "Assemble + solder: motors to arms, Tekko32 + Kakute stacked, motor leads and XT60 pigtail soldered; multimeter continuity check across the pads before any power. [2026-07-29 MECHANICAL HALF DONE] All four EMAX ECO II 2207s mounted on the included M3x8 (M3x6 would have given ZERO thread engagement in the 6.0 mm V6 arm -- ADR-0092). Threadlocker + witness marks still to do (ADR-0092 addendum). NOT WIRED, correctly: leads stay at the full 120 mm until the ESC is in its final position, since only ~20-25 mm is spare. Remaining electrical work is blocked on the Kakute H7 + Tekko32, still in transit. [2026-09-22 BUILDER REPORT: motors are now SOLDERED to the ESC -- the electrical half has begun. Still open before power: XT60 battery pigtail, then the multimeter continuity checks (battery pads not a dead short; no pad bridges; each motor's three phases not shorted to each other or to power). Threadlocker + witness marks on the motor screws also still open (ADR-0092 addendum).]",
       "why": "A solder-bridge short is found free with a meter, expensively with smoke."
      },
      {
@@ -1863,7 +1863,7 @@
      },
      {
       "id": "tgt-06",
-      "text": "Configure the mover: load configs/target_kakute/target.param (44 linted params — selftest green), then VERIFY on the aircraft: outdoor compass calibration (M10Q), WPNAV_SPEED >= 900 (the >=9 m/s AUTO legs), battery monitor vs the Tekko defaults, geofence + failsafe behavior."
+      "text": "Configure the mover: load configs/target_kakute/target.param (44 linted params — selftest green), then VERIFY on the aircraft: outdoor compass calibration (M10Q), WPNAV_SPEED >= 900 (the >=9 m/s AUTO legs), battery monitor vs the Tekko defaults, geofence + failsafe behavior. [2026-09-22: the 44-param pack is ON THE BOARD AND VERIFIED -- desk dry-run diff against the live FC on COM7 read all 44 back correct (0 need changing). Remaining here: outdoor compass calibration and the battery-monitor check at first battery power.]"
      },
      {
       "id": "tgt-07",
