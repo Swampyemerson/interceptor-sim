@@ -3,8 +3,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-09-21",
- "updated_by": "Fable head: port parity measured, abort-timer A/B null (ADR-0105 follow-up)",
+ "updated": "2026-09-22",
+ "updated_by": "Fable 5 head session",
  "goal": {
   "mission": "An imprecise coded-dash interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only markerless terminal (no datalink; AprilTag sanctioned for calibration/training-labels and as the staged first-kill baseline seeker, never the deployed markerless seeker's input).",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -16,14 +16,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-09-17",
-  "where": "The hybrid the builder asked for (sprint fly-by, then turn-around into a slow arrival) was built in the simulator and it loses to the slow arrival alone. Simulator only; nothing is in the flight code or Gazebo yet.",
-  "finding": "Touching the target (0.35 m), realistic errors, real 118 degree lens, rear tag: fly-by 7%, hybrid 46% (the first pass connects 2% of the time), slow arrival 82%. With 20 degrees of aim error: 0%, 0%, 59%. The crossing sprint leaves the vehicle about 5 m worse placed.",
+  "as_of": "2026-09-22",
+  "where": "Chase-only interception (ADR-0103) is ruled and flyable from the real flight code (ADR-0105), but the port's final approach is 3-7x worse than the prototype (0.4-0.9 m vs 0.12 m). Field-readiness push running: miss-abort safety, GPS cue relay, launch mechanics. Hardware is on the bench.",
+  "finding": "Abort-timer suspicion WRONG: 2 s or 30 s of extra engagement time gives byte-identical results -- once the camera loses the target close in, more time buys nothing. The miss is made on the FIRST pass; that close is where the fix lives.",
   "next": [
-   "Builder: choose -- slow arrival alone (recommended), or keep a sprint that aims BEHIND the target",
-   "Claude: port slow arrival to the flight code and cross-check in Gazebo once chosen"
+   "Land the 3 running builds: first-pass-close fix, miss-abort safe modes, GPS cue relay",
+   "Builder: apply the blocked ops.md/.claude routing edits; delete merged branch upbeat-wright"
   ],
-  "evidence": "ADR-0103 - isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
+  "evidence": "isim/specs/parity_flightcode_2026-09-21.md - ADR-0103/0105/0106 - docs/next.md item 0"
  },
  "assumptions": [
   {
@@ -520,6 +520,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-09-22",
+   "text": "Field-readiness push, all flight hardware on the bench. Subagent lanes re-ruled (Fable 5 / Opus 4.8 / Sonnet 5; the 4.8 block hook now allows explicit pins). Three parallel builds launched: miss-abort safety with hover/return-home modes, the GPS cue relay (target GPS to ground to interceptor, ~2 s window, latched at trigger), and the first-pass-close parity trace.",
+   "so_what": "The flight software is being hardened for a real open-field attempt: a miss now has a defined safe ending, and the launch aim gets a realistic, honestly-noisy data source instead of a hand-entered constant.",
+   "evidence": "ADR-0106 - isim/specs/parity_flightcode_2026-09-21.md - docs/next.md item 0"
+  },
+  {
    "date": "2026-09-21",
    "text": "Parity check on the ported terminal (isim, 400 paired runs, clean conditions): the prototype meets the 0.35 m bar on every run; the flight-code port on 24% or fewer. A pre-registered A/B on the first suspect (the 2 s abort timer vs the guidance's 3 s recovery) came back NULL -- lengthening or disabling the timer changes nothing, verified with the override proven live in the state machine. The difference sits in the first-pass close (prototype ~0.12 m median, port 0.4-0.9 m); latency-constant mismatch checked and ruled out in the mean. Also measured the builder's perpendicular two-tag mount idea (rear + side tag, pre-registered, all errors on): it is a TRADE -- worse at 0-20 degrees of aim error (the side tag is nearly edge-on astern and its foreshortened width feeds bad range fixes), better only at 30 degrees (44% -> 56% touching). Suggestive at n=50, not decisive; the 30-degree win also leans on the unvalidated oblique-decode model. Altitude-error sweep on the same concept (builder question): flat within noise from 2 m below to 2 m above the guess (74-88% touching), cliff only at 3 m above (42%) -- against the retired sprint's ±0.1 m budget, an order-of-magnitude-plus wider band.",
    "so_what": "The port needs a per-tick trace comparison before it is trusted -- the leading candidate is attitude-at-capture handling. Do not spend a ruling on the abort timer; it is exonerated. Built and measured by a Fable 5 worker, the first to complete here since 2026-09-10.",
@@ -584,12 +590,6 @@
    "text": "Overnight, on the two defects that made every camera-vs-sprint comparison unquotable. (1) After the sprint, a brief camera dropout made the vehicle command a full stop while closing at ~13 m/s -- a one-line bug, now fixed, with a new automatic check that finds it in the old logs and finds zero cases in 64 new flights. (2) The 'we have passed it' quit trigger fired early on about a third of slow camera flights. The fix the plan had lined up (ignore the trigger beyond 5 m measured range) failed its own offline check when I re-ran it independently, because the measured range is the broken quantity. The plan's fallback -- you cannot have passed a target you have not flown far enough to reach -- cut early quits from 5 of 16 to 1 of 16, and 4 of 8 to 0 of 8 on a second seed.",
    "so_what": "With the early quits gone the camera flights got NO closer (10 mph median 0.84 m before, 1.00 m after, against 0.73 m for the sprint alone). That matters: the early quit was the one defect only the camera flights could suffer, and it was the standing excuse for why the camera had not beaten the sprint. The excuse is mostly gone and the result stands. The gate itself is not adopted yet -- one clause of the criterion I wrote failed by the letter, and I contaminated two replication arms by running tests while they flew; both are being re-flown.",
    "evidence": "docs/scoring_fix_plan.md 5b-5c - scripts/forensics/breakoff_gate_replay.py - commits d95c787, 3e1a475, c75bfb8"
-  },
-  {
-   "date": "2026-09-16",
-   "text": "Pre-registered and flew the height fix on the adopted sprint-only setup: 32 flights, two fresh seeds, each flight paired with a twin that differs only in flying height. Inside touching distance went from 2 of 16 to 13 of 16. Before flying, caught that one of our own documents had the direction backwards (it said the vehicle passes below the target; the logs say above) -- a fix built from that sentence would have doubled the error.",
-   "so_what": "This is the first time most flights meet the project's own kill distance -- but it is a best case, not a kill claim: the camera is off, and the sim knows the target's path and height exactly. A real target's height is a guess, and the camera terminal still cannot steer up or down, so that guess would go straight into the miss. Also done today: Pixhawk GPS + compass verified on the bench, Pi moved to the new Wi-Fi, test suite fixed to run the same everywhere.",
-   "evidence": "ADR-0100 - docs/vertical_channel_prereg.md section 9 - commits 0ee0ea5, 6f29182"
   }
  ],
  "narrative": {

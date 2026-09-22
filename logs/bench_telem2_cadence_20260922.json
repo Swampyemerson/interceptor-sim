@@ -1,0 +1,26 @@
+{
+ "date": "2026-09-22",
+ "link": "/dev/serial0 921600 (Pi5 <- Pixhawk 6C Mini TELEM2)",
+ "window_s": 30,
+ "rates_hz": {
+  "ATTITUDE": 100.0,
+  "HIGHRES_IMU": 50.0,
+  "ATTITUDE_QUATERNION": 50.0,
+  "LOCAL_POSITION_NED": 30.0,
+  "TIMESYNC": 10.0,
+  "ALTITUDE": 10.0,
+  "ATTITUDE_TARGET": 10.0,
+  "POSITION_TARGET_LOCAL_NED": 10.0,
+  "VFR_HUD": 10.0,
+  "GPS_RAW_INT": 10.0,
+  "EXTENDED_SYS_STATE": 5.0,
+  "SYS_STATUS": 5.0
+ },
+ "max_gap_s": {
+  "HEARTBEAT": 1.002,
+  "ATTITUDE": 0.014,
+  "ALTITUDE": 0.102,
+  "LOCAL_POSITION_NED": 0.037,
+  "EXTENDED_SYS_STATE": 0.207
+ }
+}
