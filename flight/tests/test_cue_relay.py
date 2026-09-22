@@ -440,3 +440,236 @@ def test_build_config_cue_json_requires_the_own_fix(tmp_path):
     args = build_arg_parser().parse_args(["--dry-run", "--cue-json", path])
     with pytest.raises(SystemExit, match="own-lat"):
         build_config(args)
+
+
+# ============================================== curved (turning) tracks -- CT
+# docs/cue_relay_plan.md "curved tracks": the fitter now handles a
+# coordinated turn instead of refusing it. Noise levels are the BENCH ones
+# (runs/tgt02_gps/summary.json): pos sigma 2.3 m/axis (GPA.HAcc 2.29 m),
+# reported-velocity sigma 1.72/sqrt(2) ~ 1.22 m/s/axis (GPA.SAcc 1.72 m/s,
+# a 3-D 1-sigma split across two horizontal axes -- stated assumption).
+
+_SIGMA_POS = 2.3
+_SIGMA_V_AXIS = 1.72 / math.sqrt(2.0)
+
+
+def _turn_track(n_pts, dt, speed_ms, heading0_deg, omega_deg_s,
+                r0_ned=(20.0, 5.0, 0.0), t0=100.0):
+    """Noise-free constant-turn-rate track: (t, n, e, d) rows plus the TRUE
+    velocity at each sample and at the LAST sample (the latch)."""
+    w = math.radians(omega_deg_s)
+    h0 = math.radians(heading0_deg)
+    rows, vels = [], []
+    for i in range(n_pts):
+        t = i * dt
+        h = h0 + w * t
+        if abs(w) > 1e-12:
+            n = r0_ned[0] + speed_ms / w * (math.sin(h) - math.sin(h0))
+            e = r0_ned[1] - speed_ms / w * (math.cos(h) - math.cos(h0))
+        else:
+            n = r0_ned[0] + speed_ms * math.cos(h0) * t
+            e = r0_ned[1] + speed_ms * math.sin(h0) * t
+        rows.append((t0 + t, n, e, r0_ned[2]))
+        vels.append((speed_ms * math.cos(h), speed_ms * math.sin(h), 0.0))
+    return rows, vels
+
+
+def _noisy_turn_records(rows, vels, rng, sigma_pos=_SIGMA_POS,
+                        sigma_v=_SIGMA_V_AXIS):
+    records = []
+    for (t, n, e, d), (vn, ve, vd) in zip(rows, vels):
+        lat, lon, alt = _ned_to_lla(n + rng.normal(0, sigma_pos),
+                                    e + rng.normal(0, sigma_pos),
+                                    d + rng.normal(0, sigma_pos))
+        records.append(CueRecord(t=t, lat=lat, lon=lon, alt_m_msl=alt,
+                                 vn=vn + rng.normal(0, sigma_v),
+                                 ve=ve + rng.normal(0, sigma_v),
+                                 vd=vd + rng.normal(0, sigma_v)))
+    return records
+
+
+def test_ct_monte_carlo_velocity_at_latch_selection_and_omega_sigma():
+    """ONE Monte Carlo, three registered claims (docs/cue_relay_plan.md
+    "curved tracks"), 20 deg/s turn at 9 m/s, ~2 s / 15-pt window:
+      (i)  velocity-at-latch error with the CT fitter beats the old
+           whole-window mean by a wide margin (the mean is chord-biased by
+           ~2.9 m/s at this turn rate -- derivation in the doc);
+      (ii) the reported omega 1-sigma matches the measured scatter within
+           25% (the fit's own error bar is honest);
+      (iii) model selection: CT on the strong turn >= 85% of trials, CV on
+           straight tracks >= 95% (the 4-sigma bar holds both ways)."""
+    n_pts, dt, speed, omega = 15, 0.1333, 9.0, 20.0
+    rng = np.random.default_rng(2026)
+    n_trials = 320
+    v_err_ct, v_err_mean, omega_hats, omega_sigmas, picked_ct = [], [], [], [], 0
+    for _ in range(n_trials):
+        rows, vels = _turn_track(n_pts, dt, speed, heading0_deg=30.0,
+                                 omega_deg_s=omega)
+        records = _noisy_turn_records(rows, vels, rng)
+        sol = fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT,
+                      max_residual_m=20.0)
+        v_true = vels[-1]
+        # the OLD estimator: whole-window mean of the reported velocities
+        vmean = (float(np.mean([r.vn for r in records])),
+                 float(np.mean([r.ve for r in records])))
+        v_err_mean.append(math.hypot(vmean[0] - v_true[0], vmean[1] - v_true[1]))
+        v_err_ct.append(math.hypot(sol.belief_vel0_ned[0] - v_true[0],
+                                   sol.belief_vel0_ned[1] - v_true[1]))
+        if sol.model == "ct":
+            picked_ct += 1
+            omega_hats.append(sol.omega_rad_s)
+            omega_sigmas.append(sol.omega_sigma_rad_s)
+    rms_ct = float(np.sqrt(np.mean(np.array(v_err_ct) ** 2)))
+    rms_mean = float(np.sqrt(np.mean(np.array(v_err_mean) ** 2)))
+    frac_ct = picked_ct / n_trials
+    meas_sigma = float(np.std(np.array(omega_hats) - math.radians(omega)))
+    rep_sigma = float(np.mean(omega_sigmas))
+    print(f"\n[cue_relay CT MC] n={n_trials}: v-at-latch RMS ct={rms_ct:.3f} "
+          f"vs whole-window-mean={rms_mean:.3f} m/s; CT picked {frac_ct:.0%}; "
+          f"omega sigma measured={math.degrees(meas_sigma):.2f} vs "
+          f"reported={math.degrees(rep_sigma):.2f} deg/s")
+    assert rms_ct < 0.5 * rms_mean, (rms_ct, rms_mean)              # (i)
+    assert abs(meas_sigma - rep_sigma) < 0.25 * rep_sigma, (        # (ii)
+        meas_sigma, rep_sigma)
+    assert frac_ct >= 0.85, frac_ct                                 # (iii) turn
+
+    # (iii) straight side: same noise, omega = 0 -> CV >= 95%
+    picked_cv = 0
+    for _ in range(n_trials):
+        rows, vels = _turn_track(n_pts, dt, speed, heading0_deg=30.0,
+                                 omega_deg_s=0.0)
+        records = _noisy_turn_records(rows, vels, rng)
+        sol = fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT,
+                      max_residual_m=20.0)
+        if sol.model == "cv":
+            picked_cv += 1
+    assert picked_cv / n_trials >= 0.95, picked_cv / n_trials
+
+
+def test_ct_straight_track_result_is_byte_identical_to_the_cv_fitter():
+    """Regression: when CV is selected (straight track), the emitted velocity
+    must be EXACTLY the whole-window mean of the reported velocities -- the
+    pre-curve behaviour, unchanged."""
+    rows, vels = _turn_track(15, 0.1333, 9.0, heading0_deg=45.0, omega_deg_s=0.0)
+    records = _noisy_turn_records(rows, vels, np.random.default_rng(5))
+    sol = fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT,
+                  max_residual_m=20.0)
+    assert sol.model == "cv" and sol.omega_rad_s == 0.0
+    assert sol.belief_vel0_ned[0] == pytest.approx(
+        float(np.mean([r.vn for r in records])), abs=1e-12)
+    assert sol.belief_vel0_ned[1] == pytest.approx(
+        float(np.mean([r.ve for r in records])), abs=1e-12)
+
+
+def test_ct_noise_free_turn_recovers_omega_and_latch_state():
+    rows, vels = _turn_track(15, 0.1333, 9.0, heading0_deg=10.0,
+                             omega_deg_s=25.0)
+    records = _noisy_turn_records(rows, vels, np.random.default_rng(6),
+                                  sigma_pos=0.0, sigma_v=0.0)
+    sol = fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT)
+    assert sol.model == "ct"
+    # linear-trend omega under-reads by ~sinc(omega*T/2) ~ 2-3% (disclosed)
+    assert sol.omega_rad_s == pytest.approx(math.radians(25.0), rel=0.05)
+    assert sol.belief_vel0_ned[0] == pytest.approx(vels[-1][0], abs=0.15)
+    assert sol.belief_vel0_ned[1] == pytest.approx(vels[-1][1], abs=0.15)
+    # latch position from the quadratic fit -- the linear fit would be biased
+    rows_arr = rows[-1]
+    n_true, e_true = rows_arr[1], rows_arr[2]
+    assert sol.belief_r0_ned[0] == pytest.approx(n_true, abs=0.2)
+    assert sol.belief_r0_ned[1] == pytest.approx(e_true, abs=0.2)
+
+
+def test_ct_position_only_short_window_falls_back_to_cv():
+    """Position-only curve detection at a 2 s window is BELOW the noise floor
+    (sigma_a ~ 4 m/s^2 vs a ~3 m/s^2 real turn) -- the significance bar must
+    keep it CV on most trials; the doc says a ~4-5 s window is needed."""
+    rng = np.random.default_rng(7)
+    cv_picked = 0
+    n_trials = 40
+    for _ in range(n_trials):
+        rows, vels = _turn_track(15, 0.1333, 9.0, heading0_deg=30.0,
+                                 omega_deg_s=20.0)
+        records = [CueRecord(t=t, lat=lat, lon=lon, alt_m_msl=alt)
+                   for (t, n, e, d) in rows
+                   for lat, lon, alt in [_ned_to_lla(
+                       n + rng.normal(0, _SIGMA_POS),
+                       e + rng.normal(0, _SIGMA_POS),
+                       d + rng.normal(0, _SIGMA_POS))]]
+        sol = fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT,
+                      max_residual_m=30.0)
+        if sol.model == "cv":
+            cv_picked += 1
+    assert cv_picked / n_trials >= 0.75, cv_picked / n_trials
+
+
+def test_ct_position_only_long_window_detects_the_turn():
+    """Same turn, ~5 s window, noise-free positions: the quadratic path must
+    detect it (this is the regime the doc says position-only needs)."""
+    rows, vels = _turn_track(38, 0.1333, 9.0, heading0_deg=30.0,
+                             omega_deg_s=15.0)
+    records = [CueRecord(t=t, lat=lat, lon=lon, alt_m_msl=alt)
+               for (t, n, e, d) in rows
+               for lat, lon, alt in [_ned_to_lla(n, e, d)]]
+    sol = fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT,
+                  max_residual_m=30.0)
+    assert sol.model == "ct"
+    assert sol.omega_rad_s == pytest.approx(math.radians(15.0), rel=0.12)
+
+
+def test_ct_extrapolate_follows_the_arc():
+    rows, vels = _turn_track(15, 0.1333, 9.0, heading0_deg=0.0,
+                             omega_deg_s=30.0)
+    records = _noisy_turn_records(rows, vels, np.random.default_rng(8),
+                                  sigma_pos=0.0, sigma_v=0.0)
+    sol = fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT)
+    assert sol.model == "ct"
+    dt = 1.0
+    sol2 = sol.extrapolate_to(sol.latch_t + dt)
+    # velocity must have ROTATED by ~omega*dt, same speed
+    h1 = math.atan2(sol.belief_vel0_ned[1], sol.belief_vel0_ned[0])
+    h2 = math.atan2(sol2.belief_vel0_ned[1], sol2.belief_vel0_ned[0])
+    assert (h2 - h1) == pytest.approx(sol.omega_rad_s * dt, rel=1e-6)
+    assert sol2.speed_ms == pytest.approx(sol.speed_ms, rel=1e-9)
+    # position advanced along the TRUE arc: compare against the generator
+    rows_ext, _ = _turn_track(2, dt, 9.0, heading0_deg=math.degrees(h1),
+                              omega_deg_s=math.degrees(sol.omega_rad_s),
+                              r0_ned=sol.belief_r0_ned, t0=sol.latch_t)
+    assert sol2.belief_r0_ned[0] == pytest.approx(rows_ext[1][1], abs=1e-6)
+    assert sol2.belief_r0_ned[1] == pytest.approx(rows_ext[1][2], abs=1e-6)
+
+
+def test_ct_extrapolation_caps_fail_closed():
+    base = dict(latch_t=0.0, belief_r0_ned=(20.0, 5.0, 0.0),
+                belief_vel0_ned=(9.0, 0.0, 0.0), speed_ms=9.0,
+                heading_deg=0.0, residual_rms_m=0.5, n_points=15,
+                span_s=2.0, vel_source="reported",
+                origin_lla=(_ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT))
+    from flight.cue_relay import CueSolution
+    # heading-uncertainty cap: sigma 0.1 rad/s * 4 s = 0.4 rad > 0.35
+    sol = CueSolution(model="ct", omega_rad_s=0.3, omega_sigma_rad_s=0.1, **base)
+    with pytest.raises(CueQualityError, match="heading uncertainty"):
+        sol.extrapolate_to(4.0)
+    # arc cap: 0.6 rad/s * 3 s = 1.8 rad > pi/2 (sigma small enough to pass)
+    sol2 = CueSolution(model="ct", omega_rad_s=0.6, omega_sigma_rad_s=0.01, **base)
+    with pytest.raises(CueQualityError, match="arc"):
+        sol2.extrapolate_to(3.0)
+    # inside both caps: fine
+    sol3 = CueSolution(model="ct", omega_rad_s=0.3, omega_sigma_rad_s=0.03, **base)
+    out = sol3.extrapolate_to(1.0)
+    assert out.latch_t == 1.0
+    # CV solutions are never capped (unchanged behaviour)
+    sol4 = CueSolution(**base)
+    assert sol4.extrapolate_to(30.0).latch_t == 30.0
+
+
+def test_ct_violent_turn_beyond_the_regime_cap_fails_closed():
+    """A turn faster than TURN_OMEGA_MAX_RAD_S (here a hard direction
+    reversal) must NOT be fitted as CT -- it falls to CV, whose residual gate
+    then refuses it. Same spirit as the pre-curve residual test."""
+    rows, vels = _turn_track(15, 0.1333, 9.0, heading0_deg=0.0,
+                             omega_deg_s=120.0)   # 2.09 rad/s > 1.2 cap
+    records = _noisy_turn_records(rows, vels, np.random.default_rng(9),
+                                  sigma_pos=0.0, sigma_v=0.0)
+    with pytest.raises(CueQualityError, match="residual"):
+        fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT,
+                max_residual_m=1.0)

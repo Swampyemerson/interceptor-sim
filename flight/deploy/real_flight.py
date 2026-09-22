@@ -2877,10 +2877,14 @@ def build_config(args) -> MissionConfig:
         except CueQualityError as e:
             raise SystemExit(f"[cue] REFUSED (fail-closed): {e} -- retype "
                              f"--target-start/--target-vel by hand instead")
+        _turn = (f", turn={math.degrees(cue_sol.omega_rad_s):+.1f} deg/s "
+                 f"(1s {math.degrees(cue_sol.omega_sigma_rad_s):.1f})"
+                 if getattr(cue_sol, "model", "cv") == "ct" else "")
         print(f"[cue] GPS-fitted belief: target-start={args.target_start} "
               f"target-vel={args.target_vel} (n={cue_sol.n_points} pts, "
               f"span={cue_sol.span_s:.2f}s, residual={cue_sol.residual_rms_m:.2f} m, "
-              f"vel_source={cue_sol.vel_source})")
+              f"vel_source={cue_sol.vel_source}, "
+              f"model={getattr(cue_sol, 'model', 'cv')}{_turn})")
     heading = args.dash_heading_deg
     t_lead = None
     dash_plan_m = None

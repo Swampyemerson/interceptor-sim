@@ -31,6 +31,12 @@ terminal that flies toward the target's rough area and then lets the camera
 do the precise work once it's close enough to see it. **So: build this relay,
 but only for the pursuit terminal.**
 
+**Curved tracks (added 2026-09-22, builder ask):** the fitter no longer
+refuses a TURNING target — it now detects a coordinated turn, fits it, and
+extrapolates along the arc. A turn too weak to prove is treated as a
+straight line (the safe default); a track that fits *neither* a line nor a
+turn is still refused outright. Details in §12.
+
 ## 1. Hardware correction (read before anything else here)
 
 This task's brief said the target FC is a SpeedyBee F405. **That's stale.**
@@ -140,13 +146,16 @@ optional (the FC's own reported Doppler/EKF ground velocity, NED, m/s).
 
 **`fit_cue(records, own_lat, own_lon, own_alt_m_msl, ...) -> CueSolution`**
 turns records + the interceptor's own pre-launch GPS fix into
-`belief_r0_ned`/`belief_vel0_ned` — an ordinary least-squares straight-line
-fit of each record's local-tangent-plane NED position against time (see
-`lla_to_ned`), anchored so the intercept term IS the position at the last
-(latest) sample — i.e. **the fit itself averages down single-fix noise**,
-it doesn't just report the last raw fix. If every record in the window
-carries a reported `vn/ve/vd`, those are averaged and preferred
-(`vel_source="reported"`); otherwise the OLS slope is used
+`belief_r0_ned`/`belief_vel0_ned` — a least-squares fit of each record's
+local-tangent-plane NED position against time (see `lla_to_ned`), anchored
+so the intercept term IS the position at the last (latest) sample — i.e.
+**the fit itself averages down single-fix noise**, it doesn't just report
+the last raw fix. Two motion models are tried — a straight line (CV) and a
+coordinated turn (CT, §12) — and the turn is used only when the data proves
+it (`CueSolution.model` says which won). If every record in the window
+carries a reported `vn/ve/vd`, those drive the velocity estimate
+(`vel_source="reported"`; whole-window average on a straight track, a
+trend-at-latch on a turn — §12); otherwise the position fit is used
 (`vel_source="fit"`) — **never silently mixed per-axis.**
 
 **Quality gate — FAILS CLOSED** (`CueQualityError`, never a degraded
@@ -154,14 +163,16 @@ default): too few points (`min_points`, default 8), too short a time span to
 fit a velocity at all (`min_span_s`, default 1.0 s), stale data at emission
 (`max_staleness_s`, default 1.0 s, only checked if the caller passes `now_t`),
 a non-converging/degenerate fit (duplicate timestamps → rank-deficient), or a
-position-fit residual too large to trust (`max_residual_m`, default 5 m —
-catches a bad fix, multipath, or a target that maneuvered mid-window instead
-of flying straight).
+position-fit residual too large to trust (`max_residual_m`, default 5 m,
+applied to whichever motion model was selected — catches a bad fix,
+multipath, or a maneuver that fits *neither* a straight line nor a
+coordinated turn, e.g. a hard reversal).
 
 **`CueSolution.extrapolate_to(trigger_t)`** — the *one* legal post-latch
-operation: advances the belief position by the already-latched constant
-velocity to the real trigger instant. Pure arithmetic on frozen numbers; does
-not re-read anything.
+operation: advances the belief to the real trigger instant *along the
+fitted model* — straight for CV, along the circular arc for CT (§12, with
+fail-closed caps). Pure arithmetic on frozen numbers; does not re-read
+anything.
 
 **Integration loader** (no edit to `real_flight.py` — see §8 for the
 proposed hookup): `cue_to_target_start_arg`/`cue_to_target_vel_arg` format a
@@ -388,6 +399,75 @@ checkout). Full flight suite: see the handback report for the combined run.
   telemetry stream) and grade whichever is used in the assumptions register.
   An isim arm injecting the measured 2.84 m vertical error into the pursuit
   belief is the cheap pre-registered test that settles it.
+
+---
+## 12. Curved (turning) tracks — the 2026-09-22 upgrade
+
+**What changed.** The original fitter assumed the target flies straight and
+*refused* any window where it didn't. Now the fitter tries two motion models
+and lets the data pick:
+
+- **CV** ("constant velocity") — a straight line. Still the default, and the
+  *only* model a weak or unprovable turn is allowed to produce.
+- **CT** ("constant turn rate") — a coordinated turn: the target holds its
+  speed and turns at a steady rate, tracing a circular arc. Vertical stays CV.
+
+**How a turn is proven (detect, then refine).** The detector fits a straight
+trend to the *reported per-sample GPS velocities* (the Doppler velocities the
+FC broadcasts — several times cleaner than differencing positions, and
+instantaneous, which is what makes a 2 s window enough). The component of
+that trend *perpendicular* to the velocity IS the turn; it must be
+**4-sigma significant** (the F-test on the one nested turn parameter,
+F = t², sigma taken from the fit's own residuals) before CT is believed.
+The asymmetry is deliberate: a missed weak turn costs almost nothing (CV is
+then nearly right, and the camera fixes the rest), while a phantom turn on a
+straight track would inject error. Once detected, the turn rate is REFINED
+by an exact constant-turn-rate profile fit (for a fixed rate the model is
+linear in everything else, so a bounded 1-D search nails it) — the detector
+alone under-reads a strong turn by ~13%, the refined estimate is unbiased
+(verified noise-free to <5% and MC-checked against its own error bar).
+
+**What the numbers say (Monte Carlo, bench noise levels — pos 2.3 m/axis,
+vel 1.22 m/s/axis, 15 points over ~1.9 s, 9 m/s target, 20 deg/s turn;
+`test_ct_monte_carlo_velocity_at_latch_selection_and_omega_sigma`):**
+
+| quantity | old (whole-window mean) | new (CT fit) |
+|---|---|---|
+| velocity-at-latch error, RMS | ~2.9 m/s (chord bias — the mean points where the target *was* mid-window) | well under half that (assertion bound; typically ~0.7 m/s) |
+| turn-rate 1-sigma | — | ~3.5 deg/s, and the fit's own reported sigma matches the measured scatter within 25% |
+| model picked | — | CT on the strong turn ≥85% of trials; CV on straight tracks ≥95% |
+
+**Window-length rule of thumb.** With reported velocities, a ~2 s window
+detects turns from roughly 12–15 deg/s up. WITHOUT them (position-only
+fallback, e.g. a stream that drops the velocity fields), acceleration must
+come from the *second* derivative of noisy positions — noise ~4 m/s² at 2 s,
+as large as a real turn — so short position-only windows deliberately stay
+CV; plan on **~4–5 s of data** before a position-only turn is provable
+(error shrinks with the window squared).
+
+**Fail-closed properties kept, and two new ones.**
+- A track that fits *neither* model (hard reversal, multipath garbage) still
+  raises `CueQualityError` — the residual gate now applies to whichever
+  model was selected.
+- Turns beyond ~69 deg/s (≈1 g lateral at 9 m/s) are outside the model's
+  regime — such tracks fall through to CV and its residual gate refuses
+  them.
+- **Arc extrapolation caps (both REFUSE rather than silently straighten):**
+  `extrapolate_to` on a CT solution raises if the accumulated 1-sigma
+  heading uncertainty (`omega_sigma × gap`) would exceed ~20 deg (the edge
+  of the chase terminal's comfortable aim band — at 3.5 deg/s sigma that is
+  a ~5.7 s gap), or if the extrapolated arc itself exceeds a quarter turn.
+  Past either bound the honest move is to re-latch fresher data, which the
+  §8 field discipline (continuous re-fit through STANDBY) provides anyway.
+
+**Division of labor, unchanged.** The cue still hands the vehicle ONE
+position + ONE velocity at the trigger instant; the pursuit terminal's own
+belief propagation stays straight-line. That is deliberate: over the ~6–13 s
+engagement the camera (Phase B) re-measures the target continuously and
+absorbs post-latch curvature — the cue's job is only to deliver the vehicle
+to the right neighbourhood pointed the right way, and the CT fit's
+contribution is that on a turning target the latched velocity now points
+where the target is GOING, not where it spent the last two seconds.
 
 ---
 *Provenance: `docs/launch_mechanism_plan.md` §§1-3 (launch geometry, aim-error
