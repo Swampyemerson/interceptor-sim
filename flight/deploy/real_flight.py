@@ -2822,6 +2822,36 @@ def self_test() -> int:
 
 def build_config(args) -> MissionConfig:
     """Resolve the pre-flight constants ONCE, before anything flies."""
+    # OPTIONAL GPS-fitted cue (docs/cue_relay_plan.md): overrides the
+    # operator-typed --target-start/--target-vel with a belief fitted from
+    # ~2 s of relayed target GPS. Honesty class: PRE-FLIGHT constant, graded
+    # given-noisy (real measured error, see the plan doc's budget), read at
+    # EXACTLY this one call site before the state machine exists -- nothing
+    # downstream re-reads the file, the same read-once mechanism that covers
+    # the solved heading. FAIL-CLOSED: a cue that does not pass the quality
+    # gate aborts the launch setup; it never silently degrades to a default.
+    if getattr(args, "cue_json", None):
+        from flight.cue_relay import CueQualityError, load_cue_for_real_flight
+        if None in (args.own_lat, args.own_lon, args.own_alt_m_msl):
+            raise SystemExit(
+                "[cue] --cue-json requires --own-lat/--own-lon/--own-alt-m-msl "
+                "(the interceptor's own pre-launch GPS fix)")
+        # DELIBERATELY no now_t: record timestamps come from the GROUND
+        # producer's clock, and comparing them against this Pi's clock is a
+        # cross-clock-base staleness check -- the exact fault class
+        # TriggerState.clock_fault exists for. Staleness is enforced where
+        # the clock matches the records: the ground-side relay refuses to
+        # ship a file older than the plan doc's T budget (§8).
+        try:
+            args.target_start, args.target_vel, cue_sol = load_cue_for_real_flight(
+                args.cue_json, args.own_lat, args.own_lon, args.own_alt_m_msl)
+        except CueQualityError as e:
+            raise SystemExit(f"[cue] REFUSED (fail-closed): {e} -- retype "
+                             f"--target-start/--target-vel by hand instead")
+        print(f"[cue] GPS-fitted belief: target-start={args.target_start} "
+              f"target-vel={args.target_vel} (n={cue_sol.n_points} pts, "
+              f"span={cue_sol.span_s:.2f}s, residual={cue_sol.residual_rms_m:.2f} m, "
+              f"vel_source={cue_sol.vel_source})")
     heading = args.dash_heading_deg
     t_lead = None
     dash_plan_m = None
@@ -2989,6 +3019,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
                      help="C3 = target altitude + loft (TODO-BUILDER)")
     aim.add_argument("--standby-yaw-deg", type=float, default=None,
                      help="standby aim yaw; default = C1")
+    aim.add_argument("--cue-json", default=None,
+                     help="flight.cue_relay JSON-lines cue file "
+                          "(docs/cue_relay_plan.md) -- overrides "
+                          "--target-start/--target-vel with a GPS-fitted, "
+                          "FAIL-CLOSED belief. Requires --own-lat/--own-lon/"
+                          "--own-alt-m-msl (the interceptor's own pre-launch "
+                          "fix). Read exactly once, in build_config, before "
+                          "anything flies -- same read-once discipline as the "
+                          "solved heading.")
+    aim.add_argument("--own-lat", type=float, default=None,
+                     help="interceptor pre-launch latitude (with --cue-json)")
+    aim.add_argument("--own-lon", type=float, default=None,
+                     help="interceptor pre-launch longitude (with --cue-json)")
+    aim.add_argument("--own-alt-m-msl", type=float, default=None,
+                     help="interceptor pre-launch altitude MSL (with --cue-json)")
 
     dash = ap.add_argument_group("dash")
     dash.add_argument("--dash-speed", type=float, default=16.0)

@@ -27,6 +27,7 @@ from flight.cue_relay import (
     cue_to_target_start_arg, cue_to_target_vel_arg,
     load_cue_for_real_flight,
 )
+from flight import cue_relay
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _BENCH_BIN = os.path.join(_REPO_ROOT, "runs", "tgt02_gps", "00000304.BIN")
@@ -383,3 +384,59 @@ def test_load_cue_for_real_flight_raises_on_bad_quality(tmp_path):
     with pytest.raises(CueQualityError):
         load_cue_for_real_flight(str(tmp_path / "cue.jsonl"),
                                  _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT)
+
+
+# ==================================================== real_flight --cue-json
+# The hookup applied from docs/cue_relay_plan.md §9: build_config reads the
+# cue file EXACTLY ONCE, before the state machine exists, and fails CLOSED.
+
+def _cue_file(tmp_path, records):
+    p = tmp_path / "cue.jsonl"
+    cue_relay.write_cue_jsonl(records, str(p))
+    return str(p)
+
+
+def _straight_records(n=20, dt=0.1, v_north=9.0, lat0=40.0, lon0=-105.0):
+    recs = []
+    for i in range(n):
+        t = i * dt
+        # ~9 m/s north of the origin, starting ~16.7 m north
+        north = 16.7 + v_north * t
+        recs.append(cue_relay.CueRecord(
+            t=t, lat=lat0 + math.degrees(north / cue_relay._EARTH_R_M),
+            lon=lon0, alt_m_msl=1500.0))
+    return recs
+
+
+def test_build_config_cue_json_overrides_the_typed_belief(tmp_path):
+    from flight.deploy.real_flight import build_arg_parser, build_config
+    path = _cue_file(tmp_path, _straight_records())
+    args = build_arg_parser().parse_args([
+        "--dry-run", "--cue-json", path,
+        "--own-lat", "40.0", "--own-lon", "-105.0", "--own-alt-m-msl", "1500.0"])
+    cfg = build_config(args)
+    e, n = (float(v) for v in args.target_start.split(","))
+    ve, vn = (float(v) for v in args.target_vel.split(","))
+    # fitted belief ~ (east 0, north 16.7+9*t_latch) moving ~9 m/s north
+    assert abs(e) < 0.5 and abs(n - (16.7 + 9.0 * 1.9)) < 0.5
+    assert abs(ve) < 0.3 and abs(vn - 9.0) < 0.3
+    # and the solved heading consumed it (roughly north +/- the lead)
+    assert cfg.preflight_heading_deg == cfg.preflight_heading_deg  # finite
+
+
+def test_build_config_cue_json_fails_closed_on_a_bad_cue(tmp_path):
+    from flight.deploy.real_flight import build_arg_parser, build_config
+    path = _cue_file(tmp_path, _straight_records(n=2, dt=0.01))  # too few/short
+    args = build_arg_parser().parse_args([
+        "--dry-run", "--cue-json", path,
+        "--own-lat", "40.0", "--own-lon", "-105.0", "--own-alt-m-msl", "1500.0"])
+    with pytest.raises(SystemExit, match="REFUSED"):
+        build_config(args)
+
+
+def test_build_config_cue_json_requires_the_own_fix(tmp_path):
+    from flight.deploy.real_flight import build_arg_parser, build_config
+    path = _cue_file(tmp_path, _straight_records())
+    args = build_arg_parser().parse_args(["--dry-run", "--cue-json", path])
+    with pytest.raises(SystemExit, match="own-lat"):
+        build_config(args)

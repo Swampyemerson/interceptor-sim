@@ -304,7 +304,12 @@ the ERROR in that velocity estimate. So the climb itself can be a normal
    latch-once honesty audit, `launch_mechanism_plan.md` §5, must be extended
    to cover this new variable the same way it covers the bearing latch).
 
-## 9. Proposed `real_flight.py` hookup (NOT applied — another agent owns that file)
+## 9. `real_flight.py` hookup — APPLIED 2026-09-22 (head), tests in `flight/tests/test_cue_relay.py`
+
+> Applied with one change from the proposal below: **no `now_t` staleness check on the Pi** —
+> record timestamps come from the GROUND producer's clock, and comparing them against the Pi's
+> clock is a cross-clock-base fault (the `TriggerState.clock_fault` class). Staleness is enforced
+> ground-side, where the clock matches the records (§8's T budget). Original proposal kept for the record:
 
 ```diff
 --- a/flight/deploy/real_flight.py
