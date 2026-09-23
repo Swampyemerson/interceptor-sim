@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->870db4f<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->5b9e700<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -2839,7 +2839,7 @@
      {
       "id": "tgt-05",
       "gate": true,
-      "text": "Props-off bench setup: bind the RP1 to the Pocket M2, verify motor order + directions, set and TEST the kill switch and RC failsafe. Props stay off until every check passes.",
+      "text": "Props-off bench setup: bind the RP1 to the Pocket M2, verify motor order + directions, set and TEST the kill switch and RC failsafe. Props stay off until every check passes. [2026-09-23 BENCH INCIDENT + LESSON: moving the powered ESC sparked a motor solder joint against the CARBON FRAME -- carbon conducts. No visible damage, builder unplugged fast. Mitigation before proceeding: heatshrink/liquid-tape the joint, insulate the frame under the ESC (Kapton/electrical tape), then sweep EVERY pad/joint for frame clearance, then re-power through the smoke stopper. Never reposition powered electronics.]",
       "why": "6S tri-blades draw blood; motor-direction and kill-switch checks are exactly when a quad tries to jump."
      },
      {
@@ -3200,7 +3200,7 @@
       "name": "TBS Source One V6 5in frame kit",
       "status": "ordered",
       "role": "The airframe; same family as the target's frame — shared arms/spares.",
-      "notes": "Re-run the nose-cantilever prop-clearance geometry on THIS frame (hard gate)."
+      "notes": "Re-run the nose-cantilever prop-clearance geometry on THIS frame (hard gate). Carbon is CONDUCTIVE -- insulate under boards, no exposed joint may reach frame/hardware."
      },
      {
       "name": "Skystars KO60II 60A 3-6S AM32 4-in-1 ESC (30x30)",
@@ -3299,7 +3299,7 @@
     "steps": [
      {
       "id": "afr-01",
-      "text": "Assemble frame + motors + ESC; solder the power tree (PM02, BEC, XT60)."
+      "text": "Assemble frame + motors + ESC; solder the power tree (PM02, BEC, XT60). CARBON CONDUCTS (lesson from the target build's 2026-09-23 bench spark): insulate the frame under every board, heatshrink all exposed joints, and clearance-sweep every pad against frame edges, screws and standoffs BEFORE first power."
      },
      {
       "id": "afr-02",
