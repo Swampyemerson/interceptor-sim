@@ -161,3 +161,35 @@ instrument on the new CSVs, pass/fail independent of CPA):**
   `isim/flight_adapter.py`, `isim/seeker.py`,
   `scripts/gazebo_pursuit_crosscheck.py`; tests in
   `flight/tests/test_pursuit_terminal.py` (pose-range block).
+
+## RESULT (2026-09-23, n=8 flown as registered — scored by the head session)
+
+CPAs sorted (m): 0.545 · 0.656 · 0.740 · 0.964 · 0.969 · 1.584 · 1.657 ·
+1.715. **Median 0.9665 m.** Logs: `logs/xcheck_gz_20260923_refly/` (driver
+CPA vs independent tick-trace recompute agree <0.01 m on all 8).
+
+Against the registered criteria: (1) 5/8 <= 1.0 m — FAIL by one; (2) median
+0.9665 — FAIL; (3) 0/8 <= 0.35 m — FAIL; (4) zero pre-pass failsafe aborts —
+PASS (all 8 ended SAFE via the designed pursuit_miss path; f1's SAFE fired
+1.14 s before the true minimum — noted, consistent with residual estimator
+error, CPA window unaffected); (5) camera-driven on every flight — PASS
+(70–97 detections consumed, 8.5–9.8/s).
+
+Instrument clauses: **C1 GREEN** — median KF range bias at the last inbound
+6 m crossing = +0.220 m (was −1.07; per-flight f1 +0.366 / f8 +0.392 exceed
+the ±0.30 individually; the registered clause is the median). **C2 GREEN** —
+in-ENGAGE cadence 9.03 det/s (per-flight 8.46–9.85), median tick dt 0.056 s.
+
+**Registered verdict: NULL with C1–C2 green.** The fixes landed in the
+flying configuration and moved what they were attributed to move (range bias
+5x smaller, cadence 1.7x up, median CPA 1.510 -> 0.967 m). What survives, in
+direction-only language: the fixed system flies a materially tighter chase.
+What does not survive: the CPA bar, and the honest-plant isim's 0.09–0.31 m
+band — the surrogate still over-predicts performance ~3x, so isim does NOT
+graduate to sanctioned-surrogate status. Per the registered branch, the
+residual is the pursuit LAW's fit to a slow plant (hot approach / late
+braking — a guidance-design question, runnable as ordinary pre-registered
+isim experiments against the honest ENGAGE fit) or something outside the
+five suspects; candidates already on record from the re-fit's declared
+residuals: PnP noise spread under-modeled ~1.6x, pessimistic vertical
+channel, the delay/tau split. The default-terminal swap STAYS BLOCKED.
