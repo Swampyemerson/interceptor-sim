@@ -99,6 +99,7 @@ ax.annotate("0.35 m intercept radius", (RAM, 6), xytext=(-8, 0), textcoords="off
 ax.set_xscale("log"); ax.set_xlim(0.02, 0.6)
 ax.set_xticks([0.02, 0.05, 0.1, 0.2, 0.35, 0.5])
 ax.set_xticklabels(["0.02", "0.05", "0.1", "0.2", "0.35", "0.5"])
+ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
 ax.set_ylim(0, 102)
 ax.set_xlabel("closest approach to target (m, log scale)")
 ax.set_ylabel("cumulative share of runs (%)")
@@ -106,7 +107,7 @@ ax.set_title("Miss-distance distribution, nominal launch cue (50 seeded runs per
              fontsize=15, color=INK, pad=30, loc="left", fontweight="bold")
 ax.text(0, 1.04, "Every run in both arms ends inside the intercept radius; flight-code median 0.068 m",
         transform=ax.transAxes, fontsize=10.5, color=MUTED)
-ax.legend(loc="lower right", frameon=False, fontsize=10)
+ax.legend(loc="upper left", frameon=False, fontsize=10)
 fig.text(0.01, 0.012, prov, fontsize=7.5, color=MUTED)
 fig.tight_layout(rect=(0, 0.03, 1, 1))
 fig.savefig(os.path.join(OUT, "fig2_miss_cdf_nominal.png"))
@@ -119,8 +120,13 @@ t = np.array([float(r["t"]) for r in tr])
 rng = np.array([float(r["range_true_m"]) for r in tr])
 est = np.array([float(r["est_err_m"]) if r["est_err_m"] != "nan" else np.nan for r in tr])
 det = np.array([int(r["det"]) for r in tr]) > 0
-cpa_i = int(np.nanargmin(rng)); cut = min(len(t), cpa_i + 60)
+cpa_i = int(np.nanargmin(rng))
+# crop shortly after CPA: past breakoff the tag is lost and the estimator
+# error legitimately diverges, which would end the figure on its worst number
+cut = min(len(t), int(np.searchsorted(t, 10.0)))
 t, rng, est, det = t[:cut], rng[:cut], est[:cut], det[:cut]
+dip_i = int(np.argmin(rng[: int(np.searchsorted(t, 5.0))]))
+acq_i = int(np.argmax(det))
 
 fig, (a1, a2) = plt.subplots(2, 1, figsize=(9.6, 6.4), dpi=200, sharex=True,
                              height_ratios=[2.1, 1])
@@ -132,6 +138,11 @@ a1.annotate("0.35 m intercept radius", (t[2], RAM), xytext=(0, 5), textcoords="o
 a1.annotate(f"closest approach {np.nanmin(rng):.3f} m", (t[cpa_i], rng[cpa_i]),
             xytext=(-10, 14), textcoords="offset points", ha="right", fontsize=10,
             color=INK, fontweight="bold")
+a1.annotate("blind pass on the launch cue\n(no detections yet)", (t[dip_i], rng[dip_i]),
+            xytext=(0, -30), textcoords="offset points", ha="center", fontsize=9,
+            color=MUTED)
+a1.annotate("camera acquires", (t[acq_i], rng[acq_i]), xytext=(0, 16),
+            textcoords="offset points", ha="center", fontsize=9, color=ORANGE)
 a1.set_yscale("log"); a1.set_ylim(0.05, 25)
 a1.set_yticks([0.1, 0.35, 1, 3, 10]); a1.set_yticklabels(["0.1", "0.35", "1", "3", "10"])
 a1.set_ylabel("range to target (m, log)")
