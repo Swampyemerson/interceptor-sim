@@ -659,3 +659,31 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
 - **Evidence.** isim/specs/wind_chase_prereg_2026-09-23.md (registered
   PASS + amendment); isim/vehicle.py gust model (byte-identical off,
   trace-hash verified); commit aa47972.
+
+## ADR-0112 — Chase-regime camera bracket: +10° fixed up-tilt recommended (2026-09-23)
+
+- **Context.** The printed bracket's angle spec was "measured sprint dash
+  pitch (~25–40°)" — a sprint-era rationale; the ruled chase flies
+  near-level. The +3 m-above height cell was the chase's worst
+  (34%), attributed to frame-top exits (41% of blind approach frames) +
+  too-small (35%), with Phase A never closing the vertical gap.
+- **Decision.** RECOMMEND +10° fixed up-tilt for the chase bracket
+  (print-time adoption is the builder's call — queued). Registered
+  two-part A/B (part 1: 0/10/20°; part 2 re-registered: 8/12/15°;
+  n=50 paired/cell, all realistic errors on): +10° lifts +3 m
+  34%→70% (p90 4.18→1.00 m, decodes 33→60, top-exit 40.8%→12.7%,
+  window halved) at zero measured cost on −2..+2 m; the knee is between
+  8° and 10°; {10,12,15} tie statistically, broken to the smaller angle
+  per the registered rule (bottom-edge exposure guard — the 0 m
+  bottom-edge share creeps monotonically with angle and reaches 6.5% at
+  the disqualified +20°). The honest chase height band extends to
+  ~−2..+3 m; +4 m stays OUTSIDE (range-limited — tilt buys pointing,
+  not pixels).
+- **Scope.** isim evidence: ranks and locates. Gazebo/bench confirmation
+  (and the loaded-throttle prop-clearance corner-spin at the chosen
+  angle, the standing hard gate) come before the printed bracket counts
+  as validated. The sprint-era dash-pitch spec stays on record for the
+  sprint mode.
+- **Evidence.** isim/specs/chase_tilt_prereg_2026-09-23.md (both
+  registrations + results + mechanism tables); scripts/chase_tilt_ab.py;
+  the +3 m attribution in isim/specs/keepframe_prereg_2026-09-23.md.

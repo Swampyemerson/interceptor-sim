@@ -460,7 +460,7 @@
    "test": {
     "how": "FIRST TEST DONE 2026-09-17: flying 0.25 m too high took the adopted config from 7 of 8 touching to 1 of 8 -- the error passes straight into the miss (0.249 of 0.250 m). The headline survives roughly +/-0.1 m of height error. Still to do: a finer sweep and a second seed.",
     "cost": "Sim batches only (free).",
-    "status": "Chase regime measured: +/-2 m of height error tolerated (74-88% contact), cliff at +3 m ATTRIBUTED to Phase-A acquisition geometry (41% frame-top exits + 35% too-small; Phase A never closes the vertical gap). Decode-triggered climb assist = registered NULL; Phase-A vertical sweep = measured regression (graveyard). Open lever: fixed up-tilt A/B (in flight 2026-09-23). Sprint-config finer sweep/second seed still owed."
+    "status": "Chase regime measured: band -2..+2 m stock; +3 m cliff attributed (frame-top exits + too-small; Phase A never closes the gap) and RECOVERED to 70% by the +10 deg fixed tilt (registered A/B, ADR-0112) -- band ~-2..+3 m with the bracket; +4 m range-limited. Climb assist NULL; vsweep graveyarded. Sprint-config finer sweep still owed."
    },
    "state": "unchecked",
    "origin": "Found 2026-09-16 while building the height-reference fix: the offset that lines the camera up with the target is part vehicle geometry (measurable) and part the target's height (given).",
@@ -516,6 +516,18 @@
    "rec": "Keep the chase fix scoped to the chase (in flight). For the stock paths, port BOTH fixes together behind one flag and re-run their gates once -- or accept them as-flown history if the chase becomes the default. One ruling, not two.",
    "blocked": "A silent port would invalidate the as-flown validation history (thresholds were tuned on the biased range) -- needs your ruling + gate re-runs.",
    "doc": "isim/specs/parity_trace_2026-09-22.md (candidate (e)) · flight/pursuit_terminal.py _measured_r_ned"
+  },
+  {
+   "id": "chase-bracket-angle",
+   "question": "The printed camera bracket is adjustable 10-30 deg and you lock it at build time. New registered evidence: for the ruled CHASE, +10 deg up-tilt takes the 'target 3 m above the guess' case from 34% to 70% touching, at zero measured cost in the normal band. The old spec (set it to the measured sprint dash pitch, 25-40 deg) only applies if the sprint ever becomes the flying mode again. What angle does the bracket get?",
+   "options": [
+    "Lock +10 deg for the chase (the registered recommendation; re-verify at the bench corner-spin)",
+    "Keep the bracket adjustable until the first real dash ULog, then decide sprint-vs-chase spec",
+    "Print two brackets (+10 chase / dash-pitch sprint) and swap per engagement mode"
+   ],
+   "rec": "Option 1 -- chase-only is your ruled engagement, the +10 deg win is mechanism-confirmed with zero band cost, and the prop-clearance corner-spin gate at +10 deg is comfortably inside the boom geometry's margin. The bracket stays adjustable anyway if a re-decision comes.",
+   "blocked": "Nothing today (the print is not on the critical path until the airframe arrives ~Oct 5-15); it becomes blocking at assembly.",
+   "doc": "ADR-0112; isim/specs/chase_tilt_prereg_2026-09-23.md"
   }
  ],
  "plain_log": [
@@ -944,7 +956,7 @@
     1
    ],
    "status": "half-done",
-   "active": "FINAL (builder 2026-07-17): FIXED up-tilt mount — no servo, adaptive tilt REJECTED for simplicity. Angle = the REAL airframe's measured steady DASH PITCH (sim ~35°, expect ~25-40°) so the boresight sits on the horizon (where a same-altitude crossing target is) during the dash. BUILD/VALIDATE pending: measure real dash pitch from the ULog -> print wedge -> bench prop-clearance at loaded throttle -> validation flight.",
+   "active": "FINAL (builder): FIXED up-tilt mount, no servo. Angle is a PRINT-TIME builder decision; two regime-specific specs now exist: sprint-era = measured dash pitch (~25-40 deg, from the first real dash ULog); CHASE regime (ruled engagement) = +10 deg RECOMMENDED from a registered two-part isim A/B (ADR-0112) -- the chase flies near-level so dash pitch does not bind. Bench prop-clearance corner-spin at the chosen angle stays the HARD gate.",
    "note": "MEASURED 2026-09-17 (docs/pointing_prereg.md): pointing has TWO parts. Vertical: a 25 deg up-tilt centres the target on 100/89/69% of frames by range band (35 deg: 89/84/63) -- first number from real attitude data. Horizontal: on a lead course the target is 40-75 deg off the nose, so the vehicle must yaw toward the predicted target, not along its sprint, and must point the nose BEFORE launching. Together: 2% -> 99% central in sim. NOT in the adopted flight config, because today's terminal flies worse once it can see (see stage terminal). TWO HONEST LIMITS of the chosen fixed tilt: (a) it CANNOT track the pitch swing (accel ~+40° -> brake ~-35°) — it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (acceptable: target is large close-in + the streak coasts); (b) tilt and mount are ONE decision — a >~15° tilt exceeds the flush mount's ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry. The prior up15 NULL (ADR-0068) was a different context (cue-era terminal parity, guessed +15°); this is acquisition-first, sized to the measured dash pitch.",
    "evidence": [
     "ADR-0065 (#46)",
@@ -979,6 +991,10 @@
     {
      "date": "2026-07-21",
      "note": "In-view probes CONFIRM the fixed-tilt premise: FOV COVERAGE is the binding lever (75% of 8-12 m ticks have the target out-of-frame under the dash pitch; in-view detection is 70%), and the feared horizon/ground-background ceiling was REFUTED in sim (ground ~ sky recall). So the up-tilt's job = keep the co-altitude crosser IN FRAME during the level dash, exactly what the fixed angle=dash-pitch does. Angle still set from the real ULog dash pitch; adaptive tilt stays rejected."
+    },
+    {
+     "date": "2026-09-23",
+     "note": "Chase-regime tilt A/B (registered, two parts): +10 deg lifts the +3 m-above height cell 34%->70% inside 0.35 m (p90 4.18->1.00 m, top-exit blind frames 40.8%->12.7%) at zero measured cost on -2..+2 m; 10/12/15 statistically tied, tie broken to the smaller angle; +20 deg taxes nominal. Chase height band extends to ~-2..+3 m with the bracket; +4 m is range-limited (outside the honest band). isim evidence; Gazebo/bench confirmation next. ADR-0112; isim/specs/chase_tilt_prereg_2026-09-23.md."
     }
    ],
    "caption": "Tilting the camera so the target stays in the picture during the sprint. Half-built.",
@@ -1627,6 +1643,14 @@
    "plain": "After the 4 trace fixes the flight-code port matches the prototype on the clean parity grid (native 100% / 0.120 m).",
    "trust": "sim",
    "note": "isim numbers, clean conditions, n=50/cell; aim20 70% / alt+2 76% remain below native (no re-approach, ADR-0107 deferred); the Gazebo cross-check (median 1.51 m) is the open transfer gap."
+  },
+  {
+   "label": "Chase height-error band (with +10 deg tilt)",
+   "value": "-2..+3 m (was -2..+2)",
+   "note": "Registered two-part isim A/B, n=50 paired/cell, all realistic errors on: +3 m cell 34%->70% inside 0.35 m at +10 deg, zero measured cost on -2..+2; +4 m stays outside (range-limited). isim ranks -- Gazebo/bench confirms before the printed bracket counts as validated.",
+   "provenance": "isim/specs/chase_tilt_prereg_2026-09-23.md · scripts/chase_tilt_ab.py · ADR-0112",
+   "plain": "With the camera angled up 10 degrees, the height guess can be 2 m low to 3 m high and the chase still touches.",
+   "trust": "sim"
   }
  ],
  "bom_tiers": [
