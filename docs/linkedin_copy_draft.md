@@ -75,4 +75,8 @@ Software written with Claude Code under my direction.
    scrub, so "no GPS" phrasing may survive there too).
 3. Media set: fig1 robustness grid, fig2 miss CDF, fig3 engagement anatomy,
    MBSE functional architecture, MBSE system boundary, plus bench photos.
-   Sim intercept video to follow.
+   VIDEO (builder-approved 2026-09-23): use the fast two-act cut,
+   demo_out/linkedin_hero/linkedin_fast_intercept.mp4 -- the 16 m/s sprint
+   pass (CPA 0.334 m, single flight, best-case givens) + the camera-guided
+   3 m/s intercept (0.238 m clean). The earlier single-act video
+   (linkedin_intercept.mp4) is superseded for the post.

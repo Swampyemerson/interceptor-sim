@@ -403,6 +403,25 @@ FPV = {
 }
 
 
+def apply_speed_envelope_overrides(args):
+    """Fast-intercept forensics 2026-09-23: optional CLI overrides for the
+    classic terminal command envelope (see the --v-perp-max argparse comment).
+    Called from main() AFTER apply_fpv_profile so an explicit flag wins.
+    No flag passed = byte-identical to the historical constants."""
+    global V_PERP_MAX, V_CLOSE_MAX, V_TOTAL_MAX
+    if args.v_perp_max is not None:
+        V_PERP_MAX = args.v_perp_max
+    if args.v_close_max is not None:
+        V_CLOSE_MAX = args.v_close_max
+    if args.v_total_max is not None:
+        V_TOTAL_MAX = args.v_total_max
+    if any(v is not None for v in (args.v_perp_max, args.v_close_max,
+                                   args.v_total_max)):
+        print(f"[m4] SPEED-ENVELOPE OVERRIDE: V_CLOSE_MAX={V_CLOSE_MAX} "
+              f"V_PERP_MAX={V_PERP_MAX} V_TOTAL_MAX={V_TOTAL_MAX} m/s "
+              "(fast-intercept forensics 2026-09-23; NOT the adopted config)")
+
+
 def apply_fpv_profile():
     """Overwrite the module-level guidance constants with the FPV bundle
     (S1, ADR-0010). Called once from main() when --fpv is set, BEFORE the
@@ -2122,6 +2141,21 @@ def parse_args():
         help="tag velocity 'vx,vy' (m/s) -- forwarded to m4_target_mover.py "
              "(default: 0,2.0, or 0,6.0 under --handoff)",
     )
+    # SPEED-ENVELOPE OVERRIDES (2026-09-23 fast-intercept forensics): the
+    # classic-config terminal command envelope (V_CLOSE/V_PERP 3.0, V_TOTAL
+    # 4.0 m/s) was tuned for the original 2 m/s crosser and is the measured
+    # binding constraint at 4-6 m/s targets (v_perp rides its rail 65-87% of
+    # ENGAGE; the 6 m/s flight is commanded slower than the target in every
+    # axis). Default None = the historical constants, byte-identical.
+    parser.add_argument(
+        "--v-perp-max", type=float, default=None,
+        help="override V_PERP_MAX (m/s, lateral pro-nav clamp; classic 3.0)")
+    parser.add_argument(
+        "--v-close-max", type=float, default=None,
+        help="override V_CLOSE_MAX (m/s, along-LOS close speed; classic 3.0)")
+    parser.add_argument(
+        "--v-total-max", type=float, default=None,
+        help="override V_TOTAL_MAX (m/s, combined horizontal clamp; classic 4.0)")
     parser.add_argument(
         "--no-preplace", action="store_true",
         help="ADR-0033 (default OFF, i.e. internal pre-placement ON): skip the "
@@ -5269,6 +5303,9 @@ async def main():
             f"terminal-freeze {TERMINAL_FREEZE_RANGE_M} m, V_PERP_MAX {V_PERP_MAX}, "
             f"BETA_GAIN_RANGE {BETA_GAIN_RANGE}"
         )
+    # Speed-envelope overrides (after any FPV profile, so an explicit flag
+    # always wins; printed loudly so a run's log names its envelope).
+    apply_speed_envelope_overrides(args)
     if args.split_freeze:
         print(
             "[m4] Split-freeze ON (ADR-0023 Tier-1 lever B / ADR-0014 lever 2): "

@@ -224,3 +224,20 @@
 - Routing consequence (pending re-confirmation): Opus 5.5 joins Fable 5 forks and
   opus48-worker as a usable high-capability lane; sonnet-worker stays the mechanical
   volume lane.
+
+### 2026-09-23 addendum: first Opus 5.5 bounce (3 passes, then 1 hard fail)
+
+- Fourth headless task of the day — a read-only forensic analysis of the
+  speed-ladder flights ("why does the intercept fall off a cliff between 3
+  and 6 m/s", ZEM/terminal-correction/breakoff vocabulary, CSV pointers) —
+  hard-failed `[general_harms]` (req_011CfLgL8u2GBMxTpRJ5KtuG) before doing
+  any work. Same repo, same session-day as the three passes (guidance-math
+  analysis, cross-check harness build, README audit).
+- Not reworded, per the standing rule. The head absorbed the task.
+- Read: Opus 5.5 is a USABLE but not UNIFORM lane on this repo — treat it
+  like the 2026-07-era soft-bounce regime (spawn it, keep tasks small enough
+  for the head to absorb a bounce), not like a guaranteed lane. Also
+  session-gotcha confirmed: the Agent-tool `opus55-worker` type inherits the
+  RUNNING session's CLI binary (2.1.276 here), so in-process spawns fail
+  with a version error until the session restarts; the headless CLI is the
+  in-session lane.

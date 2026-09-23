@@ -32,8 +32,10 @@ for SPD in "$@"; do
         --topic "$TOPIC" --out "$FR" --timeout 300 \
         > "$OUTROOT/cap_$TAG.log" 2>&1 &
     CAP=$!
+    # SCOUT_EXTRA_ARGS: optional extra m4 flags (e.g. the 2026-09-23
+    # speed-envelope overrides); empty = the historical classic config.
     timeout 300 "$REPO/.venv/bin/python" "$REPO/scripts/m4_intercept.py" \
-        --law pronav --target-vel "0,$SPD" 2>&1 \
+        --law pronav --target-vel "0,$SPD" ${SCOUT_EXTRA_ARGS:-} 2>&1 \
         | tee "$OUTROOT/run_$TAG.log" | grep -E "M4_RESULT|BREAKOFF|FAIL" | tail -3
     kill -TERM "$CAP" 2>/dev/null; sleep 2
     bash "$REPO/scripts/sim_kill.sh" >/dev/null 2>&1; sleep 3
