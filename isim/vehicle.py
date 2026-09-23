@@ -114,6 +114,30 @@ class VehicleParams:
     # --- wind ---
     wind_ned: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # m/s, constant wind
     gust_std: float = 0.0  # m/s, per-axis gust std (Gaussian, iid per step)
+    # OU ("colored") gusts (wind_chase_prereg_2026-09-23.md): a smooth,
+    # time-correlated gust velocity ADDED to wind_ned, per axis, stationary
+    # sigma gust_ou_std and correlation time gust_ou_tau_s -- a Dryden-ish
+    # low-frequency turbulence stand-in (the iid gust_std above averages out
+    # at dt=5 ms and cannot exercise the velocity loop's bandwidth).
+    # DEFAULT OFF (0.0): no RNG draw, no state change, byte-identical to the
+    # pre-existing model. Wind (steady + OU gust) enters the dynamics ONLY
+    # through the drag term below -- drag opposes velocity RELATIVE TO AIR,
+    # so the wind push is a = drag_linear * v_wind: coefficient
+    # drag_linear_horiz (fitted 0.1586 s^-1 against ZERO-WIND Gazebo flights,
+    # same order as PX4's default MCOEF 0.15 s^-1) -- a PLACEHOLDER as a wind
+    # coupling, never a measured airframe wind coefficient.
+    # HORIZONTAL-ONLY BY DEFAULT: `gust_ou_std` drives the north/east axes;
+    # the vertical axis has its own knob, default 0. Reason (measured,
+    # seed-3 shakeout in wind_chase_prereg_2026-09-23.md): the model's
+    # vertical channel is unfitted placeholder-class twice over
+    # (drag_linear_vert = 0.35 default, never fitted; kp_vel_vert fitted to
+    # 0.81 -- far softer than PX4's real ~4 Z-vel loop), and 3-axis gusts
+    # walk altitude ~1.5 m through it, dropping the tag out of the camera's
+    # VERTICAL field of view -- a fake "wind breaks the chase" manufactured
+    # by an unfitted channel, not a wind mechanism.
+    gust_ou_std: float = 0.0  # m/s, per-axis sigma of the OU gust, north/east
+    gust_ou_std_vert: float = 0.0  # m/s, sigma of the OU gust, down axis
+    gust_ou_tau_s: float = 2.0  # s, OU correlation time (all axes)
 
 
 class _DelayLine:
@@ -157,6 +181,7 @@ class QuadVelocityModel:
         # dimensionless, see _dir_to_tilt/_tilt_to_dir for the encoding
         self._thrust_mag = G  # actual specific thrust magnitude, starts at hover
         self._yaw = 0.0  # actual yaw (rad)
+        self._gust_ou = np.zeros(3)  # OU gust velocity state (m/s, NED)
         self._delay: Optional[_DelayLine] = None
         if hasattr(self, "_slewed_v"):
             del self._slewed_v
@@ -281,6 +306,15 @@ class QuadVelocityModel:
 
         # --- wind + drag ---
         wind = np.array(p.wind_ned, dtype=float)
+        if (p.gust_ou_std > 0.0 or p.gust_ou_std_vert > 0.0) and self._rng is not None:
+            # Exact OU discretization: x' = x*decay + sigma*sqrt(1-decay^2)*N(0,1)
+            # keeps the stationary per-axis sigma at its sigma for any dt.
+            decay = math.exp(-dt / max(p.gust_ou_tau_s, 1e-6))
+            diffuse = math.sqrt(max(0.0, 1.0 - decay * decay))
+            sigma = np.array([p.gust_ou_std, p.gust_ou_std, p.gust_ou_std_vert])
+            self._gust_ou = (self._gust_ou * decay
+                             + self._rng.normal(0.0, 1.0, size=3) * sigma * diffuse)
+            wind = wind + self._gust_ou
         if p.gust_std > 0.0 and self._rng is not None:
             wind = wind + self._rng.normal(0.0, p.gust_std, size=3)
         rel_v = vel - wind

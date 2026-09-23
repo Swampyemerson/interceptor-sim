@@ -363,6 +363,13 @@ class Scenario:
     # but "straight" (the draw needs a per-run rng; `build()` raises
     # otherwise).
     target_motion: str = "straight"
+    # Wind A/B (isim/specs/wind_chase_prereg_2026-09-23.md): generic
+    # VehicleParams kwarg overrides, applied LAST in build() (after
+    # Scatter's own vehicle-param draws, so a deliberate sweep cell -- e.g.
+    # a controlled wind_ned/gust_ou_std -- wins over Scatter's random wind
+    # draw). None/{} = no override, byte-identical to before this field
+    # existed. This perturbs the TRUE world only; nothing guidance-visible.
+    vehicle_overrides: Optional[dict] = None
     # v7 (hybrid_v7.md): "hybrid" concept only -- generic HybridSprintConfig
     # kwarg overrides, mirroring `pursuit_overrides`'s pattern exactly (kept
     # SEPARATE because that field is PursuitConfig-specific and this one is
@@ -543,6 +550,8 @@ def build(
     stop_not_before_s = max(go_at_s, trigger_go_at_s) + STOP_AFTER_GO_BUFFER_S
 
     vp = vehicle_params if scat is None else _scatter_vehicle_params(vehicle_params, scat, rng)
+    if scn.vehicle_overrides:
+        vp = replace(vp, **scn.vehicle_overrides)
     vehicle = QuadVelocityModel(vp)
 
     # Camera calibration error: the TRUE camera (what the seeker renders
