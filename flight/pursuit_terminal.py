@@ -558,7 +558,15 @@ class PursuitTerminalGuidance:
         track_dir = _unit(self._v_track, np.array([1.0, 0.0, 0.0]))
         r_aim = self._r_track - cfg.d_behind_m * track_dir
         cmd_v = self._v_track + cfg.kp_pos * r_aim
-        yaw = _yaw_toward(r_aim, self._prev_yaw_deg)
+        # Yaw at the believed TARGET (self._r_track), matching the prototype
+        # (isim.concepts: _yaw_toward(pos_belief - own_pos, ...)). Yawing at
+        # r_aim instead froze the camera off-target the moment the vehicle
+        # station-kept at the rendezvous point (r_aim ~ 0 -> fallback holds the
+        # arrival bearing), so Phase B could never start -- found by the Gazebo
+        # cross-check flight 1, 2026-09-23 (docs/xcheck_gazebo_pursuit_prereg.md);
+        # invisible to the isim parity grid, whose approach geometry left the
+        # frozen bearing pointing along-track anyway.
+        yaw = _yaw_toward(self._r_track, self._prev_yaw_deg)
         return cmd_v, yaw
 
     def _phase_b_cmd(self, own_vel: np.ndarray) -> Tuple[np.ndarray, float, bool]:

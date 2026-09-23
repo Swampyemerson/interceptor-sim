@@ -20,9 +20,19 @@ camera — or do its vehicle-response and measurement assumptions break?
   flight code with a real detector fed by the gz camera topic (AprilTag
   decode, tag_size 0.5 m, intrinsics from CameraInfo, fx ~= 540.3).
 - Geometry: the canonical isim crossing — target speed 9 m/s, cross-range
-  6.5 m, lead 16.2 m, tag pre-yawed so its face is anti-parallel to the
-  target velocity (rear-facing to the chaser; constant for a straight leg).
-  Belief seed from the same `--target-start/--target-vel` the mover flies.
+  6.5 m, lead 16.2 m — ROTATED 90 deg so the target flies world +X: the
+  mover's position-only set_pose resets the board to identity each tick, and
+  the identity board faces -X, so +X is the only rear-facing track the
+  unmodified mover can fly (harness refuses --tag-yaw-deg for this reason).
+  The isim prediction is rotation-invariant, so it stands unchanged. Belief
+  seed from the same `--target-start/--target-vel` the mover flies.
+- `--engage-max-s 25` passed explicitly (the flight default 12 s is sized for
+  the fly-by; ADR-0105 already flags chase configs must raise it via the
+  banner, never silently).
+- One fresh sim boot per flight (the check_m4 clean-state discipline).
+- Amendment note (2026-09-23, still before any flight): this geometry/config
+  block was updated after the harness build disclosed the two items above;
+  prediction, criteria, and null-meaning are untouched.
 - n = 8 flights, identical geometry (Gazebo's own run-to-run variation is the
   noise source; no injected scatter). Engagement window 25 s.
 - Scoring: centre-to-centre CPA from the sim-time-stamped own track vs the

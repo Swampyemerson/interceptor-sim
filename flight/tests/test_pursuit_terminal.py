@@ -87,11 +87,11 @@ def test_phase_a_flies_toward_a_point_behind_the_moving_belief():
     assert sp.v_north == pytest.approx(cfg.v_max_ms, abs=0.05)
 
 
-def test_phase_a_yaws_toward_the_aim_point():
-    # A moving belief (not stationary) so "the track direction" is
-    # unambiguous: target 20 m east, moving east at 5 m/s -> aim point stays
-    # due east of own the whole time (d_behind_m trails ALONG the track,
-    # which is also due east here), so yaw should converge to ~90 deg.
+def test_phase_a_yaws_toward_the_believed_target():
+    # Target 20 m east, moving east at 5 m/s: the believed target stays due
+    # east of own the whole time, so yaw should converge to ~90 deg. (This
+    # geometry cannot distinguish target-yaw from aim-point-yaw -- both sit
+    # due east; the discriminating case is the station-keeping test below.)
     g, _, _ = guidance(belief_r0_ned=(0.0, 20.0, 0.0), belief_vel0_ned=(0.0, 5.0, 0.0))
     t = 0.0
     sp = None
@@ -99,8 +99,38 @@ def test_phase_a_yaws_toward_the_aim_point():
         t += DT
         sp, tel = g.step(None, own(), t=t)
     assert tel.phase == "A"
-    # aim east of own -> yaw ~ 90 deg (atan2(east, north))
+    # target east of own -> yaw ~ 90 deg (atan2(east, north))
     assert sp.yaw_deg == pytest.approx(90.0, abs=1.0)
+
+
+def test_phase_a_station_keeping_still_points_camera_at_target():
+    """REGRESSION PIN (Gazebo cross-check flight 1, 2026-09-23): own is AT the
+    rendezvous point, so r_aim ~ 0 -- the old law (yaw toward r_aim) fell back
+    to the arrival bearing and FROZE the camera off-target for the whole
+    engagement (zero decodes at 12 m dead astern). The prototype (and now the
+    port) yaws at the believed TARGET, d_behind_m ahead along the track."""
+    d = float(PursuitTerminalConfig().d_behind_m)
+    # Believed target d_behind_m EAST, both flying east at 5 m/s, own velocity
+    # matching: the KF's relative state stays (0, d, 0) and r_aim stays ~0 --
+    # exact station-keeping. own() faces NORTH (psi=0), so the old law's
+    # fallback held yaw at ~0 while the target sat due EAST (90 deg).
+    g, cfg, _ = guidance(belief_r0_ned=(0.0, d, 0.0),
+                         belief_vel0_ned=(0.0, 5.0, 0.0))
+    t = 0.0
+    sp = None
+    for _ in range(30):
+        t += DT
+        sp, tel = g.step(None, own(n_e_d_vel=(0.0, 5.0, 0.0)), t=t)
+    assert tel.phase == "A"
+    assert abs(_wrap(sp.yaw_deg - 90.0)) < 15.0
+
+
+def _wrap(d):
+    while d > 180.0:
+        d -= 360.0
+    while d < -180.0:
+        d += 360.0
+    return d
 
 
 def test_before_go_at_s_commands_zero_and_reports_standby():
