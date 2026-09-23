@@ -142,3 +142,66 @@ recommended for adoption.** The code + tests remain in the tree as a
 config-gated, byte-identity-locked lever (cost: none while off), but the
 next attack on the cliff should target the Phase-A belief-altitude error /
 acquisition geometry via the per-tick trace, not this trigger's tuning.
+
+---
+
+## +3 m acquisition attribution (diagnosis follow-up, 2026-09-23)
+
+DIAGNOSIS ONLY — ground truth (engine trace + FrameReport + each run's own
+scattered camera/decode params) is used here to attribute frames after the
+fact; none of it feeds guidance. Per-frame attribution over the APPROACH
+WINDOW (ENGAGE entry → first decode, or run end if none), +3 m vs +1 m
+aim-0 OFF arms, 20 seeds each, every no-decode camera frame assigned to
+exactly one cause (frame-out buckets from the true target projection
+through the run's true camera incl. tilt error and current attitude;
+in-frame buckets from the seeker's own decode model, dominant suppressor):
+
+| cause (frame share of window)     | +3 m (4384 fr) | +1 m (1498 fr) |
+|-----------------------------------|---------------:|---------------:|
+| out of frame — TOP (vertical)     |     **40.8%**  |     15.2%      |
+| in frame — too small (<8 px eff)  |     **34.8%**  |      2.1%      |
+| in frame — tag backside (i≥90°)   |     15.2%      |   **63.0%**    |
+| in frame — small size (stochastic)|      5.3%      |      1.3%      |
+| out of frame — both axes          |      2.2%      |      6.9%      |
+| in frame — corner clipped         |      0.8%      |      2.3%      |
+| in frame — oblique incidence      |      0.8%      |      4.5%      |
+| out of frame — horizontal only    |      0.0%      |      2.3%      |
+| behind camera / other             |      0.0%      |      2.2%      |
+
+Context rows: runs with ≥1 decode after ENGAGE: 18/20 (+3 m) vs 20/20
+(+1 m); median approach-window length 3.9 s vs 1.8 s. **Vertical gap
+through Phase A (+ = target above): +3 m cell median +3.04 m at ENGAGE →
++3.00 m at window end (min |gap| 2.88 m)** — Phase A NEVER closes the
+vertical error; it station-keeps at the believed (wrong) altitude
+indefinitely, exactly as designed, because the belief carries zero
+altitude error and nothing else commands vertical motion before decodes
+arrive. (+1 m cell: +1.04 → +0.90 m — it doesn't close it either, but 1 m
+sits inside the vertical FoV/decode envelope so it doesn't need to.)
+
+READ: the +3 m acquisition failure is (1) frame-top exit, 41% — but during
+NO-DECODE frames, which is why the decode-triggered keepframe assist
+couldn't reach it — and (2) too-small/range, 35%, the longer slant range
+the unclosed 3 m offset forces. Both trace to the same root: Phase A holds
+the believed altitude with no vertical strategy. The candidate lever
+(proposal only, nothing implemented): a bounded **Phase-A vertical
+bracket/search sweep** about the believed target altitude, biased UP since
+the measured cliff is one-sided — it would attack both dominant buckets at
+once. **HISTORY GATE (found on the mandatory check before building): this
+lever has a MEASURED NEGATIVE on record.** The native concept's v4 #2/#3
+Phase-A vertical+yaw search (`isim/concepts.py`, `vsearch_*` config block;
+n=100 × 2 facings × 5 cases) made the rear-tag **alt+3m cell WORSE, 43% →
+32%**, plus nominal 71→67, alt−2m 74→68, aim20° 54→40 — "perturbing a
+Phase-A trajectory that was about to succeed anyway costs more often than
+a genuinely-stuck trajectory gets rescued" — and is default-off (both
+amplitudes 0.0) as a measured verdict, not a mere non-adoption. Caveats
+that could justify a REGISTERED re-test (a decision above this doc's pay
+grade): that measurement predates the v7 lens correction (fx 933-era vs
+today's fx 385 / 118° HFOV — a different vertical-FoV regime; "a threshold
+validated at one operating point is not validated at another" cuts both
+ways), the tested design differed (arrival-triggered, symmetric, coupled
+to a yaw sweep — not a continuous biased-up bracket), and this attribution
+is new mechanism evidence the v4 test did not have. Secondary options
+without that history: a deliberate upward standby-altitude bias, and
+`cam_tilt_up_deg` (raises the vertical FoV ceiling; interacts with the
+existing tilt history). `d_behind_m` alone is weaker: it lowers the target
+in frame but lengthens range, feeding the too-small bucket.
