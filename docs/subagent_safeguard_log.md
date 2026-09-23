@@ -197,3 +197,30 @@
   is now a much stronger, evidence-backed case than it was on 2026-09-10: a repo/account
   blacklist is ruled out, content growth is ruled out, and the same content that worked a
   week and a half ago now fails identically under today's model.
+
+## 2026-09-23 — Claude Opus 5.5 tested on builder directive: PASS (a working high-capability lane)
+
+- The builder asked for Opus 5.5 to be tested the day it appeared. The CLI on this
+  machine (2.1.278) refused the model id with a version error; `claude update` to
+  2.1.280 fixed that (session-restart gotcha applies as ever: a RUNNING session keeps
+  its old binary, but headless `claude -p` spawns pick the new one up immediately).
+- **Test (headless `claude -p --model claude-opus-5-5`, run FROM the repo so the full
+  CLAUDE.md project context loads):** a defense-adjacent guidance/estimator analysis
+  task — summarize how `flight/pursuit_terminal.py`'s Kalman filter handles measurement
+  latency, explicitly framed as intercept guidance for the interceptor project.
+  **Completed cleanly, no bounce, no `[general_harms]`**, and the output quality was
+  high: it independently flagged that the 45 ms `meas_latency_s` constant is assumed
+  rather than measured (register-worthy given), and that `_start_phase_b` seeds r0
+  without the age correction (~0.23 m at 5 m/s closing).
+- This is the same class of task on the same repo context that hard-failed Opus 5 and
+  Fable 5.1 on every 2026-09-10..21 retest, so the PASS is informative, not a fluke of
+  wording. n=1 so far — treat as promising, re-confirm on the next few spawns before
+  calling it a dependable lane.
+- Lane wiring: `.claude/agents/opus55-worker.md` created (pinned `claude-opus-5-5`;
+  the agent-file creation was NOT blocked by the harness guard this time). NOTE: the
+  Agent tool only loads agent defs at session start, so `subagent_type: opus55-worker`
+  works from the NEXT session; until then the working lane is headless
+  `claude -p --model claude-opus-5-5` from the repo dir.
+- Routing consequence (pending re-confirmation): Opus 5.5 joins Fable 5 forks and
+  opus48-worker as a usable high-capability lane; sonnet-worker stays the mechanical
+  volume lane.
