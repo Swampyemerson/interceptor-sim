@@ -608,3 +608,54 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
   version/bind phrase.
 - **Evidence.** Builder's order screenshots (2026-09-23 session);
   docs/hardware_order_list.md §0d ORDERED banner.
+
+## ADR-0110 — Keep-in-frame climb assist NULL; Phase-A vertical sweep graveyarded on surfaced evidence (2026-09-23)
+
+- **Context.** Builder ask: the chase should climb to hold the tag when it
+  slips toward the frame top. The chase already steers vertically once its
+  KF has a track (±2 m height-error band, 74–88% contact); the open cell
+  was the +3 m-above cliff (42→34% across sweeps).
+- **Decision.** (a) The decode-triggered assist (keepframe_assist) is built,
+  byte-identity-pinned, default OFF — and stays OFF: registered A/B NULL
+  (+3 m cell +4/+6 pts vs the registered ≥15; nominal cells unregressed).
+  (b) The Phase-A vertical search sweep is NOT rebuilt: the native concept
+  carries a MEASURED regression (rear-tag alt+3 43%→32%; nominal 71→67;
+  aim20 54→40; mechanism: perturbing about-to-succeed trajectories) that
+  had been recorded only in isim/concepts.py comments — now surfaced to
+  the contract graveyard. (c) The open lever is the FIXED up-tilt angle
+  (builder's standing fixed-mount ruling; chase flies near-level so the
+  sprint-era "size to dash pitch" spec does not bind) — A/B in flight.
+- **Why.** The +3 m attribution (per-frame, 20 seeds vs a +1 m control):
+  41% of blind approach frames are off the frame TOP, 35% in-frame but too
+  small, and Phase A never closes the vertical gap (+3.04 m at ENGAGE →
+  +3.00 m at window end) — acquisition-side, unreachable by any
+  decode-triggered term, and the sweep's recorded failure mechanism
+  applies harder to earlier-engaging variants.
+- **Evidence.** isim/specs/keepframe_prereg_2026-09-23.md (prereg + results
+  + attribution + amended history); isim/specs/pursuit_concept_v4.md #2/#3;
+  flight/tests/test_pursuit_terminal.py (21 passed; suites 475/1x).
+
+## ADR-0111 — Wind under the chase: feedback absorbs it; the drag table scopes to the sprint (2026-09-23)
+
+- **Context.** Builder question: why do unmeasured airframe wind/drag
+  coefficients matter if the vehicle measures its position and corrects?
+- **Answer (code-verified + measured).** For the ruled chase they mostly
+  don't: Phase A propagates the relative belief with MEASURED own velocity
+  every tick (pursuit_terminal step(): r_track += (v_track − own_vel)·dt;
+  the sole dead-reckoned branch announces itself as a fault), Phase B's KF
+  takes own velocity as a control input including the measurement-age term,
+  and the velocity controller rejects steady wind with no drag knowledge
+  (pinned test: <0.3 m/s residual in 3 m/s wind). Registered isim sweep
+  (default-OFF OU-gust + steady-wind model, placeholder coefficient,
+  horizontal only, n=50/cell): contact within 6 pts of no-wind through
+  4.5 m/s all directions; 8 m/s headwind −14 pts, dominated by DECODE loss
+  from wind-lean attitude, not overtake-margin erosion (~13% authority).
+- **Scope kept honest.** The unmeasured MCOEF/BCOEF sag table feeds ONLY
+  the open-loop sprint's aim solve (nothing measures there, so a
+  coefficient must predict); the sprint remains the flying default until
+  the Gazebo gate, so the register entry stays live but re-scoped. Untested:
+  vertical gust coupling (unfitted channel, excluded pre-flight), a
+  wind-drifting target (correlated errors), real-airframe magnitude.
+- **Evidence.** isim/specs/wind_chase_prereg_2026-09-23.md (registered
+  PASS + amendment); isim/vehicle.py gust model (byte-identical off,
+  trace-hash verified); commit aa47972.

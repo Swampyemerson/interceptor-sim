@@ -17,13 +17,13 @@
  },
  "now": {
   "as_of": "2026-09-23",
-  "where": "Speed day: the fast-intercept limits are named with data (overtake margin, command envelope, standing-start geometry), the narrow-camera question is answered NO, and an adaptive speed governor is built, pre-registered and adopted at concept level (ADR-0108).",
-  "finding": "The chase transfers in kind, not in number: in Gazebo the port flies a camera-driven chase (46-67 detections/flight, zero aborts) but closes to median 1.51 m vs the 0.122 m matched isim prediction. Default-terminal swap stays BLOCKED; next is tick-trace diagnosis, not tuning.",
+  "where": "Refinement day, builder-directed: the Gazebo transfer gap is ATTRIBUTED (sim plant ~2x too fast + a systematic 15-25% box-width range bias the detector's own pose range doesn't share + a half-rate detect gate), and the chase's wind robustness is code-verified and measured in the fast sim.",
+  "finding": "Two honest nulls earned their keep: the keep-in-frame climb assist failed its registered bar (the +3 m cliff is acquisition-side -- decodes never happen), and the Phase-A vertical search sweep surfaced a MEASURED regression hiding in code comments -- now graveyarded.",
   "next": [
-   "Tick-trace the Gazebo chase CSVs (registered suspects in the prereg doc)",
-   "Leg-1 bench: desk half DONE; needs ~10 builder-minutes (plan doc sec 13)"
+   "Evidence-based gap fixes in flight: pose-range supply, ENGAGE-regime re-fit, re-prediction",
+   "Fixed-tilt finer sweep (8/12/15 deg, re-registered) for the bracket angle"
   ],
-  "evidence": "docs/xcheck_gazebo_pursuit_prereg.md - logs/xcheck_gz_20260923_fixed/ - retired/README.md"
+  "evidence": "isim/specs/xcheck_tick_trace_2026-09-23.md - isim/specs/keepframe_prereg_2026-09-23.md - isim/specs/wind_chase_prereg_2026-09-23.md - ADR-0110/0111"
  },
  "assumptions": [
   {
@@ -300,7 +300,7 @@
     "status": "PARKED 2026-08-29. Mechanism PROVEN (probe: 5.259 deg measured vs 5.262 deg derived, bearing 270.2 vs 270.0). Driver's 20 Hz clear+publish recipe is known-broken and self-cancelling — fix is written down in ADR-0098, unspent."
    },
    "state": "accepted",
-   "ruling": "PARKED by the builder 2026-08-29 (ADR-0098). The sim CAN model wind — the Gate-0 probe proved Gazebo applies the force to within 0.003 deg of the derivation — but no wind arm will be flown, so this stays GIVEN-PERFECT and untested. Every published number still assumes a windless world; say so.",
+   "ruling": "PARKED by the builder 2026-08-29 for GAZEBO arms (ADR-0098; mechanism proven, driver fix unspent). NEW 2026-09-23: the fast sim now carries a default-OFF steady-wind + gust model (placeholder coefficient) and the CHASE measured robust through 4.5 m/s (ADR-0111) -- a mechanism read, not a magnitude claim. Published Gazebo/sprint numbers still assume a windless world; say so.",
    "origin": "docs/launch_mechanism_plan.md §9 ('Wind/gust is unmodelled everywhere')",
    "evidence": "logs/wind_gate0_20260829T15{4442,5141}Z + logs/wrench_diag_20260829_partial; ADR-0096, ADR-0098; pre-registration docs/wind_gate0_prereg.md committed BEFORE the flight (8cc2c26)"
   },
@@ -409,9 +409,9 @@
   },
   {
    "id": "wind-sag-table-unmeasured",
-   "statement": "The trim converts a wind reading into an expected dash-speed sag using a table that has never been measured — it is derived from PX4's default drag coefficients, not from this airframe.",
+   "statement": "The wind->speed-sag table feeding the OPEN-LOOP sprint's aim solve derives from PX4 default drag coefficients, never measured on this airframe. The ruled chase does not consume it (code-verified).",
    "grade": "given-perfect",
-   "if_wrong": "The lead solve aims off by whatever the table is wrong by. At the worst-case headwind the derived drag exceeds half the vehicle's tilt-limited authority, so the sag is large.",
+   "if_wrong": "Sprint arms only: the lead solve aims off by the table's error. Under chase-only the coefficient just sizes authority margins -- but the sprint is still the flying default, so the entry stays live.",
    "stages": [
     "launch_aim"
    ],
@@ -440,12 +440,12 @@
    "test": {
     "how": "Unpark the wind arm (ADR-0098 has the fix) and fly camera-terminal vs dash-only in a paired 4.5 m/s crosswind. The delta IS the camera's wind credit.",
     "cost": "Free — the mechanism is built and proven; the driver needs a small publish fix.",
-    "status": "not started — parked with the wind arm"
+    "status": "CHASE-scope isim mechanism sweep flown 2026-09-23 (placeholder drag coeff, horizontal gusts, target wind-immune): contact within 6 pts of no-wind up to 4.5 m/s; 8 m/s headwind -14 pts, dominated by decode loss from wind-lean attitude, not authority. Gazebo/real + the sprint pairing still untested."
    },
    "state": "unchecked",
    "ruling": "",
    "origin": "Builder ruling 2026-08-29: 'the camera pro nav should combat it enough' (ADR-0098)",
-   "evidence": "NOT evidence-backed. The camera has not beaten a well-aimed blind dash at any speed or aim error tested. Recorded so this is never read as validated."
+   "evidence": "isim/specs/wind_chase_prereg_2026-09-23.md (registered PASS); flight/pursuit_terminal.py Phase A closed-loop own-vel propagation (code-verified, ADR-0111). Original parking: ADR-0098."
   },
   {
    "id": "target-height-known",
@@ -460,7 +460,7 @@
    "test": {
     "how": "FIRST TEST DONE 2026-09-17: flying 0.25 m too high took the adopted config from 7 of 8 touching to 1 of 8 -- the error passes straight into the miss (0.249 of 0.250 m). The headline survives roughly +/-0.1 m of height error. Still to do: a finer sweep and a second seed.",
     "cost": "Sim batches only (free).",
-    "status": "running"
+    "status": "Chase regime measured: +/-2 m of height error tolerated (74-88% contact), cliff at +3 m ATTRIBUTED to Phase-A acquisition geometry (41% frame-top exits + 35% too-small; Phase A never closes the vertical gap). Decode-triggered climb assist = registered NULL; Phase-A vertical sweep = measured regression (graveyard). Open lever: fixed up-tilt A/B (in flight 2026-09-23). Sprint-config finer sweep/second seed still owed."
    },
    "state": "unchecked",
    "origin": "Found 2026-09-16 while building the height-reference fix: the offset that lines the camera up with the target is part vehicle geometry (measurable) and part the target's height (given).",
@@ -507,18 +507,24 @@
   },
   {
    "id": "slant-fix-stock-paths",
-   "question": "The camera range the OLDER seeker paths compute is systematically short of the true distance whenever the target sits away from the picture's centre (0.15-0.37 m in the traced close). The chase terminal is fixed; the stock and tag paths -- the ones that fly by default today -- are not. Port the fix, or leave them as validated?",
+   "question": "The shared box-measurement channel now carries TWO measured defects: the slant under-range (fixed only in the chase path) and, found by the Gazebo tick-trace, a systematic 15-25% AABB box-width under-range that the detector's own PnP pose range does not share (bias -2.0 m at 6-10 m, n=415). The chase is getting the pose-range fix under its own prereg. What happens to the OLDER stock seeker paths that still carry both?",
    "options": [
     "Port to ALL paths and re-run the affected gates (M-gates, breakoff thresholds) -- one geometry everywhere",
     "Leave the stock paths as-flown -- the fix rides only in the chase terminal; historical validations stay exactly reproducible",
     "Port to the tag terminal only (the first-kill seeker) and freeze the superseded sprint-era stock path"
    ],
-   "rec": "Option 3. The tag path flies the first kills and benefits at off-axis captures; the sprint-era stock path is superseded history whose validations assume the old geometry. Re-run the tag M-gates after the port; no silent change either way.",
+   "rec": "Keep the chase fix scoped to the chase (in flight). For the stock paths, port BOTH fixes together behind one flag and re-run their gates once -- or accept them as-flown history if the chase becomes the default. One ruling, not two.",
    "blocked": "A silent port would invalidate the as-flown validation history (thresholds were tuned on the biased range) -- needs your ruling + gate re-runs.",
    "doc": "isim/specs/parity_trace_2026-09-22.md (candidate (e)) · flight/pursuit_terminal.py _measured_r_ned"
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-09-23",
+   "text": "Builder-directed refinement day, four parallel lanes. (1) The keep-in-frame climb assist he asked for was built, pre-registered, and honestly NULLED -- at +3 m of height error the tag almost never decodes, so a camera-triggered climb cannot fire; the follow-up attribution put numbers on it (41% of blind frames off the frame top, 35% too small) and surfaced a measured regression for the obvious alternative (Phase-A vertical sweep) that had been hiding in code comments -- both now graveyarded properly. (2) His wind question is answered with code receipts and a registered sweep: the chase corrects wind by feedback (within 6 points of no-wind up to 4.5 m/s); the unmeasured drag table only ever fed the retired sprint's aim solve; what wind costs is decode loss from leaning (8 m/s head: -14 pts). (3) The Gazebo 12x transfer gap is ATTRIBUTED: sim plant ~2x too fast, a 15-25% box-width range bias (the detector's pose range is clean), and a half-rate detect gate; latency and no-re-approach exonerated; evidence-based fixes + re-prediction in flight. (4) The MBSE model gained the week's corrective subsystems, and its open-items view was found rendering every open contradiction as a BLANK row -- fixed fail-loud.",
+   "so_what": "Three registered predictions, two nulls, zero spin -- and the transfer gap stopped being a mystery and became a fix list. The chase's remaining risk is now named per axis: plant fidelity (re-fit), range bias (pose range), cadence (every-tick detect), and the height cliff (tilt A/B running). Fable 5 workers did all four lanes cleanly.",
+   "evidence": "isim/specs/{xcheck_tick_trace,keepframe_prereg,wind_chase_prereg}_2026-09-23.md - commits 23aba0b, aa47972, 0d28538, 226100f - ADR-0110/0111"
+  },
   {
    "date": "2026-09-23",
    "text": "The Tier-2 interceptor airframe order is IN — placed by the builder 2026-09-22, ahead of the tripod money gate (his call, logged ADR-0109): Source One V6 frame, Skystars 60A ESC, five ECOII motors (arrive ~Oct 5–15), RP3 receiver, Matek 12S-Pro BEC, a replacement PM02, the second Pocket TX (closing the ADR-0089 question), 16 props, two lost-model buzzers, a LiPo bag and zip ties.",
@@ -584,12 +590,6 @@
    "text": "The pursuit prototype went from 55-71% to 92-98% inside 0.35 m from one fix: a tag detection says where the target WAS when the frame was taken (45 ms earlier), and the filter was treating it as now, so the estimate trailed a 9 m/s target by 0.4 m. A per-tick estimator trace (the diagnostics the new simulator was built for) showed the constant lag in one look, after a worker's six tuning ideas had all come back null.",
    "so_what": "A bad sprint and a target at a different height now mostly do not matter in the simulator. It is written up as a proposal (ADR-0103) because it changes the flight profile, the flight code's breakoff logic and where the tag goes. The simulator's own-state is perfect, so treat the numbers as best-case until noise is added and Gazebo agrees.",
    "evidence": "commit 'isim pursuit: delayed-measurement Kalman update' - ADR-0103"
-  },
-  {
-   "date": "2026-09-17",
-   "text": "In the new simulator the fly-by concept was shown to be the limit, not the steering law: a purpose-built tag terminal scored the same as the old one, because a 0.30 m tag is readable for only ~0.6 s at 19 m/s closing. A slow-arrival pursuit concept (match the target's speed, close at a few m/s) went from 0% to 55-71% inside 0.35 m over three worker rounds; each round's gain came from a bug the new per-miss diagnostics exposed (run scored at the wrong moment, estimator seeded from noise, detection paired with the wrong instant of attitude).",
-   "so_what": "A bad sprint stops mattering (30 degrees of aim error: 53% vs 0%). Height offsets and the last second, when the tag leaves the picture, are what is left. A longer lens made it worse, not better, at this geometry. If pursuit reaches 90% it changes the flight profile and tag placement, which is the builder's call.",
-   "evidence": "isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
   }
  ],
  "narrative": {
@@ -1104,6 +1104,14 @@
     {
      "date": "2026-09-23",
      "note": "Parity defect #5 (Gazebo cross-check shakedown, flight 1): Phase A yawed at the rendezvous AIM POINT, so the moment the vehicle station-kept there (r_aim ~ 0) the yaw fallback froze the camera off-target and Phase B could never start -- invisible to the isim parity grid, whose approach geometry left the frozen bearing pointing along-track anyway. Fixed: Phase A yaws at the BELIEVED TARGET, matching the prototype; regression-pinned. Same day: adaptive speed governor A/B (pre-registered, n=50 paired seeds x 5 cells) -- cap = believed target speed + overtake margin adopted at concept level (takes 15 m/s 54->100%, 18 m/s 0->78%, never commands beyond believed-need+margin); lock-modulated closure REJECTED (cost 12-14 pts at 18 m/s -- timidity feedback keeps the tag small and decodes sparse). ADR-0108."
+    },
+    {
+     "date": "2026-09-23",
+     "note": "Keep-in-frame vertical assist (builder ask): built config-gated, byte-identity-pinned, registered A/B = NULL (+3 m cell +4 pts vs >=15 bar) -- the cliff is acquisition-side (decode fraction ~0.035); code kept as a locked OFF lever (ADR-0110). Follow-up attribution: 41% frame-top exits + 35% too-small at +3 m, Phase A never closes the vertical gap; the native Phase-A vertical search sweep found to carry a MEASURED regression (alt+3 43%->32%, pursuit_concept_v4 #2/#3) -- surfaced to the graveyard."
+    },
+    {
+     "date": "2026-09-23",
+     "note": "Gazebo 12x transfer gap ATTRIBUTED by the registered tick-trace (no tuning): (1) isim plant ~2x faster than real (dash-regime fit; misses are un-nulled cross-track, med 1.41 m); (2) AABB box-width range under-ranges 15-25% while the detector's PnP pose range is clean (KF-bias-to-CPA corr -0.84; drove an early coast latch + every false pursuit_miss abort); (3) every-other-tick detect gate (5.2 vs 25.5 det/s). Latency + no-re-approach EXONERATED. Fixes + ENGAGE-regime re-fit + re-prediction in flight; re-fly gets its own prereg. isim/specs/xcheck_tick_trace_2026-09-23.md."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
@@ -1519,6 +1527,16 @@
    "what": "Lock-quality closure modulation (chase Phase B slows when tag decodes go stale)",
    "why": "Timidity feedback: slowing on staleness keeps the range long and the tag small, so decodes stay sparse. Null on aim-error cells, cost 12-14 points contact at 18 m/s. The cap-sizing half of the same governor was adopted (ADR-0108).",
    "evidence": "docs/adaptive_speed_prereg.md amendments 1-2 (registered, n=50 paired)"
+  },
+  {
+   "what": "Phase-A vertical/yaw search sweep (chase acquisition, vsearch_* in the native concept)",
+   "why": "MEASURED NEGATIVE ON BALANCE (n=100 x 2 facings x 5 cases, pursuit_concept_v4 #2/#3) and the verdict had been living only in isim/concepts.py comments -- surfaced 2026-09-23 when a rebuild was nearly commissioned. Rear-tag alt+3: 43%->32% (worse on the exact cliff cell); nominal 71->67; aim20 54->40. Mechanism: perturbing a Phase-A trajectory that was about to succeed costs more than rescuing a stuck one -- applies MORE to earlier-engaging variants. Re-test only with a design that provably cannot perturb converging trajectories.",
+   "evidence": "isim/concepts.py vsearch_* block; isim/specs/pursuit_concept_v4.md #2/#3; keepframe prereg attribution section"
+  },
+  {
+   "what": "Decode-triggered keep-in-frame climb assist (chase, keepframe_assist)",
+   "why": "Registered NULL 2026-09-23: +3 m height cell moved +4/+6 pts vs the >=15 bar; mechanism metric shows the cliff is acquisition-side (decode fraction ~0.035 both arms) so a decode-triggered term starves where needed. Code stays in-tree, default OFF, byte-identity-pinned -- do not enable or re-tune without new mechanism evidence.",
+   "evidence": "isim/specs/keepframe_prereg_2026-09-23.md; flight/tests/test_pursuit_terminal.py keepframe section; ADR-0110"
   }
  ],
  "key_numbers": [
