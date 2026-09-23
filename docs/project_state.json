@@ -17,13 +17,13 @@
  },
  "now": {
   "as_of": "2026-09-23",
-  "where": "Refinement day, builder-directed: the Gazebo transfer gap is ATTRIBUTED (sim plant ~2x too fast + a systematic 15-25% box-width range bias the detector's own pose range doesn't share + a half-rate detect gate), and the chase's wind robustness is code-verified and measured in the fast sim.",
-  "finding": "Two honest nulls earned their keep: the keep-in-frame climb assist failed its registered bar (the +3 m cliff is acquisition-side -- decodes never happen), and the Phase-A vertical search sweep surfaced a MEASURED regression hiding in code comments -- now graveyarded.",
+  "where": "Refinement day closed: gap attributed AND its fixes built with an honest re-prediction (band 0.09-0.31 m), +10 deg chase bracket recommended from a registered tilt A/B, wind verdict measured, two nulls graveyarded properly.",
+  "finding": "Honest plant + honest cadence isim predicts 0.09-0.31 m -- so the 12x Gazebo gap was NOT mainly the sim flattering the plant; the attributed range bias (which isim cannot see and the pose fix removes) carries it. The pre-registered re-fly decides.",
   "next": [
-   "Evidence-based gap fixes in flight: pose-range supply, ENGAGE-regime re-fit, re-prediction",
-   "Fixed-tilt finer sweep (8/12/15 deg, re-registered) for the bracket angle"
+   "FLY the pre-registered Gazebo re-check (prereg2: fixed driver, n=8, band 0.09-0.31 m)",
+   "Builder: bracket angle ruling (+10 deg recommended) + slant/AABB stock-path ruling"
   ],
-  "evidence": "isim/specs/xcheck_tick_trace_2026-09-23.md - isim/specs/keepframe_prereg_2026-09-23.md - isim/specs/wind_chase_prereg_2026-09-23.md - ADR-0110/0111"
+  "evidence": "docs/xcheck_gazebo_pursuit_prereg2.md - isim/specs/xcheck_tick_trace_2026-09-23.md - isim/specs/chase_tilt_prereg_2026-09-23.md - ADR-0110..0113"
  },
  "assumptions": [
   {
@@ -1128,6 +1128,10 @@
     {
      "date": "2026-09-23",
      "note": "Gazebo 12x transfer gap ATTRIBUTED by the registered tick-trace (no tuning): (1) isim plant ~2x faster than real (dash-regime fit; misses are un-nulled cross-track, med 1.41 m); (2) AABB box-width range under-ranges 15-25% while the detector's PnP pose range is clean (KF-bias-to-CPA corr -0.84; drove an early coast latch + every false pursuit_miss abort); (3) every-other-tick detect gate (5.2 vs 25.5 det/s). Latency + no-re-approach EXONERATED. Fixes + ENGAGE-regime re-fit + re-prediction in flight; re-fly gets its own prereg. isim/specs/xcheck_tick_trace_2026-09-23.md."
+    },
+    {
+     "date": "2026-09-23",
+     "note": "Transfer-gap fixes BUILT + honestly re-predicted (ADR-0113): pose-range supply into the pursuit terminal (no-pose path byte-identical; stock paths untouched per the open ruling), every-tick detect, ENGAGE-regime vehicle re-fit (new fit file; total lag within ~10% of measured). Four-way isim re-prediction: honest plant+cadence predicts 0.087-0.313 m -- 'sim flattered the plant' REFUTED as the full story; the range bias remains the attributed dominant driver and the pose fix removes it. Re-fly pre-registered with a prediction BAND (best ~0.14 m) + fix-effect instrument clauses: docs/xcheck_gazebo_pursuit_prereg2.md. Suites 480/1x. NOT flown yet; the default swap stays blocked until the re-fly passes."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",

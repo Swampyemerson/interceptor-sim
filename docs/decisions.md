@@ -687,3 +687,36 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
 - **Evidence.** isim/specs/chase_tilt_prereg_2026-09-23.md (both
   registrations + results + mechanism tables); scripts/chase_tilt_ab.py;
   the +3 m attribution in isim/specs/keepframe_prereg_2026-09-23.md.
+
+## ADR-0113 — Transfer-gap fixes adopted into the chase path; re-fly pre-registered (2026-09-23)
+
+- **Context.** The registered Gazebo cross-check FAILED (median 1.510 m vs
+  isim's 0.122 m); the registered tick-trace attributed the gap (plant
+  ~2x too fast in isim; systematic 15–25% AABB box-width range bias with
+  the detector's PnP pose range clean in the same logs; half-rate detect
+  gate; latency + no-re-approach exonerated).
+- **Decision.** Adopt the three evidence-based fixes in the CHASE path
+  only: optional PnP pose-range supply (`det_range_pose_m`, byte-identical
+  without it, golden-fixture-pinned; `measurement_from_box` and the stock
+  seeker paths untouched — their port-or-revalidate ruling stays queued),
+  every-tick detection in the driver, and an ENGAGE-regime vehicle fit as
+  a NEW isim fit file (dash fit preserved). Default-terminal swap REMAINS
+  BLOCKED pending the pre-registered re-fly.
+- **Why / what the re-prediction showed.** Sanity pin reproduced per-seed
+  (old fit -> 0.122 m). Honest plant + honest cadence predicts
+  0.087–0.313 m — refuting "the sim flattered the plant" as the full
+  story and leaving S2's range bias (KF-bias-to-CPA corr −0.84, isim
+  structurally blind to it) as the attributed dominant driver, which the
+  pose fix removes. Mechanism surprise, traced and deterministic: denser
+  decodes cost ~0.2 m on the laggier plant (earlier Phase A→B handoff),
+  so the re-fly prediction is a BAND: best ~0.14 m, 0.09–0.31 m
+  (docs/xcheck_gazebo_pursuit_prereg2.md), with fix-effect instrument
+  clauses (C1 KF range bias, C2 delivered cadence/tick dt) and explicit
+  null branches.
+- **Verification.** Suites 480 passed / 1 xfailed on the dev machine
+  (main checkout); per-seed bit-stability of the default paths against
+  the original prediction CSV; live-channel mutation check (corrupted
+  pose range moves the miss).
+- **Evidence.** isim/specs/xcheck_tick_trace_2026-09-23.md; commit
+  5aeebdf; logs/xcheck_isim_reprediction_20260923.csv (local);
+  docs/xcheck_gazebo_pursuit_prereg2.md.
