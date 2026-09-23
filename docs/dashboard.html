@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->7b1ff06<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->2e59506<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,7 +914,7 @@
  },
  "now": {
   "as_of": "2026-09-23",
-  "where": "Housekeeping + validation day: 68 superseded files moved to retired/, the README rebuilt recruiter-first, and the pursuit port's pre-registered Gazebo cross-check FLEW -- catching a fifth port defect (frozen Phase-A camera yaw, fixed + pinned) and then FAILING its registered bar.",
+  "where": "Speed day: the fast-intercept limits are named with data (overtake margin, command envelope, standing-start geometry), the narrow-camera question is answered NO, and an adaptive speed governor is built, pre-registered and adopted at concept level (ADR-0108).",
   "finding": "The chase transfers in kind, not in number: in Gazebo the port flies a camera-driven chase (46-67 detections/flight, zero aborts) but closes to median 1.51 m vs the 0.122 m matched isim prediction. Default-terminal swap stays BLOCKED; next is tick-trace diagnosis, not tuning.",
   "next": [
    "Tick-trace the Gazebo chase CSVs (registered suspects in the prereg doc)",
@@ -1418,6 +1418,12 @@
  "plain_log": [
   {
    "date": "2026-09-23",
+   "text": "Adaptive speed governor built and A/B'd in answer to the builder's ask (speed from target speed, phase, lock quality). Cap sizing -- believed target speed plus a 6 m/s overtake margin, clamped 8..24 -- matches a flat raised cap on every cell and takes the cells the legacy 16 m/s cap loses (15 m/s target: 54 to 100 percent contact; 18 m/s: 0 to 78). The lock-quality lever (slow down when decodes go stale) was REJECTED: null on aim-error cells and a 12-14 point cost at 18 m/s -- slowing keeps the tag small, which keeps the decodes sparse.",
+   "so_what": "The chase concept now has a recommended config that scales to fast targets without an operator-picked cap (ADR-0108). Still isim-only and NOT the flying default: the Gazebo transfer gap stays the blocker, and speeds past ~16-18 m/s extrapolate the vehicle fit.",
+   "evidence": "docs/adaptive_speed_prereg.md (registered A/B + 3 amendments, n=50 paired/cell); scripts/adaptive_speed_ab.py; ADR-0108"
+  },
+  {
+   "date": "2026-09-23",
    "text": "Recruiter-readiness + validation push, all lanes. (1) Opus 5.5 tested the day it appeared: three clean defense-framed passes on this repo (a guidance-math analysis, the cross-check harness build, the README audit) -- a working high-capability subagent lane again, logged in docs/subagent_safeguard_log.md. (2) 68 superseded files consolidated to retired/ (S2 ground-stereo, T25 demo pipeline, old forensics, tilt/track harnesses, closed planning docs) off a 248-file reference-topology inventory; suite green after. (3) README rebuilt: chase-only framing, status box, intercept GIF above the fold, honest seeker story, fresh screenshots; stale GitHub board snapshot (43 days) refetched. (4) The pre-registered Gazebo cross-check of the pursuit port flew n=8 with real camera-in-the-loop: shakedown caught parity defect #5 (Phase A yawed at the rendezvous point, freezing the camera off-target when station-keeping -- the prototype yaws at the believed target; fixed, regression-pinned, and the fix closed the isim aim20 cell 70%->100%), then the scored flights FAILED the registered bar: camera-driven chase confirmed, CPA 0.55-2.33 m, median 1.51 m vs 0.122 m predicted. (5) Speed work for the video: ladder scouting on the tag scenario (n=1 leads, not verdicts) read 3 m/s -> 0.238 m clean, 4 m/s -> 0.961 m, 6 m/s -> 5.29 m miss; one flight of the ADOPTED 16 m/s open-loop sprint config vs the 9 m/s line-9 crosser scored CPA 0.334 m (inside the contact bar; single flight, best-case givens). A 35 s two-act video was cut from the live onboard captures with honest labels. (6) Fast-intercept limits identified with data (docs/fast_intercept_limits.md): the chase's speed ceiling is OVERTAKE MARGIN (raising the configured v_max 16->20 takes a 15 m/s target from 0% to 100% inside 0.35 m in isim); the classic tag terminal is capped by its July-era 3/3/4 m/s command envelope (raising it took the 4 m/s scout from 0.96 to 0.14 m) and above ~4 m/s by the standing-start geometry itself (the running-start lesson re-derived); and a narrower-FoV/higher-res second camera does NOT help the terminal -- an fx sweep with the honest walkout+blur model made the chase monotonically WORSE (118 deg 100% -> 45 deg 24%), re-confirming the ADR-0024 narrow-lens rejection in the chase regime. Opus 5.5 logged its first bounce (3 passes, 1 [general_harms] fail) -- usable, not uniform. Both stranded remote branches merged under builder authority and deleted.",
    "so_what": "The project is publicly presentable and the chase concept now has an honest vehicle-level number: the fast sim's 100%-inside-0.35 m does NOT yet survive contact with real physics -- a 12x transfer gap with named suspects. The default swap stays blocked on the registered rule, and the next unit of work is diagnosis, not celebration or tuning.",
    "evidence": "docs/xcheck_gazebo_pursuit_prereg.md - logs/xcheck_gz_20260923_fixed/ - docs/subagent_safeguard_log.md - retired/README.md - commits 3880153, 07dbe22, 91fcaae - logs/speed_scout_20260923/ - logs/sprint_capture_20260923b/ - scripts/video/linkedin_fast_cut.py - docs/fast_intercept_limits.md - scripts/{fx_sweep_chase,vmax_sweep_chase,ladder_forensics}.py"
@@ -1481,12 +1487,6 @@
    "text": "New simulator built in a day by worker agents plus the head: vehicle model fitted to 345 of last night's flights, a camera-and-AprilTag model from the Pi bench numbers, an adapter that drives the unmodified flight code, and a Monte-Carlo runner. Replaying last night's sprint commands through it gives the same misses as Gazebo (aim-tolerance curve 1.03/0.68/0.43/0.31/0.43/0.73/1.27 m against 1.20/0.71/0.40/0.24/0.42/0.74/1.34 m measured; height error passes straight through, +0.42 m against +0.39 m).",
    "so_what": "It found two things on the way. The replay tool had a timing bug (now fixed) that would have hidden everything. And the Gazebo vehicle slides about half a metre sideways during the hard acceleration -- which is why last night's best aim was 5 degrees off-centre. One number in the model was tuned to that curve; six other arms it never saw still match. The baseline sweep says today's flight code passes almost nowhere, so the terminal is the work.",
    "evidence": "commit 8dc72c1 - isim/replay_a0.py - docs/new_sim_plan.md"
-  },
-  {
-   "date": "2026-09-17",
-   "text": "Builder ruling: build an entirely new simulator. He is not satisfied with the diagnostics or the results of the Gazebo loop, the real system is an AprilTag and a Raspberry Pi, and the vehicle must intercept even if the sprint is poor or the target is at a different height. The earlier 'no simulator change' decision (ADR-0072) is reversed. His other open questions are settled by my recommendations.",
-   "so_what": "The new simulator is a fast one with no Gazebo in the loop: it runs the actual flight code against a camera-and-tag model built from our bench measurements, thousands of runs a minute, and explains every miss. It has to reproduce last night's numbers -- including the camera's failure -- before anyone trusts it. Gazebo stays only as a final cross-check.",
-   "evidence": "docs/new_sim_plan.md - ADR-0102"
   }
  ],
  "narrative": {
@@ -2391,6 +2391,11 @@
    "what": "Narrow/long lens for acquisition range",
    "why": "Re-creates the fast-crosser-walks-out-of-frame failure; wide FoV is a hard requirement.",
    "evidence": "ADR-0024; hardware_order_list §0①"
+  },
+  {
+   "what": "Lock-quality closure modulation (chase Phase B slows when tag decodes go stale)",
+   "why": "Timidity feedback: slowing on staleness keeps the range long and the tag small, so decodes stay sparse. Null on aim-error cells, cost 12-14 points contact at 18 m/s. The cap-sizing half of the same governor was adopted (ADR-0108).",
+   "evidence": "docs/adaptive_speed_prereg.md amendments 1-2 (registered, n=50 paired)"
   }
  ],
  "key_numbers": [

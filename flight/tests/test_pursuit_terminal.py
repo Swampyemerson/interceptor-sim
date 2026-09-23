@@ -264,3 +264,68 @@ def test_missing_own_attitude_refuses_to_steer():
     sp, tel = g.step(None, bad, t=0.05)
     assert sp is None
     assert tel.own_state_ok is False
+
+
+# ================================================== adaptive speed governor
+
+
+def test_adaptive_off_cap_is_the_legacy_v_max():
+    """Default config (adaptive_speed=False): the cap is the fixed v_max_ms
+    in both phases, whatever the believed target speed -- the governor must
+    be inert unless asked for."""
+    g, cfg, _ = guidance(belief_vel0_ned=(15.0, 0.0, 0.0))
+    assert cfg.adaptive_speed is False
+    assert g._speed_cap() == pytest.approx(cfg.v_max_ms)
+
+
+def test_adaptive_phase_a_cap_is_believed_speed_plus_margin():
+    """Adaptive on, target believed receding north at 15 m/s: the Phase-A
+    command should ramp to 15 + overtake_margin (20), ABOVE the legacy 16
+    cap -- the overtake-margin finding (docs/fast_intercept_limits.md #1)
+    made adaptive, end to end through step()."""
+    g, cfg, _ = guidance(belief_r0_ned=(20.0, 0.0, 0.0),
+                         belief_vel0_ned=(15.0, 0.0, 0.0),
+                         adaptive_speed=True, overtake_margin_ms=5.0,
+                         v_hw_max_ms=24.0)
+    assert g._speed_cap() == pytest.approx(20.0)
+    t, sp = 0.0, None
+    for _ in range(100):   # accel_max 6 m/s^2 -> ~3.4 s to reach 20 m/s
+        t += DT
+        sp, tel = g.step(None, own(), t=t)
+    assert tel.phase == "A"
+    # cmd wants v_track + kp_pos*aim = 15 + 0.8*12 = 24.6 -> clipped to 20.
+    assert sp.v_north == pytest.approx(20.0, abs=0.05)
+
+
+def test_adaptive_cap_respects_floor_and_hardware_ceiling():
+    g_slow, cfg, _ = guidance(belief_vel0_ned=(1.0, 0.0, 0.0),
+                              adaptive_speed=True)
+    assert g_slow._speed_cap() == pytest.approx(cfg.adaptive_v_floor_ms)
+    g_fast, cfg2, _ = guidance(belief_vel0_ned=(30.0, 0.0, 0.0),
+                               adaptive_speed=True)
+    assert g_fast._speed_cap() == pytest.approx(cfg2.v_hw_max_ms)
+
+
+def test_adaptive_does_not_slow_closure_on_stale_lock():
+    """The lock-quality closure modulation (slow down when decodes go
+    stale) was built, A/B'd and REJECTED 2026-09-23 (null on aim-error
+    cells, 12-14 point contact cost at 18 m/s -- timidity feedback; see
+    docs/adaptive_speed_prereg.md amendments 1-2). This pins its ABSENCE:
+    2 s into a dropout (short of the 3 s Phase-A fallback), an adaptive
+    Phase B must still command full closure toward a stationary target."""
+    g, cfg, _ = guidance(belief_r0_ned=(10.0, 0.0, 0.0),
+                         belief_vel0_ned=(0.0, 0.0, 0.0),
+                         adaptive_speed=True)
+    t = 0.0
+    for _ in range(22):
+        t += DT
+        sp, tel = g.step(box_for(10.0, 0.0, 0.0), own(), t=t)
+    assert tel.phase == "B"
+    fresh_speed = math.sqrt(sp.v_north**2 + sp.v_east**2 + sp.v_down**2)
+    assert fresh_speed > 4.0    # closing near v_close_max
+    for _ in range(40):         # 2.0 s dropout
+        t += DT
+        sp, tel = g.step(None, own(), t=t)
+    assert tel.phase == "B"     # no Phase-A fallback yet
+    stale_speed = math.sqrt(sp.v_north**2 + sp.v_east**2 + sp.v_down**2)
+    assert stale_speed > 4.0    # still closing -- no timidity decay

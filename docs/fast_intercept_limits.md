@@ -121,6 +121,13 @@ ADR-0076 add #18j-fix).
    regimes. In sim this is a config sweep (done above); on hardware it is
    the first real dash ULog (`dash-accel-profile` register entry) plus a
    thrust/drag margin question, not a purchase.
+   **DONE at concept level 2026-09-23 (ADR-0108):** an adaptive speed
+   governor (cap = believed target speed + 6 m/s margin, clamped 8..24,
+   guidance-visible inputs only) was built into the flight code, flag-gated,
+   pre-registered and A/B'd — it matches a flat raised cap on every cell and
+   takes the cells the legacy 16 m/s cap loses. A lock-quality closure
+   modulation was tried and REJECTED (timidity feedback; graveyard).
+   Registered record: `docs/adaptive_speed_prereg.md`.
 2. **Close the Gazebo transfer gap** (median 1.51 m vs 0.122 predicted,
    registered FAIL 2026-09-23) — until the chase transfers to real
    physics, its isim speed numbers are upper bounds. Tick-trace diagnosis

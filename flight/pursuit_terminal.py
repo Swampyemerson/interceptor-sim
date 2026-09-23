@@ -162,6 +162,30 @@ class PursuitTerminalConfig:
     # --- yaw slew ---------------------------------------------------------------
     yaw_rate_max_deg_s: float = 180.0
 
+    # --- adaptive speed governor (2026-09-23, default OFF = legacy) -----------
+    # Sizes the speed cap from NEED instead of a fixed constant, per the
+    # fast-intercept-limits finding (docs/fast_intercept_limits.md #1: the
+    # ceiling is overtake margin, a config number). Inputs are all
+    # guidance-visible (pre-flight belief / own KF), never ground truth.
+    #   Phase A cap = clamp(|believed target vel| + overtake_margin_ms,
+    #                       adaptive_v_floor_ms, v_hw_max_ms)
+    #   Phase B     = the same cap on the total command (so the target-
+    #                 velocity feedforward for a fast target is not strangled
+    #                 by the legacy fixed cap).
+    # A lock-quality closure modulation (slow down when decodes go stale) was
+    # built, A/B'd and REJECTED 2026-09-23: null on aim-error cells and a
+    # 12-14 point contact cost at 18 m/s (timidity feedback: slowing keeps
+    # the tag small and the decodes sparse) -- docs/adaptive_speed_prereg.md
+    # amendments 1-2. Cap sizing only.
+    # v_hw_max_ms is the assumed vehicle ceiling -- for the real airframe it
+    # is an UNMEASURED given (`dash-accel-profile` register entry) until the
+    # first real dash ULog; isim numbers above the fitted ~16-18 m/s
+    # extrapolate the vehicle fit (docs/fast_intercept_limits.md #5).
+    adaptive_speed: bool = False
+    v_hw_max_ms: float = 24.0
+    overtake_margin_ms: float = 6.0
+    adaptive_v_floor_ms: float = 8.0
+
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -516,14 +540,15 @@ class PursuitTerminalGuidance:
                               once=True)
             return None, tel
 
+        v_cap = self._speed_cap()
         if self._phase == "A":
             cmd_v, yaw = self._phase_a_cmd()
-            cmd_v = _clip_norm(cmd_v, cfg.v_max_ms)
+            cmd_v = _clip_norm(cmd_v, v_cap)
             cmd_v = _slew_combined(cmd_v, self._prev_v_cmd, cfg.accel_max_ms2, dt)
             tel.phase = "A"
         else:
             cmd_v, yaw, coasting = self._phase_b_cmd(own_vel)
-            cmd_v = _clip_norm(cmd_v, cfg.v_max_ms)
+            cmd_v = _clip_norm(cmd_v, v_cap)
             if not coasting:
                 cmd_v = _slew_split(cmd_v, self._prev_v_cmd,
                                      cfg.accel_max_horiz_b_ms2,
@@ -547,6 +572,25 @@ class PursuitTerminalGuidance:
         max_step = self.cfg.yaw_rate_max_deg_s * dt
         delta = _clamp(delta, -max_step, max_step)
         return _wrap_deg(self._prev_yaw_deg + delta)
+
+    # ------------------------------------------------ adaptive speed governor
+
+    def _speed_cap(self) -> float:
+        """Effective norm cap for this tick's velocity command. Legacy
+        (adaptive_speed=False): the fixed v_max_ms. Adaptive: sized from the
+        believed target speed plus the overtake margin -- Phase A reads the
+        belief track, Phase B the KF's target-velocity estimate passed
+        through the same sanity clamp Phase-A fallback uses (a corrupted KF
+        velocity must not command the hardware ceiling)."""
+        cfg = self.cfg
+        if not cfg.adaptive_speed:
+            return cfg.v_max_ms
+        if self._phase == "B":
+            tgt_speed = float(np.linalg.norm(self._sane_fallback_vel(self._kf.v_t)))
+        else:
+            tgt_speed = float(np.linalg.norm(self._v_track))
+        return _clamp(tgt_speed + cfg.overtake_margin_ms,
+                      cfg.adaptive_v_floor_ms, cfg.v_hw_max_ms)
 
     def _phase_a_cmd(self) -> Tuple[np.ndarray, float]:
         """`self._r_track` is already RELATIVE (target belief minus own

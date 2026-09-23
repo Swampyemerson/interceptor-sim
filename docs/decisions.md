@@ -548,3 +548,34 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
   failsafe-still-lands, land override, stock breakoff_complete coverage,
   validator); flight/tests 289 passed, `--self-test` + `--audit` PASS
   (dev machine).
+
+## ADR-0108 — Adaptive speed governor: cap sizing adopted (concept level), lock-modulated closure rejected (2026-09-23)
+
+- **Context.** Builder asked for an adaptive speed system driven by target
+  speed, flight phase and lock quality. The fast-intercept-limits
+  investigation (docs/fast_intercept_limits.md) had just shown the chase's
+  ceiling is overtake margin — a fixed configured constant (v_max 16).
+- **Options.** (a) Flat raised cap (v_max 24). (b) Adaptive cap = believed
+  target speed + margin, clamped [floor 8, hw 24], per phase. (c) Same, plus
+  a lock-quality closure modulation (decode staleness decays the Phase-B
+  closure cap — "don't sprint at a target we can't see").
+- **Decision.** Adopt (b) as the chase CONCEPT's recommended config
+  (`PursuitTerminalConfig.adaptive_speed=True`, `overtake_margin_ms=6`,
+  default OFF in code = legacy). REJECT the lock-modulation half of (c).
+  NOT the flying default: the chase stays blocked on the Gazebo transfer
+  gap, and speeds past ~16-18 m/s extrapolate the vehicle fit.
+- **Why.** Pre-registered A/B, port arm (real flight code), n=50 paired
+  seeds x 5 cells (docs/adaptive_speed_prereg.md): adaptive matches the
+  flat-24 arm on every cell (max gap 2 pts) and takes the cells legacy
+  loses (15 m/s: 54%->100%; 15 m/s+aim10: 0%->98%; 18 m/s: 0%->78%), while
+  never commanding beyond believed-need+margin (envelope discipline — a
+  slow target can't pull the vehicle into the unvalidated regime). The
+  lock lever was a null on aim-error cells and COST 12-14 pts at 18 m/s
+  (timidity feedback: slowing on staleness keeps the tag small and decodes
+  sparse) — amendment 2 attributed it cleanly (78% with it off vs 64/66%
+  on). The energy secondary was a NULL and is dropped, said plainly in the
+  prereg doc.
+- **Verification.** flight/tests/test_pursuit_terminal.py governor section
+  (flag-off inertness, cap arithmetic end-to-end through step(), floor/
+  ceiling, no-timidity pin); full offline suite green; sweep scripts
+  scripts/adaptive_speed_ab.py (registered) + scratchpad amendments.

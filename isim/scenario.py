@@ -336,6 +336,12 @@ class Scenario:
     # value})` machinery (a dict can't be a sweep axis value there); this
     # one is for one-off tuning scripts, not the four required axes.
     pursuit_overrides: Optional[dict] = None
+    # PORT-arm analogue of `pursuit_overrides` (2026-09-23, adaptive-speed
+    # A/B): kwarg overrides for flight.pursuit_terminal.PursuitTerminalConfig,
+    # applied ONLY on concept="flyby", terminal="pursuit" (the real-flight-
+    # code chase port). None/{} = PursuitTerminalConfig()'s own defaults,
+    # byte-identical to before this field existed.
+    port_pursuit_overrides: Optional[dict] = None
     # v4 #1d (MEASURE-only hardware idea, never a new default): a second,
     # SMALLER AprilTag co-located with the main one (same mount/orientation,
     # different side_m), decodable at close range after the main tag has
@@ -642,6 +648,10 @@ def build(
             guidance_kwargs["belief_r0_ned"] = tuple(
                 float(c) for c in (belief_pos0_ned - own_pos0))
             guidance_kwargs["belief_vel0_ned"] = tuple(float(c) for c in belief_vel_ned)
+            if scn.port_pursuit_overrides:
+                from flight.pursuit_terminal import PursuitTerminalConfig
+                guidance_kwargs["pursuit_cfg"] = PursuitTerminalConfig(
+                    **scn.port_pursuit_overrides)
         guidance: Guidance = RealFlightGuidance(
             cfg, cam_params=cam_nominal, span_m=tag.side_m,
             go_at_s=trigger_go_at_s, home_alt_m=0.0, **guidance_kwargs)
