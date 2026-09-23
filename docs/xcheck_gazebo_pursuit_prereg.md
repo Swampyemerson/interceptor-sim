@@ -44,7 +44,14 @@ camera — or do its vehicle-response and measurement assumptions break?
 GAZEBO camera and tag substituted (fx 540.3, tag 0.5 m), same canonical
 geometry, seeds 0..49 (`logs/xcheck_isim_prediction_20260923.csv`):
 
-    median 0.112 m · p10 0.034 · p90 0.525 · 84% <= 0.35 m · 96% <= 1.0 m
+    PRE-FIX code:  median 0.112 m · p10 0.034 · p90 0.525 · 84% <= 0.35 m
+    POST-FIX code: median 0.122 m · p10 0.064 · p90 0.195 · 100% <= 0.35 m
+
+(Regenerated after the flight-1 yaw defect fix, BEFORE any scored flight's
+result was read — the prediction must describe the code actually flying.
+The fix also closed the registered grid's aim20 residual in isim proper:
+70% -> 100% <= 0.35 m, median 0.063 m; alt+2 68-76% unchanged within n=50
+noise, its mechanism being the separate no-re-approach design question.)
 
 The isim vehicle model is itself fitted to Gazebo x500 flights, so this IS
 the prediction of the same flight code in Gazebo if the port transfers.
