@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->7376bb7<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->73f53e7<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1418,6 +1418,12 @@
  "plain_log": [
   {
    "date": "2026-09-22",
+   "text": "LinkedIn media pack built for the builder's project post: five figures (robustness grid, miss CDF, engagement anatomy from the parity trace, and two MBSE views) generated from a fresh n=50-per-cell re-run of the registered parity grid that reproduced the adopted numbers exactly; copy drafted and red-teamed by a Fable reviewer against the repo (docs/linkedin_copy_draft.md). Housekeeping finding: the published MBSE Artifact had been stale since 2026-08-12 while the dashboard stayed current -- republished to today's render the same turn.",
+   "evidence": "logs/linkedin_media_20260922/ - docs/images/linkedin/ - scripts/linkedin_media_figures.py",
+   "so_what": "The project can now be shown publicly with figures whose every number reproduces from a logged run, and the published systems model matches the build again. Nothing here changes any capability claim."
+  },
+  {
+   "date": "2026-09-22",
    "text": "Field-readiness push, all flight hardware on the bench; all three parallel builds LANDED. (1) The pursuit-port parity gap CLOSED -- a registered tick-by-tick trace found four coupled defects (KF covariance Jacobian, capture-instant attitude, yaw seed, slant under-range); the fixed port went 24% to 100% inside 0.35 m nominal, median 0.068 m, verified independently. (2) The GPS cue relay was designed, built off real bench GPS data, and wired into the flight CLI (--cue-json, fail-closed): serves chase-only (8-13 deg worst-credible vs 10-30 deg tolerance), never the sprint. (3) Miss-abort safety: passage window ported, SAFE now offers hover / land / return-home, and a pursuit miss aborts straight to SAFE. Bench: the real Pi-to-Pixhawk link measured live confirms the failsafe staleness sizing. Full offline suite ALL GREEN (dev machine). Builder ruled same day (ADR-0107): a missed engagement HOVERS in place for the operator (re-approach deferred as a future feature); system-health aborts still land. Late addition (builder ask, built on the Fable 5 lane -- its first clean build here since 2026-09-10): the cue fitter now handles a TURNING target, proving a turn from the GPS's own per-sample velocities (4-sigma test) and extrapolating along the arc with hard refuse-don't-guess caps; velocity-at-latch on a turning target improved 2.8x.",
    "so_what": "The ruled chase-only design is no longer the weaker twin of its prototype, a miss now has a defined safe ending, and the launch cue has honest piping with a measured error budget instead of a hand-typed perfect number. Two rulings queued: the slant under-range geometry also ships in the older stock seeker paths, and whether the vehicle may re-approach after a missed first pass.",
    "evidence": "isim/specs/parity_trace_2026-09-22.md - docs/cue_relay_plan.md - ADR-0106 - logs/bench_telem2_cadence_20260922.json - commits 8a5886c, fa54d7d, 3d1a5e4, 9efbc84, ADR-0107, 18482cf, 35b1f88"
@@ -1481,12 +1487,6 @@
    "text": "Used the new tilt logging to ask why the camera never finds the target in flight. Answer: it is almost never shown it. The vehicle tips ~43 degrees nose-down to sprint, so the target sits above the top of the picture; and because it aims AHEAD of a crossing target, the target is 40-75 degrees off to the side of where the nose points. At 8-22 m the target was in the middle of the picture on 0 of 858 frames. Built and flew two fixes -- turn the nose toward where the target is predicted to be, and tilt the camera up 25 degrees -- plus a step the sim had always skipped (point the nose before launching). Result: target in the middle of the picture on 99% of frames, and the seeker really recognised it on 81% of them. Recognition was never the problem.",
    "so_what": "Then the bad news, and it is the most important result of the night: with the camera finally seeing the target, the intercept got 2 to 5 times WORSE (3.3-3.6 m against 0.60 m for the sprint alone). The camera takes over in the first instant, before the vehicle has sprinted, and its steering was designed for a slower target and a takeover in the last few metres -- its sideways authority is capped at 8 m/s against a target crossing at 9. For the whole project the camera looked 'about as good as the sprint' only because it was blind until the last 0.2 seconds. The terminal guidance needs a redesign; that is a decision for you, queued below.",
    "evidence": "docs/pointing_prereg.md - scripts/forensics/inframe_attribution.py - commits 3ec9ef5, 58ede84, dc6ebc2, e44770f"
-  },
-  {
-   "date": "2026-09-17",
-   "text": "Overnight, on the two defects that made every camera-vs-sprint comparison unquotable. (1) After the sprint, a brief camera dropout made the vehicle command a full stop while closing at ~13 m/s -- a one-line bug, now fixed, with a new automatic check that finds it in the old logs and finds zero cases in 64 new flights. (2) The 'we have passed it' quit trigger fired early on about a third of slow camera flights. The fix the plan had lined up (ignore the trigger beyond 5 m measured range) failed its own offline check when I re-ran it independently, because the measured range is the broken quantity. The plan's fallback -- you cannot have passed a target you have not flown far enough to reach -- cut early quits from 5 of 16 to 1 of 16, and 4 of 8 to 0 of 8 on a second seed.",
-   "so_what": "With the early quits gone the camera flights got NO closer (10 mph median 0.84 m before, 1.00 m after, against 0.73 m for the sprint alone). That matters: the early quit was the one defect only the camera flights could suffer, and it was the standing excuse for why the camera had not beaten the sprint. The excuse is mostly gone and the result stands. The gate itself is not adopted yet -- one clause of the criterion I wrote failed by the letter, and I contaminated two replication arms by running tests while they flew; both are being re-flown.",
-   "evidence": "docs/scoring_fix_plan.md 5b-5c - scripts/forensics/breakoff_gate_replay.py - commits d95c787, 3e1a475, c75bfb8"
   }
  ],
  "narrative": {
