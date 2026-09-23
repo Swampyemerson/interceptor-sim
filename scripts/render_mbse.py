@@ -446,9 +446,14 @@ def render_open_items(state: dict) -> str:
     rows = []
     for c in open_c:
         rows.append(
+            # Ledger schema keys are topic/claim_a/current_truth (see
+            # render_dashboard.validate) -- the old claim/text + reality/note
+            # lookups matched NOTHING and rendered every open item as a BLANK
+            # row (silent failure on the honesty surface; caught 2026-09-23
+            # on the published artifact). Fail loud if the schema moves again.
             f'<tr><td class="mono id">{esc(c.get("id", ""))}</td>'
-            f'<td>{esc(c.get("claim") or c.get("text") or "")}</td>'
-            f'<td class="cap">{esc(c.get("reality") or c.get("note") or "")}</td></tr>'
+            f'<td>{esc(c.get("topic") or c.get("claim_a") or "MISSING topic/claim_a — schema drift, fix render_mbse.py")}</td>'
+            f'<td class="cap">{esc(c.get("current_truth") or "MISSING current_truth — schema drift, fix render_mbse.py")}</td></tr>'
         )
     return (
         '<div class="scroller"><table class="grid"><thead><tr>'
