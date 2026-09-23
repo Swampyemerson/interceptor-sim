@@ -186,6 +186,31 @@ class PursuitTerminalConfig:
     overtake_margin_ms: float = 6.0
     adaptive_v_floor_ms: float = 8.0
 
+    # --- keep-in-frame vertical assist (2026-09-23, default OFF = legacy) -----
+    # Attacks the +3 m-above altitude-error cliff (isim/specs/
+    # alt_sensitivity_2026-09-21.md: 74-88% inside 0.35 m from -2..+2 m, 42%
+    # at +3 m): a target well ABOVE sits near the TOP edge of the frame and
+    # decodes go sparse/lost faster than the position-driven vertical
+    # correction (kp_lat * r_perp) converges. When a FRESH decode's box
+    # center lies within `keepframe_margin_frac` of the half-frame height
+    # (cam.cy px from center to top edge) of the TOP edge AND the capture-
+    # instant NED conversion (mount_up_rad + vehicle attitude included, via
+    # the same quat_cap path every measurement uses) confirms the target is
+    # actually ABOVE the vehicle, a bounded climb term (negative NED down-
+    # velocity, up to `keepframe_vz_max_ms`, proportional to how deep into
+    # the margin the box sits) is ADDED to the command BEFORE the norm clip
+    # and the slew -- so it never bypasses the speed cap or the accel
+    # budgets. Active in Phase A and non-coasting Phase B. During dropout
+    # the last term is HELD for at most `keepframe_hold_s`, then zeroed --
+    # no open-loop climb beyond that; the KF prediction steers the coast.
+    # Bottom edge is out of scope (the measured cliff is top-side only).
+    # Inputs: box pixels + own-state attitude ONLY (honesty boundary).
+    # Pre-registration + A/B: isim/specs/keepframe_prereg_2026-09-23.md.
+    keepframe_assist: bool = False
+    keepframe_margin_frac: float = 0.35   # fraction of cy (half-frame height)
+    keepframe_vz_max_ms: float = 2.5      # max ADDED climb rate, m/s
+    keepframe_hold_s: float = 0.5         # max hold of the last term, dropout
+
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -407,6 +432,10 @@ class PursuitTerminalGuidance:
         # command from 0 deg through a ~75 deg off-target sweep at ENGAGE
         # entry and the camera missed the whole first close pass of decodes).
         self._yaw_seeded = False
+        # Keep-in-frame vertical assist state (cfg.keepframe_assist; inert --
+        # never read or written -- while the flag is off).
+        self._keepframe_vz = 0.0
+        self._keepframe_t: float = -math.inf
         self._warned: set = set()
         self.n_track_broken = 0
 
@@ -514,6 +543,8 @@ class PursuitTerminalGuidance:
             self._decode_positions.append((t, meas_r))
             cutoff = t - cfg.acquire_window_s
             self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
+            if cfg.keepframe_assist:
+                self._keepframe_update(det_box_xywh, meas_r, t)
 
         if self._phase == "A" and len(self._decode_positions) >= cfg.acquire_n:
             self._start_phase_b(t)
@@ -543,11 +574,19 @@ class PursuitTerminalGuidance:
         v_cap = self._speed_cap()
         if self._phase == "A":
             cmd_v, yaw = self._phase_a_cmd()
+            if cfg.keepframe_assist:
+                # ADDED before the norm clip and the slew: the assist trades
+                # horizontal speed for climb under the same caps/budgets.
+                cmd_v = cmd_v + np.array([0.0, 0.0, -self._keepframe_term(t)])
             cmd_v = _clip_norm(cmd_v, v_cap)
             cmd_v = _slew_combined(cmd_v, self._prev_v_cmd, cfg.accel_max_ms2, dt)
             tel.phase = "A"
         else:
             cmd_v, yaw, coasting = self._phase_b_cmd(own_vel)
+            if cfg.keepframe_assist and not coasting:
+                # Not during terminal coast -- the held-command latch must
+                # stay byte-frozen (mirrors TagInterceptGuidance semantics).
+                cmd_v = cmd_v + np.array([0.0, 0.0, -self._keepframe_term(t)])
             cmd_v = _clip_norm(cmd_v, v_cap)
             if not coasting:
                 cmd_v = _slew_split(cmd_v, self._prev_v_cmd,
@@ -591,6 +630,42 @@ class PursuitTerminalGuidance:
             tgt_speed = float(np.linalg.norm(self._v_track))
         return _clamp(tgt_speed + cfg.overtake_margin_ms,
                       cfg.adaptive_v_floor_ms, cfg.v_hw_max_ms)
+
+    # ------------------------------------------- keep-in-frame vertical assist
+
+    def _keepframe_update(self, det_box_xywh, meas_r_ned: np.ndarray, t: float) -> None:
+        """Refresh the assist term from ONE fresh decode (called only with
+        cfg.keepframe_assist on). Trigger: box CENTER within
+        `keepframe_margin_frac * cam.cy` px of the TOP edge (cy = principal-
+        point-to-top-edge distance, the half-frame height) AND the capture-
+        instant NED measurement (mount tilt + vehicle attitude already folded
+        in by `_measured_r_ned`) says the target is ABOVE own CG (down < 0) --
+        the attitude gate stops a transient nose-down pitch, which also pushes
+        the box toward the top edge, from commanding a spurious climb. A fresh
+        decode that does NOT trigger CANCELS the assist immediately (a
+        centered target needs no help). Inputs: camera pixels + own-state
+        attitude only -- never target ground truth."""
+        cfg = self.cfg
+        _x0, y0, _bw, bh = det_box_xywh
+        v_center_px = float(y0) + float(bh) / 2.0
+        margin_px = cfg.keepframe_margin_frac * self.cam.cy
+        if v_center_px < margin_px and float(meas_r_ned[2]) < 0.0:
+            depth = _clamp((margin_px - v_center_px) / max(margin_px, 1e-6),
+                           0.0, 1.0)
+            self._keepframe_vz = depth * cfg.keepframe_vz_max_ms
+            self._keepframe_t = t
+        else:
+            self._keepframe_vz = 0.0
+            self._keepframe_t = -math.inf
+
+    def _keepframe_term(self, t: float) -> float:
+        """Climb magnitude (m/s, >= 0; caller applies it as NEGATIVE NED down)
+        for this tick: the last decode's term, held at most
+        `keepframe_hold_s` past that decode, then zero -- no open-loop climb
+        beyond the short clamped hold; the KF prediction steers a coast."""
+        if (t - self._keepframe_t) <= self.cfg.keepframe_hold_s:
+            return self._keepframe_vz
+        return 0.0
 
     def _phase_a_cmd(self) -> Tuple[np.ndarray, float]:
         """`self._r_track` is already RELATIVE (target belief minus own
