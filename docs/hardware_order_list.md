@@ -103,7 +103,7 @@ arithmetic plausible). **Applied inline** (2 blockers + fixes):
 5 ms exposure smears ~23 px. Confirm the AR0234 can hit ≤1 ms exposure outdoors (it's global-shutter,
 so it can — but verify the driver exposes the control).
 
-**⚠️ OPEN DECISION (yours — audit S2): two aircraft, one TX.** One TX + both RX on the same bind
+**✅ RESOLVED 2026-09-22 — option (b) chosen by purchase: a 2nd RadioMaster Pocket is ORDERED (§0d Tier-2 banner; ADR-0089/ADR-0109). Remaining setup work: Model Match on both TXs, same ELRS version + bind phrase. Original question kept for the record:** **(was: ⚠️ OPEN DECISION (yours — audit S2): two aircraft, one TX.)** One TX + both RX on the same bind
 phrase REQUIRES **Model Match** (else both aircraft answer the same sticks — dangerous). But then the
 *unselected* aircraft is in RC failsafe — so while you hold the interceptor's kill, the **target has no
 independent RC kill.** Choose: **(a)** target ArduPilot continue-in-AUTO on RC-failsafe + tight geofence
@@ -184,7 +184,25 @@ Order in TWO tiers, gated so you never spend on the wrong thing. **Canonical/alw
 - The **AprilTag decode-envelope** curve GATES the **Tier-2 ~$740 interceptor** — first kills fly the TAG on the Pi 5 CPU (§0c), so the tag must decode the approaching placard early enough for a handoff (t_go ≥ 0.5 s) before you commit the airframe.
 - The **markerless-NN approach-recall** curve GATES ONLY the **Hailo HAT + markerless phase** ($70, deferred). A poor NN curve does NOT block the interceptor — it just defers the markerless upgrade.
 
-**TIER 2 — the lean §0c interceptor (~$510 this tier → ~$740 all-in with Tier-1 carry-overs).** Everything the airframe needs that Tier 1 didn't buy (A + B + rest of C + D): frame, motors, ESC, 6C Mini, M10 GPS, ELRS RC (kill/arm only), LiPos, PM02, 5.2 V BEC, props, storage, cables, cooler, and the **prop-clearance + FIXED up-tilt mount** — angle = the real airframe's measured **dash pitch** (build-specific ~25–40°, NOT sim-sized): print an **ADJUSTABLE 10–30° bracket** and lock it from the first dash ULog. Order only after the Tier-1 **tag** curve passes the gate.
+**TIER 2 — the lean §0c interceptor (~$510 this tier → ~$740 all-in with Tier-1 carry-overs).** Everything the airframe needs that Tier 1 didn't buy (A + B + rest of C + D): frame, motors, ESC, 6C Mini, M10 GPS, ELRS RC (kill/arm only), LiPos, PM02, 5.2 V BEC, props, storage, cables, cooler, and the **prop-clearance + FIXED up-tilt mount** — angle = the real airframe's measured **dash pitch** (build-specific ~25–40°, NOT sim-sized): print an **ADJUSTABLE 10–30° bracket** and lock it from the first dash ULog. ~~Order only after the Tier-1 **tag** curve passes the gate.~~
+
+> **🟧 [ORDERED 2026-09-22 — builder, AHEAD of the money gate (ADR-0109)]** The Tier-2 airframe
+> order went in before the tripod tag-decode curve flew — the builder's call, spend-side only
+> (the curve still gates KILL-ATTEMPT flights and the Hailo/markerless phase). Placed:
+> **TBS Source One V6** frame $41.99 · **Skystars KO60II 60A 3-6S AM32 4-in-1** ESC $36.99
+> (upgraded from the 45–55A plan) · **EMAX ECOII 2207 1900KV ×5** ~$149 (4 + the §G spare;
+> arrive ~Oct 5–15, the long pole) · **RadioMaster RP3 ELRS diversity RX** $31.99 ·
+> **Matek 12S Pro BEC** $24.99 · **Holybro PM02 V3** $24.99 (replacement — first unit
+> vendor-refunded) · **2nd RadioMaster Pocket (CC2500/ELRS combo, ELRS 2.4G)** $84.49
+> (closes ADR-0089 / the §0b S2 two-aircraft-kill hole → option (b)) · **HQProp V2S 5x4.3x3
+> ×16** ~$19 (shared with the target) · **Flywoo Finder V1.0 buzzer ×2** $23.98 (one per
+> aircraft, closes the §0b buzzer line) · LiPo bag + zip ties (Amazon).
+> **STILL MISSING for a full intercept:** FC High-Endurance microSD (ULogs = metrology; confirm
+> the 6C Mini kit), M2.5 nylon standoffs, the $20 thrust rig, the three prints (camera mount /
+> checkerboard / placard), the field layer (PD power bank, tripod + head, cones/tape, +2 6S
+> packs), and the kill-attempt spares (arms / spare RX). **Bench-verify:** the 12S Pro's 5 V tap
+> must deliver Matek's spec'd **5.2 V under Pi load** (the listing rounds to 5 V), and both
+> Pocket TXs need **Model Match** + the same ELRS version/bind phrase.
 
 ---
 

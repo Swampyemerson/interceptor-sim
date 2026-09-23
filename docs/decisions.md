@@ -579,3 +579,32 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
   (flag-off inertness, cap arithmetic end-to-end through step(), floor/
   ceiling, no-timidity pin); full offline suite green; sweep scripts
   scripts/adaptive_speed_ab.py (registered) + scratchpad amendments.
+
+## ADR-0109 — Tier-2 airframe ordered ahead of the tripod money gate (builder, 2026-09-22)
+
+- **Context.** The staged-buy plan (§0d) gated the ~$510 Tier-2 interceptor
+  airframe order on the tripod day's AprilTag decode-envelope curve. Tripod
+  day is itself blocked on the target drone flying (Kakute parts in
+  transit), so the gate had an indefinite external lead time.
+- **Decision (builder's, by purchase).** Orders placed 2026-09-22: Source
+  One V6 frame, Skystars KO60II 60A AM32 ESC (upgrade from the 45–55A
+  plan), ECOII 2207 ×5 (4 + spare, ~Oct 5–15), RP3 diversity RX, Matek 12S
+  Pro BEC, replacement PM02 V3 (first unit vendor-refunded), 2nd Pocket TX
+  (closing ADR-0089 → §0b option (b), independent target kill), HQ V2S
+  5x4.3x3 ×16, Flywoo buzzers ×2, LiPo bag, zip ties. ~$0.44k across
+  vendor + Amazon orders.
+- **Why acceptable.** Spend-side risk only, and it parallelizes delivery
+  lead time (motors are ~3 weeks out) with the target build + tripod day.
+  It repeats the accepted 6C-Mini front-load pattern (2026-07-20 ADR-lite
+  deviation): every gate-FAIL loop-back (bigger placard, slower legs)
+  keeps this airframe. The tag curve KEEPS its remaining teeth — it still
+  gates kill-attempt flights and the Hailo/markerless phase.
+- **Follow-ups (logged in bom_tiers Tier-2 status + the build_tab airframe
+  subsystem).** Missing for a full intercept: FC High-Endurance microSD,
+  M2.5 standoffs, thrust rig, camera-mount/checkerboard/placard prints,
+  field layer (PD power bank, tripod + head, cones/tape, +2 6S packs),
+  kill-attempt spares. Bench checks: 12S Pro 5 V tap must measure 5.2 V
+  under Pi load; both Pocket TXs need Model Match + same ELRS
+  version/bind phrase.
+- **Evidence.** Builder's order screenshots (2026-09-23 session);
+  docs/hardware_order_list.md §0d ORDERED banner.

@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->2e59506<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->f123197<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1379,18 +1379,6 @@
    "doc": "docs/scoring_fix_plan.md §4"
   },
   {
-   "id": "purchasing-tx-and-power",
-   "question": "Two small purchases are waiting on you, and both are cheaper bundled than bought alone. The second RadioMaster Pocket (~$65, confirmed NOT ordered) and a replacement power module (the Holybro PM02 was refunded by the vendor). Buy now or fold into the ~$740 airframe order?",
-   "options": [
-    "Fold both into the Tier-2 airframe order — one shipping charge, decided after tripod day",
-    "Buy the TX now, defer the power module",
-    "Buy both now so nothing is on a lead time when the airframe lands"
-   ],
-   "rec": "Option 1, with one thing to check first: does your 4-in-1 ESC already do current sensing and provide a 5 V BEC? If it does you may not need a power module at all, which is weight off a vehicle whose whole job is a fast dash. Worth confirming before spending.",
-   "blocked": "Neither blocks bench work — the 6C Mini runs off USB for the whole brain bench.",
-   "doc": "ADR-0089, ADR-0094"
-  },
-  {
    "id": "ship-vs-one-more-experiment",
    "question": "With the scorer fixed, the design meets its own bar in simulation. There is already far more evidence here than the stated purpose needs. The real risk to this project now is that it is never packaged and shown to anyone. What gets priority?",
    "options": [
@@ -1416,6 +1404,12 @@
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-09-23",
+   "text": "The Tier-2 interceptor airframe order is IN — placed by the builder 2026-09-22, ahead of the tripod money gate (his call, logged ADR-0109): Source One V6 frame, Skystars 60A ESC, five ECOII motors (arrive ~Oct 5–15), RP3 receiver, Matek 12S-Pro BEC, a replacement PM02, the second Pocket TX (closing the ADR-0089 question), 16 props, two lost-model buzzers, a LiPo bag and zip ties.",
+   "so_what": "Every powered part of the interceptor is now in hand or on order. What is still missing for a full intercept is small and mostly print/bench work: the flight controller's ULog memory card (no card = no scored flight), Pi-mount standoffs, the thrust rig, three prints (camera mount, checkerboard, tag placard), the field kit (power bank, tripod, cones, +2 battery packs) and kill-attempt spares. Two bench checks before trusting the new parts: the BEC's 5 V tap must really give 5.2 V under Pi load, and both transmitters need Model Match set up.",
+   "evidence": "order screenshots (builder, 2026-09-23) - ADR-0109 - docs/hardware_order_list.md §0d"
+  },
   {
    "date": "2026-09-23",
    "text": "Adaptive speed governor built and A/B'd in answer to the builder's ask (speed from target speed, phase, lock quality). Cap sizing -- believed target speed plus a 6 m/s overtake margin, clamped 8..24 -- matches a flat raised cap on every cell and takes the cells the legacy 16 m/s cap loses (15 m/s target: 54 to 100 percent contact; 18 m/s: 0 to 78). The lock-quality lever (slow down when decodes go stale) was REJECTED: null on aim-error cells and a 12-14 point cost at 18 m/s -- slowing keeps the tag small, which keeps the decodes sparse.",
@@ -1481,12 +1475,6 @@
    "text": "In the new simulator the fly-by concept was shown to be the limit, not the steering law: a purpose-built tag terminal scored the same as the old one, because a 0.30 m tag is readable for only ~0.6 s at 19 m/s closing. A slow-arrival pursuit concept (match the target's speed, close at a few m/s) went from 0% to 55-71% inside 0.35 m over three worker rounds; each round's gain came from a bug the new per-miss diagnostics exposed (run scored at the wrong moment, estimator seeded from noise, detection paired with the wrong instant of attitude).",
    "so_what": "A bad sprint stops mattering (30 degrees of aim error: 53% vs 0%). Height offsets and the last second, when the tag leaves the picture, are what is left. A longer lens made it worse, not better, at this geometry. If pursuit reaches 90% it changes the flight profile and tag placement, which is the builder's call.",
    "evidence": "isim/concepts.py - isim/specs/ - docs/new_sim_plan.md"
-  },
-  {
-   "date": "2026-09-17",
-   "text": "New simulator built in a day by worker agents plus the head: vehicle model fitted to 345 of last night's flights, a camera-and-AprilTag model from the Pi bench numbers, an adapter that drives the unmodified flight code, and a Monte-Carlo runner. Replaying last night's sprint commands through it gives the same misses as Gazebo (aim-tolerance curve 1.03/0.68/0.43/0.31/0.43/0.73/1.27 m against 1.20/0.71/0.40/0.24/0.42/0.74/1.34 m measured; height error passes straight through, +0.42 m against +0.39 m).",
-   "so_what": "It found two things on the way. The replay tool had a timing bug (now fixed) that would have hidden everything. And the Gazebo vehicle slides about half a metre sideways during the hard acceleration -- which is why last night's best aim was 5 degrees off-centre. One number in the model was tuned to that curve; six other arms it never saw still match. The baseline sweep says today's flight code passes almost nowhere, so the terminal is the work.",
-   "evidence": "commit 8dc72c1 - isim/replay_a0.py - docs/new_sim_plan.md"
   }
  ],
  "narrative": {
@@ -2085,7 +2073,7 @@
    ],
    "status": "half-done",
    "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo AI HAT+ DEFERRED; nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
-   "note": "BUILDER UNBLOCKED 2026-07-24: the two external-lead-time blockers the full review raised are RESOLVED — the builder confirms he HAS the regulatory basis AND a site. (Specifics — which regime, which site, and whether a deliberate two-aircraft mid-air is permitted IN WRITING — are not yet captured here; capture them when convenient, since the kill-day venue question is separate from the tripod-day one.) The critical path is therefore now BUILD + BENCH + tripod, not permissions. | ORDERED 2026-07-20 (~$1,000 shipped: target-drone stack + seeker kit + interceptor BRAIN 6C Mini/PM02/M10) + the must-add top-up. The interceptor AIRFRAME is Tier-2 and still gated on the tripod AprilTag decode curve. [CORRECTED 2026-07-24: this note previously read 'NOTHING ORDERED YET' four days after the cart was placed — a contract-drift miss found by the full project review.] the staged buy plan is the bom_tiers table (§3.0) and the human sequence is build_plan (§2.2). GATING (corrected 2026-07-17): the Tier-2 interceptor order is gated on the tripod session's APRILTAG decode-envelope curve (first kills fly the tag on Pi 5 CPU); the NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — never the interceptor. COMPUTE: Pi 5 CPU = AprilTag baseline real-time; markerless YOLO REQUIRES the Hailo HAT (CPU ~5-10 FPS not viable at terminal LOS rates); fps CANNOT be pre-measured in emulation (constraint pi5-emulation-gap) — hence Pi 5 in Tier 1. PRE-BUILD kill-or-validate: the tripod + tagged-target afternoon yields BOTH curves in one session (the transfer bet is hope-past-evidence, but its verdict only moves the markerless phase). (BOM §0⑥'s foveated-crop claim has since been annotated superseded — see graveyard.) | Onboard flight software READY (skeleton): real_flight.py state machine SITL-verified (ADR-0081) + field bring-up kit (scripts/field/) -- so when parts arrive the software side is built; remaining is the physical build + bench tuning of the TODO-BUILDER constants + the tripod test.",
+   "note": "Permissions CLOSED (regulatory basis + site confirmed 2026-07-24; owned-land ruling 2026-08-10) — the critical path is BUILD + BENCH + tripod. ORDERED 2026-07-20: target-drone stack + seeker kit + interceptor brain (6C Mini/PM02/M10) + the must-add top-up. ORDERED 2026-09-22 (builder, ahead of the tripod tag-decode money gate — ADR-0109; the curve still gates kill-attempt flights + the Hailo/markerless phase): the Tier-2 airframe — Source One V6, Skystars KO60II 60A ESC, ECOII 2207 ×5, RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× buzzers, LiPo bag, zip ties. STILL MISSING for a full intercept (small, mostly print/bench): FC High-Endurance microSD (ULogs are the metrology), M2.5 standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). Bench-verify the 12S-Pro 5 V tap = 5.2 V under Pi load and Model Match on both TXs. COMPUTE unchanged: Pi 5 CPU = AprilTag baseline real-time; markerless requires the deferred Hailo HAT (constraint pi5-compute). Onboard flight software READY (real_flight.py SITL-verified ADR-0081 + scripts/field/); remaining is delivery, the physical build, bench tuning of the TODO-BUILDER constants, and the tripod test.",
    "evidence": [
     "docs/hardware_order_list.md §0/§0b/§0c",
     "docs/next.md ROUND-5 (Pi5/HAT ruling, tripod test)"
@@ -2114,6 +2102,10 @@
     {
      "date": "2026-07-24",
      "note": "Builder confirms FAA regime + site are IN HAND — both external-lead-time blockers from the full review are cleared; the critical path is build/bench/tripod."
+    },
+    {
+     "date": "2026-09-23",
+     "note": "Tier-2 airframe ORDERED 2026-09-22 by the builder ahead of the tripod money gate (ADR-0109); 2nd Pocket TX, 2× buzzers and a replacement PM02 in the same orders; missing-items audit logged in bom_tiers Tier-2 status."
     }
    ],
    "caption": "The physical drones. Frame, flight controller, and Pi 5 in hand; assembly has begun.",
@@ -2544,69 +2536,69 @@
    "tier": 2,
    "name": "Full budget-friendly initial seeker — the lean §0c interceptor",
    "purpose": "Everything the airframe needs that Tier 1 didn't buy; Tier 1's Pi 5 + camera + checkerboard carry over, landing the interceptor at ~$740 all-in (§0c lean binary-kill build). Deferred past this tier, buy at the phase that needs it: Hailo AI HAT+ $70 (markerless phase), SiK telemetry $75 (long-range), spare arms/motor/RX + 3rd LiPo ~$82 (before kill attempts).",
-   "gate": "ORDER ONLY AFTER the Tier-1 tripod afternoon's APRILTAG decode-envelope curve supports the staged first kill — the tag (the Pi-5-CPU baseline seeker, §0c) must decode the approaching placard early enough to leave t_go >=0.5 s post-handoff at the straight-leg closing speed (the docs/next.md R5 kill-number, applied to the tag). The NN approach-recall curve gates ONLY the deferred Hailo HAT + the markerless phase — do NOT gate this order on NN acquisition; a dead transfer bet delays markerless, not the interceptor.",
+   "gate": "GATE OVERTAKEN 2026-09-22: the builder placed the Tier-2 airframe order BEFORE the tripod tag-decode curve flew (ADR-0109 — his call, spend-side only). The curve keeps its remaining teeth: it still gates KILL-ATTEMPT flights and the deferred Hailo/markerless phase; a bad curve now means a bigger placard or slower legs, not a wasted airframe.",
    "total": "~$510 this tier (-> interceptor ~$740 all-in with the Tier-1 carry-overs)",
    "evidence": "docs/hardware_order_list.md §0c/§A/§B/§C/§D; docs/next.md R5",
    "items": [
     {
-     "item": "Frame — TBS Source One V5 5\"",
+     "item": "Frame — TBS Source One V6 5\" [ORDERED 2026-09-22]",
      "qty": "1",
-     "price": "~$33",
-     "why": "§0c budget swap; re-run the §0② nose-cantilever prop-clearance geometry on this frame (mandatory)."
+     "price": "$41.99",
+     "why": "Builder ordered the V6 (same family as the target's frame — shared spares); re-run the §0② nose-cantilever prop-clearance geometry on this frame (mandatory)."
     },
     {
-     "item": "Motors — EMAX ECO II 2207 1900KV",
+     "item": "Motors — EMAX ECO II 2207 1900KV ×5 [ORDERED 2026-09-22, arrive ~Oct 5–15]",
      "qty": "4",
-     "price": "~$56",
-     "why": "Keeps T/W >=5:1; shares a spare pool with the target's motors."
+     "price": "~$149",
+     "why": "4 flight + 1 spare (covers the §G spare-motor line); keeps T/W >=5:1; shares a spare pool with the target's identical motors."
     },
     {
-     "item": "ESC — 45-55A budget 4-in-1",
+     "item": "ESC — Skystars KO60II 60A 3-6S AM32 4-in-1 30x30 [ORDERED 2026-09-22]",
      "qty": "1",
-     "price": "~$42",
-     "why": "Ample for 2207/6S; watch bench temps."
+     "price": "$36.99",
+     "why": "Upgraded from the listed 45–55A budget pick — 60A headroom, AM32/DShot, 30x30 fits the V6 stack."
     },
     {
-     "item": "FC — Holybro Pixhawk 6C Mini (PX4) [PURCHASED EARLY 2026-07-20]",
+     "item": "FC — Holybro Pixhawk 6C Mini (PX4) [IN HAND]",
      "qty": "1",
      "price": "~$131",
      "why": "Bought with the Tier-1 order (+ PM02 V3 analog module) — front-loaded PAST the money gate. Fable: ACCEPTABLE — survives every FAIL loop-back (bigger placard/camera keep the 6C Mini) and enables PARALLEL bench OFFBOARD bring-up (Pi<->TELEM2, props-off) during the tripod campaign. Logged as an ADR-lite gate deviation. Confirm the box includes a microSD (ULogs=metrology)."
     },
     {
-     "item": "GPS — Holybro M10 + compass [PURCHASED EARLY 2026-07-20]",
+     "item": "GPS — Holybro M10 + compass [IN HAND]",
      "qty": "1",
      "price": "~$45",
      "why": "Bought with the Tier-1 order (IST8310, 10-pin GPS1). TWO GPS is CORRECT not redundant — one per aircraft (target M10Q AUTO+compass; interceptor M10 position-hold/failsafe)."
     },
     {
-     "item": "RC — RadioMaster RP3 ELRS diversity RX",
+     "item": "RC — RadioMaster RP3 ELRS diversity RX (UFL V2) [ORDERED 2026-09-22]",
      "qty": "1",
-     "price": "~$22",
+     "price": "$31.99",
      "why": "KILL/ARM ONLY — no guidance datalink (constraint no-datalink); flash SBUS -> RC IN (stock PX4 has no CRSF driver)."
     },
     {
      "item": "Battery — CNHL 6S 1500 mAh LiPo",
      "qty": "3",
      "price": "~$78",
-     "why": "A full test day; 6S packs shared with the target."
+     "why": "3 packs ordered 2026-07 (shared with the target); +2 more for two-aircraft test-day depth still sit on the field-layer must-add list."
     },
     {
-     "item": "Power — PM02 analog module + straps/XT60/wire",
+     "item": "Power — Holybro PM02 V3 analog module [RE-ORDERED 2026-09-22 — first unit vendor-refunded]",
      "qty": "1",
-     "price": "~$29",
-     "why": "FC power + V/I telemetry; must be ANALOG PM02 for the 6C Mini."
+     "price": "$24.99",
+     "why": "FC power + V/I telemetry; must be ANALOG PM02 for the 6C Mini. Straps/XT60/wire in hand (July top-up)."
     },
     {
-     "item": "Compute power — Matek BEC12S-PRO 5.2 V",
+     "item": "Compute power — Matek 12S Pro BEC [ORDERED 2026-09-22]",
      "qty": "1",
-     "price": "~$16",
-     "why": "Two-rail rule: dedicated Pi rail; 5.2 V removes the Pi-5 undervolt-throttle risk at the source."
+     "price": "$24.99",
+     "why": "Two-rail rule: dedicated Pi rail. Listing says 5V/8V/12V out — bench-verify the 5 V tap actually delivers Matek's spec'd 5.2 V under Pi load before trusting it (the undervolt-throttle margin is the whole reason for this part)."
     },
     {
-     "item": "Props — 5.1\" tri-blade CW+CCW",
+     "item": "Props — HQProp V2S 5x4.3x3 tri-blade ×16 [ORDERED 2026-09-22, arrive ~Sep 25]",
      "qty": "4 sets",
-     "price": "~$16",
-     "why": "1 flight set + 3 spares — you WILL break props."
+     "price": "~$19",
+     "why": "4 sets CW+CCW, shared with the target's identical props (§3 note sanctioned 5×4.3×3 as the cooler-running swap); re-verify T/W on the thrust rig."
     },
     {
      "item": "Camera mount — 3D-printed nose-cantilever prop-clearance boom + FIXED up-tilt at measured dash pitch",
@@ -2618,7 +2610,7 @@
      "item": "Storage — SanDisk High Endurance microSD (FC ULogs)",
      "qty": "1",
      "price": "~$12",
-     "why": "ULogs + onboard video ARE the kill metrology under binary-kill."
+     "why": "ULogs + onboard video ARE the kill metrology. NOT in the 2026-09-22 order — confirm the 6C Mini box included a card or buy one; no card = no scored flight."
     },
     {
      "item": "Cables — CSI 22->15-pin + TELEM2 UART pigtail",
@@ -2632,7 +2624,8 @@
      "price": "~$5",
      "why": "Mandatory under sustained CV load — prop wash is not enough."
     }
-   ]
+   ],
+   "status": "🟧 ORDERED 2026-09-22 (builder) — Source One V6 frame, Skystars KO60II 60A ESC, ECOII 2207 motors ×5 (arrive ~Oct 5–15), RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× lost-model buzzers, LiPo bag + zip ties. STILL MISSING for a full intercept: FC High-Endurance microSD (ULogs are the metrology), M2.5 nylon standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). BENCH-VERIFY: the 12S-Pro's 5 V tap must deliver Matek's spec'd 5.2 V under Pi load; both Pocket TXs need Model Match + the same ELRS version/bind phrase."
   }
  ],
  "build_tab": {
@@ -2996,7 +2989,7 @@
       "name": "RadioMaster Pocket M2 ELRS TX",
       "status": "ordered",
       "role": "Flies the target; later the hardware kill for both aircraft.",
-      "notes": "Needs 2x 18650 (ordered). SECOND TX CONFIRMED NOT ORDERED (builder, 2026-08-10) — ADR-0089 stands: buy a 2nd RadioMaster Pocket (~$65) so each aircraft has an independent arm/kill. This is now a PURCHASE item, not a question."
+      "notes": "2nd Pocket ORDERED 2026-09-22 (ADR-0089's independent target kill — the S2 hole). CC2500/ELRS combo variant with ELRS 2.4G selected; configure Model Match + same ELRS version/bind phrase on both."
      },
      {
       "name": "1-6S balance charger",
@@ -3035,10 +3028,10 @@
       "notes": "Ordered/owned — history in docs/hardware_order_list.md."
      },
      {
-      "name": "Lost-model buzzer",
-      "status": "must-add",
+      "name": "Lost-model buzzer — Flywoo Finder V1.0 w/ LED ×2 (one per aircraft)",
+      "status": "ordered",
       "role": "Recovers a target that lands out in the grass.",
-      "notes": ""
+      "notes": "Ordered 2026-09-22 with the airframe order."
      },
      {
       "name": "Field layer — tripod + ball head + inclinometer, >=27 W USB-C PD power bank, cones + tape measure, +2 CNHL 6S packs",
@@ -3109,6 +3102,134 @@
      {
       "id": "gnd-08",
       "text": "Pack the day before: all 3 packs charged, the protocol section-2 list packed (incl. power bank + laptop + full safety kit)."
+     }
+    ]
+   },
+   {
+    "id": "airframe",
+    "name": "Interceptor airframe (Tier-2)",
+    "role": "The lean §0c ram airframe the brain + seeker mount into — ORDERED 2026-09-22, ahead of the tripod money gate (builder decision, ADR-0109). Build waits on delivery (motors ~Oct 5–15 are the long pole).",
+    "parts": [
+     {
+      "name": "TBS Source One V6 5in frame kit",
+      "status": "ordered",
+      "role": "The airframe; same family as the target's frame — shared arms/spares.",
+      "notes": "Re-run the nose-cantilever prop-clearance geometry on THIS frame (hard gate)."
+     },
+     {
+      "name": "Skystars KO60II 60A 3-6S AM32 4-in-1 ESC (30x30)",
+      "status": "ordered",
+      "role": "Motor drive, DShot from the 6C Mini.",
+      "notes": "60A = extra headroom over the 45-55A plan."
+     },
+     {
+      "name": "EMAX ECO II 2207 1900KV motors ×5",
+      "status": "ordered",
+      "role": "4 flight + 1 spare; identical to the target's motors (one spare pool).",
+      "notes": "Longest lead item — arrives ~Oct 5-15."
+     },
+     {
+      "name": "RadioMaster RP3 ELRS diversity RX (UFL V2)",
+      "status": "ordered",
+      "role": "Kill/arm-only RC link (constraint no-datalink).",
+      "notes": "Flash SBUS output -> 6C Mini RC IN (stock PX4 has no CRSF driver)."
+     },
+     {
+      "name": "Matek 12S Pro BEC (Pi rail)",
+      "status": "ordered",
+      "role": "Dedicated Pi 5 power rail — two-rail rule.",
+      "notes": "Bench-verify the 5 V tap delivers 5.2 V under Pi load before first flight."
+     },
+     {
+      "name": "Holybro PM02 V3 analog power module",
+      "status": "ordered",
+      "role": "FC battery power + V/I telemetry.",
+      "notes": "Replacement — the first unit was vendor-refunded."
+     },
+     {
+      "name": "HQProp V2S 5x4.3x3 props ×16",
+      "status": "ordered",
+      "role": "Flight + spare sets, shared with the target.",
+      "notes": "Arrive ~Sep 25."
+     },
+     {
+      "name": "Pixhawk 6C Mini + M10 GPS (from the brain bench)",
+      "status": "in hand",
+      "role": "Autopilot + GPS move onto the airframe once the bench gates pass.",
+      "notes": ""
+     },
+     {
+      "name": "Nose-cantilever prop-clearance camera mount",
+      "status": "print",
+      "role": "Designs the own-prop phantom out of the FoV — no software fallback.",
+      "notes": "Print ADJUSTABLE 10-30 deg; corner-spin gate at loaded throttle caps the tilt."
+     },
+     {
+      "name": "FC High-Endurance microSD (ULogs)",
+      "status": "must-add",
+      "role": "ULogs are the kill metrology — no card, no scored flight.",
+      "notes": "Confirm whether the 6C Mini kit included one before buying."
+     },
+     {
+      "name": "M2.5 nylon standoff/screw kit (Pi tray)",
+      "status": "must-add",
+      "role": "Mounts the Pi 5 to the printed tray.",
+      "notes": ""
+     },
+     {
+      "name": "DIY thrust rig (inverted on a scale)",
+      "status": "must-add",
+      "role": "Bench T/W re-verify + real max lateral-accel (roadmap R4e).",
+      "notes": "~$20 DIY."
+     }
+    ],
+    "connections": [
+     {
+      "from": "6S LiPo",
+      "to": "PM02 V3 -> 6C Mini POWER1",
+      "medium": "XT60 pass-through + 6-pin V/I sense"
+     },
+     {
+      "from": "PM02 XT60 out",
+      "to": "KO60II ESC pads",
+      "medium": "XT60 pigtail, 14 AWG"
+     },
+     {
+      "from": "6C Mini PWM header",
+      "to": "KO60II signal",
+      "medium": "JST-SH 8-pin, DShot600"
+     },
+     {
+      "from": "LiPo main",
+      "to": "12S Pro BEC -> Pi 5",
+      "medium": "16 AWG -> 5 V rail (two-rail rule, 1000 uF cap)"
+     },
+     {
+      "from": "RP3 RX",
+      "to": "6C Mini RC IN",
+      "medium": "SBUS (ELRS flashed to SBUS output)"
+     }
+    ],
+    "steps": [
+     {
+      "id": "afr-01",
+      "text": "Assemble frame + motors + ESC; solder the power tree (PM02, BEC, XT60)."
+     },
+     {
+      "id": "afr-02",
+      "text": "First power-up through the smoke stopper, props OFF (standing rule)."
+     },
+     {
+      "id": "afr-03",
+      "text": "Bind RP3 (SBUS), verify motor directions + the RC kill switch in QGC."
+     },
+     {
+      "id": "afr-04",
+      "text": "Maiden as a plain quad, no payload — confirm T/W and clean flight."
+     },
+     {
+      "id": "afr-05",
+      "text": "Fit Pi tray + nose-cantilever mount; corner-spin prop-clearance gate at LOADED throttle across the tilt range."
      }
     ]
    }
