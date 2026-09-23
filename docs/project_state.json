@@ -521,8 +521,8 @@
  "plain_log": [
   {
    "date": "2026-09-22",
-   "text": "LinkedIn media pack built for the builder's project post: five figures (robustness grid, miss CDF, engagement anatomy from the parity trace, and two MBSE views) generated from a fresh n=50-per-cell re-run of the registered parity grid that reproduced the adopted numbers exactly; copy drafted and red-teamed by a Fable reviewer against the repo (docs/linkedin_copy_draft.md). Housekeeping finding: the published MBSE Artifact had been stale since 2026-08-12 while the dashboard stayed current -- republished to today's render the same turn.",
-   "evidence": "logs/linkedin_media_20260922/ - docs/images/linkedin/ - scripts/linkedin_media_figures.py",
+   "text": "LinkedIn media pack built for the builder's project post: five figures (robustness grid, miss CDF, engagement anatomy from the parity trace, and two MBSE views) generated from a fresh n=50-per-cell re-run of the registered parity grid that reproduced the adopted numbers exactly; copy drafted and red-teamed by a Fable reviewer against the repo (docs/linkedin_copy_draft.md). Housekeeping finding: the published MBSE Artifact had been stale since 2026-08-12 while the dashboard stayed current -- republished to today's render the same turn. Also flew a fresh M4-class pro-nav flight on the tag world for the post's video (closest approach 0.413 m, clean, gate criterion <1 m) and cut a 24 s honesty-labeled clip from its live onboard-camera capture (SIMULATION tag on every frame, retiming disclosed, no contact claim -- 0.413 m does not clear the 0.35 m ram bar).",
+   "evidence": "logs/linkedin_media_20260922/ - docs/images/linkedin/ - scripts/linkedin_media_figures.py - logs/m4_intercept_pronav_20260923T025539Z.csv - scripts/video/linkedin_hero_cut.py",
    "so_what": "The project can now be shown publicly with figures whose every number reproduces from a logged run, and the published systems model matches the build again. Nothing here changes any capability claim."
   },
   {
