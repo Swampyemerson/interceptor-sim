@@ -93,3 +93,42 @@ tuning. Specific known-risk suspects, written down now: the fixed 45 ms
 0.5 m size vs the 0.30 m the noise model's floor was shaped on, and
 `RealFlightSM`'s no-re-approach after a missed first pass (isim showed that
 exact failure at aim20/alt+2).
+
+## RESULT (2026-09-23, n=8 flown as registered)
+
+CPAs, sorted (m): 0.549 · 0.839 · 1.007 · 1.240 · 1.780 · 1.862 · 2.327 ·
+2.334. Median **1.510 m**. Detections consumed 46-67 per flight; 0 aborts;
+every flight ended SAFE via breakoff_complete. Logs:
+`logs/xcheck_gz_20260923_fixed/` (per-tick driver CSV, gt-pose scoring CSV,
+run+sim logs per flight; the discarded shakedown flight and its defect
+diagnosis: `logs/xcheck_gz_20260923/`).
+
+Scored against the registered criteria:
+1. >= 6/8 inside 1.0 m — **FAIL** (2/8)
+2. median <= 0.5 m — **FAIL** (1.510 m)
+3. >= 1 flight <= 0.35 m — **FAIL** (0/8)
+4. zero failsafe aborts — PASS
+5. camera driving on every flight — PASS
+
+**Registered verdict: FAIL (the NULL branch).** What survives, in the
+pre-registered direction-only language: the ported terminal DOES control a
+real-physics vehicle through a camera-driven chase in an independent
+simulator — acquisition, tracking, and a close to ~0.5-2.3 m, with the state
+machine ending the engagement cleanly. What does not survive: the CPA does
+not transfer (Gazebo median 12x the matched-optics isim prediction), so
+**the default-terminal swap stays BLOCKED** and no chase-only capability
+claim may cite isim numbers as if they were vehicle-level.
+
+Per the registered null path, the next step is the tick-trace diagnosis on
+the Gazebo CSVs (the parity-trace instrument, pointed at the registered
+suspects: the fixed 45 ms latency vs Gazebo's true render-to-consume delay,
+the 0.5 m tag vs the noise floor shaped on 0.30 m, detect-in-loop tick
+stretching, and the real EKF/controller dynamics isim's own-state model
+does not carry) — NOT tuning.
+
+**Bonus finding, already fixed in-contract:** the shakedown flight exposed
+parity defect #5 (Phase A yawed at the rendezvous point, freezing the camera
+off-target when station-keeping; the prototype yaws at the believed target).
+Fixed to match the prototype; the fix also closed the isim grid's aim20
+residual (70% -> 100% <= 0.35 m) and is pinned by a regression test that
+fails against the pre-fix code.

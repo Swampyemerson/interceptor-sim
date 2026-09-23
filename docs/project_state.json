@@ -3,7 +3,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-09-22",
+ "updated": "2026-09-23",
  "updated_by": "Fable 5 head session",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -16,14 +16,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-09-22",
-  "where": "Chase-only (ADR-0103/0105) is ruled, flyable, and as of today the port MATCHES its prototype (a registered trace fixed four defects: 24% to 100% inside 0.35 m, median 0.068 m). The field push LANDED: miss-abort safe modes (hover/return-home), the GPS cue relay built and wired in.",
-  "finding": "The GPS cue relay's error budget (real bench GPS data) says a relayed cue CANNOT serve the sprint terminal (needs ~1 deg; worst-credible is 8-27 deg) but comfortably serves chase-only kept under ~2 s stale -- independent support for the chase-only ruling.",
+  "as_of": "2026-09-23",
+  "where": "Housekeeping + validation day: 68 superseded files moved to retired/, the README rebuilt recruiter-first, and the pursuit port's pre-registered Gazebo cross-check FLEW -- catching a fifth port defect (frozen Phase-A camera yaw, fixed + pinned) and then FAILING its registered bar.",
+  "finding": "The chase transfers in kind, not in number: in Gazebo the port flies a camera-driven chase (46-67 detections/flight, zero aborts) but closes to median 1.51 m vs the 0.122 m matched isim prediction. Default-terminal swap stays BLOCKED; next is tick-trace diagnosis, not tuning.",
   "next": [
-   "Leg-1 bench: desk half DONE (gate proven on wire); needs ~10 builder-minutes -- plan doc section 13",
-   "Builder ruling still queued: slant under-range in the stock seeker paths (rec: document, don't fix)"
+   "Tick-trace the Gazebo chase CSVs (registered suspects in the prereg doc)",
+   "Leg-1 bench: desk half DONE; needs ~10 builder-minutes (plan doc sec 13)"
   ],
-  "evidence": "isim/specs/parity_flightcode_2026-09-21.md - ADR-0103/0105/0106 - docs/next.md item 0"
+  "evidence": "docs/xcheck_gazebo_pursuit_prereg.md - logs/xcheck_gz_20260923_fixed/ - retired/README.md"
  },
  "assumptions": [
   {
@@ -520,6 +520,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-09-23",
+   "text": "Recruiter-readiness + validation push, all lanes. (1) Opus 5.5 tested the day it appeared: three clean defense-framed passes on this repo (a guidance-math analysis, the cross-check harness build, the README audit) -- a working high-capability subagent lane again, logged in docs/subagent_safeguard_log.md. (2) 68 superseded files consolidated to retired/ (S2 ground-stereo, T25 demo pipeline, old forensics, tilt/track harnesses, closed planning docs) off a 248-file reference-topology inventory; suite green after. (3) README rebuilt: chase-only framing, status box, intercept GIF above the fold, honest seeker story, fresh screenshots; stale GitHub board snapshot (43 days) refetched. (4) The pre-registered Gazebo cross-check of the pursuit port flew n=8 with real camera-in-the-loop: shakedown caught parity defect #5 (Phase A yawed at the rendezvous point, freezing the camera off-target when station-keeping -- the prototype yaws at the believed target; fixed, regression-pinned, and the fix closed the isim aim20 cell 70%->100%), then the scored flights FAILED the registered bar: camera-driven chase confirmed, CPA 0.55-2.33 m, median 1.51 m vs 0.122 m predicted.",
+   "so_what": "The project is publicly presentable and the chase concept now has an honest vehicle-level number: the fast sim's 100%-inside-0.35 m does NOT yet survive contact with real physics -- a 12x transfer gap with named suspects. The default swap stays blocked on the registered rule, and the next unit of work is diagnosis, not celebration or tuning.",
+   "evidence": "docs/xcheck_gazebo_pursuit_prereg.md - logs/xcheck_gz_20260923_fixed/ - docs/subagent_safeguard_log.md - retired/README.md - commits 3880153, 07dbe22, 91fcaae"
+  },
+  {
    "date": "2026-09-22",
    "text": "LinkedIn media pack built for the builder's project post: five figures (robustness grid, miss CDF, engagement anatomy from the parity trace, and two MBSE views) generated from a fresh n=50-per-cell re-run of the registered parity grid that reproduced the adopted numbers exactly; copy drafted and red-teamed by a Fable reviewer against the repo (docs/linkedin_copy_draft.md). Housekeeping finding: the published MBSE Artifact had been stale since 2026-08-12 while the dashboard stayed current -- republished to today's render the same turn. Also flew a fresh M4-class pro-nav flight on the tag world for the post's video (closest approach 0.413 m, clean, gate criterion <1 m) and cut a 24 s honesty-labeled clip from its live onboard-camera capture (SIMULATION tag on every frame, retiming disclosed, no contact claim -- 0.413 m does not clear the 0.35 m ram bar).",
    "evidence": "logs/linkedin_media_20260922/ - docs/images/linkedin/ - scripts/linkedin_media_figures.py - logs/m4_intercept_pronav_20260923T025539Z.csv - scripts/video/linkedin_hero_cut.py",
@@ -584,12 +590,6 @@
    "text": "Builder ruling: build an entirely new simulator. He is not satisfied with the diagnostics or the results of the Gazebo loop, the real system is an AprilTag and a Raspberry Pi, and the vehicle must intercept even if the sprint is poor or the target is at a different height. The earlier 'no simulator change' decision (ADR-0072) is reversed. His other open questions are settled by my recommendations.",
    "so_what": "The new simulator is a fast one with no Gazebo in the loop: it runs the actual flight code against a camera-and-tag model built from our bench measurements, thousands of runs a minute, and explains every miss. It has to reproduce last night's numbers -- including the camera's failure -- before anyone trusts it. Gazebo stays only as a final cross-check.",
    "evidence": "docs/new_sim_plan.md - ADR-0102"
-  },
-  {
-   "date": "2026-09-17",
-   "text": "Used the new tilt logging to ask why the camera never finds the target in flight. Answer: it is almost never shown it. The vehicle tips ~43 degrees nose-down to sprint, so the target sits above the top of the picture; and because it aims AHEAD of a crossing target, the target is 40-75 degrees off to the side of where the nose points. At 8-22 m the target was in the middle of the picture on 0 of 858 frames. Built and flew two fixes -- turn the nose toward where the target is predicted to be, and tilt the camera up 25 degrees -- plus a step the sim had always skipped (point the nose before launching). Result: target in the middle of the picture on 99% of frames, and the seeker really recognised it on 81% of them. Recognition was never the problem.",
-   "so_what": "Then the bad news, and it is the most important result of the night: with the camera finally seeing the target, the intercept got 2 to 5 times WORSE (3.3-3.6 m against 0.60 m for the sprint alone). The camera takes over in the first instant, before the vehicle has sprinted, and its steering was designed for a slower target and a takeover in the last few metres -- its sideways authority is capped at 8 m/s against a target crossing at 9. For the whole project the camera looked 'about as good as the sprint' only because it was blind until the last 0.2 seconds. The terminal guidance needs a redesign; that is a decision for you, queued below.",
-   "evidence": "docs/pointing_prereg.md - scripts/forensics/inframe_attribution.py - commits 3ec9ef5, 58ede84, dc6ebc2, e44770f"
   }
  ],
  "narrative": {

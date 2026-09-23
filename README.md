@@ -25,8 +25,8 @@ approach 0.413 m against a 2 m/s crosser; retiming labeled on-screen; the
 
 | | |
 |---|---|
-| Ruled design | chase-only pursuit (ADR-0103/0105); dash + pro-nav still the flying default pending the Gazebo cross-check |
-| Flight-code port | matches its prototype: 100% of 50 seeded nominal runs inside 0.35 m, median 0.068 m — **simulation** |
+| Ruled design | chase-only pursuit (ADR-0103/0105); dash + pro-nav stay the flying default — the Gazebo cross-check **failed its registered bar** (below), so the swap is blocked |
+| Flight-code port | matches its prototype in the fast sim (100% of 50 nominal runs ≤ 0.35 m, median 0.068 m); in Gazebo it chases camera-driven but closes only to median 1.51 m — **simulation, transfer gap open** |
 | Not yet done | no camera-guided intercept inside the 0.35 m contact bar in Gazebo; no real-world intercept |
 | Hardware | bench build under way; Pi 5 seeker measured 96.6 fps (AprilTag pipeline) |
 | Honesty machinery | ground truth firewalled from guidance (AST-enforced); assumptions register grades every given input |
@@ -112,9 +112,15 @@ clearance is a geometry problem**, not a software one.
   machine to **numeric parity with its prototype**: a registered tick-level
   trace found four coupled port defects, and the fixed port scores 100% of
   50 seeded nominal runs inside the 0.35 m contact radius, median 0.068 m
-  (`isim/specs/parity_trace_2026-09-22.md`) — **simulation**, and the
-  independent Gazebo cross-check is pre-registered and in progress
-  (`docs/xcheck_gazebo_pursuit_prereg.md`).
+  (`isim/specs/parity_trace_2026-09-22.md`) — **simulation**. The
+  pre-registered independent Gazebo cross-check then delivered both kinds of
+  result: its shakedown flight caught a fifth port defect (a frozen Phase-A
+  camera yaw, invisible to the isim grid, fixed and regression-pinned), and
+  the scored n=8 **failed the registered bar** — the port chases
+  camera-driven (46–67 detections consumed, zero aborts) but closes only to
+  median 1.51 m vs the 0.122 m matched-optics prediction, so the
+  default-terminal swap stays blocked and the transfer gap is the named next
+  problem (`docs/xcheck_gazebo_pursuit_prereg.md`).
 
 **Not proven — the honest wall (this is the interesting part):**
 
@@ -158,7 +164,8 @@ clearance is a geometry problem**, not a software one.
 | Why fast crossers miss ~1.4 m (41-flight forensics) | terminal correction capacity **½·a·t_go² ≈ 0.72 m** vs **1.69 m** already delivered at handoff → a perfect terminal camera cuts the miss only ~25% | miss tracks zero-effort-miss at handoff with r² = 0.96 — *variance explained*, not "96% of any one miss" | ADR-0023/0027; `retired/docs/terminal_diagnosis.md` |
 | M5 final Monte-Carlo, n=96 (pursuit vs pro-nav × 6/9/12 m/s × line/maneuver/oblique) | **96.9% clean** (ran to completion and engaged; failures stay in every Pk denominator), mean miss 1.08 m, median 0.93 m; per-speed Pk per ADR-0025, never pooled | flew the **clean AprilTag sensor** (the disclosed perception upper bound), flat-board target; laws tied within the ~1 m run-to-run noise ([notes](docs/results_notes.md#m5)) | ADR-0036; `scripts/check_m5.sh`; committed `logs/mc_final_all.csv`; plots `docs/images/m5_*.png` |
 | Markerless seeker v2 (kill the AprilTag) | false-detection pollution **0.751 → 0.000**, range honesty **0.056 → 0.935**; ~+1 m median miss vs the tag = bearing *quality* (box-center vs subpixel corners) | in-sim markerless; on real outdoor mono frames v2 scores **AP50 0.0003** (transfer bet lost) — the hardware seeker is the real-data retrain `n-mono` (AP50 0.44 held-out) | ADR-0038/0040/0042/0043; `scripts/check_seeker_v2.sh`; `logs/nn_tier/eval_n-mono_heldout.csv` |
-| Chase-only flight-code port parity | port matches prototype: **100% of 50 seeded nominal runs ≤ 0.35 m, median 0.068 m**; aim-error 10°/20° cells 100%; target +2 m cell 68–76% (no-re-approach design gap) | **simulation** (flight-code-in-the-loop isim); a registered trace found and fixed 4+1 port defects — the fifth (a frozen Phase-A camera yaw) was caught by the Gazebo cross-check, invisible to the isim grid | ADR-0103/0105; `isim/specs/parity_trace_2026-09-22.md`; `docs/xcheck_gazebo_pursuit_prereg.md` |
+| Chase-only flight-code port parity | port matches prototype: **100% of 50 seeded nominal runs ≤ 0.35 m, median 0.068 m**; aim-error 10°/20° cells 100%; target +2 m cell 68–76% (no-re-approach design gap) | **simulation** (flight-code-in-the-loop isim); a registered trace found and fixed 4+1 port defects — the fifth (a frozen Phase-A camera yaw) was caught by the Gazebo cross-check, invisible to the isim grid | ADR-0103/0105; `isim/specs/parity_trace_2026-09-22.md` |
+| Gazebo cross-check of the chase (pre-registered, n=8) | camera-driven chase confirmed (46–67 detections/flight, 0 aborts) but CPA **0.55–2.33 m, median 1.51 m** — registered bar **FAILED**; default swap stays blocked | the honest transfer result: real EKF/control/latency dynamics cost ~1.4 m vs the fast sim's matched prediction (0.122 m); diagnosis next, not tuning | `docs/xcheck_gazebo_pursuit_prereg.md`; `logs/xcheck_gz_20260923_fixed/` |
 | Detect-then-track maneuvering terminal (billboard era) | post-handoff camera-terminal Pk@2.5 m: weave **3/16 → 14/14**, jink **1/8 → 14/15** (paired n=16 baseline reads 3/15 → 14/15); phantom handoffs 12 → 0; zero gross (>8 m) false terminal detections (0/155) in the headline arm | one empty Gazebo world (disclosed); **the CSRT tracker was later dropped for the 3D quad target** — the deployed config is NN-only every frame (ADR-0076 add #2; [notes](docs/results_notes.md#t21)) | ADR-0058; committed `logs/mc_t21_*.csv`; `scripts/check_t21.sh` |
 | Pk statistics hardening, n=72 | **Pk@2.8 m 72/72 — 95.0% Clopper-Pearson lower bound** (clears the ratified ≥95%-CI bar); Pk@2.5 m 71/72 = 98.6% point / 92.5% CP-LB | **flat-billboard target**, weave + 12 m/s only, never pooled, radius always stated; the 3D-quad target later exposed the wall this shape masked ([notes](docs/results_notes.md#pk72)) | ADR-0064/0025; committed `logs/mc_pk72_weave_s*.csv` |
 | Perception wall, quantified | in-flight approach recall **0.8%** vs **100% static** at 8–22 m, same detector, same threshold | the wall is flight-dynamic (pointing + background + phantom competition), **not** range/resolution/aspect — each of those was tested and eliminated | ADR-0076 add #18i/#18k; `scripts/seeker/approach_recall.py` |
