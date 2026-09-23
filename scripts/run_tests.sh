@@ -140,36 +140,13 @@ else
     echo "  SKIP: .venv not found"; rc=1
 fi
 
-echo ""
-echo "== [2/4] real-detector ONNX parity  (.venv-seeker: has onnxruntime)  =="
-if [ -x .venv-seeker/bin/python ]; then
-    # test_ground_station.py holds the importorskip('onnxruntime') parity cases;
-    # under .venv-seeker they EXECUTE instead of skipping. The ONLY skip path is
-    # a missing onnxruntime/cv2 MODULE (absent weights raise NoSuchFile = test
-    # FAILS; an absent capture dir raises FileNotFoundError = test ERRORs --
-    # both already loud). So: (a) preflight the modules and fail loudly if the
-    # venv lost them; (b) run with -rs and fail if ANYTHING skipped anyway.
-    # Green in this stage must mean the parity tests actually RAN.
-    if ! .venv-seeker/bin/python -c 'import onnxruntime, cv2' 2>/dev/null; then
-        echo "  FAIL: .venv-seeker lost onnxruntime/cv2 -- the ONNX parity tests"
-        echo "        would silently SKIP, not run. Reinstall into .venv-seeker."
-        rc=1
-    else
-        stage2_out="$(mktemp)"
-        .venv-seeker/bin/python -m pytest tests/test_ground_station.py -rs \
-            "${PYTEST_ARGS[@]}" 2>&1 | tee "$stage2_out" || rc=1
-        if grep -qE "[0-9]+ skipped" "$stage2_out"; then
-            echo "  FAIL: ONNX parity stage reported SKIPPED tests (see -rs lines"
-            echo "        above) -- a skip here is a missed parity check, not a pass."
-            rc=1
-        fi
-        rm -f "$stage2_out"
-    fi
-else
-    echo "  SKIP: .venv-seeker not found (ONNX parity NOT exercised)"; rc=1
-fi
+# [2/4] RETIRED 2026-09-23: the "real-detector ONNX parity" stage ran
+# tests/test_ground_station.py -- the S2 ground-stereo rig's GroundDetector
+# release-timing/parity cases. The whole S2 ground-station architecture is
+# superseded (project_state.json; retired/README.md) and its code + tests
+# moved to retired/. The deployed onboard seeker's own coverage lives in
+# flight/tests/ (stage 1). Stage numbering below kept to avoid churn.
 
-echo ""
 echo "== [3/4] project-state dashboard sync (docs/project_state.json <-> docs/dashboard.html) =="
 # The state file is the CONTRACT; the dashboard embeds a copy. Drift fails the
 # suite -- including the hand-authored layer's number-traceability guard
