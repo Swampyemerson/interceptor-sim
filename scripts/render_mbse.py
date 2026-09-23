@@ -282,7 +282,7 @@ def render_context_svg(state: dict) -> str:
         '<text x="455" y="90" class="sysname" text-anchor="middle">Interceptor</text>',
         '<text x="455" y="112" class="syssub" text-anchor="middle">system under design</text>',
         '<text x="455" y="150" class="syssub2" text-anchor="middle">camera + own-state EKF</text>',
-        '<text x="455" y="170" class="syssub2" text-anchor="middle">coded dash → pro-nav terminal</text>',
+        '<text x="455" y="170" class="syssub2" text-anchor="middle">chase-only pursuit terminal (ruled)</text>',
         '<text x="455" y="190" class="syssub2" text-anchor="middle">no datalink after launch</text>',
         f'<text x="455" y="228" class="syssub2 ok" text-anchor="middle">'
         f'{len(measured)} input(s) it measures itself</text>',
