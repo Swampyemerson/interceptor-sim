@@ -129,6 +129,16 @@ class DecodeParams:
     blur_n: float = 3.0
     pixel_noise_px: float = 0.3     # 1-sigma on the decoded centre
     side_noise_factor: float = 1.414  # side = difference of two noisy corners
+    # DETECTION-CADENCE THINNING (2026-09-23, tick-trace S3 -- isim/specs/
+    # xcheck_tick_trace_2026-09-23.md): a real driver may decode far fewer
+    # frames than the camera produces (the Gazebo cross-check driver consumed
+    # 5.2 det/s in ENGAGE against a 30 fps camera). When > 0, a frame whose
+    # capture time is within this interval of the last DECODED frame is not
+    # attempted at all (p forced to 0 -- the pipeline never polled it), so
+    # the delivered detection rate is capped at ~1/interval. 0.0 (default) =
+    # no gate, byte-identical to before this field existed (guarded so no
+    # rng draw or state changes on the default path).
+    min_decode_interval_s: float = 0.0
 
 
 # ---------------------------------------------------------------- pure helpers
@@ -227,6 +237,7 @@ class AprilTagSeeker:
         self._queue: List[Detection] = []
         self._prev_t: Optional[float] = None
         self._prev_q: Optional[Tuple[float, float, float, float]] = None
+        self._last_decode_capture_t = -math.inf   # DecodeParams.min_decode_interval_s
         self.frames = 0
         self.decodes = 0
 
@@ -279,9 +290,16 @@ class AprilTagSeeker:
 
         full = in_fov and self._corners_inside(tgt, normal, cam_pos, r_cn)
         p = p_decode(side_px, incidence, blur_px, dp) if full else 0.0
+        # Detection-cadence thinning (DecodeParams.min_decode_interval_s):
+        # the pipeline never attempted this frame, so p -> 0 BEFORE the rng
+        # draw (same no-draw shape as full=False). Inert at the 0.0 default.
+        if dp.min_decode_interval_s > 0.0 and \
+                (t - self._last_decode_capture_t) < dp.min_decode_interval_s - _T_EPS:
+            p = 0.0
         decoded = bool(p > 0.0 and self.rng.random() < p)
         if decoded:
             self.decodes += 1
+            self._last_decode_capture_t = t
             self._queue.append(self._measure(t, u, v, side_px, p_cam))
         return FrameReport(t_capture=t, in_fov=in_fov, side_px=side_px,
                            incidence_deg=incidence, blur_px=blur_px,

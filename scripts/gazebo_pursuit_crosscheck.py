@@ -85,12 +85,18 @@ def stamp_s(msg):
 
 def tag_to_detection(dets, fx, span_m, t_capture_sim):
     """AprilTag results -> the object `run_mavsdk_mission` consumes. The driver reads
-    ONLY `.range_m` and `.box_xywh` (SmokeSeeker's SimpleNamespace shape); the SM passes
-    the box to the terminal only when range_m is not None, so a miss is range=None.
+    `.range_m`, `.box_xywh` AND (2026-09-23, tick-trace S2 fix) `.tag_range_m` -- the
+    PnP pose slant range |pose_t|, which `run_mavsdk_mission` forwards as
+    `VehicleObs.det_range_pose_m` for a SUPPORTS_POSE_RANGE terminal (the pursuit
+    terminal scales its measured vector with it; measured -0.03 m bias / 0.109 m
+    spread over 415 live detections, vs the AABB box-width channel's systematic
+    15-25% under-range on a rotated/perspective tag). Honesty: pose_t is the same
+    detector's camera-pixel output, no ground truth. The SM passes the box to the
+    terminal only when range_m is not None, so a miss is range=None.
     range_m = fx*span/box_w -- the SAME known-size conversion the terminal applies to the
     box, so the SM's range-keyed guards and the terminal agree. NOTE it is DEPTH along the
     optical axis, not slant range: ~14% short of |pose_t| at ~30 deg off-axis (self-test
-    measures it). Extra attrs (t_capture_sim, tag_range_m = slant |pose_t|) are logs."""
+    measures it). `t_capture_sim` stays log-only."""
     hits = [d for d in dets if d.tag_id == 0]
     if not hits:
         return types.SimpleNamespace(range_m=None, box_xywh=None,

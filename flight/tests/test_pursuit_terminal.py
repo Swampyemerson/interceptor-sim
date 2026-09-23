@@ -489,3 +489,161 @@ def test_keepframe_respects_vertical_slew_budget():
     dv = np.diff(on[:, 2])
     dv = dv[np.isfinite(dv)]
     assert np.max(np.abs(dv)) <= cfg.accel_max_ms2 * DT + 1e-9
+
+
+# ================================================ pose-range channel (S2 fix)
+#
+# isim/specs/xcheck_tick_trace_2026-09-23.md: the Gazebo cross-check's tick
+# trace measured the AABB box-width range channel 15-25% short on a rotated/
+# perspective tag while the same detector's PnP pose range was near-clean
+# (-0.03 m bias, 0.109 m spread, n=415). step() therefore accepts an OPTIONAL
+# det_range_pose_m; absent, the code path is byte-identical to before.
+
+
+def test_pose_range_absent_is_byte_identical_to_prefeature_code():
+    """The keepframe golden fixture was generated from the PRE-pose-range
+    module; the default drive (no det_range_pose_m anywhere) must still
+    reproduce it exactly -- and an explicit det_range_pose_m=None must be
+    byte-identical to not passing the kwarg at all."""
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    got = _keepframe_identity_drive()
+    assert np.array_equal(got, golden, equal_nan=True)
+
+    # Same drive, kwarg explicitly None on every tick.
+    gcfg = GuidanceConfig(mount_fwd_m=0.0, mount_left_m=0.0, mount_up_m=0.0,
+                          mount_up_rad=0.0)
+    g = PursuitTerminalGuidance(
+        PursuitTerminalConfig(), cam(), 1.0, gcfg,
+        belief_r0_ned=np.array([15.0, 0.0, 0.0]),
+        belief_vel0_ned=np.array([3.0, 0.0, 0.0]), go_at_s=0.2)
+    rows = []
+    t = 0.0
+    for i in range(140):
+        t += DT
+        o = OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0, age_s=0.0,
+                     vel_ned=(1.0, 0.0, 0.0))
+        sp, _tel = g.step(_keepframe_det_for_tick(i), o, t, det_range_pose_m=None)
+        rows.append([math.nan] * 4 if sp is None
+                    else [sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg])
+    assert np.array_equal(np.array(rows), golden, equal_nan=True)
+
+
+def test_pose_range_corrects_a_widened_aabb_box():
+    """The Gazebo defect in miniature: an off-axis detection whose box width
+    is inflated 25% (the AABB of a rotated tag) under-ranges the box channel;
+    supplying the TRUE slant as det_range_pose_m must reconstruct the exact
+    NED vector (direction still from the box centre)."""
+    n, e, d = 6.0, 2.5, -1.0
+    slant = math.sqrt(n * n + e * e + d * d)
+    # PHYSICAL pinhole box (width encodes DEPTH n: side_px = fx*side/n) -- the
+    # geometry a real fronto-parallel tag projects to, which the slant-
+    # corrected box channel reconstructs exactly. (`box_for` above is a
+    # different, test-local convention that encodes the slant instead.)
+    u, v = CX + FX * e / n, CY + FY * d / n
+    bw = FX * 1.0 / n
+    # AABB inflation: widen the box about its own centre (centre unchanged).
+    box_wide = (u - 1.25 * bw / 2.0, v - 1.25 * bw / 2.0, 1.25 * bw, 1.25 * bw)
+
+    g, _, _ = guidance(belief_r0_ned=(10.0, 0.0, 0.0),
+                       belief_vel0_ned=(0.0, 0.0, 0.0), acquire_n=999)
+    meas_box, _dir, rng_box = g._measured_r_ned(box_wide, IDENT)
+    meas_pose, _dir2, rng_pose = g._measured_r_ned(box_wide, IDENT,
+                                                   range_override_m=slant)
+    # Box channel: ~25% short (1/1.25), the defect.
+    assert rng_box == pytest.approx(slant / 1.25, rel=1e-6)
+    # Pose channel: exact range and exact vector reconstruction.
+    assert rng_pose == pytest.approx(slant, rel=1e-9)
+    assert meas_pose == pytest.approx(np.array([n, e, d]), abs=1e-6)
+    assert np.linalg.norm(meas_box - np.array([n, e, d])) > 1.0
+
+
+def test_pose_range_nonpositive_or_nonfinite_falls_back_to_box():
+    g, _, _ = guidance(acquire_n=999)
+    box = box_for(8.0, 1.0, -0.5)
+    ref, _, rref = g._measured_r_ned(box, IDENT)
+    for bad in (0.0, -3.0, float("nan"), float("inf")):
+        got, _, rgot = g._measured_r_ned(box, IDENT, range_override_m=bad)
+        assert rgot == pytest.approx(rref, rel=1e-12)
+        assert got == pytest.approx(ref, rel=1e-12)
+
+
+def test_pose_range_steers_the_kf_through_step():
+    """End-to-end through step(): identical box streams, one arm with a pose
+    range 20% LONGER than the box range -- the KF range estimate must come out
+    correspondingly longer (the channel is live, not decorative)."""
+    def drive(pose_scale):
+        g, _, _ = guidance(belief_r0_ned=(12.0, 0.0, 0.0),
+                           belief_vel0_ned=(0.0, 0.0, 0.0),
+                           acquire_n=2, acquire_window_s=0.3)
+        t, tel = 0.0, None
+        for _ in range(20):
+            t += DT
+            box = box_for(10.0, 0.0, 0.0)
+            pose = 10.0 * pose_scale if pose_scale else None
+            _, tel = g.step(box, own(), t, det_range_pose_m=pose)
+        return tel.r_hat_m
+    r_box = drive(None)
+    r_pose = drive(1.2)
+    assert r_pose > r_box * 1.1
+    assert r_box == pytest.approx(10.0, abs=0.5)
+    assert r_pose == pytest.approx(12.0, abs=0.6)
+
+
+def test_sm_passes_pose_range_only_to_a_supporting_terminal():
+    """RealFlightSM._step_engage must pass det_range_pose_m= ONLY when the
+    terminal advertises SUPPORTS_POSE_RANGE -- the duck-typed 3-argument
+    contract of the other terminals is untouched."""
+    from flight.deploy.real_flight import (MissionConfig, RealFlightSM,
+                                           State, TriggerState, VehicleObs)
+
+    class RecordingTerminal:
+        SUPPORTS_POSE_RANGE = True
+
+        def __init__(self):
+            self.calls = []
+
+        def step(self, box, own_state, t, det_range_pose_m=None):
+            self.calls.append((box, det_range_pose_m))
+            from flight.deploy.seeker_loop import Setpoint, StepTelemetry
+            tel = StepTelemetry(t=t, detected=box is not None)
+            return Setpoint(0.0, 0.0, 0.0, 0.0), tel
+
+    class LegacyTerminal:
+        def __init__(self):
+            self.calls = []
+
+        def step(self, box, own_state, t):   # NO kwarg -- must never get one
+            self.calls.append(box)
+            from flight.deploy.seeker_loop import Setpoint, StepTelemetry
+            tel = StepTelemetry(t=t, detected=box is not None)
+            return Setpoint(0.0, 0.0, 0.0, 0.0), tel
+
+    def drive(terminal):
+        cfg = MissionConfig(preflight_heading_deg=0.0, standby_alt_m=7.0,
+                            standby_settle_s=0.0, pursuit_mode=True)
+        sm = RealFlightSM(cfg, guidance=terminal)
+        no = TriggerState(go=False, link_ok=True, age_s=0.05, raw_us=1100)
+        go = TriggerState(go=True, link_ok=True, age_s=0.05, raw_us=1900)
+
+        def o(t, trig, **kw):
+            base = dict(armed=True, offboard_active=True, alt_m=7.0,
+                        yaw_deg=0.0, quat=(1.0, 0.0, 0.0, 0.0))
+            base.update(kw)
+            return VehicleObs(t=t, trigger=trig, **base)
+        sm.step(o(0.0, no))
+        sm.step(o(0.05, go))
+        assert sm.state == State.ENGAGE     # pursuit_mode: GO -> ENGAGE direct
+        sm.step(o(0.10, no, det_new=True, det_range_m=9.0,
+                  det_box_xywh=(600.0, 450.0, 30.0, 30.0),
+                  det_range_pose_m=9.4))
+        # A tick whose detection is a MISS (range None): box gated to None,
+        # so the pose range must be gated to None too.
+        sm.step(o(0.15, no, det_new=True, det_range_m=None,
+                  det_box_xywh=None, det_range_pose_m=7.7))
+        return terminal.calls
+
+    rec = drive(RecordingTerminal())
+    assert rec[-2] == ((600.0, 450.0, 30.0, 30.0), 9.4)
+    assert rec[-1] == (None, None)
+    legacy = drive(LegacyTerminal())     # would TypeError on an extra kwarg
+    assert legacy[-2] == (600.0, 450.0, 30.0, 30.0)

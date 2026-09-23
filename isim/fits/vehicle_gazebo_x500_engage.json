@@ -1,0 +1,106 @@
+{
+ "regime": "ENGAGE (braking / lateral-nulling terminal), NOT dash",
+ "provenance": "Fit on the 8 Gazebo pursuit cross-check flights' full ENGAGE segments, logs/xcheck_gz_20260923_fixed/f{1..8}{,_rf}.csv (docs/xcheck_gazebo_pursuit_prereg.md n=8 run, 2026-09-23), by scripts/fit_vehicle_engage.py. Motivation + measured mismatch: isim/specs/xcheck_tick_trace_2026-09-23.md S4 (real horiz delay/tau 0.24/0.51 and 0.18/0.60 s vs the dash fit's 0.03/0.30 and 0.02/0.36; vertical the dash fit was the pessimist). p0 = isim/fits/vehicle_gazebo_x500.json (the dash-regime fit, kept as-is for dash work -- the regime rule cuts both ways).",
+ "flights": [
+  "f1 ENGAGE, 264 rows, 12.8 s",
+  "f2 ENGAGE, 178 rows, 9.0 s",
+  "f3 ENGAGE, 184 rows, 9.4 s",
+  "f4 ENGAGE, 185 rows, 9.5 s",
+  "f5 ENGAGE, 176 rows, 9.0 s",
+  "f6 ENGAGE, 188 rows, 9.5 s",
+  "f7 ENGAGE, 195 rows, 9.9 s",
+  "f8 ENGAGE, 191 rows, 9.7 s"
+ ],
+ "channels": "vel = 5-pt boxcar smoothed gradient of gz-truth position (tick-trace convention); pos_d = gz-truth down; NO tilt channel (rf.csv logs no quaternion)",
+ "free": [
+  "kp_vel_horiz",
+  "max_setpoint_accel_horiz",
+  "max_accel_horiz",
+  "max_tilt_deg",
+  "tilt_time_constant_s",
+  "thrust_max",
+  "drag_linear_horiz",
+  "kp_vel_vert",
+  "ki_vel_vert",
+  "latency_s"
+ ],
+ "weights": {
+  "vel": 1.0,
+  "pos_d": 4.0,
+  "tilt_deg": 0.05
+ },
+ "fit_wall_s": 534.4,
+ "params": {
+  "kp_vel_horiz": 3.339779758921771,
+  "ki_vel_horiz": 0.4,
+  "ki_vel_horiz_limit": 3.0,
+  "kp_vel_vert": 1.7133253986128554,
+  "ki_vel_vert": 2.2377321552562313e-05,
+  "ki_vel_vert_limit": 3.0,
+  "max_setpoint_accel_horiz": 5.943158554258892,
+  "max_setpoint_accel_vert": 4.0,
+  "max_accel_horiz": 13.527043674397413,
+  "max_tilt_deg": 37.66650245610431,
+  "max_tilt_rate_deg_s": 220.0,
+  "tilt_time_constant_s": 0.03875685265957487,
+  "thrust_max": 18.252916283747968,
+  "thrust_min": 1.0,
+  "thrust_time_constant_s": 0.010000000000000002,
+  "drag_linear_horiz": 0.1681834199702433,
+  "drag_linear_vert": 0.35,
+  "drag_quad_horiz": 6.213810577675567e-14,
+  "drag_quad_vert": 0.0,
+  "thrust_az_bias_deg": -16.0,
+  "yaw_rate_limit_deg_s": 120.0,
+  "yaw_time_constant_s": 0.25,
+  "latency_s": 0.14,
+  "wind_ned": [
+   0.0,
+   0.0,
+   0.0
+  ],
+  "gust_std": 0.0,
+  "gust_ou_std": 0.0,
+  "gust_ou_std_vert": 0.0,
+  "gust_ou_tau_s": 2.0
+ },
+ "report": {
+  "free": [
+   "kp_vel_horiz",
+   "max_setpoint_accel_horiz",
+   "max_accel_horiz",
+   "max_tilt_deg",
+   "tilt_time_constant_s",
+   "thrust_max",
+   "drag_linear_horiz",
+   "kp_vel_vert",
+   "ki_vel_vert",
+   "latency_s"
+  ],
+  "optimizer": "scipy.optimize.least_squares",
+  "fitted_values": {
+   "kp_vel_horiz": 3.339779758921771,
+   "max_setpoint_accel_horiz": 5.943158554258892,
+   "max_accel_horiz": 13.527043674397413,
+   "max_tilt_deg": 37.66650245610431,
+   "tilt_time_constant_s": 0.03875685265957487,
+   "thrust_max": 18.252916283747968,
+   "drag_linear_horiz": 0.1681834199702433,
+   "kp_vel_vert": 1.7133253986128554,
+   "ki_vel_vert": 2.2377321552562313e-05,
+   "latency_s": 0.14
+  },
+  "rms_before": {
+   "vel_n": 1.305888928479358,
+   "vel_e": 1.6003888417943815,
+   "vel_d": 0.4552669778971367,
+   "pos_d": 0.30918447040067776
+  },
+  "rms_after": {
+   "vel_n": 0.5715300868714563,
+   "vel_e": 0.6406100870164995,
+   "vel_d": 0.3702821565512214,
+   "pos_d": 0.27124378197154236
+  }
+ }
+}

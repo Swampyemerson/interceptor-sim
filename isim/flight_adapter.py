@@ -98,7 +98,17 @@ class RealFlightGuidance:
                  tag_cfg: Optional[TagTerminalConfig] = None,
                  pursuit_cfg: Optional[PursuitTerminalConfig] = None,
                  belief_r0_ned: Optional[Tuple[float, float, float]] = None,
-                 belief_vel0_ned: Optional[Tuple[float, float, float]] = None) -> None:
+                 belief_vel0_ned: Optional[Tuple[float, float, float]] = None,
+                 supply_pose_range: bool = False) -> None:
+        # `supply_pose_range` (2026-09-23, tick-trace S2 re-prediction arm d):
+        # when True, each Detection's `range_m` (isim's ideal-pinhole slant
+        # range -- the analogue of the real detector's PnP |pose_t| the fixed
+        # Gazebo driver now supplies) is forwarded as
+        # `VehicleObs.det_range_pose_m`. Default False leaves that field None
+        # -- BIT-STABLE with the pre-change adapter, because isim's synthetic
+        # box is an ideal (unbiased) pinhole side, so the box-width channel it
+        # feeds today has none of the Gazebo AABB defect to fix.
+        self.supply_pose_range = bool(supply_pose_range)
         # `terminal`: "stock" (default) builds the SAME SeekerGuidance (LOS-rate
         # pro-nav) this class always built; "tag" builds flight.tag_terminal.
         # TagInterceptGuidance (3-D predicted-intercept-point law); "pursuit"
@@ -186,7 +196,9 @@ class RealFlightGuidance:
             ground_speed_ms=math.hypot(float(own.vel_ned[0]), float(own.vel_ned[1])),
             vel_ned=tuple(float(c) for c in own.vel_ned),
             trigger=trig, det_new=(det is not None), det_box_xywh=box,
-            det_range_m=det_range_m, det_bearing_deg=det_bearing_deg)
+            det_range_m=det_range_m, det_bearing_deg=det_bearing_deg,
+            det_range_pose_m=(det.range_m if (self.supply_pose_range
+                                              and det is not None) else None))
 
         dec = self._sm.step(obs)
         self.last_decision = dec

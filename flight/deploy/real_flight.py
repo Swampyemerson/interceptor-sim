@@ -547,6 +547,15 @@ class VehicleObs:
     det_new: bool = False                       # a NEW detector result this tick
     det_box_xywh: Optional[Sequence[float]] = None
     det_range_m: Optional[float] = None
+    # OPTIONAL detector-PnP slant range for the SAME detection (2026-09-23,
+    # tick-trace S2 fix -- isim/specs/xcheck_tick_trace_2026-09-23.md): the
+    # AprilTag pose solver's |t|, camera origin to tag centre. Same honesty
+    # class as the box (camera pixels + known tag size, no ground truth).
+    # Default None so every existing caller/driver/test is byte-unaffected;
+    # consumed ONLY by a terminal that advertises SUPPORTS_POSE_RANGE
+    # (flight.pursuit_terminal) -- the stock/tag terminals' AABB range
+    # channel is under the separate ADR-0105 ruling and is not changed.
+    det_range_pose_m: Optional[float] = None
     # Bearing for the OPTIONAL pre-launch bearing latch (degrees, camera-relative).
     # Read ONLY at the GO edge and only when cfg.bearing_latch_enabled.
     det_bearing_deg: Optional[float] = None
@@ -1446,7 +1455,18 @@ class RealFlightSM:
 
         if self.guidance is not None:
             box = obs.det_box_xywh if obs.det_range_m is not None else None
-            sp, tel = self.guidance.step(box, obs.own_state(), obs.t)
+            if getattr(self.guidance, "SUPPORTS_POSE_RANGE", False):
+                # Pursuit-scoped pose-range channel (tick-trace S2 fix): the
+                # kwarg is passed ONLY to a terminal that declares it, so the
+                # duck-typed 3-argument contract of SeekerGuidance/
+                # TagInterceptGuidance is untouched. The pose range travels
+                # only alongside a box the terminal will actually consume.
+                sp, tel = self.guidance.step(
+                    box, obs.own_state(), obs.t,
+                    det_range_pose_m=(obs.det_range_pose_m
+                                      if box is not None else None))
+            else:
+                sp, tel = self.guidance.step(box, obs.own_state(), obs.t)
         if sp is not None:
             self._last_yaw_cmd_deg = sp.yaw_deg
         # PURSUIT-MODE MISS POLICY input (builder ruling 2026-09-22,
@@ -2447,16 +2467,27 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                 # its poll() must get the same base -- polling it with mission
                 # time made the RC age negative and pinned link_ok True forever.
                 trig = trigger.poll(trigger_poll_time(trigger, t, time.monotonic()))
-                det_new = det_range = det_box = None
+                det_new = det_range = det_box = det_pose = None
                 if detector is not None and sm.t_dash_start is not None \
-                        and t >= sm.t_dash_start + args.smoke_acquire_after_s \
-                        and (n_tick % 2 == 0):
-                    # SYNTHETIC detection (no camera / weights / onnx): the smoke
-                    # validates the MAVLink + state-machine plumbing, not perception.
-                    # Every OTHER tick, so the "no new result -> HOLD" streak
-                    # branch is exercised too.
+                        and t >= sm.t_dash_start + args.smoke_acquire_after_s:
+                    # Detection runs EVERY tick (2026-09-23, tick-trace S3 fix:
+                    # the old `n_tick % 2 == 0` gate capped a live detector --
+                    # the Gazebo cross-check -- at ~9.6 Hz against a 30 fps
+                    # camera, 5.2 consumed det/s vs isim's 25.5; the camera was
+                    # never the limit). CPU caveat: the decode now runs in the
+                    # control loop every tick -- the tick trace measured detect
+                    # ticks only +4 ms (0.056 vs 0.052 s), but the re-fly must
+                    # confirm tick dt stays ~0.05 s with the doubled decode
+                    # rate. The "no new result -> HOLD" streak branch this
+                    # gate once exercised in the synthetic smoke is still
+                    # covered by the offline self-test drive (det_new every
+                    # other tick there) and by real decode misses/dropouts.
                     d = detector.detect(frame, t)
                     det_new, det_range, det_box = True, d.range_m, d.box_xywh
+                    # Detector-PnP slant range, if this detector publishes one
+                    # (the Gazebo cross-check driver's tag_range_m; None from
+                    # the synthetic smoke detector) -- see VehicleObs.
+                    det_pose = getattr(d, "tag_range_m", None)
                 # FAILSAFE 7 arm 2 input: how old the flight-mode sample is, on
                 # the SAME clock base it was stamped with (absolute monotonic --
                 # mission time here would reproduce the RC clock-base defect, and
@@ -2472,7 +2503,7 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                                  quat=state["quat"],
                                  ground_speed_ms=state["gs"], trigger=trig,
                                  det_new=bool(det_new), det_range_m=det_range,
-                                 det_box_xywh=det_box)
+                                 det_box_xywh=det_box, det_range_pose_m=det_pose)
                 if isinstance(trigger, GateReadyTrigger):
                     trigger.observe_gate(sm.arm_gate(obs)[0])
                 dec = sm.step(obs)

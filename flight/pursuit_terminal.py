@@ -399,7 +399,22 @@ class PursuitTerminalGuidance:
     returning `(None, tel)` means "no trustworthy command" -- the caller
     holds the last dash velocity, exactly as for `SeekerGuidance`/
     `TagInterceptGuidance`.
+
+    POSE-RANGE CHANNEL (2026-09-23, pursuit-scoped ONLY -- the S2 fix of
+    isim/specs/xcheck_tick_trace_2026-09-23.md): `step()` additionally
+    accepts an OPTIONAL keyword `det_range_pose_m` -- the same detection's
+    detector-PnP slant range (camera pixels + known tag size, honesty-clean:
+    the same input class as the box itself). The class attribute
+    `SUPPORTS_POSE_RANGE = True` advertises this so `RealFlightSM` can pass
+    it without breaking the other duck-typed terminals (whose AABB range
+    channel is under the separate ADR-0105 open ruling and is deliberately
+    NOT changed here). `det_range_pose_m=None` (or calling with the old
+    3-argument form) is byte-identical to the pre-change module.
     """
+
+    #: `RealFlightSM._step_engage` passes `det_range_pose_m=` only when the
+    #: terminal advertises it -- SeekerGuidance/TagInterceptGuidance do not.
+    SUPPORTS_POSE_RANGE = True
 
     def __init__(self, cfg: PursuitTerminalConfig, cam: CameraModel, tag_side_m: float,
                  gcfg: GuidanceConfig, belief_r0_ned, belief_vel0_ned,
@@ -447,24 +462,45 @@ class PursuitTerminalGuidance:
 
     # ------------------------------------------------------------- geometry
 
-    def _measured_r_ned(self, det_box_xywh, quat) -> Tuple[np.ndarray, np.ndarray, float]:
+    def _measured_r_ned(self, det_box_xywh, quat, range_override_m=None
+                         ) -> Tuple[np.ndarray, np.ndarray, float]:
         """-> (measured target-relative-to-own NED vector, unit LOS
         direction NED, range_m). `_optical_vec_to_ned`/`_cam_offset_ned`
         already yield a vector relative to the vehicle's own CG -- no own-
-        position subtraction needed (see module docstring)."""
+        position subtraction needed (see module docstring).
+
+        `range_override_m` (POSE-RANGE CHANNEL, 2026-09-23 tick-trace fix S2,
+        isim/specs/xcheck_tick_trace_2026-09-23.md): an externally supplied
+        SLANT range (camera origin -> tag centre) for THIS SAME detection --
+        in practice the AprilTag detector's own PnP pose range, measured at
+        -0.03 m bias / 0.109 m spread over 415 live Gazebo detections while
+        the box-width channel below under-ranged 15-25% (the AABB of a
+        rotated/perspective tag is wider than the pinhole side). When
+        present, the DIRECTION still comes from the box centre (undistorted
+        unit ray, unchanged) and only the vector's LENGTH is set from the
+        override; the slant correction is skipped because a PnP |t| already
+        IS the slant range, not an optical-axis depth. When None the
+        box-width path below runs byte-identically to before this parameter
+        existed."""
         _bearing_h, range_m, meas_xyz = measurement_from_box(
             det_box_xywh, self.gcfg, self.cam, self.tag_side_m)
-        # SLANT CORRECTION (parity-trace fix, candidate (e)): the box width
-        # measures the pinhole DEPTH z (side_px = fx*side/z), but
-        # `measurement_from_box` places that depth along the UNIT ray, leaving
-        # the vector short of the true slant by cos(off-axis) -- a systematic
-        # 0.15-0.37 m along-LOS under-range in the traced close. The unit
-        # ray's z-component IS cos(off-axis), so dividing by it restores
-        # v = (x_n, y_n, 1)*z exactly.
-        ray_z = float(meas_xyz[2]) / max(range_m, 1e-9)
-        if ray_z > 1e-6:
-            meas_xyz = np.asarray(meas_xyz, dtype=np.float64) / ray_z
-            range_m = range_m / ray_z
+        if range_override_m is not None and math.isfinite(range_override_m) \
+                and range_override_m > 0.0:
+            unit_ray = np.asarray(meas_xyz, dtype=np.float64) / max(range_m, 1e-9)
+            meas_xyz = unit_ray * float(range_override_m)
+            range_m = float(range_override_m)
+        else:
+            # SLANT CORRECTION (parity-trace fix, candidate (e)): the box width
+            # measures the pinhole DEPTH z (side_px = fx*side/z), but
+            # `measurement_from_box` places that depth along the UNIT ray, leaving
+            # the vector short of the true slant by cos(off-axis) -- a systematic
+            # 0.15-0.37 m along-LOS under-range in the traced close. The unit
+            # ray's z-component IS cos(off-axis), so dividing by it restores
+            # v = (x_n, y_n, 1)*z exactly.
+            ray_z = float(meas_xyz[2]) / max(range_m, 1e-9)
+            if ray_z > 1e-6:
+                meas_xyz = np.asarray(meas_xyz, dtype=np.float64) / ray_z
+                range_m = range_m / ray_z
         cam_to_tgt_ned = _optical_vec_to_ned(meas_xyz, quat, self.gcfg.mount_up_rad)
         cam_ofs_ned = _cam_offset_ned(quat, self.gcfg.cam_offset_body)
         r_ned = cam_to_tgt_ned + cam_ofs_ned          # target relative to own CG, NED
@@ -473,7 +509,8 @@ class PursuitTerminalGuidance:
 
     # ------------------------------------------------------------------ step
 
-    def step(self, det_box_xywh, own: OwnState, t: float
+    def step(self, det_box_xywh, own: OwnState, t: float,
+              det_range_pose_m: Optional[float] = None
               ) -> Tuple[Optional[Setpoint], StepTelemetry]:
         cfg = self.cfg
         dt = 0.05 if self._last_t is None else max(1e-3, t - self._last_t)
@@ -539,7 +576,8 @@ class PursuitTerminalGuidance:
             self._r_track = self._r_track + (self._v_track - own_vel) * dt
 
         if det_box_xywh is not None:
-            meas_r, _dir, _rng = self._measured_r_ned(det_box_xywh, quat_cap)
+            meas_r, _dir, _rng = self._measured_r_ned(det_box_xywh, quat_cap,
+                                                       det_range_pose_m)
             self._decode_positions.append((t, meas_r))
             cutoff = t - cfg.acquire_window_s
             self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
@@ -552,7 +590,8 @@ class PursuitTerminalGuidance:
         if self._phase == "B":
             self._kf.predict(dt, own_vel)
             if det_box_xywh is not None:
-                self._update_kf(det_box_xywh, quat_cap, own_vel, t)
+                self._update_kf(det_box_xywh, quat_cap, own_vel, t,
+                                det_range_pose_m)
             range_est = float(np.linalg.norm(self._kf.r))
             dropout_s = t - self._last_decode_t
             if dropout_s > cfg.fallback_s and range_est >= cfg.no_fallback_range_m:
@@ -722,12 +761,18 @@ class PursuitTerminalGuidance:
         n = float(np.linalg.norm(kf_v_t))
         return kf_v_t * (cap / n) if n > cap else kf_v_t
 
-    def _update_kf(self, det_box_xywh, quat_cap, own_vel: np.ndarray, t: float) -> None:
+    def _update_kf(self, det_box_xywh, quat_cap, own_vel: np.ndarray, t: float,
+                   det_range_pose_m: Optional[float] = None) -> None:
         """`quat_cap` is the attitude at the ASSUMED capture instant
         (t - meas_latency_s), so `meas_r` is the relative position AT
         CAPTURE; the KF's measurement model carries the age explicitly
-        (see `_ConstVelKF.update`) instead of pre-extrapolating here."""
-        meas_r, dir_ned, range_m = self._measured_r_ned(det_box_xywh, quat_cap)
+        (see `_ConstVelKF.update`) instead of pre-extrapolating here.
+        `det_range_pose_m`: see `_measured_r_ned` (the measurement-NOISE
+        model is deliberately left on the box-width formula either way --
+        conservative at range for the pose channel, and re-tuning R is a
+        separate, pre-registerable decision, not part of the bias fix)."""
+        meas_r, dir_ned, range_m = self._measured_r_ned(det_box_xywh, quat_cap,
+                                                         det_range_pose_m)
         r_noise = _pursuit_measurement_noise(range_m, dir_ned, self.cfg, self.cam,
                                               self.tag_side_m)
         self._kf.update(meas_r, r_noise, age_s=self.cfg.meas_latency_s,

@@ -254,3 +254,15 @@ lane's 3-passes/1-bounce content record from earlier today stands. Fallback
 used: `opus48-worker` (builder-sanctioned 2026-09-22). Action for the
 builder/next session: restart the CLI (or `claude update` first) before
 relying on opus55-worker.
+
+## 2026-09-23 (evening) — Fable 5 worker bounce mid-task, [general_harms]
+
+A `model: fable` general-purpose worker (transfer-gap fix implementation:
+pose-range supply + vehicle re-fit + re-prediction) hard-failed mid-run with
+the classifier `invalid_request [general_harms]` — AFTER five clean Fable 5
+worker completions earlier the same day in this repo (keepframe build+A/B,
+tick-trace diagnosis, wind analysis, +3 m attribution, tilt A/B x2). So the
+Fable 5 lane is usable-but-not-uniform today, same read as Opus 5.5's
+3-passes/1-bounce. The bounced task's partial worktree was handed to an
+opus48-worker to finish (sanctioned fallback, ADR-0106); no rewording, per
+the standing rule.
