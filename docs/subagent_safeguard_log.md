@@ -241,3 +241,16 @@
   RUNNING session's CLI binary (2.1.276 here), so in-process spawns fail
   with a version error until the session restarts; the headless CLI is the
   in-session lane.
+
+## 2026-09-23 (later) — opus55-worker lane: CLI-version failure, NOT a safeguard event
+
+An `opus55-worker` spawn (MBSE contract update) failed with `invalid_request`:
+"Claude Code 2.1.276 does not support this model; version 2.1.280 or newer is
+required" (model sent: `claude-opus-5-5`). This is the known stale-binary
+class (cf. the 2026-07-25 `opus` alias gotcha): the RUNNING CLI process
+predates Opus 5.5 support; the on-disk CLI may already be newer — a session
+RESTART picks it up. Not content-related, not a classifier bounce; the
+lane's 3-passes/1-bounce content record from earlier today stands. Fallback
+used: `opus48-worker` (builder-sanctioned 2026-09-22). Action for the
+builder/next session: restart the CLI (or `claude update` first) before
+relying on opus55-worker.
