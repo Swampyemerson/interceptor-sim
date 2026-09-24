@@ -17,11 +17,11 @@
  },
  "now": {
   "as_of": "2026-09-24",
-  "where": "MILESTONE: Gazebo cross-check re-fly #4 (own-velocity wiring fix only, ADR-0117) PASSES the registered bar -- first time in four campaigns. Median CPA 0.343 m, 8/8 inside 1 m, 4/8 inside the 0.35 m contact envelope, camera-in-the-loop, zero aborts.",
-  "finding": "The whole transfer gap is now attributed and repaired: range bias + cadence (prereg2) + the driver feeding the KF COMMANDED velocity (ADR-0117, would have flown on real hardware). Arc 1.51 -> 0.97 -> 0.93 -> 0.34 m. Scope: perfect cue, no wind, upright tag -- sim milestone, not a field claim.",
+  "where": "Builder feedback applied (decide-and-log, stop queueing the reasonable): ADR-0118 executed the default-terminal swap per its standing gate, froze the stock-path geometry as-flown, closed three stale questions; queue is down to the publication hands-on list. Rehearsal round 2 in flight.",
+  "finding": "The chase (camera-only pursuit) is now the FLYING DEFAULT -- the gate it was held behind passed at median 0.343 m. Stock/tag stay selectable as-flown. Remaining directive work: rehearsal round 2, commit-sprint, Pi recorder, then the registered brake Gazebo arm.",
   "next": [
-   "Builder: default-swap + brake rulings reopen (0115/0116 evidence void under the defect)",
-   "Queued directives: rehearsal break-off, commit-sprint experiment, Pi recorder"
+   "Rehearsal round 2 (t_go trigger + too-late floor + brake-paired practice), registered",
+   "Then: commit-sprint experiment, Pi recorder, brake Gazebo arm"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -470,30 +470,6 @@
  ],
  "builder_queue": [
   {
-   "id": "corrected-headline-framing",
-   "question": "The scorer was measuring to the camera lens, not the airframe centre. An interim re-score claimed the fix turned 0 of 16 flights inside the kill radius into 12 of 16 -- that was RETRACTED the same night (the '+0.208 m camera offset' was landing-gear height). The real corrected ruling is 3 of 16 at logged ticks, 5 of 16 interpolated. How do you want it said?",
-   "options": [
-    "Say both numbers, every time, with the reason — 'measured wrong at first, here is the corrected figure'",
-    "Quote only the corrected 12/16 and explain the fix if asked",
-    "Say nothing publicly until a real flight backs it up"
-   ],
-   "rec": "The README already does option 1: the rescore box quotes the wrong number, the corrected number, and the reason, side by side -- the strongest-looking honest framing. Bless it or pick another; no code changes either way.",
-   "blocked": "Nothing technical. The fix proceeds either way; this is only about how it is written up.",
-   "doc": "docs/scoring_fix_plan.md §4"
-  },
-  {
-   "id": "ship-vs-one-more-experiment",
-   "question": "With the scorer fixed, the design meets its own bar in simulation. There is already far more evidence here than the stated purpose needs. The real risk to this project now is that it is never packaged and shown to anyone. What gets priority?",
-   "options": [
-    "Package what exists — write the portfolio piece, cut a real demo, call the sim phase closed for good",
-    "Keep building — tripod day and the first real kill are the story, everything before is setup",
-    "Both, in that order: package a checkpoint now so the work is showable, then keep building"
-   ],
-   "rec": "Option 3. The measured results, the honesty audits and the instrument-defect catches are already a stronger story than most internship portfolios carry, and right now none of it exists outside this repo. Packaging a checkpoint costs a day and de-risks everything after it.",
-   "blocked": "Nothing. This is a priorities question, and the answer changes what I work on next.",
-   "doc": "CLAUDE.md — 'the portfolio can die of one more experiment'"
-  },
-  {
    "id": "pre-public-checklist",
    "question": "The repo is ALREADY PUBLIC on GitHub, and the cleanup branch is done and green. Which of the remaining hands-on steps can you do now? (Everything is also written in docs/publish_cleanup_work_order.md so no Claude session is needed.)",
    "options": [
@@ -504,30 +480,6 @@
    "rec": "Password first -- it is a local-VM login, low real risk, but it is sitting in public history. The MIT license is CONFIRMED (your ruling, 2026-08-19) -- nothing to do there.",
    "blocked": "Every item needs your hands (PC, phone browser, or the sim machine); none need a Claude session.",
    "doc": "docs/publish_cleanup_work_order.md"
-  },
-  {
-   "id": "slant-fix-stock-paths",
-   "question": "The shared box-measurement channel now carries TWO measured defects: the slant under-range (fixed only in the chase path) and, found by the Gazebo tick-trace, a systematic 15-25% AABB box-width under-range that the detector's own PnP pose range does not share (bias -2.0 m at 6-10 m, n=415). The chase is getting the pose-range fix under its own prereg. What happens to the OLDER stock seeker paths that still carry both?",
-   "options": [
-    "Port to ALL paths and re-run the affected gates (M-gates, breakoff thresholds) -- one geometry everywhere",
-    "Leave the stock paths as-flown -- the fix rides only in the chase terminal; historical validations stay exactly reproducible",
-    "Port to the tag terminal only (the first-kill seeker) and freeze the superseded sprint-era stock path"
-   ],
-   "rec": "Keep the chase fix scoped to the chase (in flight). For the stock paths, port BOTH fixes together behind one flag and re-run their gates once -- or accept them as-flown history if the chase becomes the default. One ruling, not two.",
-   "blocked": "A silent port would invalidate the as-flown validation history (thresholds were tuned on the biased range) -- needs your ruling + gate re-runs.",
-   "doc": "isim/specs/parity_trace_2026-09-22.md (candidate (e)) · flight/pursuit_terminal.py _measured_r_ned"
-  },
-  {
-   "id": "rehearsal-design-round2",
-   "question": "Your rehearsal break-off mode is BUILT (one switch, practice pass ends in a hover, own log reason) but the registered margin sweep says at today's closing speeds the escape cannot clear a safe gap at ANY trigger range up to 3 m -- the vehicle arrives at ~5.4 m/s and the airframe's lag eats the evade (worst-case gap 0.03-0.25 m; and the certainty gate can fire as late as 0.5 m). Exploratory read: with the brake package + a 4 m trigger the gap reaches ~0.45 m. How should round 2 go?",
-   "options": [
-    "Redesign the trigger on TIME-TO-GO vs reaction time + a too-late floor, AND pair practice passes with the brake package at reduced speed (all three; registered round 2)",
-    "Practice-speed policy only: rehearse at reduced closing speeds (no code change beyond pairing with the brake flag), accept the smaller gap",
-    "Park rehearsal until after the first real (non-contact-intended) field flights inform the margins"
-   ],
-   "rec": "Option 1 -- the mechanisms are traced, all three fixes are cheap and complementary, and a practice pass has no need for full intercept speed; the mode's whole point is many safe runs per airframe. Any adopted margin stays isim-tier until its Gazebo spot-check.",
-   "blocked": "Field practice passes (the hardware-preserving runs you asked for).",
-   "doc": "isim/specs/rehearsal_breakoff_prereg_2026-09-24.md (RESULT + frontier)"
   }
  ],
  "plain_log": [
@@ -1054,7 +1006,7 @@
     3
    ],
    "status": "half-done",
-   "active": "chase-only pursuit (ADR-0103/0105): flight/pursuit_terminal.py (relative-state KF, Phase A belief rendezvous -> Phase B camera close) is selectable on the real CLI with --terminal pursuit; GO enters ENGAGE directly (no sprint). FIVE port defects fixed: four by the registered 2026-09-22 parity trace (KF covariance Jacobian, capture-instant attitude interpolation, yaw-slew seed, slant under-range) -- adopt criterion met, the fixed port matches/beats the prototype -- plus #5 from the Gazebo cross-check shakedown (Phase A now yaws at the BELIEVED TARGET, not the rendezvous aim point; regression-pinned). Adaptive speed governor adopted at CONCEPT level, default OFF (cap = believed target speed + overtake margin, clamped; lock-modulated closure REJECTED -- ADR-0108). A missed pass aborts to SAFE hover (ADR-0107); the ADR-0101 passage window is ported into real_flight.py. Stock LOS-rate pro-nav remains the FLYING DEFAULT until the Gazebo cross-check passes.",
+   "active": "chase-only pursuit IS THE FLYING DEFAULT (ADR-0118, 2026-09-24: the ADR-0103/0105 gate -- the Gazebo cross-check -- passed at median 0.343 m with the ADR-0117 velocity fix). flight/pursuit_terminal.py: relative-state KF (pose-range channel, every-tick detect), Phase A belief rendezvous -> Phase B camera close; passage window + SAFE hover on miss (ADR-0107). Config-gated, default-OFF levers in-tree: brake package (--pursuit-brake), rehearsal break-off (--pursuit-rehearsal, margins unproven), adaptive speed (ADR-0108). Stock/tag selectable, as-flown.",
    "note": "GUIDANCE IS VALIDATED; THE CAMERA-GUIDED 3D-QUAD KILL IS NOT. Validated: the law + architecture (billboard: Pk@2.8 m 72/72, ADR-0064; AprilTag regimes M4+). Not validated: every 'sub-meter 3D-quad kill' was an open-loop dash-ballistics MIRAGE (dash-only control 0.30 m ≈ with-terminal 0.29 m — the camera added ~nothing, add #18h). The block is UPSTREAM (detector recall + pointing), not guidance. UPDATE 2026-07-22 (Phase A Gazebo A/B): the pointing lever LIFTED 8-12 m real-detection recall 3.0%→35.4% and ENGAGE fired on real detections — pointing partially attacks the upstream block — but the CAMERA-DRIVEN kill is STILL UNCONFIRMED: the no-cheat audit (a/b) is clean, but check (c) camera-LOS coupling is weak and NO dash-only control was run, so per #18g/#18h this could still be dash ballistics. The #18h caution STANDS; a dash-only control arm is the anti-mirage gate before any 'camera-guided intercept exists' claim. (And miss got WORSE at 9 m/s — the accel-cap's closing-speed cost; see decision intercept_accuracy + gazebo_results.md.) | SETTLED 2026-07-24 (dash-only controls FLOWN — Adash/Bdash, antimirage_verdict.py, paired by run_idx): TWO findings. (1) The camera terminal is REAL — baseline Arm A l2r tightens the miss 4/4 paired flights (cam 0.68 vs dash-only 2.05 m, Δmed −1.18 m): the FIRST confirmed camera-DRIVEN 3D-quad intercept in this sim (scoped to line@9 +30bias flat-dash l2r; does NOT overturn #18h, whose weave geometry gave dash-only 0.30≈0.29). (2) The loft-dive+accel-cap LEVER BREAKS the terminal — Arm B camera-ON is WORSE than dash-only on 8/8 paired flights (l2r +0.86, r2l +1.54 m); the Phase A 'sub-1 m camera-tracked' wording for Arm B is REFUTED (Bdash dash-only 1.76/2.38 beats B camera 2.53/3.92). The accel-cap slows the close so much the framed terminal converges WORSE than dash ballistics; the framing win (recall 3%→35%) does NOT convert to a terminal win at 9 m/s. r2l also carries the ADR-0056 aspect bias (camera hurts even at baseline). ⇒ next = LIGHTER accel-cap θ≈30° / loft-only to recover closing speed (docs/flight_plan_candidates.md). | CORRECTION 2026-07-24 (independent Opus 5 review + validated ballistic model dash_cpa_model.py MAE 0.29 m): the 'accel-cap closing-speed cost dominates' attribution is CONFOUNDED. STANDS: A-l2r camera-DRIVEN (−1.18 m 4/4) and B-vs-Bdash camera-worse 8/8 (within-arm, aim common-mode). SOFTENED: the lever's net-negativity is confounded by a MIS-SIZED aim constant — collision_lead_heading solves a constant-speed triangle but the dash accelerates from rest, so the flown +30° bias is wrong (model-optimal ~64° at a=3.57, ~20° at a=10); and the accel-cap contributed the LEAST centring (+5° vs wedge +10°, loft +7.1°) while carrying all the cost. Camera-hurt is now MEASURED: terminal lambda−gtLOS = +9..+17° (l2r) / −17..−21° (r2l) = ADR-0056 aspect bias → Phase B FOV-hold is the WRONG lever (Arm B was centred −3.6° and still lost); the right lever is aspect-bias compensation (--terminal-bearing-bias-deg, code-gated). Decomposition arms pre-registered (G20dash/C/E, docs/flight_plan_candidates.md); adoption needs pooled ≥13/16. | G20 2026-07-24 (camera-live at CORRECT aim, n=8 vs G20dash): the terminal does NOT beat the well-aimed open-loop dash — combined camera median 1.02 m vs dash-only 0.75 m, tighter on only 2/8 (camera engaged 7/8). The measured aspect bias degrades a trajectory that correct pre-flight aim already made near-optimal. KEY REFRAME: in the line@9 aim-known regime the well-aimed open-loop dash is the strongest performer; the camera is a slight liability as built. HONEST SCOPE: the sim dash computes its lead from KNOWN target kinematics (assumes aim right); the camera's real value is aim-ERROR robustness (±30° envelope) + it could only BEAT 0.75 m with (1) aspect-bias compensation (--terminal-bearing-bias-deg, direction-keyed pre-flight constant, honesty-legal, UNBUILT) or (2) proven under deliberate aim error. Those two are the highest-value next steps. | COMPENSATION built + validation redirected 2026-07-24: the ADR-0056 aspect bias is largely a ~190 ms LOS-RATE LAG (self-explains the l2r/r2l sign flip; direction-agnostic knob --terminal-los-lag-ms). The stable direction-keyed constant existed ONLY in ARM B (accel-cap slows the approach -> many stable ticks); CG (framed, no cap) has an UNSTABLE bias (LOO +1%) so the constant is a predicted null there. Also FRAMING HURTS at correct aim (CG-777 1.92 m > G20 level 1.32 m). Decisive remaining test: GL = level + lag 190 vs the G20-777 baseline 1.32 m (pending clean idle). --terminal-bearing-bias/-los-lag built + committed (byte-identical off, 22 tests, honesty re-earned); measure_aspect_bias.py --loo reads a null offline for free. | GL NULL 2026-07-24 (lag knob on the level arm): combined 1.44 vs G20-777 1.32, 5/8 — fails the gate. It helps the aspect-biased r2l (2.13->1.80) but hurts the already-tight l2r (0.61->0.78); the in-flight lag isn't a clean constant (α-β absorbs a direction-varying share). BOTH terminal-precision compensations are now NULLs (constant = regime-confounded, lag = this) — the ADR-0056 terminal-bearing wall does not yield to a simple constant/lag (consistent with the ADR-0071 subpixel null). CONCLUSION: correct AIM is the dominant proven lever (0.75 m open-loop, DERIVED by ADR-0080); the camera does NOT defend imperfect aim (REFUTED in sim — it lost to its own dash-only control at 0°/5°/15° aim error, ADR-0076 add #18k-family); it does not beat a well-aimed dash; spend on aim + real-data detection, not terminal tricks. | ⛔ AIM-ERROR SWEEP COMPLETE 2026-07-24 — 'the camera defends imperfect aim' is REFUTED IN SIM, downgraded from settled. Camera vs its OWN dash-only twin, paired n=8 per cell, seed 123: 0° err camera 1.02 vs dash 0.71 (2/8) | 5° 0.58 vs 0.43 (0/8) | 15° 1.51 vs 1.43 (3/8). The camera NEVER clears the pre-registered ≥6/8 at any tested aim error. Do NOT read the pooled 15° number: l2r the camera IS starting to earn it (3/4 tighter, once −0.43 m) while r2l is catastrophic (+2.15, +2.12) — the ADR-0056 aspect bias alone drags it to null. That wall has now defeated the bias constant, the LOS-lag correction, subpixel bearing (ADR-0071) AND the entire aim-error rationale. SCOPE: this indicts the SIM's markerless seeker on the r2l aspect, not the camera-terminal architecture — first kills fly the AprilTag, and the real lever is the outdoor real-data detector (44.2% vs 1.1% recall on real imagery); if real data fixes the aspect bias the question reopens and this sweep is the pre-registered harness. BUILD CONSEQUENCE: ENGAGE on the markerless seeker is not justified by any sim evidence — gate it to the favourable aspect, run it in SHADOW until real data earns it, or hold it behind the tag baseline. | ✅ 2026-07-25 frozen_vworld FIX: the coded-dash --fpv terminal latched a ZERO horizontal-velocity vector whenever ENGAGE began inside TERMINAL_FREEZE_RANGE_M (the NN's short r_hat) — so the camera-arm sweep verdicts ('camera adds ~nothing', add #18h) were partly measured on a terminal that never steered. The latch now holds a real law-aware vector (PIP/pursuit/pronav each latch their own), audit_per_tick check (e) FAILS a zero-command run, and one SITL flight confirmed 0/104 ENGAGE ticks zero-command (published arms: up to 661/668). The camera-arm conclusions are DOWNGRADED to PENDING RE-FLY; the guidance-law validation and the AIM (dash-only) conclusions stand. The sim↔hw negative-r_hat divergence is FIXED (86d60b3, 2026-07-25): a diverged negative r_hat (the ADR-0041 post-CPA -12..-21 m class) can no longer ARM the coast — seeker_loop broken-track parity, truth-table + replay drills pin it. RE-FLY FLOWN + SCORED (2026-07-25 eve, all 40 flights, idle load, dash-only twins reused; full table docs/flight_plan_candidates.md RESULTS 2026-07-25): the PENDING RE-FLY verdicts RESOLVE to a CONFIRMATION -- the camera terminal does NOT earn its handoff at 0/5/15 deg aim error even when provably steering (audit (e): 0/674 pre-CPA ENGAGE ticks zero-command; cam-beats-twin 3/8, 1/8, 4/8 -- never near the pre-registered 6/8). One honest SOFTENING: at correct aim the camera arm is now ~PARITY with the open-loop dash (G20 med 0.895/0.750 vs the 0.75 floor; was 'slight liability' on the braking terminal), and G20-s777 median improved 1.316->0.750. The 190 ms LOS-lag comp is CONFIRMED NEGATIVE (GL 1.213 vs G20 0.750, 2/8), closing that lever. Dash-only conclusions (ADR-0080/0083, 0.71/0.43 m floor) never affected. Two adjudicated (c)-marginal flights (railed V_PERP_MAX lead / deliberate lag offset -- the ADR-0013 legitimate-lead class); the re-fly also surfaced + fixed two auditor blind spots (latched-coast exclusion cdffe12, lambda-winding azimuth lift 51d3441).",
    "evidence": [
     "ADR-0064 (billboard 72/72)",
@@ -1160,6 +1112,10 @@
     {
      "date": "2026-09-24",
      "note": "Rehearsal break-off BUILT (builder directive; --pursuit-rehearsal, default OFF, own SAFE reason, 531 tests + audit green) -- registered margin sweep = NULL: no trigger range <=3 m escapes cleanly at today's closing speeds (worst gap 0.03-0.25 m; traced to hot arrival vs plant lag + a range-blind gate). Would-have claim = ULogs+video only (P2 fail). Design round 2 queued (rehearsal-design-round2)."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "ADR-0118: default terminal swapped to pursuit (standing gate passed); stock frozen as-flown incl. its slant/AABB geometry (ledger entry resolved); queue cleaned per builder feedback -- reversible calls are now decided and logged, not queued."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
@@ -3825,13 +3781,14 @@
    "id": "slant-underrange-fixed-only-in-pursuit",
    "verdict": "CONFIRMED",
    "severity": "medium",
-   "status": "open",
+   "status": "resolved",
    "topic": "The slant under-range geometry fix (parity-trace candidate (e)) ships ONLY in the pursuit terminal; the stock SeekerGuidance and tag_terminal paths -- including the current FLYING DEFAULT -- still measure range systematically SHORT of the true slant by cos(off-axis). Port it, or leave the as-flown paths untouched? Builder ruling queued 2026-09-22.",
    "claim_a": "The box-width range is now correct: pursuit_terminal._measured_r_ned divides the measured pinhole depth by the unit ray's z-component, restoring the true slant -- a systematic 0.15-0.37 m along-LOS under-range in the traced close.",
    "loc_a": "flight/pursuit_terminal.py _measured_r_ned (SLANT CORRECTION block) · isim/specs/parity_trace_2026-09-22.md candidate (e)",
    "claim_b": "The shared helper measurement_from_box (flight/deploy/seeker_loop.py:323) places the pinhole DEPTH along the unit ray uncorrected, and both stock consumers use it as-is: SeekerGuidance (seeker_loop.py:348) and tag_terminal.py:374 contain no slant/ray_z correction (grep = 0 matches).",
    "loc_b": "flight/deploy/seeker_loop.py:323/348 · flight/tag_terminal.py:374",
-   "current_truth": "Both true; OPEN awaiting a builder ruling (queued in builder_queue slant-fix-stock-paths). The defect is systematic (the shortfall grows with off-axis angle), but every stock-path validation -- the M-gates, the breakoff thresholds, the coast/freeze ranges -- was earned WITH the bias baked in, so a silent port would invalidate the as-flown history; the port must be a logged decision plus a re-run of the affected gates. Until ruled, the fix rides only in --terminal pursuit and the stock flying default keeps its historical geometry."
+   "current_truth": "Both true; OPEN awaiting a builder ruling (queued in builder_queue slant-fix-stock-paths). The defect is systematic (the shortfall grows with off-axis angle), but every stock-path validation -- the M-gates, the breakoff thresholds, the coast/freeze ranges -- was earned WITH the bias baked in, so a silent port would invalidate the as-flown history; the port must be a logged decision plus a re-run of the affected gates. Until ruled, the fix rides only in --terminal pursuit and the stock flying default keeps its historical geometry.",
+   "resolution": "ADR-0118 item 2 (2026-09-24): stock paths FROZEN as-flown -- with pursuit now the flying default they are legacy/selectable; the fixes ride in the default path; historical gate reproducibility preserved. Reversible via the port-and-re-run route if the stock path ever flies again."
   }
  ]
 }

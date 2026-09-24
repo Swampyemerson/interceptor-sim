@@ -3276,10 +3276,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     trm = ap.add_argument_group("terminal seeker (composed from seeker_loop)")
     trm.add_argument("--terminal", choices=("stock", "tag", "pursuit"),
-                     default="stock",
-                     help="which terminal law flies ENGAGE: 'stock' = "
-                          "SeekerGuidance (LOS-rate pro-nav, today's default, "
-                          "unchanged), 'tag' = flight.tag_terminal (3-D "
+                     default="pursuit",
+                     help="which terminal law flies ENGAGE. DEFAULT = 'pursuit' "
+                          "(ADR-0118, 2026-09-24: the ruled chase-only "
+                          "engagement became the flying default when its "
+                          "standing gate -- the Gazebo cross-check -- passed, "
+                          "prereg4 median 0.343 m). 'stock' = SeekerGuidance "
+                          "(LOS-rate pro-nav, the sprint-era default, kept "
+                          "as-flown), 'tag' = flight.tag_terminal (3-D "
                           "predicted-intercept-point), 'pursuit' = flight."
                           "pursuit_terminal (ADR-0103 'chase only': GO enters "
                           "ENGAGE directly -- no coded dash -- and the receding-"

@@ -42,8 +42,17 @@ def _build(*extra):
     return args, cfg, build_terminal(args, cfg, gcfg, cam)
 
 
-def test_default_terminal_is_stock_seeker_guidance():
+def test_default_terminal_is_pursuit_since_adr0118():
+    """ADR-0118 (2026-09-24): the ruled chase-only engagement became the
+    flying default when its standing gate (the Gazebo cross-check) passed
+    (prereg4 median 0.343 m). 'stock' remains selectable, as-flown."""
     _args, cfg, g = _build()
+    assert isinstance(g, PursuitTerminalGuidance)
+    assert cfg.pursuit_mode is True
+
+
+def test_terminal_stock_still_builds_seeker_guidance():
+    _args, cfg, g = _build("--terminal", "stock")
     assert isinstance(g, SeekerGuidance)
     assert cfg.pursuit_mode is False
 
@@ -98,9 +107,10 @@ def test_pursuit_go_edge_enters_engage_directly():
 
 
 def test_stock_go_edge_still_dashes():
-    """Regression guard: without --terminal pursuit the GO edge is
-    byte-for-byte the historical CODED_DASH path."""
-    args = _parse()
+    """Regression guard: with --terminal stock (the sprint-era path, no
+    longer the default since ADR-0118) the GO edge is byte-for-byte the
+    historical CODED_DASH path."""
+    args = _parse("--terminal", "stock")
     cfg = build_config(args)
     sm, _rows = run_offline(cfg, ScriptedTrigger(go_at_s=3.0),
                             guidance=None, max_s=20.0, verbose=False)

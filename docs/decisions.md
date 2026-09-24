@@ -956,3 +956,38 @@ by registration only: the default-terminal swap question (docs/next.md 0(c)) and
 brake-package question REOPEN — the brake's ADR-0115/0116 verdicts were measured
 under the defect and are void as evidence either way. Honest scope: sim milestone
 (perfect cue, no wind, upright tag, sim camera), not a field claim.
+
+## ADR-0118 — Default terminal = pursuit; queue cleanup by decide-and-log (2026-09-24)
+
+Builder feedback (verbatim): "dont keep leaving decisions for me on things that dont
+matter that much/can be reasoned through yourself." Applied immediately; the following
+are DECIDED here, each reversible and logged, not queued.
+
+1. **Default terminal → `pursuit` (the swap).** Not a new decision: the standing rule
+   (ADR-0103/0105 + the terminal stage note) kept the sprint-era stock path as the
+   flying default only "until the Gazebo cross-check passes — an honest gate, not
+   drift." Prereg4 passed that gate (median 0.343 m, 4/8 inside the contact
+   envelope). Executed: `--terminal` defaults to `pursuit`; `stock`/`tag` stay
+   selectable, byte-for-byte as-flown (regression test now pins the stock GO-edge
+   dash explicitly). 335 flight tests + honesty audit + self-test green.
+2. **Slant/AABB range fixes: stock paths FROZEN as-flown** (closes the 2026-09-22
+   queued ruling + resolves ledger `slant-underrange-fixed-only-in-pursuit`). With
+   pursuit the default, the stock paths are legacy: re-validating their gates buys no
+   flying capability, and freezing preserves the historical reproducibility their
+   thresholds were earned under. The fixes ride in the pursuit path that actually
+   flies. Reversible any time by the port-and-re-run route already written there.
+3. **Headline framing: keep the README's side-by-side wrong-then-corrected numbers**
+   (the strongest honest framing; it was already implemented — closing the question
+   costs nothing and changes nothing).
+4. **"Ship vs one more experiment": removed** — answered by the builder's 2026-08-29
+   direction ruling (field intercept is the goal; do not re-raise).
+5. **Brake re-measure: decided, deferred.** The isim brake evidence was never touched
+   by the ADR-0117 defect (isim always fed true velocity); the void GAZEBO verdict
+   gets one registered arm (brake ON vs the new 0.343 baseline) AFTER the builder's
+   three queued directives (rehearsal round 2, commit-sprint, Pi recorder) — those
+   are his explicit asks and come first.
+6. **Rehearsal round 2: proceeding now** with all three traced fixes (time-to-go
+   trigger, too-late floor, brake-paired reduced-speed practice), registered as
+   amendment #1 of its prereg; the round-2 queue item is withdrawn.
+
+Queue after this ADR: only genuinely-his items remain (publication hands-on steps).
