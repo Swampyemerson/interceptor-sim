@@ -92,3 +92,28 @@ trigger, log it" floor closing the aim20 hole; (c) pair rehearsal with the brake
 package + reduced practice closing speeds (the safety note anticipated this — and a
 practice pass has no need for full intercept speed). Any adopted margin remains an
 isim number until the mode's Gazebo spot-check rung.
+
+## AMENDMENT #1 — round 2 (registered 2026-09-24 before flying; decided per ADR-0118
+item 6, no queue detour)
+
+All three traced fixes together (they attack independent mechanisms):
+1. `rehearsal_trigger` becomes TIME-TO-GO based: trigger when
+   `t_go = d_h / closing ≤ rehearsal_t_react_s` estimated reaction budget, where
+   `rehearsal_t_react_s` (TODO-BUILDER, default 2.0 s ≈ plant delay+tau ~0.8 s + the
+   time full-authority climb needs to build ≥0.7 m of separation on the ENGAGE fit)
+   replaces the raw range trigger; `rehearsal_range_m` stays as an upper bound only.
+2. TOO-LATE FLOOR: if the certainty gate first opens with `t_go` already below
+   `rehearsal_t_late_s` (default 0.6 s), DO NOT trigger — log `rehearsal_too_late`
+   and let the normal engagement end fire (closes the aim20 untriggered-contact hole
+   honestly: a pass we could not have escaped is not silently relabelled).
+3. Practice profile: the sweep's rehearsal arms fly WITH the brake package on and
+   `v_max_ms` 10 (practice passes need no full intercept speed — builder's
+   hardware-preservation intent).
+
+**Sweep:** same cells/rung/n as round 1; arms OFF · t_react {1.5, 2.0, 2.5} s (all
+with the practice profile). **Bars unchanged:** P1 worst-case post-trigger true
+separation ≥ 0.7 m on all cells with recall ≥ 80% of would-have-passed-inside-0.35
+flights (too-late flights count against recall — no gaming the floor); P2 onboard
+would-have |err| median ≤ 0.15 m. Adopt smallest t_react meeting P1. Null branch:
+report the frontier; the mode then ships practice-profile-only with the honest
+"reduced-speed rehearsal" label and the field margin question waits for hardware data.
