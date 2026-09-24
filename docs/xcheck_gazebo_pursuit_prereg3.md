@@ -71,3 +71,41 @@ camera detections through ENGAGE.
   stop (no Gazebo tuning).
 - **Any C red:** the package/instruments did not land in the flying code — fix the
   delivery, not the law, and re-fly under this same registration.
+
+## RESULT (2026-09-24, n=8 flown as registered — scored by the head session)
+
+CPAs sorted (m): 0.125 · 0.313 · 0.537 · 0.708 · 1.147 · 1.528 · 1.891 · 2.250.
+**Median 0.928 m.** Logs: `logs/xcheck_gz_20260924_brake/` (driver CPA vs independent
+tick-trace recompute agree <0.01 m on all 8; instrument.json alongside).
+
+Registered criteria: (1) 4/8 ≤ 1.0 m — FAIL; (2) median 0.928 — FAIL; (3) **2/8 ≤
+0.35 m — PASS, the first sub-0.35 flights this cross-check has ever produced** (0.125,
+0.313); (4) 0 pre-pass failsafe aborts — PASS; (5) camera-driven throughout — PASS
+(65–108 consumed). Median improvement vs re-fly #2: 0.9665 → 0.928 = **4.0% < the 40%
+partial bar.**
+
+Instrument clauses: **C1 GREEN** (KF r_hat error median −0.065 m; pose-range bias at
+capture −0.010 m — the S2 fix keeps holding; the raw depth channel still reads −1.38,
+confirming the pose channel carries the KF). **C2 HALF-RED** (median tick dt 0.056 s ≤
+0.06 GREEN, but consumed cadence 8.01 det/s < the 9 det/s clause — the every-tick
+mechanism is intact at 0.064 s consumed-frame spacing; the shortfall is decode-success
+at the braked arm's longer ranges, a physics consequence, recorded as written). **C3
+RED, and diagnostically so:** the package is confirmed ON in all 8 logs, yet the
+median closing speed over the last second before CPA is UNCHANGED vs re-fly #2 (2.84
+vs 2.84 m/s, same instrument both campaigns) — the brake's isim effect (2.9 → 1.5)
+did not materialize in Gazebo.
+
+**Registered verdict: NULL** (median improvement 4% < 40%). The distribution SPLIT
+rather than shifted: the brake arm produced both the best flights ever flown here
+(0.125/0.313/0.537 vs #2's best 0.545/0.656/0.740) and worse tails (1.89/2.25).
+Direction-only language applies; no adoption of anything from this result.
+
+**Why the brake did not act (measured, not guessed — the next attributed suspect):**
+the cap computes its stopping envelope from the KF state, and the KF's range error,
+−0.065 m overall, collapses to **−2.58 m median over the last 2 s** (last consumed
+det 0.02–0.59 s before CPA; pose bias at capture stays ~0) — endgame COAST/
+extrapolation error, exactly the regime the cap must read to brake. isim does not
+reproduce this signature (its registered declared residual: measurement-noise model
+under-carries the live PnP spread ~1.6x; plus the delay/tau split). Next step per
+discipline: a registered ENDGAME-ESTIMATOR diagnosis (isim-vs-Gazebo last-2s KF error
+under matched conditions), NOT tuning, NOT another Gazebo arm.

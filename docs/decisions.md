@@ -866,3 +866,41 @@ Per the amendment's registered null branch the brake thread STOPS: no further le
 without a new registration, and the plain trade (adopt cap+sync for Gazebo re-fly #3's
 nominal geometry despite the alt+3 tail, or leave the chase as-is) goes back to the
 builder. All three lever variants stay in-tree, default OFF, pinned (33 tests).
+
+## ADR-0116 — Gazebo re-fly #3 (brake package): registered NULL; the endgame estimator becomes the measured suspect (2026-09-24)
+
+- **Context.** Builder ruling: fly the adopted brake package in Gazebo.
+  Registered first (docs/xcheck_gazebo_pursuit_prereg3.md: isim band
+  0.02–0.09 m, honest expectation ~0.1–0.3 m, same bar as preregs 1–2,
+  brake fix-effect clause C3), then flown n=8, fresh boot per flight.
+- **Result.** Median CPA 0.928 m (re-fly #2: 0.9665) — a 4% improvement,
+  below the 40% partial bar: **registered NULL**. But the distribution
+  SPLIT: the campaign produced the first two sub-0.35 m flights this
+  cross-check has ever flown (0.125, 0.313 m) alongside worse tails
+  (1.89, 2.25). Zero aborts, camera-driven throughout.
+- **The diagnostic payoff (C3 red with delivery confirmed).** The package
+  was ON in all 8 flights, yet endgame closing speed was UNCHANGED (2.84
+  vs 2.84 m/s median, same instrument on both campaigns). Mechanism,
+  measured: the brake cap reads the KF, and the KF's range error —
+  −0.065 m overall, pose channel clean at capture — collapses to
+  **−2.58 m median in the last 2 s** (coast/extrapolation, last det
+  0.02–0.59 s before CPA). A stopping-distance cap computed from a
+  range that wrong cannot brake correctly. isim does not reproduce this
+  signature (declared residuals: PnP noise under-modeled ~1.6x,
+  delay/tau split) — which is exactly why the isim-validated brake
+  effect (closing 2.9→1.5) failed to transfer.
+- **Decision.** No adoption from this result; --pursuit-brake stays
+  default-off. Next step (registered-diagnosis class, no ruling needed):
+  an endgame-estimator diagnosis — isim-vs-Gazebo last-2s KF error under
+  matched conditions, and what the KF's endgame coast does with the
+  measured PnP spread. NOT tuning; NOT another Gazebo arm before the
+  attribution.
+- **Standing after three cross-check campaigns:** 1.510 → 0.967 → 0.928 m
+  median with every registered fix landing as attributed; the remaining
+  gap has now been chased out of the measurement channel, the cadence,
+  the plant fit, and the approach speed — the endgame estimator is the
+  last suspect standing with a measured signature.
+- **Evidence.** docs/xcheck_gazebo_pursuit_prereg3.md (registration +
+  RESULT); logs/xcheck_gz_20260924_brake/ (+instrument.json);
+  logs/brake_shaping_20260924/refly3_prediction.txt; commit fc0e74b
+  (pre-flight registration).

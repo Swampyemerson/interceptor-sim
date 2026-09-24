@@ -200,3 +200,11 @@ Tried to break the pursuit result on purpose. With perfect self-knowledge it sco
 **So what:** The 92-98% was a best case and is labelled as one. The two things that matter most are measurable on the bench: how accurately the Pi timestamps a frame against the flight controller's clock, and attitude accuracy. Both also have software answers that are next in the simulator.
 
 **Evidence:** isim/ownstate.py - isim/specs/pursuit_hardening_v5.md - ADR-0103
+
+## 2026-09-17 (archived from plain_log 2026-09-24, cap-12 overflow)
+
+Built the hybrid in the simulator as ruled and measured it against the other two on the same 6,600 runs. The opening sprint almost never touches a 9 m/s crossing target (first-pass contact 0-2%) and costs position: at the moment it turns around it is about 10.6 m from the target where the slow arrival is already at 5.6 m. Hybrid only wins against slow targets (80-84% at hover).
+
+**So what:** The slow arrival already contains a fast leg -- it flies at up to 16 m/s to get behind the target. The part that does not pay is aiming that fast leg ACROSS the target's path. Bench this week: Kakute log card cleared (488 logs), Pi frame timing measured (14 ms, 0.6 ms jitter), TV calibration tool ready, lens corrected to 118 degrees from the order log.
+
+**Evidence:** isim/specs/hybrid_v7.md - isim/concepts.py - runs/frame_timing/ - scripts/bench/
