@@ -47,6 +47,24 @@ first time, testable — and is a redesign decision, queued for the builder. Det
 
 ## Next work, in order
 
+> **BUILDER DIRECTIVES 2026-09-24 (midday, verbatim intent — queued):**
+> 1. **Terminal "commit sprint" experiment** — evaluate full throttle ONLY inside the
+>    final blind-coast window (track converged, no further decodes expected): correction
+>    authority there is already spent, and a shorter coast shrinks the measured ~2.6 m
+>    endgame estimator drift. Pre-register (mechanism + adopt bar) before flying; a
+>    blanket last-seconds sprint is contraindicated by the ADR-0115/0116 measurements.
+> 2. **Rehearsal break-off toggle** (hardware-preserving practice passes): config-gated
+>    mode — converged track + predicted pass inside the contact envelope → veer off at
+>    the last safe moment (margin sim-derived from closing speed + both airframes), score
+>    the WOULD-HAVE closest approach honestly from the logs, SAFE hover, repeat. Builds
+>    on the passage window + SAFE machinery. Build after the estimator diagnosis lands.
+> 3. **Onboard footage recorder on the Pi** — decoupled writer thread, JPEG ~10–15 fps,
+>    bounded queue that DROPS rather than blocks the seeker; bench gate = re-run
+>    pi_fps_soak with the recorder on (Pi 5 has no HW H.264 encoder — no video encode in
+>    the loop). Triple payoff: kill evidence (binary-kill criterion), real-data retrain
+>    frames, field debugging.
+
+
 0. **TERMINAL REDESIGN — RULED: chase only (ADR-0103), port complete through the real CLI (ADR-0105, 2026-09-21).** Pursuit alone replaced the sprint-and-fly-by; `flight/pursuit_terminal.py` is selectable via `real_flight.py --terminal pursuit`, and in pursuit mode GO enters the engagement directly (no sprint, no acquire gate). Open before it is trusted: ~~(a) the 2 s lost-target abort~~ SETTLED 2026-09-21 — the pre-registered A/B came back NULL (byte-identical at 2/4/10/30 s windows; the timer is exonerated, do not spend a ruling on it); (b) ~~the parity gap~~ CLOSED 2026-09-22 — the trace found FOUR coupled port defects (KF covariance Jacobian, capture-instant attitude, yaw-slew seed, slant under-range) and the fixed port now matches/beats the prototype (nominal 24%→100% ≤0.35 m, median 0.068 m; adopt criterion met, head-verified independently; `isim/specs/parity_trace_2026-09-22.md`). Residual: aim20/alt+2 trail the native because RealFlightSM has no re-approach after a missed first pass — a queued builder design question. ⚠ NEW RULING NEEDED: the slant under-range geometry (box depth placed along the unit ray, short by cos(off-axis)) also ships in the VALIDATED stock `SeekerGuidance`/`tag_terminal` paths — fixed only in pursuit; decide whether to port the fix or re-validate; (c) ~~the Gazebo cross-check~~ FLOWN 2026-09-23 (pre-registered, n=8, camera-in-the-loop, `docs/xcheck_gazebo_pursuit_prereg.md`): the shakedown caught parity defect #5 (Phase A yawed at the rendezvous point, freezing the camera off-target when station-keeping; fixed to yaw at the believed target like the prototype, regression-pinned, and the fix closed the isim aim20 cell 70%->100%), then the scored flights FAILED the registered bar (median 1.51 m); the tick-trace attributed the gap, the fixes flew (re-fly #2: median 0.967 m, instruments green, bar still failed), and the residual is now CONFIRMED as the hot approach with a traced side-effect trade queued for the builder (ADR-0113/0115). DEFAULT SWAP STAYS BLOCKED. NEW 2026-09-22 (builder field-readiness directive, agents running): miss-abort safety (abort→hover/return-home the moment an intercept is missed, + the ADR-0101 passage-window port to real_flight.py) and the GPS cue relay (~2 s of target GPS → ground → interceptor, latched at trigger — the piping for the ruled cue constraint, incl. launch climb/altitude profile). Pointing levers remain built and deliberately NOT adopted.
 1. **Past-CPA breakoff — NEARLY CLOSED 2026-09-17.** Issue #9 (dropout re-issued a full stop) is fixed and observed fixed on 100+ flights (auditor check (f)). The 5 m range gate FAILED its offline check and did not fly. The own-motion **passage window** (`--breakoff-min-flown-frac 0.8 --breakoff-force-flown-frac 1.3`) met every registered clause on seed 123 (premature/cut-off 0/16, long chases 0/16); **Seed 777 met every clause too — ADOPTED, ADR-0101.** Open: port it to `flight/deploy/real_flight.py` deliberately (the hardware loop still carries the old rule). Original text follows.
 1b. **(original) Fix the past-CPA breakoff discriminator** — [#3](https://github.com/Swampyemerson/interceptor-sim/issues/3). **Blocks everything below it in sim.** The measured-range rise test carries no information (false rises median 0.175 m vs true 0.152 m); the dead-band is measurement-ruled-out. Needs a different signal + an A/B.
