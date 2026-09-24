@@ -20,8 +20,8 @@
   "where": "Rehearsal round 2 adopted: the practice mode now escapes cleanly (worst gap 1.59-1.73 m, zero contacts, one switch = the whole practice profile). Chase remains the flying default (ADR-0118). Queue holds only the publication hands-on list.",
   "finding": "The chase (camera-only pursuit) is now the FLYING DEFAULT -- the gate it was held behind passed at median 0.343 m. Stock/tag stay selectable as-flown. Remaining directive work: rehearsal round 2, commit-sprint, Pi recorder, then the registered brake Gazebo arm.",
   "next": [
-   "Pi footage recorder (build + bench-gate harness), then the brake Gazebo arm",
-   "Gazebo spot-check rung for the rehearsal margins"
+   "Brake Gazebo arm (registered) + rehearsal Gazebo spot-check",
+   "Builder at the Pi: recorder bench soak (--record, one command)"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -1257,6 +1257,10 @@
     {
      "date": "2026-09-23",
      "note": "Tier-2 airframe ORDERED 2026-09-22 by the builder ahead of the tripod money gate (ADR-0109); 2nd Pocket TX, 2× buzzers and a replacement PM02 in the same orders; missing-items audit logged in bom_tiers Tier-2 status."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Onboard frame recorder BUILT (builder directive #3): decoupled JPEG writer (12 fps, quality 80), bounded copy-on-accept queue that drops rather than blocks, fail-closed counters, crash-safe index; --record-frames on the flight CLI + --record on pi_fps_soak (the Pi bench gate, one command). 556 tests + audit green. Value gated on the bench soak + a live picamera2 source in run_mavsdk_mission (hook wired)."
     }
    ],
    "caption": "The physical drones. Frame, flight controller, and Pi 5 in hand; assembly has begun.",

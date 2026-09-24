@@ -283,6 +283,20 @@ def _open_camera(width, height, exposure_us, target_fps=None):
     return picam2, md.get("ExposureTime")
 
 
+def _build_recorder(record_dir):
+    """flight.deploy.frame_recorder.FrameRecorder for --record, or None. A
+    separate function so the default (no --record) path never imports the
+    recorder module at all, and so it is unit-testable without a Pi."""
+    if not record_dir:
+        return None
+    _repo_root = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))))
+    if _repo_root not in sys.path:
+        sys.path.insert(0, _repo_root)
+    from flight.deploy.frame_recorder import FrameRecorder
+    return FrameRecorder(record_dir)
+
+
 def run_soak(args):
     model = _pi_model()
     t_start = time.monotonic()
@@ -322,6 +336,11 @@ def run_soak(args):
     picam2, applied_exp = _open_camera(args.width, args.height,
                                        args.exposure_us, args.target_fps)
 
+    # --record: attach the onboard footage recorder so THIS bench run answers
+    # "does recording cost seeker fps/thermals?" in one command, instead of a
+    # separate soak with and without it. Off by default -- see _build_recorder.
+    recorder = _build_recorder(getattr(args, "record", None))
+
     therm = Thermals()
     samples = []        # (t_s, decode_dt, arrival_dt, n_tags)
     prev_arrival = None
@@ -347,8 +366,16 @@ def run_soak(args):
             # pays it too, so excluding it would overstate fps — the flattering
             # direction for the gate.
             t0 = time.monotonic()
-            n_tags = work(_to_gray(_cv2, img))
+            gray = _to_gray(_cv2, img)
+            n_tags = work(gray)
             decode_dt = time.monotonic() - t0
+
+            # AFTER the decode region, like the real flight loop's `offer()`
+            # call site (flight/deploy/seeker_loop.py, flight/deploy/
+            # real_flight.py): offer() is O(1)/non-blocking, so this is the
+            # honest place to measure its cost, not inside decode_dt.
+            if recorder is not None:
+                recorder.offer(gray, t_s)
 
             samples.append((t_s, decode_dt, arrival_dt, n_tags))
             n_frames += 1
@@ -359,8 +386,10 @@ def run_soak(args):
         except Exception:
             pass
 
+    recorder_meta = recorder.close() if recorder is not None else None
     elapsed = time.monotonic() - t_start
-    return _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames)
+    return _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames,
+                    recorder_meta=recorder_meta)
 
 
 def _window_stats(rows):
@@ -497,7 +526,8 @@ def _thermal_margin(temps, args):
     return out
 
 
-def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames):
+def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames,
+            recorder_meta=None):
     warm = [r for r in samples if r[0] < args.warmup_s]
     steady = [r for r in samples if r[0] >= args.warmup_s]
 
@@ -564,10 +594,21 @@ def _analyse(args, samples, therm, elapsed, model, applied_exp, n_frames):
             "exposure_us_applied": applied_exp,
             "target_fps_requested": args.target_fps,
             "frame_duration_capped": args.target_fps is not None,
-            "frames_written": 0,
-            "note": ("NO frames are written: this measures the FLIGHT loop, not "
-                     "the recorder (pi_capture.py pays a PNG write per frame "
-                     "that the flight loop never pays)"),
+            "frames_written": (recorder_meta["n_written"] if recorder_meta
+                               else 0),
+            "note": (
+                ("NO frames are written: this measures the FLIGHT loop, not "
+                 "the recorder (pi_capture.py pays a PNG write per frame "
+                 "that the flight loop never pays)")
+                if recorder_meta is None else
+                (f"--record attached (flight.deploy.frame_recorder): "
+                 f"{recorder_meta['n_written']} written, "
+                 f"{recorder_meta['n_dropped']} dropped "
+                 f"(rate={recorder_meta['drop_rate']:.3f}) -- this soak now "
+                 f"measures the recorder's cost ON TOP of the flight loop, "
+                 f"answering 'does recording cost seeker fps/thermals?' in "
+                 f"one run")),
+            "recorder": recorder_meta,
         },
         "workload": ({"detector": "pyapriltags tag36h11",
                       "quad_decimate": args.quad_decimate}
@@ -717,6 +758,17 @@ def main():
     ap.add_argument("--allow-no-tag", action="store_true",
                     help="run without a tag in view; result is stamped "
                          "PROVISIONAL and stays gate_eligible=false")
+    ap.add_argument("--record", default=None, metavar="DIR",
+                    help="attach flight.deploy.frame_recorder.FrameRecorder to "
+                         "DIR for the duration of the soak, so this ONE run "
+                         "answers 'does recording cost seeker fps/thermals?' "
+                         "instead of a separate paired soak. Off by default "
+                         "(no import, no behaviour change) -- this script's "
+                         "whole point is measuring the flight loop, which "
+                         "never wrote a frame before; the published fps stays "
+                         "the flight-loop rate, and the recorder's own "
+                         "written/dropped counts land in soak.json's "
+                         "capture.recorder block.")
     ap.add_argument("--out", default=None)
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()

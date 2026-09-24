@@ -1121,10 +1121,19 @@ def frame_shape_fault(frame, cam: CameraModel) -> Optional[str]:
 def run_over_source(source, detector, guidance: SeekerGuidance,
                     dry_run: bool = True, max_frames: Optional[int] = None,
                     fps: float = 20.0, verbose: bool = True,
-                    cam: Optional[CameraModel] = None) -> List[StepTelemetry]:
+                    cam: Optional[CameraModel] = None,
+                    frame_recorder=None) -> List[StepTelemetry]:
     """Drive the terminal over a frame source with a LEVEL own-state (desk). On
     real hardware the MAVSDK driver replaces this and supplies live own-state +
-    sends the setpoints; here we PRINT them (dry-run). Returns the telemetry log."""
+    sends the setpoints; here we PRINT them (dry-run). Returns the telemetry log.
+
+    `frame_recorder` (flight.deploy.frame_recorder.FrameRecorder, optional):
+    dependency-injected, never imported here -- a caller with none passes
+    None and this module never touches the recorder module at all. When
+    attached, every raw frame is `offer()`ed AFTER the detector has consumed
+    it (never before -- the seeker's own latency budget comes first;
+    `offer()` itself is documented O(1)/non-blocking so this costs the loop
+    at most one cheap call)."""
     log: List[StepTelemetry] = []
     dt = 1.0 / fps
     t = 0.0
@@ -1138,6 +1147,8 @@ def run_over_source(source, detector, guidance: SeekerGuidance,
                 print(f"[frame] FAULT intrinsics/frame mismatch: {fault}")
                 raise FrameShapeMismatch(fault)
         det = detector.detect(frame, t)
+        if frame_recorder is not None:
+            frame_recorder.offer(frame, t)
         box = getattr(det, "box_xywh", None)
         # A detection with no range/box is a miss (finetuned_seeker returns a
         # SeekerDetection with box_xywh=None on no-detect).
@@ -1317,10 +1328,16 @@ def _stream_verdict(*, n_frame, n_det, n_sp, span, cadence, max_gap_s,
 
 
 async def run_mavsdk(args, cam, detector, guidance, source,
-                     smoke: bool = False):  # pragma: no cover
+                     smoke: bool = False, frame_recorder=None):  # pragma: no cover
     """Real-vehicle driver: connect over MAVLink, stream own-state EKF, and send
     the terminal's NED velocity+yaw setpoints via PX4 OFFBOARD. GUARDED mavsdk
     import so the desk/dry-run path never needs it.
+
+    `frame_recorder` (flight.deploy.frame_recorder.FrameRecorder, optional):
+    dependency-injected, default None -- this module never imports the
+    recorder itself, so a caller that passes nothing pays zero cost. When
+    attached, every raw frame is `offer()`ed AFTER `detector.detect()` has
+    consumed it (never before -- the seeker's latency budget comes first).
 
     Returns 0 on success, 1 on a failure worth failing a gate over.
 
@@ -1593,6 +1610,8 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                         abort = f"intrinsics/frame mismatch: {_shape}"
                         break
                 det = detector.detect(frame, t)
+                if frame_recorder is not None:
+                    frame_recorder.offer(frame, t)
                 box = getattr(det, "box_xywh", None)
                 if getattr(det, "range_m", None) is None:
                     box = None

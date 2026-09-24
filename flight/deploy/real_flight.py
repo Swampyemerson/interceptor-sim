@@ -2314,7 +2314,8 @@ _MODE_FIRST_SAMPLE_TIMEOUT_S = 10.0
 
 async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                              trigger, detector=None,
-                             smoke: bool = False):  # pragma: no cover -- needs a vehicle
+                             smoke: bool = False,
+                             frame_recorder=None):  # pragma: no cover -- needs a vehicle
     """Live driver: connect over MAVLink, stream own-state EKF + RC_CHANNELS, and
     stream the state machine's NED velocity+yaw setpoints through PX4 OFFBOARD.
 
@@ -2325,6 +2326,13 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         human on an ELRS switch, and the detector is synthetic (no camera), and
       * the run asserts a PASS/FAIL contract at the end (states visited, setpoint
         count, heading latched) so the SITL check can exit 0/1.
+
+    `frame_recorder` (flight.deploy.frame_recorder.FrameRecorder, optional):
+    dependency-injected via `build_frame_recorder`/`--record-frames`; None by
+    default and this function never imports the recorder module itself. When
+    attached, every raw frame is `offer()`ed right after `detector.detect()`
+    consumes it (never before), and `close()` runs at mission end (the
+    `finally` below) with one summary line printed.
 
     TODO-BUILDER before this ever flies: PX4 geofence sized to the range box,
     the RC kill switch verified live (RC_MAP_KILL_SW), battery failsafe, and a
@@ -2548,6 +2556,11 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                     # covered by the offline self-test drive (det_new every
                     # other tick there) and by real decode misses/dropouts.
                     d = detector.detect(frame, t)
+                    if frame_recorder is not None:
+                        # AFTER the detector consumed the frame, never before
+                        # -- the seeker's latency budget comes first. offer()
+                        # is O(1)/non-blocking (flight/deploy/frame_recorder.py).
+                        frame_recorder.offer(frame, t)
                     det_new, det_range, det_box = True, d.range_m, d.box_xywh
                     # Detector-PnP slant range, if this detector publishes one
                     # (the Gazebo cross-check driver's tag_range_m; None from
@@ -2671,6 +2684,17 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                 fh.write(_CSV_HEADER)
                 fh.writelines(csv_rows)
             print(f"[log] {len(csv_rows)} ticks -> {args.log_csv}")
+        # MISSION END: drain + finalize the onboard footage recorder (--record-
+        # frames), unconditionally -- this `finally` runs on every exit path
+        # (clean shutdown, the outer smoke-duration bound, an exception), so a
+        # recorder attached to a mission that fails partway still gets its
+        # meta.json written and its queued frames drained within the deadline.
+        if frame_recorder is not None:
+            fr_meta = frame_recorder.close()
+            print(f"[frame_recorder] {fr_meta['n_written']} written, "
+                  f"{fr_meta['n_dropped']} dropped "
+                  f"(rate={fr_meta['drop_rate']:.1%}), target_fps="
+                  f"{fr_meta['config']['target_fps']} -> {fr_meta['out_dir']}")
 
     # ---- PASS/FAIL for the SITL gate ------------------------------------------
     visited = sm.visited
@@ -3374,7 +3398,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "seconds into the dash")
     run.add_argument("--log-csv", default=None,
                      help="per-tick CSV (default: auto-named under logs/)")
+    run.add_argument("--record-frames", default=None, metavar="DIR",
+                     help="onboard footage recorder (flight.deploy."
+                          "frame_recorder.FrameRecorder): save raw camera "
+                          "frames as reduced-rate/quality JPEGs to DIR during "
+                          "the LIVE/--sitl-smoke run, for engagement evidence, "
+                          "real-data retrain frames, and field debugging. "
+                          "Default OFF (None) -- no import of the recorder "
+                          "module happens at all unless this is set. Has no "
+                          "effect on --dry-run (that path has no camera "
+                          "frames to record).")
     return ap
+
+
+def build_frame_recorder(record_frames_dir: Optional[str]):
+    """Construct the onboard footage recorder for `--record-frames`, or
+    return None unchanged. Kept as its own function so the default-off path
+    is trivially provable byte-identical (no import of
+    `flight.deploy.frame_recorder` happens at all when `record_frames_dir`
+    is falsy) and so construction is unit-testable without a vehicle."""
+    if not record_frames_dir:
+        return None
+    from flight.deploy.frame_recorder import FrameRecorder
+    return FrameRecorder(record_frames_dir)
 
 
 def main(argv=None) -> int:
@@ -3435,6 +3481,14 @@ def main(argv=None) -> int:
         args.log_csv = os.path.join(_REPO_ROOT, "logs", f"real_flight_{ts}.csv")
 
     if args.dry_run:
+        if args.record_frames:
+            # --dry-run has no camera frames at all (run_offline drives the
+            # state machine off a StubSeeker with `frame=None`) -- --record-
+            # frames only applies to the live/--sitl-smoke path. Say so rather
+            # than silently doing nothing.
+            print(f"[frame_recorder] --record-frames {args.record_frames} has "
+                  f"NO EFFECT on --dry-run (no camera frames exist on this "
+                  f"path) -- use --sitl-smoke or the live vehicle.")
         trigger = (ScriptedTrigger(go_at_s=args.go_after_s)
                    if args.trigger == "timer" else GateReadyTrigger())
         sm, rows = run_offline(cfg, trigger, guidance=guidance, fps=args.fps,
@@ -3462,9 +3516,15 @@ def main(argv=None) -> int:
     from flight.deploy.seeker_loop import SmokeSeeker
     detector = SmokeSeeker(cam.fx, gcfg.target_span_m, cx=cam.cx, cy=cam.cy)
     sm = RealFlightSM(cfg, guidance=guidance, on_event=print)
+    frame_recorder = build_frame_recorder(args.record_frames)
+    if frame_recorder is not None:
+        print(f"[frame_recorder] recording raw frames to {args.record_frames} "
+              f"(target_fps={frame_recorder.target_fps}, "
+              f"jpeg_quality={frame_recorder.jpeg_quality})")
     import asyncio
     return asyncio.run(run_mavsdk_mission(args, cfg, sm, trigger, detector,
-                                          smoke=True))
+                                          smoke=True,
+                                          frame_recorder=frame_recorder))
 
 
 if __name__ == "__main__":
