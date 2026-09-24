@@ -838,3 +838,20 @@ currently built CANNOT test the ADR-0114 pitch coupling or validate the canted p
 — the honest validation rung for the cant is the TRIPOD day's indexed-placard block
 (docs/tripod_test_protocol.md A3 already measures decode vs incidence), plus the real
 target's measured cruise pitch replacing the 12° estimate.
+
+### ADR-0114 second addendum — BUILDER RULING 2026-09-24: bracket + canted placard ADOPTED as a pair
+
+The builder ruled ("ok ill do both for tag mount"): the printed camera bracket locks at
++10° AND the tag placard mount prints with its face canted 12° DOWN (≈ the target's
+cruise pitch; the mount's index disc records the set angle). The 12° stays an estimate
+until the target's first ULog measures the real cruise pitch — re-verify then. The
+chase-bracket-angle builder question is CLOSED; bench corner-spin at +10° remains the
+hard gate, and tripod block A3 (indexed placard angles) is the validation rung for the
+cant.
+
+### ADR-0115 second addendum — BUILDER RULING 2026-09-24: option (a), vertical arrival-sync round
+
+The builder ruled ("lets do option a"): register and build the vertical
+arrival-synchronization companion to the brake cap, re-run the failed cells, and
+re-decide per a registered criterion. Gazebo re-fly #3 stays blocked behind that
+adjudication. Registration: brake_shaping_prereg_2026-09-24.md AMENDMENT #2.

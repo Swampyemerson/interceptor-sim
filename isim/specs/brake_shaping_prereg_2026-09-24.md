@@ -203,3 +203,40 @@ still closing, so CPA lands with a small vertical overshoot. (1/19 is a separate
 zero-decode acquisition failure — the 3 m p90 tail class.) A fix would be a vertical
 arrival-synchronization term — a NEW lever requiring its own registration; deliberately
 NOT attempted tonight (two registered rounds on one subsystem is the stopping point).
+
+## AMENDMENT #2 (registered 2026-09-24 morning, BUILDER-RULED option (a) — predictions
+registered BEFORE the sync arm flies)
+
+**The lever:** `brake_vert_sync: bool = False` (meaningful only with `brake_shaping`).
+When ON and in Phase B, the VERTICAL relative command is scheduled from the HORIZONTAL
+time-to-go so both gaps reach zero together instead of the climb finishing early (the
+traced alt+3 failure — vehicle 0.2–0.7 m ABOVE the target at CPA):
+
+```
+t_go_h  = d_h / max(closing_h, v_close_min)      (KF state; d_h, closing_h horizontal)
+v_z_des = clamp(dz / t_go_h, existing vertical budgets)
+```
+
+The vertical component of `(cmd − v_t)` is REPLACED by `v_z_des` (relative frame; the
+target's own vertical velocity still passes through via v_t). Phase A keeps the
+amendment-#1 behaviour (vertical passthrough toward the rendezvous point — Phase A's
+job is gross positioning, and the traced overshoot is a Phase-B terminal effect).
+Note this is NEITHER prior variant: not uncapped vertical (amendment #1, overshoots)
+and not proportional scaling (the 3-D cap, also failed) — it is arrival-time
+synchronization, the well-posed fix the trace points at.
+
+**Arms & cells:** base · a3h (sync off) · a3hs (`a3h + brake_vert_sync`) on the
+amendment-#1 grid: alt+3 pair {honest, dash} × {R0, R2}; nominal {honest, dash} ×
+{R0, R2}; aim20 honest × {R0, R2}; weave honest × {R0, R2}. n=50 paired seeds (0..49).
+
+**Registered predictions:** (B1) dash-plant alt+3 with a3hs returns within ±5 points of
+base (the traced overshoot class is removed). (B2) honest-plant nominal/aim20/weave
+retained within 5 points of a3h (sync only acts on the vertical schedule; those cells'
+gains are horizontal). (B3) honest alt+3 p90 tail (3.07 m class) shrinks by ≥ half
+toward base. **Null branch:** if B1 fails, the alt+3 damage is not the arrival de-sync
+(the second mechanism read would be refuted like the first) — STOP the brake thread,
+record it, and put the plain adopt-despite-alt+3 trade back to the builder.
+
+**Adopt (registered):** a3h + sync iff B1 AND B2 AND no measured cell on either plant
+degrades > 5 points vs base. If adopted: re-predict the Gazebo band and pre-register
+re-fly #3 before flying it (builder ruling covers proceeding to that registration).
