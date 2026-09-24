@@ -190,3 +190,16 @@ braking miss BEFORE any new constant (the standing attribute-before-build rule);
 (2) the builder trade — the lever wins exactly on the nominal geometry the Gazebo
 re-fly failed and loses on a cell Gazebo has never flown, so "adopt a3h for re-fly #3
 despite alt+3" vs "diagnose alt+3 first" is queued as a builder question.
+
+## ALT+3 MECHANISM ATTRIBUTED (per-run trace, 2026-09-24; logs/brake_shaping_20260924/alt3_trace.txt)
+
+Dash plant, alt+3 pair, R2, base vs a3h, 50 paired seeds, full traces. 19 paired flips
+(base hit → a3h miss). NOT a time-out (CPA at 7–10 s, SAFE endings) and NOT a lost
+climb: in 18/19 flips the vehicle is 0.2–0.7 m ABOVE the target at CPA (paired vertical
+gap e.g. 0.08→0.34, 0.10→0.62 m) with the miss just over the bar (0.35–0.6 m).
+**Braking the horizontal de-synchronizes the vertical intercept:** the untouched climb
+channel reaches target altitude early and overshoots while the capped horizontal gap is
+still closing, so CPA lands with a small vertical overshoot. (1/19 is a separate
+zero-decode acquisition failure — the 3 m p90 tail class.) A fix would be a vertical
+arrival-synchronization term — a NEW lever requiring its own registration; deliberately
+NOT attempted tonight (two registered rounds on one subsystem is the stopping point).

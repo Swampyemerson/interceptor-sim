@@ -814,3 +814,15 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
   + verbatim tables + amendment); logs/brake_shaping_20260924/; flight/
   pursuit_terminal.py + flight/tests/test_pursuit_terminal.py (32 tests);
   scripts/brake_shaping_ab.py.
+
+### ADR-0115 addendum (same night) — the alt+3 damage mechanism is now ATTRIBUTED
+
+Per-run traces of the 19 paired flips (dash plant, alt+3, R2): the cap does not lose
+the climb and does not run out the window — it DE-SYNCHRONIZES the vertical intercept.
+The climb channel (untouched by the horizontal-only cap) reaches target altitude early
+and overshoots 0.2–0.7 m while the braked horizontal gap is still closing; CPA lands
+just over the 0.35 m bar. The candidate fix (vertical arrival synchronization — climb
+scheduled to finish WITH the horizontal closure, not before) is a new lever left
+UNREGISTERED and unbuilt by design; the queued builder trade now carries this
+attribution. Evidence: logs/brake_shaping_20260924/alt3_trace.txt (tables verbatim in
+the prereg doc's attribution section).

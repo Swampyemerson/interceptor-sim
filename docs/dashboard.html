@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ea82df0<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->73f7738<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -915,7 +915,7 @@
  "now": {
   "as_of": "2026-09-24",
   "where": "Overnight run complete: tag realism v1 (ADR-0114) landed and adjudicated, then the Gazebo-residual braking experiment flew both its registered rounds (ADR-0115).",
-  "finding": "The re-fly residual is CONFIRMED as the hot approach: a stopping-distance brake cap takes honest-plant nominal 62->98% contact. But it damages the alt+3 climb cell on both plants (mechanism unknown; one read refuted), so per the registered rule it is NOT adopted -- a builder trade is queued.",
+  "finding": "Re-fly residual CONFIRMED as the hot approach (brake cap: honest nominal 62->98%). Not adopted -- braking de-syncs the VERTICAL intercept at alt+3 (climb overshoots 0.2-0.7 m while the capped closure lags; traced, 18/19 flips). Builder trade queued with the attribution.",
   "next": [
    "Builder: brake-shaping trade (adopt a3h for Gazebo re-fly #3 vs trace alt+3 first)",
    "Builder: bracket + canted placard pair (ADR-0114); slant/AABB stock-path ruling"
@@ -1428,22 +1428,22 @@
   },
   {
    "id": "brake-shaping-tradeoff",
-   "question": "Overnight the sim confirmed WHY the Gazebo chase re-fly missed its bar: the vehicle arrives too hot for the real airframe's braking (5.9 m/s2 fitted). A stopping-distance brake cap fixes exactly that -- honest-plant nominal contact 62 -> 98% -- but it costs 12-28 points on the 'target 3 m above' cell on both plants, for a reason the tables alone do not explain, so under the registered no-regression rule it was NOT adopted. What next?",
+   "question": "Overnight the sim confirmed WHY the Gazebo chase re-fly missed its bar (the vehicle arrives too hot for the real airframe's braking) and a stopping-distance brake cap fixes exactly that: honest-plant nominal contact 62 -> 98%. Its one side effect is now TRACED, not mysterious: braking the horizontal de-syncs the vertical intercept at the target-3-m-above cell (climb overshoots 0.2-0.7 m; 12-28 points lost there). Under the registered rule it was NOT adopted. What next?",
    "options": [
-    "Trace one alt+3 braking miss per-run FIRST (attribute-before-build rule), then re-decide",
-    "Adopt a3-horizontal for Gazebo re-fly #3 now -- the re-fly flies the nominal geometry the cap wins on; alt+3 stays a known cost",
-    "Drop the brake thread; accept the chase's honest Gazebo numbers as-is"
+    "Register + build the vertical arrival-sync companion (climb finishes WITH the closure), then re-run the failed cells and re-decide",
+    "Adopt a3-horizontal for Gazebo re-fly #3 now -- the re-fly flies the nominal geometry the cap wins on; alt+3 stays a known, written-down cost",
+    "Stop the brake thread; keep the chase's honest numbers as-is"
    ],
-   "rec": "Option 1 -- it is one traced run and this project's standing rule; option 2 is defensible if you want the re-fly sooner (the cap is default-off config either way and the alt+3 cost is written down, not hidden).",
+   "rec": "Option 1 -- the mechanism is attributed and the fix is well-posed (a timing term, not tuning in the dark); it is one registered round and it decides option 2 properly. Option 2 is defensible if you want the re-fly sooner.",
    "blocked": "Gazebo re-fly #3 (the next transfer-gap rung) waits on this either way.",
-   "doc": "ADR-0115; isim/specs/brake_shaping_prereg_2026-09-24.md"
+   "doc": "ADR-0115 (+addendum); isim/specs/brake_shaping_prereg_2026-09-24.md"
   }
  ],
  "plain_log": [
   {
    "date": "2026-09-24",
-   "text": "Overnight part 2: the contract's named next item (braking/approach shaping vs the honest ENGAGE plant) ran as two registered rounds. A stopping-distance cap on the chase's relative command -- sized from the fitted 5.9 m/s2 braking authority -- was built default-off, swept 6,100 runs across both vehicle fits and the new realistic-tag rungs. It confirms the Gazebo re-fly's residual: on the honest plant, braking the approach takes nominal contact 62 to 98 percent and halves the arrival speed. But every cap variant damages the target-3-m-above climb cell on BOTH plants, the registered no-regression rule failed twice (the vertical-passthrough amendment registered to fix it did not), so NOTHING is adopted and the code sits in-tree, off, fully pinned.",
-   "so_what": "The diagnosis the thread existed for is in hand -- the pursuit law arrives hot on the real plant, and slowing it is worth ~35 points at nominal. What blocks adoption is one climb-geometry cell whose damage mechanism is honestly unknown. That trade (fly Gazebo re-fly #3 with the cap on its winning geometry, or trace the climb cell first) is the builder's, queued with a recommendation.",
+   "text": "Overnight part 2: the contract's named next item (braking/approach shaping vs the honest ENGAGE plant) ran as two registered rounds plus a per-run trace. A stopping-distance cap on the chase's relative command -- sized from the fitted 5.9 m/s2 braking authority -- was built default-off and swept 6,100 runs across both vehicle fits and the new realistic-tag rungs. It confirms the Gazebo re-fly's residual: braking the approach takes honest-plant nominal contact 62 to 98 percent and halves arrival speed. But it costs 12-28 points on the target-3-m-above cell, and the trace attributed WHY: slowing the horizontal de-synchronizes the vertical intercept -- the climb reaches target altitude early and overshoots 0.2-0.7 m while the braked closure is still coming, so CPA lands just over the bar. Under the registered no-regression rule nothing is adopted; the code sits in-tree, off, fully pinned.",
+   "so_what": "The diagnosis is complete on both sides: the pursuit law arrives too hot for the real airframe (worth ~35 points at nominal), and the fix's one side effect is a now-understood vertical timing problem, not a mystery. The trade -- adopt the cap for Gazebo re-fly #3, first add a registered vertical-arrival-sync term, or stop here -- is queued for the builder with the attribution attached.",
    "evidence": "ADR-0115 - isim/specs/brake_shaping_prereg_2026-09-24.md (both registrations + tables) - logs/brake_shaping_20260924/"
   },
   {
