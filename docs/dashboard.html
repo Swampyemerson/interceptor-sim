@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1db5fdf<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->62df10d<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -2732,7 +2732,7 @@
       "name": "Kakute H7 V1.5 flight controller",
       "status": "built",
       "role": "Runs ArduPilot; flies the AUTO legs and writes the DataFlash .BIN log.",
-      "notes": "Installed + verified live over COM7 (params 50/50, motor map fixed). USB quirk: often needs a cold boot ON USB (battery-first boot fails enumeration) or a replug after FC reboot."
+      "notes": "BARO FAULT OPEN (2026-09-23 late): baro fails init on every cold boot, WITH and WITHOUT the GPS attached -- board halts in Config Error. Fault window = the GPS splice rework (board read healthy AFTER the RX solder). Link/firmware(4.7.0)/params all fine; sensor drivers never init in the halt, so telemetry cannot probe the I2C bus (checked: RAW_IMU acc/gyro/mag all zero = uninitialized, not evidence). DECISIVE NEXT TEST: multimeter DC on SDA/SCL to GND, powered -- 3.3V both = bus alive -> ~$10 external baro (BARO_PROBE_EXT) rescues the board; 0V = clamp, isolate GPS-vs-FC; 5V = harness miswire persists. If FC-side clamp: replacement Kakute (NOT in any current order). Splices now individually insulated. BOOT-button gotcha: loose board can enter STM32 DFU if the button touches anything at power-up."
      },
      {
       "name": "Tekko32 F4 Metal 65A 4-in-1 ESC",
