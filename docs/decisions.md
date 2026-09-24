@@ -904,3 +904,40 @@ builder. All three lever variants stay in-tree, default OFF, pinned (33 tests).
   RESULT); logs/xcheck_gz_20260924_brake/ (+instrument.json);
   logs/brake_shaping_20260924/refly3_prediction.txt; commit fc0e74b
   (pre-flight registration).
+
+## ADR-0117 — The own-velocity wiring defect: the campaign misses' measured cause, fixed in the driver (2026-09-24)
+
+- **Context.** The registered endgame-estimator diagnosis (spec
+  isim/specs/endgame_estimator_diag_2026-09-24.md) ran a KF replica over all
+  16 campaign flights' tick streams (replica matches the logged r_hat to
+  0.02 m median — the instrument is trustworthy).
+- **Finding (head-verified in code).** `real_flight.py` subscribed to
+  `telemetry.velocity_ned()` but stored only the horizontal SPEED scalar;
+  `VehicleObs.vel_ned` — a field that already existed and already flowed to
+  the terminal — was never filled. The pursuit KF therefore ran its
+  relative-velocity bookkeeping on the LAST COMMANDED velocity
+  (`own_vel_fallback`, FAULT line present in 16/16 flights), median
+  3.6–4.2 m/s off the actual velocity, while the PX4 EKF's true velocity
+  error is 0.24–0.26 m/s. Input-swap attribution: ~110% of the last-2 s
+  range collapse; latency, EKF-velocity error and close-range pose bias all
+  exonerated with opposite-sign residuals. Downstream consequences now
+  explained by one defect: the −2.6 m endgame collapse (ADR-0116), the coast
+  latch freezing steering at ~3 m true range, and re-fly #3's brake cap
+  computing its closing term from the same wrong vector (C3 red). The same
+  wiring would have flown on the REAL vehicle.
+- **Decision.** Fix the wiring (two lines: store the full EKF vector, pass
+  it into VehicleObs), keep the fallback + FAULT accounting as the safety
+  net. 324 flight tests, AST honesty audit and self-test green. isim model
+  follow-ups (#2 own-velocity error model, #3 PnP noise floor +
+  range-dependent bias) stay registered-not-built. Re-fly #4 is registered
+  separately (docs/xcheck_gazebo_pursuit_prereg4.md) with the replica's
+  quantitative predictions as its fix-effect clauses.
+- **Honesty notes.** The replica is open-loop (flown-trajectory); its
+  closed-loop implication is supported only directionally by the isim
+  counterfactual (withholding vel_ned moves isim's no-brake CPA
+  0.121 → 2.555 m). The brake-package verdicts (ADR-0115/0116) were
+  measured UNDER this defect: the brake question re-opens only after the
+  fixed-wiring baseline exists, and only by registration.
+- **Evidence.** logs/endgame_diag_20260924/ (attribution.csv, summary.txt);
+  scripts/forensics/endgame_diag/ (preserved analysis scripts);
+  real_flight.py ~2340/2512 (the fix); 16/16 FAULT-line grep.

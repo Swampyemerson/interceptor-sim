@@ -2316,7 +2316,7 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
     # SUBSCRIBER -- never by "offboard.start() returned". arm_gate uses
     # `is not True`, so None fails CLOSED (no GO can be accepted), and
     # standby_settle_s=2.0 means no GO is possible inside the first-sample window.
-    state = {"quat": None, "psi": None, "alt": None, "armed": None,
+    state = {"quat": None, "psi": None, "alt": None, "armed": None, "vel_ned": None,
              "landed": None, "offboard": None, "mode": None,
              "t_quat": None, "t_mode": None, "gs": None}
 
@@ -2338,6 +2338,13 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         instead of dead-reckoning off the aim-fitted dash_accel_ms2."""
         async for v in drone.telemetry.velocity_ned():
             state["gs"] = math.hypot(v.north_m_s, v.east_m_s)
+            # ADR-0117 (endgame-estimator diagnosis): the FULL EKF velocity
+            # vector, not just the scalar. Without it VehicleObs.vel_ned
+            # stayed None and the pursuit KF fell back to the last COMMANDED
+            # velocity on every tick of every campaign flight (16/16 FAULT
+            # lines) -- measured 3.6-4.2 m/s off actual, the driver of the
+            # -2.6 m endgame range collapse and the ~3 m early coast latch.
+            state["vel_ned"] = (v.north_m_s, v.east_m_s, v.down_m_s)
 
     async def _armed():
         async for a in drone.telemetry.armed():
@@ -2501,7 +2508,8 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                                  mode=state["mode"],
                                  alt_m=state["alt"], yaw_deg=state["psi"],
                                  quat=state["quat"],
-                                 ground_speed_ms=state["gs"], trigger=trig,
+                                 ground_speed_ms=state["gs"],
+                                 vel_ned=state.get("vel_ned"), trigger=trig,
                                  det_new=bool(det_new), det_range_m=det_range,
                                  det_box_xywh=det_box, det_range_pose_m=det_pose)
                 if isinstance(trigger, GateReadyTrigger):
