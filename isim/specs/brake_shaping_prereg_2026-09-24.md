@@ -110,3 +110,83 @@ a3/a4 horizontal; (A2) the honest-plant nominal/aim20/weave gains are retained w
 **Adopt (amended):** a3-horizontal iff A1 AND A2 AND the original no->5-point-regression
 rule now holds on every measured cell, both plants, both rungs. Otherwise the lever is
 recorded as honest-plant-only evidence and NOT recommended for the re-fly.
+
+## AMENDMENT #1 RESULT (flown 2026-09-24; verbatim below; adjudicated against the
+amendment's registered predictions)
+
+```
+    cell  plant rung     arm     med     p90  <=0.35  <=1.0  med_dec  med_vcl
+   alt+3 honest   R0    base   0.195   0.711     76%    92%       56     1.72
+   alt+3 honest   R0     a3h   0.242   3.071     66%    86%       49     1.69
+   alt+3 honest   R0     a4h   0.279   3.068     62%    84%       48     1.79
+   alt+3 honest   R0   a3_3d   0.126   3.071     80%    86%       64     1.51
+
+   alt+3 honest   R2    base   0.221   1.046     70%    90%       50     1.77
+   alt+3 honest   R2     a3h   0.252   3.071     68%    88%       50     1.67
+   alt+3 honest   R2     a4h   0.174   3.068     68%    82%       54     1.61
+   alt+3 honest   R2   a3_3d   0.117   3.071     80%    86%       61     1.49
+
+   alt+3   dash   R0    base   0.294   1.003     70%    90%       60     1.67
+   alt+3   dash   R0     a3h   0.334   1.294     52%    86%       47     1.93
+   alt+3   dash   R0     a4h   0.369   1.066     48%    90%       51     1.80
+   alt+3   dash   R0   a3_3d   0.353   2.178     48%    88%       52     1.86
+
+   alt+3   dash   R2    base   0.297   0.779     64%    90%       55     1.72
+   alt+3   dash   R2     a3h   0.382   3.091     36%    84%       46     2.06
+   alt+3   dash   R2     a4h   0.353   3.153     50%    86%       48     2.14
+   alt+3   dash   R2   a3_3d   0.327   3.090     52%    86%       54     1.91
+
+ nominal honest   R0    base   0.310   0.853     62%    92%       56     3.08
+ nominal honest   R0     a3h   0.090   0.175     98%    98%       83     1.52
+ nominal honest   R0     a4h   0.125   0.357     88%   100%       66     1.97
+
+ nominal honest   R2    base   0.254   3.606     64%    86%       51     2.91
+ nominal honest   R2     a3h   0.108   0.195     92%    96%       80     1.72
+ nominal honest   R2     a4h   0.198   0.400     86%    98%       66     2.11
+
+ nominal   dash   R0    base   0.130   0.252     94%    96%       94     1.50
+ nominal   dash   R0     a3h   0.116   0.236     96%    98%       91     1.47
+ nominal   dash   R0     a4h   0.090   0.214     98%    98%       88     1.28
+
+ nominal   dash   R2    base   0.148   0.247     94%    98%       90     1.53
+ nominal   dash   R2     a3h   0.110   0.223     98%    98%       90     1.36
+ nominal   dash   R2     a4h   0.097   0.225     96%    96%       90     1.37
+
+   aim20 honest   R0    base   0.231   4.592     56%    76%       43     3.16
+   aim20 honest   R0     a3h   0.217   2.157     68%    86%       61     1.59
+   aim20 honest   R0     a4h   0.190   0.636     70%    92%       54     1.90
+
+   aim20 honest   R2    base   0.348   4.592     52%    64%       36     3.58
+   aim20 honest   R2     a3h   0.145   2.640     76%    84%       56     1.75
+   aim20 honest   R2     a4h   0.155   0.742     72%    92%       51     1.85
+
+   weave honest   R0    base   2.257   5.172     10%    18%       34     7.23
+   weave honest   R0     a3h   0.804   2.461     24%    64%       60     3.87
+   weave honest   R0     a4h   0.970   2.856     20%    54%       56     4.91
+
+   weave honest   R2    base   2.233   4.797      6%    20%       32     7.20
+   weave honest   R2     a3h   1.009   2.870     10%    50%       58     4.24
+   weave honest   R2     a4h   1.096   3.006     16%    46%       54     4.92
+```
+
+- **A1 FAILED:** dash-plant alt+3 stays 14–28 points below base (a3h R2: 36% vs 64%).
+  The a3_3d control reproduces the main sweep exactly (48/52%) — instrument stable.
+- **A2 PASS:** honest nominal/aim20/weave gains retained (a3h nominal 98/92%; weave
+  ≤1.0 m 64/50%).
+- **A3 FAILED:** honest alt+3 p90 stays ~3.07 m; the horizontal arms are WORSE than the
+  3-D arm on honest alt+3 (66/62 vs 80% at R0) — the vertical-coupling mechanism read
+  was wrong, or not the dominant term.
+
+## FINAL VERDICT (per the amendment's own adopt clause — no further tuning)
+
+**NOT ADOPTED.** Recorded as honest-plant-only evidence: the stopping-distance cap is
+the strongest confirmation yet of the re-fly's residual attribution (hot approach /
+late braking — honest nominal 62→98% contact, closing at CPA 3.1→1.5 m/s, weave ≤1 m
+18→64%), but it damages the alt+3 climb cell on BOTH plants through a mechanism the
+tables alone do not identify, and the registered no-regression rule fails twice. The
+code stays in-tree, default OFF, byte-identity-pinned (`brake_shaping`,
+`brake_horizontal_only`). Next honest steps, in order: (1) a per-run trace of an alt+3
+braking miss BEFORE any new constant (the standing attribute-before-build rule);
+(2) the builder trade — the lever wins exactly on the nominal geometry the Gazebo
+re-fly failed and loses on a cell Gazebo has never flown, so "adopt a3h for re-fly #3
+despite alt+3" vs "diagnose alt+3 first" is queued as a builder question.

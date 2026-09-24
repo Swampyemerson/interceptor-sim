@@ -211,6 +211,39 @@ class PursuitTerminalConfig:
     keepframe_vz_max_ms: float = 2.5      # max ADDED climb rate, m/s
     keepframe_hold_s: float = 0.5         # max hold of the last term, dropout
 
+    # --- stopping-distance brake cap (2026-09-24, default OFF = legacy) -------
+    # Attacks the "hot approach / late braking" residual on the slow honest
+    # ENGAGE plant (isim/specs/brake_shaping_prereg_2026-09-24.md: fitted
+    # braking authority 5.94 m/s^2, ~0.3 s velocity-loop lag, so a 16 m/s
+    # approach needs ~28 m to stop while Phase B's schedule only tapers
+    # inside 10 m). When ON, the RELATIVE command (cmd - believed target
+    # velocity) is capped, direction preserved, by the speed the configured
+    # deceleration can still shed before the remaining range runs out:
+    #   closing   = max((own_vel - v_t) . unit(r), 0)
+    #   d_eff     = max(range - brake_lead_s * closing, 0)
+    #   v_rel_cap = sqrt(v_close_min_ms^2 + 2 * brake_accel_ms2 * d_eff)
+    # Phase B: range = |KF r| (the target). Phase A: range = the believed
+    # RENDEZVOUS point (r_aim, where the relative speed is meant to reach
+    # zero), and only once that range is inside 2x the current stopping
+    # envelope (closing^2 / (2*brake_accel_ms2) + brake_lead_s*closing).
+    # Applied BEFORE the keepframe term, the norm clip and the slew. Does NOT
+    # read lock quality (the ADR-0108 timidity rejection is staleness-
+    # modulated closure, not range physics). Inputs: own-state velocity +
+    # the belief/KF only (honesty boundary).
+    brake_shaping: bool = False
+    brake_accel_ms2: float = 4.0   # TODO-BUILDER estimate: under the fitted
+    #                                5.94 m/s^2 ENGAGE braking authority with
+    #                                margin; first real braking ULog replaces it
+    brake_lead_s: float = 0.45     # TODO-BUILDER estimate: ~latency (0.14 s) +
+    #                                1/kp (0.30 s) of the honest ENGAGE fit
+    # AMENDMENT #1 (prereg doc): the cap's physics (braking authority, tilt,
+    # drag) are HORIZONTAL, and the registered sweep measured the 3-D cap
+    # scaling the CLIMB out of a climbing (alt-above) approach. True
+    # (default): closing/range/cap on the horizontal components only, the
+    # vertical command passes through. False = the flown 3-D cap, kept
+    # reachable for the record.
+    brake_horizontal_only: bool = True
+
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -613,6 +646,8 @@ class PursuitTerminalGuidance:
         v_cap = self._speed_cap()
         if self._phase == "A":
             cmd_v, yaw = self._phase_a_cmd()
+            if cfg.brake_shaping:
+                cmd_v = self._brake_cap_phase_a(cmd_v, own_vel)
             if cfg.keepframe_assist:
                 # ADDED before the norm clip and the slew: the assist trades
                 # horizontal speed for climb under the same caps/budgets.
@@ -746,8 +781,64 @@ class PursuitTerminalGuidance:
         r_perp = r_est - float(np.dot(r_est, ref_dir)) * ref_dir
 
         cmd_v = v_t + v_close * los_dir + cfg.kp_lat * r_perp
+        if cfg.brake_shaping:
+            cmd_v = self._brake_cap(cmd_v, v_t, r_est, own_vel)
         yaw = _yaw_toward(r_est, self._prev_yaw_deg)
         return cmd_v, yaw, False
+
+    # ------------------------------------------ stopping-distance brake cap
+
+    def _brake_closing(self, r_ned: np.ndarray, v_t: np.ndarray,
+                        own_vel: np.ndarray) -> float:
+        """Own speed RELATIVE to the target, projected on the direction to
+        `r_ned`, floored at 0 (an opening geometry needs no braking lead)."""
+        dir_ned = _unit(r_ned, np.array([1.0, 0.0, 0.0]))
+        return max(float(np.dot(np.asarray(own_vel, dtype=np.float64) - v_t, dir_ned)),
+                   0.0)
+
+    def _brake_rel_cap(self, range_m: float, closing_ms: float) -> float:
+        """The relative speed the configured deceleration can still shed
+        before `range_m` runs out, with the plant's response lead taken off
+        the range first (cfg.brake_shaping docstring)."""
+        cfg = self.cfg
+        d_eff = max(range_m - cfg.brake_lead_s * closing_ms, 0.0)
+        return math.sqrt(cfg.v_close_min_ms ** 2 + 2.0 * cfg.brake_accel_ms2 * d_eff)
+
+    def _brake_cap(self, cmd_v: np.ndarray, v_t: np.ndarray, r_ned: np.ndarray,
+                   own_vel: np.ndarray) -> np.ndarray:
+        """Cap |cmd_v - v_t| at `_brake_rel_cap(|r_ned|, closing)`,
+        direction preserved. Called only with cfg.brake_shaping on."""
+        v_t = np.asarray(v_t, dtype=np.float64)
+        if self.cfg.brake_horizontal_only:
+            # Amendment #1: horizontal-only. Closing/range on the horizontal
+            # plane; only the horizontal part of the relative command is
+            # capped, the vertical passes through (a climbing approach keeps
+            # its climb -- the measured alt+3 failure of the 3-D cap).
+            r_h = np.array([r_ned[0], r_ned[1], 0.0])
+            rel = np.asarray(cmd_v, dtype=np.float64) - v_t
+            rel_h = np.array([rel[0], rel[1], 0.0])
+            closing = self._brake_closing(r_h, v_t, own_vel)
+            cap = self._brake_rel_cap(float(np.linalg.norm(r_h)), closing)
+            return v_t + _clip_norm(rel_h, cap) + np.array([0.0, 0.0, rel[2]])
+        closing = self._brake_closing(r_ned, v_t, own_vel)
+        cap = self._brake_rel_cap(float(np.linalg.norm(r_ned)), closing)
+        return v_t + _clip_norm(cmd_v - v_t, cap)
+
+    def _brake_cap_phase_a(self, cmd_v: np.ndarray, own_vel: np.ndarray) -> np.ndarray:
+        """Phase A: the relative command toward the believed RENDEZVOUS point
+        (`r_aim`, where the relative speed is meant to reach zero), capped
+        only once that range is inside 2x the current stopping envelope --
+        further out the vehicle may still accelerate freely."""
+        cfg = self.cfg
+        track_dir = _unit(self._v_track, np.array([1.0, 0.0, 0.0]))
+        r_aim = self._r_track - cfg.d_behind_m * track_dir
+        r_gate = np.array([r_aim[0], r_aim[1], 0.0]) \
+            if cfg.brake_horizontal_only else r_aim
+        closing = self._brake_closing(r_gate, self._v_track, own_vel)
+        d_stop = closing ** 2 / (2.0 * cfg.brake_accel_ms2) + cfg.brake_lead_s * closing
+        if float(np.linalg.norm(r_gate)) > 2.0 * d_stop:
+            return cmd_v
+        return self._brake_cap(cmd_v, self._v_track, r_aim, own_vel)
 
     def _sane_fallback_vel(self, kf_v_t: np.ndarray) -> np.ndarray:
         """Clamp a KF-derived velocity before trusting it as a fresh Phase-A

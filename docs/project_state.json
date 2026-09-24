@@ -3,7 +3,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-09-23",
+ "updated": "2026-09-24",
  "updated_by": "Fable 5 head session",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -16,14 +16,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-09-23",
-  "where": "Overnight directive done: the sim's AprilTag now pitches, banks, shakes and catches glare with its carrier (tag realism v1); registered ladder, fresh-seed confirmation, mechanism probe and canted-mount A/B all flown.",
-  "finding": "Nominal chase survives tag realism (90 -> 87-91% touching: honest NULL). But the +10 deg bracket's height-error win collapses on a pitching target (+21 -> +2..+14 pts); canting the placard 12 deg down recovers 60/64% -- bracket + cant are a PAIR (ADR-0114).",
+  "as_of": "2026-09-24",
+  "where": "Overnight run complete: tag realism v1 (ADR-0114) landed and adjudicated, then the Gazebo-residual braking experiment flew both its registered rounds (ADR-0115).",
+  "finding": "The re-fly residual is CONFIRMED as the hot approach: a stopping-distance brake cap takes honest-plant nominal 62->98% contact. But it damages the alt+3 climb cell on both plants (mechanism unknown; one read refuted), so per the registered rule it is NOT adopted -- a builder trade is queued.",
   "next": [
-   "Builder: bracket ruling is now bracket + canted placard as a PAIR (ADR-0114)",
-   "Gazebo/bench rung for the cant; measured cruise pitch replaces the 12 deg estimate"
+   "Builder: brake-shaping trade (adopt a3h for Gazebo re-fly #3 vs trace alt+3 first)",
+   "Builder: bracket + canted placard pair (ADR-0114); slant/AABB stock-path ruling"
   ],
-  "evidence": "ADR-0114 - isim/specs/tag_realism_v1.md - logs/tag_realism_20260923/"
+  "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
  "assumptions": [
   {
@@ -528,9 +528,27 @@
    "rec": "Option 1 -- both angles are print-time and reversible, the pair passed its registered bars (P6/P7), and the placard mount's index disc records the cant so the field setting is auditable. The 12 deg is an estimate knob: re-verify against the target's measured cruise pitch when the first ULog exists.",
    "blocked": "Nothing today (the print is not on the critical path until the airframe arrives ~Oct 5-15); it becomes blocking at assembly.",
    "doc": "ADR-0112 + ADR-0114; isim/specs/tag_realism_v1.md SS G; isim/specs/chase_tilt_prereg_2026-09-23.md"
+  },
+  {
+   "id": "brake-shaping-tradeoff",
+   "question": "Overnight the sim confirmed WHY the Gazebo chase re-fly missed its bar: the vehicle arrives too hot for the real airframe's braking (5.9 m/s2 fitted). A stopping-distance brake cap fixes exactly that -- honest-plant nominal contact 62 -> 98% -- but it costs 12-28 points on the 'target 3 m above' cell on both plants, for a reason the tables alone do not explain, so under the registered no-regression rule it was NOT adopted. What next?",
+   "options": [
+    "Trace one alt+3 braking miss per-run FIRST (attribute-before-build rule), then re-decide",
+    "Adopt a3-horizontal for Gazebo re-fly #3 now -- the re-fly flies the nominal geometry the cap wins on; alt+3 stays a known cost",
+    "Drop the brake thread; accept the chase's honest Gazebo numbers as-is"
+   ],
+   "rec": "Option 1 -- it is one traced run and this project's standing rule; option 2 is defensible if you want the re-fly sooner (the cap is default-off config either way and the alt+3 cost is written down, not hidden).",
+   "blocked": "Gazebo re-fly #3 (the next transfer-gap rung) waits on this either way.",
+   "doc": "ADR-0115; isim/specs/brake_shaping_prereg_2026-09-24.md"
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-09-24",
+   "text": "Overnight part 2: the contract's named next item (braking/approach shaping vs the honest ENGAGE plant) ran as two registered rounds. A stopping-distance cap on the chase's relative command -- sized from the fitted 5.9 m/s2 braking authority -- was built default-off, swept 6,100 runs across both vehicle fits and the new realistic-tag rungs. It confirms the Gazebo re-fly's residual: on the honest plant, braking the approach takes nominal contact 62 to 98 percent and halves the arrival speed. But every cap variant damages the target-3-m-above climb cell on BOTH plants, the registered no-regression rule failed twice (the vertical-passthrough amendment registered to fix it did not), so NOTHING is adopted and the code sits in-tree, off, fully pinned.",
+   "so_what": "The diagnosis the thread existed for is in hand -- the pursuit law arrives hot on the real plant, and slowing it is worth ~35 points at nominal. What blocks adoption is one climb-geometry cell whose damage mechanism is honestly unknown. That trade (fly Gazebo re-fly #3 with the cap on its winning geometry, or trace the climb cell first) is the builder's, queued with a recommendation.",
+   "evidence": "ADR-0115 - isim/specs/brake_shaping_prereg_2026-09-24.md (both registrations + tables) - logs/brake_shaping_20260924/"
+  },
   {
    "date": "2026-09-23",
    "text": "Overnight (builder asleep, directive: 'make the sim's AprilTag true enough to real life -- tilt, pitch, shake, glare'). Built tag realism v1 into the fast sim: the target now derives a real quad attitude from its trajectory (nose-down cruise pitch, banked turns) with the tag bolted to its body, plus attitude wobble, camera-vibration blur, and sun-geometry glare -- all default-off and byte-identical, every constant graded estimate. Flew the registered ladder (n=50), a disjoint-seed confirmation (n=150), a mechanism probe, and a registered canted-mount A/B (n=100). Nominal chase: realism is an honest NULL (90 -> 87-91% touching). The real finding: the +10 deg camera bracket's height-error win collapses under a body-coupled tag (+21 -> +2..+14 points), because the pitched target tilts its rear tag face up-and-back and close-in decodes halve; canting the placard 12 deg DOWN (a print-time choice on our own mount, index disc records it) recovers the cell to 60/64% and restores the bracket's +20 margin.",
@@ -596,12 +614,6 @@
    "text": "Built the hybrid in the simulator as ruled and measured it against the other two on the same 6,600 runs. The opening sprint almost never touches a 9 m/s crossing target (first-pass contact 0-2%) and costs position: at the moment it turns around it is about 10.6 m from the target where the slow arrival is already at 5.6 m. Hybrid only wins against slow targets (80-84% at hover).",
    "so_what": "The slow arrival already contains a fast leg -- it flies at up to 16 m/s to get behind the target. The part that does not pay is aiming that fast leg ACROSS the target's path. Bench this week: Kakute log card cleared (488 logs), Pi frame timing measured (14 ms, 0.6 ms jitter), TV calibration tool ready, lens corrected to 118 degrees from the order log.",
    "evidence": "isim/specs/hybrid_v7.md - isim/concepts.py - runs/frame_timing/ - scripts/bench/"
-  },
-  {
-   "date": "2026-09-17",
-   "text": "Tried to break the pursuit result on purpose. With perfect self-knowledge it scored 92-98% inside 0.35 m; adding realistic errors took it to 49% (tag facing camera) and 68% (rear tag), and to 22-26% at double the errors. One at a time: frame-timestamp error 68/88%, attitude error 76/90%, position drift 81/95%, worse tag decoding 77/98%, velocity error no cost. A weaving target: 45% and 22%.",
-   "so_what": "The 92-98% was a best case and is labelled as one. The two things that matter most are measurable on the bench: how accurately the Pi timestamps a frame against the flight controller's clock, and attitude accuracy. Both also have software answers that are next in the simulator.",
-   "evidence": "isim/ownstate.py - isim/specs/pursuit_hardening_v5.md - ADR-0103"
   }
  ],
  "narrative": {
@@ -1136,6 +1148,10 @@
     {
      "date": "2026-09-23",
      "note": "Re-fly FLOWN as registered (n=8, fixed driver): CPA median 0.967 m (was 1.510), 5/8 inside 1.0 m, 0 aborts, camera-driven throughout. Instrument clauses GREEN: range bias at 6 m -1.07 -> +0.22 m, cadence 5.2 -> 9.0 det/s, tick dt intact. Registered verdict: NULL with instruments green -- the fixes landed and tightened the chase ~36%, but the CPA bar failed and the honest-plant isim band (0.09-0.31 m) still over-predicts ~3x, so isim stays a ranking tool, not a surrogate. Residual per the registered branch: the pursuit law's fit to a slow plant (hot approach/late braking) or outside the five suspects. Default swap STAYS BLOCKED. docs/xcheck_gazebo_pursuit_prereg2.md RESULT."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Brake shaping (ADR-0115, overnight): stopping-distance cap on the relative command built default-OFF (brake_shaping / brake_horizontal_only, 32 tests, byte-identity pinned) and swept 6,100 runs under two registrations. Residual of the Gazebo re-fly CONFIRMED as the hot approach (honest-plant nominal 62->98% with the cap; closing at CPA 3.1->1.5 m/s) but NOT adopted: the alt+3 climb cell degrades on both plants, mechanism unattributed, registered no-regression rule failed twice. Builder trade queued (brake-shaping-tradeoff)."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",

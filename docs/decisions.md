@@ -780,3 +780,37 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
   predictions registered before each run);
   logs/tag_realism_20260923/{ladder_v1,confirm_n150,mech_probe,cant_ab}.txt;
   commit 7546c12 (build) + this commit.
+
+## ADR-0115 — Stopping-distance brake cap: residual CONFIRMED, lever NOT adopted (registered null-with-a-win, 2026-09-24 overnight)
+
+- **Context.** The 2026-09-23 Gazebo re-fly's registered residual branch was
+  "the pursuit law on a slow plant (hot approach / late braking)". The ENGAGE
+  fit quantifies it: 5.94 m/s² braking authority + ~0.44 s lag = ~28 m to
+  stop from a 16 m/s approach, against a Phase-B schedule that tapers only
+  inside 10 m.
+- **Decision.** A config-gated stopping-distance cap on the relative command
+  (`brake_shaping`, default OFF; + `brake_horizontal_only` amendment) was
+  built, pre-registered, swept (4000 + 2100 runs, both plants, tag-realism
+  rungs R0/R2), and is **NOT adopted**: the registered no-regression rule
+  failed twice — the alt+3 climb cell loses 12–28 points on the dash plant
+  (and grows a 3 m p90 tail on the honest plant) under every cap variant,
+  and the vertical-passthrough amendment registered to fix it did not.
+  Code stays in-tree, OFF, byte-identity- and arithmetic-pinned (32 tests).
+- **What IS established (the diagnosis the thread existed for):** the hot
+  approach is the residual. On the honest plant the cap takes nominal
+  contact 62→98% (R2 64→92–94%), aim20 52→70–76%, weave ≤1.0 m 18→64%, with
+  the mechanism column moving as predicted (closing speed at CPA 3.1→1.5
+  m/s). Predictions #1/#2 passed; #3 (a4 optimal) was wrong — a3 dominates.
+- **Builder question queued (contract builder_queue `brake-shaping-tradeoff`):**
+  the lever wins exactly on the nominal geometry the Gazebo re-fly failed
+  and loses on a climb cell Gazebo has never flown. Adopt a3-horizontal for
+  re-fly #3 despite alt+3, or trace the alt+3 mechanism first? (The standing
+  attribute-before-build rule argues for the trace; the schedule argues for
+  the re-fly. Recommendation in the queue entry.)
+- **Honesty.** All isim-tier; brake constants are TODO-BUILDER estimates off
+  the ENGAGE fit; the alt+3 damage mechanism is explicitly NOT understood
+  (two reads tried, one refuted — recorded, not spun).
+- **Evidence.** isim/specs/brake_shaping_prereg_2026-09-24.md (registrations
+  + verbatim tables + amendment); logs/brake_shaping_20260924/; flight/
+  pursuit_terminal.py + flight/tests/test_pursuit_terminal.py (32 tests);
+  scripts/brake_shaping_ab.py.

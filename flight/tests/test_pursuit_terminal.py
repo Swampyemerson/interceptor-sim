@@ -647,3 +647,158 @@ def test_sm_passes_pose_range_only_to_a_supporting_terminal():
     assert rec[-1] == (None, None)
     legacy = drive(LegacyTerminal())     # would TypeError on an extra kwarg
     assert legacy[-2] == (600.0, 450.0, 30.0, 30.0)
+
+
+# ========================================== stopping-distance brake cap
+#
+# isim/specs/brake_shaping_prereg_2026-09-24.md. Config-gated, DEFAULT OFF:
+# the relative command |cmd - v_t| is capped at
+# sqrt(v_close_min^2 + 2*brake_accel*max(range - brake_lead*closing, 0)).
+# The slew budgets are opened wide in the arithmetic tests below so step()'s
+# output IS the (capped) command, not a ramp toward it.
+
+_NO_SLEW = dict(accel_max_ms2=1e6, accel_max_horiz_b_ms2=1e6,
+                accel_max_vert_b_ms2=1e6)
+
+
+def test_brake_off_is_byte_identical_to_prefeature_code():
+    """REPO INVARIANT: brake_shaping=False (the default) reproduces the golden
+    fixture (generated from the pre-keepframe module, so it predates this
+    feature too) exactly -- explicitly passed and defaulted alike."""
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    assert np.array_equal(_keepframe_identity_drive(), golden, equal_nan=True)
+    got = _keepframe_identity_drive({"brake_shaping": False})
+    assert np.array_equal(got, golden, equal_nan=True)   # exact, not approx
+    assert PursuitTerminalConfig().brake_shaping is False
+
+
+def _brake_phase_b_drive(own_vel_n, rng_n=6.0, **cfgkw):
+    """Stationary target dead ahead at `rng_n`, own closing at `own_vel_n`:
+    acquire on two on-axis boxes -> (setpoint, guidance) after the Phase-B
+    tick."""
+    g, cfg, _ = guidance(belief_r0_ned=(rng_n, 0.0, 0.0),
+                         belief_vel0_ned=(0.0, 0.0, 0.0),
+                         acquire_n=2, acquire_window_s=0.3, **_NO_SLEW, **cfgkw)
+    o = own(n_e_d_vel=(own_vel_n, 0.0, 0.0))
+    g.step(box_for(rng_n, 0.0, 0.0), o, t=DT)
+    sp, tel = g.step(box_for(rng_n, 0.0, 0.0), o, t=2 * DT)
+    assert tel.phase == "B"
+    return sp, g, cfg
+
+
+def test_brake_cap_arithmetic_through_step_phase_b():
+    """Hot approach (14 m/s at ~6 m): the cap binds, and the emitted relative
+    command equals the formula evaluated on the guidance's own KF state,
+    direction preserved (the flag-off arm's direction)."""
+    sp_off, g_off, _ = _brake_phase_b_drive(14.0)
+    sp_on, g, cfg = _brake_phase_b_drive(14.0, brake_shaping=True)
+    r, v_t = g._kf.r, g._kf.v_t
+    rng = float(np.linalg.norm(r))
+    closing = max(float(np.dot(np.array([14.0, 0.0, 0.0]) - v_t, r / rng)), 0.0)
+    d_eff = max(rng - cfg.brake_lead_s * closing, 0.0)
+    cap = math.sqrt(cfg.v_close_min_ms ** 2 + 2.0 * cfg.brake_accel_ms2 * d_eff)
+    rel_on = np.array([sp_on.v_north, sp_on.v_east, sp_on.v_down]) - v_t
+    rel_off = np.array([sp_off.v_north, sp_off.v_east, sp_off.v_down]) - g_off._kf.v_t
+    # Same KF state in both arms (the cap never feeds back within one tick).
+    assert g_off._kf.x == pytest.approx(g._kf.x, abs=1e-12)
+    assert np.linalg.norm(rel_off) > cap + 0.5          # the cap really binds
+    assert np.linalg.norm(rel_on) == pytest.approx(cap, abs=1e-9)
+    assert rel_on / np.linalg.norm(rel_on) == pytest.approx(
+        rel_off / np.linalg.norm(rel_off), abs=1e-9)
+    # At 14 m/s the lead eats the whole ~6 m: the floor is v_close_min.
+    assert d_eff == 0.0 and cap == pytest.approx(cfg.v_close_min_ms)
+
+
+def test_brake_cap_tightens_monotonically_as_range_shrinks():
+    g, cfg, _ = guidance(brake_shaping=True)
+    v_t = np.array([2.0, 0.0, 0.0])
+    own_vel = np.array([10.0, 0.0, 0.0])          # closing 8 m/s
+    big = v_t + np.array([50.0, 0.0, 0.0])        # far above any cap
+    rels = []
+    for rng in (30.0, 20.0, 12.0, 8.0, 5.0, 3.6, 2.0):
+        cmd = g._brake_cap(big, v_t, np.array([rng, 0.0, 0.0]), own_vel)
+        rels.append(float(np.linalg.norm(cmd - v_t)))
+    assert all(a > b for a, b in zip(rels[:5], rels[1:6]))   # strictly tighter
+    # Inside brake_lead_s*closing (3.6 m) the cap sits on the floor.
+    assert rels[-2] == pytest.approx(cfg.v_close_min_ms)
+    assert rels[-1] == pytest.approx(cfg.v_close_min_ms)
+    # A command already inside the cap passes through untouched.
+    small = v_t + np.array([1.0, 0.0, 0.0])
+    assert np.array_equal(
+        g._brake_cap(small, v_t, np.array([30.0, 0.0, 0.0]), own_vel), small)
+
+
+def test_brake_lead_zero_is_looser_than_lead_positive():
+    """Closing geometry: the lead term shrinks the effective range, so
+    lead>0 caps TIGHTER than lead=0 (through step()); on an opening geometry
+    the closing speed floors at 0 and the two caps are equal."""
+    sp_lead, g_lead, _ = _brake_phase_b_drive(12.0, rng_n=7.0, brake_shaping=True)
+    sp_zero, g_zero, _ = _brake_phase_b_drive(12.0, rng_n=7.0, brake_shaping=True,
+                                             brake_lead_s=0.0)
+    rel_lead = np.linalg.norm(np.array([sp_lead.v_north, sp_lead.v_east,
+                                        sp_lead.v_down]) - g_lead._kf.v_t)
+    rel_zero = np.linalg.norm(np.array([sp_zero.v_north, sp_zero.v_east,
+                                        sp_zero.v_down]) - g_zero._kf.v_t)
+    assert rel_lead < rel_zero - 0.2     # a real margin, not a rounding tie
+    g, _, _ = guidance(brake_shaping=True)
+    g0, _, _ = guidance(brake_shaping=True, brake_lead_s=0.0)
+    r = np.array([6.0, 0.0, 0.0])
+    opening = np.array([-3.0, 0.0, 0.0])
+    assert g._brake_rel_cap(6.0, g._brake_closing(r, np.zeros(3), opening)) == \
+        g0._brake_rel_cap(6.0, g0._brake_closing(r, np.zeros(3), opening))
+
+
+def test_brake_phase_a_caps_only_inside_the_stopping_envelope():
+    """Phase A, belief 20 m ahead and stationary, rendezvous point d_behind_m
+    short of it. At rest (closing 0 -> envelope 0) the command is untouched;
+    closing at 15 m/s the rendezvous (~11.25 m) is inside 2x the envelope and
+    the relative command is capped by the formula on r_aim."""
+    kw = dict(belief_r0_ned=(20.0, 0.0, 0.0), belief_vel0_ned=(0.0, 0.0, 0.0))
+    g_off, _, _ = guidance(**kw, **_NO_SLEW)
+    g_on, cfg, _ = guidance(**kw, brake_shaping=True, **_NO_SLEW)
+    sp_off, _ = g_off.step(None, own(), t=DT)
+    sp_on, tel = g_on.step(None, own(), t=DT)
+    assert tel.phase == "A"
+    assert (sp_on.v_north, sp_on.v_east, sp_on.v_down) == \
+        (sp_off.v_north, sp_off.v_east, sp_off.v_down)
+
+    g_off, _, _ = guidance(**kw, **_NO_SLEW)
+    g_on, cfg, _ = guidance(**kw, brake_shaping=True, **_NO_SLEW)
+    hot = own(n_e_d_vel=(15.0, 0.0, 0.0))
+    sp_off, _ = g_off.step(None, hot, t=DT)
+    sp_on, _ = g_on.step(None, hot, t=DT)
+    r_aim = 20.0 - 15.0 * DT - cfg.d_behind_m               # 11.25 m
+    assert sp_off.v_north == pytest.approx(cfg.kp_pos * r_aim)   # 9.0, uncapped
+    d_eff = r_aim - cfg.brake_lead_s * 15.0
+    cap = math.sqrt(cfg.v_close_min_ms ** 2 + 2.0 * cfg.brake_accel_ms2 * d_eff)
+    assert sp_on.v_north == pytest.approx(cap, abs=1e-9)     # ~6.18 m/s
+    assert sp_on.v_east == 0.0 and sp_on.v_down == 0.0
+
+
+def test_brake_horizontal_only_passes_the_climb_through():
+    """Amendment #1 (brake_shaping_prereg_2026-09-24.md): with the default
+    brake_horizontal_only, a climbing relative command keeps its ENTIRE
+    vertical component while the horizontal part is capped on horizontal
+    range/closing; brake_horizontal_only=False reproduces the flown 3-D cap
+    (whole vector scaled, climb included)."""
+    g_h, cfg, _ = guidance(brake_shaping=True)
+    g_3, cfg3, _ = guidance(brake_shaping=True, brake_horizontal_only=False)
+    r = np.array([6.0, 0.0, -3.0])          # target ahead and 3 m ABOVE
+    v_t = np.zeros(3)
+    own_vel = np.array([10.0, 0.0, -2.0])   # closing hot, climbing
+    cmd = np.array([8.0, 0.0, -2.5])
+
+    out_h = g_h._brake_cap(cmd, v_t, r, own_vel)
+    cap_h = g_h._brake_rel_cap(6.0, 10.0)   # horizontal range/closing only
+    assert out_h[2] == pytest.approx(-2.5)              # climb untouched
+    assert math.hypot(out_h[0], out_h[1]) == pytest.approx(cap_h, abs=1e-9)
+    assert out_h[1] == pytest.approx(0.0)
+
+    out_3 = g_3._brake_cap(cmd, v_t, r, own_vel)
+    rng3 = float(np.linalg.norm(r))
+    closing3 = max(float(np.dot(own_vel - v_t, r / rng3)), 0.0)
+    cap_3 = g_3._brake_rel_cap(rng3, closing3)
+    assert np.linalg.norm(out_3) == pytest.approx(cap_3, abs=1e-9)
+    assert out_3[2] != pytest.approx(-2.5)              # 3-D cap scales climb
+    # Same direction as the raw command (3-D mode preserves the full vector).
+    assert out_3 / np.linalg.norm(out_3) == pytest.approx(cmd / np.linalg.norm(cmd))

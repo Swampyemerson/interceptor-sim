@@ -192,3 +192,11 @@ The pursuit prototype went from 55-71% to 92-98% inside 0.35 m from one fix: a t
 **So what:** A bad sprint and a target at a different height now mostly do not matter in the simulator. It is written up as a proposal (ADR-0103) because it changes the flight profile, the flight code's breakoff logic and where the tag goes. The simulator's own-state is perfect, so treat the numbers as best-case until noise is added and Gazebo agrees.
 
 **Evidence:** commit 'isim pursuit: delayed-measurement Kalman update' - ADR-0103
+
+## 2026-09-17 (archived from plain_log 2026-09-24, cap-12 overflow)
+
+Tried to break the pursuit result on purpose. With perfect self-knowledge it scored 92-98% inside 0.35 m; adding realistic errors took it to 49% (tag facing camera) and 68% (rear tag), and to 22-26% at double the errors. One at a time: frame-timestamp error 68/88%, attitude error 76/90%, position drift 81/95%, worse tag decoding 77/98%, velocity error no cost. A weaving target: 45% and 22%.
+
+**So what:** The 92-98% was a best case and is labelled as one. The two things that matter most are measurable on the bench: how accurately the Pi timestamps a frame against the flight controller's clock, and attitude accuracy. Both also have software answers that are next in the simulator.
+
+**Evidence:** isim/ownstate.py - isim/specs/pursuit_hardening_v5.md - ADR-0103
