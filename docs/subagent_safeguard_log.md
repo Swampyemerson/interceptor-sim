@@ -266,3 +266,8 @@ Fable 5 lane is usable-but-not-uniform today, same read as Opus 5.5's
 3-passes/1-bounce. The bounced task's partial worktree was handed to an
 opus48-worker to finish (sanctioned fallback, ADR-0106); no rewording, per
 the standing rule.
+
+- 2026-09-23 (night): **opus55-worker PASS** — full tag-realism-v1 build (target attitude
+  physics + seeker shake/glare + scenario wiring + 32 tests) from the registered spec, one
+  shot, no bounce; also caught a drag-sign error in the spec. Defense-sim-framed isim code
+  task. Running tally for opus55 on this repo: 4 passes / 1 [general_harms] fail.
