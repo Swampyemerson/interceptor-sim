@@ -278,3 +278,11 @@ the standing rule.
   opus55 here: 5 passes (tag realism, brake, diagnosis, rehearsal r1+r2/commit-sprint)
   / this 1 bounce. Fallback: identical brief to opus48-worker (sanctioned lane,
   ADR-0106 pattern), no rewording.
+
+- 2026-09-24 (afternoon, cont.): **second bounce on the SAME frame-recorder brief**,
+  [general_harms], req_011CfNsuMG8cnKNakAk5x6he — spawned as opus48-worker but the
+  API error reports "model sent: claude-fable-5" (lane resolution fell through to the
+  session default; worth knowing: an opus48-worker spawn is not guaranteed to reach
+  4.8). Worker died right after "Reading the primary files" — consistent with the
+  documented read-the-flight-code trip pattern. Fallback: sonnet-worker, identical
+  brief, no rewording.
