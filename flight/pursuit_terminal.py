@@ -318,6 +318,24 @@ class PursuitTerminalConfig:
     #                                    below this t_go at first eligibility
     #                                    the evade cannot escape -> too late
 
+    # --- commit sprint in the terminal coast (2026-09-24, default OFF) ---------
+    # Builder idea: go full throttle in the last instants of the blind coast.
+    # Pre-registration: isim/specs/commit_sprint_prereg_2026-09-24.md. Scope
+    # is ONLY the Phase-B COAST latch (|KF r| < hold_range_m -- steering is
+    # already frozen and the vehicle holds its last command), where no
+    # correction can land anyway, so added speed costs no correction
+    # authority. When ON, the held command keeps its DIRECTION exactly (a
+    # positive rescale of the horizontal part -- the latch's no-steering
+    # contract is untouched) but its HORIZONTAL magnitude is raised to
+    # v_max_ms; the vertical component is copied through; a ~zero horizontal
+    # held command is left unchanged. The existing norm cap still applies
+    # afterwards; rehearsal, failsafes and telemetry see the same state they
+    # would otherwise. Mechanism claimed: a shorter window for target lateral
+    # motion (weave) to accrue miss, higher closing speed at the pass. Risks:
+    # the plant's lag gains little speed in ~0.3 s; a wrong frozen direction
+    # is flown FASTER. Inputs: the held command only (honesty boundary).
+    commit_sprint: bool = False
+
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -887,6 +905,8 @@ class PursuitTerminalGuidance:
         r_est, v_t = self._kf.r, self._kf.v_t
         range_est = float(np.linalg.norm(r_est))
         if range_est < cfg.hold_range_m:
+            if cfg.commit_sprint:
+                return self._commit_sprint_cmd(self._prev_v_cmd), self._prev_yaw_deg, True
             return self._prev_v_cmd.copy(), self._prev_yaw_deg, True
 
         los_dir = _unit(r_est, np.array([1.0, 0.0, 0.0]))
@@ -902,6 +922,24 @@ class PursuitTerminalGuidance:
                 cmd_v = self._brake_sync_vertical(cmd_v, v_t, r_est, own_vel)
         yaw = _yaw_toward(r_est, self._prev_yaw_deg)
         return cmd_v, yaw, False
+
+    def _commit_sprint_cmd(self, held: np.ndarray) -> np.ndarray:
+        """cfg.commit_sprint (coast latch only): the held command with its
+        HORIZONTAL part rescaled to norm v_max_ms -- a positive scalar, so the
+        horizontal direction is exactly the latched one -- and the vertical
+        component copied through. A (near-)zero horizontal held command has
+        no direction to sprint along and is returned unchanged. Idempotent:
+        re-applying it to its own (held) output is a no-op. The caller's norm
+        cap still applies afterwards (a steep climb plus a full horizontal
+        sprint is scaled back as a whole vector, direction preserved)."""
+        out = np.asarray(held, dtype=np.float64).copy()
+        n_h = math.hypot(float(out[0]), float(out[1]))
+        if n_h < 1e-6:
+            return out
+        k = self.cfg.v_max_ms / n_h
+        out[0] *= k
+        out[1] *= k
+        return out
 
     # ------------------------------------------ stopping-distance brake cap
 

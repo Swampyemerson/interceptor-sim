@@ -39,3 +39,20 @@ Arms: OFF · ON, each at two base configs: plain default and the brake package
   gains ≥10 points with no cell losing >5, else record the honest null — the plant's
   lag likely eats the window, and that is a finding about the airframe, not a failure
   of the idea.
+
+## RESULT (built + swept 2026-09-24; suite 542 green + audit PASS, head-verified;
+tables verbatim in logs/commit_sprint_20260924/sweep.txt)
+
+**Registered NULL — adopt bar not met; `commit_sprint` stays default OFF** (the lever,
+5 tests and the sweep script stay in-tree). P1 FAIL: weave contact unchanged on both
+bases (plain 6→6%: the sprint acted on 1/50 flights; brake 12→12% with ≤1.0 m
+DROPPING 52→48% — the named wrong-direction-flown-faster risk). P2 PASS on the
+registered pose recipe (all cells ±5). P3 holds in 3/4 cells (closing at CPA +0.6–0.7
+m/s where the coast actually happens) but not weave.
+
+**The mechanism finding is sharper than the registered lag prediction:** the coast
+window opens inside ~1 m of TRACKED range, and weave failures miss by 2+ m — the
+sprint structurally cannot reach the flights it targets. Where it does act, speed at
+the pass rises at no contact cost (pose pass) — a note for the builder's
+harder-impact intent, but not an adoption. isim-tier, ENGAGE fit, not
+Gazebo-checked.

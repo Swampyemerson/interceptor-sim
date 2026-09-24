@@ -1284,3 +1284,96 @@ def test_sm_logs_a_too_late_rehearsal_once_and_does_not_relabel_the_end():
     assert len(late) == 1
     assert not any("REHEARSAL break-off" in m for m in msgs)
     assert sm.safe_reason == "pursuit_miss"
+
+
+# ================================================== commit sprint (coast)
+#
+# isim/specs/commit_sprint_prereg_2026-09-24.md. Config-gated, DEFAULT OFF:
+# only while the Phase-B COAST latch holds (|KF r| < hold_range_m), the held
+# command keeps its direction exactly but its HORIZONTAL magnitude is raised
+# to v_max_ms; vertical copied through; a ~zero horizontal held command is
+# left unchanged. The existing norm cap still applies after it.
+
+
+def test_commit_sprint_off_is_byte_identical_to_prefeature_code():
+    """REPO INVARIANT: commit_sprint=False (the default) reproduces the golden
+    fixture (generated from the pre-keepframe module, so it predates this
+    feature too) exactly -- explicitly passed and defaulted alike."""
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    _assert_matches_golden(_keepframe_identity_drive(), golden)
+    got = _keepframe_identity_drive({"commit_sprint": False})
+    _assert_matches_golden(got, golden)   # exact-or-kernel-drift band
+    assert PursuitTerminalConfig().commit_sprint is False
+
+
+def _coast_drive(held, **cfgkw):
+    """Acquire on a stationary target already inside hold_range_m (so Phase B
+    starts coasting), plant `held` as the latched command, then step one more
+    coast tick -> (setpoint, tel, cfg)."""
+    g, cfg, _ = guidance(belief_r0_ned=(2.0, 0.0, 0.0), belief_vel0_ned=(0.0, 0.0, 0.0),
+                         acquire_n=2, acquire_window_s=0.3, hold_range_m=1.0,
+                         **cfgkw)
+    box = box_for(0.5, 0.0, 0.0)
+    g.step(box, own(), t=DT)
+    _, tel = g.step(box, own(), t=2 * DT)
+    assert tel.phase == "B" and tel.terminal_coast is True
+    g._prev_v_cmd = np.array(held, dtype=np.float64)
+    sp, tel = g.step(box, own(), t=3 * DT)
+    assert tel.terminal_coast is True
+    return sp, tel, cfg
+
+
+def test_commit_sprint_scales_horizontal_to_v_max_direction_preserved():
+    """Level held command: through step() the horizontal speed becomes exactly
+    v_max_ms along the SAME horizontal direction, vertical untouched (0); the
+    OFF arm holds the command byte-for-byte."""
+    held = (3.0, 4.0, 0.0)
+    sp_off, _, _ = _coast_drive(held)
+    assert (sp_off.v_north, sp_off.v_east, sp_off.v_down) == held
+    sp_on, _, cfg = _coast_drive(held, commit_sprint=True)
+    h = math.hypot(sp_on.v_north, sp_on.v_east)
+    assert h == pytest.approx(cfg.v_max_ms, abs=1e-9)
+    assert (sp_on.v_north / h, sp_on.v_east / h) == pytest.approx((0.6, 0.8), abs=1e-12)
+    assert sp_on.v_down == 0.0
+
+
+def test_commit_sprint_arithmetic_keeps_vertical_and_respects_norm_cap():
+    """The rescale itself copies the vertical component exactly; through
+    step() the pre-existing norm cap then scales the WHOLE vector back to
+    v_max_ms (direction still the held command's), so a climbing held
+    command never exceeds the configured speed cap."""
+    g, cfg, _ = guidance(commit_sprint=True)
+    held = np.array([3.0, -4.0, -1.5])
+    out = g._commit_sprint_cmd(held)
+    assert out[2] == -1.5
+    assert math.hypot(out[0], out[1]) == pytest.approx(cfg.v_max_ms, abs=1e-9)
+    assert out[0:2] / np.linalg.norm(out[0:2]) == pytest.approx(
+        held[0:2] / np.linalg.norm(held[0:2]), abs=1e-12)
+    assert np.array_equal(held, [3.0, -4.0, -1.5])     # input not mutated
+    assert np.array_equal(g._commit_sprint_cmd(out), out)   # idempotent
+    sp, _, _ = _coast_drive(tuple(held), commit_sprint=True)
+    v = np.array([sp.v_north, sp.v_east, sp.v_down])
+    assert np.linalg.norm(v) == pytest.approx(cfg.v_max_ms, abs=1e-9)
+    assert v / np.linalg.norm(v) == pytest.approx(out / np.linalg.norm(out), abs=1e-12)
+
+
+def test_commit_sprint_zero_horizontal_held_command_is_unchanged():
+    held = (0.0, 0.0, -1.0)
+    sp_on, _, _ = _coast_drive(held, commit_sprint=True)
+    assert (sp_on.v_north, sp_on.v_east, sp_on.v_down) == held
+    g, _, _ = guidance(commit_sprint=True)
+    tiny = np.array([1e-9, -1e-9, 0.7])
+    assert np.array_equal(g._commit_sprint_cmd(tiny), tiny)
+
+
+def test_commit_sprint_only_acts_while_coasting():
+    """A non-coast Phase-B tick (target 5 m ahead, outside hold_range_m)
+    emits the identical command with the flag on or off."""
+    sp_off, g_off, _ = _brake_phase_b_drive(4.0, rng_n=5.0)
+    sp_on, g_on, _ = _brake_phase_b_drive(4.0, rng_n=5.0, commit_sprint=True)
+    assert float(np.linalg.norm(g_on._kf.r)) > g_on.cfg.hold_range_m
+    assert (sp_on.v_north, sp_on.v_east, sp_on.v_down, sp_on.yaw_deg) == \
+        (sp_off.v_north, sp_off.v_east, sp_off.v_down, sp_off.yaw_deg)
+    # And the whole fixture drive (never inside hold_range_m) is unchanged.
+    assert np.array_equal(_keepframe_identity_drive({"commit_sprint": True}),
+                          _keepframe_identity_drive(), equal_nan=True)

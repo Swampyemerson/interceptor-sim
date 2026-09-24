@@ -20,8 +20,8 @@
   "where": "Rehearsal round 2 adopted: the practice mode now escapes cleanly (worst gap 1.59-1.73 m, zero contacts, one switch = the whole practice profile). Chase remains the flying default (ADR-0118). Queue holds only the publication hands-on list.",
   "finding": "The chase (camera-only pursuit) is now the FLYING DEFAULT -- the gate it was held behind passed at median 0.343 m. Stock/tag stay selectable as-flown. Remaining directive work: rehearsal round 2, commit-sprint, Pi recorder, then the registered brake Gazebo arm.",
   "next": [
-   "Commit-sprint experiment (registered), then Pi recorder, then the brake Gazebo arm",
-   "Gazebo spot-check rung for the rehearsal margins (queued behind those)"
+   "Pi footage recorder (build + bench-gate harness), then the brake Gazebo arm",
+   "Gazebo spot-check rung for the rehearsal margins"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -1120,6 +1120,10 @@
     {
      "date": "2026-09-24",
      "note": "Rehearsal round 2 ADOPTED (t_go trigger, t_react 1.5 s; too-late floor at first eligibility; --pursuit-rehearsal = the whole practice profile incl. brake + v_max 10): worst-case escape gap 1.59-1.73 m vs the 0.7 bar, zero contacts, recall 89-97%. Onboard would-have estimate reads high (P2 fail) -- field claim = ULogs+video. isim-tier until the Gazebo spot-check. 537 tests + audit green."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Commit-sprint (builder idea, ADR-0119): registered NULL -- the coast window (<1 m tracked) cannot reach weave misses (2+ m); where it acts, +0.6-0.7 m/s at the pass at no contact cost. Default OFF, in-tree."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",

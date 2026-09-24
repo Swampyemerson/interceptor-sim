@@ -991,3 +991,16 @@ are DECIDED here, each reversible and logged, not queued.
    amendment #1 of its prereg; the round-2 queue item is withdrawn.
 
 Queue after this ADR: only genuinely-his items remain (publication hands-on steps).
+
+## ADR-0119 — Commit-sprint: registered null; the coast window cannot reach the weave misses (2026-09-24)
+
+Builder idea, registered and measured same day. The blind-coast sprint (direction
+frozen, horizontal raised to v_max only after the coast latch) changes nothing it was
+meant to change: the latch opens inside ~1 m of tracked range while weave misses
+occur at 2+ m (it fired on 1/50 plain-default weave flights), and on the brake config
+flying the frozen direction faster mildly worsened ≤1.0 m (52→48%). Where it acts,
+closing speed at the pass rises 0.6–0.7 m/s at no contact cost (registered pose
+recipe, all cells ±5) — recorded as a note toward the harder-impact intent, not an
+adoption. Default stays OFF; lever + tests + sweep in-tree.
+Evidence: isim/specs/commit_sprint_prereg_2026-09-24.md (registration + RESULT);
+logs/commit_sprint_20260924/; 542 tests + audit green.
