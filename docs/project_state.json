@@ -537,7 +537,7 @@
     "Try the flux clean + a day of retests first, order only if it stays dead",
     "Wait for the interceptor airframe build and share bench time, ordering later"
    ],
-   "rec": "Option 1 if the flux clean doesn't move the needle tonight -- the target gates tripod day, which gates nothing else right now, but lead time is dead time and the board is cheap relative to the schedule.",
+   "rec": "Order now -- the flux clean was tried and the clamp is measured twice over (voltage + resistance agree on ~1.4 kOhm). The only remaining question (GPS compass health) needs the new board to answer.",
    "blocked": "tgt-05's bind + failsafe tests and everything after (maiden, tripod day) sit behind a working FC. The GPS module's compass health is also unknowable until a live bus exists.",
    "doc": "build_tab target Kakute notes; scripts/bench/fc_comms_sweep.py session"
   }
@@ -1847,7 +1847,7 @@
       "name": "Kakute H7 V1.5 flight controller",
       "status": "built",
       "role": "Runs ArduPilot; flies the AUTO legs and writes the DataFlash .BIN log.",
-      "notes": "BARO/I2C BUS VERDICT (multimeter, 2026-09-23 late): SDA/SCL sit ~1.2-1.5 V (healthy idle = 3.3 V) and STAY dragged with the GPS unplugged -> the clamp is ON THE BOARD (baro chip or MCU bus pins), damaged in the GPS-splice short window. External-baro rescue is OUT (same bus). Last $0 step: IPA-clean the flux off the pad row and re-measure (flux leakage can fake this). Else: REPLACE the FC (same Kakute H7 V1.5 -- firmware target, 50-param pack, and the bench tools all carry over; re-bring-up ~1 hr). Exonerated by test: ESC, motors x4, RX wiring (timeline), GPS module serial (R3 active), harness 5V. GPS COMPASS health unknown until a live bus exists."
+      "notes": "VERDICT CLOSED (2026-09-23, self-consistent measurements): board-side resistive clamp ~1-2 kOhm to ground on BOTH I2C lines (powered 1.2-1.5 V through the pull-ups implies ~1.4 kOhm; unpowered resistance measures 1-2 kOhm; reference pin ~62 kOhm; unchanged GPS in/out; IPA clean no effect). hwdef confirms ONE I2C bus shared by baro + external pads -> no external-baro escape. Symmetric both-line damage = classic 5V-on-3.3V-bus chip kill from the splice short. Software ruled out by physics (resistance exists unpowered). REPLACE the FC (same Kakute H7 V1.5; firmware/50-param pack/bench tools carry over; motor map must be RE-VERIFIED after the swap -- it is soldering-specific). On the new board: test the GPS COMPASS first (same event may have wounded it; its serial side is proven alive). Stuck BOOT button + SD in/out both exonerated (mode-select only / logs only)."
      },
      {
       "name": "Tekko32 F4 Metal 65A 4-in-1 ESC",
