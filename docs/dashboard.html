@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->73f7738<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0ff45d9<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,11 +914,11 @@
  },
  "now": {
   "as_of": "2026-09-24",
-  "where": "Overnight run complete: tag realism v1 (ADR-0114) landed and adjudicated, then the Gazebo-residual braking experiment flew both its registered rounds (ADR-0115).",
-  "finding": "Re-fly residual CONFIRMED as the hot approach (brake cap: honest nominal 62->98%). Not adopted -- braking de-syncs the VERTICAL intercept at alt+3 (climb overshoots 0.2-0.7 m while the capped closure lags; traced, 18/19 flips). Builder trade queued with the attribution.",
+  "where": "Morning session: both rulings executed. Bracket+cant pair is adopted and in the build spec; the brake thread ran its builder-ruled sync round and STOPPED per its registered rule -- the sharpened adopt-or-not trade is back with the builder.",
+  "finding": "Arrival-sync removed the traced overshoot class (dash alt+3 R2 36->64% = base) at zero cost elsewhere, but a second class remains (decode-starved long approaches, ~3 m p90 tail, -6..-8 pts at alt+3 R0). Package value: +30-36 pts nominal/aim20, weave x3, vs that alt+3 tail.",
   "next": [
-   "Builder: brake-shaping trade (adopt a3h for Gazebo re-fly #3 vs trace alt+3 first)",
-   "Builder: bracket + canted placard pair (ADR-0114); slant/AABB stock-path ruling"
+   "Builder: adopt cap+sync for Gazebo re-fly #3 (nominal geometry) despite the alt+3 tail, or hold",
+   "If adopted: register re-fly #3 band, then fly it"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -1415,28 +1415,16 @@
    "doc": "isim/specs/parity_trace_2026-09-22.md (candidate (e)) · flight/pursuit_terminal.py _measured_r_ned"
   },
   {
-   "id": "chase-bracket-angle",
-   "question": "The printed camera bracket is adjustable 10-30 deg and you lock it at build time. UPDATE (overnight 2026-09-23, ADR-0114): the +10 deg evidence you were given was measured with an upright, world-fixed tag; with the tag bolted to the pitching target the naked bracket's +3 m win collapses (+21 -> +2..+14 pts). Measured fix: also cant the tag placard's face 12 deg DOWN on the target's mount (~its cruise pitch) -- the pair restores 60-64% at +3 m with no nominal cost. What angle does the bracket get, and does the placard get the down-cant?",
+   "id": "brake-adopt-final",
+   "question": "The brake thread finished its ruled sync round and stopped per its registered rule. Final standing: the cap+sync package buys +30-36 points of contact at nominal and aim-error on the honest plant (62->98% nominal) and triples weave inside 1 m, at the cost of 5-8 points and a ~3 m tail on ~1 in 6 runs at the target-3-m-above cell (a decode-starvation class, distinct from the fixed overshoot). Gazebo re-fly #3 flies the nominal geometry the package wins on. Adopt it for the re-fly?",
    "options": [
-    "Lock bracket +10 deg AND print the placard mount at 12 deg down-cant (the measured pair; re-verify cant against the first target ULog's real cruise pitch)",
-    "Lock bracket +10 deg, placard straight (accept ~45-50% at +3 m under realistic tag physics)",
-    "Keep both adjustable until the first real dash/target ULogs, then set from measured pitch"
+    "Adopt a3-horizontal + vert-sync for re-fly #3; the alt+3 tail is a written-down known cost",
+    "Hold -- keep the chase as-is; re-fly #3 without the cap (measures the honest gap only)",
+    "New registration to chase the decode-starvation tail first (a fourth round on this lever)"
    ],
-   "rec": "Option 1 -- both angles are print-time and reversible, the pair passed its registered bars (P6/P7), and the placard mount's index disc records the cant so the field setting is auditable. The 12 deg is an estimate knob: re-verify against the target's measured cruise pitch when the first ULog exists.",
-   "blocked": "Nothing today (the print is not on the critical path until the airframe arrives ~Oct 5-15); it becomes blocking at assembly.",
-   "doc": "ADR-0112 + ADR-0114; isim/specs/tag_realism_v1.md SS G; isim/specs/chase_tilt_prereg_2026-09-23.md"
-  },
-  {
-   "id": "brake-shaping-tradeoff",
-   "question": "Overnight the sim confirmed WHY the Gazebo chase re-fly missed its bar (the vehicle arrives too hot for the real airframe's braking) and a stopping-distance brake cap fixes exactly that: honest-plant nominal contact 62 -> 98%. Its one side effect is now TRACED, not mysterious: braking the horizontal de-syncs the vertical intercept at the target-3-m-above cell (climb overshoots 0.2-0.7 m; 12-28 points lost there). Under the registered rule it was NOT adopted. What next?",
-   "options": [
-    "Register + build the vertical arrival-sync companion (climb finishes WITH the closure), then re-run the failed cells and re-decide",
-    "Adopt a3-horizontal for Gazebo re-fly #3 now -- the re-fly flies the nominal geometry the cap wins on; alt+3 stays a known, written-down cost",
-    "Stop the brake thread; keep the chase's honest numbers as-is"
-   ],
-   "rec": "Option 1 -- the mechanism is attributed and the fix is well-posed (a timing term, not tuning in the dark); it is one registered round and it decides option 2 properly. Option 2 is defensible if you want the re-fly sooner.",
-   "blocked": "Gazebo re-fly #3 (the next transfer-gap rung) waits on this either way.",
-   "doc": "ADR-0115 (+addendum); isim/specs/brake_shaping_prereg_2026-09-24.md"
+   "rec": "Option 1 -- the re-fly's question is 'does isim's braking diagnosis transfer to Gazebo', and that is answered on the geometry the package wins on; the alt+3 tail is documented and default-off config keeps it reversible. Option 3 is the one-more-experiment trap unless the re-fly says otherwise.",
+   "blocked": "Gazebo re-fly #3.",
+   "doc": "ADR-0115 (3 addenda); isim/specs/brake_shaping_prereg_2026-09-24.md"
   }
  ],
  "plain_log": [
@@ -1865,7 +1853,7 @@
     1
    ],
    "status": "half-done",
-   "active": "FINAL (builder): FIXED up-tilt mount, no servo. Angle is a PRINT-TIME builder decision; two regime-specific specs now exist: sprint-era = measured dash pitch (~25-40 deg, from the first real dash ULog); CHASE regime (ruled engagement) = +10 deg RECOMMENDED from a registered two-part isim A/B (ADR-0112) -- the chase flies near-level so dash pitch does not bind. Bench prop-clearance corner-spin at the chosen angle stays the HARD gate.",
+   "active": "RULED (builder 2026-09-24): the chase-regime camera bracket locks at +10 deg up-tilt AND the target's tag placard prints canted 12 deg DOWN (~cruise pitch; index disc records it) -- the ADR-0114 pair. Bench corner-spin at +10 deg stays the hard gate; tripod block A3 validates the cant; the 12 deg is an estimate until the target's first ULog measures real cruise pitch. Sprint-era spec (tilt = measured dash pitch) applies only if the sprint returns as the flying mode.",
    "note": "MEASURED 2026-09-17 (docs/pointing_prereg.md): pointing has TWO parts. Vertical: a 25 deg up-tilt centres the target on 100/89/69% of frames by range band (35 deg: 89/84/63) -- first number from real attitude data. Horizontal: on a lead course the target is 40-75 deg off the nose, so the vehicle must yaw toward the predicted target, not along its sprint, and must point the nose BEFORE launching. Together: 2% -> 99% central in sim. NOT in the adopted flight config, because today's terminal flies worse once it can see (see stage terminal). TWO HONEST LIMITS of the chosen fixed tilt: (a) it CANNOT track the pitch swing (accel ~+40° -> brake ~-35°) — it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (acceptable: target is large close-in + the streak coasts); (b) tilt and mount are ONE decision — a >~15° tilt exceeds the flush mount's ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry. The prior up15 NULL (ADR-0068) was a different context (cue-era terminal parity, guessed +15°); this is acquisition-first, sized to the measured dash pitch.",
    "evidence": [
     "ADR-0065 (#46)",
@@ -1904,6 +1892,10 @@
     {
      "date": "2026-09-23",
      "note": "Chase-regime tilt A/B (registered, two parts): +10 deg lifts the +3 m-above height cell 34%->70% inside 0.35 m (p90 4.18->1.00 m, top-exit blind frames 40.8%->12.7%) at zero measured cost on -2..+2 m; 10/12/15 statistically tied, tie broken to the smaller angle; +20 deg taxes nominal. Chase height band extends to ~-2..+3 m with the bracket; +4 m is range-limited (outside the honest band). isim evidence; Gazebo/bench confirmation next. ADR-0112; isim/specs/chase_tilt_prereg_2026-09-23.md."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "BUILDER RULING: bracket +10 + placard cant 12 down adopted as a pair (ADR-0114 2nd addendum); chase-bracket-angle queue item closed."
     }
    ],
    "caption": "Tilting the camera so the target stays in the picture during the sprint. Half-built.",
@@ -2049,6 +2041,10 @@
     {
      "date": "2026-09-24",
      "note": "Brake shaping (ADR-0115, overnight): stopping-distance cap on the relative command built default-OFF (brake_shaping / brake_horizontal_only, 32 tests, byte-identity pinned) and swept 6,100 runs under two registrations. Residual of the Gazebo re-fly CONFIRMED as the hot approach (honest-plant nominal 62->98% with the cap; closing at CPA 3.1->1.5 m/s) but NOT adopted: the alt+3 climb cell degrades on both plants, mechanism unattributed, registered no-regression rule failed twice. Builder trade queued (brake-shaping-tradeoff)."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "BUILDER RULING: brake thread continues -- option (a), registered vertical arrival-sync companion (ADR-0115 2nd addendum); Gazebo re-fly #3 blocked on its adjudication."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
@@ -2572,7 +2568,7 @@
   {
    "label": "Chase height-error band (+10 deg tilt + 12 deg canted tag)",
    "value": "-2..+3 m (bracket+cant pair)",
-   "note": "REGRADED 2026-09-23 night (ADR-0114): the original 34->70% at +3 m was measured with an UPRIGHT world-fixed tag. With the tag bolted to the pitching target (tag realism v1) the naked bracket's win shrinks to +2..+14 pts (its own >=15 bar failed); canting the placard face 12 deg DOWN (~cruise pitch) recovers +3 m to 60/64% (expected/worst tier, n=100, registered bars passed) and restores the bracket margin (+20). isim ranks -- Gazebo/bench confirms; the real cant angle tracks the MEASURED cruise pitch from the first target ULog.",
+   "note": "RULED 2026-09-24 (was: recommendation): bracket +10 deg + placard canted 12 deg down adopted as a PAIR (ADR-0114 + 2nd addendum). Basis: with a body-coupled tag the naked bracket's +3 m win shrank to +2..+14 pts; the pair recovers 60/64% (expected/worst tier, n=100, registered bars passed). isim ranks -- bench corner-spin + tripod A3 validate; the cant tracks the MEASURED cruise pitch once the target's first ULog exists.",
    "provenance": "isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/ - ADR-0112 - ADR-0114 - scripts/tag_realism_ladder.py",
    "plain": "Camera up 10 deg AND tag down 12 deg: height guess may be 2 m low to 3 m high. Either alone fails on a pitching target.",
    "trust": "sim"
@@ -2710,7 +2706,7 @@
      "item": "Camera mount — 3D-printed nose-cantilever prop-clearance boom + FIXED up-tilt at measured dash pitch",
      "qty": "1 (+spare)",
      "price": "~$0-15",
-     "why": "Designs the own-prop phantom OUT of the FoV (no software fallback) + carries the builder-final fixed tilt — print the bracket ADJUSTABLE (10-30°): the angle is set by the REAL measured dash pitch (first-dash ULog, build_plan P3), never sim-sized. Bench corner-spin at LOADED throttle across the tilt = HARD gate (constraint forward-camera-boom); sacrificial on contact."
+     "why": "Designs the own-prop phantom OUT of the FoV (no software fallback). ANGLE RULED 2026-09-24: chase regime locks the bracket at +10 deg (ADR-0114 pair, with the 12-deg down-canted tag placard on the target). Print the bracket ADJUSTABLE (10-30) anyway; bench corner-spin at the set angle under LOADED throttle = HARD gate (constraint forward-camera-boom); sacrificial on contact. Sprint-era spec (angle = measured dash pitch) applies only if the sprint returns."
     },
     {
      "item": "Storage — SanDisk High Endurance microSD (FC ULogs)",

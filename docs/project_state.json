@@ -17,11 +17,11 @@
  },
  "now": {
   "as_of": "2026-09-24",
-  "where": "Builder rulings landed 2026-09-24 morning: bracket +10 deg AND placard canted 12 deg down ADOPTED as a pair (ADR-0114); brake thread continues with the registered vertical arrival-sync round (ADR-0115 option a).",
-  "finding": "Overnight standing: tag realism NULL at nominal, the bracket evidence was regraded and fixed by the canted placard; the Gazebo miss is attributed to the hot approach, with the brake cap blocked only by a traced vertical de-sync at alt+3 -- the sync companion is the active build.",
+  "where": "Morning session: both rulings executed. Bracket+cant pair is adopted and in the build spec; the brake thread ran its builder-ruled sync round and STOPPED per its registered rule -- the sharpened adopt-or-not trade is back with the builder.",
+  "finding": "Arrival-sync removed the traced overshoot class (dash alt+3 R2 36->64% = base) at zero cost elsewhere, but a second class remains (decode-starved long approaches, ~3 m p90 tail, -6..-8 pts at alt+3 R0). Package value: +30-36 pts nominal/aim20, weave x3, vs that alt+3 tail.",
   "next": [
-   "Build + fly the registered vertical arrival-sync round; adopt per its criterion",
-   "If adopted: register + fly Gazebo re-fly #3 with the cap"
+   "Builder: adopt cap+sync for Gazebo re-fly #3 (nominal geometry) despite the alt+3 tail, or hold",
+   "If adopted: register re-fly #3 band, then fly it"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -516,6 +516,18 @@
    "rec": "Keep the chase fix scoped to the chase (in flight). For the stock paths, port BOTH fixes together behind one flag and re-run their gates once -- or accept them as-flown history if the chase becomes the default. One ruling, not two.",
    "blocked": "A silent port would invalidate the as-flown validation history (thresholds were tuned on the biased range) -- needs your ruling + gate re-runs.",
    "doc": "isim/specs/parity_trace_2026-09-22.md (candidate (e)) · flight/pursuit_terminal.py _measured_r_ned"
+  },
+  {
+   "id": "brake-adopt-final",
+   "question": "The brake thread finished its ruled sync round and stopped per its registered rule. Final standing: the cap+sync package buys +30-36 points of contact at nominal and aim-error on the honest plant (62->98% nominal) and triples weave inside 1 m, at the cost of 5-8 points and a ~3 m tail on ~1 in 6 runs at the target-3-m-above cell (a decode-starvation class, distinct from the fixed overshoot). Gazebo re-fly #3 flies the nominal geometry the package wins on. Adopt it for the re-fly?",
+   "options": [
+    "Adopt a3-horizontal + vert-sync for re-fly #3; the alt+3 tail is a written-down known cost",
+    "Hold -- keep the chase as-is; re-fly #3 without the cap (measures the honest gap only)",
+    "New registration to chase the decode-starvation tail first (a fourth round on this lever)"
+   ],
+   "rec": "Option 1 -- the re-fly's question is 'does isim's braking diagnosis transfer to Gazebo', and that is answered on the geometry the package wins on; the alt+3 tail is documented and default-off config keeps it reversible. Option 3 is the one-more-experiment trap unless the re-fly says otherwise.",
+   "blocked": "Gazebo re-fly #3.",
+   "doc": "ADR-0115 (3 addenda); isim/specs/brake_shaping_prereg_2026-09-24.md"
   }
  ],
  "plain_log": [
