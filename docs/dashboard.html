@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->2eae47b<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->f0ed460<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1425,18 +1425,6 @@
    "rec": "Option 1 -- chase-only is your ruled engagement, the +10 deg win is mechanism-confirmed with zero band cost, and the prop-clearance corner-spin gate at +10 deg is comfortably inside the boom geometry's margin. The bracket stays adjustable anyway if a re-decision comes.",
    "blocked": "Nothing today (the print is not on the critical path until the airframe arrives ~Oct 5-15); it becomes blocking at assembly.",
    "doc": "ADR-0112; isim/specs/chase_tilt_prereg_2026-09-23.md"
-  },
-  {
-   "id": "replacement-target-fc",
-   "question": "The target's flight controller took a hit: during the GPS-wire splice work a short put 5 V on the sensor data bus, and the multimeter shows the board's own barometer chip now drags that bus dead (1.2 V vs the healthy 3.3, unchanged with the GPS unplugged). A copter cannot fly without its barometer. Flux-cleaning the pads is the one free maybe; failing that the board needs replacing. Everything else on the drone tested healthy tonight. Buy the replacement now or wait?",
-   "options": [
-    "Order a replacement Kakute H7 V1.5 now (same board -- params/firmware/tools carry over; keeps the target off the critical path)",
-    "Try the flux clean + a day of retests first, order only if it stays dead",
-    "Wait for the interceptor airframe build and share bench time, ordering later"
-   ],
-   "rec": "Order now -- the flux clean was tried and the clamp is measured twice over (voltage + resistance agree on ~1.4 kOhm). The only remaining question (GPS compass health) needs the new board to answer.",
-   "blocked": "tgt-05's bind + failsafe tests and everything after (maiden, tripod day) sit behind a working FC. The GPS module's compass health is also unknowable until a live bus exists.",
-   "doc": "build_tab target Kakute notes; scripts/bench/fc_comms_sweep.py session"
   }
  ],
  "plain_log": [
@@ -2741,10 +2729,10 @@
       "notes": "In hand; dry-fit skeleton started — final torque/loctite waits for the powered build. Shares the 5-inch prop/motor class with the future interceptor."
      },
      {
-      "name": "Kakute H7 V1.5 flight controller",
-      "status": "built",
+      "name": "Kakute H7 V1.5 flight controller (REPLACEMENT ordered)",
+      "status": "ordered",
       "role": "Runs ArduPilot; flies the AUTO legs and writes the DataFlash .BIN log.",
-      "notes": "VERDICT CLOSED (2026-09-23, self-consistent measurements): board-side resistive clamp ~1-2 kOhm to ground on BOTH I2C lines (powered 1.2-1.5 V through the pull-ups implies ~1.4 kOhm; unpowered resistance measures 1-2 kOhm; reference pin ~62 kOhm; unchanged GPS in/out; IPA clean no effect). hwdef confirms ONE I2C bus shared by baro + external pads -> no external-baro escape. Symmetric both-line damage = classic 5V-on-3.3V-bus chip kill from the splice short. Software ruled out by physics (resistance exists unpowered). REPLACE the FC (same Kakute H7 V1.5; firmware/50-param pack/bench tools carry over; motor map must be RE-VERIFIED after the swap -- it is soldering-specific). On the new board: test the GPS COMPASS first (same event may have wounded it; its serial side is proven alive). Stuck BOOT button + SD in/out both exonerated (mode-select only / logs only)."
+      "notes": "Original board's baro/I2C bus measured dead (~1.4 kOhm clamp, splice short) -- diagnosis closed 2026-09-23, full evidence in git history. REPLACEMENT ordered 2026-09-23 from a China vendor, lead time UNKNOWN. On arrival: DFU flash `KakuteH7` (README sec 2) -> upload the 50-param pack (self-verifying) -> RE-VERIFY motor order/direction (mapping is soldering-specific) -> test the GPS COMPASS on the healthy bus before trusting it -> bind -> kill/failsafe gate. Keep the dead board: its MCU/UARTs work -- bench mule."
      },
      {
       "name": "Tekko32 F4 Metal 65A 4-in-1 ESC",
