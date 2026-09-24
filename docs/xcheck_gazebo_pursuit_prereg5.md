@@ -32,3 +32,20 @@ criteria pass AND median ≤ re-fly #4's 0.343 m AND B1 green. **Null branches:*
 passes but median > 0.343 (brake costs on this plant at nominal — keep it
 practice-profile-only, where it is already load-bearing for rehearsal); or B1 red
 again (the cap still is not acting — trace before anything else).
+
+## RESULT (2026-09-24, n=8 flown as registered — scored by the head session)
+
+CPAs sorted (m): 0.128 · 0.176 · 0.221 · 0.231 · 0.254 · 0.349 · 0.426 · 0.489.
+**Median 0.243 m. ALL FIVE CRITERIA PASS** (8/8 ≤ 1.0; median ≤ 0.5; **6/8 ≤ 0.35 —
+inside the contact envelope**; 0 aborts; camera-driven, 57–94 consumed; FAULT
+own_vel_fallback 0/8). **B1 GREEN:** closing speed over the last second before CPA
+median 3.00 m/s vs re-fly #4's 3.88 (same instrument, both campaigns) — with correct
+velocity feeding the KF, the cap finally acts, exactly as the ADR-0117 diagnosis
+predicted it would once the input was fixed. Brake package ON confirmed in 8/8 logs.
+
+**Registered verdict: ADOPT — `--pursuit-brake` joins the flying recommended config**
+(median 0.243 ≤ #4's 0.343; every clause green). Campaign arc across one unchanged
+bar: 1.510 → 0.967 → 0.928 → 0.343 → **0.243 m**. Honest scope, unchanged: perfect
+cue, windless, upright tag, sim camera — sim numbers; the field decides on hardware.
+The ADR-0115 alt+3 caveat (isim: the cap costs points at target-3-m-above) carries
+into the recommendation as its known written-down cost.

@@ -1004,3 +1004,17 @@ recipe, all cells ±5) — recorded as a note toward the harder-impact intent, n
 adoption. Default stays OFF; lever + tests + sweep in-tree.
 Evidence: isim/specs/commit_sprint_prereg_2026-09-24.md (registration + RESULT);
 logs/commit_sprint_20260924/; 542 tests + audit green.
+
+## ADR-0120 — Brake package ADOPTED into the flying recommended config (re-fly #5, 2026-09-24)
+
+One change vs re-fly #4 (--pursuit-brake), registered first (prereg5). All five
+criteria pass: median CPA 0.243 m, 6/8 inside the 0.35 m contact envelope, zero
+aborts, camera-driven, no velocity-fallback FAULTs. The B1 fix-effect clause is
+green (closing at CPA 3.88 → 3.00 m/s median) — the cap acts now that the KF
+receives measured velocity, closing the loop on the ADR-0115→0117 chain: the isim
+brake case was right all along; the Gazebo verdicts against it were measuring the
+wiring defect. Adoption = the recommended flying config carries --pursuit-brake;
+the known isim alt+3 cost rides along as a documented caveat, and the sim-tier
+scope (perfect cue, windless, upright tag) is restated. Campaign arc:
+1.510 → 0.967 → 0.928 → 0.343 → 0.243 m across five registered preregs, one bar.
+Evidence: docs/xcheck_gazebo_pursuit_prereg5.md; logs/xcheck_gz_20260924_brakefix/.

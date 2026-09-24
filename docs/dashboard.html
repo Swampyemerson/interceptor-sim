@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->959466c<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1b8f23c<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,11 +914,11 @@
  },
  "now": {
   "as_of": "2026-09-24",
-  "where": "Rehearsal round 2 adopted: the practice mode now escapes cleanly (worst gap 1.59-1.73 m, zero contacts, one switch = the whole practice profile). Chase remains the flying default (ADR-0118). Queue holds only the publication hands-on list.",
-  "finding": "The chase (camera-only pursuit) is now the FLYING DEFAULT -- the gate it was held behind passed at median 0.343 m. Stock/tag stay selectable as-flown. Remaining directive work: rehearsal round 2, commit-sprint, Pi recorder, then the registered brake Gazebo arm.",
+  "where": "Re-fly #5 ADOPTS the brake package into the recommended config: median 0.243 m, 6/8 inside the contact envelope, closing finally drops (3.9 -> 3.0 m/s) with the wiring fixed. Arc: 1.51 -> 0.97 -> 0.93 -> 0.34 -> 0.24 m. All three builder directives from midday are done.",
+  "finding": "The ADR-0115 -> 0117 chain closed: the isim brake case was right; the Gazebo verdicts against it were measuring the velocity-wiring defect. Remaining rungs: rehearsal Gazebo spot-check; builder at the Pi for the recorder bench soak; tag-realism caveats still stand (upright Gazebo tag).",
   "next": [
-   "Brake Gazebo arm (registered) + rehearsal Gazebo spot-check",
-   "Builder at the Pi: recorder bench soak (--record, one command)"
+   "Rehearsal-mode Gazebo spot-check (registered) -- the last self-queued rung",
+   "Builder at the Pi: recorder bench soak (one command, in the module report)"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -2021,6 +2021,10 @@
     {
      "date": "2026-09-24",
      "note": "Commit-sprint (builder idea, ADR-0119): registered NULL -- the coast window (<1 m tracked) cannot reach weave misses (2+ m); where it acts, +0.6-0.7 m/s at the pass at no contact cost. Default OFF, in-tree."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Re-fly #5 (prereg5): brake package ADOPTED into the recommended config (ADR-0120) -- median 0.243 m, 6/8 <=0.35 m, closing 3.88->3.00 m/s (B1 green), 0 aborts. The isim brake case transferred once the KF got real velocity; the void ADR-0115/0116 Gazebo verdicts are explained."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
@@ -2539,11 +2543,11 @@
   },
   {
    "label": "Gazebo chase cross-check (camera-in-the-loop)",
-   "value": "median 0.343 m; 4/8 inside 0.35 m",
-   "provenance": "docs/xcheck_gazebo_pursuit_prereg{,2,3,4}.md - logs/xcheck_gz_20260924_velfix/ - ADR-0117",
-   "plain": "In the full-physics sim the camera-guided chase now passes half its flights inside touch distance.",
+   "value": "median 0.243 m; 6/8 inside 0.35 m",
+   "provenance": "docs/xcheck_gazebo_pursuit_prereg{,2,3,4,5}.md - logs/xcheck_gz_20260924_brakefix/ - ADR-0117/0118/0120",
+   "plain": "In the full-physics sim the camera-guided chase now touches on 6 of 8 flights. Five campaigns of fixes, one bar.",
    "trust": "sim",
-   "note": "Re-fly #4 after the ADR-0117 own-velocity wiring fix; campaign arc 1.510 -> 0.967 -> 0.928 -> 0.343 m across four registered preregs, same bar throughout, n=8 fresh-boot flights each. Perfect cue, windless, upright tag, sim camera -- a sim milestone, not a field claim. Earlier parity numbers (24%->100% clean isim grid) retired to the stage notes."
+   "note": "Re-fly #5 (brake package on the fixed wiring, ADR-0120); campaign arc 1.510 -> 0.967 -> 0.928 -> 0.343 -> 0.243 m across five registered preregs, same bar throughout, n=8 fresh-boot flights each. Perfect cue, windless, upright tag, sim camera -- sim milestone, not a field claim."
   },
   {
    "label": "Chase height-error band (+10 deg tilt + 12 deg canted tag)",
