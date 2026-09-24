@@ -74,7 +74,8 @@ from isim.concepts import (
 from isim.engine import EngagementConfig
 from isim.flight_adapter import RealFlightGuidance, standby_init_state
 from isim.ownstate import OwnStateNoise, OwnStateNoiseConfig
-from isim.seeker import AprilTagSeeker, CameraParams, DecodeParams, TagParams
+from isim.seeker import AprilTagSeeker, CameraParams, DecodeParams, GlareParams, TagParams
+from isim.target_attitude import AttitudeTarget, TargetAttitudeParams
 from isim.targets import ConstantVelocityTarget, SpeedChangeTarget, WeaveTarget
 from isim.types import Guidance, SeekerModel, TargetState, VehicleModel, VehicleState
 from isim.vehicle import QuadVelocityModel, VehicleParams
@@ -248,6 +249,45 @@ class Scatter:
     # `isim.targets.SpeedChangeTarget.change_t` drawn UNIFORM [2.0, this]
     # per run (relative to the TARGET's own t=0, i.e. its GO edge). estimate.
 
+    # --- tag_realism_v1 (isim/specs/tag_realism_v1.md): TRUE-world tag
+    # realism. Every draw below is GATED on a Scenario flag (or, for
+    # `own_vib_rate_rms_max_dps`, on its own nonzero value) and happens
+    # after every older draw, from per-group children of the per-run rng
+    # (`build()`) -- so with the flags at their defaults `Scatter()` draws
+    # exactly what it drew before these fields existed, and turning a flag
+    # on never reshuffles the older draws or another group's draws (paired
+    # seeds stay paired across the realism ladder). Each is independently
+    # zeroable. All `estimate`. -----------------------------------------------
+    tgt_drag_tilt_sigma_deg: float = 3.0
+    # deg, 1-sigma on `TargetAttitudeParams.drag_tilt_at_9ms_deg` (nominal
+    # 12), clipped >= 0. Drawn only when `Scenario.target_attitude`. estimate.
+    tgt_shake_rms_min_deg: float = 0.5
+    tgt_shake_rms_max_deg: float = 2.5
+    # deg. `DecodeParams.tgt_shake_rms_deg` drawn UNIFORM [min, max] per run.
+    # Drawn/applied only when `Scenario.target_attitude`. Set both to 0 for
+    # "attitude, no wobble". estimate.
+    own_vib_rate_rms_max_dps: float = 0.0
+    # deg/s. `CameraParams.vib_rate_rms_dps` drawn UNIFORM [0, this] per run
+    # when > 0. DEFAULT 0.0 = OFF (spec EXPECTED tier: 40.0): unlike the
+    # fields around it nothing else gates it, so an EXPECTED default would
+    # silently change every existing Scatter() run. estimate.
+    sun_azimuth_uniform: bool = True
+    # True: sun azimuth UNIFORM [0, 360) per run and elevation per the range
+    # below; False: a PINNED sun -- `Scenario.sun_azimuth_deg` /
+    # `sun_elevation_deg` used as given. Only when `Scenario.glare`.
+    sun_elevation_min_deg: float = 15.0
+    sun_elevation_max_deg: float = 60.0
+    # deg above the horizon, UNIFORM [min, max] per run (uniform-sun mode).
+    # Only when `Scenario.glare`. estimate.
+    specular_strength_min: float = 0.2
+    specular_strength_max: float = 0.6
+    # `GlareParams.specular_strength` UNIFORM [min, max] -- MATTE print
+    # assumed. NOTE FOR THE BENCH: print matte; a laminated/glossy tag is the
+    # 0.6/0.95 tier. Only when `Scenario.glare`. estimate.
+    backlight_kill_max_deg: float = 25.0
+    # deg. `GlareParams.backlight_kill_deg` UNIFORM [0, this]. Only when
+    # `Scenario.glare`. estimate.
+
 
 def _scatter_vehicle_params(vp: VehicleParams, scat: Scatter,
                             rng: np.random.Generator) -> VehicleParams:
@@ -376,6 +416,24 @@ class Scenario:
     # HybridSprintConfig-specific; both travel through the same mc.py sweep
     # machinery via a plain dict, never a monkeypatch).
     hybrid_overrides: Optional[dict] = None
+    # tag_realism_v1 A/D: the TRUE target derives a quad attitude from its
+    # trajectory (isim.target_attitude.AttitudeTarget: nose-down cruise
+    # pitch, banked turns) and "rear"/"side"/"rear_dual35" tags are BOLTED to
+    # its body (TagParams.body_normal_frd). "camera" facing ignores attitude
+    # by design (the idealized best case). With `scatter`, also draws the
+    # drag-tilt and wobble terms (see Scatter). False (default) = today's
+    # upright world-fixed tag, byte-identical.
+    target_attitude: bool = False
+    # tag_realism_v1 C: sun-geometry glare (isim.seeker.GlareParams), its
+    # strengths drawn per run from Scatter -- so `glare=True` needs
+    # `scatter is not None` (build() raises otherwise, same convention as
+    # `target_motion`). False (default) = no glare, byte-identical.
+    glare: bool = False
+    # Sun direction passthrough (NED azimuth, 0 = north; elevation above the
+    # horizon), used only for a pinned-sun study (glare=True with
+    # Scatter.sun_azimuth_uniform=False); defaults = GlareParams' own.
+    sun_azimuth_deg: float = 180.0
+    sun_elevation_deg: float = 35.0
 
 
 def _sign(x: float) -> float:
@@ -387,10 +445,39 @@ def _unit_or(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     return (v / n) if n > 1e-9 else fallback
 
 
+def _level_body_normal(normal_ned: np.ndarray, vel_ned: np.ndarray
+                       ) -> Tuple[float, float, float]:
+    """A world-frame tag normal re-expressed in the target's body FRD, for a
+    LEVEL target yawed along the horizontal velocity (north when it is
+    slower than AttitudeTarget's yaw threshold) -- i.e. the body mount that
+    reproduces today's world-frame normal when the target flies level along
+    its nominal track (tag_realism_v1 A3, "sign-matched")."""
+    n = np.asarray(normal_ned, float)
+    speed_h = math.hypot(float(vel_ned[0]), float(vel_ned[1]))
+    yaw = math.atan2(float(vel_ned[1]), float(vel_ned[0])) if speed_h > 0.5 else 0.0
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    return (float(n[0] * cy + n[1] * sy), float(-n[0] * sy + n[1] * cy), float(n[2]))
+
+
 def _tag_for(scn: "Scenario", vel_ned: np.ndarray) -> TagParams:
     """Build the target's true AprilTag mount from `scn.tag_facing` -- a fact
     about the simulated world (how the tag is bolted to the target drone),
-    never something guidance reads."""
+    never something guidance reads. `scn.target_attitude` additionally bolts
+    "rear"/"side" to the target BODY (`body_normal_frd`); the world-frame
+    `normal_ned` is kept as the legacy fallback for a state with no quat."""
+    tag = _tag_for_world(scn, vel_ned)
+    if scn.target_attitude and not tag.faces_camera:
+        if scn.tag_facing == "rear":
+            body_n = (-1.0, 0.0, 0.0)
+        else:   # "side": (0, +-1, 0), sign-matched to the world-frame choice
+            y = _level_body_normal(np.asarray(tag.normal_ned), vel_ned)[1]
+            body_n = (0.0, 1.0 if y >= 0.0 else -1.0, 0.0)
+        tag = replace(tag, body_normal_frd=body_n)
+    return tag
+
+
+def _tag_for_world(scn: "Scenario", vel_ned: np.ndarray) -> TagParams:
+    """`_tag_for`'s legacy (world-frame) mount, unchanged."""
     if scn.tag_facing == "camera":
         return TagParams(faces_camera=True, side_m=scn.tag_side_m)
     if scn.tag_facing == "rear":
@@ -425,7 +512,8 @@ def _tag_for(scn: "Scenario", vel_ned: np.ndarray) -> TagParams:
 
 
 def _rear_dual35_tags(vel_ned: np.ndarray, tag_side_m: float,
-                      angle_deg: float = 35.0) -> Tuple[TagParams, TagParams]:
+                      angle_deg: float = 35.0,
+                      body_mounted: bool = False) -> Tuple[TagParams, TagParams]:
     """v6 #D: two "rear"-like tags, their normals rotated +/-`angle_deg`
     from the pure rear normal (-unit(vel)) in the HORIZONTAL plane (about
     the down axis) -- "mounting two rear tags angled +/-35 deg" to relax
@@ -440,8 +528,14 @@ def _rear_dual35_tags(vel_ned: np.ndarray, tag_side_m: float,
         theta = math.radians(sign * angle_deg)
         ct, st = math.cos(theta), math.sin(theta)
         e_r, n_r = e0 * ct + n0 * st, n0 * ct - e0 * st
-        tags.append(TagParams(faces_camera=False, faces_velocity=False,
-                              normal_ned=(n_r, e_r, 0.0), side_m=tag_side_m))
+        tag = TagParams(faces_camera=False, faces_velocity=False,
+                        normal_ned=(n_r, e_r, 0.0), side_m=tag_side_m)
+        if body_mounted:
+            # tag_realism_v1: same two tags, bolted to the target body
+            # (the level-flight body image of each world normal).
+            tag = replace(tag, body_normal_frd=_level_body_normal(
+                np.array([n_r, e_r, 0.0]), vel_ned))
+        tags.append(tag)
     return tags[0], tags[1]
 
 
@@ -484,7 +578,14 @@ class _DelayedTarget:
     def state(self, t: float) -> TargetState:
         if t <= self.go_at_s:
             s0 = self.inner.state(0.0)
-            return TargetState(t=t, pos_ned=s0.pos_ned.copy(), vel_ned=np.zeros(3))
+            if s0.quat_wxyz is None:
+                return TargetState(t=t, pos_ned=s0.pos_ned.copy(), vel_ned=np.zeros(3))
+            # tag_realism_v1: an attitude-carrying inner (AttitudeTarget) is
+            # frozen at its t=0 attitude, not rate -- the same "scripted
+            # freeze" as the zero velocity (avoids a fake hover->cruise pitch
+            # pulse at the GO edge). Only reachable with target_attitude=True.
+            return TargetState(t=t, pos_ned=s0.pos_ned.copy(), vel_ned=np.zeros(3),
+                               quat_wxyz=s0.quat_wxyz, ang_vel_body=np.zeros(3))
         return self.inner.state(t - self.go_at_s)
 
 
@@ -586,31 +687,24 @@ def build(
     # second tag at a different mount orientation, or (v6 #D) two "rear"
     # tags angled +/-35deg. `inner_tag_side_m`/`second_tag_facing` are
     # mutually exclusive with EACH OTHER and with `tag_facing="rear_dual35"`
-    # (DualTagSeeker only ever combines two seekers).
+    # (DualTagSeeker only ever combines two seekers). The TAG mounts are
+    # chosen here (guidance below needs `tag.side_m`); the seekers are built
+    # near the end of build(), after tag_realism_v1's draws (which must come
+    # after every older draw -- see Scatter). Seeker construction itself
+    # draws nothing, so moving it changed no rng stream (pinned by
+    # test_realism_defaults_are_byte_identical_to_pre_realism_runs).
     if scn.tag_facing == "rear_dual35":
         if scn.inner_tag_side_m is not None or scn.second_tag_facing is not None:
             raise ValueError("scenario.build: tag_facing='rear_dual35' is mutually "
                              "exclusive with inner_tag_side_m/second_tag_facing")
-        tag_a, tag_b = _rear_dual35_tags(vel_ned, scn.tag_side_m)
+        tag_a, tag_b = _rear_dual35_tags(vel_ned, scn.tag_side_m,
+                                         body_mounted=scn.target_attitude)
         tag = tag_a   # for span_m/RealFlightGuidance below (flyby path only)
-        seeker: SeekerModel = DualTagSeeker(
-            first=AprilTagSeeker(cam=cam_true, tag=tag_a, dec=dec_params),
-            second=AprilTagSeeker(cam=cam_true, tag=tag_b, dec=dec_params))
     else:
         tag = _tag_for(scn, vel_ned)
-        seeker = AprilTagSeeker(cam=cam_true, tag=tag, dec=dec_params)
         if scn.inner_tag_side_m is not None and scn.second_tag_facing is not None:
             raise ValueError("scenario.build: inner_tag_side_m and second_tag_facing "
                              "are mutually exclusive (DualTagSeeker combines only two)")
-        if scn.inner_tag_side_m is not None:
-            inner_tag = replace(tag, side_m=scn.inner_tag_side_m)
-            inner_seeker = AprilTagSeeker(cam=cam_true, tag=inner_tag, dec=dec_params)
-            seeker = DualTagSeeker(first=seeker, second=inner_seeker)
-        elif scn.second_tag_facing is not None:
-            second_scn = replace(scn, tag_facing=scn.second_tag_facing)
-            second_tag = _tag_for(second_scn, vel_ned)
-            second_seeker = AprilTagSeeker(cam=cam_true, tag=second_tag, dec=dec_params)
-            seeker = DualTagSeeker(first=seeker, second=second_seeker)
 
     # Pursuit-family belief geometry (concept="pursuit"/"hybrid" Phase A/S/T,
     # AND flyby's terminal="pursuit" port below -- hoisted so both reuse ONE
@@ -740,6 +834,62 @@ def build(
         raise ValueError(f"scenario.build: target_motion={scn.target_motion!r}, want "
                          "'straight', 'weave', or 'speed_change'")
 
+    # tag_realism_v1: every draw below comes AFTER all the older draws, each
+    # gated (flag off / knob zero -> no draw, no spawn). The three groups
+    # (target attitude, own vibration, glare) each get their OWN child of the
+    # per-run rng (`spawn` consumes no draws from the parent stream), so a
+    # group's values do not depend on which OTHER groups are switched on --
+    # the realism ladder's paired seeds stay paired rung to rung.
+    if scn.glare and scat is None:
+        raise ValueError("scenario.build: glare=True needs scatter is not None "
+                         "(its strengths are drawn from the per-run Scatter rng)")
+    att_prm = TargetAttitudeParams()
+    glare_prm: Optional[GlareParams] = None
+    if scat is not None and (scn.target_attitude or scn.glare
+                             or scat.own_vib_rate_rms_max_dps > 0.0):
+        att_rng, vib_rng, glare_rng = rng.spawn(3)
+        if scn.target_attitude:
+            drag_tilt = max(0.0, att_prm.drag_tilt_at_9ms_deg
+                            + float(att_rng.normal(0.0, scat.tgt_drag_tilt_sigma_deg)))
+            shake_rms = float(att_rng.uniform(scat.tgt_shake_rms_min_deg,
+                                              scat.tgt_shake_rms_max_deg))
+            att_prm = replace(att_prm, drag_tilt_at_9ms_deg=drag_tilt)
+            dec_params = replace(dec_params, tgt_shake_rms_deg=shake_rms)
+        if scat.own_vib_rate_rms_max_dps > 0.0:
+            cam_true = replace(cam_true, vib_rate_rms_dps=float(
+                vib_rng.uniform(0.0, scat.own_vib_rate_rms_max_dps)))
+        if scn.glare:
+            if scat.sun_azimuth_uniform:
+                az = float(glare_rng.uniform(0.0, 360.0))
+                el = float(glare_rng.uniform(scat.sun_elevation_min_deg,
+                                             scat.sun_elevation_max_deg))
+            else:                       # pinned-sun study: the Scenario's sun
+                az, el = scn.sun_azimuth_deg, scn.sun_elevation_deg
+            spec = float(glare_rng.uniform(scat.specular_strength_min,
+                                           scat.specular_strength_max))
+            kill = float(glare_rng.uniform(0.0, scat.backlight_kill_max_deg))
+            glare_prm = GlareParams(sun_azimuth_deg=az, sun_elevation_deg=el,
+                                    specular_strength=spec, backlight_kill_deg=kill)
+
+    def _seeker(tp: TagParams) -> AprilTagSeeker:
+        return AprilTagSeeker(cam=cam_true, tag=tp, dec=dec_params, glare=glare_prm)
+
+    if scn.tag_facing == "rear_dual35":
+        seeker: SeekerModel = DualTagSeeker(first=_seeker(tag_a), second=_seeker(tag_b))
+    else:
+        seeker = _seeker(tag)
+        if scn.inner_tag_side_m is not None:
+            seeker = DualTagSeeker(first=seeker,
+                                   second=_seeker(replace(tag, side_m=scn.inner_tag_side_m)))
+        elif scn.second_tag_facing is not None:
+            second_scn = replace(scn, tag_facing=scn.second_tag_facing)
+            seeker = DualTagSeeker(first=seeker, second=_seeker(_tag_for(second_scn, vel_ned)))
+
+    if scn.target_attitude:
+        # A2: the attitude wraps the MOTION model, inside the GO delay, so
+        # `_DelayedTarget` stays the outermost object (its `.inner` is the
+        # AttitudeTarget; the motion model is `.inner.inner`).
+        inner_target = AttitudeTarget(inner_target, att_prm)
     target = _DelayedTarget(inner=inner_target, go_at_s=go_at_s)
     init_state = standby_init_state(cfg)
 

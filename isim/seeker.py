@@ -42,6 +42,18 @@ UNMEASURED = (
     "inc50_deg", "inc_k_deg",
     "cells_across", "blur50_cells", "blur_n",
     "pixel_noise_px", "side_noise_factor",
+    # tag_realism_v1 (isim/specs/tag_realism_v1.md) -- all `estimate`:
+    "body_normal_frd",                            # tag mount on the target body
+    "tgt_shake_rms_deg", "tgt_shake_bw_hz",       # target attitude wobble (B1)
+    "vib_rate_rms_dps",                           # own-camera vibration (B2)
+)
+# tag_realism_v1 C: GlareParams is a separate dataclass, so its (all
+# `estimate`) fields get a parallel tuple rather than widening UNMEASURED's
+# CameraParams/TagParams/DecodeParams contract.
+GLARE_UNMEASURED = (
+    "sun_azimuth_deg", "sun_elevation_deg",
+    "specular_strength", "specular_width_deg",
+    "backlight_kill_deg", "backlight_strength",
 )
 MEASURED = ("width", "height", "fps", "exposure_s")
 
@@ -71,6 +83,12 @@ class CameraParams:
     exposure_s: float = 994e-6              # measured: outdoors
     latency_s: float = 0.045                # capture -> available to guidance
     latency_jitter_s: float = 0.005         # 1-sigma, guess
+    # tag_realism_v1 B2: prop-induced angular vibration of the interceptor,
+    # 1-sigma body rate in deg/s. Global shutter + ~1 ms exposure, so it is a
+    # small extra smear (fx * rate * exposure), not jello. One |Gaussian| draw
+    # per frame when > 0; 0.0 (default) = off, no draw. estimate (bench-
+    # measurable later: motors-on static frame-to-frame corner jitter).
+    vib_rate_rms_dps: float = 0.0
 
     def rot_body_from_cam(self) -> np.ndarray:
         t = math.radians(self.mount_tilt_up_deg)
@@ -91,8 +109,39 @@ class TagParams:
     normal_ned: Tuple[float, float, float] = (-1.0, 0.0, 0.0)  # faces south
     faces_velocity: bool = False    # tag on the nose, normal = unit(velocity)
     faces_camera: bool = False      # best case: incidence pinned to 0
+    # tag_realism_v1 A3: tag normal in the TARGET's body FRD. Used only when
+    # the TargetState carries an attitude (quat_wxyz); then the normal AND
+    # the in-plane corner basis are body-fixed (a banked target visibly
+    # rotates the square). No quat -> the legacy modes above, unchanged.
+    # `faces_camera` still wins (the idealized best case ignores attitude).
+    body_normal_frd: Optional[Tuple[float, float, float]] = None
+
+    def body_mounted(self, tgt: TargetState) -> bool:
+        """True when this frame's tag orientation comes from the target body."""
+        return (not self.faces_camera and self.body_normal_frd is not None
+                and getattr(tgt, "quat_wxyz", None) is not None)
+
+    def frame(self, tgt: TargetState, cam_pos_ned: np.ndarray
+              ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        """(unit normal, in-plane e1 or None). e1 is returned only for the
+        body-mounted mode; None means "use the legacy world-level basis"
+        (`tag_corners_ned` builds it), so the legacy path is untouched."""
+        if not self.body_mounted(tgt):
+            return self.normal(tgt, cam_pos_ned), None
+        r_tn = quat_to_rot(tgt.quat_wxyz)
+        nb = np.asarray(self.body_normal_frd, float)
+        nb = nb / max(float(np.linalg.norm(nb)), _EPS)
+        # e1 chosen in the BODY frame exactly as tag_corners_ned chooses it in
+        # the world frame (horizontal-at-level), then rotated with the body.
+        e1b = _level_e1(nb)
+        n = r_tn @ nb
+        e1 = r_tn @ e1b
+        return (n / max(float(np.linalg.norm(n)), _EPS),
+                e1 / max(float(np.linalg.norm(e1)), _EPS))
 
     def normal(self, tgt: TargetState, cam_pos_ned: np.ndarray) -> np.ndarray:
+        if self.body_mounted(tgt):
+            return self.frame(tgt, cam_pos_ned)[0]
         if self.faces_camera:
             v = np.asarray(cam_pos_ned, float) - np.asarray(tgt.pos_ned, float)
         elif self.faces_velocity:
@@ -139,6 +188,45 @@ class DecodeParams:
     # no gate, byte-identical to before this field existed (guarded so no
     # rng draw or state changes on the default path).
     min_decode_interval_s: float = 0.0
+    # TARGET ATTITUDE WOBBLE (tag_realism_v1 B1): a hovering/translating quad
+    # wobbles 1-3 deg at a few Hz (gusts + control dither). TRUE tag motion,
+    # modelled here (not in the pure target) as a 2-axis Ornstein-Uhlenbeck
+    # process sampled at frame times; the angles tilt the tag about its two
+    # in-plane axes before incidence/corners, and the process increment/dt
+    # adds to the rotational blur. 0.0 (default) = off, no rng draw.
+    # `faces_camera` tags ignore it (the idealized best case). estimate.
+    tgt_shake_rms_deg: float = 0.0     # 1-sigma wobble ANGLE per axis
+    tgt_shake_bw_hz: float = 3.0       # bandwidth: OU tau = 1/(2*pi*bw)
+
+
+@dataclass
+class GlareParams:
+    """Sun geometry (tag_realism_v1 C): glare that switches on exactly when
+    the approach lines up with the sun. Two decode-probability multipliers,
+    both deterministic (no rng):
+      specular:  reflect the sunlight about the tag plane; theta = angle
+                 between that ray and the tag->camera line;
+                 p *= 1 - specular_strength * exp(-(theta/specular_width_deg)^2).
+                 No glare when the sun is behind the tag plane.
+      backlight: phi = angle(camera boresight, sun); inside backlight_kill_deg
+                 p *= 1 - backlight_strength * (1 - phi/backlight_kill_deg).
+    specular_strength = 0 and backlight_kill_deg = 0 (defaults) = off. All
+    `estimate` (matte print ~0.4, glossy/laminated ~0.9 -- not bench-fit)."""
+    sun_azimuth_deg: float = 180.0      # NED azimuth of the sun, 0 = north, 90 = east
+    sun_elevation_deg: float = 35.0     # above the horizon
+    specular_strength: float = 0.0      # 0 = off
+    specular_width_deg: float = 12.0    # half-width of the glare lobe
+    backlight_kill_deg: float = 0.0     # 0 = off; cone half-angle around the sun
+    backlight_strength: float = 0.9     # multiplier depth on the sun axis
+
+    def active(self) -> bool:
+        return self.specular_strength > 0.0 or self.backlight_kill_deg > 0.0
+
+    def sun_ned(self) -> np.ndarray:
+        """Unit vector FROM the scene TOWARD the sun (NED: up is -z)."""
+        az, el = math.radians(self.sun_azimuth_deg), math.radians(self.sun_elevation_deg)
+        return np.array([math.cos(el) * math.cos(az), math.cos(el) * math.sin(az),
+                         -math.sin(el)])
 
 
 # ---------------------------------------------------------------- pure helpers
@@ -179,18 +267,32 @@ def project(p_cam: np.ndarray, cam: CameraParams) -> Tuple[float, float, bool]:
     return cam.cx + cam.fx * float(p_cam[0]) / z, cam.cy + cam.fy * float(p_cam[1]) / z, True
 
 
-def tag_corners_ned(tgt_pos, normal, side: float) -> np.ndarray:
-    """The 4 corners of a planar square tag centred on the target, in NED.
-    In-plane axes: e1 horizontal (perpendicular to the normal and to world
-    down), e2 = normal x e1 completes the right-handed set."""
-    c = np.asarray(tgt_pos, float)
-    n = np.asarray(normal, float)
-    n = n / max(float(np.linalg.norm(n)), _EPS)
+def _level_e1(n: np.ndarray) -> np.ndarray:
+    """In-plane axis e1 of a tag with unit normal `n`: horizontal (perpendicular
+    to `n` and to "down" of whatever frame `n` is in), north/forward fallback
+    when the tag lies flat. Shared by the world-level (legacy) and the
+    body-fixed (tag_realism_v1 A3) bases."""
     up = np.array([0.0, 0.0, -1.0])
     e1 = np.cross(up, n)
     if float(np.linalg.norm(e1)) < 1e-6:          # tag lies flat: use north
         e1 = np.cross(np.array([1.0, 0.0, 0.0]), n)
-    e1 = e1 / max(float(np.linalg.norm(e1)), _EPS)
+    return e1 / max(float(np.linalg.norm(e1)), _EPS)
+
+
+def tag_corners_ned(tgt_pos, normal, side: float, e1=None) -> np.ndarray:
+    """The 4 corners of a planar square tag centred on the target, in NED.
+    In-plane axes: e1 horizontal (perpendicular to the normal and to world
+    down), e2 = normal x e1 completes the right-handed set. An explicit `e1`
+    (tag_realism_v1: body-fixed or wobbled basis, already perpendicular to
+    the normal) overrides the world-level choice."""
+    c = np.asarray(tgt_pos, float)
+    n = np.asarray(normal, float)
+    n = n / max(float(np.linalg.norm(n)), _EPS)
+    if e1 is None:
+        e1 = _level_e1(n)
+    else:
+        e1 = np.asarray(e1, float)
+        e1 = e1 / max(float(np.linalg.norm(e1)), _EPS)
     e2 = np.cross(n, e1)
     h = 0.5 * side
     return np.array([c + h * e1 + h * e2, c + h * e1 - h * e2,
@@ -215,6 +317,47 @@ def p_decode(side_px: float, incidence_deg: float, blur_px: float,
     return dp.p_max * p_size * p_inc * p_blur
 
 
+def _angle_deg(a: np.ndarray, b: np.ndarray) -> float:
+    na, nb = float(np.linalg.norm(a)), float(np.linalg.norm(b))
+    c = float(np.dot(a, b)) / max(na * nb, _EPS)
+    return math.degrees(math.acos(max(-1.0, min(1.0, c))))
+
+
+def glare_multipliers(gp: GlareParams, normal: np.ndarray, to_cam: np.ndarray,
+                      boresight_ned: np.ndarray) -> Tuple[float, float]:
+    """(specular, backlight) decode-probability multipliers for one frame --
+    see GlareParams. `normal` is the tag's unit normal, `to_cam` the tag ->
+    camera vector, `boresight_ned` the camera +z axis in NED. Pure; each
+    multiplier is exactly 1.0 when its effect is off."""
+    s_ned = gp.sun_ned()
+    spec = 1.0
+    if gp.specular_strength > 0.0:
+        n = np.asarray(normal, float)
+        if float(np.dot(s_ned, n)) > 0.0:          # sun in front of the tag plane
+            d = -s_ned                              # sunlight travel direction
+            r = d - 2.0 * float(np.dot(d, n)) * n   # mirror reflection
+            theta = _angle_deg(r, np.asarray(to_cam, float))
+            w = max(gp.specular_width_deg, _EPS)
+            spec = 1.0 - gp.specular_strength * math.exp(-(theta / w) ** 2)
+    back = 1.0
+    if gp.backlight_kill_deg > 0.0:
+        phi = _angle_deg(np.asarray(boresight_ned, float), s_ned)
+        if phi < gp.backlight_kill_deg:
+            back = 1.0 - gp.backlight_strength * (1.0 - phi / gp.backlight_kill_deg)
+    return max(0.0, spec), max(0.0, back)
+
+
+def _rotate(v: np.ndarray, rotvec: np.ndarray) -> np.ndarray:
+    """Rodrigues: rotate `v` by the rotation vector `rotvec` (axis*angle)."""
+    ang = float(np.linalg.norm(rotvec))
+    if ang < _EPS:
+        return np.asarray(v, float)
+    k = rotvec / ang
+    c, s_ = math.cos(ang), math.sin(ang)
+    v = np.asarray(v, float)
+    return v * c + np.cross(k, v) * s_ + k * float(np.dot(k, v)) * (1.0 - c)
+
+
 # ------------------------------------------------------------------- the model
 
 class AprilTagSeeker:
@@ -224,10 +367,12 @@ class AprilTagSeeker:
 
     def __init__(self, cam: Optional[CameraParams] = None,
                  tag: Optional[TagParams] = None,
-                 dec: Optional[DecodeParams] = None) -> None:
+                 dec: Optional[DecodeParams] = None,
+                 glare: Optional[GlareParams] = None) -> None:
         self.cam = cam or CameraParams()
         self.tag = tag or TagParams()
         self.dec = dec or DecodeParams()
+        self.glare = glare or GlareParams()
         self.rng = np.random.default_rng(0)
         self.reset(self.rng)
 
@@ -238,6 +383,10 @@ class AprilTagSeeker:
         self._prev_t: Optional[float] = None
         self._prev_q: Optional[Tuple[float, float, float, float]] = None
         self._last_decode_capture_t = -math.inf   # DecodeParams.min_decode_interval_s
+        # tag_realism_v1 B1: target-wobble OU state (radians, about the tag's
+        # two in-plane axes) and the capture time it was last advanced to.
+        self._shake = np.zeros(2)
+        self._shake_t: Optional[float] = None
         self.frames = 0
         self.decodes = 0
 
@@ -278,7 +427,29 @@ class AprilTagSeeker:
         u, v, in_front = project(p_cam, cam)
         in_fov = bool(in_front and 0.0 <= u < cam.width and 0.0 <= v < cam.height)
 
-        normal = tag.normal(tgt, cam_pos)
+        normal, e1 = tag.frame(tgt, cam_pos)
+        body = tag.body_mounted(tgt)
+
+        # tag_realism_v1 B1: target attitude wobble. Tilts the tag about its
+        # own in-plane axes BEFORE incidence/corners; the OU increment/dt is
+        # the wobble's angular rate (feeds the rotational blur below). Guarded:
+        # no draw and no state change when the knob is off.
+        w_rot_ned = np.zeros(3)
+        shake_deg = 0.0
+        if dp.tgt_shake_rms_deg > 0.0 and not tag.faces_camera:
+            ang, rate = self._shake_step(t)
+            if e1 is None:
+                e1 = _level_e1(normal)
+            e2 = np.cross(normal, e1)
+            rv = ang[0] * e1 + ang[1] * e2
+            normal, e1 = _rotate(normal, rv), _rotate(e1, rv)
+            w_rot_ned = w_rot_ned + rate[0] * e1 + rate[1] * e2
+            shake_deg = math.degrees(float(np.linalg.norm(ang)))
+        # A4: a body-mounted tag rotates with the target.
+        if body and tgt.ang_vel_body is not None:
+            w_rot_ned = w_rot_ned + quat_to_rot(tgt.quat_wxyz) @ np.asarray(
+                tgt.ang_vel_body, float)
+
         # incidence: tag normal vs the tag->camera line.
         to_cam = -d_ned
         n_to_cam = float(np.linalg.norm(to_cam))
@@ -288,8 +459,30 @@ class AprilTagSeeker:
         side_px = cam.fx * tag.side_m / z if in_front and z > _EPS else 0.0
         blur_px = self._blur_px(t, own, tgt, p_cam, r_bn, r_cn) if in_front else 0.0
 
-        full = in_fov and self._corners_inside(tgt, normal, cam_pos, r_cn)
+        # A4/B1 rotational smear (worst corner, small angle: corner speed
+        # |w| * side/2 at depth z) and B2 own-camera vibration smear, combined
+        # with the translational smear by root-sum-square (independent
+        # directions). Both exactly 0 -- and blur_px untouched -- when off.
+        blur_rot = 0.0
+        w_rot = float(np.linalg.norm(w_rot_ned))
+        if in_front and z > _EPS and w_rot > 0.0:
+            blur_rot = cam.fx * w_rot * (0.5 * tag.side_m) / z * cam.exposure_s
+        blur_vib = 0.0
+        if cam.vib_rate_rms_dps > 0.0:
+            vib = abs(float(self.rng.normal(0.0, cam.vib_rate_rms_dps)))
+            if in_front:
+                blur_vib = cam.fx * math.radians(vib) * cam.exposure_s
+        if blur_rot > 0.0 or blur_vib > 0.0:
+            blur_px = math.sqrt(blur_px * blur_px + blur_rot * blur_rot
+                                + blur_vib * blur_vib)
+
+        full = in_fov and self._corners_inside(tgt, normal, cam_pos, r_cn, e1)
         p = p_decode(side_px, incidence, blur_px, dp) if full else 0.0
+        # C: sun-geometry glare, deterministic multipliers.
+        g_spec = g_back = 1.0
+        if self.glare.active():
+            g_spec, g_back = glare_multipliers(self.glare, normal, to_cam, r_cn[:, 2])
+            p = p * g_spec * g_back
         # Detection-cadence thinning (DecodeParams.min_decode_interval_s):
         # the pipeline never attempted this frame, so p -> 0 BEFORE the rng
         # draw (same no-draw shape as full=False). Inert at the 0.0 default.
@@ -303,13 +496,42 @@ class AprilTagSeeker:
             self._queue.append(self._measure(t, u, v, side_px, p_cam))
         return FrameReport(t_capture=t, in_fov=in_fov, side_px=side_px,
                            incidence_deg=incidence, blur_px=blur_px,
-                           p_decode=p, decoded=decoded)
+                           p_decode=p, decoded=decoded,
+                           blur_rot_px=blur_rot, blur_vib_px=blur_vib,
+                           tgt_shake_deg=shake_deg,
+                           glare_specular_mult=g_spec, glare_backlight_mult=g_back)
 
-    def _corners_inside(self, tgt, normal, cam_pos, r_cn) -> bool:
+    def _shake_step(self, t: float) -> Tuple[np.ndarray, np.ndarray]:
+        """Advance the 2-axis wobble OU process to capture time `t`. Exact
+        discretisation: x' = phi*x + sigma*sqrt(1-phi^2)*N, phi = exp(-dt/tau),
+        tau = 1/(2*pi*bw); the first frame draws from the stationary
+        distribution. Returns (angles_rad, rate_rad_s) with rate = the actual
+        increment / dt (0 on the first frame)."""
+        dp = self.dec
+        sigma = math.radians(dp.tgt_shake_rms_deg)
+        if self._shake_t is None:
+            self._shake = sigma * self.rng.standard_normal(2)
+            self._shake_t = t
+            return self._shake.copy(), np.zeros(2)
+        dt = t - self._shake_t
+        if dt <= 0.0:
+            return self._shake.copy(), np.zeros(2)
+        if dp.tgt_shake_bw_hz > 0.0:
+            phi = math.exp(-dt * 2.0 * math.pi * dp.tgt_shake_bw_hz)
+        else:
+            phi = 1.0                              # zero bandwidth: frozen tilt
+        new = phi * self._shake + sigma * math.sqrt(max(0.0, 1.0 - phi * phi)) \
+            * self.rng.standard_normal(2)
+        rate = (new - self._shake) / dt
+        self._shake, self._shake_t = new, t
+        return new.copy(), rate
+
+    def _corners_inside(self, tgt, normal, cam_pos, r_cn, e1=None) -> bool:
         """Partial visibility: a tag with any corner off the sensor cannot be
-        decoded (the detector needs the whole closed quad)."""
+        decoded (the detector needs the whole closed quad). `e1` = explicit
+        in-plane basis (body-fixed / wobbled tag); None = legacy level basis."""
         cam = self.cam
-        for c in tag_corners_ned(tgt.pos_ned, normal, self.tag.side_m):
+        for c in tag_corners_ned(tgt.pos_ned, normal, self.tag.side_m, e1):
             cu, cv, ok = project(r_cn.T @ (c - cam_pos), cam)
             if not ok or not (0.0 <= cu < cam.width and 0.0 <= cv < cam.height):
                 return False

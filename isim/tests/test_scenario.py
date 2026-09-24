@@ -476,3 +476,195 @@ def scn_go_estimate(vp) -> float:
     honesty test above only compares post-GO ticks (before GO, own_pos is
     identically the standby point and a 0.0 diff would prove nothing)."""
     return MissionConfig().standby_settle_s
+
+
+# ------------------------------------------- tag_realism_v1 (spec section D/E7)
+
+def _trace_digest(scn: Scenario, vp) -> str:
+    """sha256 over a full engagement: the whole engine trace plus every
+    FrameReport's LEGACY fields (the fields that existed before
+    tag_realism_v1, so a digest taken before the change is comparable)."""
+    import contextlib
+    import hashlib
+    import io
+
+    from isim.engine import run_engagement
+
+    ecfg, vehicle, target, seeker, guidance, init = build(scn, vp)
+    with contextlib.redirect_stdout(io.StringIO()):
+        r = run_engagement(ecfg, vehicle, target, seeker, guidance, init, record_trace=True)
+    m = hashlib.sha256()
+    for k in sorted(r.trace):
+        m.update(k.encode())
+        m.update(np.ascontiguousarray(r.trace[k]).tobytes())
+    for f in r.frame_reports:
+        m.update(np.array([f.t_capture, f.side_px, f.incidence_deg, f.blur_px, f.p_decode,
+                           float(f.in_fov), float(f.decoded)]).tobytes())
+    m.update(np.array([r.miss_m, r.t_cpa]).tobytes())
+    return m.hexdigest()
+
+
+# Digests measured on the PRE-tag_realism_v1 code (2026-09-23, this dev
+# machine, numpy 2.5.1). A floating-point hash is platform-sensitive; if this
+# fails on a DIFFERENT machine with every realism test otherwise green, re-pin
+# from a checkout of the parent commit rather than from the new code.
+_PRE_REALISM_DIGESTS = {
+    "flyby_default": (
+        dict(seed=3),
+        "66b7935a94c78abc6e35929cf23f2211313529f235b768baa231ad0731028697"),
+    "pursuit_rear_scatter_weave": (
+        dict(concept="pursuit", tag_facing="rear", scatter=Scatter(),
+             target_motion="weave", seed=5),
+        "c4b08a4ebca007a16c5451535e7d72308dbb3525c5ba2725a4f1eaf6acb60caa"),
+    "flyby_rear_dual35_scatter": (
+        dict(tag_facing="rear_dual35", scatter=Scatter(), seed=2),
+        "3eeda4df23e345bd80becc8b0fbc6c13d482cb37d0a1cb4d9a736153dc089d55"),
+    "pursuit_camera_scatter": (
+        dict(concept="pursuit", scatter=Scatter(), seed=4),
+        "a61af2b15b25302b8fd1fc7fad72bc5e9f53efd7e2e41f315ba158fe5d370a59"),
+    "pursuit_side_speedchange": (
+        dict(concept="pursuit", tag_facing="side", scatter=Scatter(),
+             target_motion="speed_change", seed=1),
+        "db32bf834944d96da595bc19226f553a30808f10981eb852fd3c45a87425e75b"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_PRE_REALISM_DIGESTS))
+def test_realism_defaults_are_byte_identical_to_pre_realism_runs(vp, name):
+    """E7 pin: with target_attitude=False / glare=False (defaults) and every
+    new Scatter field at its default, a full engagement is byte-identical to
+    the same run on the code BEFORE tag_realism_v1 existed."""
+    kwargs, digest = _PRE_REALISM_DIGESTS[name]
+    assert _trace_digest(Scenario(**kwargs), vp) == digest
+
+
+def test_realism_knobs_are_inert_while_their_flags_are_off(vp):
+    """The gated Scatter fields (drag tilt, wobble, sun/glare) draw nothing and
+    change nothing unless their Scenario flag is on -- however loud."""
+    loud = dataclasses.replace(
+        Scatter(), tgt_drag_tilt_sigma_deg=50.0, tgt_shake_rms_min_deg=5.0,
+        tgt_shake_rms_max_deg=9.0, sun_elevation_min_deg=1.0, specular_strength_min=0.9,
+        specular_strength_max=0.99, backlight_kill_max_deg=80.0)
+    base = Scenario(concept="pursuit", tag_facing="rear", scatter=Scatter(), seed=7)
+    assert _trace_digest(base, vp) == _trace_digest(dataclasses.replace(base, scatter=loud), vp)
+
+
+def test_realism_flags_do_not_reshuffle_the_older_draws(vp):
+    """New draws sit at the END of the rng stream: turning the flags on keeps
+    every pre-existing per-run draw identical (paired seeds stay paired)."""
+    scat = dataclasses.replace(Scatter(), own_vib_rate_rms_max_dps=40.0)
+    off = Scenario(tag_facing="rear", target_motion="weave", scatter=scat, seed=12)
+    on = dataclasses.replace(off, target_attitude=True, glare=True)
+    _, veh0, tgt0, sk0, g0, _ = build(off, vp)
+    _, veh1, tgt1, sk1, g1, _ = build(on, vp)
+    assert veh0.p.wind_ned == veh1.p.wind_ned
+    assert g0.cfg.preflight_heading_deg == g1.cfg.preflight_heading_deg
+    assert sk0.dec.p_max == sk1.dec.p_max and sk0.cam.fx == sk1.cam.fx
+    assert sk0.cam.vib_rate_rms_dps == sk1.cam.vib_rate_rms_dps
+    assert tgt0.inner.amp_m == tgt1.inner.inner.amp_m
+    assert tgt0.inner.period_s == tgt1.inner.inner.period_s
+    # ...and each realism GROUP is independent of the other groups' flags.
+    glare_only = dataclasses.replace(off, glare=True)
+    att_only = dataclasses.replace(off, target_attitude=True)
+    _, _, _, sk_g, _, _ = build(glare_only, vp)
+    _, _, tgt_a, sk_a, _, _ = build(att_only, vp)
+    assert sk_g.glare == sk1.glare
+    assert sk_a.dec.tgt_shake_rms_deg == sk1.dec.tgt_shake_rms_deg
+    assert tgt_a.inner.prm == tgt1.inner.prm
+
+
+def test_target_attitude_wraps_the_motion_and_bolts_rear_side_tags(vp):
+    from isim.target_attitude import AttitudeTarget, euler_rpy_deg
+    from isim.targets import ConstantVelocityTarget
+
+    scn = Scenario(tag_facing="rear", target_attitude=True)
+    _, _, target, seeker, guidance, _ = build(scn, vp)
+    assert isinstance(target.inner, AttitudeTarget)
+    assert isinstance(target.inner.inner, ConstantVelocityTarget)
+    assert seeker.tag.body_normal_frd == (-1.0, 0.0, 0.0)
+    assert seeker.tag.normal_ned == (-1.0, -0.0, -0.0)     # legacy fallback kept
+    # No scatter -> no draws: nominal drag tilt, wobble off.
+    assert target.inner.prm.drag_tilt_at_9ms_deg == 12.0
+    assert seeker.dec.tgt_shake_rms_deg == 0.0
+    t_go = _go_at_s(guidance.cfg)
+    s_pre = target.state(0.0)          # frozen before GO: t=0 attitude, no rate
+    assert s_pre.quat_wxyz == target.inner.state(0.0).quat_wxyz
+    np.testing.assert_array_equal(s_pre.ang_vel_body, np.zeros(3))
+    _, pitch, _ = euler_rpy_deg(target.state(t_go + 1.0).quat_wxyz)
+    assert pitch == pytest.approx(-12.0, abs=1e-9)
+    # "side" is sign-matched to today's world-frame normal (faces the launch
+    # side, west): flying north, west is body-LEFT; flying south, body-RIGHT.
+    for direction, want_y in ((1.0, -1.0), (-1.0, 1.0)):
+        _, _, _, sk, _, _ = build(Scenario(tag_facing="side", target_attitude=True,
+                                           direction=direction), vp)
+        assert sk.tag.body_normal_frd == (0.0, want_y, 0.0)
+        assert sk.tag.normal_ned[1] == -1.0
+    # "camera" stays the idealized cheat.
+    _, _, _, sk_cam, _, _ = build(Scenario(tag_facing="camera", target_attitude=True), vp)
+    assert sk_cam.tag.faces_camera and sk_cam.tag.body_normal_frd is None
+
+
+def test_rear_dual35_body_mount_matches_the_world_normals_at_level(vp):
+    from isim.seeker import quat_to_rot
+
+    _, _, target, seeker, guidance, _ = build(
+        Scenario(tag_facing="rear_dual35", target_attitude=True, direction=-1.0), vp)
+    q_level_yaw = (0.0, 0.0, 0.0, 1.0)          # flying south: yaw 180, level
+    r = quat_to_rot(q_level_yaw)
+    for sk in (seeker.first, seeker.second):
+        np.testing.assert_allclose(r @ np.array(sk.tag.body_normal_frd),
+                                   np.array(sk.tag.normal_ned), atol=1e-12)
+
+
+def test_target_attitude_with_scatter_draws_tilt_and_wobble_in_range(vp):
+    scat = Scatter()
+    tilts = set()
+    for seed in range(12):
+        _, _, target, seeker, _, _ = build(
+            Scenario(tag_facing="rear", target_attitude=True, scatter=scat, seed=seed), vp)
+        tilt = target.inner.prm.drag_tilt_at_9ms_deg
+        assert tilt >= 0.0
+        tilts.add(tilt)
+        assert scat.tgt_shake_rms_min_deg <= seeker.dec.tgt_shake_rms_deg \
+            <= scat.tgt_shake_rms_max_deg
+        assert seeker.cam.vib_rate_rms_dps == 0.0      # own vib default OFF
+        assert not seeker.glare.active()               # glare flag off
+    assert len(tilts) > 1
+
+
+def test_glare_needs_scatter_and_draws_its_geometry(vp):
+    with pytest.raises(ValueError):
+        build(Scenario(glare=True), vp)
+    scat = Scatter()
+    _, _, _, seeker, _, _ = build(Scenario(glare=True, scatter=scat, seed=3), vp)
+    g = seeker.glare
+    assert 0.0 <= g.sun_azimuth_deg < 360.0
+    assert scat.sun_elevation_min_deg <= g.sun_elevation_deg <= scat.sun_elevation_max_deg
+    assert scat.specular_strength_min <= g.specular_strength <= scat.specular_strength_max
+    assert 0.0 <= g.backlight_kill_deg <= scat.backlight_kill_max_deg
+    pinned = dataclasses.replace(scat, sun_azimuth_uniform=False)
+    _, _, _, sk2, _, _ = build(Scenario(glare=True, scatter=pinned, sun_azimuth_deg=77.0,
+                                        sun_elevation_deg=8.0, seed=3), vp)
+    assert (sk2.glare.sun_azimuth_deg, sk2.glare.sun_elevation_deg) == (77.0, 8.0)
+
+
+def test_own_vibration_scatter_draws_only_when_nonzero(vp):
+    scat = dataclasses.replace(Scatter(), own_vib_rate_rms_max_dps=40.0)
+    _, _, _, seeker, _, _ = build(Scenario(scatter=scat, seed=2), vp)
+    assert 0.0 < seeker.cam.vib_rate_rms_dps <= 40.0
+
+
+def test_realism_scenario_is_picklable_and_runs(vp):
+    import pickle
+
+    from isim.engine import run_engagement
+
+    scn = Scenario(concept="pursuit", tag_facing="rear", target_motion="weave",
+                   target_attitude=True, glare=True,
+                   scatter=dataclasses.replace(Scatter(), own_vib_rate_rms_max_dps=40.0),
+                   seed=5)
+    assert pickle.loads(pickle.dumps(scn)) == scn
+    ecfg, vehicle, target, seeker, guidance, init = build(scn, vp)
+    r = run_engagement(ecfg, vehicle, target, seeker, guidance, init)
+    assert math.isfinite(r.miss_m) and r.n_frames > 0
+    assert any(f.tgt_shake_deg > 0.0 for f in r.frame_reports)

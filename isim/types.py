@@ -29,6 +29,12 @@ class TargetState:
     t: float
     pos_ned: Vec3
     vel_ned: Vec3
+    # tag_realism_v1 A1 (additive): the target's attitude, when a target
+    # model derives one (isim.target_attitude.AttitudeTarget). None = "no
+    # attitude model" -- every consumer keeps its legacy behaviour (the tag
+    # hangs upright in world axes). Same convention as VehicleState.quat_wxyz.
+    quat_wxyz: Optional[Tuple[float, float, float, float]] = None  # body -> NED
+    ang_vel_body: Optional[Vec3] = None      # rad/s, target body FRD; None = zero
 
 
 @dataclass
@@ -64,6 +70,13 @@ class FrameReport:
     blur_px: float
     p_decode: float
     decoded: bool
+    # tag_realism_v1 diagnostics (additive, defaulted so every existing
+    # constructor still works). All are TRUTH, scoring only.
+    blur_rot_px: float = 0.0            # smear from target rotation + wobble (A4/B1)
+    blur_vib_px: float = 0.0            # smear from own-camera vibration (B2)
+    tgt_shake_deg: float = 0.0          # |wobble angle| applied to the tag this frame (B1)
+    glare_specular_mult: float = 1.0    # specular-lobe decode multiplier (C)
+    glare_backlight_mult: float = 1.0   # into-the-sun decode multiplier (C)
 
 
 class VehicleModel(Protocol):
