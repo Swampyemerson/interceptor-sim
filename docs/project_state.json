@@ -1942,7 +1942,7 @@
      {
       "id": "tgt-05",
       "gate": true,
-      "text": "Props-off bench setup: bind the RP1 to the Pocket M2, verify motor order + directions, set and TEST the kill switch and RC failsafe. Props stay off until every check passes. [2026-09-23 BENCH INCIDENT + LESSON: moving the powered ESC sparked a motor solder joint against the CARBON FRAME -- carbon conducts. No visible damage, builder unplugged fast. Mitigation before proceeding: heatshrink/liquid-tape the joint, insulate the frame under the ESC (Kapton/electrical tape), then sweep EVERY pad/joint for frame clearance, then re-power through the smoke stopper. Never reposition powered electronics.]",
+      "text": "Props-off bench setup. [2026-09-23 MOSTLY DONE, driven live over COM7: after the carbon-spark mitigation, motor ORDER + DIRECTION verified motor-by-motor -- the build had all four outputs rotated one position and all four spinning CW; fixed in software (SERVO1-4_FUNCTION remap + SERVO_BLH_RVMASK=6 + SERVO_DSHOT_ESC=1, which ArduPilot needs before it SENDS DShot commands at all), verified across a reboot, all-four 15% spin clean, pack now 50/50 params. Battery monitor reads 23.5 V sane; GPS 3D fix indoors; params re-verified. REMAINING for the gate: solder the RP1 RX (R6/T6 crossed + 4V5/GND, README sec 3) -> smoke-stopper ritual -> bind -> kill switch + RC failsafe TESTED. Also still open: threadlocker + witness marks (ADR-0092).]",
       "why": "6S tri-blades draw blood; motor-direction and kill-switch checks are exactly when a quad tries to jump."
      },
      {
