@@ -853,3 +853,236 @@ def test_brake_vert_sync_schedules_the_climb_to_the_horizontal_closure():
     b = _keepframe_identity_drive({"brake_shaping": True, "brake_accel_ms2": 3.0,
                                    "brake_vert_sync": False})
     assert np.array_equal(a, b, equal_nan=True)
+
+
+# ================================================== rehearsal break-off
+#
+# isim/specs/rehearsal_breakoff_prereg_2026-09-24.md. Config-gated, DEFAULT
+# OFF: on a freshly-fed (>= rehearsal_min_updates KF updates inside
+# rehearsal_fresh_s), CLOSING Phase-B track inside rehearsal_range_m, record
+# the onboard would-have ZEM and fly the latched evade (climb + lateral away
+# from the target's path, yaw held) for rehearsal_evade_s, then raise
+# rehearsal_complete for RealFlightSM's SAFE 'rehearsal_breakoff'.
+
+
+def test_rehearsal_off_is_byte_identical_to_prefeature_code():
+    """REPO INVARIANT: rehearsal_breakoff=False (the default) reproduces the
+    golden fixture (generated from the pre-keepframe module, so it predates
+    this feature too) exactly -- explicitly passed and defaulted alike."""
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    _assert_matches_golden(_keepframe_identity_drive(), golden)
+    got = _keepframe_identity_drive({"rehearsal_breakoff": False})
+    _assert_matches_golden(got, golden)   # exact-or-kernel-drift band
+    assert PursuitTerminalConfig().rehearsal_breakoff is False
+
+
+def test_rehearsal_on_never_triggering_is_identical_to_off():
+    """Flag ON but the target never inside rehearsal_range_m (the fixture
+    drive's closest box is 5 m): the commands are identical to the OFF arm --
+    the extra update bookkeeping never feeds a command."""
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    on = _keepframe_identity_drive({"rehearsal_breakoff": True})
+    _assert_matches_golden(on, golden)
+    assert np.array_equal(on, _keepframe_identity_drive(), equal_nan=True)
+
+
+def _rehearsal_drive(boxes, own_vel=(3.0, 0.0, 0.0), belief_vel=(0.0, 0.0, 0.0),
+                     belief_r0=(2.0, 0.0, 0.0), **cfgkw):
+    """Step once per entry of `boxes` (None = no decode); -> (guidance,
+    [(setpoint, tel), ...])."""
+    g, cfg, _ = guidance(belief_r0_ned=belief_r0, belief_vel0_ned=belief_vel,
+                         acquire_n=2, acquire_window_s=0.3, **cfgkw)
+    out, t = [], 0.0
+    for b in boxes:
+        t += DT
+        out.append(g.step(b, own(n_e_d_vel=own_vel), t=t))
+    return g, cfg, out
+
+
+def test_rehearsal_gate_needs_n_fresh_updates_and_records_the_zem():
+    """Acquire on tick 1-2 (the first KF update lands on tick 2), so with
+    rehearsal_min_updates=3 the trigger cannot fire before tick 4 even though
+    range/closing qualify from the start; on tick 4 it fires and the recorded
+    would-have estimate equals the ZEM formula on the KF state at that tick."""
+    boxes = [box_for(2.2 - 0.15 * i, 0.2, 0.0) for i in range(4)]
+    g, cfg, out = _rehearsal_drive(boxes[:3], rehearsal_breakoff=True)
+    assert out[-1][1].phase == "B"
+    assert g.rehearsal_trigger_t is None          # only 2 updates so far
+    g, cfg, out = _rehearsal_drive(boxes, rehearsal_breakoff=True)
+    assert g.rehearsal_trigger_t == pytest.approx(4 * DT)
+    r, v_rel = g._kf.r, g._kf.v_t - np.array([3.0, 0.0, 0.0])
+    t_go = -float(np.dot(r, v_rel)) / float(np.dot(v_rel, v_rel))
+    assert t_go > 0.0
+    assert g.rehearsal_t_go_s == pytest.approx(t_go, abs=1e-12)
+    assert g.rehearsal_zem_m == pytest.approx(
+        float(np.linalg.norm(r + v_rel * t_go)), abs=1e-12)
+    assert g.rehearsal_trigger_range_m == pytest.approx(float(np.linalg.norm(r)))
+    assert g.rehearsal_trigger_range_m <= cfg.rehearsal_range_m
+    # A higher N delays it: same stream, 4 updates needed -> not yet.
+    g4, _, _ = _rehearsal_drive(boxes, rehearsal_breakoff=True,
+                                rehearsal_min_updates=4)
+    assert g4.rehearsal_trigger_t is None
+
+
+def test_rehearsal_coasting_track_does_not_trigger():
+    """Decodes stop at 5 m; the KF then COASTS (predicts) the range down
+    through rehearsal_range_m while the last update is > rehearsal_fresh_s
+    old -- a coasting track must NOT trigger. The control arm (decodes
+    continue) does."""
+    fed = [box_for(5.5 - 0.15 * i, 0.0, 0.0) for i in range(4)]
+    g, cfg, out = _rehearsal_drive(fed + [None] * 36, belief_r0=(5.5, 0.0, 0.0),
+                                   rehearsal_breakoff=True)
+    assert all(tel.phase == "B" for _sp, tel in out[1:])
+    assert min(tel.r_hat_m for _sp, tel in out[1:]) < cfg.rehearsal_range_m - 1.0
+    assert g.rehearsal_trigger_t is None
+    assert not g.rehearsal_complete
+    ctrl = [box_for(max(5.5 - 0.15 * i, 0.3), 0.0, 0.0) for i in range(40)]
+    g2, _, _ = _rehearsal_drive(ctrl, belief_r0=(5.5, 0.0, 0.0),
+                                rehearsal_breakoff=True)
+    assert g2.rehearsal_trigger_t is not None
+
+
+def test_rehearsal_opening_track_does_not_trigger():
+    """Inside range, fed, but OPENING (own receding): closing <= 0 -> no
+    trigger."""
+    boxes = [box_for(2.0 + 0.15 * i, 0.0, 0.0) for i in range(6)]
+    g, _, _ = _rehearsal_drive(boxes, own_vel=(-3.0, 0.0, 0.0),
+                               rehearsal_breakoff=True, rehearsal_range_m=3.0)
+    assert g.rehearsal_trigger_t is None
+
+
+_NO_SLEW_R = dict(accel_max_ms2=1e6, accel_max_horiz_b_ms2=1e6,
+                  accel_max_vert_b_ms2=1e6)
+
+
+def _moving_target_drive(east_offset, n_ticks=4, **cfgkw):
+    """Target moving NORTH at 3 m/s, own north at 6 m/s (closing 3), target
+    `east_offset` metres east of own -> the vehicle sits WEST (left) of the
+    target's path for east_offset > 0."""
+    boxes = [box_for(2.3 - 0.15 * i, east_offset, 0.0) for i in range(n_ticks)]
+    return _rehearsal_drive(boxes, own_vel=(6.0, 0.0, 0.0),
+                            belief_vel=(3.0, 0.0, 0.0),
+                            belief_r0=(2.3, east_offset, 0.0),
+                            rehearsal_breakoff=True, **cfgkw)
+
+
+def test_rehearsal_evade_climbs_and_pushes_away_from_the_path_side():
+    g_l, cfg, out_l = _moving_target_drive(0.5, **_NO_SLEW_R)
+    assert g_l.rehearsal_trigger_t == pytest.approx(4 * DT)
+    assert g_l.rehearsal_side == "left"
+    sp_prev, _ = out_l[-2]
+    sp, tel = out_l[-1]
+    assert sp.v_down < -1.0                         # climbing (NED down < 0)
+    assert sp.v_east < -1.0                         # pushed WEST, away from the path
+    assert math.sqrt(sp.v_north ** 2 + sp.v_east ** 2 + sp.v_down ** 2) \
+        <= cfg.v_max_ms + 1e-9                      # the norm cap still applies
+    assert sp.yaw_deg == pytest.approx(sp_prev.yaw_deg)   # yaw held
+
+    g_r, _, out_r = _moving_target_drive(-0.5, **_NO_SLEW_R)
+    assert g_r.rehearsal_side == "right"
+    assert out_r[-1][0].v_east > 1.0                # mirrored: pushed EAST
+
+    # On the path (no lateral offset): fallback = right of the target's course.
+    g_c, _, out_c = _moving_target_drive(0.0, **_NO_SLEW_R)
+    assert g_c.rehearsal_side == "right_fallback"
+    assert out_c[-1][0].v_east > 1.0
+
+
+def test_rehearsal_evade_respects_slew_budgets_and_completes():
+    """Default budgets: the evade ramps within the Phase-B split budgets; after
+    rehearsal_evade_s of SIM time the terminal raises rehearsal_complete."""
+    g, cfg, out = _moving_target_drive(0.5, n_ticks=4)
+    t_trig = g.rehearsal_trigger_t
+    assert t_trig is not None and not g.rehearsal_complete
+    prev = np.array([out[-1][0].v_north, out[-1][0].v_east, out[-1][0].v_down])
+    t = 4 * DT
+    while t - t_trig < cfg.rehearsal_evade_s - 1e-9:
+        t += DT
+        assert not g.rehearsal_complete
+        sp, _tel = g.step(None, own(n_e_d_vel=(6.0, 0.0, 0.0)), t=t)
+        cur = np.array([sp.v_north, sp.v_east, sp.v_down])
+        assert np.linalg.norm(cur[0:2] - prev[0:2]) <= cfg.accel_max_horiz_b_ms2 * DT + 1e-9
+        assert abs(cur[2] - prev[2]) <= cfg.accel_max_vert_b_ms2 * DT + 1e-9
+        prev = cur
+    assert g.rehearsal_complete
+    assert prev[2] < -3.0                           # well into the climb
+
+
+def test_sm_ends_a_rehearsal_through_safe_with_its_own_reason():
+    """RealFlightSM + the real terminal: the trigger lands in the mission log,
+    the lost-target failsafe does NOT relabel the pass while the evade runs
+    (engage_lost_target_s set SHORTER than the evade), and the engagement ends
+    in SAFE 'rehearsal_breakoff', a MISS-class reason (hover)."""
+    from flight.deploy.real_flight import (MissionConfig, RealFlightSM,
+                                           State, TriggerState, VehicleObs)
+    g, _cfg, _ = guidance(belief_r0_ned=(2.3, 0.5, 0.0),
+                          belief_vel0_ned=(3.0, 0.0, 0.0),
+                          acquire_n=2, acquire_window_s=0.3,
+                          rehearsal_breakoff=True)
+    mcfg = MissionConfig(preflight_heading_deg=0.0, standby_alt_m=7.0,
+                         standby_settle_s=0.0, pursuit_mode=True,
+                         engage_lost_target_s=1.0, engage_max_s=60.0)
+    sm = RealFlightSM(mcfg, guidance=g)
+    no = TriggerState(go=False, link_ok=True, age_s=0.05, raw_us=1100)
+    go = TriggerState(go=True, link_ok=True, age_s=0.05, raw_us=1900)
+
+    def o(t, trig, **kw):
+        base = dict(armed=True, offboard_active=True, alt_m=7.0, yaw_deg=0.0,
+                    quat=(1.0, 0.0, 0.0, 0.0), vel_ned=(6.0, 0.0, 0.0))
+        base.update(kw)
+        return VehicleObs(t=t, trigger=trig, **base)
+    sm.step(o(0.0, no))
+    sm.step(o(0.05, go))
+    assert sm.state == State.ENGAGE
+    t = 0.05
+    for i in range(4):
+        t += DT
+        rng_n = 2.3 - 0.15 * i
+        sm.step(o(t, no, det_new=True, det_range_m=rng_n,
+                  det_box_xywh=box_for(rng_n, 0.5, 0.0)))
+    assert g.rehearsal_trigger_t is not None
+    while sm.state == State.ENGAGE and t < 10.0:
+        t += DT
+        sm.step(o(t, no))
+    assert sm.state == State.SAFE
+    assert sm.safe_reason == "rehearsal_breakoff"
+    assert sm.safe_reason in RealFlightSM.MISS_SAFE_REASONS
+    assert sm.effective_safe_behavior() == mcfg.miss_safe_behavior
+    assert "rehearsal_breakoff" in sm.transitions[-1].reason
+    assert (t - g.rehearsal_trigger_t) == pytest.approx(g.cfg.rehearsal_evade_s,
+                                                        abs=DT + 1e-9)
+
+
+def test_sm_without_rehearsal_still_reports_pursuit_miss():
+    """Control for the test above: flag OFF, same stream -> the lost-target
+    clock ends it as the pre-existing pursuit_miss."""
+    from flight.deploy.real_flight import (MissionConfig, RealFlightSM,
+                                           State, TriggerState, VehicleObs)
+    g, _cfg, _ = guidance(belief_r0_ned=(2.3, 0.5, 0.0),
+                          belief_vel0_ned=(3.0, 0.0, 0.0),
+                          acquire_n=2, acquire_window_s=0.3)
+    mcfg = MissionConfig(preflight_heading_deg=0.0, standby_alt_m=7.0,
+                         standby_settle_s=0.0, pursuit_mode=True,
+                         engage_lost_target_s=1.0, engage_max_s=60.0)
+    sm = RealFlightSM(mcfg, guidance=g)
+    no = TriggerState(go=False, link_ok=True, age_s=0.05, raw_us=1100)
+    go = TriggerState(go=True, link_ok=True, age_s=0.05, raw_us=1900)
+
+    def o(t, trig, **kw):
+        base = dict(armed=True, offboard_active=True, alt_m=7.0, yaw_deg=0.0,
+                    quat=(1.0, 0.0, 0.0, 0.0), vel_ned=(6.0, 0.0, 0.0))
+        base.update(kw)
+        return VehicleObs(t=t, trigger=trig, **base)
+    sm.step(o(0.0, no))
+    sm.step(o(0.05, go))
+    t = 0.05
+    for i in range(4):
+        t += DT
+        rng_n = 2.3 - 0.15 * i
+        sm.step(o(t, no, det_new=True, det_range_m=rng_n,
+                  det_box_xywh=box_for(rng_n, 0.5, 0.0)))
+    while sm.state == State.ENGAGE and t < 10.0:
+        t += DT
+        sm.step(o(t, no))
+    assert g.rehearsal_trigger_t is None
+    assert sm.safe_reason == "pursuit_miss"

@@ -254,6 +254,41 @@ class PursuitTerminalConfig:
     # terminal effect). False (default) = amendment-#1 behaviour exactly.
     brake_vert_sync: bool = False
 
+    # --- rehearsal break-off (2026-09-24, default OFF = legacy) ---------------
+    # PRACTICE mode, builder directive 2026-09-24: break off at the last
+    # moment a collision is as certain as the track can make it, so many
+    # scored passes fit on one battery/airframe before a real contact test.
+    # Pre-registration: isim/specs/rehearsal_breakoff_prereg_2026-09-24.md.
+    # TRIGGER (Phase B only, all three at once):
+    #   * >= rehearsal_min_updates CONSUMED KF updates inside the trailing
+    #     rehearsal_fresh_s (a converged, currently-fed track -- a coasting
+    #     or phantom track must NOT trigger),
+    #   * closing > 0 on the KF state (-(r . v_rel)/|r|),
+    #   * |KF r| <= rehearsal_range_m.
+    # At the trigger the KF state is recorded -- the onboard WOULD-HAVE
+    # estimate is the ZEM (zero-effort miss: |r| minimised along the current
+    # KF relative velocity) -- and the command switches to the EVADE, latched
+    # at the trigger: full-authority climb (-v_max_ms down-velocity) plus a
+    # lateral push of v_close_max_ms AWAY from the target's predicted path
+    # (the side the vehicle already sits on, from KF v_t x (own - target);
+    # fallback: right of the target's course), riding the KF target velocity
+    # so the along-path closure is nulled; yaw held. The norm cap and the
+    # Phase-B slew budgets still apply. After rehearsal_evade_s the terminal
+    # raises `rehearsal_complete` and RealFlightSM ends the engagement via
+    # SAFE with its own reason `rehearsal_breakoff` (a MISS-class SAFE:
+    # hover per ADR-0107). Inputs: KF + own-state only (honesty boundary).
+    rehearsal_breakoff: bool = False
+    rehearsal_range_m: float = 2.5     # TODO-BUILDER estimate: isim-derived,
+    #                                    set by the registered margin sweep
+    #                                    (scripts/rehearsal_margin_sweep.py);
+    #                                    an isim number until a Gazebo spot-
+    #                                    check + reduced-speed field passes
+    rehearsal_min_updates: int = 3     # TODO-BUILDER estimate: "certain" gate
+    rehearsal_fresh_s: float = 0.5     # TODO-BUILDER estimate: ~5 decode
+    #                                    intervals at the isim ~10 Hz decode rate
+    rehearsal_evade_s: float = 1.5     # TODO-BUILDER estimate: evade duration
+    #                                    before the SAFE hover
+
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -494,6 +529,21 @@ class PursuitTerminalGuidance:
         # never read or written -- while the flag is off).
         self._keepframe_vz = 0.0
         self._keepframe_t: float = -math.inf
+        # Rehearsal break-off state (cfg.rehearsal_breakoff; inert -- never
+        # appended to, and the trigger never evaluated -- while the flag is
+        # off). The public attributes are the mode's telemetry: RealFlightSM
+        # reads `rehearsal_trigger_t`/`rehearsal_complete` duck-typed (absent
+        # on every other terminal) and writes the numbers into its mission
+        # log line; the isim sweep scores them.
+        self._rehearsal_upd_t: List[float] = []
+        self._rehearsal_v_ff = np.zeros(3)
+        self._rehearsal_lat = np.zeros(3)
+        self.rehearsal_trigger_t: Optional[float] = None
+        self.rehearsal_trigger_range_m: Optional[float] = None
+        self.rehearsal_zem_m: Optional[float] = None     # onboard would-have
+        self.rehearsal_t_go_s: Optional[float] = None
+        self.rehearsal_side: Optional[str] = None        # "left"/"right"/"right_fallback"
+        self.rehearsal_complete = False
         self._warned: set = set()
         self.n_track_broken = 0
 
@@ -653,8 +703,29 @@ class PursuitTerminalGuidance:
                               once=True)
             return None, tel
 
+        if cfg.rehearsal_breakoff and self._phase == "B" \
+                and self.rehearsal_trigger_t is None:
+            self._rehearsal_check(t, own_vel)
+
         v_cap = self._speed_cap()
-        if self._phase == "A":
+        if self.rehearsal_trigger_t is not None:
+            # REHEARSAL EVADE (cfg.rehearsal_breakoff docstring): the latched
+            # escape command under the same norm cap and Phase-B slew
+            # budgets; yaw held at the last command. Checked before the phase
+            # branch so a (rare) Phase-B->A fallback cannot resume the chase.
+            cmd_v = self._rehearsal_v_ff + self._rehearsal_lat * cfg.v_close_max_ms \
+                + np.array([0.0, 0.0, -cfg.v_max_ms])
+            cmd_v = _clip_norm(cmd_v, v_cap)
+            cmd_v = _slew_split(cmd_v, self._prev_v_cmd,
+                                 cfg.accel_max_horiz_b_ms2,
+                                 cfg.accel_max_vert_b_ms2, dt)
+            yaw = self._prev_yaw_deg
+            tel.phase = self._phase
+            if self._phase == "B":
+                tel.r_hat_m = float(np.linalg.norm(self._kf.r))
+            if (t - self.rehearsal_trigger_t) >= cfg.rehearsal_evade_s:
+                self.rehearsal_complete = True
+        elif self._phase == "A":
             cmd_v, yaw = self._phase_a_cmd()
             if cfg.brake_shaping:
                 cmd_v = self._brake_cap_phase_a(cmd_v, own_vel)
@@ -870,6 +941,58 @@ class PursuitTerminalGuidance:
         out[2] = float(v_t[2]) + v_z_des
         return out
 
+    # ------------------------------------------------ rehearsal break-off
+
+    def _rehearsal_gate_ok(self, t: float) -> bool:
+        """The "as certain as possible" gate: at least rehearsal_min_updates
+        consumed KF updates inside the trailing rehearsal_fresh_s. A coasting
+        track (no recent updates) fails it by construction."""
+        cfg = self.cfg
+        cutoff = t - cfg.rehearsal_fresh_s
+        self._rehearsal_upd_t = [u for u in self._rehearsal_upd_t if u >= cutoff]
+        return len(self._rehearsal_upd_t) >= cfg.rehearsal_min_updates
+
+    def _rehearsal_check(self, t: float, own_vel: np.ndarray) -> None:
+        """Phase B, flag on, not yet triggered: evaluate the trigger on the
+        CURRENT KF state and, if it fires, record the onboard would-have
+        estimate and latch the evade reference (cfg.rehearsal_breakoff
+        docstring)."""
+        cfg = self.cfg
+        if not self._rehearsal_gate_ok(t):
+            return
+        r = self._kf.r
+        rng = float(np.linalg.norm(r))
+        if not (rng <= cfg.rehearsal_range_m) or rng < 1e-9:
+            return
+        v_t = self._sane_fallback_vel(self._kf.v_t)
+        v_rel = self._kf.v_t - np.asarray(own_vel, dtype=np.float64)
+        closing = -float(np.dot(r, v_rel)) / rng
+        if not closing > 0.0:
+            return
+        # Onboard WOULD-HAVE estimate: the ZEM, |r + v_rel*t_go| at the
+        # t_go minimising it along the current KF relative velocity.
+        vv = float(np.dot(v_rel, v_rel))
+        t_go = max(-float(np.dot(r, v_rel)) / vv, 0.0) if vv > 1e-12 else 0.0
+        self.rehearsal_zem_m = float(np.linalg.norm(r + v_rel * t_go))
+        self.rehearsal_t_go_s = t_go
+        self.rehearsal_trigger_t = t
+        self.rehearsal_trigger_range_m = rng
+        # Evade reference, latched. Side: the vehicle's horizontal offset
+        # from the target (-r) against the target's KF course; NED cross_z > 0
+        # = the vehicle sits RIGHT of the path -> push further right.
+        course = _unit(np.array([v_t[0], v_t[1], 0.0]),
+                       _unit(np.array([r[0], r[1], 0.0]),
+                             np.array([1.0, 0.0, 0.0])))
+        right = np.array([-course[1], course[0], 0.0])
+        cross_z = float(course[0] * (-r[1]) - course[1] * (-r[0]))
+        if cross_z > 0.05:
+            self._rehearsal_lat, self.rehearsal_side = right, "right"
+        elif cross_z < -0.05:
+            self._rehearsal_lat, self.rehearsal_side = -right, "left"
+        else:
+            self._rehearsal_lat, self.rehearsal_side = right, "right_fallback"
+        self._rehearsal_v_ff = np.array([v_t[0], v_t[1], 0.0])
+
     def _sane_fallback_vel(self, kf_v_t: np.ndarray) -> np.ndarray:
         """Clamp a KF-derived velocity before trusting it as a fresh Phase-A
         belief: a velocity estimate seeded/corrupted by a brief noisy
@@ -899,6 +1022,8 @@ class PursuitTerminalGuidance:
         self._kf.update(meas_r, r_noise, age_s=self.cfg.meas_latency_s,
                         v_own=own_vel)
         self._last_decode_t = t
+        if self.cfg.rehearsal_breakoff:
+            self._rehearsal_upd_t.append(t)
 
     def _start_phase_b(self, t: float) -> None:
         r0 = self._decode_positions[-1][1]

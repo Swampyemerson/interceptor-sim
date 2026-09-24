@@ -832,6 +832,7 @@ class RealFlightSM:
         self._gs_last_t: Optional[float] = None
         self._gs_last_v: float = 0.0
         self._last_r_hat_m: Optional[float] = None  # pursuit miss-policy input
+        self._rehearsal_logged = False     # rehearsal trigger said once
         self._warned_own_state = False
         self.last_telemetry: Optional[StepTelemetry] = None  # for the CSV row
         # AGL-floor bookkeeping (ADR-0085's half, review F3). `_last_alt_m` is the
@@ -893,7 +894,10 @@ class RealFlightSM:
 
     # SAFE entries whose CAUSE is a missed/ended engagement, not a sick
     # system -- these take `miss_safe_behavior` (ADR-0107: hover by default).
-    MISS_SAFE_REASONS = ("pursuit_miss", "breakoff_complete")
+    # `rehearsal_breakoff` (2026-09-24, isim/specs/rehearsal_breakoff_prereg_
+    # 2026-09-24.md) is a deliberate practice break-off -- an ended
+    # engagement, so it hovers ready for the next pass like a miss.
+    MISS_SAFE_REASONS = ("pursuit_miss", "breakoff_complete", "rehearsal_breakoff")
 
     def effective_safe_behavior(self) -> str:
         """Which of the two configured SAFE behaviours applies RIGHT NOW.
@@ -1479,6 +1483,38 @@ class RealFlightSM:
         if tel is not None and tel.r_hat_m is not None:
             self._last_r_hat_m = tel.r_hat_m
 
+        # REHEARSAL BREAK-OFF (2026-09-24, isim/specs/rehearsal_breakoff_
+        # prereg_2026-09-24.md; flight.pursuit_terminal's
+        # PursuitTerminalConfig.rehearsal_breakoff docstring). Duck-typed:
+        # only a terminal that carries `rehearsal_trigger_t` can report one,
+        # so every other terminal -- and pursuit with the flag off, where it
+        # stays None -- is untouched. The trigger instant, range and the
+        # onboard would-have ZEM go into the mission log once; when the
+        # terminal's timed evade is done the engagement ends through SAFE
+        # with its own reason (MISS-class: hover, ADR-0107).
+        rehearsal_t = getattr(self.guidance, "rehearsal_trigger_t", None) \
+            if self.guidance is not None else None
+        if rehearsal_t is not None:
+            g = self.guidance
+            if not self._rehearsal_logged:
+                self._rehearsal_logged = True
+                self._emit(
+                    f"[{obs.t:7.2f}s] REHEARSAL break-off triggered at "
+                    f"t={rehearsal_t:.2f}s (r_hat={g.rehearsal_trigger_range_m:.2f} m, "
+                    f"onboard would-have ZEM={g.rehearsal_zem_m:.2f} m, "
+                    f"t_go={g.rehearsal_t_go_s:.2f} s, evade {g.rehearsal_side}) "
+                    f"-- evading", events)
+            if getattr(g, "rehearsal_complete", False) is True:
+                self._transition(
+                    State.SAFE,
+                    f"rehearsal_breakoff(trigger t={rehearsal_t:.2f}s "
+                    f"r_hat={g.rehearsal_trigger_range_m:.2f} m "
+                    f"zem={g.rehearsal_zem_m:.2f} m, evade "
+                    f"{g.cfg.rehearsal_evade_s:.1f}s {g.rehearsal_side})",
+                    obs, events)
+                self.safe_reason = "rehearsal_breakoff"
+                return self._safe_setpoint(obs), tel
+
         # FAILSAFE 8 -- the terminal's RANGE CHANNEL DIVERGED (review2 BLOCKER).
         # r_hat <= 0 or a non-physical |rdot_hat| is proof the estimate is not the
         # target any more. Pre-fix that state silently selected the terminal-coast
@@ -1610,7 +1646,11 @@ class RealFlightSM:
                 self._breakoff_held_logged = False   # the rising run broke
 
         # FAILSAFE 5 -- the terminal lost the target and did not recover.
-        if self._last_det_t is not None and \
+        # NOT during a rehearsal evade: the evade is itself the timed exit
+        # from the target's airspace (bounded by rehearsal_evade_s, sim
+        # time) and ends in SAFE on its own; losing the tag while climbing
+        # away is expected and must not relabel the pass `pursuit_miss`.
+        if self._last_det_t is not None and rehearsal_t is None and \
                 (obs.t - self._last_det_t) > cfg.engage_lost_target_s:
             # PURSUIT-MODE MISS POLICY (builder ruling 2026-09-22, builder's
             # words: "as soon as an intercept is MISSED, abort immediately
@@ -3054,6 +3094,14 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
                        brake_accel_ms2=3.0, brake_vert_sync=True)
         print("[terminal] pursuit BRAKE PACKAGE ON (ADR-0115: a=3 m/s^2, "
               "lead 0.45 s, horizontal-only cap + vertical arrival-sync)")
+    if getattr(args, "pursuit_rehearsal", False):
+        # PRACTICE mode: one switch, range/gate/evade stay the config
+        # defaults (isim/specs/rehearsal_breakoff_prereg_2026-09-24.md).
+        pcfg = replace(pcfg, rehearsal_breakoff=True)
+        print(f"[terminal] pursuit REHEARSAL BREAK-OFF ON (practice pass, no "
+              f"contact: evade at r_hat <= {pcfg.rehearsal_range_m:.1f} m on a "
+              f"fed track, then SAFE 'rehearsal_breakoff'; isim-derived margin "
+              f"-- fly at REDUCED closing speed first)")
     return PursuitTerminalGuidance(
         pcfg, cam, gcfg.target_span_m, gcfg,
         belief_r0_ned=belief_r0_ned, belief_vel0_ned=belief_vel0_ned,
@@ -3206,7 +3254,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     saf.add_argument("--miss-safe-behavior", choices=("land", "hover", "rtl"),
                      default="hover",
                      help="SAFE behavior when the ENGAGEMENT ended without "
-                          "contact (reasons pursuit_miss / breakoff_complete) "
+                          "contact (reasons pursuit_miss / breakoff_complete "
+                          "/ rehearsal_breakoff) "
                           "-- builder ruling 2026-09-22 (ADR-0107): HOVER by "
                           "default, holding position for the operator; a "
                           "future re-approach feature slots in here. The "
@@ -3255,6 +3304,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "0.45 s) + vertical arrival-sync. The registered "
                           "package, one switch, no tuning surface -- "
                           "isim/specs/brake_shaping_prereg_2026-09-24.md. "
+                          "Default OFF = legacy behaviour, byte-identical.")
+    trm.add_argument("--pursuit-rehearsal", action="store_true",
+                     help="pursuit-mode REHEARSAL BREAK-OFF (builder "
+                          "directive 2026-09-24): practice passes without "
+                          "contact -- on a freshly-fed KF track that is "
+                          "closing inside rehearsal_range_m, climb and push "
+                          "away from the target's path, then end the pass in "
+                          "SAFE (reason rehearsal_breakoff, hovers like a "
+                          "miss). The trigger instant, range and onboard "
+                          "would-have ZEM land in the mission log. One "
+                          "switch, config-default range -- "
+                          "isim/specs/rehearsal_breakoff_prereg_2026-09-24.md. "
                           "Default OFF = legacy behaviour, byte-identical.")
     trm.add_argument("--intrinsics",
                      default=os.path.join(_REPO_ROOT, "configs/camera_intrinsics.json"))

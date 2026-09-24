@@ -134,3 +134,28 @@ def test_pursuit_brake_flag_sets_the_adopted_package_and_defaults_off():
     assert g_on.cfg.brake_lead_s == 0.45
     assert g_on.cfg.brake_horizontal_only is True
     assert g_on.cfg.brake_vert_sync is True
+
+
+def test_pursuit_rehearsal_flag_sets_only_the_switch_and_defaults_off():
+    """--pursuit-rehearsal (builder directive 2026-09-24,
+    isim/specs/rehearsal_breakoff_prereg_2026-09-24.md): one switch -- sets
+    rehearsal_breakoff=True and leaves the range/gate/evade at the config
+    defaults; absent -> off. Composes with --pursuit-brake."""
+    from flight.pursuit_terminal import PursuitTerminalConfig
+    d = PursuitTerminalConfig()
+    _a, _c, g_off = _build("--terminal", "pursuit")
+    assert g_off.cfg.rehearsal_breakoff is False
+    assert g_off.cfg == d
+
+    _a, _c, g_on = _build("--terminal", "pursuit", "--pursuit-rehearsal")
+    assert g_on.cfg.rehearsal_breakoff is True
+    assert g_on.cfg.rehearsal_range_m == d.rehearsal_range_m
+    assert g_on.cfg.rehearsal_min_updates == d.rehearsal_min_updates
+    assert g_on.cfg.rehearsal_fresh_s == d.rehearsal_fresh_s
+    assert g_on.cfg.rehearsal_evade_s == d.rehearsal_evade_s
+    assert g_on.cfg.brake_shaping is False
+
+    _a, _c, g_both = _build("--terminal", "pursuit", "--pursuit-brake",
+                            "--pursuit-rehearsal")
+    assert g_both.cfg.rehearsal_breakoff is True
+    assert g_both.cfg.brake_shaping is True and g_both.cfg.brake_vert_sync is True

@@ -60,3 +60,35 @@ The evade is an ADDITIONAL maneuver near the target: the field procedure must tr
 budget, and the first field uses of the mode belong at REDUCED closing speeds. The
 sim-derived margin is an isim number until a Gazebo spot-check confirms it — queued
 as the mode's validation rung, not flown in this round.
+
+## RESULT (built + swept 2026-09-24; suite 531 green + honesty audit PASS,
+head-verified; sweep verbatim in logs/rehearsal_20260924/sweep.txt — key rows below)
+
+The mode is BUILT as specified (default OFF, byte-identity pinned, own SAFE reason
+`rehearsal_breakoff` hovering per ADR-0107, 9 mutation-checked terminal tests + CLI
+test, `--pursuit-rehearsal` on the real CLI) — **and the registered sweep lands on the
+NULL BRANCH: no trigger range ≤ 3.0 m clears P1.** Worst-case post-trigger TRUE
+separation is 0.034–0.252 m against the 0.7 m bar (recall ≥ 91% everywhere — it
+triggers fine; it just cannot get away), and 8–52% of triggered passes still came
+inside 0.35 m. P2 also fails (the onboard would-have estimate reads high, +0.06 to
++0.43 m, worst at alt+3) — per the registered consequence the FIELD "would-have" claim
+is ULogs + video only. aim20 additionally shows a late-gate hole: 2 untriggered real
+contacts per arm (the freshness gate can open as late as r_hat 0.5 m).
+
+**Traced mechanisms (why, not just that):** (1) arrival is too hot for the honest
+plant — median true closing at trigger 5.3–5.5 m/s; the slew-limited evade barely
+bends the trajectory before the pass (seed-33 trace: climb command −3.4 m/s, achieved
+−0.3 m/s by the pass). (2) The certainty gate is range-blind to reaction time.
+
+**Exploratory (UNREGISTERED, direction only, logs/rehearsal_20260924/
+exploratory_unregistered.txt):** with the brake package on, closing at trigger drops
+to ~3 m/s and a 4.0 m trigger reaches worst-case 0.45 m (nominal, 0 contacts) — still
+short of 0.7, and the aim20 late-gate hole persists at every range.
+
+**Per the registered null branch, the frontier goes to the builder** with the
+candidate design changes (none built): (a) trigger on TIME-TO-GO vs the evade's
+reaction time (plant lag + authority), not on range; (b) a "too late — do not
+trigger, log it" floor closing the aim20 hole; (c) pair rehearsal with the brake
+package + reduced practice closing speeds (the safety note anticipated this — and a
+practice pass has no need for full intercept speed). Any adopted margin remains an
+isim number until the mode's Gazebo spot-check rung.
