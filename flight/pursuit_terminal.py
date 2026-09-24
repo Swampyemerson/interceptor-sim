@@ -259,12 +259,21 @@ class PursuitTerminalConfig:
     # moment a collision is as certain as the track can make it, so many
     # scored passes fit on one battery/airframe before a real contact test.
     # Pre-registration: isim/specs/rehearsal_breakoff_prereg_2026-09-24.md.
-    # TRIGGER (Phase B only, all three at once):
+    # TRIGGER (Phase B only, all at once; AMENDMENT #1 of the prereg doc
+    # replaced round 1's raw range trigger with TIME-TO-GO):
     #   * >= rehearsal_min_updates CONSUMED KF updates inside the trailing
     #     rehearsal_fresh_s (a converged, currently-fed track -- a coasting
     #     or phantom track must NOT trigger),
     #   * closing > 0 on the KF state (-(r . v_rel)/|r|),
-    #   * |KF r| <= rehearsal_range_m.
+    #   * t_go = d_h / max(closing_h, v_close_min_ms) <= rehearsal_t_react_s
+    #     (d_h = horizontal |KF r|, closing_h = horizontal own-minus-target
+    #     speed along it, floored at 0 -- the brake_vert_sync t_go exactly),
+    #   * |KF r| <= rehearsal_range_m (an UPPER BOUND only since amendment #1).
+    # TOO-LATE FLOOR: if the first tick on which all of the above hold has
+    # t_go < rehearsal_t_late_s, the evade could not have escaped -- do NOT
+    # trigger: latch `rehearsal_too_late`, say so once (FAULT-style line
+    # `rehearsal_too_late`), never trigger again this flight, and let the
+    # normal engagement end fire (the pass is not silently relabelled).
     # At the trigger the KF state is recorded -- the onboard WOULD-HAVE
     # estimate is the ZEM (zero-effort miss: |r| minimised along the current
     # KF relative velocity) -- and the command switches to the EVADE, latched
@@ -278,16 +287,36 @@ class PursuitTerminalConfig:
     # SAFE with its own reason `rehearsal_breakoff` (a MISS-class SAFE:
     # hover per ADR-0107). Inputs: KF + own-state only (honesty boundary).
     rehearsal_breakoff: bool = False
-    rehearsal_range_m: float = 2.5     # TODO-BUILDER estimate: isim-derived,
-    #                                    set by the registered margin sweep
-    #                                    (scripts/rehearsal_margin_sweep.py);
-    #                                    an isim number until a Gazebo spot-
-    #                                    check + reduced-speed field passes
+    rehearsal_range_m: float = 10.0    # TODO-BUILDER estimate: UPPER BOUND only
+    #                                    since amendment #1 (round 1's 2.5 m
+    #                                    trigger range is retired). Sized NOT
+    #                                    to bind in the round-2 regime: an
+    #                                    unregistered 12-seed probe with the
+    #                                    practice profile triggered at r_hat
+    #                                    up to 8.1 m at t_react 2.5 s; a 2.5 m
+    #                                    bound would pre-empt the t_go trigger
+    #                                    (and fake too-late latches). An isim
+    #                                    number until a Gazebo spot-check +
+    #                                    reduced-speed field passes
     rehearsal_min_updates: int = 3     # TODO-BUILDER estimate: "certain" gate
     rehearsal_fresh_s: float = 0.5     # TODO-BUILDER estimate: ~5 decode
     #                                    intervals at the isim ~10 Hz decode rate
     rehearsal_evade_s: float = 1.5     # TODO-BUILDER estimate: evade duration
     #                                    before the SAFE hover
+    rehearsal_t_react_s: float = 1.5   # ADOPTED by the round-2 registered
+    #                                    sweep (smallest t_react meeting P1:
+    #                                    worst-case escape gap 1.59-1.73 m,
+    #                                    0 contacts, 0 too-late; margins are
+    #                                    CONDITIONAL on the practice profile
+    #                                    and isim-tier until the Gazebo
+    #                                    spot-check). Sizing rationale:
+    #                                    plant delay+tau ~0.8 s + the time the
+    #                                    full-authority climb needs to build
+    #                                    >= 0.7 m of separation on the honest
+    #                                    ENGAGE fit; set by the round-2 sweep
+    rehearsal_t_late_s: float = 0.6    # TODO-BUILDER estimate (amendment #1):
+    #                                    below this t_go at first eligibility
+    #                                    the evade cannot escape -> too late
 
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
@@ -541,9 +570,14 @@ class PursuitTerminalGuidance:
         self.rehearsal_trigger_t: Optional[float] = None
         self.rehearsal_trigger_range_m: Optional[float] = None
         self.rehearsal_zem_m: Optional[float] = None     # onboard would-have
-        self.rehearsal_t_go_s: Optional[float] = None
+        self.rehearsal_t_go_s: Optional[float] = None    # trigger t_go (horizontal)
         self.rehearsal_side: Optional[str] = None        # "left"/"right"/"right_fallback"
         self.rehearsal_complete = False
+        # Amendment #1 too-late floor: latched, never cleared this flight.
+        self.rehearsal_too_late = False
+        self.rehearsal_too_late_t: Optional[float] = None
+        self.rehearsal_too_late_t_go_s: Optional[float] = None
+        self.rehearsal_too_late_range_m: Optional[float] = None
         self._warned: set = set()
         self.n_track_broken = 0
 
@@ -704,8 +738,8 @@ class PursuitTerminalGuidance:
             return None, tel
 
         if cfg.rehearsal_breakoff and self._phase == "B" \
-                and self.rehearsal_trigger_t is None:
-            self._rehearsal_check(t, own_vel)
+                and self.rehearsal_trigger_t is None and not self.rehearsal_too_late:
+            self._rehearsal_check(t, own_vel, tel)
 
         v_cap = self._speed_cap()
         if self.rehearsal_trigger_t is not None:
@@ -952,11 +986,24 @@ class PursuitTerminalGuidance:
         self._rehearsal_upd_t = [u for u in self._rehearsal_upd_t if u >= cutoff]
         return len(self._rehearsal_upd_t) >= cfg.rehearsal_min_updates
 
-    def _rehearsal_check(self, t: float, own_vel: np.ndarray) -> None:
-        """Phase B, flag on, not yet triggered: evaluate the trigger on the
-        CURRENT KF state and, if it fires, record the onboard would-have
-        estimate and latch the evade reference (cfg.rehearsal_breakoff
-        docstring)."""
+    def _rehearsal_t_go(self, own_vel: np.ndarray) -> float:
+        """Amendment #1 trigger clock: horizontal |KF r| over the horizontal
+        closing speed floored at v_close_min_ms -- the same t_go the
+        brake_vert_sync schedule uses (`_brake_sync_vertical`)."""
+        r = self._kf.r
+        r_h = np.array([r[0], r[1], 0.0])
+        d_h = float(np.linalg.norm(r_h))
+        closing_h = self._brake_closing(r_h, np.asarray(self._kf.v_t, dtype=np.float64),
+                                        own_vel)
+        return max(d_h, 1e-6) / max(closing_h, self.cfg.v_close_min_ms)
+
+    def _rehearsal_check(self, t: float, own_vel: np.ndarray,
+                         tel: StepTelemetry) -> None:
+        """Phase B, flag on, not yet triggered or too late: evaluate the
+        trigger on the CURRENT KF state and, if it fires, record the onboard
+        would-have estimate and latch the evade reference -- or, if the
+        first eligible tick is already inside rehearsal_t_late_s, latch the
+        too-late floor instead (cfg.rehearsal_breakoff docstring)."""
         cfg = self.cfg
         if not self._rehearsal_gate_ok(t):
             return
@@ -969,12 +1016,30 @@ class PursuitTerminalGuidance:
         closing = -float(np.dot(r, v_rel)) / rng
         if not closing > 0.0:
             return
-        # Onboard WOULD-HAVE estimate: the ZEM, |r + v_rel*t_go| at the
-        # t_go minimising it along the current KF relative velocity.
+        t_go_h = self._rehearsal_t_go(own_vel)
+        if not t_go_h <= cfg.rehearsal_t_react_s:
+            return
+        if t_go_h < cfg.rehearsal_t_late_s:
+            # TOO-LATE FLOOR: first eligibility already inside the evade's
+            # no-escape window -- never trigger this flight; the normal
+            # engagement end decides (a real pass stays a real pass).
+            self.rehearsal_too_late = True
+            self.rehearsal_too_late_t = t
+            self.rehearsal_too_late_t_go_s = t_go_h
+            self.rehearsal_too_late_range_m = rng
+            self._emit_fault(
+                tel, "rehearsal_too_late",
+                f"certainty gate first eligible at t_go={t_go_h:.2f} s < "
+                f"rehearsal_t_late_s={cfg.rehearsal_t_late_s:.2f} s "
+                f"(r_hat={rng:.2f} m) -- rehearsal break-off NOT triggered "
+                f"this flight", once=True)
+            return
+        # Onboard WOULD-HAVE estimate: the ZEM, |r + v_rel*t_cpa| at the
+        # t_cpa minimising it along the current KF relative velocity.
         vv = float(np.dot(v_rel, v_rel))
-        t_go = max(-float(np.dot(r, v_rel)) / vv, 0.0) if vv > 1e-12 else 0.0
-        self.rehearsal_zem_m = float(np.linalg.norm(r + v_rel * t_go))
-        self.rehearsal_t_go_s = t_go
+        t_cpa = max(-float(np.dot(r, v_rel)) / vv, 0.0) if vv > 1e-12 else 0.0
+        self.rehearsal_zem_m = float(np.linalg.norm(r + v_rel * t_cpa))
+        self.rehearsal_t_go_s = t_go_h
         self.rehearsal_trigger_t = t
         self.rehearsal_trigger_range_m = rng
         # Evade reference, latched. Side: the vehicle's horizontal offset

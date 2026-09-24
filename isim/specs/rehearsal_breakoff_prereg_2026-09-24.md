@@ -117,3 +117,30 @@ flights (too-late flights count against recall — no gaming the floor); P2 onbo
 would-have |err| median ≤ 0.15 m. Adopt smallest t_react meeting P1. Null branch:
 report the frontier; the mode then ships practice-profile-only with the honest
 "reduced-speed rehearsal" label and the field margin question waits for hardware data.
+
+## AMENDMENT #1 RESULT (round 2 flown 2026-09-24; sweep verbatim in
+logs/rehearsal_20260924/sweep_round2.txt; suite 537 green + audit PASS, head-verified)
+
+**P1 PASSES on every t_react arm — the smallest, t_react = 1.5 s, is ADOPTED as the
+config default** (registered adopt rule; decide-and-log). At 1.5 s: worst-case
+post-trigger TRUE separation 1.59–1.73 m across all cells vs the 0.7 m bar (round 1:
+0.03–0.25 m), ZERO triggered contacts, ZERO untriggered contacts (the round-1 aim20
+hole is closed by the eligibility-time floor design), recall 89–97%, 0 too-late
+latches. **P2 FAILS on every arm** (the onboard straight-line would-have estimate
+reads +0.55 to +1.35 m high — the real pass keeps correcting after the trigger) —
+per the registered consequence the FIELD would-have claim is ULogs + video only; sim
+practice is scored against the paired twin.
+
+**Decide-and-log items (ADR-0118 discipline):** (1) t_react default = 1.5 s adopted;
+(2) `rehearsal_range_m = 10.0` ratified as a never-binding upper bound (max observed
+trigger range 8.12 m); (3) `--pursuit-rehearsal` now applies the WHOLE practice
+profile (rehearsal + brake package + v_max 10) in one switch, because the P1 margins
+are CONDITIONAL on that profile — a bare trigger at full speed would fly unproven
+margins; (4) the too-late floor is judged at first ELIGIBILITY (not first gate-open),
+closing the reopen-late hole the literal wording would have missed.
+
+**Honest bounds, restated:** median trigger range at 1.5 s is 2.2–2.4 m — later than
+round 1 could safely manage but not the literal "very last possible chance"; the
+frontier below 1.5 s is unexplored (unregistered); the 0.6 s floor never fired in
+this regime (unexercised); all margins are isim-tier, conditional on the practice
+profile, until the mode's Gazebo spot-check rung.

@@ -833,6 +833,7 @@ class RealFlightSM:
         self._gs_last_v: float = 0.0
         self._last_r_hat_m: Optional[float] = None  # pursuit miss-policy input
         self._rehearsal_logged = False     # rehearsal trigger said once
+        self._rehearsal_too_late_logged = False   # too-late floor said once
         self._warned_own_state = False
         self.last_telemetry: Optional[StepTelemetry] = None  # for the CSV row
         # AGL-floor bookkeeping (ADR-0085's half, review F3). `_last_alt_m` is the
@@ -1514,6 +1515,23 @@ class RealFlightSM:
                     obs, events)
                 self.safe_reason = "rehearsal_breakoff"
                 return self._safe_setpoint(obs), tel
+        elif self.guidance is not None and \
+                getattr(self.guidance, "rehearsal_too_late", False) is True \
+                and not self._rehearsal_too_late_logged:
+            # Amendment #1 TOO-LATE FLOOR (same prereg doc): the terminal
+            # latched `rehearsal_too_late` -- its first eligible t_go was
+            # already inside rehearsal_t_late_s -- and will not break off this
+            # flight; the normal engagement end decides. Logged once; no
+            # state change here.
+            g = self.guidance
+            self._rehearsal_too_late_logged = True
+            self._emit(
+                f"[{obs.t:7.2f}s] REHEARSAL too late at "
+                f"t={g.rehearsal_too_late_t:.2f}s (t_go="
+                f"{g.rehearsal_too_late_t_go_s:.2f} s < "
+                f"{g.cfg.rehearsal_t_late_s:.2f} s, r_hat="
+                f"{g.rehearsal_too_late_range_m:.2f} m) -- NOT breaking off; "
+                f"this pass ends through the normal engagement end", events)
 
         # FAILSAFE 8 -- the terminal's RANGE CHANNEL DIVERGED (review2 BLOCKER).
         # r_hat <= 0 or a non-physical |rdot_hat| is proof the estimate is not the
@@ -3095,13 +3113,22 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
         print("[terminal] pursuit BRAKE PACKAGE ON (ADR-0115: a=3 m/s^2, "
               "lead 0.45 s, horizontal-only cap + vertical arrival-sync)")
     if getattr(args, "pursuit_rehearsal", False):
-        # PRACTICE mode: one switch, range/gate/evade stay the config
-        # defaults (isim/specs/rehearsal_breakoff_prereg_2026-09-24.md).
-        pcfg = replace(pcfg, rehearsal_breakoff=True)
-        print(f"[terminal] pursuit REHEARSAL BREAK-OFF ON (practice pass, no "
-              f"contact: evade at r_hat <= {pcfg.rehearsal_range_m:.1f} m on a "
-              f"fed track, then SAFE 'rehearsal_breakoff'; isim-derived margin "
-              f"-- fly at REDUCED closing speed first)")
+        # PRACTICE mode: ONE switch applies the WHOLE registered practice
+        # profile (rehearsal + brake package + reduced 10 m/s cap) -- the
+        # round-2 sweep's P1 margins are CONDITIONAL on that profile, so a
+        # bare rehearsal trigger at full speed would fly with unproven
+        # margins (isim/specs/rehearsal_breakoff_prereg_2026-09-24.md,
+        # amendment #1 RESULT; decide-and-log per ADR-0118 discipline).
+        pcfg = replace(pcfg, rehearsal_breakoff=True, brake_shaping=True,
+                       brake_accel_ms2=3.0, brake_vert_sync=True,
+                       v_max_ms=10.0)
+        print(f"[terminal] pursuit REHEARSAL practice profile ON (no contact: "
+              f"brake a=3 + vert-sync, v_max 10 m/s; evade at t_go <= "
+              f"{pcfg.rehearsal_t_react_s:.1f} s (r_hat <= "
+              f"{pcfg.rehearsal_range_m:.1f} m) on a fed track, too late "
+              f"below t_go {pcfg.rehearsal_t_late_s:.1f} s, then SAFE "
+              f"'rehearsal_breakoff'; isim-derived margins -- Gazebo "
+              f"spot-check pending)")
     return PursuitTerminalGuidance(
         pcfg, cam, gcfg.target_span_m, gcfg,
         belief_r0_ned=belief_r0_ned, belief_vel0_ned=belief_vel0_ned,
@@ -3312,8 +3339,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     trm.add_argument("--pursuit-rehearsal", action="store_true",
                      help="pursuit-mode REHEARSAL BREAK-OFF (builder "
                           "directive 2026-09-24): practice passes without "
-                          "contact -- on a freshly-fed KF track that is "
-                          "closing inside rehearsal_range_m, climb and push "
+                          "contact -- on a freshly-fed KF track whose "
+                          "time-to-go is inside rehearsal_t_react_s (not "
+                          "already inside rehearsal_t_late_s: too late, "
+                          "logged, no break-off), climb and push "
                           "away from the target's path, then end the pass in "
                           "SAFE (reason rehearsal_breakoff, hovers like a "
                           "miss). The trigger instant, range and onboard "

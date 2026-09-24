@@ -146,26 +146,32 @@ def test_pursuit_brake_flag_sets_the_adopted_package_and_defaults_off():
     assert g_on.cfg.brake_vert_sync is True
 
 
-def test_pursuit_rehearsal_flag_sets_only_the_switch_and_defaults_off():
-    """--pursuit-rehearsal (builder directive 2026-09-24,
-    isim/specs/rehearsal_breakoff_prereg_2026-09-24.md): one switch -- sets
-    rehearsal_breakoff=True and leaves the range/gate/evade at the config
-    defaults; absent -> off. Composes with --pursuit-brake."""
+def test_pursuit_rehearsal_flag_applies_the_whole_practice_profile():
+    """--pursuit-rehearsal (builder directive 2026-09-24; round-2 RESULT in
+    isim/specs/rehearsal_breakoff_prereg_2026-09-24.md): ONE switch applies
+    the WHOLE registered practice profile -- rehearsal + the brake package +
+    the reduced 10 m/s cap -- because the sweep's escape margins are
+    conditional on that profile. Absent -> everything off. The adopted
+    trigger default is t_react = 1.5 s (smallest meeting P1)."""
+    from dataclasses import replace
+
     from flight.pursuit_terminal import PursuitTerminalConfig
     d = PursuitTerminalConfig()
+    assert d.rehearsal_t_react_s == 1.5          # the adopted round-2 value
+
     _a, _c, g_off = _build("--terminal", "pursuit")
     assert g_off.cfg.rehearsal_breakoff is False
     assert g_off.cfg == d
 
     _a, _c, g_on = _build("--terminal", "pursuit", "--pursuit-rehearsal")
-    assert g_on.cfg.rehearsal_breakoff is True
+    assert g_on.cfg == replace(d, rehearsal_breakoff=True, brake_shaping=True,
+                               brake_accel_ms2=3.0, brake_vert_sync=True,
+                               v_max_ms=10.0)    # the profile, nothing else
+    # The gate/evade/floor stay at their adopted config defaults.
     assert g_on.cfg.rehearsal_range_m == d.rehearsal_range_m
-    assert g_on.cfg.rehearsal_min_updates == d.rehearsal_min_updates
-    assert g_on.cfg.rehearsal_fresh_s == d.rehearsal_fresh_s
-    assert g_on.cfg.rehearsal_evade_s == d.rehearsal_evade_s
-    assert g_on.cfg.brake_shaping is False
+    assert g_on.cfg.rehearsal_t_late_s == d.rehearsal_t_late_s
 
+    # Composes with an explicit --pursuit-brake (same package; idempotent).
     _a, _c, g_both = _build("--terminal", "pursuit", "--pursuit-brake",
                             "--pursuit-rehearsal")
-    assert g_both.cfg.rehearsal_breakoff is True
-    assert g_both.cfg.brake_shaping is True and g_both.cfg.brake_vert_sync is True
+    assert g_both.cfg == g_on.cfg

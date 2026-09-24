@@ -17,11 +17,11 @@
  },
  "now": {
   "as_of": "2026-09-24",
-  "where": "Builder feedback applied (decide-and-log, stop queueing the reasonable): ADR-0118 executed the default-terminal swap per its standing gate, froze the stock-path geometry as-flown, closed three stale questions; queue is down to the publication hands-on list. Rehearsal round 2 in flight.",
+  "where": "Rehearsal round 2 adopted: the practice mode now escapes cleanly (worst gap 1.59-1.73 m, zero contacts, one switch = the whole practice profile). Chase remains the flying default (ADR-0118). Queue holds only the publication hands-on list.",
   "finding": "The chase (camera-only pursuit) is now the FLYING DEFAULT -- the gate it was held behind passed at median 0.343 m. Stock/tag stay selectable as-flown. Remaining directive work: rehearsal round 2, commit-sprint, Pi recorder, then the registered brake Gazebo arm.",
   "next": [
-   "Rehearsal round 2 (t_go trigger + too-late floor + brake-paired practice), registered",
-   "Then: commit-sprint experiment, Pi recorder, brake Gazebo arm"
+   "Commit-sprint experiment (registered), then Pi recorder, then the brake Gazebo arm",
+   "Gazebo spot-check rung for the rehearsal margins (queued behind those)"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -1116,6 +1116,10 @@
     {
      "date": "2026-09-24",
      "note": "ADR-0118: default terminal swapped to pursuit (standing gate passed); stock frozen as-flown incl. its slant/AABB geometry (ledger entry resolved); queue cleaned per builder feedback -- reversible calls are now decided and logged, not queued."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Rehearsal round 2 ADOPTED (t_go trigger, t_react 1.5 s; too-late floor at first eligibility; --pursuit-rehearsal = the whole practice profile incl. brake + v_max 10): worst-case escape gap 1.59-1.73 m vs the 0.7 bar, zero contacts, recall 89-97%. Onboard would-have estimate reads high (P2 fail) -- field claim = ULogs+video. isim-tier until the Gazebo spot-check. 537 tests + audit green."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",

@@ -859,10 +859,14 @@ def test_brake_vert_sync_schedules_the_climb_to_the_horizontal_closure():
 #
 # isim/specs/rehearsal_breakoff_prereg_2026-09-24.md. Config-gated, DEFAULT
 # OFF: on a freshly-fed (>= rehearsal_min_updates KF updates inside
-# rehearsal_fresh_s), CLOSING Phase-B track inside rehearsal_range_m, record
-# the onboard would-have ZEM and fly the latched evade (climb + lateral away
-# from the target's path, yaw held) for rehearsal_evade_s, then raise
-# rehearsal_complete for RealFlightSM's SAFE 'rehearsal_breakoff'.
+# rehearsal_fresh_s), CLOSING Phase-B track whose horizontal time-to-go
+# (AMENDMENT #1: d_h / max(closing_h, v_close_min_ms)) is inside
+# rehearsal_t_react_s and whose |KF r| is inside the rehearsal_range_m upper
+# bound, record the onboard would-have ZEM and fly the latched evade (climb +
+# lateral away from the target's path, yaw held) for rehearsal_evade_s, then
+# raise rehearsal_complete for RealFlightSM's SAFE 'rehearsal_breakoff'. If
+# the first eligible tick is already inside rehearsal_t_late_s: latch
+# rehearsal_too_late instead and never trigger.
 
 
 def test_rehearsal_off_is_byte_identical_to_prefeature_code():
@@ -877,13 +881,18 @@ def test_rehearsal_off_is_byte_identical_to_prefeature_code():
 
 
 def test_rehearsal_on_never_triggering_is_identical_to_off():
-    """Flag ON but the target never inside rehearsal_range_m (the fixture
-    drive's closest box is 5 m): the commands are identical to the OFF arm --
-    the extra update bookkeeping never feeds a command."""
+    """Flag ON but never eligible -- two independent routes: (a) the target
+    never inside the rehearsal_range_m upper bound (the fixture drive's
+    closest box is 5 m), (b) t_go never inside a tiny rehearsal_t_react_s.
+    The commands are identical to the OFF arm -- the extra update
+    bookkeeping never feeds a command -- and no too-late latch fires."""
     golden = np.load(_FIXTURE_PATH)["cmds"]
-    on = _keepframe_identity_drive({"rehearsal_breakoff": True})
-    _assert_matches_golden(on, golden)
-    assert np.array_equal(on, _keepframe_identity_drive(), equal_nan=True)
+    for kw in ({"rehearsal_breakoff": True, "rehearsal_range_m": 4.0},
+               {"rehearsal_breakoff": True, "rehearsal_t_react_s": 0.05,
+                "rehearsal_t_late_s": 0.0}):
+        on = _keepframe_identity_drive(kw)
+        _assert_matches_golden(on, golden)
+        assert np.array_equal(on, _keepframe_identity_drive(), equal_nan=True)
 
 
 def _rehearsal_drive(boxes, own_vel=(3.0, 0.0, 0.0), belief_vel=(0.0, 0.0, 0.0),
@@ -902,53 +911,199 @@ def _rehearsal_drive(boxes, own_vel=(3.0, 0.0, 0.0), belief_vel=(0.0, 0.0, 0.0),
 def test_rehearsal_gate_needs_n_fresh_updates_and_records_the_zem():
     """Acquire on tick 1-2 (the first KF update lands on tick 2), so with
     rehearsal_min_updates=3 the trigger cannot fire before tick 4 even though
-    range/closing qualify from the start; on tick 4 it fires and the recorded
-    would-have estimate equals the ZEM formula on the KF state at that tick."""
-    boxes = [box_for(2.2 - 0.15 * i, 0.2, 0.0) for i in range(4)]
-    g, cfg, out = _rehearsal_drive(boxes[:3], rehearsal_breakoff=True)
+    range/closing/t_go qualify from the start (t_go ~1.2 s, inside the 2.0 s
+    default and above the 0.6 s floor); on tick 4 it fires, the recorded
+    t_go is the amendment-#1 horizontal t_go and the would-have estimate
+    equals the ZEM formula on the KF state at that tick."""
+    boxes = [box_for(4.0 - 0.15 * i, 0.2, 0.0) for i in range(4)]
+    g, cfg, out = _rehearsal_drive(boxes[:3], belief_r0=(4.0, 0.2, 0.0),
+                                   rehearsal_breakoff=True)
     assert out[-1][1].phase == "B"
     assert g.rehearsal_trigger_t is None          # only 2 updates so far
-    g, cfg, out = _rehearsal_drive(boxes, rehearsal_breakoff=True)
+    g, cfg, out = _rehearsal_drive(boxes, belief_r0=(4.0, 0.2, 0.0),
+                                   rehearsal_breakoff=True)
     assert g.rehearsal_trigger_t == pytest.approx(4 * DT)
-    r, v_rel = g._kf.r, g._kf.v_t - np.array([3.0, 0.0, 0.0])
-    t_go = -float(np.dot(r, v_rel)) / float(np.dot(v_rel, v_rel))
-    assert t_go > 0.0
-    assert g.rehearsal_t_go_s == pytest.approx(t_go, abs=1e-12)
+    assert not g.rehearsal_too_late
+    own_v = np.array([3.0, 0.0, 0.0])
+    r, v_rel = g._kf.r, g._kf.v_t - own_v
+    # Trigger clock: horizontal range over horizontal closing (> v_close_min).
+    r_h = np.array([r[0], r[1], 0.0])
+    d_h = float(np.linalg.norm(r_h))
+    closing_h = float(np.dot(own_v - g._kf.v_t, r_h / d_h))
+    assert closing_h > cfg.v_close_min_ms
+    assert g.rehearsal_t_go_s == pytest.approx(d_h / closing_h, abs=1e-12)
+    assert cfg.rehearsal_t_late_s < g.rehearsal_t_go_s <= cfg.rehearsal_t_react_s
+    t_cpa = -float(np.dot(r, v_rel)) / float(np.dot(v_rel, v_rel))
+    assert t_cpa > 0.0
     assert g.rehearsal_zem_m == pytest.approx(
-        float(np.linalg.norm(r + v_rel * t_go)), abs=1e-12)
+        float(np.linalg.norm(r + v_rel * t_cpa)), abs=1e-12)
     assert g.rehearsal_trigger_range_m == pytest.approx(float(np.linalg.norm(r)))
     assert g.rehearsal_trigger_range_m <= cfg.rehearsal_range_m
     # A higher N delays it: same stream, 4 updates needed -> not yet.
-    g4, _, _ = _rehearsal_drive(boxes, rehearsal_breakoff=True,
-                                rehearsal_min_updates=4)
+    g4, _, _ = _rehearsal_drive(boxes, belief_r0=(4.0, 0.2, 0.0),
+                                rehearsal_breakoff=True, rehearsal_min_updates=4)
     assert g4.rehearsal_trigger_t is None
 
 
 def test_rehearsal_coasting_track_does_not_trigger():
-    """Decodes stop at 5 m; the KF then COASTS (predicts) the range down
-    through rehearsal_range_m while the last update is > rehearsal_fresh_s
-    old -- a coasting track must NOT trigger. The control arm (decodes
-    continue) does."""
-    fed = [box_for(5.5 - 0.15 * i, 0.0, 0.0) for i in range(4)]
-    g, cfg, out = _rehearsal_drive(fed + [None] * 36, belief_r0=(5.5, 0.0, 0.0),
+    """Decodes stop at ~8.5 m (t_go ~2.8 s, outside the 2.0 s window); the KF
+    then COASTS (predicts) the range down to ~0 -- through the whole t_go
+    window -- while the last update is > rehearsal_fresh_s old: a coasting
+    track must NOT trigger (and, the gate never opening, must not latch
+    too-late either). The control arm (decodes continue) does trigger."""
+    fed = [box_for(9.0 - 0.15 * i, 0.0, 0.0) for i in range(4)]
+    g, cfg, out = _rehearsal_drive(fed + [None] * 56, belief_r0=(9.0, 0.0, 0.0),
                                    rehearsal_breakoff=True)
     assert all(tel.phase == "B" for _sp, tel in out[1:])
-    assert min(tel.r_hat_m for _sp, tel in out[1:]) < cfg.rehearsal_range_m - 1.0
+    assert min(tel.r_hat_m for _sp, tel in out[1:]) < cfg.hold_range_m
     assert g.rehearsal_trigger_t is None
+    assert not g.rehearsal_too_late
     assert not g.rehearsal_complete
-    ctrl = [box_for(max(5.5 - 0.15 * i, 0.3), 0.0, 0.0) for i in range(40)]
-    g2, _, _ = _rehearsal_drive(ctrl, belief_r0=(5.5, 0.0, 0.0),
+    ctrl = [box_for(max(9.0 - 0.15 * i, 0.3), 0.0, 0.0) for i in range(60)]
+    g2, _, _ = _rehearsal_drive(ctrl, belief_r0=(9.0, 0.0, 0.0),
                                 rehearsal_breakoff=True)
     assert g2.rehearsal_trigger_t is not None
+    assert g2.rehearsal_t_go_s <= cfg.rehearsal_t_react_s
 
 
 def test_rehearsal_opening_track_does_not_trigger():
     """Inside range, fed, but OPENING (own receding): closing <= 0 -> no
-    trigger."""
+    trigger (the floored t_go alone, 2 m / v_close_min, would be inside the
+    window -- the closing test is what stops it), and no too-late latch."""
     boxes = [box_for(2.0 + 0.15 * i, 0.0, 0.0) for i in range(6)]
     g, _, _ = _rehearsal_drive(boxes, own_vel=(-3.0, 0.0, 0.0),
                                rehearsal_breakoff=True, rehearsal_range_m=3.0)
     assert g.rehearsal_trigger_t is None
+    assert not g.rehearsal_too_late
+
+
+def test_rehearsal_t_go_arithmetic_through_step():
+    """Known geometry: stationary target, own closing at 3 m/s, target 1 m
+    ABOVE and 0.5 m east. The trigger fires on the first tick whose
+    amendment-#1 t_go = d_h / max(closing_h, v_close_min_ms) -- recomputed
+    here from the guidance's own KF state -- is inside rehearsal_t_react_s,
+    and NOT on the tick before (where the same formula is outside it). The
+    vertical offset is excluded from the clock (horizontal only)."""
+    own_v = np.array([3.0, 0.0, 0.0])
+    boxes = [box_for(9.0 - 0.15 * i, 0.5, -1.0) for i in range(40)]
+    g, cfg, _ = guidance(belief_r0_ned=(9.0, 0.5, -1.0),
+                         belief_vel0_ned=(0.0, 0.0, 0.0),
+                         acquire_n=2, acquire_window_s=0.3,
+                         rehearsal_breakoff=True)
+
+    def formula():
+        r, v_t = g._kf.r, g._kf.v_t
+        r_h = np.array([r[0], r[1], 0.0])
+        d_h = float(np.linalg.norm(r_h))
+        closing_h = max(float(np.dot(own_v - v_t, r_h / d_h)), 0.0)
+        return d_h / max(closing_h, cfg.v_close_min_ms)
+
+    t, fired_at, prev = 0.0, None, None
+    for b in boxes:
+        t += DT
+        g.step(b, own(n_e_d_vel=tuple(own_v)), t=t)
+        if g._phase == "B" and g.rehearsal_trigger_t is None:
+            prev = formula()
+        if g.rehearsal_trigger_t is not None:
+            fired_at = t
+            break
+    assert fired_at is not None and g.rehearsal_trigger_t == pytest.approx(fired_at)
+    assert prev is not None and prev > cfg.rehearsal_t_react_s   # tick before: outside
+    assert g.rehearsal_t_go_s == pytest.approx(formula(), abs=1e-12)
+    assert g.rehearsal_t_go_s <= cfg.rehearsal_t_react_s
+    # ~ d_h / 3 m/s: the trigger range is ~ t_react * closing (horizontal).
+    assert g.rehearsal_t_go_s * 3.0 == pytest.approx(
+        float(np.hypot(g._kf.r[0], g._kf.r[1])), rel=0.05)
+    # A larger t_react fires EARLIER (farther out) on the same stream.
+    g3, _, _ = _rehearsal_drive(boxes, belief_r0=(9.0, 0.5, -1.0),
+                                rehearsal_breakoff=True, rehearsal_t_react_s=2.5)
+    assert g3.rehearsal_trigger_t < g.rehearsal_trigger_t
+    assert g3.rehearsal_trigger_range_m > g.rehearsal_trigger_range_m
+
+
+def test_rehearsal_slow_closing_inside_range_does_not_trigger():
+    """Fed, closing, well INSIDE the rehearsal_range_m upper bound -- but
+    closing slowly (0.5 m/s, floored to v_close_min_ms in the clock), so t_go =
+    d_h / 1.5 m/s stays above rehearsal_t_react_s while d_h > 3 m: no
+    trigger. The same start at a hot closing speed does trigger: reaction
+    time, not range, is what gates it now."""
+    slow = [box_for(4.0 - 0.025 * i, 0.0, 0.0) for i in range(30)]
+    g, cfg, out = _rehearsal_drive(slow, own_vel=(0.5, 0.0, 0.0),
+                                   belief_r0=(4.0, 0.0, 0.0),
+                                   rehearsal_breakoff=True)
+    assert all(tel.r_hat_m < cfg.rehearsal_range_m for _sp, tel in out[2:])
+    assert min(tel.r_hat_m for _sp, tel in out[2:]) > \
+        cfg.rehearsal_t_react_s * cfg.v_close_min_ms
+    assert g.rehearsal_trigger_t is None
+    assert not g.rehearsal_too_late
+    hot = [box_for(4.0 - 0.15 * i, 0.0, 0.0) for i in range(6)]
+    g2, _, _ = _rehearsal_drive(hot, own_vel=(3.0, 0.0, 0.0),
+                                belief_r0=(4.0, 0.0, 0.0), rehearsal_breakoff=True)
+    assert g2.rehearsal_trigger_t is not None
+    # The v_close_min_ms floor is live: the same 0.5 m/s crawl from 2.0 m has
+    # a floored t_go of ~1.3 s (inside the adopted 1.5 s window, above the
+    # 0.6 s too-late floor) -- an unfloored clock (2.0 / 0.5 = 4.0 s) would
+    # never fire it. (Geometry re-sized when the round-2 sweep adopted
+    # t_react 1.5 s; the old 2.6 m case floored to ~1.7 s and only fired at
+    # the retired 2.0 s default.)
+    crawl = [box_for(2.0 - 0.025 * i, 0.0, 0.0) for i in range(4)]   # fires on tick 4
+    g3, _, _ = _rehearsal_drive(crawl, own_vel=(0.5, 0.0, 0.0),
+                                belief_r0=(2.0, 0.0, 0.0), rehearsal_breakoff=True)
+    assert g3.rehearsal_trigger_t is not None
+    assert g3.rehearsal_t_go_s == pytest.approx(
+        float(np.hypot(g3._kf.r[0], g3._kf.r[1])) / cfg.v_close_min_ms, abs=1e-12)
+
+
+def test_rehearsal_too_late_floor_latches_and_never_triggers(capsys):
+    """The gate first becomes satisfied (tick 4, the 3rd KF update) with t_go
+    already under rehearsal_t_late_s: the floor latches `rehearsal_too_late`
+    with its telemetry, prints ONE FAULT-style line, never triggers for the
+    rest of the flight (even though t_go stays in the window and the track
+    stays fed), and the commands are the flag-off chase exactly -- the pass
+    is not relabelled. Mutation control: a lower floor on the same stream
+    triggers instead."""
+    boxes = [box_for(max(1.6 - 0.15 * i, 0.05), 0.2, 0.0) for i in range(12)]
+    kw = dict(own_vel=(3.0, 0.0, 0.0), belief_r0=(1.6, 0.2, 0.0))
+    g, cfg, out = _rehearsal_drive(boxes, rehearsal_breakoff=True, **kw)
+    assert g.rehearsal_too_late
+    assert g.rehearsal_too_late_t == pytest.approx(4 * DT)
+    assert g.rehearsal_too_late_t_go_s < cfg.rehearsal_t_late_s
+    assert g.rehearsal_too_late_range_m < 1.5
+    assert g.rehearsal_trigger_t is None and not g.rehearsal_complete
+    assert g.rehearsal_zem_m is None
+    lines = [ln for ln in capsys.readouterr().out.splitlines()
+             if "FAULT rehearsal_too_late" in ln]
+    assert len(lines) == 1
+    assert "rehearsal_too_late" in out[3][1].health            # the latch tick
+    assert all("rehearsal_too_late" not in tel.health for _sp, tel in out[4:])
+    _g0, _, out_off = _rehearsal_drive(boxes, **kw)            # flag off
+    for (sp_on, _t1), (sp_off, _t2) in zip(out, out_off):
+        assert (sp_on.v_north, sp_on.v_east, sp_on.v_down, sp_on.yaw_deg) == \
+            (sp_off.v_north, sp_off.v_east, sp_off.v_down, sp_off.yaw_deg)
+    g_ctl, _, _ = _rehearsal_drive(boxes, rehearsal_breakoff=True,
+                                   rehearsal_t_late_s=0.1, **kw)
+    assert g_ctl.rehearsal_trigger_t == pytest.approx(4 * DT)
+    assert not g_ctl.rehearsal_too_late
+
+
+def test_rehearsal_too_late_is_first_eligibility_not_first_gate_opening():
+    """The aim20 hole of round 1: the gate is open FAR out (t_go outside the
+    window -- not eligible), the track then drops out through the whole
+    t_react..t_late window, and the gate re-opens with t_go already under
+    the floor. The floor is judged at the first ELIGIBLE tick, so this latches
+    too-late; the continuously-fed control arm triggers normally."""
+    fed = [box_for(9.0 - 0.15 * i, 0.0, 0.0) for i in range(6)]
+    gap = [None] * 46                                    # coast 9 -> ~1.3 m
+    late = [box_for(max(9.0 - 0.15 * i, 0.3), 0.0, 0.0) for i in range(52, 60)]
+    g, cfg, _ = _rehearsal_drive(fed + gap + late, belief_r0=(9.0, 0.0, 0.0),
+                                 rehearsal_breakoff=True)
+    assert g.rehearsal_trigger_t is None
+    assert g.rehearsal_too_late
+    assert g.rehearsal_too_late_t_go_s < cfg.rehearsal_t_late_s
+    ctrl = [box_for(max(9.0 - 0.15 * i, 0.3), 0.0, 0.0) for i in range(60)]
+    g2, _, _ = _rehearsal_drive(ctrl, belief_r0=(9.0, 0.0, 0.0),
+                                rehearsal_breakoff=True)
+    assert g2.rehearsal_trigger_t is not None and not g2.rehearsal_too_late
 
 
 _NO_SLEW_R = dict(accel_max_ms2=1e6, accel_max_horiz_b_ms2=1e6,
@@ -956,13 +1111,13 @@ _NO_SLEW_R = dict(accel_max_ms2=1e6, accel_max_horiz_b_ms2=1e6,
 
 
 def _moving_target_drive(east_offset, n_ticks=4, **cfgkw):
-    """Target moving NORTH at 3 m/s, own north at 6 m/s (closing 3), target
-    `east_offset` metres east of own -> the vehicle sits WEST (left) of the
-    target's path for east_offset > 0."""
-    boxes = [box_for(2.3 - 0.15 * i, east_offset, 0.0) for i in range(n_ticks)]
+    """Target moving NORTH at 3 m/s, own north at 6 m/s (closing 3, t_go
+    ~1.4 s at the tick-4 trigger), target `east_offset` metres east of own ->
+    the vehicle sits WEST (left) of the target's path for east_offset > 0."""
+    boxes = [box_for(4.5 - 0.15 * i, east_offset, 0.0) for i in range(n_ticks)]
     return _rehearsal_drive(boxes, own_vel=(6.0, 0.0, 0.0),
                             belief_vel=(3.0, 0.0, 0.0),
-                            belief_r0=(2.3, east_offset, 0.0),
+                            belief_r0=(4.5, east_offset, 0.0),
                             rehearsal_breakoff=True, **cfgkw)
 
 
@@ -1015,7 +1170,7 @@ def test_sm_ends_a_rehearsal_through_safe_with_its_own_reason():
     in SAFE 'rehearsal_breakoff', a MISS-class reason (hover)."""
     from flight.deploy.real_flight import (MissionConfig, RealFlightSM,
                                            State, TriggerState, VehicleObs)
-    g, _cfg, _ = guidance(belief_r0_ned=(2.3, 0.5, 0.0),
+    g, _cfg, _ = guidance(belief_r0_ned=(4.5, 0.5, 0.0),
                           belief_vel0_ned=(3.0, 0.0, 0.0),
                           acquire_n=2, acquire_window_s=0.3,
                           rehearsal_breakoff=True)
@@ -1037,7 +1192,7 @@ def test_sm_ends_a_rehearsal_through_safe_with_its_own_reason():
     t = 0.05
     for i in range(4):
         t += DT
-        rng_n = 2.3 - 0.15 * i
+        rng_n = 4.5 - 0.15 * i
         sm.step(o(t, no, det_new=True, det_range_m=rng_n,
                   det_box_xywh=box_for(rng_n, 0.5, 0.0)))
     assert g.rehearsal_trigger_t is not None
@@ -1058,7 +1213,7 @@ def test_sm_without_rehearsal_still_reports_pursuit_miss():
     clock ends it as the pre-existing pursuit_miss."""
     from flight.deploy.real_flight import (MissionConfig, RealFlightSM,
                                            State, TriggerState, VehicleObs)
-    g, _cfg, _ = guidance(belief_r0_ned=(2.3, 0.5, 0.0),
+    g, _cfg, _ = guidance(belief_r0_ned=(4.5, 0.5, 0.0),
                           belief_vel0_ned=(3.0, 0.0, 0.0),
                           acquire_n=2, acquire_window_s=0.3)
     mcfg = MissionConfig(preflight_heading_deg=0.0, standby_alt_m=7.0,
@@ -1078,11 +1233,54 @@ def test_sm_without_rehearsal_still_reports_pursuit_miss():
     t = 0.05
     for i in range(4):
         t += DT
-        rng_n = 2.3 - 0.15 * i
+        rng_n = 4.5 - 0.15 * i
         sm.step(o(t, no, det_new=True, det_range_m=rng_n,
                   det_box_xywh=box_for(rng_n, 0.5, 0.0)))
     while sm.state == State.ENGAGE and t < 10.0:
         t += DT
         sm.step(o(t, no))
     assert g.rehearsal_trigger_t is None
+    assert sm.safe_reason == "pursuit_miss"
+
+
+def test_sm_logs_a_too_late_rehearsal_once_and_does_not_relabel_the_end():
+    """RealFlightSM + the real terminal, too-late geometry (first eligible
+    t_go under rehearsal_t_late_s): the mission log carries ONE 'REHEARSAL
+    too late' line, no break-off line, and the engagement ends through the
+    pre-existing pursuit_miss path -- not rehearsal_breakoff."""
+    from flight.deploy.real_flight import (MissionConfig, RealFlightSM,
+                                           State, TriggerState, VehicleObs)
+    g, _cfg, _ = guidance(belief_r0_ned=(1.6, 0.5, 0.0),
+                          belief_vel0_ned=(3.0, 0.0, 0.0),
+                          acquire_n=2, acquire_window_s=0.3,
+                          rehearsal_breakoff=True)
+    mcfg = MissionConfig(preflight_heading_deg=0.0, standby_alt_m=7.0,
+                         standby_settle_s=0.0, pursuit_mode=True,
+                         engage_lost_target_s=1.0, engage_max_s=60.0)
+    sm = RealFlightSM(mcfg, guidance=g)
+    no = TriggerState(go=False, link_ok=True, age_s=0.05, raw_us=1100)
+    go = TriggerState(go=True, link_ok=True, age_s=0.05, raw_us=1900)
+    msgs = []
+    sm._emit = lambda msg, events: msgs.append(msg)
+
+    def o(t, trig, **kw):
+        base = dict(armed=True, offboard_active=True, alt_m=7.0, yaw_deg=0.0,
+                    quat=(1.0, 0.0, 0.0, 0.0), vel_ned=(6.0, 0.0, 0.0))
+        base.update(kw)
+        return VehicleObs(t=t, trigger=trig, **base)
+    sm.step(o(0.0, no))
+    sm.step(o(0.05, go))
+    t = 0.05
+    for i in range(6):
+        t += DT
+        rng_n = 1.6 - 0.15 * i
+        sm.step(o(t, no, det_new=True, det_range_m=rng_n,
+                  det_box_xywh=box_for(rng_n, 0.5, 0.0)))
+    assert g.rehearsal_too_late and g.rehearsal_trigger_t is None
+    while sm.state == State.ENGAGE and t < 10.0:
+        t += DT
+        sm.step(o(t, no))
+    late = [m for m in msgs if "REHEARSAL too late" in m]
+    assert len(late) == 1
+    assert not any("REHEARSAL break-off" in m for m in msgs)
     assert sm.safe_reason == "pursuit_miss"
