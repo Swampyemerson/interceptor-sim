@@ -72,3 +72,41 @@ Adopt the best arm iff prediction #1 holds AND #2 holds AND no cell on either pl
 degrades > 5 points. Adoption = default-OFF config recommended for the re-fly (the
 default swap to hardware stays blocked on the Gazebo re-fly as always); then re-predict
 the Gazebo band and pre-register re-fly #3 before flying it.
+
+## RESULT (flown 2026-09-24, verbatim log: logs/brake_shaping_20260924/sweep.txt — full
+tables also in the worker report; adjudicated against the registered rules)
+
+- **Prediction #1 PASS:** honest plant, nominal, R2: base 64% → a3 94% (+30), a4 82%
+  (+18); mechanism confirmed (median closing speed at CPA 2.91 → 1.67 m/s; median miss
+  0.254 → 0.110 m). R0 agrees (62% → 98%).
+- **Prediction #2 PASS for a3/a4** (dash nominal within ±5); a5 and a4_lead0 breach the
+  band upward on R0.
+- **Prediction #3 WRONG:** a3, not a4, is the best arm everywhere on the honest plant.
+- **Side findings:** aim20 improves on BOTH plants for every arm; honest-plant weave
+  ≤1.0 m goes 18–20% → up to 62%.
+- **ADOPT RULE FAILS for every arm (as registered):** the dash-plant alt+3 pair cell
+  degrades 12–24 points (70/64% → 46–54%), p90 0.8–1.0 → 2.2–3.5 m, and closing speed
+  at CPA RISES there; honest-plant alt+3 also grows a p90 tail for a3/a4/a5.
+  **NOTHING IS ADOPTED under the registered criterion.**
+
+## AMENDMENT #1 (registered 2026-09-24, post-hoc-MOTIVATED by the alt+3 failure —
+labelled as such; new prediction registered BEFORE the amendment arm flies)
+
+**Mechanism read (from the tables + the code, not per-run traces):** `_brake_cap` clips
+the full 3-D relative vector, so a climbing approach (alt+3) has its CLIMB scaled down
+whenever horizontal closure demands braking — the vehicle arrives low, decodes drop
+(dash alt+3 med_dec 60 → 52), and the passage window ends the chase with the gap
+un-closed (closing speed at CPA rises because the vehicle is still chasing vertically).
+The cap's physics (braking authority, tilt, drag) are HORIZONTAL; the vertical channel
+has separate budgets and, at alt+3, needs sustained climb.
+
+**Amendment:** `brake_horizontal_only: bool = True` (only meaningful with
+`brake_shaping`): compute closing/range on the HORIZONTAL components and cap only the
+horizontal part of `(cmd − v_t)`; the vertical command passes through untouched.
+
+**Registered predictions:** (A1) dash-plant alt+3 returns within ±5 points of base at
+a3/a4 horizontal; (A2) the honest-plant nominal/aim20/weave gains are retained within
+5 points of the 3-D-cap arms; (A3) honest alt+3 p90 tail shrinks back toward base.
+**Adopt (amended):** a3-horizontal iff A1 AND A2 AND the original no->5-point-regression
+rule now holds on every measured cell, both plants, both rungs. Otherwise the lever is
+recorded as honest-plant-only evidence and NOT recommended for the re-fly.
