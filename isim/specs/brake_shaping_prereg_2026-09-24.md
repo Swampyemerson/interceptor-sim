@@ -240,3 +240,70 @@ record it, and put the plain adopt-despite-alt+3 trade back to the builder.
 **Adopt (registered):** a3h + sync iff B1 AND B2 AND no measured cell on either plant
 degrades > 5 points vs base. If adopted: re-predict the Gazebo band and pre-register
 re-fly #3 before flying it (builder ruling covers proceeding to that registration).
+
+## AMENDMENT #2 RESULT (flown 2026-09-24 morning; verbatim; adjudicated against B1-B3)
+
+```
+   alt+3 honest   R0    base   0.195   0.711     76%    92%       56     1.72
+   alt+3 honest   R0     a3h   0.242   3.071     66%    86%       49     1.69
+   alt+3 honest   R0    a3hs   0.205   3.071     68%    80%       52     1.84
+
+   alt+3 honest   R2    base   0.221   1.046     70%    90%       50     1.77
+   alt+3 honest   R2     a3h   0.252   3.071     68%    88%       50     1.67
+   alt+3 honest   R2    a3hs   0.200   3.071     76%    80%       48     1.91
+
+   alt+3   dash   R0    base   0.294   1.003     70%    90%       60     1.67
+   alt+3   dash   R0     a3h   0.334   1.294     52%    86%       47     1.93
+   alt+3   dash   R0    a3hs   0.306   2.350     64%    80%       38     2.20
+
+   alt+3   dash   R2    base   0.297   0.779     64%    90%       55     1.72
+   alt+3   dash   R2     a3h   0.382   3.091     36%    84%       46     2.06
+   alt+3   dash   R2    a3hs   0.301   3.091     64%    80%       32     2.26
+
+ nominal honest   R0    base   0.310   0.853     62%    92%       56     3.08
+ nominal honest   R0     a3h   0.090   0.175     98%    98%       83     1.52
+ nominal honest   R0    a3hs   0.098   0.179     98%    98%       84     1.50
+
+ nominal honest   R2    base   0.254   3.606     64%    86%       51     2.91
+ nominal honest   R2     a3h   0.108   0.195     92%    96%       80     1.72
+ nominal honest   R2    a3hs   0.111   0.236     92%    96%       80     1.67
+
+ nominal   dash   R0    base   0.130   0.252     94%    96%       94     1.50
+ nominal   dash   R0     a3h   0.116   0.236     96%    98%       91     1.47
+ nominal   dash   R0    a3hs   0.119   0.260     94%    98%       89     1.39
+
+ nominal   dash   R2    base   0.148   0.247     94%    98%       90     1.53
+ nominal   dash   R2     a3h   0.110   0.223     98%    98%       90     1.36
+ nominal   dash   R2    a3hs   0.137   0.227     98%    98%       90     1.37
+
+   aim20 honest   R0    base   0.231   4.592     56%    76%       43     3.16
+   aim20 honest   R0     a3h   0.217   2.157     68%    86%       61     1.59
+   aim20 honest   R0    a3hs   0.194   2.157     68%    86%       61     1.60
+
+   aim20 honest   R2    base   0.348   4.592     52%    64%       36     3.58
+   aim20 honest   R2     a3h   0.145   2.640     76%    84%       56     1.75
+   aim20 honest   R2    a3hs   0.128   2.157     76%    86%       58     1.68
+
+   weave honest   R0    base   2.257   5.172     10%    18%       34     7.23
+   weave honest   R0     a3h   0.804   2.461     24%    64%       60     3.87
+   weave honest   R0    a3hs   0.842   2.470     22%    60%       60     4.00
+
+   weave honest   R2    base   2.233   4.797      6%    20%       32     7.20
+   weave honest   R2     a3h   1.009   2.870     10%    50%       58     4.24
+   weave honest   R2    a3hs   0.957   2.851     12%    52%       57     4.24
+```
+
+- **B2 PASS:** nominal/aim20/weave within ~2 points of a3h everywhere (sync costs nothing
+  where it should cost nothing).
+- **The TRACED overshoot class is REMOVED:** dash alt+3 R2 recovers 36% → 64% = base —
+  the amendment-#2 mechanism read (vertical arrival de-sync) is confirmed for that class.
+- **B1 HALF-FAILS / B3 FAILS:** dash alt+3 R0 64% vs base 70 (−6, one point past the
+  band); honest alt+3 R0 −8; the ~3 m p90 tail persists on 3 of 4 alt+3 rows. The
+  residual is a DIFFERENT class: the sync arms lose decodes at alt+3 (med 32–38 vs
+  base 55–60) — decode-starved long approaches, not overshoots.
+
+**Per the registered null branch: the brake thread STOPS here** (three lever variants,
+two refuted mechanism reads and one confirmed, no adoption under the rule). Standing
+evidence: the cap+sync package costs ~5–8 points and a fat tail at alt+3 while buying
++30–36 points at nominal/aim20 and tripling weave ≤1.0 m on the honest plant. The
+plain adopt-despite-alt+3 trade returns to the builder, as registered.

@@ -243,6 +243,16 @@ class PursuitTerminalConfig:
     # vertical command passes through. False = the flown 3-D cap, kept
     # reachable for the record.
     brake_horizontal_only: bool = True
+    # AMENDMENT #2 (prereg doc, builder-ruled option (a)): Phase-B vertical
+    # ARRIVAL SYNCHRONIZATION. The traced alt+3 failure is the climb
+    # finishing early (vehicle 0.2-0.7 m ABOVE the target at CPA while the
+    # braked horizontal closure lags). When ON, the vertical relative command
+    # is scheduled from the HORIZONTAL time-to-go so both gaps zero together:
+    #   t_go_h  = d_h / max(closing_h, v_close_min_ms)
+    #   v_z_des = clamp(dz / t_go_h, +-v_max_ms)   (later budgets still apply)
+    # Phase A is untouched (gross positioning; the overshoot is a Phase-B
+    # terminal effect). False (default) = amendment-#1 behaviour exactly.
+    brake_vert_sync: bool = False
 
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
@@ -783,6 +793,8 @@ class PursuitTerminalGuidance:
         cmd_v = v_t + v_close * los_dir + cfg.kp_lat * r_perp
         if cfg.brake_shaping:
             cmd_v = self._brake_cap(cmd_v, v_t, r_est, own_vel)
+            if cfg.brake_vert_sync:
+                cmd_v = self._brake_sync_vertical(cmd_v, v_t, r_est, own_vel)
         yaw = _yaw_toward(r_est, self._prev_yaw_deg)
         return cmd_v, yaw, False
 
@@ -839,6 +851,24 @@ class PursuitTerminalGuidance:
         if float(np.linalg.norm(r_gate)) > 2.0 * d_stop:
             return cmd_v
         return self._brake_cap(cmd_v, self._v_track, r_aim, own_vel)
+
+    def _brake_sync_vertical(self, cmd_v: np.ndarray, v_t: np.ndarray,
+                             r_ned: np.ndarray, own_vel: np.ndarray) -> np.ndarray:
+        """Amendment #2 (cfg.brake_vert_sync docstring): replace the vertical
+        relative command with dz / t_go_h so the climb finishes WITH the
+        horizontal closure. Called only with brake_shaping AND brake_vert_sync
+        on, Phase B only."""
+        cfg = self.cfg
+        v_t = np.asarray(v_t, dtype=np.float64)
+        r_h = np.array([r_ned[0], r_ned[1], 0.0])
+        d_h = float(np.linalg.norm(r_h))
+        closing_h = self._brake_closing(r_h, v_t, own_vel)
+        t_go = max(d_h, 1e-6) / max(closing_h, cfg.v_close_min_ms)
+        v_z_des = _clamp(float(r_ned[2]) / max(t_go, 1e-6),
+                         -cfg.v_max_ms, cfg.v_max_ms)
+        out = np.asarray(cmd_v, dtype=np.float64).copy()
+        out[2] = float(v_t[2]) + v_z_des
+        return out
 
     def _sane_fallback_vel(self, kf_v_t: np.ndarray) -> np.ndarray:
         """Clamp a KF-derived velocity before trusting it as a fresh Phase-A

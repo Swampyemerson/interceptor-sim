@@ -855,3 +855,14 @@ The builder ruled ("lets do option a"): register and build the vertical
 arrival-synchronization companion to the brake cap, re-run the failed cells, and
 re-decide per a registered criterion. Gazebo re-fly #3 stays blocked behind that
 adjudication. Registration: brake_shaping_prereg_2026-09-24.md AMENDMENT #2.
+
+### ADR-0115 third addendum — amendment #2 result: overshoot class fixed, tail class remains; thread stops per the registered rule (2026-09-24)
+
+The vertical arrival-sync removed exactly the traced failure (dash alt+3 R2: 36% →
+64% = base) at zero cost elsewhere (B2 pass), but the alt+3 cells still carry a ~3 m
+p90 tail from a second, different class — decode-starved long approaches (sync arms'
+median decodes 32–38 vs base 55–60) — so B1 half-failed (−6 at R0) and B3 failed.
+Per the amendment's registered null branch the brake thread STOPS: no further levers
+without a new registration, and the plain trade (adopt cap+sync for Gazebo re-fly #3's
+nominal geometry despite the alt+3 tail, or leave the chase as-is) goes back to the
+builder. All three lever variants stay in-tree, default OFF, pinned (33 tests).

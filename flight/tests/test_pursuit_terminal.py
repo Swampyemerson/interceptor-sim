@@ -823,3 +823,33 @@ def test_brake_horizontal_only_passes_the_climb_through():
     assert out_3[2] != pytest.approx(-2.5)              # 3-D cap scales climb
     # Same direction as the raw command (3-D mode preserves the full vector).
     assert out_3 / np.linalg.norm(out_3) == pytest.approx(cmd / np.linalg.norm(cmd))
+
+
+def test_brake_vert_sync_schedules_the_climb_to_the_horizontal_closure():
+    """Amendment #2: with sync on, the vertical relative command equals
+    dz / t_go_h (both gaps zero together); sign = climb toward a target
+    ABOVE; default off = amendment-#1 vertical passthrough exactly."""
+    g, cfg, _ = guidance(brake_shaping=True, brake_vert_sync=True)
+    v_t = np.zeros(3)
+    own_vel = np.array([8.0, 0.0, 0.0])
+    r = np.array([6.0, 0.0, -3.0])          # target ahead, 3 m ABOVE
+    cmd = np.array([5.0, 0.0, -2.5])
+    out = g._brake_sync_vertical(cmd, v_t, r, own_vel)
+    t_go = 6.0 / 8.0                         # d_h / closing_h (> v_close_min)
+    assert out[2] == pytest.approx(-3.0 / t_go)          # climb, dz/t_go
+    assert out[0] == pytest.approx(cmd[0]) and out[1] == pytest.approx(cmd[1])
+    # Arrival-sync property: commanded vertical rate / gap == closing / d_h.
+    assert out[2] / r[2] == pytest.approx(8.0 / 6.0)
+    # Slow closure floors at v_close_min in the schedule (no divide blowup).
+    out2 = g._brake_sync_vertical(cmd, v_t, r, np.zeros(3))
+    assert out2[2] == pytest.approx(-3.0 / (6.0 / cfg.v_close_min_ms))
+    # Magnitude clamp at v_max.
+    out3 = g._brake_sync_vertical(cmd, v_t, np.array([0.01, 0.0, -3.0]), own_vel)
+    assert abs(out3[2]) <= cfg.v_max_ms + 1e-9
+    # Default OFF: config default is False and the Phase-B path then matches
+    # the amendment-#1 drive exactly.
+    assert PursuitTerminalConfig().brake_vert_sync is False
+    a = _keepframe_identity_drive({"brake_shaping": True, "brake_accel_ms2": 3.0})
+    b = _keepframe_identity_drive({"brake_shaping": True, "brake_accel_ms2": 3.0,
+                                   "brake_vert_sync": False})
+    assert np.array_equal(a, b, equal_nan=True)
