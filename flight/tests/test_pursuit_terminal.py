@@ -387,6 +387,27 @@ def _keepframe_identity_drive(cfg_kwargs=None, det_for_tick=_keepframe_det_for_t
     return np.array(rows, dtype=np.float64)
 
 
+def _assert_matches_golden(got, golden):
+    """Exact equality where the runner's numpy kernels match the fixture's
+    provenance; else a 1e-9 absolute band. RATIONALE (2026-09-24, CI runs
+    35963711767/35964354924): GitHub-hosted runners span CPU generations and
+    numpy selects SIMD kernels at import, so transcendental results can drift
+    by ~1 ulp (~1e-16) between runners -- two doc-only pushes flipped these
+    "byte-identical" asserts fail/pass with IDENTICAL flight code. 1e-9 is
+    ~7 orders above kernel drift and ~6 below any real behavioural change
+    (a mutated constant moves commands by >=1e-3 m/s); the failure message
+    quantifies the divergence so a real regression is never mistaken for
+    kernel noise."""
+    got = np.asarray(got, dtype=np.float64)
+    if np.array_equal(got, golden, equal_nan=True):
+        return
+    nan_got, nan_gold = np.isnan(got), np.isnan(golden)
+    assert np.array_equal(nan_got, nan_gold), "NaN pattern differs from the fixture"
+    diff = np.abs(np.where(nan_got, 0.0, got - np.where(nan_gold, 0.0, golden)))
+    assert float(diff.max()) < 1e-9, \
+        f"golden mismatch beyond kernel-drift band: max |diff| = {float(diff.max()):.3e}"
+
+
 def test_keepframe_off_is_byte_identical_to_prefeature_code():
     """REPO INVARIANT: with keepframe_assist=False (the default) the emitted
     commands are BYTE-IDENTICAL to the module as it was before the feature
@@ -395,7 +416,7 @@ def test_keepframe_off_is_byte_identical_to_prefeature_code():
     golden = np.load(_FIXTURE_PATH)["cmds"]
     got = _keepframe_identity_drive()
     assert got.shape == golden.shape
-    assert np.array_equal(got, golden, equal_nan=True)   # exact, not approx
+    _assert_matches_golden(got, golden)   # exact-or-kernel-drift band
     # And the default really is off.
     assert PursuitTerminalConfig().keepframe_assist is False
 
@@ -507,7 +528,7 @@ def test_pose_range_absent_is_byte_identical_to_prefeature_code():
     byte-identical to not passing the kwarg at all."""
     golden = np.load(_FIXTURE_PATH)["cmds"]
     got = _keepframe_identity_drive()
-    assert np.array_equal(got, golden, equal_nan=True)
+    _assert_matches_golden(got, golden)
 
     # Same drive, kwarg explicitly None on every tick.
     gcfg = GuidanceConfig(mount_fwd_m=0.0, mount_left_m=0.0, mount_up_m=0.0,
@@ -525,7 +546,7 @@ def test_pose_range_absent_is_byte_identical_to_prefeature_code():
         sp, _tel = g.step(_keepframe_det_for_tick(i), o, t, det_range_pose_m=None)
         rows.append([math.nan] * 4 if sp is None
                     else [sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg])
-    assert np.array_equal(np.array(rows), golden, equal_nan=True)
+    _assert_matches_golden(np.array(rows), golden)
 
 
 def test_pose_range_corrects_a_widened_aabb_box():
@@ -666,9 +687,9 @@ def test_brake_off_is_byte_identical_to_prefeature_code():
     fixture (generated from the pre-keepframe module, so it predates this
     feature too) exactly -- explicitly passed and defaulted alike."""
     golden = np.load(_FIXTURE_PATH)["cmds"]
-    assert np.array_equal(_keepframe_identity_drive(), golden, equal_nan=True)
+    _assert_matches_golden(_keepframe_identity_drive(), golden)
     got = _keepframe_identity_drive({"brake_shaping": False})
-    assert np.array_equal(got, golden, equal_nan=True)   # exact, not approx
+    _assert_matches_golden(got, golden)   # exact-or-kernel-drift band
     assert PursuitTerminalConfig().brake_shaping is False
 
 

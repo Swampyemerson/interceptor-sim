@@ -166,3 +166,15 @@ behind it.
 
 The commit that certified 519 passing tests was not dishonest. It just did not say
 which suite.
+
+## CI runner kernel drift (2026-09-24 incident)
+
+GitHub-hosted runners span CPU generations, and numpy selects SIMD kernels at import —
+transcendental results can differ by ~1 ulp between runners. Two doc-only pushes
+(CI runs 35963711767 / 35964354924) flipped the pursuit golden-fixture "byte-identical"
+tests fail→pass with IDENTICAL flight code. Consequence: **an exact float golden
+fixture is only byte-reproducible on the machine class that generated it.** The
+pursuit goldens now compare exact-or-<1e-9 (`_assert_matches_golden`, mutation-verified
+to still catch ≥1e-4 behavioural changes and to quantify any divergence in the failure
+message). Any future exact-equality fixture test must either use the same helper
+pattern or document which environment its exactness claim is scoped to.
