@@ -516,6 +516,18 @@
    "rec": "Keep the chase fix scoped to the chase (in flight). For the stock paths, port BOTH fixes together behind one flag and re-run their gates once -- or accept them as-flown history if the chase becomes the default. One ruling, not two.",
    "blocked": "A silent port would invalidate the as-flown validation history (thresholds were tuned on the biased range) -- needs your ruling + gate re-runs.",
    "doc": "isim/specs/parity_trace_2026-09-22.md (candidate (e)) · flight/pursuit_terminal.py _measured_r_ned"
+  },
+  {
+   "id": "rehearsal-design-round2",
+   "question": "Your rehearsal break-off mode is BUILT (one switch, practice pass ends in a hover, own log reason) but the registered margin sweep says at today's closing speeds the escape cannot clear a safe gap at ANY trigger range up to 3 m -- the vehicle arrives at ~5.4 m/s and the airframe's lag eats the evade (worst-case gap 0.03-0.25 m; and the certainty gate can fire as late as 0.5 m). Exploratory read: with the brake package + a 4 m trigger the gap reaches ~0.45 m. How should round 2 go?",
+   "options": [
+    "Redesign the trigger on TIME-TO-GO vs reaction time + a too-late floor, AND pair practice passes with the brake package at reduced speed (all three; registered round 2)",
+    "Practice-speed policy only: rehearse at reduced closing speeds (no code change beyond pairing with the brake flag), accept the smaller gap",
+    "Park rehearsal until after the first real (non-contact-intended) field flights inform the margins"
+   ],
+   "rec": "Option 1 -- the mechanisms are traced, all three fixes are cheap and complementary, and a practice pass has no need for full intercept speed; the mode's whole point is many safe runs per airframe. Any adopted margin stays isim-tier until its Gazebo spot-check.",
+   "blocked": "Field practice passes (the hardware-preserving runs you asked for).",
+   "doc": "isim/specs/rehearsal_breakoff_prereg_2026-09-24.md (RESULT + frontier)"
   }
  ],
  "plain_log": [
@@ -1144,6 +1156,10 @@
     {
      "date": "2026-09-24",
      "note": "Re-fly #4 (own-velocity fix only, prereg4): registered bar PASSES -- median 0.343 m, 8/8 <=1 m, 4/8 <=0.35 m, 0 aborts, FAULT 0/8, latch ~1.2 m as replica-predicted. F2 scalar clause red as written (-0.80, post-CPA-window statistic), cadence 8.56 vs 9. Default-swap + brake rulings REOPEN (0115/0116 evidence void -- measured under the ADR-0117 defect)."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Rehearsal break-off BUILT (builder directive; --pursuit-rehearsal, default OFF, own SAFE reason, 531 tests + audit green) -- registered margin sweep = NULL: no trigger range <=3 m escapes cleanly at today's closing speeds (worst gap 0.03-0.25 m; traced to hot arrival vs plant lag + a range-blind gate). Would-have claim = ULogs+video only (P2 fail). Design round 2 queued (rehearsal-design-round2)."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
