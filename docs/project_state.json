@@ -528,6 +528,18 @@
    "rec": "Option 1 -- chase-only is your ruled engagement, the +10 deg win is mechanism-confirmed with zero band cost, and the prop-clearance corner-spin gate at +10 deg is comfortably inside the boom geometry's margin. The bracket stays adjustable anyway if a re-decision comes.",
    "blocked": "Nothing today (the print is not on the critical path until the airframe arrives ~Oct 5-15); it becomes blocking at assembly.",
    "doc": "ADR-0112; isim/specs/chase_tilt_prereg_2026-09-23.md"
+  },
+  {
+   "id": "replacement-target-fc",
+   "question": "The target's flight controller took a hit: during the GPS-wire splice work a short put 5 V on the sensor data bus, and the multimeter shows the board's own barometer chip now drags that bus dead (1.2 V vs the healthy 3.3, unchanged with the GPS unplugged). A copter cannot fly without its barometer. Flux-cleaning the pads is the one free maybe; failing that the board needs replacing. Everything else on the drone tested healthy tonight. Buy the replacement now or wait?",
+   "options": [
+    "Order a replacement Kakute H7 V1.5 now (same board -- params/firmware/tools carry over; keeps the target off the critical path)",
+    "Try the flux clean + a day of retests first, order only if it stays dead",
+    "Wait for the interceptor airframe build and share bench time, ordering later"
+   ],
+   "rec": "Option 1 if the flux clean doesn't move the needle tonight -- the target gates tripod day, which gates nothing else right now, but lead time is dead time and the board is cheap relative to the schedule.",
+   "blocked": "tgt-05's bind + failsafe tests and everything after (maiden, tripod day) sit behind a working FC. The GPS module's compass health is also unknowable until a live bus exists.",
+   "doc": "build_tab target Kakute notes; scripts/bench/fc_comms_sweep.py session"
   }
  ],
  "plain_log": [
@@ -1835,7 +1847,7 @@
       "name": "Kakute H7 V1.5 flight controller",
       "status": "built",
       "role": "Runs ArduPilot; flies the AUTO legs and writes the DataFlash .BIN log.",
-      "notes": "BARO FAULT OPEN (2026-09-23 late): baro fails init on every cold boot, WITH and WITHOUT the GPS attached -- board halts in Config Error. Fault window = the GPS splice rework (board read healthy AFTER the RX solder). Link/firmware(4.7.0)/params all fine; sensor drivers never init in the halt, so telemetry cannot probe the I2C bus (checked: RAW_IMU acc/gyro/mag all zero = uninitialized, not evidence). DECISIVE NEXT TEST: multimeter DC on SDA/SCL to GND, powered -- 3.3V both = bus alive -> ~$10 external baro (BARO_PROBE_EXT) rescues the board; 0V = clamp, isolate GPS-vs-FC; 5V = harness miswire persists. If FC-side clamp: replacement Kakute (NOT in any current order). Splices now individually insulated. BOOT-button gotcha: loose board can enter STM32 DFU if the button touches anything at power-up."
+      "notes": "BARO/I2C BUS VERDICT (multimeter, 2026-09-23 late): SDA/SCL sit ~1.2-1.5 V (healthy idle = 3.3 V) and STAY dragged with the GPS unplugged -> the clamp is ON THE BOARD (baro chip or MCU bus pins), damaged in the GPS-splice short window. External-baro rescue is OUT (same bus). Last $0 step: IPA-clean the flux off the pad row and re-measure (flux leakage can fake this). Else: REPLACE the FC (same Kakute H7 V1.5 -- firmware target, 50-param pack, and the bench tools all carry over; re-bring-up ~1 hr). Exonerated by test: ESC, motors x4, RX wiring (timeline), GPS module serial (R3 active), harness 5V. GPS COMPASS health unknown until a live bus exists."
      },
      {
       "name": "Tekko32 F4 Metal 65A 4-in-1 ESC",
