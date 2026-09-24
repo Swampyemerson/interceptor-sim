@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1b8f23c<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->8a240e4<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,11 +914,11 @@
  },
  "now": {
   "as_of": "2026-09-24",
-  "where": "Re-fly #5 ADOPTS the brake package into the recommended config: median 0.243 m, 6/8 inside the contact envelope, closing finally drops (3.9 -> 3.0 m/s) with the wiring fixed. Arc: 1.51 -> 0.97 -> 0.93 -> 0.34 -> 0.24 m. All three builder directives from midday are done.",
-  "finding": "The ADR-0115 -> 0117 chain closed: the isim brake case was right; the Gazebo verdicts against it were measuring the velocity-wiring defect. Remaining rungs: rehearsal Gazebo spot-check; builder at the Pi for the recorder bench soak; tag-realism caveats still stand (upright Gazebo tag).",
+  "where": "Board clear: all three midday directives done (commit-sprint null, rehearsal adopted + Gazebo-consistent, Pi recorder built), brake package adopted (re-fly #5, 0.243 m median, 6/8 touching), chase is the flying default. Self-queue is empty.",
+  "finding": "Five registered Gazebo campaigns, one unchanged bar: 1.51 -> 0.97 -> 0.93 -> 0.34 -> 0.24 m median, now 6/8 inside the contact envelope. The day's decisive find was the two-line velocity wiring defect that would have flown on real hardware.",
   "next": [
-   "Rehearsal-mode Gazebo spot-check (registered) -- the last self-queued rung",
-   "Builder at the Pi: recorder bench soak (one command, in the module report)"
+   "Builder at the Pi: recorder bench soak; publication hands-on steps (the one queue item)",
+   "Hardware arrivals (~Oct 5-15) gate the next physical rungs; sim board is current"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -2025,6 +2025,10 @@
     {
      "date": "2026-09-24",
      "note": "Re-fly #5 (prereg5): brake package ADOPTED into the recommended config (ADR-0120) -- median 0.243 m, 6/8 <=0.35 m, closing 3.88->3.00 m/s (B1 green), 0 aborts. The isim brake case transferred once the KF got real velocity; the void ADR-0115/0116 Gazebo verdicts are explained."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Rehearsal Gazebo spot-check GREEN (registered, 6 scored flights): every flight triggered, broke off at 2.29-2.72 m separation (bar 0.7; isim predicted 1.6-1.7), ended rehearsal_breakoff, zero engagement aborts. One pre-GO cold-boot infra abort disclosed + substituted. The practice mode is field-plannable (gentle first; margins sim-tier)."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
