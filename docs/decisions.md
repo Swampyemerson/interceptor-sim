@@ -826,3 +826,15 @@ scheduled to finish WITH the horizontal closure, not before) is a new lever left
 UNREGISTERED and unbuilt by design; the queued builder trade now carries this
 attribution. Evidence: logs/brake_shaping_20260924/alt3_trace.txt (tables verbatim in
 the prereg doc's attribution section).
+
+### ADR-0114 addendum (same night) — Gazebo scope note for the realism rungs
+
+`scripts/m4_target_mover.py` is POSITION-only for the apriltag target: it force-ignores
+`--orient-to-velocity` when the model name contains "apriltag" (mover lines ~640-642),
+so the Gazebo cross-check flights flew an UPRIGHT, world-fixed tag — exactly isim's R0
+rung. Consequences, recorded so nobody plans the wrong validation: (1) the Gazebo
+re-fly prediction bands and the isim R0 rung remain apples-to-apples; (2) Gazebo as
+currently built CANNOT test the ADR-0114 pitch coupling or validate the canted placard
+— the honest validation rung for the cant is the TRIPOD day's indexed-placard block
+(docs/tripod_test_protocol.md A3 already measures decode vs incidence), plus the real
+target's measured cruise pitch replacing the 12° estimate.
