@@ -271,3 +271,10 @@ the standing rule.
   physics + seeker shake/glare + scenario wiring + 32 tests) from the registered spec, one
   shot, no bounce; also caught a drag-sign error in the spec. Defense-sim-framed isim code
   task. Running tally for opus55 on this repo: 4 passes / 1 [general_harms] fail.
+
+- 2026-09-24 (afternoon): **opus55-worker BOUNCE** [general_harms] mid-task on the Pi
+  frame-recorder build (pure instrumentation: JPEG writer thread + tests; no
+  targeting language in the brief) — req_011CfNsrgShjCEAqeyyXA1WB. Same-day tally for
+  opus55 here: 5 passes (tag realism, brake, diagnosis, rehearsal r1+r2/commit-sprint)
+  / this 1 bounce. Fallback: identical brief to opus48-worker (sanctioned lane,
+  ADR-0106 pattern), no rewording.
