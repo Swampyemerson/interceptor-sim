@@ -941,3 +941,18 @@ builder. All three lever variants stay in-tree, default OFF, pinned (33 tests).
 - **Evidence.** logs/endgame_diag_20260924/ (attribution.csv, summary.txt);
   scripts/forensics/endgame_diag/ (preserved analysis scripts);
   real_flight.py ~2340/2512 (the fix); 16/16 FAULT-line grep.
+
+### ADR-0117 addendum — re-fly #4 PASSES the registered bar (2026-09-24)
+
+With only the own-velocity wiring fix (no brake, no other change), the Gazebo
+cross-check met its registered criteria for the first time in four campaigns:
+median CPA **0.343 m** (arc: 1.510 → 0.967 → 0.928 → 0.343), 8/8 ≤ 1.0 m, **4/8
+inside the 0.35 m contact envelope**, zero aborts, camera-driven throughout,
+fallback FAULT 0/16 → 0/8 gone, coast latch at ~1.2 m true range as the replica
+predicted. Blemishes stated as registered: the post-CPA "last-2 s" scalar clause
+stays outside ±0.5 m (−0.80, one +11.4 outlier; the diagnosis' own statistic-hygiene
+note applies) and consumed cadence reads 8.56 vs the 9/s clause. CONSEQUENCES, each
+by registration only: the default-terminal swap question (docs/next.md 0(c)) and the
+brake-package question REOPEN — the brake's ADR-0115/0116 verdicts were measured
+under the defect and are void as evidence either way. Honest scope: sim milestone
+(perfect cue, no wind, upright tag, sim camera), not a field claim.

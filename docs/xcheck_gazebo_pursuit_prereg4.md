@@ -55,3 +55,34 @@ PASS iff over the 8 flights: (1) ≥6/8 CPA ≤ 1.0 m; (2) median CPA ≤ 0.5 m;
   closed-loop effect — record it as a replica-methodology limit; back to the trace.
 - **Any F red:** the fix did not land in the flying code — fix delivery, re-fly under
   this registration.
+
+## RESULT (2026-09-24, n=8 flown as registered — scored by the head session)
+
+CPAs sorted (m): 0.095 · 0.235 · 0.292 · 0.329 · 0.356 · 0.531 · 0.712 · 0.976.
+**Median 0.343 m — the registered bar PASSES, first time in four campaigns**
+(1.510 → 0.967 → 0.928 → 0.343). Logs: `logs/xcheck_gz_20260924_velfix/`
+(+instrument.json).
+
+Criteria: (1) **8/8 ≤ 1.0 m PASS**; (2) **median 0.343 ≤ 0.5 PASS**; (3) **4/8 ≤
+0.35 m PASS** (0.095/0.235/0.292/0.329 — inside the ratified contact envelope,
+camera-in-the-loop); (4) 0 pre-pass aborts PASS; (5) camera-driven PASS (62–93
+consumed). Median improvement vs re-fly #2: **64.6%** (≥40% twice over).
+
+Fix-effect clauses: **F1 GREEN** — `FAULT own_vel_fallback` in 0/8 logs (was 16/16).
+**F3 GREEN** — coast latch at true range ≤2 m or never in 7/8 (median onset 1.23 m vs
+the replica's ~1.1 prediction; was ~3.7; one flight at 2.03 m misses the letter).
+**F2 RED as written** — the "last-2 s of Phase B" scalar reads −0.80 m median (was
+−1.02; clause ±0.5), with one +11.4 m outlier; the diagnosis itself flagged this
+statistic as mostly post-CPA coast and recommended CPA-anchored vector stats — the
+clause is scored as registered, not swapped post hoc. **C1 GREEN** (KF error median
++0.136 m; pose bias +0.047). **C2 HALF-RED again** (cadence 8.56 < 9; tick dt 0.056
+green — same decode-success physics note as prereg3).
+
+**Registered verdict: PASS (criteria 1–5) with F2/C2 blemishes stated.** Per the
+registered meaning: the transfer gap is closed as finally attributed — measurement
+bias (prereg2), cadence (prereg2), and the own-velocity wiring (ADR-0117) — and the
+DEFAULT-SWAP question and the BRAKE question both REOPEN for the builder, each by
+registration only. Direction-only margin language stands. HONEST SCOPE, unchanged:
+perfect launch cue, windless world, upright world-fixed tag (Gazebo cannot tilt it —
+ADR-0114 scope note), sim camera not the OV9281. This is a sim milestone, not a field
+claim.

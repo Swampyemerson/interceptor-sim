@@ -208,3 +208,11 @@ Built the hybrid in the simulator as ruled and measured it against the other two
 **So what:** The slow arrival already contains a fast leg -- it flies at up to 16 m/s to get behind the target. The part that does not pay is aiming that fast leg ACROSS the target's path. Bench this week: Kakute log card cleared (488 logs), Pi frame timing measured (14 ms, 0.6 ms jitter), TV calibration tool ready, lens corrected to 118 degrees from the order log.
 
 **Evidence:** isim/specs/hybrid_v7.md - isim/concepts.py - runs/frame_timing/ - scripts/bench/
+
+## 2026-09-17 (archived from plain_log 2026-09-24, cap-12 overflow)
+
+Builder ruled pursuit alone ("chase only"), dropping the sprint-and-fly-by hybrid ADR-0103 had measured as worse (46% vs pursuit's 82% inside 0.35 m, all realistic errors on). Ported the pursuit concept out of the isim prototype into the actual flight code that will fly (flight/pursuit_terminal.py, a relative-state Kalman filter reusing the tag terminal's camera geometry, not its differently-tuned filter), wired it into the isim adapter, and ran it end-to-end through the real state machine -- it acquires, tracks, and closes range on a moving target. Also added a pursuit_mode flag so the existing past-CPA fly-by breakoff, tuned for a fast crossing dash, does not falsely abort pursuit's slow speed-matching approach.
+
+**So what:** The concept is no longer isim-only prototype code; it is unit-tested (10 tests), no-cheat-audited, and validated running through the code path that actually flies. NOT done: the CLI wiring for real hardware (--terminal pursuit needs the dash-endpoint kinematics to seed the pre-flight belief, deferred rather than rushed into the hardware entrypoint) and the A0-style numeric parity check against ADR-0103's own isim numbers. Also: a builder question about safeguard flags being caused by dense project docs was audited (docs/decisions.md was 118 ADRs/93.5k words, now split/archived) but a docs-free opus5-worker subagent still hard-failed right after, so the fix is good hygiene, not a fix for the flagging.
+
+**Evidence:** flight/pursuit_terminal.py; flight/tests/test_pursuit_terminal.py; isim/tests/test_pursuit_terminal_isim.py; ADR-0103, ADR-0104; docs/pursuit_port_2026-09-17.md; docs/doc_hygiene_2026-09-17.md

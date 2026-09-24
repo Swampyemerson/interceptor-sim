@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->fc0e74b<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->b967341<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,11 +914,11 @@
  },
  "now": {
   "as_of": "2026-09-24",
-  "where": "Gazebo re-fly #3 (brake package, builder-ruled) FLOWN as registered: median 0.928 m -- registered NULL (4% < the 40% bar) -- but it produced the first two sub-0.35 m flights this cross-check has ever flown (0.125, 0.313 m).",
-  "finding": "The brake was ON yet endgame closing speed did not change (2.84 = 2.84 m/s): the cap reads the KF, and the KF's range error collapses to -2.6 m in the last 2 s (clean pose at capture -> coast/extrapolation). The endgame ESTIMATOR is now the last measured suspect; isim under-models it.",
+  "where": "MILESTONE: Gazebo cross-check re-fly #4 (own-velocity wiring fix only, ADR-0117) PASSES the registered bar -- first time in four campaigns. Median CPA 0.343 m, 8/8 inside 1 m, 4/8 inside the 0.35 m contact envelope, camera-in-the-loop, zero aborts.",
+  "finding": "The whole transfer gap is now attributed and repaired: range bias + cadence (prereg2) + the driver feeding the KF COMMANDED velocity (ADR-0117, would have flown on real hardware). Arc 1.51 -> 0.97 -> 0.93 -> 0.34 m. Scope: perfect cue, no wind, upright tag -- sim milestone, not a field claim.",
   "next": [
-   "Registered endgame-estimator diagnosis (isim-vs-Gazebo last-2s KF error, matched)",
-   "Standing rulings: slant/AABB stock paths; headline framing; publication hands-on"
+   "Builder: default-swap + brake rulings reopen (0115/0116 evidence void under the defect)",
+   "Queued directives: rehearsal break-off, commit-sprint experiment, Pi recorder"
   ],
   "evidence": "ADR-0114/0115 - isim/specs/{tag_realism_v1,brake_shaping_prereg_2026-09-24}.md"
  },
@@ -1418,6 +1418,12 @@
  "plain_log": [
   {
    "date": "2026-09-24",
+   "text": "Afternoon: the registered estimator diagnosis found the campaign misses' real cause -- a two-line wiring defect in the real flight driver. It subscribed to the EKF velocity but kept only the speed scalar, so the chase's Kalman filter ran on the last COMMANDED velocity (3.6-4.2 m/s off) in all 16 prior flights; the filter absorbed the bias, the range estimate collapsed ~2.6 m in the final coast, steering froze at ~3 m, and the brake cap read the same wrong vector. Fixed (ADR-0117), re-fly #4 registered and flown: median CPA 0.343 m, 8/8 inside 1 m, 4/8 inside the 0.35 m contact envelope, zero aborts -- the registered bar PASSES for the first time across four campaigns (1.51 -> 0.97 -> 0.93 -> 0.34).",
+   "so_what": "The camera-driven chase now meets its own bar in the full-physics sim, and the defect it took four campaigns to find would have flown on the real aircraft -- the cross-check loop just paid for itself. Two rulings reopen (default swap; brake, whose earlier verdicts are void), and the honest caveats stand: perfect cue, windless, upright tag, sim camera.",
+   "evidence": "ADR-0117 (+addendum) - docs/xcheck_gazebo_pursuit_prereg4.md - logs/xcheck_gz_20260924_velfix/ - logs/endgame_diag_20260924/"
+  },
+  {
+   "date": "2026-09-24",
    "text": "Midday: both morning rulings executed end-to-end. The bracket+cant pair is in the build spec. The brake thread ran its ruled sync round (fixed the traced overshoot, exposed a second decode-starvation class, stopped per its rule), the builder then ruled 'fly the brake package in Gazebo', and re-fly #3 flew as registered: median 0.928 m vs 0.967 -- a registered NULL -- but with the first two sub-0.35 m contact-range flights this cross-check has ever produced. The decisive instrument finding: the brake was provably on yet endgame closing speed did not move, because the Kalman filter's range estimate collapses by ~2.6 m in the final two seconds (measurements clean at capture; the error is coast/extrapolation). Three campaigns in: 1.510 -> 0.967 -> 0.928 m, every registered fix landing as attributed.",
    "so_what": "The transfer gap has now been chased out of the measurement channel, the cadence, the plant fit and the approach speed -- the endgame estimator is the last suspect standing, with a measured -2.6 m signature isim structurally under-models. Next unit of work is a registered estimator diagnosis, not tuning and not another Gazebo campaign.",
    "evidence": "ADR-0116 - docs/xcheck_gazebo_pursuit_prereg3.md - logs/xcheck_gz_20260924_brake/"
@@ -1481,12 +1487,6 @@
    "evidence": "flight/tests/test_terminal_cli.py (7 tests); flight+isim 406 passed; real_flight.py --audit PASS; ADR-0105; configs/px4_6cmini/verify_params.py (COM5, 2 passes across a reboot); Pi at 547042b",
    "so_what": "The ruled engagement concept can now actually be flown/configured on hardware, not just in the prototype sim; the lost-target-timer ruling and the parity run are the remaining gates before it is trusted.",
    "text": "Chase only is now flyable from the real CLI: --terminal pursuit selects the ported pursuit terminal and the GO trigger enters the engagement directly (the old sprint's acquire gate can never fire for a chase that starts before the camera sees anything). The pre-launch aim belief comes from the same latched cue constants the dash aim already used -- audit green, 406 tests passed. Still open: the 2 s lost-target abort fires before pursuit's own 3 s recovery can act (needs a ruling), and the isim parity run (work item 4). ADR-0105. Same session: the Pi pulled the new code over the network and ran the chase-only dry run on its own CPU (audit and dry-run both pass there), and the Pixhawk got a proper read-back check -- a new PX4-safe verifier found the safety-switch parameter added to the pack in July had NEVER landed on the board (it still read the factory bypass value); written, rebooted, re-verified 10 of 10."
-  },
-  {
-   "date": "2026-09-17",
-   "text": "Builder ruled pursuit alone (\"chase only\"), dropping the sprint-and-fly-by hybrid ADR-0103 had measured as worse (46% vs pursuit's 82% inside 0.35 m, all realistic errors on). Ported the pursuit concept out of the isim prototype into the actual flight code that will fly (flight/pursuit_terminal.py, a relative-state Kalman filter reusing the tag terminal's camera geometry, not its differently-tuned filter), wired it into the isim adapter, and ran it end-to-end through the real state machine -- it acquires, tracks, and closes range on a moving target. Also added a pursuit_mode flag so the existing past-CPA fly-by breakoff, tuned for a fast crossing dash, does not falsely abort pursuit's slow speed-matching approach.",
-   "so_what": "The concept is no longer isim-only prototype code; it is unit-tested (10 tests), no-cheat-audited, and validated running through the code path that actually flies. NOT done: the CLI wiring for real hardware (--terminal pursuit needs the dash-endpoint kinematics to seed the pre-flight belief, deferred rather than rushed into the hardware entrypoint) and the A0-style numeric parity check against ADR-0103's own isim numbers. Also: a builder question about safeguard flags being caused by dense project docs was audited (docs/decisions.md was 118 ADRs/93.5k words, now split/archived) but a docs-free opus5-worker subagent still hard-failed right after, so the fix is good hygiene, not a fix for the flagging.",
-   "evidence": "flight/pursuit_terminal.py; flight/tests/test_pursuit_terminal.py; isim/tests/test_pursuit_terminal_isim.py; ADR-0103, ADR-0104; docs/pursuit_port_2026-09-17.md; docs/doc_hygiene_2026-09-17.md"
   }
  ],
  "narrative": {
@@ -2037,6 +2037,10 @@
     {
      "date": "2026-09-24",
      "note": "Gazebo re-fly #3 (brake package, --pursuit-brake, prereg3): registered NULL (median 0.928 vs 0.967, 4%) with the first 2/8 sub-0.35 m flights ever here (0.125/0.313 m) and zero aborts. C3 red-with-delivery-confirmed: endgame closing unchanged because KF range error collapses -2.58 m in the last 2 s (pose clean at capture -> coast). Endgame estimator = the measured next suspect; isim under-models it (declared 1.6x noise residual). ADR-0116."
+    },
+    {
+     "date": "2026-09-24",
+     "note": "Re-fly #4 (own-velocity fix only, prereg4): registered bar PASSES -- median 0.343 m, 8/8 <=1 m, 4/8 <=0.35 m, 0 aborts, FAULT 0/8, latch ~1.2 m as replica-predicted. F2 scalar clause red as written (-0.80, post-CPA-window statistic), cadence 8.56 vs 9. Default-swap + brake rulings REOPEN (0115/0116 evidence void -- measured under the ADR-0117 defect)."
     }
    ],
    "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
@@ -2550,12 +2554,12 @@
    "note": "750 s soak, quad_decimate 2.0, tag in every frame, 57.9 C max, no throttling; the project had assumed 30"
   },
   {
-   "label": "Chase port parity, nominal (inside 0.35 m / median)",
-   "value": "24% -> 100% / 0.068 m",
-   "provenance": "isim/specs/parity_trace_2026-09-22.md · scripts/forensics/parity_trace_pursuit.py",
-   "plain": "After the 4 trace fixes the flight-code port matches the prototype on the clean parity grid (native 100% / 0.120 m).",
+   "label": "Gazebo chase cross-check (camera-in-the-loop)",
+   "value": "median 0.343 m; 4/8 inside 0.35 m",
+   "provenance": "docs/xcheck_gazebo_pursuit_prereg{,2,3,4}.md - logs/xcheck_gz_20260924_velfix/ - ADR-0117",
+   "plain": "In the full-physics sim the camera-guided chase now passes half its flights inside touch distance.",
    "trust": "sim",
-   "note": "isim numbers, clean conditions, n=50/cell; aim20 70% / alt+2 76% remain below native (no re-approach, ADR-0107 deferred); the Gazebo cross-check (median 1.51 m) is the open transfer gap."
+   "note": "Re-fly #4 after the ADR-0117 own-velocity wiring fix; campaign arc 1.510 -> 0.967 -> 0.928 -> 0.343 m across four registered preregs, same bar throughout, n=8 fresh-boot flights each. Perfect cue, windless, upright tag, sim camera -- a sim milestone, not a field claim. Earlier parity numbers (24%->100% clean isim grid) retired to the stage notes."
   },
   {
    "label": "Chase height-error band (+10 deg tilt + 12 deg canted tag)",
