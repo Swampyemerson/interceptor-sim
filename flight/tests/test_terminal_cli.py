@@ -117,3 +117,20 @@ def test_dry_run_terminal_pursuit_exits_zero():
     assert "go_edge_pursuit" in r.stdout
     assert "receding-range breakoff" in r.stdout.lower() or \
         "SUPPRESSED" in r.stdout
+
+
+def test_pursuit_brake_flag_sets_the_adopted_package_and_defaults_off():
+    """--pursuit-brake (builder ruling 2026-09-24, ADR-0115): sets exactly
+    the registered package (a=3 m/s^2, lead 0.45 s default, horizontal-only
+    cap default, vertical arrival-sync); absent -> every brake field at its
+    legacy-off default."""
+    _a, _c, g_off = _build("--terminal", "pursuit")
+    assert g_off.cfg.brake_shaping is False
+    assert g_off.cfg.brake_vert_sync is False
+
+    _a, _c, g_on = _build("--terminal", "pursuit", "--pursuit-brake")
+    assert g_on.cfg.brake_shaping is True
+    assert g_on.cfg.brake_accel_ms2 == 3.0
+    assert g_on.cfg.brake_lead_s == 0.45
+    assert g_on.cfg.brake_horizontal_only is True
+    assert g_on.cfg.brake_vert_sync is True

@@ -118,7 +118,7 @@ import math
 import os
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, List, Optional, Sequence, Tuple
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -3038,8 +3038,16 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
     # the class's own pre-GO zero-velocity hold must never re-trigger here.
     # For a non-timer trigger (rc/gate) the GO instant is not a pre-flight
     # constant anyway; the SM's gating is what makes this seedable at all.
+    pcfg = PursuitTerminalConfig()
+    if getattr(args, "pursuit_brake", False):
+        # The ADOPTED package exactly as registered/measured (a3-horizontal +
+        # vert-sync); constants are the prereg's, not per-flight tunables.
+        pcfg = replace(pcfg, brake_shaping=True,
+                       brake_accel_ms2=3.0, brake_vert_sync=True)
+        print("[terminal] pursuit BRAKE PACKAGE ON (ADR-0115: a=3 m/s^2, "
+              "lead 0.45 s, horizontal-only cap + vertical arrival-sync)")
     return PursuitTerminalGuidance(
-        PursuitTerminalConfig(), cam, gcfg.target_span_m, gcfg,
+        pcfg, cam, gcfg.target_span_m, gcfg,
         belief_r0_ned=belief_r0_ned, belief_vel0_ned=belief_vel0_ned,
         go_at_s=0.0, initial_yaw_deg=cfg.preflight_heading_deg)
 
@@ -3232,6 +3240,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "buys nothing. Default matches "
                           "PursuitTerminalConfig.no_fallback_range_m. Inert "
                           "outside --terminal pursuit.")
+    trm.add_argument("--pursuit-brake", action="store_true",
+                     help="pursuit-mode BRAKE PACKAGE (builder ruling "
+                          "2026-09-24, ADR-0115): stopping-distance cap on "
+                          "the horizontal relative command (a=3 m/s^2, lead "
+                          "0.45 s) + vertical arrival-sync. The registered "
+                          "package, one switch, no tuning surface -- "
+                          "isim/specs/brake_shaping_prereg_2026-09-24.md. "
+                          "Default OFF = legacy behaviour, byte-identical.")
     trm.add_argument("--intrinsics",
                      default=os.path.join(_REPO_ROOT, "configs/camera_intrinsics.json"))
     trm.add_argument("--n-pronav", type=float, default=5.0)

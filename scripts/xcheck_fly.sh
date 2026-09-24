@@ -6,6 +6,8 @@
 set -u
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIRST="${1:?first idx}"; LAST="${2:?last idx}"; OUTDIR="${3:?outdir}"
+shift 3
+EXTRA=("$@")   # forwarded verbatim to the driver (and on to real_flight)
 mkdir -p "$OUTDIR"
 READY="Startup script returned successfully"
 
@@ -26,7 +28,7 @@ for i in $(seq "$FIRST" "$LAST"); do
     fi
     sleep 5
     timeout 420 "$REPO/.venv/bin/python" "$REPO/scripts/gazebo_pursuit_crosscheck.py" \
-        --out "$OUTDIR/f$i.csv" --engage-max-s 25 \
+        --out "$OUTDIR/f$i.csv" --engage-max-s 25 "${EXTRA[@]}" \
         2>&1 | tee "$OUTDIR/run_f$i.log" | grep -E "XCHECK_RESULT|FAIL|Traceback|\[mavsdk\]|\[xcheck\]" | tail -8
     bash "$REPO/scripts/sim_kill.sh" >/dev/null 2>&1
     sleep 3
