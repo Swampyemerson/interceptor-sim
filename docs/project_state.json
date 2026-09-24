@@ -17,13 +17,13 @@
  },
  "now": {
   "as_of": "2026-09-23",
-  "where": "Refinement day closed with the re-fly FLOWN: the gap fixes landed (instruments green; median CPA 1.510 -> 0.967 m) but the registered bar failed -- the chase is tighter, not yet a contact weapon in Gazebo, and isim still over-predicts ~3x.",
-  "finding": "Registered NULL with instruments green: range bias -1.07 -> +0.22 m and cadence 5.2 -> 9.0 det/s did what they were attributed to do; the residual is the pursuit law on a slow plant (hot approach / late braking) or outside the five suspects. Not a license to tune in Gazebo.",
+  "where": "Overnight directive done: the sim's AprilTag now pitches, banks, shakes and catches glare with its carrier (tag realism v1); registered ladder, fresh-seed confirmation, mechanism probe and canted-mount A/B all flown.",
+  "finding": "Nominal chase survives tag realism (90 -> 87-91% touching: honest NULL). But the +10 deg bracket's height-error win collapses on a pitching target (+21 -> +2..+14 pts); canting the placard 12 deg down recovers 60/64% -- bracket + cant are a PAIR (ADR-0114).",
   "next": [
-   "Registered isim guidance experiments vs the honest ENGAGE fit (braking/approach shaping)",
-   "Builder: bracket angle (+10 deg rec) + slant/AABB stock-path ruling"
+   "Builder: bracket ruling is now bracket + canted placard as a PAIR (ADR-0114)",
+   "Gazebo/bench rung for the cant; measured cruise pitch replaces the 12 deg estimate"
   ],
-  "evidence": "docs/xcheck_gazebo_pursuit_prereg2.md - isim/specs/xcheck_tick_trace_2026-09-23.md - isim/specs/chase_tilt_prereg_2026-09-23.md - ADR-0110..0113"
+  "evidence": "ADR-0114 - isim/specs/tag_realism_v1.md - logs/tag_realism_20260923/"
  },
  "assumptions": [
   {
@@ -519,18 +519,24 @@
   },
   {
    "id": "chase-bracket-angle",
-   "question": "The printed camera bracket is adjustable 10-30 deg and you lock it at build time. New registered evidence: for the ruled CHASE, +10 deg up-tilt takes the 'target 3 m above the guess' case from 34% to 70% touching, at zero measured cost in the normal band. The old spec (set it to the measured sprint dash pitch, 25-40 deg) only applies if the sprint ever becomes the flying mode again. What angle does the bracket get?",
+   "question": "The printed camera bracket is adjustable 10-30 deg and you lock it at build time. UPDATE (overnight 2026-09-23, ADR-0114): the +10 deg evidence you were given was measured with an upright, world-fixed tag; with the tag bolted to the pitching target the naked bracket's +3 m win collapses (+21 -> +2..+14 pts). Measured fix: also cant the tag placard's face 12 deg DOWN on the target's mount (~its cruise pitch) -- the pair restores 60-64% at +3 m with no nominal cost. What angle does the bracket get, and does the placard get the down-cant?",
    "options": [
-    "Lock +10 deg for the chase (the registered recommendation; re-verify at the bench corner-spin)",
-    "Keep the bracket adjustable until the first real dash ULog, then decide sprint-vs-chase spec",
-    "Print two brackets (+10 chase / dash-pitch sprint) and swap per engagement mode"
+    "Lock bracket +10 deg AND print the placard mount at 12 deg down-cant (the measured pair; re-verify cant against the first target ULog's real cruise pitch)",
+    "Lock bracket +10 deg, placard straight (accept ~45-50% at +3 m under realistic tag physics)",
+    "Keep both adjustable until the first real dash/target ULogs, then set from measured pitch"
    ],
-   "rec": "Option 1 -- chase-only is your ruled engagement, the +10 deg win is mechanism-confirmed with zero band cost, and the prop-clearance corner-spin gate at +10 deg is comfortably inside the boom geometry's margin. The bracket stays adjustable anyway if a re-decision comes.",
+   "rec": "Option 1 -- both angles are print-time and reversible, the pair passed its registered bars (P6/P7), and the placard mount's index disc records the cant so the field setting is auditable. The 12 deg is an estimate knob: re-verify against the target's measured cruise pitch when the first ULog exists.",
    "blocked": "Nothing today (the print is not on the critical path until the airframe arrives ~Oct 5-15); it becomes blocking at assembly.",
-   "doc": "ADR-0112; isim/specs/chase_tilt_prereg_2026-09-23.md"
+   "doc": "ADR-0112 + ADR-0114; isim/specs/tag_realism_v1.md SS G; isim/specs/chase_tilt_prereg_2026-09-23.md"
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-09-23",
+   "text": "Overnight (builder asleep, directive: 'make the sim's AprilTag true enough to real life -- tilt, pitch, shake, glare'). Built tag realism v1 into the fast sim: the target now derives a real quad attitude from its trajectory (nose-down cruise pitch, banked turns) with the tag bolted to its body, plus attitude wobble, camera-vibration blur, and sun-geometry glare -- all default-off and byte-identical, every constant graded estimate. Flew the registered ladder (n=50), a disjoint-seed confirmation (n=150), a mechanism probe, and a registered canted-mount A/B (n=100). Nominal chase: realism is an honest NULL (90 -> 87-91% touching). The real finding: the +10 deg camera bracket's height-error win collapses under a body-coupled tag (+21 -> +2..+14 points), because the pitched target tilts its rear tag face up-and-back and close-in decodes halve; canting the placard 12 deg DOWN (a print-time choice on our own mount, index disc records it) recovers the cell to 60/64% and restores the bracket's +20 margin.",
+   "so_what": "The builder's suspicion was half right: the tag model WAS hiding a real effect -- not in the flying nominal numbers, but in the pending bracket ruling. That ruling is now 'bracket + canted placard as a pair'. No guidance change was warranted (registered criterion: the deficit was geometric, fixed at the mount). All numbers isim-tier; Gazebo/bench rung and the measured real cruise pitch come next.",
+   "evidence": "ADR-0114 - isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/{ladder_v1,confirm_n150,mech_probe,cant_ab}.txt - commit 7546c12"
+  },
   {
    "date": "2026-09-23",
    "text": "Builder-directed refinement day, four parallel lanes. (1) The keep-in-frame climb assist he asked for was built, pre-registered, and honestly NULLED -- at +3 m of height error the tag almost never decodes, so a camera-triggered climb cannot fire; the follow-up attribution put numbers on it (41% of blind frames off the frame top, 35% too small) and surfaced a measured regression for the obvious alternative (Phase-A vertical sweep) that had been hiding in code comments -- both now graveyarded properly. (2) His wind question is answered with code receipts and a registered sweep: the chase corrects wind by feedback (within 6 points of no-wind up to 4.5 m/s); the unmeasured drag table only ever fed the retired sprint's aim solve; what wind costs is decode loss from leaning (8 m/s head: -14 pts). (3) The Gazebo 12x transfer gap is ATTRIBUTED: sim plant ~2x too fast, a 15-25% box-width range bias (the detector's pose range is clean), and a half-rate detect gate; latency and no-re-approach exonerated; evidence-based fixes + re-prediction in flight. (4) The MBSE model gained the week's corrective subsystems, and its open-items view was found rendering every open contradiction as a BLANK row -- fixed fail-loud.",
@@ -596,12 +602,6 @@
    "text": "Tried to break the pursuit result on purpose. With perfect self-knowledge it scored 92-98% inside 0.35 m; adding realistic errors took it to 49% (tag facing camera) and 68% (rear tag), and to 22-26% at double the errors. One at a time: frame-timestamp error 68/88%, attitude error 76/90%, position drift 81/95%, worse tag decoding 77/98%, velocity error no cost. A weaving target: 45% and 22%.",
    "so_what": "The 92-98% was a best case and is labelled as one. The two things that matter most are measurable on the bench: how accurately the Pi timestamps a frame against the flight controller's clock, and attitude accuracy. Both also have software answers that are next in the simulator.",
    "evidence": "isim/ownstate.py - isim/specs/pursuit_hardening_v5.md - ADR-0103"
-  },
-  {
-   "date": "2026-09-17",
-   "text": "The pursuit prototype went from 55-71% to 92-98% inside 0.35 m from one fix: a tag detection says where the target WAS when the frame was taken (45 ms earlier), and the filter was treating it as now, so the estimate trailed a 9 m/s target by 0.4 m. A per-tick estimator trace (the diagnostics the new simulator was built for) showed the constant lag in one look, after a worker's six tuning ideas had all come back null.",
-   "so_what": "A bad sprint and a target at a different height now mostly do not matter in the simulator. It is written up as a proposal (ADR-0103) because it changes the flight profile, the flight code's breakoff logic and where the tag goes. The simulator's own-state is perfect, so treat the numbers as best-case until noise is added and Gazebo agrees.",
-   "evidence": "commit 'isim pursuit: delayed-measurement Kalman update' - ADR-0103"
   }
  ],
  "narrative": {
@@ -1290,7 +1290,7 @@
     0
    ],
    "status": "implemented",
-   "active": "PX4 v1.17 SITL + Gazebo Harmonic headless, x500 mono cam (1280x960, ~100 deg), 3D quad target models/fpv_quad_enemy (billboard retired for realism work), mc_batch paired-seed methodology, GPU render ON (ADR-0075, RTF ~0.95).",
+   "active": "PX4 v1.17 SITL + Gazebo Harmonic headless (x500 mono cam, 3D quad target, GPU render ADR-0075) + the fast engagement sim isim/ (flight-code-in-the-loop, fitted plant, AprilTag decode model NOW WITH tag realism v1: target attitude + body-bolted tag, wobble, vibration blur, sun glare -- ADR-0114, default-off, byte-identical, constants graded estimate). mc paired-seed methodology both.",
    "note": "The sim STAYS (ADR-0072 — no pivot; a pivot invalidates ~70 measured ADRs). Honesty boundary enforced: gt_* is scoring/logging only. Methodology that caught all five mirages lives here: paired seeds n>=8, control arms, gt-consistent ENGAGE audits, statistics before verdicts. CAVEAT (2026-07-21, P0.2): the d3d12 GPU render corrupts FIDUCIAL decode at range (texture mip minification — shorter envelope + non-monotone anomalies), so AprilTag-decode sweeps run SIM_GPU_RENDER=0; scopes ADR-0075's 'images identical' to the NN/camera pipeline, not fiducials.",
    "evidence": [
     "ADR-0072",
@@ -1301,6 +1301,10 @@
     {
      "date": "2026-07-11",
      "note": "GPU render adopted (RTF 0.336->0.951); 3D quad target replaces billboard for realism work."
+    },
+    {
+     "date": "2026-09-23",
+     "note": "Tag realism v1 (ADR-0114): isim's AprilTag now rides a derived quad attitude (drag pitch, banked turns), shakes (OU wobble + camera vibration blur), and sees sun glare (specular + backlight). Registered ladder verdict: nominal NULL; the ADR-0112 bracket's height-error evidence regraded (upright-tag artifact); 12 deg down-canted placard measured as the pair fix. All knobs default-off and estimate-graded; 197 isim tests incl. byte-identity pins."
     }
    ],
    "caption": "The simulator and its anti-fooling checks — where every number so far comes from.",
@@ -1653,11 +1657,11 @@
    "note": "isim numbers, clean conditions, n=50/cell; aim20 70% / alt+2 76% remain below native (no re-approach, ADR-0107 deferred); the Gazebo cross-check (median 1.51 m) is the open transfer gap."
   },
   {
-   "label": "Chase height-error band (with +10 deg tilt)",
-   "value": "-2..+3 m (was -2..+2)",
-   "note": "Registered two-part isim A/B, n=50 paired/cell, all realistic errors on: +3 m cell 34%->70% inside 0.35 m at +10 deg, zero measured cost on -2..+2; +4 m stays outside (range-limited). isim ranks -- Gazebo/bench confirms before the printed bracket counts as validated.",
-   "provenance": "isim/specs/chase_tilt_prereg_2026-09-23.md · scripts/chase_tilt_ab.py · ADR-0112",
-   "plain": "With the camera angled up 10 degrees, the height guess can be 2 m low to 3 m high and the chase still touches.",
+   "label": "Chase height-error band (+10 deg tilt + 12 deg canted tag)",
+   "value": "-2..+3 m (bracket+cant pair)",
+   "note": "REGRADED 2026-09-23 night (ADR-0114): the original 34->70% at +3 m was measured with an UPRIGHT world-fixed tag. With the tag bolted to the pitching target (tag realism v1) the naked bracket's win shrinks to +2..+14 pts (its own >=15 bar failed); canting the placard face 12 deg DOWN (~cruise pitch) recovers +3 m to 60/64% (expected/worst tier, n=100, registered bars passed) and restores the bracket margin (+20). isim ranks -- Gazebo/bench confirms; the real cant angle tracks the MEASURED cruise pitch from the first target ULog.",
+   "provenance": "isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/ - ADR-0112 - ADR-0114 - scripts/tag_realism_ladder.py",
+   "plain": "Camera up 10 deg AND tag down 12 deg: height guess may be 2 m low to 3 m high. Either alone fails on a pitching target.",
    "trust": "sim"
   }
  ],

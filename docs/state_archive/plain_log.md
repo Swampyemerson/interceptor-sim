@@ -184,3 +184,11 @@ Builder ruling: build an entirely new simulator. He is not satisfied with the di
 - **2026-09-17** — In the new simulator the fly-by concept was shown to be the limit, not the steering law: a purpose-built tag terminal scored the same as the old one, because a 0.30 m tag is readable for only ~0.6 s at 19 m/s closing. A slow-arrival pursuit concept (match the target's speed, close at a few m/s) went from 0% to 55-71% inside 0.35 m over three worker rounds; each round's gain came from a bug the new per-miss diagnostics exposed (run scored at the wrong moment, estimator seeded from noise, detection paired with the wrong instant of attitude).
   so_what: A bad sprint stops mattering (30 degrees of aim error: 53% vs 0%). Height offsets and the last second, when the tag leaves the picture, are what is left. A longer lens made it worse, not better, at this geometry. If pursuit reaches 90% it changes the flight profile and tag placement, which is the builder's call.
   evidence: isim/concepts.py - isim/specs/ - docs/new_sim_plan.md
+
+## 2026-09-17 (archived from plain_log 2026-09-23 night, cap-12 overflow)
+
+The pursuit prototype went from 55-71% to 92-98% inside 0.35 m from one fix: a tag detection says where the target WAS when the frame was taken (45 ms earlier), and the filter was treating it as now, so the estimate trailed a 9 m/s target by 0.4 m. A per-tick estimator trace (the diagnostics the new simulator was built for) showed the constant lag in one look, after a worker's six tuning ideas had all come back null.
+
+**So what:** A bad sprint and a target at a different height now mostly do not matter in the simulator. It is written up as a proposal (ADR-0103) because it changes the flight profile, the flight code's breakoff logic and where the tag goes. The simulator's own-state is perfect, so treat the numbers as best-case until noise is added and Gazebo agrees.
+
+**Evidence:** commit 'isim pursuit: delayed-measurement Kalman update' - ADR-0103

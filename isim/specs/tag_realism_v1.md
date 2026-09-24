@@ -220,9 +220,175 @@ nom & alt+3 at cam_tilt_up_deg=10 (the pending ADR-0112 bracket recommendation �
 nose-down target tilts its rear tag UP-and-back, so target attitude plausibly interacts
 with camera tilt; prediction P5: the +10° alt+3 win of ADR-0112 SURVIVES attitude
 coupling, i.e. stays ≥ +15 points over tilt-0 at the same rung), and camera-facing nom
-(idealized control, prediction ≈ flat across rungs by design). (they're truth-model, not a tuned lever) —
+(idealized control, prediction ≈ flat across rungs by design).
+
+**Adopt/reject:** the realism knobs land regardless (they're truth-model, not a tuned lever) —
 what's decided is the HEADLINE: if all-on EXPECTED drops the standing numbers by > 5 points,
 the contract's terminal-stage numbers get rewritten to the realism-on figures and the old grid
 is regraded a best-case upper bound. A NULL (no material drop) means the tag model was already
 adequate: report that straight, do NOT invent a degradation, and the algorithm-refinement half
 of the night is judged unnecessary — the builder's "if I was right" was conditional.
+
+## G. Canted-mount A/B (registered 2026-09-23 night, BEFORE flying — follows the ladder,
+the n=150 confirmation and the mechanism probe)
+
+The ladder found the pitch coupling (a nose-down cruiser tilts its rear tag face
+up-and-back; close-range decode p inside 6 m halves at the below-target/up-tilt geometry,
+0.435 → 0.194, `logs/tag_realism_20260923/mech_probe.txt`) and the countermeasure is a
+TARGET-side print decision we control: cant the rear tag's face DOWN by the cruise pitch.
+Knob: `Scenario.tag_mount_pitch_deg` (default 0, byte-identical; geometry pinned by
+`test_tag_mount_pitch_cants_the_rear_tag_and_cancels_cruise_pitch`).
+
+- **Arms:** cant {0, 12°} × cells {nom, alt+3, alt+3+tilt10} × rungs {R2 expected,
+  R5 worst}, seeds 0..99 (n=100), same port-arm config as §F.
+- **Predictions:** (P6) cant-12 at alt3_t10/R2 recovers ≥ HALF of the realism-induced
+  loss (pooled n=200: R0 64% → R2 ~43%; bar = back to ≥ 53%). (P7) nominal cells move
+  ≤ ±5 points (level-view incidence 12° → 0° may even help slightly).
+- **Adopt:** recommend the canted placard mount to the builder (the placard mount's
+  index disc records the angle — docs/placard_mount.md) iff P6 holds and no cell
+  degrades > 5 points. A NULL means the coupling is not mount-fixable and the honest
+  height-band numbers stand as measured.
+
+## RESULTS (flown 2026-09-23 night → 2026-09-24; verbatim tables; local copies in logs/tag_realism_20260923/)
+
+### §F ladder, seeds 0..49 (n=50/cell)
+```
+         cell      rung     med     p90  <=0.35  <=1.0  med_dec
+     rear_nom   R0_base   0.130   0.252     94%    96%       94
+     rear_nom    R1_att   0.130   0.333     92%    96%       90
+     rear_nom  R2_shake   0.148   0.247     94%    98%       90
+     rear_nom    R3_vib   0.123   0.294     94%    96%       90
+     rear_nom  R4_glare   0.128   0.294     94%    96%       90
+     rear_nom  R5_worst   0.138   0.305     92%    94%       89
+
+   rear_aim20   R0_base   0.149   4.341     80%    82%       79
+   rear_aim20    R1_att   0.154   4.341     76%    80%       78
+   rear_aim20  R2_shake   0.179   4.138     78%    80%       74
+   rear_aim20    R3_vib   0.152   4.459     74%    76%       72
+   rear_aim20  R4_glare   0.152   4.459     74%    76%       72
+   rear_aim20  R5_worst   0.140   4.346     76%    78%       69
+
+   rear_alt+3   R0_base   0.420   4.180     34%    74%       33
+   rear_alt+3    R1_att   0.373   4.180     50%    76%       34
+   rear_alt+3  R2_shake   0.401   4.074     46%    84%       38
+   rear_alt+3    R3_vib   0.445   4.259     38%    68%       22
+   rear_alt+3  R4_glare   0.458   4.259     36%    68%       24
+   rear_alt+3  R5_worst   0.480   4.259     38%    64%       23
+
+   rear_weave   R0_base   0.531   2.152     28%    78%       60
+   rear_weave    R1_att   0.568   2.081     26%    76%       54
+   rear_weave  R2_shake   0.498   1.591     34%    78%       58
+   rear_weave    R3_vib   0.612   2.041     24%    72%       52
+   rear_weave  R4_glare   0.630   2.315     26%    70%       52
+   rear_weave  R5_worst   0.528   1.808     32%    76%       54
+
+ rear_nom_t10   R0_base   0.111   0.260     94%    94%       85
+ rear_nom_t10    R1_att   0.123   0.395     86%    94%       84
+ rear_nom_t10  R2_shake   0.134   0.292     92%    92%       84
+ rear_nom_t10    R3_vib   0.105   0.306     92%    94%       80
+ rear_nom_t10  R4_glare   0.109   0.306     92%    94%       80
+ rear_nom_t10  R5_worst   0.110   0.276     92%    94%       82
+
+rear_alt3_t10   R0_base   0.294   1.003     70%    90%       60
+rear_alt3_t10    R1_att   0.275   4.074     64%    86%       50
+rear_alt3_t10  R2_shake   0.434   4.181     32%    80%       42
+rear_alt3_t10    R3_vib   0.376   4.180     44%    84%       50
+rear_alt3_t10  R4_glare   0.377   4.180     42%    84%       50
+rear_alt3_t10  R5_worst   0.362   3.675     44%    86%       47
+
+      cam_nom   R0_base   0.132   1.042     86%    90%       98
+      cam_nom    R1_att   0.132   1.042     86%    90%       98
+      cam_nom  R2_shake   0.132   1.042     86%    90%       98
+      cam_nom    R3_vib   0.162   0.780     86%    90%       86
+      cam_nom  R4_glare   0.151   0.780     86%    90%       86
+      cam_nom  R5_worst   0.140   0.717     88%    90%       88
+
+```
+
+### Confirmation, DISJOINT seeds 50..199 (n=150/cell)
+```
+         cell      rung     med  <=0.35  <=1.0  med_dec
+     rear_nom   R0_base   0.120     90%    93%       92
+     rear_nom    R1_att   0.119     87%    92%       90
+     rear_nom  R2_shake   0.128     90%    97%       90
+     rear_nom  R5_worst   0.122     91%    95%       88
+
+   rear_aim20   R0_base   0.164     76%    82%       78
+   rear_aim20    R1_att   0.157     76%    80%       74
+   rear_aim20  R2_shake   0.140     75%    81%       72
+   rear_aim20  R5_worst   0.199     73%    76%       66
+
+   rear_alt+3   R0_base   0.379     46%    77%       43
+   rear_alt+3    R1_att   0.418     40%    69%       32
+   rear_alt+3  R2_shake   0.398     39%    65%       28
+   rear_alt+3  R5_worst   0.497     34%    66%       23
+
+rear_alt3_t10   R0_base   0.282     62%    89%       56
+rear_alt3_t10    R1_att   0.352     49%    81%       45
+rear_alt3_t10  R2_shake   0.379     46%    77%       48
+rear_alt3_t10  R5_worst   0.351     50%    81%       44
+
+```
+
+### Mechanism probe (20 seeds/rung, per-frame FrameReports; p@<6m = median decode p inside 6 m)
+```
+== rear_alt3_t10 ==
+     rung  frames  inFOV  att%  dec%  inc_med  inc_p90  blur_med   p_med   p@<6m
+  R0_base   19100  11531   27%   10%      8.4    155.6     0.008   0.000   0.435
+   R1_att   19100  12624   23%    7%     17.0    157.6     0.007   0.000   0.227
+ R2_shake   19100  11827   24%    6%     17.2    157.4     0.009   0.000   0.194
+
+== rear_alt+3_t0 ==
+     rung  frames  inFOV  att%  dec%  inc_med  inc_p90  blur_med   p_med   p@<6m
+  R0_base   19100  11921   19%    5%      7.3    155.6     0.007   0.000   0.317
+   R1_att   19100  12958   17%    4%     17.1    157.5     0.006   0.000   0.207
+ R2_shake   19100  13631   20%    6%     13.9    157.0     0.007   0.000   0.279
+
+== rear_nom ==
+     rung  frames  inFOV  att%  dec%  inc_med  inc_p90  blur_med   p_med   p@<6m
+  R0_base   19100  16599   25%   11%      1.7    156.9     0.006   0.000   0.617
+   R1_att   19100  17627   24%   10%     13.0    152.2     0.005   0.000   0.606
+ R2_shake   19100  15882   26%   11%     13.2    152.6     0.007   0.000   0.585
+
+```
+
+### §G canted-mount A/B, seeds 0..99 (n=100/cell-arm)
+```
+         cell      rung  cant     med  <=0.35  <=1.0  med_dec
+     rear_nom  R2_shake     0   0.143     91%    98%       90
+     rear_nom  R2_shake    12   0.131     91%    98%       90
+     rear_nom  R5_worst     0   0.135     91%    95%       87
+     rear_nom  R5_worst    12   0.140     88%    96%       90
+
+   rear_alt+3  R2_shake     0   0.401     40%    76%       28
+   rear_alt+3  R2_shake    12   0.375     40%    75%       39
+   rear_alt+3  R5_worst     0   0.508     30%    64%       24
+   rear_alt+3  R5_worst    12   0.421     40%    72%       32
+
+rear_alt3_t10  R2_shake     0   0.406     41%    76%       42
+rear_alt3_t10  R2_shake    12   0.312     60%    89%       52
+rear_alt3_t10  R5_worst     0   0.358     48%    85%       47
+rear_alt3_t10  R5_worst    12   0.282     64%    88%       55
+
+```
+
+### Registered verdicts
+
+- **R0 regression check: PASS** — reproduces the ADR-0112 anchors exactly (alt+3 tilt-0
+  34%, tilt-10 70%, seeds 0..49).
+- **P1 (rear nominal drops 5–15):** NOT confirmed — nominal is an honest NULL
+  (pooled n=200: 91.0% → 87.8–91.3% across rungs). The tag model was already adequate
+  at nominal; per the registered criterion, no contract rewrite of nominal numbers and
+  no algorithm refinement warranted.
+- **P2 (shake/vib < 3 pts):** confirmed at nominal.
+- **P3 (glare = fat tail, 3–10 pts):** smaller than predicted (≤ ~2 pts at nominal;
+  glare is bimodal and the vulnerable cells were already decode-starved).
+- **P4 (all-on rear < 55%):** nominal stays ≥ 88% — the builder's bet did not land on
+  the flying config.
+- **P5 (+10° alt+3 win survives, ≥ +15 pts): FAILED** — pooled n=200 the naked
+  bracket's margin is +2..+14 by rung (upright-tag +21). The n=50 "attitude helps
+  alt+3 tilt-0" (+16) REVERSED on disjoint seeds (−6): quote pooled numbers only.
+- **P6 (cant recovers ≥ half at alt3_t10/R2, bar 53%): PASS** — 41% → 60% (R5: 48% →
+  64%). **P7 (nominal ≤ ±5): PASS** (−3 worst). **ADOPT**: recommend bracket +10° AND
+  placard canted 12° down as a PAIR (ADR-0114); with both, the bracket's alt+3 margin
+  over no-bracket is restored (+20/+24).

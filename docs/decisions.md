@@ -720,3 +720,63 @@ correctly, whether threadlocker is mandatory or whether periodic inspection woul
 - **Evidence.** isim/specs/xcheck_tick_trace_2026-09-23.md; commit
   5aeebdf; logs/xcheck_isim_reprediction_20260923.csv (local);
   docs/xcheck_gazebo_pursuit_prereg2.md.
+
+## ADR-0114 — Tag realism v1: the sim's AprilTag now rides a pitching, shaking, glare-lit target; nominal survives, the naked +10° bracket does not, a 12° down-canted tag mount does (2026-09-23 night)
+
+- **Context.** Builder directive (2026-09-23 night): verify the sim's AprilTag
+  replication is "true enough to real life — a real drone will tilt with it,
+  pitch with it, shake some, have glare", build what's missing, test hard, and
+  refine the algorithm if it breaks. Until tonight the isim tag hung upright in
+  world axes (never banked or pitched with its carrier), never shook, and knew
+  no sun.
+- **Decision (three parts).** (1) The truth model gains target attitude
+  (derived quad physics: nose-down drag pitch, banked turns, tilt cap — pure
+  function of t), body-bolted tags, attitude wobble (2-axis OU), own-camera
+  vibration blur, and sun-geometry glare (specular lobe + backlight cone) —
+  all default-off, byte-identical at defaults, every constant graded
+  `estimate` (commit 7546c12; spec + registered ladder
+  isim/specs/tag_realism_v1.md). (2) The standing nominal chase numbers are
+  NOT regraded: the registered ladder measured nominal 90→87–91% inside
+  0.35 m across all realism tiers (n=200 pooled over two disjoint seed
+  batches) — an honest NULL; the camera-facing control stayed flat by design.
+  (3) The ADR-0112 bracket evidence IS regraded: with the tag bolted to the
+  pitched body, the +10° bracket's +3 m height-error win shrinks from +21
+  points (upright tag, pooled) to +2..+14 (rung-dependent) — below its own
+  ≥15-point materiality bar (registered prediction P5 FAILED). The
+  countermeasure the ladder's mechanism pointed to was then built and A/B'd
+  under its own registration (§G): canting the rear tag's face DOWN 12° (≈ the
+  target's cruise pitch) — a print-time choice on OUR placard mount, whose
+  index disc records the angle — recovers the cell to 60%/64% (expected/worst
+  tier, vs bars 53%; n=100) at ≤3 points of nominal cost, and restores the
+  bracket's margin over no-bracket to +20/+24. RECOMMENDATION to the builder:
+  the +10° bracket and the 12° down-canted placard are a PAIR; adopt both or
+  re-open the bracket angle.
+- **Mechanism (attributed, not assumed).** A 9 m/s cruiser pitches nose-down
+  ~12° (physics anchor: tan(tilt)=a_drag/g), tilting an un-canted rear tag's
+  face up-and-back. Below-target approach + up-tilted camera then meets the
+  tag at high incidence exactly in the terminal: close-range decode
+  probability inside 6 m halves (0.435 → 0.194,
+  logs/tag_realism_20260923/mech_probe.txt), the blind coast lengthens, and
+  the miss follows. Shake/vibration/glare alone were each ≤ ~3 points at
+  nominal (glare is bimodal by construction — most runs unaffected — and the
+  weave/aim20 tails are acquisition-limited, not tag-limited).
+- **Honesty.** Every realism constant is `estimate` (UNMEASURED /
+  GLARE_UNMEASURED tuples; drag-tilt 12° is physics-plausible, not a flown
+  measurement — the real target's first ULog replaces it, and the cant angle
+  should track the MEASURED cruise pitch). isim numbers rank and locate
+  (standing rule); the Gazebo/bench rung follows before any printed angle is
+  treated as validated. The n=50 first pass showed "attitude helps alt+3
+  tilt-0" (+16); the n=150 disjoint-seed confirmation reversed it (−6) — the
+  fresh-seed rule earned its keep again; quote only the pooled numbers.
+- **Algorithm verdict (the builder's conditional).** Per the registered
+  adopt/reject: at nominal the tag model was already adequate and no guidance
+  refinement is warranted on this evidence; the measured deficit was
+  geometric (mount + bracket coupling), fixed at the mount, not in the law.
+- **Verification.** 197 isim tests green (dev machine, WSL2) incl.
+  byte-identity pins, physics anchors, draw-count guards, and the cant
+  geometry test; R0 of the ladder reproduced the ADR-0112 anchors exactly
+  (34% / 70%) before any realism rung flew.
+- **Evidence.** isim/specs/tag_realism_v1.md (§F ladder + §G cant A/B,
+  predictions registered before each run);
+  logs/tag_realism_20260923/{ladder_v1,confirm_n150,mech_probe,cant_ab}.txt;
+  commit 7546c12 (build) + this commit.

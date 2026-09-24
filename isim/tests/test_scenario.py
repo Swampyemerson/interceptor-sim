@@ -668,3 +668,36 @@ def test_realism_scenario_is_picklable_and_runs(vp):
     r = run_engagement(ecfg, vehicle, target, seeker, guidance, init)
     assert math.isfinite(r.miss_m) and r.n_frames > 0
     assert any(f.tgt_shake_deg > 0.0 for f in r.frame_reports)
+
+
+def test_tag_mount_pitch_cants_the_rear_tag_and_cancels_cruise_pitch(vp):
+    """tag_realism_v1 follow-up: tag_mount_pitch_deg=P cants the rear tag's
+    face DOWN by P in the body frame; with P equal to the cruise drag tilt
+    the tag's WORLD normal comes out horizontal at cruise (the pitch-coupling
+    countermeasure), and P=0 is exactly the legacy mount."""
+    from isim.seeker import quat_to_rot
+    import math as _m
+
+    # P = 0 -> byte-identical mount.
+    _, _, _, sk0, _, _ = build(Scenario(tag_facing="rear", target_attitude=True), vp)
+    assert sk0.tag.body_normal_frd == (-1.0, 0.0, 0.0)
+
+    scn = Scenario(tag_facing="rear", target_attitude=True, tag_mount_pitch_deg=12.0)
+    _, _, target, sk, guidance, _ = build(scn, vp)
+    bn = np.asarray(sk.tag.body_normal_frd)
+    assert bn[0] == pytest.approx(-_m.cos(_m.radians(12.0)))
+    assert bn[2] == pytest.approx(_m.sin(_m.radians(12.0)))     # face canted DOWN
+    # At cruise (drag tilt = 12 by default) the world normal is horizontal.
+    t_go = _go_at_s(guidance.cfg)
+    s = target.state(t_go + 1.0)
+    n_ned = quat_to_rot(s.quat_wxyz) @ bn
+    assert abs(float(n_ned[2])) < 1e-6
+    # And the un-canted mount at the same cruise tilts up by ~12 deg.
+    bn0 = np.asarray(sk0.tag.body_normal_frd)
+    n0_ned = quat_to_rot(s.quat_wxyz) @ bn0
+    assert _m.degrees(_m.asin(-float(n0_ned[2]))) == pytest.approx(12.0, abs=1e-6)
+
+    # Only "rear" consumes it: side/camera mounts are unchanged by the knob.
+    _, _, _, sk_side, _, _ = build(Scenario(tag_facing="side", target_attitude=True,
+                                            tag_mount_pitch_deg=12.0), vp)
+    assert sk_side.tag.body_normal_frd == (0.0, -1.0, 0.0)

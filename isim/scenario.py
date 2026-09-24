@@ -434,6 +434,15 @@ class Scenario:
     # Scatter.sun_azimuth_uniform=False); defaults = GlareParams' own.
     sun_azimuth_deg: float = 180.0
     sun_elevation_deg: float = 35.0
+    # tag_realism_v1 follow-up (2026-09-23 ladder finding): cant the REAR
+    # tag's face DOWN by this many degrees IN THE TARGET BODY frame -- the
+    # mount-angle countermeasure to the pitch coupling (a nose-down cruiser
+    # tilts an un-canted rear tag's face up-and-back, which the ladder
+    # measured as the terminal decode loss at height-error cells). A real
+    # print-time choice on OUR target's placard mount (the index disc records
+    # it). Only meaningful with target_attitude=True and tag_facing="rear";
+    # 0.0 (default) = today's straight-back mount, byte-identical.
+    tag_mount_pitch_deg: float = 0.0
 
 
 def _sign(x: float) -> float:
@@ -468,7 +477,11 @@ def _tag_for(scn: "Scenario", vel_ned: np.ndarray) -> TagParams:
     tag = _tag_for_world(scn, vel_ned)
     if scn.target_attitude and not tag.faces_camera:
         if scn.tag_facing == "rear":
-            body_n = (-1.0, 0.0, 0.0)
+            # tag_mount_pitch_deg: face canted DOWN in body FRD (+z is down),
+            # cancelling the cruise nose-down pitch at level view. 0 -> the
+            # exact legacy (-1, 0, 0).
+            mp = math.radians(scn.tag_mount_pitch_deg)
+            body_n = (-math.cos(mp), 0.0, math.sin(mp))
         else:   # "side": (0, +-1, 0), sign-matched to the world-frame choice
             y = _level_body_normal(np.asarray(tag.normal_ned), vel_ned)[1]
             body_n = (0.0, 1.0 if y >= 0.0 else -1.0, 0.0)

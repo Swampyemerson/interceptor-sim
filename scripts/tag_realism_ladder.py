@@ -10,7 +10,10 @@ seeds and the draw-isolation design keeps the older draws identical, so
 rung-to-rung deltas are paired.
 """
 import dataclasses
+import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 
