@@ -509,6 +509,7 @@ class Model:
     sources: dict          # file name -> text
     build_rows: dict       # tab -> [row dict]
     step_ids: set
+    updated: str = ""      # contract 'updated' date (stamped into the editor)
     errors: list = field(default_factory=list)
 
     # ---------------------------------------------------------------- lookups
@@ -594,7 +595,7 @@ def load_contract() -> tuple[dict, dict, set]:
 def load_model(model_dir: Path = MODEL_DIR, contract=None) -> Model:
     if contract is None:
         contract = load_contract()
-    _, rows, steps = contract
+    state, rows, steps = contract
     pkgs, defs, sources = [], {}, {}
     on_disk = sorted(p.name for p in model_dir.glob("*.sysml"))
     if sorted(MODEL_FILES) != on_disk:
@@ -610,7 +611,7 @@ def load_model(model_dir: Path = MODEL_DIR, contract=None) -> Model:
                     raise ModelError(f"{fn}:{d.line}: definition {d.name!r} already defined "
                                      f"in {defs[d.name].file}")
                 defs[d.name] = d
-    m = Model(pkgs, defs, sources, rows, steps)
+    m = Model(pkgs, defs, sources, rows, steps, updated=str(state.get("updated", "")))
     check_model(m)
     return m
 
@@ -824,7 +825,7 @@ def view_edges(m: Model, sysdef: Def, cats: set):
     return out
 
 
-def render_view(m: Model, view) -> tuple[str, list]:
+def render_view(m: Model, view, interactive: bool = False) -> tuple[str, list, dict]:
     vid, sysname, cats, title, purpose = view
     sysdef = m.d(sysname)
     edges = view_edges(m, sysdef, cats)
@@ -849,11 +850,32 @@ def render_view(m: Model, view) -> tuple[str, list]:
                 continue
             key = (here[0], ".".join(here[1:]))
             _, pu = m.resolve_chain(sysdef, here)
-            ports.setdefault(key, {"conj": pu.conj, "others": []})["others"].append(there[0])
+            ports.setdefault(key, {"conj": pu.conj, "type": pu.type,
+                                   "others": []})["others"].append(there[0])
     for (node, _), info in ports.items():
         c0 = cell[node][0]
         votes = [("R" if cell[o][0] >= c0 else "L") for o in info["others"]]
         info["side"] = max(sorted(set(votes)), key=votes.count) if votes else "R"
+
+    if interactive:
+        # The editor shows EVERY port of a leaf part, connected or not -- you
+        # cannot tap a plug the drawing hides. Unconnected ports fill the
+        # emptier side. (Subsystem parts keep only their used chains.)
+        for p in nodes:
+            pdef = m.defs[p.type]
+            if pdef.parts:
+                continue
+            counts = {"L": 0, "R": 0}
+            for (n, _), i in ports.items():
+                if n == p.name:
+                    counts[i["side"]] += 1
+            for pname, pu in pdef.ports.items():
+                if (p.name, pname) in ports:
+                    continue
+                side = "L" if counts["L"] < counts["R"] else "R"
+                counts[side] += 1
+                ports[(p.name, pname)] = {"conj": pu.conj, "type": pu.type,
+                                          "others": [], "side": side}
 
     # --- box sizes
     def label_w(s):
@@ -1060,13 +1082,19 @@ def render_view(m: Model, view) -> tuple[str, list]:
                  f'width="{cw:.1f}" height="15" rx="2"/>')
         o.append(f'<text class="sx-chipt sx-{cls}" x="{x1 - cw / 2 - 8:.1f}" y="{y0 + 35}">{esc(chip)}</text>')
         o.append(f'<line class="sx-rule" x1="{x0}" y1="{y0 + HEADER - 4}" x2="{x1}" y2="{y0 + HEADER - 4}"/>')
+        if interactive and "BOM" in p.meta:
+            o.append(f'<rect class="sx-hit" data-part="{esc(p.name)}" '
+                     f'x="{x1 - cw - 12:.1f}" y="{y0 + 20}" width="{cw + 10:.1f}" height="23" rx="3"/>')
         o.append('</g>')
 
     # wires
     for (idx, iu, cat, pts) in routed:
         st = iu.attrs.get("linkState")
         d = "M" + " L".join(f"{x:.1f} {y:.1f}" for x, y in pts)
-        o.append(f'<path class="sx-w sx-c-{cat} sx-s-{st}" d="{d}"/>')
+        dw = f' data-wire="{esc(iu.name)}"' if interactive else ""
+        o.append(f'<path class="sx-w sx-c-{cat} sx-s-{st}"{dw} d="{d}"/>')
+        if interactive:
+            o.append(f'<path class="sx-whit" data-wire="{esc(iu.name)}" d="{d}"/>')
 
     # port squares + labels
     for (node, label), (x, y, side) in anchor.items():
@@ -1077,11 +1105,16 @@ def render_view(m: Model, view) -> tuple[str, list]:
             o.append(f'<text class="sx-pl" x="{x + 9:.1f}" y="{y + 3.5:.1f}">{esc(label)}</text>')
         else:
             o.append(f'<text class="sx-pl sx-end" x="{x - 9:.1f}" y="{y + 3.5:.1f}">{esc(label)}</text>')
+    if interactive:
+        for (node, label), (x, y, side) in anchor.items():
+            o.append(f'<rect class="sx-hitp" data-port="{esc(node)}|{esc(label)}" '
+                     f'x="{x - 13:.1f}" y="{y - 13:.1f}" width="26" height="26" rx="13"/>')
 
     # pills
     for (idx, iu, cat, _), (px, py) in zip(routed, pills):
         st = iu.attrs.get("linkState")
-        o.append(f'<g class="sx-pill sx-c-{cat} sx-s-{st}"><rect x="{px - 11:.1f}" y="{py - 8:.1f}" '
+        dw = f' data-wire="{esc(iu.name)}"' if interactive else ""
+        o.append(f'<g class="sx-pill sx-c-{cat} sx-s-{st}"{dw}><rect x="{px - 11:.1f}" y="{py - 8:.1f}" '
                  f'width="22" height="16" rx="8"/><text x="{px:.1f}" y="{py + 4:.1f}">{idx}</text></g>')
 
     # wire list
@@ -1104,6 +1137,9 @@ def render_view(m: Model, view) -> tuple[str, list]:
         o.append(f'<text class="sx-wd" x="52" y="{y0 + 14}">{esc(iu.attrs.get("connector") or "")}'
                  f'{" — " + esc(iu.attrs.get("detail")) if iu.attrs.get("detail") else ""}'
                  f'{esc(cable)}</text>')
+        if interactive:
+            o.append(f'<rect class="sx-hit" data-wire="{esc(iu.name)}" x="16" '
+                     f'y="{y0 - 14}" width="{width - 32}" height="{line_h}"/>')
 
     # legend
     lx, ly = 20, legend_y
@@ -1129,7 +1165,7 @@ def render_view(m: Model, view) -> tuple[str, list]:
     o.append(f'<rect class="sx-pc" x="{lx}" y="{ly - 14}" width="10" height="10"/>')
     o.append(f'<text class="sx-lg" x="{lx + 16}" y="{ly - 4}">~port (conjugate: receives)</text>')
     o.append("</svg>")
-    return "\n".join(o) + "\n", routed
+    return "\n".join(o) + "\n", routed, ports
 
 
 SVG_STYLE = """<style>
@@ -1196,7 +1232,7 @@ SVG_STYLE = """<style>
 
 
 def render_all(m: Model) -> dict:
-    """-> {view id: (svg text, routed edges)}; deterministic for a given model + contract."""
+    """-> {view id: (svg, routed edges, ports)}; deterministic for a given model + contract."""
     return {v[0]: render_view(m, v) for v in VIEWS}
 
 
@@ -1353,6 +1389,11 @@ def section_html(m: Model, rendered: dict, vno: str = "View 8") -> str:
                '<th>Tab</th><th>Row</th><th>Why not drawn</th></tr></thead><tbody>'
                + excl + '</tbody></table></div></details>')
 
+    if EDITOR_URL:
+        out.append(f'<p class="sxcap"><b>Click-to-edit:</b> the '
+                   f'<a href="{esc(EDITOR_URL)}">wiring editor</a> makes these diagrams tappable '
+                   f'&mdash; it queues connection / state / status changes, and a Claude session '
+                   f'applies them to the model (docs/sysml/README.md).</p>')
     out.append('<h3 class="sx3">The model itself (SysML v2 textual notation)</h3>'
                '<p class="sxcap">Edit these files, not the pictures. '
                '<code class="mono">python3 scripts/render_sysml.py</code> re-draws every view; '
@@ -1372,6 +1413,552 @@ def views_digest(rendered: dict) -> str:
         h.update(vid.encode())
         h.update(rendered[vid][0].encode())
     return h.hexdigest()
+
+
+
+
+# =============================================================================
+# 4b. The click-to-edit wiring editor (published as its own Artifact)
+# =============================================================================
+# The editor shows one all-category diagram per system with every port, wire
+# and status chip tappable. Taps queue edits into the Artifact's shared
+# database (collection "edits"); NOTHING edits the repo from the browser --
+# a Claude session applies the queue to docs/sysml/*.sysml + build_tab, runs
+# the validators, re-renders and republishes (contract: docs/sysml/README.md).
+# The page embeds the model as data at render time, so it is re-rendered and
+# republished by the same ritual as every other view (--check gates staleness).
+
+EDITOR_URL = "https://claude.ai/artifact/Q4pEiLKY5JpFsEGy9QUgps"
+EDITOR_OUT = MODEL_DIR / "editor.html"
+
+EDITOR_VIEWS = [
+    ("ed-interceptor", "InterceptorDrone", set(ALL_CATS), "Interceptor",
+     "Two power rails, the camera/Pi data path, and everything that bolts on."),
+    ("ed-target", "TargetDrone", set(ALL_CATS), "Target drone",
+     "The ArduPilot mover that carries the tag placard."),
+    ("ed-seeker", "TripodSeekerRig", set(ALL_CATS), "Seeker rig",
+     "The Tier-1 tripod rig: camera, Pi, power, calibration sightline."),
+    ("ed-ground", "Ground", set(ALL_CATS), "Ground",
+     "Transmitters, charger, laptop, hotspot."),
+    ("ed-engagement", "EngagementContext", set(ALL_CATS), "Engagement",
+     "Cross-system links: radio, charge, USB, GNSS, and the tag sightline."),
+]
+
+EDIT_KINDS = {  # the apply contract: every queued doc carries one of these kinds
+    "add": "new interface usage in <system> (name/iface/from/to/connector/detail)",
+    "remove": "delete interface usage <wire> from <system>",
+    "state": "set <wire>.linkState to <to> with <evidence>",
+    "detail": "set <wire> connector/detail text",
+    "status": "set build_tab row <row> (tab <tab>) status to <to>, append <note>",
+}
+
+
+def editor_model(m: Model, erendered: dict) -> dict:
+    """The semantic model the page validates taps against, keyed to the SVGs'
+    data-port / data-wire / data-part attributes."""
+    ifaces = {}
+    for d in m.defs.values():
+        if d.kind == "interface" and not d.abstract:
+            (_, at, ac), (_, bt, bc) = d.ends
+            ifaces[d.name] = {"a": [at, ac], "b": [bt, bc],
+                              "cat": m.categories(d.name)[0], "doc": d.doc}
+    systems = {}
+    for vid, sysname, *_ in EDITOR_VIEWS:
+        sysdef = m.d(sysname)
+        _, _, ports = erendered[vid]
+        parts = {}
+        for pu in sysdef.parts.values():
+            bom = pu.meta.get("BOM")
+            parts[pu.name] = {
+                "type": pu.type, "mult": pu.mult, "status": part_status(m, pu),
+                "tab": bom["tab"] if bom else None,
+                "row": m.bom_row(bom)["name"] if bom else None,
+                "doc": pu.doc or m.d(pu.type).doc,
+            }
+        wires = {}
+        for iu in sysdef.interfaces:
+            wires[iu.name] = {
+                "type": iu.type, "cat": m.categories(iu.type)[0],
+                "from": ".".join(iu.src), "to": ".".join(iu.dst),
+                "state": iu.attrs.get("linkState"),
+                "evidence": str(iu.attrs.get("evidence") or ""),
+                "connector": str(iu.attrs.get("connector") or ""),
+                "detail": str(iu.attrs.get("detail") or ""),
+                "file": iu.file, "doc": iu.doc,
+            }
+        systems[sysname] = {
+            "parts": parts, "wires": wires,
+            "ports": {f"{n}|{l}": {"type": i["type"], "conj": i["conj"]}
+                      for (n, l), i in ports.items()},
+        }
+    return {
+        "updated": m.updated,
+        "statuses": ["in hand", "ordered", "built", "print", "must-add"],
+        "views": [{"id": v[0], "system": v[1], "title": v[3]} for v in EDITOR_VIEWS],
+        "ifaces": ifaces, "systems": systems,
+        "steps": sorted(m.step_ids),
+    }
+
+
+EDITOR_CSS = """
+/* Layout: a one-column workbench -- tabs, queue docket, then the scrollable
+   drawing; the selected thing opens as a bottom action sheet. Palette and
+   type roles come from the project's drafting-paper design system
+   (dashboard.html / mbse.html): paper ground, ink, one drafting-blue accent,
+   status inks only in chips and stamps. */
+:root{
+  --bg:#F4F1E8; --panel:#ECE8DB; --card:#FBFAF5; --ink:#1C1B17; --muted:#57534A;
+  --line:#C9C3B1; --line2:#A8A190; --accent:#29527A;
+  --ok:#2D5F3E; --warn:#7E611E; --bad:#A63A22;
+  --sx-bg:#FBFAF5; --sx-panel:#FFFFFF; --sx-ink:#1C1B17; --sx-ink2:#8A8475;
+  --sx-mut:#57534A; --sx-line:#C9C3B1; --sx-ok:#2D5F3E; --sx-warn:#8A6A12;
+  --sx-acc:#29527A; --sx-bad:#A63A22; --sx-power:#B5452B; --sx-data:#2F6690;
+  --sx-rf:#7A4E9C; --sx-mech:#6E6A5C; --sx-opt:#2D7D5A;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --bg:#191B18; --panel:#21241F; --card:#1D201B; --ink:#D6D3C7; --muted:#9A978A;
+  --line:#3A3D36; --line2:#4A4D44; --accent:#7A9EC2;
+  --ok:#7FA671; --warn:#C9A24B; --bad:#D2785A;
+  --sx-bg:#1D201B; --sx-panel:#232620; --sx-ink:#D6D3C7; --sx-ink2:#6E6C62;
+  --sx-mut:#9A978A; --sx-line:#3A3D36; --sx-ok:#7FA671; --sx-warn:#C9A24B;
+  --sx-acc:#7A9EC2; --sx-bad:#D2785A; --sx-power:#E0876B; --sx-data:#7FB2D9;
+  --sx-rf:#B794D6; --sx-mech:#A3A193; --sx-opt:#6CC59A; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#191B18; --panel:#21241F; --card:#1D201B; --ink:#D6D3C7; --muted:#9A978A;
+  --line:#3A3D36; --line2:#4A4D44; --accent:#7A9EC2;
+  --ok:#7FA671; --warn:#C9A24B; --bad:#D2785A;
+  --sx-bg:#1D201B; --sx-panel:#232620; --sx-ink:#D6D3C7; --sx-ink2:#6E6C62;
+  --sx-mut:#9A978A; --sx-line:#3A3D36; --sx-ok:#7FA671; --sx-warn:#C9A24B;
+  --sx-acc:#7A9EC2; --sx-bad:#D2785A; --sx-power:#E0876B; --sx-data:#7FB2D9;
+  --sx-rf:#B794D6; --sx-mech:#A3A193; --sx-opt:#6CC59A; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--bg); color:var(--ink); margin:0; padding:0 16px 40vh;
+  font:15px/1.5 Charter,"Bitstream Charter","Sitka Text",Cambria,Georgia,serif}
+main{max-width:1180px; margin:0 auto}
+.ui{font-family:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif}
+.mono{font-family:ui-monospace,"Cascadia Mono",Consolas,"SF Mono",Menlo,"DejaVu Sans Mono",monospace;
+  font-size:.86em}
+.k{color:var(--muted)}
+a{color:var(--accent)}
+header{padding:18px 0 10px; border-bottom:2px solid var(--line2);
+  display:flex; flex-wrap:wrap; gap:4px 16px; align-items:baseline}
+h1{font:600 22px/1.2 "Helvetica Neue",Helvetica,Arial,sans-serif; margin:0; letter-spacing:-.01em}
+#conn{font:600 10.5px/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--warn); border:1px solid currentColor;
+  padding:3px 7px 4px; border-radius:2px}
+#conn[data-ok]{color:var(--ok)}
+header .stamp{font-family:ui-monospace,Consolas,Menlo,monospace; font-size:11px; color:var(--muted)}
+.lede{max-width:72ch; color:var(--muted); margin:10px 0 0; font-size:14px}
+#banner{margin:10px 0 0; padding:8px 12px; border:1px solid var(--line2);
+  border-left:4px solid var(--accent); background:var(--panel); font-size:13.5px}
+#banner[data-kind="warn"]{border-left-color:var(--bad)}
+#banner[data-kind="ok"]{border-left-color:var(--ok)}
+
+#tabs{display:flex; gap:6px; overflow-x:auto; padding:12px 0 10px; position:sticky;
+  top:env(safe-area-inset-top,0px); background:var(--bg); z-index:40;
+  border-bottom:1px solid var(--line)}
+#tabs button{font:600 11px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;
+  letter-spacing:.07em; text-transform:uppercase; color:var(--muted);
+  background:var(--panel); border:1px solid var(--line2); border-radius:2px;
+  padding:8px 12px; cursor:pointer; flex:0 0 auto}
+#tabs button[aria-current="page"]{color:var(--ink); background:var(--bg); border-color:var(--accent)}
+
+#queue{border:1px solid var(--line2); border-left:4px solid var(--accent);
+  background:var(--card); margin:14px 0; padding:10px 14px 12px}
+#queue h2{font:700 11px/1 "Helvetica Neue",Helvetica,Arial,sans-serif; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--accent); margin:0 0 8px}
+#pending{list-style:none; margin:0; padding:0; font-size:13.5px}
+#pending li{padding:4px 0; border-top:1px dotted var(--line)}
+#pending li:first-child{border-top:0}
+#apply-hint{font-size:12.5px; color:var(--muted); border-top:1px solid var(--line);
+  margin:8px 0 0; padding-top:7px; max-width:80ch}
+
+.viewsec .cap{font-size:13px; color:var(--muted); margin:12px 0 8px; max-width:80ch}
+.sxwrap{overflow-x:auto; border:1px solid var(--line); background:var(--sx-bg);
+  -webkit-overflow-scrolling:touch}
+.sxwrap svg{display:block; min-width:820px; width:100%; height:auto}
+
+/* tap targets + selection/pending marks inside the SVGs */
+.sx-hitp{fill:transparent; stroke:transparent; cursor:pointer}
+.sx-hitp:hover{fill:color-mix(in srgb, var(--sx-acc) 18%, transparent)}
+.sx-hitp.psel{stroke:var(--sx-acc); stroke-width:2.5; fill:color-mix(in srgb, var(--sx-acc) 22%, transparent)}
+.sx-hit{fill:transparent; cursor:pointer}
+.sx-hit:hover{fill:color-mix(in srgb, var(--sx-acc) 12%, transparent)}
+.sx-whit{fill:none; stroke:transparent; stroke-width:16; cursor:pointer; stroke-linejoin:round}
+path.sx-w.wsel{stroke-width:4.5; stroke-opacity:1}
+g.sx-pill.wsel rect{stroke-width:3}
+.pend{filter:drop-shadow(0 0 2.5px var(--sx-bad))}
+rect.sx-hit.pend{fill:color-mix(in srgb, var(--sx-bad) 16%, transparent)}
+g[data-wire], g[data-part]{cursor:pointer}
+
+/* the action sheet */
+#panel{position:fixed; left:16px; right:16px; bottom:16px; max-width:560px;
+  margin-inline:auto; z-index:60; background:var(--card); color:var(--ink);
+  border:1px solid var(--line2); border-top:3px solid var(--accent);
+  box-shadow:0 10px 32px rgba(0,0,0,.28); padding:14px 16px
+    calc(14px + env(safe-area-inset-bottom,0px)); max-height:min(62vh,540px); overflow:auto}
+#panel h3{margin:0 0 4px; font:600 16px/1.3 "Helvetica Neue",Helvetica,Arial,sans-serif}
+#panel p{margin:6px 0}
+#panel form{display:flex; flex-direction:column; gap:9px; margin-top:8px}
+#panel fieldset{border:1px solid var(--line); padding:6px 10px 9px; margin:0;
+  display:flex; flex-wrap:wrap; gap:4px 16px}
+#panel legend{font:700 10px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--muted); padding:0 4px}
+#panel label{font-size:13px; display:block}
+#panel label.cand{display:flex; gap:7px; align-items:baseline}
+#panel input[type="text"], #panel input:not([type]){width:100%; margin-top:3px;
+  font:13px ui-monospace,Consolas,Menlo,monospace; color:var(--ink);
+  background:var(--bg); border:1px solid var(--line2); border-radius:2px; padding:7px 8px}
+#panel .row{display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-top:2px}
+button.primary{font:600 12px/1 "Helvetica Neue",Helvetica,Arial,sans-serif;
+  letter-spacing:.05em; text-transform:uppercase; color:var(--bg);
+  background:var(--accent); border:1px solid var(--accent); border-radius:2px;
+  padding:10px 14px; cursor:pointer}
+button.lnk{font:inherit; font-size:13px; color:var(--accent); background:none;
+  border:0; padding:0; cursor:pointer; text-decoration:underline}
+button.lnk.danger{color:var(--bad)}
+.warn{color:var(--bad); font-size:13px}
+.pendnote{border-top:1px dotted var(--line); margin-top:10px; padding-top:7px;
+  font-size:12.5px; color:var(--muted)}
+#panel-close{position:absolute; top:8px; right:10px}
+footer{margin-top:28px; border-top:2px solid var(--line2); padding-top:10px;
+  font-family:ui-monospace,Consolas,Menlo,monospace; font-size:11.5px;
+  color:var(--muted)}
+footer p{margin:4px 0 0; max-width:100ch}
+:is(button,input,a):focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){ #panel{animation:up .14s ease-out}
+  @keyframes up{from{transform:translateY(10px); opacity:.6}} }
+"""
+
+EDITOR_JS = r"""
+"use strict";
+const MODEL = JSON.parse(document.getElementById("model").textContent);
+const $ = (s, el) => (el || document).querySelector(s);
+const $$ = (s, el) => Array.from((el || document).querySelectorAll(s));
+const STATE = { db: null, uid: "", edits: {}, view: MODEL.views[0].id, src: null };
+const eh = s => String(s == null ? "" : s).replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const sysOf = vid => MODEL.views.find(v => v.id === vid).system;
+const portName = k => k.replace("|", ".");
+
+function banner(msg, kind) {
+  const b = $("#banner"); b.textContent = msg || ""; b.dataset.kind = kind || "info";
+  b.hidden = !msg;
+}
+function openPanel(html) { $("#panel-body").innerHTML = html; $("#panel").hidden = false; }
+function closePanel() {
+  $("#panel").hidden = true; STATE.src = null;
+  $$(".psel").forEach(e => e.classList.remove("psel"));
+  $$(".wsel").forEach(e => e.classList.remove("wsel"));
+}
+function setView(vid) {
+  STATE.view = vid; closePanel();
+  $$(".viewsec").forEach(s => s.hidden = s.id !== "v-" + vid);
+  $$("#tabs button").forEach(b =>
+    b.setAttribute("aria-current", b.dataset.view === vid ? "page" : "false"));
+  markPending();
+  try { localStorage.setItem("sx-view", vid); } catch (e) {}
+}
+
+/* ------------------------------------------------- tapping the drawing */
+$$("svg.sx").forEach(svg => svg.addEventListener("click", ev => {
+  const t = ev.target.closest("[data-port],[data-wire],[data-part]");
+  if (!t) return;
+  const sys = sysOf(STATE.view);
+  if (t.dataset.port) tapPort(sys, t.dataset.port, t);
+  else if (t.dataset.wire) tapWire(sys, t.dataset.wire);
+  else if (t.dataset.part) tapPart(sys, t.dataset.part);
+}));
+
+function fit(sys, ka, kb) {
+  const P = MODEL.systems[sys].ports, a = P[ka], b = P[kb], out = [];
+  if (ka.split("|")[0] === kb.split("|")[0]) return out;     // same part: never
+  const eq = (e, p) => e[0] === p.type && e[1] === p.conj;
+  for (const [n, f] of Object.entries(MODEL.ifaces)) {
+    if (eq(f.a, a) && eq(f.b, b)) out.push({ type: n, from: ka, to: kb });
+    if (eq(f.a, b) && eq(f.b, a)) out.push({ type: n, from: kb, to: ka });
+  }
+  return out;
+}
+function suggestName(sys, c) {
+  let base = c.type.replace(/Link$/, "");
+  base = base[0].toLowerCase() + base.slice(1);
+  let n = base, i = 2;
+  while (MODEL.systems[sys].wires[n]) n = base + i++;
+  return n;
+}
+function tapPort(sys, key, el) {
+  const P = MODEL.systems[sys].ports;
+  if (!P[key]) return;
+  if (!STATE.src) {
+    closePanel(); STATE.src = key; el.classList.add("psel");
+    const p = P[key];
+    openPanel("<h3>New connection</h3><p class=\"k\">from <b class=\"mono\">" +
+      eh(portName(key)) + "</b> : " + (p.conj ? "~" : "") + eh(p.type) +
+      "</p><p>Now tap the second plug — or <button class=\"lnk\" data-act=\"close\">cancel</button>.</p>");
+    return;
+  }
+  if (STATE.src === key) { closePanel(); return; }
+  const a = STATE.src, b = key;
+  el.classList.add("psel");
+  const cands = fit(sys, a, b);
+  if (!cands.length) {
+    const pa = P[a], pb = P[b];
+    openPanel("<h3>These plugs don’t fit together</h3><p class=\"mono k\">" +
+      eh(portName(a)) + " : " + (pa.conj ? "~" : "") + eh(pa.type) + "<br>" +
+      eh(portName(b)) + " : " + (pb.conj ? "~" : "") + eh(pb.type) +
+      "</p><p>A wire joins a supplying port to a receiving (~) port of the matching type; no wire type in HardwareLibrary.sysml accepts this pair. " +
+      "<button class=\"lnk\" data-act=\"close\">OK</button></p>");
+    STATE.src = null;
+    return;
+  }
+  const dup = Object.entries(MODEL.systems[sys].wires).find(([, w]) =>
+    (w.from === portName(a) && w.to === portName(b)) ||
+    (w.from === portName(b) && w.to === portName(a)));
+  let html = "<h3>New connection</h3>";
+  if (dup) html += "<p class=\"warn\">A wire already joins these two: <b class=\"mono\">" +
+    eh(dup[0]) + "</b>. Queue a second one only if it is really a second cable.</p>";
+  html += "<form id=\"addf\"><fieldset><legend>Wire type</legend>" +
+    cands.map((c, i) => "<label class=\"cand\"><input type=\"radio\" name=\"cand\" value=\"" + i +
+      "\"" + (i === 0 ? " checked" : "") + "> <span class=\"mono\">" + eh(c.type) +
+      "</span>&nbsp;<span class=\"k mono\">" + eh(portName(c.from)) + " → " +
+      eh(portName(c.to)) + "</span></label>").join("") + "</fieldset>" +
+    "<label>Name <input id=\"f-name\" value=\"" + eh(suggestName(sys, cands[0])) + "\"></label>" +
+    "<label>Connector / medium <input id=\"f-conn\" placeholder=\"XT60 pigtail, 14 AWG\"></label>" +
+    "<label>Detail, one line <input id=\"f-detail\" placeholder=\"pins, protocol, rate\"></label>" +
+    "<div class=\"row\"><button type=\"submit\" class=\"primary\">Queue it</button> " +
+    "<button type=\"button\" class=\"lnk\" data-act=\"close\">Cancel</button></div></form>";
+  openPanel(html);
+  $("#addf").addEventListener("submit", ev2 => {
+    ev2.preventDefault();
+    const c = cands[+new FormData(ev2.target).get("cand")];
+    const name = $("#f-name").value.trim();
+    if (!/^[a-z][A-Za-z0-9_]*$/.test(name))
+      return banner("Give the wire a lowerCamelCase name (letters and digits).", "warn");
+    if (MODEL.systems[sys].wires[name])
+      return banner("A wire named " + name + " already exists here — pick another name.", "warn");
+    queueEdit({ kind: "add", system: sys, name, iface: c.type,
+      from: portName(c.from), to: portName(c.to),
+      connector: $("#f-conn").value.trim(), detail: $("#f-detail").value.trim() },
+      "+ " + name + " : " + c.type + "  " + portName(c.from) + " → " + portName(c.to));
+  });
+}
+
+const LINK_STATES = ["planned", "wired", "verified"];
+function tapWire(sys, name) {
+  closePanel();
+  const w = MODEL.systems[sys].wires[name];
+  if (!w) return;
+  $$("[data-wire=\"" + CSS.escape(name) + "\"]", $("#v-" + STATE.view))
+    .forEach(e => e.classList.add("wsel"));
+  const pend = Object.values(STATE.edits).filter(e => e.system === sys && e.wire === name);
+  let html = "<h3 class=\"mono\">" + eh(name) + "</h3>" +
+    "<p class=\"k\"><span class=\"mono\">" + eh(w.from) + " → " + eh(w.to) +
+    "</span> : " + eh(w.type) + "</p>" +
+    (w.doc ? "<p class=\"k\">" + eh(w.doc) + "</p>" : "") +
+    "<form id=\"wiref\"><fieldset><legend>State — now " + eh(w.state) + "</legend>" +
+    LINK_STATES.map(s => "<label class=\"cand\"><input type=\"radio\" name=\"st\" value=\"" + s +
+      "\"" + (s === w.state ? " checked" : "") + "> " + s + "</label>").join("") + "</fieldset>" +
+    "<label>Evidence — build step ids, needed for wired/verified " +
+    "<input id=\"f-ev\" value=\"" + eh(w.evidence) + "\" placeholder=\"afr-03\"></label>" +
+    "<label>Connector <input id=\"f-conn\" value=\"" + eh(w.connector) + "\"></label>" +
+    "<label>Detail <input id=\"f-detail\" value=\"" + eh(w.detail) + "\"></label>" +
+    "<div class=\"row\"><button type=\"submit\" class=\"primary\">Queue changes</button> " +
+    "<button type=\"button\" class=\"lnk danger\" id=\"delbtn\">Delete wire…</button> " +
+    "<button type=\"button\" class=\"lnk\" data-act=\"close\">Close</button></div></form>" +
+    (pend.length ? "<div class=\"pendnote\">Already queued here: " +
+      pend.map(e => eh(e.label)).join(" · ") + "</div>" : "");
+  openPanel(html);
+  $("#wiref").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const st = new FormData(ev.target).get("st"), evd = $("#f-ev").value.trim();
+    const conn = $("#f-conn").value.trim(), det = $("#f-detail").value.trim();
+    const jobs = [];
+    if (st !== w.state || (st !== "planned" && evd !== w.evidence)) {
+      if (st !== "planned" && !evd)
+        return banner("wired / verified needs the build step that proves it (e.g. tgt-04).", "warn");
+      jobs.push([{ kind: "state", system: sys, wire: name, to: st, evidence: evd },
+        name + ": " + w.state + " → " + st + (st !== "planned" ? " (" + evd + ")" : "")]);
+    }
+    if (conn !== w.connector || det !== w.detail)
+      jobs.push([{ kind: "detail", system: sys, wire: name, connector: conn, detail: det },
+        name + ": connector / detail text"]);
+    if (!jobs.length) return banner("Nothing changed.", "info");
+    jobs.forEach(([e, l]) => queueEdit(e, l));
+  });
+  $("#delbtn").addEventListener("click", () => {
+    const b = $("#delbtn");
+    if (b.dataset.armed)
+      queueEdit({ kind: "remove", system: sys, wire: name }, "− delete " + name);
+    else { b.dataset.armed = "1"; b.textContent = "Really queue the deletion?"; }
+  });
+}
+
+function tapPart(sys, part) {
+  closePanel();
+  const p = MODEL.systems[sys].parts[part];
+  if (!p) return;
+  if (!p.tab) {
+    openPanel("<h3>" + eh(part) + "</h3><p class=\"k\">" + eh(p.doc) +
+      "</p><p>Owned / external — not on the build sheet, so it has no status to change. " +
+      "<button class=\"lnk\" data-act=\"close\">OK</button></p>");
+    return;
+  }
+  openPanel("<h3>" + eh(part) + " <span class=\"k mono\">: " + eh(p.type) + "</span></h3>" +
+    "<p class=\"k\">Build-sheet row: " + eh(p.row) + "</p>" +
+    "<form id=\"stf\"><fieldset><legend>Status — now " + eh(p.status) + "</legend>" +
+    MODEL.statuses.map(s => "<label class=\"cand\"><input type=\"radio\" name=\"st\" value=\"" +
+      eh(s) + "\"" + (s === p.status ? " checked" : "") + "> " + s + "</label>").join("") +
+    "</fieldset><label>Note, optional — lands in the row’s notes with today’s date " +
+    "<input id=\"f-note\"></label>" +
+    "<div class=\"row\"><button class=\"primary\">Queue it</button> " +
+    "<button type=\"button\" class=\"lnk\" data-act=\"close\">Cancel</button></div></form>");
+  $("#stf").addEventListener("submit", ev => {
+    ev.preventDefault();
+    const st = new FormData(ev.target).get("st"), note = $("#f-note").value.trim();
+    if (st === p.status && !note) return banner("Nothing changed.", "info");
+    queueEdit({ kind: "status", tab: p.tab, row: p.row, to: st, note, system: sys, part },
+      part + ": " + p.status + " → " + st);
+  });
+}
+
+/* ------------------------------------------------- the queue */
+async function queueEdit(e, label) {
+  if (!STATE.db)
+    return banner("This view is read-only — open the page signed in with edit access to queue changes.", "warn");
+  e.label = label; e.created = Date.now(); e.by = STATE.uid;
+  try {
+    await STATE.db.collection("edits").doc(crypto.randomUUID().slice(0, 13)).set(e);
+  } catch (err) {
+    const code = err && err.code;
+    if (code === "invalid_argument")
+      return banner("Your access level can’t write to the queue (Contributor or above can).", "warn");
+    return banner("Couldn’t save that edit (" + (code || "error") + ") — try once more.", "warn");
+  }
+  banner("Queued: " + label, "ok");
+  closePanel();
+}
+function renderPending() {
+  const entries = Object.entries(STATE.edits)
+    .sort((a, b) => (a[1].created || 0) - (b[1].created || 0));
+  $("#pcount").textContent = entries.length;
+  $("#apply-hint").hidden = entries.length === 0;
+  $("#pending").innerHTML = entries.length
+    ? entries.map(([id, e]) => "<li><span class=\"mono\">" + eh(e.label || e.kind) + "</span>" +
+        (STATE.db ? " <button class=\"lnk danger\" data-del=\"" + id + "\">remove</button>" : "") +
+        "</li>").join("")
+    : "<li class=\"k\">Nothing queued. Tap a wire, a plug, or a status chip.</li>";
+}
+$("#pending").addEventListener("click", async ev => {
+  const id = ev.target.dataset && ev.target.dataset.del;
+  if (!id || !STATE.db) return;
+  try { await STATE.db.collection("edits").doc(id).delete(); }
+  catch (e) { banner("Couldn’t remove it — try once more.", "warn"); }
+});
+function markPending() {
+  $$(".pend").forEach(e => e.classList.remove("pend"));
+  for (const e of Object.values(STATE.edits)) {
+    const view = MODEL.views.find(v => v.system === e.system);
+    if (!view) continue;
+    const root = $("#v-" + view.id);
+    const wire = e.wire || (e.kind === "add" ? null : null);
+    if (wire) $$("[data-wire=\"" + CSS.escape(wire) + "\"]", root)
+      .forEach(el => el.classList.add("pend"));
+    if (e.part) $$("[data-part=\"" + CSS.escape(e.part) + "\"]", root)
+      .forEach(el => el.classList.add("pend"));
+  }
+}
+
+/* ------------------------------------------------- boot */
+document.addEventListener("click", ev => {
+  if (ev.target.dataset && ev.target.dataset.act === "close") closePanel();
+});
+$("#panel-close").addEventListener("click", closePanel);
+$$("#tabs button").forEach(b => b.addEventListener("click", () => setView(b.dataset.view)));
+let v0 = MODEL.views[0].id;
+try { const s = localStorage.getItem("sx-view");
+  if (s && MODEL.views.some(v => v.id === s)) v0 = s; } catch (e) {}
+setView(v0);
+renderPending();
+(async () => {
+  let db = null, user = null;
+  try { if (window.claude && window.claude.use) db = await window.claude.use("db"); } catch (e) {}
+  try { if (window.claude && window.claude.use) user = await window.claude.use("user"); } catch (e) {}
+  STATE.db = db;
+  if (user) { try { STATE.uid = (await user.id()) || ""; } catch (e) {} }
+  const dot = $("#conn");
+  if (db) {
+    dot.dataset.ok = "1"; dot.textContent = "queue connected";
+    db.collection("edits").onSnapshot(s => {
+      STATE.edits = {};
+      s.docs.forEach(d => { if (d.exists) STATE.edits[d.id] = d.data(); });
+      renderPending(); markPending();
+    }, e => banner("The edit queue dropped (" + e.code + ") — reload the page to reconnect.", "warn"));
+  } else {
+    dot.textContent = "read-only view";
+    renderPending();
+  }
+})();
+"""
+
+
+def build_editor_html(m: Model, erendered: dict) -> str:
+    model_json = json.dumps(editor_model(m, erendered), sort_keys=True,
+                            ensure_ascii=False).replace("</", "<\\/")
+    sections = []
+    for vid, sysname, _, title, purpose in EDITOR_VIEWS:
+        svg = erendered[vid][0]
+        sections.append(
+            f'<section class="viewsec" id="v-{vid}" hidden>'
+            f'<p class="cap"><b>{esc(title)}.</b> {esc(purpose)} '
+            f'Tap a <b>plug</b> (square) then a second plug to propose a wire; tap a '
+            f'<b>wire or its number</b> to change its state or text; tap a '
+            f'<b>status chip</b> to update the build sheet.</p>'
+            f'<div class="sxwrap">{svg}</div></section>')
+    tabs = "".join(f'<button type="button" data-view="{v[0]}" aria-current="false">{esc(v[3])}</button>'
+                   for v in EDITOR_VIEWS)
+    return f"""<title>Interceptor Wiring Editor</title>
+<style>{EDITOR_CSS}</style>
+<main>
+<header>
+  <h1>Interceptor Wiring Editor</h1>
+  <span id="conn" aria-live="polite">connecting&hellip;</span>
+  <span class="stamp">model as of {esc(m.updated)} &middot; docs/sysml/ is the source of truth</span>
+</header>
+<p class="lede">The same diagrams as the dashboard&rsquo;s MBSE sheet, but tappable.
+Your taps queue changes here &mdash; nothing edits the repo until a Claude session
+applies the queue to the SysML model, re-runs the validators and republishes.
+New connections are type-checked on the spot: a plug only accepts a wire the
+hardware library says fits it.</p>
+<div id="banner" hidden></div>
+<nav id="tabs" aria-label="System">{tabs}</nav>
+<aside id="queue">
+  <h2>Pending changes (<span id="pcount">0</span>)</h2>
+  <ul id="pending"></ul>
+  <p id="apply-hint" hidden>To apply: in any Claude session on this repo say
+  <b>&ldquo;apply the pending wiring edits from the SysML editor&rdquo;</b>.
+  Claude reads this queue, edits <span class="mono">docs/sysml/</span> and the build sheet,
+  re-runs the gates, republishes the dashboard and this page, and clears the queue.</p>
+</aside>
+{''.join(sections)}
+<div id="panel" hidden><button class="lnk" id="panel-close" aria-label="Close">close</button>
+<div id="panel-body"></div></div>
+<footer>
+  <p>GENERATED by scripts/render_sysml.py from docs/sysml/*.sysml + docs/project_state.json
+  (contract updated {esc(m.updated)}). Edit the text files for anything bigger than a tap;
+  how-to: docs/sysml/README.md. Wire colors: power / data / radio / mechanical / optical;
+  dashed = planned, filled number = verified by the named build step.</p>
+</footer>
+</main>
+<script id="model" type="application/json">{model_json}</script>
+<script>{EDITOR_JS}</script>
+"""
+
+
+def render_editor(m: Model) -> str:
+    er = {v[0]: render_view(m, v, interactive=True) for v in EDITOR_VIEWS}
+    return build_editor_html(m, er)
 
 
 # =============================================================================
@@ -1406,7 +1993,7 @@ def export_pngs(rendered: dict) -> dict:
         raise ModelError("--png needs Chromium (set CHROME_BIN); none found")
     out = {}
     with tempfile.TemporaryDirectory() as td:
-        for vid, (svg, _) in rendered.items():
+        for vid, (svg, *_) in rendered.items():
             w, h = svg_size(svg)
             page = Path(td) / f"{vid}.html"
             page.write_text(f"<!doctype html><meta charset='utf-8'><style>html,body{{margin:0;"
@@ -1438,10 +2025,13 @@ def main() -> int:
                f"{s['by_state']['planned']} planned), build-sheet rows {s['rows_drawn']} drawn + "
                f"{s['rows_excluded']} excluded, {len(s['open'])} open wiring decisions")
 
+    editor_html_text = render_editor(m)
     manifest = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
     if check:
         bad = []
-        for vid, (svg, _) in rendered.items():
+        if not EDITOR_OUT.exists() or EDITOR_OUT.read_text() != editor_html_text:
+            bad.append(f"{EDITOR_OUT.relative_to(ROOT)} is stale or missing (the click-to-edit page)")
+        for vid, (svg, *_) in rendered.items():
             f = VIEW_DIR / f"{vid}.svg"
             if not f.exists() or f.read_text() != svg:
                 bad.append(f"{f.relative_to(ROOT)} is stale or missing")
@@ -1463,7 +2053,8 @@ def main() -> int:
         return 0
 
     VIEW_DIR.mkdir(parents=True, exist_ok=True)
-    for vid, (svg, _) in rendered.items():
+    EDITOR_OUT.write_text(editor_html_text)
+    for vid, (svg, *_) in rendered.items():
         (VIEW_DIR / f"{vid}.svg").write_text(svg)
     for stale in VIEW_DIR.glob("*.svg"):
         if stale.stem not in rendered:

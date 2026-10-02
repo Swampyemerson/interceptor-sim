@@ -1039,3 +1039,12 @@ Surfaced on day one: two parts missing from build_tab (2nd Pocket TX, 1000 µF P
 cap — added) and three open wiring decisions (6C Mini buzzer pin, ESC signal lead
 connector, Pi 5 V entry). Reversible: delete docs/sysml/ + view 8. How-to:
 docs/sysml/README.md.
+
+**Addendum (same day): the click-to-edit wiring editor.** Builder asked for the
+diagrams to be interactable. Published as its own Artifact
+(https://claude.ai/artifact/Q4pEiLKY5JpFsEGy9QUgps, generated
+`docs/sysml/editor.html`, gated by the same `--check`): taps queue edits into
+the page's shared database; the five-kind apply contract lives in
+docs/sysml/README.md and every applied edit still passes the full validator
+stack, so the browser can propose but never silently change the model. Queue
+round-trip (write/list/delete) verified from this session.

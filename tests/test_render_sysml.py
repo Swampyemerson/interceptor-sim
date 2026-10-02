@@ -53,7 +53,7 @@ def test_real_model_is_valid_and_every_view_renders(contract):
     m = rs.load_model(rs.MODEL_DIR, contract)
     out = rs.render_all(m)
     assert set(out) == {v[0] for v in rs.VIEWS}
-    for vid, (svg, routed) in out.items():
+    for vid, (svg, routed, _ports) in out.items():
         assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>"), vid
         for _, iu, _, pts in routed:
             assert iu.name in svg, f"{vid}: wire {iu.name} missing from its wire list"
@@ -63,7 +63,7 @@ def test_real_model_is_valid_and_every_view_renders(contract):
 def test_every_connection_lands_in_at_least_one_view(contract):
     m = rs.load_model(rs.MODEL_DIR, contract)
     out = rs.render_all(m)
-    drawn = {(r[1].owner, r[1].name) for _, (_, routed) in out.items() for r in routed}
+    drawn = {(r[1].owner, r[1].name) for _, (_, routed, _p) in out.items() for r in routed}
     for s in m.systems():
         for iu in s.interfaces:
             assert (s.name, iu.name) in drawn, f"{s.name}.{iu.name} is in no view"
