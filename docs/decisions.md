@@ -1018,3 +1018,24 @@ the known isim alt+3 cost rides along as a documented caveat, and the sim-tier
 scope (perfect cue, windless, upright tag) is restated. Campaign arc:
 1.510 → 0.967 → 0.928 → 0.343 → 0.243 m across five registered preregs, one bar.
 Evidence: docs/xcheck_gazebo_pursuit_prereg5.md; logs/xcheck_gz_20260924_brakefix/.
+
+## ADR-0121 — Hardware architecture as a SysML v2 text model; status stays in the contract (2026-10-02)
+
+Builder asked for SysML v2 textual notation with rendered block diagrams of both
+aircraft (power, data, …) covering every part actually used, plugged into the
+Artifact with update docs. Options: (a) generate SysML text FROM build_tab — keeps one
+source but build_tab's free-text connections cannot carry port types, so nothing could
+be checked; (b) hand-written SysML as the source of STRUCTURE, contract stays the source
+of STATUS (chosen); (c) the OMG pilot's PlantUML renderer for the diagrams — validated
+here, but needs Java/Graphviz in every check and draws power and data indistinguishably.
+Decision: `docs/sysml/*.sysml` (7 files) owns parts, typed ports and typed wires;
+`@BOM` links each part to its build_tab row and the renderer reads status from there;
+`scripts/render_sysml.py` draws 9 views and gates (run_tests.sh stage 3 + CI) port-type
+and direction compatibility, link-state evidence ids, and build-sheet coverage both ways;
+`scripts/sysml/check_sysml_official.sh` proves the text is real SysML v2 (OMG Pilot
+0.62.0: 7/7 files, 0 errors). Why: the reference tool was tested and does NOT catch a
+wire drawn backwards or into the wrong port type — the checks that matter on a bench.
+Surfaced on day one: two parts missing from build_tab (2nd Pocket TX, 1000 µF Pi-rail
+cap — added) and three open wiring decisions (6C Mini buzzer pin, ESC signal lead
+connector, Pi 5 V entry). Reversible: delete docs/sysml/ + view 8. How-to:
+docs/sysml/README.md.

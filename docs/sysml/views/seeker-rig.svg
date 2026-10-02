@@ -1,0 +1,238 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="sx" viewBox="0 0 1338 928" width="1338" height="928" role="img" aria-labelledby="t-seeker-rig">
+<title id="t-seeker-rig">Tier-1 seeker rig — all links: SysML v2 interconnection view of TripodSeekerRig</title>
+<style>
+.sx text{font-family:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif}
+.sx .sx-bg{fill:var(--sx-bg,#FBFAF5)}
+.sx .sx-frame{fill:none;stroke:var(--sx-ink2,#8A8475);stroke-width:1.2}
+.sx .sx-tab{font-size:12px;font-weight:700;fill:var(--sx-ink,#1C1B17);
+  font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace}
+.sx .sx-purpose{font-size:12px;fill:var(--sx-mut,#57534A)}
+.sx .sx-box{fill:var(--sx-panel,#FFFFFF);stroke:var(--sx-ink,#1C1B17);stroke-width:1.4}
+.sx .sx-rule{stroke:var(--sx-line,#C9C3B1);stroke-width:1}
+.sx .sx-name{font-size:13.5px;font-weight:700;fill:var(--sx-ink,#1C1B17)}
+.sx .sx-type{font-size:10.5px;fill:var(--sx-mut,#57534A);
+  font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace}
+.sx .sx-chip{fill:none;stroke-width:1}
+.sx .sx-chipt{font-size:9px;font-weight:700;letter-spacing:.06em;text-anchor:middle}
+.sx .sx-ok{stroke:var(--sx-ok,#2D5F3E);fill:var(--sx-ok,#2D5F3E)}
+.sx .sx-warn{stroke:var(--sx-warn,#8A6A12);fill:var(--sx-warn,#8A6A12)}
+.sx .sx-acc{stroke:var(--sx-acc,#29527A);fill:var(--sx-acc,#29527A)}
+.sx .sx-bad{stroke:var(--sx-bad,#A63A22);fill:var(--sx-bad,#A63A22)}
+.sx .sx-mut{stroke:var(--sx-mut,#57534A);fill:var(--sx-mut,#57534A)}
+.sx rect.sx-chip{fill:none}
+.sx .sx-pl{font-size:10px;fill:var(--sx-ink,#1C1B17);
+  font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace}
+.sx .sx-end{text-anchor:end}
+.sx .sx-p{fill:var(--sx-ink,#1C1B17);stroke:var(--sx-ink,#1C1B17);stroke-width:1.2}
+.sx .sx-pc{fill:var(--sx-panel,#FFFFFF);stroke:var(--sx-ink,#1C1B17);stroke-width:1.4}
+.sx .sx-w{fill:none;stroke-width:2.2;stroke-linejoin:round}
+.sx .sx-w.sx-c-power{stroke:var(--sx-power,#B5452B);stroke-width:3}
+.sx .sx-w.sx-c-data{stroke:var(--sx-data,#2F6690)}
+.sx .sx-w.sx-c-rf{stroke:var(--sx-rf,#7A4E9C);stroke-dasharray:9 5}
+.sx .sx-w.sx-c-mechanical{stroke:var(--sx-mech,#6E6A5C);stroke-dasharray:2 4;stroke-width:2.6}
+.sx .sx-w.sx-c-optical{stroke:var(--sx-opt,#2D7D5A);stroke-dasharray:12 4 2 4}
+.sx .sx-w.sx-s-planned{stroke-opacity:.5}
+.sx .sx-pill rect{stroke-width:1.4}
+.sx .sx-pill text{font-size:10px;font-weight:700;text-anchor:middle}
+.sx .sx-pill.sx-c-power rect{stroke:var(--sx-power,#B5452B)}
+.sx .sx-pill.sx-c-data rect{stroke:var(--sx-data,#2F6690)}
+.sx .sx-pill.sx-c-rf rect{stroke:var(--sx-rf,#7A4E9C)}
+.sx .sx-pill.sx-c-mechanical rect{stroke:var(--sx-mech,#6E6A5C)}
+.sx .sx-pill.sx-c-optical rect{stroke:var(--sx-opt,#2D7D5A)}
+.sx .sx-pill.sx-s-verified.sx-c-power rect{fill:var(--sx-power,#B5452B)}
+.sx .sx-pill.sx-s-verified.sx-c-data rect{fill:var(--sx-data,#2F6690)}
+.sx .sx-pill.sx-s-verified.sx-c-rf rect{fill:var(--sx-rf,#7A4E9C)}
+.sx .sx-pill.sx-s-verified.sx-c-mechanical rect{fill:var(--sx-mech,#6E6A5C)}
+.sx .sx-pill.sx-s-verified.sx-c-optical rect{fill:var(--sx-opt,#2D7D5A)}
+.sx .sx-pill.sx-s-verified text{fill:var(--sx-panel,#FFFFFF)}
+.sx .sx-pill.sx-s-wired rect{fill:var(--sx-panel,#FFFFFF);stroke-width:2.6}
+.sx .sx-pill.sx-s-wired text{fill:var(--sx-ink,#1C1B17)}
+.sx .sx-pill.sx-s-planned rect{fill:var(--sx-panel,#FFFFFF);stroke-dasharray:3 2}
+.sx .sx-pill.sx-s-planned text{fill:var(--sx-mut,#57534A)}
+.sx .sx-h{font-size:10.5px;font-weight:700;letter-spacing:.12em;fill:var(--sx-mut,#57534A)}
+.sx .sx-wl{font-size:11.5px;fill:var(--sx-ink,#1C1B17)}
+.sx .sx-wn{font-weight:700}
+.sx .sx-wm{font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;font-size:10.5px}
+.sx .sx-wt{fill:var(--sx-mut,#57534A);font-size:10.5px}
+.sx .sx-ws{font-size:9.5px;font-weight:700;letter-spacing:.06em}
+.sx .sx-ws.sx-s-verified{fill:var(--sx-ok,#2D5F3E)}
+.sx .sx-ws.sx-s-wired{fill:var(--sx-warn,#8A6A12)}
+.sx .sx-ws.sx-s-planned{fill:var(--sx-mut,#57534A)}
+.sx .sx-wd{font-size:11px;fill:var(--sx-mut,#57534A)}
+.sx .sx-lg{font-size:10.5px;fill:var(--sx-mut,#57534A)}
+</style>
+<rect class="sx-bg" x="0" y="0" width="1338" height="928"/>
+<rect class="sx-frame" x="12" y="12" width="1314" height="562"/>
+<path class="sx-frame" d="M12 36 H294 L306 24 V12"/>
+<text class="sx-tab" x="22" y="29">ibd [part def] TripodSeekerRig [all]</text>
+<text class="sx-purpose" x="320" y="29">The interceptor&#x27;s eye on a tripod: the same camera, Pi and card that later fly.</text>
+<g class="sx-node"><rect class="sx-box" x="64" y="64" width="214" height="78" rx="2"/>
+<text class="sx-name" x="74" y="82">checkerboard</text>
+<text class="sx-type" x="74" y="98">: Checkerboard9x6</text>
+<rect class="sx-chip sx-acc" x="226.0" y="88" width="44.0" height="15" rx="2"/>
+<text class="sx-chipt sx-acc" x="248.0" y="99">PRINT</text>
+<line class="sx-rule" x1="64" y1="106" x2="278" y2="106"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="396" y="64" width="214" height="100" rx="2"/>
+<text class="sx-name" x="406" y="82">camera</text>
+<text class="sx-type" x="406" y="98">: OV9281Camera</text>
+<rect class="sx-chip sx-ok" x="545.2" y="88" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="573.6" y="99">IN HAND</text>
+<line class="sx-rule" x1="396" y1="106" x2="610" y2="106"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="728" y="64" width="214" height="78" rx="2"/>
+<text class="sx-name" x="738" y="82">tripod</text>
+<text class="sx-type" x="738" y="98">: TripodHead</text>
+<rect class="sx-chip sx-bad" x="870.8" y="88" width="63.2" height="15" rx="2"/>
+<text class="sx-chipt sx-bad" x="902.4" y="99">MUST-ADD</text>
+<line class="sx-rule" x1="728" y1="106" x2="942" y2="106"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="64" y="238" width="214" height="78" rx="2"/>
+<text class="sx-name" x="74" y="256">psu</text>
+<text class="sx-type" x="74" y="272">: USBCPSU27W</text>
+<rect class="sx-chip sx-ok" x="213.2" y="262" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="241.6" y="273">IN HAND</text>
+<line class="sx-rule" x1="64" y1="280" x2="278" y2="280"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="396" y="238" width="214" height="144" rx="2"/>
+<text class="sx-name" x="406" y="256">pi</text>
+<text class="sx-type" x="406" y="272">: RaspberryPi5</text>
+<rect class="sx-chip sx-ok" x="545.2" y="262" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="573.6" y="273">IN HAND</text>
+<line class="sx-rule" x1="396" y1="280" x2="610" y2="280"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="728" y="238" width="214" height="78" rx="2"/>
+<text class="sx-name" x="738" y="256">piSd</text>
+<text class="sx-type" x="738" y="272">: MicroSDCard</text>
+<rect class="sx-chip sx-ok" x="877.2" y="262" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="905.6" y="273">IN HAND</text>
+<line class="sx-rule" x1="728" y1="280" x2="942" y2="280"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="64" y="456" width="214" height="78" rx="2"/>
+<text class="sx-name" x="74" y="474">powerBank</text>
+<text class="sx-type" x="74" y="490">: USBCPowerBank</text>
+<rect class="sx-chip sx-bad" x="206.8" y="480" width="63.2" height="15" rx="2"/>
+<text class="sx-chipt sx-bad" x="238.4" y="491">MUST-ADD</text>
+<line class="sx-rule" x1="64" y1="498" x2="278" y2="498"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="396" y="456" width="214" height="78" rx="2"/>
+<text class="sx-name" x="406" y="474">cooler</text>
+<text class="sx-type" x="406" y="490">: PiActiveCooler</text>
+<rect class="sx-chip sx-ok" x="545.2" y="480" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="573.6" y="491">IN HAND</text>
+<line class="sx-rule" x1="396" y1="498" x2="610" y2="498"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="728" y="456" width="214" height="78" rx="2"/>
+<text class="sx-name" x="738" y="474">hotspot</text>
+<text class="sx-type" x="738" y="490">: PhoneHotspot</text>
+<rect class="sx-chip sx-mut" x="890.0" y="480" width="44.0" height="15" rx="2"/>
+<text class="sx-chipt sx-mut" x="912.0" y="491">OWNED</text>
+<line class="sx-rule" x1="728" y1="498" x2="942" y2="498"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="1060" y="456" width="214" height="78" rx="2"/>
+<text class="sx-name" x="1070" y="474">laptop</text>
+<text class="sx-type" x="1070" y="490">: Laptop</text>
+<rect class="sx-chip sx-mut" x="1222.0" y="480" width="44.0" height="15" rx="2"/>
+<text class="sx-chipt sx-mut" x="1244.0" y="491">OWNED</text>
+<line class="sx-rule" x1="1060" y1="498" x2="1274" y2="498"/>
+</g>
+<path class="sx-w sx-c-power sx-s-verified" d="M278.0 295.0 L337.0 295.0 L337.0 295.0 L396.0 295.0"/>
+<path class="sx-w sx-c-power sx-s-planned" d="M278.0 513.0 L344.0 513.0 L344.0 295.0 L396.0 295.0"/>
+<path class="sx-w sx-c-power sx-s-verified" d="M610.0 339.0 L669.0 339.0 L669.0 513.0 L610.0 513.0"/>
+<path class="sx-w sx-c-data sx-s-verified" d="M610.0 143.0 L676.0 143.0 L676.0 295.0 L610.0 295.0"/>
+<path class="sx-w sx-c-data sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 295.0 L728.0 295.0"/>
+<path class="sx-w sx-c-optical sx-s-planned" d="M278.0 121.0 L330.0 121.0 L330.0 121.0 L396.0 121.0"/>
+<path class="sx-w sx-c-mechanical sx-s-planned" d="M728.0 121.0 L662.0 121.0 L662.0 121.0 L610.0 121.0"/>
+<path class="sx-w sx-c-rf sx-s-verified" d="M728.0 513.0 L690.0 513.0 L690.0 361.0 L610.0 361.0"/>
+<path class="sx-w sx-c-rf sx-s-verified" d="M728.0 513.0 L1060.0 513.0"/>
+<rect class="sx-p" x="273.0" y="116.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="269.0" y="124.5">face</text>
+<rect class="sx-pc" x="391.0" y="116.0" width="10" height="10"/>
+<text class="sx-pl" x="405.0" y="124.5">lens</text>
+<rect class="sx-pc" x="605.0" y="116.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="601.0" y="124.5">mount</text>
+<rect class="sx-p" x="605.0" y="138.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="601.0" y="146.5">csi</text>
+<rect class="sx-p" x="723.0" y="116.0" width="10" height="10"/>
+<text class="sx-pl" x="737.0" y="124.5">head</text>
+<rect class="sx-p" x="273.0" y="290.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="269.0" y="298.5">usbC</text>
+<rect class="sx-pc" x="391.0" y="290.0" width="10" height="10"/>
+<text class="sx-pl" x="405.0" y="298.5">pwrIn</text>
+<rect class="sx-pc" x="605.0" y="290.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="601.0" y="298.5">cam0</text>
+<rect class="sx-p" x="605.0" y="312.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="601.0" y="320.5">sdSlot</text>
+<rect class="sx-p" x="605.0" y="334.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="601.0" y="342.5">fanHeader</text>
+<rect class="sx-pc" x="605.0" y="356.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="601.0" y="364.5">wifi</text>
+<rect class="sx-pc" x="723.0" y="290.0" width="10" height="10"/>
+<text class="sx-pl" x="737.0" y="298.5">contacts</text>
+<rect class="sx-p" x="273.0" y="508.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="269.0" y="516.5">usbC</text>
+<rect class="sx-pc" x="605.0" y="508.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="601.0" y="516.5">header</text>
+<rect class="sx-p" x="723.0" y="508.0" width="10" height="10"/>
+<text class="sx-pl" x="737.0" y="516.5">ap</text>
+<rect class="sx-pc" x="1055.0" y="508.0" width="10" height="10"/>
+<text class="sx-pl" x="1069.0" y="516.5">wifi</text>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="355.5" y="287.0" width="22" height="16" rx="8"/><text x="366.5" y="299.0">1</text></g>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="333.0" y="396.0" width="22" height="16" rx="8"/><text x="344.0" y="408.0">2</text></g>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="658.0" y="418.0" width="22" height="16" rx="8"/><text x="669.0" y="430.0">3</text></g>
+<g class="sx-pill sx-c-data sx-s-verified"><rect x="665.0" y="211.0" width="22" height="16" rx="8"/><text x="676.0" y="223.0">4</text></g>
+<g class="sx-pill sx-c-data sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">5</text></g>
+<g class="sx-pill sx-c-optical sx-s-planned"><rect x="352.0" y="113.0" width="22" height="16" rx="8"/><text x="363.0" y="125.0">6</text></g>
+<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="684.0" y="113.0" width="22" height="16" rx="8"/><text x="695.0" y="125.0">7</text></g>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="679.0" y="451.8" width="22" height="16" rx="8"/><text x="690.0" y="463.8">8</text></g>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="966.0" y="505.0" width="22" height="16" rx="8"/><text x="977.0" y="517.0">9</text></g>
+<text class="sx-h" x="20" y="596">WIRE LIST — every connection in this view</text>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="20" y="604" width="22" height="16" rx="8"/><text x="31" y="616">1</text></g>
+<text class="sx-wl" x="52" y="616"><tspan class="sx-wn">benchPower</tspan><tspan class="sx-wm">  psu.usbC → pi.pwrIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-07)</tspan></text>
+<text class="sx-wd" x="52" y="630">USB-C PD — bench rail -- OR the power bank, never both</text>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="634" width="22" height="16" rx="8"/><text x="31" y="646">2</text></g>
+<text class="sx-wl" x="52" y="646"><tspan class="sx-wn">fieldPower</tspan><tspan class="sx-wm">  powerBank.usbC → pi.pwrIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="660">USB-C PD &gt;= 27 W — field rail -- the wall PSU is useless outdoors</text>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="20" y="664" width="22" height="16" rx="8"/><text x="31" y="676">3</text></g>
+<text class="sx-wl" x="52" y="676"><tspan class="sx-wn">fan</tspan><tspan class="sx-wm">  pi.fanHeader → cooler.header</tspan><tspan class="sx-wt">  : FanLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-07)</tspan></text>
+<text class="sx-wd" x="52" y="690">4-pin fan header — 750 s soaks, no throttling</text>
+<g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="694" width="22" height="16" rx="8"/><text x="31" y="706">4</text></g>
+<text class="sx-wl" x="52" y="706"><tspan class="sx-wn">cameraRibbon</tspan><tspan class="sx-wm">  camera.csi → pi.cam0</tspan><tspan class="sx-wt">  : CSI2Link</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-02)</tspan></text>
+<text class="sx-wd" x="52" y="720">22-to-15-pin CSI ribbon — CAM/DISP0 (not the default port 1) · cable: Wonrabai 22-to-15-pin CSI cable</text>
+<g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="724" width="22" height="16" rx="8"/><text x="31" y="736">5</text></g>
+<text class="sx-wl" x="52" y="736"><tspan class="sx-wn">frameCard</tspan><tspan class="sx-wm">  pi.sdSlot → piSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-01, skr-05)</tspan></text>
+<text class="sx-wd" x="52" y="750">Pi microSD slot — Pi OS + timestamped raw PNG frames</text>
+<g class="sx-pill sx-c-optical sx-s-planned"><rect x="20" y="754" width="22" height="16" rx="8"/><text x="31" y="766">6</text></g>
+<text class="sx-wl" x="52" y="766"><tspan class="sx-wn">calibrationView</tspan><tspan class="sx-wm">  checkerboard.face → camera.lens</tspan><tspan class="sx-wt">  : SightLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="780">line of sight — &gt;= 15 views, RMS reprojection &lt;= 1.0 px</text>
+<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="784" width="22" height="16" rx="8"/><text x="31" y="796">7</text></g>
+<text class="sx-wl" x="52" y="796"><tspan class="sx-wn">tripodMount</tspan><tspan class="sx-wm">  tripod.head → camera.mount</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="810">ball head — inclinometer records the exact tilt</text>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="20" y="814" width="22" height="16" rx="8"/><text x="31" y="826">8</text></g>
+<text class="sx-wl" x="52" y="826"><tspan class="sx-wn">piWifi</tspan><tspan class="sx-wm">  hotspot.ap → pi.wifi</tspan><tspan class="sx-wt">  : WiFiLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-01)</tspan></text>
+<text class="sx-wd" x="52" y="840">Wi-Fi — SSH spot-checks between passes + NTP time sync</text>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="20" y="844" width="22" height="16" rx="8"/><text x="31" y="856">9</text></g>
+<text class="sx-wl" x="52" y="856"><tspan class="sx-wn">laptopWifi</tspan><tspan class="sx-wm">  hotspot.ap → laptop.wifi</tspan><tspan class="sx-wt">  : WiFiLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-01)</tspan></text>
+<text class="sx-wd" x="52" y="870">Wi-Fi — same hotspot as the Pi</text>
+<text class="sx-h" x="20" y="888">KEY</text>
+<path class="sx-w sx-c-power sx-s-verified" d="M60 884 H90"/>
+<text class="sx-lg" x="96" y="888">power</text>
+<path class="sx-w sx-c-data sx-s-verified" d="M136.5 884 H166.5"/>
+<text class="sx-lg" x="172.5" y="888">data / signal</text>
+<path class="sx-w sx-c-optical sx-s-verified" d="M265.0 884 H295.0"/>
+<text class="sx-lg" x="301.0" y="888">optical</text>
+<path class="sx-w sx-c-mechanical sx-s-verified" d="M354.5 884 H384.5"/>
+<text class="sx-lg" x="390.5" y="888">mechanical</text>
+<path class="sx-w sx-c-rf sx-s-verified" d="M463.5 884 H493.5"/>
+<text class="sx-lg" x="499.5" y="888">radio</text>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="540.0" y="876" width="22" height="16" rx="8"/><text x="551.0" y="888">n</text></g>
+<text class="sx-lg" x="568.0" y="888">verified (logged step)</text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="716.4" y="876" width="22" height="16" rx="8"/><text x="727.4" y="888">n</text></g>
+<text class="sx-lg" x="744.4" y="888">wired, untested</text>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="849.4" y="876" width="22" height="16" rx="8"/><text x="860.4" y="888">n</text></g>
+<text class="sx-lg" x="877.4" y="888">planned</text>
+<rect class="sx-p" x="932.8" y="878" width="10" height="10"/>
+<text class="sx-lg" x="948.8" y="888">port (supplies / hosts)</text>
+<rect class="sx-pc" x="1102.8" y="878" width="10" height="10"/>
+<text class="sx-lg" x="1118.8" y="888">~port (conjugate: receives)</text>
+</svg>

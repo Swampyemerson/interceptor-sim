@@ -1,0 +1,38 @@
+{
+  "engagement": {
+    "png_sha256": "44afce62a4a24b28aef76e777854077fa5eb13be846360c1adfa62b0357aaf98",
+    "svg_sha256": "bdf9fe640be9d5c6c7f52ac72cd53fec6033f62c3a607ebeddecebcd3ae9ad4d"
+  },
+  "ground": {
+    "png_sha256": "4e44d3223e37f24ad330e163c802ea4519af428d2fcc465d8ce1785c614a5f52",
+    "svg_sha256": "b2a84ada891db73a4d830d56c40f981451dad38bd4b3c3e502c89a52ed6880f9"
+  },
+  "interceptor-data": {
+    "png_sha256": "2ce53df1d0d0937279317604a954cc37cfd1dca2c4e17b2372cd0b26149bbf37",
+    "svg_sha256": "bed9de6ee50d18de40271041c8d00a11be2034a9a0f5b58aa944bbacdd735122"
+  },
+  "interceptor-mech": {
+    "png_sha256": "795c482b61f54efc82d2d847f92c4b89767c388086c33da6478e02fa19f05cbd",
+    "svg_sha256": "9463a3badff9d1e951668fa64d444d0b110fbbf8335426d726e0e29beecb4de3"
+  },
+  "interceptor-power": {
+    "png_sha256": "6475808df51efc006a743f5d2b3c9b44e18cbbfe8bd8bf6d184907c4e130a1cc",
+    "svg_sha256": "e1c44dfb4e32e6a6d8adcb13d8abcd0db2c99837ece5ed19a8287dff458191fe"
+  },
+  "seeker-rig": {
+    "png_sha256": "6e3c2d881e4658f208aed069b074aa7e9720ca383490a54bc165b852f5cd3565",
+    "svg_sha256": "33f2b32ee3af75f5f513bb8214d9ac36190cb54f92b301172a82335c39d74672"
+  },
+  "target-data": {
+    "png_sha256": "0a39383e153655d0b06fd6fe09858ee96d99d38373dfe95ddee2496a4a94fb42",
+    "svg_sha256": "9be4c65401132e036be14780699d5ecff671669d7f87953782a447bd37c64f02"
+  },
+  "target-mech": {
+    "png_sha256": "acb84d31f1b743c3821d6751751600d208b08a2018bb98c3a111806bf7cebac6",
+    "svg_sha256": "6f87acae0e78b002e05cf7677ea041d3aa2b1e17a4c86cc5eaf036c3cb16030b"
+  },
+  "target-power": {
+    "png_sha256": "084a00d3806fdbcd2120b8ec95de355aeab319a099481f88ab5889356f2c2356",
+    "svg_sha256": "1453574400cbf0ab7acd47dfc394d486818c6d64d28fdb300f044d8c7d613fa0"
+  }
+}

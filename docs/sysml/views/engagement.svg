@@ -1,0 +1,201 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="sx" viewBox="0 0 1246 1024" width="1246" height="1024" role="img" aria-labelledby="t-engagement">
+<title id="t-engagement">Engagement context — cross-system links: SysML v2 interconnection view of EngagementContext</title>
+<style>
+.sx text{font-family:"Helvetica Neue",Helvetica,Arial,"Liberation Sans",sans-serif}
+.sx .sx-bg{fill:var(--sx-bg,#FBFAF5)}
+.sx .sx-frame{fill:none;stroke:var(--sx-ink2,#8A8475);stroke-width:1.2}
+.sx .sx-tab{font-size:12px;font-weight:700;fill:var(--sx-ink,#1C1B17);
+  font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace}
+.sx .sx-purpose{font-size:12px;fill:var(--sx-mut,#57534A)}
+.sx .sx-box{fill:var(--sx-panel,#FFFFFF);stroke:var(--sx-ink,#1C1B17);stroke-width:1.4}
+.sx .sx-rule{stroke:var(--sx-line,#C9C3B1);stroke-width:1}
+.sx .sx-name{font-size:13.5px;font-weight:700;fill:var(--sx-ink,#1C1B17)}
+.sx .sx-type{font-size:10.5px;fill:var(--sx-mut,#57534A);
+  font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace}
+.sx .sx-chip{fill:none;stroke-width:1}
+.sx .sx-chipt{font-size:9px;font-weight:700;letter-spacing:.06em;text-anchor:middle}
+.sx .sx-ok{stroke:var(--sx-ok,#2D5F3E);fill:var(--sx-ok,#2D5F3E)}
+.sx .sx-warn{stroke:var(--sx-warn,#8A6A12);fill:var(--sx-warn,#8A6A12)}
+.sx .sx-acc{stroke:var(--sx-acc,#29527A);fill:var(--sx-acc,#29527A)}
+.sx .sx-bad{stroke:var(--sx-bad,#A63A22);fill:var(--sx-bad,#A63A22)}
+.sx .sx-mut{stroke:var(--sx-mut,#57534A);fill:var(--sx-mut,#57534A)}
+.sx rect.sx-chip{fill:none}
+.sx .sx-pl{font-size:10px;fill:var(--sx-ink,#1C1B17);
+  font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace}
+.sx .sx-end{text-anchor:end}
+.sx .sx-p{fill:var(--sx-ink,#1C1B17);stroke:var(--sx-ink,#1C1B17);stroke-width:1.2}
+.sx .sx-pc{fill:var(--sx-panel,#FFFFFF);stroke:var(--sx-ink,#1C1B17);stroke-width:1.4}
+.sx .sx-w{fill:none;stroke-width:2.2;stroke-linejoin:round}
+.sx .sx-w.sx-c-power{stroke:var(--sx-power,#B5452B);stroke-width:3}
+.sx .sx-w.sx-c-data{stroke:var(--sx-data,#2F6690)}
+.sx .sx-w.sx-c-rf{stroke:var(--sx-rf,#7A4E9C);stroke-dasharray:9 5}
+.sx .sx-w.sx-c-mechanical{stroke:var(--sx-mech,#6E6A5C);stroke-dasharray:2 4;stroke-width:2.6}
+.sx .sx-w.sx-c-optical{stroke:var(--sx-opt,#2D7D5A);stroke-dasharray:12 4 2 4}
+.sx .sx-w.sx-s-planned{stroke-opacity:.5}
+.sx .sx-pill rect{stroke-width:1.4}
+.sx .sx-pill text{font-size:10px;font-weight:700;text-anchor:middle}
+.sx .sx-pill.sx-c-power rect{stroke:var(--sx-power,#B5452B)}
+.sx .sx-pill.sx-c-data rect{stroke:var(--sx-data,#2F6690)}
+.sx .sx-pill.sx-c-rf rect{stroke:var(--sx-rf,#7A4E9C)}
+.sx .sx-pill.sx-c-mechanical rect{stroke:var(--sx-mech,#6E6A5C)}
+.sx .sx-pill.sx-c-optical rect{stroke:var(--sx-opt,#2D7D5A)}
+.sx .sx-pill.sx-s-verified.sx-c-power rect{fill:var(--sx-power,#B5452B)}
+.sx .sx-pill.sx-s-verified.sx-c-data rect{fill:var(--sx-data,#2F6690)}
+.sx .sx-pill.sx-s-verified.sx-c-rf rect{fill:var(--sx-rf,#7A4E9C)}
+.sx .sx-pill.sx-s-verified.sx-c-mechanical rect{fill:var(--sx-mech,#6E6A5C)}
+.sx .sx-pill.sx-s-verified.sx-c-optical rect{fill:var(--sx-opt,#2D7D5A)}
+.sx .sx-pill.sx-s-verified text{fill:var(--sx-panel,#FFFFFF)}
+.sx .sx-pill.sx-s-wired rect{fill:var(--sx-panel,#FFFFFF);stroke-width:2.6}
+.sx .sx-pill.sx-s-wired text{fill:var(--sx-ink,#1C1B17)}
+.sx .sx-pill.sx-s-planned rect{fill:var(--sx-panel,#FFFFFF);stroke-dasharray:3 2}
+.sx .sx-pill.sx-s-planned text{fill:var(--sx-mut,#57534A)}
+.sx .sx-h{font-size:10.5px;font-weight:700;letter-spacing:.12em;fill:var(--sx-mut,#57534A)}
+.sx .sx-wl{font-size:11.5px;fill:var(--sx-ink,#1C1B17)}
+.sx .sx-wn{font-weight:700}
+.sx .sx-wm{font-family:ui-monospace,"DejaVu Sans Mono",Menlo,Consolas,monospace;font-size:10.5px}
+.sx .sx-wt{fill:var(--sx-mut,#57534A);font-size:10.5px}
+.sx .sx-ws{font-size:9.5px;font-weight:700;letter-spacing:.06em}
+.sx .sx-ws.sx-s-verified{fill:var(--sx-ok,#2D5F3E)}
+.sx .sx-ws.sx-s-wired{fill:var(--sx-warn,#8A6A12)}
+.sx .sx-ws.sx-s-planned{fill:var(--sx-mut,#57534A)}
+.sx .sx-wd{font-size:11px;fill:var(--sx-mut,#57534A)}
+.sx .sx-lg{font-size:10.5px;fill:var(--sx-mut,#57534A)}
+</style>
+<rect class="sx-bg" x="0" y="0" width="1246" height="1024"/>
+<rect class="sx-frame" x="12" y="12" width="1222" height="628"/>
+<path class="sx-frame" d="M12 36 H309 L321 24 V12"/>
+<text class="sx-tab" x="22" y="29">ibd [part def] EngagementContext [all]</text>
+<text class="sx-purpose" x="335" y="29">Everything that crosses between the aircraft, the ground and the sky.</text>
+<g class="sx-node"><rect class="sx-box" x="476" y="64" width="294" height="78" rx="2"/>
+<text class="sx-name" x="486" y="82">sky</text>
+<text class="sx-type" x="486" y="98">: GNSSConstellation</text>
+<rect class="sx-chip sx-mut" x="718.0" y="88" width="44.0" height="15" rx="2"/>
+<text class="sx-chipt sx-mut" x="740.0" y="99">OWNED</text>
+<line class="sx-rule" x1="476" y1="106" x2="770" y2="106"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="64" y="216" width="294" height="166" rx="2"/>
+<text class="sx-name" x="74" y="234">target</text>
+<text class="sx-type" x="74" y="250">: TargetDrone</text>
+<rect class="sx-chip sx-mut" x="299.6" y="240" width="50.4" height="15" rx="2"/>
+<text class="sx-chipt sx-mut" x="324.8" y="251">SYSTEM</text>
+<line class="sx-rule" x1="64" y1="258" x2="358" y2="258"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="888" y="216" width="294" height="188" rx="2"/>
+<text class="sx-name" x="898" y="234">interceptor</text>
+<text class="sx-type" x="898" y="250">: InterceptorDrone</text>
+<rect class="sx-chip sx-mut" x="1123.6" y="240" width="50.4" height="15" rx="2"/>
+<text class="sx-chipt sx-mut" x="1148.8" y="251">SYSTEM</text>
+<line class="sx-rule" x1="888" y1="258" x2="1182" y2="258"/>
+</g>
+<g class="sx-node"><rect class="sx-box" x="476" y="478" width="294" height="122" rx="2"/>
+<text class="sx-name" x="486" y="496">ground</text>
+<text class="sx-type" x="486" y="512">: Ground</text>
+<rect class="sx-chip sx-mut" x="711.6" y="502" width="50.4" height="15" rx="2"/>
+<text class="sx-chipt sx-mut" x="736.8" y="513">SYSTEM</text>
+<line class="sx-rule" x1="476" y1="520" x2="770" y2="520"/>
+</g>
+<path class="sx-w sx-c-rf sx-s-planned" d="M476.0 579.0 L417.0 579.0 L417.0 361.0 L358.0 361.0"/>
+<path class="sx-w sx-c-rf sx-s-planned" d="M770.0 557.0 L829.0 557.0 L829.0 383.0 L888.0 383.0"/>
+<path class="sx-w sx-c-optical sx-s-planned" d="M358.0 295.0 L888.0 295.0"/>
+<path class="sx-w sx-c-rf sx-s-verified" d="M770.0 535.0 L836.0 535.0 L836.0 361.0 L888.0 361.0"/>
+<path class="sx-w sx-c-rf sx-s-verified" d="M476.0 121.0 L424.0 121.0 L424.0 273.0 L358.0 273.0"/>
+<path class="sx-w sx-c-rf sx-s-planned" d="M476.0 121.0 L410.0 121.0 L410.0 273.0 L888.0 273.0"/>
+<path class="sx-w sx-c-power sx-s-planned" d="M476.0 535.0 L431.0 535.0 L431.0 317.0 L358.0 317.0"/>
+<path class="sx-w sx-c-power sx-s-planned" d="M476.0 535.0 L403.0 535.0 L403.0 317.0 L888.0 317.0"/>
+<path class="sx-w sx-c-data sx-s-verified" d="M476.0 557.0 L438.0 557.0 L438.0 339.0 L888.0 339.0"/>
+<path class="sx-w sx-c-data sx-s-planned" d="M476.0 557.0 L396.0 557.0 L396.0 339.0 L358.0 339.0"/>
+<rect class="sx-p" x="471.0" y="116.0" width="10" height="10"/>
+<text class="sx-pl" x="485.0" y="124.5">sky</text>
+<rect class="sx-pc" x="353.0" y="268.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="349.0" y="276.5">gps.antenna</text>
+<rect class="sx-p" x="353.0" y="290.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="349.0" y="298.5">placard.face</text>
+<rect class="sx-pc" x="353.0" y="312.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="349.0" y="320.5">battery.balance</text>
+<rect class="sx-pc" x="353.0" y="334.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="349.0" y="342.5">fc.usbC</text>
+<rect class="sx-pc" x="353.0" y="356.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="349.0" y="364.5">rx.radio</text>
+<rect class="sx-pc" x="883.0" y="268.0" width="10" height="10"/>
+<text class="sx-pl" x="897.0" y="276.5">gps.antenna</text>
+<rect class="sx-pc" x="883.0" y="290.0" width="10" height="10"/>
+<text class="sx-pl" x="897.0" y="298.5">camera.lens</text>
+<rect class="sx-pc" x="883.0" y="312.0" width="10" height="10"/>
+<text class="sx-pl" x="897.0" y="320.5">battery.balance</text>
+<rect class="sx-pc" x="883.0" y="334.0" width="10" height="10"/>
+<text class="sx-pl" x="897.0" y="342.5">fc.usbC</text>
+<rect class="sx-pc" x="883.0" y="356.0" width="10" height="10"/>
+<text class="sx-pl" x="897.0" y="364.5">pi.wifi</text>
+<rect class="sx-pc" x="883.0" y="378.0" width="10" height="10"/>
+<text class="sx-pl" x="897.0" y="386.5">rx.radio</text>
+<rect class="sx-p" x="471.0" y="530.0" width="10" height="10"/>
+<text class="sx-pl" x="485.0" y="538.5">charger.output</text>
+<rect class="sx-p" x="471.0" y="552.0" width="10" height="10"/>
+<text class="sx-pl" x="485.0" y="560.5">laptop.usb</text>
+<rect class="sx-p" x="471.0" y="574.0" width="10" height="10"/>
+<text class="sx-pl" x="485.0" y="582.5">pocketTarget.radio</text>
+<rect class="sx-p" x="765.0" y="530.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="761.0" y="538.5">hotspot.ap</text>
+<rect class="sx-p" x="765.0" y="552.0" width="10" height="10"/>
+<text class="sx-pl sx-end" x="761.0" y="560.5">pocketInterceptor.radio</text>
+<g class="sx-pill sx-c-rf sx-s-planned"><rect x="406.0" y="462.0" width="22" height="16" rx="8"/><text x="417.0" y="474.0">1</text></g>
+<g class="sx-pill sx-c-rf sx-s-planned"><rect x="818.0" y="462.0" width="22" height="16" rx="8"/><text x="829.0" y="474.0">2</text></g>
+<g class="sx-pill sx-c-optical sx-s-planned"><rect x="612.0" y="287.0" width="22" height="16" rx="8"/><text x="623.0" y="299.0">3</text></g>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="825.0" y="440.0" width="22" height="16" rx="8"/><text x="836.0" y="452.0">4</text></g>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="413.0" y="189.0" width="22" height="16" rx="8"/><text x="424.0" y="201.0">5</text></g>
+<g class="sx-pill sx-c-rf sx-s-planned"><rect x="638.0" y="265.0" width="22" height="16" rx="8"/><text x="649.0" y="277.0">6</text></g>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="420.0" y="418.0" width="22" height="16" rx="8"/><text x="431.0" y="430.0">7</text></g>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="634.5" y="309.0" width="22" height="16" rx="8"/><text x="645.5" y="321.0">8</text></g>
+<g class="sx-pill sx-c-data sx-s-verified"><rect x="652.0" y="331.0" width="22" height="16" rx="8"/><text x="663.0" y="343.0">9</text></g>
+<g class="sx-pill sx-c-data sx-s-planned"><rect x="385.0" y="440.0" width="22" height="16" rx="8"/><text x="396.0" y="452.0">10</text></g>
+<text class="sx-h" x="20" y="662">WIRE LIST — every connection in this view</text>
+<g class="sx-pill sx-c-rf sx-s-planned"><rect x="20" y="670" width="22" height="16" rx="8"/><text x="31" y="682">1</text></g>
+<text class="sx-wl" x="52" y="682"><tspan class="sx-wn">rcTarget</tspan><tspan class="sx-wm">  ground.pocketTarget.radio → target.rx.radio</tspan><tspan class="sx-wt">  : ELRSLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="696">ELRS 2.4 GHz — full RC on the target: Loiter / AUTO legs / kill</text>
+<g class="sx-pill sx-c-rf sx-s-planned"><rect x="20" y="700" width="22" height="16" rx="8"/><text x="31" y="712">2</text></g>
+<text class="sx-wl" x="52" y="712"><tspan class="sx-wn">rcInterceptor</tspan><tspan class="sx-wm">  ground.pocketInterceptor.radio → interceptor.rx.radio</tspan><tspan class="sx-wt">  : ELRSLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="726">ELRS 2.4 GHz — arm / GO / kill ONLY -- no guidance data (constraint no-datalink)</text>
+<g class="sx-pill sx-c-optical sx-s-planned"><rect x="20" y="730" width="22" height="16" rx="8"/><text x="31" y="742">3</text></g>
+<text class="sx-wl" x="52" y="742"><tspan class="sx-wn">tagSight</tspan><tspan class="sx-wm">  target.placard.face → interceptor.camera.lens</tspan><tspan class="sx-wt">  : SightLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="756">line of sight — the seeker&#x27;s only measurement of the target after launch</text>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="20" y="760" width="22" height="16" rx="8"/><text x="31" y="772">4</text></g>
+<text class="sx-wl" x="52" y="772"><tspan class="sx-wn">piWifi</tspan><tspan class="sx-wm">  ground.hotspot.ap → interceptor.pi.wifi</tspan><tspan class="sx-wt">  : WiFiLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-01)</tspan></text>
+<text class="sx-wd" x="52" y="786">Wi-Fi — pre-flight SSH + NTP only; not used in flight</text>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="20" y="790" width="22" height="16" rx="8"/><text x="31" y="802">5</text></g>
+<text class="sx-wl" x="52" y="802"><tspan class="sx-wn">gnssTarget</tspan><tspan class="sx-wm">  sky.sky → target.gps.antenna</tspan><tspan class="sx-wt">  : GNSSLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (tgt-02)</tspan></text>
+<text class="sx-wd" x="52" y="816">L1 GNSS — 3D fix, 11 satellites, indoors on the bench</text>
+<g class="sx-pill sx-c-rf sx-s-planned"><rect x="20" y="820" width="22" height="16" rx="8"/><text x="31" y="832">6</text></g>
+<text class="sx-wl" x="52" y="832"><tspan class="sx-wn">gnssInterceptor</tspan><tspan class="sx-wm">  sky.sky → interceptor.gps.antenna</tspan><tspan class="sx-wt">  : GNSSLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="846">L1 GNSS — position hold + failsafe only; guidance never reads GPS of the target</text>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="850" width="22" height="16" rx="8"/><text x="31" y="862">7</text></g>
+<text class="sx-wl" x="52" y="862"><tspan class="sx-wn">chargeTarget</tspan><tspan class="sx-wm">  ground.charger.output → target.battery.balance</tspan><tspan class="sx-wt">  : ChargeLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="876">XT60 + JST-XH balance — in the fireproof bag, attended</text>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="880" width="22" height="16" rx="8"/><text x="31" y="892">8</text></g>
+<text class="sx-wl" x="52" y="892"><tspan class="sx-wn">chargeInterceptor</tspan><tspan class="sx-wm">  ground.charger.output → interceptor.battery.balance</tspan><tspan class="sx-wt">  : ChargeLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="906">XT60 + JST-XH balance — same pack pool</text>
+<g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="910" width="22" height="16" rx="8"/><text x="31" y="922">9</text></g>
+<text class="sx-wl" x="52" y="922"><tspan class="sx-wn">usbInterceptor</tspan><tspan class="sx-wm">  ground.laptop.usb → interceptor.fc.usbC</tspan><tspan class="sx-wt">  : USBLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-01)</tspan></text>
+<text class="sx-wd" x="52" y="936">USB-C data cable — flash PX4 + params, QGC (bench) · cable: USB-C DATA cable</text>
+<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="940" width="22" height="16" rx="8"/><text x="31" y="952">10</text></g>
+<text class="sx-wl" x="52" y="952"><tspan class="sx-wn">usbTarget</tspan><tspan class="sx-wm">  ground.laptop.usb → target.fc.usbC</tspan><tspan class="sx-wt">  : USBLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<text class="sx-wd" x="52" y="966">USB-C data cable — DFU flash KakuteH7, param upload, .BIN pull · cable: USB-C DATA cable</text>
+<text class="sx-h" x="20" y="984">KEY</text>
+<path class="sx-w sx-c-rf sx-s-verified" d="M60 980 H90"/>
+<text class="sx-lg" x="96" y="984">radio</text>
+<path class="sx-w sx-c-optical sx-s-verified" d="M136.5 980 H166.5"/>
+<text class="sx-lg" x="172.5" y="984">optical</text>
+<path class="sx-w sx-c-power sx-s-verified" d="M226.0 980 H256.0"/>
+<text class="sx-lg" x="262.0" y="984">power</text>
+<path class="sx-w sx-c-data sx-s-verified" d="M302.5 980 H332.5"/>
+<text class="sx-lg" x="338.5" y="984">data / signal</text>
+<g class="sx-pill sx-c-rf sx-s-verified"><rect x="431.0" y="972" width="22" height="16" rx="8"/><text x="442.0" y="984">n</text></g>
+<text class="sx-lg" x="459.0" y="984">verified (logged step)</text>
+<g class="sx-pill sx-c-rf sx-s-wired"><rect x="607.4" y="972" width="22" height="16" rx="8"/><text x="618.4" y="984">n</text></g>
+<text class="sx-lg" x="635.4" y="984">wired, untested</text>
+<g class="sx-pill sx-c-rf sx-s-planned"><rect x="740.4" y="972" width="22" height="16" rx="8"/><text x="751.4" y="984">n</text></g>
+<text class="sx-lg" x="768.4" y="984">planned</text>
+<rect class="sx-p" x="823.8" y="974" width="10" height="10"/>
+<text class="sx-lg" x="839.8" y="984">port (supplies / hosts)</text>
+<rect class="sx-pc" x="993.8" y="974" width="10" height="10"/>
+<text class="sx-lg" x="1009.8" y="984">~port (conjugate: receives)</text>
+</svg>
