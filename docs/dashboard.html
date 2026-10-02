@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e0eaef4<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->7def6e8<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-10-02",
- "updated_by": "cloud session (SysML v2 model + wiring editor)",
+ "updated_by": "cloud session (wiring-editor queue applied)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -2715,7 +2715,7 @@
      "why": "Mandatory under sustained CV load — prop wash is not enough."
     }
    ],
-   "status": "🟧 ORDERED 2026-09-22 (builder) — Source One V6 frame, Skystars KO60II 60A ESC, ECOII 2207 motors ×5 (arrive ~Oct 5–15), RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× lost-model buzzers, LiPo bag + zip ties. STILL MISSING for a full intercept: FC High-Endurance microSD (ULogs are the metrology), M2.5 nylon standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). BENCH-VERIFY: the 12S-Pro's 5 V tap must deliver Matek's spec'd 5.2 V under Pi load; both Pocket TXs need Model Match + the same ELRS version/bind phrase."
+   "status": "🟧 ORDERED 2026-09-22 (builder) — Source One V6 frame, Skystars KO60II 60A ESC, ECOII 2207 motors ×5 (DELIVERED 2026-10-02, ahead of the ~Oct 5–15 estimate), RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× lost-model buzzers, LiPo bag + zip ties. STILL MISSING for a full intercept: FC High-Endurance microSD (ULogs are the metrology), M2.5 nylon standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). BENCH-VERIFY: the 12S-Pro's 5 V tap must deliver Matek's spec'd 5.2 V under Pi load; both Pocket TXs need Model Match + the same ELRS version/bind phrase. DELIVERY UPDATE 2026-10-02 (builder, via the wiring editor): ESC, motors, props, RP3, BEC, PM02, buzzers and the frame kit are IN HAND; frame marked BUILT (assembly begun); LiPo pack in hand."
   }
  ],
  "build_tab": {
@@ -2770,9 +2770,9 @@
      },
      {
       "name": "CNHL 6S 1500 mAh LiPo (1 in cart)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Flight power; 6S everywhere so packs and charger are shared across aircraft.",
-      "notes": "3 packs total on order — the ~28-pass matrix needs 3 with mid-session recharges."
+      "notes": "3 packs total on order — the ~28-pass matrix needs 3 with mid-session recharges. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "AprilTag tag36h11 placard (rigid)",
@@ -3125,9 +3125,9 @@
      },
      {
       "name": "Lost-model buzzer — Flywoo Finder V1.0 w/ LED ×2 (one per aircraft)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Recovers a target that lands out in the grass.",
-      "notes": "Ordered 2026-09-22 with the airframe order."
+      "notes": "Ordered 2026-09-22 with the airframe order. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "Field layer — tripod + ball head + inclinometer, >=27 W USB-C PD power bank, cones + tape measure, +2 CNHL 6S packs",
@@ -3204,37 +3204,37 @@
    {
     "id": "airframe",
     "name": "Interceptor airframe (Tier-2)",
-    "role": "The lean §0c ram airframe the brain + seeker mount into — ORDERED 2026-09-22, ahead of the tripod money gate (builder decision, ADR-0109). Build waits on delivery (motors ~Oct 5–15 are the long pole).",
+    "role": "The lean §0c ram airframe the brain + seeker mount into — ordered 2026-09-22 ahead of the tripod money gate (ADR-0109), DELIVERED 2026-10-02 (motors beat their ~Oct 5–15 estimate); frame assembly has begun.",
     "parts": [
      {
       "name": "TBS Source One V6 5in frame kit",
-      "status": "ordered",
+      "status": "built",
       "role": "The airframe; same family as the target's frame — shared arms/spares.",
-      "notes": "Re-run the nose-cantilever prop-clearance geometry on THIS frame (hard gate). Carbon is CONDUCTIVE -- insulate under boards, no exposed joint may reach frame/hardware."
+      "notes": "Re-run the nose-cantilever prop-clearance geometry on THIS frame (hard gate). Carbon is CONDUCTIVE -- insulate under boards, no exposed joint may reach frame/hardware. [2026-10-02 builder, via wiring editor: ordered -> built.]"
      },
      {
       "name": "Skystars KO60II 60A 3-6S AM32 4-in-1 ESC (30x30)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Motor drive, DShot from the 6C Mini.",
-      "notes": "60A = extra headroom over the 45-55A plan."
+      "notes": "60A = extra headroom over the 45-55A plan. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "EMAX ECO II 2207 1900KV motors ×5",
-      "status": "ordered",
+      "status": "in hand",
       "role": "4 flight + 1 spare; identical to the target's motors (one spare pool).",
-      "notes": "Longest lead item — arrives ~Oct 5-15."
+      "notes": "Longest lead item — arrives ~Oct 5-15. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "RadioMaster RP3 ELRS diversity RX (UFL V2)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Kill/arm-only RC link (constraint no-datalink).",
-      "notes": "Flash SBUS output -> 6C Mini RC IN (stock PX4 has no CRSF driver)."
+      "notes": "Flash SBUS output -> 6C Mini RC IN (stock PX4 has no CRSF driver). [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "Matek 12S Pro BEC (Pi rail)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Dedicated Pi 5 power rail — two-rail rule.",
-      "notes": "Bench-verify the 5 V tap delivers 5.2 V under Pi load before first flight."
+      "notes": "Bench-verify the 5 V tap delivers 5.2 V under Pi load before first flight. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "1000 uF 16 V low-ESR cap (Pi rail)",
@@ -3244,15 +3244,15 @@
      },
      {
       "name": "Holybro PM02 V3 analog power module",
-      "status": "ordered",
+      "status": "in hand",
       "role": "FC battery power + V/I telemetry.",
-      "notes": "Replacement — the first unit was vendor-refunded."
+      "notes": "Replacement — the first unit was vendor-refunded. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "HQProp V2S 5x4.3x3 props ×16",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Flight + spare sets, shared with the target.",
-      "notes": "Arrive ~Sep 25."
+      "notes": "Arrive ~Sep 25. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "Pixhawk 6C Mini + M10 GPS (from the brain bench)",

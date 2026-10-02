@@ -1599,6 +1599,10 @@ g[data-wire], g[data-part]{cursor:pointer}
   box-shadow:0 10px 32px rgba(0,0,0,.28); padding:14px 16px
     calc(14px + env(safe-area-inset-bottom,0px)); max-height:min(62vh,540px); overflow:auto}
 #panel h3{margin:0 0 4px; font:600 16px/1.3 "Helvetica Neue",Helvetica,Arial,sans-serif}
+#pmsg{margin:0 0 8px; padding:7px 10px; font-size:13px; border:1px solid var(--line2);
+  border-left:4px solid var(--accent); background:var(--panel)}
+#pmsg[data-kind="warn"]{border-left-color:var(--bad); color:var(--bad)}
+#pmsg[data-kind="ok"]{border-left-color:var(--ok)}
 #panel p{margin:6px 0}
 #panel form{display:flex; flex-direction:column; gap:9px; margin-top:8px}
 #panel fieldset{border:1px solid var(--line); padding:6px 10px 9px; margin:0;
@@ -1645,6 +1649,15 @@ const portName = k => k.replace("|", ".");
 function banner(msg, kind) {
   const b = $("#banner"); b.textContent = msg || ""; b.dataset.kind = kind || "info";
   b.hidden = !msg;
+  // The action sheet sits at the BOTTOM of a long page; a message only at the
+  // top banner is invisible there (the bug that made a rejected wire edit look
+  // like a silent success). Mirror every message into the open sheet.
+  const pb = $("#panel-body");
+  if (msg && !$("#panel").hidden && pb) {
+    let m = $("#pmsg");
+    if (!m) { m = document.createElement("p"); m.id = "pmsg"; pb.prepend(m); }
+    m.textContent = msg; m.dataset.kind = kind || "info";
+  }
 }
 function openPanel(html) { $("#panel-body").innerHTML = html; $("#panel").hidden = false; }
 function closePanel() {
@@ -1777,7 +1790,12 @@ function tapWire(sys, name) {
     const jobs = [];
     if (st !== w.state || (st !== "planned" && evd !== w.evidence)) {
       if (st !== "planned" && !evd)
-        return banner("wired / verified needs the build step that proves it (e.g. tgt-04).", "warn");
+        return banner("To queue " + st + ", name the build step that proves it (e.g. tgt-04) in the Evidence box.", "warn");
+      if (st !== "planned") {
+        const badIds = evd.split(",").map(x => x.trim()).filter(x => x && MODEL.steps.indexOf(x) < 0);
+        if (badIds.length)
+          return banner("Evidence must be real build-step ids from the build sheet \u2014 not recognised: " + badIds.join(", "), "warn");
+      }
       jobs.push([{ kind: "state", system: sys, wire: name, to: st, evidence: evd },
         name + ": " + w.state + " → " + st + (st !== "planned" ? " (" + evd + ")" : "")]);
     }
@@ -1836,8 +1854,10 @@ async function queueEdit(e, label) {
       return banner("Your access level can’t write to the queue (Contributor or above can).", "warn");
     return banner("Couldn’t save that edit (" + (code || "error") + ") — try once more.", "warn");
   }
-  banner("Queued: " + label, "ok");
   closePanel();
+  banner("Queued: " + label, "ok");
+  const q = $("#queue");
+  if (q) q.scrollIntoView({ block: "start" });
 }
 function renderPending() {
   const entries = Object.entries(STATE.edits)
