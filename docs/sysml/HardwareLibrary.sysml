@@ -63,7 +63,7 @@ package HardwareLibrary {
         doc /* How far a connection has got on the real hardware. */
         enum planned;   // designed, not yet made on this hardware
         enum wired;     // physically made, not yet proven by a logged test
-        enum verified;  // made AND proven by a logged build step (evidence names it)
+        enum verified;  // made AND tested working (evidence note optional)
     }
 
     // ------------------------------------------------------------- what flows
@@ -202,7 +202,7 @@ package HardwareLibrary {
         attribute connector : String;    // physical connector / pads / medium
         attribute detail : String;       // pins, protocol, rate -- one line
         attribute linkState : LinkState;
-        attribute evidence : String;     // build-step id(s) behind linkState verified/wired
+        attribute evidence : String;     // optional note behind linkState (a step id, a date, free text)
     }
     abstract interface def PowerLink :> Link;
     abstract interface def DataLink :> Link;

@@ -20,8 +20,8 @@ WHAT IT CHECKS (the reference parser does NOT -- tested 2026-10-02: it accepts a
 battery wired backwards and an SD slot wired to a GPS mast without complaint)
   * every interface connects a port of exactly the type its end declares, with
     the right conjugation (supplier -> consumer, host -> peripheral);
-  * every linkState is planned / wired / verified, and wired/verified name the
-    build-step ids (build_tab steps in docs/project_state.json) that prove them;
+  * every linkState is planned / wired / verified (evidence is an optional
+    free-form note -- the build-step-id requirement was dropped 2026-10-03);
   * every @BOM points at exactly one build_tab row, and every build_tab row is
     either drawn (@BOM) or deliberately excluded (@NotModelled) -- the model and
     the build sheet cannot drift apart without this failing.
@@ -76,7 +76,6 @@ CATEGORY_BASES = {
 }
 ALL_CATS = frozenset(CATEGORY_BASES.values())
 LINK_STATES = ("planned", "wired", "verified")
-STEP_ID_RE = re.compile(r"^[a-z]{3}-\d{2}$")
 
 
 class ModelError(Exception):
@@ -710,14 +709,9 @@ def check_model(m: Model) -> None:
             st = iu.attrs.get("linkState")
             if st not in LINK_STATES:
                 e(where, f"{iu.name}: linkState must be one of {LINK_STATES}, got {st!r}")
-            ev = str(iu.attrs.get("evidence") or "").strip()
-            ev_ids = [x.strip() for x in ev.split(",") if x.strip()]
-            if st in ("wired", "verified") and not ev_ids:
-                e(where, f"{iu.name}: linkState {st} needs evidence = \"<build step id>\"")
-            for x in ev_ids:
-                if not STEP_ID_RE.match(x) or x not in m.step_ids:
-                    e(where, f"{iu.name}: evidence {x!r} is not a build_tab step id "
-                             f"in docs/project_state.json")
+            # evidence is an optional free-form note (builder decision 2026-10-03:
+            # linkState tracks build progress, not a capability claim, so changing
+            # a wire's state must not require naming a build step)
             if "BOM" in iu.meta:
                 note_bom(iu.meta["BOM"], f"{sysdef.name}.{iu.name}", where)
 
@@ -1153,7 +1147,7 @@ def render_view(m: Model, view, interactive: bool = False) -> tuple[str, list, d
         o.append(f'<path class="sx-w sx-c-{cat} sx-s-verified" d="M{lx} {ly - 8} H{lx + 30}"/>')
         o.append(f'<text class="sx-lg" x="{lx + 36}" y="{ly - 4}">{CAT_LABEL[cat]}</text>')
         lx += 44 + len(CAT_LABEL[cat]) * 6.5
-    for st, lab in (("verified", "verified (logged step)"), ("wired", "wired, untested"),
+    for st, lab in (("verified", "verified"), ("wired", "wired, untested"),
                     ("planned", "planned")):
         o.append(f'<g class="sx-pill sx-c-{used_cats[0]} sx-s-{st}"><rect x="{lx}" y="{ly - 16}" width="22" '
                  f'height="16" rx="8"/><text x="{lx + 11}" y="{ly - 4}">n</text></g>')
@@ -1350,9 +1344,9 @@ def section_html(m: Model, rendered: dict, vno: str = "View 8") -> str:
            'the side that receives. A UART host wired to a conjugate UART <i>is</i> TX/RX crossed.</dd>'
            '<dt>Line</dt><dd>an <b>interface</b> (wire, cable, radio path, mount), coloured by kind. '
            'Faded = not yet made.</dd>'
-           '<dt>Number</dt><dd>its row in the wire list under the diagram. Filled = verified by a '
-           'logged build step (named in brackets); thick outline = made but untested; dashed = '
-           'planned.</dd></dl>']
+           '<dt>Number</dt><dd>its row in the wire list under the diagram. Filled = verified '
+           '(evidence note in brackets when one was given); thick outline = made but untested; '
+           'dashed = planned.</dd></dl>']
 
     if s["open"]:
         items = "".join(f"<li><b>{esc(sn)}.{esc(iu.name)}</b> &mdash; {esc(iu.attrs.get('detail'))}</li>"
@@ -1496,7 +1490,6 @@ def editor_model(m: Model, erendered: dict) -> dict:
         "statuses": ["in hand", "ordered", "built", "print", "must-add"],
         "views": [{"id": v[0], "system": v[1], "title": v[3]} for v in EDITOR_VIEWS],
         "ifaces": ifaces, "systems": systems,
-        "steps": sorted(m.step_ids),
     }
 
 
@@ -1773,8 +1766,8 @@ function tapWire(sys, name) {
     "<form id=\"wiref\"><fieldset><legend>State — now " + eh(w.state) + "</legend>" +
     LINK_STATES.map(s => "<label class=\"cand\"><input type=\"radio\" name=\"st\" value=\"" + s +
       "\"" + (s === w.state ? " checked" : "") + "> " + s + "</label>").join("") + "</fieldset>" +
-    "<label>Evidence — build step ids, needed for wired/verified " +
-    "<input id=\"f-ev\" value=\"" + eh(w.evidence) + "\" placeholder=\"afr-03\"></label>" +
+    "<label>Evidence / note — optional " +
+    "<input id=\"f-ev\" value=\"" + eh(w.evidence) + "\" placeholder=\"e.g. afr-03, or bench note\"></label>" +
     "<label>Connector <input id=\"f-conn\" value=\"" + eh(w.connector) + "\"></label>" +
     "<label>Detail <input id=\"f-detail\" value=\"" + eh(w.detail) + "\"></label>" +
     "<div class=\"row\"><button type=\"submit\" class=\"primary\">Queue changes</button> " +
@@ -1788,16 +1781,9 @@ function tapWire(sys, name) {
     const st = new FormData(ev.target).get("st"), evd = $("#f-ev").value.trim();
     const conn = $("#f-conn").value.trim(), det = $("#f-detail").value.trim();
     const jobs = [];
-    if (st !== w.state || (st !== "planned" && evd !== w.evidence)) {
-      if (st !== "planned" && !evd)
-        return banner("To queue " + st + ", name the build step that proves it (e.g. tgt-04) in the Evidence box.", "warn");
-      if (st !== "planned") {
-        const badIds = evd.split(",").map(x => x.trim()).filter(x => x && MODEL.steps.indexOf(x) < 0);
-        if (badIds.length)
-          return banner("Evidence must be real build-step ids from the build sheet \u2014 not recognised: " + badIds.join(", "), "warn");
-      }
+    if (st !== w.state || evd !== w.evidence) {
       jobs.push([{ kind: "state", system: sys, wire: name, to: st, evidence: evd },
-        name + ": " + w.state + " → " + st + (st !== "planned" ? " (" + evd + ")" : "")]);
+        name + ": " + w.state + " → " + st + (evd ? " (" + evd + ")" : "")]);
     }
     if (conn !== w.connector || det !== w.detail)
       jobs.push([{ kind: "detail", system: sys, wire: name, connector: conn, detail: det },
@@ -1968,7 +1954,7 @@ hardware library says fits it.</p>
   <p>GENERATED by scripts/render_sysml.py from docs/sysml/*.sysml + docs/project_state.json
   (contract updated {esc(m.updated)}). Edit the text files for anything bigger than a tap;
   how-to: docs/sysml/README.md. Wire colors: power / data / radio / mechanical / optical;
-  dashed = planned, filled number = verified by the named build step.</p>
+  dashed = planned, filled number = verified.</p>
 </footer>
 </main>
 <script id="model" type="application/json">{model_json}</script>

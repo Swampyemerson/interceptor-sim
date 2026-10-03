@@ -3,8 +3,8 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-10-02",
-  "updated_by": "cloud session (wiring-editor queue applied)",
+  "updated": "2026-10-03",
+  "updated_by": "cloud session (evidence made optional on wire states)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -484,6 +484,12 @@
   ],
   "plain_log": [
     {
+      "date": "2026-10-03",
+      "text": "Wiring-editor friction fix, builder ask: changing a wire's state no longer requires naming a build-step id. 'evidence' is now an optional free-form note (a step id, a date, any short text) in the editor form, the queued edits, and the model validator -- recorded and shown when given, never required. linkState tracks bench build progress, not a performance claim, so the honesty surfaces (key_numbers provenance, assumptions register, gt_* boundary) are untouched.",
+      "so_what": "The builder can now mark a wire wired/verified from his phone in two taps. The two validator tests that enforced the old rule now pin the new one.",
+      "evidence": "docs/decisions.md ADR-0121 addendum 2026-10-03; scripts/render_sysml.py; tests/test_render_sysml.py"
+    },
+    {
       "date": "2026-10-02",
       "text": "The hardware now has a systems model: every part actually in the build -- target, interceptor, tripod seeker rig, ground gear -- is written as a SysML v2 text model (docs/sysml/) and drawn as power, data and mechanical wiring diagrams on the MBSE sheet (view 8). The OMG reference SysML v2 tool reads all seven files with zero errors. Each wire says whether it is planned, made, or proven by a named build step: 17 of 60 are proven. Same day, builder ask: the diagrams are now TAPPABLE -- a wiring-editor page queues connection / state / build-status changes from a phone, type-checked in the browser, applied to the model only by a Claude session that re-runs every gate.",
       "so_what": "Wiring mistakes become catchable before the iron is hot: the renderer refuses a wire plugged into the wrong kind of port or drawn backwards, and refuses any build-sheet part that is neither drawn nor deliberately excluded. Building it surfaced two parts that were missing from the build sheet (the interceptor's own transmitter and the Pi-rail capacitor, both added) and three wiring decisions still open: which 6C Mini pin drives the buzzer, how the ESC signal lead plugs into the 6C Mini, and where the 5 V lead enters the Pi.",
@@ -548,12 +554,6 @@
       "text": "Field-readiness push, all flight hardware on the bench; all three parallel builds LANDED. (1) The pursuit-port parity gap CLOSED -- a registered tick-by-tick trace found four coupled defects (KF covariance Jacobian, capture-instant attitude, yaw seed, slant under-range); the fixed port went 24% to 100% inside 0.35 m nominal, median 0.068 m, verified independently. (2) The GPS cue relay was designed, built off real bench GPS data, and wired into the flight CLI (--cue-json, fail-closed): serves chase-only (8-13 deg worst-credible vs 10-30 deg tolerance), never the sprint. (3) Miss-abort safety: passage window ported, SAFE now offers hover / land / return-home, and a pursuit miss aborts straight to SAFE. Bench: the real Pi-to-Pixhawk link measured live confirms the failsafe staleness sizing. Full offline suite ALL GREEN (dev machine). Builder ruled same day (ADR-0107): a missed engagement HOVERS in place for the operator (re-approach deferred as a future feature); system-health aborts still land. Late addition (builder ask, built on the Fable 5 lane -- its first clean build here since 2026-09-10): the cue fitter now handles a TURNING target, proving a turn from the GPS's own per-sample velocities (4-sigma test) and extrapolating along the arc with hard refuse-don't-guess caps; velocity-at-latch on a turning target improved 2.8x.",
       "so_what": "The ruled chase-only design is no longer the weaker twin of its prototype, a miss now has a defined safe ending, and the launch cue has honest piping with a measured error budget instead of a hand-typed perfect number. Two rulings queued: the slant under-range geometry also ships in the older stock seeker paths, and whether the vehicle may re-approach after a missed first pass.",
       "evidence": "isim/specs/parity_trace_2026-09-22.md - docs/cue_relay_plan.md - cue decision record (contract launch_aim) - logs/bench_telem2_cadence_20260922.json - commits 8a5886c, fa54d7d, 3d1a5e4, 9efbc84, ADR-0107, 18482cf, 35b1f88"
-    },
-    {
-      "date": "2026-09-21",
-      "text": "Parity check on the ported terminal (isim, 400 paired runs, clean conditions): the prototype meets the 0.35 m bar on every run; the flight-code port on 24% or fewer. A pre-registered A/B on the first suspect (the 2 s abort timer vs the guidance's 3 s recovery) came back NULL -- lengthening or disabling the timer changes nothing, verified with the override proven live in the state machine. The difference sits in the first-pass close (prototype ~0.12 m median, port 0.4-0.9 m); latency-constant mismatch checked and ruled out in the mean. Also measured the builder's perpendicular two-tag mount idea (rear + side tag, pre-registered, all errors on): it is a TRADE -- worse at 0-20 degrees of aim error (the side tag is nearly edge-on astern and its foreshortened width feeds bad range fixes), better only at 30 degrees (44% -> 56% touching). Suggestive at n=50, not decisive; the 30-degree win also leans on the unvalidated oblique-decode model. Altitude-error sweep on the same concept (builder question): flat within noise from 2 m below to 2 m above the guess (74-88% touching), cliff only at 3 m above (42%) -- against the retired sprint's ±0.1 m budget, an order-of-magnitude-plus wider band.",
-      "so_what": "The port needs a per-tick trace comparison before it is trusted -- the leading candidate is attitude-at-capture handling. Do not spend a ruling on the abort timer; it is exonerated. Built and measured by a Fable 5 worker, the first to complete here since 2026-09-10.",
-      "evidence": "isim/specs/parity_flightcode_2026-09-21.md; commit 3a27a58; docs/subagent_safeguard_log.md; isim/specs/dualtag_perpendicular_2026-09-21.md; isim/specs/alt_sensitivity_2026-09-21.md"
     }
   ],
   "narrative": {

@@ -226,13 +226,13 @@
 <path class="sx-w sx-c-rf sx-s-verified" d="M463.5 884 H493.5"/>
 <text class="sx-lg" x="499.5" y="888">radio</text>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="540.0" y="876" width="22" height="16" rx="8"/><text x="551.0" y="888">n</text></g>
-<text class="sx-lg" x="568.0" y="888">verified (logged step)</text>
-<g class="sx-pill sx-c-power sx-s-wired"><rect x="716.4" y="876" width="22" height="16" rx="8"/><text x="727.4" y="888">n</text></g>
-<text class="sx-lg" x="744.4" y="888">wired, untested</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="849.4" y="876" width="22" height="16" rx="8"/><text x="860.4" y="888">n</text></g>
-<text class="sx-lg" x="877.4" y="888">planned</text>
-<rect class="sx-p" x="932.8" y="878" width="10" height="10"/>
-<text class="sx-lg" x="948.8" y="888">port (supplies / hosts)</text>
-<rect class="sx-pc" x="1102.8" y="878" width="10" height="10"/>
-<text class="sx-lg" x="1118.8" y="888">~port (conjugate: receives)</text>
+<text class="sx-lg" x="568.0" y="888">verified</text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="629.6" y="876" width="22" height="16" rx="8"/><text x="640.6" y="888">n</text></g>
+<text class="sx-lg" x="657.6" y="888">wired, untested</text>
+<g class="sx-pill sx-c-power sx-s-planned"><rect x="762.6" y="876" width="22" height="16" rx="8"/><text x="773.6" y="888">n</text></g>
+<text class="sx-lg" x="790.6" y="888">planned</text>
+<rect class="sx-p" x="846.0" y="878" width="10" height="10"/>
+<text class="sx-lg" x="862.0" y="888">port (supplies / hosts)</text>
+<rect class="sx-pc" x="1016.0" y="878" width="10" height="10"/>
+<text class="sx-lg" x="1032.0" y="888">~port (conjugate: receives)</text>
 </svg>

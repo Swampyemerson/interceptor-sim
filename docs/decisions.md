@@ -1048,3 +1048,16 @@ the page's shared database; the five-kind apply contract lives in
 docs/sysml/README.md and every applied edit still passes the full validator
 stack, so the browser can propose but never silently change the model. Queue
 round-trip (write/list/delete) verified from this session.
+
+**Addendum (2026-10-03): evidence is now an optional note, not a gate.** Builder:
+"get rid of needing the build number thing to verify/connect wires." The
+validator and the editor both required `wired`/`verified` to name real
+build_tab step ids, which blocked him from updating wiring from the phone.
+Decision: `evidence` is optional free text everywhere (editor form, queued
+edits, `render_sysml.py` checks) — recorded and displayed when given, never
+required. Why this is honest: `linkState` tracks BUILD PROGRESS on the bench,
+not a performance claim; the project's load-bearing honesty surfaces
+(key_numbers provenance, the assumptions register, gt_* boundary) are
+untouched. Dropped checks: "linkState X needs evidence" and the step-id
+format/existence check; the two mutation tests now pin the opposite
+(evidence-less verified accepted, free-form text kept).

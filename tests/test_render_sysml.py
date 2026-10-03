@@ -105,14 +105,24 @@ def test_port_that_does_not_exist_is_refused(model_copy, contract):
     expect_fail(model_copy, contract, "companion", "has no port 'telem1'")
 
 
-def test_verified_without_evidence_is_refused(model_copy, contract):
+def test_verified_without_evidence_is_accepted(model_copy, contract):
+    # Builder decision 2026-10-03: evidence is an optional free-form note, so a
+    # wire can be marked wired/verified with no evidence (or any text) at all.
     mutate(model_copy, "Target.sysml", 'attribute :>> evidence = "tgt-04";', "")
-    expect_fail(model_copy, contract, "mainPower", "linkState verified needs evidence")
+    m = rs.load_model(model_copy, contract)
+    tgt = next(s for s in m.systems() if s.name == "TargetDrone")
+    iu = next(i for i in tgt.interfaces if i.name == "mainPower")
+    assert iu.attrs.get("linkState") == "verified"
+    assert not iu.attrs.get("evidence")
 
 
-def test_evidence_must_be_a_real_build_step(model_copy, contract):
-    mutate(model_copy, "Target.sysml", 'evidence = "tgt-04"', 'evidence = "tgt-99"')
-    expect_fail(model_copy, contract, "'tgt-99' is not a build_tab step id")
+def test_free_form_evidence_is_accepted_and_kept(model_copy, contract):
+    mutate(model_copy, "Target.sysml", 'evidence = "tgt-04"',
+           'evidence = "bench session, 2026-10-03"')
+    m = rs.load_model(model_copy, contract)
+    tgt = next(s for s in m.systems() if s.name == "TargetDrone")
+    iu = next(i for i in tgt.interfaces if i.name == "mainPower")
+    assert iu.attrs.get("evidence") == "bench session, 2026-10-03"
 
 
 def test_unknown_link_state_is_refused(model_copy, contract):
