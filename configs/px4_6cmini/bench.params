@@ -188,32 +188,24 @@
 #  After binding, run QGC Radio calibration; that is where the kill-switch
 #  channel gets its real number. ELRS is kill/ARM ONLY -- it carries NO guidance.
 #
-#  RC_MAP_KILL_SW = 0 -> Emergency kill switch DELIBERATELY UNASSIGNED for now.
-#     CHANGED 2026-07-26 (was a placeholder 5). Three reasons, in order:
-#     (a) A GUESSED mapping is not protection, it is the ILLUSION of protection.
-#         Until QGC Radio calibration says which channel the RadioMaster Pocket
-#         switch lands on, any number here is unverified.
-#     (b) The guess was actively risky: on ELRS/SBUS, channel 5 = AUX1 is the
-#         CONVENTIONAL ARM channel, and PX4 reads kill as engaged when that
-#         channel sits above RC_KILLSWITCH_TH (v1.16 default 0.75, positive
-#         polarity = "true when channel > threshold"). Mapping kill onto the arm
-#         channel means the first arm gesture after binding would look like
-#         "Kill switch engaged" -- the exact confusing failure this bench does
-#         not need.
-#     (c) It costs nothing on the bench either way: with NO receiver attached
-#         PX4 publishes manual_control_switches ONLY while RC is present and
-#         regularly updating (v1.16.0 src/modules/rc_update/rc_update.cpp:
-#         "only publish manual control if the signal is present and regularly
-#         updating"), so channel 5 could not read as anything -- neutral,
-#         failsafe or otherwise. No spurious kill was possible; there was simply
-#         no upside to carrying a wrong number.
-#     ACTION REQUIRED LATER: after binding + Radio calibration, set this to the
-#     REAL channel and confirm QGC reads "Kill switch" active when you flip it.
-#     Until then this vehicle has NO mapped kill switch -- which is honest, and
-#     harmless while nothing can spin. Values: 0 = Unassigned, 1..18 = Channel n.
+#  RC_MAP_KILL_SW = 5 -> Emergency kill = CHANNEL 5, the bumper toggle on the
+#     2nd Pocket. SET 2026-10-02 from MEASURED channel data, not a guess: the
+#     RP3 bench session captured the switch empirically via RC_CHANNELS
+#     (configs/px4_6cmini/rc_check.py) -- rest 993 us, kill 1994 us, clean
+#     2-position latch. With RC_KILLSWITCH_TH at its +0.75 default, kill
+#     engages above-threshold: rest ~-1.0 normalized (clear), kill ~+1.0
+#     (engaged). No threshold change needed.
+#     The 2026-07-26 warning about ch5 = ELRS AUX1 "conventional arm channel"
+#     was reviewed and is MOOT here: this model has no arm switch (arming is
+#     MAVLink/Pi-side), so the only AUX1 effect is ELRS link-power management
+#     treating kill-engaged as "armed" -- harmless. The old reasons (a)/(c)
+#     are satisfied: the channel is verified, and manual_control_switches was
+#     observed live on the bench with the RP3 streaming.
+#     History of the 0-placeholder era: git log of this file.
+#     Values: 0 = Unassigned, 1..18 = Channel n.
 #     Source: docs.px4.io/v1.16 parameter reference (RC_MAP_KILL_SW,
-#     RC_KILLSWITCH_TH) + Arm/Disarm/Prearm.
-1	1	RC_MAP_KILL_SW	0	6
+#     RC_KILLSWITCH_TH) + Arm/Disarm/Prearm; bench capture 2026-10-02.
+1	1	RC_MAP_KILL_SW	5	6
 #  COM_KILL_DISARM = 5.0 s -> auto-DISARM 5 s after a kill, so a killed vehicle
 #     cannot be silently re-activated by releasing the switch. CORRECTED
 #     2026-07-26: this file used to say the default was 0 ("never auto-disarm").

@@ -3,7 +3,7 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-09-24",
+  "updated": "2026-10-03",
   "updated_by": "Fable 5 head session",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -484,6 +484,12 @@
   ],
   "plain_log": [
     {
+      "date": "2026-10-02",
+      "text": "Bench: the chaser's (interceptor's) RC kill link is wired and PROVEN at the PX4 level. RP3 ELRS RX soldered to the 6C Mini's RC IN; bind phrase + SBUS protocol configured over the RX's own WiFi (no reflash needed, both ends already 3.3.1); first tests failed silently and the fault was run to ground with instruments, not guesses -- the IO co-processor's own counters showed zero bytes, a 3.2 V probe at the S pin then proved the wire good, isolating a two-fault stack: an unseated DuPont junction plus the wrong SBUS polarity option. With plain SBUS + a re-seated junction: 18-channel frames, full-range stick sweeps, and the no-pulses failsafe (stream dies with the TX, relinks in seconds) all verified via the new rc_check.py bench tool. The lost-model buzzer went on as standalone 2-wire (the M10 GPS already provides FC tones). Kill switch COMPLETED same session: the ch5 bumper mapped (RC_MAP_KILL_SW=5, written + read-back verified across a reboot), and PX4 observed reading both engage and release live via manual_control_switches. Found needed: 2x 18650 cells for the 2nd Pocket (added to gnd-01).",
+      "so_what": "The interceptor can now be killed from the ground the moment it misbehaves -- the single safety prerequisite for every powered bench step and flight test ahead. Only QGC radio calibration remains before arming.",
+      "evidence": "configs/px4_6cmini/rc_check.py - configs/px4_6cmini/bench.params (RC_MAP_KILL_SW block) - verify_params.py 10/10 across reboot - bench session 2026-10-02/03"
+    },
+    {
       "date": "2026-09-24",
       "text": "Afternoon: the registered estimator diagnosis found the campaign misses' real cause -- a two-line wiring defect in the real flight driver. It subscribed to the EKF velocity but kept only the speed scalar, so the chase's Kalman filter ran on the last COMMANDED velocity (3.6-4.2 m/s off) in all 16 prior flights; the filter absorbed the bias, the range estimate collapsed ~2.6 m in the final coast, steering froze at ~3 m, and the brake cap read the same wrong vector. Fixed (ADR-0117), re-fly #4 registered and flown: median CPA 0.343 m, 8/8 inside 1 m, 4/8 inside the 0.35 m contact envelope, zero aborts -- the registered bar PASSES for the first time across four campaigns (1.51 -> 0.97 -> 0.93 -> 0.34).",
       "so_what": "The camera-driven chase now meets its own bar in the full-physics sim, and the defect it took four campaigns to find would have flown on the real aircraft -- the cross-check loop just paid for itself. Two rulings reopen (default swap; brake, whose earlier verdicts are void), and the honest caveats stand: perfect cue, windless, upright tag, sim camera.",
@@ -548,12 +554,6 @@
       "text": "Parity check on the ported terminal (isim, 400 paired runs, clean conditions): the prototype meets the 0.35 m bar on every run; the flight-code port on 24% or fewer. A pre-registered A/B on the first suspect (the 2 s abort timer vs the guidance's 3 s recovery) came back NULL -- lengthening or disabling the timer changes nothing, verified with the override proven live in the state machine. The difference sits in the first-pass close (prototype ~0.12 m median, port 0.4-0.9 m); latency-constant mismatch checked and ruled out in the mean. Also measured the builder's perpendicular two-tag mount idea (rear + side tag, pre-registered, all errors on): it is a TRADE -- worse at 0-20 degrees of aim error (the side tag is nearly edge-on astern and its foreshortened width feeds bad range fixes), better only at 30 degrees (44% -> 56% touching). Suggestive at n=50, not decisive; the 30-degree win also leans on the unvalidated oblique-decode model. Altitude-error sweep on the same concept (builder question): flat within noise from 2 m below to 2 m above the guess (74-88% touching), cliff only at 3 m above (42%) -- against the retired sprint's ±0.1 m budget, an order-of-magnitude-plus wider band.",
       "so_what": "The port needs a per-tick trace comparison before it is trusted -- the leading candidate is attitude-at-capture handling. Do not spend a ruling on the abort timer; it is exonerated. Built and measured by a Fable 5 worker, the first to complete here since 2026-09-10.",
       "evidence": "isim/specs/parity_flightcode_2026-09-21.md; commit 3a27a58; docs/subagent_safeguard_log.md; isim/specs/dualtag_perpendicular_2026-09-21.md; isim/specs/alt_sensitivity_2026-09-21.md"
-    },
-    {
-      "date": "2026-09-21",
-      "evidence": "flight/tests/test_terminal_cli.py (7 tests); flight+isim 406 passed; real_flight.py --audit PASS; ADR-0105; configs/px4_6cmini/verify_params.py (COM5, 2 passes across a reboot); Pi at 547042b",
-      "so_what": "The ruled engagement concept can now actually be flown/configured on hardware, not just in the prototype sim; the lost-target-timer ruling and the parity run are the remaining gates before it is trusted.",
-      "text": "Chase only is now flyable from the real CLI: --terminal pursuit selects the ported pursuit terminal and the GO trigger enters the engagement directly (the old sprint's acquire gate can never fire for a chase that starts before the camera sees anything). The pre-launch aim belief comes from the same latched cue constants the dash aim already used -- audit green, 406 tests passed. Still open: the 2 s lost-target abort fires before pursuit's own 3 s recovery can act (needs a ruling), and the isim parity run (work item 4). ADR-0105. Same session: the Pi pulled the new code over the network and ran the chase-only dry run on its own CPU (audit and dry-run both pass there), and the Pixhawk got a proper read-back check -- a new PX4-safe verifier found the safety-switch parameter added to the pack in July had NEVER landed on the board (it still read the factory bypass value); written, rebooted, re-verified 10 of 10."
     }
   ],
   "narrative": {
@@ -2222,9 +2222,9 @@
           },
           {
             "name": "Lost-model buzzer — Flywoo Finder V1.0 w/ LED ×2 (one per aircraft)",
-            "status": "ordered",
+            "status": "in hand",
             "role": "Recovers a target that lands out in the grass.",
-            "notes": "Ordered 2026-09-22 with the airframe order."
+            "notes": "Interceptor unit wired STANDALONE 2-wire (5V+GND to the FC, white FC-signal wire unused) 2026-10-02 -- FC-driven tones are already covered by the M10 GPS's internal buzzer. It charges while powered and screams 30 s after losing power (button silences; every pack pull starts the countdown -- expected, not a fault). Target's unit still to fit."
           },
           {
             "name": "Field layer — tripod + ball head + inclinometer, >=27 W USB-C PD power bank, cones + tape measure, +2 CNHL 6S packs",
@@ -2264,7 +2264,7 @@
           },
           {
             "id": "gnd-01",
-            "text": "Order the STILL-NEEDED items: lost-model buzzer, >=27 W USB-C PD power bank, tripod + ball head, cones + tape measure, handheld anemometer, 1000 uF 16 V low-ESR electrolytic cap (Pi 5.2 V rail smoothing -- not in the delivered kit, found missing at the 2026-09-29 interceptor power-tree bench). (Charge bag, glasses, fire blanket, Kakute microSD and the Pi 5 active cooler are all in hand as of 2026-07-26.)"
+            "text": "Order the STILL-NEEDED items: >=27 W USB-C PD power bank, tripod + ball head, cones + tape measure, handheld anemometer, 1000 uF 16 V low-ESR electrolytic cap (Pi 5.2 V rail smoothing -- found missing at the 2026-09-29 interceptor power-tree bench), and 2x 18650 flat-top cells for the 2nd Pocket (ships without cells; both radios run at once on any kill-attempt day -- found needed at the 2026-10-02 RX bench). Buzzers arrived + interceptor unit wired 2026-10-02. (Charge bag, glasses, fire blanket, Kakute microSD, Pi 5 active cooler in hand 2026-07-26.)"
           },
           {
             "id": "gnd-02",
@@ -2323,9 +2323,9 @@
           },
           {
             "name": "RadioMaster RP3 ELRS diversity RX (UFL V2)",
-            "status": "ordered",
+            "status": "in hand",
             "role": "Kill/arm-only RC link (constraint no-datalink).",
-            "notes": "Flash SBUS output -> 6C Mini RC IN (stock PX4 has no CRSF driver)."
+            "notes": "WIRED + BENCH-VERIFIED 2026-10-02/03: bound to the Pocket (bind-phrase UID on both ends, survives reboots), serial protocol = plain SBUS ('Inverted SBUS' does NOT decode on the 6C Mini -- tested), 18-ch frames + live stick sweeps + no-pulses failsafe verified at the PX4 level (configs/px4_6cmini/rc_check.py). KILL SWITCH DONE: ch5 bumper, RC_MAP_KILL_SW=5 written + read-back verified across a reboot (verify_params.py 10/10), PX4 observed reading engage (1) and release (3) live. Root cause of the initial dead link: unseated DuPont junction + wrong polarity option, isolated by instruments (px4io counters + a 3.2 V pin probe). Still open: QGC radio calibration before arming. Field rule: TX on before (or within 60 s of) powering the aircraft, else the RX parks in WiFi mode until power-cycled."
           },
           {
             "name": "Matek 12S Pro BEC (Pi rail)",
