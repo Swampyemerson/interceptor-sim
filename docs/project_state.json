@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-10-03",
-  "updated_by": "cloud session (evidence made optional on wire states)",
+  "updated_by": "cloud session (wiring-editor queue applied)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -2323,9 +2323,9 @@
           },
           {
             "name": "EMAX ECO II 2207 1900KV motors ×5",
-            "status": "in hand",
+            "status": "ordered",
             "role": "4 flight + 1 spare; identical to the target's motors (one spare pool).",
-            "notes": "Longest lead item — arrives ~Oct 5-15. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
+            "notes": "Longest lead item — arrives ~Oct 5-15. [2026-10-02 builder, via wiring editor: ordered -> in hand.] [2026-10-03 builder, via wiring editor: in hand -> ordered — reverses yesterday's tap; matches the ~Oct 5-15 arrival window.]"
           },
           {
             "name": "RadioMaster RP3 ELRS diversity RX (UFL V2)",
@@ -2371,9 +2371,9 @@
           },
           {
             "name": "FC High-Endurance microSD (ULogs)",
-            "status": "must-add",
+            "status": "in hand",
             "role": "ULogs are the kill metrology — no card, no scored flight.",
-            "notes": "Confirm whether the 6C Mini kit included one before buying."
+            "notes": "Confirm whether the 6C Mini kit included one before buying. [2026-10-03 builder, via wiring editor: must-add -> in hand.]"
           },
           {
             "name": "M2.5 nylon standoff/screw kit (Pi tray)",

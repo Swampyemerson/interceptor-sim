@@ -148,8 +148,8 @@ footer{margin-top:64px;padding-top:20px;border-top:2px solid var(--line2);
 a{color:var(--accent)}
 a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<!-- MBSE-STATE-SHA256: 40cc627b489dd7c850e4961bd5494c2e23980c5c04a346c4a329116e3669d8ee -->
-<!-- MBSE-SYSML-SHA256: f0f36513e0deb4b49b32fdb406913c54545ddaeb1d95009b123da00433cb90cc -->
+<!-- MBSE-STATE-SHA256: bd4239846f7d074952d89cbd56da9e5e0e13d8794f5d412f7bd57dade98dd4bb -->
+<!-- MBSE-SYSML-SHA256: 96ef4bc3dd76eaaea8a5b5b7cc9bf7903a9123c735a5ce7a05b6f6655d4deab1 -->
 <style>
 :root{--sx-bg:#FBFAF5;--sx-panel:#FFFFFF;--sx-ink:#1C1B17;--sx-ink2:#8A8475;--sx-mut:#57534A;
   --sx-line:#C9C3B1;--sx-ok:#2D5F3E;--sx-warn:#8A6A12;--sx-acc:#29527A;--sx-bad:#A63A22;
@@ -188,7 +188,7 @@ pre.sxsrc .s{color:var(--ok)}
   <p class="sub">Eight views of <code class="mono">docs/project_state.json</code>
      and the SysML&nbsp;v2 model in <code class="mono">docs/sysml/</code>
      · contract updated 2026-10-03 · build
-     <code class="mono">4496a41</code></p>
+     <code class="mono">317f33b</code></p>
 </header>
 
 <div class="gen">
@@ -357,7 +357,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <p class="lead">Every board, cable, radio path and mount actually used, written as a SysML&nbsp;v2 textual model in <code class="mono">docs/sysml/</code> and drawn from it. Unlike views 1&ndash;7 this model is <i>hand-written text</i> &mdash; but each part&rsquo;s status is read live from the build sheet in the contract, every wire&rsquo;s plug types and direction are type-checked, and every build-sheet row must be drawn or explicitly excluded, so the two cannot quietly disagree.</p>
 <div class="stats">
 <div class="stat"><div class="n">41</div><div class="l">parts on the build sheet, drawn</div></div>
-<div class="stat"><div class="n">60</div><div class="l">typed connections<br>17 verified · 3 wired · 40 planned</div></div>
+<div class="stat"><div class="n">60</div><div class="l">typed connections<br>17 verified · 8 wired · 35 planned</div></div>
 <div class="stat"><div class="n">38/46</div><div class="l">build-sheet rows drawn<br>(8 excluded with a reason)</div></div>
 <div class="stat alert"><div class="n">3</div><div class="l">wiring decisions still open<br>(TBD in the model)</div></div>
 </div>
@@ -458,8 +458,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-node"><rect class="sx-box" x="1060" y="64" width="214" height="78" rx="2"/>
 <text class="sx-name" x="1070" y="82">motors</text>
 <text class="sx-type" x="1070" y="98">: EcoII2207 [4]</text>
-<rect class="sx-chip sx-ok" x="1209.2" y="88" width="56.8" height="15" rx="2"/>
-<text class="sx-chipt sx-ok" x="1237.6" y="99">IN HAND</text>
+<rect class="sx-chip sx-warn" x="1209.2" y="88" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-warn" x="1237.6" y="99">ORDERED</text>
 <line class="sx-rule" x1="1060" y1="106" x2="1274" y2="106"/>
 </g>
 <g class="sx-node"><rect class="sx-box" x="396" y="238" width="214" height="144" rx="2"/>
@@ -519,10 +519,10 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <line class="sx-rule" x1="1060" y1="672" x2="1274" y2="672"/>
 </g>
 <path class="sx-w sx-c-power sx-s-planned" d="M278.0 121.0 L337.0 121.0 L337.0 121.0 L396.0 121.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M610.0 121.0 L669.0 121.0 L669.0 121.0 L728.0 121.0"/>
+<path class="sx-w sx-c-power sx-s-wired" d="M610.0 121.0 L669.0 121.0 L669.0 121.0 L728.0 121.0"/>
 <path class="sx-w sx-c-power sx-s-planned" d="M942.0 121.0 L1001.0 121.0 L1001.0 121.0 L1060.0 121.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M610.0 143.0 L676.0 143.0 L676.0 295.0 L610.0 295.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M278.0 121.0 L344.0 121.0 L344.0 513.0 L278.0 513.0"/>
+<path class="sx-w sx-c-power sx-s-wired" d="M610.0 143.0 L676.0 143.0 L676.0 295.0 L610.0 295.0"/>
+<path class="sx-w sx-c-power sx-s-wired" d="M278.0 121.0 L344.0 121.0 L344.0 513.0 L278.0 513.0"/>
 <path class="sx-w sx-c-power sx-s-planned" d="M278.0 535.0 L351.0 535.0 L351.0 513.0 L396.0 513.0"/>
 <path class="sx-w sx-c-power sx-s-planned" d="M278.0 535.0 L330.0 535.0 L330.0 687.0 L278.0 687.0"/>
 <path class="sx-w sx-c-power sx-s-verified" d="M610.0 513.0 L662.0 513.0 L662.0 687.0 L1060.0 687.0"/>
@@ -570,10 +570,10 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <rect class="sx-pc" x="1055.0" y="682.0" width="10" height="10"/>
 <text class="sx-pl" x="1069.0" y="690.5">header</text>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="355.5" y="113.0" width="22" height="16" rx="8"/><text x="366.5" y="125.0">1</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="687.5" y="113.0" width="22" height="16" rx="8"/><text x="698.5" y="125.0">2</text></g>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="687.5" y="113.0" width="22" height="16" rx="8"/><text x="698.5" y="125.0">2</text></g>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="1019.5" y="113.0" width="22" height="16" rx="8"/><text x="1030.5" y="125.0">3</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="665.0" y="211.0" width="22" height="16" rx="8"/><text x="676.0" y="223.0">4</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="333.0" y="309.0" width="22" height="16" rx="8"/><text x="344.0" y="321.0">5</text></g>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="665.0" y="211.0" width="22" height="16" rx="8"/><text x="676.0" y="223.0">4</text></g>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="333.0" y="309.0" width="22" height="16" rx="8"/><text x="344.0" y="321.0">5</text></g>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="303.5" y="527.0" width="22" height="16" rx="8"/><text x="314.5" y="539.0">6</text></g>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="319.0" y="603.0" width="22" height="16" rx="8"/><text x="330.0" y="615.0">7</text></g>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="850.0" y="679.0" width="22" height="16" rx="8"/><text x="861.0" y="691.0">8</text></g>
@@ -584,17 +584,17 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="778" width="22" height="16" rx="8"/><text x="31" y="790">1</text></g>
 <text class="sx-wl" x="52" y="790"><tspan class="sx-wn">mainPower</tspan><tspan class="sx-wm">  battery.main → pm02.battIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
 <text class="sx-wd" x="52" y="804">XT60 — 6S main power into the power module</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="808" width="22" height="16" rx="8"/><text x="31" y="820">2</text></g>
-<text class="sx-wl" x="52" y="820"><tspan class="sx-wn">escPower</tspan><tspan class="sx-wm">  pm02.battOut → esc.batt</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="808" width="22" height="16" rx="8"/><text x="31" y="820">2</text></g>
+<text class="sx-wl" x="52" y="820"><tspan class="sx-wn">escPower</tspan><tspan class="sx-wm">  pm02.battOut → esc.batt</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="834">XT60 pigtail, 14 AWG — PM02 pass-through to the ESC pads</text>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="838" width="22" height="16" rx="8"/><text x="31" y="850">3</text></g>
 <text class="sx-wl" x="52" y="850"><tspan class="sx-wn">motorLeads</tspan><tspan class="sx-wm">  esc.motorOut → motors.phase</tspan><tspan class="sx-wt">  : PhaseLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
 <text class="sx-wd" x="52" y="864">3-phase leads, soldered — 4 channels; verify order + direction in QGC (afr-03)</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="868" width="22" height="16" rx="8"/><text x="31" y="880">4</text></g>
-<text class="sx-wl" x="52" y="880"><tspan class="sx-wn">fcPower</tspan><tspan class="sx-wm">  pm02.fcLead → fc.power1</tspan><tspan class="sx-wt">  : PowerModuleLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="868" width="22" height="16" rx="8"/><text x="31" y="880">4</text></g>
+<text class="sx-wl" x="52" y="880"><tspan class="sx-wn">fcPower</tspan><tspan class="sx-wm">  pm02.fcLead → fc.power1</tspan><tspan class="sx-wt">  : PowerModuleLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="894">6-pin JST-GH — 5.2 V + analog V/I sense to POWER1</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="898" width="22" height="16" rx="8"/><text x="31" y="910">5</text></g>
-<text class="sx-wl" x="52" y="910"><tspan class="sx-wn">becFeed</tspan><tspan class="sx-wm">  battery.main → bec.vin</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="898" width="22" height="16" rx="8"/><text x="31" y="910">5</text></g>
+<text class="sx-wl" x="52" y="910"><tspan class="sx-wn">becFeed</tspan><tspan class="sx-wm">  battery.main → bec.vin</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="924">16 AWG tap on the main leads — LiPo main straight to the BEC -- second rail</text>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="928" width="22" height="16" rx="8"/><text x="31" y="940">6</text></g>
 <text class="sx-wl" x="52" y="940"><tspan class="sx-wn">piRail</tspan><tspan class="sx-wm">  bec.out5v → pi.pwrIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
@@ -715,8 +715,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-node"><rect class="sx-box" x="64" y="216" width="214" height="78" rx="2"/>
 <text class="sx-name" x="74" y="234">fcSd</text>
 <text class="sx-type" x="74" y="250">: MicroSDCard</text>
-<rect class="sx-chip sx-bad" x="206.8" y="240" width="63.2" height="15" rx="2"/>
-<text class="sx-chipt sx-bad" x="238.4" y="251">MUST-ADD</text>
+<rect class="sx-chip sx-ok" x="213.2" y="240" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="241.6" y="251">IN HAND</text>
 <line class="sx-rule" x1="64" y1="258" x2="278" y2="258"/>
 </g>
 <g class="sx-node"><rect class="sx-box" x="396" y="216" width="214" height="188" rx="2"/>
@@ -768,13 +768,13 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <text class="sx-chipt sx-ok" x="905.6" y="709">IN HAND</text>
 <line class="sx-rule" x1="728" y1="716" x2="942" y2="716"/>
 </g>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 121.0 L669.0 121.0 L669.0 295.0 L610.0 295.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 273.0 L676.0 273.0 L676.0 121.0 L728.0 121.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 121.0 L669.0 121.0 L669.0 295.0 L610.0 295.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 273.0 L676.0 273.0 L676.0 121.0 L728.0 121.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 273.0 L728.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 383.0 L662.0 383.0 L662.0 535.0 L610.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-planned" d="M610.0 361.0 L690.0 361.0 L690.0 535.0 L728.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-planned" d="M610.0 339.0 L1001.0 339.0 L1001.0 535.0 L1060.0 535.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M396.0 273.0 L337.0 273.0 L337.0 273.0 L278.0 273.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M396.0 273.0 L337.0 273.0 L337.0 273.0 L278.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 731.0 L655.0 731.0 L655.0 557.0 L610.0 557.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 579.0 L697.0 579.0 L697.0 731.0 L728.0 731.0"/>
 <rect class="sx-p" x="605.0" y="116.0" width="10" height="10"/>
@@ -813,21 +813,21 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <text class="sx-pl sx-end" x="601.0" y="734.5">csi</text>
 <rect class="sx-pc" x="723.0" y="726.0" width="10" height="10"/>
 <text class="sx-pl" x="737.0" y="734.5">contacts</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="658.0" y="200.0" width="22" height="16" rx="8"/><text x="669.0" y="212.0">1</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="665.0" y="166.2" width="22" height="16" rx="8"/><text x="676.0" y="178.2">2</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="658.0" y="200.0" width="22" height="16" rx="8"/><text x="669.0" y="212.0">1</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="665.0" y="166.2" width="22" height="16" rx="8"/><text x="676.0" y="178.2">2</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">3</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="651.0" y="451.0" width="22" height="16" rx="8"/><text x="662.0" y="463.0">4</text></g>
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="679.0" y="440.0" width="22" height="16" rx="8"/><text x="690.0" y="452.0">5</text></g>
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="794.5" y="331.0" width="22" height="16" rx="8"/><text x="805.5" y="343.0">6</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="296.5" y="265.0" width="22" height="16" rx="8"/><text x="307.5" y="277.0">7</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="296.5" y="265.0" width="22" height="16" rx="8"/><text x="307.5" y="277.0">7</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="644.0" y="636.0" width="22" height="16" rx="8"/><text x="655.0" y="648.0">8</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="686.0" y="647.0" width="22" height="16" rx="8"/><text x="697.0" y="659.0">9</text></g>
 <text class="sx-h" x="20" y="814">WIRE LIST — every connection in this view</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="822" width="22" height="16" rx="8"/><text x="31" y="834">1</text></g>
-<text class="sx-wl" x="52" y="834"><tspan class="sx-wn">fcPower</tspan><tspan class="sx-wm">  pm02.fcLead → fc.power1</tspan><tspan class="sx-wt">  : PowerModuleLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="822" width="22" height="16" rx="8"/><text x="31" y="834">1</text></g>
+<text class="sx-wl" x="52" y="834"><tspan class="sx-wn">fcPower</tspan><tspan class="sx-wm">  pm02.fcLead → fc.power1</tspan><tspan class="sx-wt">  : PowerModuleLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="848">6-pin JST-GH — 5.2 V + analog V/I sense to POWER1</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="852" width="22" height="16" rx="8"/><text x="31" y="864">2</text></g>
-<text class="sx-wl" x="52" y="864"><tspan class="sx-wn">escSignal</tspan><tspan class="sx-wm">  fc.mainOut → esc.signal</tspan><tspan class="sx-wt">  : DShotLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="852" width="22" height="16" rx="8"/><text x="31" y="864">2</text></g>
+<text class="sx-wl" x="52" y="864"><tspan class="sx-wn">escSignal</tspan><tspan class="sx-wm">  fc.mainOut → esc.signal</tspan><tspan class="sx-wt">  : DShotLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="878">signal lead (pin map TBD) — DShot600 M1-M4 + GND; contract says JST-SH 8-pin, wiring card says MAIN is 3-pin S/+/- -- check at afr-01</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="882" width="22" height="16" rx="8"/><text x="31" y="894">3</text></g>
 <text class="sx-wl" x="52" y="894"><tspan class="sx-wn">gpsCable</tspan><tspan class="sx-wm">  fc.gps1 → gps.fcConn</tspan><tspan class="sx-wt">  : GPSCableLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-02)</tspan></text>
@@ -841,8 +841,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="972" width="22" height="16" rx="8"/><text x="31" y="984">6</text></g>
 <text class="sx-wl" x="52" y="984"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
 <text class="sx-wd" x="52" y="998">TBD — drive pin UNRESOLVED -- the 6C Mini has no buzzer pad</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="1002" width="22" height="16" rx="8"/><text x="31" y="1014">7</text></g>
-<text class="sx-wl" x="52" y="1014"><tspan class="sx-wn">ulogCard</tspan><tspan class="sx-wm">  fc.sdSlot → fcSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="1002" width="22" height="16" rx="8"/><text x="31" y="1014">7</text></g>
+<text class="sx-wl" x="52" y="1014"><tspan class="sx-wn">ulogCard</tspan><tspan class="sx-wm">  fc.sdSlot → fcSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="1028">onboard microSD slot — PX4 ULogs</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="1032" width="22" height="16" rx="8"/><text x="31" y="1044">8</text></g>
 <text class="sx-wl" x="52" y="1044"><tspan class="sx-wn">cameraRibbon</tspan><tspan class="sx-wm">  camera.csi → pi.cam0</tspan><tspan class="sx-wt">  : CSI2Link</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-02)</tspan></text>
@@ -951,8 +951,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-node"><rect class="sx-box" x="1060" y="64" width="214" height="100" rx="2"/>
 <text class="sx-name" x="1070" y="82">motors</text>
 <text class="sx-type" x="1070" y="98">: EcoII2207 [4]</text>
-<rect class="sx-chip sx-ok" x="1209.2" y="88" width="56.8" height="15" rx="2"/>
-<text class="sx-chipt sx-ok" x="1237.6" y="99">IN HAND</text>
+<rect class="sx-chip sx-warn" x="1209.2" y="88" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-warn" x="1237.6" y="99">ORDERED</text>
 <line class="sx-rule" x1="1060" y1="106" x2="1274" y2="106"/>
 </g>
 <g class="sx-node"><rect class="sx-box" x="1392" y="64" width="214" height="78" rx="2"/>
@@ -1097,7 +1097,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <text class="sx-lg" x="661.0" y="1040">~port (conjugate: receives)</text>
 </svg>
 </div>
-<details class="sxd"><summary>Parts list &mdash; Interceptor (18 parts)</summary><div class='scroller'><table class='grid'><thead><tr><th>Part</th><th>Type (part def)</th><th>Build-sheet status</th><th>What it is</th></tr></thead><tbody><tr><td class='id'>battery</td><td class='mono'>LiPo6S1500</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>CNHL 6S 1500 mAh LiPo (1 in cart)</div></td><td class='cap'>Shared 6S pack pool with the target.</td></tr><tr><td class='id'>pm02</td><td class='mono'>PM02V3</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Holybro PM02 V3 analog power module</div></td><td class='cap'>Holybro PM02 V3 ANALOG power module (the digital PM02D does not match the 6C Mini). XT60 pass-through plus a 6-pin lead carrying 5.2 V and analog V/I sense to POWER1.</td></tr><tr><td class='id'>esc</td><td class='mono'>KO60IIESC</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Skystars KO60II 60A 3-6S AM32 4-in-1 ESC (30x30)</div></td><td class='cap'>Skystars KO60II 60A 3-6S AM32 4-in-1 ESC, 30 x 30, DShot600.</td></tr><tr><td class='id'>motors</td><td class='mono'>EcoII2207 [4]</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>EMAX ECO II 2207 1900KV motors ×5</div></td><td class='cap'>5 ordered: 4 flight + 1 spare shared with the target.</td></tr><tr><td class='id'>props</td><td class='mono'>HQV2S5in [4]</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>HQProp V2S 5x4.3x3 props ×16</div></td><td class='cap'>HQProp V2S 5x4.3x3 tri-blade, CW + CCW.</td></tr><tr><td class='id'>fcSd</td><td class='mono'>MicroSDCard</td><td><span class='pill sx-st-bad'>must-add</span><div class='cap'>FC High-Endurance microSD (ULogs)</div></td><td class='cap'>ULogs are the kill metrology -- no card, no scored flight.</td></tr><tr><td class='id'>fc</td><td class='mono'>Pixhawk6CMini</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Pixhawk 6C Mini</div></td><td class='cap'>Holybro Pixhawk 6C Mini (FMUv6C, STM32H743) running PX4 v1.16 -- the stack the simulator validated. TELEM2 is the companion link (MAV_1_CONFIG=TELEM2, 921600 baud, flow control off).</td></tr><tr><td class='id'>gps</td><td class='mono'>HolybroM10</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Holybro M10 GPS + IST8310 compass</div></td><td class='cap'>Holybro M10 GPS + IST8310 compass, 10-pin JST-GH to GPS1.</td></tr><tr><td class='id'>airframe</td><td class='mono'>SourceOneV6</td><td><span class='pill sx-st-ok'>built</span><div class='cap'>TBS Source One V6 5in frame kit</div></td><td class='cap'>TBS Source One V6 5-inch frame -- same frame on both aircraft, so arms and spares are shared. Carbon conducts: insulate under boards.</td></tr><tr><td class='id'>bec</td><td class='mono'>MatekBEC12SPro</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Matek 12S Pro BEC (Pi rail)</div></td><td class='cap'>Matek 12S Pro BEC -- the dedicated Raspberry Pi rail (two-rail rule: the Pi is never powered from the flight controller). Spec says 5.2 V on the 5 V tap; bench-verify under Pi load.</td></tr><tr><td class='id'>pi</td><td class='mono'>RaspberryPi5</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Raspberry Pi 5, 8 GB</div></td><td class='cap'>The same board as the Tier-1 seeker rig, moved onto the airframe.</td></tr><tr><td class='id'>rx</td><td class='mono'>RP3Diversity</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>RadioMaster RP3 ELRS diversity RX (UFL V2)</div></td><td class='cap'>RadioMaster RP3 ELRS diversity receiver (UFL V2), flashed to SBUS output -- stock PX4 has no CRSF driver and the Mini has no spare UART. Kill/arm-only link (constraint no-datalink).</td></tr><tr><td class='id'>finder</td><td class='mono'>FlywooFinderV1</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Lost-model buzzer — Flywoo Finder V1.0 w/ LED ×2 (one per aircraft)</div></td><td class='cap'>Flywoo Finder V1.0 lost-model buzzer with LED and its own cell.</td></tr><tr><td class='id'>railCap</td><td class='mono'>RailCap1000uF</td><td><span class='pill sx-st-bad'>must-add</span><div class='cap'>1000 uF 16 V low-ESR cap (Pi rail)</div></td><td class='cap'>1000 uF 16 V low-ESR electrolytic across the Pi 5.2 V rail at the Pi end -- smooths load steps. Found missing from the kit at the 2026-09-29 power-tree bench.</td></tr><tr><td class='id'>camera</td><td class='mono'>OV9281Camera</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>innomaker OV9281 mono global-shutter camera</div></td><td class='cap'>innomaker OV9281 mono global-shutter MIPI camera, 1280 x 800, 118 deg horizontal FoV (vendor-stated).</td></tr><tr><td class='id'>piSd</td><td class='mono'>MicroSDCard</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>SanDisk 128 GB microSD + reader</div></td><td class='cap'>Pi OS + timestamped raw frames.</td></tr><tr><td class='id'>cooler</td><td class='mono'>PiActiveCooler</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Pi 5 active cooler</div></td><td class='cap'>Raspberry Pi 5 active cooler -- mandatory under sustained CV load.</td></tr><tr><td class='id'>cameraMount</td><td class='mono'>NoseCameraMount</td><td><span class='pill sx-st-acc'>print</span><div class='cap'>Nose-cantilever prop-clearance camera mount</div></td><td class='cap'>Printed nose-cantilever mount with an adjustable 10-30 deg up-tilt bracket -- puts the props out of the camera&#x27;s view (no software fallback). Angle locked from the first dash ULog.</td></tr></tbody></table></div></details>
+<details class="sxd"><summary>Parts list &mdash; Interceptor (18 parts)</summary><div class='scroller'><table class='grid'><thead><tr><th>Part</th><th>Type (part def)</th><th>Build-sheet status</th><th>What it is</th></tr></thead><tbody><tr><td class='id'>battery</td><td class='mono'>LiPo6S1500</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>CNHL 6S 1500 mAh LiPo (1 in cart)</div></td><td class='cap'>Shared 6S pack pool with the target.</td></tr><tr><td class='id'>pm02</td><td class='mono'>PM02V3</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Holybro PM02 V3 analog power module</div></td><td class='cap'>Holybro PM02 V3 ANALOG power module (the digital PM02D does not match the 6C Mini). XT60 pass-through plus a 6-pin lead carrying 5.2 V and analog V/I sense to POWER1.</td></tr><tr><td class='id'>esc</td><td class='mono'>KO60IIESC</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Skystars KO60II 60A 3-6S AM32 4-in-1 ESC (30x30)</div></td><td class='cap'>Skystars KO60II 60A 3-6S AM32 4-in-1 ESC, 30 x 30, DShot600.</td></tr><tr><td class='id'>motors</td><td class='mono'>EcoII2207 [4]</td><td><span class='pill sx-st-warn'>ordered</span><div class='cap'>EMAX ECO II 2207 1900KV motors ×5</div></td><td class='cap'>5 ordered: 4 flight + 1 spare shared with the target.</td></tr><tr><td class='id'>props</td><td class='mono'>HQV2S5in [4]</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>HQProp V2S 5x4.3x3 props ×16</div></td><td class='cap'>HQProp V2S 5x4.3x3 tri-blade, CW + CCW.</td></tr><tr><td class='id'>fcSd</td><td class='mono'>MicroSDCard</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>FC High-Endurance microSD (ULogs)</div></td><td class='cap'>ULogs are the kill metrology -- no card, no scored flight.</td></tr><tr><td class='id'>fc</td><td class='mono'>Pixhawk6CMini</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Pixhawk 6C Mini</div></td><td class='cap'>Holybro Pixhawk 6C Mini (FMUv6C, STM32H743) running PX4 v1.16 -- the stack the simulator validated. TELEM2 is the companion link (MAV_1_CONFIG=TELEM2, 921600 baud, flow control off).</td></tr><tr><td class='id'>gps</td><td class='mono'>HolybroM10</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Holybro M10 GPS + IST8310 compass</div></td><td class='cap'>Holybro M10 GPS + IST8310 compass, 10-pin JST-GH to GPS1.</td></tr><tr><td class='id'>airframe</td><td class='mono'>SourceOneV6</td><td><span class='pill sx-st-ok'>built</span><div class='cap'>TBS Source One V6 5in frame kit</div></td><td class='cap'>TBS Source One V6 5-inch frame -- same frame on both aircraft, so arms and spares are shared. Carbon conducts: insulate under boards.</td></tr><tr><td class='id'>bec</td><td class='mono'>MatekBEC12SPro</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Matek 12S Pro BEC (Pi rail)</div></td><td class='cap'>Matek 12S Pro BEC -- the dedicated Raspberry Pi rail (two-rail rule: the Pi is never powered from the flight controller). Spec says 5.2 V on the 5 V tap; bench-verify under Pi load.</td></tr><tr><td class='id'>pi</td><td class='mono'>RaspberryPi5</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Raspberry Pi 5, 8 GB</div></td><td class='cap'>The same board as the Tier-1 seeker rig, moved onto the airframe.</td></tr><tr><td class='id'>rx</td><td class='mono'>RP3Diversity</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>RadioMaster RP3 ELRS diversity RX (UFL V2)</div></td><td class='cap'>RadioMaster RP3 ELRS diversity receiver (UFL V2), flashed to SBUS output -- stock PX4 has no CRSF driver and the Mini has no spare UART. Kill/arm-only link (constraint no-datalink).</td></tr><tr><td class='id'>finder</td><td class='mono'>FlywooFinderV1</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Lost-model buzzer — Flywoo Finder V1.0 w/ LED ×2 (one per aircraft)</div></td><td class='cap'>Flywoo Finder V1.0 lost-model buzzer with LED and its own cell.</td></tr><tr><td class='id'>railCap</td><td class='mono'>RailCap1000uF</td><td><span class='pill sx-st-bad'>must-add</span><div class='cap'>1000 uF 16 V low-ESR cap (Pi rail)</div></td><td class='cap'>1000 uF 16 V low-ESR electrolytic across the Pi 5.2 V rail at the Pi end -- smooths load steps. Found missing from the kit at the 2026-09-29 power-tree bench.</td></tr><tr><td class='id'>camera</td><td class='mono'>OV9281Camera</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>innomaker OV9281 mono global-shutter camera</div></td><td class='cap'>innomaker OV9281 mono global-shutter MIPI camera, 1280 x 800, 118 deg horizontal FoV (vendor-stated).</td></tr><tr><td class='id'>piSd</td><td class='mono'>MicroSDCard</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>SanDisk 128 GB microSD + reader</div></td><td class='cap'>Pi OS + timestamped raw frames.</td></tr><tr><td class='id'>cooler</td><td class='mono'>PiActiveCooler</td><td><span class='pill sx-st-ok'>in hand</span><div class='cap'>Pi 5 active cooler</div></td><td class='cap'>Raspberry Pi 5 active cooler -- mandatory under sustained CV load.</td></tr><tr><td class='id'>cameraMount</td><td class='mono'>NoseCameraMount</td><td><span class='pill sx-st-acc'>print</span><div class='cap'>Nose-cantilever prop-clearance camera mount</div></td><td class='cap'>Printed nose-cantilever mount with an adjustable 10-30 deg up-tilt bracket -- puts the props out of the camera&#x27;s view (no software fallback). Angle locked from the first dash ULog.</td></tr></tbody></table></div></details>
 <h3 class="sx3">Target drone</h3>
 <p class="sxcap">ArduPilot 5-inch quad, 6S, AprilTag placard on the top plate.</p>
 <p class="sxcap"><b>Target — power.</b> One 6S pack through the Tekko32 stack; the Kakute&#x27;s BEC powers GPS, RX and buzzer. <span class="mono">docs/sysml/views/target-power.svg</span></p>
@@ -3066,7 +3066,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
         <span class="k">interface</span> escPower : DCPowerLink <span class="k">connect</span> pm02.battOut <span class="k">to</span> esc.batt {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;XT60 pigtail, 14 AWG&quot;</span>;
             <span class="k">attribute</span> :&gt;&gt; detail = <span class="s">&quot;PM02 pass-through to the ESC pads&quot;</span>;
-            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::planned;
+            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::wired;
         }
         <span class="k">interface</span> motorLeads : PhaseLink <span class="k">connect</span> esc.motorOut <span class="k">to</span> motors.phase {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;3-phase leads, soldered&quot;</span>;
@@ -3076,14 +3076,14 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
         <span class="k">interface</span> fcPower : PowerModuleLink <span class="k">connect</span> pm02.fcLead <span class="k">to</span> fc.power1 {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;6-pin JST-GH&quot;</span>;
             <span class="k">attribute</span> :&gt;&gt; detail = <span class="s">&quot;5.2 V + analog V/I sense to POWER1&quot;</span>;
-            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::planned;
+            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::wired;
         }
 
 <span class="c">        // ---------------------------------------------------------- power: Pi rail</span>
         <span class="k">interface</span> becFeed : DCPowerLink <span class="k">connect</span> battery.main <span class="k">to</span> bec.vin {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;16 AWG tap on the main leads&quot;</span>;
             <span class="k">attribute</span> :&gt;&gt; detail = <span class="s">&quot;LiPo main straight to the BEC -- second rail&quot;</span>;
-            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::planned;
+            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::wired;
         }
         <span class="k">interface</span> piRail : DCPowerLink <span class="k">connect</span> bec.out5v <span class="k">to</span> pi.pwrIn {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;5 V lead to the Pi (entry point TBD)&quot;</span>;
@@ -3106,7 +3106,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
         <span class="k">interface</span> escSignal : DShotLink <span class="k">connect</span> fc.mainOut <span class="k">to</span> esc.signal {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;signal lead (pin map TBD)&quot;</span>;
             <span class="k">attribute</span> :&gt;&gt; detail = <span class="s">&quot;DShot600 M1-M4 + GND; contract says JST-SH 8-pin, wiring card says MAIN is 3-pin S/+/- -- check at afr-01&quot;</span>;
-            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::planned;
+            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::wired;
         }
         <span class="k">interface</span> gpsCable : GPSCableLink <span class="k">connect</span> fc.gps1 <span class="k">to</span> gps.fcConn {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;10-pin JST-GH&quot;</span>;
@@ -3134,7 +3134,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
         <span class="k">interface</span> ulogCard : SDCardLink <span class="k">connect</span> fc.sdSlot <span class="k">to</span> fcSd.contacts {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;onboard microSD slot&quot;</span>;
             <span class="k">attribute</span> :&gt;&gt; detail = <span class="s">&quot;PX4 ULogs&quot;</span>;
-            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::planned;
+            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::wired;
         }
         <span class="k">interface</span> cameraRibbon : CSI2Link <span class="k">connect</span> camera.csi <span class="k">to</span> pi.cam0 {
             @BOM { tab = <span class="s">&quot;seeker&quot;</span>; bomName = <span class="s">&quot;Wonrabai&quot;</span>; }
@@ -3470,8 +3470,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <footer>
   Generated by <code class="mono">scripts/render_mbse.py</code> from
   <code class="mono">docs/project_state.json</code> (updated 2026-10-03).
-  Contract digest <code class="mono">40cc627b489d</code> · build
-  <code class="mono">4496a41</code>.
+  Contract digest <code class="mono">bd4239846f7d</code> · build
+  <code class="mono">317f33b</code>.
   Re-render with <code class="mono">python3 scripts/render_mbse.py</code>; drift fails
   <code class="mono">scripts/run_tests.sh</code>.
 </footer>

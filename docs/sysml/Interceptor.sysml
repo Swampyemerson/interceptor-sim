@@ -106,7 +106,7 @@ package Interceptor {
         interface escPower : DCPowerLink connect pm02.battOut to esc.batt {
             attribute :>> connector = "XT60 pigtail, 14 AWG";
             attribute :>> detail = "PM02 pass-through to the ESC pads";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
         interface motorLeads : PhaseLink connect esc.motorOut to motors.phase {
             attribute :>> connector = "3-phase leads, soldered";
@@ -116,14 +116,14 @@ package Interceptor {
         interface fcPower : PowerModuleLink connect pm02.fcLead to fc.power1 {
             attribute :>> connector = "6-pin JST-GH";
             attribute :>> detail = "5.2 V + analog V/I sense to POWER1";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
 
         // ---------------------------------------------------------- power: Pi rail
         interface becFeed : DCPowerLink connect battery.main to bec.vin {
             attribute :>> connector = "16 AWG tap on the main leads";
             attribute :>> detail = "LiPo main straight to the BEC -- second rail";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
         interface piRail : DCPowerLink connect bec.out5v to pi.pwrIn {
             attribute :>> connector = "5 V lead to the Pi (entry point TBD)";
@@ -146,7 +146,7 @@ package Interceptor {
         interface escSignal : DShotLink connect fc.mainOut to esc.signal {
             attribute :>> connector = "signal lead (pin map TBD)";
             attribute :>> detail = "DShot600 M1-M4 + GND; contract says JST-SH 8-pin, wiring card says MAIN is 3-pin S/+/- -- check at afr-01";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
         interface gpsCable : GPSCableLink connect fc.gps1 to gps.fcConn {
             attribute :>> connector = "10-pin JST-GH";
@@ -174,7 +174,7 @@ package Interceptor {
         interface ulogCard : SDCardLink connect fc.sdSlot to fcSd.contacts {
             attribute :>> connector = "onboard microSD slot";
             attribute :>> detail = "PX4 ULogs";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
         interface cameraRibbon : CSI2Link connect camera.csi to pi.cam0 {
             @BOM { tab = "seeker"; bomName = "Wonrabai"; }

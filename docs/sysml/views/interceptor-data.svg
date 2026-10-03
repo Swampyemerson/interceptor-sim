@@ -83,8 +83,8 @@
 <g class="sx-node"><rect class="sx-box" x="64" y="216" width="214" height="78" rx="2"/>
 <text class="sx-name" x="74" y="234">fcSd</text>
 <text class="sx-type" x="74" y="250">: MicroSDCard</text>
-<rect class="sx-chip sx-bad" x="206.8" y="240" width="63.2" height="15" rx="2"/>
-<text class="sx-chipt sx-bad" x="238.4" y="251">MUST-ADD</text>
+<rect class="sx-chip sx-ok" x="213.2" y="240" width="56.8" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="241.6" y="251">IN HAND</text>
 <line class="sx-rule" x1="64" y1="258" x2="278" y2="258"/>
 </g>
 <g class="sx-node"><rect class="sx-box" x="396" y="216" width="214" height="188" rx="2"/>
@@ -136,13 +136,13 @@
 <text class="sx-chipt sx-ok" x="905.6" y="709">IN HAND</text>
 <line class="sx-rule" x1="728" y1="716" x2="942" y2="716"/>
 </g>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 121.0 L669.0 121.0 L669.0 295.0 L610.0 295.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 273.0 L676.0 273.0 L676.0 121.0 L728.0 121.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 121.0 L669.0 121.0 L669.0 295.0 L610.0 295.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 273.0 L676.0 273.0 L676.0 121.0 L728.0 121.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 273.0 L728.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 383.0 L662.0 383.0 L662.0 535.0 L610.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-planned" d="M610.0 361.0 L690.0 361.0 L690.0 535.0 L728.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-planned" d="M610.0 339.0 L1001.0 339.0 L1001.0 535.0 L1060.0 535.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M396.0 273.0 L337.0 273.0 L337.0 273.0 L278.0 273.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M396.0 273.0 L337.0 273.0 L337.0 273.0 L278.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 731.0 L655.0 731.0 L655.0 557.0 L610.0 557.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 579.0 L697.0 579.0 L697.0 731.0 L728.0 731.0"/>
 <rect class="sx-p" x="605.0" y="116.0" width="10" height="10"/>
@@ -181,21 +181,21 @@
 <text class="sx-pl sx-end" x="601.0" y="734.5">csi</text>
 <rect class="sx-pc" x="723.0" y="726.0" width="10" height="10"/>
 <text class="sx-pl" x="737.0" y="734.5">contacts</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="658.0" y="200.0" width="22" height="16" rx="8"/><text x="669.0" y="212.0">1</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="665.0" y="166.2" width="22" height="16" rx="8"/><text x="676.0" y="178.2">2</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="658.0" y="200.0" width="22" height="16" rx="8"/><text x="669.0" y="212.0">1</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="665.0" y="166.2" width="22" height="16" rx="8"/><text x="676.0" y="178.2">2</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">3</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="651.0" y="451.0" width="22" height="16" rx="8"/><text x="662.0" y="463.0">4</text></g>
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="679.0" y="440.0" width="22" height="16" rx="8"/><text x="690.0" y="452.0">5</text></g>
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="794.5" y="331.0" width="22" height="16" rx="8"/><text x="805.5" y="343.0">6</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="296.5" y="265.0" width="22" height="16" rx="8"/><text x="307.5" y="277.0">7</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="296.5" y="265.0" width="22" height="16" rx="8"/><text x="307.5" y="277.0">7</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="644.0" y="636.0" width="22" height="16" rx="8"/><text x="655.0" y="648.0">8</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="686.0" y="647.0" width="22" height="16" rx="8"/><text x="697.0" y="659.0">9</text></g>
 <text class="sx-h" x="20" y="814">WIRE LIST — every connection in this view</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="822" width="22" height="16" rx="8"/><text x="31" y="834">1</text></g>
-<text class="sx-wl" x="52" y="834"><tspan class="sx-wn">fcPower</tspan><tspan class="sx-wm">  pm02.fcLead → fc.power1</tspan><tspan class="sx-wt">  : PowerModuleLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="822" width="22" height="16" rx="8"/><text x="31" y="834">1</text></g>
+<text class="sx-wl" x="52" y="834"><tspan class="sx-wn">fcPower</tspan><tspan class="sx-wm">  pm02.fcLead → fc.power1</tspan><tspan class="sx-wt">  : PowerModuleLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="848">6-pin JST-GH — 5.2 V + analog V/I sense to POWER1</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="852" width="22" height="16" rx="8"/><text x="31" y="864">2</text></g>
-<text class="sx-wl" x="52" y="864"><tspan class="sx-wn">escSignal</tspan><tspan class="sx-wm">  fc.mainOut → esc.signal</tspan><tspan class="sx-wt">  : DShotLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="852" width="22" height="16" rx="8"/><text x="31" y="864">2</text></g>
+<text class="sx-wl" x="52" y="864"><tspan class="sx-wn">escSignal</tspan><tspan class="sx-wm">  fc.mainOut → esc.signal</tspan><tspan class="sx-wt">  : DShotLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="878">signal lead (pin map TBD) — DShot600 M1-M4 + GND; contract says JST-SH 8-pin, wiring card says MAIN is 3-pin S/+/- -- check at afr-01</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="882" width="22" height="16" rx="8"/><text x="31" y="894">3</text></g>
 <text class="sx-wl" x="52" y="894"><tspan class="sx-wn">gpsCable</tspan><tspan class="sx-wm">  fc.gps1 → gps.fcConn</tspan><tspan class="sx-wt">  : GPSCableLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-02)</tspan></text>
@@ -209,8 +209,8 @@
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="972" width="22" height="16" rx="8"/><text x="31" y="984">6</text></g>
 <text class="sx-wl" x="52" y="984"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
 <text class="sx-wd" x="52" y="998">TBD — drive pin UNRESOLVED -- the 6C Mini has no buzzer pad</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="1002" width="22" height="16" rx="8"/><text x="31" y="1014">7</text></g>
-<text class="sx-wl" x="52" y="1014"><tspan class="sx-wn">ulogCard</tspan><tspan class="sx-wm">  fc.sdSlot → fcSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="1002" width="22" height="16" rx="8"/><text x="31" y="1014">7</text></g>
+<text class="sx-wl" x="52" y="1014"><tspan class="sx-wn">ulogCard</tspan><tspan class="sx-wm">  fc.sdSlot → fcSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="1028">onboard microSD slot — PX4 ULogs</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="1032" width="22" height="16" rx="8"/><text x="31" y="1044">8</text></g>
 <text class="sx-wl" x="52" y="1044"><tspan class="sx-wn">cameraRibbon</tspan><tspan class="sx-wm">  camera.csi → pi.cam0</tspan><tspan class="sx-wt">  : CSI2Link</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-02)</tspan></text>
