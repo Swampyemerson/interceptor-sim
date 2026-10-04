@@ -1746,6 +1746,20 @@ async def run_mavsdk(args, cam, detector, guidance, source,
                 print(f"[mavsdk] land skipped: {e}")
         for tk in tasks:
             tk.cancel()
+        # Kill the spawned mavsdk_server explicitly. mavsdk-python pumps the
+        # server's stdout on a NON-daemon _LoggingThread (system.py), and the
+        # interpreter joins non-daemon threads BEFORE atexit runs its p.kill()
+        # -- so with our stdout on a PIPE the process printed "done rc=0" and
+        # then hung forever, which check_deploy_bench.sh mislabelled as a
+        # 180 s link timeout (found 2026-10-04 on the real TELEM2 bench: the
+        # identical run PASSes on a tty and hangs through `| tee`). Killing
+        # the server closes its stdout, the logging thread falls off the end
+        # of the pipe, and exit proceeds. Best-effort: private API, guarded.
+        try:
+            drone._stop_mavsdk_server()
+            print("[mavsdk] mavsdk_server stopped")
+        except Exception as e:  # noqa: BLE001 -- teardown must never flip rc
+            print(f"[mavsdk] mavsdk_server stop skipped: {e}")
 
     print(f"[sitl-smoke] {'PASS' if rc == 0 else 'FAIL'}" if smoke else
           f"[mavsdk] done rc={rc}")

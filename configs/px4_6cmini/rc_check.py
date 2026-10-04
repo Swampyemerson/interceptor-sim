@@ -4,9 +4,13 @@
 RUNS ON *WINDOWS* PYTHON (the FC enumerates as a COM port WSL2 cannot see):
     python.exe rc_check.py --port COM5 [--seconds 12]
 
-Prints one line per second: channel count, ch1..ch8, plus any STATUSTEXT
-(that is where PX4 announces "Manual control lost/regained" for the
-TX-off failsafe check). Exit 0 = RC frames seen; exit 1 = none.
+Prints one line per second: channel count, ch1..ch8, plus any STATUSTEXT.
+CORRECTED 2026-10-04 (review finding): in PX4 v1.16 "Manual control
+lost/regained" is an EVENTS-protocol message, NOT a STATUSTEXT — so a TX-off
+test prints no announcement here; the per-second RC_CHANNELS lines simply
+STOP (and resume on relink). Watch for the gap, or use QGC, which decodes
+events. "Kill engaged/disengaged" IS a mavlink_log STATUSTEXT and does show.
+Exit 0 = RC frames seen; exit 1 = none.
 No arming, no parameter writes, read-only.
 """
 import argparse, sys, time

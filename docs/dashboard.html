@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->dd434f4<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0bd4408<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1382,9 +1382,9 @@
  "plain_log": [
   {
    "date": "2026-10-04",
-   "text": "Pre-battery readiness bench (remote, builder wiring complete except the Pi-rail cap): the chaser FC passed every check reachable without the 6S pack. 11/11 bench params verified across a reboot including the new BAT1_N_CELLS=6 (the one param the battery telemetry needed); M10 GPS talking with a 3D fix indoors; PX4 1.16.0 confirmed. Two findings: NO microSD in the FC slot (storage reads empty, no log list -- the kill-switch session was never ULogged either), and RC calibration still pending in QGC (sticks unmapped -- expected, needs the builder's hands). Pi lane: repo synced to head, venv healthy, camera live, zero throttling history, OS + EEPROM updates applied. Version ruling: PX4 1.16.0 (1.16.2 exists) and ELRS 3.3.1-matched (4.1.0 exists) are deliberately HELD -- a proven link beats a fresh flash the week of the first power-up.",
-   "so_what": "The 6S smoke-stopper power-up (afr-02) is GO from the software side: kill chain proven, battery monitor configured, nothing left testable without the pack. The two manual steps before arming (not before power-up) are QGC radio calibration and seating a microSD.",
-   "evidence": "configs/px4_6cmini/verify_params.py 11/11 across reboot - bench_status.py + gps_probe.py (new, read-only) - runs/recorder_gate_20261004/ (Pi) - bench session 2026-10-04"
+   "text": "Pre-battery readiness bench (remote; builder wiring complete except the Pi-rail cap). FC: 11/11 bench params verified across a reboot incl. the new BAT1_N_CELLS=6; M10 3D fix indoors; all 14 PWM output functions confirmed unmapped (nothing can spin even armed); PX4 1.16.0 confirmed. The microSD scare resolved by the builder's challenge: MAVLink storage/log-list queries answer EMPTY on this board, but NSH shows the card mounted with a log/ tree -- an instrument quirk, not a missing card (verify logs via QGC Log Download at the battery session). THE BIG ONE: the props-off TELEM2 OFFBOARD gate (brn-05 class) re-run on the ASSEMBLED airframe harness -- first runs failed on a REAL bug found and fixed the same bench: mavsdk-python pumps mavsdk_server output on a non-daemon thread, so seeker_loop completed rc=0 then hung forever when stdout is a pipe, and the gate mislabelled it a link timeout. Teardown now kills the server explicitly; official gate PASS (300/300 setpoints, 19.5 Hz, max own_age 0.02 s, OFFBOARD accepted disarmed). Pi lane: OS full-upgrade (342 pkgs) + EEPROM + new kernel, camera/venv green, recorder soak clean (8,958/8,958 frames, 0 drops, 47 C max, PROVISIONAL -- no tag in view). Three Opus 5.5 pre-upload reviews landed; executed same turn: target FLTMODE_CH 5->12 (ELRS AUX1 is hard-limited to 2 positions -- the 6-mode table collapsed to Stabilize/Auto; lint invariant added), rc_check docstring corrected (RC-loss announcements are events-only in v1.16), bench_status no-heartbeat vacuous-pass fixed. Version ruling ADR-0121: hold PX4 1.16.0 + ELRS 3.3.1-matched through the 6S gate.",
+   "so_what": "The 6S smoke-stopper power-up (afr-02) is GO: kill chain proven, battery monitor set, outputs unmapped, the Pi-FC link re-proven through the final harness, and a false-FAIL instrument fixed before it could burn a bench day. Before ARMING (not before power-up): QGC radio calibration, airframe selection (wipes most params -- reload the pack after), and the reviews' pre-arm list.",
+   "evidence": "logs/deploy_seeker_bench_20261004T201641Z.log (Pi) - configs/px4_6cmini/verify_params.py 11/11 - runs/recorder_gate_20261004/ - flight/deploy/seeker_loop.py teardown fix - configs/target_kakute selftest green - ADR-0121"
   },
   {
    "date": "2026-10-02",
@@ -3307,7 +3307,7 @@
      },
      {
       "id": "afr-02",
-      "text": "First power-up through the smoke stopper, props OFF (standing rule). [PREP GREEN 2026-10-04, pre-battery bench: BAT1_N_CELLS=6 written + verified across a reboot (11/11 pack params green); M10 GPS talking with an indoor 3D fix; RC kill chain proven 2026-10-02. FINDING: no microSD in the 6C Mini (storage empty, no log list) -- the 6S session runs un-ULogged until the gnd-01 High-Endurance card lands, acceptable for a smoke-stopper check, NOT for flight.]"
+      "text": "First power-up through the smoke stopper, props OFF (standing rule). [PREP GREEN 2026-10-04: BAT1_N_CELLS=6 verified across reboot (11/11 pack green); all 14 PWM output functions confirmed unmapped; M10 3D fix; RC kill chain proven 2026-10-02; microSD present and mounted (NSH-verified -- the MAVLink storage query reads empty on this board, an instrument quirk; confirm a .ulg lands via QGC during the session); TELEM2 OFFBOARD gate PASS on the assembled harness.]"
      },
      {
       "id": "afr-03",

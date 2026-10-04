@@ -63,7 +63,12 @@ def main() -> int:
     args = ap.parse_args()
 
     m = mavutil.mavlink_connection(args.port, baud=115200)
-    m.wait_heartbeat(timeout=10)
+    hb = m.wait_heartbeat(timeout=10)
+    if hb is None:
+        # NO VACUOUS VERDICTS: a dead port must not print a clean-looking
+        # snapshot and exit 0 (2026-10-04 review finding).
+        print(f"FAIL: no heartbeat on {args.port} in 10 s")
+        return 1
     if m.target_component == 0:
         m.target_component = 1
     print(f"heartbeat: sys {m.target_system} comp {m.target_component}")

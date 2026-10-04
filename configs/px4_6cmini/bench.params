@@ -335,9 +335,10 @@
 #                              NEVER from this file, see the header for why).
 #    - CA_* / actuator outputs motor mixing + geometry (control allocation).
 #    - DSHOT_CONFIG / PWM_*    ESC protocol + PWM ranges (no ESC on the bench).
-#    - BAT1_N_CELLS, BAT1_*    battery cell count + capacity + V/I calibration
-#                              (bench runs on USB, not the PM02 pack; QGC
-#                              currently reads "Number of Cells 0" -- expected).
+#    - BAT1_N_CELLS, BAT1_*    [SUPERSEDED IN PART 2026-10-04: the airframe now
+#                              exists, and BAT1_N_CELLS=6 is an ACTIVE line in
+#                              section (4) above. BAT1 V/I CALIBRATION still
+#                              waits for the pack + multimeter.]
 #    - MC_* (rate/att PIDs)    flight tuning -- only meaningful on the real frame.
 #    - MPC_* limits, MIS/NAV   flight limits + missions -- airframe/flight phase.
 #    - RC_MAP_KILL_SW (real)   the verified channel, after Radio calibration.

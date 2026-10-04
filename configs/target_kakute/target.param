@@ -219,9 +219,17 @@ LOG_FILE_DSRMROT,1
 # ---------------------------------------------------------------------------
 # FLIGHT MODES + RC KILL  (RadioMaster Pocket M2)
 # ---------------------------------------------------------------------------
-# 6-position mode switch on RC channel 5. (firmware default, stated)
-# src: https://ardupilot.org/copter/docs/flight-modes.html (FLTMODE_CH)
-FLTMODE_CH,5
+# 6-position mode switch on RC channel 12 (CORRECTED 2026-10-04, pre-upload
+# review finding B1: the old value 5 is ExpressLRS's AUX1, which the ELRS
+# protocol HARD-LIMITS to 2 positions regardless of TX switch config -- the
+# six-mode table would collapse to {FLTMODE1, FLTMODE6} = Stabilize/Auto, and
+# a flip "to AltHold" would engage AUTO. Channel 12 is ELRS's documented
+# flight-mode channel in hybrid/wide switch mode. TX SIDE: map the mode
+# switch(es) to CH12 in the Pocket's mixer, NOT AUX1.
+# src: https://www.expresslrs.org/quick-start/ardupilot-setup/ ("use channel 12
+# for flight modes"); https://www.expresslrs.org/software/switch-config/
+# (AUX1 "is always a 2-position channel").
+FLTMODE_CH,12
 # Mode-switch map. Numbers: 0 Stabilize, 2 AltHold, 5 Loiter, 6 RTL, 3 Auto.
 # Take off / land in Loiter (GPS hold); flip to Auto to run the tripod mission;
 # RTL is the manual bail-out. src: flight-modes.html
