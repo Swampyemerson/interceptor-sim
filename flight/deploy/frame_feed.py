@@ -46,12 +46,21 @@ def parse_source_spec(spec: str) -> Tuple[str, Optional[str]]:
     raise ValueError(f"--source must be 'picamera' or 'dir:PATH', got {spec!r}")
 
 
-def open_source(spec: str, cam, camera_fps: float):
+def open_source(spec: str, cam, camera_fps: float,
+                exposure_us: Optional[float] = None,
+                gain: Optional[float] = None):
     """Construct the seeker_loop source. Returns (kind, source).
 
     picamera: the calibrated resolution AND a calibration provenance stamp are
     required -- the sim intrinsics file carries neither a `source` stamp nor the
-    OV9281 grid, so a live camera may not run on it."""
+    OV9281 grid, so a live camera may not run on it.
+
+    exposure_us/gain default to PicameraSource's own flight spec (the <=1 ms
+    pinned exposure, auto gain) when None. They exist for BENCH targets whose
+    illumination is nothing like daylight -- a monitor at the 1 ms spec meters
+    ~1/3 the brightness the decoder needs (measured 2026-10-04: screen tag
+    decodes at frame mean ~90, the 1 ms desk run delivered ~36 and 0 hits).
+    The flight condition is unchanged unless a flag is passed."""
     kind, path = parse_source_spec(spec)
     if kind == "picamera":
         if cam.width is None or cam.height is None:
@@ -64,8 +73,13 @@ def open_source(spec: str, cam, camera_fps: float):
                 "stamp, i.e. they are not a measured calibration of this lens "
                 "(the default configs/camera_intrinsics.json is the Gazebo "
                 "camera_info dump). Pass --intrinsics <checkerboard calibration>")
+        kwargs = {}
+        if exposure_us is not None:
+            kwargs["exposure_us"] = exposure_us
+        if gain is not None:
+            kwargs["gain"] = gain
         return kind, PicameraSource(size=(cam.width, cam.height),
-                                    target_fps=camera_fps)
+                                    target_fps=camera_fps, **kwargs)
     return kind, ImageDirSource(path)
 
 

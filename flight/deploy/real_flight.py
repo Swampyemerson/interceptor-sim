@@ -3293,6 +3293,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     src.add_argument("--camera-fps", type=float, default=None,
                      help="--source picamera sensor rate (default: seeker_loop "
                           "CAMERA_FPS_DEFAULT)")
+    src.add_argument("--exposure-us", type=float, default=None,
+                     help="--source picamera exposure override, us (default: "
+                          "the <=1 ms flight spec). BENCH knob: a monitor "
+                          "target needs ~8000; never fly an override")
+    src.add_argument("--gain", type=float, default=None,
+                     help="--source picamera analogue gain override "
+                          "(default: seeker_loop's auto-gain behavior)")
     src.add_argument("--require-span-calib", action="store_true",
                      help="--detector onnx: refuse an uncalibrated span")
 
@@ -3560,7 +3567,9 @@ def build_source_detector(args, gcfg, cam):
           f"{args.detector}")
     fps = CAMERA_FPS_DEFAULT if args.camera_fps is None else args.camera_fps
     try:
-        kind, source = ff.open_source(args.source, cam, fps)
+        kind, source = ff.open_source(args.source, cam, fps,
+                                      exposure_us=args.exposure_us,
+                                      gain=args.gain)
     except (ff.RefusedSource, ValueError, OSError, RuntimeError) as e:
         return None, str(e)
     feed = ff.FrameFeed(source, threaded=(kind == "picamera")).start()
