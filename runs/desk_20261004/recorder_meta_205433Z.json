@@ -1,0 +1,19 @@
+{
+  "out_dir": "runs/desk_20261004T205433Z/frames",
+  "config": {
+    "target_fps": 12.0,
+    "jpeg_quality": 80,
+    "max_queue": 8
+  },
+  "n_offered": 428,
+  "n_rate_skipped": 428,
+  "n_written": 428,
+  "n_dropped": 0,
+  "n_encode_failed": 0,
+  "drop_rate": 0.0,
+  "closed_cleanly": true,
+  "pending_at_close": 0,
+  "created_utc": "2026-10-04T20:54:34Z",
+  "closed_utc": "2026-10-04T20:55:20Z",
+  "index_csv": "index.csv"
+}
