@@ -1975,6 +1975,7 @@ _AUDITED_MODULES = (
     os.path.join("flight", "fov_guidance.py"),
     os.path.join("flight", "tag_terminal.py"),
     os.path.join("flight", "pursuit_terminal.py"),
+    os.path.join("flight", "deploy", "frame_feed.py"),
 )
 
 
@@ -2299,6 +2300,80 @@ def run_offline(cfg: MissionConfig, trigger, guidance: Optional[SeekerGuidance] 
     return sm, rows
 
 
+def run_desk(cfg: MissionConfig, sm: "RealFlightSM", trigger, detector,
+             fps: float = 20.0, max_s: float = 90.0,
+             acquire_after_s: float = 0.0, realtime: bool = True,
+             csv_path: Optional[str] = None, frame_recorder=None,
+             verbose: bool = True):
+    """--desk: the mission loop over REAL frames + the REAL detector with NO
+    vehicle link. Cannot arm by construction: this function imports no MAVSDK,
+    holds no vehicle handle, and own-state comes from FakeVehicle (its
+    armed/offboard flags are synthetic inputs to the arm gate). Every setpoint
+    is computed and logged, never sent. Detection timing mirrors
+    run_mavsdk_mission (from t_dash_start + acquire_after_s, every tick).
+
+    realtime=True paces ticks on time.monotonic (live camera); False steps
+    t = n/fps with no sleep (replay, deterministic). Returns (sm, rows)."""
+    veh = FakeVehicle(alt_m=cfg.standby_alt_m, yaw_deg=0.0)
+    dt = 1.0 / fps
+    rows: List[str] = []
+    n = 0
+    t = 0.0
+    t0 = time.monotonic()
+    try:
+        while t <= max_s:
+            if realtime:
+                t = time.monotonic() - t0
+            trig = trigger.poll(t)
+            det_new = det_range = det_box = det_pose = None
+            if sm.t_dash_start is not None and \
+                    t >= sm.t_dash_start + acquire_after_s:
+                d = detector.detect(None, t)
+                _f = getattr(d, "frame", None)
+                if frame_recorder is not None and _f is not None:
+                    frame_recorder.offer(_f, getattr(d, "t_capture", t))
+                det_new, det_range, det_box = (getattr(d, "is_new", True),
+                                               d.range_m, d.box_xywh)
+                det_pose = getattr(d, "tag_range_m", None)
+            obs = veh.obs(t, trig, det_new=bool(det_new), det_range_m=det_range,
+                          det_box_xywh=det_box, det_range_pose_m=det_pose)
+            if isinstance(trigger, GateReadyTrigger):
+                trigger.observe_gate(sm.arm_gate(obs)[0])
+            dec = sm.step(obs)
+            rows.append(_csv_row(obs, dec))
+            if verbose and n % 20 == 0:
+                sp = dec.setpoint
+                print(f"[desk] t={t:6.2f} {dec.state:<10} streak={dec.streak} "
+                      f"det={'-' if det_range is None else f'{det_range:.2f}'} "
+                      f"| SP (NOT SENT) vN={sp.v_north:+.2f} "
+                      f"vE={sp.v_east:+.2f} vD={sp.v_down:+.2f} "
+                      f"yaw={sp.yaw_deg:+.1f}")
+            veh.apply(dec.setpoint, dt)
+            if dec.terminated:
+                if verbose:
+                    print(f"[desk] t={t:6.2f} TERMINATED in SAFE "
+                          f"(reason={dec.safe_reason})")
+                break
+            n += 1
+            if realtime:
+                time.sleep(max(0.0, t0 + n * dt - time.monotonic()))
+            else:
+                t = n * dt
+    finally:
+        if csv_path:
+            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
+            with open(csv_path, "w") as fh:
+                fh.write(_CSV_HEADER)
+                fh.writelines(rows)
+            if verbose:
+                print(f"[log] {len(rows)} ticks -> {csv_path}")
+        if frame_recorder is not None:
+            fr_meta = frame_recorder.close()
+            print(f"[frame_recorder] {fr_meta['n_written']} written, "
+                  f"{fr_meta['n_dropped']} dropped -> {fr_meta['out_dir']}")
+    return sm, rows
+
+
 # ---------------------------------------------------------------- MAVSDK driver
 
 # Timeouts mirror flight/deploy/seeker_loop.py (same PX4 SITL boot, same traps).
@@ -2556,12 +2631,20 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                     # covered by the offline self-test drive (det_new every
                     # other tick there) and by real decode misses/dropouts.
                     d = detector.detect(frame, t)
-                    if frame_recorder is not None:
+                    # A frame-fed detector (frame_feed.FeedDetector, --source)
+                    # returns the frame it actually decoded + its capture time,
+                    # or frame=None on a poll with no new frame (nothing to
+                    # record). Detectors without these attributes keep the
+                    # placeholder path unchanged.
+                    _rec_frame = getattr(d, "frame", frame)
+                    if frame_recorder is not None and _rec_frame is not None:
                         # AFTER the detector consumed the frame, never before
                         # -- the seeker's latency budget comes first. offer()
                         # is O(1)/non-blocking (flight/deploy/frame_recorder.py).
-                        frame_recorder.offer(frame, t)
-                    det_new, det_range, det_box = True, d.range_m, d.box_xywh
+                        frame_recorder.offer(_rec_frame,
+                                             getattr(d, "t_capture", t))
+                    det_new, det_range, det_box = (getattr(d, "is_new", True),
+                                                   d.range_m, d.box_xywh)
                     # Detector-PnP slant range, if this detector publishes one
                     # (the Gazebo cross-check driver's tag_range_m; None from
                     # the synthetic smoke detector) -- see VehicleObs.
@@ -3181,8 +3264,37 @@ def build_arg_parser() -> argparse.ArgumentParser:
                            "SITL with a synthetic trigger + synthetic detector: "
                            "arm, takeoff, STANDBY hold, GO, dash, acquire, ENGAGE, "
                            "breakoff, SAFE, land+disarm. Needs --mavsdk-url. Exits 0/1.")
+    mode.add_argument("--desk", action="store_true",
+                      help="DESK verification: the mission state machine over "
+                           "REAL frames (--source) + the REAL detector, with NO "
+                           "vehicle link -- no MAVSDK, cannot arm; setpoints "
+                           "computed + logged, never sent. Own-state is the "
+                           "FakeVehicle stand-in.")
     mode.add_argument("--mavsdk-url", default=None,
                       help="MAVSDK connect URL (e.g. udpin://0.0.0.0:14540)")
+
+    src = ap.add_argument_group("camera source (flight/deploy/frame_feed.py)")
+    src.add_argument("--source", default=None,
+                     help="'picamera' (live OV9281) or 'dir:PATH' (image replay). "
+                          "Absent = the synthetic detector (unchanged). Valid "
+                          "with --desk or --sitl-smoke.")
+    src.add_argument("--detector", choices=("tag", "onnx"), default="tag",
+                     help="with --source: 'tag' = AprilTag tag36h11 (needs "
+                          "--target-span-m = the tag's black-square size), "
+                          "'onnx' = seeker_loop.build_detector (--weights)")
+    src.add_argument("--tag-id", type=int, default=0)
+    src.add_argument("--quad-decimate", type=float, default=2.0,
+                     help="AprilTag decimate (2.0 = the rate measured in the "
+                          "Pi fps soak, ADR-0090)")
+    src.add_argument("--weights", default=None,
+                     help="--detector onnx weights (default: seeker_loop's)")
+    src.add_argument("--conf", type=float, default=0.25)
+    src.add_argument("--gray-input", choices=("auto", "on", "off"), default="auto")
+    src.add_argument("--camera-fps", type=float, default=None,
+                     help="--source picamera sensor rate (default: seeker_loop "
+                          "CAMERA_FPS_DEFAULT)")
+    src.add_argument("--require-span-calib", action="store_true",
+                     help="--detector onnx: refuse an uncalibrated span")
 
     aim = ap.add_argument_group("pre-flight aim constants (C1/C2/C3)")
     aim.add_argument("--dash-heading-deg", type=float, default=None,
@@ -3423,6 +3535,82 @@ def build_frame_recorder(record_frames_dir: Optional[str]):
     return FrameRecorder(record_frames_dir)
 
 
+def build_source_detector(args, gcfg, cam):
+    """--source: span -> source -> first-frame contract -> detector, composed
+    from seeker_loop via flight.deploy.frame_feed. Returns (FeedDetector, None)
+    or (None, refusal message). Sets gcfg.target_span_m to the detector's span
+    so the terminal and the detector use one value."""
+    from flight.deploy import frame_feed as ff
+    from flight.deploy.seeker_loop import (CAMERA_FPS_DEFAULT, build_argparser,
+                                           resolve_span, warn_uncalibrated_span)
+    if args.detector == "tag":
+        if args.target_span_m is None:
+            return None, ("--detector tag needs --target-span-m (the tag's "
+                          "measured black-square edge, m) -- no default")
+        span, span_src = float(args.target_span_m), "--target-span-m"
+    else:
+        if args.weights is None:
+            args.weights = build_argparser().get_default("weights")
+        span, span_src, _ok = resolve_span(args.weights, gcfg, args.target_span_m)
+        if warn_uncalibrated_span(span, span_src, args.weights, gcfg, live=True,
+                                  require=args.require_span_calib):
+            return None, "uncalibrated span (--require-span-calib)"
+    gcfg.target_span_m = span
+    print(f"[terminal] target span {span:.3f} m ({span_src}); detector "
+          f"{args.detector}")
+    fps = CAMERA_FPS_DEFAULT if args.camera_fps is None else args.camera_fps
+    try:
+        kind, source = ff.open_source(args.source, cam, fps)
+    except (ff.RefusedSource, ValueError, OSError, RuntimeError) as e:
+        return None, str(e)
+    feed = ff.FrameFeed(source, threaded=(kind == "picamera")).start()
+    fault = ff.preflight(feed, cam)
+    if fault:
+        feed.stop()
+        return None, f"frame/intrinsics contract: {fault}"
+    h, w = feed.first_frame().shape[:2]
+    print(f"[source] {kind} first frame {w}x{h} matches the intrinsics "
+          f"({'unstated' if cam.width is None else f'{cam.width}x{cam.height}'})")
+    det = ff.FeedDetector(feed, ff.build_inner_detector(args, cam, span))
+    return det, None
+
+
+def run_desk_mode(args, cfg, guidance, detector) -> int:
+    """--desk entry: no MAVSDK anywhere on this path (see run_desk)."""
+    trigger = (ScriptedTrigger(go_at_s=args.go_after_s)
+               if args.trigger == "timer" else GateReadyTrigger())
+    sm = RealFlightSM(cfg, guidance=guidance, on_event=print)
+    frame_recorder = build_frame_recorder(args.record_frames)
+    print("[desk] NO vehicle link: nothing connects, nothing arms; setpoints "
+          "are computed and logged, NOT sent. Own-state = FakeVehicle stand-in.")
+    try:
+        _sm, rows = run_desk(cfg, sm, trigger, detector, fps=args.fps,
+                             max_s=args.mission_max_s,
+                             acquire_after_s=args.smoke_acquire_after_s,
+                             realtime=detector.feed.threaded,
+                             csv_path=args.log_csv,
+                             frame_recorder=frame_recorder)
+    finally:
+        detector.feed.stop()
+    i_state, i_src = _CSV_FIELDS.index("state"), _CSV_FIELDS.index("sp_source")
+    eng = [r.split(",") for r in rows]
+    eng = [r for r in eng if r[i_state] == State.ENGAGE]
+    n_guided = sum(1 for r in eng if r[i_src] == "guided")
+    f = detector.feed
+    print(f"[mission] states visited: {' -> '.join(sm.visited)}")
+    print(f"[desk] frames: captured={f.n_captured} consumed={f.n_new} "
+          f"stale_polls={f.n_stale} | detector runs={detector.n_detect} "
+          f"hits={detector.n_hit} | ENGAGE ticks={len(eng)} "
+          f"camera-guided={n_guided}")
+    if detector.n_detect == 0:
+        print("[desk] UNCERTAIN: zero frames reached the detector -- the "
+              "plumbing was not exercised")
+        return 1
+    print("[desk] DONE: real frames reached the detector "
+          f"({detector.n_detect}); target hits are reported above, not graded")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = build_arg_parser()
     args = ap.parse_args(argv)
@@ -3432,8 +3620,20 @@ def main(argv=None) -> int:
     if args.self_test:
         return self_test()
 
-    if not (args.dry_run or args.sitl_smoke):
-        ap.error("pick a mode: --self-test | --audit | --dry-run | --sitl-smoke")
+    if not (args.dry_run or args.sitl_smoke or args.desk):
+        ap.error("pick a mode: --self-test | --audit | --dry-run | --sitl-smoke "
+                 "| --desk")
+    if args.desk:
+        if args.dry_run or args.sitl_smoke:
+            ap.error("--desk is its own mode (no --dry-run / --sitl-smoke)")
+        if args.mavsdk_url:
+            ap.error("--desk has no vehicle link: drop --mavsdk-url")
+        if args.trigger == "rc":
+            ap.error("--desk has no RC link: use --trigger gate-ready|timer")
+        if not args.source:
+            ap.error("--desk needs --source picamera | dir:PATH")
+    if args.source and args.dry_run:
+        ap.error("--source applies to --desk / --sitl-smoke, not --dry-run")
 
     cfg = build_config(args)
     print(f"[config] standby alt {cfg.standby_alt_m:.1f} m, aim yaw "
@@ -3467,7 +3667,15 @@ def main(argv=None) -> int:
     # use a SYNTHETIC detector built from this same value, so the default is
     # self-consistent there; a real camera mode must pass --target-span-m or ship
     # a fitted <weights>.calib.json (review2 HIGH). TODO-BUILDER.
-    if args.target_span_m is not None:
+    src_detector = None
+    if args.source:
+        # Real source: span, source, first-frame contract and detector are all
+        # settled HERE, before build_terminal and before any link/arm.
+        src_detector, refusal = build_source_detector(args, gcfg, cam)
+        if refusal:
+            print(f"[source] REFUSED: {refusal}")
+            return 1
+    elif args.target_span_m is not None:
         gcfg.target_span_m = float(args.target_span_m)
         print(f"[terminal] target span {gcfg.target_span_m:.3f} m "
               f"(--target-span-m)")
@@ -3501,6 +3709,9 @@ def main(argv=None) -> int:
               f"(heading latched: {sm.dash_heading})")
         return 0 if reached else 1
 
+    if args.desk:
+        return run_desk_mode(args, cfg, guidance, src_detector)
+
     # --sitl-smoke
     if not args.mavsdk_url:
         ap.error("--sitl-smoke requires --mavsdk-url (e.g. udpin://0.0.0.0:14540)")
@@ -3513,8 +3724,11 @@ def main(argv=None) -> int:
         trigger = ScriptedTrigger(go_at_s=args.go_after_s)
     else:
         trigger = GateReadyTrigger()
-    from flight.deploy.seeker_loop import SmokeSeeker
-    detector = SmokeSeeker(cam.fx, gcfg.target_span_m, cx=cam.cx, cy=cam.cy)
+    if src_detector is not None:
+        detector = src_detector
+    else:
+        from flight.deploy.seeker_loop import SmokeSeeker
+        detector = SmokeSeeker(cam.fx, gcfg.target_span_m, cx=cam.cx, cy=cam.cy)
     sm = RealFlightSM(cfg, guidance=guidance, on_event=print)
     frame_recorder = build_frame_recorder(args.record_frames)
     if frame_recorder is not None:
