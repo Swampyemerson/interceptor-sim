@@ -140,8 +140,8 @@
 <path class="sx-w sx-c-data sx-s-wired" d="M610.0 273.0 L676.0 273.0 L676.0 121.0 L728.0 121.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 273.0 L728.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 383.0 L662.0 383.0 L662.0 535.0 L610.0 535.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 361.0 L690.0 361.0 L690.0 535.0 L728.0 535.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 339.0 L1001.0 339.0 L1001.0 535.0 L1060.0 535.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 361.0 L690.0 361.0 L690.0 535.0 L728.0 535.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 339.0 L1001.0 339.0 L1001.0 535.0 L1060.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-wired" d="M396.0 273.0 L337.0 273.0 L337.0 273.0 L278.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 731.0 L655.0 731.0 L655.0 557.0 L610.0 557.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 579.0 L697.0 579.0 L697.0 731.0 L728.0 731.0"/>
@@ -185,8 +185,8 @@
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="665.0" y="166.2" width="22" height="16" rx="8"/><text x="676.0" y="178.2">2</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">3</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="651.0" y="451.0" width="22" height="16" rx="8"/><text x="662.0" y="463.0">4</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="679.0" y="440.0" width="22" height="16" rx="8"/><text x="690.0" y="452.0">5</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="794.5" y="331.0" width="22" height="16" rx="8"/><text x="805.5" y="343.0">6</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="679.0" y="440.0" width="22" height="16" rx="8"/><text x="690.0" y="452.0">5</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="794.5" y="331.0" width="22" height="16" rx="8"/><text x="805.5" y="343.0">6</text></g>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="296.5" y="265.0" width="22" height="16" rx="8"/><text x="307.5" y="277.0">7</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="644.0" y="636.0" width="22" height="16" rx="8"/><text x="655.0" y="648.0">8</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="686.0" y="647.0" width="22" height="16" rx="8"/><text x="697.0" y="659.0">9</text></g>
@@ -203,11 +203,11 @@
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="912" width="22" height="16" rx="8"/><text x="31" y="924">4</text></g>
 <text class="sx-wl" x="52" y="924"><tspan class="sx-wn">companion</tspan><tspan class="sx-wm">  fc.telem2 → pi.gpioUart</tspan><tspan class="sx-wt">  : UARTLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-03, brn-05)</tspan></text>
 <text class="sx-wd" x="52" y="938">JST-GH 6-pin -&gt; DuPont (3 wires) — MAVLink 921600: pin2 TX -&gt; GPIO15 (pin 10), pin3 RX &lt;- GPIO14 (pin 8), pin6 GND -&gt; pin 6; pin1 +5 V NOT connected · cable: Pi-to-TELEM2 UART jumper leads</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="942" width="22" height="16" rx="8"/><text x="31" y="954">5</text></g>
-<text class="sx-wl" x="52" y="954"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="942" width="22" height="16" rx="8"/><text x="31" y="954">5</text></g>
+<text class="sx-wl" x="52" y="954"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="968">RC IN socket — SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="972" width="22" height="16" rx="8"/><text x="31" y="984">6</text></g>
-<text class="sx-wl" x="52" y="984"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="972" width="22" height="16" rx="8"/><text x="31" y="984">6</text></g>
+<text class="sx-wl" x="52" y="984"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="998">TBD — drive pin UNRESOLVED -- the 6C Mini has no buzzer pad</text>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="1002" width="22" height="16" rx="8"/><text x="31" y="1014">7</text></g>
 <text class="sx-wl" x="52" y="1014"><tspan class="sx-wn">ulogCard</tspan><tspan class="sx-wm">  fc.sdSlot → fcSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>

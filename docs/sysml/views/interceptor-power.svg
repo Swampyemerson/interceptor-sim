@@ -159,8 +159,8 @@
 <path class="sx-w sx-c-power sx-s-planned" d="M278.0 535.0 L330.0 535.0 L330.0 687.0 L278.0 687.0"/>
 <path class="sx-w sx-c-power sx-s-verified" d="M610.0 513.0 L662.0 513.0 L662.0 687.0 L1060.0 687.0"/>
 <path class="sx-w sx-c-power sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 295.0 L728.0 295.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M610.0 361.0 L690.0 361.0 L690.0 513.0 L728.0 513.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M610.0 339.0 L1008.0 339.0 L1008.0 513.0 L1060.0 513.0"/>
+<path class="sx-w sx-c-power sx-s-wired" d="M610.0 361.0 L690.0 361.0 L690.0 513.0 L728.0 513.0"/>
+<path class="sx-w sx-c-power sx-s-wired" d="M610.0 339.0 L1008.0 339.0 L1008.0 513.0 L1060.0 513.0"/>
 <rect class="sx-p" x="273.0" y="116.0" width="10" height="10"/>
 <text class="sx-pl sx-end" x="269.0" y="124.5">main</text>
 <rect class="sx-pc" x="391.0" y="116.0" width="10" height="10"/>
@@ -210,8 +210,8 @@
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="319.0" y="603.0" width="22" height="16" rx="8"/><text x="330.0" y="615.0">7</text></g>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="850.0" y="679.0" width="22" height="16" rx="8"/><text x="861.0" y="691.0">8</text></g>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">9</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="679.0" y="429.0" width="22" height="16" rx="8"/><text x="690.0" y="441.0">10</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="798.0" y="331.0" width="22" height="16" rx="8"/><text x="809.0" y="343.0">11</text></g>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="679.0" y="429.0" width="22" height="16" rx="8"/><text x="690.0" y="441.0">10</text></g>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="798.0" y="331.0" width="22" height="16" rx="8"/><text x="809.0" y="343.0">11</text></g>
 <text class="sx-h" x="20" y="770">WIRE LIST — every connection in this view</text>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="778" width="22" height="16" rx="8"/><text x="31" y="790">1</text></g>
 <text class="sx-wl" x="52" y="790"><tspan class="sx-wn">mainPower</tspan><tspan class="sx-wm">  battery.main → pm02.battIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
@@ -240,11 +240,11 @@
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="20" y="1018" width="22" height="16" rx="8"/><text x="31" y="1030">9</text></g>
 <text class="sx-wl" x="52" y="1030"><tspan class="sx-wn">gpsCable</tspan><tspan class="sx-wm">  fc.gps1 → gps.fcConn</tspan><tspan class="sx-wt">  : GPSCableLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-02)</tspan></text>
 <text class="sx-wd" x="52" y="1044">10-pin JST-GH — GPS UART (UBX 10 Hz) + IST8310 compass on GPS1&#x27;s own I2C + 5 V</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="1048" width="22" height="16" rx="8"/><text x="31" y="1060">10</text></g>
-<text class="sx-wl" x="52" y="1060"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="1048" width="22" height="16" rx="8"/><text x="31" y="1060">10</text></g>
+<text class="sx-wl" x="52" y="1060"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="1074">RC IN socket — SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="1078" width="22" height="16" rx="8"/><text x="31" y="1090">11</text></g>
-<text class="sx-wl" x="52" y="1090"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="1078" width="22" height="16" rx="8"/><text x="31" y="1090">11</text></g>
+<text class="sx-wl" x="52" y="1090"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="1104">TBD — drive pin UNRESOLVED -- the 6C Mini has no buzzer pad</text>
 <text class="sx-h" x="20" y="1122">KEY</text>
 <path class="sx-w sx-c-power sx-s-verified" d="M60 1118 H90"/>

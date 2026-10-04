@@ -149,7 +149,7 @@ a{color:var(--accent)}
 a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
 <!-- MBSE-STATE-SHA256: bd4239846f7d074952d89cbd56da9e5e0e13d8794f5d412f7bd57dade98dd4bb -->
-<!-- MBSE-SYSML-SHA256: 96ef4bc3dd76eaaea8a5b5b7cc9bf7903a9123c735a5ce7a05b6f6655d4deab1 -->
+<!-- MBSE-SYSML-SHA256: 72bb39894e6801be701d4076754455771b97aebe427ec3dd2460f5e05edfcae6 -->
 <style>
 :root{--sx-bg:#FBFAF5;--sx-panel:#FFFFFF;--sx-ink:#1C1B17;--sx-ink2:#8A8475;--sx-mut:#57534A;
   --sx-line:#C9C3B1;--sx-ok:#2D5F3E;--sx-warn:#8A6A12;--sx-acc:#29527A;--sx-bad:#A63A22;
@@ -188,7 +188,7 @@ pre.sxsrc .s{color:var(--ok)}
   <p class="sub">Eight views of <code class="mono">docs/project_state.json</code>
      and the SysML&nbsp;v2 model in <code class="mono">docs/sysml/</code>
      · contract updated 2026-10-03 · build
-     <code class="mono">317f33b</code></p>
+     <code class="mono">b3119ad</code></p>
 </header>
 
 <div class="gen">
@@ -357,7 +357,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <p class="lead">Every board, cable, radio path and mount actually used, written as a SysML&nbsp;v2 textual model in <code class="mono">docs/sysml/</code> and drawn from it. Unlike views 1&ndash;7 this model is <i>hand-written text</i> &mdash; but each part&rsquo;s status is read live from the build sheet in the contract, every wire&rsquo;s plug types and direction are type-checked, and every build-sheet row must be drawn or explicitly excluded, so the two cannot quietly disagree.</p>
 <div class="stats">
 <div class="stat"><div class="n">41</div><div class="l">parts on the build sheet, drawn</div></div>
-<div class="stat"><div class="n">60</div><div class="l">typed connections<br>17 verified · 8 wired · 35 planned</div></div>
+<div class="stat"><div class="n">60</div><div class="l">typed connections<br>17 verified · 10 wired · 33 planned</div></div>
 <div class="stat"><div class="n">38/46</div><div class="l">build-sheet rows drawn<br>(8 excluded with a reason)</div></div>
 <div class="stat alert"><div class="n">3</div><div class="l">wiring decisions still open<br>(TBD in the model)</div></div>
 </div>
@@ -527,8 +527,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <path class="sx-w sx-c-power sx-s-planned" d="M278.0 535.0 L330.0 535.0 L330.0 687.0 L278.0 687.0"/>
 <path class="sx-w sx-c-power sx-s-verified" d="M610.0 513.0 L662.0 513.0 L662.0 687.0 L1060.0 687.0"/>
 <path class="sx-w sx-c-power sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 295.0 L728.0 295.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M610.0 361.0 L690.0 361.0 L690.0 513.0 L728.0 513.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M610.0 339.0 L1008.0 339.0 L1008.0 513.0 L1060.0 513.0"/>
+<path class="sx-w sx-c-power sx-s-wired" d="M610.0 361.0 L690.0 361.0 L690.0 513.0 L728.0 513.0"/>
+<path class="sx-w sx-c-power sx-s-wired" d="M610.0 339.0 L1008.0 339.0 L1008.0 513.0 L1060.0 513.0"/>
 <rect class="sx-p" x="273.0" y="116.0" width="10" height="10"/>
 <text class="sx-pl sx-end" x="269.0" y="124.5">main</text>
 <rect class="sx-pc" x="391.0" y="116.0" width="10" height="10"/>
@@ -578,8 +578,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="319.0" y="603.0" width="22" height="16" rx="8"/><text x="330.0" y="615.0">7</text></g>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="850.0" y="679.0" width="22" height="16" rx="8"/><text x="861.0" y="691.0">8</text></g>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">9</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="679.0" y="429.0" width="22" height="16" rx="8"/><text x="690.0" y="441.0">10</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="798.0" y="331.0" width="22" height="16" rx="8"/><text x="809.0" y="343.0">11</text></g>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="679.0" y="429.0" width="22" height="16" rx="8"/><text x="690.0" y="441.0">10</text></g>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="798.0" y="331.0" width="22" height="16" rx="8"/><text x="809.0" y="343.0">11</text></g>
 <text class="sx-h" x="20" y="770">WIRE LIST — every connection in this view</text>
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="778" width="22" height="16" rx="8"/><text x="31" y="790">1</text></g>
 <text class="sx-wl" x="52" y="790"><tspan class="sx-wn">mainPower</tspan><tspan class="sx-wm">  battery.main → pm02.battIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
@@ -608,11 +608,11 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="20" y="1018" width="22" height="16" rx="8"/><text x="31" y="1030">9</text></g>
 <text class="sx-wl" x="52" y="1030"><tspan class="sx-wn">gpsCable</tspan><tspan class="sx-wm">  fc.gps1 → gps.fcConn</tspan><tspan class="sx-wt">  : GPSCableLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-02)</tspan></text>
 <text class="sx-wd" x="52" y="1044">10-pin JST-GH — GPS UART (UBX 10 Hz) + IST8310 compass on GPS1&#x27;s own I2C + 5 V</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="1048" width="22" height="16" rx="8"/><text x="31" y="1060">10</text></g>
-<text class="sx-wl" x="52" y="1060"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="1048" width="22" height="16" rx="8"/><text x="31" y="1060">10</text></g>
+<text class="sx-wl" x="52" y="1060"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="1074">RC IN socket — SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="1078" width="22" height="16" rx="8"/><text x="31" y="1090">11</text></g>
-<text class="sx-wl" x="52" y="1090"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="1078" width="22" height="16" rx="8"/><text x="31" y="1090">11</text></g>
+<text class="sx-wl" x="52" y="1090"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="1104">TBD — drive pin UNRESOLVED -- the 6C Mini has no buzzer pad</text>
 <text class="sx-h" x="20" y="1122">KEY</text>
 <path class="sx-w sx-c-power sx-s-verified" d="M60 1118 H90"/>
@@ -772,8 +772,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <path class="sx-w sx-c-data sx-s-wired" d="M610.0 273.0 L676.0 273.0 L676.0 121.0 L728.0 121.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 273.0 L728.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 383.0 L662.0 383.0 L662.0 535.0 L610.0 535.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 361.0 L690.0 361.0 L690.0 535.0 L728.0 535.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 339.0 L1001.0 339.0 L1001.0 535.0 L1060.0 535.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 361.0 L690.0 361.0 L690.0 535.0 L728.0 535.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 339.0 L1001.0 339.0 L1001.0 535.0 L1060.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-wired" d="M396.0 273.0 L337.0 273.0 L337.0 273.0 L278.0 273.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 731.0 L655.0 731.0 L655.0 557.0 L610.0 557.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 579.0 L697.0 579.0 L697.0 731.0 L728.0 731.0"/>
@@ -817,8 +817,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="665.0" y="166.2" width="22" height="16" rx="8"/><text x="676.0" y="178.2">2</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">3</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="651.0" y="451.0" width="22" height="16" rx="8"/><text x="662.0" y="463.0">4</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="679.0" y="440.0" width="22" height="16" rx="8"/><text x="690.0" y="452.0">5</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="794.5" y="331.0" width="22" height="16" rx="8"/><text x="805.5" y="343.0">6</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="679.0" y="440.0" width="22" height="16" rx="8"/><text x="690.0" y="452.0">5</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="794.5" y="331.0" width="22" height="16" rx="8"/><text x="805.5" y="343.0">6</text></g>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="296.5" y="265.0" width="22" height="16" rx="8"/><text x="307.5" y="277.0">7</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="644.0" y="636.0" width="22" height="16" rx="8"/><text x="655.0" y="648.0">8</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="686.0" y="647.0" width="22" height="16" rx="8"/><text x="697.0" y="659.0">9</text></g>
@@ -835,11 +835,11 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="912" width="22" height="16" rx="8"/><text x="31" y="924">4</text></g>
 <text class="sx-wl" x="52" y="924"><tspan class="sx-wn">companion</tspan><tspan class="sx-wm">  fc.telem2 → pi.gpioUart</tspan><tspan class="sx-wt">  : UARTLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-03, brn-05)</tspan></text>
 <text class="sx-wd" x="52" y="938">JST-GH 6-pin -&gt; DuPont (3 wires) — MAVLink 921600: pin2 TX -&gt; GPIO15 (pin 10), pin3 RX &lt;- GPIO14 (pin 8), pin6 GND -&gt; pin 6; pin1 +5 V NOT connected · cable: Pi-to-TELEM2 UART jumper leads</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="942" width="22" height="16" rx="8"/><text x="31" y="954">5</text></g>
-<text class="sx-wl" x="52" y="954"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="942" width="22" height="16" rx="8"/><text x="31" y="954">5</text></g>
+<text class="sx-wl" x="52" y="954"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="968">RC IN socket — SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="972" width="22" height="16" rx="8"/><text x="31" y="984">6</text></g>
-<text class="sx-wl" x="52" y="984"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="972" width="22" height="16" rx="8"/><text x="31" y="984">6</text></g>
+<text class="sx-wl" x="52" y="984"><tspan class="sx-wn">buzzer</tspan><tspan class="sx-wm">  fc.buzzerTap → finder.fcConn</tspan><tspan class="sx-wt">  : BuzzerLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="998">TBD — drive pin UNRESOLVED -- the 6C Mini has no buzzer pad</text>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="1002" width="22" height="16" rx="8"/><text x="31" y="1014">7</text></g>
 <text class="sx-wl" x="52" y="1014"><tspan class="sx-wn">ulogCard</tspan><tspan class="sx-wm">  fc.sdSlot → fcSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
@@ -3124,12 +3124,12 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
         <span class="k">interface</span> rcSbus : RCInLink <span class="k">connect</span> fc.rcIn <span class="k">to</span> rx.fcConn {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;RC IN socket&quot;</span>;
             <span class="k">attribute</span> :&gt;&gt; detail = <span class="s">&quot;SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only&quot;</span>;
-            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::planned;
+            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::wired;
         }
         <span class="k">interface</span> buzzer : BuzzerLink <span class="k">connect</span> fc.buzzerTap <span class="k">to</span> finder.fcConn {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;TBD&quot;</span>;
             <span class="k">attribute</span> :&gt;&gt; detail = <span class="s">&quot;drive pin UNRESOLVED -- the 6C Mini has no buzzer pad&quot;</span>;
-            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::planned;
+            <span class="k">attribute</span> :&gt;&gt; linkState = LinkState::wired;
         }
         <span class="k">interface</span> ulogCard : SDCardLink <span class="k">connect</span> fc.sdSlot <span class="k">to</span> fcSd.contacts {
             <span class="k">attribute</span> :&gt;&gt; connector = <span class="s">&quot;onboard microSD slot&quot;</span>;
@@ -3471,7 +3471,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
   Generated by <code class="mono">scripts/render_mbse.py</code> from
   <code class="mono">docs/project_state.json</code> (updated 2026-10-03).
   Contract digest <code class="mono">bd4239846f7d</code> · build
-  <code class="mono">317f33b</code>.
+  <code class="mono">b3119ad</code>.
   Re-render with <code class="mono">python3 scripts/render_mbse.py</code>; drift fails
   <code class="mono">scripts/run_tests.sh</code>.
 </footer>

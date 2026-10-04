@@ -164,12 +164,12 @@ package Interceptor {
         interface rcSbus : RCInLink connect fc.rcIn to rx.fcConn {
             attribute :>> connector = "RC IN socket";
             attribute :>> detail = "SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
         interface buzzer : BuzzerLink connect fc.buzzerTap to finder.fcConn {
             attribute :>> connector = "TBD";
             attribute :>> detail = "drive pin UNRESOLVED -- the 6C Mini has no buzzer pad";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
         interface ulogCard : SDCardLink connect fc.sdSlot to fcSd.contacts {
             attribute :>> connector = "onboard microSD slot";
