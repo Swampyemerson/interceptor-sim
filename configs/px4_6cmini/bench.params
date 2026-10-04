@@ -284,6 +284,23 @@
 #     Source: docs.px4.io/v1.16 parameter reference (SDLOG_MODE).
 1	1	SDLOG_MODE	2	6
 #
+# -----------------------------------------------------------------------------
+#  (4) AIRFRAME PHASE (afr-02, added 2026-10-04): 6S battery monitor
+# -----------------------------------------------------------------------------
+#  BAT1_N_CELLS = 6 -> the Tier-2 chaser flies a 6S pack through the PM02 V3 on
+#     POWER1. Without a cell count PX4 reports no per-cell voltage and the
+#     low/critical battery actions (BAT_LOW_THR/BAT_CRIT_THR are fractions of
+#     capacity-by-voltage) have no datum. Set BEFORE the first battery power-up
+#     so the smoke-stopper session reads sane telemetry. The header's old
+#     "WAITS FOR THE AIRFRAME" listing of BAT1_* is superseded for this one
+#     param: the airframe now exists (afr-01 done).
+#     BAT1_V_DIV / BAT1_A_PER_V stay at the FMUv6C defaults (18.1 / 36.37,
+#     the PM02-class values) until calibrated against a multimeter under load
+#     -- the first battery session should compare QGC's voltage to a direct
+#     pack measurement (FC param writes need a read-back; so do ADC dividers).
+#     Source: docs.px4.io/v1.16 parameter reference (BAT1_N_CELLS).
+1	1	BAT1_N_CELLS	6	6
+#
 # =============================================================================
 #  NOT NEEDED FOR THIS BENCH -- checked and deliberately left alone
 # =============================================================================

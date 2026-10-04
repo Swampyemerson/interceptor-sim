@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3720929<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->dd434f4<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,7 +900,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-10-03",
+ "updated": "2026-10-04",
  "updated_by": "Fable 5 head session",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -1381,6 +1381,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-10-04",
+   "text": "Pre-battery readiness bench (remote, builder wiring complete except the Pi-rail cap): the chaser FC passed every check reachable without the 6S pack. 11/11 bench params verified across a reboot including the new BAT1_N_CELLS=6 (the one param the battery telemetry needed); M10 GPS talking with a 3D fix indoors; PX4 1.16.0 confirmed. Two findings: NO microSD in the FC slot (storage reads empty, no log list -- the kill-switch session was never ULogged either), and RC calibration still pending in QGC (sticks unmapped -- expected, needs the builder's hands). Pi lane: repo synced to head, venv healthy, camera live, zero throttling history, OS + EEPROM updates applied. Version ruling: PX4 1.16.0 (1.16.2 exists) and ELRS 3.3.1-matched (4.1.0 exists) are deliberately HELD -- a proven link beats a fresh flash the week of the first power-up.",
+   "so_what": "The 6S smoke-stopper power-up (afr-02) is GO from the software side: kill chain proven, battery monitor configured, nothing left testable without the pack. The two manual steps before arming (not before power-up) are QGC radio calibration and seating a microSD.",
+   "evidence": "configs/px4_6cmini/verify_params.py 11/11 across reboot - bench_status.py + gps_probe.py (new, read-only) - runs/recorder_gate_20261004/ (Pi) - bench session 2026-10-04"
+  },
+  {
    "date": "2026-10-02",
    "text": "Bench: the chaser's (interceptor's) RC kill link is wired and PROVEN at the PX4 level. RP3 ELRS RX soldered to the 6C Mini's RC IN; bind phrase + SBUS protocol configured over the RX's own WiFi (no reflash needed, both ends already 3.3.1); first tests failed silently and the fault was run to ground with instruments, not guesses -- the IO co-processor's own counters showed zero bytes, a 3.2 V probe at the S pin then proved the wire good, isolating a two-fault stack: an unseated DuPont junction plus the wrong SBUS polarity option. With plain SBUS + a re-seated junction: 18-channel frames, full-range stick sweeps, and the no-pulses failsafe (stream dies with the TX, relinks in seconds) all verified via the new rc_check.py bench tool. The lost-model buzzer went on as standalone 2-wire (the M10 GPS already provides FC tones). Kill switch COMPLETED same session: the ch5 bumper mapped (RC_MAP_KILL_SW=5, written + read-back verified across a reboot), and PX4 observed reading both engage and release live via manual_control_switches. Found needed: 2x 18650 cells for the 2nd Pocket (added to gnd-01).",
    "so_what": "The interceptor can now be killed from the ground the moment it misbehaves -- the single safety prerequisite for every powered bench step and flight test ahead. Only QGC radio calibration remains before arming.",
@@ -1445,12 +1451,6 @@
    "text": "Field-readiness push, all flight hardware on the bench; all three parallel builds LANDED. (1) The pursuit-port parity gap CLOSED -- a registered tick-by-tick trace found four coupled defects (KF covariance Jacobian, capture-instant attitude, yaw seed, slant under-range); the fixed port went 24% to 100% inside 0.35 m nominal, median 0.068 m, verified independently. (2) The GPS cue relay was designed, built off real bench GPS data, and wired into the flight CLI (--cue-json, fail-closed): serves chase-only (8-13 deg worst-credible vs 10-30 deg tolerance), never the sprint. (3) Miss-abort safety: passage window ported, SAFE now offers hover / land / return-home, and a pursuit miss aborts straight to SAFE. Bench: the real Pi-to-Pixhawk link measured live confirms the failsafe staleness sizing. Full offline suite ALL GREEN (dev machine). Builder ruled same day (ADR-0107): a missed engagement HOVERS in place for the operator (re-approach deferred as a future feature); system-health aborts still land. Late addition (builder ask, built on the Fable 5 lane -- its first clean build here since 2026-09-10): the cue fitter now handles a TURNING target, proving a turn from the GPS's own per-sample velocities (4-sigma test) and extrapolating along the arc with hard refuse-don't-guess caps; velocity-at-latch on a turning target improved 2.8x.",
    "so_what": "The ruled chase-only design is no longer the weaker twin of its prototype, a miss now has a defined safe ending, and the launch cue has honest piping with a measured error budget instead of a hand-typed perfect number. Two rulings queued: the slant under-range geometry also ships in the older stock seeker paths, and whether the vehicle may re-approach after a missed first pass.",
    "evidence": "isim/specs/parity_trace_2026-09-22.md - docs/cue_relay_plan.md - cue decision record (contract launch_aim) - logs/bench_telem2_cadence_20260922.json - commits 8a5886c, fa54d7d, 3d1a5e4, 9efbc84, ADR-0107, 18482cf, 35b1f88"
-  },
-  {
-   "date": "2026-09-21",
-   "text": "Parity check on the ported terminal (isim, 400 paired runs, clean conditions): the prototype meets the 0.35 m bar on every run; the flight-code port on 24% or fewer. A pre-registered A/B on the first suspect (the 2 s abort timer vs the guidance's 3 s recovery) came back NULL -- lengthening or disabling the timer changes nothing, verified with the override proven live in the state machine. The difference sits in the first-pass close (prototype ~0.12 m median, port 0.4-0.9 m); latency-constant mismatch checked and ruled out in the mean. Also measured the builder's perpendicular two-tag mount idea (rear + side tag, pre-registered, all errors on): it is a TRADE -- worse at 0-20 degrees of aim error (the side tag is nearly edge-on astern and its foreshortened width feeds bad range fixes), better only at 30 degrees (44% -> 56% touching). Suggestive at n=50, not decisive; the 30-degree win also leans on the unvalidated oblique-decode model. Altitude-error sweep on the same concept (builder question): flat within noise from 2 m below to 2 m above the guess (74-88% touching), cliff only at 3 m above (42%) -- against the retired sprint's ±0.1 m budget, an order-of-magnitude-plus wider band.",
-   "so_what": "The port needs a per-tick trace comparison before it is trusted -- the leading candidate is attitude-at-capture handling. Do not spend a ruling on the abort timer; it is exonerated. Built and measured by a Fable 5 worker, the first to complete here since 2026-09-10.",
-   "evidence": "isim/specs/parity_flightcode_2026-09-21.md; commit 3a27a58; docs/subagent_safeguard_log.md; isim/specs/dualtag_perpendicular_2026-09-21.md; isim/specs/alt_sensitivity_2026-09-21.md"
   }
  ],
  "narrative": {
@@ -3303,11 +3303,11 @@
     "steps": [
      {
       "id": "afr-01",
-      "text": "Assemble frame + motors + ESC; solder the power tree (PM02, BEC, XT60). CARBON CONDUCTS (lesson from the target build's 2026-09-23 bench spark): insulate the frame under every board, heatshrink all exposed joints, and clearance-sweep every pad against frame edges, screws and standoffs BEFORE first power."
+      "text": "[DONE 2026-10-04, builder] Wired end-to-end: frame + motors + ESC + power tree (PM02, 12S-Pro BEC, XT60) and the Pi tray harness -- EXCEPT the BEC->Pi 5 V tap, which waits on the 1000 uF rail cap (gnd-01); the Pi stays on its own bench PSU (two-rail rule brn-06) until it lands. Original gotchas honored: carbon conducts -- insulated under every board, heatshrunk joints, clearance-swept pads before power."
      },
      {
       "id": "afr-02",
-      "text": "First power-up through the smoke stopper, props OFF (standing rule)."
+      "text": "First power-up through the smoke stopper, props OFF (standing rule). [PREP GREEN 2026-10-04, pre-battery bench: BAT1_N_CELLS=6 written + verified across a reboot (11/11 pack params green); M10 GPS talking with an indoor 3D fix; RC kill chain proven 2026-10-02. FINDING: no microSD in the 6C Mini (storage empty, no log list) -- the 6S session runs un-ULogged until the gnd-01 High-Endurance card lands, acceptable for a smoke-stopper check, NOT for flight.]"
      },
      {
       "id": "afr-03",

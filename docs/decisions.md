@@ -1018,3 +1018,25 @@ the known isim alt+3 cost rides along as a documented caveat, and the sim-tier
 scope (perfect cue, windless, upright tag) is restated. Campaign arc:
 1.510 → 0.967 → 0.928 → 0.343 → 0.243 m across five registered preregs, one bar.
 Evidence: docs/xcheck_gazebo_pursuit_prereg5.md; logs/xcheck_gz_20260924_brakefix/.
+
+## ADR-0121 — Hold firmware versions through the first 6S power-up; Pi software updated (2026-10-04)
+
+Context: pre-battery readiness bench. "Is all software latest?" has two honest
+answers. Available but not installed: PX4 1.16.2 (board runs 1.16.0), ExpressLRS
+4.1.0 (both ends run 3.3.1, matched), a newer QGC 5.1.x. Installed this session:
+full Pi OS package upgrade (343 packages), bootloader EEPROM update, repo synced
+to head; venv already matched requirements.
+Options: (a) flash everything newest before the battery test; (b) hold the
+flight-link firmware, update the Pi/laptop layer.
+Decision: (b). The RC kill chain was PROVEN end-to-end on 2026-10-02 on exactly
+these versions (ELRS 3.3.1 SBUS + PX4 1.16.0 + RC_MAP_KILL_SW=5, verified across
+reboot); the whole bench pack is annotated "VERIFIED AGAINST PX4 v1.16.0"; ELRS
+4.x is a major-version jump that re-opens bind/protocol choices. Re-flashing any
+of that the week of the first power-up trades a proven safety chain for version
+freshness it does not need. Revisit AFTER the maiden (afr-04), as one deliberate
+upgrade pass with re-verification.
+Why it is safe to hold: nothing in the 1.16.1/1.16.2 or ELRS 4.x notes is needed
+by the smoke-stopper gate; the Pi layer (which does take updates) is where our
+code actually runs.
+Evidence: configs/px4_6cmini/verify_params.py 11/11 across reboot 2026-10-04;
+bench session log 2026-10-02/03 (kill chain); Pi apt/EEPROM run 2026-10-04.

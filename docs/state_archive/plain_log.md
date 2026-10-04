@@ -224,3 +224,11 @@ Chase only is now flyable from the real CLI: --terminal pursuit selects the port
 **So what:** The ruled engagement concept can now actually be flown/configured on hardware, not just in the prototype sim; the lost-target-timer ruling and the parity run are the remaining gates before it is trusted.
 
 **Evidence:** flight/tests/test_terminal_cli.py (7 tests); flight+isim 406 passed; real_flight.py --audit PASS; ADR-0105; configs/px4_6cmini/verify_params.py (COM5, 2 passes across a reboot); Pi at 547042b
+
+## 2026-09-21 (archived from plain_log 2026-10-04, cap-12 overflow)
+
+Parity check on the ported terminal (isim, 400 paired runs, clean conditions): the prototype meets the 0.35 m bar on every run; the flight-code port on 24% or fewer. A pre-registered A/B on the first suspect (the 2 s abort timer vs the guidance's 3 s recovery) came back NULL -- lengthening or disabling the timer changes nothing, verified with the override proven live in the state machine. The difference sits in the first-pass close (prototype ~0.12 m median, port 0.4-0.9 m); latency-constant mismatch checked and ruled out in the mean. Also measured the builder's perpendicular two-tag mount idea (rear + side tag, pre-registered, all errors on): it is a TRADE -- worse at 0-20 degrees of aim error (the side tag is nearly edge-on astern and its foreshortened width feeds bad range fixes), better only at 30 degrees (44% -> 56% touching). Suggestive at n=50, not decisive; the 30-degree win also leans on the unvalidated oblique-decode model. Altitude-error sweep on the same concept (builder question): flat within noise from 2 m below to 2 m above the guess (74-88% touching), cliff only at 3 m above (42%) -- against the retired sprint's ±0.1 m budget, an order-of-magnitude-plus wider band.
+
+**So what:** The port needs a per-tick trace comparison before it is trusted -- the leading candidate is attitude-at-capture handling. Do not spend a ruling on the abort timer; it is exonerated. Built and measured by a Fable 5 worker, the first to complete here since 2026-09-10.
+
+**Evidence:** isim/specs/parity_flightcode_2026-09-21.md; commit 3a27a58; docs/subagent_safeguard_log.md; isim/specs/dualtag_perpendicular_2026-09-21.md; isim/specs/alt_sensitivity_2026-09-21.md
