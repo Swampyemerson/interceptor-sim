@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0c5ce56<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->65e9ae7<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1380,15 +1380,15 @@
   },
   {
    "id": "lens-fov-violation",
-   "question": "The delivered OV9281 lens measures ~70 deg horizontal FoV (tape + calibration agree) against the 118 deg listing and the >=100 deg HARD requirement (wide-fov, ADR-0024: the +/-30 deg launch-aim tolerance depends on it). What do we do about the optic?",
+   "question": "The delivered OV9281 lens measures ~70 deg horizontal FoV against the listing's OWN text ('Comes a wide angle Lens. Fov(D)=148 degrees, Fov(H)=118 degrees') and the >=100 deg HARD requirement (wide-fov, ADR-0024). The pipeline is exonerated: native 1280x800 sensor mode, ScalerCrop = full array -- the glass itself is a ~3.3 mm standard M12, not the advertised wide. What do we do about the optic?",
    "options": [
     "Order a wide M12 lens (~100-120 deg for the OV9281's 1/4-in sensor, ~$10-20) and re-calibrate on the screen flow (minutes) -- the recommendation",
     "Contact innomaker about the 118-deg claim (their OV9281 ships with FoV variants; maybe a wrong-lens shipment) and swap under warranty",
     "Keep the 70 deg lens knowingly: ~2x the per-pixel resolution means LONGER tag decode range, but the aim-error cone shrinks to the frame edge at 30 deg -- would need the cue accuracy re-derived before any flight"
    ],
-   "rec": "Order the wide M12 now (cheap, unblocks nothing else while shipping) AND message innomaker -- options 1+2 together. Keep the 70 deg lens as a bench/long-range spare; it is now well-calibrated.",
+   "rec": "Order the wide M12 now (~$10-20, 100-120 deg for a 1/4-in sensor) AND file the vendor claim -- the evidence pack is ready: listing quote, full-sensor metadata, 81-view calibration (rms 0.731), and an independent tape measurement agreeing at 70 deg. Keep the 70 deg lens as a calibrated long-range bench spare.",
    "blocked": "Flight-phase acquisition and the aim-tolerance claim; tripod-day geometry planning should know which lens is on the nose.",
-   "doc": "configs/ov9281_intrinsics.json (fx 1104, k1 -0.43, rms 0.731 px); constraint wide-fov; ADR-0024"
+   "doc": "configs/ov9281_intrinsics.json; crop check 2026-10-04 (native mode, ScalerCrop full); tape: 14-in screen fills frame at 10 in = 70.0 deg; constraint wide-fov; ADR-0024"
   }
  ],
  "plain_log": [
