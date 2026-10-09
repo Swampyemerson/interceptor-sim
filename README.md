@@ -6,29 +6,30 @@ A quadcopter interceptor that catches a moving target with its own camera.
 The **ruled engagement (ADR-0103/0105) is a chase-only pursuit**: cued once
 at the trigger by a GPS relay (latched, link dead after launch — **no
 datalink in flight**), it flies a belief rendezvous to behind the target and
-closes on camera measurements. The earlier **coded open-loop dash +
-pro-nav terminal** remains the flying default only until a Gazebo
-cross-check passes. Guidance was built and validated across a 107-ADR
-measured campaign in **PX4 SITL + Gazebo Harmonic** plus a purpose-built
-flight-code-in-the-loop Monte-Carlo simulator; the physical interceptor is
-**on the bench** (motors soldered, flight-controller pack verified on-board,
-Pi-to-Pixhawk OFFBOARD proven props-off).
+closes on camera measurements. It became the **flying default** on
+2026-09-24 (ADR-0118/0120), after five pre-registered Gazebo campaigns
+against one unchanged bar walked the median miss from 1.51 m to **0.24 m**
+(simulation, perfect cue). Guidance was built and validated across a
+120-ADR measured campaign in **PX4 SITL + Gazebo Harmonic** plus a
+purpose-built flight-code-in-the-loop Monte-Carlo simulator; the physical
+interceptor is **on the bench** (first 6S power-up passed props-off, RC kill
+link proven, Pi-to-Pixhawk OFFBOARD proven on the assembled harness).
 
 <p align="center">
   <img src="docs/images/intercept_hero.gif" width="70%" alt="Onboard seeker view of a simulated intercept, slow-motion terminal, closest approach 0.413 m"/>
 </p>
 <p align="center"><sub>Onboard seeker view, simulation (PX4 SITL + Gazebo). Closest
-approach 0.413 m against a 2 m/s crosser; retiming labeled on-screen; the
-0.35 m contact bar is still open. Log: <code>logs/m4_intercept_pronav_20260923T025539Z.csv</code>.</sub></p>
+approach 0.413 m against a 2 m/s crosser (an M4-class pro-nav flight, not the
+chase; it does not clear the 0.35 m contact bar); retiming labeled on-screen. Log: <code>logs/m4_intercept_pronav_20260923T025539Z.csv</code>.</sub></p>
 
 **Status at a glance** (each row traces to the contract):
 
 | | |
 |---|---|
-| Ruled design | chase-only pursuit (ADR-0103/0105); dash + pro-nav stay the flying default — the Gazebo cross-check **failed its registered bar** (below), so the swap is blocked |
-| Flight-code port | matches its prototype in the fast sim (100% of 50 nominal runs ≤ 0.35 m, median 0.068 m); in Gazebo it chases camera-driven but closes only to median 1.51 m — **simulation, transfer gap open** |
-| Not yet done | no camera-guided intercept inside the 0.35 m contact bar in Gazebo; no real-world intercept |
-| Hardware | bench build under way; Pi 5 seeker measured 96.6 fps (AprilTag pipeline) |
+| Flying design | chase-only pursuit + brake package — the default since 2026-09-24 (ADR-0118/0120); the old dash + pro-nav path stays selectable, frozen as-flown |
+| Gazebo cross-check | 9 m/s crosser, n=8, camera-in-the-loop: median miss **0.243 m, 6/8 inside the 0.35 m contact bar**, 0 aborts — **simulation**: perfect launch cue, no wind, billboard AprilTag |
+| Not yet done | no real-world intercept; no camera-guided intercept of the realistic 3D quad with the markerless seeker |
+| Hardware | interceptor on the bench: 6S power-up passed, RC kill link + OFFBOARD link proven; seeker camera calibrated, but its lens measures **~70° wide vs the ≥100° requirement** (swap decision queued) |
 | Honesty machinery | ground truth firewalled from guidance (AST-enforced); assumptions register grades every given input |
 
 This is a portfolio project for aerospace internship applications. The claim
@@ -41,8 +42,10 @@ project's retractions are documented with the same care as its wins, because
 > PX4/Gazebo SITL and a flight-code-in-the-loop simulator; ported the ruled
 > pursuit terminal into the flight software to numeric parity with its
 > prototype (100% of 50 seeded runs inside the 0.35 m contact radius, median
-> 0.068 m, simulation); quantified the perception acquisition envelope and
-> the flight-dynamic detector-recall limit."*
+> 0.068 m, simulation), then closed the Gazebo transfer gap across five
+> pre-registered campaigns to a 0.24 m median miss against a 9 m/s target
+> (6/8 inside contact, simulation, perfect cue); quantified the perception
+> acquisition envelope and the flight-dynamic detector-recall limit."*
 
 <p align="center">
   <img src="docs/images/m5_traj_overlay.png" width="32%" alt="M5 Monte-Carlo trajectory overlay"/>
@@ -70,9 +73,9 @@ table caveat: [`docs/results_notes.md`](docs/results_notes.md).
 ## Current mission (the real build)
 
 **A cued interceptor hits a moving target flying ≥9 m/s (20 mph), outdoors,
-camera-only terminal, no datalink after launch.** The ruled engagement is
-chase-only pursuit (ADR-0103/0105); the coded dash + stock pro-nav remain the
-flying default only until the Gazebo cross-check passes. Success is a
+camera-only terminal, no datalink after launch.** The engagement is
+chase-only pursuit (ADR-0103/0105), the flying default since the Gazebo
+cross-check passed (ADR-0118/0120). Success is a
 **binary kill** (contact), confirmed by seeker video + phone slow-motion +
 both aircraft flight logs — deliberately *not* a measured sub-meter CPA (the
 RTK metrology pair was cut with the 2026-07-15 binary-kill re-scope). The
@@ -86,7 +89,10 @@ Hard constraints (full list + evidence in the contract): **no guidance
 datalink after launch** (the GPS cue is latched at the trigger and the link
 is dead from then on; the RC link is kill/arm only — jam resistance by
 architecture, not protocol); **wide FoV (~100°) non-negotiable** (ADR-0024;
-the ±30° figure it protected is a dash-era acquisition envelope); **prop
+the ±30° figure it protected is a dash-era acquisition envelope) — and
+**currently violated by the delivered seeker lens**, which measures ~70°
+horizontal against a 118° listing (two independent measurements agree; the
+swap-or-keep decision is queued in the contract); **prop
 clearance is a geometry problem**, not a software one.
 
 ---
@@ -113,40 +119,53 @@ clearance is a geometry problem**, not a software one.
   trace found four coupled port defects, and the fixed port scores 100% of
   50 seeded nominal runs inside the 0.35 m contact radius, median 0.068 m
   (`isim/specs/parity_trace_2026-09-22.md`) — **simulation**. The
-  pre-registered independent Gazebo cross-check then delivered both kinds of
-  result: its shakedown flight caught a fifth port defect (a frozen Phase-A
-  camera yaw, invisible to the isim grid, fixed and regression-pinned), and
-  the scored n=8 **failed the registered bar** — the port chases
-  camera-driven (46–67 detections consumed, zero aborts) but closes only to
-  median 1.51 m vs the 0.122 m matched-optics prediction, so the
-  default-terminal swap stays blocked and the transfer gap is the named next
-  problem (`docs/xcheck_gazebo_pursuit_prereg.md`).
+  pre-registered independent Gazebo cross-check (9 m/s crosser, n=8,
+  camera-in-the-loop) first **failed its registered bar** at a 1.51 m median
+  — its shakedown also caught a fifth port defect (a frozen Phase-A camera
+  yaw, invisible to the isim grid). Four more registered campaigns against
+  the same unchanged bar followed: **1.51 → 0.97 → 0.93 → 0.34 → 0.24 m**.
+  The decisive find (ADR-0117) was a two-line wiring defect in the real
+  flight driver — it kept only the *speed* of the EKF velocity, so the
+  chase's Kalman filter had run on the last *commanded* velocity (3.6–4.2 m/s
+  off) in every earlier flight; it would have flown on real hardware. With
+  it fixed and the brake package on, the chase scores **median 0.243 m, 6/8
+  inside the 0.35 m contact bar, zero aborts** (ADR-0120;
+  `docs/xcheck_gazebo_pursuit_prereg5.md`) and became the flying default.
+  Scope, unchanged: perfect launch cue, no wind, a teleported billboard tag
+  in Gazebo — sim numbers; the field decides.
 
 **Not proven — the honest wall (this is the interesting part):**
 
 - **No camera-guided intercept of the realistic 3D quad target exists in the
-  dataset.** When the flat billboard target was replaced with a proper 3D
-  quad, a series of sub-meter "camera-guided" results were retracted as
+  dataset** — the chase's Gazebo pass above is against a billboard AprilTag,
+  not the markerless seeker on a 3D quad. When the flat billboard target was
+  replaced with a proper 3D quad, a series of sub-meter "camera-guided" results were retracted as
   **open-loop dash-ballistics mirages** — a control arm with the camera
   contributing nothing scored the same (dash-only 0.30 m vs with-terminal
   0.29 m; ADR-0076 add #18g/#18h). Five such mirages were caught and
   retracted in that arc alone (ADR-0076; `docs/project_state.json`
   graveyard).
-- **The binding wall is flight-dynamic detector recall, not guidance.** The
-  deployed markerless detector reads **100% recall statically at 8–22 m**
-  but **~0.8% on the approach in flight** (ADR-0076 add #18i/#18k). The
-  un-eliminated mechanisms are ground-clutter background under the
-  nose-down dash pitch and phantom competition — both sim-testable, both
-  open. The dash pitches nose-down ~27–36° (median; ADR-0060), which parks
-  a co-altitude target at the top of the frame; the pointing fix is a fixed
-  up-tilt mount sized to the *measured* real dash pitch (build item, not
-  yet validated).
+- **For the markerless seeker, the binding wall is pointing, not
+  detection.** The deployed markerless detector reads **100% recall
+  statically at 8–22 m** but **~0.8% on the approach in flight** (ADR-0076
+  add #18i/#18k). The in-view probes settled why: under the nose-down dash
+  pitch only ~25% of 8–12 m terminal frames contain the target at all, and
+  when it *is* in view the detector hits ~70%. Ground-clutter background was
+  tested and refuted in sim; phantom competition is real but modest and is
+  designed out by the camera-forward mount
+  ([`docs/inview_probe_results.md`](docs/inview_probe_results.md)). The
+  pointing fix is an up-tilted camera; for the chase that is a +10° bracket
+  paired with a 12° down-canted tag placard (ADR-0112/0114, adopted, not yet
+  validated on hardware). What the sim cannot test is the outdoor
+  appearance/clutter/blur gap; that is the real-data detector's job.
 - **The dash-era terminal had no vertical channel, and its miss was ~82%
   vertical** (ADR-0095/0099/0100): the fix arc moved sprint-only flights
   from 2/16 to 13/16 inside the contact radius — best case only (camera off,
   aim within ~±1° of optimum, target height known to ~0.1 m). The chase-only
-  pursuit terminal steers all three axes; its own vertical behavior is what
-  the current cross-check exercises. Full forensic history:
+  pursuit terminal steers all three axes; its known vertical weak spot is a
+  target well above it (the brake costs contact points on the
+  target-3-m-above cell in the fast sim, ADR-0115, a documented caveat of
+  the adopted config). Full forensic history:
   [`docs/vertical_channel_analysis.md`](docs/vertical_channel_analysis.md).
 - **"Works comms-denied" stays HELD** — see the box in the results section.
 
@@ -165,7 +184,7 @@ clearance is a geometry problem**, not a software one.
 | M5 final Monte-Carlo, n=96 (pursuit vs pro-nav × 6/9/12 m/s × line/maneuver/oblique) | **96.9% clean** (ran to completion and engaged; failures stay in every Pk denominator), mean miss 1.08 m, median 0.93 m; per-speed Pk per ADR-0025, never pooled | flew the **clean AprilTag sensor** (the disclosed perception upper bound), flat-board target; laws tied within the ~1 m run-to-run noise ([notes](docs/results_notes.md#m5)) | ADR-0036; `scripts/check_m5.sh`; committed `logs/mc_final_all.csv`; plots `docs/images/m5_*.png` |
 | Markerless seeker v2 (kill the AprilTag) | false-detection pollution **0.751 → 0.000**, range honesty **0.056 → 0.935**; ~+1 m median miss vs the tag = bearing *quality* (box-center vs subpixel corners) | in-sim markerless; on real outdoor mono frames v2 scores **AP50 0.0003** (transfer bet lost) — the hardware seeker is the real-data retrain `n-mono` (AP50 0.44 held-out) | ADR-0038/0040/0042/0043; `scripts/check_seeker_v2.sh`; `logs/nn_tier/eval_n-mono_heldout.csv` |
 | Chase-only flight-code port parity | port matches prototype: **100% of 50 seeded nominal runs ≤ 0.35 m, median 0.068 m**; aim-error 10°/20° cells 100%; target +2 m cell 68–76% (no-re-approach design gap) | **simulation** (flight-code-in-the-loop isim); a registered trace found and fixed 4+1 port defects — the fifth (a frozen Phase-A camera yaw) was caught by the Gazebo cross-check, invisible to the isim grid | ADR-0103/0105; `isim/specs/parity_trace_2026-09-22.md` |
-| Gazebo cross-check of the chase (pre-registered, n=8) | camera-driven chase confirmed (46–67 detections/flight, 0 aborts) but CPA **0.55–2.33 m, median 1.51 m** — registered bar **FAILED**; default swap stays blocked | the honest transfer result: real EKF/control/latency dynamics cost ~1.4 m vs the fast sim's matched prediction (0.122 m); diagnosis next, not tuning | `docs/xcheck_gazebo_pursuit_prereg.md`; `logs/xcheck_gz_20260923_fixed/` |
+| Gazebo cross-check of the chase (5 pre-registered campaigns, n=8 each, 9 m/s crosser) | median CPA **1.51 → 0.97 → 0.93 → 0.34 → 0.243 m** against one unchanged bar; final arm **6/8 inside 0.35 m**, 8/8 inside 1 m, 0 aborts, 57–94 detections consumed per flight → chase adopted as the flying default | the first arm FAILED; the biggest single step (0.93 → 0.34 m) was fixing a driver wiring defect (EKF velocity reduced to a scalar, ADR-0117), not retuning the law; scope: perfect cue, no wind, billboard AprilTag | `docs/xcheck_gazebo_pursuit_prereg{,2,3,4,5}.md`; ADR-0116/0117/0120 |
 | Detect-then-track maneuvering terminal (billboard era) | post-handoff camera-terminal Pk@2.5 m: weave **3/16 → 14/14**, jink **1/8 → 14/15** (paired n=16 baseline reads 3/15 → 14/15); phantom handoffs 12 → 0; zero gross (>8 m) false terminal detections (0/155) in the headline arm | one empty Gazebo world (disclosed); **the CSRT tracker was later dropped for the 3D quad target** — the deployed config is NN-only every frame (ADR-0076 add #2; [notes](docs/results_notes.md#t21)) | ADR-0058; committed `logs/mc_t21_*.csv`; `scripts/check_t21.sh` |
 | Pk statistics hardening, n=72 | **Pk@2.8 m 72/72 — 95.0% Clopper-Pearson lower bound** (clears the ratified ≥95%-CI bar); Pk@2.5 m 71/72 = 98.6% point / 92.5% CP-LB | **flat-billboard target**, weave + 12 m/s only, never pooled, radius always stated; the 3D-quad target later exposed the wall this shape masked ([notes](docs/results_notes.md#pk72)) | ADR-0064/0025; committed `logs/mc_pk72_weave_s*.csv` |
 | Perception wall, quantified | in-flight approach recall **0.8%** vs **100% static** at 8–22 m, same detector, same threshold | the wall is flight-dynamic (pointing + background + phantom competition), **not** range/resolution/aspect — each of those was tested and eliminated | ADR-0076 add #18i/#18k; `scripts/seeker/approach_recall.py` |
@@ -194,7 +213,7 @@ quoted here.
 
 ---
 
-## Architecture (ruled: chase-only pursuit; flying default: coded dash, pending cross-check)
+## Architecture (flying default: chase-only pursuit + brake package)
 
 ```
 CUE         GPS cue relayed once and LATCHED AT THE TRIGGER (a given input,
@@ -209,6 +228,7 @@ MEASURE     tag box + intrinsics → bearing; box width → range (slant-
 ESTIMATE    relative-state Kalman filter (position + target velocity);
             delayed-measurement update, coasts dropouts
 PHASE B     camera close: v = v̂_target + v_close·LOS + k·(predicted miss);
+            closing speed capped by stopping distance (brake, ADR-0120);
             a missed pass aborts to SAFE hover (ADR-0107)
 ACT         velocity setpoints → PX4 OFFBOARD (MAVSDK), unmodified flight
             state machine (flight/deploy/real_flight.py)
@@ -218,8 +238,8 @@ KILL        sim: ground truth scoring-only; real: binary kill on video +
 ```
 
 The retired sprint-era loop (coded dash → streak handoff → LOS-rate pro-nav,
-NN-only detector) remains the **flying default** until the Gazebo cross-check
-passes, and is preserved in the contract's stage notes. The portable
+NN-only detector) stays selectable (`--terminal stock`), frozen byte-for-byte
+as-flown so its historical gates stay reproducible (ADR-0118). The portable
 [`flight/`](flight/) package has no gz/ground-truth/cue imports (enforced by
 AST-based honesty tests) and runs unchanged on the real Pi
 (`scripts/check_deploy_sitl.sh`, props-off bench gate passed on hardware).
@@ -235,12 +255,28 @@ statically (AST scans over every live seeker module, mutation-calibrated).
 
 ## The real build (Tier-1, in progress)
 
-**Status 2026-09-23 — assembly under way.** Motors are soldered to the ESC,
-the flight controller's 44-parameter pack is verified on the board (read back
-across a reboot), the GPS/compass is talking on GPS1, and the Pi-to-Pixhawk
-MAVSDK OFFBOARD link is proven props-off — the one link the simulation never
-exercised. Remaining before first power-up: the battery pigtail + continuity
-checks, then the smoke-stopper gate (`docs/project_state.json` build_tab).
+**Status 2026-10-04 — first battery power-up done, props off.**
+
+- **Interceptor (chaser):** the first 6S power-up through a smoke stopper
+  passed (the flight controller reads the pack at 23.2 V, 3.86 V/cell). The
+  RC **kill link** is wired and proven at the PX4 level (bind, failsafe on
+  transmitter loss, kill switch mapped). The Pi-to-Pixhawk OFFBOARD gate
+  passed again on the *assembled* harness (300/300 setpoints at 19.5 Hz);
+  its first runs "failed" on a real exit-hang bug in the test tooling, which
+  was found and fixed the same bench session. The motors, ESC and frame are
+  the Tier-2 order (ADR-0109), due ~Oct 5–15. Before arming: radio
+  calibration, airframe selection, and the pre-arm list.
+- **Seeker camera:** the OV9281 is calibrated (81 views, 0.73 px RMS), and
+  the chase code has run end-to-end on real camera frames at the desk. **But
+  the delivered lens measures ~70° horizontal, not the advertised 118°.** That
+  violates the ≥100° wide-FoV hard constraint. A tape measurement and the
+  calibration agree, and the camera pipeline is exonerated (full-sensor
+  mode, no crop). The fix is a cheap M12 lens swap; the decision is queued.
+- **Target drone:** the ESC and all four motors were verified in a live motor
+  test (2026-09-23). Its flight controller's barometer bus measured dead, and
+  a replacement is on order.
+
+Live checklist: `docs/project_state.json` (`build_tab`) and the dashboard.
 
 **Earlier — 2026-08-10 — the hardware measured.** The Pi 5 seeker
 rig runs the real camera (1280×800 mono, exposure **994 µs**, inside the ≤1 ms
@@ -266,10 +302,11 @@ frame-duration limit; lifting it cuts the range burned forming the handoff by ab
 > telemetry — put the camera **~2 mm** above the airframe datum and 0.120 m forward
 > of it. The real correction is therefore almost entirely **horizontal**.
 >
-> **So the headline stands: nothing has yet landed inside the ram radius reliably**,
-> and the largest remaining term is a **vertical** one (median −0.374 m — the
-> interceptor flies low), on a vehicle whose targeting math is explicitly 2-D
-> horizontal. That gap is real and unclosed. All of these numbers still assume a
+> **So the headline stood (dash era — since superseded in sim by the chase's
+> 6/8 above): nothing had yet landed inside the ram radius reliably**,
+> and the largest remaining term was a **vertical** one (median −0.374 m — the
+> interceptor flew low), on a vehicle whose targeting math was explicitly 2-D
+> horizontal; the chase terminal now steers all three axes. All of these numbers assume a
 > perfect launch cue, co-altitude flight and no wind. Detail:
 > [`docs/rescore_2026-08-10.md`](docs/rescore_2026-08-10.md).
 
