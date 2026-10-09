@@ -1,0 +1,453 @@
+<title>Interceptor Airframe Numbers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single-column engineering datasheet. Live calculator first, then reference sections, each a ruled block with a tier tag on every number. */
+:root {
+  --bg: #f3f5f7; --panel: #ffffff; --ink: #17212b; --muted: #5a6876; --rule: #d5dce3;
+  --accent: #1f5aa6; --accent-soft: #e3ecf7;
+  --vendor: #1f6f5c; --derived: #1f5aa6; --estimate: #9a5a00; --sim: #6b4fa3;
+  --tag-bg: #eef1f4;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11171d; --panel: #18212a; --ink: #e4eaf0; --muted: #98a6b3; --rule: #2b3743;
+  --accent: #7fb0f0; --accent-soft: #1d2c3d;
+  --vendor: #6cc9b0; --derived: #7fb0f0; --estimate: #e8a94f; --sim: #b9a1ea;
+  --tag-bg: #222d38; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #11171d; --panel: #18212a; --ink: #e4eaf0; --muted: #98a6b3; --rule: #2b3743;
+  --accent: #7fb0f0; --accent-soft: #1d2c3d;
+  --vendor: #6cc9b0; --derived: #7fb0f0; --estimate: #e8a94f; --sim: #b9a1ea;
+  --tag-bg: #222d38; color-scheme: dark }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 860px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; display: grid; gap: 22px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: 0.01em; }
+h1 { font-size: 2.3rem; line-height: 1.05; font-weight: 700; }
+h2 { font-size: 1.55rem; font-weight: 600; }
+h3 { font-size: 1.15rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--accent); }
+.lede { color: var(--muted); }
+.warn { border: 1px solid var(--estimate); color: var(--ink); background: var(--panel); padding: 10px 12px; border-radius: 4px; }
+.warn b { color: var(--estimate); }
+
+nav.jump { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 8px; border-bottom: 1px solid var(--rule); display: flex; gap: 6px; overflow-x: auto; }
+nav.jump a { font-family: var(--f-display); font-weight: 600; font-size: 0.98rem; text-decoration: none; color: var(--ink); background: var(--tag-bg); padding: 4px 10px; border-radius: 3px; white-space: nowrap; }
+nav.jump a:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+section { display: grid; gap: 12px; padding-top: 6px; border-top: 2px solid var(--ink); scroll-margin-top: 54px; }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px; font-size: 0.85rem; color: var(--muted); }
+.t { font-family: var(--f-mono); font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 3px; background: var(--tag-bg); white-space: nowrap; vertical-align: middle; }
+.t.v { color: var(--vendor); } .t.d { color: var(--derived); } .t.e { color: var(--estimate); } .t.s { color: var(--sim); }
+
+/* calculator */
+.inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.inputs label { display: grid; gap: 3px; font-size: 0.82rem; color: var(--muted); }
+.inputs input, .inputs select { font-family: var(--f-mono); font-size: 1rem; color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 3px; padding: 6px 8px; width: 100%; box-sizing: border-box; }
+.outs { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+.out { background: var(--panel); padding: 10px 12px; display: grid; gap: 2px; min-width: 0; }
+.out .k { font-size: 0.78rem; color: var(--muted); }
+.out .val { font-family: var(--f-mono); font-size: 1.35rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.out .f { font-family: var(--f-mono); font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+.out.key .val { color: var(--accent); }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font-family: var(--f-display); font-weight: 600; font-size: 1rem; background: var(--accent-soft); color: var(--ink); border: 1px solid var(--rule); border-radius: 3px; padding: 5px 12px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* tables */
+.tw { overflow-x: auto; min-width: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--f-display); font-weight: 600; font-size: 0.95rem; color: var(--muted); letter-spacing: 0.03em; }
+td.n { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+tr.total td { font-weight: 600; border-bottom: 2px solid var(--ink); }
+
+/* derivations */
+pre.calc { font-family: var(--f-mono); font-size: 0.84rem; line-height: 1.6; background: var(--bg); border: 1px solid var(--rule); border-radius: 3px; padding: 10px 12px; margin: 0; overflow-x: auto; white-space: pre; }
+ul.tight { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; max-width: 68ch; }
+
+/* Q and A */
+.qa { display: grid; gap: 10px; }
+.q { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px dashed var(--rule); }
+.q b { font-family: var(--f-display); font-size: 1.12rem; font-weight: 600; }
+.q p { color: var(--ink); }
+small, .note { color: var(--muted); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <h3>Interview reference, Anduril</h3>
+    <h1>Interceptor Airframe Numbers</h1>
+    <p class="lede">Thrust, weight, hover, battery, motor and carbon fiber numbers for the 5 inch, 6S interceptor, with how each one is calculated. Both aircraft (interceptor and target) run the same motors, props and packs.</p>
+    <p class="warn"><b>Nothing on the interceptor has been weighed or thrust tested yet.</b> Every number is tagged with where it came from. When the build is done, type the scale weight into the calculator below and everything recomputes.</p>
+    <div class="legend">
+      <span><span class="t v">vendor</span> manufacturer or retailer spec</span>
+      <span><span class="t d">derived</span> calculated here from other numbers</span>
+      <span><span class="t e">estimate</span> typical value or assumption, measure it</span>
+      <span><span class="t s">sim</span> from the simulation</span>
+      <span><span class="t v">bench</span> measured on real hardware</span>
+    </div>
+  </header>
+
+  <nav class="jump" aria-label="Sections">
+    <a href="#calc">Calculator</a><a href="#parts">Parts</a><a href="#mass">Weight</a><a href="#thrust">Thrust, T/W</a><a href="#hover">Hover</a><a href="#battery">6S pack</a><a href="#motor">Motor, prop</a><a href="#aero">Drag, air</a><a href="#carbon">Carbon fiber</a><a href="#qa">Likely questions</a><a href="#mission">Mission numbers</a><a href="#sources">Sources</a>
+  </nav>
+
+  <!-- CALCULATOR -->
+  <section id="calc">
+    <h2>Live calculator</h2>
+    <p class="note">Defaults are the current estimates. Replace weight with the scale reading and thrust with the thrust rig reading when you have them.</p>
+    <div class="panel">
+      <div class="inputs">
+        <label for="auw">All-up weight (g)<input id="auw" type="number" inputmode="decimal" value="800" step="1"></label>
+        <label for="tmax">Max thrust per motor (g)<input id="tmax" type="number" inputmode="decimal" value="1500" step="10"></label>
+        <label for="cap">Pack capacity (mAh)<input id="cap" type="number" inputmode="decimal" value="1500" step="50"></label>
+        <label for="use">Usable fraction of pack<input id="use" type="number" inputmode="decimal" value="0.80" step="0.05" min="0.1" max="1"></label>
+        <label for="fm">Prop figure of merit<input id="fm" type="number" inputmode="decimal" value="0.50" step="0.05" min="0.1" max="0.8"></label>
+        <label for="eta">Motor + ESC efficiency<input id="eta" type="number" inputmode="decimal" value="0.75" step="0.05" min="0.1" max="1"></label>
+        <label for="vpack">Pack voltage for current (V)<input id="vpack" type="number" inputmode="decimal" value="22.2" step="0.1"></label>
+        <label for="rho">Field air density
+          <select id="rho">
+            <option value="1.225">Sea level, 1.225 kg/m³</option>
+            <option value="1.114">975 m (Sisters, OR), 1.114 kg/m³</option>
+            <option value="1.042">1655 m (Boulder, CO), 1.042 kg/m³</option>
+          </select>
+        </label>
+      </div>
+      <div class="btnrow">
+        <button type="button" id="p800">Estimated build, 800 g</button>
+        <button type="button" id="p950">Design ceiling, 950 g</button>
+        <button type="button" id="ptgt">Target drone bare, 610 g</button>
+        <button type="button" id="pvend">Retailer max thrust, 2020 g</button>
+      </div>
+      <div class="outs" id="outs"></div>
+      <p class="note">Thrust at altitude scales with density, so the calculator multiplies your sea-level motor thrust by ρ/1.225. Hover throttle assumes thrust grows with throttle squared (thrust goes as RPM², RPM roughly follows throttle), which is the same shape PX4 models with THR_MDL_FAC.</p>
+    </div>
+  </section>
+
+  <!-- PARTS -->
+  <section id="parts">
+    <h2>What is on the aircraft</h2>
+    <div class="tw"><table>
+      <thead><tr><th>Part</th><th>Spec that matters</th><th>Tier</th></tr></thead>
+      <tbody>
+        <tr><td>Motors: EMAX ECO II 2207 1900KV (x4, plus 1 spare)</td><td>22 mm stator, 7 mm tall. 1900 RPM per volt. Listed 30.4 to 33.6 g each without wire. Listed max thrust 1850 to 2020 g on 6S; listed peak 45 A, 1130 W.</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>Props: HQProp V2S 5x4.3x3</td><td>5.0 in diameter (0.127 m), 4.3 in pitch, 3 blades. Disk area 0.01267 m² each.</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>Battery: CNHL Black 6S 1500 mAh 100C</td><td>22.2 V nominal, 25.2 V full. 33.3 Wh. Listed 254 to 266 g with leads.</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>ESC: Skystars KO60II 60A 4-in-1 (AM32)</td><td>60 A per motor, 3 to 6S. AM32 firmware.</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>Frame: TBS Source One V6, 5 in</td><td>240 mm wheelbase (motor to motor diagonal). 6 mm arms, 2 mm top plate. 136.5 g with hardware.</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>Flight controller: Pixhawk 6C Mini (PX4), PM02 V3 power module, M10 GPS</td><td>PM02 measures pack voltage and current into the flight log, which is how hover current gets measured.</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>Seeker: Raspberry Pi 5 + OV9281 global-shutter mono camera</td><td>Fed by a Matek 12S Pro BEC at 5.2 V.</td><td><span class="t v">vendor</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">Target drone: same motors, props, frame and packs, with a Kakute H7 flight controller and Tekko32 65A ESC running ArduPilot.</p>
+  </section>
+
+  <!-- MASS -->
+  <section id="mass">
+    <h2>Weight budget (interceptor)</h2>
+    <p>Component roll-up from vendor and catalogue weights. The total is the number to replace with a kitchen scale.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Item</th><th style="text-align:right">g</th><th>Tier</th></tr></thead>
+      <tbody>
+        <tr><td>Frame, Source One V6 with hardware</td><td class="n">136.5</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>4 motors + 4 props</td><td class="n">146</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>ESC, KO60II</td><td class="n">15</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Pixhawk 6C Mini</td><td class="n">35</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>PM02 V3 power module</td><td class="n">30</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>M10 GPS</td><td class="n">15</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>RP3 receiver</td><td class="n">5</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Raspberry Pi 5 8GB</td><td class="n">46</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Pi active cooler</td><td class="n">25</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>OV9281 camera + M12 lens</td><td class="n">15</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Matek 12S Pro BEC</td><td class="n">10</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Printed Pi tray + camera boom</td><td class="n">35</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Wiring, standoffs, XT60, strap</td><td class="n">30</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Buzzer</td><td class="n">3</td><td><span class="t e">estimate</span></td></tr>
+        <tr class="total"><td>Dry weight</td><td class="n">546.5</td><td><span class="t d">derived</span></td></tr>
+        <tr><td>CNHL 6S 1500 pack</td><td class="n">254</td><td><span class="t v">vendor</span></td></tr>
+        <tr class="total"><td>All-up weight (AUW)</td><td class="n">≈ 800</td><td><span class="t d">derived</span></td></tr>
+        <tr><td>Add the AI HAT+ for the neural-net phase</td><td class="n">+20</td><td><span class="t e">estimate</span></td></tr>
+      </tbody>
+    </table></div>
+    <ul class="tight">
+      <li>Design ceiling used for sizing: <b>950 g</b>. That leaves about 150 g of margin over the estimate.</li>
+      <li>Target drone: <b>610.5 g bare, 803.5 g with the AprilTag placard</b> <span class="t d">derived</span> (repo: docs/placard_mount.md §4.2). Weight is 5.99 N bare.</li>
+      <li>Both aircraft are over 250 g, so both need FAA registration and Remote ID outdoors.</li>
+    </ul>
+  </section>
+
+  <!-- THRUST -->
+  <section id="thrust">
+    <h2>Thrust and thrust-to-weight</h2>
+    <h3>Where the thrust number comes from</h3>
+    <ul class="tight">
+      <li><b>Planning value: 1.5 kg per motor, 6.0 kg static total.</b> This is the repo's sizing number (hardware_order_list.md §3). I kept it for the ECO II because it is the low end of what the listings claim, so it is the conservative choice.</li>
+      <li><b>Retailer max for ECO II 2207 1900KV on 6S: 1850 g and 2020 g</b> <span class="t v">vendor</span>. The listings do not say which prop or how fresh the pack was, so treat these as an upper bound.</li>
+      <li><b>Cross-check from a similar motor:</b> FlashHobby K2207.5 1900KV on a Gemfan 5040 prop at about 23.6 V, full throttle: 1406 g, 28.4 A, 669 W, 2.10 g/W <span class="t v">vendor</span>. Same stator class and KV, so 1.4 to 2.0 kg per motor is the honest range.</li>
+      <li><b>How it gets measured:</b> a $20 thrust rig, motor mounted upside down on a kitchen scale, reading thrust (g) and current (A) at throttle steps. That replaces all of the above.</li>
+    </ul>
+    <h3>The arithmetic</h3>
+<pre class="calc">T/W = (4 x thrust per motor) / AUW
+
+Planning, 800 g:   (4 x 1500 g) / 800 g  = 7.5 : 1
+Retailer max:      (4 x 2020 g) / 800 g  = 10.1 : 1
+Design ceiling:    (4 x 1500 g) / 950 g  = 6.3 : 1
+Design rule:       T/W >= 5 : 1 at the ceiling weight</pre>
+    <h3>Why T/W matters for this vehicle</h3>
+    <ul class="tight">
+      <li>Thrust has to hold the aircraft up and push it sideways. Tilted by θ with full thrust T: vertical part T cos θ must equal W. Steepest tilt that still holds altitude: <b>θ = arccos(1 / (T/W))</b>, about 82° at 7.5:1.</li>
+      <li>Most sideways acceleration at constant altitude: <b>a = g √((T/W)² − 1)</b>, about 7.4 g on paper. In practice the autopilot tilt limit sets it: PX4's default MPC_TILTMAX_AIR is 45°, which gives a = g tan 45° = 9.8 m/s². The flight plan uses 10 m/s² for the dash.</li>
+      <li>The extra thrust is control margin. A quad near full throttle cannot correct attitude because no motor can speed up further. High T/W means the dash and the terminal turn never saturate the motors.</li>
+    </ul>
+  </section>
+
+  <!-- HOVER -->
+  <section id="hover">
+    <h2>Hover current and hover time</h2>
+    <p>Momentum theory (actuator disk) gives the ideal power to hover. Divide by the prop's figure of merit and the motor and ESC efficiency to get electrical power, then by pack voltage to get current.</p>
+<pre class="calc">Worked at 800 g, sea level, 5.0 in props
+
+W        = m g = 0.800 x 9.81             = 7.85 N
+T/rotor  = W / 4                          = 1.96 N  (200 g)
+A        = π (0.127/2)²                   = 0.01267 m²
+v_i      = √( T / (2 ρ A) )               = 7.95 m/s   induced velocity
+P_ideal  = T v_i per rotor = 15.6 W, x4   = 62.4 W
+           (same thing: P = T^1.5 / √(2ρA))
+P_elec   = P_ideal / (FM x η)
+         = 62.4 / (0.50 x 0.75)           = 166 W
+I_hover  = P_elec / V = 166 / 22.2        = 7.5 A
+t_hover  = (0.80 x 1.5 Ah) / 7.5 A        = 0.16 h  = 9.6 min
+Hover throttle ≈ √(W / T_max) = √(1/7.5)  = 37 %</pre>
+    <ul class="tight">
+      <li><b>Answer to give:</b> about 7 to 8 A hover current and about 10 minutes of hover on a 1500 mAh 6S pack at 800 g, as an estimate <span class="t d">derived</span>. With FM 0.6 and 85% drive efficiency it is 5.5 A and 13 min, so the range is roughly 10 to 13 min.</li>
+      <li><b>The inputs I am least sure of:</b> figure of merit (FM, how close the prop gets to ideal; small FPV props are around 0.4 to 0.6) and motor plus ESC efficiency at low throttle (about 0.75 to 0.85) <span class="t e">estimate</span>.</li>
+      <li><b>Why only 80% of the pack:</b> landing at about 3.5 V per cell under load leaves roughly 20% in the pack, which protects LiPo life.</li>
+      <li><b>What scales it:</b> hover power goes as weight to the 1.5 power. 10% more weight costs about 15% more power. That is why the target's placard (+32% weight) costs it 25 to 35% of its flight time (repo: placard_mount.md §4.6).</li>
+      <li><b>How it gets measured:</b> hover for a minute, read current from the PM02 in the PX4 log, and read the learned hover throttle (PX4 MPC_THR_HOVER, ArduPilot MOT_THST_HOVER on the target).</li>
+      <li><b>Flying is not hovering.</b> A dash at full throttle draws on the order of 100+ A (4 motors at 28 to 45 A each), which would empty the usable pack in under a minute. The plan budgets 30 to 60 s of standby hover before each dash.</li>
+    </ul>
+  </section>
+
+  <!-- BATTERY -->
+  <section id="battery">
+    <h2>The 6S pack</h2>
+    <div class="tw"><table>
+      <thead><tr><th>Quantity</th><th style="text-align:right">Value</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>Cells in series</td><td class="n">6</td><td>"6S" means six cells in series</td></tr>
+        <tr><td>Nominal voltage</td><td class="n">22.2 V</td><td>6 x 3.7 V</td></tr>
+        <tr><td>Full charge</td><td class="n">25.2 V</td><td>6 x 4.2 V</td></tr>
+        <tr><td>Storage voltage</td><td class="n">22.8 V</td><td>6 x 3.8 V</td></tr>
+        <tr><td>Land by (under load)</td><td class="n">≈ 21.0 V</td><td>6 x 3.5 V, rule of thumb</td></tr>
+        <tr><td>Capacity</td><td class="n">1.5 Ah</td><td>vendor</td></tr>
+        <tr><td>Energy</td><td class="n">33.3 Wh</td><td>1.5 Ah x 22.2 V</td></tr>
+        <tr><td>Specific energy</td><td class="n">≈ 131 Wh/kg</td><td>33.3 Wh / 0.254 kg</td></tr>
+        <tr><td>Rated burst current</td><td class="n">150 A</td><td>100C x 1.5 Ah (a marketing rating; real sustained is lower)</td></tr>
+        <tr><td>Standard charge rate</td><td class="n">1.5 A</td><td>1C</td></tr>
+      </tbody>
+    </table></div>
+    <p><b>Why 6S instead of 4S:</b> for the same power, higher voltage means lower current. Resistive loss in the pack, wires and ESC goes as I²R, so half the current is a quarter of the heat, and voltage sag under a hard dash is smaller. It also lets both aircraft share one pack type and one charger.</p>
+  </section>
+
+  <!-- MOTOR / PROP -->
+  <section id="motor">
+    <h2>Motor and prop constants</h2>
+<pre class="calc">KV                 = 1900 RPM per volt (no load)
+No-load RPM, full  = 1900 x 25.2 V           = 47,900 RPM
+No-load RPM, nom.  = 1900 x 22.2 V           = 42,200 RPM
+Loaded full RPM    ≈ 35,000 RPM   (estimate, ~80% of no-load at sagged voltage)
+
+Torque constant    Kt = 60 / (2π KV)         = 0.00503 N·m/A
+Shaft torque       τ ≈ Kt (I − I_noload)
+Tip speed at 35k   = (35,000/60) x 2π x 0.0635 = 233 m/s  (Mach 0.68)
+Pitch speed at 35k = 4.3 in x 35,000 RPM      = 64 m/s
+Hover RPM          ≈ 35,000 x √(200 g / 1500 g) ≈ 12,800 RPM
+                     = 213 Hz shaft, 640 Hz blade pass (3 blades)</pre>
+    <ul class="tight">
+      <li><b>Prop coefficients:</b> thrust T = C<sub>T</sub> ρ n² D⁴ and power P = C<sub>P</sub> ρ n³ D⁵ (n in rev/s, D in m). Figure of merit FM = T<sup>1.5</sup> / (P √(2ρA)). These come off the thrust rig, not a listing.</li>
+      <li><b>Pitch speed</b> is how far the prop would screw forward per second with no slip. Thrust falls toward zero as airspeed approaches it, which is why static thrust overstates top speed.</li>
+      <li><b>Why the hover RPM matters:</b> the motor rotation and blade-pass frequencies put vibration into the gyro. Flight controllers notch-filter those frequencies, ideally using RPM reported by the ESC (bidirectional DShot, which AM32 ESCs can send).</li>
+      <li><b>Repo note:</b> if motors or ESC run hot on the bench, the fallback was 1755 KV and/or a lower-pitch prop. We already chose the 5x4.3x3 as the cooler-running prop.</li>
+    </ul>
+  </section>
+
+  <!-- AERO -->
+  <section id="aero">
+    <h2>Drag, trim and air density</h2>
+<pre class="calc">Drag area (Cd x A) of a bare 5 in quad ≈ 0.014 m²   (assumption)
+  back-solved from a typical ~30° nose-down trim at 20 m/s
+Drag  D = ½ ρ V² (Cd A)
+  at 9 m/s  (target speed)  = 0.69 N
+  at 16 m/s (dash speed)    = 2.20 N
+Steady trim pitch  tan θ = D / W   (800 g, W = 7.85 N)
+  at 9 m/s  ≈ 5.1°
+  at 16 m/s ≈ 15.6°   (more while accelerating)</pre>
+    <ul class="tight">
+      <li><b>Flat plate drag coefficient</b> Cd ≈ 1.17 (square plate face-on). This is why the target's 450 mm AprilTag panel is mounted edge-on to the airflow: face-on it would make 11.8 N of drag at 9 m/s, 1.5 times the target's weight. Edge-on it adds 0.28 N, 42 times less (placard_mount.md §4.3) <span class="t d">derived</span>.</li>
+      <li><b>Air density by elevation (ISA standard day):</b> sea level 1.225, 975 m about 1.11, Boulder at 1655 m about 1.04 kg/m³. Hot days are lower still.</li>
+      <li><b>What density does:</b> max thrust scales with ρ, so about 15% less in Boulder. Ideal hover power scales with 1/√ρ, so about 8% more in Boulder. T/W measured at sea level is optimistic at altitude.</li>
+      <li>Disk loading at 800 g: W / (4A) = <b>155 N/m²</b>. Higher disk loading means higher induced velocity and more power to hover.</li>
+    </ul>
+  </section>
+
+  <!-- CARBON -->
+  <section id="carbon">
+    <h2>Carbon fiber</h2>
+    <p>The interview answer to "what is the Young's modulus of carbon fiber" is "which carbon fiber?" There are three different numbers and they differ by a factor of four.</p>
+    <div class="tw"><table>
+      <thead><tr><th>What</th><th style="text-align:right">Young's modulus</th><th>Tier</th></tr></thead>
+      <tbody>
+        <tr><td>The fiber alone (Toray T300 or T700S, standard modulus)</td><td class="n">230 GPa</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>Unidirectional laminate along the fibers (60% fiber, epoxy)</td><td class="n">134 to 140 GPa</td><td><span class="t v">vendor</span></td></tr>
+        <tr><td>Same laminate across the fibers (E2)</td><td class="n">≈ 8 to 10 GPa</td><td><span class="t e">estimate</span></td></tr>
+        <tr><td>Quasi-isotropic plate, like a frame plate (in-plane)</td><td class="n">≈ 50 to 60 GPa</td><td><span class="t d">derived</span></td></tr>
+        <tr><td>Aluminum 6061-T6, for comparison</td><td class="n">69 GPa</td><td><span class="t v">vendor</span></td></tr>
+      </tbody>
+    </table></div>
+<pre class="calc">Quasi-isotropic rule of thumb (from lamination theory):
+  E_QI ≈ 3/8 E1 + 5/8 E2 = 3/8 (135) + 5/8 (9) ≈ 56 GPa
+
+Fiber strength: T300 3.53 GPa, T700S 4.90 GPa
+Density:   carbon/epoxy ≈ 1.55 to 1.60 g/cm³,  aluminum 2.70 g/cm³
+Specific stiffness E/ρ:  QI carbon ≈ 56/1.55 = 36,  aluminum 69/2.70 = 26  (MN·m/kg)</pre>
+    <ul class="tight">
+      <li><b>So what:</b> a quasi-isotropic plate is a bit less stiff than aluminum but about 40% stiffer per kilogram, and much stronger per kilogram. That is why frames are carbon.</li>
+      <li><b>TBS does not publish the fiber grade or layup</b> for the Source One plates, so 56 GPa is an estimate for the frame, not a spec.</li>
+      <li><b>It conducts electricity.</b> Carbon fiber is a conductor (T300 resistivity about 1.7 x 10⁻⁵ Ω·m). A bare wire touching the frame can short to it. That is the likely cause of the I²C bus fault that killed the target's first flight controller. It is also why a nicked motor winding can short a phase to the whole frame.</li>
+      <li><b>Galvanic corrosion:</b> carbon is noble relative to aluminum, so aluminum touching carbon in moisture corrodes. Relevant for aluminum standoffs and motor mounts.</li>
+    </ul>
+    <h3>Arm check: deflection, stress, vibration</h3>
+    <p class="note">Each arm treated as a cantilever beam with the motor at the tip. Arm thickness is the vendor's 6 mm. Width and free length are guesses until you measure the arm with calipers.</p>
+    <div class="panel">
+      <div class="inputs">
+        <label for="ae">E (GPa)<input id="ae" type="number" inputmode="decimal" value="56" step="1"></label>
+        <label for="ab">Arm width b (mm)<input id="ab" type="number" inputmode="decimal" value="12" step="0.5"></label>
+        <label for="ah">Arm thickness h (mm)<input id="ah" type="number" inputmode="decimal" value="6" step="0.5"></label>
+        <label for="al">Free length L (mm)<input id="al" type="number" inputmode="decimal" value="90" step="1"></label>
+        <label for="af">Tip thrust (g)<input id="af" type="number" inputmode="decimal" value="1500" step="10"></label>
+        <label for="am">Motor + prop mass (g)<input id="am" type="number" inputmode="decimal" value="36.5" step="0.5"></label>
+      </div>
+      <div class="outs" id="armouts"></div>
+      <p class="note">Formulas: I = b h³ / 12. Tip deflection δ = F L³ / (3 E I). Root bending stress σ = F L (h/2) / I. First bending mode f = (1/2π) √(3EI / (L³ m)), arm mass ignored, root assumed rigid. Compare f with the hover rotor frequency (about 213 Hz). If they are close, that resonance shows up as gyro noise, which is a reason to measure it.</p>
+    </div>
+  </section>
+
+  <!-- Q&A -->
+  <section id="qa">
+    <h2>Likely questions, short answers</h2>
+    <div class="qa">
+      <div class="q"><b>What is your thrust-to-weight and how did you get it?</b><p>About 7.5 to 1 planned. Four motors at a conservative 1.5 kg each is 6 kg of static thrust, over an estimated 800 g all-up weight. The thrust is a listing-class number, not measured yet. The design rule was at least 5 to 1 at a 950 g ceiling, and the thrust rig plus a scale will replace both numbers.</p></div>
+      <div class="q"><b>How long can it hover, and how did you calculate it?</b><p>About 10 minutes. Momentum theory gives 62 W ideal hover power at 800 g. Dividing by a figure of merit of 0.5 and 75% motor and ESC efficiency gives about 166 W, which is 7.5 A at 22.2 V. Using 80% of 1.5 Ah gives 1.2 Ah over 7.5 A, about 9.6 minutes. The power module will log the real hover current.</p></div>
+      <div class="q"><b>Why 6S?</b><p>Same power at lower current, so less I²R loss and less voltage sag on a hard dash. It is the standard 5 inch power system, and both aircraft share one pack type and charger.</p></div>
+      <div class="q"><b>Why a 5 inch and not something smaller?</b><p>Payload. The onboard compute and camera stack is roughly 200 to 280 g, which is about the weight of an entire 2.5 inch quad. A small airframe carrying that loses its thrust margin. A 5 inch is the smallest that carries the full stack and keeps T/W above 5.</p></div>
+      <div class="q"><b>What sets hover current?</b><p>Weight to the 1.5 power, divided by the square root of air density times disk area, then the prop's figure of merit and the motor and ESC efficiency, then pack voltage. Bigger props, lighter aircraft and denser air all reduce it.</p></div>
+      <div class="q"><b>What is the Young's modulus of carbon fiber?</b><p>Depends which level. The fiber is about 230 GPa. A unidirectional laminate is about 135 GPa along the fibers and under 10 across. A quasi-isotropic plate like a frame is around 50 to 60 GPa, a bit below aluminum's 69 but stiffer per kilogram.</p></div>
+      <div class="q"><b>How much can it accelerate sideways?</b><p>On paper g √((T/W)² − 1), about 7 g. In practice the autopilot's tilt limit sets it. At PX4's default 45° max tilt that is 1 g, and the flight plan uses 10 m/s² for the dash.</p></div>
+      <div class="q"><b>What would you measure first when the build is done?</b><p>Weight on a scale, then thrust and current per motor on the rig, then a one-minute hover to log real hover current and the learned hover throttle. Those three numbers replace every estimate on this page.</p></div>
+      <div class="q"><b>Anything that surprised you on the hardware side?</b><p>Carbon fiber conducts. A crossed, over-stripped wire in a tightly packed build shorted the I²C bus on the target's flight controller. I traced it with a multimeter (1.4 V on SCL and SDA where 3.3 V belonged) and replaced the board.</p></div>
+    </div>
+  </section>
+
+  <!-- MISSION -->
+  <section id="mission">
+    <h2>Mission numbers that connect to the airframe</h2>
+    <div class="tw"><table>
+      <thead><tr><th>Quantity</th><th style="text-align:right">Value</th><th>Tier</th></tr></thead>
+      <tbody>
+        <tr><td>Target speed goal</td><td class="n">≥ 9 m/s</td><td><span class="t s">plan</span></td></tr>
+        <tr><td>Contact radius (sum of the two 5 in half-spans, 177.8 + 174.8 mm)</td><td class="n">0.35 m</td><td><span class="t d">derived</span></td></tr>
+        <tr><td>Dash speed / dash acceleration (placeholders until real logs)</td><td class="n">16 m/s / 10 m/s²</td><td><span class="t s">sim</span></td></tr>
+        <tr><td>Standby hover altitude</td><td class="n">7.0 m</td><td><span class="t s">sim</span></td></tr>
+        <tr><td>Pro-nav gain N</td><td class="n">5.0</td><td><span class="t s">sim</span></td></tr>
+        <tr><td>Guidance loop rate / camera rate</td><td class="n">20 Hz / 60 fps</td><td><span class="t s">sim</span></td></tr>
+        <tr><td>AprilTag decode rate on the real Pi 5</td><td class="n">96.6 fps</td><td><span class="t v">bench</span></td></tr>
+        <tr><td>Neural detector on the Pi 5 CPU</td><td class="n">6.09 fps</td><td><span class="t v">bench</span></td></tr>
+        <tr><td>Interceptor bill of materials</td><td class="n">≈ $740</td><td><span class="t v">bench</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">The software and guidance side has its own reference: <a href="https://claude.ai/code/artifact/7970c857-927d-4f8f-839f-cd16529a9ce2">architecture interview brief</a> (repo: docs/interview_architecture_brief.md).</p>
+  </section>
+
+  <!-- SOURCES -->
+  <section id="sources">
+    <h2>Sources</h2>
+    <ul class="tight">
+      <li>Repo: docs/hardware_order_list.md (ordered parts, §3 T/W sizing), docs/project_state.json (bom_tiers), docs/placard_mount.md §4 (target mass, drag, Cd), docs/decisions.md ADR-0084 (contact radius), docs/launch_mechanism_plan.md (standby budget).</li>
+      <li>ECO II 2207 listings: <a href="https://zbotic.in/product/ecoii-2207-1900kv-brushless-motor/">Zbotic (2020 g on 6S)</a>, <a href="https://windcatcherrc.com/product/eco-ii-2306-1700-1900-2400kv-emax-brushless-motor/">Wind Catcher RC (1850 g on 6S)</a>, <a href="https://www.rcflight.se/visaprodukt.aspx?id=13400&amp;p=emax-eco-ii-2207-1900kv-6s">RCFlight (45 A, 1130 W)</a>, <a href="https://shop.emax-usa.com/products/eco-ii-2207-brushless-motor-1700kv-1900kv-2400kv">EMAX USA product page</a>.</li>
+      <li>Similar-motor test table: <a href="https://www.flyingtech.co.uk/product/flashhobby-king-k2207-5-brushless-motor-1900kv-2500kv-2750kv/">FlashHobby K2207.5 1900KV</a>.</li>
+      <li>Battery: <a href="https://racedayquads.com/products/cnhl-black-series-22-2v-6s-1500mah-100c-lipo-battery-xt60">RaceDayQuads (254 g)</a>, <a href="https://www.getfpv.com/cnhl-black-series-100c-6s-lipo-battery-1500mah.html">GetFPV (266 g)</a>.</li>
+      <li>Carbon fiber: <a href="https://www.toraycma.com/wp-content/uploads/T300-Data-Sheet.pdf">Toray T300 data sheet</a>, <a href="https://www.toraycma.com/wp-content/uploads/T700S-Data-Sheet.pdf">Toray T700S data sheet</a>.</li>
+      <li>Physics: momentum theory hover power, ISA atmosphere, and the quasi-isotropic approximation are standard textbook results (Leishman, Principles of Helicopter Aerodynamics; any composites text for lamination theory).</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(function () {
+  var G = 9.81, RHO0 = 1.225, D = 0.127, A = Math.PI * Math.pow(D / 2, 2);
+  function num(id) { var v = parseFloat(document.getElementById(id).value); return isFinite(v) ? v : NaN; }
+  function fmt(x, d) { return isFinite(x) ? x.toFixed(d) : "n/a"; }
+  function cell(k, v, f, key) {
+    return '<div class="out' + (key ? ' key' : '') + '"><span class="k">' + k + '</span><span class="val">' + v + '</span><span class="f">' + f + '</span></div>';
+  }
+  function calc() {
+    var auw = num("auw"), tmax = num("tmax"), cap = num("cap"), use = num("use"), fm = num("fm"), eta = num("eta"), v = num("vpack"), rho = parseFloat(document.getElementById("rho").value);
+    var m = auw / 1000, W = m * G, Tr = W / 4;
+    var tmaxAlt = tmax * rho / RHO0;
+    var tw = 4 * tmaxAlt / auw;
+    var vi = Math.sqrt(Tr / (2 * rho * A));
+    var pIdeal = 4 * Tr * vi;
+    var pElec = pIdeal / (fm * eta);
+    var I = pElec / v;
+    var tMin = (cap / 1000) * use / I * 60;
+    var thr = Math.sqrt(1 / tw) * 100;
+    var tilt = tw > 1 ? Math.acos(1 / tw) * 180 / Math.PI : NaN;
+    var aLat = tw > 1 ? G * Math.sqrt(tw * tw - 1) : NaN;
+    var html = "";
+    html += cell("Thrust-to-weight", fmt(tw, 2) + " : 1", "4 x " + fmt(tmaxAlt, 0) + " g / " + fmt(auw, 0) + " g", true);
+    html += cell("Hover current", fmt(I, 1) + " A", "P_elec / V = " + fmt(pElec, 0) + " W / " + fmt(v, 1) + " V", true);
+    html += cell("Hover time", fmt(tMin, 1) + " min", fmt(use * cap, 0) + " mAh usable / " + fmt(I, 1) + " A", true);
+    html += cell("Hover throttle", fmt(thr, 0) + " %", "√(W / T_max)");
+    html += cell("Thrust per motor at hover", fmt(Tr / G * 1000, 0) + " g", "W / 4 = " + fmt(Tr, 2) + " N");
+    html += cell("Induced velocity", fmt(vi, 2) + " m/s", "√(T / 2ρA)");
+    html += cell("Ideal hover power", fmt(pIdeal, 1) + " W", "4 T v_i");
+    html += cell("Electrical hover power", fmt(pElec, 0) + " W", "P_ideal / (FM x η)");
+    html += cell("Hover efficiency", fmt(auw / pElec, 1) + " g/W", "AUW / P_elec");
+    html += cell("Max tilt holding altitude", fmt(tilt, 0) + "°", "arccos(1 / (T/W))");
+    html += cell("Max sideways accel (paper)", fmt(aLat, 1) + " m/s²", "g √((T/W)² − 1)");
+    html += cell("Disk loading", fmt(W / (4 * A), 0) + " N/m²", "W / 4A");
+    document.getElementById("outs").innerHTML = html;
+  }
+  function arm() {
+    var E = num("ae") * 1e9, b = num("ab") / 1000, h = num("ah") / 1000, L = num("al") / 1000, F = num("af") / 1000 * G, mm = num("am") / 1000;
+    var I = b * Math.pow(h, 3) / 12;
+    var k = 3 * E * I / Math.pow(L, 3);
+    var defl = F / k * 1000;
+    var sig = F * L * (h / 2) / I / 1e6;
+    var f = Math.sqrt(k / mm) / (2 * Math.PI);
+    var html = "";
+    html += cell("Tip deflection at full thrust", fmt(defl, 2) + " mm", "F L³ / 3EI", true);
+    html += cell("Root bending stress", fmt(sig, 0) + " MPa", "F L (h/2) / I");
+    html += cell("First bending mode", fmt(f, 0) + " Hz", "(1/2π) √(k / m)", true);
+    html += cell("Second moment of area", fmt(I * 1e12, 0) + " mm⁴", "b h³ / 12");
+    document.getElementById("armouts").innerHTML = html;
+  }
+  function set(vals) { Object.keys(vals).forEach(function (k) { document.getElementById(k).value = vals[k]; }); calc(); }
+  ["auw", "tmax", "cap", "use", "fm", "eta", "vpack", "rho"].forEach(function (id) { document.getElementById(id).addEventListener("input", calc); });
+  ["ae", "ab", "ah", "al", "af", "am"].forEach(function (id) { document.getElementById(id).addEventListener("input", arm); });
+  document.getElementById("p800").addEventListener("click", function () { set({ auw: 800, tmax: 1500 }); });
+  document.getElementById("p950").addEventListener("click", function () { set({ auw: 950, tmax: 1500 }); });
+  document.getElementById("ptgt").addEventListener("click", function () { set({ auw: 610.5, tmax: 1500 }); });
+  document.getElementById("pvend").addEventListener("click", function () { set({ tmax: 2020 }); });
+  calc(); arm();
+})();
+</script>
