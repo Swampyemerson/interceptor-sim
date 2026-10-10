@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->da513e3<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->28003e9<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,7 +900,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-10-04",
+ "updated": "2026-10-10",
  "updated_by": "Fable 5 head session",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -3173,7 +3173,7 @@
      },
      {
       "id": "gnd-01",
-      "text": "Order the STILL-NEEDED items: >=27 W USB-C PD power bank, tripod + ball head, cones + tape measure, handheld anemometer, 1000 uF 16 V low-ESR electrolytic cap (Pi 5.2 V rail smoothing -- found missing at the 2026-09-29 interceptor power-tree bench), and 2x 18650 flat-top cells for the 2nd Pocket (ships without cells; both radios run at once on any kill-attempt day -- found needed at the 2026-10-02 RX bench). Buzzers arrived + interceptor unit wired 2026-10-02. (Charge bag, glasses, fire blanket, Kakute microSD, Pi 5 active cooler in hand 2026-07-26.) ADDED 2026-10-04: a WIDE M12 lens for the OV9281 (~100-120 deg HFoV, 1/4-in sensor image circle) -- the delivered lens measured ~70 deg, violating the >=100 deg hard requirement (see builder queue)."
+      "text": "Order the STILL-NEEDED items: >=27 W USB-C PD power bank, tripod + ball head, cones + tape measure, handheld anemometer, 1000 uF 16 V low-ESR electrolytic cap (Pi 5.2 V rail smoothing -- found missing at the 2026-09-29 interceptor power-tree bench), and 2x 18650 flat-top cells for the 2nd Pocket (ships without cells; both radios run at once on any kill-attempt day -- found needed at the 2026-10-02 RX bench). Buzzers arrived + interceptor unit wired 2026-10-02. (Charge bag, glasses, fire blanket, Kakute microSD, Pi 5 active cooler in hand 2026-07-26.) ADDED 2026-10-04: a WIDE M12 lens for the OV9281 (~100-120 deg HFoV, 1/4-in sensor image circle) -- the delivered lens measured ~70 deg, violating the >=100 deg hard requirement (see builder queue). ADDED 2026-10-10 (builder order list): 18 AWG silicone red+black for the BEC->Pi 5 V tap (+ a USB-C power pigtail so the Pi end is not a DuPont header pin), more 63/37 0.8 mm solder, and field-office power -- a ~150 W cigarette-socket inverter for the laptop + a 12 V->30 V step-up cable for the Starlink Mini (12-48 V DC in, ~25-40 W avg / 60 W peak; one socket's fuse is ~120-180 W total)."
      },
      {
       "id": "gnd-02",
@@ -3304,7 +3304,7 @@
      {
       "from": "LiPo main",
       "to": "12S Pro BEC -> Pi 5",
-      "medium": "16 AWG -> 5 V rail (two-rail rule, 1000 uF cap)"
+      "medium": "18 AWG silicone -> 5 V rail (two-rail rule, 1000 uF cap at the Pi end; 14/16 AWG too stiff for the BEC pads, DuPont too thin -- builder 2026-10-10)"
      },
      {
       "from": "RP3 RX",
