@@ -38,3 +38,26 @@ longer runs them — they were green at retirement):
 
 Do not resurrect anything here without new evidence — the graveyard and
 contradiction ledger rules apply (`CLAUDE.md`).
+
+Moved 2026-10-14 (follow-up scan: stragglers of the 2026-09-23 clusters —
+companion docs and figures whose tooling had already moved; every file was
+reference-checked repo-wide and had no live consumer):
+
+- **S2 ground-stereo stragglers**: `docs/ground_rig_sweep_plan.md` (the
+  Option C sweep plan, written against the retired `s2_cue_mock.py`),
+  `docs/ground_rig_division_of_labor.md`, `docs/t18_nn_validation_notes.md`
+  (companion to the retired `t18_nn_sigma_validation.py`), and the six
+  stereo/rig-geometry figures from `plots/` → `retired/plots/` (referenced
+  only by retired docs/scripts; pointers inside those updated).
+- **Cue-era tilt prereg**: `docs/adaptive_tilt_prereg.md` (2026-07-10 arms,
+  outcome in the ADR log; the live mount lever is the fixed up-tilt A/B).
+- **Sim-phase analysis note**: `docs/pk_vs_radius_note.md` (G15 chosen-radius
+  sensitivity; superseded by the real build's measured 0.35 m contact
+  envelope; zero inbound references).
+
+Known dormant coupling, NOT moved (flagged for a future deletion decision):
+`scripts/m4_intercept.py` CUE_WAIT/S2 mode still resolves
+`scripts/s2_cue_mock.py` (line ~483) and `scripts/mc_batch.sh` still draws
+`--cue-seed` for it — dead-but-wired legacy paths that would fail if an
+S2-era mode were re-run; left in place because ripping sim-driver plumbing
+is beyond a housekeeping move.

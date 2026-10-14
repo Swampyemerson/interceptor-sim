@@ -69,4 +69,4 @@ boot outside mc_batch):
 ## Notes
 - Rendering warnings = the software (llvmpipe) renderer. Expected here; stay headless.
 - Log each run (telemetry / detections / miss-distance) to `logs/` - see CLAUDE.md.
-- S2 runs also need the cue mock: `scripts/s2_cue_mock.py` streams UDP JSON on 127.0.0.1:47800 (sim-time scheduled); `m4_intercept.py --handoff` requires `--fpv`.
+- S2 runs (RETIRED stage, 2026-09-23 sweep; mock now lives at `retired/scripts/s2_cue_mock.py`) needed the cue mock: it streams UDP JSON on 127.0.0.1:47800 (sim-time scheduled); `m4_intercept.py --handoff` requires `--fpv`.

@@ -30,7 +30,7 @@ logs/*
 !logs/m4_intercept_pursuit_20260705T032425Z.csv
 !logs/m4_intercept_pursuit_20260705T033147Z.csv
 
-# Regenerable analysis plots from mc_analyze.py (the committed plots/stereo_*.png are kept deliberately)
+# Regenerable analysis plots from mc_analyze.py (the stereo-era committed PNGs moved to retired/plots/ 2026-10-14)
 plots/pk_vs_radius_*.png
 plots/miss_hist_cdf_*.png
 plots/miss_cdf_*.png
