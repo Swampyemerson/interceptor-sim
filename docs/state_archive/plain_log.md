@@ -1,3 +1,11 @@
+### 2026-09-22
+
+Field-readiness push, all flight hardware on the bench; all three parallel builds LANDED. (1) The pursuit-port parity gap CLOSED -- a registered tick-by-tick trace found four coupled defects (KF covariance Jacobian, capture-instant attitude, yaw seed, slant under-range); the fixed port went 24% to 100% inside 0.35 m nominal, median 0.068 m, verified independently. (2) The GPS cue relay was designed, built off real bench GPS data, and wired into the flight CLI (--cue-json, fail-closed): serves chase-only (8-13 deg worst-credible vs 10-30 deg tolerance), never the sprint. (3) Miss-abort safety: passage window ported, SAFE now offers hover / land / return-home, and a pursuit miss aborts straight to SAFE. Bench: the real Pi-to-Pixhawk link measured live confirms the failsafe staleness sizing. Full offline suite ALL GREEN (dev machine). Builder ruled same day (ADR-0107): a missed engagement HOVERS in place for the operator (re-approach deferred as a future feature); system-health aborts still land. Late addition (builder ask, built on the Fable 5 lane -- its first clean build here since 2026-09-10): the cue fitter now handles a TURNING target, proving a turn from the GPS's own per-sample velocities (4-sigma test) and extrapolating along the arc with hard refuse-don't-guess caps; velocity-at-latch on a turning target improved 2.8x.
+
+**So what:** The ruled chase-only design is no longer the weaker twin of its prototype, a miss now has a defined safe ending, and the launch cue has honest piping with a measured error budget instead of a hand-typed perfect number. Two rulings queued: the slant under-range geometry also ships in the older stock seeker paths, and whether the vehicle may re-approach after a missed first pass.
+
+*Evidence: isim/specs/parity_trace_2026-09-22.md - docs/cue_relay_plan.md - cue decision record (contract launch_aim) - logs/bench_telem2_cadence_20260922.json - commits 8a5886c, fa54d7d, 3d1a5e4, 9efbc84, ADR-0107, 18482cf, 35b1f88*
+
 ### 2026-08-12
 
 The contract now renders a SECOND view: a set of systems-engineering diagrams and traceability tables (MBSE), generated from the same JSON as the dashboard. Nothing on it is hand-drawn.
@@ -240,3 +248,11 @@ Field-readiness push, all flight hardware on the bench; all three parallel build
 **So what:** The ruled chase-only design is no longer the weaker twin of its prototype, a miss now has a defined safe ending, and the launch cue has honest piping with a measured error budget instead of a hand-typed perfect number. Two rulings queued: the slant under-range geometry also ships in the older stock seeker paths, and whether the vehicle may re-approach after a missed first pass.
 
 **Evidence:** isim/specs/parity_trace_2026-09-22.md - docs/cue_relay_plan.md - cue decision record (contract launch_aim) - logs/bench_telem2_cadence_20260922.json - commits 8a5886c, fa54d7d, 3d1a5e4, 9efbc84, ADR-0107, 18482cf, 35b1f88
+
+## 2026-09-22
+
+LinkedIn media pack built for the builder's project post: five figures (robustness grid, miss CDF, engagement anatomy from the parity trace, and two MBSE views) generated from a fresh n=50-per-cell re-run of the registered parity grid that reproduced the adopted numbers exactly; copy drafted and red-teamed by a Fable reviewer against the repo (docs/linkedin_copy_draft.md). Housekeeping finding: the published MBSE Artifact had been stale since 2026-08-12 while the dashboard stayed current -- republished to today's render the same turn. Also flew a fresh M4-class pro-nav flight on the tag world for the post's video (closest approach 0.413 m, clean, gate criterion <1 m) and cut a 24 s honesty-labeled clip from its live onboard-camera capture (SIMULATION tag on every frame, retiming disclosed, no contact claim -- 0.413 m does not clear the 0.35 m ram bar).
+
+**So what:** The project can now be shown publicly with figures whose every number reproduces from a logged run, and the published systems model matches the build again. Nothing here changes any capability claim.
+
+**Evidence:** logs/linkedin_media_20260922/ - docs/images/linkedin/ - scripts/linkedin_media_figures.py - logs/m4_intercept_pronav_20260923T025539Z.csv - scripts/video/linkedin_hero_cut.py
