@@ -1,0 +1,79 @@
+<svg viewBox="0 0 420 236" width="840" height="472" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Helvetica, Arial, sans-serif">
+<title>Gazebo chase cross-check: closest approach per flight, five campaigns</title>
+<rect width="420" height="236" fill="#ffffff"/>
+<line x1="34" x2="410" y1="194.0" y2="194.0" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="28" y="197.0" font-size="8" fill="#69788C" text-anchor="end">0</text>
+<line x1="34" x2="410" y1="157.6" y2="157.6" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="28" y="160.6" font-size="8" fill="#69788C" text-anchor="end">0.5</text>
+<line x1="34" x2="410" y1="121.2" y2="121.2" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="28" y="124.2" font-size="8" fill="#69788C" text-anchor="end">1</text>
+<line x1="34" x2="410" y1="84.8" y2="84.8" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="28" y="87.8" font-size="8" fill="#69788C" text-anchor="end">1.5</text>
+<line x1="34" x2="410" y1="48.4" y2="48.4" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="28" y="51.4" font-size="8" fill="#69788C" text-anchor="end">2</text>
+<line x1="34" x2="410" y1="12.0" y2="12.0" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="28" y="15.0" font-size="8" fill="#69788C" text-anchor="end">2.5</text>
+<text x="9" y="103.0" font-size="8" fill="#69788C" text-anchor="middle" transform="rotate(-90 9 103.0)">closest approach (m)</text>
+<line x1="34" x2="410" y1="168.5" y2="168.5" stroke="#2F5687" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="40" y="179.5" font-size="8" fill="#2F5687" font-weight="600">0.35 m contact radius</text>
+<circle cx="66.6" cy="154.0" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="76.6" cy="132.9" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="66.6" cy="120.7" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="76.6" cy="103.7" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="66.6" cy="64.4" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="76.6" cy="58.4" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="66.6" cy="24.6" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="76.6" cy="24.1" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="54.6" x2="88.6" y1="84.1" y2="84.1" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="91.6" y="87.1" font-size="8.5" fill="#18202C" font-weight="600">1.51</text>
+<text x="71.6" y="208" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Campaign 1</text>
+<text x="71.6" y="219" font-size="7.6" fill="#69788C" text-anchor="middle">First port</text>
+<circle cx="141.8" cy="154.3" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="151.8" cy="146.2" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="141.8" cy="140.1" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="151.8" cy="123.8" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="141.8" cy="123.5" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="151.8" cy="78.7" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="141.8" cy="73.4" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="151.8" cy="69.1" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="129.8" x2="163.8" y1="123.6" y2="123.6" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="166.8" y="126.6" font-size="8.5" fill="#18202C" font-weight="600">0.97</text>
+<text x="146.8" y="208" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Campaign 2</text>
+<text x="146.8" y="219" font-size="7.6" fill="#69788C" text-anchor="middle">Range + timing</text>
+<circle cx="217.0" cy="184.9" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="227.0" cy="171.2" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="217.0" cy="154.9" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="227.0" cy="142.5" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="217.0" cy="110.5" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="227.0" cy="82.8" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="217.0" cy="56.3" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="227.0" cy="30.2" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="205.0" x2="239.0" y1="126.5" y2="126.5" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="242.0" y="129.5" font-size="8.5" fill="#18202C" font-weight="600">0.93</text>
+<text x="222.0" y="208" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Campaign 3</text>
+<text x="222.0" y="219" font-size="7.6" fill="#69788C" text-anchor="middle">Approach brake</text>
+<circle cx="292.2" cy="187.1" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="302.2" cy="176.9" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="292.2" cy="172.7" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="302.2" cy="170.0" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="292.2" cy="168.1" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="302.2" cy="155.3" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="292.2" cy="142.2" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="302.2" cy="122.9" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="280.2" x2="314.2" y1="169.1" y2="169.1" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="317.2" y="172.1" font-size="8.5" fill="#18202C" font-weight="600">0.34</text>
+<text x="297.2" y="208" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Campaign 4</text>
+<text x="297.2" y="219" font-size="7.6" fill="#69788C" text-anchor="middle">Velocity bug</text>
+<circle cx="367.4" cy="184.7" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="377.4" cy="181.2" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="367.4" cy="177.9" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="377.4" cy="177.2" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="367.4" cy="175.5" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="377.4" cy="168.6" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="367.4" cy="163.0" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="377.4" cy="158.4" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="355.4" x2="389.4" y1="176.3" y2="176.3" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="392.4" y="179.3" font-size="8.5" fill="#18202C" font-weight="600">0.24</text>
+<text x="372.4" y="208" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Campaign 5</text>
+<text x="372.4" y="219" font-size="7.6" fill="#69788C" text-anchor="middle">Brake, re-flown</text>
+</svg>
