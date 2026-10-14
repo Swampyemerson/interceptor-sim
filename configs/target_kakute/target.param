@@ -326,18 +326,20 @@ FS_GCS_ENABLE,0
 # End target.param
 
 # ------------------------------------------------------------------
-# MOTOR MAPPING + DIRECTION -- MEASURED AT THE BENCH 2026-09-23.
-# This airframe's motors were soldered one position rotated from the
-# ArduPilot quad-X default, and all four spun CW as wired. Fixed in
-# software, verified motor-by-motor (letters A-D hit the right corner
-# with the right direction), then re-verified across a reboot.
+# MOTOR MAPPING + DIRECTION -- RE-MEASURED AT THE BENCH 2026-10-13 (FC #2).
+# Board #1's 2026-09-23 mapping (S3=34, S4=35, RVMASK=6) died with that
+# board: the replacement FC's ESC harness is a hand-built pigtail soldered
+# to the Tekko32's gold pads (the original 8-pin socket is flaky under
+# flex), and its wire order swaps the two left-side channels and flips
+# both left motors. Fixed in software, verified motor-by-motor (A-D hit
+# the right corner, right direction) after a reboot, builder-confirmed.
 # THESE VALUES ARE BUILD-SPECIFIC: a re-solder or new ESC re-earns them.
 SERVO1_FUNCTION,36
 SERVO2_FUNCTION,33
-SERVO3_FUNCTION,34
-SERVO4_FUNCTION,35
-# DShot reversal for the pads carrying front-right + back-left (bits 2|3=6).
-SERVO_BLH_RVMASK,6
+SERVO3_FUNCTION,35
+SERVO4_FUNCTION,34
+# DShot reversal mask for FC #2's pigtail wiring (bits SERVO2|SERVO4 = 2|8 = 10).
+SERVO_BLH_RVMASK,10
 # Without this ArduPilot never SENDS DShot commands, so RVMASK is silently
 # inert -- found live 2026-09-23 (mask persisted, motor still spun CW).
 SERVO_DSHOT_ESC,1
