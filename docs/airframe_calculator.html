@@ -73,20 +73,15 @@ tr.total td { font-weight: 600; border-bottom: 2px solid var(--ink); }
 pre.calc { font-family: var(--f-mono); font-size: 0.84rem; line-height: 1.6; background: var(--bg); border: 1px solid var(--rule); border-radius: 3px; padding: 10px 12px; margin: 0; overflow-x: auto; white-space: pre; }
 ul.tight { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; max-width: 68ch; }
 
-/* Q and A */
-.qa { display: grid; gap: 10px; }
-.q { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px dashed var(--rule); }
-.q b { font-family: var(--f-display); font-size: 1.12rem; font-weight: 600; }
-.q p { color: var(--ink); }
 small, .note { color: var(--muted); font-size: 0.85rem; }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
 </style>
 
 <div class="wrap">
   <header style="display:grid;gap:8px">
-    <h3>Interview reference, Anduril</h3>
+    <h3>Project reference, airframe and propulsion</h3>
     <h1>Interceptor Airframe Numbers</h1>
-    <p class="lede">Thrust, weight, hover, battery, motor and carbon fiber numbers for the 5 inch, 6S interceptor, with how each one is calculated. Both aircraft (interceptor and target) run the same motors, props and packs.</p>
+    <p class="lede">Thrust, weight, hover, battery, motor and carbon fiber numbers for the 5 inch, 6S interceptor, with how each one is calculated. The derivation lives in scripts/airframe_numbers.py and docs/airframe_numbers.md. Both aircraft (interceptor and target) run the same motors, props and packs.</p>
     <p class="warn"><b>Nothing on the interceptor has been weighed or thrust tested yet.</b> Every number is tagged with where it came from. When the build is done, type the scale weight into the calculator below and everything recomputes.</p>
     <div class="legend">
       <span><span class="t v">vendor</span> manufacturer or retailer spec</span>
@@ -98,7 +93,7 @@ small, .note { color: var(--muted); font-size: 0.85rem; }
   </header>
 
   <nav class="jump" aria-label="Sections">
-    <a href="#calc">Calculator</a><a href="#parts">Parts</a><a href="#mass">Weight</a><a href="#thrust">Thrust, T/W</a><a href="#hover">Hover</a><a href="#battery">6S pack</a><a href="#motor">Motor, prop</a><a href="#aero">Drag, air</a><a href="#carbon">Carbon fiber</a><a href="#qa">Likely questions</a><a href="#mission">Mission numbers</a><a href="#sources">Sources</a>
+    <a href="#calc">Calculator</a><a href="#parts">Parts</a><a href="#mass">Weight</a><a href="#thrust">Thrust, T/W</a><a href="#hover">Hover</a><a href="#battery">6S pack</a><a href="#motor">Motor, prop</a><a href="#aero">Drag, air</a><a href="#carbon">Carbon fiber</a><a href="#mission">Mission numbers</a><a href="#sources">Sources</a>
   </nav>
 
   <!-- CALCULATOR -->
@@ -190,7 +185,7 @@ small, .note { color: var(--muted); font-size: 0.85rem; }
     <h2>Thrust and thrust-to-weight</h2>
     <h3>Where the thrust number comes from</h3>
     <ul class="tight">
-      <li><b>Planning value: 1.5 kg per motor, 6.0 kg static total.</b> This is the repo's sizing number (hardware_order_list.md §3). I kept it for the ECO II because it is the low end of what the listings claim, so it is the conservative choice.</li>
+      <li><b>Planning value: 1.5 kg per motor, 6.0 kg static total.</b> This is the repo's sizing number (hardware_order_list.md §3), kept for the ECO II because it is the low end of what the listings claim, so it is the conservative choice.</li>
       <li><b>Retailer max for ECO II 2207 1900KV on 6S: 1850 g and 2020 g</b> <span class="t v">vendor</span>. The listings do not say which prop or how fresh the pack was, so treat these as an upper bound.</li>
       <li><b>Cross-check from a similar motor:</b> FlashHobby K2207.5 1900KV on a Gemfan 5040 prop at about 23.6 V, full throttle: 1406 g, 28.4 A, 669 W, 2.10 g/W <span class="t v">vendor</span>. Same stator class and KV, so 1.4 to 2.0 kg per motor is the honest range.</li>
       <li><b>How it gets measured:</b> a $20 thrust rig, motor mounted upside down on a kitchen scale, reading thrust (g) and current (A) at throttle steps. That replaces all of the above.</li>
@@ -220,15 +215,15 @@ W        = m g = 0.800 x 9.81             = 7.85 N
 T/rotor  = W / 4                          = 1.96 N  (200 g)
 A        = π (0.127/2)²                   = 0.01267 m²
 v_i      = √( T / (2 ρ A) )               = 7.95 m/s   induced velocity
-P_ideal  = T v_i per rotor = 15.6 W, x4   = 62.4 W
+P_ideal  = T v_i per rotor = 15.6 W, x4   = 62.5 W
            (same thing: P = T^1.5 / √(2ρA))
 P_elec   = P_ideal / (FM x η)
-         = 62.4 / (0.50 x 0.75)           = 166 W
-I_hover  = P_elec / V = 166 / 22.2        = 7.5 A
+         = 62.5 / (0.50 x 0.75)           = 167 W
+I_hover  = P_elec / V = 167 / 22.2        = 7.5 A
 t_hover  = (0.80 x 1.5 Ah) / 7.5 A        = 0.16 h  = 9.6 min
 Hover throttle ≈ √(W / T_max) = √(1/7.5)  = 37 %</pre>
     <ul class="tight">
-      <li><b>Answer to give:</b> about 7 to 8 A hover current and about 10 minutes of hover on a 1500 mAh 6S pack at 800 g, as an estimate <span class="t d">derived</span>. With FM 0.6 and 85% drive efficiency it is 5.5 A and 13 min, so the range is roughly 10 to 13 min.</li>
+      <li><b>Estimate:</b> about 7 to 8 A hover current and about 10 minutes of hover on a 1500 mAh 6S pack at 800 g, as an estimate <span class="t d">derived</span>. With FM 0.6 and 85% drive efficiency it is 5.5 A and 13 min, so the range is roughly 10 to 13 min.</li>
       <li><b>The inputs I am least sure of:</b> figure of merit (FM, how close the prop gets to ideal; small FPV props are around 0.4 to 0.6) and motor plus ESC efficiency at low throttle (about 0.75 to 0.85) <span class="t e">estimate</span>.</li>
       <li><b>Why only 80% of the pack:</b> landing at about 3.5 V per cell under load leaves roughly 20% in the pack, which protects LiPo life.</li>
       <li><b>What scales it:</b> hover power goes as weight to the 1.5 power. 10% more weight costs about 15% more power. That is why the target's placard (+32% weight) costs it 25 to 35% of its flight time (repo: placard_mount.md §4.6).</li>
@@ -302,7 +297,7 @@ Steady trim pitch  tan θ = D / W   (800 g, W = 7.85 N)
   <!-- CARBON -->
   <section id="carbon">
     <h2>Carbon fiber</h2>
-    <p>The interview answer to "what is the Young's modulus of carbon fiber" is "which carbon fiber?" There are three different numbers and they differ by a factor of four.</p>
+    <p>"Carbon fiber" has three different Young's moduli depending on the level you mean, and they differ by a factor of four.</p>
     <div class="tw"><table>
       <thead><tr><th>What</th><th style="text-align:right">Young's modulus</th><th>Tier</th></tr></thead>
       <tbody>
@@ -341,21 +336,6 @@ Specific stiffness E/ρ:  QI carbon ≈ 56/1.55 = 36,  aluminum 69/2.70 = 26  (M
     </div>
   </section>
 
-  <!-- Q&A -->
-  <section id="qa">
-    <h2>Likely questions, short answers</h2>
-    <div class="qa">
-      <div class="q"><b>What is your thrust-to-weight and how did you get it?</b><p>About 7.5 to 1 planned. Four motors at a conservative 1.5 kg each is 6 kg of static thrust, over an estimated 800 g all-up weight. The thrust is a listing-class number, not measured yet. The design rule was at least 5 to 1 at a 950 g ceiling, and the thrust rig plus a scale will replace both numbers.</p></div>
-      <div class="q"><b>How long can it hover, and how did you calculate it?</b><p>About 10 minutes. Momentum theory gives 62 W ideal hover power at 800 g. Dividing by a figure of merit of 0.5 and 75% motor and ESC efficiency gives about 166 W, which is 7.5 A at 22.2 V. Using 80% of 1.5 Ah gives 1.2 Ah over 7.5 A, about 9.6 minutes. The power module will log the real hover current.</p></div>
-      <div class="q"><b>Why 6S?</b><p>Same power at lower current, so less I²R loss and less voltage sag on a hard dash. It is the standard 5 inch power system, and both aircraft share one pack type and charger.</p></div>
-      <div class="q"><b>Why a 5 inch and not something smaller?</b><p>Payload. The onboard compute and camera stack is roughly 200 to 280 g, which is about the weight of an entire 2.5 inch quad. A small airframe carrying that loses its thrust margin. A 5 inch is the smallest that carries the full stack and keeps T/W above 5.</p></div>
-      <div class="q"><b>What sets hover current?</b><p>Weight to the 1.5 power, divided by the square root of air density times disk area, then the prop's figure of merit and the motor and ESC efficiency, then pack voltage. Bigger props, lighter aircraft and denser air all reduce it.</p></div>
-      <div class="q"><b>What is the Young's modulus of carbon fiber?</b><p>Depends which level. The fiber is about 230 GPa. A unidirectional laminate is about 135 GPa along the fibers and under 10 across. A quasi-isotropic plate like a frame is around 50 to 60 GPa, a bit below aluminum's 69 but stiffer per kilogram.</p></div>
-      <div class="q"><b>How much can it accelerate sideways?</b><p>On paper g √((T/W)² − 1), about 7 g. In practice the autopilot's tilt limit sets it. At PX4's default 45° max tilt that is 1 g, and the flight plan uses 10 m/s² for the dash.</p></div>
-      <div class="q"><b>What would you measure first when the build is done?</b><p>Weight on a scale, then thrust and current per motor on the rig, then a one-minute hover to log real hover current and the learned hover throttle. Those three numbers replace every estimate on this page.</p></div>
-      <div class="q"><b>Anything that surprised you on the hardware side?</b><p>Carbon fiber conducts. A crossed, over-stripped wire in a tightly packed build shorted the I²C bus on the target's flight controller. I traced it with a multimeter (1.4 V on SCL and SDA where 3.3 V belonged) and replaced the board.</p></div>
-    </div>
-  </section>
 
   <!-- MISSION -->
   <section id="mission">
@@ -374,14 +354,14 @@ Specific stiffness E/ρ:  QI carbon ≈ 56/1.55 = 36,  aluminum 69/2.70 = 26  (M
         <tr><td>Interceptor bill of materials</td><td class="n">≈ $740</td><td><span class="t v">bench</span></td></tr>
       </tbody>
     </table></div>
-    <p class="note">The software and guidance side has its own reference: <a href="https://claude.ai/code/artifact/7970c857-927d-4f8f-839f-cd16529a9ce2">architecture interview brief</a> (repo: docs/interview_architecture_brief.md).</p>
+    <p class="note">Canonical project state: docs/project_state.json and its dashboard. This page's numbers: docs/airframe_numbers.md, derived by scripts/airframe_numbers.py.</p>
   </section>
 
   <!-- SOURCES -->
   <section id="sources">
     <h2>Sources</h2>
     <ul class="tight">
-      <li>Repo: docs/hardware_order_list.md (ordered parts, §3 T/W sizing), docs/project_state.json (bom_tiers), docs/placard_mount.md §4 (target mass, drag, Cd), docs/decisions.md ADR-0084 (contact radius), docs/launch_mechanism_plan.md (standby budget).</li>
+      <li>Repo: scripts/airframe_numbers.py (every derived number), docs/airframe_numbers.md, docs/hardware_order_list.md (ordered parts, §3 T/W sizing), docs/project_state.json (bom_tiers), docs/placard_mount.md §4 (target mass, drag, Cd), docs/decisions.md ADR-0084 (contact radius), docs/launch_mechanism_plan.md (standby budget).</li>
       <li>ECO II 2207 listings: <a href="https://zbotic.in/product/ecoii-2207-1900kv-brushless-motor/">Zbotic (2020 g on 6S)</a>, <a href="https://windcatcherrc.com/product/eco-ii-2306-1700-1900-2400kv-emax-brushless-motor/">Wind Catcher RC (1850 g on 6S)</a>, <a href="https://www.rcflight.se/visaprodukt.aspx?id=13400&amp;p=emax-eco-ii-2207-1900kv-6s">RCFlight (45 A, 1130 W)</a>, <a href="https://shop.emax-usa.com/products/eco-ii-2207-brushless-motor-1700kv-1900kv-2400kv">EMAX USA product page</a>.</li>
       <li>Similar-motor test table: <a href="https://www.flyingtech.co.uk/product/flashhobby-king-k2207-5-brushless-motor-1900kv-2500kv-2750kv/">FlashHobby K2207.5 1900KV</a>.</li>
       <li>Battery: <a href="https://racedayquads.com/products/cnhl-black-series-22-2v-6s-1500mah-100c-lipo-battery-xt60">RaceDayQuads (254 g)</a>, <a href="https://www.getfpv.com/cnhl-black-series-100c-6s-lipo-battery-1500mah.html">GetFPV (266 g)</a>.</li>

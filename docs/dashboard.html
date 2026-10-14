@@ -540,11 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-<<<<<<< HEAD
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->90430af<!-- REV:END --></span></div>
-=======
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->90430af<!-- REV:END --></span></div>
->>>>>>> origin/claude/funny-davinci-s2msq5
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e7ad8b2<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -904,8 +900,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-10-13",
- "updated_by": "Fable head (bench session, FC #2 bring-up)",
+ "updated": "2026-10-14",
+ "updated_by": "Claude head (airframe numbers reference)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1367,6 +1363,28 @@
    "origin": "Found 2026-09-16 while building the height-reference fix: the offset that lines the camera up with the target is part vehicle geometry (measurable) and part the target's height (given).",
    "ruling": "",
    "evidence": "docs/vertical_channel_prereg.md section 11.1; logs/mc_fp_armHERRp25_line9_s123.csv"
+  },
+  {
+   "id": "airframe-thrust-and-mass-unmeasured",
+   "statement": "The interceptor's weight (≈800 g) and motor thrust (1.5 kg each) are a parts roll-up and retailer-class figures. Nothing is weighed or thrust-tested; T/W and hover numbers rest on them.",
+   "grade": "unmeasured",
+   "if_wrong": "T/W, hover throttle, hover time and the standby budget shift. T/W stays above the 5:1 rule unless thrust is under ~1.0 kg/motor at 800 g or weight passes ~1.2 kg at 1.5 kg/motor.",
+   "stages": [
+    "hardware"
+   ],
+   "key_numbers": [
+    "Thrust-to-weight, interceptor (planned)",
+    "Hover current / time, interceptor (estimate)"
+   ],
+   "test": {
+    "how": "Kitchen scale on the built aircraft; DIY thrust rig (motor inverted on a scale, grams + amps per throttle step); 60 s hover with PM02 current in the ULog. Re-run scripts/airframe_numbers.py --auw --thrust, update doc + test.",
+    "cost": "One bench afternoon; thrust rig ~$20 still on the must-add list",
+    "status": "planned (airframe_numbers.md §10)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/airframe_numbers.md §1-5; the 1.5 kg/motor planning value dates from the XING2 pick (hardware_order_list.md §3)",
+   "evidence": "scripts/airframe_numbers.py · tests/test_airframe_numbers.py · retailer listings cited in airframe_numbers.md"
   }
  ],
  "builder_queue": [
@@ -1384,6 +1402,12 @@
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-10-14",
+   "text": "Airframe and propulsion numbers written down in one place: docs/airframe_numbers.md, derived by scripts/airframe_numbers.py (pinned by a test), with an interactive calculator page. Interceptor parts roll-up ≈800 g; planned T/W ≈7.5:1 (1.5 kg/motor, listings say 1.4-2.0); momentum-theory hover ≈7.5 A and ≈10 min on a 1500 mAh 6S pack; 6S pack, motor (Kt, RPM, tip speed), drag/trim, air density by field elevation, and carbon-fibre modulus (fibre 230 / one-direction 135 / frame plate ≈56 GPa) with an arm deflection and vibration check.",
+   "so_what": "Every physical number now traces to a derivation instead of chat, and the one thing they all rest on (weight and thrust, both unmeasured) is a registered assumption with its bench test named. The older ≈770 g roll-up in decisions.md used the first parts pick; the new table uses the ordered parts.",
+   "evidence": "docs/airframe_numbers.md · scripts/airframe_numbers.py · tests/test_airframe_numbers.py · docs/airframe_calculator.html"
+  },
   {
    "date": "2026-10-13",
    "text": "Replacement Kakute H7 bench bring-up, start to finish in one remote session (builder soldering, Claude driving over USB). Pre-flash: Betaflight-side health probe showed I2C errors 0 (the bus that killed board #1), gyro/baro alive, SD readable; the factory board was then DFU-flashed to ArduCopter 4.7.0 (verified) and the 50-param pack loaded with the two-pass reboot ritual -- the BATT params needed the second pass exactly like September's '23/23 but 4 missing' lesson. GPS (u-blox on UART3) and compass (QMC5883L at I2C 0x0D) detected immediately: the rebuilt wiring is good. Then the wall: motors dead, ESC chirping every ~3 s. Hours of differential work -- DShot rate ladder (dead end: AM32 doesn't even speak DShot150), signal-disable isolation test (invalidated twice: ArduCopter silently re-assigns motor functions on boot), ESC socket jostle test (found a REAL secondary fault: the Tekko32's 8-pin socket is flaky under flex, bypassed with a hand-soldered pigtail to the gold pads), full param diff against board #1's last DataFlash log pulled off the shared SD card (clean -- configs identical, so 'what's different' had to be physical). The actual fault, found by the builder: the harness was plugged into a LOOK-ALIKE WRONG SOCKET on the FC. Moved it; the ESC beacon went silent (it was never boot-looping -- AM32's no-signal beacon, misread); motors spun on the first test. The pigtail's wire order swaps the two left channels and flips both left motors vs board #1's cable: remapped in software (SERVO3/4 swap, RVMASK 6->10), verified motor-by-motor A-D, and target.param updated the same hour so a re-upload can't silently undo it. Board #2 now matches its param file 50/50 by read-back.",
@@ -1449,12 +1473,6 @@
    "text": "Adaptive speed governor built and A/B'd in answer to the builder's ask (speed from target speed, phase, lock quality). Cap sizing -- believed target speed plus a 6 m/s overtake margin, clamped 8..24 -- matches a flat raised cap on every cell and takes the cells the legacy 16 m/s cap loses (15 m/s target: 54 to 100 percent contact; 18 m/s: 0 to 78). The lock-quality lever (slow down when decodes go stale) was REJECTED: null on aim-error cells and a 12-14 point cost at 18 m/s -- slowing keeps the tag small, which keeps the decodes sparse.",
    "so_what": "The chase concept now has a recommended config that scales to fast targets without an operator-picked cap (ADR-0108). Still isim-only and NOT the flying default: the Gazebo transfer gap stays the blocker, and speeds past ~16-18 m/s extrapolate the vehicle fit.",
    "evidence": "docs/adaptive_speed_prereg.md (registered A/B + 3 amendments, n=50 paired/cell); scripts/adaptive_speed_ab.py; ADR-0108"
-  },
-  {
-   "date": "2026-09-23",
-   "text": "Recruiter-readiness + validation push, all lanes. (1) Opus 5.5 tested the day it appeared: three clean defense-framed passes on this repo (a guidance-math analysis, the cross-check harness build, the README audit) -- a working high-capability subagent lane again, logged in docs/subagent_safeguard_log.md. (2) 68 superseded files consolidated to retired/ (S2 ground-stereo, T25 demo pipeline, old forensics, tilt/track harnesses, closed planning docs) off a 248-file reference-topology inventory; suite green after. (3) README rebuilt: chase-only framing, status box, intercept GIF above the fold, honest seeker story, fresh screenshots; stale GitHub board snapshot (43 days) refetched. (4) The pre-registered Gazebo cross-check of the pursuit port flew n=8 with real camera-in-the-loop: shakedown caught parity defect #5 (Phase A yawed at the rendezvous point, freezing the camera off-target when station-keeping -- the prototype yaws at the believed target; fixed, regression-pinned, and the fix closed the isim aim20 cell 70%->100%), then the scored flights FAILED the registered bar: camera-driven chase confirmed, CPA 0.55-2.33 m, median 1.51 m vs 0.122 m predicted. (5) Speed work for the video: ladder scouting on the tag scenario (n=1 leads, not verdicts) read 3 m/s -> 0.238 m clean, 4 m/s -> 0.961 m, 6 m/s -> 5.29 m miss; one flight of the ADOPTED 16 m/s open-loop sprint config vs the 9 m/s line-9 crosser scored CPA 0.334 m (inside the contact bar; single flight, best-case givens). A 35 s two-act video was cut from the live onboard captures with honest labels. (6) Fast-intercept limits identified with data (docs/fast_intercept_limits.md): the chase's speed ceiling is OVERTAKE MARGIN (raising the configured v_max 16->20 takes a 15 m/s target from 0% to 100% inside 0.35 m in isim); the classic tag terminal is capped by its July-era 3/3/4 m/s command envelope (raising it took the 4 m/s scout from 0.96 to 0.14 m) and above ~4 m/s by the standing-start geometry itself (the running-start lesson re-derived); and a narrower-FoV/higher-res second camera does NOT help the terminal -- an fx sweep with the honest walkout+blur model made the chase monotonically WORSE (118 deg 100% -> 45 deg 24%), re-confirming the ADR-0024 narrow-lens rejection in the chase regime. Opus 5.5 logged its first bounce (3 passes, 1 [general_harms] fail) -- usable, not uniform. Both stranded remote branches merged under builder authority and deleted.",
-   "so_what": "The project is publicly presentable and the chase concept now has an honest vehicle-level number: the fast sim's 100%-inside-0.35 m does NOT yet survive contact with real physics -- a 12x transfer gap with named suspects. The default swap stays blocked on the registered rule, and the next unit of work is diagnosis, not celebration or tuning.",
-   "evidence": "docs/xcheck_gazebo_pursuit_prereg.md - logs/xcheck_gz_20260923_fixed/ - docs/subagent_safeguard_log.md - retired/README.md - commits 3880153, 07dbe22, 91fcaae - logs/speed_scout_20260923/ - logs/sprint_capture_20260923b/ - scripts/video/linkedin_fast_cut.py - docs/fast_intercept_limits.md - scripts/{fx_sweep_chase,vmax_sweep_chase,ladder_forensics}.py"
   }
  ],
  "narrative": {
@@ -2180,7 +2198,8 @@
     "sim-decode-range-transfers",
     "go-bit-not-a-cue",
     "pi5-realtime-compute",
-    "real-flight-constants-sim-derived"
+    "real-flight-constants-sim-derived",
+    "airframe-thrust-and-mass-unmeasured"
    ]
   },
   {
@@ -2564,6 +2583,22 @@
    "provenance": "isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/ - ADR-0112 - ADR-0114 - scripts/tag_realism_ladder.py",
    "plain": "Camera up 10 deg AND tag down 12 deg: height guess may be 2 m low to 3 m high. Either alone fails on a pitching target.",
    "trust": "sim"
+  },
+  {
+   "label": "Thrust-to-weight, interceptor (planned)",
+   "value": "≈7.5 : 1",
+   "plain": "How much more thrust the four motors make than the aircraft weighs. Estimate: nothing weighed or thrust-tested yet.",
+   "provenance": "docs/airframe_numbers.md §4 · scripts/airframe_numbers.py · tests/test_airframe_numbers.py",
+   "trust": "bench",
+   "note": "4 × 1.5 kg (planning; listings 1.4-2.0 kg) over an ≈800 g parts roll-up. 6.3 : 1 at the 950 g design ceiling; rule ≥5 : 1. Scale + thrust rig replace both inputs."
+  },
+  {
+   "label": "Hover current / time, interceptor (estimate)",
+   "value": "≈7.5 A / ≈10 min",
+   "plain": "Battery current to hover, and how long a 1500 mAh 6S pack lasts doing it. Calculated, not flown.",
+   "provenance": "docs/airframe_numbers.md §5 · scripts/airframe_numbers.py (momentum theory)",
+   "trust": "bench",
+   "note": "800 g, sea level, FM 0.5, motor+ESC 0.75, 80% of pack usable. Band 5.5-7.5 A / 9.6-13.1 min across FM 0.5-0.6, efficiency 0.75-0.85."
   }
  ],
  "bom_tiers": [
