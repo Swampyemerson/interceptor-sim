@@ -50,3 +50,6 @@ I am a bit angry at myself. When trying initial boot-up of the board with the ES
 I've assembled all of the interceptor and tested it, except for the Pi on battery power, as I am waiting for a capacitor to help filter electrical signals some on the smaller gauge wire. I need a second pair of batteries for the target, and then I will go out and get field testing! I also need to mess around with the camera mount and decide on printing something to hold it vs. zip ties to the front; it will mostly depend on the FOV I end up with on the new lens and whether it sees the propellers. Oh yeah, the camera listing lied about its FOV, and I found out while calibrating for distortion: 70 degrees, which is nowhere near enough for the 100+ I decided on in case the drone location estimation at launch is poor.
 
 I have an upcoming interview. It would be cool to have an intercept before it, but I think I may be too busy with other studying, and with verifying systems before I turn a drone designed to collide into things loose.
+
+![The completed target drone on the bench: carbon-fiber frame on a LiPo bag, four motors (props off), Kakute H7 flight controller, GPS module, receiver, and XT60 battery lead](images/target_complete_2026-10.jpg)
+*The completed target drone, October 2026.*
