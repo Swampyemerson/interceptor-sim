@@ -341,10 +341,29 @@
 #     gated on safety (CBRK_IO_SAFETY, see the SAFETY POSTURE block: the M10's
 #     switch line does not reach the FC even though its GPS UART + compass DO
 #     work on GPS1 -- 9 sats 3D fix + mag OK on the bench, 2026-10-16).
-1	1	PWM_MAIN_FUNC1	101	6
-1	1	PWM_MAIN_FUNC2	102	6
+#     CORNER-VERIFIED REMAP (2026-10-16, builder watching per-motor spins): the
+#     harness wiring puts the FRONT-RIGHT motor on MAIN2 and a BACK motor on
+#     MAIN1, so Motor1/Motor2 are SWAPPED vs the naive 1:1 mapping (which is
+#     what spin-testing is for). Spin-direction fixes are PHASE-WIRE work, not
+#     params: the IO co-processor's MAIN rail speaks PWM only, and PWM carries
+#     no direction bit -- FC-side reversal needs DShot, i.e. the FMU PWM pins.
+#     COMMS GOTCHA (cost 2h): MAV_CMD_ACTUATOR_TEST param5 takes the MAVLink
+#     MOTOR1..4 enum (1..4), NOT PX4's internal output-function numbers
+#     (101..104) -- the internal numbers are dropped with no ACK. And send GCS
+#     heartbeats first: PX4 only routes targeted replies (acks, shell output)
+#     to a system it has seen. scripts/bench/fc_motor_seq_px4.py bakes in both.
+#     FINAL, SPIN-VERIFIED 2026-10-16 (builder called corners on a full 1-4
+#     sequence, twice): MAIN1=back-right, MAIN2=front-right, MAIN3=front-left,
+#     MAIN4=back-left. Both the front pair AND the back pair were crossed vs
+#     the naive mapping. DIRECTIONS at verification: back-right correct (CW);
+#     front-right, front-left and back-left all REVERSED -- fix is swapping any
+#     two of the three motor phase wires at each of those three motors (PWM
+#     carries no direction bit; see the COMMS GOTCHA note above). Re-verify
+#     directions with scripts/bench/fc_motor_seq_px4.py after the wire swaps.
+1	1	PWM_MAIN_FUNC1	104	6
+1	1	PWM_MAIN_FUNC2	101	6
 1	1	PWM_MAIN_FUNC3	103	6
-1	1	PWM_MAIN_FUNC4	104	6
+1	1	PWM_MAIN_FUNC4	102	6
 #
 # =============================================================================
 #  WAITS FOR THE AIRFRAME -- do NOT set on the bench (no ESC/motors/battery yet)
