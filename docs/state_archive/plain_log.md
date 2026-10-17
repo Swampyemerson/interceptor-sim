@@ -225,7 +225,7 @@ Builder ruled pursuit alone ("chase only"), dropping the sprint-and-fly-by hybri
 
 **Evidence:** flight/pursuit_terminal.py; flight/tests/test_pursuit_terminal.py; isim/tests/test_pursuit_terminal_isim.py; ADR-0103, ADR-0104; docs/pursuit_port_2026-09-17.md; docs/doc_hygiene_2026-09-17.md
 
-## 2026-09-21
+## 2026-09-21 (archived from plain_log 2026-10-02, cap-12 overflow)
 
 Chase only is now flyable from the real CLI: --terminal pursuit selects the ported pursuit terminal and the GO trigger enters the engagement directly (the old sprint's acquire gate can never fire for a chase that starts before the camera sees anything). The pre-launch aim belief comes from the same latched cue constants the dash aim already used -- audit green, 406 tests passed. Still open: the 2 s lost-target abort fires before pursuit's own 3 s recovery can act (needs a ruling), and the isim parity run (work item 4). ADR-0105. Same session: the Pi pulled the new code over the network and ran the chase-only dry run on its own CPU (audit and dry-run both pass there), and the Pixhawk got a proper read-back check -- a new PX4-safe verifier found the safety-switch parameter added to the pack in July had NEVER landed on the board (it still read the factory bypass value); written, rebooted, re-verified 10 of 10.
 
@@ -276,3 +276,11 @@ The Tier-2 interceptor airframe order is IN — placed by the builder 2026-09-22
 **So what:** Every powered part of the interceptor is now in hand or on order. What is still missing for a full intercept is small and mostly print/bench work: the flight controller's ULog memory card (no card = no scored flight), Pi-mount standoffs, the thrust rig, three prints (camera mount, checkerboard, tag placard), the field kit (power bank, tripod, cones, +2 battery packs) and kill-attempt spares. Two bench checks before trusting the new parts: the BEC's 5 V tap must really give 5.2 V under Pi load, and both transmitters need Model Match set up.
 
 **Evidence:** order screenshots (builder, 2026-09-23) - ADR-0109 - docs/hardware_order_list.md §0d
+
+## 2026-09-23 (archived from plain_log 2026-10-17, cap-12 overflow)
+
+Builder-directed refinement day, four parallel lanes. (1) The keep-in-frame climb assist he asked for was built, pre-registered, and honestly NULLED -- at +3 m of height error the tag almost never decodes, so a camera-triggered climb cannot fire; the follow-up attribution put numbers on it (41% of blind frames off the frame top, 35% too small) and surfaced a measured regression for the obvious alternative (Phase-A vertical sweep) that had been hiding in code comments -- both now graveyarded properly. (2) His wind question is answered with code receipts and a registered sweep: the chase corrects wind by feedback (within 6 points of no-wind up to 4.5 m/s); the unmeasured drag table only ever fed the retired sprint's aim solve; what wind costs is decode loss from leaning (8 m/s head: -14 pts). (3) The Gazebo 12x transfer gap is ATTRIBUTED: sim plant ~2x too fast, a 15-25% box-width range bias (the detector's pose range is clean), and a half-rate detect gate; latency and no-re-approach exonerated; evidence-based fixes + re-prediction in flight. (4) The MBSE model gained the week's corrective subsystems, and its open-items view was found rendering every open contradiction as a BLANK row -- fixed fail-loud.
+
+**So what:** Three registered predictions, two nulls, zero spin -- and by end of day the fix list was built, verified, and FLOWN: the re-fly came back NULL-with-instruments-green (chase tightened 1.510 -> 0.967 m median; range bias and cadence fixed as attributed; bar not met). The remaining risk is named: the pursuit law's braking behavior on the real-speed plant, plus the +3 m height cliff already answered by the +10 deg bracket recommendation.
+
+**Evidence:** isim/specs/{xcheck_tick_trace,keepframe_prereg,wind_chase_prereg}_2026-09-23.md - commits 23aba0b, aa47972, 0d28538, 226100f - ADR-0110/0111

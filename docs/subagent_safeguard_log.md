@@ -286,3 +286,17 @@ the standing rule.
   4.8). Worker died right after "Reading the primary files" — consistent with the
   documented read-the-flight-code trip pattern. Fallback: sonnet-worker, identical
   brief, no rewording.
+
+- 2026-10-02: **HEAD-SESSION artifact republish BLOCKED** — the routine dashboard
+  Artifact sync (republish of docs/dashboard.html to the stored artifact_url)
+  tripped the classifier on every model the builder tried (Sonnet through Opus),
+  and the cloud session's own attempt was stopped mid-response by the safety
+  classifier (req_011CfcYBK6pdkcZ9gpXss9H8, msg_011CfcYBKh3STKZHrPfAcWfm).
+  Mechanism consistent with the documented read-the-content trip pattern: a
+  republish necessarily passes the full dashboard content through the model.
+  No rewording, chunking, or model-routing workaround attempted — standing rule.
+  **/feedback SENT by the builder 2026-10-02** with the request IDs above; the
+  Artifact mirror is stale pending that, repo copies remain canonical
+  (plain_log 2026-10-02). Do not burn further retries across models without new
+  evidence (e.g. a model/classifier update); each identical retry adds a flag,
+  not information.
