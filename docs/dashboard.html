@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->919939a<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->87ded6b<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1363,6 +1363,28 @@
    "origin": "Found 2026-09-16 while building the height-reference fix: the offset that lines the camera up with the target is part vehicle geometry (measurable) and part the target's height (given).",
    "ruling": "",
    "evidence": "docs/vertical_channel_prereg.md section 11.1; logs/mc_fp_armHERRp25_line9_s123.csv"
+  },
+  {
+   "id": "airframe-thrust-and-mass-unmeasured",
+   "statement": "The interceptor's weight (≈800 g) and motor thrust (1.5 kg each) are a parts roll-up and retailer-class figures. Nothing is weighed or thrust-tested; T/W and hover numbers rest on them.",
+   "grade": "unmeasured",
+   "if_wrong": "T/W, hover throttle, hover time and the standby budget shift. T/W stays above the 5:1 rule unless thrust is under ~1.0 kg/motor at 800 g or weight passes ~1.2 kg at 1.5 kg/motor.",
+   "stages": [
+    "hardware"
+   ],
+   "key_numbers": [
+    "Thrust-to-weight, interceptor (planned)",
+    "Hover current / time, interceptor (estimate)"
+   ],
+   "test": {
+    "how": "Kitchen scale on the built aircraft; DIY thrust rig (motor inverted on a scale, grams + amps per throttle step); 60 s hover with PM02 current in the ULog. Re-run scripts/airframe_numbers.py --auw --thrust, update doc + test.",
+    "cost": "One bench afternoon; thrust rig ~$20 still on the must-add list",
+    "status": "planned (airframe_numbers.md §10)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/airframe_numbers.md §1-5; the 1.5 kg/motor planning value dates from the XING2 pick (hardware_order_list.md §3)",
+   "evidence": "scripts/airframe_numbers.py · tests/test_airframe_numbers.py · retailer listings cited in airframe_numbers.md"
   }
  ],
  "builder_queue": [
@@ -1394,9 +1416,15 @@
   },
   {
    "date": "2026-10-14",
-   "text": "RECOVERED FROM THE PUBLISHED DASHBOARD, WORK NOT IN THE REPO: a cloud session ran 'housekeeping sweep #2' (six straggler docs + six stereo/rig plots to retired/, stale pointers fixed, and a finding that Sonnet 5.5 subagents now bounce [general_harms] on this repo, 3/3 read-only briefs). It republished the dashboard but its commit never reached the remote — the branch tip that merged ends 2026-10-12, and neither retired/README.md nor docs/subagent_safeguard_log.md carries a 2026-10-14 section. The file moves and the safeguard-log entry are LOST with that container.",
-   "so_what": "Two things need re-doing when convenient: the sweep-#2 retirements (re-identify from retired/README.md's plan or re-sweep), and logging the Sonnet 5.5 bounce in the safeguard log — which also means the ops.md 'sonnet-worker is the standard lane' rule is doubtful. Process lesson: a dashboard republish is not a push; the commit is the work.",
-   "evidence": "Live artifact version 1792012747-d40c embedded state (updated 2026-10-14, rev a5bb4da) vs origin branch tip 1c0529a (2026-10-12) and main's tree — diff seen at republish 2026-10-17."
+   "evidence": "retired/README.md 2026-10-14 section; docs/subagent_safeguard_log.md 2026-10-14 entry; commit (this one)",
+   "so_what": "The live tree reads current again (no superseded docs/figures mixed in), and the subagent routing rule in ops.md needs a rewrite: no worker lane is reliable on this repo right now - plan for head-inline work.",
+   "text": "Housekeeping sweep #2 (follow-up to the 2026-09-23 retirement): six straggler docs and the six stereo/rig plots moved to retired/ (list in retired/README.md), every move reference-checked repo-wide; stale pointers fixed in candidate_nn_shortlist, progress, sim_to_real_gaps, the px4-gazebo skill and .gitignore. Also logged: Sonnet 5.5 subagents now bounce [general_harms] on this repo (3/3 read-only scan briefs) - the sonnet-worker standard lane is no longer reliable; this sweep ran inline on the Fable 5 head. Dormant S2 cue-wait plumbing in m4_intercept/mc_batch flagged as a future deletion decision, not touched. [Provenance note 2026-10-17: this session's commit sat on an unpushed branch for three days — recovered by the branch sweep, not lost as first feared.]"
+  },
+  {
+   "date": "2026-10-14",
+   "text": "Airframe and propulsion numbers written down in one place: docs/airframe_numbers.md, derived by scripts/airframe_numbers.py (pinned by a test), with an interactive calculator page. Interceptor parts roll-up ≈800 g; planned T/W ≈7.5:1 (1.5 kg/motor, listings say 1.4-2.0); momentum-theory hover ≈7.5 A and ≈10 min on a 1500 mAh 6S pack; 6S pack, motor (Kt, RPM, tip speed), drag/trim, air density by field elevation, and carbon-fibre modulus (fibre 230 / one-direction 135 / frame plate ≈56 GPa) with an arm deflection and vibration check.",
+   "so_what": "Every physical number now traces to a derivation instead of chat, and the one thing they all rest on (weight and thrust, both unmeasured) is a registered assumption with its bench test named. The older ≈770 g roll-up in decisions.md used the first parts pick; the new table uses the ordered parts.",
+   "evidence": "docs/airframe_numbers.md · scripts/airframe_numbers.py · tests/test_airframe_numbers.py · docs/airframe_calculator.html"
   },
   {
    "date": "2026-10-13",
@@ -1417,40 +1445,34 @@
    "evidence": "logs/deploy_seeker_bench_20261004T201641Z.log (Pi) - configs/px4_6cmini/verify_params.py 11/11 - runs/recorder_gate_20261004/ - flight/deploy/seeker_loop.py teardown fix - configs/target_kakute selftest green - ADR-0121 - flight/deploy/frame_feed.py - configs/ov9281_intrinsics.json (81 views, rms 0.731 px) - runs/desk_20261004T205433Z (Pi) - commit 1b10547"
   },
   {
+   "date": "2026-10-03",
+   "text": "Wiring-editor friction fix, builder ask: changing a wire's state no longer requires naming a build-step id. 'evidence' is now an optional free-form note (a step id, a date, any short text) in the editor form, the queued edits, and the model validator -- recorded and shown when given, never required. linkState tracks bench build progress, not a performance claim, so the honesty surfaces (key_numbers provenance, assumptions register, gt_* boundary) are untouched.",
+   "so_what": "The builder can now mark a wire wired/verified from his phone in two taps. The two validator tests that enforced the old rule now pin the new one.",
+   "evidence": "docs/decisions.md ADR-0123 addendum 2026-10-03; scripts/render_sysml.py; tests/test_render_sysml.py"
+  },
+  {
    "date": "2026-10-02",
    "text": "Bench: the chaser's (interceptor's) RC kill link is wired and PROVEN at the PX4 level. RP3 ELRS RX soldered to the 6C Mini's RC IN; bind phrase + SBUS protocol configured over the RX's own WiFi (no reflash needed, both ends already 3.3.1); first tests failed silently and the fault was run to ground with instruments, not guesses -- the IO co-processor's own counters showed zero bytes, a 3.2 V probe at the S pin then proved the wire good, isolating a two-fault stack: an unseated DuPont junction plus the wrong SBUS polarity option. With plain SBUS + a re-seated junction: 18-channel frames, full-range stick sweeps, and the no-pulses failsafe (stream dies with the TX, relinks in seconds) all verified via the new rc_check.py bench tool. The lost-model buzzer went on as standalone 2-wire (the M10 GPS already provides FC tones). Kill switch COMPLETED same session: the ch5 bumper mapped (RC_MAP_KILL_SW=5, written + read-back verified across a reboot), and PX4 observed reading both engage and release live via manual_control_switches. Found needed: 2x 18650 cells for the 2nd Pocket (added to gnd-01).",
    "so_what": "The interceptor can now be killed from the ground the moment it misbehaves -- the single safety prerequisite for every powered bench step and flight test ahead. Only QGC radio calibration remains before arming.",
    "evidence": "configs/px4_6cmini/rc_check.py - configs/px4_6cmini/bench.params (RC_MAP_KILL_SW block) - verify_params.py 10/10 across reboot - bench session 2026-10-02/03"
   },
   {
+   "date": "2026-10-02",
+   "text": "The hosted dashboard Artifact (the claude.ai mirror of this contract) cannot currently be republished: the sync turn trips a safety classifier on every model tried (Sonnet through Opus), and the 2026-10-02 attempt was stopped mid-response. Per the standing rule, no rewording or workaround was attempted. The builder sent /feedback the same day with the flagged request IDs (req_011CfcYBK6pdkcZ9gpXss9H8, msg_011CfcYBKh3STKZHrPfAcWfm). WAITING on that; no retry cadence promised by the channel. [RESOLVED since: republishes went through normally from 2026-10-17.]",
+   "so_what": "The repo copies (docs/project_state.json, docs/dashboard.html) remain the live truth and keep updating normally -- only the hosted mirror is frozen at its last good publish, so anyone reading the Artifact link sees stale state until the flagging is resolved. The update ritual's republish step is suspended, not forgotten: it resumes the first turn a sync goes through.",
+   "evidence": "docs/subagent_safeguard_log.md (2026-10-02 entry) - builder /feedback submission 2026-10-02"
+  },
+  {
+   "date": "2026-10-02",
+   "text": "The hardware now has a systems model: every part actually in the build -- target, interceptor, tripod seeker rig, ground gear -- is written as a SysML v2 text model (docs/sysml/) and drawn as power, data and mechanical wiring diagrams on the MBSE sheet (view 8). The OMG reference SysML v2 tool reads all seven files with zero errors. Each wire says whether it is planned, made, or proven by a named build step: 17 of 60 are proven. Same day, builder ask: the diagrams are now TAPPABLE -- a wiring-editor page queues connection / state / build-status changes from a phone, type-checked in the browser, applied to the model only by a Claude session that re-runs every gate.",
+   "so_what": "Wiring mistakes become catchable before the iron is hot: the renderer refuses a wire plugged into the wrong kind of port or drawn backwards, and refuses any build-sheet part that is neither drawn nor deliberately excluded. Building it surfaced two parts that were missing from the build sheet (the interceptor's own transmitter and the Pi-rail capacitor, both added) and three wiring decisions still open: which 6C Mini pin drives the buzzer, how the ESC signal lead plugs into the 6C Mini, and where the 5 V lead enters the Pi.",
+   "evidence": "docs/sysml/*.sysml · scripts/render_sysml.py --check · scripts/sysml/check_sysml_official.sh (OMG pilot 0.62.0: 7/7 files, 0 errors) · docs/sysml/views/*.png · editor: https://claude.ai/artifact/Q4pEiLKY5JpFsEGy9QUgps (ADR-0123 addendum)"
+  },
+  {
    "date": "2026-09-24",
    "text": "Afternoon: the registered estimator diagnosis found the campaign misses' real cause -- a two-line wiring defect in the real flight driver. It subscribed to the EKF velocity but kept only the speed scalar, so the chase's Kalman filter ran on the last COMMANDED velocity (3.6-4.2 m/s off) in all 16 prior flights; the filter absorbed the bias, the range estimate collapsed ~2.6 m in the final coast, steering froze at ~3 m, and the brake cap read the same wrong vector. Fixed (ADR-0117), re-fly #4 registered and flown: median CPA 0.343 m, 8/8 inside 1 m, 4/8 inside the 0.35 m contact envelope, zero aborts -- the registered bar PASSES for the first time across four campaigns (1.51 -> 0.97 -> 0.93 -> 0.34).",
    "so_what": "The camera-driven chase now meets its own bar in the full-physics sim, and the defect it took four campaigns to find would have flown on the real aircraft -- the cross-check loop just paid for itself. Two rulings reopen (default swap; brake, whose earlier verdicts are void), and the honest caveats stand: perfect cue, windless, upright tag, sim camera.",
    "evidence": "ADR-0117 (+addendum) - docs/xcheck_gazebo_pursuit_prereg4.md - logs/xcheck_gz_20260924_velfix/ - logs/endgame_diag_20260924/"
-  },
-  {
-   "date": "2026-09-24",
-   "text": "Midday: both morning rulings executed end-to-end. The bracket+cant pair is in the build spec. The brake thread ran its ruled sync round (fixed the traced overshoot, exposed a second decode-starvation class, stopped per its rule), the builder then ruled 'fly the brake package in Gazebo', and re-fly #3 flew as registered: median 0.928 m vs 0.967 -- a registered NULL -- but with the first two sub-0.35 m contact-range flights this cross-check has ever produced. The decisive instrument finding: the brake was provably on yet endgame closing speed did not move, because the Kalman filter's range estimate collapses by ~2.6 m in the final two seconds (measurements clean at capture; the error is coast/extrapolation). Three campaigns in: 1.510 -> 0.967 -> 0.928 m, every registered fix landing as attributed.",
-   "so_what": "The transfer gap has now been chased out of the measurement channel, the cadence, the plant fit and the approach speed -- the endgame estimator is the last suspect standing, with a measured -2.6 m signature isim structurally under-models. Next unit of work is a registered estimator diagnosis, not tuning and not another Gazebo campaign.",
-   "evidence": "ADR-0116 - docs/xcheck_gazebo_pursuit_prereg3.md - logs/xcheck_gz_20260924_brake/"
-  },
-  {
-   "date": "2026-09-24",
-   "text": "Overnight part 2: the contract's named next item (braking/approach shaping vs the honest ENGAGE plant) ran as two registered rounds plus a per-run trace. A stopping-distance cap on the chase's relative command -- sized from the fitted 5.9 m/s2 braking authority -- was built default-off and swept 6,100 runs across both vehicle fits and the new realistic-tag rungs. It confirms the Gazebo re-fly's residual: braking the approach takes honest-plant nominal contact 62 to 98 percent and halves arrival speed. But it costs 12-28 points on the target-3-m-above cell, and the trace attributed WHY: slowing the horizontal de-synchronizes the vertical intercept -- the climb reaches target altitude early and overshoots 0.2-0.7 m while the braked closure is still coming, so CPA lands just over the bar. Under the registered no-regression rule nothing is adopted; the code sits in-tree, off, fully pinned.",
-   "so_what": "The diagnosis is complete on both sides: the pursuit law arrives too hot for the real airframe (worth ~35 points at nominal), and the fix's one side effect is a now-understood vertical timing problem, not a mystery. The trade -- adopt the cap for Gazebo re-fly #3, first add a registered vertical-arrival-sync term, or stop here -- is queued for the builder with the attribution attached.",
-   "evidence": "ADR-0115 - isim/specs/brake_shaping_prereg_2026-09-24.md (both registrations + tables) - logs/brake_shaping_20260924/"
-  },
-  {
-   "date": "2026-09-23",
-   "text": "Overnight (builder asleep, directive: 'make the sim's AprilTag true enough to real life -- tilt, pitch, shake, glare'). Built tag realism v1 into the fast sim: the target now derives a real quad attitude from its trajectory (nose-down cruise pitch, banked turns) with the tag bolted to its body, plus attitude wobble, camera-vibration blur, and sun-geometry glare -- all default-off and byte-identical, every constant graded estimate. Flew the registered ladder (n=50), a disjoint-seed confirmation (n=150), a mechanism probe, and a registered canted-mount A/B (n=100). Nominal chase: realism is an honest NULL (90 -> 87-91% touching). The real finding: the +10 deg camera bracket's height-error win collapses under a body-coupled tag (+21 -> +2..+14 points), because the pitched target tilts its rear tag face up-and-back and close-in decodes halve; canting the placard 12 deg DOWN (a print-time choice on our own mount, index disc records it) recovers the cell to 60/64% and restores the bracket's +20 margin.",
-   "so_what": "The builder's suspicion was half right: the tag model WAS hiding a real effect -- not in the flying nominal numbers, but in the pending bracket ruling. That ruling is now 'bracket + canted placard as a pair'. No guidance change was warranted (registered criterion: the deficit was geometric, fixed at the mount). All numbers isim-tier; Gazebo/bench rung and the measured real cruise pitch come next.",
-   "evidence": "ADR-0114 - isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/{ladder_v1,confirm_n150,mech_probe,cant_ab}.txt - commit 7546c12"
-  },
-  {
-   "date": "2026-09-23",
-   "text": "Builder-directed refinement day, four parallel lanes. (1) The keep-in-frame climb assist he asked for was built, pre-registered, and honestly NULLED -- at +3 m of height error the tag almost never decodes, so a camera-triggered climb cannot fire; the follow-up attribution put numbers on it (41% of blind frames off the frame top, 35% too small) and surfaced a measured regression for the obvious alternative (Phase-A vertical sweep) that had been hiding in code comments -- both now graveyarded properly. (2) His wind question is answered with code receipts and a registered sweep: the chase corrects wind by feedback (within 6 points of no-wind up to 4.5 m/s); the unmeasured drag table only ever fed the retired sprint's aim solve; what wind costs is decode loss from leaning (8 m/s head: -14 pts). (3) The Gazebo 12x transfer gap is ATTRIBUTED: sim plant ~2x too fast, a 15-25% box-width range bias (the detector's pose range is clean), and a half-rate detect gate; latency and no-re-approach exonerated; evidence-based fixes + re-prediction in flight. (4) The MBSE model gained the week's corrective subsystems, and its open-items view was found rendering every open contradiction as a BLANK row -- fixed fail-loud.",
-   "so_what": "Three registered predictions, two nulls, zero spin -- and by end of day the fix list was built, verified, and FLOWN: the re-fly came back NULL-with-instruments-green (chase tightened 1.510 -> 0.967 m median; range bias and cadence fixed as attributed; bar not met). The remaining risk is named: the pursuit law's braking behavior on the real-speed plant, plus the +3 m height cliff already answered by the +10 deg bracket recommendation.",
-   "evidence": "isim/specs/{xcheck_tick_trace,keepframe_prereg,wind_chase_prereg}_2026-09-23.md - commits 23aba0b, aa47972, 0d28538, 226100f - ADR-0110/0111"
   }
  ],
  "narrative": {
@@ -2176,7 +2198,8 @@
     "sim-decode-range-transfers",
     "go-bit-not-a-cue",
     "pi5-realtime-compute",
-    "real-flight-constants-sim-derived"
+    "real-flight-constants-sim-derived",
+    "airframe-thrust-and-mass-unmeasured"
    ]
   },
   {
@@ -2560,6 +2583,22 @@
    "provenance": "isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/ - ADR-0112 - ADR-0114 - scripts/tag_realism_ladder.py",
    "plain": "Camera up 10 deg AND tag down 12 deg: height guess may be 2 m low to 3 m high. Either alone fails on a pitching target.",
    "trust": "sim"
+  },
+  {
+   "label": "Thrust-to-weight, interceptor (planned)",
+   "value": "≈7.5 : 1",
+   "plain": "How much more thrust the four motors make than the aircraft weighs. Estimate: nothing weighed or thrust-tested yet.",
+   "provenance": "docs/airframe_numbers.md §4 · scripts/airframe_numbers.py · tests/test_airframe_numbers.py",
+   "trust": "bench",
+   "note": "4 × 1.5 kg (planning; listings 1.4-2.0 kg) over an ≈800 g parts roll-up. 6.3 : 1 at the 950 g design ceiling; rule ≥5 : 1. Scale + thrust rig replace both inputs."
+  },
+  {
+   "label": "Hover current / time, interceptor (estimate)",
+   "value": "≈7.5 A / ≈10 min",
+   "plain": "Battery current to hover, and how long a 1500 mAh 6S pack lasts doing it. Calculated, not flown.",
+   "provenance": "docs/airframe_numbers.md §5 · scripts/airframe_numbers.py (momentum theory)",
+   "trust": "bench",
+   "note": "800 g, sea level, FM 0.5, motor+ESC 0.75, 80% of pack usable. Band 5.5-7.5 A / 9.6-13.1 min across FM 0.5-0.6, efficiency 0.75-0.85."
   }
  ],
  "bom_tiers": [
@@ -2715,7 +2754,7 @@
      "why": "Mandatory under sustained CV load — prop wash is not enough."
     }
    ],
-   "status": "🟧 ORDERED 2026-09-22 (builder) — Source One V6 frame, Skystars KO60II 60A ESC, ECOII 2207 motors ×5 (arrive ~Oct 5–15), RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× lost-model buzzers, LiPo bag + zip ties. STILL MISSING for a full intercept: FC High-Endurance microSD (ULogs are the metrology), M2.5 nylon standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). BENCH-VERIFY: the 12S-Pro's 5 V tap must deliver Matek's spec'd 5.2 V under Pi load; both Pocket TXs need Model Match + the same ELRS version/bind phrase."
+   "status": "🟧 ORDERED 2026-09-22 (builder) — Source One V6 frame, Skystars KO60II 60A ESC, ECOII 2207 motors ×5 (DELIVERED 2026-10-02, ahead of the ~Oct 5–15 estimate), RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× lost-model buzzers, LiPo bag + zip ties. STILL MISSING for a full intercept: FC High-Endurance microSD (ULogs are the metrology), M2.5 nylon standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). BENCH-VERIFY: the 12S-Pro's 5 V tap must deliver Matek's spec'd 5.2 V under Pi load; both Pocket TXs need Model Match + the same ELRS version/bind phrase. DELIVERY UPDATE 2026-10-02 (builder, via the wiring editor): ESC, motors, props, RP3, BEC, PM02, buzzers and the frame kit are IN HAND; frame marked BUILT (assembly begun); LiPo pack in hand."
   }
  ],
  "build_tab": {
@@ -3134,6 +3173,12 @@
       "status": "must-add",
       "role": "CLOSED 2026-08-10 by builder ruling — he owns the ~50-acre site and has confirmed the regulatory basis is settled. Recorded in docs/regulatory_site_capture.md. No longer a blocker on any flight day.",
       "notes": "CLOSED 2026-08-10. The FRIA-vs-module question existed only because the site was assumed public; the site is the builder's own land, so it does not arise."
+     },
+     {
+      "name": "2nd RadioMaster Pocket (ELRS 2.4G) — interceptor TX",
+      "status": "ordered",
+      "role": "The interceptor's own arm / GO / kill transmitter, so each aircraft keeps an independent kill (ADR-0089 option b).",
+      "notes": "Ordered 2026-09-22 (hardware_order_list §0d). Before the first bind: Model Match on both TXs, same ELRS major version + bind phrase as the RP3. Its battery is NOT on this sheet — check which cells its bay takes."
      }
     ],
     "connections": [
@@ -3198,25 +3243,25 @@
    {
     "id": "airframe",
     "name": "Interceptor airframe (Tier-2)",
-    "role": "The lean §0c ram airframe the brain + seeker mount into — ORDERED 2026-09-22, ahead of the tripod money gate (builder decision, ADR-0109). Build waits on delivery (motors ~Oct 5–15 are the long pole).",
+    "role": "The lean §0c ram airframe the brain + seeker mount into — ordered 2026-09-22 ahead of the tripod money gate (ADR-0109), DELIVERED 2026-10-02 (motors beat their ~Oct 5–15 estimate); frame assembly has begun.",
     "parts": [
      {
       "name": "TBS Source One V6 5in frame kit",
-      "status": "ordered",
+      "status": "built",
       "role": "The airframe; same family as the target's frame — shared arms/spares.",
-      "notes": "Re-run the nose-cantilever prop-clearance geometry on THIS frame (hard gate). Carbon is CONDUCTIVE -- insulate under boards, no exposed joint may reach frame/hardware."
+      "notes": "Re-run the nose-cantilever prop-clearance geometry on THIS frame (hard gate). Carbon is CONDUCTIVE -- insulate under boards, no exposed joint may reach frame/hardware. [2026-10-02 builder, via wiring editor: ordered -> built.]"
      },
      {
       "name": "Skystars KO60II 60A 3-6S AM32 4-in-1 ESC (30x30)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Motor drive, DShot from the 6C Mini.",
-      "notes": "60A = extra headroom over the 45-55A plan."
+      "notes": "60A = extra headroom over the 45-55A plan. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "EMAX ECO II 2207 1900KV motors ×5",
       "status": "ordered",
       "role": "4 flight + 1 spare; identical to the target's motors (one spare pool).",
-      "notes": "Longest lead item — arrives ~Oct 5-15."
+      "notes": "Longest lead item — arrives ~Oct 5-15. [2026-10-02 builder, via wiring editor: ordered -> in hand.] [2026-10-03 builder, via wiring editor: in hand -> ordered — reverses yesterday's tap; matches the ~Oct 5-15 arrival window.]"
      },
      {
       "name": "RadioMaster RP3 ELRS diversity RX (UFL V2)",
@@ -3226,21 +3271,21 @@
      },
      {
       "name": "Matek 12S Pro BEC (Pi rail)",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Dedicated Pi 5 power rail — two-rail rule.",
-      "notes": "Bench-verify the 5 V tap delivers 5.2 V under Pi load before first flight."
+      "notes": "Bench-verify the 5 V tap delivers 5.2 V under Pi load before first flight. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "Holybro PM02 V3 analog power module",
-      "status": "ordered",
+      "status": "in hand",
       "role": "FC battery power + V/I telemetry.",
-      "notes": "Replacement — the first unit was vendor-refunded."
+      "notes": "Replacement — the first unit was vendor-refunded. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "HQProp V2S 5x4.3x3 props ×16",
-      "status": "ordered",
+      "status": "in hand",
       "role": "Flight + spare sets, shared with the target.",
-      "notes": "Arrive ~Sep 25."
+      "notes": "Arrive ~Sep 25. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
      },
      {
       "name": "Pixhawk 6C Mini + M10 GPS (from the brain bench)",
@@ -3256,9 +3301,9 @@
      },
      {
       "name": "FC High-Endurance microSD (ULogs)",
-      "status": "must-add",
+      "status": "in hand",
       "role": "ULogs are the kill metrology — no card, no scored flight.",
-      "notes": "Confirm whether the 6C Mini kit included one before buying."
+      "notes": "Confirm whether the 6C Mini kit included one before buying. [2026-10-03 builder, via wiring editor: must-add -> in hand.]"
      },
      {
       "name": "M2.5 nylon standoff/screw kit (Pi tray)",
@@ -3271,6 +3316,12 @@
       "status": "must-add",
       "role": "Bench T/W re-verify + real max lateral-accel (roadmap R4e).",
       "notes": "~$20 DIY."
+     },
+     {
+      "name": "1000 uF 16 V low-ESR cap (Pi rail)",
+      "status": "must-add",
+      "role": "Smooths the Pi's 5.2 V rail at the Pi end.",
+      "notes": "Found missing from the delivered kit at the 2026-09-29 interceptor power-tree bench (gnd-01 still-needed list)."
      }
     ],
     "connections": [

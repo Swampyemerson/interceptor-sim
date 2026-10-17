@@ -1,38 +1,38 @@
 {
   "engagement": {
-    "png_sha256": "7dd583c4eb1053714a20b3bb7064169345bcbb864e6e55347970676345b09220",
+    "png_sha256": "738de6056f935318337a7faa618c22a07dec1c4264493b3ea5612da6f959028e",
     "svg_sha256": "14661eab14bd67bbd8aed226b25869756b4342e62524facd85505c05db79052c"
   },
   "ground": {
-    "png_sha256": "ac3e42e5c92d1106ad9c91c508627c2fa5bd20b2646507e9505f371ad67d5f80",
+    "png_sha256": "0fbb3c92a9d5c156d581e5e4c0ccf79ae456d3e47350ed6c2ccdc7b9b19cb9ae",
     "svg_sha256": "83a8dc2158de5d12b014510ffd7c1fe3323a2ab165c072837e69df96c1651705"
   },
   "interceptor-data": {
-    "png_sha256": "e367eaa813e548456babf3e4dce96100d2a62a03735175922e2cb3aecb406671",
+    "png_sha256": "1d32c5bc1090b76418f2dbb6dc19a1c900e9c6a2e90b3c6d1df9a5abf52a9183",
     "svg_sha256": "4535625f4a35831f4875b6b23e04d2a85586dbe56a2a5b1b9943d25cd9525d2c"
   },
   "interceptor-mech": {
-    "png_sha256": "d84748cbfe53acd1838f18ee23fdf7a387f25670a08ccd1a91fb5a420cd3b4d6",
+    "png_sha256": "ec5a3c1c9f649d346ea10711769b44b6d3e08deb4222774c167d5dbfb97f682a",
     "svg_sha256": "f7521c24f623d58cea8b5934ef4e40038d1100d43bdfffadbd167e4c7967cf1f"
   },
   "interceptor-power": {
-    "png_sha256": "f4912bea2ad838b50976c78fe112e22d1f1fbfa305c980cd983ca0a8f7281f9a",
+    "png_sha256": "7f02947e629ac3c02798f51e236a30c9b9ab0c67c2d6dd230b3403c5713eaa03",
     "svg_sha256": "2cf13e1bcc3de32434b01e81cdb2efce1ff2bca08cb844b0a80f5ba27cf2f5bd"
   },
   "seeker-rig": {
-    "png_sha256": "da7f0e069ca10b76c46ccb7e7bce016efe81fd43ba5f8babfce39d99e032f7d6",
+    "png_sha256": "6956b88c60187b9b4edb60108dd4ed8746e08f2ffd27e7ab681ae2bcab8b3320",
     "svg_sha256": "0b06eb1ac095d37adc582ec06184b327810f8b9ac0e694d36d046d8c05c00fa0"
   },
   "target-data": {
-    "png_sha256": "a62344bed47b228d39d6777857ba0e6872ce2f858ca21c59c0e5449c9f80b7f3",
-    "svg_sha256": "c35f9cd91d3594817ac6980dcc67cf9f992b8dff878271f801817741be1b1084"
+    "png_sha256": "5628525d8c4e164b46c0d76d673665d79a1a66a4787d6c0cbfaa0027ae35b6b4",
+    "svg_sha256": "cc14ce3901446cc75bf67bcdc7d93dd0ddae6419def28fa6e0fc347143f9efa8"
   },
   "target-mech": {
-    "png_sha256": "81b0244385fc260b482c4f63681ace567352ffa2e525c4ec2eb2d631c3083fdf",
-    "svg_sha256": "fea62a69b84a440d6fe03546d61f680b988a79002933551d05ca2fbb92633f15"
+    "png_sha256": "ba48f3723dbedc424829ecec8ef31ecf6c110ef018d4344813b7379a3bef2a7d",
+    "svg_sha256": "1f07256ce3908e972f149695d3c11f511431da90134049490d2dbe4a4fd53810"
   },
   "target-power": {
-    "png_sha256": "269890224cb801e5d14bdf01a0a81c9af6994a8cb787777b4168945eb7923d3a",
-    "svg_sha256": "70ec19d169da7b1e3f9de7efa650de55537d787e725030e709031e04e0d8dab6"
+    "png_sha256": "c26d7c78bb6a012435a7c057f944ca764aab94bfe7628de6e2a23ebc1713f9f8",
+    "svg_sha256": "5ad585c7bddb415a25d2f7e60c388bbf69f604cc1ceff2794a5c1c0914fe1bff"
   }
 }

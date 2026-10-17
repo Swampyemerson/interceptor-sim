@@ -91,8 +91,12 @@ WHAT'S MISSING — reviewing work, catching gaps, and deciding workflow/planning
 So spend it THERE, occasionally and deliberately, NOT as a firehose. Tokens are not free;
 don't spawn a subagent where doing the thing inline is cheaper.
 
-0. **⛔ Fable AND Opus subagents are currently unreliable in this repo — SONNET IS THE
-   STANDARD FOR ALL SUBAGENT WORK, not a fallback.** Full evidence log:
+0. **⛔ Fable AND Opus subagents are currently unreliable in this repo — ~~SONNET IS THE
+   STANDARD FOR ALL SUBAGENT WORK~~ (UPDATE 2026-10-14, recovered 2026-10-17: Sonnet 5.5
+   now ALSO bounces `[general_harms]` on this repo, 3/3 read-only briefs — see the
+   2026-10-14 plain_log entry. NO worker lane is verified reliable right now; the
+   builder-sanctioned candidates are `opus48-worker` (2026-09-22) and `opus55-worker`
+   (2026-09-23, passes-with-occasional-bounce), else plan head-inline work).** Full evidence log:
    `docs/subagent_safeguard_log.md` (not always-loaded; read it before re-testing or
    filing `/feedback`, not before routine work). Short version: subagents worked fine
    for weeks through mid-2026-07 (soft bounce-to-Opus on defense-framed tasks only); a
