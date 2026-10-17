@@ -325,6 +325,27 @@
 #      warning, not a failure. The health/global-position wait is inside the
 #      SITL-only `smoke` branch.
 #
+# -----------------------------------------------------------------------------
+#  (5) AIRFRAME PHASE (2026-10-16 bench): MAIN outputs mapped to the motors
+# -----------------------------------------------------------------------------
+#  PWM_MAIN_FUNC1..4 = 101..104 -> Motor1..4 on MAIN1..4. Found ALL ZERO
+#     (outputs disabled) at the first battery power-up of the full stack: PX4
+#     emitted NO signal on any MAIN pin, and the AM32 ESC sounded its periodic
+#     no-signal beacon (the same "boot waiting" chirp the target's Tekko32 made
+#     for its look-alike-socket fault -- an ESC's chirp means NO SIGNAL, not a
+#     boot loop). Assigning these four silenced the beacon immediately: the
+#     FC->ESC signal harness (MAIN rail, signals 1-4 + common ground) is proven.
+#     Written live with read-back (all four verified 2026-10-16). WHICH PHYSICAL
+#     MOTOR each function drives is NOT yet verified -- the per-motor spin test
+#     (A/B/C/D order + direction) is still owed before any arm attempt, and is
+#     gated on safety (CBRK_IO_SAFETY, see the SAFETY POSTURE block: the M10's
+#     switch line does not reach the FC even though its GPS UART + compass DO
+#     work on GPS1 -- 9 sats 3D fix + mag OK on the bench, 2026-10-16).
+1	1	PWM_MAIN_FUNC1	101	6
+1	1	PWM_MAIN_FUNC2	102	6
+1	1	PWM_MAIN_FUNC3	103	6
+1	1	PWM_MAIN_FUNC4	104	6
+#
 # =============================================================================
 #  WAITS FOR THE AIRFRAME -- do NOT set on the bench (no ESC/motors/battery yet)
 # =============================================================================

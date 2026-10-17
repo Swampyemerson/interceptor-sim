@@ -130,19 +130,24 @@ session — that means a name is wrong for this firmware.
 > button first"* and **the board will not arm until a safety button is wired and
 > pressed.** Nothing about the disarmed OFFBOARD gate changes.
 >
-> ⚠️ **CORRECTED 2026-07-27 (ADR-0091): this pack used to say the M10 would
-> supply that button. The M10 actually in hand has a 6-pin cable — it fits GPS2
-> only, and the SAFETY_SWITCH / LED pins are GPS1 pins 6/7, which this module
-> does not carry.** So there is no safety button anywhere in the current
-> hardware. Harmless here (nothing arms in `brn-05`); at the first props-off ARM
-> test either wire a button or set `CBRK_IO_SAFETY` back to 22027 *knowingly*.
-> **GPS on GPS2 also needs a param:** set `GPS_1_CONFIG` = **"GPS 2"** (not
-> `GPS_2_CONFIG`, which would leave the primary pointed at an empty port) and
-> `SER_GPS2_BAUD` = Auto. And the M10's **compass will not appear** — v1.16
-> `fmu-v6c` probes the external ist8310 on I2C buses 1 and 4 only, and GPS2's
-> I2C is bus 2. See ADR-0091 for the three fixes. If you need a deliberate props-off arm test before the M10 arrives,
-> set it back to 22027 *knowingly*, then restore it. Verify on the live board:
-> *Parameters → `CBRK_IO_SAFETY`*.
+> ⚠️ **RE-CORRECTED 2026-10-16 (first battery power-up, builder caught it): the
+> M10 now sits on GPS1 and WORKS there — 9 sats 3D fix + external compass OK on
+> the bench, with the default `GPS_1_CONFIG` = GPS1 port. The 2026-07-27 text
+> below described the OLD cabling and its GPS2 workarounds; those params are NOT
+> set and must not be.** What is still true: the safety-switch line does NOT
+> reach the FC — the M10's "switch" button does nothing (verified live: a held
+> press during a 12-attempt actuator-test window, every attempt DENIED), so the
+> cable most likely leaves the SAFETY_SWITCH/LED conductors unpopulated even
+> though power/UART/I2C are good. So with `CBRK_IO_SAFETY=0` the board remains
+> UNARMABLE and actuator tests are DENIED until either (a) the safety conductors
+> are wired, or (b) `CBRK_IO_SAFETY` is set to 22027 *knowingly* for a props-off
+> test and restored to 0 after (reboot required each way — the param is read
+> only at commander start). Verify on the live board: *Parameters →
+> `CBRK_IO_SAFETY`*.
+>
+> *(Historical, 2026-07-27 / ADR-0091 — the old 6-pin-cable-on-GPS2 era: GPS2
+> needed `GPS_1_CONFIG`="GPS 2" + `SER_GPS2_BAUD`=Auto, and the compass could
+> not appear because GPS2's I2C is bus 2. Superseded above.)*
 
 After the reboot, re-open Parameters and confirm the six above. Then
 **calibrate sensors** (accel / gyro / mag / level) — sensors-only, bench-safe now.
