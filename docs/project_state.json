@@ -466,6 +466,28 @@
    "origin": "Found 2026-09-16 while building the height-reference fix: the offset that lines the camera up with the target is part vehicle geometry (measurable) and part the target's height (given).",
    "ruling": "",
    "evidence": "docs/vertical_channel_prereg.md section 11.1; logs/mc_fp_armHERRp25_line9_s123.csv"
+  },
+  {
+   "id": "airframe-thrust-and-mass-unmeasured",
+   "statement": "The interceptor's weight (≈800 g) and motor thrust (1.5 kg each) are a parts roll-up and retailer-class figures. Nothing is weighed or thrust-tested; T/W and hover numbers rest on them.",
+   "grade": "unmeasured",
+   "if_wrong": "T/W, hover throttle, hover time and the standby budget shift. T/W stays above the 5:1 rule unless thrust is under ~1.0 kg/motor at 800 g or weight passes ~1.2 kg at 1.5 kg/motor.",
+   "stages": [
+    "hardware"
+   ],
+   "key_numbers": [
+    "Thrust-to-weight, interceptor (planned)",
+    "Hover current / time, interceptor (estimate)"
+   ],
+   "test": {
+    "how": "Kitchen scale on the built aircraft; DIY thrust rig (motor inverted on a scale, grams + amps per throttle step); 60 s hover with PM02 current in the ULog. Re-run scripts/airframe_numbers.py --auw --thrust, update doc + test.",
+    "cost": "One bench afternoon; thrust rig ~$20 still on the must-add list",
+    "status": "planned (airframe_numbers.md §10)"
+   },
+   "state": "planned",
+   "ruling": "",
+   "origin": "docs/airframe_numbers.md §1-5; the 1.5 kg/motor planning value dates from the XING2 pick (hardware_order_list.md §3)",
+   "evidence": "scripts/airframe_numbers.py · tests/test_airframe_numbers.py · retailer listings cited in airframe_numbers.md"
   }
  ],
  "builder_queue": [
@@ -500,6 +522,12 @@
    "evidence": "retired/README.md 2026-10-14 section; docs/subagent_safeguard_log.md 2026-10-14 entry; commit (this one)",
    "so_what": "The live tree reads current again (no superseded docs/figures mixed in), and the subagent routing rule in ops.md needs a rewrite: no worker lane is reliable on this repo right now - plan for head-inline work.",
    "text": "Housekeeping sweep #2 (follow-up to the 2026-09-23 retirement): six straggler docs and the six stereo/rig plots moved to retired/ (list in retired/README.md), every move reference-checked repo-wide; stale pointers fixed in candidate_nn_shortlist, progress, sim_to_real_gaps, the px4-gazebo skill and .gitignore. Also logged: Sonnet 5.5 subagents now bounce [general_harms] on this repo (3/3 read-only scan briefs) - the sonnet-worker standard lane is no longer reliable; this sweep ran inline on the Fable 5 head. Dormant S2 cue-wait plumbing in m4_intercept/mc_batch flagged as a future deletion decision, not touched. [Provenance note 2026-10-17: this session's commit sat on an unpushed branch for three days — recovered by the branch sweep, not lost as first feared.]"
+  },
+  {
+   "date": "2026-10-14",
+   "text": "Airframe and propulsion numbers written down in one place: docs/airframe_numbers.md, derived by scripts/airframe_numbers.py (pinned by a test), with an interactive calculator page. Interceptor parts roll-up ≈800 g; planned T/W ≈7.5:1 (1.5 kg/motor, listings say 1.4-2.0); momentum-theory hover ≈7.5 A and ≈10 min on a 1500 mAh 6S pack; 6S pack, motor (Kt, RPM, tip speed), drag/trim, air density by field elevation, and carbon-fibre modulus (fibre 230 / one-direction 135 / frame plate ≈56 GPa) with an arm deflection and vibration check.",
+   "so_what": "Every physical number now traces to a derivation instead of chat, and the one thing they all rest on (weight and thrust, both unmeasured) is a registered assumption with its bench test named. The older ≈770 g roll-up in decisions.md used the first parts pick; the new table uses the ordered parts.",
+   "evidence": "docs/airframe_numbers.md · scripts/airframe_numbers.py · tests/test_airframe_numbers.py · docs/airframe_calculator.html"
   },
   {
    "date": "2026-10-13",
@@ -548,12 +576,6 @@
    "text": "Afternoon: the registered estimator diagnosis found the campaign misses' real cause -- a two-line wiring defect in the real flight driver. It subscribed to the EKF velocity but kept only the speed scalar, so the chase's Kalman filter ran on the last COMMANDED velocity (3.6-4.2 m/s off) in all 16 prior flights; the filter absorbed the bias, the range estimate collapsed ~2.6 m in the final coast, steering froze at ~3 m, and the brake cap read the same wrong vector. Fixed (ADR-0117), re-fly #4 registered and flown: median CPA 0.343 m, 8/8 inside 1 m, 4/8 inside the 0.35 m contact envelope, zero aborts -- the registered bar PASSES for the first time across four campaigns (1.51 -> 0.97 -> 0.93 -> 0.34).",
    "so_what": "The camera-driven chase now meets its own bar in the full-physics sim, and the defect it took four campaigns to find would have flown on the real aircraft -- the cross-check loop just paid for itself. Two rulings reopen (default swap; brake, whose earlier verdicts are void), and the honest caveats stand: perfect cue, windless, upright tag, sim camera.",
    "evidence": "ADR-0117 (+addendum) - docs/xcheck_gazebo_pursuit_prereg4.md - logs/xcheck_gz_20260924_velfix/ - logs/endgame_diag_20260924/"
-  },
-  {
-   "date": "2026-09-24",
-   "text": "Midday: both morning rulings executed end-to-end. The bracket+cant pair is in the build spec. The brake thread ran its ruled sync round (fixed the traced overshoot, exposed a second decode-starvation class, stopped per its rule), the builder then ruled 'fly the brake package in Gazebo', and re-fly #3 flew as registered: median 0.928 m vs 0.967 -- a registered NULL -- but with the first two sub-0.35 m contact-range flights this cross-check has ever produced. The decisive instrument finding: the brake was provably on yet endgame closing speed did not move, because the Kalman filter's range estimate collapses by ~2.6 m in the final two seconds (measurements clean at capture; the error is coast/extrapolation). Three campaigns in: 1.510 -> 0.967 -> 0.928 m, every registered fix landing as attributed.",
-   "so_what": "The transfer gap has now been chased out of the measurement channel, the cadence, the plant fit and the approach speed -- the endgame estimator is the last suspect standing, with a measured -2.6 m signature isim structurally under-models. Next unit of work is a registered estimator diagnosis, not tuning and not another Gazebo campaign.",
-   "evidence": "ADR-0116 - docs/xcheck_gazebo_pursuit_prereg3.md - logs/xcheck_gz_20260924_brake/"
   }
  ],
  "narrative": {
@@ -1279,7 +1301,8 @@
     "sim-decode-range-transfers",
     "go-bit-not-a-cue",
     "pi5-realtime-compute",
-    "real-flight-constants-sim-derived"
+    "real-flight-constants-sim-derived",
+    "airframe-thrust-and-mass-unmeasured"
    ]
   },
   {
@@ -1663,6 +1686,22 @@
    "provenance": "isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/ - ADR-0112 - ADR-0114 - scripts/tag_realism_ladder.py",
    "plain": "Camera up 10 deg AND tag down 12 deg: height guess may be 2 m low to 3 m high. Either alone fails on a pitching target.",
    "trust": "sim"
+  },
+  {
+   "label": "Thrust-to-weight, interceptor (planned)",
+   "value": "≈7.5 : 1",
+   "plain": "How much more thrust the four motors make than the aircraft weighs. Estimate: nothing weighed or thrust-tested yet.",
+   "provenance": "docs/airframe_numbers.md §4 · scripts/airframe_numbers.py · tests/test_airframe_numbers.py",
+   "trust": "bench",
+   "note": "4 × 1.5 kg (planning; listings 1.4-2.0 kg) over an ≈800 g parts roll-up. 6.3 : 1 at the 950 g design ceiling; rule ≥5 : 1. Scale + thrust rig replace both inputs."
+  },
+  {
+   "label": "Hover current / time, interceptor (estimate)",
+   "value": "≈7.5 A / ≈10 min",
+   "plain": "Battery current to hover, and how long a 1500 mAh 6S pack lasts doing it. Calculated, not flown.",
+   "provenance": "docs/airframe_numbers.md §5 · scripts/airframe_numbers.py (momentum theory)",
+   "trust": "bench",
+   "note": "800 g, sea level, FM 0.5, motor+ESC 0.75, 80% of pack usable. Band 5.5-7.5 A / 9.6-13.1 min across FM 0.5-0.6, efficiency 0.75-0.85."
   }
  ],
  "bom_tiers": [

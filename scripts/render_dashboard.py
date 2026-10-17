@@ -715,6 +715,11 @@ def main() -> None:
     validate(state)
     board = load_board()
     html = HTML.read_text()
+    # A merge once committed conflict markers around the REV stamp (b56bb20); the
+    # state-block compare ignores REV, so --check stayed green while the published
+    # page showed them. Fail on any marker line, in both modes.
+    if re.search(r"^(<{7}|>{7}) ", html, re.M):
+        fail(f"{HTML.name} contains unresolved merge-conflict markers — resolve them, re-render, commit")
 
     if check:
         if "--artifact" in sys.argv[1:]:
