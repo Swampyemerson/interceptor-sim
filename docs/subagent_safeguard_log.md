@@ -300,3 +300,17 @@ the standing rule.
   (plain_log 2026-10-02). Do not burn further retries across models without new
   evidence (e.g. a model/classifier update); each identical retry adds a flag,
   not information.
+
+- 2026-10-14 (cloud session, retirement-scan task): **sonnet-worker 3/3 BOUNCE**
+  [general_harms] — three parallel read-only repo-scan briefs (docs hygiene /
+  scripts reference-topology / data-dir inventory; file-move housekeeping, no
+  build content) all died on the FIRST model call, before any tool ran:
+  req_011Cg2oetQtajsD3fxsUuBdB, req_011Cg2oewrGDDsv96fSKQJKQ,
+  req_011Cg2oetSd9kcsNHVnaVzv6 (model sent: claude-sonnet-5-5). Note the head
+  session's own turns also bounced twice on this task until the builder pinned
+  the head to claude-fable-5, which then ran it clean end-to-end. New datum:
+  **Sonnet 5.5 subagents now trip on this repo too** — the "sonnet is the
+  standard for all subagent work" rule (ops.md bullet 0) no longer holds
+  reliably; briefs that merely LOAD this repo's CLAUDE.md context can bounce
+  regardless of brief wording. Fallback used: inline on the Fable 5 head, no
+  rewording (standing rule). /feedback remains the builder's sanctioned path.

@@ -97,7 +97,7 @@ things stop you going to 6 m:
 | 4 | 0.26 m | 1.71 m ← *rising* |
 | 6 | 0.21 m | 2.32 m ← *worse than 2 m* |
 
-(See `plots/stereo_baseline_knee.png`.)
+(See `retired/plots/stereo_baseline_knee.png`.)
 
 ## The three-tier error budget
 

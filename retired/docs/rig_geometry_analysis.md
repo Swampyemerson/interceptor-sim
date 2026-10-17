@@ -72,7 +72,7 @@ distortion). The script cross-checks against the full model too.
 *(`logs/rig_geometry/res_summary.csv`; `max_range...full_model_m` column is
 the full-model cross-check, quoted above; `res_sigma_table.csv` has σ_R at
 every {15, 30, 60, 100, 150 m} × tier × resolution combination; see
-`plots/rig_geometry_res_sigmaR.png`.)*
+`retired/plots/rig_geometry_res_sigmaR.png`.)*
 
 **What this says.** Cutting the render to 960×540 (the RTF-safe resolution
 the demo camera already validated) costs about a QUARTER of the usable range
@@ -131,7 +131,7 @@ wedge" only if BOTH cameras can see it.
 | `corridor_end_north` (6.5,45), pointed down-range | varies | 100% / 100% | **Yes** | 29.0 / 61.0 | Best score on paper — but **COLLINEAR with the flight corridor** (rig sits ON the line the target and interceptor both fly) |
 | `quartering_handoff` (−5,10), aimed at the r2l handoff point | varies | 12% / 0% | No | 13.0 / 28.5 | Aiming at one direction's handoff point buys ~nothing for the mirrored direction — asymmetric by construction |
 
-*(Full table: `logs/rig_geometry/coverage.csv`; map: `plots/rig_geometry_wedge_coverage.png`.)*
+*(Full table: `logs/rig_geometry/coverage.csv`; map: `retired/plots/rig_geometry_wedge_coverage.png`.)*
 
 ### The counter-intuitive finding: farther back is BETTER, not worse
 
@@ -256,7 +256,7 @@ PESSIMISTIC, worst-axis input — consistent with this project's
 `s2_cue_mock.py --vel-sigma 0.5`. Full grid incl. all 4 resolutions × all 7
 candidate poses' handoff ranges × 4 rates × 3 accel classes:
 `logs/rig_geometry/sigma_v_vs_rate.csv`, 720 rows; plot:
-`plots/rig_geometry_sigma_v_vs_rate.png`.)*
+`retired/plots/rig_geometry_sigma_v_vs_rate.png`.)*
 
 **What this says, plainly.**
 - Against a **gentle** target (1 m/s²), even the slowest rate tested (5 Hz)
@@ -334,8 +334,8 @@ candidate poses' handoff ranges × 4 rates × 3 accel classes:
 
 Outputs: `logs/rig_geometry/res_sigma_table.csv`, `logs/rig_geometry/res_summary.csv`,
 `logs/rig_geometry/coverage.csv`, `logs/rig_geometry/sigma_v_vs_rate.csv`;
-`plots/rig_geometry_res_sigmaR.png`, `plots/rig_geometry_wedge_coverage.png`,
-`plots/rig_geometry_sigma_v_vs_rate.png`.
+`retired/plots/rig_geometry_res_sigmaR.png`, `retired/plots/rig_geometry_wedge_coverage.png`,
+`retired/plots/rig_geometry_sigma_v_vs_rate.png`.
 
 ## Sources
 

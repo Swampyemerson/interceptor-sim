@@ -497,9 +497,9 @@
   },
   {
    "date": "2026-10-14",
-   "text": "RECOVERED FROM THE PUBLISHED DASHBOARD, WORK NOT IN THE REPO: a cloud session ran 'housekeeping sweep #2' (six straggler docs + six stereo/rig plots to retired/, stale pointers fixed, and a finding that Sonnet 5.5 subagents now bounce [general_harms] on this repo, 3/3 read-only briefs). It republished the dashboard but its commit never reached the remote — the branch tip that merged ends 2026-10-12, and neither retired/README.md nor docs/subagent_safeguard_log.md carries a 2026-10-14 section. The file moves and the safeguard-log entry are LOST with that container.",
-   "so_what": "Two things need re-doing when convenient: the sweep-#2 retirements (re-identify from retired/README.md's plan or re-sweep), and logging the Sonnet 5.5 bounce in the safeguard log — which also means the ops.md 'sonnet-worker is the standard lane' rule is doubtful. Process lesson: a dashboard republish is not a push; the commit is the work.",
-   "evidence": "Live artifact version 1792012747-d40c embedded state (updated 2026-10-14, rev a5bb4da) vs origin branch tip 1c0529a (2026-10-12) and main's tree — diff seen at republish 2026-10-17."
+   "evidence": "retired/README.md 2026-10-14 section; docs/subagent_safeguard_log.md 2026-10-14 entry; commit (this one)",
+   "so_what": "The live tree reads current again (no superseded docs/figures mixed in), and the subagent routing rule in ops.md needs a rewrite: no worker lane is reliable on this repo right now - plan for head-inline work.",
+   "text": "Housekeeping sweep #2 (follow-up to the 2026-09-23 retirement): six straggler docs and the six stereo/rig plots moved to retired/ (list in retired/README.md), every move reference-checked repo-wide; stale pointers fixed in candidate_nn_shortlist, progress, sim_to_real_gaps, the px4-gazebo skill and .gitignore. Also logged: Sonnet 5.5 subagents now bounce [general_harms] on this repo (3/3 read-only scan briefs) - the sonnet-worker standard lane is no longer reliable; this sweep ran inline on the Fable 5 head. Dormant S2 cue-wait plumbing in m4_intercept/mc_batch flagged as a future deletion decision, not touched. [Provenance note 2026-10-17: this session's commit sat on an unpushed branch for three days — recovered by the branch sweep, not lost as first feared.]"
   },
   {
    "date": "2026-10-13",

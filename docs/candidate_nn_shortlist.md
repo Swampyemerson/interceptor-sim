@@ -5,7 +5,7 @@
 inference test against already-captured frames in `demo_out/onboard_frames/`.
 Companion to `docs/nn_transfer_plan.md` (the real-hardware architecture-family
 plan, §2.2's licensing table) and `docs/seeker_nn_findings.md` /
-`t18_nn_validation_notes.md` (what's already been tried in this repo). This doc
+`retired/docs/t18_nn_validation_notes.md` (what's already been tried in this repo). This doc
 answers a narrower question than `nn_transfer_plan.md`: not "what architecture
 should we eventually fine-tune," but "does a READY-MADE, permissively-licensed
 drone-detection checkpoint already exist that we could drop in today and get a
