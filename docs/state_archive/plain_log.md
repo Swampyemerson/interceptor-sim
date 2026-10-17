@@ -314,3 +314,7 @@ Afternoon: the registered estimator diagnosis found the campaign misses' real ca
 ## 2026-10-02
 
 The hardware now has a systems model: every part actually in the build -- target, interceptor, tripod seeker rig, ground gear -- is written as a SysML v2 text model (docs/sysml/) and drawn as power, data and mechanical wiring diagrams on the MBSE sheet (view 8). The OMG reference SysML v2 tool reads all seven files with zero errors. Each wire says whether it is planned, made, or proven by a named build step: 17 of 60 are proven. Same day, builder ask: the diagrams are now TAPPABLE -- a wiring-editor page queues connection / state / build-status changes from a phone, type-checked in the browser, applied to the model only by a Claude session that re-runs every gate.
+
+## 2026-10-02
+
+The hosted dashboard Artifact (the claude.ai mirror of this contract) cannot currently be republished: the sync turn trips a safety classifier on every model tried (Sonnet through Opus), and the 2026-10-02 attempt was stopped mid-response. Per the standing rule, no rewording or workaround was attempted. The builder sent /feedback the same day with the flagged request IDs (req_011CfcYBK6pdkcZ9gpXss9H8, msg_011CfcYBKh3STKZHrPfAcWfm). WAITING on that; no retry cadence promised by the channel. [RESOLVED since: republishes went through normally from 2026-10-17.]
