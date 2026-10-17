@@ -7,7 +7,10 @@ import time
 from pymavlink import mavutil
 
 CMD_ACTUATOR_TEST = 310
-FUNC_MOTOR1 = 101
+FUNC_MOTOR1 = 1  # MAVLink ACTUATOR_OUTPUT_FUNCTION_MOTOR1 -- NOT PX4's internal 101!
+# (param5 takes the MAVLink enum: MOTOR1..4 = 1..4. Sending PX4's internal
+#  output-function numbers (101..104) is silently dropped with NO ack -- that
+#  mistake cost the 2026-10-16 bench two hours. QGC sends 1..4.)
 VALUE = 0.15
 SECS = 3.0
 GAP = 6.0
