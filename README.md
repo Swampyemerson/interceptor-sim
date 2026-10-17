@@ -7,11 +7,13 @@ camera, with no datalink after launch.** Independent, self-funded project by
 Emerson Backus (Aerospace Engineering, CU Boulder), summer 2026 to present.
 
 <p align="center">
-  <img src="docs/images/bench_2026-10.jpg" width="85%" alt="Desk test: the seeker camera propped up facing an AprilTag on a laptop screen, with the Raspberry Pi 5, flight controller stack, airframe and radio transmitter on the bench"/>
+  <img src="docs/images/bench_2026-10.jpg" width="49%" alt="Desk test: the seeker camera propped up facing an AprilTag on a laptop screen, with the Raspberry Pi 5, flight controller stack, airframe and radio transmitter on the bench"/>
+  <img src="docs/images/target_complete_2026-10.jpg" width="49%" alt="The completed target drone on the bench: carbon-fiber frame on a LiPo bag, four motors (props off), Kakute H7 flight controller, GPS module, receiver, and XT60 battery lead"/>
 </p>
-<p align="center"><sub>The bench, October 2026: the seeker camera, propped on a lighter,
-reads an AprilTag on the laptop screen during a desk test of the Pi camera pipeline.
-Airframe and flight controller stack at left, radio transmitter at right.</sub></p>
+<p align="center"><sub><b>Left, the interceptor:</b> the seeker camera, propped on a lighter,
+reads an AprilTag on the laptop screen during a desk test of the Pi camera pipeline;
+airframe and flight controller stack at left, radio transmitter at right.
+<b>Right, the target:</b> the completed target drone, props off. Both October 2026.</sub></p>
 
 | **6 / 8** | **91%** | **96.6 fps** | **1,000+** |
 |:---:|:---:|:---:|:---:|
