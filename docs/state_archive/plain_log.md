@@ -302,3 +302,11 @@ Midday: both morning rulings executed end-to-end. The bracket+cant pair is in th
 **So what:** The transfer gap has now been chased out of the measurement channel, the cadence, the plant fit and the approach speed -- the endgame estimator is the last suspect standing, with a measured -2.6 m signature isim structurally under-models. Next unit of work is a registered estimator diagnosis, not tuning and not another Gazebo campaign.
 
 **Evidence:** ADR-0116 - docs/xcheck_gazebo_pursuit_prereg3.md - logs/xcheck_gz_20260924_brake/
+
+## 2026-09-24 (archived from plain_log 2026-10-17, cap-12 overflow)
+
+Afternoon: the registered estimator diagnosis found the campaign misses' real cause -- a two-line wiring defect in the real flight driver. It subscribed to the EKF velocity but kept only the speed scalar, so the chase's Kalman filter ran on the last COMMANDED velocity (3.6-4.2 m/s off) in all 16 prior flights; the filter absorbed the bias, the range estimate collapsed ~2.6 m in the final coast, steering froze at ~3 m, and the brake cap read the same wrong vector. Fixed (ADR-0117), re-fly #4 registered and flown: median CPA 0.343 m, 8/8 inside 1 m, 4/8 inside the 0.35 m contact envelope, zero aborts -- the registered bar PASSES for the first time across four campaigns (1.51 -> 0.97 -> 0.93 -> 0.34).
+
+**So what:** The camera-driven chase now meets its own bar in the full-physics sim, and the defect it took four campaigns to find would have flown on the real aircraft -- the cross-check loop just paid for itself. Two rulings reopen (default swap; brake, whose earlier verdicts are void), and the honest caveats stand: perfect cue, windless, upright tag, sim camera.
+
+**Evidence:** ADR-0117 (+addendum) - docs/xcheck_gazebo_pursuit_prereg4.md - logs/xcheck_gz_20260924_velfix/ - logs/endgame_diag_20260924/

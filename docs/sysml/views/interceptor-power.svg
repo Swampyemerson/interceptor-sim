@@ -155,8 +155,8 @@
 <path class="sx-w sx-c-power sx-s-planned" d="M942.0 121.0 L1001.0 121.0 L1001.0 121.0 L1060.0 121.0"/>
 <path class="sx-w sx-c-power sx-s-wired" d="M610.0 143.0 L676.0 143.0 L676.0 295.0 L610.0 295.0"/>
 <path class="sx-w sx-c-power sx-s-wired" d="M278.0 121.0 L344.0 121.0 L344.0 513.0 L278.0 513.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M278.0 535.0 L351.0 535.0 L351.0 513.0 L396.0 513.0"/>
-<path class="sx-w sx-c-power sx-s-planned" d="M278.0 535.0 L330.0 535.0 L330.0 687.0 L278.0 687.0"/>
+<path class="sx-w sx-c-power sx-s-verified" d="M278.0 535.0 L351.0 535.0 L351.0 513.0 L396.0 513.0"/>
+<path class="sx-w sx-c-power sx-s-verified" d="M278.0 535.0 L330.0 535.0 L330.0 687.0 L278.0 687.0"/>
 <path class="sx-w sx-c-power sx-s-verified" d="M610.0 513.0 L662.0 513.0 L662.0 687.0 L1060.0 687.0"/>
 <path class="sx-w sx-c-power sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 295.0 L728.0 295.0"/>
 <path class="sx-w sx-c-power sx-s-wired" d="M610.0 361.0 L690.0 361.0 L690.0 513.0 L728.0 513.0"/>
@@ -206,8 +206,8 @@
 <g class="sx-pill sx-c-power sx-s-planned"><rect x="1019.5" y="113.0" width="22" height="16" rx="8"/><text x="1030.5" y="125.0">3</text></g>
 <g class="sx-pill sx-c-power sx-s-wired"><rect x="665.0" y="211.0" width="22" height="16" rx="8"/><text x="676.0" y="223.0">4</text></g>
 <g class="sx-pill sx-c-power sx-s-wired"><rect x="333.0" y="309.0" width="22" height="16" rx="8"/><text x="344.0" y="321.0">5</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="303.5" y="527.0" width="22" height="16" rx="8"/><text x="314.5" y="539.0">6</text></g>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="319.0" y="603.0" width="22" height="16" rx="8"/><text x="330.0" y="615.0">7</text></g>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="303.5" y="527.0" width="22" height="16" rx="8"/><text x="314.5" y="539.0">6</text></g>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="319.0" y="603.0" width="22" height="16" rx="8"/><text x="330.0" y="615.0">7</text></g>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="850.0" y="679.0" width="22" height="16" rx="8"/><text x="861.0" y="691.0">8</text></g>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">9</text></g>
 <g class="sx-pill sx-c-power sx-s-wired"><rect x="679.0" y="429.0" width="22" height="16" rx="8"/><text x="690.0" y="441.0">10</text></g>
@@ -228,12 +228,12 @@
 <g class="sx-pill sx-c-power sx-s-wired"><rect x="20" y="898" width="22" height="16" rx="8"/><text x="31" y="910">5</text></g>
 <text class="sx-wl" x="52" y="910"><tspan class="sx-wn">becFeed</tspan><tspan class="sx-wm">  battery.main → bec.vin</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="924">16 AWG tap on the main leads — LiPo main straight to the BEC -- second rail</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="928" width="22" height="16" rx="8"/><text x="31" y="940">6</text></g>
-<text class="sx-wl" x="52" y="940"><tspan class="sx-wn">piRail</tspan><tspan class="sx-wm">  bec.out5v → pi.pwrIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="954">5 V lead to the Pi (entry point TBD) — 5.2 V; USB-C pigtail or header 5 V/GND -- decide at afr-05</text>
-<g class="sx-pill sx-c-power sx-s-planned"><rect x="20" y="958" width="22" height="16" rx="8"/><text x="31" y="970">7</text></g>
-<text class="sx-wl" x="52" y="970"><tspan class="sx-wn">railSmoothing</tspan><tspan class="sx-wm">  bec.out5v → railCap.rail</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="984">soldered across the rail at the Pi end — 1000 uF 16 V low-ESR</text>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="20" y="928" width="22" height="16" rx="8"/><text x="31" y="940">6</text></g>
+<text class="sx-wl" x="52" y="940"><tspan class="sx-wn">piRail</tspan><tspan class="sx-wm">  bec.out5v → pi.pwrIn</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (bench 2026-10-17)</tspan></text>
+<text class="sx-wd" x="52" y="954">USB-C pigtail into the Pi&#x27;s power port — entry point DECIDED: USB-C; 5.3 V steady at the Pi end by multimeter</text>
+<g class="sx-pill sx-c-power sx-s-verified"><rect x="20" y="958" width="22" height="16" rx="8"/><text x="31" y="970">7</text></g>
+<text class="sx-wl" x="52" y="970"><tspan class="sx-wn">railSmoothing</tspan><tspan class="sx-wm">  bec.out5v → railCap.rail</tspan><tspan class="sx-wt">  : DCPowerLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (bench 2026-10-17)</tspan></text>
+<text class="sx-wd" x="52" y="984">soldered across the BEC 5 V output pads, in parallel with the pigtail — 1000 uF 16 V electrolytic (kit cap); polarity + 5 V-side checked before power</text>
 <g class="sx-pill sx-c-power sx-s-verified"><rect x="20" y="988" width="22" height="16" rx="8"/><text x="31" y="1000">8</text></g>
 <text class="sx-wl" x="52" y="1000"><tspan class="sx-wn">fan</tspan><tspan class="sx-wm">  pi.fanHeader → cooler.header</tspan><tspan class="sx-wt">  : FanLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-07)</tspan></text>
 <text class="sx-wd" x="52" y="1014">4-pin fan header — 5 V + PWM + tach</text>

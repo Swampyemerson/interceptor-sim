@@ -126,14 +126,16 @@ package Interceptor {
             attribute :>> linkState = LinkState::wired;
         }
         interface piRail : DCPowerLink connect bec.out5v to pi.pwrIn {
-            attribute :>> connector = "5 V lead to the Pi (entry point TBD)";
-            attribute :>> detail = "5.2 V; USB-C pigtail or header 5 V/GND -- decide at afr-05";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> connector = "USB-C pigtail into the Pi's power port";
+            attribute :>> detail = "entry point DECIDED: USB-C; 5.3 V steady at the Pi end by multimeter";
+            attribute :>> linkState = LinkState::verified;
+            attribute :>> evidence = "bench 2026-10-17";
         }
         interface railSmoothing : DCPowerLink connect bec.out5v to railCap.rail {
-            attribute :>> connector = "soldered across the rail at the Pi end";
-            attribute :>> detail = "1000 uF 16 V low-ESR";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> connector = "soldered across the BEC 5 V output pads, in parallel with the pigtail";
+            attribute :>> detail = "1000 uF 16 V electrolytic (kit cap); polarity + 5 V-side checked before power";
+            attribute :>> linkState = LinkState::verified;
+            attribute :>> evidence = "bench 2026-10-17";
         }
         interface fan : FanLink connect pi.fanHeader to cooler.header {
             attribute :>> connector = "4-pin fan header";
