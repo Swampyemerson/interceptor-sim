@@ -310,3 +310,7 @@ Afternoon: the registered estimator diagnosis found the campaign misses' real ca
 **So what:** The camera-driven chase now meets its own bar in the full-physics sim, and the defect it took four campaigns to find would have flown on the real aircraft -- the cross-check loop just paid for itself. Two rulings reopen (default swap; brake, whose earlier verdicts are void), and the honest caveats stand: perfect cue, windless, upright tag, sim camera.
 
 **Evidence:** ADR-0117 (+addendum) - docs/xcheck_gazebo_pursuit_prereg4.md - logs/xcheck_gz_20260924_velfix/ - logs/endgame_diag_20260924/
+
+## 2026-10-02
+
+The hardware now has a systems model: every part actually in the build -- target, interceptor, tripod seeker rig, ground gear -- is written as a SysML v2 text model (docs/sysml/) and drawn as power, data and mechanical wiring diagrams on the MBSE sheet (view 8). The OMG reference SysML v2 tool reads all seven files with zero errors. Each wire says whether it is planned, made, or proven by a named build step: 17 of 60 are proven. Same day, builder ask: the diagrams are now TAPPABLE -- a wiring-editor page queues connection / state / build-status changes from a phone, type-checked in the browser, applied to the model only by a Claude session that re-runs every gate.

@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->14494b8<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->27f257e<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -913,12 +913,12 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-10-16",
-  "where": "Interceptor first battery power-up COMPLETE: all four motors spin on command and the motor map is spin-verified (both front and back pairs were crossed -- fixed in params, read-back + re-flown). Pi, FC, GPS+compass, ESC and the full FC-to-ESC path are proven on the 6S pack.",
+  "as_of": "2026-10-17",
+  "where": "Interceptor propulsion is DONE: all four motors spin with corner-verified mapping AND correct directions (phase wires swapped at three motors; full re-fly confirmed 4/4). Safety restored to fail-closed (CBRK_IO_SAFETY=0). Pi, FC, GPS+compass, ESC all proven on battery.",
   "finding": "MAV_CMD_ACTUATOR_TEST wants the MAVLink MOTOR1..4 enum (1..4) in param5, not PX4's internal 101..104 -- the wrong numbers vanish with no ACK (2h lost). Also: PX4 routes acks only to systems it has heard heartbeats from, and open QGC actuator sliders stomp external test commands.",
   "next": [
-   "Builder: swap two phase wires each at front-right, front-left, back-left (back-right correct)",
-   "Then re-verify directions, restore CBRK_IO_SAFETY=0, FC microSD in, battery V cal vs meter"
+   "FC microSD in (nothing is being ulogged); battery V calibration vs the meter",
+   "Then accel/level cal on the frame and the RC kill-switch re-check on battery power"
   ],
   "evidence": "bench session 2026-10-16 over the Pi (fc_link_check: 9 sats FIX_3D, 21.6 V; PWM_MAIN_FUNC1-4 read-back) - configs/px4_6cmini/bench.params section (5) + README correction"
  },
@@ -1404,6 +1404,12 @@
  "plain_log": [
   {
    "date": "2026-10-17",
+   "text": "Direction fix day-2: the builder swapped two phase wires at each of the three reversed motors (front-right, front-left, back-left); the verification sequence then showed all four corners AND directions matching the PX4 quad-X convention -- propulsion chain end-to-end verified on battery. CBRK_IO_SAFETY restored to 0 (fail-closed) with read-back the same session, closing the bypass the builder had authorized for the spin tests.",
+   "so_what": "The interceptor's motors are flight-correct: mapping and rotation both verified by eye against commanded spins. The propulsion unknowns are closed; what remains before an arm attempt is logging (microSD), battery calibration, sensor cals and the RC kill-switch re-check.",
+   "evidence": "bench 2026-10-17: 4x ACCEPTED actuator tests, builder corner/direction callouts 4/4 correct; CBRK_IO_SAFETY=0 read-back"
+  },
+  {
+   "date": "2026-10-17",
    "text": "Interceptor Pi-rail filter DONE, builder at the bench: the 1000 uF 16 V cap (capacitor kit arrived today, biggest in it) soldered across the BEC's 5 V output pads in parallel with the Pi's USB-C pigtail, polarity and 5 V-side verified BEFORE power, rail measured a steady 5.3 V at the Pi end. The open 'where does the 5 V enter the Pi' wiring decision is closed: USB-C pigtail. One incident, no damage found: probing the BEC's battery-input pads bridged them with the meter tips and the arc blew the ground lead off -- battery pulled at once, pack checked (no swelling, cells balanced), joint cleaned and re-soldered, lesson logged: measure battery voltage at the XT60, clip the black probe first. 18650s for both Pocket TXs also in hand (IMREN 2500 -- radio-grade use only).",
    "so_what": "The interceptor's Pi power path is wired and verified end to end (battery -> BEC -> filtered 5 V -> Pi over USB-C) -- one of the three open wiring decisions closed, two remain (buzzer pin, ESC signal plug). Next bench items: heat-shrink + anchor the cap body, then RC bind for the target once its TX has cells.",
    "evidence": "bench 2026-10-17 (multimeter 5.3 V at Pi end); docs/sysml/Interceptor.sysml piRail + railSmoothing -> verified; SysML check green (19 verified / 60)"
@@ -1467,12 +1473,6 @@
    "text": "The hosted dashboard Artifact (the claude.ai mirror of this contract) cannot currently be republished: the sync turn trips a safety classifier on every model tried (Sonnet through Opus), and the 2026-10-02 attempt was stopped mid-response. Per the standing rule, no rewording or workaround was attempted. The builder sent /feedback the same day with the flagged request IDs (req_011CfcYBK6pdkcZ9gpXss9H8, msg_011CfcYBKh3STKZHrPfAcWfm). WAITING on that; no retry cadence promised by the channel. [RESOLVED since: republishes went through normally from 2026-10-17.]",
    "so_what": "The repo copies (docs/project_state.json, docs/dashboard.html) remain the live truth and keep updating normally -- only the hosted mirror is frozen at its last good publish, so anyone reading the Artifact link sees stale state until the flagging is resolved. The update ritual's republish step is suspended, not forgotten: it resumes the first turn a sync goes through.",
    "evidence": "docs/subagent_safeguard_log.md (2026-10-02 entry) - builder /feedback submission 2026-10-02"
-  },
-  {
-   "date": "2026-10-02",
-   "text": "The hardware now has a systems model: every part actually in the build -- target, interceptor, tripod seeker rig, ground gear -- is written as a SysML v2 text model (docs/sysml/) and drawn as power, data and mechanical wiring diagrams on the MBSE sheet (view 8). The OMG reference SysML v2 tool reads all seven files with zero errors. Each wire says whether it is planned, made, or proven by a named build step: 17 of 60 are proven. Same day, builder ask: the diagrams are now TAPPABLE -- a wiring-editor page queues connection / state / build-status changes from a phone, type-checked in the browser, applied to the model only by a Claude session that re-runs every gate.",
-   "so_what": "Wiring mistakes become catchable before the iron is hot: the renderer refuses a wire plugged into the wrong kind of port or drawn backwards, and refuses any build-sheet part that is neither drawn nor deliberately excluded. Building it surfaced two parts that were missing from the build sheet (the interceptor's own transmitter and the Pi-rail capacitor, both added) and three wiring decisions still open: which 6C Mini pin drives the buzzer, how the ESC signal lead plugs into the 6C Mini, and where the 5 V lead enters the Pi.",
-   "evidence": "docs/sysml/*.sysml · scripts/render_sysml.py --check · scripts/sysml/check_sysml_official.sh (OMG pilot 0.62.0: 7/7 files, 0 errors) · docs/sysml/views/*.png · editor: https://claude.ai/artifact/Q4pEiLKY5JpFsEGy9QUgps (ADR-0123 addendum)"
   }
  ],
  "narrative": {

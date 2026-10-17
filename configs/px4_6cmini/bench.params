@@ -356,10 +356,10 @@
 #     sequence, twice): MAIN1=back-right, MAIN2=front-right, MAIN3=front-left,
 #     MAIN4=back-left. Both the front pair AND the back pair were crossed vs
 #     the naive mapping. DIRECTIONS at verification: back-right correct (CW);
-#     front-right, front-left and back-left all REVERSED -- fix is swapping any
-#     two of the three motor phase wires at each of those three motors (PWM
-#     carries no direction bit; see the COMMS GOTCHA note above). Re-verify
-#     directions with scripts/bench/fc_motor_seq_px4.py after the wire swaps.
+#     front-right, front-left and back-left were REVERSED; the builder swapped
+#     two phase wires at each (2026-10-17) and a full re-fly verified ALL FOUR
+#     corners AND directions now match the PX4 quad-X convention. Propulsion
+#     chain fully verified on battery. CBRK_IO_SAFETY restored to 0 same session.
 1	1	PWM_MAIN_FUNC1	104	6
 1	1	PWM_MAIN_FUNC2	101	6
 1	1	PWM_MAIN_FUNC3	103	6
