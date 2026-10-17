@@ -1,11 +1,3 @@
-### 2026-09-22
-
-Field-readiness push, all flight hardware on the bench; all three parallel builds LANDED. (1) The pursuit-port parity gap CLOSED -- a registered tick-by-tick trace found four coupled defects (KF covariance Jacobian, capture-instant attitude, yaw seed, slant under-range); the fixed port went 24% to 100% inside 0.35 m nominal, median 0.068 m, verified independently. (2) The GPS cue relay was designed, built off real bench GPS data, and wired into the flight CLI (--cue-json, fail-closed): serves chase-only (8-13 deg worst-credible vs 10-30 deg tolerance), never the sprint. (3) Miss-abort safety: passage window ported, SAFE now offers hover / land / return-home, and a pursuit miss aborts straight to SAFE. Bench: the real Pi-to-Pixhawk link measured live confirms the failsafe staleness sizing. Full offline suite ALL GREEN (dev machine). Builder ruled same day (ADR-0107): a missed engagement HOVERS in place for the operator (re-approach deferred as a future feature); system-health aborts still land. Late addition (builder ask, built on the Fable 5 lane -- its first clean build here since 2026-09-10): the cue fitter now handles a TURNING target, proving a turn from the GPS's own per-sample velocities (4-sigma test) and extrapolating along the arc with hard refuse-don't-guess caps; velocity-at-latch on a turning target improved 2.8x.
-
-**So what:** The ruled chase-only design is no longer the weaker twin of its prototype, a miss now has a defined safe ending, and the launch cue has honest piping with a measured error budget instead of a hand-typed perfect number. Two rulings queued: the slant under-range geometry also ships in the older stock seeker paths, and whether the vehicle may re-approach after a missed first pass.
-
-*Evidence: isim/specs/parity_trace_2026-09-22.md - docs/cue_relay_plan.md - cue decision record (contract launch_aim) - logs/bench_telem2_cadence_20260922.json - commits 8a5886c, fa54d7d, 3d1a5e4, 9efbc84, ADR-0107, 18482cf, 35b1f88*
-
 ### 2026-08-12
 
 The contract now renders a SECOND view: a set of systems-engineering diagrams and traceability tables (MBSE), generated from the same JSON as the dashboard. Nothing on it is hand-drawn.
@@ -284,3 +276,19 @@ Builder-directed refinement day, four parallel lanes. (1) The keep-in-frame clim
 **So what:** Three registered predictions, two nulls, zero spin -- and by end of day the fix list was built, verified, and FLOWN: the re-fly came back NULL-with-instruments-green (chase tightened 1.510 -> 0.967 m median; range bias and cadence fixed as attributed; bar not met). The remaining risk is named: the pursuit law's braking behavior on the real-speed plant, plus the +3 m height cliff already answered by the +10 deg bracket recommendation.
 
 **Evidence:** isim/specs/{xcheck_tick_trace,keepframe_prereg,wind_chase_prereg}_2026-09-23.md - commits 23aba0b, aa47972, 0d28538, 226100f - ADR-0110/0111
+
+## 2026-09-23 (archived from plain_log 2026-10-17, cap-12 overflow)
+
+Overnight (builder asleep, directive: 'make the sim's AprilTag true enough to real life -- tilt, pitch, shake, glare'). Built tag realism v1 into the fast sim: the target now derives a real quad attitude from its trajectory (nose-down cruise pitch, banked turns) with the tag bolted to its body, plus attitude wobble, camera-vibration blur, and sun-geometry glare -- all default-off and byte-identical, every constant graded estimate. Flew the registered ladder (n=50), a disjoint-seed confirmation (n=150), a mechanism probe, and a registered canted-mount A/B (n=100). Nominal chase: realism is an honest NULL (90 -> 87-91% touching). The real finding: the +10 deg camera bracket's height-error win collapses under a body-coupled tag (+21 -> +2..+14 points), because the pitched target tilts its rear tag face up-and-back and close-in decodes halve; canting the placard 12 deg DOWN (a print-time choice on our own mount, index disc records it) recovers the cell to 60/64% and restores the bracket's +20 margin.
+
+**So what:** The builder's suspicion was half right: the tag model WAS hiding a real effect -- not in the flying nominal numbers, but in the pending bracket ruling. That ruling is now 'bracket + canted placard as a pair'. No guidance change was warranted (registered criterion: the deficit was geometric, fixed at the mount). All numbers isim-tier; Gazebo/bench rung and the measured real cruise pitch come next.
+
+**Evidence:** ADR-0114 - isim/specs/tag_realism_v1.md SS F/G - logs/tag_realism_20260923/{ladder_v1,confirm_n150,mech_probe,cant_ab}.txt - commit 7546c12
+
+## 2026-09-24 (archived from plain_log 2026-10-17, cap-12 overflow)
+
+Overnight part 2: the contract's named next item (braking/approach shaping vs the honest ENGAGE plant) ran as two registered rounds plus a per-run trace. A stopping-distance cap on the chase's relative command -- sized from the fitted 5.9 m/s2 braking authority -- was built default-off and swept 6,100 runs across both vehicle fits and the new realistic-tag rungs. It confirms the Gazebo re-fly's residual: braking the approach takes honest-plant nominal contact 62 to 98 percent and halves arrival speed. But it costs 12-28 points on the target-3-m-above cell, and the trace attributed WHY: slowing the horizontal de-synchronizes the vertical intercept -- the climb reaches target altitude early and overshoots 0.2-0.7 m while the braked closure is still coming, so CPA lands just over the bar. Under the registered no-regression rule nothing is adopted; the code sits in-tree, off, fully pinned.
+
+**So what:** The diagnosis is complete on both sides: the pursuit law arrives too hot for the real airframe (worth ~35 points at nominal), and the fix's one side effect is a now-understood vertical timing problem, not a mystery. The trade -- adopt the cap for Gazebo re-fly #3, first add a registered vertical-arrival-sync term, or stop here -- is queued for the builder with the attribution attached.
+
+**Evidence:** ADR-0115 - isim/specs/brake_shaping_prereg_2026-09-24.md (both registrations + tables) - logs/brake_shaping_20260924/

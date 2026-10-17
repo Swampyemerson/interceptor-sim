@@ -183,7 +183,13 @@ jobs:
       # Green here means all four stages ran AND all four passed.
       - name: Project-state dashboard drift check (run_tests.sh stage 3)
         if: ${{ !cancelled() }}
-        run: python3 scripts/render_dashboard.py --check
+        # All three generated views, same as run_tests.sh stage 3. The MBSE check
+        # was missing here until 2026-10-02 although docs/mbse.html says drift
+        # "fails CI"; render_sysml.py --check gates the SysML v2 hardware model.
+        run: |
+          python3 scripts/render_dashboard.py --check
+          python3 scripts/render_mbse.py --check
+          python3 scripts/render_sysml.py --check
 
       - name: Uncovered --self-test entry points (run_tests.sh stage 4)
         if: ${{ !cancelled() }}

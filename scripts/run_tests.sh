@@ -156,6 +156,12 @@ python3 scripts/render_dashboard.py --check || rc=1
 # the model may not drift from the build. The check compares a digest of the
 # contract against the one baked into docs/mbse.html at render time.
 python3 scripts/render_mbse.py --check || rc=1
+# Third: the SysML v2 hardware model (docs/sysml/). Validates the model -- port
+# types + wire direction, link-state evidence, build-sheet coverage both ways --
+# and fails if docs/sysml/views/*.svg|png are stale. Full-language validation by
+# the OMG reference implementation is scripts/sysml/check_sysml_official.sh
+# (Java + one-time download, so NOT run here; docs/sysml/README.md).
+python3 scripts/render_sysml.py --check || rc=1
 
 echo ""
 echo "== [4/4] uncovered --self-test entry points (each must exit 0) =="
