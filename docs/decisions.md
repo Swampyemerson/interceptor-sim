@@ -1040,3 +1040,25 @@ by the smoke-stopper gate; the Pi layer (which does take updates) is where our
 code actually runs.
 Evidence: configs/px4_6cmini/verify_params.py 11/11 across reboot 2026-10-04;
 bench session log 2026-10-02/03 (kill chain); Pi apt/EEPROM run 2026-10-04.
+
+## ADR-0122 — Battery mounts on TOP of the frame (2026-10-17)
+
+Context: where the 6S 1500 (~245 g of ~950 g AUW) rides on the 5.1" interceptor —
+top of the frame (protected in falls) vs underneath ("lower center of mass").
+Options: (a) bottom-mount, conventional freestyle layout, easy strap access;
+(b) top-mount, racer layout, carbon plate between ground and pack.
+Decision: (b) top-mount, centered fore-aft over the stack, aft of the camera,
+strap + grip tape.
+Why: the low-CG argument is the pendulum fallacy — a quad's thrust vector tilts
+with the frame, so mass below the prop plane does not self-right anything; the
+flight controller holds attitude equally well either way. What placement really
+changes: pitch/roll moment of inertia (so keep the pack CLOSE to the prop plane,
+whichever side) and fore-aft CG trim (so center it). With stability a wash, crash
+survival decides: every terminal intercept attempt ends in an uncontrolled fall,
+quads land/crash belly-first, and a punctured LiPo is a fire — top-mount puts the
+frame plate between ground and pack. Two installation checks: the pack must stay
+out of the forward seeker camera's FoV, and the strap must hold through terminal
+g's and impact.
+Evidence: physics derivation (pendulum rocket fallacy; thrust is body-fixed) +
+standard FPV race practice; no flight test needed — reversible, re-examine only
+if bench CG check shows a trim problem.
