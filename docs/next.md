@@ -93,9 +93,22 @@ first time, testable — and is a redesign decision, queued for the builder. Det
    session (builder reported the LED "dimmer/flickery" on battery): 180 s all-core stress on
    battery — **EXT5V 5.290–5.298 V (≈20 mV sag from 5.317 idle), `throttled=0x0` incl. the
    sticky since-boot bits, clock pinned 2400 MHz, ≤55 °C**. No electrical corroboration of the
-   dim-LED observation at the Pi's input. Open residue (not a blocker): a flight-length
-   endurance run on a draining pack with the camera live is the later, separate gate.
-   Evidence: `runs/bench_20261017_brn05_reverify/pi5_battery_stress_20261017.md`.
+   dim-LED observation at the Pi's input — **PARTIALLY WALKED BACK ~20 min later: the pack
+   died outright (lights off, total 5 V loss), so the dimness was plausibly the pack sagging,
+   invisible on the BEC's regulated side until dropout. Battery-side tests must monitor PACK
+   voltage via the FC power module (MAVLink battery_status) alongside EXT5V.** Open residue:
+   the flight-length endurance gate (draining pack, camera live, pack-V monitored).
+   Evidence + addendum: `runs/bench_20261017_brn05_reverify/pi5_battery_stress_20261017.md`.
+6b. **Pull the Pi's stranded bench evidence + update its clone (found 2026-10-17, blocked on
+   the Pi being re-powered).** The Pi's working tree holds three UNTRACKED runs dirs —
+   `runs/recorder_gate_20261004/` (looks like the frame-recorder Pi gate from directive #3
+   already RAN on 2026-10-04 and its evidence never left the SD card; the "REMAINING = Pi
+   bench gate" line above may be stale — inspect before re-running) plus two
+   `runs/desk_20261004T*/` desk runs — and its clone is 48 commits behind main (clean tree,
+   on main). When the Pi is back on wall power: pull the three dirs over scp, commit them,
+   inspect the recorder-gate verdict, update directive #3 accordingly, and `git pull` the
+   Pi's clone (its origin fetch hung once — check `git remote -v`, use HTTPS since the repo
+   is public).
 6. **Bench bring-up — UNBLOCKED, hardware in hand (2026-07-26).** Two independent chains, both fully in hand: the **seeker rig** (`skr-01`→`skr-06`, Pi 5 + OV9281, ends at the calibration gate) and the **brain bench** (`brn-01`→`brn-05`, Pi 5 + 6C Mini + M10, ends at the props-off OFFBOARD gate — the one link the sim never exercised). Packs are written: `scripts/pi_setup/`, `configs/px4_6cmini/`. Pull `skr-03` (exposure ≤1 ms) forward — a null there kills tripod day's motion-blur read.
    - ✅ **`skr-07` DONE remotely 2026-07-26 — and it moved a number the gate turns on.** Sustained on the real Pi 5 through 750 s soaks, tag in frame, **no throttling on any arm**: **96.6 fps** at `quad_decimate=2.0`, **38.2** at 1.0, **CPU-YOLO 6.09 fps**. The seeker had been running at 30 fps because neither `pi_capture.py` nor `seeker_loop.py:PicameraSource` sets picamera2's `FrameDurationLimits` — an inherited default, not the sensor (143 fps) and not the CPU. `R_streak_burn` goes as 1/fps, so this cuts the range burned forming the handoff ~3.2×, and `quad_decimate=1.0` (the range/incidence reclaim lever) is now affordable at 38.2 fps — above the 30 the project assumed at the *coarse* setting. ADR-0090; harness `scripts/seeker/pi_fps_soak.py`; data `runs/skr07_tagged/`.
    - ✅ **The frame-duration cap is WIRED — this line used to say "still open" and was stale (corrected 2026-08-10).** `seeker_loop.py:PicameraSource` pins `FrameDurationLimits` from `--camera-fps`, default `CAMERA_FPS_DEFAULT = 60.0` — exactly ADR-0090's recommendation, not uncapped. It refuses a frame duration shorter than the exposure, and it logs what was **applied** rather than what was intended (an earlier version printed success off `target_fps` alone and a mutation test that deleted the assignment still saw it claim victory). Regression-tested: `flight/tests/test_camera_fps_pinned.py`, 4 passed. Note the **recorder** (`pi_capture.py`) is deliberately separate and still inherits ~30 fps — a live 5-frame check on 2026-08-10 measured `stream_fps=30.799`. That is correct for a bench recorder that pays a per-frame PNG write, but do **not** quote a recorder rate as a seeker cadence.

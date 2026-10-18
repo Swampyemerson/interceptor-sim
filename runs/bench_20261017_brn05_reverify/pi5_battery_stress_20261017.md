@@ -39,7 +39,21 @@ EEPROM already ruled out on the live board (no POWER_OFF_ON_HALT, bootloader
 Standing rule: always pull power FULLY (and let it drain) instead of relying
 on `halt`. Reopen only if a standby recurs from a verified true cold start.
 
-Raw samples (t_s, throttled, EXT5V_V, temp_C, clock_MHz):
+## ⚠️ ADDENDUM, ~20 min after the test: the pack died — the caveats were load-bearing
+
+The Pi dropped off the network and the builder found its lights fully OFF (total
+5 V loss — a different signature from the solid-red standby). Most likely the
+LiPo sagged below the BEC dropout / LVC; the 180 s all-core stress above will
+have hastened the drain. Two honest corrections:
+1. **The builder's "LED looks dimmer" observation is partially VINDICATED**, not
+   refuted: this test measured the REGULATED side of the BEC, which holds 5 V
+   rock-solid right up until its input collapses, then drops out abruptly. A
+   sagging pack is invisible in EXT5V until the end. "Not corroborated at the
+   Pi's input" was true but answered the wrong question.
+2. **Method rule for every future battery-side test:** monitor PACK voltage via
+   the FC's power module over MAVLink (battery_status) alongside EXT5V. The
+   clean-5V verdict above stands only for "BEC regulation under CPU load at that
+   state of charge"; it says nothing about endurance, which is the open gate.
 
 ```
   5 0x0 5.29702 39.5 2400
