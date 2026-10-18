@@ -58,12 +58,18 @@ first time, testable — and is a redesign decision, queued for the builder. Det
 >    the last safe moment (margin sim-derived from closing speed + both airframes), score
 >    the WOULD-HAVE closest approach honestly from the logs, SAFE hover, repeat. Builds
 >    on the passage window + SAFE machinery. Build after the estimator diagnosis lands.
-> 3. **Onboard footage recorder — BUILT 2026-09-24** (flight/deploy/frame_recorder.py,
->    --record-frames on the flight CLI, --record on the fps soak; copy-on-accept queue,
->    drop-don't-block, three-way fail-closed counters; 14 tests, 556 suite green).
->    REMAINING = the Pi bench gate (one command, in the recorder module's report and
->    scripts/seeker/pi_fps_soak.py --record) and a live picamera2 source in
->    run_mavsdk_mission — the hook is wired at the detect() call site awaiting it.
+> 3. ✅ **Onboard footage recorder — FULLY CLOSED (doc swept 2026-10-17; the work itself
+>    landed 2026-10-04 and sat unswept).** Built 2026-09-24 (flight/deploy/frame_recorder.py;
+>    14 tests). The two REMAINING items both completed 2026-10-04: (a) the **Pi bench gate
+>    RAN** — 900 s live-camera soak with --record on the real Pi 5: **8958 frames written,
+>    0 dropped**, no throttling, temps steady (the soak's own fps number is stamped
+>    PROVISIONAL/not-gate-eligible — no tag in view and camera delivery sat at the 30 fps
+>    default, so "recording costs nothing" is proven at 30 fps delivered with 7.69×
+>    compute headroom, not at flight cadence); evidence `runs/recorder_gate_20261004/`
+>    (pulled off the Pi 2026-10-17, frames in bench_archive/). (b) the **live picamera2
+>    source is wired into run_mavsdk_mission** (commit 1b10547: frame_feed.py adapts the
+>    proven seeker_loop sources/detectors into the detect() call site, fail-closed startup
+>    refusals, --desk mode that cannot arm; byte-identical without --source).
 
 
 0. **TERMINAL REDESIGN — RULED: chase only (ADR-0103), port complete through the real CLI (ADR-0105, 2026-09-21).** Pursuit alone replaced the sprint-and-fly-by; `flight/pursuit_terminal.py` is selectable via `real_flight.py --terminal pursuit`, and in pursuit mode GO enters the engagement directly (no sprint, no acquire gate). Open before it is trusted: ~~(a) the 2 s lost-target abort~~ SETTLED 2026-09-21 — the pre-registered A/B came back NULL (byte-identical at 2/4/10/30 s windows; the timer is exonerated, do not spend a ruling on it); (b) ~~the parity gap~~ CLOSED 2026-09-22 — the trace found FOUR coupled port defects (KF covariance Jacobian, capture-instant attitude, yaw-slew seed, slant under-range) and the fixed port now matches/beats the prototype (nominal 24%→100% ≤0.35 m, median 0.068 m; adopt criterion met, head-verified independently; `isim/specs/parity_trace_2026-09-22.md`). Residual: aim20/alt+2 trail the native because RealFlightSM has no re-approach after a missed first pass — a queued builder design question. ⚠ NEW RULING NEEDED: the slant under-range geometry (box depth placed along the unit ray, short by cos(off-axis)) also ships in the VALIDATED stock `SeekerGuidance`/`tag_terminal` paths — fixed only in pursuit; decide whether to port the fix or re-validate; (c) ~~the Gazebo cross-check~~ FLOWN 2026-09-23 (pre-registered, n=8, camera-in-the-loop, `docs/xcheck_gazebo_pursuit_prereg.md`): the shakedown caught parity defect #5 (Phase A yawed at the rendezvous point, freezing the camera off-target when station-keeping; fixed to yaw at the believed target like the prototype, regression-pinned, and the fix closed the isim aim20 cell 70%->100%), then the scored flights FAILED the registered bar (median 1.51 m); the tick-trace attributed the gap, the fixes flew (re-fly #2: median 0.967 m, instruments green, bar still failed), and the residual is now CONFIRMED as the hot approach with a traced side-effect trade queued for the builder (ADR-0113/0115). DEFAULT SWAP EXECUTED 2026-09-24 (ADR-0118): re-fly #4 passed the standing gate (median 0.343 m after the ADR-0117 velocity-wiring fix) and pursuit is now the flying default; stock/tag stay selectable as-flown. NEW 2026-09-22 (builder field-readiness directive, agents running): miss-abort safety (abort→hover/return-home the moment an intercept is missed, + the ADR-0101 passage-window port to real_flight.py) and the GPS cue relay (~2 s of target GPS → ground → interceptor, latched at trigger — the piping for the ruled cue constraint, incl. launch climb/altitude profile). Pointing levers remain built and deliberately NOT adopted.
@@ -99,16 +105,11 @@ first time, testable — and is a redesign decision, queued for the builder. Det
    voltage via the FC power module (MAVLink battery_status) alongside EXT5V.** Open residue:
    the flight-length endurance gate (draining pack, camera live, pack-V monitored).
    Evidence + addendum: `runs/bench_20261017_brn05_reverify/pi5_battery_stress_20261017.md`.
-6b. **Pull the Pi's stranded bench evidence + update its clone (found 2026-10-17, blocked on
-   the Pi being re-powered).** The Pi's working tree holds three UNTRACKED runs dirs —
-   `runs/recorder_gate_20261004/` (looks like the frame-recorder Pi gate from directive #3
-   already RAN on 2026-10-04 and its evidence never left the SD card; the "REMAINING = Pi
-   bench gate" line above may be stale — inspect before re-running) plus two
-   `runs/desk_20261004T*/` desk runs — and its clone is 48 commits behind main (clean tree,
-   on main). When the Pi is back on wall power: pull the three dirs over scp, commit them,
-   inspect the recorder-gate verdict, update directive #3 accordingly, and `git pull` the
-   Pi's clone (its origin fetch hung once — check `git remote -v`, use HTTPS since the repo
-   is public).
+6b. ✅ **DONE 2026-10-17 (same evening).** All three stranded dirs pulled off the Pi (213 MB,
+   rsync size-verified): small aggregates committed under `runs/` (recorder-gate
+   soak.json/verdict/thermals/soak.out + both desk.csv), full frame sets in the gitignored
+   `bench_archive/pi_pull_20261017/`. The recorder-gate verdict closed directive #3 above.
+   The Pi's clone is synced to current main (was 48 behind; plain HTTPS pull worked).
 6. **Bench bring-up — UNBLOCKED, hardware in hand (2026-07-26).** Two independent chains, both fully in hand: the **seeker rig** (`skr-01`→`skr-06`, Pi 5 + OV9281, ends at the calibration gate) and the **brain bench** (`brn-01`→`brn-05`, Pi 5 + 6C Mini + M10, ends at the props-off OFFBOARD gate — the one link the sim never exercised). Packs are written: `scripts/pi_setup/`, `configs/px4_6cmini/`. Pull `skr-03` (exposure ≤1 ms) forward — a null there kills tripod day's motion-blur read.
    - ✅ **`skr-07` DONE remotely 2026-07-26 — and it moved a number the gate turns on.** Sustained on the real Pi 5 through 750 s soaks, tag in frame, **no throttling on any arm**: **96.6 fps** at `quad_decimate=2.0`, **38.2** at 1.0, **CPU-YOLO 6.09 fps**. The seeker had been running at 30 fps because neither `pi_capture.py` nor `seeker_loop.py:PicameraSource` sets picamera2's `FrameDurationLimits` — an inherited default, not the sensor (143 fps) and not the CPU. `R_streak_burn` goes as 1/fps, so this cuts the range burned forming the handoff ~3.2×, and `quad_decimate=1.0` (the range/incidence reclaim lever) is now affordable at 38.2 fps — above the 30 the project assumed at the *coarse* setting. ADR-0090; harness `scripts/seeker/pi_fps_soak.py`; data `runs/skr07_tagged/`.
    - ✅ **The frame-duration cap is WIRED — this line used to say "still open" and was stale (corrected 2026-08-10).** `seeker_loop.py:PicameraSource` pins `FrameDurationLimits` from `--camera-fps`, default `CAMERA_FPS_DEFAULT = 60.0` — exactly ADR-0090's recommendation, not uncapped. It refuses a frame duration shorter than the exposure, and it logs what was **applied** rather than what was intended (an earlier version printed success off `target_fps` alone and a mutation test that deleted the assignment still saw it claim victory). Regression-tested: `flight/tests/test_camera_fps_pinned.py`, 4 passed. Note the **recorder** (`pi_capture.py`) is deliberately separate and still inherits ~30 fps — a live 5-frame check on 2026-08-10 measured `stream_fps=30.799`. That is correct for a bench recorder that pays a per-frame PNG write, but do **not** quote a recorder rate as a seeker cadence.

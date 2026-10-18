@@ -153,3 +153,6 @@ logs/wind_gate0_*/sim.log
 # evidence that lives only on the device is evidence we lose.
 !runs/tgt02_bench/
 !runs/tgt02_bench/**
+
+# Full bench pulls from the Pi (frames/images; small aggregates are committed under runs/)
+bench_archive/
