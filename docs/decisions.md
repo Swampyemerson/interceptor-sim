@@ -1137,3 +1137,34 @@ one-afternoon measurement might show unnecessary.
 Evidence: placard_sizing.md §4 (R_decode90 pred 5.98/7.10 m; qd=1.0 → 18 m sim);
 tripod_test_protocol.md §8.1 (t_go gate, 24 fps break-even); graveyard
 "launch-on-detect" + "narrow lens" + "auto-crop" entries; ADR-0078.
+
+### ADR-0124 addendum — bench measurements land same-ruling, two corrections (2026-10-18)
+
+Bench run on the real Pi 5 + live OV9281 (`scripts/bench/pi_decode_bench.py`,
+artifacts `runs/bench_20261018_decode/`), deployed detector config (tag36h11,
+nthreads=4, qd=2.0, pose on; pyapriltags 3.4.3.1):
+
+1. **Pixel cliff (T1):** cliff90 = **14 px** clean / **18 px** under 1-px blur at
+   qd=2.0 (12/18 px at qd=1.0) — better than the sim-measured ~22 px, so the §4
+   paper prediction (5.98–7.10 m) is likely conservative. Software-floor ranges at
+   the uncalibrated fx≈540 target: **~10.5 m** (OV9281, blurred-arm cliff),
+   **~15.7 m** (AR0234 at 1.5× px/deg). GIVEN-PERFECT caveat: synthetic composite
+   pixels; real optics/light/motion smear/incidence unmeasured — curve (a) decides.
+2. **CORRECTION to ruling 1's ladder:** `quad_decimate=1.0` bought **zero** cliff
+   improvement under blur (18 vs 18 px) and only 2 px clean — the sim's "+50%
+   range" transfer does NOT hold for the real decoder on real-ish pixels. Demoted
+   from "first reclaim lever" to try-but-expect-little.
+3. **fps (T2/T3):** end-to-end camera→gray→decode loop = **30 fps sustained** at
+   both qd settings (capture-capped by the default 30 fps stream config; pure
+   decode at qd=2.0 is ~98 fps on a real frame) — the ≥24 fps break-even clears
+   with margin. The AR0234 1920×1200 cost proxy: **47 fps** decode at qd=2.0, 20
+   fps at qd=1.0 — the fps trap bites only at qd=1.0, which per (2) isn't worth
+   running anyway. Net: an AR0234 at deployed settings is fps-viable.
+4. **Instrument caveats:** the "bench_real" timing frames are badly DEFOCUSED
+   (close-range M12), i.e. edge-poor → decode-cost optimistic for sharp cluttered
+   scenes (sky engagement scenes are emptier still, so the loop number stands).
+   **Action item:** set/verify M12 lens focus at field range during checkerboard
+   calibration — a defocused lens would silently shrink every decode range.
+
+Ruling unchanged: fly tripod curve (a) before any purchase; today's numbers raise
+the prior that the owned camera passes, and pre-clear the AR0234's fps question.
