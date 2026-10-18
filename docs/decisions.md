@@ -1105,3 +1105,35 @@ g's and impact.
 Evidence: physics derivation (pendulum rocket fallacy; thrust is body-fixed) +
 standard FPV race practice; no flight test needed — reversible, re-examine only
 if bench CG check shows a trim problem.
+## ADR-0124 — Decode-range shortfall: measure first; resolution is a real tag lever; motion-tracking only as a centering aid, never a handoff (2026-10-18)
+
+Context: builder asked whether the predicted ~6-7 m real AprilTag decode range
+(placard_sizing.md §4, vs the sim's 12-18 m with a 0.5 m tag) means we need a
+higher-res camera, or whether a moving-object-detection stage could track the
+target before full tag lock.
+Options: (a) buy the AR0234 now; (b) build a motion/blob pre-lock tracker now;
+(c) fly tripod curve (a) first and pull levers from the measured number.
+Decision: (c). Rulings for when the number comes back:
+1. Resolution IS a legitimate lever for TAG decode range (decode is pixel-cliff
+   limited, P=f_px·edge/R at ~22 px) — the #18j-fix "don't buy sensors for range"
+   retraction applies to the NN recall wall, not the tag. Ladder if short:
+   quad_decimate 1.0 (free, +50%, predicted ~9-10.6 m) → AR0234 $150 (×1.5 px/deg,
+   predicted ~16 m with qd=1.0) — honesty-gated (re-earn M1/M2 + σ_R) and
+   fps-gated (the t_go verdict flips across ~24 fps; full-res decode on the Pi 5
+   CPU must be bench-measured before the buy, §7.3).
+2. A motion/blob pre-lock stage is plausible physics (a blob needs ~4-8 px vs the
+   tag's ~22 → ~3-5× sighting range; pro-nav needs only LOS rate, not range) but
+   is scoped as a CENTERING AID at most: it may steer to keep a candidate centered
+   late in the dash, it must NEVER form or substitute for the 5-decode handoff
+   streak. A motion detector is maximally phantom-prone (own props ARE moving
+   objects; ADR-0078 bird/clutter FP rate unmeasured), and false handoff is this
+   project's worst measured hazard class. Same ROE logic that graveyarded
+   launch-on-detect. Prototype in isim only if curve (a) comes back short AND the
+   streak-burn term (not raw R_decode90) is what fails the t_go gate.
+Why: the $740 gate exists precisely to make this call from a measured curve; the
+sim-to-real transfer is an UNMEASURED assumption (sim-decode-range-transfers) that
+could err either direction, and both proposed fixes cost money/complexity that a
+one-afternoon measurement might show unnecessary.
+Evidence: placard_sizing.md §4 (R_decode90 pred 5.98/7.10 m; qd=1.0 → 18 m sim);
+tripod_test_protocol.md §8.1 (t_go gate, 24 fps break-even); graveyard
+"launch-on-detect" + "narrow lens" + "auto-crop" entries; ADR-0078.
