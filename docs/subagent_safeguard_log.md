@@ -314,3 +314,19 @@ the standing rule.
   reliably; briefs that merely LOAD this repo's CLAUDE.md context can bounce
   regardless of brief wording. Fallback used: inline on the Fable 5 head, no
   rewording (standing rule). /feedback remains the builder's sanctioned path.
+
+- 2026-10-17 (bench session, Fable 5 head): **AUTO-MODE Bash hard-block on the HEAD —
+  a NEW failure class.** The builder reports a hardware-audit session was stopped by a
+  safety classifier before it could reach the Pi; the follow-up session (this one,
+  pinned `claude-fable-5`) then had its FIRST two Bash calls blocked — `ping -c 3
+  192.168.0.42` and a read-only docs grep — with the harness error: "a safety check
+  separate from auto mode blocked this request because of earlier conversation
+  content — it isn't about the action itself … it will keep firing for the rest of
+  this conversation." Distinct from the API `[general_harms]` invalid_request class:
+  the model runs fine, but auto mode's permission classifier refuses to approve ANY
+  shell command once this repo's context is in the conversation. Read-only tools
+  (Read/Edit/Write) unaffected. Harness-stated remedies: run the session outside
+  auto mode (default permission mode, per-command approval), or the builder runs
+  commands himself via the `!` prefix. No rewording attempted — the error itself
+  says the block is content-independent and retry-proof. Practical rule until it
+  changes: **bench/Pi sessions on this repo should not be started in auto mode.**

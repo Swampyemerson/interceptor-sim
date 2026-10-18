@@ -163,6 +163,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BENCH_DEVICE="${BENCH_DEVICE:-/dev/ttyAMA0}"
 BENCH_BAUD="${BENCH_BAUD:-921600}"
 BENCH_MAVSDK_URL="${BENCH_MAVSDK_URL:-serial://${BENCH_DEVICE}:${BENCH_BAUD}}"
+# Default interpreter: .venv-seeker (dev box), falling back to .venv-pi (the
+# name provision.sh creates on the Pi 5 — a missing fallback cost a failed gate
+# run on 2026-10-17). An explicit BENCH_PYTHON always wins.
+if [[ -z "${BENCH_PYTHON:-}" && ! -x "$REPO_ROOT/.venv-seeker/bin/python" && -x "$REPO_ROOT/.venv-pi/bin/python" ]]; then
+    BENCH_PYTHON="$REPO_ROOT/.venv-pi/bin/python"
+fi
 BENCH_PYTHON="${BENCH_PYTHON:-$REPO_ROOT/.venv-seeker/bin/python}"
 BENCH_SOURCE="${BENCH_SOURCE:-$REPO_ROOT/scripts/seeker/data/quad_approach/images}"
 BENCH_WEIGHTS="${BENCH_WEIGHTS:-$REPO_ROOT/scripts/seeker/weights/nn_tier/n-mono.onnx}"

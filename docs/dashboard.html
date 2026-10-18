@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->7106c36<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->071dbaa<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1404,6 +1404,12 @@
  "plain_log": [
   {
    "date": "2026-10-17",
+   "text": "Evening bench session: brn-05 RE-VERIFIED green on the real TELEM2 UART after the recent hardware churn (power-path cap, phase-wire + GPS/mag re-cabling) -- OFFBOARD accepted while disarmed, 300/300 setpoints at 19.5 Hz, max own_age 0.02 s, max gap 0.05 s. The audit session's 'cannot reach the Pi' was the CLASSIFIER, not the link: a new auto-mode block class (ALL shell commands refused on conversation content, even ping) is logged in docs/subagent_safeguard_log.md. Pi standby bug (next.md 6a): EEPROM ruled out on the live board (no POWER_OFF_ON_HALT, bootloader 2026-09-25); differential narrowed to the BEC+1000uF 5V ramp vs halt-residual-power; deciding cold-cycle experiment + pre-registered prediction handed to the builder in next.md. check_deploy_bench.sh now falls back to .venv-pi (the Pi's venv name; the mismatch cost one failed gate run).",
+   "so_what": "The FC-Pi link is healthy end-to-end -- the audit's failure was tooling, not hardware. Bench sessions on this repo must not start in auto mode (use default or bypass permission mode). The boot-on-power fix is now one physical experiment away from a mechanism.",
+   "evidence": "runs/bench_20261017_brn05_reverify/deploy_seeker_bench_20261018T045301Z.log; docs/subagent_safeguard_log.md 2026-10-17 entry; rpi-eeprom-config read on 192.168.0.42"
+  },
+  {
+   "date": "2026-10-17",
    "text": "Both-drones USB bench verification sweep (no battery; QGC closed to free the COM port). Interceptor (PX4): all 15 bench params verified by read-back across the power cycle (motor map 104/101/103/102, CBRK_IO_SAFETY=0, kill switch, TELEM2); the microSD complaint is GONE (card in, SDLOG_MODE=2 live); gyro calibration run and accepted, gyro health bit HEALTHY. Compass finding: the two magnetometers now agree within 3 deg on USB power -- the 110-deg inconsistency was seen only under battery power with the ESC energized, so current-induced interference is the prime suspect (re-check under load; outdoor cal still owed). Target (ArduPilot): all 50 params verified by fresh read-back on the replacement board; GPS regression RESOLVED (u-blox detected and saving config); SD mounted and readable with zero logs, exactly right after its reformat. Open question for the builder: the interceptor reads +26 deg roll at rest -- if the frame is flat, a level-horizon cal is owed. Pi unreachable on Wi-Fi this session (wall-powered; retry).",
    "so_what": "Every software-verifiable bench item is green on both aircraft: configs persisted, logging live on both cards, gyro calibrated, GPS back. What remains genuinely needs battery, the transmitter, open sky, or the builder's hands: battery-V calibration, accel/level + outdoor compass cals, RC binds + radio cal, and the safety-switch wiring decision.",
    "evidence": "bench 2026-10-17 (USB): verify_params.py 15/15 (COM5) - upload_params.py read-back 50/50 (COM4) - LOG_ENTRY 0 logs - px4_bench_sweep.py output"
@@ -1467,12 +1473,6 @@
    "text": "Wiring-editor friction fix, builder ask: changing a wire's state no longer requires naming a build-step id. 'evidence' is now an optional free-form note (a step id, a date, any short text) in the editor form, the queued edits, and the model validator -- recorded and shown when given, never required. linkState tracks bench build progress, not a performance claim, so the honesty surfaces (key_numbers provenance, assumptions register, gt_* boundary) are untouched.",
    "so_what": "The builder can now mark a wire wired/verified from his phone in two taps. The two validator tests that enforced the old rule now pin the new one.",
    "evidence": "docs/decisions.md ADR-0123 addendum 2026-10-03; scripts/render_sysml.py; tests/test_render_sysml.py"
-  },
-  {
-   "date": "2026-10-02",
-   "text": "Bench: the chaser's (interceptor's) RC kill link is wired and PROVEN at the PX4 level. RP3 ELRS RX soldered to the 6C Mini's RC IN; bind phrase + SBUS protocol configured over the RX's own WiFi (no reflash needed, both ends already 3.3.1); first tests failed silently and the fault was run to ground with instruments, not guesses -- the IO co-processor's own counters showed zero bytes, a 3.2 V probe at the S pin then proved the wire good, isolating a two-fault stack: an unseated DuPont junction plus the wrong SBUS polarity option. With plain SBUS + a re-seated junction: 18-channel frames, full-range stick sweeps, and the no-pulses failsafe (stream dies with the TX, relinks in seconds) all verified via the new rc_check.py bench tool. The lost-model buzzer went on as standalone 2-wire (the M10 GPS already provides FC tones). Kill switch COMPLETED same session: the ch5 bumper mapped (RC_MAP_KILL_SW=5, written + read-back verified across a reboot), and PX4 observed reading both engage and release live via manual_control_switches. Found needed: 2x 18650 cells for the 2nd Pocket (added to gnd-01).",
-   "so_what": "The interceptor can now be killed from the ground the moment it misbehaves -- the single safety prerequisite for every powered bench step and flight test ahead. Only QGC radio calibration remains before arming.",
-   "evidence": "configs/px4_6cmini/rc_check.py - configs/px4_6cmini/bench.params (RC_MAP_KILL_SW block) - verify_params.py 10/10 across reboot - bench session 2026-10-02/03"
   }
  ],
  "narrative": {
