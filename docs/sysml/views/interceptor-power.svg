@@ -139,8 +139,8 @@
 <g class="sx-node"><rect class="sx-box" x="64" y="630" width="214" height="78" rx="2"/>
 <text class="sx-name" x="74" y="648">railCap</text>
 <text class="sx-type" x="74" y="664">: RailCap1000uF</text>
-<rect class="sx-chip sx-bad" x="206.8" y="654" width="63.2" height="15" rx="2"/>
-<text class="sx-chipt sx-bad" x="238.4" y="665">MUST-ADD</text>
+<rect class="sx-chip sx-ok" x="226.0" y="654" width="44.0" height="15" rx="2"/>
+<text class="sx-chipt sx-ok" x="248.0" y="665">BUILT</text>
 <line class="sx-rule" x1="64" y1="672" x2="278" y2="672"/>
 </g>
 <g class="sx-node"><rect class="sx-box" x="1060" y="630" width="214" height="78" rx="2"/>
