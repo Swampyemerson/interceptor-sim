@@ -108,3 +108,17 @@ and is the thing a fixed constant cannot absorb); (3) detection RATE
 (154 ms => 6.5 Hz at 640) and on load-dependent jitter — so the Hailo
 ruling stands, but on the rate/jitter/headroom argument, not the retired
 latency-cliff argument. isim was never wrong: it models the age-known case.
+
+## JITTER ARM (pre-registered 2026-10-22, before flying): LJ90
+
+The one untested word in the final spec. Arm LJ90: injected latency 90 ms
++/-60 ms uniform per detection (range 30-150 ms, seeded per cue), KF age
+assumption = the TRUE MEAN (45+90 = 135 ms). Same 6 cue variants.
+PREDICTION: degradation BETWEEN the compensated and uncompensated arms --
+each measurement is mis-aged by up to +/-60 ms even though the mean is
+right; at 16 m/s closing that is +/-1 m of equivalent position error on a
+subset of updates. If LJ90 lands near baseline (<=1.5x), a fixed calibrated
+constant suffices for even CPU-class jitter and the stamped-age improvement
+is a nicety; if it degrades >=2x, stamped-age is REQUIRED before any
+high-jitter pipeline flies, and the Hailo's low jitter becomes a named
+purchase argument.

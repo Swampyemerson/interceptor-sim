@@ -68,10 +68,14 @@ class DelayedDetector:
 
     _MISS = dict(range_m=None, box_xywh=None, t_capture_sim=None, tag_range_m=None)
 
-    def __init__(self, inner, delay_s: float):
+    def __init__(self, inner, delay_s: float, jitter_s: float = 0.0,
+                 seed: int = 0):
         self._inner = inner
         self._delay = float(delay_s)
-        self._q = []
+        self._jitter = float(jitter_s)      # per-detection uniform(+/-jitter)
+        import numpy as _np
+        self._rng = _np.random.default_rng([seed, 0x1A7E])
+        self._q = []                        # [(release_at_sim, det), ...]
         self.last = types.SimpleNamespace(**self._MISS)
 
     def on_image(self, msg):
@@ -83,12 +87,15 @@ class DelayedDetector:
     def detect(self, frame, t=None):
         d = self._inner.detect(frame, t)
         if d.range_m is not None:
-            self._q.append(d)
+            dly = self._delay
+            if self._jitter > 0.0:
+                dly = max(0.0, dly + float(self._rng.uniform(-self._jitter,
+                                                             self._jitter)))
+            self._q.append((d.t_capture_sim + dly, d))
         latest = self._inner.latest
         now = xck.stamp_s(latest) if latest is not None else None
-        if (self._q and now is not None
-                and now >= self._q[0].t_capture_sim + self._delay):
-            self.last = self._q.pop(0)    # one release per poll (one meas/tick)
+        if self._q and now is not None and now >= self._q[0][0]:
+            self.last = self._q.pop(0)[1]  # one release per poll (one meas/tick)
         else:
             self.last = types.SimpleNamespace(**self._MISS)
         return self.last
@@ -219,6 +226,10 @@ def main(argv=None):
                     help="hold each detection this many SIM seconds before the "
                          "driver sees it (slow-NN-pipeline model; 0 = off, "
                          "validated path untouched)")
+    ap.add_argument("--inject-det-jitter-s", type=float, default=0.0,
+                    help="per-detection uniform(+/-this) added to the injected "
+                         "latency (pipeline-jitter model; needs latency > 0)")
+    ap.add_argument("--inject-det-seed", type=int, default=0)
     ap.add_argument("--cue-speed-err", type=float, default=0.0,
                     help="fractional: 0.1 = belief thinks 10%% faster")
     # --- target realism (mover-side) ---
@@ -262,8 +273,11 @@ def main(argv=None):
                    "source": f"gz CameraInfo /world/{args.world} (live)"}, fh)
     det = xck.GazeboTagDetector(fx, fy, cx, cy)
     if args.inject_det_latency_s > 0.0:
-        det = DelayedDetector(det, args.inject_det_latency_s)
-        print(f"[cinema] DETECTION LATENCY INJECTED: +{args.inject_det_latency_s:.3f} s (sim)")
+        det = DelayedDetector(det, args.inject_det_latency_s,
+                              jitter_s=args.inject_det_jitter_s,
+                              seed=args.inject_det_seed)
+        print(f"[cinema] DETECTION LATENCY INJECTED: +{args.inject_det_latency_s:.3f} s "
+              f"+/-{args.inject_det_jitter_s:.3f} s (sim)")
     frames = None if args.no_frames else FrameRecorder(stem + "_frames")
     img_topic = (f"/world/{args.world}/model/{xck.VEHICLE_MODEL}/link/camera_link"
                  "/sensor/imager/image")

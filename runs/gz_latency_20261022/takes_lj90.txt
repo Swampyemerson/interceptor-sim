@@ -1,0 +1,6 @@
+LJ90_c1|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 2.5 --cue-vel-rot-deg 5 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 1 --pursuit-meas-latency-s 0.135
+LJ90_c2|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n -3.0 --cue-vel-rot-deg -6 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 2 --pursuit-meas-latency-s 0.135
+LJ90_c3|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e 2.0 --cue-vel-rot-deg 4 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 3 --pursuit-meas-latency-s 0.135
+LJ90_c4|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.0 --cue-offset-n 2.5 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 4 --pursuit-meas-latency-s 0.135
+LJ90_c5|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 3.0 --cue-vel-rot-deg -4 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 5 --pursuit-meas-latency-s 0.135
+LJ90_c6|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.5 --cue-offset-n -2.5 --cue-vel-rot-deg 6 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 6 --pursuit-meas-latency-s 0.135
