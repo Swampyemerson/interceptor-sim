@@ -345,6 +345,15 @@ class Scenario:
     # (see `build()`); "stock" is the only value guaranteed to work today.
     # Ignored when `concept="pursuit"`.
     terminal: str = "stock"
+    # nn_requirements_2026-10-21: TRUE-seeker overrides, applied LAST in
+    # `build()` (after every Scatter draw, so a sweep can pin e.g. p_max or
+    # fps while the rest of the scatter stays honest). Keys are field names
+    # of CameraParams / DecodeParams. None (default) = byte-identical to the
+    # pre-field behaviour; no rng draw either way. The flight code's NOMINAL
+    # camera belief is deliberately NOT touched by these (a detector's
+    # cadence/range is not something guidance is told).
+    camera_overrides: Optional[dict] = None
+    decode_overrides: Optional[dict] = None
     # v7 LENS CORRECTION (isim/specs/hybrid_v7.md): the actual ordered part
     # is an innomaker OV9281 at 118deg HFOV, not the earlier 540/933px
     # placeholders -- fx = (width/2) / tan(HFOV/2) = (1280/2)/tan(59deg)
@@ -883,6 +892,13 @@ def build(
             kill = float(glare_rng.uniform(0.0, scat.backlight_kill_max_deg))
             glare_prm = GlareParams(sun_azimuth_deg=az, sun_elevation_deg=el,
                                     specular_strength=spec, backlight_kill_deg=kill)
+
+    # nn_requirements_2026-10-21: sweep overrides win over every draw above
+    # (TRUE seeker only; cam_nominal untouched -- see the Scenario fields).
+    if scn.camera_overrides:
+        cam_true = replace(cam_true, **scn.camera_overrides)
+    if scn.decode_overrides:
+        dec_params = replace(dec_params, **scn.decode_overrides)
 
     def _seeker(tp: TagParams) -> AprilTagSeeker:
         return AprilTagSeeker(cam=cam_true, tag=tp, dec=dec_params, glare=glare_prm)

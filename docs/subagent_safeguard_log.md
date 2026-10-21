@@ -330,3 +330,11 @@ the standing rule.
   commands himself via the `!` prefix. No rewording attempted — the error itself
   says the block is content-independent and retry-proof. Practical rule until it
   changes: **bench/Pi sessions on this repo should not be started in auto mode.**
+
+## 2026-10-21 — opus55-worker, isim requirements sweep (code-only brief)
+Brief explicitly avoided management docs (code files + inline context only;
+"do NOT read project management docs" in the prompt). Bounced anyway:
+`invalid_request [general_harms]`, req_011CgG8tuuLH55JoXQXFyy4P, model
+claude-opus-5-5. Two sibling opus55 WEB-RESEARCH briefs (no repo access) ran
+fine concurrently — consistent with the established pattern: repo-attached
+tasks bounce, detached research tasks pass. Fallback used: head-inline.
