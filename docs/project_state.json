@@ -17,13 +17,13 @@
  },
  "now": {
   "as_of": "2026-10-21",
-  "where": "Bench thread unchanged (RC bind + cals next). New tonight: approach_dash landed in the flight code (default-OFF Phase-A dash-then-brake for far cues) and a 500 m-cue Gazebo run flew it at 35.8 m/s peak (80 mph class) to CPA 0.087 m; the long-range cinematic is rendering.",
+  "where": "Bench thread unchanged (RC bind + cals next). Tonight, end to end: approach_dash (far-cue dash-then-brake) is in the flight code, tested on the Pi (58/58 on-device), and the long-range demo video is DONE -- 500 m cue, 36 m/s (80 mph) dash, brake to camera lock, CPA 0.087 m, 31.7 s film.",
   "finding": "Two ceilings found: PX4's MPC_XY_VEL_MAX 'max 20' is GCS metadata only (no firmware clamp; raw set to 36 verified by read-back), and the dash has a brake-accel cliff -- isim: vmax 36 with a_brake 3 misses by ~150 m (0/8); a_brake 4 is clean. Brake authority must be sized to dash speed.",
   "next": [
-   "Finish the long-range render -> HUD -> deliver the mp4",
-   "Pi sync: ff-merge to 77eb94c, run the terminal tests on the Pi"
+   "Builder: watch intercept_500m_36ms.mp4; decide dash-envelope-on-real-fc (queue)",
+   "Bench: RC binds + radio cal; level cal if the frame is flat; battery-V cal"
   ],
-  "evidence": "isim/specs/approach_dash_2026-10-21.md - logs/cinema_lr/run_hr5.log - commit 77eb94c"
+  "evidence": "runs/cinema_longrange_20261021/README.md - isim/specs/approach_dash_2026-10-21.md - logs/cinema_lr/run_hr5.log"
  },
  "assumptions": [
   {
@@ -519,9 +519,9 @@
  "plain_log": [
   {
    "date": "2026-10-21",
-   "text": "Long-range follow-up to the demo video, builder directive: come in from a 500 m cue, rip ~80 mph in the dash, slow for detection. The capability did not exist, so it was built: approach_dash in flight/pursuit_terminal.py (default OFF, off-path byte-identical by golden test) widens the Phase-A speed cap to dash_v_max_ms, always applies the stopping-distance brake cap toward the believed rendezvous, and gives Phase A its own accel budget; Phase B untouched; honesty-clean (belief + own-EKF only). real_flight grew the four --pursuit-dash-* flags plus a fail-loud engage-window-vs-transit-time warning. isim velocity-curve study pre-registered then run (vmax x a_brake grid): prediction confirmed, and it found the cliff -- vmax 36 with a_brake 3 cannot shed the speed in the belief-error envelope (0/8, ~150 m miss); a_brake 4 is clean. PX4 ceiling: MPC_XY_VEL_MAX declares max 20 but that is GCS metadata -- no code-side clamp in MulticopterPositionControl, so set_px4_params.py (new, wired into fly_takes.sh) does a raw set with fresh read-back. Gazebo arm at the 500 m crossing geometry: 20 m/s takes 0.272/0.199 m; 36 m/s takes hr1-hr5 best 0.087 m CPA (hr5, 64 detections, plant peak 35.8 m/s), first detection at go+17.5 after a 17 s blind dash on pure belief. 58/58 terminal tests, full suite green (dev machine).",
+   "text": "Long-range follow-up to the demo video, builder directive: come in from a 500 m cue, rip ~80 mph in the dash, slow for detection. The capability did not exist, so it was built: approach_dash in flight/pursuit_terminal.py (default OFF, off-path byte-identical by golden test) widens the Phase-A speed cap to dash_v_max_ms, always applies the stopping-distance brake cap toward the believed rendezvous, and gives Phase A its own accel budget; Phase B untouched; honesty-clean (belief + own-EKF only). real_flight grew the four --pursuit-dash-* flags plus a fail-loud engage-window-vs-transit-time warning. isim velocity-curve study pre-registered then run (vmax x a_brake grid): prediction confirmed, and it found the cliff -- vmax 36 with a_brake 3 cannot shed the speed in the belief-error envelope (0/8, ~150 m miss); a_brake 4 is clean. PX4 ceiling: MPC_XY_VEL_MAX declares max 20 but that is GCS metadata -- no code-side clamp in MulticopterPositionControl, so set_px4_params.py (new, wired into fly_takes.sh) does a raw set with fresh read-back. Gazebo arm at the 500 m crossing geometry: 20 m/s takes 0.272/0.199 m; 36 m/s takes hr1-hr5 best 0.087 m CPA (hr5, 64 detections, plant peak 35.8 m/s), first detection at go+17.5 after a 17 s blind dash on pure belief. 58/58 terminal tests, full suite green (dev machine). VIDEO DELIVERED the same session: hr5 re-rendered in the long-range forest set (1.5 km ground, corridor tree band) through the cinema pipeline -- 31.7 s, 9 shots incl. a 3x FFWD transit badge and the 0.2x contact slow-mo; HUD shows the 35.8 m/s peak, the brake to ~7 m/s at first decode, TAG LOCK, and the honesty card (cue error injected, guidance saw camera + own-EKF only).",
    "so_what": "Far-cue engagements are now a flight-code capability, not a sim hack: the same deployed terminal can dash at whatever the airframe gives it and arrive slow enough to lock. The sized-brake rule (a_brake must match dash speed) and the engage-window warning are the two guards that keep a real far-cue flight from sailing past the target. The 36 m/s number is SIM-ONLY -- the real airframe's dash envelope is unmeasured and nothing was written to the real FCs.",
-   "evidence": "isim/specs/approach_dash_2026-10-21.md - runs/cinema_longrange_20261021/ - logs/cinema_lr/ - commit 77eb94c"
+   "evidence": "isim/specs/approach_dash_2026-10-21.md - runs/cinema_longrange_20261021/ - logs/cinema_lr/ - commit 77eb94c - runs/cinema_longrange_20261021/intercept_500m_36ms.mp4"
   },
   {
    "date": "2026-10-21",
