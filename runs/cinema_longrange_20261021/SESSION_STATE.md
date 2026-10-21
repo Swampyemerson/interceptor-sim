@@ -1,10 +1,18 @@
 # LONG-RANGE VIDEO — session resume state (written 2026-10-21, pre-compaction)
 
 Builder directive: long-range demo video — cue at 500 m, dash phase "absolutely
-ripping" (80 mph asked), decelerating into predicted tag capture. 80 mph (36 m/s)
-is NOT flyable in the sim demo (PX4 velocity-mode MPC_XY_VEL_MAX hard max = 20 m/s;
-the real airframe's top speed is an unmeasured assumption) — the demo flies the
-20 m/s plant ceiling; the profile code supports any ceiling.
+ripping" (80 mph asked), decelerating into predicted tag capture.
+
+**UPDATE (later the same session): 80 mph IS flyable.** The 20 m/s "max" is GCS
+metadata only — no firmware clamp (scripts/cinema/set_px4_params.py does a raw
+set with read-back; 36.0 verified, plant delivered 35.8 m/s). The video take is
+**hr5: vmax 36 / a_brake 4, CPA 0.087 m, 64 detections** (logs/cinema_lr/hr5*,
+exported hr5_run.json). hr5 timings: go=24.64, first_det=go+17.49, cpa=go+21.06,
+peak 35.8 m/s @go+6.7. a_brake MUST be 4 at 36 m/s (isim cliff: 36/3 = 0/8).
+Everything below through "IN FLIGHT" is DONE and COMMITTED (77eb94c..06a05c3:
+flight code + takes + spec addendum + contract + FC-envelope builder decision;
+Pi synced to 06a05c3, 58/58 terminal tests pass ON THE PI; real FC read-only
+check: stock 12/5/45/8, nothing written).
 
 ## DONE this session (all committed up to f77e707; long-range work UNCOMMITTED yet)
 
@@ -46,21 +54,11 @@ the real airframe's top speed is an unmeasured assumption) — the demo flies th
   --pursuit-approach-dash --pursuit-dash-vmax 20). Results land in
   logs/cinema_lr/run_lr*.log (grep CINEMA_RESULT) + per-take CSVs/frames/meta.
 
-## NEXT STEPS (in order)
+## NEXT STEPS (in order — rewritten after hr5)
 
-1. Read lr take results: pick best (CPA ≤0.35 ideally, lock continuous; check
-   first_det vs cpa for shot timing). If lock fails from the 1.5° cue drift,
-   retry with --cue-vel-rot-deg 1.0. Analysis pattern: see runs/cinema_20261021/
-   (take table) — same tooling: `.venv/bin/python scripts/cinema/export_run.py logs/cinema_lr/lrN`.
-2. Write shots config `scripts/cinema/config/shots_longrange.json` (~33 s):
-   standby(go-3.5→go-0.1, static near launch) → launch_rip(go+0.2→go+4.5,
-   side_track w=0 offset (2,-7,-2.5) lens 32) → transit_chase(go+4.5→go+8.5,
-   chase offset (7,-2.5,-1.2) aim veh) → ffwd(go+8.5→cpa-9, speed 4, side_track
-   w=0 offset (0,-12,-3) lens 35) → decel(cpa-9→cpa-3.5, side_track low) →
-   lock(first_det-ish→cpa-1.1, target_back (6,-2.4,-1.4) aim veh lens 42 dof) →
-   terminal_wide(static_cpa) → cpa_slowmo(cpa-0.85→cpa+0.4 speed 0.2, orbit
-   r5.2 h-0.8 angle252 lens 30) — TUNE decel/ffwd boundaries from the take's
-   actual speed curve (HUD own_speed in run.json; braking starts ~8-10 s before cpa).
+1. DONE — takes flown (lr1 0.272 / lr2 0.199 / lr3 7.821 abort; hr1-hr5 at 36 m/s,
+   best hr5 0.087 m). Shot list shots_longrange.json written + tuned to hr5;
+   framing stills round 2 (decel horizon fix, merge_lock lower camera) in flight.
 3. Render (detached setsid, ~1000 frames ≈ 2 h; still-check framing first with
    `--still "decel@cpa-6;launch_rip@go+2" --preview`): blender45 at
    ~/tools/blender45/blender, scene_longrange.json. Then hud_compose → mp4
