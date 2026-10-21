@@ -67,3 +67,20 @@ back within ~1.5x of the 0 ms baseline); the residual = geometry staleness
 of the command itself, which no stamp can remove. If LC60 does NOT recover,
 latency is intrinsically harmful and the ~30 ms budget stands. Either way
 the 120 ms cliff conclusion is unaffected (jitter + command staleness).
+
+## LC60 RESULT + LC120 pre-registration (2026-10-22)
+
+LC60 (compensated 60 ms): 0.142/0.231/0.242/0.326/0.451/0.497, median
+0.284 m vs baseline 0.238 — RECOVERED (1.19x, inside the predicted 1.5x;
+uncompensated L060 was 2.3x). So the 60 ms loss was the KF's fixed 45 ms
+age assumption, not the latency itself. Caveat: the injection wrapper
+releases one detection per driver poll, so the effective excess under load
+is not exactly 15 ms — the arm pair is read as compensated-vs-not, not as
+a per-ms calibration.
+
+LC120 (flying next, registered now): same 6 cues, +120 ms injected, KF age
+= 165 ms. PREDICTION (uncertain, stated before flying): PARTIAL recovery —
+stamping fixes the filter but the vehicle still acts on 120 ms-old
+geometry at up to ~16 m/s closing (≈2 m of unseen relative motion), so
+median lands between the compensated-60 (0.28) and uncompensated-120 (1.31)
+arms; closer to which end decides whether the ~120 ms ceiling is intrinsic.
