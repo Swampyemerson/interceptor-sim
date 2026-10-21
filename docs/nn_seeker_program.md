@@ -12,8 +12,8 @@ flights, camera-in-the-loop):
 
 | Quantity | Requirement | Note |
 |---|---|---|
-| Glass-to-guidance latency | **≲30 ms full performance; 60 ms degraded (2.3×, outside ram radius); 120 ms broken** | Gazebo-re-earned 2026-10-22 (runs/gz_latency_20261022): 120 ms cliff CONFIRMED 6/6 @5.5×; the isim '60 ms passes' line REFUTED |
-| Update rate | ≥ 10–15 Hz | 24+ Hz free margin |
+| Glass-to-guidance latency | **KNOWN latency ≤120 ms is ~free (compensated: 1.05–1.19×); UNKNOWN/mis-assumed latency breaks it (2.3×@60, 5.5×@120)** | Three-arm Gazebo chain (runs/gz_latency_20261022): set `--pursuit-meas-latency-s` to the MEASURED pipeline latency; jitter is the untested residual risk |
+| Update rate | ≥ 10–15 Hz | 24+ Hz free margin; THIS (plus jitter) is now the binding axis — CPU at 154 ms = 6.5 Hz fails here |
 | Detection range (terminal) | ≥ 8–12 m | acquisition range is set by the CUE geometry, not the terminal |
 | Per-frame detect prob | ≥ 0.5 | KF rides through dropouts |
 

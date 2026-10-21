@@ -46,3 +46,13 @@ The spec line "latency ≤ ~60 ms" above is superseded: **budget ≲30 ms for
 full performance; 60 ms = degraded; 120 ms = broken.** isim's seeker
 latency surface under-penalizes mid-latency — re-fit before quoting isim
 on latency margins (ledger: isim-latency-surface-optimistic).
+
+## SECOND AMENDMENT (2026-10-22 late — the LC arms close the question)
+
+The "budget ≲30 ms" line above is ALSO superseded. Compensated arms
+(KF age assumption set to the true injected latency): 60 ms → 1.19x,
+120 ms → 1.05x — FULL recovery. The latency axis is an AGE-KNOWLEDGE axis:
+latency ≤120 ms is free when the KF knows it; what binds is (1) knowing it
+(calibration or stamps), (2) jitter, (3) rate ≥10-15 Hz, (4) range. Final
+table: runs/gz_latency_20261022/spec.md. CPU-only still fails — on RATE
+(6.5 Hz at 154 ms) and jitter, not latency.

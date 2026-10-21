@@ -84,3 +84,27 @@ stamping fixes the filter but the vehicle still acts on 120 ms-old
 geometry at up to ~16 m/s closing (≈2 m of unseen relative motion), so
 median lands between the compensated-60 (0.28) and uncompensated-120 (1.31)
 arms; closer to which end decides whether the ~120 ms ceiling is intrinsic.
+
+## LC120 RESULT — FULL recovery; the latency axis is really an AGE-KNOWLEDGE axis
+
+LC120 (compensated 120 ms): 0.133/0.200/0.207/0.293/0.483/0.490, median
+0.250 m vs baseline 0.238 (1.05x) — FULL recovery; the registered "partial"
+prediction was WRONG (the command-staleness residual is not measurable at
+these closing speeds and n). Three-arm truth:
+
+| arm | 60 ms | 120 ms |
+|---|---|---|
+| KF age assumption WRONG (fixed 45 ms) | 2.3x | 5.5x |
+| KF age assumption CORRECT | 1.19x | 1.05x |
+
+FINAL spec reading (supersedes both earlier latency lines): detector
+latency up to at least 120 ms costs ~nothing IF THE KF KNOWS IT. The
+binding detector requirements are therefore: (1) latency KNOWN — stable
+and calibrated into meas_latency_s (now CLI-settable), or per-detection
+stamps (queued flight-code improvement); (2) JITTER small vs the assumed
+constant (the injected arms were near-constant delay — jitter is untested
+and is the thing a fixed constant cannot absorb); (3) detection RATE
+>=10-15 Hz; (4) terminal range >=8-12 m. CPU-only STILL fails — on RATE
+(154 ms => 6.5 Hz at 640) and on load-dependent jitter — so the Hailo
+ruling stands, but on the rate/jitter/headroom argument, not the retired
+latency-cliff argument. isim was never wrong: it models the age-known case.
