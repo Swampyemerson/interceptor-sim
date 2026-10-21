@@ -44,6 +44,7 @@ import queue
 import sys
 import threading
 import time
+import types
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, _REPO)
@@ -53,6 +54,44 @@ import gazebo_pursuit_crosscheck as xck  # noqa: E402  (the validated harness)
 import flight.deploy.real_flight as rf   # noqa: E402
 
 TARGET_ENTITY = "fpv_target"             # worlds/cinema.sdf <include><name>
+
+
+class DelayedDetector:
+    """--inject-det-latency-s: hold each decoded detection until SIM time
+    (the newest camera frame's stamp) reaches its capture time + delay, then
+    release it. Models a slow detector pipeline on the real aircraft: the
+    driver stamps detections at ARRIVAL (crosscheck line-31 note), so the
+    guidance believes a delay-old bearing is current -- the same mechanism
+    isim's seeker `latency_s` models (runs/nn_requirements_20261021).
+    SCORING-HONEST: this only makes the camera pipeline WORSE; delay<=0
+    never installs the wrapper, keeping the validated path byte-identical."""
+
+    _MISS = dict(range_m=None, box_xywh=None, t_capture_sim=None, tag_range_m=None)
+
+    def __init__(self, inner, delay_s: float):
+        self._inner = inner
+        self._delay = float(delay_s)
+        self._q = []
+        self.last = types.SimpleNamespace(**self._MISS)
+
+    def on_image(self, msg):
+        self._inner.on_image(msg)
+
+    def __getattr__(self, name):          # latest / n_frames / n_consumed ...
+        return getattr(self._inner, name)
+
+    def detect(self, frame, t=None):
+        d = self._inner.detect(frame, t)
+        if d.range_m is not None:
+            self._q.append(d)
+        latest = self._inner.latest
+        now = xck.stamp_s(latest) if latest is not None else None
+        if (self._q and now is not None
+                and now >= self._q[0].t_capture_sim + self._delay):
+            self.last = self._q.pop(0)    # one release per poll (one meas/tick)
+        else:
+            self.last = types.SimpleNamespace(**self._MISS)
+        return self.last
 
 
 class Pose6Recorder:
@@ -176,6 +215,10 @@ def main(argv=None):
     ap.add_argument("--cue-offset-e", type=float, default=0.0)
     ap.add_argument("--cue-offset-n", type=float, default=0.0)
     ap.add_argument("--cue-vel-rot-deg", type=float, default=0.0)
+    ap.add_argument("--inject-det-latency-s", type=float, default=0.0,
+                    help="hold each detection this many SIM seconds before the "
+                         "driver sees it (slow-NN-pipeline model; 0 = off, "
+                         "validated path untouched)")
     ap.add_argument("--cue-speed-err", type=float, default=0.0,
                     help="fractional: 0.1 = belief thinks 10%% faster")
     # --- target realism (mover-side) ---
@@ -218,6 +261,9 @@ def main(argv=None):
                    "resolution": {"width": w, "height": h},
                    "source": f"gz CameraInfo /world/{args.world} (live)"}, fh)
     det = xck.GazeboTagDetector(fx, fy, cx, cy)
+    if args.inject_det_latency_s > 0.0:
+        det = DelayedDetector(det, args.inject_det_latency_s)
+        print(f"[cinema] DETECTION LATENCY INJECTED: +{args.inject_det_latency_s:.3f} s (sim)")
     frames = None if args.no_frames else FrameRecorder(stem + "_frames")
     img_topic = (f"/world/{args.world}/model/{xck.VEHICLE_MODEL}/link/camera_link"
                  "/sensor/imager/image")
@@ -313,6 +359,7 @@ def main(argv=None):
         "cue_error_note": "belief-only injection; mover flies truth",
         "go_sim_t": trigger.go_sim_t, "cpa_m": d_cpa, "t_cpa": t_cpa,
         "n_det_consumed": det.n_consumed, "n_frames_gz": det.n_frames,
+        "inject_det_latency_s": args.inject_det_latency_s,
         "n_frames_saved": n_frames, "frames_dropped": frames_dropped,
         "n_pose6": n_pose6, "final_state": sm.state, "aborted": aborted,
         "safe_reason": sm.safe_reason,

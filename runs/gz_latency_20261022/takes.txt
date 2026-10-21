@@ -1,0 +1,19 @@
+# latency arm: 3 latencies x 6 paired cue variants (spec.md); frames off
+L000_c1|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 2.5 --cue-vel-rot-deg 5 --no-frames --inject-det-latency-s 0.0
+L000_c2|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n -3.0 --cue-vel-rot-deg -6 --no-frames --inject-det-latency-s 0.0
+L000_c3|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e 2.0 --cue-vel-rot-deg 4 --no-frames --inject-det-latency-s 0.0
+L000_c4|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.0 --cue-offset-n 2.5 --no-frames --inject-det-latency-s 0.0
+L000_c5|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 3.0 --cue-vel-rot-deg -4 --no-frames --inject-det-latency-s 0.0
+L000_c6|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.5 --cue-offset-n -2.5 --cue-vel-rot-deg 6 --no-frames --inject-det-latency-s 0.0
+L060_c1|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 2.5 --cue-vel-rot-deg 5 --no-frames --inject-det-latency-s 0.06
+L060_c2|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n -3.0 --cue-vel-rot-deg -6 --no-frames --inject-det-latency-s 0.06
+L060_c3|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e 2.0 --cue-vel-rot-deg 4 --no-frames --inject-det-latency-s 0.06
+L060_c4|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.0 --cue-offset-n 2.5 --no-frames --inject-det-latency-s 0.06
+L060_c5|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 3.0 --cue-vel-rot-deg -4 --no-frames --inject-det-latency-s 0.06
+L060_c6|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.5 --cue-offset-n -2.5 --cue-vel-rot-deg 6 --no-frames --inject-det-latency-s 0.06
+L120_c1|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 2.5 --cue-vel-rot-deg 5 --no-frames --inject-det-latency-s 0.12
+L120_c2|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n -3.0 --cue-vel-rot-deg -6 --no-frames --inject-det-latency-s 0.12
+L120_c3|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e 2.0 --cue-vel-rot-deg 4 --no-frames --inject-det-latency-s 0.12
+L120_c4|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.0 --cue-offset-n 2.5 --no-frames --inject-det-latency-s 0.12
+L120_c5|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 3.0 --cue-vel-rot-deg -4 --no-frames --inject-det-latency-s 0.12
+L120_c6|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.5 --cue-offset-n -2.5 --cue-vel-rot-deg 6 --no-frames --inject-det-latency-s 0.12
