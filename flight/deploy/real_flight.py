@@ -3212,6 +3212,10 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
     # For a non-timer trigger (rc/gate) the GO instant is not a pre-flight
     # constant anyway; the SM's gating is what makes this seedable at all.
     pcfg = PursuitTerminalConfig()
+    if getattr(args, "pursuit_meas_latency_s", None) is not None:
+        pcfg = replace(pcfg, meas_latency_s=float(args.pursuit_meas_latency_s))
+        print(f"[terminal] pursuit KF assumed measurement age set to "
+              f"{pcfg.meas_latency_s * 1e3:.0f} ms (--pursuit-meas-latency-s)")
     if getattr(args, "pursuit_brake", False):
         # The ADOPTED package exactly as registered/measured (a3-horizontal +
         # vert-sync); constants are the prereg's, not per-flight tunables.
@@ -3525,6 +3529,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "unmeasured assumption)")
     trm.add_argument("--pursuit-dash-accel", type=float, default=8.0,
                      help="approach-dash Phase-A accel slew budget, m/s^2")
+    trm.add_argument("--pursuit-meas-latency-s", type=float, default=None,
+                     help="override PursuitTerminalConfig.meas_latency_s (the "
+                          "KF's assumed measurement age; set it to the "
+                          "MEASURED pipeline latency when the detector is "
+                          "slower than the 45 ms default -- see "
+                          "runs/gz_latency_20261022)")
     trm.add_argument("--pursuit-dash-brake-accel", type=float, default=None,
                      help="override brake_accel_ms2 for the approach-dash "
                           "deceleration schedule (default: whatever the "

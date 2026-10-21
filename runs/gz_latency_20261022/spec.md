@@ -53,3 +53,17 @@ the terminal; the Hailo path must still budget its CPU-side pre/post +
 tracker tightly. isim's seeker latency surface under-penalizes 60 ms —
 re-fit before isim is quoted on latency margins again (contradiction-class:
 model optimistic at mid-latency).
+
+## FOLLOW-UP ARM (pre-registered 2026-10-22, before flying): COMPENSATED 60 ms
+
+Root-cause reading of the RESULT: the flight KF compensates a FIXED assumed
+measurement age (meas_latency_s = 45 ms), so the injected arms measured
+UNCOMPENSATED EXCESS latency. A real NN pipeline's latency is measurable
+and ~stable, so the fair question is: does TELLING the KF the true age
+recover the loss? New flag --pursuit-meas-latency-s (deploy-relevant
+regardless). Arm LC60: the same 6 cue variants, +60 ms injected, KF assumed
+age 105 ms (45+60). PREDICTION: LC60 recovers most of the L060 loss (median
+back within ~1.5x of the 0 ms baseline); the residual = geometry staleness
+of the command itself, which no stamp can remove. If LC60 does NOT recover,
+latency is intrinsically harmful and the ~30 ms budget stands. Either way
+the 120 ms cliff conclusion is unaffected (jitter + command staleness).
