@@ -257,15 +257,42 @@ def apply_mask(
 # Index / sampling
 # --------------------------------------------------------------------------
 def read_index(frames_dir: Path) -> list[dict[str, Any]]:
-    path = frames_dir / "frames_index.csv"
+    """Two layouts: the spec's `frames_index.csv` (frame,t_mono,path), or the
+    DEPLOY recorder's `frames/index.csv` (seq,t_capture,t_wall,...) with
+    frame files named frame_{seq:08d}_*.jpg next to it (the real Pi
+    footage, e.g. runs/desk_20261004T205433Z)."""
     rows: list[dict[str, Any]] = []
-    with path.open(newline="") as fh:
-        rd = csv.DictReader(fh)
-        missing = {"frame", "t_mono", "path"} - set(rd.fieldnames or [])
-        if missing:
-            raise ValueError(f"{path}: missing columns {sorted(missing)}")
-        for r in rd:
-            rows.append({"frame": int(r["frame"]), "t": float(r["t_mono"]), "path": r["path"]})
+    path = frames_dir / "frames_index.csv"
+    if path.exists():
+        with path.open(newline="") as fh:
+            rd = csv.DictReader(fh)
+            missing = {"frame", "t_mono", "path"} - set(rd.fieldnames or [])
+            if missing:
+                raise ValueError(f"{path}: missing columns {sorted(missing)}")
+            for r in rd:
+                rows.append({"frame": int(r["frame"]), "t": float(r["t_mono"]),
+                             "path": r["path"]})
+    else:
+        path = frames_dir / "index.csv"
+        if not path.exists():
+            raise FileNotFoundError(
+                f"neither frames_index.csv nor index.csv under {frames_dir}")
+        by_seq: dict[int, str] = {}
+        for p in frames_dir.glob("frame_*_*.jpg"):
+            try:
+                by_seq[int(p.name.split("_")[1])] = p.name
+            except (IndexError, ValueError):
+                continue
+        with path.open(newline="") as fh:
+            rd = csv.DictReader(fh)
+            missing = {"seq", "t_capture"} - set(rd.fieldnames or [])
+            if missing:
+                raise ValueError(f"{path}: missing columns {sorted(missing)}")
+            for r in rd:
+                seq = int(r["seq"])
+                if seq in by_seq:
+                    rows.append({"frame": seq, "t": float(r["t_capture"]),
+                                 "path": by_seq[seq]})
     rows.sort(key=lambda r: (r["t"], r["frame"]))
     return rows
 
