@@ -60,6 +60,12 @@ detection — a second pass cannot extend first-detection range). P2 head and
    3-D cuboid → projected box; MASK/inpaint the tag; the tag only decodes
    on near frames — far frames via GNSS projection or tracker propagation).
    1,500–3,000 frames across ≥2 days at ~2 Hz sampling.
+   TOOLING IN-TREE (2026-10-22, 13 tests green): scripts/nn/autolabel_tag.py
+   (+ deploy-recorder index support) and scripts/nn/sim_randomize.py;
+   SMOKED on real Pi desk footage (runs/desk_20261004T205433Z: 13/13 frames
+   labeled, mask lands on the tag, calibrated-intrinsics pose clean).
+   Remaining sign-off: cuboid-frame direction on one real tagged-QUAD frame
+   with --viz before the first training labels are trusted.
 5. Validation that matters: different-day different-site TAGLESS set;
    recall binned by target pixel size + first-detection range per approach
    run + false positives/1k frames on target-free clips. mAP50 secondary.
