@@ -66,4 +66,9 @@ pursuit's median miss at BOTH speeds at s=1 with ≥ equal decode counts
 the pro-nav answer to the builder is "the literature's fix exists but does
 not pay at our scale" with the numbers to show it.
 
-Status: experiment NOT yet run — queued as the next isim build.
+Status: RUN SAME DAY (runs/hybrid_pn_20261022) — pre-registered NULL. Pure
+chase beat every candidate-B variant at every informative cell; PIPonly
+decoded 5-6x more frames and still missed worse (the aim under bearing-only
+tgo noise is the failure, not pointing). CHASE STAYS THE LAW; the pro-nav
+question is closed by a two-study chain unless new evidence (range sensor,
+much faster targets) reopens it.
