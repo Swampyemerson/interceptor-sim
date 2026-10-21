@@ -1168,3 +1168,50 @@ nthreads=4, qd=2.0, pose on; pyapriltags 3.4.3.1):
 
 Ruling unchanged: fly tripod curve (a) before any purchase; today's numbers raise
 the prior that the owned camera passes, and pre-clear the AR0234's fps question.
+
+---
+
+## ADR-0125 — NN seeker program: compute, architecture, data, sequencing (2026-10-21)
+
+**Context.** Builder directive: "launch subagent fleets for research and
+simulation on the best ways to approach the NN... consider hardware,
+accelerators, size/mass/power, scope/time." Five detached research passes
+(edge detectors, accelerator survey, training pipeline, Hailo toolchain,
+tracker/capture) + two pre-registered isim studies
+(runs/nn_requirements_20261021, runs/res_guidance_20261021) + a live bench
+measurement on the flight Pi (runs/pi_nn_bench_20261021.json). All four
+rulings are the BUILDER'S, made on the claim/evidence/tradeoff consult.
+
+**The evidence that drove it:**
+- isim sweep: pipeline latency ≤ ~60 ms is the HARD detector requirement
+  (120 ms → 0.65–4 m median miss); rate ≥10–15 Hz; the terminal needs only
+  ~8–12 m detection range; p≥0.5/frame suffices.
+- Bench (real Pi 5, ORT): yolov8n@640 = 154 ms, our v2 net = 131 ms median —
+  CPU is past the cliff even before capture/pre/post (NCNN ≈ 2× faster per
+  published numbers; still at the edge).
+- Hailo-8 HAT+ ($110, ~35 g, ≈+2.7 W): 144 fps yolov8n measured on a Pi 5;
+  single-context for yolov8n@640 (yolo11n is NOT single-context — pick v8n).
+  DFC compiles WITHOUT hardware (WSL2, CPU) → fit/context questions get
+  answered before purchase.
+- Resolution study: predictive (PIP) law is NOT rescued by resolution (null,
+  pre-registered); 640-input is DEAD on a 118° lens but fine on the
+  delivered 70° lens (pixels-per-degree is the real variable); a zoom lens
+  is not a resolution substitute (FOV loss collapses pointing).
+
+**Rulings (builder, 2026-10-21):**
+1. **Compute: Hailo-8 AI HAT+ (26 TOPS)** — purchase queued (builder_queue);
+   DFC dry-run compile on WSL2 first. Target model yolov8n (single-context).
+2. **Architecture: stock-head nano @640 + prediction-centered full-res ROI**
+   re-detect; builder's higher-res concern logged → answered by the
+   resolution study (640 OK on the 70° lens; ≥1280-equiv REQUIRED if the
+   118° lens returns — only viable on the accelerator). P2/1280 compile
+   experiments AFTER a stock compile works.
+3. **Training: full staged program** — Det-Fly + AOT slice + randomized sim
+   pretrain → tag-auto-labeled real fine-tune (tag masked; tagless
+   validation day; recall-by-pixel-size is the metric). ~2.5–3 weeks wall.
+4. **Sequencing: parallel background thread**; tag first-kill keeps all
+   bench/flight priority; Hailo mounts only after brn/afr gates undisturbed.
+
+**Program home:** docs/nn_seeker_program.md. Toolchain runbook:
+docs/hailo_toolchain_runbook.md. Safeguard note: repo-attached subagents
+still bounce; research briefs pass (docs/subagent_safeguard_log.md).

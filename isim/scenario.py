@@ -354,6 +354,11 @@ class Scenario:
     # cadence/range is not something guidance is told).
     camera_overrides: Optional[dict] = None
     decode_overrides: Optional[dict] = None
+    # res_guidance_2026-10-21: sensor pixel geometry, applied to BOTH the
+    # true and the nominal camera (the flight code knows its own sensor).
+    # cx/cy derive as width/2, height/2. Defaults = the old constants.
+    cam_width_px: float = 1280.0
+    cam_height_px: float = 800.0
     # v7 LENS CORRECTION (isim/specs/hybrid_v7.md): the actual ordered part
     # is an innomaker OV9281 at 118deg HFOV, not the earlier 540/933px
     # placeholders -- fx = (width/2) / tan(HFOV/2) = (1280/2)/tan(59deg)
@@ -682,10 +687,17 @@ def build(
     # -- an uncalibrated lens, not a live read. `cam_tilt_up_deg` is the
     # shared NOMINAL mount tilt; only the true camera also carries the
     # Scatter error terms.
+    # res_guidance_2026-10-21: sensor GEOMETRY (width/height/principal point)
+    # is known to the flight code, so a resolution study must scale BOTH
+    # cameras together -- scaling only the true one builds in a cx bias that
+    # is an instrument bug, not physics (variant B of the study hit exactly
+    # that). Defaults reproduce the fixed 1280x800 constants byte-identically.
+    _geom = dict(width=int(scn.cam_width_px), height=int(scn.cam_height_px),
+                 cx=scn.cam_width_px / 2.0, cy=scn.cam_height_px / 2.0)
     cam_true = CameraParams(fx=scn.cam_fx_px, fy=scn.cam_fx_px,
-                            mount_tilt_up_deg=scn.cam_tilt_up_deg)
+                            mount_tilt_up_deg=scn.cam_tilt_up_deg, **_geom)
     cam_nominal = CameraParams(fx=scn.cam_fx_px, fy=scn.cam_fx_px,
-                               mount_tilt_up_deg=scn.cam_tilt_up_deg)
+                               mount_tilt_up_deg=scn.cam_tilt_up_deg, **_geom)
     if scat is not None:
         fx_fy_eps = float(rng.normal(0.0, scat.cam_fx_fy_sigma_frac))
         tilt_err_deg = float(rng.normal(0.0, scat.cam_tilt_sigma_deg))

@@ -17,13 +17,13 @@
  },
  "now": {
   "as_of": "2026-10-21",
-  "where": "Bench thread unchanged (RC bind + cals next). Tonight, end to end: approach_dash (far-cue dash-then-brake) is in the flight code, tested on the Pi (58/58 on-device), and the long-range demo video is DONE -- 500 m cue, 36 m/s (80 mph) dash, brake to camera lock, CPA 0.087 m, 31.7 s film.",
-  "finding": "Two ceilings found: PX4's MPC_XY_VEL_MAX 'max 20' is GCS metadata only (no firmware clamp; raw set to 36 verified by read-back), and the dash has a brake-accel cliff -- isim: vmax 36 with a_brake 3 misses by ~150 m (0/8); a_brake 4 is clean. Brake authority must be sized to dash speed.",
+  "where": "NN seeker program OPENED tonight (ADR-0125, your four rulings): Hailo-8 ordered-pending-you, yolov8n stock @640, full staged training, parallel to the tag first-kill. Evidence: 2 pre-registered isim studies, 5 research passes, and a live latency bench on the flight Pi.",
+  "finding": "The detector's binding requirement is LATENCY (<=60 ms glass-to-guidance; 120 ms -> meters of miss) -- and our Pi 5 CPU measured 131-154 ms, past the cliff. Resolution does NOT rescue predictive guidance; the real lever is pixels-per-degree: 640 input dies on a 118 deg lens, works on the 70 deg.",
   "next": [
-   "Builder: watch intercept_500m_36ms.mp4; decide dash-envelope-on-real-fc (queue)",
-   "Bench: RC binds + radio cal; level cal if the frame is flat; battery-V cal"
+   "You: Hailo DevZone account + order the Hailo-8 HAT+ (builder_queue)",
+   "Me: DFC dry-run compiles on WSL2 + dataset fetch scripts (no hardware needed)"
   ],
-  "evidence": "runs/cinema_longrange_20261021/README.md - isim/specs/approach_dash_2026-10-21.md - logs/cinema_lr/run_hr5.log"
+  "evidence": "docs/nn_seeker_program.md - runs/nn_requirements_20261021/findings.md - runs/res_guidance_20261021/findings.md - runs/pi_nn_bench_20261021.json"
  },
  "assumptions": [
   {
@@ -514,9 +514,27 @@
    "rec": "Option 1. The isim cliff finding is the reason: a dash the airframe cannot brake out of misses by design, and brake authority is exactly what is unmeasured. Nothing was written tonight; the target drone (ArduPilot) needs no change for this feature.",
    "blocked": "Open assumptions: airframe-thrust-and-mass-unmeasured, dash-accel-profile. Needs a measured airframe.",
    "doc": "isim/specs/approach_dash_2026-10-21.md"
+  },
+  {
+   "id": "hailo8-purchase",
+   "question": "The NN seeker compute ruling (ADR-0125) is the Hailo-8 AI HAT+ (26 TOPS, ~$110, ~35 g, ~+2.7 W). Two things only you can do: (1) create a free Hailo Developer Zone account (credentials rule) so the compiler can be downloaded for the pre-purchase dry-run; (2) order the HAT when ready. Also: the training program wants a 50-100 GB dataset slice (AOT) -- your go-ahead per the >2 GB download rule.",
+   "options": [
+    "DevZone account now, order after the DFC dry-run confirms our model compiles single-context (recommended order)",
+    "Order the HAT now in parallel (saves shipping days; the dry-run still de-risks the model side)",
+    "Hold both until the tag first-kill lands (NN thread continues on datasets/training only)"
+   ],
+   "rec": "DevZone first -- it is free and unblocks the dry-run; the compile result turns the $110 into an evidence-gated buy. AOT download: yes, it is license-clean and the fetch is scripted + resumable.",
+   "blocked": "DevZone registration + purchase + >2GB download approval are builder-only actions.",
+   "doc": "docs/hailo_toolchain_runbook.md"
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-10-21",
+   "text": "NN seeker program opened in one evening, builder-consulted at the decision points (ADR-0125). Fleet: five detached research passes (edge detectors, accelerators, training pipeline, Hailo toolchain, tracker/capture) -- repo-attached workers still bounce [general_harms], so both isim studies ran head-inline. Studies, both pre-registered: (1) detector requirement sweep (58 cells): latency <=60 ms is the hard axis (120 ms -> 0.65-4 m miss), rate >=10-15 Hz, terminal range only ~8-12 m, p>=0.5 suffices; (2) resolution x guidance law: predictive PIP law is NOT rescued by resolution (null -- it points worse, not noisier), 640-wide input is dead on a 118 deg lens / fine on the delivered 70 deg, and a zoom lens is no substitute (FOV loss collapses pointing; variant A kept as that finding). Live bench on the flight Pi: yolov8n@640 154 ms, our v2 net 131 ms (ORT, CPU) -- past the latency spec, which settles CPU-vs-accelerator on our own hardware. Builder rulings: Hailo-8 HAT+ (26 TOPS, ~35 g, +2.7 W; yolov8n is its single-context fit -- NOT yolo11n); stock head @640 + full-res ROI re-detect; full staged training program (Det-Fly + AOT slice + randomized sim -> tag-auto-labeled real fine-tune, tagless validation day); NN runs as a parallel background thread, tag first-kill keeps priority. DFC compiles with no hardware on WSL2 -- fit/context questions get answered before money moves. isim grew camera/decode override fields + sensor-geometry fields (byte-identical defaults, 197 tests green). Program home docs/nn_seeker_program.md; toolchain docs/hailo_toolchain_runbook.md.",
+   "so_what": "The seeker decision is now evidence-shaped instead of taste-shaped: we know the one number the hardware must beat (60 ms), we measured that the CPU cannot beat it, and the resolution question the builder raised got a real answer that changes the lens story. Nothing was purchased and nothing touched the bench gates; the two builder actions are queued.",
+   "evidence": "ADR-0125 - docs/nn_seeker_program.md - runs/nn_requirements_20261021/ - runs/res_guidance_20261021/ - runs/pi_nn_bench_20261021.json - commit pending"
+  },
   {
    "date": "2026-10-21",
    "text": "Long-range follow-up to the demo video, builder directive: come in from a 500 m cue, rip ~80 mph in the dash, slow for detection. The capability did not exist, so it was built: approach_dash in flight/pursuit_terminal.py (default OFF, off-path byte-identical by golden test) widens the Phase-A speed cap to dash_v_max_ms, always applies the stopping-distance brake cap toward the believed rendezvous, and gives Phase A its own accel budget; Phase B untouched; honesty-clean (belief + own-EKF only). real_flight grew the four --pursuit-dash-* flags plus a fail-loud engage-window-vs-transit-time warning. isim velocity-curve study pre-registered then run (vmax x a_brake grid): prediction confirmed, and it found the cliff -- vmax 36 with a_brake 3 cannot shed the speed in the belief-error envelope (0/8, ~150 m miss); a_brake 4 is clean. PX4 ceiling: MPC_XY_VEL_MAX declares max 20 but that is GCS metadata -- no code-side clamp in MulticopterPositionControl, so set_px4_params.py (new, wired into fly_takes.sh) does a raw set with fresh read-back. Gazebo arm at the 500 m crossing geometry: 20 m/s takes 0.272/0.199 m; 36 m/s takes hr1-hr5 best 0.087 m CPA (hr5, 64 detections, plant peak 35.8 m/s), first detection at go+17.5 after a 17 s blind dash on pure belief. 58/58 terminal tests, full suite green (dev machine). VIDEO DELIVERED the same session: hr5 re-rendered in the long-range forest set (1.5 km ground, corridor tree band) through the cinema pipeline -- 31.7 s, 9 shots incl. a 3x FFWD transit badge and the 0.2x contact slow-mo; HUD shows the 35.8 m/s peak, the brake to ~7 m/s at first decode, TAG LOCK, and the honesty card (cue error injected, guidance saw camera + own-EKF only).",
@@ -582,12 +600,6 @@
    "text": "Airframe and propulsion numbers written down in one place: docs/airframe_numbers.md, derived by scripts/airframe_numbers.py (pinned by a test), with an interactive calculator page. Interceptor parts roll-up ≈800 g; planned T/W ≈7.5:1 (1.5 kg/motor, listings say 1.4-2.0); momentum-theory hover ≈7.5 A and ≈10 min on a 1500 mAh 6S pack; 6S pack, motor (Kt, RPM, tip speed), drag/trim, air density by field elevation, and carbon-fibre modulus (fibre 230 / one-direction 135 / frame plate ≈56 GPa) with an arm deflection and vibration check.",
    "so_what": "Every physical number now traces to a derivation instead of chat, and the one thing they all rest on (weight and thrust, both unmeasured) is a registered assumption with its bench test named. The older ≈770 g roll-up in decisions.md used the first parts pick; the new table uses the ordered parts.",
    "evidence": "docs/airframe_numbers.md · scripts/airframe_numbers.py · tests/test_airframe_numbers.py · docs/airframe_calculator.html"
-  },
-  {
-   "date": "2026-10-13",
-   "text": "Replacement Kakute H7 bench bring-up, start to finish in one remote session (builder soldering, Claude driving over USB). Pre-flash: Betaflight-side health probe showed I2C errors 0 (the bus that killed board #1), gyro/baro alive, SD readable; the factory board was then DFU-flashed to ArduCopter 4.7.0 (verified) and the 50-param pack loaded with the two-pass reboot ritual -- the BATT params needed the second pass exactly like September's '23/23 but 4 missing' lesson. GPS (u-blox on UART3) and compass (QMC5883L at I2C 0x0D) detected immediately: the rebuilt wiring is good. Then the wall: motors dead, ESC chirping every ~3 s. Hours of differential work -- DShot rate ladder (dead end: AM32 doesn't even speak DShot150), signal-disable isolation test (invalidated twice: ArduCopter silently re-assigns motor functions on boot), ESC socket jostle test (found a REAL secondary fault: the Tekko32's 8-pin socket is flaky under flex, bypassed with a hand-soldered pigtail to the gold pads), full param diff against board #1's last DataFlash log pulled off the shared SD card (clean -- configs identical, so 'what's different' had to be physical). The actual fault, found by the builder: the harness was plugged into a LOOK-ALIKE WRONG SOCKET on the FC. Moved it; the ESC beacon went silent (it was never boot-looping -- AM32's no-signal beacon, misread); motors spun on the first test. The pigtail's wire order swaps the two left channels and flips both left motors vs board #1's cable: remapped in software (SERVO3/4 swap, RVMASK 6->10), verified motor-by-motor A-D, and target.param updated the same hour so a re-upload can't silently undo it. Board #2 now matches its param file 50/50 by read-back.",
-   "so_what": "The target drone is propulsion-complete and config-clean on the new FC -- the biggest setback of the build (the dead board) is fully recovered. Remaining before it flies: accel/compass cal, RC link (blocked on TX batteries), SD reformat after pulling the old logs, and the current-sense wire. Two instrument lessons worth keeping: an ESC's periodic chirp means 'no signal', not 'dying'; and a motor-output isolation test on ArduCopter must re-check SERVOx_FUNCTION after reboot, because the firmware auto-fills them.",
-   "evidence": "runs/bench_20261013_fc2/{fc1_last_dataflash_log3.bin,fc1_params_from_log3.parm,fc2_params_prerempap.parm} - configs/target_kakute/target.param motor-mapping block (2026-10-13) - AM32 wiki (protocols: PWM/DShot300/600)"
   }
  ],
  "narrative": {
@@ -890,7 +902,7 @@
     2
    ],
    "status": "half-done",
-   "active": "drone_finetuned_quad_v2.onnx @640, conf 0.25, NN-only on EVERY frame — no visual tracker (detect-then-track/CSRT dropped for the quad, add #2; v3 and rebal are closed NULLs — do NOT resurrect). Static acquisition ceiling ~24 m (conf 0.25, 640 full-frame). | HARDWARE FLIGHT DEFAULT is n-mono.onnx (real-data grayscale YOLO11n, AP50 0.44 vs quad_v2 0.0003 on held-out real mono) — flight/deploy uses n-mono; quad_v2 is the SIM seeker. Deployed-weights sha256 pinned in weights/DEPLOYED.sha256 (2026-07-25).",
+   "active": "drone_finetuned_quad_v2.onnx @640, conf 0.25, NN-only on EVERY frame — no visual tracker (detect-then-track/CSRT dropped for the quad, add #2; v3 and rebal are closed NULLs — do NOT resurrect). Static acquisition ceiling ~24 m (conf 0.25, 640 full-frame). | HARDWARE FLIGHT DEFAULT is n-mono.onnx (real-data grayscale YOLO11n, AP50 0.44 vs quad_v2 0.0003 on held-out real mono) — flight/deploy uses n-mono; quad_v2 is the SIM seeker. Deployed-weights sha256 pinned in weights/DEPLOYED.sha256 (2026-07-25). | NN PROGRAM OPENED 2026-10-21 (ADR-0125): Hailo-8 + yolov8n stock @640 + staged training; detector spec latency<=60ms / >=10-15Hz / >=8-12m terminal range (runs/nn_requirements_20261021); plan docs/nn_seeker_program.md.",
    "note": "THE BINDING WALL IS POINTING, not detection-in-view (settled 2026-07-21, both in-view probes — docs/inview_probe_results.md). Decisive: in the 8-12 m band only ~25% of terminal ticks have the target in frame at all (75% out-of-frame under the ~35-40° dash pitch); when it IS in view the deployed detector hits 70% (any-box 81%). The two candidate in-view mechanisms are both eliminated: GROUND-CLUTTER background REFUTED in sim (recall GROUND 100/99% ~ SKY 92% at every 6-20 m bin — the old '0% on horizon' was the box_hits_gt scoring artifact, now fixed); PHANTOM COMPETITION CONFIRMED but MODEST (masks only ~12% of in-view frames, top-3 recovers 89%, margin-gate flips 80% of masked) and REMOVED at source by the camera-forward mount. So the real-data detector's remaining value is NOT the sim in-view wall — it is the OUTDOOR terrain-clutter/appearance/blur gap the sim's flat gray ground cannot test. The pointing fix (fixed up-tilt) is the acquisition lever.",
    "evidence": [
     "ADR-0076 add #18i/#18k",
