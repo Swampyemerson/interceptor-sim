@@ -6,12 +6,13 @@ program's home; numbers live in the runs/ dirs cited.
 
 ## The detector spec (what the NN must deliver)
 
-From runs/nn_requirements_20261021 (pre-registered isim MC, pursuit
-terminal, model-derived — Gazebo re-earn before purchase-gating):
+From runs/nn_requirements_20261021 (pre-registered isim MC) with the
+latency line GAZEBO-RE-EARNED (runs/gz_latency_20261022 — paired, 18
+flights, camera-in-the-loop):
 
 | Quantity | Requirement | Note |
 |---|---|---|
-| Glass-to-guidance latency | **≤ ~60 ms HARD** | 120 ms → 0.65–4 m miss; the binding axis |
+| Glass-to-guidance latency | **≲30 ms full performance; 60 ms degraded (2.3×, outside ram radius); 120 ms broken** | Gazebo-re-earned 2026-10-22 (runs/gz_latency_20261022): 120 ms cliff CONFIRMED 6/6 @5.5×; the isim '60 ms passes' line REFUTED |
 | Update rate | ≥ 10–15 Hz | 24+ Hz free margin |
 | Detection range (terminal) | ≥ 8–12 m | acquisition range is set by the CUE geometry, not the terminal |
 | Per-frame detect prob | ≥ 0.5 | KF rides through dropouts |

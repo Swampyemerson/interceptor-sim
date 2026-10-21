@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->50dca47<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1c7a98a<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,7 +900,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-10-21",
+ "updated": "2026-10-22",
  "updated_by": "Fable 5 head session (overnight, builder directive: 12 m/s demo video)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -913,12 +913,12 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-10-21",
+  "as_of": "2026-10-22",
   "where": "NN seeker program OPENED tonight (ADR-0125, your four rulings): Hailo-8 ordered-pending-you, yolov8n stock @640, full staged training, parallel to the tag first-kill. Evidence: 2 pre-registered isim studies, 5 research passes, and a live latency bench on the flight Pi.",
-  "finding": "The detector's binding requirement is LATENCY (<=60 ms glass-to-guidance; 120 ms -> meters of miss) -- and our Pi 5 CPU measured 131-154 ms, past the cliff. Resolution does NOT rescue predictive guidance; the real lever is pixels-per-degree: 640 input dies on a 118 deg lens, works on the 70 deg.",
+  "finding": "Gazebo re-earned the latency cliff PAIRED (18 camera-in-the-loop flights): 120 ms detector latency = 6/6 degraded, 5.5x median miss -- CONFIRMED; and 60 ms, which isim passed, already costs 2.3x (median 0.55 m, outside the 0.35 m ram radius). Real budget ~30 ms: CPU-only is out at any input size.",
   "next": [
-   "You: Hailo DevZone account + order the Hailo-8 HAT+ (builder_queue)",
-   "Me: DFC dry-run compiles on WSL2 + dataset fetch scripts (no hardware needed)"
+   "You: Hailo DevZone + HAT order + ~30 GB AOT go-ahead (queue)",
+   "Me: isim latency-surface re-fit; hybrid-guidance + lens research landing"
   ],
   "evidence": "docs/nn_seeker_program.md - runs/nn_requirements_20261021/findings.md - runs/res_guidance_20261021/findings.md - runs/pi_nn_bench_20261021.json"
  },
@@ -1427,6 +1427,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-10-22",
+   "text": "Gazebo re-earn of the latency requirement, pre-registered and paired (runs/gz_latency_20261022): cinema_run grew --inject-det-latency-s (driver-side DelayedDetector; 0 = byte-identical validated path), 18 flights at the validated 12 m/s crossing, 6 cue variants x {0, 60, 120 ms}. RESULT: 120 ms arm degraded 6/6 pairs, median 0.238 -> 1.309 m (5.5x) -- the isim cliff CONFIRMED by the registered rule. SURPRISE: the 60 ms arm, which isim called within-noise, degraded 4/6 pairs at 2.3x (median 0.552 m -- outside the 0.35 m ram radius). So the real glass-to-guidance budget is ~30 ms, 60 ms is degraded-but-flyable, 120 ms is broken; the 'latency <=60 ms' spec line was swept off every surface the same turn (findings amendment, program doc, this board) and the ledger carries isim-latency-surface-optimistic (model under-penalizes mid-latency; re-fit before isim is quoted on latency margins). Purchase implication: CPU-only is ruled out at ANY input size (measured 131-154 ms; NCNN-optimistic ~70-90 ms still in the degraded band); the Hailo path must budget its CPU-side pre/post + tracker inside ~30 ms total. Same evening: auto-label + sim-randomizer tooling landed in scripts/nn/ (13 tests) and SMOKED on real Pi desk footage (13/13 labeled, mask on the tag, calibrated intrinsics); Hailo calib-set builder + Det-Fly converter + DFC dry-run script committed.",
+   "so_what": "The one number that gates the $110 accelerator survived its Gazebo test and got STRICTER, and it was found by the project's own rule (re-earn before purchase-gating) catching an isim optimism that would otherwise have shipped a too-loose spec. The NN program's tooling is now real enough to label footage the day the target quad flies with a tag.",
+   "evidence": "runs/gz_latency_20261022/spec.md (RESULT) - logs/gz_latency/ - runs/nn_requirements_20261021/findings.md amendment - scripts/nn/"
+  },
+  {
    "date": "2026-10-21",
    "text": "NN seeker program opened in one evening, builder-consulted at the decision points (ADR-0125). Fleet: five detached research passes (edge detectors, accelerators, training pipeline, Hailo toolchain, tracker/capture) -- repo-attached workers still bounce [general_harms], so both isim studies ran head-inline. Studies, both pre-registered: (1) detector requirement sweep (58 cells): latency <=60 ms is the hard axis (120 ms -> 0.65-4 m miss), rate >=10-15 Hz, terminal range only ~8-12 m, p>=0.5 suffices; (2) resolution x guidance law: predictive PIP law is NOT rescued by resolution (null -- it points worse, not noisier), 640-wide input is dead on a 118 deg lens / fine on the delivered 70 deg, and a zoom lens is no substitute (FOV loss collapses pointing; variant A kept as that finding). Live bench on the flight Pi: yolov8n@640 154 ms, our v2 net 131 ms (ORT, CPU) -- past the latency spec, which settles CPU-vs-accelerator on our own hardware. Builder rulings: Hailo-8 HAT+ (26 TOPS, ~35 g, +2.7 W; yolov8n is its single-context fit -- NOT yolo11n); stock head @640 + full-res ROI re-detect; full staged training program (Det-Fly + AOT slice + randomized sim -> tag-auto-labeled real fine-tune, tagless validation day); NN runs as a parallel background thread, tag first-kill keeps priority. DFC compiles with no hardware on WSL2 -- fit/context questions get answered before money moves. isim grew camera/decode override fields + sensor-geometry fields (byte-identical defaults, 197 tests green). Program home docs/nn_seeker_program.md; toolchain docs/hailo_toolchain_runbook.md.",
    "so_what": "The seeker decision is now evidence-shaped instead of taste-shaped: we know the one number the hardware must beat (60 ms), we measured that the CPU cannot beat it, and the resolution question the builder raised got a real answer that changes the lens story. Nothing was purchased and nothing touched the bench gates; the two builder actions are queued.",
@@ -1491,12 +1497,6 @@
    "evidence": "retired/README.md 2026-10-14 section; docs/subagent_safeguard_log.md 2026-10-14 entry; commit (this one)",
    "so_what": "The live tree reads current again (no superseded docs/figures mixed in), and the subagent routing rule in ops.md needs a rewrite: no worker lane is reliable on this repo right now - plan for head-inline work.",
    "text": "Housekeeping sweep #2 (follow-up to the 2026-09-23 retirement): six straggler docs and the six stereo/rig plots moved to retired/ (list in retired/README.md), every move reference-checked repo-wide; stale pointers fixed in candidate_nn_shortlist, progress, sim_to_real_gaps, the px4-gazebo skill and .gitignore. Also logged: Sonnet 5.5 subagents now bounce [general_harms] on this repo (3/3 read-only scan briefs) - the sonnet-worker standard lane is no longer reliable; this sweep ran inline on the Fable 5 head. Dormant S2 cue-wait plumbing in m4_intercept/mc_batch flagged as a future deletion decision, not touched. [Provenance note 2026-10-17: this session's commit sat on an unpushed branch for three days — recovered by the branch sweep, not lost as first feared.]"
-  },
-  {
-   "date": "2026-10-14",
-   "text": "Airframe and propulsion numbers written down in one place: docs/airframe_numbers.md, derived by scripts/airframe_numbers.py (pinned by a test), with an interactive calculator page. Interceptor parts roll-up ≈800 g; planned T/W ≈7.5:1 (1.5 kg/motor, listings say 1.4-2.0); momentum-theory hover ≈7.5 A and ≈10 min on a 1500 mAh 6S pack; 6S pack, motor (Kt, RPM, tip speed), drag/trim, air density by field elevation, and carbon-fibre modulus (fibre 230 / one-direction 135 / frame plate ≈56 GPa) with an arm deflection and vibration check.",
-   "so_what": "Every physical number now traces to a derivation instead of chat, and the one thing they all rest on (weight and thrust, both unmeasured) is a registered assumption with its bench test named. The older ≈770 g roll-up in decisions.md used the first parts pick; the new table uses the ordered parts.",
-   "evidence": "docs/airframe_numbers.md · scripts/airframe_numbers.py · tests/test_airframe_numbers.py · docs/airframe_calculator.html"
   }
  ],
  "narrative": {
@@ -4785,6 +4785,19 @@
    "loc_b": "flight/deploy/seeker_loop.py:323/348 · flight/tag_terminal.py:374",
    "current_truth": "Both true; OPEN awaiting a builder ruling (queued in builder_queue slant-fix-stock-paths). The defect is systematic (the shortfall grows with off-axis angle), but every stock-path validation -- the M-gates, the breakoff thresholds, the coast/freeze ranges -- was earned WITH the bias baked in, so a silent port would invalidate the as-flown history; the port must be a logged decision plus a re-run of the affected gates. Until ruled, the fix rides only in --terminal pursuit and the stock flying default keeps its historical geometry.",
    "resolution": "ADR-0118 item 2 (2026-09-24): stock paths FROZEN as-flown -- with pursuit now the flying default they are legacy/selectable; the fixes ride in the default path; historical gate reproducibility preserved. Reversible via the port-and-re-run route if the stock path ever flies again."
+  },
+  {
+   "id": "isim-latency-surface-optimistic",
+   "verdict": "CONFIRMED",
+   "severity": "medium",
+   "status": "resolved",
+   "topic": "isim's seeker latency model under-penalizes mid-latency: it passed 60 ms detector latency as within-noise while the paired Gazebo arm shows 2.3x degradation at the same point.",
+   "claim_a": "isim requirement sweep (runs/nn_requirements_20261021): 60 ms latency cells pass (med 0.159-0.304 m).",
+   "loc_a": "runs/nn_requirements_20261021/results.json (latency_s=0.06 cells)",
+   "claim_b": "Gazebo paired arm: +60 ms degrades 4/6 pairs, median 0.238 -> 0.552 m (2.3x).",
+   "loc_b": "runs/gz_latency_20261022/spec.md RESULT",
+   "current_truth": "Gazebo decides (standing doctrine): budget ~30 ms full performance, 60 ms degraded, 120 ms broken. isim latency surface needs a re-fit before it is quoted on latency margins again.",
+   "resolution": "Spec line corrected on all surfaces 2026-10-22 (findings amendment, nn_seeker_program, now bar). Open follow-up: re-fit isim's measurement-delivery model against the Gazebo pairs."
   }
  ]
 }</script>

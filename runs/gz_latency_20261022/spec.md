@@ -35,3 +35,21 @@ at a time, serial, idle machine.
 
 Latency is INJECTED in the scoring-honest direction (pipeline made worse,
 never better). The 0 ms arm is the unmodified validated path.
+
+## RESULT (2026-10-22, run as registered; analyze.py over logs/gz_latency/)
+
+| arm | med CPA (m) | pairs degraded >0.2 m | verdict |
+|---|---|---|---|
+| 0 ms (unmodified path) | 0.238 | — | baseline healthy (0.12–0.33) |
+| 60 ms | 0.552 (2.3×) | 4/6 | **PREDICTION FAILED** — isim said within-noise; Gazebo says 60 ms already costs ~2.3× and pushes median outside the 0.35 m ram radius |
+| 120 ms | 1.309 (5.5×) | 6/6 | **CLIFF CONFIRMED** per the registered rule (≥5/6 and ≥2×) |
+
+Reading: the latency cliff TRANSFERS and is SHARPER in Gazebo than isim.
+The detector spec's latency line tightens: ≤120 ms is broken, 60 ms is
+degraded-but-flyable (sub-metre, outside ram radius), full performance
+needs ≲30 ms glass-to-guidance. Consequences: CPU-only (131–154 ms
+measured, ~70–90 ms NCNN-optimistic) is ruled out at ANY input size for
+the terminal; the Hailo path must still budget its CPU-side pre/post +
+tracker tightly. isim's seeker latency surface under-penalizes 60 ms —
+re-fit before isim is quoted on latency margins again (contradiction-class:
+model optimistic at mid-latency).

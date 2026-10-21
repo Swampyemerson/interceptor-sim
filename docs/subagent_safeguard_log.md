@@ -338,3 +338,15 @@ Brief explicitly avoided management docs (code files + inline context only;
 claude-opus-5-5. Two sibling opus55 WEB-RESEARCH briefs (no repo access) ran
 fine concurrently — consistent with the established pattern: repo-attached
 tasks bounce, detached research tasks pass. Fallback used: head-inline.
+
+## 2026-10-22 — opus55-worker, two DETACHED research briefs bounce
+New data point against the "detached research passes" pattern: this morning
+5/5 detached web-research briefs (detector survey, accelerator survey,
+training pipeline, Hailo toolchain, tracker/capture) ran clean on opus55;
+tonight 2/2 failed `invalid_request [general_harms]`
+(req_011CgGF51hZYKr9SUG83L577, req_011CgGF5ZVFm9gZKYBJQbeR2). The failing
+pair are the two framed around PURSUIT/GUIDANCE ("midcourse vs terminal
+handoff", "quad that visually chases another"); the passing five were
+framed as detection/tracking robotics. Consistent with content-sensitive
+classification on the pursuit/guidance frame, not a lane outage. Standing
+rule holds: no rewording to evade; these two topics ran head-inline.

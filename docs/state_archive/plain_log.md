@@ -352,3 +352,11 @@ Replacement Kakute H7 bench bring-up, start to finish in one remote session (bui
 **So what:** The target drone is propulsion-complete and config-clean on the new FC -- the biggest setback of the build (the dead board) is fully recovered. Remaining before it flies: accel/compass cal, RC link (blocked on TX batteries), SD reformat after pulling the old logs, and the current-sense wire. Two instrument lessons worth keeping: an ESC's periodic chirp means 'no signal', not 'dying'; and a motor-output isolation test on ArduCopter must re-check SERVOx_FUNCTION after reboot, because the firmware auto-fills them.
 
 *Evidence:* runs/bench_20261013_fc2/{fc1_last_dataflash_log3.bin,fc1_params_from_log3.parm,fc2_params_prerempap.parm} - configs/target_kakute/target.param motor-mapping block (2026-10-13) - AM32 wiki (protocols: PWM/DShot300/600)
+
+## 2026-10-14
+
+Airframe and propulsion numbers written down in one place: docs/airframe_numbers.md, derived by scripts/airframe_numbers.py (pinned by a test), with an interactive calculator page. Interceptor parts roll-up ≈800 g; planned T/W ≈7.5:1 (1.5 kg/motor, listings say 1.4-2.0); momentum-theory hover ≈7.5 A and ≈10 min on a 1500 mAh 6S pack; 6S pack, motor (Kt, RPM, tip speed), drag/trim, air density by field elevation, and carbon-fibre modulus (fibre 230 / one-direction 135 / frame plate ≈56 GPa) with an arm deflection and vibration check.
+
+**So what:** Every physical number now traces to a derivation instead of chat, and the one thing they all rest on (weight and thrust, both unmeasured) is a registered assumption with its bench test named. The older ≈770 g roll-up in decisions.md used the first parts pick; the new table uses the ordered parts.
+
+*Evidence:* docs/airframe_numbers.md · scripts/airframe_numbers.py · tests/test_airframe_numbers.py · docs/airframe_calculator.html

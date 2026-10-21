@@ -36,3 +36,13 @@ are quoted as ranges, not points. No Gazebo cross-check yet; the latency
 cliff should be re-earned in Gazebo before it gates a purchase — but the
 DIRECTION (latency dominates, range does not, for the terminal) is the
 architecture-relevant finding.
+
+## AMENDMENT (2026-10-22 — Gazebo re-earn, runs/gz_latency_20261022)
+
+The paired Gazebo arm CONFIRMED the 120 ms cliff (6/6 degrade, 5.5×) but
+REFUTED this sweep's "60 ms passes" line: Gazebo shows 60 ms already costs
+2.3× (median 0.55 m — outside the 0.35 m ram radius; 4/6 pairs degrade).
+The spec line "latency ≤ ~60 ms" above is superseded: **budget ≲30 ms for
+full performance; 60 ms = degraded; 120 ms = broken.** isim's seeker
+latency surface under-penalizes mid-latency — re-fit before quoting isim
+on latency margins (ledger: isim-latency-surface-optimistic).
