@@ -71,6 +71,18 @@ detection — a second pass cannot extend first-detection range). P2 head and
    recall binned by target pixel size + first-detection range per approach
    run + false positives/1k frames on target-free clips. mAP50 secondary.
 
+## Queued flight-code improvement: stamped measurement age
+
+The KF compensates a FIXED assumed age (meas_latency_s, 45 ms default; now
+CLI-settable). The deploy path already computes true per-detection capture
+stamps (FeedDetector.t_capture) but they never cross the driver->guidance
+boundary -- step() receives only the box. Threading an optional per-
+detection age through (driver computes t - t_capture) would make the KF
+immune to pipeline JITTER, not just mean latency. Needs: an interface
+change + a producer->consumer contract test; do it as its own registered
+change once the NN pipeline's real jitter is measured (it is the jitter,
+not the mean, that the fixed constant cannot absorb -- gz_latency LC arms).
+
 ## Tracker/capture (research, to bench-verify)
 
 OV9281 is natively 1280×800 (NOT ×960 — check any 960 assumption in our
