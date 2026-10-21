@@ -210,12 +210,17 @@ def main():
                        f"{meta['hfov_deg']:.0f}°HFOV", font=f_xs,
                        fill=(200, 220, 210, 230))
 
-            # ---- slow-mo badge
+            # ---- retiming badges (slow-mo / fast-forward)
             if shot["speed"] < 0.999:
                 rounded_panel(d, (W - 250, 20, W - 24, 64),
                               fill=(30, 8, 8, 190), outline=(255, 120, 80, 200))
                 d.text((W - 234, 30), f"REPLAY {shot['speed']:.1f}x",
                        font=f_md, fill=(255, 160, 110, 255))
+            elif shot["speed"] > 1.001:
+                rounded_panel(d, (W - 260, 20, W - 24, 64),
+                              fill=(8, 14, 28, 190), outline=(110, 170, 255, 200))
+                d.text((W - 244, 30), f"FFWD {shot['speed']:.0f}x",
+                       font=f_md, fill=(150, 195, 255, 255))
 
             put(Image.alpha_composite(base, ov))
             video_t += 1.0 / fps

@@ -1377,3 +1377,116 @@ def test_commit_sprint_only_acts_while_coasting():
     # And the whole fixture drive (never inside hold_range_m) is unchanged.
     assert np.array_equal(_keepframe_identity_drive({"commit_sprint": True}),
                           _keepframe_identity_drive(), equal_nan=True)
+
+
+# ========================================== long-range approach dash (2026-10-21)
+# Config-gated, DEFAULT OFF: Phase A transit cap widens to dash_v_max_ms and
+# the Phase-A stopping-distance brake cap applies unconditionally, so the
+# vehicle rips the transit and sheds the speed into the believed rendezvous.
+
+
+def test_approach_dash_off_is_byte_identical_to_prefeature_code():
+    """REPO INVARIANT: approach_dash=False (the default) reproduces the golden
+    fixture exactly -- explicitly passed and defaulted alike."""
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    got = _keepframe_identity_drive({"approach_dash": False})
+    _assert_matches_golden(got, golden)
+    assert PursuitTerminalConfig().approach_dash is False
+
+
+def _dash_drive(n_ticks, **cfgkw):
+    """Long-range Phase A drive: target believed 400 m north, crossing east at
+    12 m/s, no detections (pure transit). -> list of |cmd| speeds."""
+    g, cfg, _ = guidance(belief_r0_ned=(400.0, 0.0, 0.0),
+                         belief_vel0_ned=(0.0, 12.0, 0.0), **cfgkw)
+    speeds, t = [], 0.0
+    o_vel = np.zeros(3)
+    for _ in range(n_ticks):
+        t += DT
+        sp, tel = g.step(None, OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0,
+                                        age_s=0.0, vel_ned=tuple(o_vel)), t=t)
+        assert tel.phase == "A"
+        o_vel = np.array([sp.v_north, sp.v_east, sp.v_down])  # ideal plant
+        speeds.append(float(np.linalg.norm(o_vel)))
+    return speeds, g, cfg
+
+
+def test_approach_dash_widens_the_phase_a_transit_cap():
+    """Flag ON with a 30 m/s ceiling: far from the rendezvous the commanded
+    speed must exceed the legacy 16 m/s cap; flag OFF it must not."""
+    on, _, cfg = _dash_drive(200, approach_dash=True, dash_v_max_ms=30.0)
+    off, _, _ = _dash_drive(200)
+    assert max(off) <= PursuitTerminalConfig().v_max_ms + 1e-9
+    assert max(on) > 16.0 + 1.0
+    assert max(on) <= cfg.dash_v_max_ms + 1e-9
+
+
+def test_approach_dash_decelerates_into_the_believed_rendezvous():
+    """With an ideal plant the transit must END slower than its peak: the
+    stopping-distance cap sheds the dash speed as the believed rendezvous
+    nears (the whole point of the feature). Drive long enough to arrive."""
+    speeds, g, cfg = _dash_drive(700, approach_dash=True, dash_v_max_ms=30.0,
+                                 brake_accel_ms2=4.0)
+    peak = max(speeds)
+    r_aim = float(np.linalg.norm(g._r_track)) if g._phase == "A" else 0.0
+    assert peak > 20.0                       # it really ripped
+    # arrived (believed range small) and slowed well below the peak
+    assert r_aim < 30.0
+    assert speeds[-1] < peak * 0.7
+
+
+def test_approach_dash_forces_phase_a_brake_without_the_brake_flag():
+    """approach_dash with brake_shaping=False must still cap the relative
+    command near the rendezvous (the unconditional Phase-A brake gate)."""
+    # Near-rendezvous start, already fast: cap must bind on the first tick.
+    g, cfg, _ = guidance(belief_r0_ned=(20.0, 0.0, 0.0),
+                         belief_vel0_ned=(0.0, 0.0, 0.0),
+                         approach_dash=True, dash_v_max_ms=30.0,
+                         brake_shaping=False, **_NO_SLEW)
+    o = own(n_e_d_vel=(25.0, 0.0, 0.0))
+    sp, tel = g.step(None, o, t=DT)
+    assert tel.phase == "A"
+    cmd = np.array([sp.v_north, sp.v_east, sp.v_down])
+    # relative to the (stationary) belief the command must obey the schedule
+    d = 20.0 - cfg.d_behind_m
+    closing = 25.0
+    d_eff = max(d - cfg.brake_lead_s * closing, 0.0)
+    cap = math.sqrt(cfg.v_close_min_ms ** 2 + 2.0 * cfg.brake_accel_ms2 * d_eff)
+    assert float(np.linalg.norm(cmd)) <= cap + 1e-6
+
+
+def test_approach_dash_phase_b_cap_is_untouched():
+    """Once Phase B starts, the cap reverts to the legacy v_max_ms: the dash
+    ceiling is a TRANSIT property only."""
+    g, cfg, _ = guidance(belief_r0_ned=(10.0, 0.0, 0.0),
+                         belief_vel0_ned=(0.0, 0.0, 0.0),
+                         approach_dash=True, dash_v_max_ms=30.0,
+                         acquire_n=2, acquire_window_s=0.3, **_NO_SLEW)
+    o = own(n_e_d_vel=(0.0, 0.0, 0.0))
+    g.step(box_for(10.0, 0.0, 0.0), o, t=DT)
+    sp, tel = g.step(box_for(10.0, 0.0, 0.0), o, t=2 * DT)
+    assert tel.phase == "B"
+    assert float(np.hypot(sp.v_north, sp.v_east)) <= cfg.v_max_ms + 1e-9
+
+
+def test_approach_dash_cli_mapping_and_window_warning(capsys):
+    """real_flight's --pursuit-approach-dash maps into the config, and a
+    too-short engage window prints the fail-loud transit warning."""
+    import flight.deploy.real_flight as rf
+    args = rf.build_arg_parser().parse_args([
+        "--sitl-smoke", "--terminal", "pursuit",
+        "--target-start=-477,-150", "--target-vel=12,0",
+        "--pursuit-approach-dash", "--pursuit-dash-vmax", "36",
+        "--pursuit-dash-brake-accel", "4",
+        "--engage-max-s", "12",
+    ])
+    cfg = rf.build_config(args)
+    gcfg = rf.GuidanceConfig(mount_up_rad=0.0, alt_ref_m=5.0)
+    gcfg.target_span_m = 0.5
+    g = rf.build_terminal(args, cfg, gcfg, rf.load_camera(args.intrinsics))
+    out = capsys.readouterr().out
+    assert g.cfg.approach_dash is True
+    assert g.cfg.dash_v_max_ms == 36.0
+    assert g.cfg.brake_accel_ms2 == 4.0
+    assert "APPROACH DASH ON" in out
+    assert "WARNING: engage_max_s" in out     # 12 s cannot cover a 500 m cue

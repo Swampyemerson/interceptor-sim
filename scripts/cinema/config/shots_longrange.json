@@ -1,0 +1,156 @@
+{
+  "_doc": "Long-range (500 m cue) shot list, tuned to hr5 (the video take): 0->35.8 m/s by go+6.7, schedule braking 35->3.8 over go+8..16 (range 224->6), slow pass + LOCK go+17.5, re-attack to 16.4 and contact 0.087 m at cpa=go+21.1. FFWD badge on the 3x segment.",
+  "shots": [
+    {
+      "name": "standby",
+      "t0": "go-3.5",
+      "t1": "go-0.1",
+      "lens_mm": 58,
+      "camera": {
+        "type": "static",
+        "pos": [
+          -3.8,
+          -6.2,
+          0.9
+        ],
+        "aim": "veh",
+        "aim_offset": [
+          0,
+          0,
+          -0.4
+        ],
+        "shake": 0.7
+      }
+    },
+    {
+      "name": "launch_rip",
+      "t0": "go+0.1",
+      "t1": "go+4.0",
+      "lens_mm": 32,
+      "camera": {
+        "type": "side_track",
+        "weight": 0.0,
+        "offset": [
+          2.0,
+          -7.5,
+          -2.5
+        ],
+        "shake": 0.9
+      }
+    },
+    {
+      "name": "transit_chase",
+      "t0": "go+4.0",
+      "t1": "go+7.5",
+      "lens_mm": 30,
+      "camera": {
+        "type": "chase",
+        "offset": [
+          7.0,
+          -2.0,
+          2.2
+        ],
+        "aim": "veh",
+        "shake": 1.2
+      }
+    },
+    {
+      "name": "transit_ffwd",
+      "t0": "go+7.5",
+      "t1": "go+11.5",
+      "speed": 3.0,
+      "lens_mm": 35,
+      "camera": {
+        "type": "side_track",
+        "weight": 0.0,
+        "offset": [
+          0.0,
+          -11.0,
+          4.5
+        ],
+        "shake": 0.5
+      }
+    },
+    {
+      "name": "decel",
+      "t0": "go+11.5",
+      "t1": "go+16.0",
+      "lens_mm": 38,
+      "camera": {
+        "type": "side_track",
+        "weight": 0.0,
+        "offset": [
+          0.0,
+          -9.5,
+          4.5
+        ],
+        "shake": 0.6
+      }
+    },
+    {
+      "name": "merge_lock",
+      "t0": "go+16.0",
+      "t1": "go+19.5",
+      "lens_mm": 30,
+      "dof": true,
+      "fstop": 5.6,
+      "camera": {
+        "type": "target_back",
+        "offset": [
+          6.0,
+          -3.5,
+          2.5
+        ],
+        "aim": "mid",
+        "shake": 1.0
+      }
+    },
+    {
+      "name": "reattack",
+      "t0": "go+19.5",
+      "t1": "cpa-1.1",
+      "lens_mm": 35,
+      "camera": {
+        "type": "side_track",
+        "weight": 0.5,
+        "offset": [
+          0.0,
+          -11.0,
+          3.0
+        ],
+        "shake": 0.6
+      }
+    },
+    {
+      "name": "terminal_wide",
+      "t0": "cpa-1.1",
+      "t1": "cpa+0.7",
+      "lens_mm": 32,
+      "camera": {
+        "type": "static_cpa",
+        "offset": [
+          -5.0,
+          -15.0,
+          -4.2
+        ],
+        "aim": "mid"
+      }
+    },
+    {
+      "name": "cpa_slowmo",
+      "t0": "cpa-0.85",
+      "t1": "cpa+0.4",
+      "speed": 0.2,
+      "lens_mm": 30,
+      "dof": true,
+      "fstop": 4.0,
+      "camera": {
+        "type": "orbit_cpa",
+        "radius": 5.2,
+        "omega_deg_s": 14,
+        "angle0_deg": 252,
+        "height": -0.8
+      }
+    }
+  ]
+}

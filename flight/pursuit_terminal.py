@@ -254,6 +254,27 @@ class PursuitTerminalConfig:
     # terminal effect). False (default) = amendment-#1 behaviour exactly.
     brake_vert_sync: bool = False
 
+    # --- long-range approach dash (2026-10-21, default OFF = legacy) ----------
+    # For a cue far beyond the camera envelope (hundreds of metres): during
+    # Phase A the norm cap widens to `dash_v_max_ms` so the transit is flown
+    # fast, and the Phase-A stopping-distance brake cap (the brake_shaping
+    # machinery above) is applied UNCONDITIONALLY while this flag is on, so
+    # the excess speed is shed on the sqrt(v_min^2 + 2*a*d) schedule into the
+    # believed rendezvous -- the vehicle ARRIVES at the acquisition basket at
+    # normal chase speed instead of blowing through it. Phase B keeps the
+    # legacy/adaptive cap untouched (entering B above that cap is handled by
+    # the ordinary Phase-B slew budgets). The Phase-A accel slew budget is
+    # `dash_accel_max_ms2` while on (the transit wants real acceleration).
+    # Inputs: the pre-flight belief (`_r_track`/`_v_track`) + own-state EKF
+    # velocity only -- no new sensor reads (honesty boundary). Plant note:
+    # the ceiling that actually flies is the PLATFORM's (PX4 MPC_XY_VEL_MAX
+    # tops out at 20 m/s in velocity-setpoint OFFBOARD; the real airframe's
+    # top speed is an unmeasured assumption) -- this config does not hide
+    # that, it just stops the GUIDANCE from being the binding limit.
+    approach_dash: bool = False
+    dash_v_max_ms: float = 20.0
+    dash_accel_max_ms2: float = 8.0
+
     # --- rehearsal break-off (2026-09-24, default OFF = legacy) ---------------
     # PRACTICE mode, builder directive 2026-09-24: break off at the last
     # moment a collision is as certain as the track can make it, so many
@@ -779,14 +800,19 @@ class PursuitTerminalGuidance:
                 self.rehearsal_complete = True
         elif self._phase == "A":
             cmd_v, yaw = self._phase_a_cmd()
-            if cfg.brake_shaping:
+            if cfg.brake_shaping or cfg.approach_dash:
+                # approach_dash REQUIRES the stopping-distance shaping: a
+                # widened transit cap without it would arrive hot at the
+                # rendezvous (config docstring).
                 cmd_v = self._brake_cap_phase_a(cmd_v, own_vel)
             if cfg.keepframe_assist:
                 # ADDED before the norm clip and the slew: the assist trades
                 # horizontal speed for climb under the same caps/budgets.
                 cmd_v = cmd_v + np.array([0.0, 0.0, -self._keepframe_term(t)])
             cmd_v = _clip_norm(cmd_v, v_cap)
-            cmd_v = _slew_combined(cmd_v, self._prev_v_cmd, cfg.accel_max_ms2, dt)
+            a_budget = cfg.dash_accel_max_ms2 if cfg.approach_dash \
+                else cfg.accel_max_ms2
+            cmd_v = _slew_combined(cmd_v, self._prev_v_cmd, a_budget, dt)
             tel.phase = "A"
         else:
             cmd_v, yaw, coasting = self._phase_b_cmd(own_vel)
@@ -830,13 +856,21 @@ class PursuitTerminalGuidance:
         velocity must not command the hardware ceiling)."""
         cfg = self.cfg
         if not cfg.adaptive_speed:
-            return cfg.v_max_ms
-        if self._phase == "B":
+            base = cfg.v_max_ms
+        elif self._phase == "B":
             tgt_speed = float(np.linalg.norm(self._sane_fallback_vel(self._kf.v_t)))
+            base = _clamp(tgt_speed + cfg.overtake_margin_ms,
+                          cfg.adaptive_v_floor_ms, cfg.v_hw_max_ms)
         else:
             tgt_speed = float(np.linalg.norm(self._v_track))
-        return _clamp(tgt_speed + cfg.overtake_margin_ms,
-                      cfg.adaptive_v_floor_ms, cfg.v_hw_max_ms)
+            base = _clamp(tgt_speed + cfg.overtake_margin_ms,
+                          cfg.adaptive_v_floor_ms, cfg.v_hw_max_ms)
+        if cfg.approach_dash and self._phase == "A":
+            # Long-range transit: the cap is the dash ceiling; the Phase-A
+            # brake cap (applied unconditionally with this flag) shapes the
+            # deceleration into the believed rendezvous.
+            return max(base, cfg.dash_v_max_ms)
+        return base
 
     # ------------------------------------------- keep-in-frame vertical assist
 

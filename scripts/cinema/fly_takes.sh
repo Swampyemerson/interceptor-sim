@@ -41,8 +41,20 @@ for spec in "${TAKES[@]}"; do
         continue
     fi
     sleep 5
+    # Speed-envelope params with read-back (demo runs must not rely on SITL
+    # param persistence from historical m4 runs) -- same envelope m4 sets.
+    # If the take dashes above 20, raise the PX4 ceiling to match (raw set).
+    VMAX=$(echo "$targs" | grep -oP -- '--pursuit-dash-vmax \K[0-9.]+' || true)
+    PV=()
+    [ -n "$VMAX" ] && PV=(--vmax "$VMAX")
+    if ! timeout 60 "$REPO/.venv/bin/python" "$REPO/scripts/cinema/set_px4_params.py" \
+            "${PV[@]}" > "$OUTDIR/params_$name.log" 2>&1; then
+        echo "[fly_takes] take $name: PX4 PARAM SET FAILED (see params_$name.log)"
+        bash "$REPO/scripts/sim_kill.sh" >/dev/null 2>&1
+        continue
+    fi
     # shellcheck disable=SC2086
-    timeout 420 "$REPO/.venv/bin/python" "$REPO/scripts/cinema/cinema_run.py" \
+    timeout 600 "$REPO/.venv/bin/python" "$REPO/scripts/cinema/cinema_run.py" \
         --out "$OUTDIR/$name.csv" $targs \
         2>&1 | tee "$OUTDIR/run_$name.log" | grep -E "CINEMA_RESULT|FAIL|Traceback" | tail -4
     bash "$REPO/scripts/sim_kill.sh" >/dev/null 2>&1

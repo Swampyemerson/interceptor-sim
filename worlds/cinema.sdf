@@ -162,7 +162,11 @@
           <geometry>
             <plane>
               <normal>0 0 1</normal>
-              <size>500 500</size>
+              <!-- 1300 m VISUAL (collision untouched): the 2026-10-21
+                   long-range demo engages from 500 m out, so the 500 m
+                   visual would end mid-scene. Grid cells scale with the
+                   plane (texture spans UV 0..1): ~13 m cells here. -->
+              <size>1300 1300</size>
             </plane>
           </geometry>
           <!-- TWEAK 5, revised: a tiled grid texture (portfolio demo polish

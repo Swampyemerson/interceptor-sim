@@ -1,0 +1,57 @@
+{
+  "_doc": "Long-range (500 m cue) environment: the corridor runs diagonally from the launch at (0,0) to the intercept near (-160,-150), so the set covers x -600..100, y -360..90. Forest band north of the corridor (backdrop for south-side cameras), scatter south, bushes/tufts along the whole run for ground-rush speed cues at 20 m/s.",
+  "seed": 11,
+  "sun": {
+    "elevation_deg": 32,
+    "azimuth_deg": 150,
+    "strength": 1.0
+  },
+  "haze": 1.5,
+  "sky_cam_gain": 2.4,
+  "exposure": -2.8,
+  "ground_size_m": 1500,
+  "tree_band": {
+    "y_min": 25,
+    "y_max": 95,
+    "x_min": -620,
+    "x_max": 120,
+    "count": 260
+  },
+  "scatter_trees": {
+    "count": 150,
+    "clear_radius": 14,
+    "area": [
+      -400,
+      60,
+      -320,
+      -170
+    ]
+  },
+  "bushes": {
+    "count": 700,
+    "area": [
+      -620,
+      120,
+      -340,
+      80
+    ]
+  },
+  "grass_patches": {
+    "count": 2400,
+    "area": [
+      -580,
+      80,
+      -230,
+      60
+    ]
+  },
+  "render": {
+    "fps": 30,
+    "res": [
+      1920,
+      1080
+    ],
+    "samples": 96,
+    "motion_blur": 0.5
+  }
+}

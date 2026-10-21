@@ -3219,6 +3219,35 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
                        brake_accel_ms2=3.0, brake_vert_sync=True)
         print("[terminal] pursuit BRAKE PACKAGE ON (ADR-0115: a=3 m/s^2, "
               "lead 0.45 s, horizontal-only cap + vertical arrival-sync)")
+    if getattr(args, "pursuit_approach_dash", False):
+        pcfg = replace(pcfg, approach_dash=True,
+                       dash_v_max_ms=float(args.pursuit_dash_vmax),
+                       dash_accel_max_ms2=float(args.pursuit_dash_accel))
+        if getattr(args, "pursuit_dash_brake_accel", None) is not None:
+            pcfg = replace(pcfg,
+                           brake_accel_ms2=float(args.pursuit_dash_brake_accel))
+        print(f"[terminal] pursuit APPROACH DASH ON (transit cap "
+              f"{pcfg.dash_v_max_ms:.0f} m/s, slew {pcfg.dash_accel_max_ms2:.0f} "
+              f"m/s^2, decel schedule a={pcfg.brake_accel_ms2:.1f} m/s^2 into "
+              f"the believed rendezvous; Phase-A brake cap forced on)")
+        # Fail-LOUD window check (not fatal: the belief is a cue, not truth):
+        # a long-range transit that cannot fit the engage window would end in
+        # engage_timeout mid-dash -- say so at launch, not in the debrief.
+        # Transit lower bound: straight-line belief range at the dash ceiling
+        # plus the braking tail and a terminal allowance.
+        belief_range = math.hypot(belief_r0_ned[0], belief_r0_ned[1])
+        t_transit_min = (belief_range / max(pcfg.dash_v_max_ms, 1e-6)
+                         + pcfg.dash_v_max_ms / max(pcfg.brake_accel_ms2, 1e-6) / 2.0
+                         + 8.0)
+        if cfg.engage_max_s < t_transit_min:
+            print(f"[terminal] WARNING: engage_max_s={cfg.engage_max_s:.0f}s is "
+                  f"shorter than the approach-dash transit lower bound "
+                  f"(~{t_transit_min:.0f}s for the {belief_range:.0f} m cue at "
+                  f"{pcfg.dash_v_max_ms:.0f} m/s) -- the engagement would time "
+                  f"out mid-dash; raise --engage-max-s. ALSO NOTE: offboard-"
+                  f"loss failsafe distances scale with speed (0.5 s at "
+                  f"{pcfg.dash_v_max_ms:.0f} m/s = {0.5*pcfg.dash_v_max_ms:.0f} m "
+                  f"unflown -- TODO-BUILDER constants, bench L3/L6).")
     if getattr(args, "pursuit_rehearsal", False):
         # PRACTICE mode: ONE switch applies the WHOLE registered practice
         # profile (rehearsal + brake package + reduced 10 m/s cap) -- the
@@ -3479,6 +3508,27 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "package, one switch, no tuning surface -- "
                           "isim/specs/brake_shaping_prereg_2026-09-24.md. "
                           "Default OFF = legacy behaviour, byte-identical.")
+    trm.add_argument("--pursuit-approach-dash", action="store_true",
+                     help="pursuit-mode LONG-RANGE APPROACH DASH (builder "
+                          "directive 2026-10-21): for a cue far beyond the "
+                          "camera envelope, Phase A flies the transit at up "
+                          "to --pursuit-dash-vmax and sheds the speed on the "
+                          "stopping-distance schedule into the believed "
+                          "rendezvous (the Phase-A brake cap is applied "
+                          "unconditionally while on). Belief + own-EKF "
+                          "inputs only. Default OFF = legacy, byte-identical.")
+    trm.add_argument("--pursuit-dash-vmax", type=float, default=20.0,
+                     help="approach-dash transit speed ceiling, m/s (the "
+                          "PLANT's own ceiling still applies -- PX4 "
+                          "MPC_XY_VEL_MAX tops out at 20 in velocity-mode "
+                          "OFFBOARD; the real airframe's top speed is an "
+                          "unmeasured assumption)")
+    trm.add_argument("--pursuit-dash-accel", type=float, default=8.0,
+                     help="approach-dash Phase-A accel slew budget, m/s^2")
+    trm.add_argument("--pursuit-dash-brake-accel", type=float, default=None,
+                     help="override brake_accel_ms2 for the approach-dash "
+                          "deceleration schedule (default: whatever the "
+                          "brake package / config already set)")
     trm.add_argument("--pursuit-rehearsal", action="store_true",
                      help="pursuit-mode REHEARSAL BREAK-OFF (builder "
                           "directive 2026-09-24): practice passes without "

@@ -142,7 +142,8 @@ def build_environment(scene_cfg, col):
     nt.links.new(tex2.outputs["Fac"], bump.inputs["Height"])
     nt.links.new(bump.outputs["Normal"], bsdf.inputs["Normal"])
     bsdf.inputs["Roughness"].default_value = 0.95
-    ground = prim("plane_add", "ground", col, gmat, size=600)
+    ground = prim("plane_add", "ground", col, gmat,
+                  size=scene_cfg.get("ground_size_m", 600))
 
     # sky + sun ---------------------------------------------------------------
     sun_cfg = scene_cfg.get("sun", {})
@@ -216,18 +217,20 @@ def build_environment(scene_cfg, col):
         y = rng.uniform(band.get("y_min", 10), band.get("y_max", 55))
         make_tree(f"treeB{i}", x, y, rng.uniform(0.9, 1.7), rng.randrange(6))
     sc = scene_cfg.get("scatter_trees", {})
-    clear = sc.get("clear_radius", 10)
+    sa = sc.get("area", [-80, 110, -70, -18])     # x0, x1, y0, y1
     for i in range(sc.get("count", 20)):
         for _try in range(20):
-            x, y = rng.uniform(-80, 110), rng.uniform(-70, -18)
-            if not (-14 < x < 10 and -30 < y < 6):
+            x, y = rng.uniform(sa[0], sa[1]), rng.uniform(sa[2], sa[3])
+            if not (-14 < x < 10 and -30 < y < 6):   # keep the launch stage clear
                 break
         make_tree(f"treeS{i}", x, y, rng.uniform(0.8, 1.6), rng.randrange(6))
 
     # bushes ------------------------------------------------------------------
     bush_m = new_mat("bush", (0.025, 0.085, 0.015, 1), rough=0.9)
-    for i in range(scene_cfg.get("bushes", {}).get("count", 180)):
-        x, y = rng.uniform(-90, 90), rng.uniform(-70, 60)
+    bcfg = scene_cfg.get("bushes", {})
+    ba = bcfg.get("area", [-90, 90, -70, 60])
+    for i in range(bcfg.get("count", 180)):
+        x, y = rng.uniform(ba[0], ba[1]), rng.uniform(ba[2], ba[3])
         if abs(y + 5) < 2.5:
             continue
         r = rng.uniform(0.25, 0.9)
