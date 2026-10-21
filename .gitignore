@@ -157,3 +157,4 @@ logs/wind_gate0_*/sim.log
 # Full bench pulls from the Pi (frames/images; small aggregates are committed under runs/)
 bench_archive/
 renders/
+data/
