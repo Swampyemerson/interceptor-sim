@@ -67,3 +67,29 @@ runs/cinema_longrange_20261021/dash_sweep*.json, curves in curve_*.csv):
 * **PICK (per the registered rule): dash_v_max 20 m/s (the Gazebo-flyable
   ceiling), brake a=3 (the flying package constant), geometry 150/477.**
   Gazebo decides -- the demo takes are the next arm.
+
+## GAZEBO ARM (2026-10-21 — addendum, flown after the pick)
+
+Serial takes, one sim boot each, 500 m slant cue (cross 150 / lead 477),
+injected cue error per take, full camera-in-the-loop (logs/cinema_lr/):
+
+| take | envelope | CPA (m) | n_det | note |
+|---|---|---|---|---|
+| lr1 | 20 m/s, a=3 | 0.272 | 39 | per the registered pick |
+| lr2 | 20 m/s, a=3 | 0.199 | 41 | per the registered pick |
+| lr3 | 20 m/s, a=3 | 7.821 | 7 | cue-error draw opened range past the decode cliff; SAFE abort path exercised |
+| hr1 | 36 m/s, a=4 | 0.380 | 42 | builder asked for the 80 mph class |
+| hr2 | 36 m/s, a=4 | 0.697 | 45 | |
+| hr3 | 36 m/s, a=4 | 0.453 | 40 | |
+| hr4 | 36 m/s, a=4 | 0.298 | 63 | |
+| hr5 | 36 m/s, a=4 | **0.087** | 64 | THE VIDEO TAKE; plant peak 35.8 m/s; first detection go+17.5 after a 17 s belief-only dash |
+
+Gazebo verdict: the isim ranking TRANSFERRED. 20 m/s takes land 0.2-0.3 m;
+36 m/s with a=4 (the cliff-aware brake) lands 0.09-0.70 m across five takes
+(2/5 inside the 0.35 m ram radius — n too small for a rate claim, reported
+as takes, not a Pk). The 36 m/s envelope needed a raw PX4 param set
+(MPC_XY_VEL_MAX read back 36.0; the declared max 20 is GCS metadata only —
+scripts/cinema/set_px4_params.py). All numbers are SIM; the real FC keeps
+stock limits (read-only TELEM2 read 2026-10-21: 12/5/45/8) until the
+airframe's thrust, mass and brake authority are measured
+(builder_queue: dash-envelope-on-real-fc).
