@@ -106,6 +106,26 @@ def _clip_norm(v: np.ndarray, max_norm: float) -> np.ndarray:
     return v
 
 
+def _clamp_dir_to_cone(v: np.ndarray, axis_dir: np.ndarray,
+                       max_rad: float) -> np.ndarray:
+    """Rotate `v` toward unit `axis_dir` (in their common plane, norm kept)
+    until its angle off the axis is <= max_rad; inside the cone = unchanged.
+    hybrid_pn_2026-10-22: the look-angle clamp (candidate B)."""
+    n = float(np.linalg.norm(v))
+    if n < _EPS:
+        return v
+    vd = v / n
+    cos_ang = float(np.clip(np.dot(vd, axis_dir), -1.0, 1.0))
+    if math.acos(cos_ang) <= max_rad:
+        return v
+    perp = vd - cos_ang * axis_dir
+    pn = float(np.linalg.norm(perp))
+    if pn < _EPS:                       # anti-parallel: no unique plane
+        return v
+    new_dir = math.cos(max_rad) * axis_dir + math.sin(max_rad) * (perp / pn)
+    return new_dir * n
+
+
 def _slew(cmd: np.ndarray, prev: np.ndarray, accel_max_horiz: float,
           accel_max_vert: float, dt: float) -> np.ndarray:
     """Rate-limit the change from `prev` to `cmd`: horizontal (north/east)
@@ -201,6 +221,18 @@ class PursuitConfig:
     # range -- that is not a real track loss, so fallback is suppressed
     # entirely inside this range regardless of `fallback_s`.
     no_fallback_range_m: float = 3.0
+    # hybrid_pn_2026-10-22 (docs/hybrid_guidance_notes_2026-10-22.md,
+    # candidate B): two DEFAULT-OFF levers for the look-angle-constrained
+    # biased-PN experiment. `pip_aim=True` points the Phase-B closing
+    # component at the KF's PREDICTED intercept direction (pos + vel*tgo,
+    # tgo from the measured closing rate -- bearing-only honest, KF state
+    # only) instead of the current LOS. `look_angle_max_deg>0` clamps the
+    # FINAL Phase-B NED-frame command direction to a cone of that half-angle
+    # about the LOS, the literature's FOV-constraint fix (yaw tracks the
+    # LOS, so command-vs-LOS angle is the look-angle proxy). Defaults are
+    # byte-identical OFF (pinned by the isim test suite).
+    pip_aim: bool = False
+    look_angle_max_deg: float = 0.0
     # v2 (#1 fix, "Bug B" -- see the task's final report): a KF velocity
     # estimate adopted as a fresh Phase-A belief on fallback is clamped to at
     # most `fallback_speed_cap_mult` x the ORIGINAL pre-flight believed
@@ -778,7 +810,20 @@ class PursuitRendezvousGuidance:
         kp_lat_eff = cfg.kp_lat * (cfg.kp_lat_near_mult if range_est < cfg.last_line_range_m
                                    else 1.0)
 
-        cmd_v = kf_vel + v_close * los_dir + kp_lat_eff * r_perp
+        # hybrid_pn_2026-10-22 candidate B: aim the closing component at the
+        # predicted intercept direction (KF state only; tgo from the measured
+        # closing rate, floored so a near-zero closing rate cannot blow it up).
+        aim_dir = los_dir
+        if cfg.pip_aim:
+            closing = -float(np.dot(v_rel, los_dir))
+            tgo = range_est / max(closing, cfg.v_close_min_ms)
+            pip = kf_pos + kf_vel * tgo
+            aim_dir = _unit(pip - own_pos, los_dir)
+
+        cmd_v = kf_vel + v_close * aim_dir + kp_lat_eff * r_perp
+        if cfg.look_angle_max_deg > 0.0:
+            cmd_v = _clamp_dir_to_cone(cmd_v, los_dir,
+                                       math.radians(cfg.look_angle_max_deg))
         yaw = _yaw_toward(r_est, self._prev_yaw_deg)
         return cmd_v, yaw
 
