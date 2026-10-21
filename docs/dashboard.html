@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->77eb94c<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->64ccc37<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1399,6 +1399,18 @@
    "rec": "Password first -- it is a local-VM login, low real risk, but it is sitting in public history. The MIT license is CONFIRMED (your ruling, 2026-08-19) -- nothing to do there.",
    "blocked": "Every item needs your hands (PC, phone browser, or the sim machine); none need a Claude session.",
    "doc": "docs/publish_cleanup_work_order.md"
+  },
+  {
+   "id": "dash-envelope-on-real-fc",
+   "question": "The far-cue dash code (approach_dash) is deployed and tested on the Pi, but the real interceptor FC still holds STOCK speed limits -- read over TELEM2 tonight (read-only): MPC_XY_VEL_MAX 12 m/s, ACC_HOR 5, TILTMAX 45, JERK 8. The demo's 36 m/s envelope is SIM-ONLY and was deliberately NOT written to the real FC (airframe thrust/mass/brake authority unmeasured). When the airframe is flight-ready: what speed envelope goes on it?",
+   "options": [
+    "Keep stock (12 m/s) through the first flights; raise only after measured thrust/mass + a brake-authority check",
+    "Raise moderately (e.g. 16-20 m/s + ACC_HOR 8-10) at the first far-cue test, sized by the isim brake rule",
+    "Match the sim demo envelope now (36/15/60/30) -- NOT recommended while the airframe is unmeasured"
+   ],
+   "rec": "Option 1. The isim cliff finding is the reason: a dash the airframe cannot brake out of misses by design, and brake authority is exactly what is unmeasured. Nothing was written tonight; the target drone (ArduPilot) needs no change for this feature.",
+   "blocked": "Open assumptions: airframe-thrust-and-mass-unmeasured, dash-accel-profile. Needs a measured airframe.",
+   "doc": "isim/specs/approach_dash_2026-10-21.md"
   }
  ],
  "plain_log": [
