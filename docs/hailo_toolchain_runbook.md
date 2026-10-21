@@ -34,6 +34,8 @@ count + hardware-only fps. So before money moves:
   --hw-arch hailo8 --calib-path calib/ --classes 1`.
 - Compile route B (ultralytics ≥8.4.97): `yolo export format=hailo
   name=hailo8 ...` — **default target is hailo8l; set hailo8 explicitly.**
+  (Our .venv-seeker-train-gpu has 8.4.90 — one `pip install -U ultralytics`
+  short; grayscale `channels: 1` training is already supported at 8.4.90.)
 - End nodes: the six head convs `/model.22/cv{2,3}.{0,1,2}/cv*.2/Conv`
   (v8) — read them from OUR onnx, numbering shifts with surgery.
 - NMS runs on the Pi CPU via HailoRT (`engine=cpu` in the .alls), not
