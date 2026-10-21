@@ -75,14 +75,14 @@
       "name": "decel",
       "t0": "go+11.5",
       "t1": "go+16.0",
-      "lens_mm": 38,
+      "lens_mm": 35,
       "camera": {
         "type": "side_track",
         "weight": 0.0,
         "offset": [
           0.0,
-          -9.5,
-          4.5
+          -10.0,
+          1.2
         ],
         "shake": 0.6
       }
@@ -91,15 +91,15 @@
       "name": "merge_lock",
       "t0": "go+16.0",
       "t1": "go+19.5",
-      "lens_mm": 30,
+      "lens_mm": 35,
       "dof": true,
       "fstop": 5.6,
       "camera": {
         "type": "target_back",
         "offset": [
-          6.0,
-          -3.5,
-          2.5
+          -16.0,
+          5.0,
+          1.5
         ],
         "aim": "mid",
         "shake": 1.0
