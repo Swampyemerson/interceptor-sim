@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->28cfeda<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->a1dd360<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,8 +900,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-10-18",
- "updated_by": "Fable 5 head session (live bench, builder present)",
+ "updated": "2026-10-21",
+ "updated_by": "Fable 5 head session (overnight, builder directive: 12 m/s demo video)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -913,14 +913,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-10-17",
-  "where": "Interceptor propulsion is DONE: all four motors spin with corner-verified mapping AND correct directions (phase wires swapped at three motors; full re-fly confirmed 4/4). Safety restored to fail-closed (CBRK_IO_SAFETY=0). Pi, FC, GPS+compass, ESC all proven on battery.",
-  "finding": "MAV_CMD_ACTUATOR_TEST wants the MAVLink MOTOR1..4 enum (1..4) in param5, not PX4's internal 101..104 -- the wrong numbers vanish with no ACK (2h lost). Also: PX4 routes acks only to systems it has heard heartbeats from, and open QGC actuator sliders stomp external test commands.",
+  "as_of": "2026-10-21",
+  "where": "Bench thread unchanged (propulsion done; RC bind + cals next). New tonight: the 12 m/s demo video is DONE -- camera-in-the-loop Gazebo intercept, CPA 0.194 m, camera-locked final 4.3 s under an injected 2.5 m / 5 deg cue error, re-rendered as a ~22 s cinematic with HUD + real seeker feed.",
+  "finding": "Demo geometry is bound by the in-sim decode cliff (~12 m for the 0.5 m tag): a from-behind start opens range past it and aborts; crossing geometries that only shrink range lock continuously. isim's decode model flattered the tail-chase -- rank in isim, decide in Gazebo.",
   "next": [
-   "Builder: level cal if the frame is flat (+26 deg roll at rest?); RC binds + radio cal",
-   "On battery: battery-V cal vs meter, compass re-check under load; outdoors: compass cal"
+   "Builder: watch the video; every knob is config (scripts/cinema/README.md)",
+   "Bench: RC binds + radio cal; level cal if the frame is flat; battery-V cal"
   ],
-  "evidence": "bench session 2026-10-16 over the Pi (fc_link_check: 9 sats FIX_3D, 21.6 V; PWM_MAIN_FUNC1-4 read-back) - configs/px4_6cmini/bench.params section (5) + README correction"
+  "evidence": "runs/cinema_20261021/README.md (take table) - logs/cinema/t6_meta.json - scripts/cinema/README.md"
  },
  "assumptions": [
   {
@@ -1403,6 +1403,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-10-21",
+   "text": "Overnight demo-video directive executed end to end. Built the CINEMA pipeline (scripts/cinema/: fly -> export -> Blender re-render -> HUD video; README has the knobs) and flew six camera-in-the-loop Gazebo engagements at TARGET 12 m/s with a deliberately imperfect cue (2-3 m / 4-6 deg injected belief error, mover flies truth): one geometry-class reject (tail-chase start opens range past the ~12 m in-sim decode cliff and drops lock -- isim's decode model flattered it, Gazebo decided), then five full engagements, CPA 0.700 / 0.387 / 0.301 / 0.237 / 0.194 m -- four inside the 0.35 m contact radius. The video take (t6): gap-free camera lock from 7.7 m (+3.7 s after GO) to CPA at +8.0 s, 53 decodes consumed, CPA 0.194 m. The final video re-renders the logged 6-DoF poses in Blender (Cycles/CUDA, field + forest set, real tag texture) with a technical HUD (phase, INERTIAL-PREDICT vs CAMERA-TRACK, speeds, closing rate, range) and the REAL recorded seeker frames as picture-in-picture with offline re-detected tag corners.",
+   "so_what": "First demo asset where the camera correction is visibly load-bearing (the injected cue error would miss by metres; the camera closes it to 0.19 m) -- answers the stale-demo-assets question (#2) with an honest artifact, and the pipeline is config-driven so new videos are a parameter change. DEMO runs, not a gate: perfect-latch cue timing, windless, sim camera, 0.5 m sim tag; scope in each take's _meta.json.",
+   "evidence": "runs/cinema_20261021/ (takes + README) - scripts/cinema/ - renders/t6 (local) - logs/cinema/t6_meta.json - video: runs/cinema_20261021/intercept_12ms.mp4"
+  },
+  {
    "date": "2026-10-18",
    "text": "Pi 5 decode bench, run on the real flight computer with the live OV9281 camera (scripts/bench/pi_decode_bench.py; ADR-0124 addendum). Three measurements. (1) The real decoder's pixel cliff -- the tag size in pixels below which decoding dies -- measured 14 px on clean pixels / 18 px under 1-px blur at the deployed settings, BETTER than the sim's ~22 px, so the 6-7 m paper decode-range prediction now looks conservative: software floor ~10.5 m on this camera, ~15.7 m on the candidate AR0234 upgrade (synthetic-pixel upper bounds -- the tripod field day still decides). (2) The quad_decimate=1.0 'free +50% range' lever from the sim bought ZERO cliff improvement under blur (18 vs 18 px) -- demoted from first reclaim lever to try-but-expect-little. (3) Decode speed is a non-issue: 30 fps sustained camera-to-decode at the deployed config, above the 24 fps money-gate break-even, and the AR0234-resolution fps trap only bites at quad_decimate=1.0 (20 fps). Side finding: the frame is badly out of focus at bench distance -- the M12 lens focus must be set/verified at field range during checkerboard calibration.",
    "so_what": "The camera we already own may decode the placard well past the 6-7 m prediction, and the $150 camera upgrade would be fast enough at deployed settings -- but these are perfect-pixel floors; nothing here replaces flying tripod curve (a).",
@@ -1467,12 +1473,6 @@
    "text": "Builder ordered the bench consumables and the replacement seeker lens. Amazon: low-ESR 1000 uF caps, 18 AWG silicone wire plus a USB-C pigtail (so the Pi's 5 V feed no longer hangs off thin DuPont pins), solder, a 150 W car inverter for the laptop and a Starlink Mini car adapter for field internet. Lens: an Arducam 1.8 mm M12 rated 110 deg horizontal on this sensor, which answers the lens question in his queue -- the delivered 70 deg lens broke the >=100 deg rule. An earlier list cited a wrong Edmund part number and a European price; the builder's browser check caught it before checkout.",
    "so_what": "The two things blocking the Pi-on-battery wiring (the cap and a wire he can actually solder) arrive this week, and the seeker gets back inside its hard field-of-view requirement once the lens is swapped and re-calibrated. Nothing has been measured yet -- the lens FoV is a listing figure until the screen calibration confirms it.",
    "evidence": "gnd-01 (build_tab ladder); builder Amazon order screenshot 2026-10-12; Arducam M40180H13L product page"
-  },
-  {
-   "date": "2026-10-04",
-   "text": "Pre-battery readiness bench (remote; builder wiring complete except the Pi-rail cap). FC: 11/11 bench params verified across a reboot incl. the new BAT1_N_CELLS=6; M10 3D fix indoors; all 14 PWM output functions confirmed unmapped (nothing can spin even armed); PX4 1.16.0 confirmed. The microSD scare resolved by the builder's challenge: MAVLink storage/log-list queries answer EMPTY on this board, but NSH shows the card mounted with a log/ tree -- an instrument quirk, not a missing card (verify logs via QGC Log Download at the battery session). THE BIG ONE: the props-off TELEM2 OFFBOARD gate (brn-05 class) re-run on the ASSEMBLED airframe harness -- first runs failed on a REAL bug found and fixed the same bench: mavsdk-python pumps mavsdk_server output on a non-daemon thread, so seeker_loop completed rc=0 then hung forever when stdout is a pipe, and the gate mislabelled it a link timeout. Teardown now kills the server explicitly; official gate PASS (300/300 setpoints, 19.5 Hz, max own_age 0.02 s, OFFBOARD accepted disarmed). Pi lane: OS full-upgrade (342 pkgs) + EEPROM + new kernel, camera/venv green, recorder soak clean (8,958/8,958 frames, 0 drops, 47 C max, PROVISIONAL -- no tag in view). Three Opus 5.5 pre-upload reviews landed; executed same turn: target FLTMODE_CH 5->12 (ELRS AUX1 is hard-limited to 2 positions -- the 6-mode table collapsed to Stabilize/Auto; lint invariant added), rc_check docstring corrected (RC-loss announcements are events-only in v1.16), bench_status no-heartbeat vacuous-pass fixed. Version ruling ADR-0121: hold PX4 1.16.0 + ELRS 3.3.1-matched through the 6S gate. EVENING, the chase-code sprint (builder: 'get it going now'): the live camera was never wired into the mission driver -- the perception stack (seeker_loop) and the mission brain (real_flight) were proven separately and never married. Married tonight: flight/deploy/frame_feed.py adapts the proven sources/detectors into run_mavsdk_mission (byte-identical without the new flags), plus a --desk mode that runs the REAL state machine on REAL frames with no MAVSDK import -- structurally cannot arm. Camera CALIBRATED the same evening with zero prints: the repo's screen-checkerboard flow + an auto-cycling board page on the builder's monitor + the airframe camera pointed at it -- 81 views, 9/9 zones, 3/3 distance buckets, RMS 0.731 px (skr-06 bar <=1.0 PASSED); stamped OV9281 intrinsics committed. Desk chain run: 856/856 detector hits, STANDBY->ENGAGE->BREAKOFF->SAFE, 428 frames recorded, 0 drops (first run at the 1 ms flight exposure read a monitor at mean 36 and got 0 hits -- a bench illumination mismatch, fixed with --exposure-us/--gain bench overrides; the flight spec is untouched). FINDING, needs a tape measure: the solved fx=1104 px implies ~60 deg horizontal FoV against the vendor's 118 deg claim -- if the cheap geometric check confirms it, the delivered lens violates the wide-fov HARD constraint (the +/-30 deg aim tolerance depends on >=100 deg). FOV VERDICT, measured twice and matching: the builder's tape measurement (14-in screen exactly fills the frame at 10 in -> 70.0 deg) agrees with the calibration pushed through its own distortion model (69.4 deg; the earlier '~60 deg' was the naive pinhole edge number, wrong under k1=-0.43 barrel). So the solve is independently VALIDATED and the delivered lens is ~70 deg horizontal against the 118 deg listing -- the wide-fov HARD constraint (>=100 deg) is VIOLATED by the delivered optic. At 70 deg the +/-30 deg aim tolerance has the target at the frame edge (asymmetric: 29.7 deg one side). Lens swap decision queued; the M12 mount makes a swap cheap and the screen-calibration flow re-earns intrinsics in minutes afterward. NIGHT CAP -- afr-02 PASSED: first 6S battery power-up through the smoke stopper, props off (builder-confirmed), zero drama. FC battery telemetry live and sane on the new BAT1_N_CELLS=6: 23.2 V = 3.86 V/cell (textbook storage charge), ~59% estimate; current 0.00 A at idle as expected (FC on USB, ESC idle below sensor resolution -- current cal waits for a motor load). The BEC->Pi rail stays open: builder is re-wiring the tap with better wire, cap still inbound, two-rail rule holds. Instrument note: NSH-over-MAVLink answers exactly once per boot on this board, then wedges -- retired for the night; the ULog-writing check moves to QGC Log Download (one click).",
-   "so_what": "The 6S smoke-stopper power-up (afr-02) is GO: kill chain proven, battery monitor set, outputs unmapped, the Pi-FC link re-proven through the final harness, and a false-FAIL instrument fixed before it could burn a bench day. Before ARMING (not before power-up): QGC radio calibration, airframe selection (wipes most params -- reload the pack after), and the reviews' pre-arm list. And the chase code went from 'camera not wired in' to running end-to-end on real hardware perception in one evening, with the camera calibrated off the builder's own monitor. Still between here and a flight: the FoV check, a measured tag span, QGC radio cal, and the pre-arm list. The FoV finding is the kind tripod day would have surfaced as a mystery (short acquisition cone); tonight it is a $10-20 M12 lens line item instead. The chaser has now been battery-powered once, safely, with believable telemetry -- the airframe chain's next gates are radio calibration and the QGC airframe/actuator sequence, then motors.",
-   "evidence": "logs/deploy_seeker_bench_20261004T201641Z.log (Pi) - configs/px4_6cmini/verify_params.py 11/11 - runs/recorder_gate_20261004/ - flight/deploy/seeker_loop.py teardown fix - configs/target_kakute selftest green - ADR-0121 - flight/deploy/frame_feed.py - configs/ov9281_intrinsics.json (81 views, rms 0.731 px) - runs/desk_20261004T205433Z (Pi) - commit 1b10547"
   }
  ],
  "narrative": {
@@ -2225,6 +2225,10 @@
     {
      "date": "2026-09-23",
      "note": "Tag realism v1 (ADR-0114): isim's AprilTag now rides a derived quad attitude (drag pitch, banked turns), shakes (OU wobble + camera vibration blur), and sees sun glare (specular + backlight). Registered ladder verdict: nominal NULL; the ADR-0112 bracket's height-error evidence regraded (upright-tag artifact); 12 deg down-canted placard measured as the pair fix. All knobs default-off and estimate-graded; 197 isim tests incl. byte-identity pins."
+    },
+    {
+     "date": "2026-10-21",
+     "note": "Cinema demo pipeline added (scripts/cinema/, worlds/cinema.sdf): camera-in-the-loop demo runs with belief-only cue-error injection + 6-DoF pose/frame recording, re-rendered offline in Blender with a telemetry HUD. Scoring/logging-only additions; flight/ untouched. Measured along the way: the in-sim 0.5 m tag decode cliff ~12 m at fx 540 (consistent with ADR-0124's ~22 px sim cliff) -- geometries whose range OPENS past it lose lock."
     }
    ],
    "caption": "The simulator and its anti-fooling checks — where every number so far comes from.",

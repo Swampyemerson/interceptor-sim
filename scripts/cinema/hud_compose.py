@@ -131,8 +131,9 @@ def main():
             ov = Image.new("RGBA", base.size, (0, 0, 0, 0))
             d = ImageDraw.Draw(ov)
 
-            # ---- top-left: title + clock + phase
-            rounded_panel(d, (24, 20, 790, 96))
+            # ---- top-left: title + clock + phase (panel sized to the text)
+            tw = d.textlength(args.title, font=f_md)
+            rounded_panel(d, (24, 20, max(560, 40 + tw + 24), 96))
             d.text((40, 30), args.title, font=f_md, fill=(235, 245, 238, 255))
             ph = tele.phase(ts)
             tplus = ts - ev["go_t"]
@@ -150,10 +151,11 @@ def main():
             rng = tele.at("range_m", ts)
             y0 = H - 196
             rounded_panel(d, (24, y0, 560, H - 24))
+            pre_go = ts < ev["go_t"]   # target still parked: range/closing not meaningful
             rows = [("OWN SPEED", f"{own:5.1f} m/s"),
-                    ("TARGET SPEED", f"{tgt:5.1f} m/s"),
-                    ("CLOSING RATE", f"{cls:+5.1f} m/s"),
-                    ("RANGE (truth)", f"{rng:6.2f} m")]
+                    ("TARGET SPEED", "  --" if pre_go else f"{tgt:5.1f} m/s"),
+                    ("CLOSING RATE", "  --" if pre_go else f"{cls:+5.1f} m/s"),
+                    ("RANGE (truth)", "  --" if pre_go else f"{rng:6.2f} m")]
             for i, (lab, val) in enumerate(rows):
                 d.text((44, y0 + 14 + 26 * i), f"{lab:<14}", font=f_sm,
                        fill=(150, 175, 160, 255))
@@ -223,8 +225,8 @@ def main():
     ov = Image.new("RGBA", last.size, (0, 0, 0, 0))
     d = ImageDraw.Draw(ov)
     W, H = last.size
-    bx0, by0 = W // 2 - 430, H // 2 - 170
-    rounded_panel(d, (bx0, by0, bx0 + 860, by0 + 340),
+    bx0, by0 = W // 2 - 530, H // 2 - 170
+    rounded_panel(d, (bx0, by0, bx0 + 1060, by0 + 340),
                   fill=(8, 12, 10, 215))
     lines = [
         ("INTERCEPT", f_lg, (70, 255, 140, 255)),
