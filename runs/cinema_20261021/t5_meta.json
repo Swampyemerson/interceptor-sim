@@ -1,0 +1,64 @@
+{
+ "config": {
+  "mavsdk_url": "udpin://0.0.0.0:14540",
+  "world": "cinema",
+  "target_entity": "fpv_target",
+  "cross_range": 6.5,
+  "lead": 25.0,
+  "speed": 12.0,
+  "window_s": 30.0,
+  "standby_budget_s": 60.0,
+  "cue_offset_e": 0.0,
+  "cue_offset_n": 2.0,
+  "cue_vel_rot_deg": 4.0,
+  "cue_speed_err": 0.0,
+  "no_orient": false,
+  "orient_max_pitch_deg": 18.0,
+  "path": "line",
+  "weave_period_s": 4.0,
+  "weave_lat_speed": 2.0,
+  "out": "logs/cinema/t5.csv",
+  "no_frames": false
+ },
+ "rf_extra": [],
+ "intrinsics": {
+  "fx": 539.9363327026367,
+  "fy": 539.9363708496094,
+  "cx": 640.0,
+  "cy": 480.0,
+  "w": 1280,
+  "h": 960
+ },
+ "hfov_deg": 99.69466004744675,
+ "vfov_deg": 83.27378381659544,
+ "true_start_en": [
+  -25.0,
+  -6.5
+ ],
+ "true_vel_en": [
+  12.0,
+  0.0
+ ],
+ "tag_alt_m": 7.0,
+ "belief_start_en": [
+  -25.0,
+  -4.5
+ ],
+ "belief_vel_en": [
+  11.97076860311789,
+  0.8370776849295036
+ ],
+ "cue_error_note": "belief-only injection; mover flies truth",
+ "go_sim_t": 23.84,
+ "cpa_m": 0.2374883901166713,
+ "t_cpa": 31.04818570839067,
+ "n_det_consumed": 73,
+ "n_frames_gz": 1256,
+ "n_frames_saved": 1255,
+ "frames_dropped": 0,
+ "n_pose6": 1166,
+ "final_state": "SAFE",
+ "aborted": 0,
+ "safe_reason": "breakoff_complete",
+ "scope": "DEMO run (cinema pipeline): camera-in-the-loop Gazebo, injected cue error as configured, windless, sim camera; NOT a gate \u2014 gates live in docs/xcheck_gazebo_pursuit_*.md"
+}

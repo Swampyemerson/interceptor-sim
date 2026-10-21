@@ -1,0 +1,44 @@
+{
+  "_doc": "Environment config for blender_scene.py. Open field with a forest edge to the north (the flight corridor runs east-west around y=-4..-7, so the forest is the backdrop of south-side cameras and gives speed cues). Deterministic per seed.",
+  "seed": 7,
+  "sun": {
+    "elevation_deg": 28,
+    "azimuth_deg": 210,
+    "strength": 1.0
+  },
+  "haze": 1.5,
+  "tree_band": {
+    "y_min": 18,
+    "y_max": 70,
+    "x_min": -60,
+    "x_max": 140,
+    "count": 170
+  },
+  "scatter_trees": {
+    "count": 14,
+    "clear_radius": 12
+  },
+  "bushes": {
+    "count": 240
+  },
+  "grass_patches": {
+    "count": 500,
+    "area": [
+      -35,
+      95,
+      -26,
+      9
+    ]
+  },
+  "render": {
+    "fps": 30,
+    "res": [
+      1920,
+      1080
+    ],
+    "samples": 96,
+    "motion_blur": 0.5
+  },
+  "exposure": -2.8,
+  "sky_cam_gain": 2.4
+}
