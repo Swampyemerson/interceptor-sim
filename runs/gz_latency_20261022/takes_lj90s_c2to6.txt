@@ -1,0 +1,5 @@
+LJ90S_c2|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n -3.0 --cue-vel-rot-deg -6 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 2 --det-stamp-capture --pursuit-stamped-age
+LJ90S_c3|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e 2.0 --cue-vel-rot-deg 4 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 3 --det-stamp-capture --pursuit-stamped-age
+LJ90S_c4|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.0 --cue-offset-n 2.5 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 4 --det-stamp-capture --pursuit-stamped-age
+LJ90S_c5|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 3.0 --cue-vel-rot-deg -4 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 5 --det-stamp-capture --pursuit-stamped-age
+LJ90S_c6|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-e -2.5 --cue-offset-n -2.5 --cue-vel-rot-deg 6 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 6 --det-stamp-capture --pursuit-stamped-age

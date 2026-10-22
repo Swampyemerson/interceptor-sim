@@ -180,3 +180,25 @@ time.monotonic() (== absolute sim under the shim). Take c1 flies FIRST
 with DEBUG_DET_AGE=1 and the batch continues ONLY if its logged stamped
 ages are nonzero and within the injected 30-150 ms envelope -- the
 effect-observation gate the first version lacked.
+
+## LJ90-S RESULT (n=6, flown 2026-10-22 after the F1 clock-base fix + c1 age gate)
+
+0.190 / 0.317 / 0.230 / 0.262 / 0.278 / 0.251 — median 0.257 m = **1.08x
+baseline**, 0/6 pairs degraded vs baseline, and LJ90's >1 m tail COLLAPSED
+(c5: 1.212 -> 0.278). **Registered prediction CONFIRMED** (median <=1.2x,
+no tail). **Adopt bar MISSED BY ITS LETTER:** strict pairwise improvement
+over LJ90 in only 3/6 cues (+0.23/+0.36/+0.93 m); the other three are
+-0.011/-0.018/-0.173 m, all inside the study's own 0.2 m noise band. The
+bar is reported as written — no post-hoc reinterpretation; the distribution
+evidence (tail kill + 1.5x -> 1.1x) is what it is, and the RECOMMENDATION
+decision goes to the builder; the flight default stays OFF either way.
+
+MEASUREMENT BONUS (the c1 age gate's data): true capture->consumption lag
+is ~80 ms natural + injection (observed 108-236 ms vs injected 30-150;
+spread matches injection within tick granularity), so EVERY constant arm
+was ~35-65 ms under-compensated. The LC arms' near-baseline results
+therefore show constant mean error of that size is cheap — which sharpens
+LJ90's 1.53x as genuinely jitter-driven, and corrects the 45 ms
+base-pipeline bookkeeping (the meas_latency_s default under-states the
+cinema pipeline's real age; calibrate per pipeline, as the spec already
+demands).

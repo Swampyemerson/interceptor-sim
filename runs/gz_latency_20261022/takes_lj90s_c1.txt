@@ -1,0 +1,1 @@
+LJ90S_c1|--lead 22 --cross-range 4 --speed 12 --window-s 30 --cue-offset-n 2.5 --cue-vel-rot-deg 5 --no-frames --inject-det-latency-s 0.09 --inject-det-jitter-s 0.06 --inject-det-seed 1 --det-stamp-capture --pursuit-stamped-age
