@@ -390,6 +390,20 @@ class Scenario:
     # value})` machinery (a dict can't be a sweep axis value there); this
     # one is for one-off tuning scripts, not the four required axes.
     pursuit_overrides: Optional[dict] = None
+    # stern_approach_2026-10-21 study: the two geometry knobs, individually
+    # sweepable by isim.mc's `dataclasses.replace` machinery (same pattern
+    # and reason as `pursuit_v_max_ms` above). Defaults = byte-identical.
+    # (1) PursuitConfig.d_behind_m override: how far the Phase-A/T aim point
+    # trails the believed target along its track. None = config default (8).
+    pursuit_d_behind_m: Optional[float] = None
+    # (2) Shift the PRE-FLIGHT HEADING SOLVE's believed target start back
+    # along the believed track by this many metres, so the DASH aims at a
+    # point trailing the believed intercept -- a stern-conversion arrival.
+    # ONLY the dash aim moves: the belief handed to guidance (and therefore
+    # the seeker search / rendezvous law) is deliberately untouched, so this
+    # isolates "where the dash puts you" from "what the system believes".
+    # 0.0 = byte-identical to the pre-field solve.
+    dash_aim_behind_m: float = 0.0
     # PORT-arm analogue of `pursuit_overrides` (2026-09-23, adaptive-speed
     # A/B): kwarg overrides for flight.pursuit_terminal.PursuitTerminalConfig,
     # applied ONLY on concept="flyby", terminal="pursuit" (the real-flight-
@@ -653,8 +667,18 @@ def build(
     dash_speed = _BASE_DASH_SPEED_MS * max(0.0, scn.sprint_scale)
     dash_accel = _BASE_DASH_ACCEL_MS2
 
+    # stern_approach_2026-10-21: aim the DASH at a point trailing the
+    # believed track by dash_aim_behind_m (0.0 = the exact pre-field solve;
+    # guidance's own belief below is NOT shifted -- see the field docstring).
+    solve_start_en = belief_start_en
+    if scn.dash_aim_behind_m != 0.0:
+        bspeed = math.hypot(belief_vel_en[0], belief_vel_en[1])
+        if bspeed > 1e-9:
+            solve_start_en = (
+                belief_start_en[0] - scn.dash_aim_behind_m * belief_vel_en[0] / bspeed,
+                belief_start_en[1] - scn.dash_aim_behind_m * belief_vel_en[1] / bspeed)
     heading0, _t_lead = resolve_preflight_heading(
-        belief_start_en, belief_vel_en, dash_speed, dash_accel_ms2=dash_accel,
+        solve_start_en, belief_vel_en, dash_speed, dash_accel_ms2=dash_accel,
         accel_aware=True, origin=(0.0, 0.0))
     heading_noise_deg = 0.0 if scat is None else float(rng.normal(0.0, scat.heading_sigma_deg))
     heading = wrap_deg(heading0 + scn.aim_error_deg + heading_noise_deg)
@@ -794,6 +818,8 @@ def build(
             go_at_s=trigger_go_at_s, home_alt_m=0.0, **guidance_kwargs)
     elif scn.concept in ("pursuit", "hybrid"):
         pcfg_kwargs = {} if scn.pursuit_v_max_ms is None else {"v_max_ms": scn.pursuit_v_max_ms}
+        if scn.pursuit_d_behind_m is not None:
+            pcfg_kwargs["d_behind_m"] = scn.pursuit_d_behind_m
         if scn.pursuit_overrides:
             pcfg_kwargs = {**pcfg_kwargs, **scn.pursuit_overrides}
         pcfg = PursuitConfig(fx_px=scn.cam_fx_px, tag_side_m=scn.tag_side_m, **pcfg_kwargs)
