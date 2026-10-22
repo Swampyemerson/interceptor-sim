@@ -33,9 +33,15 @@ esac
 # A venv DIR can exist half-built (an interrupted install leaves one), so
 # completeness is marked by a sentinel written only after pip succeeds --
 # never trust the directory alone.
+# Model Zoo v2.17's pins (pillow<=9.3.0, scikit-image==0.20.0) have no
+# Python 3.12 wheels and do not build there -- the venv must be 3.10/3.11
+# (hit live 2026-10-21: 3.12 fell back to sdist builds, BackendUnavailable).
+PY=$(command -v python3.11 || command -v python3.10) \
+    || { echo "need python3.11 or 3.10 (MZ 2.17 pins predate 3.12)"; exit 2; }
+
 if [ ! -f "$VENV/.install-ok" ]; then
     rm -rf "$VENV"
-    python3 -m venv "$VENV"
+    "$PY" -m venv "$VENV"
     "$VENV/bin/pip" install -q --upgrade pip
     # hailo-model-zoo is NOT on PyPI -- it installs from Hailo's GitHub.
     # MZ 2.17 is the staff-named pairing for Hailo-8 on current DFC 3.x.
@@ -44,10 +50,10 @@ if [ ! -f "$VENV/.install-ok" ]; then
     # the venv's DFC -- PackageNotFoundError, hit live 2026-10-21).
     # A failed install removes the venv so a rerun retries instead of
     # assuming the half-built venv is good.
-    "$VENV/bin/pip" install -q "$WHEEL" "ultralytics>=8.4.97" setuptools wheel \
+    "$VENV/bin/pip" install "$WHEEL" "ultralytics>=8.4.97" setuptools wheel \
         || { echo "DFC wheel install failed -- check its python version"
              rm -rf "$VENV"; exit 1; }
-    "$VENV/bin/pip" install -q --no-build-isolation \
+    "$VENV/bin/pip" install --no-build-isolation \
         "git+https://github.com/hailo-ai/hailo_model_zoo.git@v2.17" \
         || { echo "model-zoo install failed (check DFC/MZ version pairing)"
              rm -rf "$VENV"; exit 1; }
