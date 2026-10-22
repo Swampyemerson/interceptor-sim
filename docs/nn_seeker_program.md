@@ -13,7 +13,8 @@ flights, camera-in-the-loop):
 | Quantity | Requirement | Note |
 |---|---|---|
 | Glass-to-guidance latency | **KNOWN latency ≤120 ms is ~free (compensated: 1.05–1.19×); UNKNOWN/mis-assumed latency breaks it (2.3×@60, 5.5×@120)** | Three-arm Gazebo chain (runs/gz_latency_20261022): set `--pursuit-meas-latency-s` to the MEASURED pipeline latency; jitter is the untested residual risk |
-| Update rate | ≥ 10–15 Hz | 24+ Hz free margin; THIS (plus jitter) is now the binding axis — CPU at 154 ms = 6.5 Hz fails here |
+| Update rate | ≥ 10–15 Hz | 24+ Hz free margin; THIS is now a binding axis — CPU at 154 ms = 6.5 Hz fails here |
+| Pipeline jitter | ≤ a few tens of ms preferred | ±60 ms @ correct mean = 1.53× + >1 m tails (LJ90); prices the stamped-age change |
 | Detection range (terminal) | ≥ 8–12 m | acquisition range is set by the CUE geometry, not the terminal |
 | Per-frame detect prob | ≥ 0.5 | KF rides through dropouts |
 

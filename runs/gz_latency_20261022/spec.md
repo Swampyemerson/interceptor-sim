@@ -122,3 +122,26 @@ constant suffices for even CPU-class jitter and the stamped-age improvement
 is a nicety; if it degrades >=2x, stamped-age is REQUIRED before any
 high-jitter pipeline flies, and the Hailo's low jitter becomes a named
 purchase argument.
+
+## LJ90 RESULT (n=6 after one transient-core-dump retry of c4, config identical)
+
+0.089 / 0.233 / 0.306 / 0.421 / 0.588 / 1.212 — median 0.364 m = 1.53x
+baseline; 2/6 pairs degraded >0.2 m; one >1 m tail (c5). Verdict lands ON
+the registered boundary (<=1.5x vs >=2x): jitter of +/-60 ms uniform with a
+CORRECTLY-COMPENSATED MEAN costs ~1.5x median and grows the tail — neither
+free nor broken. Honest reading at n=6: a calibrated fixed constant is
+FLYABLE for CPU-class jitter, but the tail risk prices the stamped-age
+improvement as worth building before a high-jitter pipeline carries a
+graded engagement, and low-jitter hardware (NPU ~ms-stable) stays the
+preferred seat. The latency chapter is CLOSED with four arms:
+
+| arm (12 m/s, paired cues, n=6) | median CPA | vs baseline |
+|---|---|---|
+| baseline (as-flown pipeline) | 0.238 m | — |
+| mis-assumed age, +60/+120 ms | 0.552 / 1.309 m | 2.3x / 5.5x |
+| known age, +60/+120 ms | 0.284 / 0.250 m | 1.19x / 1.05x |
+| known MEAN, +/-60 ms jitter (90 ms) | 0.364 m (tail 1.2) | 1.53x |
+
+Detector spec, final: latency must be KNOWN (constant calibrated or
+stamped); jitter <= a few tens of ms preferred, +/-60 ms = 1.5x + tails;
+rate >=10-15 Hz; terminal range >=8-12 m; p>=0.5/frame.
