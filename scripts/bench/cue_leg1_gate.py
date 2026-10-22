@@ -15,7 +15,7 @@ PRE-REGISTERED CRITERIA (written before the first run, per the standing rule):
                   <= 2.0 s. This certifies the RF+plumbing leg only.
   CUE-PASS        TRANSPORT-PASS and additionally a 3D GPS fix was present
                   (GPS_RAW_INT fix_type >= 3) and `flight.cue_relay.fit_cue`
-                  emits a CueSolution from the final 2.5 s window. On an
+                  emits a CueSolution from the final 3.5 s window (ADR-0130: 3 s nominal). On an
                   indoor bench with no fix this is EXPECTED TO FAIL -- the
                   verdict then reads TRANSPORT-PASS / CUE-UNTESTED, which is
                   a pass for this bench item (the fitter itself is already
@@ -55,7 +55,7 @@ from flight.cue_relay import (  # noqa: E402
 TRANSPORT_MIN_STREAM_S = 30.0
 TRANSPORT_MIN_RATE_HZ = 2.0
 TRANSPORT_MAX_GAP_S = 2.0
-FIT_WINDOW_S = 2.5
+FIT_WINDOW_S = 3.5  # ADR-0130: nominal cue window 3 s (3.5 s fitted so >=3 s span survives)
 
 
 def main() -> int:

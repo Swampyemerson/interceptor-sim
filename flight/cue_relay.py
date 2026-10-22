@@ -7,11 +7,13 @@ interceptor launches off a GPS-derived estimate of the target's position and
 velocity, LATCHED at the trigger instant, after which no further target
 information reaches the vehicle -- the ELRS link is arm/kill only and the SiK
 link is telemetry-monitoring only (constraint `no-datalink`). This module is
-the PIPING: ~2 s of the target's own GPS telemetry, relayed target -> ground
--> Pi pre-launch, fitted into exactly the two numbers
-`flight.deploy.real_flight` already knows how to consume --
-`--target-start`/`--target-vel` (the C1 lead-solve inputs) and the pursuit
-terminal's `belief_r0_ned`/`belief_vel0_ned` (`build_terminal()`).
+the PIPING: ~3 s of the target's own GPS telemetry (2 s nominal before
+ADR-0130, 2026-10-22), relayed target -> ground -> Pi pre-launch, fitted into
+what `flight.deploy.real_flight` consumes -- `--target-start`/`--target-vel`
+(the C1 lead-solve inputs), the pursuit terminal's `belief_r0_ned`/
+`belief_vel0_ned` (`build_terminal()`), and since ADR-0130 the TARGET
+ALTITUDE (`cue_target_height_m`/`cue_target_climb_ms`), which sizes the
+flight's altitude plan so the vehicle arrives co-altitude.
 
 HONESTY (CLAUDE.md "the boundary covers pre-flight GIVENS too"; ledger entry
 `launch-aim-derived-from-ground-truth`). Before this module existed, the only
@@ -57,10 +59,25 @@ __all__ = [
     "write_cue_jsonl", "read_cue_jsonl",
     "cue_record_from_global_position_int", "mavlink_stream_to_cue_records",
     "cue_to_target_start_arg", "cue_to_target_vel_arg",
+    "cue_target_height_m", "cue_target_climb_ms",
     "load_cue_for_real_flight",
 ]
 
+# ------------------------------------------------------------ capture window
+#
+# NOMINAL relay window (builder directive 2026-10-22, ADR-0130): capture ~3 s
+# of target GPS. 3.5 s is listened so that >= 3 s of SPAN survives first-fix
+# latency and edge losses. At the bench rates (5-8 Hz, reported Doppler
+# velocities) the step from 2 s to 3 s buys ~25% on the fitted velocity
+# (N 15 -> ~23, sigma_v/sqrt(N)) and ~1.8x on turn-detection significance
+# (sigma_omega ~ 1/T^1.5) -- see docs/cue_relay_plan.md. NOTE this is the
+# CAPTURE window, not the latch->trigger gap: the plan doc's "keep T short"
+# extrapolation rule (section 7) is a different quantity and is unchanged.
+DEFAULT_CAPTURE_DURATION_S = 3.5
+
 # --------------------------------------------------------------- quality gate
+# (REFUSAL FLOORS, not the nominal -- unchanged by ADR-0130: a degraded
+# capture that still clears these fits; below them the cue is refused.)
 
 DEFAULT_MIN_POINTS = 8          # ~1-1.6 s of stream at 5-8 Hz
 DEFAULT_MIN_SPAN_S = 1.0        # need real time-base to fit a velocity at all
@@ -255,8 +272,8 @@ def fit_cue(records: Sequence[CueRecord], own_lat: float, own_lon: float,
             min_span_s: float = DEFAULT_MIN_SPAN_S,
             max_staleness_s: float = DEFAULT_MAX_STALENESS_S,
             max_residual_m: float = DEFAULT_MAX_RESIDUAL_M) -> CueSolution:
-    """Fit ~2 s of target GPS records + the interceptor's own pre-launch
-    position into a `CueSolution`. FAILS CLOSED (raises `CueQualityError`,
+    """Fit ~3 s of target GPS records (the ADR-0130 nominal window) + the
+    interceptor's own pre-launch position into a `CueSolution`. FAILS CLOSED (raises `CueQualityError`,
     never degrades) on: too few points, too short a span to fit a velocity,
     stale data (only checked if `now_t` given), a non-converging/degenerate
     fit, or a residual that says NEITHER motion model explains the points.
@@ -270,9 +287,9 @@ def fit_cue(records: Sequence[CueRecord], own_lat: float, own_lon: float,
     measured from the REPORTED per-sample Doppler velocities when every
     record carries them (a linear trend in the velocity vector, evaluated at
     the latch instant -- far cleaner than differentiating positions), else
-    from a quadratic position fit (which at a ~2 s window is too noisy to
-    clear the significance bar, by design -- position-only curve detection
-    needs a ~4-5 s window; the arithmetic is in the plan doc).
+    from a quadratic position fit (which at the ~3 s nominal window is still
+    too noisy to clear the significance bar, by design -- position-only curve
+    detection needs a ~4-5 s window; the arithmetic is in the plan doc).
 
     `belief_r0_ned`/`belief_vel0_ned` are the fitted state AT THE LAST
     RECORD's time (the "latch" instant) -- an average over all `n_points`
@@ -384,10 +401,10 @@ def _detect_turn(ts: np.ndarray, pos: np.ndarray,
         target's acceleration, whose component PERPENDICULAR to the velocity
         is the turn: omega = (vn*ae - ve*an)/|v|^2. Doppler velocities are
         several times cleaner than differentiated positions, which is what
-        makes a 2 s window enough here (sigma_a ~ sigma_v*sqrt(12/N)/T).
+        makes a 2-3 s window enough here (sigma_a ~ sigma_v*sqrt(12/N)/T).
       * position-only fallback (`reported` is None): quadratic fit per
         horizontal axis; acceleration = 2x the quadratic coefficient. At a
-        2 s window its noise (~sigma_pos*sqrt(720/N)/T^2) is at or below the
+        2-3 s window its noise (~sigma_pos*sqrt(720/N)/T^2) is at or below the
         size of a real turn, so the significance bar keeps this path CV
         unless the window is long (~4-5 s+) or the turn violent -- by design.
 
@@ -630,7 +647,8 @@ def cue_record_from_global_position_int(msg, t: float) -> CueRecord:
     )
 
 
-def mavlink_stream_to_cue_records(connection_str: str, duration_s: float = 2.5,
+def mavlink_stream_to_cue_records(connection_str: str,
+                                   duration_s: float = DEFAULT_CAPTURE_DURATION_S,
                                    msg_type: str = "GLOBAL_POSITION_INT"
                                    ) -> List[CueRecord]:
     """Read `duration_s` seconds of `msg_type` off a live MAVLink connection
@@ -675,6 +693,31 @@ def cue_to_target_vel_arg(sol: CueSolution) -> str:
     """-> the `--target-vel EAST,NORTH` string, same convention."""
     vn, ve, _vd = sol.belief_vel0_ned
     return f"{ve:.3f},{vn:.3f}"
+
+
+def cue_target_height_m(sol: CueSolution) -> float:
+    """Target HEIGHT above the interceptor's own pre-launch position, metres,
+    up-positive (= -down of the fitted belief). ADR-0130: this is what sizes
+    the flight's altitude plan so the vehicle arrives co-altitude.
+
+    DATUM (ADR-0095/0100 discipline -- name it): both ends of this difference
+    are GPS MSL altitudes (the target's reports and `own_alt_m_msl`, the
+    interceptor's pre-launch fix), so the result is height above the
+    interceptor's GPS ANTENNA at rest. The flight side consumes it against
+    the vehicle's EKF relative altitude, whose zero is the ARM point -- the
+    antenna-above-arm offset (~0.1-0.2 m of airframe) is accepted inside the
+    GPS vertical noise (1.5-2.5 m 1-sigma, the dominant term; the +/-2 m
+    target-height budget is what this must live within)."""
+    return -float(sol.belief_r0_ned[2])
+
+
+def cue_target_climb_ms(sol: CueSolution) -> float:
+    """Target CLIMB RATE, m/s up-positive (= -vd of the fitted belief).
+    Same datum note as `cue_target_height_m`; `extrapolate_to()` already
+    advances the vertical channel by this rate (CV vertical in both motion
+    models), so a climbing target's height belief stays current through the
+    latch->trigger gap."""
+    return -float(sol.belief_vel0_ned[2])
 
 
 def load_cue_for_real_flight(cue_json_path: str, own_lat: float, own_lon: float,

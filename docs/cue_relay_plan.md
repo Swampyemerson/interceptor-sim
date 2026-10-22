@@ -1,4 +1,24 @@
-# Cue relay plan — getting ~2 s of target GPS from the target to the interceptor
+# Cue relay plan — getting ~3 s of target GPS from the target to the interceptor
+
+> **AMENDED 2026-10-22 (builder ruling, ADR-0130): the capture window is now
+> 3 s nominal (was 2 s; code listens 3.5 s so ≥3 s of span survives first-fix
+> losses), and the cue's ALTITUDE is consumed end-to-end** — the schema always
+> carried `alt_m_msl` and the fitter always produced z/vz, but the flight side
+> dropped them; now `--cue-json` also sets the altitude plan (standby = the
+> cue's measured target height + loft, so the dash arrives CO-ALTITUDE) and
+> seeds the pursuit belief's vertical position AND climb rate from the cue
+> (datum: GPS-MSL minus GPS-MSL = height above the launch antenna, consumed
+> against the EKF's above-arm altitude; the ~0.1–0.2 m antenna offset rides
+> inside the 1.5–2.5 m GPS vertical noise, which is the dominant term of the
+> ±2 m target-height budget). **Two different "2 s" live in this doc — do not
+> conflate them:** the CAPTURE window (now 3 s: more samples → ~25% better
+> velocity fit, ~1.8× better turn-detection significance at bench rates;
+> position-only curve detection still needs ~4–5 s, so the CV-by-design
+> behavior there is unchanged) and the LATCH→TRIGGER gap `T` (§7's "keep T
+> under ~2 s" rule — extrapolation time — which this amendment deliberately
+> does NOT loosen; a long gap still costs aim error at the §6 rates). The
+> refusal FLOORS (≥8 points, ≥1.0 s span) are also unchanged — they are
+> fail-closed minimums, not the nominal.
 
 > **Status: DESIGN + BUILDABLE CODE (2026-09-22), not flown.** This is the
 > piping for the launch-aim cue that `docs/next.md` already RULED on
@@ -125,7 +145,7 @@ has zero error."*
 
 | input | source | grade | why |
 |---|---|---|---|
-| target position/velocity at trigger | `flight.cue_relay.fit_cue` on ~2 s of the target's own GPS, relayed pre-flight | **given-noisy** | carries the target GPS's real, measured error (§6) — not zero, not assumed away |
+| target position/velocity at trigger | `flight.cue_relay.fit_cue` on ~3 s of the target's own GPS (ADR-0130; was 2 s), relayed pre-flight | **given-noisy** | carries the target GPS's real, measured error (§6) — not zero, not assumed away |
 | interceptor's own launch position | its own GPS fix, read before GO | **given-noisy** (not separately budgeted here — same receiver class, same order of error; treat the whole cue chain's error as dominated by the TARGET leg, since both ends share similar GPS hardware) | pre-flight, read once |
 | manual-entry fallback (c) | operator-typed programmed AUTO-leg waypoints | **given-perfect** (disclosed) | only as accurate as the real flight tracks its own plan — the SAME loophole this module exists to close; use only when the relay fails, and disclose it as the weaker fallback it is |
 
@@ -288,7 +308,7 @@ the ERROR in that velocity estimate. So the climb itself can be a normal
 
 - **Keep the cue stream running continuously through STANDBY**, not just
   once at power-on. `fit_cue` is cheap (pure numpy, sub-millisecond) — re-run
-  it on the latest ~2 s rolling window every time a new record arrives.
+  it on the latest ~3 s rolling window (ADR-0130) every time a new record arrives.
 - **Take the FRESHEST `CueSolution` at the GO edge, not the one from before
   the climb.** This is what keeps `T` near the 0.5 s row of §6's table
   instead of the 5 s row — a >3× difference in worst-case aim error.
@@ -420,7 +440,7 @@ and lets the data pick:
 **How a turn is proven (detect, then refine).** The detector fits a straight
 trend to the *reported per-sample GPS velocities* (the Doppler velocities the
 FC broadcasts — several times cleaner than differencing positions, and
-instantaneous, which is what makes a 2 s window enough). The component of
+instantaneous, which is what makes a 2-3 s window enough). The component of
 that trend *perpendicular* to the velocity IS the turn; it must be
 **4-sigma significant** (the F-test on the one nested turn parameter,
 F = t², sigma taken from the fit's own residuals) before CT is believed.
@@ -442,7 +462,7 @@ vel 1.22 m/s/axis, 15 points over ~1.9 s, 9 m/s target, 20 deg/s turn;
 | turn-rate 1-sigma | — | ~3.5 deg/s, and the fit's own reported sigma matches the measured scatter within 25% |
 | model picked | — | CT on the strong turn ≥85% of trials; CV on straight tracks ≥95% |
 
-**Window-length rule of thumb.** With reported velocities, a ~2 s window
+**Window-length rule of thumb.** With reported velocities, a 2-3 s window (3 s nominal since ADR-0130)
 detects turns from roughly 12–15 deg/s up. WITHOUT them (position-only
 fallback, e.g. a stream that drops the velocity fields), acceleration must
 come from the *second* derivative of noisy positions — noise ~4 m/s² at 2 s,

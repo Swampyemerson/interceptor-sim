@@ -3126,7 +3126,10 @@ def build_config(args) -> MissionConfig:
     """Resolve the pre-flight constants ONCE, before anything flies."""
     # OPTIONAL GPS-fitted cue (docs/cue_relay_plan.md): overrides the
     # operator-typed --target-start/--target-vel with a belief fitted from
-    # ~2 s of relayed target GPS. Honesty class: PRE-FLIGHT constant, graded
+    # ~3 s of relayed target GPS (2 s before ADR-0130), and since ADR-0130
+    # also sizes the ALTITUDE PLAN from the cue (standby = target height +
+    # loft, so the dash arrives co-altitude). Honesty class: PRE-FLIGHT
+    # constant, graded
     # given-noisy (real measured error, see the plan doc's budget), read at
     # EXACTLY this one call site before the state machine exists -- nothing
     # downstream re-reads the file, the same read-once mechanism that covers
@@ -3158,6 +3161,21 @@ def build_config(args) -> MissionConfig:
               f"span={cue_sol.span_s:.2f}s, residual={cue_sol.residual_rms_m:.2f} m, "
               f"vel_source={cue_sol.vel_source}, "
               f"model={getattr(cue_sol, 'model', 'cv')}{_turn})")
+        # ADR-0130: the cue's VERTICAL channel is consumed too. Datum (named,
+        # per the ADR-0095/0100 rule): GPS-MSL minus GPS-MSL = height above
+        # the interceptor's pre-launch antenna position, read against the
+        # EKF's above-arm altitude -- the ~0.1-0.2 m antenna-above-arm offset
+        # is accepted inside GPS vertical noise (1.5-2.5 m), which is the
+        # dominant term of the +/-2 m target-height budget.
+        from flight.cue_relay import cue_target_climb_ms, cue_target_height_m
+        args.cue_target_h_m = cue_target_height_m(cue_sol)
+        args.cue_target_vd_ms = -cue_target_climb_ms(cue_sol)  # NED down
+        _sb = ("" if args.standby_alt_m is None else
+               f" -- NOT driving the altitude plan: explicit --standby-alt-m="
+               f"{args.standby_alt_m:.1f} wins")
+        print(f"[cue] target altitude: {args.cue_target_h_m:+.1f} m above the "
+              f"launch point (GPS-vertical datum, +/-2 m budget), climb "
+              f"{cue_target_climb_ms(cue_sol):+.2f} m/s{_sb}")
     heading = args.dash_heading_deg
     t_lead = None
     dash_plan_m = None
@@ -3202,7 +3220,17 @@ def build_config(args) -> MissionConfig:
               "not a bug -- pass a solved heading if the passage window matters.")
     return MissionConfig(
         preflight_heading_deg=heading,
-        standby_alt_m=args.standby_alt_m,
+        # ADR-0130: C3 is computed per its own definition (standby = target
+        # altitude + loft) from the MEASURED cue when one is loaded, instead
+        # of a typed constant -- so dash_base_alt_m == the cue's target
+        # height and the dash ends co-altitude. An explicit --standby-alt-m
+        # wins; with neither, the as-flown 7.0 m default stands. The
+        # min_agl/loft validators below still run on the resolved value and
+        # fail closed on a geometry they can't fly.
+        standby_alt_m=(args.standby_alt_m if args.standby_alt_m is not None
+                       else (args.cue_target_h_m + args.dash_loft_m
+                             if getattr(args, "cue_target_h_m", None) is not None
+                             else 7.0)),
         standby_yaw_deg=args.standby_yaw_deg,
         dash_speed_ms=args.dash_speed,
         dash_accel_ms2=args.dash_accel_ms2,
@@ -3271,14 +3299,23 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
     # Phase-A belief seed -- the SAME pre-flight constants the C1 lead solve
     # reads (--target-start/--target-vel, east-north metres about the launch
     # point, latched at trigger; honesty-clean, never a live/gt read). NED:
-    # [north, east, down]. Vertical: at GO the vehicle stands at
-    # standby_alt_m and the target is believed at dash_base_alt_m (=
-    # standby - loft, see MissionConfig.dash_base_alt_m), so the relative
-    # down component is exactly +dash_loft_m.
+    # [north, east, down]. Vertical (ADR-0130): with a cue loaded the down
+    # component is the TRUE relative geometry at GO -- vehicle at
+    # standby_alt_m, target at the cue's measured height -- and the vertical
+    # velocity is the cue's fitted climb/descent. When standby was itself
+    # auto-sized from the cue (standby = height + loft) this reduces to the
+    # historical +dash_loft_m; it differs only when the operator overrides
+    # --standby-alt-m, where the old constant was simply wrong. Without a
+    # cue: byte-identical to the pre-ADR-0130 seed (+loft, 0.0).
     t_e, t_n = (float(v) for v in args.target_start.split(",")[:2])
     v_e, v_n = (float(v) for v in args.target_vel.split(",")[:2])
-    belief_r0_ned = (t_n, t_e, cfg.dash_loft_m)
-    belief_vel0_ned = (v_n, v_e, 0.0)
+    cue_h = getattr(args, "cue_target_h_m", None)
+    if cue_h is not None:
+        belief_r0_ned = (t_n, t_e, cfg.standby_alt_m - float(cue_h))
+        belief_vel0_ned = (v_n, v_e, float(getattr(args, "cue_target_vd_ms", 0.0)))
+    else:
+        belief_r0_ned = (t_n, t_e, cfg.dash_loft_m)
+        belief_vel0_ned = (v_n, v_e, 0.0)
     print(f"[terminal] pursuit (ADR-0103 chase only): belief seed rel NED "
           f"({belief_r0_ned[0]:+.1f}, {belief_r0_ned[1]:+.1f}, "
           f"{belief_r0_ned[2]:+.1f}) m at {belief_vel0_ned[0]:+.1f}/"
@@ -3426,8 +3463,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     aim.add_argument("--no-accel-aware-lead", action="store_true",
                      help="use the old CONSTANT-SPEED lead solve (under-leads: the "
                           "dash starts at rest -- see ADR-0080)")
-    aim.add_argument("--standby-alt-m", type=float, default=7.0,
-                     help="C3 = target altitude + loft (TODO-BUILDER)")
+    aim.add_argument("--standby-alt-m", type=float, default=None,
+                     help="C3 = target altitude + loft. Default: computed "
+                          "from the cue's measured target height when "
+                          "--cue-json is given (ADR-0130), else the as-flown "
+                          "7.0 m. An explicit value always wins.")
     aim.add_argument("--standby-yaw-deg", type=float, default=None,
                      help="standby aim yaw; default = C1")
     aim.add_argument("--cue-json", default=None,

@@ -673,3 +673,116 @@ def test_ct_violent_turn_beyond_the_regime_cap_fails_closed():
     with pytest.raises(CueQualityError, match="residual"):
         fit_cue(records, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT,
                 max_residual_m=1.0)
+
+
+# ================================================== ADR-0130 (2026-10-22):
+# 3 s capture window + the cue's altitude consumed end-to-end.
+
+
+def _climbing_records(h_above_own_m=10.0, climb_ms=0.5, n=31, dt=0.1,
+                       speed_ms=9.0, heading_deg=0.0):
+    """Noise-free track h metres ABOVE the own/origin altitude, climbing at
+    `climb_ms` (so NED down starts at -h and decreases), with reported
+    velocities -- built through the module's own schema helpers."""
+    hdg = math.radians(heading_deg)
+    vn, ve = speed_ms * math.cos(hdg), speed_ms * math.sin(hdg)
+    vd = -float(climb_ms)
+    rows = []
+    for i in range(n):
+        t = i * dt
+        rows.append((t, 20.0 + vn * t, 5.0 + ve * t, -h_above_own_m + vd * t))
+    return _noisy_records(rows, sigma_pos_m=0.0,
+                          rng=np.random.default_rng(0), with_vel=True,
+                          sigma_v_ms=0.0, true_vel=(vn, ve, vd)), vd
+
+
+def test_capture_window_is_three_seconds_nominal():
+    """ADR-0130: the nominal relay window is 3 s (3.5 s captured). Pins the
+    producer default AND the bench gate's fit window (read from its source --
+    scripts/bench isn't a package) so neither can quietly fall back to 2 s."""
+    import inspect
+    import re
+    d = inspect.signature(
+        cue_relay.mavlink_stream_to_cue_records).parameters["duration_s"].default
+    assert d == cue_relay.DEFAULT_CAPTURE_DURATION_S
+    assert d >= 3.0
+    src = open(os.path.join(_REPO_ROOT, "scripts", "bench",
+                            "cue_leg1_gate.py")).read()
+    m = re.search(r"FIT_WINDOW_S\s*=\s*([0-9.]+)", src)
+    assert m is not None and float(m.group(1)) >= 3.0
+
+
+def test_cue_height_and_climb_helpers_and_extrapolation():
+    """The fitted height/climb match the construction, and extrapolation
+    advances the HEIGHT belief along the climb (CV vertical)."""
+    recs, vd = _climbing_records(h_above_own_m=10.0, climb_ms=0.5)
+    sol = fit_cue(recs, _ORIGIN_LAT, _ORIGIN_LON, _ORIGIN_ALT)
+    t_latch = recs[-1].t
+    h_truth = 10.0 + 0.5 * t_latch
+    assert cue_relay.cue_target_height_m(sol) == pytest.approx(h_truth, abs=0.05)
+    assert cue_relay.cue_target_climb_ms(sol) == pytest.approx(0.5, abs=0.02)
+    sol2 = sol.extrapolate_to(sol.latch_t + 2.0)
+    assert cue_relay.cue_target_height_m(sol2) == pytest.approx(
+        h_truth + 0.5 * 2.0, abs=0.05)
+
+
+def _cue_args(tmp_path, extra=(), h=10.0, climb=0.5):
+    recs, _vd = _climbing_records(h_above_own_m=h, climb_ms=climb)
+    path = tmp_path / "cue.jsonl"
+    cue_relay.write_cue_jsonl(recs, str(path))
+    from flight.deploy.real_flight import build_arg_parser
+    return build_arg_parser().parse_args([
+        "--dry-run", "--terminal", "pursuit", "--cue-json", str(path),
+        "--own-lat", f"{_ORIGIN_LAT}", "--own-lon", f"{_ORIGIN_LON}",
+        "--own-alt-m-msl", f"{_ORIGIN_ALT}", "--dash-loft-m", "2.0",
+        *extra])
+
+
+def _terminal_for(args, cfg):
+    from flight.camera import CameraModel
+    from flight.deploy.real_flight import build_terminal
+    from flight.deploy.seeker_loop import GuidanceConfig
+    gcfg = GuidanceConfig()
+    cam = CameraModel(539.936, 539.936, 640.0, 480.0)
+    return build_terminal(args, cfg, gcfg, cam)
+
+
+def test_cue_altitude_sizes_the_flight_altitude_plan(tmp_path):
+    """ADR-0130 end-to-end: standby = cue height + loft (so the dash arrives
+    co-altitude), and the pursuit belief carries the cue's vertical state."""
+    from flight.deploy.real_flight import build_config
+    args = _cue_args(tmp_path)
+    cfg = build_config(args)
+    h_truth = 10.0 + 0.5 * 3.0          # climb reaches the latch at t=3.0 s
+    assert args.cue_target_h_m == pytest.approx(h_truth, abs=0.1)
+    assert cfg.standby_alt_m == pytest.approx(h_truth + 2.0, abs=0.1)
+    assert cfg.dash_base_alt_m == pytest.approx(h_truth, abs=0.1)   # co-altitude
+    term = _terminal_for(args, cfg)
+    # belief down = standby - height = loft; belief vz = the fitted NED vd
+    assert term._r_track[2] == pytest.approx(2.0, abs=0.1)
+    assert term._v_track[2] == pytest.approx(-0.5, abs=0.02)
+
+
+def test_explicit_standby_alt_wins_and_belief_uses_true_geometry(tmp_path):
+    """An operator --standby-alt-m beats the cue for the PLAN, but the belief
+    still uses the true relative geometry (target above standby -> negative
+    down), where the old constant seed would have been wrong."""
+    from flight.deploy.real_flight import build_config
+    args = _cue_args(tmp_path, extra=("--standby-alt-m", "9.0"))
+    cfg = build_config(args)
+    assert cfg.standby_alt_m == pytest.approx(9.0)
+    h_truth = 10.0 + 0.5 * 3.0
+    term = _terminal_for(args, cfg)
+    assert term._r_track[2] == pytest.approx(9.0 - h_truth, abs=0.1)
+
+
+def test_no_cue_keeps_the_as_flown_defaults():
+    """Without a cue the resolved standby is the as-flown 7.0 m and the
+    pursuit vertical seed is byte-identical to the pre-ADR-0130 (+loft, 0)."""
+    from flight.deploy.real_flight import build_arg_parser, build_config
+    args = build_arg_parser().parse_args(["--dry-run", "--terminal", "pursuit"])
+    cfg = build_config(args)
+    assert cfg.standby_alt_m == pytest.approx(7.0)
+    term = _terminal_for(args, cfg)
+    assert term._r_track[2] == pytest.approx(cfg.dash_loft_m)
+    assert term._v_track[2] == pytest.approx(0.0)
