@@ -49,4 +49,7 @@ the existing 8 m trail; remaining misses are cue-error-vs-decode-range,
 which no dash-geometry change can buy back — the lever would be acquisition
 range (placard/camera) instead.
 
-Status: REGISTERED, not yet flown. Queued behind the DFC dry-run verdicts.
+Status: FLOWN 2026-10-21 — **NULL by the registered rule** (no cell beats
+the default beyond paired-seed noise; the astern dash aim is actively
+harmful; cue error dominates). Defaults stand, the stage-3 router is not
+built. Verdicts: `runs/stern_approach_20261021/findings.md`.

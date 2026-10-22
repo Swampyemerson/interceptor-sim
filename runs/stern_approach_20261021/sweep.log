@@ -1,0 +1,49 @@
+aim_err=  0 d_behind= 4.0 dash_behind= 0.0 med_miss= 0.241 engage= 87.5% decoded= 58.5
+aim_err=  0 d_behind= 4.0 dash_behind= 8.0 med_miss= 0.284 engage= 75.0% decoded= 49.5
+aim_err=  0 d_behind= 4.0 dash_behind=16.0 med_miss= 0.362 engage= 87.5% decoded= 49.0
+aim_err=  0 d_behind= 4.0 dash_behind=32.0 med_miss= 0.619 engage= 87.5% decoded= 61.0
+aim_err=  0 d_behind= 8.0 dash_behind= 0.0 med_miss= 0.513 engage= 87.5% decoded= 70.5
+aim_err=  0 d_behind= 8.0 dash_behind= 8.0 med_miss= 0.258 engage= 75.0% decoded= 54.0
+aim_err=  0 d_behind= 8.0 dash_behind=16.0 med_miss= 0.359 engage= 75.0% decoded= 63.0
+aim_err=  0 d_behind= 8.0 dash_behind=32.0 med_miss= 0.665 engage= 75.0% decoded= 56.0
+aim_err=  0 d_behind=16.0 dash_behind= 0.0 med_miss= 0.392 engage= 75.0% decoded= 65.5
+aim_err=  0 d_behind=16.0 dash_behind= 8.0 med_miss= 0.247 engage= 75.0% decoded= 51.0
+aim_err=  0 d_behind=16.0 dash_behind=16.0 med_miss= 0.598 engage= 75.0% decoded= 58.5
+aim_err=  0 d_behind=16.0 dash_behind=32.0 med_miss= 0.442 engage= 75.0% decoded= 57.5
+aim_err=  0 d_behind=24.0 dash_behind= 0.0 med_miss= 0.991 engage= 75.0% decoded= 42.0
+aim_err=  0 d_behind=24.0 dash_behind= 8.0 med_miss= 1.729 engage= 75.0% decoded= 45.5
+aim_err=  0 d_behind=24.0 dash_behind=16.0 med_miss= 0.501 engage= 75.0% decoded= 54.0
+aim_err=  0 d_behind=24.0 dash_behind=32.0 med_miss= 0.925 engage= 75.0% decoded= 48.0
+aim_err=  4 d_behind= 4.0 dash_behind= 0.0 med_miss= 1.740 engage= 62.5% decoded=  8.5
+aim_err=  4 d_behind= 4.0 dash_behind= 8.0 med_miss= 3.740 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind= 4.0 dash_behind=16.0 med_miss= 4.617 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind= 4.0 dash_behind=32.0 med_miss= 4.589 engage= 62.5% decoded= 20.0
+aim_err=  4 d_behind= 8.0 dash_behind= 0.0 med_miss= 1.740 engage= 50.0% decoded=  4.0
+aim_err=  4 d_behind= 8.0 dash_behind= 8.0 med_miss= 3.740 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind= 8.0 dash_behind=16.0 med_miss= 4.617 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind= 8.0 dash_behind=32.0 med_miss= 5.274 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind=16.0 dash_behind= 0.0 med_miss= 1.057 engage= 62.5% decoded= 31.0
+aim_err=  4 d_behind=16.0 dash_behind= 8.0 med_miss= 3.740 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind=16.0 dash_behind=16.0 med_miss= 4.617 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind=16.0 dash_behind=32.0 med_miss= 2.979 engage= 50.0% decoded= 22.0
+aim_err=  4 d_behind=24.0 dash_behind= 0.0 med_miss= 1.740 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind=24.0 dash_behind= 8.0 med_miss= 3.740 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind=24.0 dash_behind=16.0 med_miss= 4.617 engage= 50.0% decoded=  3.5
+aim_err=  4 d_behind=24.0 dash_behind=32.0 med_miss= 5.274 engage= 50.0% decoded=  3.5
+aim_err=  8 d_behind= 4.0 dash_behind= 0.0 med_miss= 2.087 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind= 4.0 dash_behind= 8.0 med_miss= 4.075 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind= 4.0 dash_behind=16.0 med_miss= 4.817 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind= 4.0 dash_behind=32.0 med_miss= 5.518 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind= 8.0 dash_behind= 0.0 med_miss= 2.087 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind= 8.0 dash_behind= 8.0 med_miss= 4.075 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind= 8.0 dash_behind=16.0 med_miss= 4.817 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind= 8.0 dash_behind=32.0 med_miss= 5.518 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind=16.0 dash_behind= 0.0 med_miss= 2.087 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind=16.0 dash_behind= 8.0 med_miss= 4.075 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind=16.0 dash_behind=16.0 med_miss= 4.936 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind=16.0 dash_behind=32.0 med_miss= 5.591 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind=24.0 dash_behind= 0.0 med_miss= 2.087 engage= 37.5% decoded=  3.0
+aim_err=  8 d_behind=24.0 dash_behind= 8.0 med_miss= 4.075 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind=24.0 dash_behind=16.0 med_miss= 4.936 engage= 37.5% decoded=  2.5
+aim_err=  8 d_behind=24.0 dash_behind=32.0 med_miss= 5.591 engage= 37.5% decoded=  2.5
+wrote /home/emerson/interceptor-sim/runs/stern_approach_20261021/results.json (48 cells)
