@@ -382,3 +382,16 @@ Builder-directed repo review ("15 fable agents + ~40 sonnet"). Outcomes:
   (req_011CgHRf2bFftUSWz1YpfGeL) — the harness served the pinned-4.8 agent on
   Fable 5 (possibly a routing/fallback quirk); its opus55 re-spawn is the datum
   to watch. Treat opus48 pinning as needing verification per spawn.
+
+## 2026-10-22 midday — FIRST FORK BOUNCE, new `[cyber]` tag; head also stopped 3x on the same thread
+A fork carrying a builder-directed approach-profile/disturbance-rejection brief
+hard-failed `invalid_request [cyber]` (req_011CgHXTcmS5HqkGVmgE8t6P, model
+claude-fable-5) — the first fork failure on this repo (lane record now 19/20
+counting the two cue/Gazebo forks spawned the same hour), and a NEW tag
+(`[cyber]`, not `[general_harms]`). The head session's own replies on the same
+work item were stopped by the classifier three times in the same exchange.
+Per the standing rule (no rewording, no retries of withheld content), that
+work item is DROPPED from this session — not re-spawned, not done inline.
+Sanctioned path to pursue it: the builder's `/feedback`, or a fresh session
+raising it narrowly. The two sibling forks running concurrently (cue-relay
+3 s + altitude; the Gazebo cue-error rung) were unaffected at spawn time.
