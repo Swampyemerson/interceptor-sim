@@ -12,14 +12,26 @@ paired-seed noise band AND does not worsen median CPA.
 
 - **No cell qualifies.** The largest acquisition gain anywhere is 62.5% vs
   50.0% at n=8 — exactly one flight, inside the noise band.
-- **`dash_aim_behind_m` (the astern dash aim) is actively HARMFUL:** it never
-  improves engagement at any error level and monotonically worsens median
-  miss (at 8° cue error: 2.09 m → 5.59 m as the astern shift grows 0 → 32 m).
-  Aiming the dash behind the believed track spends closing time/geometry and
-  buys no acquisition — the lr3 decode-cliff failure mode, induced on purpose.
+- **`dash_aim_behind_m` (the astern dash aim) buys no acquisition anywhere,
+  and under cue error it is harmful:** it never improves engagement at any
+  error level, and at 4°/8° cue error it monotonically worsens median miss
+  (8°: 2.09 m → 5.59 m as the shift grows 0 → 32 m) — closing time/geometry
+  spent for nothing, the lr3 decode-cliff failure mode induced on purpose.
+  *Correction (review F2, 2026-10-22):* at ZERO cue error some cells
+  IMPROVE median miss with the shift (d_behind=8: 0.513 → 0.258 m at sb=8)
+  — the original "monotonically worsens, never improves" claim was an
+  overclaim. Those zero-error miss improvements are the same n=8
+  seed-luck class the d_behind follow-up killed (adoption would need its
+  own n≥32 registration), and the acquisition-gated NULL is unaffected.
 - **Cue error dominates everything:** engagement 87.5% → 50% → 37.5% and
   median decodes 70 → 4 → 2 as deliberate aim error goes 0° → 4° → 8°,
   swamping every geometry cell within each error level.
+- *Reachability caveat (review F3):* at high cue error the `d_behind` rows
+  are bit-identical across values (ae=8: all four; ae=4: d8 ≡ d24) —
+  consistent with never-acquired flights barely exercising Phase A before
+  CPA. For that axis, "flat under cue error" means **unreachable**, not
+  tested-and-flat: d_behind's effect under cue error is strictly unmeasured
+  by this grid.
 
 ## What the null means (registered in advance)
 
