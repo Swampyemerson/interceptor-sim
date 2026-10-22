@@ -37,3 +37,17 @@ measured budget: the real cue's target-height feed must be good to **±2 m**
 (and above-belief bias is the dangerous side). This is now a written
 requirement on the cue interface (GPS/baro of the target), alongside the
 horizontal aim budget.
+
+## FOV probe (registered amendment) — hypothesis REFUTED, mechanism OPEN
+
+Measure-only seeker spy, offsets {0, +3, −3}, n=8: pre-acquisition in-FOV
+fractions **0.47 / 0.42 / 0.56** — the +3 target is in frame at comparable
+rates (nothing like the predicted collapse), yet only 4/8 acquire (vs 7/8
+baseline, 6/8 at −3). So the wedge-coverage hypothesis is WRONG: the
+asymmetry lives downstream of visibility (candidate suspects, none tested:
+apparent-size/decode at the longer slant range to a high target, incidence,
+Phase-A vertical aim dynamics). **Per the registration: no "bias the cue
+low" sign rule may be quoted until the real mechanism is found.** Honest
+note: the probe's v_px channel was vacuous (FrameReport carries no v_px —
+that is a Detection field); the verdict rests on the binary in_fov only.
+Raw: probe_fov.json.

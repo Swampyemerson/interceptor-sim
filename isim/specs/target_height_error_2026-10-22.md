@@ -38,3 +38,21 @@ the height-accuracy requirement on the real cue (GPS/baro of the target
 feed). A NULL (flat everywhere) means the vertical axis is cheap and the
 given was never load-bearing — also worth knowing, register updated either
 way.
+
+## Amendment (measure-only probe, registered 2026-10-22 ~02:05 before flying)
+
+**Question:** WHY does +3 m (target above belief) break acquisition while
+−3 m does not? Hypothesis H: during approach the camera's vertical wedge
+(dash pitch + mount) covers BELOW-belief space better than above — at +3
+the target sits above the FOV's top edge for most pre-acquisition frames.
+
+**Design:** rerun offsets {0, +3, −3} (n=8 seeds, same canon config) with a
+MEASURE-ONLY seeker wrapper recording every FrameReport's `in_fov` and
+`v_px` before first acquisition. Guidance sees exactly what it saw —
+scoring/logging only (honesty boundary: the wrapper is outside guidance).
+
+**Predictions:** +3 shows pre-acquisition in-FOV fraction << the 0/−3 cells
+(H confirmed → the cue interface gains the sign rule "bias the height cue
+LOW when uncertain"); if in-FOV fractions are similar, H is refuted and the
+asymmetry lives elsewhere (decode vs incidence, KF pull-in) — then NO sign
+rule may be quoted until the real mechanism is found.
