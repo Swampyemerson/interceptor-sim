@@ -30,7 +30,11 @@ case "$(basename "$WHEEL")" in
        exit 2 ;;
 esac
 
-if [ ! -d "$VENV" ]; then
+# A venv DIR can exist half-built (an interrupted install leaves one), so
+# completeness is marked by a sentinel written only after pip succeeds --
+# never trust the directory alone.
+if [ ! -f "$VENV/.install-ok" ]; then
+    rm -rf "$VENV"
     python3 -m venv "$VENV"
     "$VENV/bin/pip" install -q --upgrade pip
     # hailo-model-zoo is NOT on PyPI -- it installs from Hailo's GitHub.
@@ -47,6 +51,7 @@ if [ ! -d "$VENV" ]; then
         "git+https://github.com/hailo-ai/hailo_model_zoo.git@v2.17" \
         || { echo "model-zoo install failed (check DFC/MZ version pairing)"
              rm -rf "$VENV"; exit 1; }
+    touch "$VENV/.install-ok"
 fi
 
 cd "$OUT"
