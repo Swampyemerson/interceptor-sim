@@ -1,0 +1,42 @@
+# Pre-registration: stern-approach geometry vs cue error (builder question, 2026-10-21)
+
+**Question (builder, verbatim concern):** after the blind dash, the turn to
+the target is aimed by the dead-reckoned pre-flight belief. Does approaching
+from *behind the target's velocity vector* (stern conversion) make acquisition
+robust to cue error — and is the current trail distance (`d_behind_m = 8`)
+the right number?
+
+**What exists already:** Phase A aims at `pos_belief − d_behind_m·track_dir`
+with velocity matched to belief (`isim/concepts.py:742-754`); the 500 m video
+take hr5 flew this with injected cue error (CPA 0.087 m, best of 5; lr3 shows
+the failure mode — cue draw past the decode cliff → SAFE abort).
+
+**Design (isim, fast sim; Gazebo only if a decision rides on it):**
+- Sweep: `d_behind_m` ∈ {4, 8, 16, 24} × approach bearing offset relative to
+  the target track ∈ {0° (pure stern), 30°, 60°, 90° (beam)} × cue error
+  draws (the standing cue-variant model), n ≥ 8 paired seeds per cell.
+- Target: the validated 12 m/s crossing profile; vehicle: the hr-class
+  envelope (36 m/s, a=4).
+- Metrics: acquisition probability, time-to-acquire after turn, CPA median
+  over acquiring flights, abort rate.
+
+**Predictions (written before flying):**
+1. Stern (0°) beats beam (90°) on acquisition probability under cue error,
+   because trailing geometry keeps bearing error from turning into LOS rate.
+2. `d_behind_m` has an interior optimum: too short overshoots under cue
+   error, too long starves the terminal of closing time (lr3's cliff).
+3. If (1) comes back null — geometry doesn't move acquisition — the binding
+   variable is cue error vs decode range alone, and the dash law should NOT
+   grow a geometry knob (delete the question, keep the 8 m default).
+
+**Adopt/reject rule:** change `d_behind_m` or add an approach-bearing
+constraint ONLY if a cell beats the current default on acquisition
+probability by more than the paired-seed noise band AND does not worsen
+median CPA; otherwise the default stands and the null is logged.
+
+**A NULL means:** the stern-approach intuition is already fully priced into
+the existing 8 m trail; remaining misses are cue-error-vs-decode-range,
+which no dash-geometry change can buy back — the lever would be acquisition
+range (placard/camera) instead.
+
+Status: REGISTERED, not yet flown. Queued behind the DFC dry-run verdicts.
