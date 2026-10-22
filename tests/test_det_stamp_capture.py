@@ -56,3 +56,29 @@ def test_flag_off_does_not_grow_the_attribute():
     assert d.range_m == 5.0
     assert not hasattr(d, "t_capture")
     assert not hasattr(d, "t_capture_monotonic")
+
+
+def test_sm_consumption_pins_both_clock_conventions():
+    """R2-F2: the SM-side helper must age mission-relative `t_capture`
+    against mission time and absolute `t_capture_monotonic` against the
+    monotonic clock -- the F1 bug was exactly these crossed."""
+    from flight.deploy.real_flight import _stamped_det_age
+
+    # FeedDetector convention: mission-relative stamp, mission t.
+    d = types.SimpleNamespace(t_capture=2.5)
+    assert _stamped_det_age(d, t_mission=2.8, now_monotonic=1000.0) == pytest.approx(0.3)
+
+    # Cinema convention: absolute monotonic stamp, aged against monotonic.
+    d = types.SimpleNamespace(t_capture_monotonic=997.0)
+    assert _stamped_det_age(d, t_mission=2.8, now_monotonic=1000.0) == pytest.approx(3.0)
+
+    # The F1 failure shape: an ABSOLUTE stamp wrongly published as
+    # t_capture would clamp to 0 against mission time -- assert the helper
+    # still exposes that hazard honestly (0.0, not a negative), so the
+    # driver-side test (above) remains the guard that the wrong attribute
+    # is never published.
+    d = types.SimpleNamespace(t_capture=997.0)
+    assert _stamped_det_age(d, t_mission=2.8, now_monotonic=1000.0) == 0.0
+
+    # No stamp at all -> None (constant-age fallback path).
+    assert _stamped_det_age(types.SimpleNamespace(), 2.8, 1000.0) is None

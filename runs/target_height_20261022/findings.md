@@ -64,4 +64,8 @@ arrives. H3 confirmed with that sharpening (it is a belief-correction race,
 not a decode-envelope cliff). STILL OPEN (one layer down): why the race
 favors below-belief targets (6/8 vs 4/8 pull-outs) — vertical authority or
 Phase-A z-aim asymmetry, unmeasured; the ±2 m budget stands regardless and
-still carries no sign rule. Raw: probe_fov.json (round-3 schema).
+still carries no sign rule. Scope note (review R2-F4): baseline also has
+one never-got-close failure (seed 5, min_range 2.2 m at zero offset) —
+horizontal scatter alone produces the same signature, so the mechanism
+explains the +3 EXCESS failures (4/8 vs 1/8), not every close-failure.
+Raw: probe_fov.json (round-3 schema).

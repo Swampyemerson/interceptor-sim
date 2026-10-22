@@ -2397,6 +2397,31 @@ _LAND_TIMEOUT_S = 60.0
 _MODE_FIRST_SAMPLE_TIMEOUT_S = 10.0
 
 
+
+def _stamped_det_age(d, t_mission, now_monotonic):
+    """Stamped measurement age for --pursuit-stamped-age, or None.
+
+    Two publisher conventions, by attribute name (review F1, 2026-10-22):
+    - `t_capture`: MISSION-RELATIVE capture stamp (FeedDetector's convention:
+      t_mission - (clock - t_cap_clock)); aged against mission time.
+    - `t_capture_monotonic`: ABSOLUTE time.monotonic()-axis stamp (the cinema
+      driver under --det-stamp-capture; the SimClockShim makes monotonic()
+      absolute sim time); aged against now_monotonic.
+    Publishing an absolute stamp as `t_capture` clamps every age to 0.0 and
+    silently un-ages the measurements -- the F1 bug; the split consumption
+    here plus tests/test_det_stamp_capture.py pin the convention from both
+    sides. The Gazebo harness's own `t_capture_sim` is a third attribute
+    name and is deliberately never read.
+    """
+    t_cap = getattr(d, "t_capture", None)
+    if t_cap is not None:
+        return max(0.0, t_mission - float(t_cap))
+    t_cap_mono = getattr(d, "t_capture_monotonic", None)
+    if t_cap_mono is not None:
+        return max(0.0, now_monotonic - float(t_cap_mono))
+    return None
+
+
 async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                              trigger, detector=None,
                              smoke: bool = False,
@@ -2659,39 +2684,18 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                     # (the Gazebo cross-check driver's tag_range_m; None from
                     # the synthetic smoke detector) -- see VehicleObs.
                     det_pose = getattr(d, "tag_range_m", None)
-                    # STAMPED measurement age (--pursuit-stamped-age): only
-                    # when the detector publishes t_capture ON THIS clock
-                    # (FeedDetector computes it on the mission clock; the
-                    # Gazebo harness's t_capture_sim is a DIFFERENT clock and
-                    # a different attribute, so it can never leak in here).
+                    # STAMPED measurement age (--pursuit-stamped-age):
+                    # extracted to _stamped_det_age so the clock-base
+                    # convention is pinned by a unit test (review R2-F2 --
+                    # the F1 bug lived exactly in this block with no test
+                    # between the driver and the terminal).
                     det_age = None
                     if (getattr(args, "pursuit_stamped_age", False)
                             and det_range is not None):
-                        _t_cap = getattr(d, "t_capture", None)
-                        if _t_cap is not None:
-                            det_age = max(0.0, t - float(_t_cap))
-                        else:
-                            # t_capture_monotonic: a capture stamp on the
-                            # time.monotonic() axis (ABSOLUTE, not mission-
-                            # relative). The cinema driver publishes this
-                            # under --det-stamp-capture (the SimClockShim
-                            # makes monotonic() absolute sim time, the same
-                            # base as its t_capture_sim). Review F1
-                            # 2026-10-22: publishing it as `t_capture` put
-                            # an absolute stamp on the mission-relative
-                            # axis, so every age clamped to 0.0 -- a stamp
-                            # that silently un-ages every measurement.
-                            _t_cap_mono = getattr(d, "t_capture_monotonic", None)
-                            if _t_cap_mono is not None:
-                                det_age = max(0.0, time.monotonic()
-                                              - float(_t_cap_mono))
-                                # Effect-observation hook (review F1): ages
-                                # print to the take log under DEBUG_DET_AGE=1
-                                # so a clock-base regression can never again
-                                # fly silently as age=0.
-                                if os.environ.get("DEBUG_DET_AGE"):
-                                    print(f"[det-age] stamped age = "
-                                          f"{det_age*1000:.0f} ms")
+                        det_age = _stamped_det_age(d, t, time.monotonic())
+                        if det_age is not None and os.environ.get("DEBUG_DET_AGE"):
+                            print(f"[det-age] stamped age = "
+                                  f"{det_age*1000:.0f} ms")
                 # FAILSAFE 7 arm 2 input: how old the flight-mode sample is, on
                 # the SAME clock base it was stamped with (absolute monotonic --
                 # mission time here would reproduce the RC clock-base defect, and

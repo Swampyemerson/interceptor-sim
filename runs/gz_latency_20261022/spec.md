@@ -193,12 +193,14 @@ bar is reported as written — no post-hoc reinterpretation; the distribution
 evidence (tail kill + 1.5x -> 1.1x) is what it is, and the RECOMMENDATION
 decision goes to the builder; the flight default stays OFF either way.
 
-MEASUREMENT BONUS (the c1 age gate's data): true capture->consumption lag
-is ~80 ms natural + injection (observed 108-236 ms vs injected 30-150;
-spread matches injection within tick granularity), so EVERY constant arm
-was ~35-65 ms under-compensated. The LC arms' near-baseline results
-therefore show constant mean error of that size is cheap — which sharpens
-LJ90's 1.53x as genuinely jitter-driven, and corrects the 45 ms
-base-pipeline bookkeeping (the meas_latency_s default under-states the
-cinema pipeline's real age; calibrate per pipeline, as the spec already
-demands).
+MEASUREMENT BONUS (c1's full 54 stamped ages — review R2-F1 corrected an
+earlier 8-line-sample version of this paragraph): min 108 / max 252 /
+mean 217 / median 224 ms; spread 144 ms vs 120 injected (the excess is
+tick/queue granularity). Against the injected 90 ms mean, the NATURAL
+capture->consumption lag is estimator-dependent: ~78 ms (min-based) to
+~127 ms (mean-based) — either way well above the 45 ms default, so the
+constant arms' assumed 135 ms was ~82 ms under the true MEAN age. The LC
+arms' near-baseline results show constant mean error of that size is
+cheap — which sharpens LJ90's 1.53x as genuinely jitter-driven, and the
+meas_latency_s bookkeeping stands corrected: calibrate per pipeline, as
+the spec already demands.
