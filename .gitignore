@@ -176,3 +176,14 @@ runs/dfc_dryrun_single/apt_2204.log
 runs/*/cells.jsonl
 runs/*/sweep.pid
 logs/gz_latency/sim_LJ90S_*.log
+runs/dfc_dryrun*/daemon.pid
+runs/dfc_dryrun*/hailo_sdk.core*.log
+runs/dfc_dryrun_single/acceleras.log
+runs/dfc_dryrun_single/allocator.log
+runs/dfc_dryrun_single/apt.log
+runs/dfc_dryrun_single/hailo_examples.log
+runs/dfc_dryrun_single/hailo_sdk.client.log
+runs/dfc_dryrun_single/*.onnx
+runs/dfc_dryrun_single/*.yaml
+runs/dfc_dryrun_single/*.har
+runs/dfc_dryrun_single/*.hef
