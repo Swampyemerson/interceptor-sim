@@ -53,3 +53,18 @@ Status: FLOWN 2026-10-21 — **NULL by the registered rule** (no cell beats
 the default beyond paired-seed noise; the astern dash aim is actively
 harmful; cue error dominates). Defaults stand, the stage-3 router is not
 built. Verdicts: `runs/stern_approach_20261021/findings.md`.
+
+## Registered follow-up (2026-10-21 overnight, before flying): d_behind {4,8} at n=32
+
+The NULL's footnote, promoted to its own registered question: at ZERO
+deliberate cue error (Scatter noise only), does `d_behind=4` really halve
+terminal median miss vs the default 8 (sweep saw 0.24 vs 0.51 at n=8),
+with acquisition unchanged? Cells: d_behind ∈ {4, 8} × dash_aim_behind=0 ×
+aim_error=0, n=32 paired seeds (0..31), same canon config.
+
+PREDICTION: the n=8 gap shrinks (regression to noise) but d_behind=4 stays
+directionally better on median miss; engagement equal within noise.
+ADOPT BAR: d_behind=4 becomes the new PursuitConfig default ONLY if its
+median miss beats the default by >0.1 m (the known run-to-run noise floor)
+AND pct_engage is not lower AND p90 miss is not worse. A NULL means the
+n=8 gap was seed luck; the 8 m default stands and the footnote closes.

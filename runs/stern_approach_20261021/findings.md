@@ -31,12 +31,14 @@ camera, detector) and **cue quality** — exactly the two quantities the
 tripod day measures. The stage-3 "dash router" (path optimizer) is therefore
 NOT built: it would optimize variables measured here as non-binding.
 
-## Footnote (not an adoption)
+## Footnote — CLOSED by the registered n=32 follow-up (same night)
 
-At zero cue error, `d_behind=4` halves median miss vs the default
-(0.24 vs 0.51 m) with equal engagement. Acquisition-gated rule says no
-adoption; if terminal CPA at low cue error ever becomes the binding
-question, a focused `d_behind ∈ {4,8}` study at n≥32 is the cheap follow-up.
+The n=8 "d_behind=4 halves median miss" (0.24 vs 0.51 m) was SEED LUCK:
+at n=32 paired seeds the cells are flat — 0.370 vs 0.383 m (Δ=13 mm,
+adopt bar was >100 mm), engagement identical 96.9%, p90 identical
+(`followup_dbehind.json`; registration + bar in the spec, written before
+flying — the registered prediction of "directionally better" was itself
+wrong, it is dead flat). The 8 m default stands everywhere.
 
 ## Honest bounds
 
