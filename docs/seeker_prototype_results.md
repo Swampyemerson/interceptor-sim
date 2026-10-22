@@ -30,9 +30,9 @@ that part is real and reusable. The problem is upstream, in *what pixels the det
 locks onto*.
 
 **Isolation verified:** both lanes used `.venv-seeker`; the batch venv
-`~/interceptor-sim/.venv` was not touched. `.venv-seeker` is **not** in
+`~/interceptor-sim/.venv` was not touched. ~~`.venv-seeker` is **not** in
 `.gitignore` — exclude it before any commit (flagged, not fixed — no existing file was
-edited per the task constraints).
+edited per the task constraints).~~ *(Stale, 2026-10-22: `.venv-seeker/` IS in `.gitignore`.)*
 
 ---
 
@@ -189,17 +189,21 @@ classical as a standalone bearing source.** Concretely, in priority order:
    classifier (true detect-then-track, brief §6) — which is its actual role in the parent
    architecture — rather than a standalone bearing emitter. Rationale: a confident wrong
    bearing corrupts the α-β LOS filter (§3.4); a dropout does not.
-2. **Integrate the NN seeker behind `m4_intercept.py`'s `detect()` seam** as
+2. **✅ DONE (verified 2026-10-22: `m4_intercept.py --seeker markerless`).**
+   **Integrate the NN seeker behind `m4_intercept.py`'s `detect()` seam** as
    `--seeker nn`, using `SeekerDetection.as_measurement_tuple()` as the drop-in — but with
    a **fine-tuned single-class drone nano (MIT/Apache, R6)**, not the COCO model (which
    only fires "airplane" at ≤3 m). The seam is proven; the model is the swap.
-3. **Build `models/fpv_target_markerless`** (primitive body + props, tag plane removed;
+3. **✅ DONE — model built (verified 2026-10-22: `models/fpv_target_markerless/` exists;
+   since superseded by the 3-D `models/fpv_quad_enemy/`). The A/B half was not re-verified
+   in that check.**
+   **Build `models/fpv_target_markerless`** (primitive body + props, tag plane removed;
    separate model so every gated world is untouched, brief §4) and run the **paired-seed
    A/B (n≥8) vs the AprilTag baseline** on the same mover paths (L→R, R→L, weave, jink,
    oblique_close) and speeds (6/9/12 m/s), **with gt logging** so `P_detect(R)` and σ_β
    become real numbers. **One sim at a time, at idle load** (batch hygiene).
 4. **Re-earn the numeric no-cheat audit** for this new guidance path (`gt_*`
-   scoring-only, `docs/audit_targets.md` pattern) before any A/B number is quoted.
+   scoring-only, `retired/docs/audit_targets.md` pattern) before any A/B number is quoted.
 5. **WORST-tier honesty:** inject measured σ_β, σ_R, `P_detect(R)`, and LOS-rate dropout;
    disclose that the no-blur/no-vibration sim makes sim seeker Pk an **upper bound**
    (ADR-0024).
@@ -215,7 +219,7 @@ classical as a standalone bearing source.** Concretely, in priority order:
   modest; run `eval_classical.py` / `eval_nn.py --all` when the machine is idle.
 - **No ground-truth pose in this footage** → absolute σ_β, σ_R, `P_detect(R)` unmeasured;
   require the tag-less Gazebo flight (§6).
-- **`.venv-seeker` is untracked and not git-ignored** — exclude before commit.
+- ~~**`.venv-seeker` is untracked and not git-ignored** — exclude before commit.~~ *(Stale, 2026-10-22: it is git-ignored.)*
 - **Pi-5 + Hailo-8 bench** (ADR-0033 item 1) deferred.
 
 ---

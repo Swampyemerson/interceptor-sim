@@ -18,6 +18,7 @@ The four safety properties that matter most, each with its own test:
 Run: .venv/bin/python -m pytest flight/tests/test_real_flight.py -q
 """
 
+import ast
 import math
 import os
 import random
@@ -1118,10 +1119,91 @@ def test_the_honesty_audit_covers_the_whole_real_build_import_closure():
     covered = {os.path.relpath(p, _REPO_ROOT) for p in audited_module_paths()}
     for must in ("flight/deploy/real_flight.py", "flight/deploy/seeker_loop.py",
                  "flight/geometry.py", "flight/guidance.py", "flight/camera.py",
-                 "flight/estimator.py"):
+                 "flight/estimator.py",
+                 # 2026-10-22 (review 3): cue_relay seeds the terminal's belief
+                 # and had escaped the audit; frame_recorder runs on the vehicle.
+                 "flight/cue_relay.py", "flight/deploy/frame_recorder.py"):
         assert must in covered, f"{must} is not in the audited closure"
     assert all(os.path.exists(p) for p in audited_module_paths())
     assert honesty_audit(verbose=False) == 0
+
+
+def _flight_modules_imported_by(relpath):
+    """Every `flight.*` module file referenced by relpath's import statements.
+
+    Handles all three forms the closure actually uses: `import flight.x`,
+    `from flight.x import name`, and `from flight.pkg import submodule` (where
+    an imported NAME may itself be a module file). Returns repo-relative .py
+    paths; names that resolve to no file (functions, classes) are ignored."""
+    with open(os.path.join(_REPO_ROOT, relpath)) as fh:
+        tree = ast.parse(fh.read(), filename=relpath)
+    dotted = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            dotted |= {a.name for a in node.names if a.name.startswith("flight")}
+        elif isinstance(node, ast.ImportFrom) and node.module and \
+                node.module.startswith("flight"):
+            dotted.add(node.module)
+            dotted |= {node.module + "." + a.name for a in node.names}
+    out = set()
+    for mod in dotted:
+        as_file = os.path.join(*mod.split(".")) + ".py"
+        as_pkg = os.path.join(*mod.split("."), "__init__.py")
+        if os.path.exists(os.path.join(_REPO_ROOT, as_file)):
+            out.add(as_file)
+        elif os.path.exists(os.path.join(_REPO_ROOT, as_pkg)):
+            out.add(as_pkg)
+    return out
+
+
+def test_the_audited_closure_is_import_complete():
+    """THE ANTI-ROT TEST the hand-list never had. It rotted twice -- seeker_loop
+    escaped it in 2026-07 and flight.cue_relay (which SEEDS THE TERMINAL'S
+    BELIEF via --cue-json) escaped it until 2026-10-22 -- because nothing tied
+    `_AUDITED_MODULES` to the import graph it claims to cover. This walks the
+    REAL graph from the audited roots: every flight/* module reachable through
+    imports (ast.walk sees lazy in-function imports too) must itself be audited
+    or listed in `_AUDIT_IMPORT_EXEMPT` with a written reason."""
+    import flight.deploy.real_flight as rf_mod
+    audited = set(rf_mod._AUDITED_MODULES)
+    exempt = set(rf_mod._AUDIT_IMPORT_EXEMPT)
+    assert not audited & exempt, "a module cannot be both audited and exempt"
+    seen, frontier = set(), sorted(audited)
+    while frontier:
+        rel = frontier.pop()
+        if rel in seen:
+            continue
+        seen.add(rel)
+        for dep in sorted(_flight_modules_imported_by(rel)):
+            assert dep in audited or dep in exempt, (
+                f"{rel} imports {dep}, which is in neither _AUDITED_MODULES "
+                "nor _AUDIT_IMPORT_EXEMPT -- a module reachable from the "
+                "real-build closure is escaping the honesty audit. Add it to "
+                "the audited list (or exempt it WITH a reason).")
+            if dep in audited:
+                frontier.append(dep)
+    # Anti-vacuous pin: the walk must actually traverse the known seams.
+    assert "flight/cue_relay.py" in seen
+    assert "flight/deploy/frame_feed.py" in seen
+
+
+def test_engage_window_default_is_terminal_mode_aware():
+    """ADR-0129 (2026-10-22, closes ADR-0105 open item (b)): 12 s was fly-by-
+    sized; a pursuit chase measured 6-13 s TO CONTACT and its approach dash
+    burns the same window, so the old shared default could time a default-
+    config real chase out mid-engagement. Pursuit (the flying default) gets
+    30 s; stock/tag keep the as-flown 12 s; an explicit flag wins everywhere."""
+    import flight.deploy.real_flight as rf_mod
+
+    def built(argv):
+        return rf_mod.build_config(rf_mod.build_arg_parser().parse_args(argv))
+
+    assert built([]).engage_max_s == 30.0                      # pursuit default
+    assert built(["--terminal", "pursuit"]).engage_max_s == 30.0
+    assert built(["--terminal", "stock"]).engage_max_s == 12.0  # as-flown
+    assert built(["--terminal", "tag"]).engage_max_s == 12.0
+    assert built(["--engage-max-s", "8"]).engage_max_s == 8.0   # explicit wins
+    assert built(["--terminal", "stock", "--engage-max-s", "45"]).engage_max_s == 45.0
 
 
 @pytest.mark.parametrize("injection,why", [

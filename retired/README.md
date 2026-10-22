@@ -61,3 +61,39 @@ Known dormant coupling, NOT moved (flagged for a future deletion decision):
 `--cue-seed` for it — dead-but-wired legacy paths that would fail if an
 S2-era mode were re-run; left in place because ripping sim-driver plumbing
 is beyond a housekeeping move.
+
+Moved 2026-10-22 (review-3 sweep; builder ruling "stale documents go to retired
+and the repo needs to be up to date" + approval of the deletion scout's Tier 1 —
+`docs/deletion_candidates_2026-10-22.md`, rows annotated in place; every move
+reference-checked repo-wide, inbound pointers repointed or served by a stub):
+
+- **Tier-1 docs**: `linkedin_copy_draft.md` (one-off social copy),
+  `audit_targets.md` (2026-07-06 audit prep; the markerless_loop/brief citations
+  of its gt-scoring-only pattern now point here), `fusion_capstone_design.md`
+  (fusion A/B'd NO-TRANSFER, default-OFF).
+- **Tier-1 docs retired WITH a stub left at the old path** (each had inbound
+  references from the contract, next.md, or decisions.md, which the head owns):
+  `compute_setup.md`, `ekf_design_brief.md`, `scoring_fix_plan.md`,
+  `candidate_nn_shortlist.md`.
+- **Sim-era docs**: `perception_design.md` (oldest doc in the tree, pre-pivot),
+  `seeker_upgrades.md` + `inview_probe_results.md` (stubs left — contract-cited;
+  both carried superseded recommendations that were live resurrection bait:
+  the narrow-lens/RTK pitch and the "pointing is the dominant lever" verdict).
+  NOTE preserved from seeker_upgrades: the **2nd wide-FOV terminal camera
+  (ADR-0015 fix b) was WITHDRAWN** — that ruling lived only in its prose and
+  should get a graveyard entry (flagged to the head).
+- **Concluded prereg**: `rehearsal_gazebo_spotcheck_prereg_2026-09-24.md` —
+  verdict recorded in-file 2026-09-24 ("Gazebo-consistent"), zero inbound refs.
+- **Orphan scripts** → `retired/scripts/`: `commit_sprint_ab.py`,
+  `blur_replay.py`, `linkedin_fast_cut.py`, `actuation_error_budget.py`
+  (no ADR cites it by name), and `check_t21.sh` (its analyzer was already
+  retired in 3880153, so the gate could only exit 1; skill pointer fixed).
+- **Fixture deleted** (not moved): `tests/fixtures/rig_capture_min/` — orphaned
+  when `test_ground_station.py` was retired; recoverable from git history.
+
+Kept, deliberately: `placard_mount.md` (live test/script consumers),
+`pi_emulation_check.md` (cited by the contract's `pi5-emulation-gap`
+constraint), `launch_mechanism_options.md` (banner-superseded in place —
+decisions.md cites it), `transfer_bet_kill_test.md` (its §0 kill-test criteria
+are live; the stale detect-then-track passages in §6/§7 were corrected in
+place instead).

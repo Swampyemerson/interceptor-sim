@@ -211,7 +211,9 @@ and the frame↔log time join that produces every range number depends on it
 ### 3.1 Prepare the microSD card (once)
 
 1. Install **Raspberry Pi Imager** on Windows.
-2. Choose **Raspberry Pi OS (64‑bit)**, Bookworm.
+2. Choose **Raspberry Pi OS (64‑bit)**, Bookworm. *(Note 2026-10-22: the bench Pi
+   actually runs **Trixie** — verified 2026-10-21, hailo runbook. A fresh re-image
+   should match the bench, not this line as originally written.)*
 3. Open the Imager's **advanced/settings** gear **before** writing and set:
    **hostname `interceptor-seeker`**, a username + password, your **Wi‑Fi**, and
    **enable SSH**. This is what lets you log in with no monitor or keyboard.
@@ -316,6 +318,12 @@ scripts/field/02_apriltag_desk_check.sh --expect-range 3.0     # 3.0 m tape-meas
 `tag in frame: ~NNN px per edge` line, and `PASS`.
 
 #### "Why calibrate at all — can't the loop just steer at the tag?" (builder question, 2026-08-12)
+
+> **2026-10-22 note: the verdict below was REVERSED by ADR-0118 (2026-09-24).** Chase-only
+> pursuit is now the flying default (no sprint, no acquire gate; Gazebo gate median 0.343 m)
+> — the M4-era "pro-nav won, pursuit lost" comparison was a high-closing-speed fly-by regime,
+> not the chase regime that flies now. The CALIBRATION rationale below stands unchanged:
+> range-keyed decisions and undistorted geometry still need a measured `fx`.
 
 It could, and that is **pursuit guidance** — and pursuit was measured against a
 moving target in M4 and lost badly: **2.0–2.5 m** miss versus **0.3–0.4 m** for

@@ -135,7 +135,10 @@ CIs overlapping.)
 | **n-mono** | gray (**native**) | **0.4421** | **44.17%** | **71.41%** | **4.90%** (23/469) | `eval_n-mono_heldout.csv` |
 | **n-color** | rgb (**native**) | 0.4373 | 42.69% | 69.25% | 13.43% (63/469) | `eval_n-color_ncolor_heldout.csv` |
 | n-mono | color (OOD cross-ref) | 0.4446 | 44.45% | 72.76% | 5.76% | `eval_n-color_nmono_color_crossref.csv` |
-| v2_deployed (sim, for scale) | gray | 0.0003 | 1.11% | 0.51% | 88.49% | `eval_s-mono_summary_cmp1.csv` |
+| v2 (sim seeker, for scale) | gray | 0.0003 | 1.11% | 0.51% | 88.49% | `eval_s-mono_summary_cmp1.csv` |
+
+*(2026-10-22 relabel: "v2_deployed" → "v2 (sim seeker)"; the flight default is **n-mono** per
+`docs/project_state.json`.)*
 
 n-mono ties/beats n-color on all four detection axes; the recall gap (44.17 vs 42.69) is
 not significant on n=4315 boxes (z=1.39, p=0.17). The overall false-fire gap (4.9% vs

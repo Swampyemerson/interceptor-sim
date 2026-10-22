@@ -1,7 +1,7 @@
 # Sim-to-real shortcomings audit (T23)
 
 *Design doc only — no sim run, no code, no commit. Companion to
-`docs/phase2_sim_to_real_plan.md` §5 (the "pivotal risk") and Track D's T23
+`retired/docs/phase2_sim_to_real_plan.md` §5 (the "pivotal risk") and Track D's T23
 item. Written for a builder who will eventually stand next to real hardware
 and needs to know, precisely, where this sim's numbers are trustworthy and
 where they are not.*
@@ -15,7 +15,7 @@ look BETTER than reality is dangerous — the plan calls it "flattering" — bec
 it can talk the builder into buying an airframe, trusting a Pk number, or
 skipping a safety fix that reality won't actually support.*
 
-Phase 2's own plan names this doc's job directly (`phase2_sim_to_real_plan.md`
+Phase 2's own plan names this doc's job directly (`retired/docs/phase2_sim_to_real_plan.md`
 §5): *"the single biggest way this blueprint could MISLEAD the hardware build
 is a sim-to-real fidelity gap that flatters the design — the T23 audit exists
 to surface those; treat a too-good sim number as a bug to investigate, not a
@@ -73,17 +73,17 @@ that would close the gap, plus the earning ADR/doc.
 | # | What sim does | What reality does | Severity | Direction | Bench-measurable | Source |
 |---|---|---|---|---|---|---|
 | G1 | Datum bias (0.3 / 0.5 / 2.5 m BEST/EXPECTED/WORST) is a constant *sourced from RTK/PPS literature*, never measured on this project's own hardware | Real residual bias depends on satellite geometry, per-site multipath, base-station survey accuracy, and rover convergence time — time-varying and site-specific | **critical** (this constant sets the whole mid-course fusion accuracy budget, ADR-0018, and gates T20 adoption) | *uncertain* (sourced, plausible, but unverified — not yet shown to flatter or be conservative) | Side-by-side RTK-GNSS survey of the rig position and the drone's own GPS/EKF2-estimated position at a known true offset; log residual bias over an hour under real sky | ADR-0017 |
-| G2 | The mock's single `--datum-bias-m` constant models ONLY the rig-side offset; the drone's own position (used to convert the ground track into its own NED frame) is treated as effectively exact | The drone's own GPS/EKF2 has its own, separate error that stacks on top of the rig's survey error | major | **FLATTERS** (sim implicitly halves the real combined error budget) | Fly the real drone with logged EKF2 position vs an independent RTK ground truth to measure real own-position error; combine (not replace) with the rig-side survey error | `docs/fusion_capstone_design.md:105-107` |
-| G3 | Rig and drone share ONE Gazebo world coordinate frame — perfect global registration except for the explicitly injected `--datum-bias-m` | Rig and drone each run their own independent GPS/EKF2/survey stack in the real world; there is no shared ground-truth frame to fall back on | minor–major | **FLATTERS** mildly | Same as G1/G2 — this row is the structural reason G1/G2 exist; no separate bench test | `phase2_sim_to_real_plan.md` §5.5, ADR-0045 §5.6 #2 |
+| G2 | The mock's single `--datum-bias-m` constant models ONLY the rig-side offset; the drone's own position (used to convert the ground track into its own NED frame) is treated as effectively exact | The drone's own GPS/EKF2 has its own, separate error that stacks on top of the rig's survey error | major | **FLATTERS** (sim implicitly halves the real combined error budget) | Fly the real drone with logged EKF2 position vs an independent RTK ground truth to measure real own-position error; combine (not replace) with the rig-side survey error | `retired/docs/fusion_capstone_design.md:105-107` |
+| G3 | Rig and drone share ONE Gazebo world coordinate frame — perfect global registration except for the explicitly injected `--datum-bias-m` | Rig and drone each run their own independent GPS/EKF2/survey stack in the real world; there is no shared ground-truth frame to fall back on | minor–major | **FLATTERS** mildly | Same as G1/G2 — this row is the structural reason G1/G2 exist; no separate bench test | `retired/docs/phase2_sim_to_real_plan.md` §5.5, ADR-0045 §5.6 #2 |
 
 ### Camera intrinsics vs real lens
 
 | # | What sim does | What reality does | Severity | Direction | Bench-measurable | Source |
 |---|---|---|---|---|---|---|
-| L1 | Gazebo's camera sensor is an ideal pinhole model — zero radial/tangential distortion, zero chromatic aberration, zero vignetting; the onboard `mono_cam` HFOV is exactly 1.74 rad (99.7°) with no calibration error | Any real lens (even a good C-mount/M12) has measurable distortion; a naive port that skips distortion correction misplaces bearing, especially off-boresight | major | **FLATTERS** | Checkerboard/ChArUco calibration of the real lens (`calibrate_camera.py`, already staged); compare measured distortion coefficients + reprojection RMS to the assumed zero (target ≤1.0 px) | `docs/stage0_bench_plan.md` §2.4 |
-| L2 | The camera renders a mathematically sharp frame every tick regardless of angular rate — no motion blur, no rolling-shutter skew modeled at all, even though global shutter was chosen precisely to *minimize* (not eliminate) this in the real design | Even a global-shutter sensor has finite exposure time; at terminal-phase LOS rates (measured 32–58°/s at CPA, yaw clamp 60°/s) real frames will show motion blur exactly when the geometry is most demanding | **critical** — repeatedly named "existential, not a tuning nuisance" across ADR-0012/0015/0023 and the seeker docs | **FLATTERS** hard — the single most-repeated known optimism source in this codebase | Mount the real camera on a rotating fixture at terminal-phase yaw rates (ramp to ≥60°/s); measure detection rate falloff (`docs/stage0_bench_plan.md` §3c, "yaw-rate/motion-blur test") | ADR-0007, ADR-0010, ADR-0012, ADR-0023, `seeker_design_brief.md` R3 |
-| L3 | Ideal, uniform, emissive-boosted contrast; the tag/target material needed an emissive-lighting hack (ADR-0007) just to be bright enough for the sim's small on-screen cells at range — there is no auto-exposure hunting, glare, haze, or backlight | Real EO detection is contrast- and lighting-dependent; a washed-out sky, backlight, or low sun measurably shrinks the detection envelope, on top of the already-disclosed daytime-only limit (ADR-0019) | major | **FLATTERS** | Repeat the detection-floor test across real lighting conditions (indoor / outdoor-sun / backlit), log recall vs range (`docs/stage0_bench_plan.md` §3d) | ADR-0007, `stage0_bench_plan.md` §3d |
-| L4 | Sim intrinsics (fx=fy=539.9 px, HFOV 99.7°, 1280×960) are fixed by construction and never drift | Real intrinsics belong to the specific lens/body pairing and must be measured; a 2% tag-size or fx error biases every range by 2% | major | **FLATTERS** | `calibrate_camera.py` on the real rig, watch RMS reprojection error (recapture until ≤1.0 px) | `stage0_bench_plan.md` §2.4/§2.5 |
+| L1 | Gazebo's camera sensor is an ideal pinhole model — zero radial/tangential distortion, zero chromatic aberration, zero vignetting; the onboard `mono_cam` HFOV is exactly 1.74 rad (99.7°) with no calibration error | Any real lens (even a good C-mount/M12) has measurable distortion; a naive port that skips distortion correction misplaces bearing, especially off-boresight | major | **FLATTERS** | Checkerboard/ChArUco calibration of the real lens (`calibrate_camera.py`, already staged); compare measured distortion coefficients + reprojection RMS to the assumed zero (target ≤1.0 px) | `retired/docs/stage0_bench_plan.md` §2.4 |
+| L2 | The camera renders a mathematically sharp frame every tick regardless of angular rate — no motion blur, no rolling-shutter skew modeled at all, even though global shutter was chosen precisely to *minimize* (not eliminate) this in the real design | Even a global-shutter sensor has finite exposure time; at terminal-phase LOS rates (measured 32–58°/s at CPA, yaw clamp 60°/s) real frames will show motion blur exactly when the geometry is most demanding | **critical** — repeatedly named "existential, not a tuning nuisance" across ADR-0012/0015/0023 and the seeker docs | **FLATTERS** hard — the single most-repeated known optimism source in this codebase | Mount the real camera on a rotating fixture at terminal-phase yaw rates (ramp to ≥60°/s); measure detection rate falloff (`retired/docs/stage0_bench_plan.md` §3c, "yaw-rate/motion-blur test") | ADR-0007, ADR-0010, ADR-0012, ADR-0023, `seeker_design_brief.md` R3 |
+| L3 | Ideal, uniform, emissive-boosted contrast; the tag/target material needed an emissive-lighting hack (ADR-0007) just to be bright enough for the sim's small on-screen cells at range — there is no auto-exposure hunting, glare, haze, or backlight | Real EO detection is contrast- and lighting-dependent; a washed-out sky, backlight, or low sun measurably shrinks the detection envelope, on top of the already-disclosed daytime-only limit (ADR-0019) | major | **FLATTERS** | Repeat the detection-floor test across real lighting conditions (indoor / outdoor-sun / backlit), log recall vs range (`retired/docs/stage0_bench_plan.md` §3d) | ADR-0007, `retired/docs/stage0_bench_plan.md` §3d |
+| L4 | Sim intrinsics (fx=fy=539.9 px, HFOV 99.7°, 1280×960) are fixed by construction and never drift | Real intrinsics belong to the specific lens/body pairing and must be measured; a 2% tag-size or fx error biases every range by 2% | major | **FLATTERS** | `calibrate_camera.py` on the real rig, watch RMS reprojection error (recapture until ≤1.0 px) | `retired/docs/stage0_bench_plan.md` §2.4/§2.5 |
 
 ### IMU / EKF2
 
@@ -163,18 +163,31 @@ uncertain, not yet shown to flatter.*
 ## 3. What to measure first on the Stage-0 bench (prioritized)
 
 Prioritized against what hardware actually exists today: **Stage-0 is a
-single Pi 5 + camera bench** (`docs/stage0_bench_plan.md`, fully designed,
-**parts not yet ordered** — docs/next.md open item). The ground stereo rig, a real
+single Pi 5 + camera bench** (`retired/docs/stage0_bench_plan.md`, fully designed,
+~~**parts not yet ordered** — docs/next.md open item~~ *(2026-10-22: STALE — the bench
+hardware is IN HAND: Pi 5 + OV9281, and the skr-07 bench session is done,
+`runs/skr07_tagged/`)*). The ground stereo rig, a real
 radio, a real airframe, and RF/red-team test ranges are all later stages. This
 list is ordered so the cheapest, already-planned, highest-leverage
 measurements come first.
 
 **(a) Measurable TODAY with the already-designed Stage-0 cart (~$257, design-review §6 re-cost — order now; closes L1–L4, informs T3/T4):**
-1. **L2 — motion-blur/yaw-rate ramp** (`stage0_bench_plan.md` §3c). Highest priority: this is the single gap named "existential" more than any other in the project's own history. Answers whether the sim's zero-blur assumption is safe up to the ~60°/s terminal LOS rate.
+1. **L2 — motion-blur/yaw-rate ramp** (`retired/docs/stage0_bench_plan.md` §3c). Highest priority: this is the single gap named "existential" more than any other in the project's own history. Answers whether the sim's zero-blur assumption is safe up to the ~60°/s terminal LOS rate.
 2. **L1/L4 — lens calibration + distortion** (§2.4). Cheap, mandatory before any other number on real hardware is trustworthy (a bad fx silently rescales every range).
 3. **Sustained detection Hz on the Pi 5 CPU** (§3b) — the project's own "headline unknown ADR-0012 could not answer"; also the first real data point for T3/T4 (embedded-vs-desktop compute).
 4. **L3 — lighting variation** (§3d). Cheap add-on to the same rig.
 5. **F3-adjacent — static detection rate/pose error vs range** (§3a). Only exercises the *onboard* detector, not the ground rig, but is the same "does detection hold across the range envelope" question F3 asks, and it's the cheapest place to start answering it.
+
+*(Added 2026-10-22 — isim-derived bench requirements that had NO gap entry here; source:
+the v6 hardening curves in `docs/new_sim_plan.md`, STATUS 2026-09-17 end-of-session entry.)*
+6. **TS1 — frame timestamp error.** isim's requirement curve: ≤ 10 ms is free; ±20 ms costs
+   ≈ −8 points of inside-0.35 m rate (≈ −16 at 40 ms). Bench check: read libcamera's
+   `SensorTimestamp` and verify Pi↔FC clock alignment over MAVLink `TIMESYNC`. (First bench
+   datum exists: 14.3 ms mean / 0.6 ms jitter, `runs/frame_timing/` — measure the Pi↔FC
+   offset, not just the frame interval.)
+7. **TS2 — own-attitude error with a rear-facing tag.** isim says the rear-tag geometry wants
+   attitude known better than ~1–2°; the real EKF2 attitude error under vibration (I1) must
+   be read against THIS bar, not just logged.
 
 **(b) Needs the (not-yet-built) ground stereo rig — closes F3–F5, G1:**
 6. **F4 — hardware trigger sync verification** (blinking-LED phase test, stereo_design.md bench test #3). Cheapest of the rig-dependent tests once the rig exists.

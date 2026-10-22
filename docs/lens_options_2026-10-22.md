@@ -1,4 +1,11 @@
-# M12 lens options for the OV9281 (feeds the queued lens-swap decision)
+# M12 lens options for the OV9281 — DECIDED
+
+> **RULED (builder, 2026-10-22, ADR-0126): the delivered ~70° lens FLIES**, for px/deg
+> range; the ≥100° wide-FOV constraint is superseded (rewritten in the contract,
+> graveyard #17 scope-amended). The 110° Arducam M40180H13L already ordered 2026-10-12
+> (this survey missed it — it was in the contract's build tab) becomes the calibrated
+> SPARE/fallback if the 70° acquisition funnel proves too tight in the field. Derived
+> requirement from the same-day isim A/B: launch cue inside ~10° (ADR-0128 addendum).
 
 2026-10-22, head-inline survey (the subagent lane bounced; evidence log).
 Context: the delivered lens measured ~70° HFOV against a 118° listing — the

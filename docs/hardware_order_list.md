@@ -15,13 +15,16 @@ mid-course — a pre-programmed dash, then the onboard camera+NN flies the inter
 **Most of the BOM is unchanged** (airframe A, autopilot B, compute+camera C, power,
 safety F all still needed). The deltas that affect **what to buy**:
 
-- **① Wide FoV is now a HARD REQUIREMENT, not a tunable — do NOT buy/fit a narrow or
-  long lens.** The coded-dash acquires a crossing target from a *roughly*-aimed dash;
-  that robustness (validated at ±30° aim error, 48/48 flights still acquired) *depends
-  on* the ~100° FoV. A narrow lens re-creates the "fast crosser walks out of frame,
-  0/12" failure (ADR-0024). The M12 set is fine — fit **only** the ~2.5–2.8 mm (~100°)
-  element and keep the rest as spares. (This supersedes the old "narrow-lens-first"
-  acquisition-range advice.)
+- **① ~~Wide FoV is a HARD REQUIREMENT~~ SUPERSEDED — the delivered ~70° lens FLIES
+  (builder ruling ADR-0126, 2026-10-22).** Chosen for pixel resolution: ~19.3 px/deg
+  at fx≈1104 vs ~10.9 at the 100° assumption — decode/recognition RANGE is the binding
+  seeker lever (ADR-0124), and the flying default is now chase pursuit (ADR-0118),
+  which holds the target near boresight instead of letting a crossing target walk out
+  of frame. Cost, recorded: the ±30°/48-48 acquisition robustness and the aim-tolerance
+  numbers were earned at wide-FOV sims and are NOT re-validated at 70° — the 2026-10-22
+  isim A/B gives the pursuit-era requirement as **cue inside ~10°**. The 110° Arducam
+  M40180H13L (ordered 2026-10-12) is the calibrated SPARE/fallback. The old text below
+  this bullet predates the ruling where it demands ~100°.
 - **② The camera mount must attempt PROP CLEARANCE — the $0 fix for the false-HANDOFF
   hazard (own-prop phantom).** *(was "the #1 seeker failure" — superseded, see the bracket at the
   end of this bullet)* In sim, the interceptor's own prop blades read as a false target
@@ -183,7 +186,7 @@ Order in TWO tiers, gated so you never spend on the wrong thing. **Canonical/alw
 **TIER 1 — first steps: NN-validation + compute de-risk (buy FIRST, no result-gate).** Prove the riskiest bets cheaply before any interceptor money. Contents: **target drone (E) + AprilTag placard (E) + OV9281 camera (C) + Pi 5 8GB (C) + checkerboard (C) + USB/power bits (D)**. Hardware ~$475; to actually *fly* the target for the test you also need the ground/safety gear (TX/controller + charger + LiPos + safety/solder, from F) → **~$620–780 realistic first-outdoor-test outlay** if none owned (the ~$310 tripod-test *core* = target + tag + camera). **Do the P0 desk checklist first** (frame-top sweep, placard-sizing, camera paper-checks incl. the vertical-FoV 800-vs-960 check, FAA/Remote-ID). Purpose: the tripod afternoon (build_plan P2) yields TWO curves in one session.
 
 **⛔ THE MONEY GATE (two curves, one test) — this is the money logic, get it right:**
-- The **AprilTag decode-envelope** curve GATES the **Tier-2 ~$740 interceptor** — first kills fly the TAG on the Pi 5 CPU (§0c), so the tag must decode the approaching placard early enough for a handoff (t_go ≥ 0.5 s) before you commit the airframe.
+- ~~The **AprilTag decode-envelope** curve GATES the **Tier-2 ~$740 interceptor**~~ **OVERTAKEN: Tier-2 was ordered 2026-09-22 (ADR-0109) and tripod day is descoped as a gate (ADR-0127)** — the decode envelope is now measured on kill day or from its logs. The old criterion here ("decode early enough for a handoff, t_go ≥ 0.5 s") was priced for the retired handoff terminal; the flying default is chase pursuit (ADR-0118), which needs decode early enough to CHASE, not to hand off — re-state the number against the pursuit timeline when the curve is scored (review3 §A).
 - The **markerless-NN approach-recall** curve GATES ONLY the **Hailo HAT + markerless phase** ($70, deferred). A poor NN curve does NOT block the interceptor — it just defers the markerless upgrade.
 
 **TIER 2 — the lean §0c interceptor (~$510 this tier → ~$740 all-in with Tier-1 carry-overs).** Everything the airframe needs that Tier 1 didn't buy (A + B + rest of C + D): frame, motors, ESC, 6C Mini, M10 GPS, ELRS RC (kill/arm only), LiPos, PM02, 5.2 V BEC, props, storage, cables, cooler, and the **prop-clearance + FIXED up-tilt mount** — angle = the real airframe's measured **dash pitch** (build-specific ~25–40°, NOT sim-sized): print an **ADJUSTABLE 10–30° bracket** and lock it from the first dash ULog. ~~Order only after the Tier-1 **tag** curve passes the gate.~~
@@ -401,7 +404,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 | **AprilTag tag36h11** = the flight BASELINE seeker (Stage C) | Printed tag36h11 placard on the target; YOLO validated in shadow mode alongside it |
 | PX4 SITL + **MAVSDK offboard over UDP** | Pixhawk PX4 + MAVSDK over **TELEM2 UART** (921600), **same code** |
 | Onboard seeker (AprilTag + yolov8n) | Pi 5 + AI HAT+ (Hailo-8 26 TOPS, ADR-0125) running the same CV stack |
-| Camera **HFOV 1.74 rad ≈ 100°, fx≈540 @1280** | OV9281 + wide M12 (**lens ruling PENDING 2026-10-22**: delivered lens measured ~70° vs the ≥100° constraint; a 110° Arducam is ordered — see `lens_options_2026-10-22.md`); `flight/camera.py` undistorts the real lens |
+| Camera HFOV (sim assumed ~100°, fx≈540 @1280) | OV9281 + the delivered **~70° lens — RULED FLYING, ADR-0126** (fx≈1104, ~19.3 px/deg; the 110° Arducam in transit = calibrated spare); `flight/camera.py` undistorts the real lens |
 | **Pro-nav N=5** terminal | PX4 offboard + `flight/` guidance; the coded-dash front-end replaces the sim's cue/handoff stack |
 
 ---

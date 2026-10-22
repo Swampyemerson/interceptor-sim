@@ -80,7 +80,7 @@ Three gaps are unmeasurable in Gazebo, by construction:
    distribution.
 2. **Motion blur.** `gz_x500_mono_cam` has **no blur model** (ADR-0076 add #18 changelog,
    2026-07-18: "Motion blur is a real-world risk, NOT a sim mechanism"). Terminal LOS rates
-   are 485°/s mean, 600–1870°/s peak (`docs/terminal_diagnosis.md`).
+   are 485°/s mean, 600–1870°/s peak (`retired/docs/terminal_diagnosis.md`).
 3. **Real appearance + real sensor.** A real 5" quad through a real mono global-shutter lens,
    with real dynamic range (bright desert ground out-brightening sky).
 
@@ -106,7 +106,7 @@ pushing handoff from ~6.5 m out to ~12 m lifts capacity **0.72 m → ~4.3 m**. P
 contribution to the intercept is therefore **R_acq and detection density**, i.e. *how early
 and how continuously* the seeker can hand off — **not** bearing precision (the subpixel /
 centroid bearing lever is a measured NULL at n=31, ADR-0071) and not holding the target
-through CPA (that channel is worth −0.03 m, `docs/terminal_diagnosis.md`).
+through CPA (that channel is worth −0.03 m, `retired/docs/terminal_diagnosis.md`).
 
 Perception can only *deliver* time-to-go. Whether the flight profile spends it is the
 sibling docs' problem.
@@ -230,6 +230,11 @@ size); augmentation was a clean NULL. Mono-vs-color was closed separately: nativ
 **significantly worse** on the deployment-relevant desert plates (14.6% vs 4.6%, p < 1e-6) —
 `docs/nn_tier/mono_vs_color_bird_ab.md`, ADR-0078.
 
+> **2026-10-22 — deployment model superseded by ADR-0125:** the onboard deployment target is
+> **yolov8n on a Hailo-8 (26 TOPS, ~$110)**, NOT YOLO11n on a Hailo-8L. The YOLO11n rows above
+> remain the measured held-out evidence (size/augmentation/modality conclusions stand); the
+> "keep YOLO11n" call below is the pre-ADR-0125 wording.
+
 So: **keep YOLO11n @640, grayscale, COCO-init.** No architecture search is warranted; the
 open variance is *data*, not *architecture*. Honest bound: 44% recall is **moderate** on hard
 public small-drone imagery, it is a frame metric on public media, and it is **not** our
@@ -239,9 +244,9 @@ target / our camera / our site.
 
 | path | rate | status |
 |---|---|---|
-| AprilTag decode, Pi 5 CPU | **~30 fps real-time** | constraint `pi5-compute` (anchor; bench-gated) |
+| AprilTag decode, Pi 5 CPU | ~~~30 fps real-time~~ **96.6 fps MEASURED** (sustained, 750 s soak, `quad_decimate=2.0`; ADR-0090, see the §A.4 banner) | constraint `pi5-compute` (the ~30 fps anchor was a capped default, not a limit) |
 | YOLO11n @640, Pi 5 **CPU** | **~5–10 fps** | constraint `pi5-emulation-gap` (anchor ~13 fps YOLOv8n on desktop-class CPU, ADR-0015) |
-| YOLO11n @640 INT8, **Hailo-8L** | 157 chip fps **[VENDOR]** → **~40–80 fps end-to-end** est. | `docs/nn_tier/viewpoint_and_deploy_spec.md` B2–B3; BENCH-GATED |
+| ~~YOLO11n @640 INT8, **Hailo-8L**~~ | 157 chip fps **[VENDOR]** → **~40–80 fps end-to-end** est. | `docs/nn_tier/viewpoint_and_deploy_spec.md` B2–B3; BENCH-GATED. **SUPERSEDED 2026-10-22 by ADR-0125: yolov8n on a Hailo-8 (26 TOPS, ~$110)** — this row's fps estimate is the 8L/YOLO11n figure and is not re-derived here |
 
 Feed those into §A.4's arithmetic **[DERIVED]** (k = 5 consecutive, p = 1.0 assumed, so these
 are *floors*):
@@ -255,7 +260,7 @@ are *floors*):
 
 **The HAT is worth ~4 m of effective acquisition range at 9 m/s (~9 m at 20 m/s) without
 touching the model** (8 fps CPU ⇒ needs 10.1 m; 30–60 fps HAT ⇒ needs 6.0–5.3 m) — that is the
-honest framing of the $70 purchase, and it is a stronger argument than any accuracy claim.
+honest framing of the $70 purchase (2026-10-22: now a Hailo-8 at ~$110 per ADR-0125), and it is a stronger argument than any accuracy claim.
 *(Same derivation script; `logs/streak_burn_derivation_20260724.txt` §B.3 block. The fps values
 are VENDOR/anchor estimates and stay BENCH-GATED — constraint `pi5-emulation-gap`.)*
 
@@ -302,6 +307,11 @@ sessions and the bench instead of onto flights, and the interceptor order is the
 pauses (that is exactly the `⛔ MONEY GATE` logic in `docs/hardware_order_list.md` §0d).
 
 ### B.5 ADR-lite D-2 — stale deployment weights (a live defect, cheap to fix)
+
+> **✅ EXECUTED (verified 2026-10-22):** decision (1) is done — `flight/deploy/seeker_loop.py`
+> and `scripts/seeker/tripod_score.py` (`DEFAULT_WEIGHTS`, now :215) default to
+> `nn_tier/n-mono.onnx`, with quad_v2 kept as the explicit bar (`DEFAULT_WEIGHTS_BAR`). The
+> "defaults to quad_v2" cells in the B.1 table are historical.
 
 **Finding [MEASURED + code-read].** Two real-hardware entry points default to the
 **known-blind** sim model:
@@ -552,7 +562,7 @@ Ranked by expected effect on **acquisition range × detection density**, with th
 | 2 | **Shadow-mode measurement on Pi 5 CPU** during tag-guided flights | **HW**, $0 | converts every remaining hypothesis into a measurement; de-risks the $70 HAT | ~0 (code + a log) | §B.4 Stage 1 |
 | 3 | **Confirm-rule redesign**: top-K / score-margin selection + M-of-N instead of 5-consecutive | **SIM** (offline-scoreable today) | top-3 recovers **89%** of localizable frames; margin gate flips **80%** of masked; M-of-N cuts confirm burn 31.4 m → ~9.6 m at p = 0.44 | hours | `inview_probe_results.md`; §A.4 |
 | 4 | **Exposure discipline ≤1 ms** (+ gain, `FrameDurationLimits`) | **HW** | the only defense against terminal blur; **[DERIVED]** at 485°/s mean LOS on the OV9281: 5 ms ⇒ **26 px** smear vs a 3–18 px target; 1 ms ⇒ **5.3 px** | $0 (a control) | §E.2; `camera_paper_check.md` §3 |
-| 5 | **Hailo-8L HAT** (fps ⇒ smaller streak burn) | **HW** | ~4 m effective R_acq at 9 m/s, ~10 m at 20 m/s, model unchanged | $70 | §B.3 |
+| 5 | ~~**Hailo-8L HAT**~~ **Hailo-8 (26 TOPS) + yolov8n** per ADR-0125 (fps ⇒ smaller streak burn) | **HW** | ~4 m effective R_acq at 9 m/s, ~10 m at 20 m/s (8L-era estimate) | ~~$70~~ ~$110 | §B.3 |
 | 6 | **Operating-point re-pick** (conf threshold from the *real* PR curve, at the streak level) | **SIM**/offline on real frames | 0.25 is inherited from the sim era; the deployment-relevant optimum is a streak-level, not per-frame, choice | hours | `tripod_score.py --nn-conf`; §D.6 |
 | 7 | **Site hard-negative mining** (Tier-3, holding 15–20% negatives) | **HW** | attacks outdoor false-fire, the one thing that can steal a handoff | field time | `nn_tier/PLAN.md` Tier-3 |
 | 8 | **Position-weighted training augmentation** (center-high bias + edge partials, per A4/A5) | **SIM** + real data | matches training placement to the measured engagement distribution | free at train time | `viewpoint_and_deploy_spec.md` A5 |
@@ -571,6 +581,11 @@ count on drone-free sweeps), result handed to the head for the contract. Caveat:
 committed camera-forward mount removes the *own-prop* phantom at source, so lever 3's value
 outdoors is against **terrain/bird clutter**, not props — which is precisely what the sim
 cannot rank.
+
+> **⚠ 2026-10-22 — needs re-derivation:** the arithmetic below uses **10.85 px/deg** (the
+> assumed 118° HFOV lens). The delivered lens measures **~70° HFOV, fx≈1104 @1280 ≈ 19.3
+> px/deg** (kept, ADR-0126), so the 5 ms smear is ≈ **47 px**, not 26 px (all smear figures
+> scale ×~1.78). Flagged for re-derivation; the table/figures below are NOT yet updated.
 
 **Lever 4's arithmetic, shown [DERIVED]** (`scripts/seeker/streak_burn_derivation.py`): at the
 OV9281's **10.85 px/deg** (1280 px / 118° H, `camera_paper_check.md` §2), a 485°/s *mean*
@@ -621,7 +636,7 @@ Listed with *why*, because "we already tried it" is only useful if the mechanism
    carry it (`real_data_pipeline.md`; constraint `honesty-boundary`).
 3. **Every new guidance-relevant perception path re-earns the numeric no-cheat audit**, at
    the live gate — offline wiring does not discharge it (`markerless_loop.py` §honesty;
-   `docs/audit_targets.md` pattern). That includes Stage-2 YOLO-guided and any confirm-rule
+   `retired/docs/audit_targets.md` pattern). That includes Stage-2 YOLO-guided and any confirm-rule
    change that touches handoff.
 4. **Sensor/resolution changes are disclosure-gated.** Any change to camera, resolution, or
    input size must be disclosed and must **re-earn M1/M2 and re-scale σ_R** (ADR-0025;

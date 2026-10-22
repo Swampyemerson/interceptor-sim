@@ -1,10 +1,17 @@
-# SESSION PROMPT — paste everything below the line into a fresh Claude Code session
+# SESSION PROMPT — ⚠️ HISTORICAL ARTIFACT, do not paste
 
-> **This is the CURRENT kickoff** (written 2026-07-10, post-audit `a44ec6b`).
-> Regenerate it at every session wrap-up so it never goes stale — the historical
-> M0 kickoff lives in `.claude/KICKOFF-PROMPT.md` (banner-marked, do not reuse).
-> State intentionally lives in `docs/next.md`, not here; this prompt only boots the
-> session and pins the model-routing rules that matter most at fresh-context time.
+> **DEPRECATED 2026-10-22 (review 3, finding F2).** This file claimed to be "the
+> CURRENT kickoff, regenerated at every wrap-up" and was then never regenerated —
+> it sat 3+ months stale instructing sessions to route work through `model: fable`
+> subagents (a lane with a 100% hard-bounce record since 2026-09-10) and claiming
+> no git remote exists (one has existed since 2026-07-21). A self-described
+> always-current second copy of CLAUDE.md is exactly the drift surface this
+> project's review process keeps catching, so the pattern is retired, not patched.
+>
+> **A fresh session needs no paste:** `CLAUDE.md` (+ `.claude/ops.md`, `docs/goals.md`)
+> auto-load and carry the routing rules; orient from `docs/project_state.json`, then
+> `docs/next.md`; or just invoke the **`/go`** skill, which does exactly that.
+> Body below kept verbatim as the record of the 2026-07-10 session boot.
 
 ---
 

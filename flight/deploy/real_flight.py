@@ -25,7 +25,10 @@ item, L1).
                           v
                         CODED_DASH open-loop NED velocity at the pre-flight
                                   collision-lead heading, accel ramp + loft dive
-                                  from flight.guidance. NO datalink, NO cue, NO gt.
+                                  from flight.guidance. No LIVE datalink, no gt;
+                                  optional PRE-FLIGHT-LATCHED cue (--cue-json,
+                                  flight.cue_relay) -- latched before GO, link
+                                  then dies.
                           | 5 consecutive fresh camera detections (the streak IS
                           | the handoff -- mirrors scripts/m4_intercept.py)
                           v
@@ -1986,7 +1989,25 @@ _AUDITED_MODULES = (
     os.path.join("flight", "tag_terminal.py"),
     os.path.join("flight", "pursuit_terminal.py"),
     os.path.join("flight", "deploy", "frame_feed.py"),
+    # Added 2026-10-22 (review 3): cue_relay seeds the terminal's belief and had
+    # escaped the audit -- the same rot that once left seeker_loop uncovered.
+    os.path.join("flight", "cue_relay.py"),
+    # frame_recorder is log-only, but it runs on the vehicle, so it is audited
+    # rather than exempted: cheaper to walk it than to argue about it.
+    os.path.join("flight", "deploy", "frame_recorder.py"),
 )
+
+# Modules REACHABLE from the audited closure that the audit deliberately does
+# not walk, each with the reason it is safe to skip. Anything reachable from an
+# audited module and in NEITHER mapping fails
+# flight/tests/test_real_flight.py::test_the_audited_closure_is_import_complete,
+# so a new `from flight.X import ...` cannot silently escape the audit again.
+_AUDIT_IMPORT_EXEMPT = {
+    os.path.join("flight", "__init__.py"):
+        "docstring-only package marker; no imports, no executable code",
+    os.path.join("flight", "deploy", "__init__.py"):
+        "docstring-only package marker; no imports, no executable code",
+}
 
 
 def audited_module_paths() -> List[str]:
@@ -3191,7 +3212,17 @@ def build_config(args) -> MissionConfig:
         dash_max_s=args.dash_max_s,
         dash_max_dist_m=args.dash_max_dist_m,
         acquire_streak=args.acquire_streak,
-        engage_max_s=args.engage_max_s,
+        # ADR-0129 (2026-10-22): the engage-window default is terminal-mode-
+        # aware. 12 s was sized for the sprint-era fly-by; the pursuit chase
+        # measured 6-13 s to contact from ENGAGE entry (ADR-0103 campaign) and
+        # its approach dash burns the same clock, so a 12 s default can time a
+        # real chase out MID-ENGAGEMENT (ADR-0105 open item (b), closed here).
+        # 30 s = max measured contact time + transit margin; the t_transit_min
+        # launch check still warns when a long cue needs more. Stock/tag keep
+        # the as-flown 12 s. An explicit --engage-max-s wins in any mode.
+        engage_max_s=(args.engage_max_s if args.engage_max_s is not None
+                      else (30.0 if getattr(args, "terminal", "stock") == "pursuit"
+                            else 12.0)),
         standby_settle_s=args.standby_settle_s,
         standby_max_s=args.standby_max_s,
         mission_max_s=args.mission_max_s,
@@ -3428,7 +3459,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     dash.add_argument("--dash-max-s", type=float, default=8.0)
     dash.add_argument("--dash-max-dist-m", type=float, default=None)
     dash.add_argument("--acquire-streak", type=int, default=5)
-    dash.add_argument("--engage-max-s", type=float, default=12.0)
+    dash.add_argument("--engage-max-s", type=float, default=None,
+                      help="hard cap on the ENGAGE phase. Default is TERMINAL-"
+                           "MODE-AWARE (ADR-0129): 30 s in pursuit mode (chases "
+                           "measured 6-13 s to contact PLUS the approach-dash "
+                           "transit share the same window), 12 s as-flown for "
+                           "stock/tag (fly-by-sized). An explicit value wins in "
+                           "any mode.")
 
     saf = ap.add_argument_group("safety / failsafe (ALL TODO-BUILDER)")
     saf.add_argument("--standby-settle-s", type=float, default=2.0)

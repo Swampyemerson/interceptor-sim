@@ -4,7 +4,7 @@
 WHAT THIS IS: an ANALYZER-ONLY lens over existing mc_batch arm CSVs. It never
 boots a sim, never edits a flight CSV, and never touches flight code -- it is
 exactly the "P0 (i) analyzer-level post-CPA abort reclassification" build item
-named in `docs/fusion_capstone_design.md` D1/D4/build-plan, and it operationalizes
+named in `retired/docs/fusion_capstone_design.md` D1/D4/build-plan, and it operationalizes
 the finding written up in `docs/decisions.md`:
 
   * ADR-0037 addendum (2026-07-08): the ADR-0037 EKF arm's 6 "aborted" flights
@@ -15,7 +15,7 @@ the finding written up in `docs/decisions.md`:
     clock, while alpha-beta's physically-impossible negative coasted range
     never crosses that branch and rides the terminal-hold branch forever
     instead. That is bookkeeping, not a failed intercept.
-  * ADR-0041 addendum + `docs/fusion_capstone_design.md` D1: P0 is (i) this
+  * ADR-0041 addendum + `retired/docs/fusion_capstone_design.md` D1: P0 is (i) this
     reclassification lens, applied to ALL arms including a markerless-abort
     re-examination, before (ii) any clean-rate-parity verdict is drawn.
 

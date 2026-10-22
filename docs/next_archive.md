@@ -1,5 +1,9 @@
 # NEXT.md ARCHIVE — the full work queue as it stood 2026-07-26, verbatim
 
+> **ARCHIVE — paths herein are historical.** Many files this archive cites have since
+> been moved to `retired/` or deleted; pointers are preserved verbatim as a record,
+> not as live links. (Banner added 2026-10-22, review-3 sweep.)
+
 > This is the COMPLETE pre-cleanup `NEXT.md` (883 lines), preserved unedited because this
 > project's rule is that superseded material stays recoverable, never deleted. It contains the
 > layered session history from 2026-07-10 through 2026-07-25: the Phase-2 plan, the ROUND-5

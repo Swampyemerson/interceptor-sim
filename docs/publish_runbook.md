@@ -1,11 +1,15 @@
-# Publish runbook — first GitHub push (builder, ~10 minutes)
+# Publish runbook — first GitHub push (EXECUTED)
 
-*Written 2026-07-20 (publish-prep pass, docs/next.md THE PLAN item 6). Everything
-below is prepared; only the steps marked **(BUILDER)** need a human. Until a
-remote exists the entire evidence base has zero off-machine backup — pushing
-private is itself the win; flipping public can wait.*
+> **STATUS 2026-10-22: EXECUTED.** The remote was created 2026-07-21 (private
+> `Swampyemerson/interceptor-sim`) and the repo has been **public since
+> 2026-08-29**. The checklist below is kept as the historical record of how
+> it was done. The **claims scrub** section is NOT historical: it is the live
+> standing rule for every public-facing edit.
 
-## The 10-minute checklist
+*Written 2026-07-20 (publish-prep pass). Steps marked **(BUILDER)** needed a
+human.*
+
+## The 10-minute checklist (done)
 
 1. **(BUILDER) Create the remote — PRIVATE first.**
    On github.com: New repository → name e.g. `interceptor-sim` → **Private**
@@ -29,26 +33,24 @@ private is itself the win; flipping public can wait.*
    `pupil-apriltags` wheel — the workflow already carries a fallback that
    deselects the four gz-importing test files rather than failing.
 4. **Confirm the license posture.** `LICENSE` (MIT + the weights scope
-   note) is the **recommendation, not a settled decision** — builder
-   confirms MIT is what he wants his name on before the repo goes public.
-   **CONFIRMED by the builder 2026-08-19: MIT.** (Weights stay out of the
-   repo per `docs/license_notice_weights.md`; nothing further to do.)
-   Weights decision (a/b/c) is in `docs/license_notice_weights.md`; with
-   weights gitignored (verified below), option (a) is a no-op today.
-5. **(BUILDER) Flip public — ONLY after re-reading the claims-scrub
-   section below** and spot-checking README against it. Settings → General
-   → Danger Zone → Change visibility.
+   note) was a recommendation until the builder confirmed it before the
+   repo went public: **CONFIRMED by the builder 2026-08-19: MIT.** Weights
+   stayed out of the repo per `docs/license_notice_weights.md`; its a/b/c
+   weights decision remains open but is a no-op while every weights file
+   is gitignored (re-verified 2026-10-22).
+5. **(BUILDER) Flip public**, done after re-reading the claims-scrub
+   section below and spot-checking README against it (public 2026-08-29).
 6. **After the flip:** check the README renders (images, Mermaid-free plain
    diagram, dashboard link), and that the Artifact dashboard link in the
    README resolves for a logged-out viewer or is acceptable if it doesn't
    (it is a claude.ai artifact — treat it as a bonus view, `docs/dashboard.html`
    in-repo is the durable one).
 
-## Claims scrub — the gate before "public" (BINDING)
+## Claims scrub — standing rule for every public surface (BINDING)
 
 These scopes were fought for across three audits (ADR-0066 constraint;
-`docs/audit_findings_tracker.md` rows FWD-A1/A2/A5/A6, DEEP-P4/H3/H4;
-ADR-0076). Any public-facing regeneration (README edits, a repo description,
+ADR-0076; the FWD-*/DEEP-* row IDs below are from the now-retired
+`retired/docs/audit_findings_tracker.md`). Any public-facing regeneration (README edits, a repo description,
 a pinned gist, the GitHub "About" blurb) must preserve them:
 
 - **"Works comms-denied" is HELD** (FWD-A1, ADR-0059) — everywhere,
@@ -70,8 +72,9 @@ a pinned gist, the GitHub "About" blurb) must preserve them:
 - **Jink 14/15 carries its paired-baseline caveat** (3/15 → 14/15,
   DEEP-P4); **0/155 carries "gross (>8 m)" + the one-empty-world scope**
   (FWD-A4/DEEP-P7); **CP bounds name their denominator** (DEEP-P8).
-- The current README (rewritten this pass) already complies; the risk is
-  future edits and *new* surfaces. When in doubt, `docs/project_state.json`
+- The README has been rewritten several times since this was written; the
+  risk is every edit and every *new* surface, so re-check against this list
+  each time. When in doubt, `docs/project_state.json`
   wins over every prose doc.
 
 ## .gitignore audit (verified 2026-07-20, `git ls-files` + object sizes)
@@ -93,11 +96,9 @@ inside GitHub norms. Largest tracked file: 22.4 MB (below).
 - `scripts/seeker/weights/LICENSES.md` — the provenance table is tracked;
   the weights themselves are not (next section).
 - `.claude/` (agents, skills, settings) — the project's operating model is
-  part of the portfolio story. **Flag:** `.claude/settings.local.json` is
-  tracked; it is a machine-local permissions file and will read as noise in
-  a public repo. Harmless content-wise (verify once before the public
-  flip), but a candidate to gitignore in a future housekeeping pass —
-  builder's call, not blocking.
+  part of the portfolio story. (`.claude/settings.local.json`, flagged here
+  in July as a tracked machine-local file, is now gitignored and untracked,
+  re-verified 2026-10-22.)
 
 **Must never be pushed (verified currently ignored / absent from git):**
 - **Detector weights** — `scripts/seeker/weights/` (except LICENSES.md),
@@ -129,4 +130,6 @@ there is none). Revisit only if large binary *churn* ever appears.
 - The hosted dashboard Artifact URL and the in-repo `docs/dashboard.html`
   must keep matching `project_state.json` (the drift check enforces the
   local pair; the Artifact republish is the session ritual, CLAUDE.md).
-- Branch protection / repo description / topics: cosmetic, after the flip.
+- Branch protection / repo description / topics: cosmetic. As of 2026-10-22
+  the GitHub description and topics are still empty (tracked in
+  `docs/publish_cleanup_work_order.md`).

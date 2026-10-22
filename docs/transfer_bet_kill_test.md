@@ -1,5 +1,11 @@
 # Transfer-bet kill-test — the $0 free-footage smoke read (P0.6)
 
+> **Correction 2026-10-22 (review-3 sweep):** §6/§7 below originally described the
+> in-flight defence as detect-then-track via `markerless_loop.py`. That architecture was
+> dropped for the quad — the deployed seeker is **NN-on-every-frame with a 5-detection
+> streak gate** (§0 and the contract are the truth). The two passages are corrected in
+> place; the false-fire logic (one-frame fires don't form a streak) carries over unchanged.
+
 **Date:** 2026-07-20 · **Runner:** `scripts/seeker/transfer_bet_test.py`
 **Footage manifest:** `scripts/seeker/data/transfer_bet_footage/manifest.json` (25 source files, 191 MB, all permissively licensed)
 **Raw numbers:** `logs/transfer_bet_perframe_20260721T032450Z.csv`, `logs/transfer_bet_summary_20260721T032450Z.csv`
@@ -181,8 +187,9 @@ Deployed sim-native net on clean drones: **2/3**. Real-photo `yolo11x`: **3/3**.
 ## 6. What this test cannot see — and why it matters
 
 The deployed seeker's real defense against exactly the false-fires above is **not** in
-this test. In flight it runs detect-then-track with a streak/consistency gate
-(`scripts/seeker/markerless_loop.py`, ADR-0058) that reached "zero phantoms" in sim by
+this test. In flight it runs the NN on **every frame** behind a streak/consistency gate
+(5 consecutive detections before a lock is trusted; detect-then-track/CSRT was dropped
+for the quad — see §0) that reached "zero phantoms" in sim by
 demanding a detection persist and translate consistently over several frames. A one-frame
 fire on a cloud, a furrow, or an operator's head does not form a streak and is dropped.
 So the raw per-frame false-fire density here is a **worst-case upper bound** on the fielded
@@ -203,8 +210,8 @@ which is a bigger problem than detection itself.** No off-the-shelf candidate NN
 
 **What the tripod day must therefore measure (not just "does it see the drone"):**
 
-1. **Streak-gated end-to-end**, not raw per-frame — run `markerless_loop.py`'s detect-then-track
-   on real footage; the raw detector alone is unusable outdoors.
+1. **Streak-gated end-to-end**, not raw per-frame — run the deployed NN-every-frame loop
+   with its 5-detection streak gate on real footage; the raw detector alone is unusable outdoors.
 2. **False-fire rate on drone-FREE real clutter** — point the rig at an empty sky, a tree
    line, a field, and a bird, *record how often a track forms with no drone present.* This
    test says that is the dominant failure mode.

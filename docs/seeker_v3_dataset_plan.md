@@ -1,7 +1,12 @@
 # Seeker v3 dataset + fine-tune plan (onboard drone detector)
 
-> **STATUS: DESIGN ONLY — ratifiable package.** Nothing here has been run.
-> No sim was launched to produce this document (another job owns the
+> **⛔ STATUS (2026-10-22): CLOSED — NULL. Do NOT resurrect.** v3 was built and run; it
+> aced frame-eval but regressed in flight and is registered as a NULL / graveyard item in
+> `docs/project_state.json` (see its v3 entry, "do NOT resurrect"). This plan is kept for
+> history only.
+>
+> ~~**STATUS: DESIGN ONLY — ratifiable package.** Nothing here has been run.~~
+> (original 2026-07 text follows) No sim was launched to produce this document (another job owns the
 > simulator; one-sim-at-a-time rule). Companion skeleton:
 > `scripts/seeker_v3_capture.py` (runnable offline via `--dry-run` /
 > `--self-test` / `--print-flight-plan`; live capture is TODO-gated).

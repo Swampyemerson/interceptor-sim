@@ -1,5 +1,9 @@
 # Decisions archive (ADR-0001–ADR-0080)
 
+> **ARCHIVE — paths herein are historical.** Many files this archive cites have since
+> been moved to `retired/` or deleted; pointers are preserved verbatim as a record,
+> not as live links. (Banner added 2026-10-22, review-3 sweep.)
+
 Archived 2026-09-18 from `docs/decisions.md` — the sim-only-phase ADR history
 (the mission this covers was superseded 2026-07-15; see `docs/goals.md` STATUS banner).
 Kept here verbatim, unedited, for reference. The live decisions log is

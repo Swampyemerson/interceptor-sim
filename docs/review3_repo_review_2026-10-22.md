@@ -9,6 +9,20 @@ deduplicated below.
 
 **How to read this file:** every item carries a status. Lesson from review 2: a findings doc
 with no per-item status can't be told apart from an unexecuted wish list.
+
+> **EXECUTION UPDATE 2026-10-22 PM** — the builder approved ("yes fix all that"; stale docs →
+> retired/; lens ruled 70°, ADR-0126; kill day THIS WEEKEND, ADR-0127; headline retired,
+> ADR-0128) and the execution fleet ran: 23 rows now DONE (statuses flipped in place).
+> Highlights: 11 docs + 5 scripts retired with 28 refs repointed; cue_relay audited with an
+> auto-closure guard; engage window terminal-mode-aware (ADR-0129); the pursuit-vs-dash A/B
+> FLEW and confirmed (runs/pursuit_vs_dash_20261022/). Still OPEN and queued: airframe-numbers
+> consistency cluster, EKF design pass (Q retune, staleness clock, trigger_t), vacuous-verdict
+> registry test, pi_capture producer-fed contract tests, graveyard #11/#7 scope notes, ADR-0115
+> supersession addendum + phantom ADR-0057 tombstone, 3 revived review2 items, next.md 3a/3b/3d
+> block archival, isim documented default fx (385/118° → the delivered-lens value; specs still
+> describe the superseded nominal — flagged by the A/B fork), wide-lens aim-tolerance re-earn at
+> 70° (ADR-0126 cost), and the Gazebo confirming rung for the A/B.
+
 Statuses: **DONE** (fixed in the 2026-10-22 review-sweep commit), **QUEUED** (on `next.md` /
 `builder_queue`), **OPEN** (needs a session), **BUILDER** (his ruling), **INFO** (no action).
 
@@ -20,11 +34,11 @@ Statuses: **DONE** (fixed in the 2026-10-22 review-sweep commit), **QUEUED** (on
 |---|---|---|
 | DONE | `hardware_order_list.md` §0④/§C still said buy the **Hailo-8L** + **YOLO11n** — ADR-0125 ruled **Hailo-8 (26 TOPS, ~$110)** + **yolov8n** ("yolo11n is NOT single-context"). A reader following the order list buys the wrong HAT. Swept this commit. | hardware_order_list.md:53-56,243 vs decisions.md ADR-0125 |
 | DONE | Same doc §4 Phase 3 named the **AR0234** as the seeker camera; ADR-0078 keeps the OV9281 (AR0234 = gated upgrade only). Swept. | hardware_order_list.md:387 |
-| BUILDER | **Wide-FOV constraint is silently violated by flying hardware**: constraint `wide-fov` says ≥100° HARD / "never fit/fly a narrow lens" (ADR-0024, graveyard #17), the delivered lens measured **69.4°**, `lens_options_2026-10-22.md` recommends keeping it, AND a 110° Arducam M40180H13L was already ordered 2026-10-12 (contract) that the survey doesn't mention. Needs one ruling: which lens flies, and restate the constraint + graveyard #17 scope formally (new ledger entry `wide-fov-vs-delivered-lens`, builder_queue `lens-fov-ruling`). | project_state constraint `wide-fov`; lens_options:48-59; project_state.json:2340 |
-| OPEN | `detection_tracking_methods.md` B.2/B.3/§E carries the same stale 8L/YOLO11n/"~30 fps decode" trio; smear table derived at 10.85 px/deg vs measured fx=1104 (~19.3) — 5 ms smear is ~47 px, not 26. Re-derive at the measured lens. | detection_tracking_methods.md:218-260,575-584 |
-| OPEN | `camera_paper_check.md` verdicts ("118° CLEARS, px/deg penalty ~15%") are measurement-superseded by the 70° delivered lens; no banner. | camera_paper_check.md:34,62 |
-| QUEUED | Money-gate framing stale on 3 surfaces: `build_tab.scope`, `bom_tiers[0].purpose`, tripod protocol §intro still say curve (a) gates the $740 **order** — Tier-2 was ordered 2026-09-22 (ADR-0109); it now gates **kill-attempt flights**. | tripod_test_protocol.md:23; project_state build_tab/bom_tiers |
-| OPEN | Tag money-gate criterion "decode early enough for handoff (t_go ≥ 0.5 s)" was priced for the retired handoff terminal; flying default is chase pursuit (ADR-0118). Re-earn or restate before tripod day scores against it. | hardware_order_list.md:184 |
+| DONE | **Wide-FOV constraint is silently violated by flying hardware**: constraint `wide-fov` says ≥100° HARD / "never fit/fly a narrow lens" (ADR-0024, graveyard #17), the delivered lens measured **69.4°**, `lens_options_2026-10-22.md` recommends keeping it, AND a 110° Arducam M40180H13L was already ordered 2026-10-12 (contract) that the survey doesn't mention. Needs one ruling: which lens flies, and restate the constraint + graveyard #17 scope formally (new ledger entry `wide-fov-vs-delivered-lens`, builder_queue `lens-fov-ruling`). | project_state constraint `wide-fov`; lens_options:48-59; project_state.json:2340 |
+| DONE | `detection_tracking_methods.md` B.2/B.3/§E carries the same stale 8L/YOLO11n/"~30 fps decode" trio; smear table derived at 10.85 px/deg vs measured fx=1104 (~19.3) — 5 ms smear is ~47 px, not 26. Re-derive at the measured lens. | detection_tracking_methods.md:218-260,575-584 |
+| DONE | `camera_paper_check.md` verdicts ("118° CLEARS, px/deg penalty ~15%") are measurement-superseded by the 70° delivered lens; no banner. | camera_paper_check.md:34,62 |
+| DONE | Money-gate framing stale on 3 surfaces: `build_tab.scope`, `bom_tiers[0].purpose`, tripod protocol §intro still say curve (a) gates the $740 **order** — Tier-2 was ordered 2026-09-22 (ADR-0109); it now gates **kill-attempt flights**. | tripod_test_protocol.md:23; project_state build_tab/bom_tiers |
+| DONE | Tag money-gate criterion "decode early enough for handoff (t_go ≥ 0.5 s)" was priced for the retired handoff terminal; flying default is chase pursuit (ADR-0118). Re-earn or restate before tripod day scores against it. | hardware_order_list.md:184 |
 | OPEN | Airframe-numbers cluster: worst-case T/W at 950 g is **4.6:1** not "≈5.5:1" (fails the ≥5:1 rule as written); pack mass 245 vs 254 g; 4×45 A full-throttle dash exceeds the pack's 150 A burst unflagged; HTML calculator duplicates constants by hand with no test. | hardware_order_list.md:371,218; airframe_numbers.md:40,140,158 |
 | BUILDER | Field-kit gaps in no BOM tier: handheld anemometer (wind limits unenforceable without it), tripod + ball head, soldering iron, Kakute microSD. | tripod_test_protocol.md:114; launch_mechanism_plan.md:340-343 |
 
@@ -39,14 +53,14 @@ Statuses: **DONE** (fixed in the 2026-10-22 review-sweep commit), **QUEUED** (on
 | DONE | next.md:106 3c "measure hover steady-state error" — answered in flight 2026-09-16 (−0.022/−0.023 m, loop tracks setpoint). Closed. | next.md:100,106 |
 | DONE | next.md:138 "Kakute H7 still in transit" — all target parts are `status: built` in the contract build tab (photo 2026-10-17). Swept. | project_state build_tab |
 | DONE | `hardware` stage `active` still said "Hailo AI HAT+ DEFERRED" vs ADR-0125 queued purchase + passing dry-run. Rewritten. | project_state stages[hardware] |
-| QUEUED | **progress.md frozen at 2026-08-10** — no roll-up rows for the entire Sept–Oct arc (ADR-0100/0101/0103/0105/0117/0118, isim, DFC dry-run, recorder gate, bench bring-up), plus 6 dead doc links and rows citing retired gates (check_s1/s2, t16/17/19). Add rows or banner it "rolled up through 2026-08-10". | progress.md:12,19,26-32 |
+| DONE | **progress.md frozen at 2026-08-10** — no roll-up rows for the entire Sept–Oct arc (ADR-0100/0101/0103/0105/0117/0118, isim, DFC dry-run, recorder gate, bench bring-up), plus 6 dead doc links and rows citing retired gates (check_s1/s2, t16/17/19). Add rows or banner it "rolled up through 2026-08-10". | progress.md:12,19,26-32 |
 | QUEUED | 5 builder questions buried in item prose, absent from the waiting table: RealFlightSM re-approach; ADR-0113/0115 hot-approach trade; stamped-age latency adoption (now in builder_queue); money-gate closing-speed pricing; rehearsal-breakoff unblock condition. | next.md:61,76-80,95,109 |
 | OPEN | next.md's own line-7 rule violated: superseded blocks 1b/3a-original/3b/3d still in place instead of archived. Partially swept (1b removed); 3-block cleanup remains. | next.md:97,102-107 |
 | INFO | Ledger spot-checks clean: seeker-upgrades retraction, rbcd-sub1m, residual-echoes all verified fixed in place; drift gate green; README carries no refuted claims. | ledger fork |
 | OPEN | Ledger entry `terminal-vertical-channel-decided-not-built` (the one OPEN entry, since 2026-09-09) is stale against ADR-0118: `pursuit_terminal.py` now has a camera-driven vertical path (:189-211,246-255). Re-adjudicate/narrow it (which paths still lack vertical — stock/tag?). | flight/pursuit_terminal.py |
 | OPEN | Contract append-pressure relapse in validator-exempt fields: `stages[terminal].note` = **8,746 chars**, ~30 fields >700 chars, dated `[20..]` inserts in build_plan/bom_tiers/build_tab. Extend caps/no-dated-insert checks to notes, build_plan.summary, current_truth. | render audit fork |
 | OPEN | board_snapshot.json fetched 2026-09-23 — Sheet 3 shows month-old board content; drift check verifies embed sync, not freshness. Re-run fetch_board.py + add staleness warning. | docs/board_snapshot.json |
-| OPEN | review2 findings doc has no per-item status; 3 of its decided mitigations never landed (`mc_row.py`, `pool_arms.py`, `test_contract_code_consistency.py`), 2 cite never-created test files. Add DONE/OPEN column + close or re-decide the 3. | review2_silent_failure_findings.md:250,828,1134 |
+| DONE | review2 findings doc has no per-item status; 3 of its decided mitigations never landed (`mc_row.py`, `pool_arms.py`, `test_contract_code_consistency.py`), 2 cite never-created test files. Add DONE/OPEN column + close or re-decide the 3. | review2_silent_failure_findings.md:250,828,1134 |
 
 ## C. Honesty boundary & provenance
 
@@ -66,44 +80,44 @@ Statuses: **DONE** (fixed in the 2026-10-22 review-sweep commit), **QUEUED** (on
 
 | st | finding | evidence |
 |---|---|---|
-| OPEN | **`flight/cue_relay.py` escapes the AST honesty audit** — it seeds the live terminal's belief but is in neither `_AUDITED_MODULES` nor the must-list; exact recurrence of the seeker_loop escape. Add it + port the auto-import-closure pattern from test_honesty_seekers.py:322 so the list can't rot again. | flight/tests/test_real_flight.py:1114 |
+| DONE | **`flight/cue_relay.py` escapes the AST honesty audit** — it seeds the live terminal's belief but is in neither `_AUDITED_MODULES` nor the must-list; exact recurrence of the seeker_loop escape. Add it + port the auto-import-closure pattern from test_honesty_seekers.py:322 so the list can't rot again. | flight/tests/test_real_flight.py:1114 |
 | OPEN | **Cue staleness is never enforced**: `max_staleness_s` only fires if a caller passes `now_t`; no caller does (real_flight.py:3120 omits it deliberately; no ground-side code does it either); cue_relay_plan contradicts itself on which clock stamps `t`; cue never extrapolated to GO though the error budget assumes it. One design pass: pick the clock, wire the gate or document unenforced, decide trigger_t. | flight/cue_relay.py:291,695; cue_relay_plan.md:143,320 |
-| OPEN | `engage_max_s` default 12.0 s is fly-by-sized; pursuit chases measured 6–13 s to contact and ADR-0105 item (b) (raise/auto-size it) was never closed by the ADR-0118 swap — a default-config real chase can time out mid-engagement (mitigation = a startup warning only). | real_flight.py:265,3294 |
+| DONE | `engage_max_s` default 12.0 s is fly-by-sized; pursuit chases measured 6–13 s to contact and ADR-0105 item (b) (raise/auto-size it) was never closed by the ADR-0118 swap — a default-config real chase can time out mid-engagement (mitigation = a startup warning only). | real_flight.py:265,3294 |
 | OPEN | coded_dash stage's claimed active config not reproducible from the repo: "+5° aim trim" and "−0.207 alt offset" default to 0.0 and no script/config pins them — contract prose only. Pin in coded_dash_arm.sh or reword the stage. | m4_intercept.py:2321,2601 |
 | OPEN | EKF: Q=64 (8 m/s² PSD) is the documented cause of the 8/8→2/8 regression and still the default ("untuned"); EKF range floor 0.05 m vs fusion path 0.3 m unexplained; no late-measurement handling though the brief budgets 0.12 s delay. | ekf_tracker.py:134,164-174; fusion_capstone_design.md:22 |
-| OPEN | `check_t21.sh` permanently exits 1 (its analyzer retired to retired/scripts in 3880153); run-interceptor-sim skill still points at it. Retire or repoint. | scripts/check_t21.sh:32 |
+| DONE | `check_t21.sh` permanently exits 1 (its analyzer retired to retired/scripts in 3880153); run-interceptor-sim skill still points at it. Retire or repoint. | scripts/check_t21.sh:32 |
 | OPEN | Vacuous-verdict + no-new-emitter guard is per-emitter; add a registry-style completeness test for verdict-bearing scripts. Producer-fed contract tests missing for pi_capture→{camera_session_summary, apriltag_decode_summary}. | tests/test_no_vacuous_verdicts.py |
-| OPEN | real_flight.py:28 docstring still says "NO cue" above the built --cue-json path; `--alt-ref-offset-m` help quotes a different datum/sign than ADR-0100's value (carry-the-datum rule). | real_flight.py:28; m4_intercept.py:1872 |
+| DONE | real_flight.py:28 docstring still says "NO cue" above the built --cue-json path; `--alt-ref-offset-m` help quotes a different datum/sign than ADR-0100's value (carry-the-datum rule). | real_flight.py:28; m4_intercept.py:1872 |
 | INFO | Clean: all 12 check_*.sh fail closed; no orphan/shadowed tests; skip reasons all valid; estimator.py vs ekf_tracker.py are different designs by intent, not drifted copies; all fork spot-checks of wiring (pursuit default, accel lead, streak=5, cue loading) verified live. | scripts/tests forks |
 
 ## E. Doc supersession sweeps (banner/strike work, batchable in one session)
 
 | st | finding |
 |---|---|
-| OPEN | `seeker_upgrades.md` §lens still recommends the 40–60° narrow lens + RTK datum (both graveyarded) — live resurrection bait beside the open lens decision; the "2nd wide-FOV camera WITHDRAWN" ruling lives only in its prose (should be a graveyard entry). |
+| DONE | `seeker_upgrades.md` §lens still recommends the 40–60° narrow lens + RTK datum (both graveyarded) — live resurrection bait beside the open lens decision; the "2nd wide-FOV camera WITHDRAWN" ruling lives only in its prose (should be a graveyard entry). |
 | OPEN | Graveyard scope amendments: #11 (APN) — delimit what stays dead vs the new FOV-constrained-PN idea in hybrid_guidance_notes; #7 — one-line scope fix vs ADR-0124/0125 resolution finding. |
-| OPEN | `real_build_coded_dash.md` — no banner though pursuit (no sprint/acquire gate) superseded its operating model; internal tilt contradiction (:129 REJECTED vs :200 "dominant lever"). |
-| OPEN | `transfer_bet_kill_test.md` §6/§7 still fly detect-then-track/markerless_loop vs §0's NN-every-frame; `nn_seeker_program.md` "detect-then-track (adopted)" vs contract "no visual tracker" — decide which is true for the Hailo pipeline and make both surfaces agree. |
-| OPEN | Dangling-outcome docs needing banners: pursuit_port (items 4/5 actually closed), new_sim_plan (no closing status; A2 ≥90% bar never declared met/waived; 2k-line cap breached at 5.8k unrecorded; grid5.py pointer uncommitted; its deletions ruling — six dead switches + archive guidance_lab.py — never executed), scoring_fix_plan (banner present but stale body numbers unstruck), pointing_prereg:238 unsourced "0.2–0.25 m", inview_probe_results (pointing-verdict superseded), quad_target_retrain, seeker_v3_dataset_plan (closed-NULL), seeker_v2_plan, eval_s-mono, nn_transfer_plan (model choice superseded by ADR-0125), camera_paper_check, perception_design, compute_setup §7, hailo_toolchain_runbook (DFC 3.34 + 22.04-container + answered questions + dead NMS-json lead), pi_emulation_check vs Trixie (field_bringup still says flash Bookworm). |
-| OPEN | Field docs: regulatory ruling never swept into tripod protocol §1/§9 + kill_day §1.4/§9 (both still call it a blocker — the ruling doc claims edits that were never made); field_bringup §4 pursuit verdict pre-dates ADR-0118; launch_mechanism_plan §5/L1 done-but-unmarked, ±3°→±2.4° stragglers at L61/L362, legal bullets uncswept; tripod §4.2b qd=1.0 bullet vs ADR-0082. |
+| DONE | `real_build_coded_dash.md` — no banner though pursuit (no sprint/acquire gate) superseded its operating model; internal tilt contradiction (:129 REJECTED vs :200 "dominant lever"). |
+| DONE | `transfer_bet_kill_test.md` §6/§7 still fly detect-then-track/markerless_loop vs §0's NN-every-frame; `nn_seeker_program.md` "detect-then-track (adopted)" vs contract "no visual tracker" — decide which is true for the Hailo pipeline and make both surfaces agree. |
+| DONE | Dangling-outcome docs needing banners: pursuit_port (items 4/5 actually closed), new_sim_plan (no closing status; A2 ≥90% bar never declared met/waived; 2k-line cap breached at 5.8k unrecorded; grid5.py pointer uncommitted; its deletions ruling — six dead switches + archive guidance_lab.py — never executed), scoring_fix_plan (banner present but stale body numbers unstruck), pointing_prereg:238 unsourced "0.2–0.25 m", inview_probe_results (pointing-verdict superseded), quad_target_retrain, seeker_v3_dataset_plan (closed-NULL), seeker_v2_plan, eval_s-mono, nn_transfer_plan (model choice superseded by ADR-0125), camera_paper_check, perception_design, compute_setup §7, hailo_toolchain_runbook (DFC 3.34 + 22.04-container + answered questions + dead NMS-json lead), pi_emulation_check vs Trixie (field_bringup still says flash Bookworm). |
+| DONE | Field docs: regulatory ruling never swept into tripod protocol §1/§9 + kill_day §1.4/§9 (both still call it a blocker — the ruling doc claims edits that were never made); field_bringup §4 pursuit verdict pre-dates ADR-0118; launch_mechanism_plan §5/L1 done-but-unmarked, ±3°→±2.4° stragglers at L61/L362, legal bullets uncswept; tripod §4.2b qd=1.0 bullet vs ADR-0082. |
 | OPEN | ADR hygiene: ADR-0115 needs "superseded by 0120" addendum; phantom ADR-0057 cited 6× but exists nowhere (tombstone or recover); ADR-0071 has no heading; 0121–0123 id/date inversion (next free: **ADR-0126**); ADR-0106's "ops.md is stale" flag is itself stale; ADR-0108 adaptive-speed re-decide (its stated blocker passed). |
-| OPEN | Broken-path sweep: terminal_diagnosis.md cited by 3 live docs (retired); phase2/stage0 plans cited by 3; audit_targets.md 5 dead paths; progress.md 6; archives need a one-line "paths are historical" banner; bootstrap.sh heredoc names 2 nonexistent docs. |
+| DONE | Broken-path sweep: terminal_diagnosis.md cited by 3 live docs (retired); phase2/stage0 plans cited by 3; audit_targets.md 5 dead paths; progress.md 6; archives need a one-line "paths are historical" banner; bootstrap.sh heredoc names 2 nonexistent docs. |
 
 ## F. Ops, routing & memory hygiene
 
 | st | finding |
 |---|---|
 | DONE | Safeguard log updated: forks now 17/17 clean on repo-attached briefs; Sonnet 8/8 instant bounce (reconfirmed); one opus48 spawn was served `claude-fable-5` and bounced — verify opus48 pinning per spawn. |
-| OPEN | **ops.md bullet 0 needs the rewrite its own rule demands**: un-struck "all subagent work goes through sonnet-worker" line contradicts the 2026-10-14 entry above it; bullet 3/4 routing claims unmarked-superseded; bullet 4 still says "NO Opus 4.8" though opus48-worker is a sanctioned lane (2026-09-22 hook amendment). Rewrite as one dated routing table: forks → opus48/opus55 → head-inline. |
-| OPEN | `.claude/SESSION-PROMPT.md` (self-labeled current kickoff, 3 months stale) boots a session on the dead `model: fable` lane — regenerate or banner-deprecate. Agent files: opus5-worker.md advertises the stale "85% fewer interventions" AND instructs orient-from-contract (the known trip pattern); sonnet-worker.md says "use PROACTIVELY"; council-member.md grades against the dead sim-only mission. |
+| DONE | **ops.md bullet 0 needs the rewrite its own rule demands**: un-struck "all subagent work goes through sonnet-worker" line contradicts the 2026-10-14 entry above it; bullet 3/4 routing claims unmarked-superseded; bullet 4 still says "NO Opus 4.8" though opus48-worker is a sanctioned lane (2026-09-22 hook amendment). Rewrite as one dated routing table: forks → opus48/opus55 → head-inline. |
+| DONE | `.claude/SESSION-PROMPT.md` (self-labeled current kickoff, 3 months stale) boots a session on the dead `model: fable` lane — regenerate or banner-deprecate. Agent files: opus5-worker.md advertises the stale "85% fewer interventions" AND instructs orient-from-contract (the known trip pattern); sonnet-worker.md says "use PROACTIVELY"; council-member.md grades against the dead sim-only mission. |
 | DONE | Memory: expired overnight-standing-order deleted; subagent-routing memory updated (fork lane verified, sonnet dead). |
-| OPEN | Memory: `model-orchestration-policy.md` is a 2,000-word append-log carrying multiple refuted directives — rewrite as short current truth; `opus5-fable-only-routing.md` delete (superseded twice); `token-burn-window` pointer stale (+ window expires ~2026-10-23); `session-ownership.md` orphan (on disk, unindexed). |
+| DONE | Memory: `model-orchestration-policy.md` is a 2,000-word append-log carrying multiple refuted directives — rewrite as short current truth; `opus5-fable-only-routing.md` delete (superseded twice); `token-burn-window` pointer stale (+ window expires ~2026-10-23); `session-ownership.md` orphan (on disk, unindexed). |
 
 ## G. Deletions & scope (PM duty: deleting is a deliverable)
 
 | st | finding |
 |---|---|
-| BUILDER | **deletion_candidates_2026-10-22 Tier 1 (7 docs) + Tier 3 (logs policy, ~1–1.5 GB reclaim) + the held t25-video memory** — the scout ran, Tier 2 executed, but the decision request reached no queue surface (the exact ADR-0076 evaporation class). Now in the waiting table. |
+| DONE | **deletion_candidates_2026-10-22 Tier 1 (7 docs) + Tier 3 (logs policy, ~1–1.5 GB reclaim) + the held t25-video memory** — the scout ran, Tier 2 executed, but the decision request reached no queue surface (the exact ADR-0076 evaporation class). Now in the waiting table. |
 | OPEN | Tier-4 dead levers: closing ADR for pip_aim (delete code+tests); "retired, do not tune" marker on range_fusion. Annotate the scout doc rows DONE/PENDING. New candidates: rehearsal spot-check prereg (concluded, 0 inbound refs), audit_targets.md, 4 orphan scripts (commit_sprint_ab, blur_replay, linkedin_fast_cut, actuation_error_budget — check the last one's numbers didn't feed an ADR), tests/fixtures/rig_capture_min (orphaned by 3880153) + stale fixtures README, launch_mechanism_options (mark superseded-by-plan), 5 unmarked sim-era docs (seeker_upgrades, pi_emulation_check, real_data_pipeline, transfer_bet_kill_test, inview_probe_results). |
 | OPEN | publish_cleanup_work_order: items 1,2,5,6,7 open with no status; 10 stale origin/claude/* branches (1 already merged); `build_demo.py` pointer dead; the doc says to delete itself when done. |
 

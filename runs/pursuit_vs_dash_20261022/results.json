@@ -1,0 +1,137 @@
+{
+ "spec": "docs/pursuit_vs_dash_prereg_2026-10-22.md",
+ "n_seeds": 16,
+ "hit_m": 0.35,
+ "cells": [
+  {
+   "arm": "blind",
+   "aim": 0.0,
+   "n": 16,
+   "med_miss_m": 1.2141643131657736,
+   "p90_miss_m": 2.0356158775715887,
+   "pct_hit": 0.0,
+   "pct_engage": 0.0
+  },
+  {
+   "arm": "blind",
+   "aim": 5.0,
+   "n": 16,
+   "med_miss_m": 1.6645219838445997,
+   "p90_miss_m": 2.5228272781236156,
+   "pct_hit": 0.0,
+   "pct_engage": 0.0
+  },
+  {
+   "arm": "blind",
+   "aim": 10.0,
+   "n": 16,
+   "med_miss_m": 2.1225622714318453,
+   "p90_miss_m": 3.0034852425204672,
+   "pct_hit": 0.0,
+   "pct_engage": 0.0
+  },
+  {
+   "arm": "blind",
+   "aim": 20.0,
+   "n": 16,
+   "med_miss_m": 3.0267346137059943,
+   "p90_miss_m": 3.940760970433593,
+   "pct_hit": 0.0,
+   "pct_engage": 0.0
+  },
+  {
+   "arm": "pursuit",
+   "aim": 0.0,
+   "n": 16,
+   "med_miss_m": 0.20410649427377783,
+   "p90_miss_m": 0.7031123837847704,
+   "pct_hit": 75.0,
+   "pct_engage": 100.0
+  },
+  {
+   "arm": "pursuit",
+   "aim": 5.0,
+   "n": 16,
+   "med_miss_m": 0.3943927909104331,
+   "p90_miss_m": 0.7984327613318607,
+   "pct_hit": 37.5,
+   "pct_engage": 100.0
+  },
+  {
+   "arm": "pursuit",
+   "aim": 10.0,
+   "n": 16,
+   "med_miss_m": 0.2627713881039736,
+   "p90_miss_m": 1.7278163939245792,
+   "pct_hit": 62.5,
+   "pct_engage": 100.0
+  },
+  {
+   "arm": "pursuit",
+   "aim": 20.0,
+   "n": 16,
+   "med_miss_m": 3.29191060198819,
+   "p90_miss_m": 3.6628187805691432,
+   "pct_hit": 43.75,
+   "pct_engage": 100.0
+  },
+  {
+   "arm": "hybrid",
+   "aim": 0.0,
+   "n": 16,
+   "med_miss_m": 0.42936699125682154,
+   "p90_miss_m": 0.8924283518934036,
+   "pct_hit": 43.75,
+   "pct_engage": 93.75
+  },
+  {
+   "arm": "hybrid",
+   "aim": 5.0,
+   "n": 16,
+   "med_miss_m": 0.6844167088230967,
+   "p90_miss_m": 2.59749973314474,
+   "pct_hit": 18.75,
+   "pct_engage": 75.0
+  },
+  {
+   "arm": "hybrid",
+   "aim": 10.0,
+   "n": 16,
+   "med_miss_m": 1.7114535860119298,
+   "p90_miss_m": 3.061412830719897,
+   "pct_hit": 18.75,
+   "pct_engage": 43.75
+  },
+  {
+   "arm": "hybrid",
+   "aim": 20.0,
+   "n": 16,
+   "med_miss_m": 3.1317733606278026,
+   "p90_miss_m": 4.031689554410319,
+   "pct_hit": 0.0,
+   "pct_engage": 0.0
+  }
+ ],
+ "paired": [
+  {
+   "aim": 0.0,
+   "pursuit_wins_of_16": 15,
+   "hit_delta_pursuit_minus_blind": 12
+  },
+  {
+   "aim": 5.0,
+   "pursuit_wins_of_16": 16,
+   "hit_delta_pursuit_minus_blind": 6
+  },
+  {
+   "aim": 10.0,
+   "pursuit_wins_of_16": 15,
+   "hit_delta_pursuit_minus_blind": 10
+  },
+  {
+   "aim": 20.0,
+   "pursuit_wins_of_16": 7,
+   "hit_delta_pursuit_minus_blind": 7
+  }
+ ]
+}

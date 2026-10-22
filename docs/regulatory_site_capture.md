@@ -15,9 +15,10 @@
 > | **Status** | **CLOSED.** Not a gate on tripod day, kill day, or the ~$740 order |
 >
 > **This ruling supersedes** the blank template below, GitHub issue #4, and the
-> contract queue item `regulatory-site-capture`. `docs/tripod_test_protocol.md`
-> §1/§9 and `docs/kill_day_protocol.md` §1.4/§9 no longer treat the regulatory
-> line as UNVERIFIED — it is verified by builder attestation, recorded here.
+> contract queue item `regulatory-site-capture`. The matching sweeps of
+> `docs/tripod_test_protocol.md` §1/§9 and `docs/kill_day_protocol.md` §1.4/§9
+> (so they stop treating the regulatory line as UNVERIFIED) are **queued
+> (review3, 2026-10-22)** — the ruling itself is in force regardless.
 >
 > **The three contradicting contract lines** the 2026-07-25 review found (P0 task
 > 7 "find a FRIA field", the hardware-stage "IN HAND" note, and the BOM-layer

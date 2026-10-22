@@ -180,8 +180,8 @@ Getting these consistent early prevents a whole class of sign-error bugs in the 
 
 The parent hardware project — full architecture, decisions log, tradeoffs, and
 airframe sizing math — lives on this machine at:
-`Downloads\Simulation Work\Drone interrceptor\` (see `docs/architecture.md`,
-`docs/decisions.md`, `docs/tradeoffs.md`). You do **not** need it to build the sim,
+`Downloads\Simulation Work\Drone interrceptor\` (see `docs/goals.md`,
+`docs/decisions.md`). You do **not** need it to build the sim,
 but it explains the "why" behind the counter-UAS framing if a decision needs it.
 INTERCEPTOR_EOF
 

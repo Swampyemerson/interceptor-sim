@@ -45,6 +45,11 @@ full-resolution ROI re-detect for confirm/reacquire (NOT for first
 detection — a second pass cannot extend first-detection range). P2 head and
 1280 input are AFTER-stock-compiles experiments, not the baseline.
 
+> **⚠ CONFLICT FLAGGED (2026-10-22), unresolved:** "detect-then-track (adopted)" above
+> disagrees with `docs/project_state.json`, which states **NN-only every frame, no visual
+> tracker**. The two surfaces contradict; the head has queued the reconciliation. Do not
+> treat either as settled from this file.
+
 ## Training data (ruling 3) — full staged program, ~2.5–3 weeks wall
 
 1. Permissive sets: Det-Fly (13k air-to-air, MIT; ignore Roboflow license

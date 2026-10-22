@@ -23,7 +23,7 @@ never any gt_* field. The gt_* scoring/logging path in m4_intercept.py is
 untouched, and the numeric no-cheat audit that applies to the AprilTag path
 applies IDENTICALLY here. Because this is a NEW guidance path (brief s4 honesty
 note), `--seeker markerless` RE-EARNS the numeric no-cheat audit at the live
-Gazebo A/B (the NEXT gated step, docs/audit_targets.md pattern) -- offline wiring
+Gazebo A/B (the NEXT gated step, retired/docs/audit_targets.md pattern) -- offline wiring
 alone does not discharge it.
 
 DEPENDENCIES (the thing the live A/B must resolve): the two-stage seeker needs

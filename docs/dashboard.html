@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e677f89<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->901fd89<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -903,7 +903,7 @@
  "updated": "2026-10-22",
  "updated_by": "Fable 5 head session (overnight, builder directive: 12 m/s demo video)",
  "goal": {
-  "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement (ADR-0103/0105): chase-only pursuit -- no sprint; the coded dash + stock pro-nav remain the flying default only until the Gazebo cross-check passes. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
+  "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
   "evidence": [
    "docs/next.md ROADMAP R1-R7",
@@ -914,13 +914,13 @@
  },
  "now": {
   "as_of": "2026-10-22",
-  "where": "NN seeker program OPENED tonight (ADR-0125, your four rulings): Hailo-8 ordered-pending-you, yolov8n stock @640, full staged training, parallel to the tag first-kill. Evidence: 2 pre-registered isim studies, 5 research passes, and a live latency bench on the flight Pi.",
-  "finding": "Latency plot twist, three Gazebo arms deep: the 'cliff' was the KF ASSUMING 45 ms while the pipeline took 60/120 -- tell it the true age (new --pursuit-meas-latency-s) and even 120 ms flies at baseline (1.05x). The Hailo case now rests on RATE (CPU = 6.5 Hz < the 10-15 Hz floor) and jitter.",
+  "where": "FIELD INTERCEPTION DAY IS THIS WEEKEND (ADR-0127) - tripod day descoped as a gate. Between now and Saturday: bench safety gates only (tgt-01/02 logging proof, smoke stopper, kill switch, 70 deg lens calibration per ADR-0126, cue-relay end-to-end).",
+  "finding": "Review 3 swept a month of drift (wrong-HAT order list, three unswept rulings, stale headline). Same day, the pre-registered isim A/B confirmed: pursuit 6-12/16 inside 0.35 m through 10 deg cue error; blind dash 0/16 at every error; at 20 deg only 7/16. Derived: launch cue inside ~10 deg.",
   "next": [
-   "You: HAT order -- stock compile single-context BOTH sizes; 1-class = 2 contexts (fps TBD on HW)",
-   "Me: latency chapter closed w/ LJ90-S (tail killed, 1.08x); stamped-age rec = your call"
+   "You: bench gates (tgt log proof, smoke stopper, kill switch) + Friday field-kit buys",
+   "Me: Gazebo rung if machine free; kill-day checklist + suite green before Saturday"
   ],
-  "evidence": "docs/nn_seeker_program.md - runs/nn_requirements_20261021/findings.md - runs/res_guidance_20261021/findings.md - runs/pi_nn_bench_20261021.json"
+  "evidence": "docs/review3_repo_review_2026-10-22.md - ADR-0126/0127/0128/0129 - docs/pursuit_vs_dash_prereg_2026-10-22.md - runs/pursuit_vs_dash_20261022/"
  },
  "assumptions": [
   {
@@ -1385,6 +1385,25 @@
    "ruling": "",
    "origin": "docs/airframe_numbers.md §1-5; the 1.5 kg/motor planning value dates from the XING2 pick (hardware_order_list.md §3)",
    "evidence": "scripts/airframe_numbers.py · tests/test_airframe_numbers.py · retailer listings cited in airframe_numbers.md"
+  },
+  {
+   "id": "kf-measurement-age-known",
+   "statement": "The filter is told the TRUE age of each camera measurement. Sim hands it exactly; the Pi must capture detection timestamps accurately under load.",
+   "grade": "given-perfect",
+   "if_wrong": "The 'even 120 ms flies (1.05-1.08x)' conclusion is a best-case upper bound: wrong Pi stamps under load would feed the filter a lie and the jitter tail could return.",
+   "stages": [
+    "terminal"
+   ],
+   "key_numbers": [],
+   "test": {
+    "how": "Bench stamp-vs-truth on the flight Pi under detector load (sim_to_real_gaps row TS1).",
+    "cost": "one bench hour (Pi + hardware-timed reference)",
+    "status": "planned"
+   },
+   "state": "unchecked",
+   "ruling": "Stamped-age mode stays default-OFF until this passes (builder_queue stamped-age-adoption).",
+   "origin": "2026-10-22 review 3 (assumptions-register audit, finding 1)",
+   "evidence": "runs/gz_latency_20261022/spec.md - flight --pursuit-meas-latency-s - docs/review3_repo_review_2026-10-22.md §C"
   }
  ],
  "builder_queue": [
@@ -1425,17 +1444,6 @@
    "doc": "docs/hailo_toolchain_runbook.md"
   },
   {
-   "id": "lens-fov-ruling",
-   "question": "The lens on the seeker camera measures ~70 deg field of view, but the project's hard constraint (wide-fov, ADR-0024) says at least 100 deg and 'never fly a narrow lens' - and a 110 deg Arducam lens was already ordered 2026-10-12. Which lens flies, and should the constraint be restated?",
-   "options": [
-    "Fly the 110 deg wide lens when it arrives (keeps the constraint; recalibrate + re-earn the aim-tolerance numbers on it)",
-    "Keep the delivered ~70 deg lens (the new aim-tolerance evidence suggests it may be enough) - then the wide-fov constraint and graveyard #17 must be formally rewritten, not silently violated"
-   ],
-   "blocked": "Final camera calibration freeze + the tripod-day capture config; the aim-tolerance claim's validity envelope",
-   "doc": "docs/lens_options_2026-10-22.md",
-   "rec": "Fly the 110 deg lens when it arrives: the constraint traces to the open-loop aim tolerance, and the 70 deg evidence hasn't been re-earned at field geometry. Calibrate both, keep 70 deg as spare."
-  },
-  {
    "id": "stamped-age-adoption",
    "question": "The latency fix (telling the tracking filter the true age of each camera measurement) confirmed its prediction (1.08x baseline, the 1.2 m tail collapsed) but missed the strict adopt bar on 3 of 6 paired seeds. Adopt it as default, or keep it default-OFF?",
    "options": [
@@ -1447,19 +1455,24 @@
    "rec": "Keep OFF until the Pi stamp-vs-truth bench runs; register kf-measurement-age-known first (sim hands a perfect age the hardware hasn't earned)."
   },
   {
-   "id": "deletion-tier1-ruling",
-   "question": "The 2026-10-22 deletion scout listed 7 docs for deletion (Tier 1), a logs retention policy reclaiming ~1-1.5 GB (Tier 3), and one held memory file (t25 video). The list sat with no queue entry. Rule per row and the head executes.",
+   "id": "logs-retention-policy",
+   "question": "Tier 1 of the deletion scout was APPROVED and executed (2026-10-22). The one HELD piece: the logs/ retention policy (Tier 3, ~1-1.5 GB of gitignored run data, provenance-safe rules drafted). Deleting it is unrecoverable, so it needs your explicit yes.",
    "options": [
-    "Approve all (head executes per row, provenance-safe rules as drafted)",
-    "Approve Tier 1 only; hold the logs policy",
-    "Walk the list together next session"
+    "Adopt the drafted retention rules (head prunes, keeping everything any contract number cites)",
+    "Keep everything (disk is cheap, evidence is not)"
    ],
-   "blocked": "Repo legibility; ~1-1.5 GB disk; the review-3 doc-sweep session starts cleaner with the dead docs gone",
-   "doc": "docs/deletion_candidates_2026-10-22.md",
-   "rec": "Approve all - every row is provenance-checked with inbound-reference counts; the head executes per row and anything surprising comes back as a question."
+   "blocked": "~1-1.5 GB disk only; nothing on the kill path",
+   "doc": "docs/deletion_candidates_2026-10-22.md (Tier 3)",
+   "rec": "Keep until after the weekend attempt is scored - then prune with the provenance-safe rules."
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-10-22",
+   "text": "FOUR BUILDER RULINGS landed and were executed the same day: (1) ADR-0126 the ~70 deg lens FLIES (px/deg range; wide-fov constraint rewritten, graveyard #17 scope-amended, 110 deg lens = spare); (2) ADR-0127 FIELD INTERCEPTION DAY IS THIS WEEKEND - tripod day descoped as a gate, kill_day_protocol is operative, bench safety gates are all that stand; (3) ADR-0128 the stale 'camera never beat a dash' headline retired - and the pre-registered isim A/B flew SAME DAY and confirmed pursuit beats the blind dash at every cue error tested (through 10 deg; ~10 deg = the derived cue requirement); (4) stale docs to retired/ - 11 docs + 5 scripts moved, 28 refs repointed, Tier-1 deletions executed (logs Tier-3 held). Also: ADR-0129 engage window 30 s in pursuit mode (a default-config chase could have timed out mid-engagement on field day); cue_relay brought into the honesty audit with an auto-closure guard.",
+   "so_what": "Saturday flies a config whose three load-bearing choices (70 deg lens, pursuit terminal, ~10 deg cue budget) each trace to a same-day ruling plus a registered measurement, and the repo a fresh session reads is finally the repo that exists.",
+   "evidence": "ADR-0126..0129 - runs/pursuit_vs_dash_20261022/ - docs/review3_repo_review_2026-10-22.md - retired/README.md 2026-10-22 section"
+  },
   {
    "date": "2026-10-22",
    "text": "Full-repo review session (builder-directed): 15 Fable-5 forks + 16 Opus workers swept every doc cluster for contradictions and drift (~130 findings). The month of unswept rulings is fixed where it misled (ADR-0094 rows, slant ruling, passage-window port, Kakute status, Hailo-8L-vs-8 in the order list); everything else is filed with per-item status in docs/review3_repo_review_2026-10-22.md. Subagent lanes re-measured: forks 15/15 pass, Sonnet 8/8 bounce, Opus mostly passes.",
@@ -1525,12 +1538,6 @@
    "text": "Target drone PHYSICALLY COMPLETE (builder photo, bench): replacement Kakute H7 installed, full stack assembled on the Source One V6, CNHL 6S pack strapped on top, props mounted, GPS module lit. Remaining before it flies: RC bind (RP1 RX to the Pocket TX — 18650s being picked up today) and final calibration (accel/compass/ESC + motor direction re-verify on the replacement board).",
    "so_what": "The thing we intercept now exists as hardware. Once bound + calibrated it can fly the AUTO waypoint legs, which unblocks the tripod decode-envelope gate and every outdoor pass that needs a moving target.",
    "evidence": "Builder bench photo 2026-10-17 (session); remaining steps per the Kakute replacement checklist in build_tab target notes."
-  },
-  {
-   "date": "2026-10-16",
-   "text": "First battery power-up of the full interceptor (chaser) stack, builder at the bench, Claude driving over the Pi. Three faults walked down with instruments: (1) the Pi 5's solid-red light was just standby -- one button press, booted (its red light means 'powered, not running', normal after a software shutdown). (2) The ESC's periodic 'boot waiting' tune was the AM32 no-signal beacon (same lesson as the target's Tekko32: a chirping ESC means NO SIGNAL, not a boot loop) -- root cause was PWM_MAIN_FUNC1..4 all zero, i.e. PX4 had never been told the motors live on MAIN1-4. Mapped Motor1-4 to MAIN1-4 live with read-back; the beacon went silent at once, proving the whole FC-to-ESC signal harness. (3) The builder challenged the README's 'M10 is on GPS2, no safety pins' claim -- he was right: the M10 sits on GPS1 and after a reboot the FC sees it fully (9 sats, 3D fix, compass OK). Only the safety-switch line is dead (button press during a 12-attempt test window: every attempt DENIED), so the cable likely leaves those conductors unpopulated. SAME SESSION, LATER: motors SPUN -- the blocker was a wrong enum in the test command (MAVLink MOTOR1..4 = 1..4 in param5, not PX4's internal 101..104; wrong numbers are dropped with NO ack). With that fixed, all four motors spin on command; the motor map was corner-called by the builder over two full sequences and corrected in params (both pairs crossed: final MAIN1=M4-BR, MAIN2=M1-FR, MAIN3=M3-FL, MAIN4=M2-BL, read-back verified, re-flown clean). Direction check: back-right correct; the other three spin reversed -- phase-wire swaps owed (PWM carries no direction bit; FC-side reversal would need DShot on the FMU pins). Safety was bypassed for the bench by the BUILDER's own hand (CBRK_IO_SAFETY=22027 via his terminal; the agent harness refused twice, correctly) -- restore to 0 at session end. QGC gotchas logged: open actuator sliders stomp external test commands; PX4 only routes acks to systems it has seen heartbeats from.",
-   "so_what": "The interceptor's propulsion chain is end-to-end proven on battery: every motor spins on a verified map. Remaining before an arm attempt is mechanical (three phase-wire swaps), evidence hygiene (microSD), and restoring the fail-closed safety posture.",
-   "evidence": "bench 2026-10-16 over the Pi: fc_link_check (9 sats FIX_3D, 21.6 V), PWM_MAIN_FUNC1-4 read-back; configs/px4_6cmini/ bench.params (5) + README"
   }
  ],
  "narrative": {
@@ -1637,7 +1644,7 @@
   ]
  },
  "build_plan": {
-  "summary": "The IN-PERSON plan — what the builder physically does, in order, with the go/no-go money gates. Distinct from §1.0 (how the code works): this is the human build-and-validate ladder. Money logic: the tripod session's AprilTag decode-envelope curve gates the ~$740 Tier-2 interceptor order (first kills fly the tag on the Pi 5 CPU, §0c); the NN recall curve gates ONLY the Hailo HAT + the markerless phase. A gate FAIL loops back to the cheapest upstream fix, never forward to more spend. [STATUS 2026-07-18] P0 prep partially built via a Fable workflow: DONE = deployment seeker loop (flight/deploy/seeker_loop.py, no-cheat audited), field_score.py (kill metrology), tripod_test_protocol.md, domain_gap_eval.py, real_data_pipeline_run.sh (dry-run), candidate_nn_shortlist + fetch. [2026-07-20 UPDATE — the Tier-1 SOFTWARE layer landed, all adversarially verified] NOW ALSO DONE: P0.3 two-curve tripod scorer (scripts/seeker/tripod_score.py), P0.5 camera paper-check (docs/camera_paper_check.md — CLEARS; px/deg penalty corrected ~30%->~15%), P0.4 cam-offset/model-swap guard (m4 exits 2 on mismatch), the Pi-side capture script (scripts/seeker/pi_capture.py), field_score ArduPilot .BIN support, and the deploy_seeker MAVSDK OFFBOARD path (SITL-validated, 3 real defects fixed). [2026-07-21] P0.2 DONE (auto-labeler VALIDATED, IoU 0.965; PLACARD = 0.35 m, print unblocked — docs/placard_sizing.md) + qemu DONE (ARM64 stack proof PASS, pupil-apriltags wheel landmine found+fixed — docs/pi_emulation_check.md) + repo PUSHED to the private GitHub remote, first CI run GREEN. [2026-07-21b — desk-pack landed, all verified] box_hits_gt FIXED (frametop 19->95%, banked 0->100%, negative control unchanged — constraint closed), P0.6 transfer-bet smoke read DONE (NOT-DEAD; streak-gate-on-real-clutter is the open variable), the three hardware config packs (configs/target_kakute, scripts/pi_setup, configs/px4_6cmini) + DEEP-H2 streak tests DONE. **P0 SOFTWARE IS CLOSED.** Remaining sim work: the two in-view probes (ground-background, phantom-competition) — the headline next_probe, now unblocked by the fixed scorer. [ORDERED 2026-07-20] Cart placed (Fable GO-WITH-FIXES): target-drone stack + seeker kit + interceptor BRAIN (6C Mini + M10, front-loaded past the money gate — acceptable, logged). FORWARD: (P1) build+flash the ArduPilot target + assemble the OV9281->Pi seeker rig; IN PARALLEL bench the 6C Mini (props-off Pi<->TELEM2 OFFBOARD bring-up — de-risks the deploy loop's unverified MAVSDK path). (P0 software remaining) placard-sizing (P0.2), free-footage NN kill-test (P0.6), box_hits_gt fix + the two in-view probes. (P2) tripod day -> curve (a) tag range gates the interceptor airframe, curve (b) NN recall gates the Hailo. Then P3+ airframe. ADD the must-add build/field layer + re-source Pi/SD BEFORE building.",
+  "summary": "The IN-PERSON plan - what the builder physically does, in order. RE-CUT 2026-10-22 (ADR-0127): field interception day is THIS WEEKEND; P2 (tripod afternoon) is DESCOPED as a separate gate - its decode curve folds into kill-day setup or comes from the attempt's logs. Money logic now: the $740 Tier-2 was ordered 2026-09-22 (ADR-0109); the NN recall curve still gates ONLY the Hailo/markerless phase (ADR-0125). The non-negotiable gates left are the BENCH safety ones (P4): smoke stopper, props-off arm, kill switch, tgt-01/02 logging proof.",
   "phases": [
    {
     "code": "P0",
@@ -1666,7 +1673,7 @@
    },
    {
     "code": "P2",
-    "name": "Tripod afternoon — TWO curves from one session",
+    "name": "Tripod afternoon — DESCOPED as a gate (ADR-0127); folds into kill day",
     "cost": "uses Tier 1",
     "tasks": [
      "Calibrate the camera (checkerboard -> intrinsics), then shoot from the FINAL mount geometry (position + tilt) — never a bench pose (add #16 viewpoint degradation).",
@@ -2355,10 +2362,11 @@
   },
   {
    "id": "wide-fov",
-   "text": "The ~100 deg wide FoV is a HARD requirement, not a tunable — the +/-30 deg open-loop aim tolerance depends on it. Never fit/fly a narrow lens.",
+   "text": "SUPERSEDED by ADR-0126 (builder ruling 2026-10-22): the delivered ~70 deg lens FLIES, chosen for pixel resolution (~19.3 px/deg vs ~10.9 at 100 deg) because decode/recognition RANGE is the binding seeker lever (ADR-0124). The old >=100 deg rule traced to the cue-era fast-crosser geometry; chase pursuit (the flying default) keeps the target near boresight. COST, stated: the +/-1 deg aim-tolerance and acquisition-funnel numbers were earned at ~100 deg and are NOT re-validated at 70 deg; the 110 deg lens in transit is the calibrated spare/fallback.",
    "evidence": [
-    "docs/hardware_order_list.md §0①",
-    "ADR-0024"
+    "ADR-0126",
+    "docs/lens_options_2026-10-22.md",
+    "ADR-0024 (historical)"
    ]
   },
   {
@@ -2530,8 +2538,8 @@
   },
   {
    "what": "Narrow/long lens for acquisition range",
-   "why": "Re-creates the fast-crosser-walks-out-of-frame failure; wide FoV is a hard requirement.",
-   "evidence": "ADR-0024; hardware_order_list §0①"
+   "why": "Re-created the fast-crosser-walks-out-of-frame failure in the CUE-ERA geometry (fixed-heading dash past a crossing target). SCOPE AMENDED by ADR-0126 (2026-10-22): under the chase-pursuit default the builder ruled the delivered ~70 deg lens flies for px/deg range; the kill here still covers narrow (<~60 deg) long lenses and any return to the crossing-dash geometry.",
+   "evidence": "ADR-0024; ADR-0126; hardware_order_list §0①"
   },
   {
    "what": "Lock-quality closure modulation (chase Phase B slows when tag decodes go stale)",
@@ -2550,6 +2558,14 @@
   }
  ],
  "key_numbers": [
+  {
+   "label": "Pursuit vs blind dash, under cue error (isim)",
+   "value": "6-12/16 thru 10 deg",
+   "note": "Paired seeds n=16/cell at 0/5/10/20 deg aim error, chase geometry, delivered-lens FOV (fx 933), honest errors on. Blind dash: 0/16 at EVERY error here (0.091 m/deg slope). At 20 deg pursuit converts 7/16 -> the cue requirement is ~10 deg. isim-tier RANKING; Gazebo rung queued.",
+   "provenance": "docs/pursuit_vs_dash_prereg_2026-10-22.md - runs/pursuit_vs_dash_20261022/ - ADR-0128 addendum",
+   "plain": "With an imperfect cue the camera chase still hits up to ~10 deg of error; the blind dash never does here. Fast-sim.",
+   "trust": "sim"
+  },
   {
    "label": "Pk@2.8 m, weave 12 m/s",
    "value": "95.0%",
@@ -2667,7 +2683,7 @@
   {
    "tier": 1,
    "name": "First steps — NN validation + compute de-risk",
-   "purpose": "Prove the riskiest bets CHEAPLY before any interceptor money — the tripod afternoon (build_plan P2) yields TWO curves in one session: (1) the AprilTag decode envelope, the curve that GATES the Tier-2 interceptor order (first kills fly the tag); (2) NN approach recall vs range AND position-in-frame — the outdoor-NN transfer-bet read, which gates ONLY the Hailo/markerless phase; plus (3) the compute bet — benchmark the REAL Pi 5 (AprilTag fps, CPU YOLO fps), which emulation cannot do (constraint pi5-emulation-gap). Every item carries into the final system. HONEST FIRST-TEST COST: flying the target also needs the ground/safety set (Pocket TX + charger + LiPo-safety/solder, keep-forever gear, BOM §4 Phase 0) — so the realistic first-outdoor-test outlay is ~$620-780 all-new if none is owned; the tier subtotal below is hardware-only.",
+   "purpose": "Prove the riskiest bets CHEAPLY before any interceptor money — the tripod afternoon (build_plan P2) yields TWO curves in one session: (1) the AprilTag decode envelope, measured on kill day or from its logs since ADR-0127 descoped tripod day (Tier-2 was ordered 2026-09-22, ADR-0109; first kills fly the tag); (2) NN approach recall vs range AND position-in-frame — the outdoor-NN transfer-bet read, which gates ONLY the Hailo/markerless phase; plus (3) the compute bet — benchmark the REAL Pi 5 (AprilTag fps, CPU YOLO fps), which emulation cannot do (constraint pi5-emulation-gap). Every item carries into the final system. HONEST FIRST-TEST COST: flying the target also needs the ground/safety set (Pocket TX + charger + LiPo-safety/solder, keep-forever gear, BOM §4 Phase 0) — so the realistic first-outdoor-test outlay is ~$620-780 all-new if none is owned; the tier subtotal below is hardware-only.",
    "gate": "Buy FIRST (after the P0 desk checklist) — no result gate. Lowest-risk money; useful regardless of the test outcome.",
    "total": "~$650 ordered hardware (Kakute stack + target + seeker kit + TX/charger) + ~$220-360 must-add build/field layer = ~$870-1010 to actually FLY + run the field test. Re-source Pi+SD to recover ~$120.",
    "evidence": "docs/hardware_order_list.md §E/§C/§0c; docs/next.md ROUND-5 (tripod kill-or-validate) | ADR-0089: order a 2nd RadioMaster Pocket (per-aircraft independent arm/kill for the two-aircraft mid-air — the S2 hole).",
@@ -2820,7 +2836,7 @@
   }
  ],
  "build_tab": {
-  "scope": "Tier 1 ONLY — the four hardware groups of the 2026-07-20 order (target drone, seeker rig, brain bench, ground & safety). The sheet ends at the P2 tripod MONEY GATE: curve (a), the AprilTag decode envelope, unlocks the ~$740 Tier-2 interceptor build; curve (b), NN approach recall, gates only the deferred Hailo/markerless phase. Both curves come out of one software chain: pi_capture.py -> range_truth_join.py -> tripod_score.py — it is already built and tested (see the kit table).",
+  "scope": "Tier 1 ONLY — the four hardware groups of the 2026-07-20 order (target drone, seeker rig, brain bench, ground & safety). RE-CUT 2026-10-22 (ADR-0127): Tier-2 was ordered 2026-09-22 (ADR-0109) and tripod day is descoped as a gate - the decode envelope now rides along on kill day or comes from its logs; curve (b), NN approach recall, gates only the deferred Hailo/markerless phase. Both curves come out of one software chain: pi_capture.py -> range_truth_join.py -> tripod_score.py — it is already built and tested (see the kit table).",
   "subsystems": [
    {
     "id": "target",
@@ -4837,13 +4853,14 @@
    "id": "wide-fov-constraint-vs-delivered-lens",
    "verdict": "CONFIRMED",
    "severity": "high",
-   "status": "open",
+   "status": "resolved",
    "topic": "The hard wide-FOV constraint is currently violated by the hardware on the bench, and no ruling or ADR covers it.",
    "claim_a": "Constraint wide-fov (ADR-0024, graveyard #17): ~100 deg FOV is HARD - the +/-30 deg open-loop aim tolerance depends on it; never fit/fly a narrow lens.",
    "loc_a": "project_state.json constraints[wide-fov] - ADR-0024",
    "claim_b": "The delivered lens measures ~69.4 deg HFOV and docs/lens_options_2026-10-22.md recommends keeping it (citing the new measured aim-tolerance evidence), while a 110 deg Arducam M40180H13L ordered 2026-10-12 is in transit and the survey does not mention it.",
    "loc_b": "docs/lens_options_2026-10-22.md:5-6,48-59; project_state.json build_tab (M40180H13L order)",
-   "current_truth": "Both true and unreconciled - a builder ruling is queued (builder_queue lens-fov-ruling): either the wide lens flies and the constraint stands, or the 70 deg lens is kept and the constraint + graveyard #17 must be rewritten as a deliberate, evidence-cited resurrection. Until ruled, do not calibrate-and-freeze either lens as final."
+   "current_truth": "RULED (ADR-0126, 2026-10-22): the ~70 deg delivered lens flies, for px/deg range; the >=100 deg constraint is rewritten as superseded, graveyard #17 scope-amended, and the cost is recorded: aim-tolerance/acquisition numbers earned at ~100 deg are not re-validated at 70 deg. The 110 deg lens in transit is the calibrated spare/fallback.",
+   "resolution": "ADR-0126 (builder ruling): keep 70 deg for pixel resolution/range. Deliberate, evidence-cited supersession of ADR-0024 - not a silent violation."
   }
  ]
 }</script>

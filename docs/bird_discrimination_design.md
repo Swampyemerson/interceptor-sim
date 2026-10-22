@@ -67,7 +67,7 @@ The eight structural fixes, each folded into the sections named:
 
 1. **Terminal veto must be FAST and ASYMMETRIC, not a streak-to-abort (§2 diagram, §5.2,
    §5.3).** The measured terminal window is **0.41 s median** (~6–12 frames at 14–20 Hz;
-   ADR-0023, terminal_diagnosis.md item 6). A 12-of-15 sustained-abort (~0.8–1.0 s) is
+   ADR-0023, retired/docs/terminal_diagnosis.md item 6). A 12-of-15 sustained-abort (~0.8–1.0 s) is
    *longer than the window it must fire inside*, and the old break-off exit fires ~5 s after
    CPA — structurally too late. **Fix:** to *hold* an engage in the terminal, the onboard
    must show **continuously-sustained POSITIVE hostile ID**; **any gap** in positive
@@ -623,7 +623,7 @@ slot. *(This doc specifies the field only; it does not edit `m4_intercept.py` or
 The original draft used **one** timer — a 12-of-15 (~0.8–1.0 s) sustained-hostile streak — for
 both committing *and* aborting. **The red-team showed that is fail-unsafe in the terminal
 (fix #1):** the measured camera-only terminal lasts **0.41 s median** (~6–12 frames at 14–20 Hz;
-ADR-0023, terminal_diagnosis.md item 6), so a ~0.8–1.0 s "streak-to-abort" is *longer than the
+ADR-0023, retired/docs/terminal_diagnosis.md item 6), so a ~0.8–1.0 s "streak-to-abort" is *longer than the
 entire window it must fire inside*, and the old break-off exit (`LOST_TAG_ABORT_S`=5 s) fires
 long after CPA. A slow symmetric streak cannot protect a bird that appears inside the terminal.
 The fix is to make confirmation **asymmetric: slow, N-of-M, and sustained to COMMIT; instant and
@@ -716,7 +716,7 @@ non-negotiable — `cue_reads_post_handoff = 0`, no cue-tainted EKF state/covari
 - **After handoff the onboard seeker must independently RE-EARN hostile ID, camera-only, to hold
   the engage,** and the committed PID must remain *revocable* by onboard evidence to impact.
   Concretely: add a **`classification_reads_post_handoff = 0`** audit analog to the existing cue
-  audit (audit_targets.md §A; scripts/check_s2.sh). Its two clauses: (1) after handoff the engage
+  audit (retired/docs/audit_targets.md §A; scripts/check_s2.sh). Its two clauses: (1) after handoff the engage
   decision must trace to *onboard-camera* classifier evidence — no ground-derived label/likelihood
   may *lock out* the onboard veto or *substitute* for onboard re-confirmation; and (2) the only
   legal cross-handoff influence of the ground label is **toward-safe** (raise suspicion / lengthen
@@ -824,7 +824,7 @@ bench sets the thresholds the shipped interlock **vetoes all** (engages nothing)
 
 ### 6.5 What the Stage-0 bench (Pi 5 + cam) validates on real hardware
 
-The sim proves *plumbing*; the Stage-0 bench (stage0_bench_plan.md) proves the *onboard-carriable*
+The sim proves *plumbing*; the Stage-0 bench (retired/docs/stage0_bench_plan.md) proves the *onboard-carriable*
 discriminants against reality:
 - **Classifier confidence vs range → `P_correct(R)`** — the analog of the bench's `P_detect(R)`;
   **this sets the ARM range**, the single most decision-relevant onboard number.
@@ -940,7 +940,7 @@ discriminants against reality:
 > by the classifier veto, not by waiting out the 5 s lost-tag timeout). Absent/stale/dead
 > classification == `P(hostile)`=0 == break-off, by construction, with a liveness watchdog (fix #7).
 > (4) **Comms-denied honesty:** a two-clause `classification_reads_post_handoff=0` audit extending
-> audit_targets.md §A — post-handoff the engage traces to onboard evidence, and the carried ground
+> retired/docs/audit_targets.md §A — post-handoff the engage traces to onboard evidence, and the carried ground
 > prior is **VETO-ONLY**: it may raise suspicion / lengthen confirmation / abort, but may **never**
 > shorten N or lower the commit bar (fix #4). Radar is confirm-only, never a dependency.
 >
@@ -974,8 +974,8 @@ discriminants against reality:
 ### Sources
 
 **Repo / ADR:** `docs/goals.md`; `docs/decisions.md` ADR-0013/0015/0016/0017/0018/0019(+addendum)/0023/
-0024/0025/0033/0034; `docs/seeker_design_brief.md` (§, R6/R7, line 47); `docs/stage0_bench_plan.md`;
-`docs/ground_modality.md`; `docs/audit_targets.md`; `docs/ekf_design_brief.md`;
+0024/0025/0033/0034; `docs/seeker_design_brief.md` (§, R6/R7, line 47); `retired/docs/stage0_bench_plan.md`;
+`docs/ground_modality.md`; `retired/docs/audit_targets.md`; `docs/ekf_design_brief.md`;
 `scripts/m4_intercept.py` (lines 274/275/281/282/300/302, conjunction 1747–1749, `run_acquire_and_engage`
 1415); `scripts/m4_target_mover.py` (line/weave/jink); `models/fpv_target_markerless/`.
 

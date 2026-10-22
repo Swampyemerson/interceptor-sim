@@ -6,6 +6,13 @@
 > notebook tone; every number cites a source; each item ends in a single VERDICT line.
 > Anything that can only be settled with real light/pixels is called UNVERIFIED-ON-PAPER.
 
+> **⚠ SUPERSEDED §1–2 (2026-10-22).** The §1 (HFoV) and §2 (px/deg) verdicts below assumed
+> the published **118° HFOV**. The DELIVERED lens measures **~70° HFOV (fx≈1104 px @1280,
+> ≈19.3 px/deg)**, and the builder ruled to KEEP it for pixel resolution (ADR-0126, which
+> supersedes the ≥100° `wide-fov` constraint). So §1's "CLEARS ≥100°" no longer applies, and
+> §2's "~15% px/deg penalty vs sim" is now a px/deg GAIN with a narrower field — re-read every
+> px/deg conclusion below in that light. §3–5 are unaffected.
+
 **Part:** innomaker CAM-MIPIOV9281 V2 — OmniVision OV9281, 1 MP **monochrome global-shutter**,
 1280x800, RAW8/RAW10, 2-lane MIPI, external-trigger capable. Sources:
 [innomaker product page](https://www.inno-maker.com/product/cam-mipi9281raw-v2/) ·

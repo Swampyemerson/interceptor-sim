@@ -1,5 +1,9 @@
 # Seeker v2 — hard negatives + range calibration (pre-registered plan)
 
+> **NOTE (2026-10-22):** this "v2" is the retired **billboard-era** model
+> (`drone_finetuned_v2`, trained on the flat `fpv_target_markerless` target) — NOT
+> `drone_finetuned_quad_v2` (the current sim seeker; see `docs/quad_target_retrain.md`).
+
 *Written 2026-07-08, BEFORE the v2 model exists. ADR-0040 addendum sets the
 direction: the two tuned-v1 regressions (seeds 772247, 33327) were terminal
 dropouts of the real target caused by residual own-airframe false-positives

@@ -8,22 +8,50 @@
 
 ## Where the project is
 
-*(Rewritten 2026-10-22 — the old header predated a month of rulings and had the builder
-prioritizing off a stale picture.)*
+**FIELD INTERCEPTION DAY IS THIS WEEKEND (builder ruling 2026-10-22, ADR-0127).** Tripod day is
+descoped as a separate gate — its decode measurement folds into kill-day setup or comes from the
+attempt's own logs. Nothing goes in front of the weekend except the bench SAFETY gates (hours,
+not days). The three same-day rulings: the **~70° lens flies** (ADR-0126 — px/deg range beats
+the old wide-FOV rule; the 110° lens in transit becomes the calibrated spare), the old
+"camera never beat a well-aimed dash" headline is **retired as stale** (ADR-0128 — pre-pursuit;
+a pre-registered pursuit-vs-dash cue-error A/B is running in isim to earn its replacement), and
+**stale docs move to `retired/`** (executing).
 
-The **sim phase is closed**. The **physical build is well along**: the target drone's parts are
-all built into the stack (Kakute H7 arrived and was bench-flashed into the build tab 2026-10-17);
-the Tier-2 interceptor parts were **ordered 2026-09-22** (ADR-0109 — tripod day now gates
-kill-attempt *flights*, not the order). The **terminal was redesigned**: pursuit-only is the
-flying default (ADR-0103/0118), and the Gazebo camera-in-the-loop cross-check passed its standing
-gate at **median 0.343 m** (re-fly #4, after the ADR-0117 velocity fix). The **NN seeker program**
-(ADR-0125) runs as the sanctioned parallel lane: Hailo-8 purchase queued (DFC dry-run passed),
-AOT dataset awaiting go-ahead. Next real-world milestones, in order: target maiden (tgt gates) →
-**tripod day** → first kill attempt.
+Standing context: pursuit-only is the flying default (ADR-0103/0118, Gazebo gate median
+0.343 m); target-drone parts all built into the stack (2026-10-17); Tier-2 interceptor parts
+ordered 2026-09-22; the NN/Hailo lane (ADR-0125) runs in parallel and **nothing in it blocks
+the weekend**. Full drift register:
+[`review3_repo_review_2026-10-22.md`](review3_repo_review_2026-10-22.md).
 
-**A 2026-10-22 full-repo review (31 agents) swept a month of doc drift and filed the rest:**
-[`review3_repo_review_2026-10-22.md`](review3_repo_review_2026-10-22.md) is the register —
-every item carries DONE / QUEUED / OPEN / BUILDER status.
+## KILL DAY — the weekend plan (2026-10-24/26)
+
+**Bench ladder first (your hands, ~hours total — these are the only remaining gates):**
+1. ⬜ **tgt-01/02** — flash the Kakute H7 (board already in the stack), prove `.BIN` logging
+   end-to-end. The dual-GPS logs ARE the scoring instrument (`field_score.py`) — no logs, no
+   measured result.
+2. ⬜ **Smoke-stopper first power-up, props OFF** (tgt-04 gate; stopper in hand), motor
+   directions, **kill switch verified on BOTH aircraft** (the 2nd TX is still unbought — see
+   the table below; one TX + Model Match is the fallback, but then target and interceptor
+   cannot be armed independently).
+3. ⬜ **Calibrate the 70° lens as the flying config** (ADR-0126): checkerboard → RMS ≤ 1 px →
+   `flight/camera.py` intrinsics; then a desk AprilTag decode check at distance for a first
+   real decode-range datum.
+4. ⬜ **Cue-relay end-to-end on the bench** (`--cue-json` path latched at trigger) + a SITL
+   pass of `check_real_flight_sitl.sh` / `check_deploy_sitl.sh` on the final flying config.
+5. ⬜ **Target maiden + AUTO box legs** at the field before any intercept pass
+   (`dash-envelope-on-real-fc` can ride along).
+**Buys that must land by Friday:** handheld anemometer (wind limits are unenforceable without
+it), tripod + ball head, FC High-Endurance microSD, soldering consumables, 2nd RadioMaster
+Pocket (~$65, ADR-0089/0094) if same-day pickup is possible.
+**On the day:** `docs/kill_day_protocol.md` is the operative checklist (swept current
+2026-10-22). **Plan the launch cue to stay inside ~10° of truth** — the 2026-10-22 isim A/B
+shows pursuit converts 6–12/16 through 10° of cue error and only ~half at 20° (GPS fix quality
++ aim procedure are what buy that). Score from dual-GPS logs; pull `runs/` + `sessions/` off
+the Pi before leaving the field. Decode-range spot-check rides along if time (ADR-0127: it no
+longer gates).
+**My side before Saturday (running now):** pursuit-vs-dash cue-error evidence (isim,
+pre-registered), flight-code weekend fixes (engage window, honesty-audit closure), repo sweep
+to `retired/`, suite green.
 
 **The honest headline:** aiming the launch correctly matters more than the camera does. Sub-metre
 interception is real at 10 mph (8/8 flights, median 0.73 m) but it is **ballistic** — camera off.
@@ -58,10 +86,10 @@ first time, testable — and is a redesign decision, queued for the builder. Det
 | ✅ | ~~Stale demo assets~~ — RULED ADR-0094 (2026-08-10): all five retired; `demo_out/t25/` kept. New footage = the CINEMA pipeline's 12 m/s video, awaiting your review | [#2](https://github.com/Swampyemerson/interceptor-sim/issues/2) |
 | ✅ | ~~Regulatory/site~~ — CLOSED by your ruling ADR-0094: you fly your own ~50 acres; the capture doc is optional. (Field protocols still called it a blocker — swept per review 3) | [#4](https://github.com/Swampyemerson/interceptor-sim/issues/4) |
 | ⬜ | **Buy the 2nd RadioMaster Pocket (~$65)** — ADR-0094 confirmed it is NOT ordered; each aircraft needs its own arm/kill for a deliberate mid-air (ADR-0089) | [#5](https://github.com/Swampyemerson/interceptor-sim/issues/5) |
-| ⬜ | **Lens ruling**: the delivered lens measures ~70° but the `wide-fov` constraint says ≥100° HARD (ADR-0024), and a 110° Arducam was already ordered 2026-10-12. Decide which flies + restate the constraint | [`lens_options_2026-10-22.md`](lens_options_2026-10-22.md) |
-| ⬜ | **Stamped-age latency mode**: adopt or keep default-OFF (prediction confirmed 1.08×, strict adopt bar missed 3/6 pairs — your call) | contract `now` / overnight item 2 |
-| ⬜ | **Deletions ruling**: review3 queued the stalled Tier-1 doc deletions (7 docs), the logs/ retention policy (~1–1.5 GB), and the held t25-video memory — head executes per row on your word | [`deletion_candidates_2026-10-22.md`](deletion_candidates_2026-10-22.md) |
-| ⬜ | Field-kit gap purchases: handheld anemometer (wind limits are unenforceable without one), tripod + ball head, soldering iron, Kakute microSD | review3 §A |
+| ✅ | ~~Lens ruling~~ — RULED 2026-10-22 (ADR-0126): the **~70° lens flies** for px/deg range; constraint rewritten, 110° lens = calibrated spare. Cost recorded: aim-tolerance numbers earned at ~100° are not re-validated at 70° | ADR-0126 |
+| ⬜ | **Stamped-age latency mode**: adopt or keep default-OFF (prediction confirmed 1.08×, strict adopt bar missed 3/6 pairs — your call; rec: keep OFF until the Pi stamp bench) | contract `builder_queue` |
+| ✅ | ~~Deletions ruling~~ — APPROVED 2026-10-22 ("get rid of those old claims… stale documents go to retired"): Tier-1 + stale-doc retirement EXECUTING. Held: the logs/ retention policy (Tier 3 — deletes unrecoverable run data, needs your explicit yes) | [`deletion_candidates_2026-10-22.md`](deletion_candidates_2026-10-22.md) |
+| ⬜ | **Field-kit buys by FRIDAY** (weekend-critical, see Kill Day plan): anemometer, tripod + ball head, FC microSD, 2nd Pocket TX ~$65 | review3 §A / ADR-0127 |
 | ⬜ | **Publication checklist** (repo is ALREADY public): rotate the VM password, re-point the launcher, merge the cleanup branch to `main`, set About/topics. MIT license **CONFIRMED 2026-08-19** | [`publish_cleanup_work_order.md`](publish_cleanup_work_order.md) |
 | ⬜ | **Order the Hailo-8 AI HAT+ (~$110)** — the DFC dry-run PASSED (single context @640 AND @1024, 2026-10-21); the evidence gate is satisfied, money is yours | [`../runs/dfc_dryrun/README.md`](../runs/dfc_dryrun/README.md) |
 | ⬜ | **AOT dataset slice go-ahead** (~30–50 GB, >2 GB rule) for the NN training program | `docs/nn_seeker_program.md` |
@@ -113,7 +141,7 @@ first time, testable — and is a redesign decision, queued for the builder. Det
 
 0. **TERMINAL REDESIGN — RULED: chase only (ADR-0103), port complete through the real CLI (ADR-0105, 2026-09-21).** Pursuit alone replaced the sprint-and-fly-by; `flight/pursuit_terminal.py` is selectable via `real_flight.py --terminal pursuit`, and in pursuit mode GO enters the engagement directly (no sprint, no acquire gate). Open before it is trusted: ~~(a) the 2 s lost-target abort~~ SETTLED 2026-09-21 — the pre-registered A/B came back NULL (byte-identical at 2/4/10/30 s windows; the timer is exonerated, do not spend a ruling on it); (b) ~~the parity gap~~ CLOSED 2026-09-22 — the trace found FOUR coupled port defects (KF covariance Jacobian, capture-instant attitude, yaw-slew seed, slant under-range) and the fixed port now matches/beats the prototype (nominal 24%→100% ≤0.35 m, median 0.068 m; adopt criterion met, head-verified independently; `isim/specs/parity_trace_2026-09-22.md`). Residual: aim20/alt+2 trail the native because RealFlightSM has no re-approach after a missed first pass — a queued builder design question. ~~NEW RULING NEEDED: slant under-range in stock paths~~ RULED (ADR-0118 item 2, 2026-09-24): stock `SeekerGuidance`/`tag_terminal` stay FROZEN as-flown (their validations were earned with the bias baked in); the fix rides only in pursuit; (c) ~~the Gazebo cross-check~~ FLOWN 2026-09-23 (pre-registered, n=8, camera-in-the-loop, `docs/xcheck_gazebo_pursuit_prereg.md`): the shakedown caught parity defect #5 (Phase A yawed at the rendezvous point, freezing the camera off-target when station-keeping; fixed to yaw at the believed target like the prototype, regression-pinned, and the fix closed the isim aim20 cell 70%->100%), then the scored flights FAILED the registered bar (median 1.51 m); the tick-trace attributed the gap, the fixes flew (re-fly #2: median 0.967 m, instruments green, bar still failed), and the residual is now CONFIRMED as the hot approach with a traced side-effect trade queued for the builder (ADR-0113/0115). DEFAULT SWAP EXECUTED 2026-09-24 (ADR-0118): re-fly #4 passed the standing gate (median 0.343 m after the ADR-0117 velocity-wiring fix) and pursuit is now the flying default; stock/tag stay selectable as-flown. NEW 2026-09-22 (builder field-readiness directive, agents running): miss-abort safety (abort→hover/return-home the moment an intercept is missed, + the ADR-0101 passage-window port to real_flight.py) and the GPS cue relay (~2 s of target GPS → ground → interceptor, latched at trigger — the piping for the ruled cue constraint, incl. launch climb/altitude profile). Pointing levers remain built and deliberately NOT adopted.
 1. **Past-CPA breakoff — NEARLY CLOSED 2026-09-17.** Issue #9 (dropout re-issued a full stop) is fixed and observed fixed on 100+ flights (auditor check (f)). The 5 m range gate FAILED its offline check and did not fly. The own-motion **passage window** (`--breakoff-min-flown-frac 0.8 --breakoff-force-flown-frac 1.3`) met every registered clause on seed 123 (premature/cut-off 0/16, long chases 0/16); **Seed 777 met every clause too — ADOPTED, ADR-0101.** ~~Open: port to real_flight.py~~ PORTED 2026-09-22 (`passage_gate_ok`/`passage_ceiling_hit`, real_flight.py:695/720). Item CLOSED; original 1b text archived (`next_archive.md`, 2026-10-22 section).
-2. **The cue-error sensitivity sweep** — UNBLOCKED 2026-10-22 (its blocker, item 1, was adopted ADR-0101; the stale "blocked" tag sat here a month). Re-scope for the pursuit default (ADR-0118) rather than the sprint-era terminal it was written against, then extend the aim-error arms to 20/25/30° and find the crossover where the seeker starts earning its place. That curve is the portfolio deliverable and the derived accuracy requirement for the cue. Pre-register before flying. **Fly alongside it: the paired-seed pursuit-vs-aimed-dash A/B** (review3 §H) — the "camera has never beaten a well-aimed dash" claim predates the pursuit port and must be re-earned or retired.
+2. ✅ **The pursuit-vs-dash cue-error A/B — PRE-REGISTERED AND FLOWN 2026-10-22 (isim), prediction CONFIRMED.** On the operational chase geometry at the delivered-lens FOV (fx≈933), paired seeds n=16/cell, all honest errors on: pursuit median 0.204–0.394 m with 6–12/16 inside 0.35 m through 10° of aim error; the blind dash 0/16 at EVERY error on this geometry (slope 0.091 m/deg, matching the seven-point curve). At 20° pursuit converts only 7/16 — **the derived cue requirement is ~10°**. The old "camera never beat a dash" headline retires as superseded-by-scope (ADR-0128): the dash's 13/16 was head-on Gazebo geometry, not this one. Evidence: `docs/pursuit_vs_dash_prereg_2026-10-22.md` + `runs/pursuit_vs_dash_20261022/`. Remaining: the Gazebo confirming rung (5°/10° cells, machine permitting before Saturday) and the 25/30° portfolio arms.
 3. **The vertical channel — REPRIORITISED 2026-09-10 after my own measurement was corrected (ADR-0099 second addendum).** The miss is 82% vertical on the adopted config and the terminal has no vertical steering at all; ADR-0085 decided one in July and no code was ever written. **What changed:** the "+0.320 m of dash drift, 66% of the miss, the error is delivered by the dash" finding was measured against a baseline that included the TAKEOFF (altitude reads 0.000 on the ground), and is retracted. Against a settled hover the dash drifts **−0.019 m**. The corrected split is **23% a datum offset present before the dash, 10% dash, 66% after handoff**. So the queue order is now:
    - **MEASURED IN FLIGHT 2026-09-16 (dev machine, check_m4 PASS, n=2 flights of the classic tag scenario — a lead, not a verdict).** In settled hover the camera sits **+0.161 m / +0.204 m above the tag centre** before ENGAGE begins; at CPA the pro-nav flight's miss was 0.384 m = **0.201 m vertical**, 0.327 m horizontal — the hover offset carried all the way through. Hover altitude error is **−0.022 / −0.023 m** (cmd_vd −0.021), NOT the −0.087 m suspected in 3c, so on this config the altitude loop tracks its setpoint. One oddity to chase: `gt_cam_z − alt_m` in hover was 0.184 m on one flight and 0.226 m on the other — a 4 cm flight-to-flight difference in something that should be geometry. **3b is DONE** (commit `ef9e919`: six `att_*` columns, 331/331 rows populated in flight; pitch med −6.7° in ENGAGE, +12° braking). **3a is now an A/B, not a desk edit:** it changes the scenario every baseline was flown on, so pre-register it (prediction: vertical miss at CPA falls by about the hover offset) and fly it paired on the ADOPTED coded-dash config, not just this tag gate.
    - ✅ **3a DONE 2026-09-16 — ADR-0100**: `--alt-ref-offset-m -0.207` adopted on the coded-dash config, 2/16 → 13/16 inside 0.35 m, replicated (docs/vertical_channel_prereg.md §9.13–9.14). **Next vertical levers, in order:** (i) the vehicle still ends ~0.19 m high because it CLIMBS during the dash at −41° to −45° pitch (est. altitude 0.57–0.78 m vs 0.50 m ref; left-to-right worse) — `dash_alt_trim_m` now has real numbers to be derived from; (ii) flight index #4 got worse in BOTH offset arms with a `yaw-check` flag only there — open; (iii) target-height error injection (assumption `target-height-known`). The original 3a text follows for the record.
@@ -152,8 +180,8 @@ first time, testable — and is a redesign decision, queued for the builder. Det
    - ✅ **`skr-07` DONE remotely 2026-07-26 — and it moved a number the gate turns on.** Sustained on the real Pi 5 through 750 s soaks, tag in frame, **no throttling on any arm**: **96.6 fps** at `quad_decimate=2.0`, **38.2** at 1.0, **CPU-YOLO 6.09 fps**. The seeker had been running at 30 fps because neither `pi_capture.py` nor `seeker_loop.py:PicameraSource` sets picamera2's `FrameDurationLimits` — an inherited default, not the sensor (143 fps) and not the CPU. `R_streak_burn` goes as 1/fps, so this cuts the range burned forming the handoff ~3.2×, and `quad_decimate=1.0` (the range/incidence reclaim lever) is now affordable at 38.2 fps — above the 30 the project assumed at the *coarse* setting. ADR-0090; harness `scripts/seeker/pi_fps_soak.py`; data `runs/skr07_tagged/`.
    - ✅ **The frame-duration cap is WIRED — this line used to say "still open" and was stale (corrected 2026-08-10).** `seeker_loop.py:PicameraSource` pins `FrameDurationLimits` from `--camera-fps`, default `CAMERA_FPS_DEFAULT = 60.0` — exactly ADR-0090's recommendation, not uncapped. It refuses a frame duration shorter than the exposure, and it logs what was **applied** rather than what was intended (an earlier version printed success off `target_fps` alone and a mutation test that deleted the assignment still saw it claim victory). Regression-tested: `flight/tests/test_camera_fps_pinned.py`, 4 passed. Note the **recorder** (`pi_capture.py`) is deliberately separate and still inherits ~30 fps — a live 5-frame check on 2026-08-10 measured `stream_fps=30.799`. That is correct for a bench recorder that pays a per-frame PNG write, but do **not** quote a recorder rate as a seeker cadence.
    - **Still open:** CPU-YOLO at 6.09 fps **confirms** the ~5–10 fps anchor, so the Hailo HAT requirement stands and the frame-rate win does **not** transfer to the markerless path.
-7. **Tripod day** — [#6](https://github.com/Swampyemerson/interceptor-sim/issues/6). Desk prep closed; needs the print, a tripod, a field afternoon — **and the target flying**, so it waits on 8.
-8. **Target drone — parts ALL BUILT into the stack (contract build tab, photo 2026-10-17; this row said "in transit" for a month).** Remaining before it flies: prove `.BIN` logging end-to-end (`tgt-01`/`tgt-02` gates), the smoke-stopper first power-up, and the maiden + dash-envelope characterization (builder_queue `dash-envelope-on-real-fc`). | [#7](https://github.com/Swampyemerson/interceptor-sim/issues/7)
+7. ~~Tripod day~~ **DESCOPED as a standalone gate 2026-10-22 (ADR-0127)** — folds into kill-day setup or the attempt's own logs; see the Kill Day section at the top. [#6](https://github.com/Swampyemerson/interceptor-sim/issues/6)
+8. **Target drone → WEEKEND-CRITICAL, moved into the Kill Day bench ladder (steps 1/2/5 there).** Parts all built into the stack (contract build tab, photo 2026-10-17). | [#7](https://github.com/Swampyemerson/interceptor-sim/issues/7)
 
 ## Standing cautions
 

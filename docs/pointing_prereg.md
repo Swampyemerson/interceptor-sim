@@ -235,4 +235,7 @@ recognised 81%); (2) shown the target, it takes over at once and the terminal fl
 than the sprint it replaces — measured tonight; (3) whether ANY camera terminal can beat a
 well-aimed sprint at zero aim error is still open, and is now, for the first time, actually
 testable. The sprint-only vehicle remains the best thing this project has: 0.60 m here,
-0.2–0.25 m on the adopted config.
+0.2–0.25 m on the adopted config. *(2026-10-22 annotation: that "0.2–0.25 m" figure is
+UNSOURCED — no run or derivation backs it — and it conflicts with the re-scored number:
+the adopted config's PRIMARY median is **0.435 m** (5/16 inside the ram bar), see
+`docs/rescore_2026-08-10.md:82-83`. Treat 0.435 m as the figure of record.)*

@@ -89,6 +89,11 @@ Set a fixed detector floor `w_floor` (the minimum pixels-on-target the detector 
 Stage-0 bench must actually measure). The **acquisition range** is where the target
 first clears that floor:
 
+> **⚠ 2026-10-22 — two floors in the docs:** this note uses **~10 px**;
+> `docs/lens_options_2026-10-22.md` uses **~8 px**. Since `R_acq ∝ 1/w_floor`, the two
+> derivations differ by **25% on R_acq** (8 px gives 1.25× the range of 10 px). Neither is
+> measured yet — the bench sets the real floor; quote which floor a number assumes.
+
 ```
 R_acq = fx · W / w_floor
 ```

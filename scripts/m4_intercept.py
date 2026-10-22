@@ -1881,6 +1881,14 @@ def alt_ref_m(args):
     0.227 m above the ground plane (rescore_cpa.py BASE_REST_ABOVE_GROUND_M /
     CAM_UP_M, cross-checked against the on-pad ticks of every flight in logs/).
 
+    TWO DIFFERENT NUMBERS SHARE THIS FLAG -- name the datum when quoting either
+    (review 3, 2026-10-22). The ~0.229 m above is VEHICLE GEOMETRY (landing-gear
+    rest height of the alt_m datum above ground, ADR-0095). The ADOPTED coded-
+    dash value is -0.207 m (ADR-0100): an empirically-derived REFERENCE SHIFT
+    that lines the camera up with the target's height in that scenario --
+    related to, but not equal to, the geometry height (and opposite in sign,
+    because it LOWERS the reference rather than describing the camera's height).
+
     HONESTY BOUNDARY: this is typed at launch exactly like `--wind-trim-mps`,
     from a measurement of the airframe (a hover, a tape measure, the CAD). It
     reads NOTHING about the target and NOTHING from `gt_*`; the function's only

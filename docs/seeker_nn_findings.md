@@ -20,7 +20,7 @@ already consumes. Built and evaluated **offline against pre-captured frames only
 |---|---|
 | Model | YOLOv8n (COCO, 80-class), ONNX 640² |
 | Params / weights | 3.15 M / **12.8 MB** (`scripts/seeker/weights/yolov8n.onnx`, from HF `Kalray/yolov8`) |
-| License | **AGPL-3.0** (Ultralytics) — brief R6: prefer NanoDet/MIT for a public repo |
+| License | **AGPL-3.0** (Ultralytics) — brief R6: prefer NanoDet/MIT for a public repo. ⚠ 2026-10-22: the repo went public 2026-08-29 with a YOLO-lineage net; the license question is queued to the builder (unresolved) |
 | Measured latency (this box, CPU, 2 threads) | ~48–53 ms/frame → **~19–22 fps** |
 | Brief embedded targets | Pi-5 CPU ~13 fps; Pi5+Hailo-8 ~35 fps end-to-end; Hailo HW ceiling ~431 fps |
 
@@ -62,7 +62,8 @@ the **airframe, not the fiducial**:
 - **Honest caveat:** confidence drops when the tag is removed (its contrast helps),
   and the flat-fill variant kills detection (an unnatural patch). A **fully**
   tag-independent number requires the tag-less Gazebo model
-  `models/fpv_target_markerless` (exists) flown headless — flagged as the next step.
+  `models/fpv_target_markerless` (exists) flown headless — flagged as the next step
+  (done since — see `seeker_prototype_results.md` §6 items 2–3, marked DONE 2026-10-22).
   Per the brief, the sim has no motion-blur/vibration model, so this sim seeker
   number is an **upper bound** on a real one.
 
@@ -77,5 +78,7 @@ OMP_NUM_THREADS=2 nice -n 15 \
   ~/interceptor-sim/.venv-seeker/bin/python \
   scripts/seeker/eval_nn.py --n 40          # sample; add --all for full 867 sweep
 ```
+*(2026-10-22: the TODO below is SUPERSEDED — the fine-tuned seeker work moved on to v2 /
+`docs/nn_seeker_program.md`.)*
 Post-batch TODO: full 867-frame sweep; A/B vs AprilTag on paired seeds; drop in a
 fine-tuned MIT/Apache drone nano; bench on Pi5+Hailo (ADR-0033 item 1).

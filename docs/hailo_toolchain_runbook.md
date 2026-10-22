@@ -10,10 +10,17 @@ The Dataflow Compiler (DFC) runs WITHOUT a Hailo device and reports context
 count + hardware-only fps. So before money moves:
 
 1. **Builder action:** register a (free) Hailo Developer Zone account and
-   download **DFC 3.33.x** (the 3.x line serves Hailo-8/8L; 5.x is 10/15
-   only). Account creation is a builder-only step (credentials rule).
-2. Install on WSL2 (officially listed; CPU-only quantization works, GPU
-   under WSL2 is unofficial): Ubuntu 24.04 OK, Python 3.10–3.12, ≥16 GB RAM.
+   download ~~**DFC 3.33.x**~~ **DFC 3.34.0** (the version actually exercised
+   2026-10-21; the 3.x line serves Hailo-8/8L; 5.x is 10/15 only and REJECTS
+   hailo8). Account creation is a builder-only step (credentials rule).
+2. ~~Install on WSL2 (officially listed; CPU-only quantization works, GPU
+   under WSL2 is unofficial): Ubuntu 24.04 OK, Python 3.10–3.12, ≥16 GB RAM.~~
+   **Superseded 2026-10-21 — Ubuntu 24.04 / py3.12 is a DEAD END** (optimizer
+   SIGSEGVs at "Starting Model Optimization"; MZ v2.17 pins don't build on
+   3.12). **Proven recipe: an `ubuntu:22.04` container (Python 3.10) driving
+   `scripts/nn/dfc_dryrun.sh`** with `DFC_VENV=/work/.venv-dfc-2204` and
+   `USER`/`LOGNAME`/`HOME` set — exact `docker run` line in
+   `runs/dfc_dryrun/README.md`. ≥16 GB RAM.
    CPU compile answers fit/context questions; final accuracy-grade
    optimization (needs GPU, ≥1024 calibration images) can run on a native
    boot or rented GPU later.
@@ -22,13 +29,24 @@ count + hardware-only fps. So before money moves:
    the experiment that answers the higher-res question for the 118° lens;
    (c) only then any P2-head attempt (known-fragile: 8 end nodes, a
    yolov5-p2 precedent quantized to 0 mAP).
+   **✅ (a)+(b) ANSWERED 2026-10-21 (`runs/dfc_dryrun/README.md`):** stock
+   80-class yolov8n compiles **single-context at BOTH 640 and 1024**.
+   **Caveat — our 1-class net is 2 contexts:** the deployment-shaped nc=1
+   compile at 640 lands in **2 contexts** (12.5 Mbps inter-context;
+   `runs/dfc_dryrun_single/README.md`). It still compiles and runs; the fps
+   cost is a day-1 `hailortcli benchmark` question on the real HAT.
+   Fit/context evidence only (random weights, synthetic calib) — no accuracy
+   number from these builds. (The 118° lens premise is itself superseded:
+   delivered lens ~70° HFOV, kept per ADR-0126.)
 
 ## Known-good pins
 
-- DFC 3.33.x + HailoRT 4.23.0 (`sudo apt install dkms hailo-all` — Trixie
-  only; our bench Pi IS on Trixie, verified 2026-10-21). Never compile with
-  a DFC newer than the Pi's HailoRT (3.33-on-4.20 fails with a firmware
-  error).
+- ~~DFC 3.33.x~~ **DFC 3.34.0 + Model Zoo v2.17** (as exercised in
+  `runs/dfc_dryrun*`, 2026-10-21) + HailoRT 4.23.0 (`sudo apt install dkms
+  hailo-all` — Trixie only; our bench Pi IS on Trixie, verified 2026-10-21).
+  Never compile with a DFC newer than the Pi's HailoRT (3.33-on-4.20 fails
+  with a firmware error) — the 3.34-on-4.23 pairing is not yet verified on
+  hardware; confirm on day 1.
 - Export: `yolo export model=best.pt format=onnx imgsz=640 opset=11`.
 - Compile route A (model zoo): `hailomz compile yolov8n --ckpt best.onnx
   --hw-arch hailo8 --calib-path calib/ --classes 1`.
@@ -41,6 +59,12 @@ count + hardware-only fps. So before money moves:
 - NMS runs on the Pi CPU via HailoRT (`engine=cpu` in the .alls), not
   on-chip, whatever the marketing says. Set `classes`/`image_dims` in the
   NMS json (single class for us).
+- **1 class = 2 contexts (DFC 3.34 + MZ 2.17):** the 1-class topology
+  compiles multi-context whether the class count comes from `--classes 1`
+  or the NMS json. ~~Editing `classes` in the NMS json to recover
+  single-context~~ — **tested dead 2026-10-21** (still 2 contexts,
+  `runs/dfc_dryrun_single/README.md`, `compile_1c_json_640.log`). Don't
+  re-try it; measure the 2-context fps on hardware instead.
 - Calibration: ≥1024 images, RGB at input size, FROM THE DEPLOYMENT CAMERA
   (grayscale replicated 3-ch if we train 1-channel — verify export path).
 

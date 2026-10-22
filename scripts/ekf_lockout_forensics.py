@@ -18,7 +18,7 @@ chi-square gate rejects a burst of CONSECUTIVE valid camera innovations near
 CPA (tight P + noisy near-CPA measurements) -> lambda_dot_hat goes
 stale/wrong -> guidance commands point the vehicle away -> tag leaves FOV ->
 seeker dropout -> abort. If true: fix is D3.2's adaptive
-consecutive-rejection gate-recovery (`docs/fusion_capstone_design.md` D3,
+consecutive-rejection gate-recovery (`retired/docs/fusion_capstone_design.md` D3,
 item 2 -- built for the POST-LATCH/post-cue case, tested here in the
 general form), NOT a Q change.
 
@@ -40,7 +40,7 @@ mistune, all reached a normal terminal), and (3) an offline SCREEN of the
 D3.2 adaptive gate-recovery mechanism: after N consecutive rejections,
 reinflate P's position+velocity diagonal to the cold-init floor ("restore
 to seed sigmas", state x untouched -- the same "re-init or provably decay"
-discipline fusion_capstone_design.md D3 item 1 uses at the cue latch) and
+discipline retired/docs/fusion_capstone_design.md D3 item 1 uses at the cue latch) and
 keep replaying, checking whether the very next attempted correction(s) then
 clear the gate.
 
@@ -90,7 +90,7 @@ from ekf_q_replay import (  # noqa: E402
 )
 
 Q_PROD = 64.0                  # production Q_ACCEL_PSD (ADR-0037 shipped default; untouched here)
-N_CONSEC_PRIMARY = 3           # D3.2's own trigger, as specified in fusion_capstone_design.md D3
+N_CONSEC_PRIMARY = 3           # D3.2's own trigger, as specified in retired/docs/fusion_capstone_design.md D3
 N_CONSEC_SUPPLEMENTARY = 1     # exploratory: does ANY single rejection's reinflation unblock?
 LAST_N_TICKS = 10              # "rejections in the last 10 detected ticks" per the task brief
 CASCADE_PROXIMITY_TICKS = 10   # streak counts as "immediately before" the fatal gap within this
@@ -539,7 +539,7 @@ def main():
 
     # --- D3.2 offline screen ---
     print(f"\n=== D3.2 adaptive gate-recovery mechanism screen (N={N_CONSEC_PRIMARY}, as specified "
-          f"in fusion_capstone_design.md D3 item 2) ===")
+          f"in retired/docs/fusion_capstone_design.md D3 item 2) ===")
     d32_events_by_flight = {}
     any_primary_trigger = False
     for arm, run_idx, category, path, rows, start_idx, end_idx in records:

@@ -1,6 +1,11 @@
 # nn_tier EVALUATE — s-mono (yolo11s @640, grayscale deployment track)
 
-**Status: IN PROGRESS — s-mono training has NOT completed (honest report, 2026-07-21 06:00 UTC).**
+> **✅ STATUS (2026-10-22): COMPLETE — superseded by `docs/nn_tier/PLAN.md` §1 results.**
+> s-mono finished: held-out **AP50 0.419** (recall@25 0.4417, precision@25 0.6563,
+> false-fire 0.0981) vs n-mono 0.442 — bigger did not help (`logs/nn_tier/heldout_scores.txt`).
+> The "in progress" text below is the original 2026-07-21 report.
+
+~~**Status: IN PROGRESS — s-mono training has NOT completed (honest report, 2026-07-21 06:00 UTC).**~~
 The s-mono daemon (`scripts/seeker/train_daemon_nn_tier_smono.py`) is queued behind the
 sibling n-mono run on the one-training-at-a-time GPU rule (epoch ~21+/60 at report time;
 an n-mono-aug daemon is also queued). No `s-mono.{pt,onnx}` exists yet in

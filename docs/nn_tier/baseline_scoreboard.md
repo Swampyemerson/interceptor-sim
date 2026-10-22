@@ -121,14 +121,17 @@ Ryzen-class, ORT 8 threads), NOT a Pi/Hailo number.
 
 | model | mode | AP50 | recall@.25 | precision@.25 | false-fire (birds) | ms/frame |
 |---|---|---|---|---|---|---|
-| v2_deployed (sim, DEPLOYED) | color | 0.0017 | 0.005 | 0.002 | **0.667** | 33 |
-| v2_deployed (sim, DEPLOYED) | gray | 0.0008 | 0.030 | 0.006 | **0.967** | 30 |
+| v2 (sim seeker) | color | 0.0017 | 0.005 | 0.002 | **0.667** | 33 |
+| v2 (sim seeker) | gray | 0.0008 | 0.030 | 0.006 | **0.967** | 30 |
 | quad_hardened (sim) | color | 0.000 | 0.000 | 0.000 | 0.120 | 28 |
 | quad_hardened (sim) | gray | 0.000 | 0.000 | 0.000 | 0.007 | 28 |
 | quad_rebal (sim) | color | 0.000 | 0.000 | 0.000 | 0.327 | 28 |
 | quad_rebal (sim) | gray | 0.000 | 0.000 | 0.000 | 0.040 | 28 |
 | yolo11x_mit (MIT, real-photo) | color+gray | *daemon in flight* — rows land in `logs/nn_tier/baseline_scoreboard_recon1.csv` | | | | ~1800–2100 |
 | flyingobj_mit (MIT, real-photo) | color+gray | *daemon in flight* — same CSV | | | | ~800 |
+
+*(2026-10-22 relabel: "v2_deployed (sim, DEPLOYED)" → "v2 (sim seeker)". quad_v2 is the sim
+seeker only; the flight default is **n-mono** per `docs/project_state.json`.)*
 
 **Reading the measured rows:** the sim-trained family divides into two failure modes on
 real imagery — the deployed v2 is a *hallucinating* failure (fires everywhere, sees

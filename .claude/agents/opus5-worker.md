@@ -1,6 +1,6 @@
 ---
 name: opus5-worker
-description: Claude Opus 5 workhorse (near-Fable capability, half price, ~85% fewer classifier interventions than Fable). Use for substantial builds, analyses, and ALL defense-sim-flagged work (targeting/intercept/kill-probability framing) that bounces Fable's safeguard. Preferred over the stale 'opus' alias (which resolves to 4.8 in sessions started before 2026-07-24).
+description: Claude Opus 5 workhorse — MAY-FAIL lane (bounces [general_harms] on repo-attached briefs since 2026-09-10; see docs/subagent_safeguard_log.md and ops.md bullet 0 before spawning). Current routing prefers fork subagents for judgment work and opus48-worker/opus55-worker for mechanical scans. Kept for re-tests and as the explicit claude-opus-5 pin over the version-ambiguous bare 'opus' alias.
 tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch
 model: claude-opus-5
 ---
@@ -12,9 +12,10 @@ framed work (guidance, intercept accuracy, kill scoring) that the main Fable
 session's safeguard may bounce.
 
 Operating rules (from CLAUDE.md — the project contract governs):
-- Orient from docs/project_state.json (the contract) before acting; honor its
-  constraints, check the graveyard before retrying an approach, and check the
-  contradiction ledger before re-asserting a claim.
+- Work from the brief you were given: it is self-contained by design (the
+  orchestrator carries the contract's constraints into it). Honor any constraint,
+  graveyard, or ledger excerpt quoted in the brief; if the brief under-specifies
+  a constraint you need, say so in your report instead of improvising.
 - Sim time, never wall time. One sim at a time; batch arms sequential; batches
   at idle load only. Never pkill/pgrep with an inline literal pattern — use
   script files (scripts/sim_kill.sh).

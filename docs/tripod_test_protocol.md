@@ -1,5 +1,13 @@
 # Tripod field-test protocol — build_plan P2 (decision-grade)
 
+> **⚠ DESCOPED AS A STANDALONE GATE — ADR-0127 (builder ruling, 2026-10-22).** Field
+> interception day is THIS WEEKEND and tripod day no longer stands in front of it:
+> the Tier-2 order already happened (ADR-0109), and the decode-envelope measurement
+> either rides along on kill-day setup (the placard, camera and scoring rig are on
+> site anyway — this protocol's capture steps are then the recipe) or comes from the
+> attempt's own logs. The protocol below remains the decision-grade METHOD whenever
+> that capture happens; its "money gate" framing is historical.
+
 > **Read this before you leave the house.** This is the ONE in-person session that
 > produces the data BOTH money gates hang on (`docs/project_state.json` `build_plan`
 > P2 + the `⛔ MONEY GATE` in `docs/hardware_order_list.md` §0d). One capture set,
@@ -55,8 +63,9 @@ bench task (§7.3) — it does not need the target flying.
 - [ ] **$0 kill-test run**: candidate NN already tried on public outdoor drone
       footage — a free first read on the transfer bet, done before spending a field
       day (`build_plan.P0` task 6).
-- [ ] **FAA registration + Remote ID / FRIA field settled** — see §9. Do this
-      BEFORE the field day; it's a legal blocker, not a data blocker.
+- [x] ~~FAA registration + Remote ID / FRIA field settled~~ **CLOSED by builder ruling
+      ADR-0094 (2026-08-10): he flies his own ~50 acres; the capture doc is optional.**
+      (§9's checklist is historical — same ruling.)
 - [x] **Capture tooling exists**: `scripts/seeker/pi_capture.py` — BUILT. Records a
       session as `SESSION_DIR/frames/*.png` + `index.csv` (per-frame path, monotonic
       timestamp, exposure/gain actually applied) + `meta.json` + optional `tags.csv`

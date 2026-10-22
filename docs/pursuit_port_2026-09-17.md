@@ -90,4 +90,9 @@ Drops into `RealFlightSM` unmodified (no `isinstance` anywhere on `RealFlightSM.
   (`flight/tests/test_terminal_cli.py`); audit + self-test PASS; full suite 1064 passed.
   Disclosed open interaction: `engage_lost_target_s=2.0` fires before pursuit's
   `fallback_s=3.0` recovery can act — needs a ruling before either number moves.
-- Items 4 (isim parity) and 5 (Gazebo) remain open.
+  *(2026-10-22 sweep: ruled — the pre-registered test came back a NULL; the timer is
+  exonerated and neither number moved.)*
+- ~~Items 4 (isim parity) and 5 (Gazebo) remain open.~~ **2026-10-22 sweep: both CLOSED.**
+  Item 4 closed 2026-09-22 (isim/flight-code parity trace, `parity_trace_2026-09-22`).
+  Item 5 flown 2026-09-23; the Gazebo gate passed and pursuit-only became the flying
+  default (ADR-0118, 2026-09-24 — no sprint, no acquire gate; gate median 0.343 m).

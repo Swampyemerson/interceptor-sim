@@ -2,6 +2,19 @@
 
 > **READ THIS FIRST after a /compact or /clear.** It is the hand-off for the work the builder
 > ordered on 2026-09-17. Status line at the bottom says where it stands.
+>
+> **CLOSING STATUS (2026-10-22): this chapter is CLOSED.** WP7 landed as chase-only PURSUIT and
+> was adopted as the flying default (ADR-0118, 2026-09-24 — no sprint, no acquire gate). Honest
+> record of the loose ends:
+> - Acceptance bar **A2** ("≥ 90% inside 0.35 m incl. the vertical channel", lines ~65-69 below)
+>   was **REPLACED, not met as written** — the adoption gate became the ADR-0118 Gazebo gate
+>   (passed, median 0.343 m), which is the standing gate.
+> - The **< 2,000-line cap** on isim (Honest risks) is **breached at ~5.8k lines**; the trim
+>   decision is queued, not taken.
+> - The `grid5.py` reproduce pointer (ADR-0103 status entry below) was **uncommitted scratch**;
+>   the exact CLI is lost. The pattern shown inline is what survives — said honestly.
+> - The **deletions ruling** (six dead switches + archive `guidance_lab.py`, "other open
+>   decisions" below) is **still owed** — gated on A1 which has long since passed; queued.
 
 ## The directive, in the builder's words
 

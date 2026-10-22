@@ -1,7 +1,7 @@
 # Real-world NN transfer plan (Track D, T24)
 
 *Design doc only — no sim runs, no training runs, no commits. Companion to
-`docs/phase2_sim_to_real_plan.md` (Track D, §2) and the ground-rig companion
+`retired/docs/phase2_sim_to_real_plan.md` (Track D, §2) and the ground-rig companion
 `docs/stereo_design.md`. Written for a builder new to edge ML deployment —
 terms are defined on first use. All fps/accuracy numbers below are either a
 literature citation for a comparable model on the SAME target hardware, or an
@@ -40,7 +40,7 @@ and keep everything that taught you how to get there.
 | **Hard negatives from the deployed camera's own view** (ADR-0040 addendum, ADR-0042) | v1's fine-tune, trained on clean static renders only, false-locked on the interceptor's own prop arms and ground shadow *in flight* — frames the static dataset never contained. Fix: capture real in-flight frames (own props visible, out-of-FOV, tiny/dropped) as **empty-label negatives**, not just "background." | **YES, as a principle.** Any camera bolted to a real airframe/rig will show its own mount, arms, or shadow in some frames — that is a physical fact of the camera's mounting, not a sim artifact. The *specific* negatives (Gazebo prop-arm pixels) don't transfer; the *practice* of capturing hard negatives from the real deployed camera before trusting a detector does. |
 | **Self-mask / interior gate** (`FinetunedNNSeeker`, `two_stage_seeker.py`) | A cheap geometric rule applied *after* detection: reject a box whose bearing exceeds ~30° or that touches the L/R frame edge — because a body-fixed part (prop arm) always sits at a fixed edge-hugging location, while the real target moves freely through the frame interior. | **YES, as an architecture pattern**, ported directly (same code shape: geometric post-filter, no retraining needed to change it). The exact threshold (30°, edge-touch) is a function of the real camera's mount geometry and FOV and will need re-tuning per physical rig, but the *pattern* — "don't trust a detection where a known-bad structural false-positive lives" — is dataset-independent and cheap to keep. |
 | **Range calibration method** (`calibrate_range.py`) | Positives-only, IoU-gated: fit an *effective* target span from validation-set boxes so `range = fx · span / box_width_px` reads true range in the median, rather than trusting an assumed nominal size. | **YES, the METHOD transfers exactly** — it only needs a labeled validation set and the camera's `fx`, both camera-agnostic. The *fitted constant* (span_eff ≈ 0.92 m for the sim body) does not transfer — a real target has a different apparent size, and the whole reason this method exists is that "the target is exactly 1.0 m" is never quite true. Re-fit per real camera + real target class. |
-| **Detect-then-track / two-stage architecture** (`markerless_loop.py`, `two_stage_seeker.py`) | Proposal → self-mask/horizon reject → crop+upsample → classify, wrapped in a streak-gated track (N consecutive hits before trusting a lock). | **YES, as an architecture choice**, independent of which detector network sits inside it. The streak-length / gate constants were tuned to the sim's ~14 Hz cadence (ADR-0009) and **must be re-tuned to the real measured detection Hz** — `stage0_bench_plan.md` §3b flags this as the #1 still-unmeasured number for this exact reason. |
+| **Detect-then-track / two-stage architecture** (`markerless_loop.py`, `two_stage_seeker.py`) | Proposal → self-mask/horizon reject → crop+upsample → classify, wrapped in a streak-gated track (N consecutive hits before trusting a lock). | **YES, as an architecture choice**, independent of which detector network sits inside it. The streak-length / gate constants were tuned to the sim's ~14 Hz cadence (ADR-0009) and **must be re-tuned to the real measured detection Hz** — `retired/docs/stage0_bench_plan.md` §3b flags this as the #1 still-unmeasured number for this exact reason. |
 | **Polar fusion discipline** (ADR-0044: cue never touches the bearing channel) | A guidance-architecture decision, not a perception one: the ground cue may inform range/velocity, never the seeker's own bearing measurement. | **YES, unchanged, and orthogonal to every detector choice in this document.** Swapping the detector network does not touch this boundary — it is enforced above the detector, in the fusion/guidance layer. |
 | **The trained weights themselves** (`drone_finetuned_v2.onnx` / `.pt`) | A YOLO11n backbone fine-tuned on ~530 positives / ~700 negatives, all rendered or captured *inside Gazebo* — a synthetic primitive body, flat matte shading, zero motion blur, zero lens distortion, zero real sensor noise. | **NO.** This is the one asset that does not survive the sim→real boundary, for the ordinary reason any sim-trained perception model doesn't: the visual domain gap. It's also worth noting the ADR-0042 *mechanism* finding doesn't automatically transfer either — "detection persistence wasn't the binding constraint, bearing-noise-throughput was" was measured against Gazebo's box-center bearing noise, which has no reason to match a real camera's bearing noise sources (rolling readout artifacts if not global-shutter, real optical distortion, real quantization noise). Re-measure this on real footage, don't assume it. |
 
@@ -158,7 +158,7 @@ to keep exactly one training pipeline to maintain instead of two.
 
 ## 3. The Stage-0 data loop
 
-`docs/stage0_bench_plan.md` already specifies a Pi 5 + global-shutter-camera
+`retired/docs/stage0_bench_plan.md` already specifies a Pi 5 + global-shutter-camera
 bench (~$257, design-review §6 re-cost; parts on the builder per docs/next.md) — but that plan is scoped
 **narrowly to the AprilTag go/no-go gate** (detection rate, range/bearing
 error, detection Hz, motion-blur threshold, lighting robustness, all against
@@ -175,7 +175,7 @@ different purpose.
 | **Real bird footage** | Opportunistic — birds cannot be scheduled | The hardest negative class, and the one the sim could never provide at all (ADR-0035: "most drone-detection datasets have no labeled bird class"). |
 | **Backgrounds** | Sky-only, horizon/tree-line, ground clutter, and — critically — **the camera's own mount/airframe edges once it's actually bolted to the real seeker platform** | Direct real-world analog of the own-prop hard-negative lesson (§1): captured from the REAL mount, not assumed. |
 | **Ranges** | Near band (terminal, matches the onboard camera's eventual close-range role) and far band (matches the ground rig's ~60-160 m detection envelope, `stereo_design.md`) | The two fine-tunes (§2.4) need range-appropriate footage; a single near-range capture pass under-serves the ground rig. |
-| **Motion states** | Hover, level transit, and — if a controllable proxy is available — a turn/evasive pass | Detection robustness against apparent motion blur and aspect change, the same axis `stage0_bench_plan.md` §3c measures for the fiducial. |
+| **Motion states** | Hover, level transit, and — if a controllable proxy is available — a turn/evasive pass | Detection robustness against apparent motion blur and aspect change, the same axis `retired/docs/stage0_bench_plan.md` §3c measures for the fiducial. |
 
 **Fill the gap with an already-vetted licensed dataset while opportunistic
 capture accumulates.** `bird_discrimination_design.md` already identified the
@@ -280,6 +280,9 @@ generally-preferred permissive license for a model you might productize.
 ---
 
 ## 5. Decision recommendation
+
+> **SUPERSEDED (2026-10-22) by ADR-0125:** the onboard model is **yolov8n on a Hailo-8 (26
+> TOPS, ~$110)**, not YOLOX-Nano. The YOLOX recommendation below is kept as history.
 
 **Recommendation: adopt YOLOX (Apache-2.0) as the model family for BOTH the
 real onboard seeker (Pi 5 + Hailo-8, YOLOX-Nano) and the real ground rig
@@ -407,7 +410,7 @@ away.
    session, not assumed here.
 5. Real lens distortion and real motion blur interact with a fine-tuned
    detector's learned box geometry the same way they interact with the
-   AprilTag pose solve — `stage0_bench_plan.md` §3c already measures a
+   AprilTag pose solve — `retired/docs/stage0_bench_plan.md` §3c already measures a
    yaw-rate/motion-blur dropout threshold for the fiducial; an equivalent
    test for the NN detector doesn't exist yet and should be added to the
    Stage-0 capture protocol extension (§3) once it's built.

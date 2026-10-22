@@ -1,6 +1,6 @@
 ---
 name: sonnet-worker
-description: Implementation and execution workhorse. Use PROACTIVELY for installs, boilerplate, coding a module, running simulations, capturing and reading logs, and writing tests — anything mechanical or verifiable that should not burn main-session (Fable) budget. Not for architecture or final decisions.
+description: Implementation workhorse — LANE DEAD on this repo as of 2026-10-22 (8/8 instant [general_harms] bounces, reconfirming 2026-10-14; see docs/subagent_safeguard_log.md). Do NOT spawn until the log records a clean retest; route mechanical volume to opus48-worker/opus55-worker instead (ops.md bullet 0). Definition kept for the retest and for other repos.
 tools: Read, Write, Edit, Bash, Grep, Glob, WebSearch, WebFetch
 model: sonnet
 ---

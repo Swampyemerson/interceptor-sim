@@ -57,7 +57,8 @@ parts; every item that needs Tier 2 is marked **[T2]**.
 2. **It turns the aim from a human-motor problem into a number.** With a hand-launch
    the aim is where the operator's arm points (±5–10°, and unmeasurable). With a
    standby hover the aim is a **commanded heading held by PX4's yaw controller**
-   (~1–2°), and it is logged. Given the §3 budget (±3° for a ram), that difference
+   (~1–2°), and it is logged. Given the §3 budget (~~±3°~~ **±2.4°** for a ram —
+   ADR-0084, 0.35 m radius), that difference
    *is* the difference between a hit and a fly-through.
 3. **It is the physical form of the Phase-A loft.** The best current pointing lever
    is "climb, then dive on the co-altitude target so the nose-down dash pitch aims
@@ -269,6 +270,15 @@ only** — on the vehicle path it deliberately does *not* arm, take off, or land
 on hardware.** So the launch mechanism's software deliverable is
 `flight/deploy/real_flight.py`:
 
+> **2026-10-22 banner: this deliverable EXISTS and is the flying default.**
+> `flight/deploy/real_flight.py` was built (ADR-0105) and is what flies — as of
+> ADR-0118 (2026-09-24) the default is **chase-only pursuit** (no sprint, no acquire
+> gate; Gazebo gate median 0.343 m), so the CODED_DASH leg drawn below is the
+> opt-in configuration, not the default. The passage window was ported into
+> `real_flight.py` 2026-09-22. §7 status: **L1 is CLOSED** by this; L2's latch-once
+> assert applies only when the coded dash is actually flown (the pursuit default has
+> no dash-heading latch); **L3–L7 and L8–L12 remain open as written.**
+
 ```
 STANDBY   arm-gated; stream hold setpoints (velocity 0, yaw = C1) at >=2 Hz so
           PX4 stays in OFFBOARD; run the detector; maintain the latch candidate.
@@ -341,6 +351,8 @@ next reader does not "discover" them again.
 the Kakute** (no card = no target log = no scored CPA), tripod + ball head (L5),
 LiPo bag/glasses/blanket, Pi 5 active cooler, USB-C PD power bank, lost-model
 buzzer, zip ties, multimeter (if unowned).
+*(2026-10-22: this list is queued to the builder as weekend field-kit buys — field
+interception day is 2026-10-24/25, ADR-0127.)*
 
 ### Later — needs the Tier-2 interceptor **[T2]**
 
@@ -359,7 +371,8 @@ buzzer, zip ties, multimeter (if unowned).
 1. **Launch = ground takeoff to a standby hover, then a triggered coded dash.**
    *Options:* hand-launch / rail-perch / ground-standby. *Decision:* ground-standby.
    *Why:* it is the only one that (a) reuses the already-validated PX4/MAVSDK
-   OFFBOARD path, (b) turns aim into a controller-held number inside the ±3° ram
+   OFFBOARD path, (b) turns aim into a controller-held number inside the ~~±3°~~
+   **±2.4°** (ADR-0084) ram
    budget, (c) *is* the Phase-A loft for free, and (d) keeps launch conditions
    repeatable so field CPAs are comparable. *Reversible:* yes — a rail can be added
    later without touching the software.
@@ -398,7 +411,8 @@ buzzer, zip ties, multimeter (if unowned).
 - **Compass/EKF yaw** is a first-order aim error source for the map-referenced
   fallback (§2) and must be calibrated on-site, away from vehicles/rebar.
 - **Legal:** FAA registration + broadcast Remote ID on both >250 g aircraft (or a
-  FRIA field) before any outdoor flight. Unresolved at the time of writing.
+  FRIA field) before any outdoor flight. ~~Unresolved at the time of writing.~~
+  **CLOSED per builder ruling ADR-0094 (2026-08-10): he flies his own ~50 acres.**
 - **ROE:** a human owns weapons release. That is a decision, not a default, and it is
   the reason auto-fire stays in the graveyard.
 

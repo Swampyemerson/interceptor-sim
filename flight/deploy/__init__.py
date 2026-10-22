@@ -16,10 +16,14 @@ reads any ground truth -- there is no ground truth on real hardware to read.
 
 WHAT PROVES IT, and exactly what that proves: `python -m flight.deploy.real_flight
 --audit` walks the SYNTAX TREE of the whole real-build import closure
-(real_flight.py, seeker_loop.py and flight/{camera,geometry,estimator,guidance,
-range_fusion,terminal_coast,fov_guidance}.py -- `real_flight._AUDITED_MODULES`)
+(`real_flight._AUDITED_MODULES` -- real_flight, seeker_loop, frame_feed,
+frame_recorder, cue_relay, the three terminals and flight/{camera,geometry,
+estimator,guidance,range_fusion,terminal_coast,fov_guidance}.py)
 and fails on any `gt_`/`ground_truth` identifier or simulator import, plus the
-one-write dash-heading latch. It is a NAMING/IMPORT check, not information-flow
+one-write dash-heading latch. The list can no longer rot silently: an import-
+closure test walks the real import graph and fails on any reachable flight
+module that is neither audited nor exempt-with-reason
+(`real_flight._AUDIT_IMPORT_EXEMPT`). It is a NAMING/IMPORT check, not information-flow
 proof: it cannot see ground truth handed in by a caller under a clean name. Its
 calibration -- that it actually FIRES on a planted read -- is pinned by
 flight/tests/test_real_flight.py. Before 2026-07-25 the audit covered

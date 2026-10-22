@@ -72,8 +72,15 @@ own attitude, velocity and timing, all set to the worst-credible tier.
 | Target weaving | 32% | 0.53 m | 50 |
 
 The height and weave cases are the open problems. Tilting the camera up 10° and
-canting the tag down 12° brings the 3 m height case back to about 60%, and that
-pair is now in the build spec. Source: [`isim/specs/tag_realism_v1.md`](isim/specs/tag_realism_v1.md).
+canting the tag down 12° brings the 3 m height case from 30% to 64% at the
+worst-credible tier (same 100 seeds, with and without the pair), and that pair
+is now in the build spec. Source: [`isim/specs/tag_realism_v1.md`](isim/specs/tag_realism_v1.md)
+(the first three rows are its disjoint-seed confirmation run, the weave row its
+50-run ladder, all at the worst-credible rung).
+
+These fast-simulator runs model the 118° lens the camera listing claimed. The
+delivered lens measures about 70° (next section), so these numbers, the 20°
+aim row especially, have not yet been re-run for the lens that will fly.
 
 ### Earlier milestones
 
@@ -88,8 +95,11 @@ The radio motor-cutoff switch is wired and verified. The Pi commands the flight
 controller over a serial link, 300 of 300 setpoints at 19.5 Hz. The camera is
 calibrated to 0.73 px RMS, and the real flight state machine has run end to end
 on live camera frames at the desk. Calibration also showed the delivered lens
-sees about 70 degrees, not the 118 the listing claimed. A tape measure agreed,
-and a wider lens is on the parts list. First flights are next.
+sees about 70 degrees, not the 118 the listing claimed, and a tape measure
+agreed. That lens is the one that will fly: the narrower view puts about 19
+pixels on each degree, so the tag is readable from farther away, at the cost
+of a smaller pointing margin. This replaces the project's earlier rule of a
+lens of at least 100 degrees. First flights are next.
 
 ## Not done yet
 
@@ -106,7 +116,7 @@ and a wider lens is on the parts list. First flights are next.
 
 - An automated test fails the build if guidance code reads simulator ground
   truth.
-- Every published number traces to a logged run, a gate script, or one of 140+
+- Every published number traces to a logged run, a gate script, or one of 120+
   written design decisions ([`docs/decisions.md`](docs/decisions.md)).
 - Tests are registered before flying: the configuration, the prediction, the
   pass bar, and what a null result would mean.

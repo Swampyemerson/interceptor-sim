@@ -215,7 +215,7 @@ ADR-0005 resource-path shadow precedent, same as the demo world already does.
 `/world/<name>/pose/info` (ground truth) is **scoring/logging only**; it is
 structurally unreadable by guidance, which sees camera + own-state EKF. A markerless
 seeker is a *new guidance path*, so it **re-earns the numeric no-cheat audit** — the
-same pattern as `docs/audit_targets.md`: assert the seeker's `Measurement` never
+same pattern as `retired/docs/audit_targets.md`: assert the seeker's `Measurement` never
 derives from any `gt_` field, and that the CSV's `gt_range`/`gt_bearing` columns are
 computed only in the scoring block. Frame math stays ENU/optical/FRD/NED per docs/goals.md.
 
@@ -325,6 +325,9 @@ lower-risk ordering with an earlier working demo.
   **Apache-2.0 (NanoDet-Plus, MobileNet-SSD)** or an **MIT** drone fine-tune for a public
   portfolio, or accept AGPL knowingly. Flag: **MMAUD is CC-BY-NC-SA (non-commercial)** —
   usable for a portfolio, not a commercial claim.
+  **⚠ OPEN (2026-10-22):** the repo went **PUBLIC 2026-08-29** while carrying YOLO-lineage
+  (Ultralytics, AGPL-3.0) nets; whether that is acceptable or needs action is **queued to the
+  builder** — not resolved here.
 - **R7 — single-target assumption.** Guidance consumes `detections[0]` only; fine for
   the one-target sim, but a real sky has birds/clutter → the "drone-vs-bird" classifier
   (ADR-0015 §2) is what disambiguates, and is out of scope for the sim-only milestone.
@@ -368,7 +371,7 @@ lower-risk ordering with an earlier working demo.
 > bound, ADR-0024). Partial result acceptable (ADR-0033).
 >
 > **Honesty boundary.** New guidance path → re-earn the numeric no-cheat audit
-> (`gt_*` scoring-only, `docs/audit_targets.md` pattern); disclose the no-blur/no-vibration
+> (`gt_*` scoring-only, `retired/docs/audit_targets.md` pattern); disclose the no-blur/no-vibration
 > sim optimism.
 
 ---
@@ -378,7 +381,7 @@ lower-risk ordering with an earlier working demo.
 Repo/ADR: `docs/goals.md`; `docs/decisions.md` ADR-0005/0010/0012/0015/0023/0024/0025/0028/0029/0033;
 `scripts/m3_static_intercept.py` (`Measurement`, `detection_loop`);
 `scripts/m4_intercept.py` (filter gains, LOS/pro-nav consumption); `scripts/frame_source.py`;
-`docs/audit_targets.md`; `docs/perception_design.md`; `.claude/skills/pronav`.
+`retired/docs/audit_targets.md`; `retired/docs/perception_design.md`; `.claude/skills/pronav`.
 
 Web (accessed 2026-07): [Ultralytics YOLOv8](https://docs.ultralytics.com/models/yolov8/) ·
 [YOLO11 on Raspberry Pi (learnopencv)](https://learnopencv.com/yolo11-on-raspberry-pi/) ·

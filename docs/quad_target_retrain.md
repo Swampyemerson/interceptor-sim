@@ -1,5 +1,10 @@
 # Quad-target retrain — RESUME GUIDE (survives /clear)
 
+> **✅ STATUS (2026-10-22): DONE — `drone_finetuned_quad_v2` IS the active SIM seeker.** The
+> "swap not done" row below is stale. Note the FLIGHT (real-hardware) default is the
+> real-data `n-mono` model, not quad_v2 (quad_v2 is blind on real imagery) — per
+> `docs/project_state.json`. The rest of this file is the 2026-07-11 resume record.
+
 > **Why this file exists.** The reproduction commands for this arc were driven by
 > scratchpad scripts that are ephemeral. This doc is the durable, self-contained
 > record so a fresh session (post-`/clear`, no chat memory) can resume the
@@ -31,7 +36,7 @@ retrain-gated — this is not a free swap.**
 | **Banking-pose retrain** `drone_finetuned_quad_v2` | ✅ **trained (stopped ~ep 17, saturated) + exported**; re-validated 1 flight = **handoff FIXED (6.75 m, 4 losses)** but that flight ABORTED in the terminal (see "v2 seeker RESULT" below) | `scripts/seeker/weights/drone_finetuned_quad_v2.{pt,onnx}` (gitignored); scripts committed `9a8fd56` |
 | Characterization batch | ✅ **6/6 CLEAN** (median miss ~1.2 m, handoff ~6.8 m; the earlier abort was run-to-run noise) | see "v2 characterization batch" below |
 | Pk batch on the new pair | ❌ not started (after the terminal issue is understood) | — |
-| Swap to deployed | ❌ not done (fallback stays live) | — |
+| Swap to deployed | ~~❌ not done (fallback stays live)~~ ✅ DONE (2026-10-22 check) — quad_v2 is the active sim seeker; flight default is n-mono | `docs/project_state.json` |
 
 ### The level-seeker re-validation result (single flight — NOT a Pk claim)
 On the `quad_enemy` world with the level seeker, one intercept flight:

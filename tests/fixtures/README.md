@@ -7,23 +7,11 @@ every clean clone** — which is what kept GitHub Actions red on 73/73 runs from
 first push (2026-07-21) until 2026-07-25. This directory holds the minimum tracked
 data that makes the offline suite reproducible from `git clone` alone.
 
-## `rig_capture_min/` — 200 KB (fallback for `tests/test_ground_station.py`)
+## `rig_capture_min/` — REMOVED 2026-10-22
 
-A trimmed copy of `logs/rig_captures/full_sweep_20260709T015530Z/` (the T16 ground
-stereo-rig sweep, 3.1 MB / 56 stereo pairs):
-
-| file | why it is here |
-|---|---|
-| `capture_meta.json` | `RigConfig.from_capture_meta` — baseline, intrinsics, true pose |
-| `index.csv` | `load_capture` — per-frame `seq` / `t_sim_nominal` / gt target rows |
-| `centroids.csv`, `centroid_cache_meta.json` | ADR-0051 centroid-cache replay cases |
-| `left/0000{5,6,7}.png`, `right/0000{5,6,7}.png` | the only real frames a non-onnx case **stats** (`test_datum_bias_shifts_triangulated_position_through_process_frame`; pixels are never opened — centroids are synthesized) |
-
-`tests/test_ground_station.py` prefers the real on-disk capture when present and falls
-back here otherwise, so a local run still exercises the full 56-frame sweep. The two
-`onnxruntime`-gated cases need frames this subset does not carry (seq 10-15); they
-`importorskip` first, and if they are ever reached without the full capture they
-**fail loudly** rather than skip.
+Was the fallback for `tests/test_ground_station.py`, which commit 3880153 retired to
+`retired/tests/`. The fixture had no remaining live consumer and was deleted in the
+review-3 sweep (recoverable from git history if the ground-station test is ever revived).
 
 ## `apriltag_sim_frames/` — 772 KB / 32 frames (no-hardware fixture for the field pack)
 

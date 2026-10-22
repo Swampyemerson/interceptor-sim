@@ -9,6 +9,14 @@
 > two-aircraft mid-air happens after four cheaper things have already proven the
 > stack.
 >
+> **SCHEDULED: THIS WEEKEND, 2026-10-24/26 (builder ruling ADR-0127, 2026-10-22).**
+> Tripod day no longer gates this — its decode capture rides along if time (see the
+> banner in `tripod_test_protocol.md`). The ruled flying config: **chase pursuit**
+> terminal (ADR-0118; engage window now 30 s in pursuit mode, ADR-0129), the
+> **~70° lens** (ADR-0126), AprilTag seeker, pre-flight-latched GPS cue — and the
+> same-day isim A/B says **plan the launch cue inside ~10° of truth** (at 20° the
+> kill converts only ~half the time; ADR-0128 addendum).
+>
 > Sources: `docs/project_state.json` (`build_plan` P4/P5, `kill` stage, constraints
 > `binary-kill`, `no-datalink`, `target-is-ardupilot`, `prop-clearance`),
 > `docs/launch_mechanism_plan.md` §1/§4/§7, `docs/hardware_order_list.md` §0c,
@@ -98,12 +106,13 @@ whether a props-on flight is safe rather than merely optimal:
       card (§11)**, or explicitly accepted as a guess **with the reason written
       down**. A guess you have chosen is fine; a guess you did not notice is not.
 
-### 1.4 Regulatory — a legal blocker, not a data blocker
+### 1.4 Regulatory — CLOSED by builder ruling (ADR-0094, 2026-08-10)
 
-- [ ] **`docs/regulatory_site_capture.md` is FILLED IN** — regime, site, Remote ID
-      path for BOTH >250 g aircraft, and specifically **written permission for a
-      deliberate two-aircraft mid-air at this site**. The tripod day's venue may
-      not be this day's venue; the tripod day did not involve intentional contact.
+- [x] ~~`docs/regulatory_site_capture.md` is FILLED IN~~ **CLOSED**: the builder flies
+      his own ~50 acres and ruled the regulatory basis settled (his attestation is
+      recorded in `docs/regulatory_site_capture.md`; filling the template further is
+      optional and blocks nothing). Still worth 30 seconds on the tailgate: confirm
+      the day's site IS that land, and that no bystander can enter the engagement box.
 
 ### 1.5 Logistics
 
@@ -457,12 +466,13 @@ drift to report, not a field-day judgement call.
 
 ---
 
-## 9. Regulatory
+## 9. Regulatory — CLOSED (ADR-0094)
 
-See **`docs/regulatory_site_capture.md`** — it must be filled in before this day,
-and it specifically must record **written permission for a deliberate two-aircraft
-mid-air at this site**, plus the Remote ID compliance path for **both** >250 g
-aircraft. The tripod day's venue and this day's venue may differ; capture both.
+Closed by builder ruling 2026-08-10: he flies his own ~50 acres and states the
+regulatory basis is settled (attestation recorded in
+`docs/regulatory_site_capture.md`; the template stays optional). No written-permission
+paperwork is owed to this protocol. The §1.4 tailgate check (right site, clear box)
+is what remains.
 
 ---
 

@@ -39,11 +39,14 @@ random frames (ADR-0061 anti-mirage rule); verifier-confirmed zero group/uid ove
 
 | model (gray) | AP50 | recall@25 | precision@25 | false-fire rate (drone-free) | provenance |
 |---|---|---|---|---|---|
-| **v2_deployed** (sim-trained, currently deployed) | **0.0003** | **0.0111** | 0.0051 | **0.8849** (2.21 fires/neg-frame) | `logs/nn_tier/eval_s-mono_summary_cmp1.csv`, n=4175 |
+| **v2 (sim seeker)** (sim-trained `drone_finetuned_quad_v2`) | **0.0003** | **0.0111** | 0.0051 | **0.8849** (2.21 fires/neg-frame) | `logs/nn_tier/eval_s-mono_summary_cmp1.csv`, n=4175 |
 | **n-mono** | **0.4421** | **0.4417** | **0.7141** | **0.049** (0.049 fires/neg-frame) | `logs/nn_tier/eval_n-mono_heldout.csv`, n=4175, same split |
 | n-mono-aug (heavy augmentation) | 0.3875 | 0.4137 | 0.6688 | 0.0512 | `logs/nn_tier/heldout_scores.txt`, n=4175, same split — slightly BELOW plain n-mono ⇒ augmentation did not help on this held-out public set |
 | s-mono (yolo11s, 4× params) | 0.4187 | 0.4417 | 0.6563 | 0.0981 | `logs/nn_tier/heldout_scores.txt`, n=4175, same split — ties recall, WORSE precision + 2× false-fire at 38 MB ⇒ bigger did not help; confirms yolo11n is the right size |
 | yolo11x_mit (56.9 M, teacher only) | 0.2076* | 0.46* | 0.22* | 0.62* | *DVB corpus n=350, `logs/nn_tier/baseline_scoreboard_recon1.csv`; held-out-split subset run in flight |
+
+*(2026-10-22 relabel: "v2_deployed" → "v2 (sim seeker)". quad_v2 is the sim seeker only; the
+flight default is **n-mono** per `docs/project_state.json`. "Deployed v2" below means the same.)*
 
 **The measured non-performance of the deployed v2 is the headline result already in hand:**
 on real held-out imagery in the deployment modality, `drone_finetuned_quad_v2` is blind

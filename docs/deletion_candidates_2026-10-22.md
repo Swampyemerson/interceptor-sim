@@ -1,7 +1,8 @@
 # Deletion / retirement candidates — 2026-10-22 (overnight scout)
 
-Ops duty #3 ("scope grows silently — propose deletions"). READ-ONLY scan;
-nothing was deleted. Each row: why it's dead, the superseding pointer, live
+Ops duty #3 ("scope grows silently — propose deletions"). READ-ONLY scan at writing;
+Tier 1 EXECUTED 2026-10-22 (builder approval, review-3 sweep — per-row status below).
+Tier 3 (logs) remains HELD: gitignored data, irreversible. Each row: why it's dead, the superseding pointer, live
 inbound references (from CLAUDE.md / ops.md / goals / next / progress /
 contract / scripts), and a recommendation. Ranked by review-load saved.
 Prior art: `docs/doc_hygiene_2026-09-17.md` (archived ADR-0001–0080; its
@@ -11,13 +12,13 @@ method is reused here). **The builder decides; the head executes per row.**
 
 | # | path | why dead | superseded by | inbound | rec |
 |---|---|---|---|---|---|
-| 1 | `docs/linkedin_copy_draft.md` | one-off social copy, GitHub-skip ruled | the real README/portfolio | 0 | **DELETE** |
-| 2 | `docs/audit_targets.md` | one-shot audit prep for a 2026-07-06 branch, long merged | the audit's own results in ADRs | 1 (a comment citing its *pattern*) | **DELETE** (fix the comment to cite the ADR) |
-| 3 | `docs/fusion_capstone_design.md` | sim-phase design for fusion that A/B'd NO-TRANSFER, default-OFF (ADR-0017 era) | contract stage note + `flight/range_fusion.py` docstring | 3 (historical mentions) | **ARCHIVE** to state_archive |
-| 4 | `docs/compute_setup.md` | ADR-0012/0015-era (sim-phase) compute notes; the real stack is ruled in the contract (Pi 5 + Hailo-8, ADR-0125) | contract `bom_tiers` + `nn_seeker_program.md` | 2 | **ARCHIVE** |
-| 5 | `docs/ekf_design_brief.md` | 797 lines, "DESIGN ONLY, gated" since the sim phase; the gate never opened and the chase ruling made it moot | ADR-0103 chase-only; contract | 3 | **ARCHIVE** (keep a 5-line stub pointing at the archive) |
-| 6 | `docs/scoring_fix_plan.md` | 514 lines; its own header says §2 is corrected by the 2026-08-10 re-score; plan fully executed | `docs/rescore_2026-08-10.md` (the record) | 6 — *refs are mostly the rescore doc + ADRs citing history* | **ARCHIVE**, re-point the 6 refs |
-| 7 | `docs/candidate_nn_shortlist.md` | sim-era NN shopping list; the real-data program + ADR-0125 rulings replaced it | `docs/nn_seeker_program.md`, `docs/nn_tier/PLAN.md` | 5 (contract build_plan history lines) | **ARCHIVE**, keep contract wording as history |
+| 1 | `docs/linkedin_copy_draft.md` | one-off social copy, GitHub-skip ruled | the real README/portfolio | 0 | **DELETE** → ✅ DONE 2026-10-22 (retired/docs/) |
+| 2 | `docs/audit_targets.md` | one-shot audit prep for a 2026-07-06 branch, long merged | the audit's own results in ADRs | 1 (a comment citing its *pattern*) | **DELETE** (fix the comment to cite the ADR) → ✅ DONE 2026-10-22 (retired/docs/; markerless_loop comment repointed) |
+| 3 | `docs/fusion_capstone_design.md` | sim-phase design for fusion that A/B'd NO-TRANSFER, default-OFF (ADR-0017 era) | contract stage note + `flight/range_fusion.py` docstring | 3 (historical mentions) | **ARCHIVE** to state_archive → ✅ DONE 2026-10-22 (retired/docs/; 4 inbound refs repointed) |
+| 4 | `docs/compute_setup.md` | ADR-0012/0015-era (sim-phase) compute notes; the real stack is ruled in the contract (Pi 5 + Hailo-8, ADR-0125) | contract `bom_tiers` + `nn_seeker_program.md` | 2 | **ARCHIVE** → ✅ DONE 2026-10-22 (retired/docs/ + stub at old path — contract cites it) |
+| 5 | `docs/ekf_design_brief.md` | 797 lines, "DESIGN ONLY, gated" since the sim phase; the gate never opened and the chase ruling made it moot | ADR-0103 chase-only; contract | 3 | **ARCHIVE** (keep a 5-line stub pointing at the archive) → ✅ DONE 2026-10-22 (retired/docs/ + stub) |
+| 6 | `docs/scoring_fix_plan.md` | 514 lines; its own header says §2 is corrected by the 2026-08-10 re-score; plan fully executed | `docs/rescore_2026-08-10.md` (the record) | 6 — *refs are mostly the rescore doc + ADRs citing history* | **ARCHIVE**, re-point the 6 refs → ✅ DONE 2026-10-22 (retired/docs/ + stub, which keeps all 6 refs resolvable) |
+| 7 | `docs/candidate_nn_shortlist.md` | sim-era NN shopping list; the real-data program + ADR-0125 rulings replaced it | `docs/nn_seeker_program.md`, `docs/nn_tier/PLAN.md` | 5 (contract build_plan history lines) | **ARCHIVE**, keep contract wording as history → ✅ DONE 2026-10-22 (retired/docs/ + stub) |
 
 ## Tier 2 — memory files (head applies edits; builder nod sufficient)
 

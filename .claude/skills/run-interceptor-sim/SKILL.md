@@ -39,8 +39,9 @@ Each boots → flies → scores → tears down, exit 0 = pass (run one at a time
 scripts/check_m0.sh    # arm → takeoff to 2 m → land (the "does it fly at all" gate)
 scripts/check_m3.sh    # static intercept: hold a 2 m standoff, < 0.5 m final error
 scripts/check_m4.sh    # moving-target intercept: pursuit vs pro-nav, pro-nav < 1.0 m
-scripts/check_t21.sh   # re-asserts the detect-then-track headline from committed CSVs — NO sim
 ```
+(`check_t21.sh` was retired 2026-10-22 — its analyzer moved to `retired/scripts/` in
+commit 3880153 and the gate could only exit 1; it lives in `retired/scripts/` too.)
 Monte-Carlo batches (many boots): use the **mc-batch** skill, never hand-rolled — it bakes in the self-kill/GPU-wedge guards. Env vars, world variants (apriltag vs markerless), and launch footguns: the **px4-gazebo** skill. A wedged stack (won't boot / no frames / MAVSDK won't connect): the **sim-debug** skill.
 
 ## Direct invocation (no full sim)

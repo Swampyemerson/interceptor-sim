@@ -1,5 +1,9 @@
 # Launch / release-mechanism options — design exploration
 
+> **SUPERSEDED 2026-10-22 by [`launch_mechanism_plan.md`](launch_mechanism_plan.md)** — the
+> plan carries the ratified decisions (standby-hover adopted; hand-launch/rail rejected).
+> Kept for the option-by-option reasoning; nothing below is a live recommendation.
+>
 > **Status: DESIGN EXPLORATION, not a ratified decision.** Builder brainstorm
 > (2026-07-21): "release mechanisms for the drone" — a hand-pointed launcher that
 > auto-fires on NN detect; a manual launch + coded dash; a smart launcher with a
@@ -197,7 +201,8 @@ headline is earned, not asserted.
   lock-carry), vs living with the fixed wedge's admitted limit. Cost/weight on a
   sacrificial vehicle is unpriced.
 - **Legal go/no-go** — FAA registration + broadcast Remote ID on both >250 g aircraft
-  (or fly at a FRIA field) before any outdoor flight.
+  (or fly at a FRIA field) before any outdoor flight. **CLOSED per builder ruling
+  ADR-0094 (2026-08-10): he flies his own ~50 acres.**
 - **Sequencing** — how much sim effort to spend re-ranking A/B/C against the AprilTag
   first-kill regime (what actually flies first) rather than the markerless NN the current
   ranking assumes.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""P0 of the fusion capstone (docs/fusion_capstone_design.md D1 / ADR-0041):
+"""P0 of the fusion capstone (retired/docs/fusion_capstone_design.md D1 / ADR-0041):
 OFFLINE Q-tuning replay harness for the EKF tracker. Boots no sim, reads no
 live gz/mavsdk -- it replays the CAMERA MEASUREMENT STREAMS already logged by
 ADR-0037's EKF flight A/B (`logs/mc_ekfab_{alphabeta,ekf}.csv`, 8 flights per
@@ -17,7 +17,7 @@ replays the SAME logged camera streams at smaller candidate Q to see which
 value's innovation statistics look like a well-tuned filter, BEFORE spending
 another Gazebo arm.
 
-DESIGN DECISIONS THIS SCRIPT IMPLEMENTS (D1a/b/c, fusion_capstone_design.md
+DESIGN DECISIONS THIS SCRIPT IMPLEMENTS (D1a/b/c, retired/docs/fusion_capstone_design.md
 section 3):
 
   D1a -- FIXED dt=0.05 cadence, not sim-time dt. Production

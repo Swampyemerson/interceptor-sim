@@ -91,39 +91,36 @@ WHAT'S MISSING — reviewing work, catching gaps, and deciding workflow/planning
 So spend it THERE, occasionally and deliberately, NOT as a firehose. Tokens are not free;
 don't spawn a subagent where doing the thing inline is cheaper.
 
-0. **⛔ Fable AND Opus subagents are currently unreliable in this repo — ~~SONNET IS THE
-   STANDARD FOR ALL SUBAGENT WORK~~ (UPDATE 2026-10-14, recovered 2026-10-17: Sonnet 5.5
-   now ALSO bounces `[general_harms]` on this repo, 3/3 read-only briefs — see the
-   2026-10-14 plain_log entry. NO worker lane is verified reliable right now; the
-   builder-sanctioned candidates are `opus48-worker` (2026-09-22) and `opus55-worker`
-   (2026-09-23, passes-with-occasional-bounce), else plan head-inline work).** Full evidence log:
-   `docs/subagent_safeguard_log.md` (not always-loaded; read it before re-testing or
-   filing `/feedback`, not before routine work). Short version: subagents worked fine
-   for weeks through mid-2026-07 (soft bounce-to-Opus on defense-framed tasks only); a
-   harder, content-independent `invalid_request [general_harms]` failure appeared
-   2026-09-10 and reconfirmed on every retest since; the builder separately reports
-   Fable HEAD worked normally through last week until 2026-09-16/17, then also started
-   tripping, and Opus is now tripping too. **DECISIVE TEST, 2026-09-21: a blank
-   environment with zero project context passed cleanly (rules out an account-level
-   blacklist); the exact 2026-09-11 codebase state — from when Fable head was reportedly
-   still working — fails identically under today's model.** There is no earlier "good"
-   commit in this repo to fall back to; every version tested fails today. Best-supported
-   read: something about the model/classifier changed independently of this repo's
-   content (leading hypothesis: a Fable 5.1 release with tightened dual-use safeguards),
-   not a fixable wording/density issue in this project — **stop re-proposing content
-   edits as a fix without new evidence.** `/feedback` (the builder's to send) is the
-   sanctioned path to actually resolve this. **Do not word prompts to evade the
-   classifier** — standing rule, unaffected by any of the above.
-   * **UPDATE 2026-10-22 (overnight, builder directive "Fable 5 not 5.1" + 2/2 live passes):**
-     the **`fork` subagent_type** (inherits the Fable-5 head's model AND context) completed two
-     substantive repo-attached briefs cleanly (a docker compile task and an adversarial code
-     review that caught a critical bug) — the first verified-working lane for REPO-ATTACHED briefs on this repo
-     since 2026-09-10 (detached research briefs were already passing intermittently). Use FORKS for safeguard-touchy subagent work; n=2, log outcomes in
-     docs/subagent_safeguard_log.md.
-   * **The routing rule, simplified:** all subagent work goes through `sonnet-worker`.
-     Don't spawn `model: fable` or treat `opus5-worker` as dependable until re-verified
-     — both are may-fail-or-worse right now, not a workhorse and not a review lane.
-   * **If Fable's judgment is specifically wanted, use Fable 5, NOT 5.1.** Confirmed by a
+0. **SUBAGENT ROUTING — THE CURRENT TABLE (rewritten 2026-10-22; this bullet had become
+   the append-log it forbids, so the rewrite-don't-append rule now applies to it too.
+   Full evidence history: `docs/subagent_safeguard_log.md` — read it before re-testing
+   a lane or filing `/feedback`, not before routine work).**
+   - **`fork` subagents (inherit the Fable-5 head's model AND context) = the WORKHORSE
+     for repo-attached judgment and safeguard-touchy work** — review, flight-code,
+     planning, anything defense-framed. Verified **17/17** clean (2/2 overnight
+     2026-10-21→22, then 15/15 in the 2026-10-22 review fleet).
+   - **`opus48-worker` / `opus55-worker` = mechanical scans, doc sweeps, builds.**
+     Mostly pass (15/16 in the review fleet); occasional bounces expected. One
+     opus48 spawn was served `claude-fable-5` and bounced (2026-10-22) — the pin is
+     not guaranteed; if a worker errors, check which model the error names.
+   - **`sonnet-worker` = DEAD on this repo** (8/8 instant `invalid_request
+     [general_harms]` 2026-10-22, reconfirming 3/3 on 2026-10-14). Do not spawn it
+     until the safeguard log records a clean retest.
+   - **Head-inline = the fallback** for anything that bounces.
+   - **Never spawn bare `model: fable`** — it may resolve to Fable 5.1, which
+     hard-fails on this repo (version-only paired control 2026-09-21:
+     `claude-fable-5` passes, `claude-fable-5-1` fails identically). Fable judgment
+     in a subagent = a FORK. Do NOT try to get 5.1 working here — that would mean
+     hiding context from the classifier, i.e. evasion, which the standing rule forbids.
+   - **Standing rules, unaffected:** do not word prompts to evade the classifier;
+     `/feedback` (the builder's to send) is the sanctioned remedy; the head pins
+     `claude-fable-5`, and a flagged-turn auto-switch to Opus is product behavior —
+     accept it, `/model` back when noticed.
+   *(History in one line: fresh model-pinned spawns began hard-failing content-independent
+   on 2026-09-10; the decisive 2026-09-21 control — blank env passes, the 2026-09-11 tree
+   fails under today's model — showed the MODEL changed, not this repo; forks proved out
+   2026-10-22. Older layers of this bullet live in the safeguard log.)*
+   * **If Fable's judgment is specifically wanted on the HEAD, use Fable 5, NOT 5.1.** Confirmed by a
      version-only paired control 2026-09-21: `claude-fable-5` completes this project's tasks;
      `claude-fable-5-1` hard-fails on the identical task in the identical repo. So the seat
      is a HEAD SESSION on `/model claude-fable-5` (Fable **5**). Do NOT try to get 5.1
@@ -133,10 +130,9 @@ don't spawn a subagent where doing the thing inline is cheaper.
      behavior, the sanctioned fallback — `/model` back when noticed); accept it and keep
      working.
 
-1. **Reach for a `model: fable` subagent OCCASIONALLY and DELIBERATELY, for high-leverage work:**
-   *(⚠️ READ BULLET 0 FIRST — this currently fails 100% of tests run in this repo, and a
-   decisive 2026-09-21 test shows it's not this repo's content driving it. Substitute
-   `sonnet-worker` and keep the division of work below.)*
+1. **Reach for Fable-seat subagent work OCCASIONALLY and DELIBERATELY, for high-leverage work:**
+   *(Per bullet 0: the Fable seat in a subagent is a **FORK**, never `model: fable`.
+   Keep the division of work below.)*
    - **REVIEW / gap-spotting** — a Fable pass over a build, a plan, a result set, or a
      decision to catch what was missed BEFORE it's committed or acted on (the "head builds,
      Fable reviews" pattern; Fable earns its cost here). This is its best use.
@@ -151,8 +147,11 @@ don't spawn a subagent where doing the thing inline is cheaper.
    prose, commits, management-file upkeep — accepting Opus quality when the safeguard has
    pinned the head there, rather than spawning a Fable agent for each small thing. Reserve
    Fable for where its edge (review, complexity, gap-spotting) actually pays.
-3. **SONNET WORKERS ARE ALLOWED AGAIN — builder directive 2026-09-17 ("use opus and sonnet agents
-   where possible", for the new-simulator build; ADR-0102).** Use `sonnet-worker` for mechanical,
+3. **~~SONNET WORKERS ARE ALLOWED AGAIN~~ (ROUTING SUPERSEDED by bullet 0's table,
+   2026-10-22 — the sonnet lane is dead and `opus5-worker` is may-fail; this bullet is
+   kept only as the history of the 2026-09-17 and 2026-07-25 reversals.)** Builder
+   directive 2026-09-17 ("use opus and sonnet agents
+   where possible", for the new-simulator build; ADR-0102). Use `sonnet-worker` for mechanical,
    well-specified volume work (scaffolding, runners, boilerplate, tests); `opus5-worker` for
    anything with modelling or judgment in it; the head keeps review, fitting against logs and
    the contract. The 2026-07-25 text below is kept for history and is SUPERSEDED.
@@ -169,17 +168,20 @@ don't spawn a subagent where doing the thing inline is cheaper.
    2026-09-21 report in bullet 0 that Opus is now tripping too; treat this lane as
    may-fail, not a safe harbor, until re-measured**): substantial builds/analyses AND the
    flagged defense-framed guidance / targeting / honesty work and their reviews. **Builder
-   directive 2026-07-24: NO work on Opus 4.8.** GOTCHA (root-caused 2026-07-25): what the
+   directive 2026-07-24: NO work on Opus 4.8 — AMENDED 2026-09-22: with Opus 5 and Fable
+   5.1 spawns bouncing, the builder re-sanctioned an EXPLICIT `claude-opus-4-8` pin
+   (`subagent_type: opus48-worker`); what stays blocked is the ACCIDENT surface, the bare
+   `opus` alias and any other `claude-opus-4*` id.** GOTCHA (root-caused 2026-07-25): what the
    bare `opus` alias resolves to is a property of the RUNNING CLI BINARY, not the account —
    a long-lived `claude --continue` process on 2.1.204 maps `opus`→`claude-opus-4-8` while
    the updated on-disk 2.1.220 maps `opus`→`claude-opus-5`. So always spawn via
    `subagent_type: opus5-worker` (pinned `model: claude-opus-5`, verified live) and never
    trust the bare alias; after a CLI update the fix reaches a session only on RESTART.
-   **HOOK-ENFORCED 2026-07-25 (builder: "I don't want it accidentally used"):** a PreToolUse
-   hook (`scripts/hooks/block_opus48.py`, wired in `.claude/settings.json`) DENIES any Agent
-   spawn with model `opus`/`claude-opus-4*` and any Workflow script pinning those — proven
-   live with a refused test spawn. The ambiguous bare alias stays blocked even on updated
-   binaries (explicit `claude-opus-5` passes). Not hook-coverable: the head-session safeguard
+   **HOOK-ENFORCED 2026-07-25, hook AMENDED 2026-09-22:** the PreToolUse hook
+   (`scripts/hooks/block_opus48.py`, wired in `.claude/settings.json`) DENIES any Agent
+   spawn with the bare `opus` alias or any `claude-opus-4*` id EXCEPT an explicit
+   `claude-opus-4-8` pin (the sanctioned opus48-worker lane), and the same patterns in
+   Workflow scripts (comment-stripped). Explicit `claude-opus-5` and `claude-opus-4-8` pass. Not hook-coverable: the head-session safeguard
    auto-switch to 4.8 on flagged turns (product behavior, the sanctioned fallback — `/model`
    back when noticed) and the user-facing `/fast` toggle.
 5. **FAST MODE IS SANCTIONED ON OPUS 5 — for IN-PERSON BENCH WORK (builder 2026-07-26).**

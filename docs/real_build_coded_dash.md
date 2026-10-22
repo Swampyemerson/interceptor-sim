@@ -7,6 +7,13 @@ FusedTrack architecture of `deployment_phases_design_brief.md` and
 `phase2_sim_to_real_plan.md` for the onboard interceptor (those remain the
 reference for the parent project's ground-sensing half).*
 
+> **SUPERSEDED AS THE FLYING DEFAULT (2026-10-22 sweep).** The operating model below —
+> coded open-loop dash → pro-nav ENGAGE after a detection streak — is no longer what the
+> interceptor flies. The flying default since ADR-0118 (2026-09-24) is **chase-only
+> PURSUIT**: no sprint, no acquire-streak gate (lineage ADR-0103 → ADR-0105 → ADR-0118;
+> Gazebo gate passed, median 0.343 m). This doc remains the reference for the coded-dash
+> mechanics and the open-loop aim-calibration findings.
+
 ## Operating model (one line)
 
 **A CODED, open-loop DASH pointed roughly at the target, then a CAMERA-ONLY
@@ -198,7 +205,9 @@ easier weave). ~~Honest landing:~~ *(superseded — see the retraction above)*
   confirmed by the #18h dash-only control — one hit 0.32 m with ZERO real ENGAGE
   detections). The binding wall is FLIGHT-DYNAMIC pointing (~40° nose-down dash pitch
   parks the target at the frame-top edge; detector 100% static 8–22 m, 0.8% in flight —
-  #18k) → adaptive camera tilt (#46/ADR-0065) is the dominant, sim-testable lever; the
+  #18k) → adaptive camera tilt (#46/ADR-0065) is the dominant, sim-testable lever *(note:
+  adaptive tilt was subsequently REJECTED for simplicity — builder 2026-07-17; the committed
+  pointing decision is the FIXED up-tilt bracket, see the parts-table row above)*; the
   real-data detector is a HYPOTHESIS for the outdoor-appearance gap; prop-clearance
   removes the false-handoff phantom hazard only, not acquisition.
 - **Everything past `flight/` is untested** until the hardware exists — the
