@@ -13,6 +13,11 @@
 # runs/dfc_dryrun/. The 1024 compile is the open experiment (ADR-0125:
 # higher-res input is REQUIRED if the 118-deg lens returns).
 set -euo pipefail
+# The DFC allocator does os.environ["USER"] (hailo_tools_runner.py:460) and
+# KeyErrors in bare containers/daemons; guarantee it here.
+export USER="${USER:-$(id -un)}"
+export LOGNAME="${LOGNAME:-$USER}"
+export HOME="${HOME:-/root}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WHEEL="${1:?path to hailo_dataflow_compiler wheel}"
 OUT="$REPO/runs/dfc_dryrun"
