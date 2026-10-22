@@ -56,3 +56,28 @@ scoring/logging only (honesty boundary: the wrapper is outside guidance).
 LOW when uncertain"); if in-FOV fractions are similar, H is refuted and the
 asymmetry lives elsewhere (decode vs incidence, KF pull-in) — then NO sign
 rule may be quoted until the real mechanism is found.
+
+### Probe round 2 (registered 2026-10-22 ~02:20, before flying): decode channel
+
+H refuted on in_fov. Next suspect, H2: DECODE — at +3 the slant range to
+the high target is longer during approach, so the apparent tag (side_px)
+is smaller and the per-frame decode probability collapses even while the
+target is in frame. Same spy, same cells, now also recording side_px and
+whether each in-FOV frame produced a Detection. PREDICTION: +3's
+pre-acquisition decode-per-in-FOV-frame rate << 0/−3, with median side_px
+visibly smaller. If decode rates are also similar, H2 is refuted too and
+the suspect moves to the acquisition logic itself (acquire_n window) —
+each round stays measure-only.
+
+### Probe round 3 (registered ~02:30, before flying): acquisition timing/range
+
+H2 refuted (side_px identical ~9 px; decode rates tiny everywhere — decodes
+live in a close-pass burst). H3: at +3 the vertical standoff keeps the
+close-pass slant range above the decode envelope long enough that the
+acquire window never fills before CPA. Same spy + per-flight: t and TRUE
+slant range (scoring-only read) of FIRST decode, t_acq, and min slant range
+over the flight. PREDICTION: non-acquiring +3 flights show min slant range
+visibly larger than acquiring flights' first-decode range; acquiring +3
+flights decode only inside the same range band as baseline (i.e., the
+mechanism is geometry-starved decode opportunity, not a different decoder
+behavior). Measure-only, last round tonight either way.

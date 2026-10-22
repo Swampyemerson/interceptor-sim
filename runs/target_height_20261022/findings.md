@@ -51,3 +51,17 @@ low" sign rule may be quoted until the real mechanism is found.** Honest
 note: the probe's v_px channel was vacuous (FrameReport carries no v_px —
 that is a Detection field); the verdict rests on the binary in_fov only.
 Raw: probe_fov.json.
+
+## Probe round 3 — MECHANISM CHARACTERIZED (standoff-bounded pass)
+
+First decodes occur at ~28–34 m in EVERY cell (decoder identical). The
+acquire/fail split is min slant range: acquiring flights close to ≤1.1 m;
+every failure bottoms out at 2.2–4.0 m — at +3, at ≈ the vertical standoff.
+Mechanism chain: the sparse far decodes race to correct the vertical belief
+BEFORE the pass; when they lose, the pass is standoff-bounded at the height
+error and the close-range burst that fills the acquire window never
+arrives. H3 confirmed with that sharpening (it is a belief-correction race,
+not a decode-envelope cliff). STILL OPEN (one layer down): why the race
+favors below-belief targets (6/8 vs 4/8 pull-outs) — vertical authority or
+Phase-A z-aim asymmetry, unmeasured; the ±2 m budget stands regardless and
+still carries no sign rule. Raw: probe_fov.json (round-3 schema).
