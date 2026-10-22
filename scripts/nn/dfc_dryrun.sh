@@ -68,7 +68,12 @@ for SZ in 640 1024; do
     mv -f "$REPO"/yolov8n.onnx "yolov8n_$SZ.onnx" 2>/dev/null || \
         mv -f yolov8n.onnx "yolov8n_$SZ.onnx" 2>/dev/null || true
     echo "=== compiling yolov8n @$SZ for hailo8 (CPU; may take a while) ==="
-    if "$VENV/bin/hailomz" compile yolov8n --ckpt "yolov8n_$SZ.onnx" \
+    # CUDA_VISIBLE_DEVICES must be EMPTY: the DFC's TF sees the 4070 through
+    # WSL2's unofficial GPU path and dies silently right after "Selected
+    # GPU 0" (hit live 2026-10-21). CPU quantization is the supported WSL2
+    # mode and answers the fit/context question.
+    if CUDA_VISIBLE_DEVICES="" "$VENV/bin/hailomz" compile yolov8n \
+            --ckpt "yolov8n_$SZ.onnx" \
             --hw-arch hailo8 --classes 80 > "compile_$SZ.log" 2>&1; then
         echo "compile @$SZ: OK"
     else
