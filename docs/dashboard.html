@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->fb0778d<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->a9046fc<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -2563,11 +2563,11 @@
  ],
  "key_numbers": [
   {
-   "label": "Pursuit vs blind dash, under cue error (isim)",
-   "value": "6-12/16 thru 10 deg",
-   "note": "Paired seeds n=16/cell at 0/5/10/20 deg aim error, chase geometry, delivered-lens FOV (fx 933), honest errors on. Blind dash: 0/16 at EVERY error here (0.091 m/deg slope). At 20 deg pursuit converts 7/16 -> the cue requirement is ~10 deg. isim-tier RANKING; Gazebo rung queued.",
-   "provenance": "docs/pursuit_vs_dash_prereg_2026-10-22.md - runs/pursuit_vs_dash_20261022/ - ADR-0128 addendum",
-   "plain": "With an imperfect cue the camera chase still hits up to ~10 deg of error; the blind dash never does here. Fast-sim.",
+   "label": "Pursuit under cue error (isim + Gazebo rung)",
+   "value": "10 deg: 8/8 in Gazebo",
+   "note": "isim A/B (paired n=16/cell, delivered-lens fx): pursuit 6-12/16 inside 0.35 m through 10 deg, blind dash 0/16 at every error; 20 deg = 7/16. GAZEBO RUNG (16 flights, recommended config, sim optic): 5 deg median 0.259 m 6/8, 10 deg median 0.244 m 8/8 vs 0 deg control 0.243 m - cue error through 10 deg costs ~nothing. Cue requirement: ~10 deg.",
+   "provenance": "docs/pursuit_vs_dash_prereg_2026-10-22.md (isim + Gazebo RESULT) - runs/pursuit_vs_dash_20261022/ - ADR-0128",
+   "plain": "The camera chase soaks up to ~10 degrees of launch-cue error (Gazebo-confirmed); the no-camera dash cannot.",
    "trust": "sim"
   },
   {

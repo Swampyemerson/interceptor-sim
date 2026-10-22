@@ -374,6 +374,10 @@ def main(argv=None):
     ap.add_argument("--standby-budget-s", type=float, default=60.0)
     ap.add_argument("--wall-clock-driver", action="store_true",
                     help="leave real_flight on wall time.monotonic (default: sim clock)")
+    ap.add_argument("--cue-aim-error-deg", type=float, default=0.0,
+                    help="rotate the pre-flight cue (belief start+vel) about the launch "
+                         "origin by this many degrees (isim aim_error_deg convention); "
+                         "the mover keeps the TRUE track — 0 = historical behavior")
     ap.add_argument("--out", default=None)
     args, rf_extra = ap.parse_known_args(argv)
     if args.self_test:
@@ -410,9 +414,24 @@ def main(argv=None):
         return 2
 
     (te, tn), (ve, vn) = geometry(args.cross_range, args.lead, args.speed)
+    # Injected CUE error (docs/pursuit_vs_dash_prereg_2026-10-22.md Gazebo rung):
+    # rotate the BELIEF handed to real_flight about the launch origin by theta,
+    # exactly isim/scenario.py's pursuit-family convention (clockwise azimuth,
+    # E'=E*cos+N*sin, N'=N*cos-E*sin, start AND velocity) — the mover below keeps
+    # the TRUE geometry, so the error lives only in the pre-flight cue, like a
+    # GPS/aim error would. 0.0 (default) is bit-identical to the historical path.
+    cue_te, cue_tn, cue_ve, cue_vn = te, tn, ve, vn
+    if args.cue_aim_error_deg != 0.0:
+        _th = math.radians(args.cue_aim_error_deg)
+        _ct, _st = math.cos(_th), math.sin(_th)
+        cue_te, cue_tn = te * _ct + tn * _st, tn * _ct - te * _st
+        cue_ve, cue_vn = ve * _ct + vn * _st, vn * _ct - ve * _st
+        print(f"[xcheck] CUE ERROR {args.cue_aim_error_deg:+.1f} deg: belief start "
+              f"({cue_te:.2f},{cue_tn:.2f}) vel ({cue_ve:.2f},{cue_vn:.2f}) vs true "
+              f"({te:.2f},{tn:.2f}) / ({ve:.2f},{vn:.2f})")
     rf_args = rf.build_arg_parser().parse_args([
         "--sitl-smoke", "--terminal", "pursuit", "--mavsdk-url", args.mavsdk_url,
-        f"--target-start={te},{tn}", f"--target-vel={ve},{vn}",
+        f"--target-start={cue_te},{cue_tn}", f"--target-vel={cue_ve},{cue_vn}",
         "--target-span-m", str(TAG_SIZE_M), "--intrinsics", intr,
         "--smoke-acquire-after-s", "0", "--miss-safe-behavior", "land",
         "--smoke-duration", str(args.standby_budget_s + args.window_s),

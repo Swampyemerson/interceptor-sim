@@ -15,7 +15,10 @@
 > terminal (ADR-0118; engage window now 30 s in pursuit mode, ADR-0129), the
 > **~70° lens** (ADR-0126), AprilTag seeker, pre-flight-latched GPS cue — and the
 > same-day isim A/B says **plan the launch cue inside ~10° of truth** (at 20° the
-> kill converts only ~half the time; ADR-0128 addendum).
+> kill converts only ~half the time; ADR-0128 addendum) — and the **Gazebo
+> camera-in-the-loop rung CONFIRMED it the same evening**: 10° of injected cue error
+> flew median 0.244 m, 8/8 inside the contact radius, indistinguishable from the 0°
+> baseline (prereg amendment RESULT; sim optic, not the 70° lens).
 >
 > Sources: `docs/project_state.json` (`build_plan` P4/P5, `kill` stage, constraints
 > `binary-kill`, `no-datalink`, `target-is-ardupilot`, `prop-clearance`),

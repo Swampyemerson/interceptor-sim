@@ -1,0 +1,49 @@
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+[xcheck] CameraInfo fx=539.936 fy=539.936 cx=640.0 cy=480.0 1280x960
+[xcheck] CUE ERROR +5.0 deg: belief start (-16.70,-5.06) vel (8.97,-0.78) vs true (-16.20,-6.50) / (9.00,0.00)
+[aim] pre-flight collision lead (accel-aware, ADR-0080, a=10.0 m/s^2, v=16.0 m/s) -> C1 = -138.72 deg, t_lead=1.27 s, plan distance=8.06 m (ADR-0101 passage window)
+[terminal] pursuit (ADR-0103 chase only): belief seed rel NED (-5.1, -16.7, +0.0) m at -0.8/+9.0 m/s -- receding-range breakoff SUPPRESSED (contact floor / lost-target / engage-max-s active, engage_max_s=25s)
+[terminal] pursuit BRAKE PACKAGE ON (ADR-0115: a=3 m/s^2, lead 0.45 s, horizontal-only cap + vertical arrival-sync)
+[mavsdk] connecting udpin://0.0.0.0:14540 ...
+[mavsdk] connected
+[mavsdk] waiting for health (global+home position ok), timeout 60.0s ...
+[mavsdk] health OK
+[mavsdk] set takeoff altitude 7.0 m (standby/loft); arm; takeoff ...
+[mavsdk] airborne at rel_alt=5.61 m
+[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins
+[mavsdk] flight mode = TAKEOFF (offboard_active=False) from TELEMETRY
+[   0.00s] START in STANDBY (aim yaw -138.7 deg, standby alt 7.0 m)
+[mavsdk] t=  1.0s STANDBY    streak=0 alt=6.46 yaw=-172.6 | SP vN=+0.00 vE=+0.00 vD=-0.54 yaw=-138.7
+[mavsdk] t=  2.0s STANDBY    streak=0 alt=6.89 yaw=-132.0 | SP vN=+0.00 vE=+0.00 vD=-0.11 yaw=-138.7
+[mavsdk] t=  3.0s STANDBY    streak=0 alt=6.92 yaw=-144.7 | SP vN=+0.00 vE=+0.00 vD=-0.08 yaw=-138.7
+[xcheck] arm gate held; spawning mover: /home/emerson/interceptor-sim/.venv/bin/python /home/emerson/interceptor-sim/scripts/m4_target_mover.py --start=-16.2,-6.5,7.0 --vel=9.0,0.0 --duration 25.0
+[m4-mover] Pre-warming /world/apriltag/set_pose (placing tag at start=(-16.2, -6.5, 7.0))...
+[m4-mover] streaming started
+[xcheck] mover streaming -> GO at sim t=22.560
+[   3.63s] GO edge: dash heading LATCHED -138.72 deg (preflight lead solve) -- this value is now immutable for the rest of the flight
+[   3.63s] STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+[mavsdk] t=  4.0s ENGAGE     streak=0 alt=6.96 yaw=-136.8 | SP vN=-2.12 vE=-1.32 vD=+0.01 yaw=-111.5
+[mavsdk] t=  5.0s ENGAGE     streak=0 alt=6.97 yaw=-128.1 | SP vN=-3.00 vE=+2.07 vD=+0.01 yaw=-140.0
+[mavsdk] t=  6.1s ENGAGE     streak=0 alt=7.01 yaw=+159.7 | SP vN=-1.92 vE=+5.71 vD=+0.03 yaw=+118.5
+[mavsdk] t=  7.2s ENGAGE     streak=0 alt=7.13 yaw=+78.4 | SP vN=-2.03 vE=+12.98 vD=+0.19 yaw=+78.2
+[mavsdk] t=  8.3s ENGAGE     streak=0 alt=7.08 yaw=+68.4 | SP vN=+4.85 vE=+13.07 vD=+0.40 yaw=+62.8
+[mavsdk] t=  9.4s ENGAGE     streak=0 alt=6.70 yaw=+58.6 | SP vN=-0.07 vE=+10.66 vD=-0.15 yaw=+69.7
+[   9.85s] ENGAGE -> BREAKOFF  (hard_floor(0.50 m))
+[mavsdk] t= 10.4s BREAKOFF   streak=0 alt=7.24 yaw=+97.1 | SP vN=+0.00 vE=+0.00 vD=-1.00 yaw=+89.0
+[  11.38s] BREAKOFF -> SAFE  (breakoff_complete)
+[mavsdk] t= 11.5s SAFE       streak=0 alt=8.15 yaw=+87.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+89.0
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.14 yaw=+89.6 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+89.0
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[m4-mover] done: n_requests=1267 n_failures=0 final_y=-6.500 log=/home/emerson/interceptor-sim/logs/m4_mover_20261022T153231Z.csv
+[mavsdk] landed_state=ON_GROUND armed=False
+[log] 256 ticks -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5p/f4_rf.csv
+[mission] states visited: STANDBY -> ENGAGE -> BREAKOFF -> SAFE
+[mission] transitions:
+       3.63s  STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+       9.85s  ENGAGE -> BREAKOFF  (hard_floor(0.50 m))
+      11.38s  BREAKOFF -> SAFE  (breakoff_complete)
+[xcheck] frames=1216 consumed=86 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5p/f4.csv
+XCHECK_RESULT cpa_m=0.244 t_cpa=29.148 n_det=86 final_state=SAFE aborted=0

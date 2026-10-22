@@ -1,0 +1,173 @@
+=== [rung] block g5p (cue err 5 deg) start 15:28:29Z ===
+=== [xcheck_fly] flight 1 ===
+[mavsdk] t= 11.7s SAFE       streak=0 alt=8.30 yaw=+86.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+87.4
+[mavsdk] t= 12.8s SAFE       streak=0 alt=8.22 yaw=+87.7 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+87.4
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1221 consumed=85 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5p/f1.csv
+XCHECK_RESULT cpa_m=0.263 t_cpa=30.786 n_det=85 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 2 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=8.11 yaw=+101.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+104.6
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.10 yaw=+105.6 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+104.6
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1218 consumed=88 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5p/f2.csv
+XCHECK_RESULT cpa_m=0.254 t_cpa=29.088 n_det=88 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 3 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=8.23 yaw=+86.2 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+87.0
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.25 yaw=+87.2 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+87.0
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1206 consumed=89 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5p/f3.csv
+XCHECK_RESULT cpa_m=0.200 t_cpa=29.017 n_det=89 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 4 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=8.15 yaw=+87.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+89.0
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.14 yaw=+89.6 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+89.0
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1216 consumed=86 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5p/f4.csv
+XCHECK_RESULT cpa_m=0.244 t_cpa=29.148 n_det=86 final_state=SAFE aborted=0
+=== [xcheck_fly] done; results: ===
+XCHECK_RESULT cpa_m=0.263 t_cpa=30.786 n_det=85 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.254 t_cpa=29.088 n_det=88 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.200 t_cpa=29.017 n_det=89 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.244 t_cpa=29.148 n_det=86 final_state=SAFE aborted=0
+=== [rung] block g5p done; cooldown 120 s ===
+=== [rung] block g5n (cue err -5 deg) start 15:35:02Z ===
+=== [xcheck_fly] flight 1 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=7.55 yaw=-102.8 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-38.9
+[mavsdk] t= 12.6s SAFE       streak=0 alt=7.44 yaw=-37.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-38.9
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1210 consumed=59 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5n/f1.csv
+XCHECK_RESULT cpa_m=0.534 t_cpa=30.608 n_det=59 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 2 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=4.16 yaw=-99.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-99.4
+[mavsdk] t= 12.6s SAFE       streak=0 alt=4.00 yaw=-100.2 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-99.4
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1037 consumed=52 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5n/f2.csv
+XCHECK_RESULT cpa_m=0.370 t_cpa=29.919 n_det=52 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 3 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=7.61 yaw=-129.8 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-132.9
+[mavsdk] t= 12.6s SAFE       streak=0 alt=7.34 yaw=-136.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-132.9
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1184 consumed=54 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5n/f3.csv
+XCHECK_RESULT cpa_m=0.338 t_cpa=29.740 n_det=54 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 4 ===
+[mavsdk] t= 10.5s SAFE       streak=0 alt=8.16 yaw=+53.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+50.6
+[mavsdk] t= 11.5s SAFE       streak=0 alt=8.21 yaw=+50.2 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+50.6
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1186 consumed=60 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5n/f4.csv
+XCHECK_RESULT cpa_m=0.233 t_cpa=28.009 n_det=60 final_state=SAFE aborted=0
+=== [xcheck_fly] done; results: ===
+XCHECK_RESULT cpa_m=0.534 t_cpa=30.608 n_det=59 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.370 t_cpa=29.919 n_det=52 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.338 t_cpa=29.740 n_det=54 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.233 t_cpa=28.009 n_det=60 final_state=SAFE aborted=0
+=== [rung] block g5n done; cooldown 120 s ===
+=== [rung] block g10p (cue err 10 deg) start 15:41:29Z ===
+=== [xcheck_fly] flight 1 ===
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.22 yaw=+90.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+89.9
+[mavsdk] t= 13.7s SAFE       streak=0 alt=8.20 yaw=+89.7 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+89.9
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1205 consumed=90 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10p/f1.csv
+XCHECK_RESULT cpa_m=0.256 t_cpa=29.260 n_det=90 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 2 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=8.17 yaw=+81.2 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+80.9
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.21 yaw=+80.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+80.9
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1243 consumed=90 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10p/f2.csv
+XCHECK_RESULT cpa_m=0.212 t_cpa=29.332 n_det=90 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 3 ===
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.09 yaw=+91.7 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+91.1
+[mavsdk] t= 13.7s SAFE       streak=0 alt=8.08 yaw=+91.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+91.1
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1208 consumed=89 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10p/f3.csv
+XCHECK_RESULT cpa_m=0.282 t_cpa=29.280 n_det=89 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 4 ===
+[mavsdk] t= 11.5s BREAKOFF   streak=0 alt=7.96 yaw=+119.1 | SP vN=+0.00 vE=+0.00 vD=-1.00 yaw=+120.2
+[mavsdk] t= 12.6s SAFE       streak=0 alt=8.19 yaw=+122.7 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+120.2
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1224 consumed=93 stale_polls=0 safe_reason=breakoff_complete per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10p/f4.csv
+XCHECK_RESULT cpa_m=0.228 t_cpa=31.194 n_det=93 final_state=SAFE aborted=0
+=== [xcheck_fly] done; results: ===
+XCHECK_RESULT cpa_m=0.256 t_cpa=29.260 n_det=90 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.212 t_cpa=29.332 n_det=90 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.282 t_cpa=29.280 n_det=89 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.228 t_cpa=31.194 n_det=93 final_state=SAFE aborted=0
+=== [rung] block g10p done; cooldown 120 s ===
+=== [rung] block g10n (cue err -10 deg) start 15:48:00Z ===
+=== [xcheck_fly] flight 1 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=6.45 yaw=-59.8 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-69.8
+[mavsdk] t= 12.6s SAFE       streak=0 alt=6.54 yaw=-67.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-69.8
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1156 consumed=55 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10n/f1.csv
+XCHECK_RESULT cpa_m=0.221 t_cpa=27.920 n_det=55 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 2 ===
+[mavsdk] t= 11.5s SAFE       streak=0 alt=6.71 yaw=-105.8 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-107.6
+[mavsdk] t= 12.6s SAFE       streak=0 alt=6.49 yaw=-110.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-107.6
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1153 consumed=54 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10n/f2.csv
+XCHECK_RESULT cpa_m=0.260 t_cpa=29.901 n_det=54 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 3 ===
+[mavsdk] t= 11.6s SAFE       streak=0 alt=8.08 yaw=-151.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-154.8
+[mavsdk] t= 12.7s SAFE       streak=0 alt=7.81 yaw=-158.6 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-154.8
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1210 consumed=54 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10n/f3.csv
+XCHECK_RESULT cpa_m=0.278 t_cpa=28.988 n_det=54 final_state=SAFE aborted=0
+=== [xcheck_fly] flight 4 ===
+[mavsdk] t= 11.6s SAFE       streak=0 alt=7.50 yaw=-138.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-142.2
+[mavsdk] t= 12.7s SAFE       streak=0 alt=7.28 yaw=-146.8 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-142.2
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[xcheck] frames=1176 consumed=54 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g10n/f4.csv
+XCHECK_RESULT cpa_m=0.233 t_cpa=27.744 n_det=54 final_state=SAFE aborted=0
+=== [xcheck_fly] done; results: ===
+XCHECK_RESULT cpa_m=0.221 t_cpa=27.920 n_det=55 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.260 t_cpa=29.901 n_det=54 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.278 t_cpa=28.988 n_det=54 final_state=SAFE aborted=0
+XCHECK_RESULT cpa_m=0.233 t_cpa=27.744 n_det=54 final_state=SAFE aborted=0
+=== [rung] block g10n done; cooldown 120 s ===
+GAZEBO_RUNG_ALL_DONE

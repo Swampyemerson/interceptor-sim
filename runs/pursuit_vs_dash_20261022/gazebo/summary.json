@@ -1,0 +1,40 @@
+{
+ "cells": {
+  "5deg": {
+   "n": 8,
+   "median": 0.259,
+   "inside035": 6,
+   "per_sign": {
+    "5": {
+     "median": 0.249,
+     "inside": 4
+    },
+    "-5": {
+     "median": 0.354,
+     "inside": 2
+    }
+   }
+  },
+  "10deg": {
+   "n": 8,
+   "median": 0.244,
+   "inside035": 8,
+   "per_sign": {
+    "10": {
+     "median": 0.242,
+     "inside": 4
+    },
+    "-10": {
+     "median": 0.246,
+     "inside": 4
+    }
+   }
+  }
+ },
+ "control_0deg_cited": "re-fly #5 prereg5: median 0.243 m, 6/8 <=0.35 (2026-09-24)",
+ "aborts": 0,
+ "boot_failures": 0,
+ "fault_own_vel_fallback_logs": 0,
+ "flights": 16,
+ "verdict": "CONFIRMED per the registered criteria (both cells median <=0.5, >=3/8 <=0.35, 0 aborts)"
+}

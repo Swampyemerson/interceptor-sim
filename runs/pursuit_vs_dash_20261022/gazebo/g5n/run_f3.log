@@ -1,0 +1,51 @@
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+Error, more than one new minima found.
+Error, more than one new minima found.
+Error, more than one new minima found.
+Error, more than one new minima found.
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+[xcheck] CameraInfo fx=539.936 fy=539.936 cx=640.0 cy=480.0 1280x960
+[xcheck] CUE ERROR -5.0 deg: belief start (-15.57,-7.89) vel (8.97,0.78) vs true (-16.20,-6.50) / (9.00,0.00)
+[aim] pre-flight collision lead (accel-aware, ADR-0080, a=10.0 m/s^2, v=16.0 m/s) -> C1 = -148.72 deg, t_lead=1.27 s, plan distance=8.06 m (ADR-0101 passage window)
+[terminal] pursuit (ADR-0103 chase only): belief seed rel NED (-7.9, -15.6, +0.0) m at +0.8/+9.0 m/s -- receding-range breakoff SUPPRESSED (contact floor / lost-target / engage-max-s active, engage_max_s=25s)
+[terminal] pursuit BRAKE PACKAGE ON (ADR-0115: a=3 m/s^2, lead 0.45 s, horizontal-only cap + vertical arrival-sync)
+[mavsdk] connecting udpin://0.0.0.0:14540 ...
+[mavsdk] connected
+[mavsdk] waiting for health (global+home position ok), timeout 60.0s ...
+[mavsdk] health OK
+[mavsdk] set takeoff altitude 7.0 m (standby/loft); arm; takeoff ...
+[mavsdk] airborne at rel_alt=5.64 m
+[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins
+[mavsdk] flight mode = TAKEOFF (offboard_active=False) from TELEMETRY
+[   0.00s] START in STANDBY (aim yaw -148.7 deg, standby alt 7.0 m)
+[mavsdk] t=  0.9s STANDBY    streak=0 alt=6.48 yaw=-173.3 | SP vN=+0.00 vE=+0.00 vD=-0.52 yaw=-148.7
+[mavsdk] t=  2.0s STANDBY    streak=0 alt=6.87 yaw=-145.9 | SP vN=+0.00 vE=+0.00 vD=-0.13 yaw=-148.7
+[mavsdk] t=  3.0s STANDBY    streak=0 alt=6.91 yaw=-155.2 | SP vN=+0.00 vE=+0.00 vD=-0.09 yaw=-148.7
+[xcheck] arm gate held; spawning mover: /home/emerson/interceptor-sim/.venv/bin/python /home/emerson/interceptor-sim/scripts/m4_target_mover.py --start=-16.2,-6.5,7.0 --vel=9.0,0.0 --duration 25.0
+[m4-mover] Pre-warming /world/apriltag/set_pose (placing tag at start=(-16.2, -6.5, 7.0))...
+[m4-mover] streaming started
+[xcheck] mover streaming -> GO at sim t=24.516
+[   3.61s] GO edge: dash heading LATCHED -148.72 deg (preflight lead solve) -- this value is now immutable for the rest of the flight
+[   3.61s] STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+[mavsdk] t=  4.0s ENGAGE     streak=0 alt=6.96 yaw=-146.5 | SP vN=-2.15 vE=-0.77 vD=+0.01 yaw=-121.6
+[mavsdk] t=  5.1s ENGAGE     streak=0 alt=7.00 yaw=-137.5 | SP vN=-2.59 vE=+2.70 vD=+0.01 yaw=-152.6
+[mavsdk] t=  6.1s ENGAGE     streak=0 alt=7.13 yaw=+151.7 | SP vN=-1.73 vE=+8.37 vD=-0.13 yaw=+107.2
+[mavsdk] t=  7.2s ENGAGE     streak=0 alt=7.27 yaw=+80.6 | SP vN=+0.77 vE=+14.64 vD=+0.26 yaw=+79.0
+[mavsdk] t=  8.3s ENGAGE     streak=0 alt=6.80 yaw=+57.4 | SP vN=+1.32 vE=+10.39 vD=+0.07 yaw=+54.7
+[mavsdk] t=  9.4s ENGAGE     streak=0 alt=6.65 yaw=+73.6 | SP vN=-1.15 vE=+11.11 vD=-0.68 yaw=+112.8
+[mavsdk] t= 10.5s ENGAGE     streak=0 alt=7.10 yaw=-143.0 | SP vN=-0.91 vE=+8.20 vD=-0.63 yaw=-132.9
+[  10.76s] ENGAGE -> SAFE  (pursuit_miss(r_hat=0.40 m <= 3.00 m, target lost 2.0s))
+[mavsdk] t= 11.5s SAFE       streak=0 alt=7.61 yaw=-129.8 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-132.9
+[mavsdk] t= 12.6s SAFE       streak=0 alt=7.34 yaw=-136.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=-132.9
+[mavsdk] state machine TERMINATED in SAFE (reason=pursuit_miss)
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[log] 243 ticks -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5n/f3_rf.csv
+[mission] states visited: STANDBY -> ENGAGE -> SAFE
+[mission] transitions:
+       3.61s  STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+      10.76s  ENGAGE -> SAFE  (pursuit_miss(r_hat=0.40 m <= 3.00 m, target lost 2.0s))
+[m4-mover] done: n_requests=1217 n_failures=0 final_y=-6.500 log=/home/emerson/interceptor-sim/logs/m4_mover_20261022T153753Z.csv
+[xcheck] frames=1184 consumed=54 stale_polls=0 safe_reason=pursuit_miss per-tick -> /home/emerson/interceptor-sim/runs/pursuit_vs_dash_20261022/gazebo/g5n/f3.csv
+XCHECK_RESULT cpa_m=0.338 t_cpa=29.740 n_det=54 final_state=SAFE aborted=0
