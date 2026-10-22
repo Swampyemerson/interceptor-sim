@@ -35,22 +35,40 @@ def cell_scenarios(d_behind: float, dash_behind: float, aim_err: float):
 
 
 def main():
+    """Checkpointed: one JSONL line per finished cell (daemons on this box
+    die silently -- the standing pattern is checkpoint + relaunch-until-done),
+    skip-on-resume, final results.json assembled from the JSONL."""
+    here = os.path.dirname(__file__)
+    ckpt = os.path.join(here, "cells.jsonl")
+    done = {}
+    if os.path.exists(ckpt):
+        with open(ckpt) as fh:
+            for line in fh:
+                rec = json.loads(line)
+                done[(rec["aim_error_deg"], rec["d_behind_m"],
+                      rec["dash_aim_behind_m"])] = rec
     results = []
     for aim_err in AIM_ERR_DEG:
         for d_behind in D_BEHIND:
             for dash_behind in DASH_AIM_BEHIND:
+                key = (aim_err, d_behind, dash_behind)
+                if key in done:
+                    results.append(done[key])
+                    continue
                 rows = run_many(cell_scenarios(d_behind, dash_behind, aim_err),
                                 workers=os.cpu_count())
                 s = _summarize(rows)
                 rec = {"aim_error_deg": aim_err, "d_behind_m": d_behind,
                        "dash_aim_behind_m": dash_behind, **s}
                 results.append(rec)
+                with open(ckpt, "a") as fh:
+                    fh.write(json.dumps(rec) + "\n")
                 print(f"aim_err={aim_err:3.0f} d_behind={d_behind:4.1f} "
                       f"dash_behind={dash_behind:4.1f} "
                       f"med_miss={s.get('med_miss_m', -1):6.3f} "
                       f"engage={s.get('pct_engage', -1):5.1f}% "
                       f"decoded={s.get('med_decoded', -1):5.1f}", flush=True)
-    out_path = os.path.join(os.path.dirname(__file__), "results.json")
+    out_path = os.path.join(here, "results.json")
     with open(out_path, "w") as fh:
         json.dump({"spec": "isim/specs/stern_approach_2026-10-21.md",
                    "n_seeds": N_SEEDS, "speed_ms": SPEED, "cells": results},
