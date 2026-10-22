@@ -1,0 +1,19 @@
+=== exporting yolov8n @640 ===
+=== compiling yolov8n @640 for hailo8 (CPU; may take a while) ===
+compile @640: OK
+[info] Context:0/0 Iteration 4: Trying parallel mapping...  
+[info] Context:0/0 Iteration 4: Trying parallel mapping...  
+[info] Compiling kernels of yolov8n_context_0...
+[info] Bandwidth of inter context tensors: 0.0 Mbps (for a single frame)
+=== exporting yolov8n @1024 ===
+=== compiling yolov8n @1024 for hailo8 (CPU; may take a while) ===
+compile @1024: OK
+[info] Context:0/0 Iteration 4: Trying parallel mapping...  
+[info] Context:0/0 Iteration 4: Trying parallel mapping...  
+[info] Compiling kernels of yolov8n_context_0...
+[info] Bandwidth of inter context tensors: 0.0 Mbps (for a single frame)
+=== verdicts ===
+--- 640 ---
+[info] Trying to compile the network in a single context
+--- 1024 ---
+[info] Trying to compile the network in a single context

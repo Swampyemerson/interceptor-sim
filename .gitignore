@@ -158,3 +158,12 @@ logs/wind_gate0_*/sim.log
 bench_archive/
 renders/
 data/
+
+# Hailo DFC artifacts (big binaries; venvs)
+.venv-dfc*/
+hailo_dataflow_compiler-*.whl
+runs/dfc_dryrun/*.hef
+runs/dfc_dryrun/*.har
+runs/dfc_dryrun/calib_synth/
+runs/dfc_dryrun/yolov8n*.onnx
+runs/dfc_dryrun/yolov8n.pt
