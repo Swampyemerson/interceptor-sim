@@ -44,8 +44,29 @@ first time, testable — and is a redesign decision, queued for the builder. Det
 | ⬜ | Fill `docs/regulatory_site_capture.md` (which regime, which site, mid-air permitted in writing?) | [#4](https://github.com/Swampyemerson/interceptor-sim/issues/4) |
 | ⬜ | Confirm the 2nd RadioMaster Pocket TX isn't already ordered (ADR-0089) | [#5](https://github.com/Swampyemerson/interceptor-sim/issues/5) |
 | ⬜ | **Publication checklist** (repo is ALREADY public): rotate the VM password, re-point the launcher, merge the cleanup branch to `main`, set About/topics. MIT license **CONFIRMED 2026-08-19** | [`publish_cleanup_work_order.md`](publish_cleanup_work_order.md) |
+| ⬜ | **Order the Hailo-8 AI HAT+ (~$110)** — the DFC dry-run PASSED (single context @640 AND @1024, 2026-10-21); the evidence gate is satisfied, money is yours | [`../runs/dfc_dryrun/README.md`](../runs/dfc_dryrun/README.md) |
+| ⬜ | **AOT dataset slice go-ahead** (~30–50 GB, >2 GB rule) for the NN training program | `docs/nn_seeker_program.md` |
 
 ## Next work, in order
+
+> **OVERNIGHT QUEUE 2026-10-21→22 (builder standing order ~23:10: "do not stop
+> working until 8am — more engineering, more verification, more research;
+> subagents per project, Fable 5 not 5.1 for safeguard-touchy work").**
+> Compaction-proof copy of the plan; strike items here as they land:
+> 1. ⬜ **Single-class DFC compile dry-run** (`--classes 1` + the NMS JSON fetch,
+>    stock-v8n architecture) in the 22.04 container — proves the REAL deployment
+>    compile path pre-purchase, one step past the stock dry-run. Sim-free.
+> 2. ⬜ **Registered Gazebo arm: `--pursuit-stamped-age` validation** — the
+>    LJ90-priced improvement, flown paired vs the calibrated-constant arm under
+>    injected jitter (pre-register prediction + adopt bar first). Sim lane,
+>    idle-machine rule.
+> 3. ⬜ **`d_behind ∈ {4,8}` focused isim follow-up at n≥32** (registered footnote
+>    of the stern-study NULL — terminal-CPA question, acquisition already closed).
+> 4. ⬜ **Verification pass**: `scripts/run_tests.sh` (dev-machine scope, say so),
+>    plus a Fable review sweep over tonight's ~18 commits.
+> 5. ⬜ **NN program prep needing no downloads/money**: Det-Fly converter dry
+>    checks, sim-randomizer banked-target config, single-class export surgery notes.
+> 6. ⬜ Housekeeping: contract current at each landing (ritual), push after each.
 
 > **BUILDER DIRECTIVES 2026-09-24 (midday, verbatim intent — queued):**
 > 1. **Terminal "commit sprint" experiment** — evaluate full throttle ONLY inside the
