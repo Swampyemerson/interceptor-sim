@@ -12,11 +12,21 @@ take hr5 flew this with injected cue error (CPA 0.087 m, best of 5; lr3 shows
 the failure mode — cue draw past the decode cliff → SAFE abort).
 
 **Design (isim, fast sim; Gazebo only if a decision rides on it):**
-- Sweep: `d_behind_m` ∈ {4, 8, 16, 24} × approach bearing offset relative to
-  the target track ∈ {0° (pure stern), 30°, 60°, 90° (beam)} × cue error
-  draws (the standing cue-variant model), n ≥ 8 paired seeds per cell.
-- Target: the validated 12 m/s crossing profile; vehicle: the hr-class
-  envelope (36 m/s, a=4).
+- Sweep: `pursuit_d_behind_m` ∈ {4, 8, 16, 24} × `dash_aim_behind_m`
+  ∈ {0, 8, 16, 32} m × cue error draws (Scatter on, plus `aim_error_deg`
+  at {0, 4, 8}°), n ≥ 8 paired seeds per cell, concept="hybrid".
+- *AMENDED before flying (2026-10-21, no data taken):* the registered
+  "approach bearing offset" axis is replaced by `dash_aim_behind_m` — the
+  implementable stern lever (the dash aims astern of the believed track;
+  commit 18cc7b2). A true bearing-offset arc is a router (stage-3) feature;
+  if this sweep shows the astern lever matters, bearing earns its plumbing.
+- Target: the isim-earned hybrid operating point (9 m/s crossing, fx 933,
+  6.5 m cross range — the concept-test canon; *amended before flying* from
+  "the 12 m/s crossing", which is the GAZEBO latency study's point, not an
+  isim-earned one). Vehicle: the FITTED isim envelope (default dash). *AMENDED before flying:* the hr-class 36 m/s
+  envelope is outside the isim vehicle fit's earned regime (regime rule);
+  if the geometry lever matters at the fitted envelope, the hr-envelope
+  confirmation is a registered Gazebo rung, not an isim extrapolation.
 - Metrics: acquisition probability, time-to-acquire after turn, CPA median
   over acquiring flights, abort rate.
 
