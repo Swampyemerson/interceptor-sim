@@ -906,3 +906,26 @@ wrote down, so they are reported as misses, not rounded into agreement. The conc
 move: a quarter-metre height error takes the adopted config from 13/16 touching to 3/16 across
 the two seeds. (The adopted setting itself has now flown six seeds: 7, 6, 6, 6, 7 and 6 of 8
 inside the contact radius — **38/48**.)
+
+### 9.15 dash_alt_trim_m derivation ATTEMPTED and REFUSED by the instrument (2026-10-22 overnight)
+
+The queued "derive dash_alt_trim_m from §9.13's real numbers" was attempted.
+`vertical_miss_anatomy.py` over both arm-B fleets (seeds 456+789, 16
+flights) **fails closed**: no flight carries a settled pre-dash hover (the
+current launch profile dashes straight out of TAKEOFF), so "altitude drift
+over the dash" has no baseline — "Do NOT derive a trim from this run," per
+the tool's own verdict. The §9.13 "+0.185 m vertical at CPA" is a DIFFERENT
+quantity (CPA offset, not dash drift) and must not be fed to
+`derive_dash_alt_trim_m` (the derived-numbers-carry-their-datum rule;
+ADR-0095 is the scar).
+
+**Why this is not just a tooling gap:** a measurement arm WITH a settled
+hover would measure a hover-entry dash — but the deployed profile never
+hovers, and the climb may depend on entry state. So the open question is
+the DATUM DEFINITION itself: either (a) extend the forensics to a
+takeoff-entry drift definition (needs attitude + a defined baseline window
+on the climbing entry), or (b) accept a hover-entry measurement arm as an
+approximation and say so. That is a methodology call worth daylight, not a
+2 a.m. unilateral redefinition — **lever parked with this note; the
+residual ~0.19 m high at CPA stands as the next vertical target, datum
+pending.**
