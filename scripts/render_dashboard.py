@@ -482,6 +482,9 @@ def validate(state: dict) -> None:
             fail(f"contradiction {c['id']!r} severity {c['severity']!r}; allowed: {sorted(SEVERITIES)}")
         if c["status"] not in FLAG_STATUSES:
             fail(f"contradiction {c['id']!r} status {c['status']!r}; allowed: {sorted(FLAG_STATUSES)}")
+        if c["status"] == "resolved" and not str(c.get("resolution", "")).strip():
+            fail(f"contradiction {c['id']!r} is resolved but has no 'resolution' note "
+                 f"(what ruled it, when) — the ruling must not live only in current_truth")
         cids.append(c["id"])
     if len(cids) != len(set(cids)):
         fail("duplicate contradiction ids")

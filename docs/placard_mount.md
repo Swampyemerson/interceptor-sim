@@ -602,18 +602,34 @@ GNSS antenna from part of the sky *if the panel is opaque at L-band*. The physic
 not: paper + polystyrene foam are thin low-loss dielectrics, and fused toner is carbon
 dispersed in an insulating polymer at ~10 µm — expected loss at 1.575 GHz well under 1 dB.
 **[HYPOTHESIS — and it is the single highest-value, zero-cost bench check in this document
-(§9 item 3).]** If it turns out opaque, the geometric shadow is severe: with the GPS at
-+45 mm and 45 mm off-centre, the panel blocks the band from **~38° up to ~84° elevation**
-across **±79° of azimuth** on one side — call it a fifth to a quarter of the visible sky
-[DERIVED]. Fallbacks in order: (a) a 150 mm rear mast canted
-outboard; (b) accept degraded HDOP and re-verify the AUTO leg repeats. **Hard rule either
-way: no foil, no metallised board, no carbon sheet in the placard.**
+(§9 item 3).]** If it turns out opaque, the geometric shadow is severe — **CORRECTED
+2026-10-22 (review 2 finding, dropped sign):** the antenna at z=+45 mm sits 35 mm ABOVE the
+panel's bottom edge (+10 mm), so the panel blocks continuously from the **HORIZON up to
+~84° elevation** across ±79° of azimuth on one side — **~44% of the visible hemisphere**
+(2.69 sr; still ~43% with a 10° receiver elevation mask), not the "fifth to a quarter"
+this paragraph used to say. Derivation inline so the sign cannot re-drop:
+`el_bottom = atan2(10−45, 45) = −37.9°` (below the horizon ⇒ no gap under the panel),
+`el_top = atan(415/45) = 83.8°`, `az_half = atan(225/45) = 78.7°`,
+`Ω = 2·atan(ab/(d·√(a²+b²+d²))) = 2.69 sr` [DERIVED]. The character matters too: this
+shadow removes the LOW-elevation satellites on one side — exactly the ones that set HDOP;
+a high-sky-only shadow would barely move it. A 24-sat uniform-sky Monte Carlo puts the
+one-sided block at median HDOP 0.57 → 1.23 (p95 2.13) [ESTIMATE, model] — read §9 item 3's
+"HDOP ≤ 1.2" pass line as *the worst case sits ON the threshold*, not comfortably inside.
+Fallbacks in order: (a) a 150 mm rear mast canted outboard — **print and CARRY it in the
+field box before the field day** (~$0, ~10 g; it stays unfitted unless §9 item 3 fails,
+but discovering a 44%-sky block on gate day with no mast in the box is the failure this
+doc exists to prevent; do NOT make it the flown baseline — the RF-transparency hypothesis
+is well-argued and the mast costs CG height and compass-EMI margin); (b) accept degraded
+HDOP and re-verify the AUTO leg repeats. **Hard rule either way: no foil, no metallised
+board, no carbon sheet in the placard.**
 
 **Compass, separately:** all placard hardware is nylon/PETG/carbon, so there is no hard-iron
 contribution — but **calibrate the compass with the placard fitted, in its flight index
 position**, and re-calibrate if you change the index. (Carbon tube is conductive; keep the
-spars ≥50 mm from the magnetometer, which the +10 mm bottom-edge geometry does naturally if
-the GPS is on a rear mast.)
+spars ≥50 mm from the magnetometer. Note the margin is thinner than this sentence used to
+imply: the clearance is the lateral offset, √(35² + 45²) = 57 mm — 7 mm over the ≥50 mm
+rule — and it collapses to 35 mm if the 45 mm off-centre placement shrinks; on a rear mast
+the clearance is the mast length and the rule is comfortable.)
 
 **ELRS RX antennas (RadioMaster RP1 V2, 2.4 GHz).** Same dielectric argument, same
 **[HYPOTHESIS]** status, bench-checked the same way (§9 item 4). Rules: keep both dipoles at

@@ -21,6 +21,7 @@ no ultralytics at inference -- the ONNX runs standalone.
 """
 from __future__ import annotations
 
+import sys
 import json
 import math
 import os
@@ -83,8 +84,11 @@ def resolve_input_modality(weights, gray_input="auto"):
                 return True, f"sidecar {os.path.basename(sidecar)}"
             if mode in ("color", "colour", "rgb", "bgr"):
                 return False, f"sidecar {os.path.basename(sidecar)}"
-        except Exception:
-            pass
+        except Exception as e:
+            # A sidecar that EXISTS but does not parse must fail closed (error policy R2 /
+            # review2 A2): only NON-existence may fall through to the stem table.
+            raise ValueError(f"modality sidecar {sidecar} exists but is unusable "
+                             f"({e!r}); fix or delete it — refusing to guess") from e
     stem = os.path.splitext(os.path.basename(str(weights)))[0]
     if stem in GRAY_NATIVE_STEMS:
         return True, f"gray-native model table ({stem})"
@@ -144,8 +148,9 @@ class FinetunedNNSeeker:
         shp = self.sess.get_inputs()[0].shape
         try:
             self.imgsz = int(shp[-1]) if isinstance(shp[-1], int) else imgsz
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[finetuned] WARNING: could not infer input size from ONNX shape {shp!r} "
+                  f"({e!r}); keeping imgsz={self.imgsz}", file=sys.stderr)
         # Input modality (gray-native nn_tier models vs color-trained sim models).
         self.gray_input, gray_source = resolve_input_modality(weights, gray_input)
         print(f"[finetuned] loaded {os.path.basename(weights)} imgsz={self.imgsz} "
@@ -179,8 +184,12 @@ class FinetunedNNSeeker:
                         calib = json.load(fh)
                     self.span = float(calib["span_m_eff"])
                     span_source = f"calib sidecar {os.path.basename(calib_path)}"
-                except Exception:
-                    pass
+                except Exception as e:
+                    # A calibration that EXISTS but does not parse must fail closed (error
+                    # policy R2 / review2 A2): the default span would silently change every
+                    # range estimate. Only non-existence may use the default.
+                    raise ValueError(f"calib sidecar {calib_path} exists but is unusable "
+                                     f"({e!r}); fix or delete it — refusing the default span") from e
         print(f"[finetuned] span={self.span:.3f} m ({span_source})")
 
     def _none(self, t_mono):
