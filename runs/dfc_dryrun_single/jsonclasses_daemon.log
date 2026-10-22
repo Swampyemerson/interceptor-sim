@@ -1,0 +1,9 @@
+onnx: /work/runs/dfc_dryrun_single/yolov8n-1c.onnx
+NMS JSON classes -> 1
+=== compiling nc=1 onnx, classes via NMS JSON, NO --classes ===
+compile (json-classes) @640: OK
+[info] Found valid partition to 2 contexts, Performance improved by 3.5%
+[info] Iteration #23 - 2 contexts,
+[info] Partition to contexts finished successfully
+[info] Applying selected partition to 2 contexts...
+[info] Bandwidth of inter context tensors: 12.5 Mbps (for a single frame)

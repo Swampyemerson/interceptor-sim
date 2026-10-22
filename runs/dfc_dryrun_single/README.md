@@ -45,3 +45,13 @@ evidence only, no accuracy/recall claim can be quoted from this build.**
 
 Repro: `runs/dfc_dryrun_single/run_single.sh` inside the ubuntu:22.04
 container (same bootstrap as the stock run; venv sentinel required).
+
+## Recovery lead CLOSED (same night): classes-via-JSON is also 2 contexts
+
+The open lead (declare `classes: 1` by editing the NMS JSON, no `--classes`
+flag) compiled successfully and STILL landed in **2 contexts** (12.5 Mbps
+inter-context, `compile_1c_json_640.log`, driver `run_jsonclasses.sh`) —
+so the context split comes from the 1-class TOPOLOGY on DFC 3.34 + MZ 2.17,
+not from the `--classes` rewrite path. Lead closed; the fps cost of the
+2-context deployment compile is a day-1 `hailortcli benchmark` question on
+real hardware, and remains the honest caveat on the purchase gate.

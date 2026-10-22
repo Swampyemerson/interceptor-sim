@@ -517,7 +517,7 @@
   },
   {
    "id": "hailo8-purchase",
-   "question": "ADR-0125: Hailo-8 AI HAT+ (~$110). DRY-RUN 2026-10-21: STOCK yolov8n compiles SINGLE-CONTEXT at 640 AND 1024 (runs/dfc_dryrun). CAVEAT from the deployment-path check (runs/dfc_dryrun_single): the 1-CLASS compile via --classes lands in 2 contexts (12.5 Mbps inter-context/frame) -- it RUNS, but whether context switching threatens the 10-15 Hz floor is a day-1 hailortcli-benchmark question; one recovery lead (classes via the NMS JSON, not --classes) is being tested. Your calls: (1) HAT order -- evidence supports it, with the 2-context caveat disclosed; (2) AOT dataset go-ahead (>2 GB rule).",
+   "question": "ADR-0125: Hailo-8 AI HAT+ (~$110). DRY-RUN 2026-10-21: STOCK yolov8n compiles SINGLE-CONTEXT at 640 AND 1024 (runs/dfc_dryrun). CAVEAT from the deployment-path check (runs/dfc_dryrun_single): the 1-CLASS compile via --classes lands in 2 contexts (12.5 Mbps inter-context/frame) -- it RUNS, but whether context switching threatens the 10-15 Hz floor is a day-1 hailortcli-benchmark question; the recovery lead (classes via the NMS JSON) was tested and is DEAD -- the 1-class topology itself splits, so 2 contexts is the honest deployment expectation. Your calls: (1) HAT order -- evidence supports it, with the 2-context caveat disclosed; (2) AOT dataset go-ahead (>2 GB rule).",
    "options": [
     "DevZone account now, order after the DFC dry-run confirms our model compiles single-context (recommended order)",
     "Order the HAT now in parallel (saves shipping days; the dry-run still de-risks the model side)",
