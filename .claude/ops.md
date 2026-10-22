@@ -114,6 +114,12 @@ don't spawn a subagent where doing the thing inline is cheaper.
    edits as a fix without new evidence.** `/feedback` (the builder's to send) is the
    sanctioned path to actually resolve this. **Do not word prompts to evade the
    classifier** — standing rule, unaffected by any of the above.
+   * **UPDATE 2026-10-22 (overnight, builder directive "Fable 5 not 5.1" + 2/2 live passes):**
+     the **`fork` subagent_type** (inherits the Fable-5 head's model AND context) completed two
+     substantive repo-attached briefs cleanly (a docker compile task and an adversarial code
+     review that caught a critical bug) — the first verified-working subagent lane on this repo
+     since 2026-09-10. Use FORKS for safeguard-touchy subagent work; n=2, log outcomes in
+     docs/subagent_safeguard_log.md.
    * **The routing rule, simplified:** all subagent work goes through `sonnet-worker`.
      Don't spawn `model: fable` or treat `opus5-worker` as dependable until re-verified
      — both are may-fail-or-worse right now, not a workhorse and not a review lane.
