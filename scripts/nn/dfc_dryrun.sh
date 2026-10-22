@@ -107,7 +107,9 @@ fi
 for SZ in 640 1024; do
     echo "=== exporting yolov8n @$SZ ==="
     "$VENV/bin/yolo" export model=yolov8n.pt format=onnx imgsz=$SZ opset=11 \
-        > "export_$SZ.log" 2>&1
+        > "export_$SZ.log" 2>&1 \
+        || { echo "export @$SZ FAILED -- tail of export_$SZ.log:"
+             tail -5 "export_$SZ.log"; exit 1; }
     mv -f "$REPO"/yolov8n.onnx "yolov8n_$SZ.onnx" 2>/dev/null || \
         mv -f yolov8n.onnx "yolov8n_$SZ.onnx" 2>/dev/null || true
     echo "=== compiling yolov8n @$SZ for hailo8 (CPU; may take a while) ==="
@@ -150,8 +152,13 @@ PYEOF
     grep -i "context" "compile_$SZ.log" | tail -4 || true
 done
 echo "=== verdicts ==="
+# Review F4: grep the AUTHORITATIVE allocator evidence, not the optimistic
+# "Trying to compile ... single context" line (which also prints before a
+# multi-context fallback). Single context <=> context_0/0 mapping + zero
+# inter-context bandwidth + Successful Compilation.
 for SZ in 640 1024; do
     echo "--- $SZ ---"
-    grep -iE "single context|multi-context|Using Multi" "compile_$SZ.log" | tail -2 \
-        || echo "(no context line -- read $OUT/compile_$SZ.log)"
+    grep -iE "Context:[0-9]+/[0-9]+|Bandwidth of inter|Successful Compilation|Single context flow failed|contexts" \
+        "compile_$SZ.log" | tail -4 \
+        || echo "(no allocator evidence -- read $OUT/compile_$SZ.log)"
 done
