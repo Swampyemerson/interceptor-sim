@@ -38,13 +38,21 @@ def _released(stamp_capture: bool):
         cr.xck.stamp_s = old
 
 
-def test_flag_on_republishes_capture_stamp():
+def test_flag_on_republishes_capture_stamp_on_the_monotonic_axis():
+    """Review F1 (2026-10-22): the stamp must be `t_capture_monotonic`
+    (absolute axis, == time.monotonic() under the SimClockShim), NEVER
+    `t_capture` -- real_flight ages t_capture against MISSION-RELATIVE t,
+    so an absolute stamp there clamps every age to 0.0 (a stamp that
+    silently un-ages the measurement). The first version of this test
+    pinned that wrong convention and green-lit the bug."""
     d = _released(True)
     assert d.range_m == 5.0
-    assert d.t_capture == 10.0               # == t_capture_sim, mission clock
+    assert d.t_capture_monotonic == 10.0     # == t_capture_sim, same axis
+    assert not hasattr(d, "t_capture")       # the mission-relative name
 
 
 def test_flag_off_does_not_grow_the_attribute():
     d = _released(False)
     assert d.range_m == 5.0
     assert not hasattr(d, "t_capture")
+    assert not hasattr(d, "t_capture_monotonic")

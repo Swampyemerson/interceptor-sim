@@ -105,7 +105,13 @@ class DelayedDetector:
         if self._q and now is not None and now >= self._q[0][0]:
             self.last = self._q.pop(0)[1]  # one release per poll (one meas/tick)
             if self._stamp_capture and self.last.t_capture_sim is not None:
-                self.last.t_capture = self.last.t_capture_sim
+                # Review F1 (2026-10-22): publish on the MONOTONIC axis, not
+                # as `t_capture` (which real_flight ages against MISSION-
+                # relative t -- an absolute stamp there clamps every age to
+                # 0.0 and silently un-ages the measurements). Under the
+                # SimClockShim, time.monotonic() == absolute sim time ==
+                # this stamp's base.
+                self.last.t_capture_monotonic = self.last.t_capture_sim
         else:
             self.last = types.SimpleNamespace(**self._MISS)
         return self.last

@@ -167,3 +167,16 @@ recommendation). A NULL (no better than LJ90's 1.53x) means the stamp
 plumbing has a defect or jitter hurts through a non-age mechanism
 (ordering/rate) -- in either case stamped-age must NOT be recommended
 until the mechanism is found; this is informative either way.
+
+### LJ90-S amendment (review F1, 2026-10-22, BEFORE flying)
+
+The adversarial review caught the armed version's stamp on the WRONG CLOCK
+BASE (absolute sim published as mission-relative `t_capture` -> every age
+clamps to 0.0 -- the arm would have flown "fresh" 30-150 ms-old
+measurements and falsely refuted the prediction, with the unit test
+pinning the wrong convention). Fixed: the driver publishes
+`t_capture_monotonic` (absolute axis) and real_flight ages it against
+time.monotonic() (== absolute sim under the shim). Take c1 flies FIRST
+with DEBUG_DET_AGE=1 and the batch continues ONLY if its logged stamped
+ages are nonzero and within the injected 30-150 ms envelope -- the
+effect-observation gate the first version lacked.

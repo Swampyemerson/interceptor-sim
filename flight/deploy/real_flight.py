@@ -2670,6 +2670,28 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                         _t_cap = getattr(d, "t_capture", None)
                         if _t_cap is not None:
                             det_age = max(0.0, t - float(_t_cap))
+                        else:
+                            # t_capture_monotonic: a capture stamp on the
+                            # time.monotonic() axis (ABSOLUTE, not mission-
+                            # relative). The cinema driver publishes this
+                            # under --det-stamp-capture (the SimClockShim
+                            # makes monotonic() absolute sim time, the same
+                            # base as its t_capture_sim). Review F1
+                            # 2026-10-22: publishing it as `t_capture` put
+                            # an absolute stamp on the mission-relative
+                            # axis, so every age clamped to 0.0 -- a stamp
+                            # that silently un-ages every measurement.
+                            _t_cap_mono = getattr(d, "t_capture_monotonic", None)
+                            if _t_cap_mono is not None:
+                                det_age = max(0.0, time.monotonic()
+                                              - float(_t_cap_mono))
+                                # Effect-observation hook (review F1): ages
+                                # print to the take log under DEBUG_DET_AGE=1
+                                # so a clock-base regression can never again
+                                # fly silently as age=0.
+                                if os.environ.get("DEBUG_DET_AGE"):
+                                    print(f"[det-age] stamped age = "
+                                          f"{det_age*1000:.0f} ms")
                 # FAILSAFE 7 arm 2 input: how old the flight-mode sample is, on
                 # the SAME clock base it was stamped with (absolute monotonic --
                 # mission time here would reproduce the RC clock-base defect, and
