@@ -16,7 +16,7 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WHEEL="${1:?path to hailo_dataflow_compiler wheel}"
 OUT="$REPO/runs/dfc_dryrun"
-VENV="$REPO/.venv-dfc"
+VENV="${DFC_VENV:-$REPO/.venv-dfc}"   # override for container runs
 mkdir -p "$OUT"
 
 # Hailo-8 is served by the DFC 3.x line ONLY. 5.x rejects --hw-arch hailo8
@@ -128,12 +128,12 @@ assert len(names) == 6, f"expected 6 head convs, found {len(names)}"
 print(" ".join(names))
 PYEOF
 )
-    # LD_PRELOAD tcmalloc: on Ubuntu 24.04 (glibc 2.39 -- newer than the
-    # DFC's supported 20.04/22.04) optimization dies instantly with
-    # "free(): double free detected in tcache 2" under glibc malloc
-    # (hit live 2026-10-21). tcmalloc sidesteps glibc's allocator.
+    # NOTE Ubuntu 24.04 is a DEAD END for this compile: optimization
+    # crashes natively at "Starting Model Optimization" (glibc double-free;
+    # tcmalloc preload only silences the message). Run this script inside
+    # Ubuntu 22.04 (the DFC support matrix) -- see the container recipe in
+    # docs/hailo_toolchain_runbook.md.
     if CUDA_VISIBLE_DEVICES="" \
-            LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4 \
             "$VENV/bin/hailomz" compile yolov8n \
             --ckpt "yolov8n_$SZ.onnx" --calib-path "$CALIB" \
             --end-node-names $ENDS \
