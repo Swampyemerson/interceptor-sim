@@ -1,0 +1,27 @@
+=== building + exporting RANDOM-WEIGHT single-class yolov8n @640 ===
+Creating new Ultralytics Settings v0.0.8 file ✅ 
+View Ultralytics Settings with 'yolo settings' or at '/root/.config/Ultralytics/settings.json'
+Update Settings with 'yolo settings key=value', i.e. 'yolo settings runs_dir=path/to/dir'. For help see https://docs.ultralytics.com/usage/settings.
+Ultralytics 8.4.183 🚀 Python-3.10.12 torch-2.14.1+cu130 CPU (AMD Ryzen AI 9 HX 370 w/ Radeon 890M)
+YOLOv8n-1c summary (fused): 72 layers, 3,005,843 parameters, 0 gradients, 8.1 GFLOPs
+
+[34m[1mPyTorch:[0m starting from 'yolov8n-1c.yaml' with input shape (1, 3, 640, 640) BCHW and output shape(s) (1, 5, 8400) (0.0 MB)
+
+[34m[1mONNX:[0m starting export with onnx 1.16.0 opset 11...
+[34m[1mONNX:[0m slimming with onnxslim 0.1.98...
+[34m[1mONNX:[0m export success ✅ 1.0s, saved as 'yolov8n-1c.onnx' (11.7 MB)
+
+Export complete (1.1s)
+Results saved to [1m/work/runs/dfc_dryrun_single/yolov8n-1c.onnx[0m
+Predict:         yolo predict task=detect model=yolov8n-1c.onnx imgsz=640 
+Validate:        yolo val task=detect model=yolov8n-1c.onnx imgsz=640  
+Visualize:       https://netron.app
+exported ['yolov8n-1c.onnx']
+onnx: /work/runs/dfc_dryrun_single/yolov8n-1c.onnx
+end nodes: /model.22/cv2.0/cv2.0.2/Conv /model.22/cv3.0/cv3.0.2/Conv /model.22/cv2.1/cv2.1.2/Conv /model.22/cv3.1/cv3.1.2/Conv /model.22/cv2.2/cv2.2.2/Conv /model.22/cv3.2/cv3.2.2/Conv
+=== compiling single-class yolov8n @640 for hailo8 (--classes 1) ===
+compile single-class @640: OK
+[info] Trying to compile the network in a single context
+[info] Single context flow failed: Recoverable single context error
+[info] Using Multi-context flow
+[info] Successful Compilation (compilation time: 4s)
