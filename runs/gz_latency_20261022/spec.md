@@ -145,3 +145,25 @@ preferred seat. The latency chapter is CLOSED with four arms:
 Detector spec, final: latency must be KNOWN (constant calibrated or
 stamped); jitter <= a few tens of ms preferred, +/-60 ms = 1.5x + tails;
 rate >=10-15 Hz; terminal range >=8-12 m; p>=0.5/frame.
+
+## FIFTH ARM (pre-registered 2026-10-21 overnight, before flying): LJ90-S
+
+The stamped-age mode's Gazebo validation: IDENTICAL takes to LJ90 (same 6
+cue variants, same injected 90 ms +/-60 ms jitter, same seeds) with
+`--det-stamp-capture --pursuit-stamped-age` in place of the calibrated
+constant (`--pursuit-meas-latency-s 0.135` dropped; stamps supersede it
+per-measurement). The cinema driver republishes each released detection's
+capture stamp as `t_capture` -- valid only under the sim-clock shim, the
+flight code's gz-stamp exclusion untouched (tests/test_det_stamp_capture.py).
+
+PREDICTION: stamped age restores LJ90's jitter degradation to known-age
+quality -- median <=1.2x baseline (~0.29 m) and NO >1 m tail (LJ90's c5
+1.212 m collapses), because every measurement now carries its true age.
+
+ADOPT BAR: improvement over LJ90 in >=4/6 pairs AND median <=1.2x baseline
+-> stamped-age becomes the RECOMMENDED configuration for jitter-class
+detector pipelines (flight default stays OFF; the deploy runbook gains the
+recommendation). A NULL (no better than LJ90's 1.53x) means the stamp
+plumbing has a defect or jitter hurts through a non-age mechanism
+(ordering/rate) -- in either case stamped-age must NOT be recommended
+until the mechanism is found; this is informative either way.

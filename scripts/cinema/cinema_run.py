@@ -69,10 +69,18 @@ class DelayedDetector:
     _MISS = dict(range_m=None, box_xywh=None, t_capture_sim=None, tag_range_m=None)
 
     def __init__(self, inner, delay_s: float, jitter_s: float = 0.0,
-                 seed: int = 0):
+                 seed: int = 0, stamp_capture: bool = False):
         self._inner = inner
         self._delay = float(delay_s)
         self._jitter = float(jitter_s)      # per-detection uniform(+/-jitter)
+        # --det-stamp-capture (LJ90-S arm): republish each RELEASED
+        # detection's capture stamp as `t_capture`, the attribute the flight
+        # code's --pursuit-stamped-age path reads. Valid ONLY here, because
+        # cinema runs the whole mission on the SimClockShim, so t_capture_sim
+        # IS the mission clock; the flight code's own attribute-name
+        # exclusion of gz stamps (real_flight det_age block) stays intact
+        # for every other driver. Default off = byte-identical.
+        self._stamp_capture = bool(stamp_capture)
         import numpy as _np
         self._rng = _np.random.default_rng([seed, 0x1A7E])
         self._q = []                        # [(release_at_sim, det), ...]
@@ -96,6 +104,8 @@ class DelayedDetector:
         now = xck.stamp_s(latest) if latest is not None else None
         if self._q and now is not None and now >= self._q[0][0]:
             self.last = self._q.pop(0)[1]  # one release per poll (one meas/tick)
+            if self._stamp_capture and self.last.t_capture_sim is not None:
+                self.last.t_capture = self.last.t_capture_sim
         else:
             self.last = types.SimpleNamespace(**self._MISS)
         return self.last
@@ -230,6 +240,11 @@ def main(argv=None):
                     help="per-detection uniform(+/-this) added to the injected "
                          "latency (pipeline-jitter model; needs latency > 0)")
     ap.add_argument("--inject-det-seed", type=int, default=0)
+    ap.add_argument("--det-stamp-capture", action="store_true",
+                    help="republish each RELEASED detection's capture stamp as "
+                         "t_capture (the --pursuit-stamped-age input). Valid "
+                         "only in cinema (mission clock IS sim time via the "
+                         "shim); requires the latency injector (LJ90-S arm)")
     ap.add_argument("--cue-speed-err", type=float, default=0.0,
                     help="fractional: 0.1 = belief thinks 10%% faster")
     # --- target realism (mover-side) ---
@@ -275,9 +290,15 @@ def main(argv=None):
     if args.inject_det_latency_s > 0.0:
         det = DelayedDetector(det, args.inject_det_latency_s,
                               jitter_s=args.inject_det_jitter_s,
-                              seed=args.inject_det_seed)
+                              seed=args.inject_det_seed,
+                              stamp_capture=args.det_stamp_capture)
         print(f"[cinema] DETECTION LATENCY INJECTED: +{args.inject_det_latency_s:.3f} s "
-              f"+/-{args.inject_det_jitter_s:.3f} s (sim)")
+              f"+/-{args.inject_det_jitter_s:.3f} s (sim)"
+              + (" + capture stamps republished (t_capture)"
+                 if args.det_stamp_capture else ""))
+    elif args.det_stamp_capture:
+        sys.exit("[cinema] --det-stamp-capture requires the latency injector "
+                 "(--inject-det-latency-s > 0) -- refusing a silent no-op")
     frames = None if args.no_frames else FrameRecorder(stem + "_frames")
     img_topic = (f"/world/{args.world}/model/{xck.VEHICLE_MODEL}/link/camera_link"
                  "/sensor/imager/image")
