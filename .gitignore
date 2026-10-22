@@ -167,3 +167,12 @@ runs/dfc_dryrun/*.har
 runs/dfc_dryrun/calib_synth/
 runs/dfc_dryrun/yolov8n*.onnx
 runs/dfc_dryrun/yolov8n.pt
+runs/dfc_dryrun/acceleras.log
+runs/dfc_dryrun/allocator.log
+runs/dfc_dryrun/apt_2204.log
+runs/dfc_dryrun/hailo_examples.log
+runs/dfc_dryrun/hailo_sdk.client.log
+runs/dfc_dryrun_single/apt_2204.log
+runs/*/cells.jsonl
+runs/*/sweep.pid
+logs/gz_latency/sim_LJ90S_*.log
