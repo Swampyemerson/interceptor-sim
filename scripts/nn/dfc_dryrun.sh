@@ -61,6 +61,32 @@ if [ ! -f "$VENV/.install-ok" ]; then
 fi
 
 cd "$OUT"
+
+# hailomz needs calibration data (without --calib-path it wants a COCO
+# tfrecord that is NOT auto-downloaded). For THIS dry-run's question --
+# does it compile, in how many contexts -- image content is irrelevant
+# (context mapping is topology/resources, not data), so a synthetic set is
+# generated and labeled as such. NO accuracy/recall number may ever be
+# quoted from a build calibrated on these; the real build re-earns
+# calibration from deployment-camera frames (runbook rule).
+CALIB="$OUT/calib_synth"
+if [ ! -d "$CALIB" ] || [ "$(ls "$CALIB" | wc -l)" -lt 64 ]; then
+    mkdir -p "$CALIB"
+    "$VENV/bin/python" - "$CALIB" <<'PYEOF'
+import sys, numpy as np, cv2
+out = sys.argv[1]
+rng = np.random.default_rng(0)
+for i in range(128):
+    img = rng.integers(0, 255, (1024, 1024, 3), dtype=np.uint8)
+    for _ in range(6):  # blobs so ranges aren't pure noise
+        c = tuple(int(x) for x in rng.integers(0, 1024, 2))
+        cv2.circle(img, c, int(rng.integers(20, 200)),
+                   tuple(int(x) for x in rng.integers(0, 255, 3)), -1)
+    cv2.imwrite(f"{out}/synth_{i:04d}.jpg", img)
+print("wrote 128 synthetic calib images (dry-run fit/context ONLY)")
+PYEOF
+fi
+
 for SZ in 640 1024; do
     echo "=== exporting yolov8n @$SZ ==="
     "$VENV/bin/yolo" export model=yolov8n.pt format=onnx imgsz=$SZ opset=11 \
@@ -73,7 +99,7 @@ for SZ in 640 1024; do
     # GPU 0" (hit live 2026-10-21). CPU quantization is the supported WSL2
     # mode and answers the fit/context question.
     if CUDA_VISIBLE_DEVICES="" "$VENV/bin/hailomz" compile yolov8n \
-            --ckpt "yolov8n_$SZ.onnx" \
+            --ckpt "yolov8n_$SZ.onnx" --calib-path "$CALIB" \
             --hw-arch hailo8 --classes 80 > "compile_$SZ.log" 2>&1; then
         echo "compile @$SZ: OK"
     else
