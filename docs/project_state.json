@@ -526,9 +526,49 @@
    "rec": "DevZone first -- it is free and unblocks the dry-run; the compile result turns the $110 into an evidence-gated buy. AOT download: yes, it is license-clean and the fetch is scripted + resumable.",
    "blocked": "Purchase + AOT download approval are builder-only. Nothing else blocks the Hailo phase's prep.",
    "doc": "docs/hailo_toolchain_runbook.md"
+  },
+  {
+   "id": "lens-fov-ruling",
+   "question": "The lens on the seeker camera measures ~70 deg field of view, but the project's hard constraint (wide-fov, ADR-0024) says at least 100 deg and 'never fly a narrow lens' - and a 110 deg Arducam lens was already ordered 2026-10-12. Which lens flies, and should the constraint be restated?",
+   "options": [
+    "Fly the 110 deg wide lens when it arrives (keeps the constraint; recalibrate + re-earn the aim-tolerance numbers on it)",
+    "Keep the delivered ~70 deg lens (the new aim-tolerance evidence suggests it may be enough) - then the wide-fov constraint and graveyard #17 must be formally rewritten, not silently violated"
+   ],
+   "blocked": "Final camera calibration freeze + the tripod-day capture config; the aim-tolerance claim's validity envelope",
+   "doc": "docs/lens_options_2026-10-22.md",
+   "rec": "Fly the 110 deg lens when it arrives: the constraint traces to the open-loop aim tolerance, and the 70 deg evidence hasn't been re-earned at field geometry. Calibrate both, keep 70 deg as spare."
+  },
+  {
+   "id": "stamped-age-adoption",
+   "question": "The latency fix (telling the tracking filter the true age of each camera measurement) confirmed its prediction (1.08x baseline, the 1.2 m tail collapsed) but missed the strict adopt bar on 3 of 6 paired seeds. Adopt it as default, or keep it default-OFF?",
+   "options": [
+    "Adopt (prediction confirmed, mechanism understood)",
+    "Keep OFF until a bench test proves the Pi's timestamps are accurate under load (the sim hands it a perfect age; the real Pi may not)"
+   ],
+   "blocked": "Nothing hard - lever is config-gated default-OFF in-tree",
+   "doc": "docs/review3_repo_review_2026-10-22.md (section C) + the overnight queue item 2 in docs/next.md",
+   "rec": "Keep OFF until the Pi stamp-vs-truth bench runs; register kf-measurement-age-known first (sim hands a perfect age the hardware hasn't earned)."
+  },
+  {
+   "id": "deletion-tier1-ruling",
+   "question": "The 2026-10-22 deletion scout listed 7 docs for deletion (Tier 1), a logs retention policy reclaiming ~1-1.5 GB (Tier 3), and one held memory file (t25 video). The list sat with no queue entry. Rule per row and the head executes.",
+   "options": [
+    "Approve all (head executes per row, provenance-safe rules as drafted)",
+    "Approve Tier 1 only; hold the logs policy",
+    "Walk the list together next session"
+   ],
+   "blocked": "Repo legibility; ~1-1.5 GB disk; the review-3 doc-sweep session starts cleaner with the dead docs gone",
+   "doc": "docs/deletion_candidates_2026-10-22.md",
+   "rec": "Approve all - every row is provenance-checked with inbound-reference counts; the head executes per row and anything surprising comes back as a question."
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-10-22",
+   "text": "Full-repo review session (builder-directed): 15 Fable-5 forks + 16 Opus workers swept every doc cluster for contradictions and drift (~130 findings). The month of unswept rulings is fixed where it misled (ADR-0094 rows, slant ruling, passage-window port, Kakute status, Hailo-8L-vs-8 in the order list); everything else is filed with per-item status in docs/review3_repo_review_2026-10-22.md. Subagent lanes re-measured: forks 15/15 pass, Sonnet 8/8 bounce, Opus mostly passes.",
+   "so_what": "The order list no longer directs a wrong $70 purchase; next.md's waiting table matches the actual open rulings (lens FOV, stamped-age, deletions, 2nd TX, field kit); review3 is the work queue for the remaining doc sweeps.",
+   "evidence": "docs/review3_repo_review_2026-10-22.md; docs/subagent_safeguard_log.md 2026-10-22 morning entry; this commit"
+  },
   {
    "date": "2026-10-22",
    "text": "The latency chapter CLOSED in five Gazebo arms: the 'cliff' was age-knowledge, not latency (known age flies 120 ms at baseline); jitter with a correct mean costs 1.53x with a 1.2 m tail (LJ90); and the stamped-age mode built to fix that VALIDATED overnight -- 1.08x, tail collapsed (LJ90-S; adopt bar missed by its letter at 3/6 strict pairs, recommendation = builder call, default OFF). Detector spec final: age KNOWN, jitter small, >=10-15 Hz, >=8-12 m. The HAILO purchase gate: builder created the DevZone account; DFC 3.34 fetched; after 11 live-fixed environment defects (ubuntu 22.04 container REQUIRED) stock yolov8n compiled SINGLE-CONTEXT at 640 AND 1024 -- but the 1-class deployment config is 2 CONTEXTS by topology (both paths tested); fps cost = day-1 hardware benchmark; order is evidence-supported with that caveat. The builder's blind-turn question became TWO registered studies: stern-approach geometry = NULL (defaults stand, router not built -- acquisition is cue-error-vs-decode-range, not path shape; d_behind footnote also null at n=32), and target-height cue error = the vertical given MEASURED at +/-2 m budget (target-ABOVE-belief breaks acquisition at +3 m; mechanism characterized in 3 probe rounds as a standoff-bounded belief-correction race; one layer open, no sign rule). An adversarial Fable-fork review caught a CRITICAL clock-base bug in the stamped-age wiring BEFORE the arm flew (ages would have clamped to 0 and falsely refuted the prediction) plus 2 overclaims, all swept. dash_alt_trim_m derivation attempted; the forensics instrument correctly REFUSED (no pre-dash baseline in this launch profile) -- datum definition is a daylight call. Full suite ALL GREEN twice (before and after the flight-code changes). Full overnight narrative: docs/state_archive/plain_log.md.",
@@ -594,12 +634,6 @@
    "text": "First battery power-up of the full interceptor (chaser) stack, builder at the bench, Claude driving over the Pi. Three faults walked down with instruments: (1) the Pi 5's solid-red light was just standby -- one button press, booted (its red light means 'powered, not running', normal after a software shutdown). (2) The ESC's periodic 'boot waiting' tune was the AM32 no-signal beacon (same lesson as the target's Tekko32: a chirping ESC means NO SIGNAL, not a boot loop) -- root cause was PWM_MAIN_FUNC1..4 all zero, i.e. PX4 had never been told the motors live on MAIN1-4. Mapped Motor1-4 to MAIN1-4 live with read-back; the beacon went silent at once, proving the whole FC-to-ESC signal harness. (3) The builder challenged the README's 'M10 is on GPS2, no safety pins' claim -- he was right: the M10 sits on GPS1 and after a reboot the FC sees it fully (9 sats, 3D fix, compass OK). Only the safety-switch line is dead (button press during a 12-attempt test window: every attempt DENIED), so the cable likely leaves those conductors unpopulated. SAME SESSION, LATER: motors SPUN -- the blocker was a wrong enum in the test command (MAVLink MOTOR1..4 = 1..4 in param5, not PX4's internal 101..104; wrong numbers are dropped with NO ack). With that fixed, all four motors spin on command; the motor map was corner-called by the builder over two full sequences and corrected in params (both pairs crossed: final MAIN1=M4-BR, MAIN2=M1-FR, MAIN3=M3-FL, MAIN4=M2-BL, read-back verified, re-flown clean). Direction check: back-right correct; the other three spin reversed -- phase-wire swaps owed (PWM carries no direction bit; FC-side reversal would need DShot on the FMU pins). Safety was bypassed for the bench by the BUILDER's own hand (CBRK_IO_SAFETY=22027 via his terminal; the agent harness refused twice, correctly) -- restore to 0 at session end. QGC gotchas logged: open actuator sliders stomp external test commands; PX4 only routes acks to systems it has seen heartbeats from.",
    "so_what": "The interceptor's propulsion chain is end-to-end proven on battery: every motor spins on a verified map. Remaining before an arm attempt is mechanical (three phase-wire swaps), evidence hygiene (microSD), and restoring the fail-closed safety posture.",
    "evidence": "bench 2026-10-16 over the Pi: fc_link_check (9 sats FIX_3D, 21.6 V), PWM_MAIN_FUNC1-4 read-back; configs/px4_6cmini/ bench.params (5) + README"
-  },
-  {
-   "date": "2026-10-14",
-   "evidence": "retired/README.md 2026-10-14 section; docs/subagent_safeguard_log.md 2026-10-14 entry; commit (this one)",
-   "so_what": "The live tree reads current again (no superseded docs/figures mixed in), and the subagent routing rule in ops.md needs a rewrite: no worker lane is reliable on this repo right now - plan for head-inline work.",
-   "text": "Housekeeping sweep #2 (follow-up to the 2026-09-23 retirement): six straggler docs and the six stereo/rig plots moved to retired/ (list in retired/README.md), every move reference-checked repo-wide; stale pointers fixed in candidate_nn_shortlist, progress, sim_to_real_gaps, the px4-gazebo skill and .gitignore. Also logged: Sonnet 5.5 subagents now bounce [general_harms] on this repo (3/3 read-only scan briefs) - the sonnet-worker standard lane is no longer reliable; this sweep ran inline on the Fable 5 head. Dormant S2 cue-wait plumbing in m4_intercept/mc_batch flagged as a future deletion decision, not touched. [Provenance note 2026-10-17: this session's commit sat on an unpushed branch for three days — recovered by the branch sweep, not lost as first feared.]"
   }
  ],
  "narrative": {
@@ -1277,7 +1311,7 @@
     3
    ],
    "status": "half-done",
-   "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo AI HAT+ DEFERRED; nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
+   "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo-8 AI HAT+ (26 TOPS) purchase QUEUED per ADR-0125, DFC dry-run passed (1-class = 2-context caveat); nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
    "note": "Permissions CLOSED (regulatory basis + site confirmed 2026-07-24; owned-land ruling 2026-08-10) — the critical path is BUILD + BENCH + tripod. ORDERED 2026-07-20: target-drone stack + seeker kit + interceptor brain (6C Mini/PM02/M10) + the must-add top-up. ORDERED 2026-09-22 (builder, ahead of the tripod tag-decode money gate — ADR-0109; the curve still gates kill-attempt flights + the Hailo/markerless phase): the Tier-2 airframe — Source One V6, Skystars KO60II 60A ESC, ECOII 2207 ×5, RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× buzzers, LiPo bag, zip ties. STILL MISSING for a full intercept (small, mostly print/bench): FC High-Endurance microSD (ULogs are the metrology), M2.5 standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). Bench-verify the 12S-Pro 5 V tap = 5.2 V under Pi load and Model Match on both TXs. COMPUTE unchanged: Pi 5 CPU = AprilTag baseline real-time; markerless requires the deferred Hailo HAT (constraint pi5-compute). Onboard flight software READY (real_flight.py SITL-verified ADR-0081 + scripts/field/); remaining is delivery, the physical build, bench tuning of the TODO-BUILDER constants, and the tripod test.",
    "evidence": [
     "docs/hardware_order_list.md §0/§0b/§0c",
@@ -3886,7 +3920,7 @@
    "loc_a": "flight/pursuit_terminal.py _measured_r_ned (SLANT CORRECTION block) · isim/specs/parity_trace_2026-09-22.md candidate (e)",
    "claim_b": "The shared helper measurement_from_box (flight/deploy/seeker_loop.py:323) places the pinhole DEPTH along the unit ray uncorrected, and both stock consumers use it as-is: SeekerGuidance (seeker_loop.py:348) and tag_terminal.py:374 contain no slant/ray_z correction (grep = 0 matches).",
    "loc_b": "flight/deploy/seeker_loop.py:323/348 · flight/tag_terminal.py:374",
-   "current_truth": "Both true; OPEN awaiting a builder ruling (queued in builder_queue slant-fix-stock-paths). The defect is systematic (the shortfall grows with off-axis angle), but every stock-path validation -- the M-gates, the breakoff thresholds, the coast/freeze ranges -- was earned WITH the bias baked in, so a silent port would invalidate the as-flown history; the port must be a logged decision plus a re-run of the affected gates. Until ruled, the fix rides only in --terminal pursuit and the stock flying default keeps its historical geometry.",
+   "current_truth": "RULED (ADR-0118 item 2, 2026-09-24): the stock SeekerGuidance/tag_terminal paths stay FROZEN as-flown - their validations (M-gates, breakoff thresholds, coast/freeze ranges) were earned with the bias baked in, so porting the fix silently would invalidate that history. The slant correction rides only in the pursuit terminal, which is now the flying default. Re-open only if a stock path is ever re-validated.",
    "resolution": "ADR-0118 item 2 (2026-09-24): stock paths FROZEN as-flown -- with pursuit now the flying default they are legacy/selectable; the fixes ride in the default path; historical gate reproducibility preserved. Reversible via the port-and-re-run route if the stock path ever flies again."
   },
   {
@@ -3901,6 +3935,18 @@
    "loc_b": "runs/gz_latency_20261022/spec.md RESULT",
    "current_truth": "RESOLVED by the compensated arms (LC60/LC120): isim was RIGHT — it models the age-known case, and compensated Gazebo matches it (1.05-1.19x at 60/120 ms). The first Gazebo arms measured a mis-assumed KF age (fixed 45 ms vs injected 60/120). No isim re-fit needed. The detector spec's latency line is now 'latency must be KNOWN, not small'; rate >=10-15 Hz and jitter are the binding axes, and CPU-only still fails on rate (6.5 Hz).",
    "resolution": "Three-arm chain in runs/gz_latency_20261022/spec.md; --pursuit-meas-latency-s added; stamped-per-detection age queued as a registered flight-code improvement. All surfaces rewritten 2026-10-22 (second amendment in runs/nn_requirements_20261021/findings.md, program doc, now bar)."
+  },
+  {
+   "id": "wide-fov-constraint-vs-delivered-lens",
+   "verdict": "CONFIRMED",
+   "severity": "high",
+   "status": "open",
+   "topic": "The hard wide-FOV constraint is currently violated by the hardware on the bench, and no ruling or ADR covers it.",
+   "claim_a": "Constraint wide-fov (ADR-0024, graveyard #17): ~100 deg FOV is HARD - the +/-30 deg open-loop aim tolerance depends on it; never fit/fly a narrow lens.",
+   "loc_a": "project_state.json constraints[wide-fov] - ADR-0024",
+   "claim_b": "The delivered lens measures ~69.4 deg HFOV and docs/lens_options_2026-10-22.md recommends keeping it (citing the new measured aim-tolerance evidence), while a 110 deg Arducam M40180H13L ordered 2026-10-12 is in transit and the survey does not mention it.",
+   "loc_b": "docs/lens_options_2026-10-22.md:5-6,48-59; project_state.json build_tab (M40180H13L order)",
+   "current_truth": "Both true and unreconciled - a builder ruling is queued (builder_queue lens-fov-ruling): either the wide lens flies and the constraint stands, or the 70 deg lens is kept and the constraint + graveyard #17 must be rewritten as a deliberate, evidence-cited resurrection. Until ruled, do not calibrate-and-freeze either lens as final."
   }
  ]
 }

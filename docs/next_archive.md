@@ -895,3 +895,11 @@ settled all three; adversary verdict **GO-WITH-CHANGES**:
   (ADR-0032); proximity-Pk metric ratified (ADR-0025).
 - **2026-07-04/05:** M0–M4 + M4.5 realism + hardware stack (ADR-0001..0014);
   perception-half design (ADR-0015..0024).
+
+---
+
+## Archived 2026-10-22 (review-3 sweep — superseded blocks moved out of next.md per its line-7 rule)
+
+**1b. (original) Fix the past-CPA breakoff discriminator** — [#3]. Blocks everything below it in sim. The measured-range rise test carries no information (false rises median 0.175 m vs true 0.152 m); the dead-band is measurement-ruled-out. Needs a different signal + an A/B. *(Superseded by the passage window, ADOPTED ADR-0101 and ported to real_flight.py 2026-09-22.)*
+
+**3c. (original) Measure the hover steady-state error.** The altitude loop sits ≈ −0.087 m off its reference while continuously commanding −0.087 m/s. If that loop does not track its own setpoint, both levers below are built on sand. Needs a sim run. *(Answered in flight 2026-09-16: −0.022/−0.023 m, loop tracks its setpoint.)*

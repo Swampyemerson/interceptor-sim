@@ -50,9 +50,11 @@ safety F all still needed). The deltas that affect **what to buy**:
 - **③ Add a checkerboard calibration target** (below) — the wide M12 distorts, and every
   range/bearing is wrong until `scripts/calibrate_camera.py` runs. This is the first
   bench gate; it's ~free to print.
-- **④ The Hailo-8L (single NPU stream) is confirmed correct.** The pivot makes the NN
-  the *sole* single-stream terminal seeker, so the pricier Hailo-8's second stream is
-  not needed — keep the 8L (already the recommended part).
+- **④ ~~Keep the Hailo-8L~~ SUPERSEDED — buy the Hailo-8 (26 TOPS AI HAT+, ~$110), per
+  ADR-0125 (2026-10-21).** The ruling also fixes the model: **yolov8n** is the
+  single-context fit on this part — **not YOLO11n** (yolo11n does NOT compile
+  single-context; the 1-class variant splits to 2 contexts by topology). The 8L
+  recommendation below this line is historical.
 - **⑤ No guidance datalink is needed** (this is the jam-resistance story). The ELRS link
   (B) is **safety/kill + arming only**; the SiK radio (D) is **telemetry monitoring
   only**. Neither carries guidance — the interceptor flies the dash open-loop and the
@@ -240,7 +242,7 @@ Order in TWO tiers, gated so you never spend on the wrong thing. **Canonical/alw
 | Item | Qty | ~Unit | ~Line | Where | Why + key compatibility |
 |---|---|---|---|---|---|
 | Raspberry Pi 5, 8 GB | 1 | $120 | $120 | PiShop / SparkFun / CanaKit | Runs the whole sim stack natively: MAVSDK-Python + OpenCV + AprilTag on CPU while the NPU does YOLO. 5V/5A USB-C. ~46 g. |
-| Raspberry Pi AI HAT+ 13 TOPS (Hailo-8L) | 1 | $70 | $70 | PiShop / SparkFun | YOLO11n @640px at 30+ FPS on the NPU → CPU stays free for MAVLink + guidance. Pi-5-only (single PCIe lane). Stacks over the cooler. |
+| Raspberry Pi AI HAT+ **26 TOPS (Hailo-8)** — *was 8L; superseded by ADR-0125* | 1 | $110 | $110 | PiShop / SparkFun | **yolov8n** @640px on the NPU (single-context per the 2026-10-21 DFC dry-run) → CPU stays free for MAVLink + guidance. Pi-5-only (single PCIe lane). Stacks over the cooler. |
 | Official Pi 5 Active Cooler | 1 | $5 | $5 | Adafruit / PiShop | **Mandatory** under sustained YOLO load — prop wash alone isn't enough. ~25 g. |
 | Arducam AR0234 2.3MP **color global-shutter** CSI (B0353) | 1 | $120 | $120 | Arducam / UCTRONICS | Global shutter = **no rolling-shutter smear** (your hard requirement). 2.3MP overspecs the sim's 1.2MP; color aids YOLO + demo. Needs Arducam's Pivariety driver (extra setup). |
 | Arducam M12 lens set (10 lenses, 20–180°) | 1 | $30 | $30 | Arducam / Amazon | Fit the ~2.5–2.8mm element for the sim's **~100° HFOV** (stock B0353 lens is only ~90°). **Fit ONLY the wide element — the ~100° FoV is a coded-dash REQUIREMENT (§0①), not a tunable; keep the narrow/long lenses as spares, do NOT fly them.** Wide M12 distorts → **checkerboard calibration mandatory** (`scripts/calibrate_camera.py`; `flight/camera.py` undistorts). |
@@ -384,7 +386,7 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 1. **Phase 0 — Learn to fly + solder, cheap.** Buy the **target drone (E)** + **RC TX** + **charger** + **safety/tools (F)**. Fly the box mission, crash it, learn ArduPilot/QGC + soldering on the drone you don't mind breaking. *Lowest-risk money first.*
 2. **Phase 1 — Brains on the bench.** FC + GPS + RC RX (B). Flash **PX4**, bind the RX, arm on the bench **with props OFF**, verify motor directions + the **kill switch** in QGC.
 3. **Phase 2 — Build the airframe.** Frame + motors + ESC + power (A). Maiden it as a **plain quad, no payload** — confirm T/W and clean flight first.
-4. **Phase 3 — Add the seeker (bench, per the Fable Stage-A ladder).** Pi + AR0234 + prop-clearance tilt mount + BEC + cables (C, D). **Calibrate the camera** (checkerboard → `flight.camera`, RMS ≤ 1 px) → **prop-clearance check** (props outside the frame, §0②) → AprilTag detection/Hz/**motion-blur** gate → **compile YOLO11n onto the Hailo, measure real FPS** → grab hard-negative footage from the real mount. Wire the UART MAVLink link; confirm the Pi commands OFFBOARD (`flight/` core + MAVSDK over TELEM2 serial). Safety module: RC kill live, geofence, dash timeout.
+4. **Phase 3 — Add the seeker (bench, per the Fable Stage-A ladder).** Pi + **OV9281** (the ordered seeker camera, ADR-0078; AR0234 = honesty-gated upgrade only) + prop-clearance tilt mount + BEC + cables (C, D). **Calibrate the camera** (checkerboard → `flight.camera`, RMS ≤ 1 px) → **prop-clearance check** (props outside the frame, §0②) → AprilTag detection/Hz/**motion-blur** gate → **compile yolov8n onto the Hailo-8 (ADR-0125), measure real FPS** → grab hard-negative footage from the real mount. Wire the UART MAVLink link; confirm the Pi commands OFFBOARD (`flight/` core + MAVSDK over TELEM2 serial). Safety module: RC kill live, geofence, dash timeout.
 5. **Phase 4 — Coded-dash intercepts, laddered (Stage B/C).** Fly the **coded dash → camera-only terminal** against the target flying its AUTO box (straight legs ≥2 m/s). Order: **(a) AprilTag seeker first** — proves the whole chain on hardware with the strongest perception; **(b) YOLO in SHADOW MODE** (log-only) during those flights → measure real bearing-σ, phantom rate, and acquisition range at zero risk (needs the Stage-B real-data fine-tune, held-out-**flight** validated); **(c) YOLO-guided terminal** only once shadow-mode clears it. Score CPA from dual-GPS logs (`field_score.py`); log everything — the resume line.
 
 ---
@@ -398,8 +400,8 @@ Recommended path: a cheap **outdoor GPS ArduPilot 5" quad** flying an AUTO waypo
 | Camera tilt: **NOT validated** (fixed up15 rejected — ADR-0067 no-adopt + ADR-0068 Stage-1 parity FAIL; adaptive tilt #46/ADR-0065 = the open lever) | **Prop-clearance** bracket, adjustable 10–30°, angle TBD by the adaptive-tilt outcome |
 | **AprilTag tag36h11** = the flight BASELINE seeker (Stage C) | Printed tag36h11 placard on the target; YOLO validated in shadow mode alongside it |
 | PX4 SITL + **MAVSDK offboard over UDP** | Pixhawk PX4 + MAVSDK over **TELEM2 UART** (921600), **same code** |
-| Onboard seeker (AprilTag + YOLO11n) | Pi 5 + AI HAT+ (Hailo-8L, single stream) running the same CV stack |
-| Camera **HFOV 1.74 rad ≈ 100°, fx≈540 @1280** | AR0234 + ~2.5–2.8mm M12 (**wide REQUIRED**), run CV at ~1280 wide to reuse `fx`; `flight/camera.py` undistorts the real lens |
+| Onboard seeker (AprilTag + yolov8n) | Pi 5 + AI HAT+ (Hailo-8 26 TOPS, ADR-0125) running the same CV stack |
+| Camera **HFOV 1.74 rad ≈ 100°, fx≈540 @1280** | OV9281 + wide M12 (**lens ruling PENDING 2026-10-22**: delivered lens measured ~70° vs the ≥100° constraint; a 110° Arducam is ordered — see `lens_options_2026-10-22.md`); `flight/camera.py` undistorts the real lens |
 | **Pro-nav N=5** terminal | PX4 offboard + `flight/` guidance; the coded-dash front-end replaces the sim's cue/handoff stack |
 
 ---

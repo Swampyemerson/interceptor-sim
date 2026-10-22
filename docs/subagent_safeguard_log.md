@@ -365,3 +365,20 @@ head, not like a fresh worker brief. Routing implication: for
 safeguard-touchy subagent work, FORKS are the verified lane; fresh
 `model:`-pinned spawns remain per the entries above. n=2 — log further
 fork outcomes here either way.
+
+## 2026-10-22 morning — 55-agent review fan-out: forks 15/15 PASS, sonnet 8/8 BOUNCE, opus mixed
+Builder-directed repo review ("15 fable agents + ~40 sonnet"). Outcomes:
+- **Fable-5 FORKS: 15/15 repo-attached review briefs completed clean**, including
+  lanes steeped in flagged framing (contradiction ledger, graveyard, flight-code
+  wiring, hardware/kill-day docs). Fork-lane n is now 17/17. Forks are the
+  workhorse for repo-attached judgment work.
+- **sonnet-worker: 8/8 instant `invalid_request [general_harms]`** on plain
+  doc-consistency briefs (req_011CgHRaJGSdTD5n9R8bSaEv and siblings) — fails
+  before the first tool call, reconfirming the 2026-10-14 entry. Lane stays dead.
+- **opus48-worker / opus55-worker: mostly pass** on the same class of briefs
+  (airframe, NN docs, publish/README, compute/Pi, sim-plan scans all completed).
+  One anomaly: an `opus48-worker` spawn ("prereg+scoring docs") errored with
+  **"model sent to the API: claude-fable-5"** and bounced
+  (req_011CgHRf2bFftUSWz1YpfGeL) — the harness served the pinned-4.8 agent on
+  Fable 5 (possibly a routing/fallback quirk); its opus55 re-spawn is the datum
+  to watch. Treat opus48 pinning as needing verification per spawn.
