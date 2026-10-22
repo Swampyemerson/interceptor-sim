@@ -128,7 +128,13 @@ assert len(names) == 6, f"expected 6 head convs, found {len(names)}"
 print(" ".join(names))
 PYEOF
 )
-    if CUDA_VISIBLE_DEVICES="" "$VENV/bin/hailomz" compile yolov8n \
+    # LD_PRELOAD tcmalloc: on Ubuntu 24.04 (glibc 2.39 -- newer than the
+    # DFC's supported 20.04/22.04) optimization dies instantly with
+    # "free(): double free detected in tcache 2" under glibc malloc
+    # (hit live 2026-10-21). tcmalloc sidesteps glibc's allocator.
+    if CUDA_VISIBLE_DEVICES="" \
+            LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4 \
+            "$VENV/bin/hailomz" compile yolov8n \
             --ckpt "yolov8n_$SZ.onnx" --calib-path "$CALIB" \
             --end-node-names $ENDS \
             --hw-arch hailo8 > "compile_$SZ.log" 2>&1; then
