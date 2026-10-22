@@ -98,9 +98,14 @@ for SZ in 640 1024; do
     # WSL2's unofficial GPU path and dies silently right after "Selected
     # GPU 0" (hit live 2026-10-21). CPU quantization is the supported WSL2
     # mode and answers the fit/context question.
+    # NO --classes flag: stock yolov8n is already 80-class, and the flag
+    # makes MZ rewrite an NMS config from a template JSON the pip install
+    # does not ship (FileNotFoundError, hit live 2026-10-21). When the
+    # single-class net compiles for real, --classes 1 needs that JSON
+    # fetched from the MZ repo first.
     if CUDA_VISIBLE_DEVICES="" "$VENV/bin/hailomz" compile yolov8n \
             --ckpt "yolov8n_$SZ.onnx" --calib-path "$CALIB" \
-            --hw-arch hailo8 --classes 80 > "compile_$SZ.log" 2>&1; then
+            --hw-arch hailo8 > "compile_$SZ.log" 2>&1; then
         echo "compile @$SZ: OK"
     else
         echo "compile @$SZ: FAILED (see $OUT/compile_$SZ.log)"
