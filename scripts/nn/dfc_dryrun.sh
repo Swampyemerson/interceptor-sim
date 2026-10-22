@@ -35,11 +35,17 @@ if [ ! -d "$VENV" ]; then
     "$VENV/bin/pip" install -q --upgrade pip
     # hailo-model-zoo is NOT on PyPI -- it installs from Hailo's GitHub.
     # MZ 2.17 is the staff-named pairing for Hailo-8 on current DFC 3.x.
+    # Its setup.py reads the DFC's package metadata, so it must install
+    # AFTER the DFC and WITHOUT build isolation (isolated builds can't see
+    # the venv's DFC -- PackageNotFoundError, hit live 2026-10-21).
     # A failed install removes the venv so a rerun retries instead of
     # assuming the half-built venv is good.
-    "$VENV/bin/pip" install -q "$WHEEL" "ultralytics>=8.4.97" \
+    "$VENV/bin/pip" install -q "$WHEEL" "ultralytics>=8.4.97" setuptools wheel \
+        || { echo "DFC wheel install failed -- check its python version"
+             rm -rf "$VENV"; exit 1; }
+    "$VENV/bin/pip" install -q --no-build-isolation \
         "git+https://github.com/hailo-ai/hailo_model_zoo.git@v2.17" \
-        || { echo "install failed -- check the DFC wheel's python version"
+        || { echo "model-zoo install failed (check DFC/MZ version pairing)"
              rm -rf "$VENV"; exit 1; }
 fi
 
