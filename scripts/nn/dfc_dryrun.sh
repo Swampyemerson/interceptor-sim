@@ -60,6 +60,18 @@ if [ ! -f "$VENV/.install-ok" ]; then
     touch "$VENV/.install-ok"
 fi
 
+# The pip-installed model zoo does NOT ship cfg/postprocess_config/, but
+# yolov8n's .alls model script references its NMS JSON unconditionally
+# (AllocatorScriptParserException, hit live 2026-10-21). Fetch it from the
+# MZ repo at the matching tag into the path the .alls expects.
+PPC="$("$VENV/bin/python" -c 'import hailo_model_zoo, os; print(os.path.join(os.path.dirname(hailo_model_zoo.__file__), "cfg", "postprocess_config"))')"
+if [ ! -f "$PPC/yolov8n_nms_config.json" ]; then
+    mkdir -p "$PPC"
+    curl -fsSL -o "$PPC/yolov8n_nms_config.json" \
+        "https://raw.githubusercontent.com/hailo-ai/hailo_model_zoo/v2.17/hailo_model_zoo/cfg/postprocess_config/yolov8n_nms_config.json" \
+        || { echo "failed to fetch yolov8n_nms_config.json"; exit 1; }
+fi
+
 cd "$OUT"
 
 # hailomz needs calibration data (without --calib-path it wants a COCO
