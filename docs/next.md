@@ -53,27 +53,26 @@ first time, testable — and is a redesign decision, queued for the builder. Det
 > working until 8am — more engineering, more verification, more research;
 > subagents per project, Fable 5 not 5.1 for safeguard-touchy work").**
 > Compaction-proof copy of the plan; strike items here as they land:
-> 1. ⬜ **Single-class DFC compile dry-run** (`--classes 1` + the NMS JSON fetch,
->    stock-v8n architecture) in the 22.04 container — proves the REAL deployment
->    compile path pre-purchase, one step past the stock dry-run. Sim-free.
-> 2. ⬜ **Registered Gazebo arm: `--pursuit-stamped-age` validation** — the
->    LJ90-priced improvement, flown paired vs the calibrated-constant arm under
->    injected jitter (pre-register prediction + adopt bar first). Sim lane,
->    idle-machine rule.
-> 3. ⬜ **`d_behind ∈ {4,8}` focused isim follow-up at n≥32** (registered footnote
->    of the stern-study NULL — terminal-CPA question, acquisition already closed).
-> 4. ⬜ **Verification pass**: `scripts/run_tests.sh` (dev-machine scope, say so),
->    plus a Fable review sweep over tonight's ~18 commits.
+> 1. ✅ DONE (fork, `ed1ed29`+`28026f8`): 1-class compiles in **2 contexts** by
+>    TOPOLOGY (both the --classes and NMS-JSON paths); fps cost = day-1 HW
+>    benchmark; caveat on the purchase gate (Artifact v115/v117).
+> 2. ✅ FLOWN (`eabc8c4`, after a review-caught clock-base fix `1a51984`):
+>    prediction CONFIRMED (1.08x baseline, LJ90's 1.2 m tail collapsed); adopt
+>    bar missed by its letter (3/6 strict pairs) — recommendation = builder
+>    call, default stays OFF. Bonus: true pipeline lag ~80 ms measured.
+> 3. ✅ NULL (`fad9ded`): 0.370 vs 0.383 m at n=32 — the n=8 gap was seed luck;
+>    8 m default stands; geometry chapter fully closed.
+> 4. ✅ Suite ALL GREEN (dev-machine scope) + Fable-fork review: 5 findings,
+>    all closed same night (F1 critical clock-base bug fixed BEFORE the arm
+>    flew; F2/F3 wording swept; F4 hardened; F5 clean).
 > 5. ⬜ **NN program prep needing no downloads/money**: Det-Fly converter dry
 >    checks, sim-randomizer banked-target config, single-class export surgery notes.
 > 6. ⬜ Housekeeping: contract current at each landing (ritual), push after each.
 
 > **BUILDER DIRECTIVES 2026-09-24 (midday, verbatim intent — queued):**
-> 1. **Terminal "commit sprint" experiment** — evaluate full throttle ONLY inside the
->    final blind-coast window (track converged, no further decodes expected): correction
->    authority there is already spent, and a shorter coast shrinks the measured ~2.6 m
->    endgame estimator drift. Pre-register (mechanism + adopt bar) before flying; a
->    blanket last-seconds sprint is contraindicated by the ADR-0115/0116 measurements.
+> 1. ✅ **DONE 2026-09-24 — ADR-0119, registered NULL** (the coast latch opens
+>    inside ~1 m while weave misses occur at 2+ m; lever default-OFF, in-tree).
+>    *(This block sat stale for a month — swept 2026-10-22.)*
 > 2. **Rehearsal break-off toggle** (hardware-preserving practice passes): config-gated
 >    mode — converged track + predicted pass inside the contact envelope → veer off at
 >    the last safe moment (margin sim-derived from closing speed + both airframes), score
