@@ -60,5 +60,29 @@ count + hardware-only fps. So before money moves:
   run the held-out real set through ONNX-CPU vs HEF and compare recall
   binned by target pixel size; re-calibrate with our own small-target
   frames if it drops. Pass/fail threshold written down BEFORE the run.
+- **INT8 recall rescue ladder (researched 2026-10-21, apply in order if the
+  binned recall drops):**
+  1. **Check the optimization log actually ran the optimizers.** Our own
+     fit-only compiles print "Adaround skipped / Finetune encoding skipped"
+     — correct at the default level on CPU, FATAL if it happens on the
+     accuracy build. Level ≥2 optimization wants a GPU + ≥1024 calib
+     images, and adaround is known to skip silently at some levels
+     (community threads [8153](https://community.hailo.ai/t/adaround-is-skipped-when-using-optimization-level-4/8153),
+     [2205](https://community.hailo.ai/t/hailo-quantization-level-4-adaquant-fails-with-unexpected-error/2205)).
+  2. **Compression-level trap:** a calib set >1024 images can auto-apply
+     `compression_level=1` = 25% of weights at 4-bit; force
+     `compression_level=0` in the .alls and re-measure
+     ([recall-degradation thread](https://community.hailo.ai/t/yolo-recall-degradation-after-compiling-to-hef/15321)).
+  3. **Calibration composition:** bias toward small-target frames from the
+     deployment camera at input size — background-dominated calibration can
+     collapse small objects into one quantization bin (mechanism claim from
+     [SatQuant](https://github.com/gulis-dev/SatQuant), single-repo, verify)
+     — which is why build_calib_set.py weights small-target frames in.
+  4. **Sensitive layers to 16-bit:** outputs (the six head convs) first,
+     per Hailo's own debugging-accuracy guidance
+     ([quantization scheme](https://hailo.ai/de/developer-zone/training-and-support/hailo-quantization-scheme-2/)).
+  Expected cost baseline from the literature: INT8 YOLO typically loses
+  ~3–7 absolute mAP50-95 overall ([arXiv 2508.19600](https://arxiv.org/pdf/2508.19600v1));
+  our pass/fail is per-pixel-size recall, not mAP, and is pre-registered.
 - Microchip bought Hailo (2026-09); DFC license is free but revocable;
   8L HATs are being delisted — another reason the 8 (26 TOPS) is the buy.
