@@ -19,11 +19,28 @@ OUT="$REPO/runs/dfc_dryrun"
 VENV="$REPO/.venv-dfc"
 mkdir -p "$OUT"
 
+# Hailo-8 is served by the DFC 3.x line ONLY. 5.x rejects --hw-arch hailo8
+# outright (valid choices there are hailo10/12/15 archs; staff: "5.xx is for
+# Hailo-10 and Hailo-15 only" -- community.hailo.ai/t/18193). Fail loud
+# before burning an install on the wrong compiler.
+case "$(basename "$WHEEL")" in
+    hailo_dataflow_compiler-3.*) ;;
+    *) echo "WRONG WHEEL: $(basename "$WHEEL") -- Hailo-8 needs the DFC 3.x line"
+       echo "(3.33.x pinned in docs/hailo_toolchain_runbook.md; 5.x = Hailo-10/15 only)"
+       exit 2 ;;
+esac
+
 if [ ! -d "$VENV" ]; then
     python3 -m venv "$VENV"
     "$VENV/bin/pip" install -q --upgrade pip
-    "$VENV/bin/pip" install -q "$WHEEL" "ultralytics>=8.4.97" hailo-model-zoo \
-        || { echo "install failed -- check the DFC wheel's python version"; exit 1; }
+    # hailo-model-zoo is NOT on PyPI -- it installs from Hailo's GitHub.
+    # MZ 2.17 is the staff-named pairing for Hailo-8 on current DFC 3.x.
+    # A failed install removes the venv so a rerun retries instead of
+    # assuming the half-built venv is good.
+    "$VENV/bin/pip" install -q "$WHEEL" "ultralytics>=8.4.97" \
+        "git+https://github.com/hailo-ai/hailo_model_zoo.git@v2.17" \
+        || { echo "install failed -- check the DFC wheel's python version"
+             rm -rf "$VENV"; exit 1; }
 fi
 
 cd "$OUT"
