@@ -556,6 +556,12 @@ class VehicleObs:
     # (flight.pursuit_terminal) -- the stock/tag terminals' AABB range
     # channel is under the separate ADR-0105 ruling and is not changed.
     det_range_pose_m: Optional[float] = None
+    # STAMPED measurement age (s): t minus the detection's own capture stamp,
+    # filled by the driver ONLY under --pursuit-stamped-age and only when the
+    # detector publishes t_capture on the same clock (FeedDetector does; see
+    # runs/gz_latency_20261022 LJ90 for why jitter makes this worth having).
+    # None = the terminal keeps its fixed meas_latency_s assumption.
+    det_age_s: Optional[float] = None
     # Bearing for the OPTIONAL pre-launch bearing latch (degrees, camera-relative).
     # Read ONLY at the GO edge and only when cfg.bearing_latch_enabled.
     det_bearing_deg: Optional[float] = None
@@ -1466,10 +1472,14 @@ class RealFlightSM:
                 # duck-typed 3-argument contract of SeekerGuidance/
                 # TagInterceptGuidance is untouched. The pose range travels
                 # only alongside a box the terminal will actually consume.
+                kw = {}
+                if getattr(self.guidance, "SUPPORTS_STAMPED_AGE", False):
+                    kw["det_age_s"] = (obs.det_age_s if box is not None
+                                       else None)
                 sp, tel = self.guidance.step(
                     box, obs.own_state(), obs.t,
                     det_range_pose_m=(obs.det_range_pose_m
-                                      if box is not None else None))
+                                      if box is not None else None), **kw)
             else:
                 sp, tel = self.guidance.step(box, obs.own_state(), obs.t)
         if sp is not None:
@@ -2615,7 +2625,7 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                 # its poll() must get the same base -- polling it with mission
                 # time made the RC age negative and pinned link_ok True forever.
                 trig = trigger.poll(trigger_poll_time(trigger, t, time.monotonic()))
-                det_new = det_range = det_box = det_pose = None
+                det_new = det_range = det_box = det_pose = det_age = None
                 if detector is not None and sm.t_dash_start is not None \
                         and t >= sm.t_dash_start + args.smoke_acquire_after_s:
                     # Detection runs EVERY tick (2026-09-23, tick-trace S3 fix:
@@ -2649,6 +2659,17 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                     # (the Gazebo cross-check driver's tag_range_m; None from
                     # the synthetic smoke detector) -- see VehicleObs.
                     det_pose = getattr(d, "tag_range_m", None)
+                    # STAMPED measurement age (--pursuit-stamped-age): only
+                    # when the detector publishes t_capture ON THIS clock
+                    # (FeedDetector computes it on the mission clock; the
+                    # Gazebo harness's t_capture_sim is a DIFFERENT clock and
+                    # a different attribute, so it can never leak in here).
+                    det_age = None
+                    if (getattr(args, "pursuit_stamped_age", False)
+                            and det_range is not None):
+                        _t_cap = getattr(d, "t_capture", None)
+                        if _t_cap is not None:
+                            det_age = max(0.0, t - float(_t_cap))
                 # FAILSAFE 7 arm 2 input: how old the flight-mode sample is, on
                 # the SAME clock base it was stamped with (absolute monotonic --
                 # mission time here would reproduce the RC clock-base defect, and
@@ -2665,7 +2686,8 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                                  ground_speed_ms=state["gs"],
                                  vel_ned=state.get("vel_ned"), trigger=trig,
                                  det_new=bool(det_new), det_range_m=det_range,
-                                 det_box_xywh=det_box, det_range_pose_m=det_pose)
+                                 det_box_xywh=det_box, det_range_pose_m=det_pose,
+                                 det_age_s=det_age)
                 if isinstance(trigger, GateReadyTrigger):
                     trigger.observe_gate(sm.arm_gate(obs)[0])
                 dec = sm.step(obs)
@@ -3529,6 +3551,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "unmeasured assumption)")
     trm.add_argument("--pursuit-dash-accel", type=float, default=8.0,
                      help="approach-dash Phase-A accel slew budget, m/s^2")
+    trm.add_argument("--pursuit-stamped-age", action="store_true",
+                     help="feed the pursuit KF each detection's TRUE pipeline "
+                          "age (t - t_capture, FeedDetector sources only) "
+                          "instead of the fixed meas_latency_s assumption -- "
+                          "the jitter immunity measured in "
+                          "runs/gz_latency_20261022 (LJ90)")
     trm.add_argument("--pursuit-meas-latency-s", type=float, default=None,
                      help="override PursuitTerminalConfig.meas_latency_s (the "
                           "KF's assumed measurement age; set it to the "

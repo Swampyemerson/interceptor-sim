@@ -79,10 +79,14 @@ CLI-settable). The deploy path already computes true per-detection capture
 stamps (FeedDetector.t_capture) but they never cross the driver->guidance
 boundary -- step() receives only the box. Threading an optional per-
 detection age through (driver computes t - t_capture) would make the KF
-immune to pipeline JITTER, not just mean latency. Needs: an interface
-change + a producer->consumer contract test; do it as its own registered
-change once the NN pipeline's real jitter is measured (it is the jitter,
-not the mean, that the fixed constant cannot absorb -- gz_latency LC arms).
+immune to pipeline JITTER, not just mean latency. BUILT 2026-10-22 (priced by LJ90's 1.53x + tails): --pursuit-stamped-age
+threads each detection's true age (t - FeedDetector.t_capture, same clock)
+through VehicleObs into the KF age model + capture-instant attitude lookup;
+SUPPORTS_STAMPED_AGE capability flag keeps other terminals' duck-typed
+step() contracts untouched; age clamped to att_history_s; default OFF,
+byte-identical (61 terminal tests). Gazebo cannot exercise it (its stamps
+live on a different clock, deliberately excluded) -- the proving ground is
+a desk replay with real jittered frames, then bench.
 
 ## Tracker/capture (research, to bench-verify)
 

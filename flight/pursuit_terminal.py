@@ -561,6 +561,10 @@ class PursuitTerminalGuidance:
     #: `RealFlightSM._step_engage` passes `det_range_pose_m=` only when the
     #: terminal advertises it -- SeekerGuidance/TagInterceptGuidance do not.
     SUPPORTS_POSE_RANGE = True
+    # Same pattern for the stamped measurement age (det_age_s kwarg): the SM
+    # passes it ONLY to a terminal that declares it, so other terminals'
+    # duck-typed step() contracts never grow a surprise kwarg.
+    SUPPORTS_STAMPED_AGE = True
 
     def __init__(self, cfg: PursuitTerminalConfig, cam: CameraModel, tag_side_m: float,
                  gcfg: GuidanceConfig, belief_r0_ned, belief_vel0_ned,
@@ -676,8 +680,17 @@ class PursuitTerminalGuidance:
     # ------------------------------------------------------------------ step
 
     def step(self, det_box_xywh, own: OwnState, t: float,
-              det_range_pose_m: Optional[float] = None
+              det_range_pose_m: Optional[float] = None,
+              det_age_s: Optional[float] = None
               ) -> Tuple[Optional[Setpoint], StepTelemetry]:
+        """`det_age_s` (stamped measurement age, gz_latency_20261022 LJ90):
+        when the DRIVER knows this detection's true pipeline age (t minus a
+        per-frame capture stamp), passing it here overrides the fixed
+        `cfg.meas_latency_s` assumption for BOTH the capture-instant attitude
+        lookup and the KF age -- making the filter immune to pipeline jitter,
+        not just mean latency. None (default) = the fixed-constant behaviour,
+        byte-identical. Clamped to [0, att_history_s] (a stamp is still a
+        measurement; an insane one must not look up prehistoric attitude)."""
         cfg = self.cfg
         dt = 0.05 if self._last_t is None else max(1e-3, t - self._last_t)
         self._last_t = t
@@ -703,8 +716,11 @@ class PursuitTerminalGuidance:
         cutoff_att = t - max(self.cfg.att_history_s, 2.0 * self.cfg.meas_latency_s)
         while len(self._att_hist) > 2 and self._att_hist[0][0] < cutoff_att:
             self._att_hist.pop(0)
-        quat_cap = _interp_att_hist(self._att_hist, t - self.cfg.meas_latency_s) \
-            if self.cfg.meas_latency_s else quat
+        meas_age_s = self.cfg.meas_latency_s
+        if det_age_s is not None:
+            meas_age_s = min(max(float(det_age_s), 0.0), self.cfg.att_history_s)
+        quat_cap = _interp_att_hist(self._att_hist, t - meas_age_s) \
+            if meas_age_s else quat
         if quat_cap is None:
             quat_cap = quat
         if own.vel_ned is not None:
@@ -757,7 +773,7 @@ class PursuitTerminalGuidance:
             self._kf.predict(dt, own_vel)
             if det_box_xywh is not None:
                 self._update_kf(det_box_xywh, quat_cap, own_vel, t,
-                                det_range_pose_m)
+                                det_range_pose_m, age_s=meas_age_s)
             range_est = float(np.linalg.norm(self._kf.r))
             dropout_s = t - self._last_decode_t
             if dropout_s > cfg.fallback_s and range_est >= cfg.no_fallback_range_m:
@@ -1143,7 +1159,8 @@ class PursuitTerminalGuidance:
         return kf_v_t * (cap / n) if n > cap else kf_v_t
 
     def _update_kf(self, det_box_xywh, quat_cap, own_vel: np.ndarray, t: float,
-                   det_range_pose_m: Optional[float] = None) -> None:
+                   det_range_pose_m: Optional[float] = None,
+                   age_s: Optional[float] = None) -> None:
         """`quat_cap` is the attitude at the ASSUMED capture instant
         (t - meas_latency_s), so `meas_r` is the relative position AT
         CAPTURE; the KF's measurement model carries the age explicitly
@@ -1156,7 +1173,8 @@ class PursuitTerminalGuidance:
                                                          det_range_pose_m)
         r_noise = _pursuit_measurement_noise(range_m, dir_ned, self.cfg, self.cam,
                                               self.tag_side_m)
-        self._kf.update(meas_r, r_noise, age_s=self.cfg.meas_latency_s,
+        self._kf.update(meas_r, r_noise,
+                        age_s=self.cfg.meas_latency_s if age_s is None else age_s,
                         v_own=own_vel)
         self._last_decode_t = t
         if self.cfg.rehearsal_breakoff:

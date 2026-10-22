@@ -1490,3 +1490,57 @@ def test_approach_dash_cli_mapping_and_window_warning(capsys):
     assert g.cfg.brake_accel_ms2 == 4.0
     assert "APPROACH DASH ON" in out
     assert "WARNING: engage_max_s" in out     # 12 s cannot cover a 500 m cue
+
+
+# ================================================ stamped measurement age
+
+def _drive_b(g, ages):
+    """Acquire, then feed 30 closing-range ticks passing det_age_s per tick
+    (ages: scalar or callable(tick)->value). Returns the final telemetry."""
+    t = 0.0
+    box = box_for(15.0, 0.0, 0.0)
+    g.step(box, own(), t=t)
+    t += DT
+    _, tel = g.step(box, own(), t=t)
+    assert tel.phase == "B"
+    r_true = 15.0
+    for k in range(30):
+        t += DT
+        r_true = max(0.5, r_true - 1.5 * DT)
+        age = ages(k) if callable(ages) else ages
+        _, tel = g.step(box_for(r_true, 0.0, 0.0), own(), t=t, det_age_s=age)
+    return tel
+
+
+def test_stamped_age_equal_to_fixed_constant_is_identical():
+    g1, cfg, _ = guidance(belief_r0_ned=(15.0, 0.0, 0.0),
+                          belief_vel0_ned=(0.0, 0.0, 0.0),
+                          acquire_n=2, acquire_window_s=0.3)
+    g2, _, _ = guidance(belief_r0_ned=(15.0, 0.0, 0.0),
+                        belief_vel0_ned=(0.0, 0.0, 0.0),
+                        acquire_n=2, acquire_window_s=0.3)
+    tel_none = _drive_b(g1, None)
+    tel_eq = _drive_b(g2, cfg.meas_latency_s)
+    assert tel_eq.r_hat_m == tel_none.r_hat_m
+    assert tel_eq.setpoint.v_north == tel_none.setpoint.v_north
+
+
+def test_stamped_age_changes_the_kf_age_model():
+    g1, _, _ = guidance(belief_r0_ned=(15.0, 0.0, 0.0),
+                        belief_vel0_ned=(0.0, 0.0, 0.0),
+                        acquire_n=2, acquire_window_s=0.3)
+    g2, _, _ = guidance(belief_r0_ned=(15.0, 0.0, 0.0),
+                        belief_vel0_ned=(0.0, 0.0, 0.0),
+                        acquire_n=2, acquire_window_s=0.3)
+    tel_fixed = _drive_b(g1, None)
+    tel_old = _drive_b(g2, 0.25)      # genuinely old measurements
+    assert tel_old.r_hat_m != tel_fixed.r_hat_m
+
+
+def test_stamped_age_is_clamped_to_attitude_history():
+    g, cfg, _ = guidance(belief_r0_ned=(15.0, 0.0, 0.0),
+                         belief_vel0_ned=(0.0, 0.0, 0.0),
+                         acquire_n=2, acquire_window_s=0.3)
+    tel = _drive_b(g, 10.0)           # insane stamp: clamp, never crash
+    assert tel.phase == "B"
+    assert np.isfinite(tel.r_hat_m)
