@@ -115,8 +115,22 @@ for SZ in 640 1024; do
     # does not ship (FileNotFoundError, hit live 2026-10-21). When the
     # single-class net compiles for real, --classes 1 needs that JSON
     # fetched from the MZ repo first.
+    # End nodes: the ultralytics export ends in the post-head sigmoid, and
+    # the NMS attach then fails ("expected conv but found activation").
+    # Read the six head convs from OUR onnx (runbook rule -- numbering
+    # shifts with surgery) and hand them to the parser.
+    ENDS=$("$VENV/bin/python" - "yolov8n_$SZ.onnx" <<'PYEOF'
+import sys, re, onnx
+m = onnx.load(sys.argv[1])
+pat = re.compile(r'/model\.\d+/cv[23]\.\d+/cv[23]\.\d+\.2/Conv$')
+names = [n.name for n in m.graph.node if pat.search(n.name)]
+assert len(names) == 6, f"expected 6 head convs, found {len(names)}"
+print(" ".join(names))
+PYEOF
+)
     if CUDA_VISIBLE_DEVICES="" "$VENV/bin/hailomz" compile yolov8n \
             --ckpt "yolov8n_$SZ.onnx" --calib-path "$CALIB" \
+            --end-node-names $ENDS \
             --hw-arch hailo8 > "compile_$SZ.log" 2>&1; then
         echo "compile @$SZ: OK"
     else
