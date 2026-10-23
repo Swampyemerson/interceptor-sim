@@ -1,10 +1,10 @@
 ---
 name: run-interceptor-sim
-description: Build, run, and drive the interceptor sim (PX4 SITL + Gazebo Harmonic, camera-only pro-nav). Use when asked to run/launch/boot/smoke-test the simulator, verify the whole stack works on this machine, capture a camera frame / "screenshot" the sim, run the tests, or fly a milestone gate (M0–M5).
+description: Build, run, and drive the interceptor sim (PX4 SITL + Gazebo Harmonic, camera-only guidance — chase pursuit is the flying default per ADR-0118; the legacy pro-nav paths remain for the M-gates). Use when asked to run/launch/boot/smoke-test the simulator, verify the whole stack works on this machine, capture a camera frame / "screenshot" the sim, run the tests, or fly a milestone gate (M0–M5).
 ---
 # Run the interceptor sim
 
-A **simulation-only** counter-UAS interceptor: PX4 SITL + **Gazebo Harmonic** (the `gz_x500_mono_cam` quad + forward mono camera), flown headless over MAVSDK-Python, guided by camera-only proportional navigation. It has **no GUI you drive** — you drive it by **booting the sim and reading its topics** (camera frames over gz-transport, telemetry/miss-distance to CSV). The one handle a fresh agent should reach for first is the smoke driver:
+A **simulation-only** counter-UAS interceptor: PX4 SITL + **Gazebo Harmonic** (the `gz_x500_mono_cam` quad + forward mono camera), flown headless over MAVSDK-Python, guided camera-only (the flying default is the chase pursuit, ADR-0103/0118; the legacy pro-nav paths remain selectable and back the M-gates). It has **no GUI you drive** — you drive it by **booting the sim and reading its topics** (camera frames over gz-transport, telemetry/miss-distance to CSV). The one handle a fresh agent should reach for first is the smoke driver:
 
 > **`bash .claude/skills/run-interceptor-sim/smoke.sh`** — chains the portable tests + a real sim boot + a live camera capture into one PASS/FAIL, and prints a directory of `.png` frames you can open (the closest thing to a screenshot of the running app).
 

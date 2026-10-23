@@ -7,7 +7,8 @@
 > **STATUS (2026-07-15 real-build pivot):** "Simulation-only" below describes the completed sim
 > phase, not current project scope. The repo now also carries the physical interceptor's build
 > path — the current goal is an OUTDOOR camera-only BINARY KILL of a >=9 m/s target (coded
-> open-loop dash -> camera-only pro-nav terminal, no datalink). Current truth:
+> open-loop dash -> camera-only CHASE-PURSUIT terminal, no datalink; pro-nav was the sim-phase
+> law and was REPLACED by the chase pursuit, ADR-0103 / ADR-0118). Current truth:
 > `docs/real_build_coded_dash.md`, `docs/hardware_order_list.md` (§0c), `docs/project_state.json`.
 
 ## Mission (one line)

@@ -1,10 +1,17 @@
 ---
 name: pronav
-description: Reference for the guidance laws in this project - pursuit, proportional navigation (pro-nav), and the tested-and-rejected alternatives (PIP, APN, Kalata). Use when building or tuning any guidance work (M3+, S1/S2 FPV+handoff, the terminal phase).
+description: Reference for the guidance laws in this project - chase pursuit (the FLYING DEFAULT, ADR-0103/0118), the retired sim-phase proportional navigation (pro-nav), and the tested-and-rejected alternatives (PIP, APN, Kalata). Use when building or tuning any guidance work (the pursuit terminal, or the frozen legacy sim paths).
 ---
 # Guidance: pursuit and proportional navigation
 
-The portfolio headline is proportional navigation - implement it carefully and measure it.
+**STATUS (2026-09-24, ADR-0118 — read this before anything below): the flying terminal law
+is CHASE PURSUIT, not pro-nav.** ADR-0103 (builder decision, 2026-09-17) replaced the
+sprint-and-fly-by pro-nav terminal with a slow-arrival chase; `flight/pursuit_terminal.py`
+is the default (relative-state KF → Phase A belief rendezvous → Phase B camera close).
+Pro-nav below is the SIM-PHASE law: it survives only in the frozen stock/tag paths
+(selectable as-flown) and the M4 gate. Do not plan new work on pro-nav without a new
+ruling — the 2026-10-22 hybrid/PIP-aim study (pre-registered) came back NULL: chase won
+every informative cell (`docs/hybrid_guidance_notes_2026-10-22.md`).
 
 ## Pursuit (baseline)
 Aim the interceptor's velocity straight at the target's current position. Simple, but lags a moving target because it always chases where the target *was*.
