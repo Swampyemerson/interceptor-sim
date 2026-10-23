@@ -53,8 +53,11 @@ safety F all still needed). The deltas that affect **what to buy**:
 - **③ Add a checkerboard calibration target** (below) — the wide M12 distorts, and every
   range/bearing is wrong until `scripts/calibrate_camera.py` runs. This is the first
   bench gate; it's ~free to print.
-- **④ ~~Keep the Hailo-8L~~ SUPERSEDED — buy the Hailo-8 (26 TOPS AI HAT+, ~$110), per
-  ADR-0125 (2026-10-21).** The ruling also fixes the model: **yolov8n** is the
+- **④ ~~Keep the Hailo-8L~~ SUPERSEDED — buy the Hailo-8 (26 TOPS AI HAT+), per
+  ADR-0125 (2026-10-21). ✅ ORDERED 2026-10-23 at $160 (ADR-0131 addendum; launch price
+  was $110 but the post-2026 street band is $160–185 — fair). The AR0234 camera was
+  ordered the same day, order #000009907 — the checkout email was mistyped, so NO
+  confirmation email will arrive; that order number is the ONLY tracking handle.** The ruling also fixes the model: **yolov8n** is the
   single-context fit on this part — **not YOLO11n** (yolo11n does NOT compile
   single-context; the 1-class variant splits to 2 contexts by topology). The 8L
   recommendation below this line is historical.
@@ -101,7 +104,7 @@ arithmetic plausible). **Applied inline** (2 blockers + fixes):
 | **Thrust test rig** (DIY inverted on a scale) | ~$20 | §3 demands a bench T/W re-verify (and roadmap R4e: characterize real max lateral-accel — the one variable that can move the kinematic floor); nothing was listed. |
 | **Interceptor lost-model buzzer** | ~$5 | The 6C Mini has no onboard buzzer; the (E) buzzer is on the TARGET. The interceptor lands out after BREAKOFF. |
 | **M2.5 nylon standoff/screw kit** | ~$8 | Mounts the Pi 5 + AI HAT+ to the printed tray; not in the consumables kit. |
-| **IR-cut filter check on the flight M12 element** | ~$0–8 | Bare M12 kit lenses often lack IR-cut → magenta cast outdoors → hurts a color-trained YOLO. Verify or add. |
+| **IR-cut filter check on the flight M12 element** | ~$0–8 | Bare M12 kit lenses often lack IR-cut → magenta cast outdoors → hurts a color-trained YOLO. Verify or add. **CLOSED for the AR0234 2026-10-23 (ADR-0131): the ordered B0353 has an integral IR-cut.** Still applies if any other M12 element ever flies on a color camera. |
 
 *Camera-exposure note (roadmap R4d):* the motion-blur bench gate must be run at **TERMINAL LOS rates
 (≥300°/s, exposure ≤1 ms)**, not the 60°/s mid-course spec — terminal rates are 485–1870°/s and a
@@ -168,7 +171,11 @@ the **target drone + AprilTag placard**; the $20 DIY thrust rig + $5 buzzer + $8
 **DEFER (buy when the phase needs it):** AI HAT+ $70 (markerless phase) · SiK $40–75 (long-range) ·
 3rd battery $26 · spare arms/motor/RX $56 (before kill attempts) · Remote ID $0–180 (**legal, not
 metrology — $0 at a FRIA field, else 2 modules; decide by field before outdoor flight; FAA reg $5/
-aircraft either way**) · AR0234 upgrade $150 (only if OV9281 range measures short).
+aircraft either way**) · AR0234 upgrade $150 ~~(only if OV9281 range measures short)~~
+**[ORDERED 2026-10-23 ahead of that gate — builder spend-side ruling, ADR-0131; order
+#000009907 (checkout email mistyped — the order number is the only tracking handle).
+Deployment still gated on the Hailo native-res bench; the stock 3.6 mm ≈80° lens stays
+(~21 px/deg beats the 70° OV9281 setup) and its IR-cut is integral.]**
 
 > **THE LEAN "camera-only kill on video" BUILD — ~$1,390 all-new / ~$1,080 if-owned:** interceptor
 > **$740** + target **$273** + ground/safety **$343** (Pocket TX, charger, safety, solder, tools) +

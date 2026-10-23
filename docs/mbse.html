@@ -148,7 +148,7 @@ footer{margin-top:64px;padding-top:20px;border-top:2px solid var(--line2);
 a{color:var(--accent)}
 a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
-<!-- MBSE-STATE-SHA256: d52b2d962e7515e4ecd90392bc440969138e4391698098a57307bb8e04c59331 -->
+<!-- MBSE-STATE-SHA256: 5d5ef23aa555bb2638912effef73ff0a6c9d6c308cb64c78c04c42cf1e523007 -->
 <!-- MBSE-SYSML-SHA256: 415aef709d728b2341e845c04fe3796634439024819e12e6cee6ba1ac4283cde -->
 <style>
 :root{--sx-bg:#FBFAF5;--sx-panel:#FFFFFF;--sx-ink:#1C1B17;--sx-ink2:#8A8475;--sx-mut:#57534A;
@@ -187,8 +187,8 @@ pre.sxsrc .s{color:var(--ok)}
   <h1>Counter-UAS Interceptor — Systems Model</h1>
   <p class="sub">Eight views of <code class="mono">docs/project_state.json</code>
      and the SysML&nbsp;v2 model in <code class="mono">docs/sysml/</code>
-     · contract updated 2026-10-22 · build
-     <code class="mono">a9046fc</code></p>
+     · contract updated 2026-10-23 · build
+     <code class="mono">3b05e1d</code></p>
 </header>
 
 <div class="gen">
@@ -358,7 +358,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <div class="stats">
 <div class="stat"><div class="n">41</div><div class="l">parts on the build sheet, drawn</div></div>
 <div class="stat"><div class="n">60</div><div class="l">typed connections<br>19 verified · 10 wired · 31 planned</div></div>
-<div class="stat"><div class="n">38/46</div><div class="l">build-sheet rows drawn<br>(8 excluded with a reason)</div></div>
+<div class="stat"><div class="n">38/48</div><div class="l">build-sheet rows drawn<br>(10 excluded with a reason)</div></div>
 <div class="stat alert"><div class="n">2</div><div class="l">wiring decisions still open<br>(TBD in the model)</div></div>
 </div>
 <dl class="sxkeys"><dt>Box</dt><dd>a <b>part</b>: <i>name : Type</i>. The chip is its live build-sheet status.</dd><dt>Square</dt><dd>a <b>port</b> (plug, pads, socket). Filled = the side that supplies power or hosts the bus; hollow (<code class="mono">~</code>, &ldquo;conjugate&rdquo;) = the side that receives. A UART host wired to a conjugate UART <i>is</i> TX/RX crossed.</dd><dt>Line</dt><dd>an <b>interface</b> (wire, cable, radio path, mount), coloured by kind. Faded = not yet made.</dd><dt>Number</dt><dd>its row in the wire list under the diagram. Filled = verified (evidence note in brackets when one was given); thick outline = made but untested; dashed = planned.</dd></dl>
@@ -2259,7 +2259,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 <text class="sx-lg" x="923.0" y="984">~port (conjugate: receives)</text>
 </svg>
 </div>
-<details class="sxd"><summary>Build-sheet rows deliberately not drawn (8)</summary><div class="scroller"><table class="grid"><thead><tr><th>Tab</th><th>Row</th><th>Why not drawn</th></tr></thead><tbody><tr><td>airframe</td><td>DIY thrust rig (inverted on a scale)</td><td class='cap'>bench test rig, not flight hardware</td></tr><tr><td>airframe</td><td>Pixhawk 6C Mini + M10 GPS (from the brain bench)</td><td class='cap'>duplicate row: the boards are modelled from the brain tab</td></tr><tr><td>brain</td><td>Holybro PM02 V3 power module (analog)</td><td class='cap'>first unit, vendor-refunded; the flying PM02 is the airframe-tab replacement</td></tr><tr><td>ground</td><td>LiPo safety set — fireproof bag, cell checker + LV alarm, safety glasses, fire blanket</td><td class='cap'>safety gear</td></tr><tr><td>ground</td><td>Regulatory + site (CLOSED — owned land)</td><td class='cap'>paperwork, closed</td></tr><tr><td>ground</td><td>Smoke stopper (VIFLY ShortSaver 2 class)</td><td class='cap'>bench tool: inline only at first power-up after soldering</td></tr><tr><td>ground</td><td>Solder/build layer — iron, 63/37 solder + flux, XT60 pigtails, 14-16 AWG, heatshrink, zip ties, straps</td><td class='cap'>build consumables</td></tr><tr><td>ground</td><td>Tool layer — 1.5/2.0/2.5 mm hex, 8 mm prop wrench, multimeter</td><td class='cap'>tools</td></tr></tbody></table></div></details>
+<details class="sxd"><summary>Build-sheet rows deliberately not drawn (10)</summary><div class="scroller"><table class="grid"><thead><tr><th>Tab</th><th>Row</th><th>Why not drawn</th></tr></thead><tbody><tr><td>airframe</td><td>DIY thrust rig (inverted on a scale)</td><td class='cap'>bench test rig, not flight hardware</td></tr><tr><td>airframe</td><td>Pixhawk 6C Mini + M10 GPS (from the brain bench)</td><td class='cap'>duplicate row: the boards are modelled from the brain tab</td></tr><tr><td>brain</td><td>Holybro PM02 V3 power module (analog)</td><td class='cap'>first unit, vendor-refunded; the flying PM02 is the airframe-tab replacement</td></tr><tr><td>ground</td><td>LiPo safety set — fireproof bag, cell checker + LV alarm, safety glasses, fire blanket</td><td class='cap'>safety gear</td></tr><tr><td>ground</td><td>Regulatory + site (CLOSED — owned land)</td><td class='cap'>paperwork, closed</td></tr><tr><td>ground</td><td>Smoke stopper (VIFLY ShortSaver 2 class)</td><td class='cap'>bench tool: inline only at first power-up after soldering</td></tr><tr><td>ground</td><td>Solder/build layer — iron, 63/37 solder + flux, XT60 pigtails, 14-16 AWG, heatshrink, zip ties, straps</td><td class='cap'>build consumables</td></tr><tr><td>ground</td><td>Tool layer — 1.5/2.0/2.5 mm hex, 8 mm prop wrench, multimeter</td><td class='cap'>tools</td></tr><tr><td>seeker</td><td>Arducam AR0234 color global-shutter camera (B0353)</td><td class='cap'>ordered 2026-10-23 (ADR-0131), deploy-gated upgrade; modelled when the Hailo bench rig is built</td></tr><tr><td>seeker</td><td>Raspberry Pi AI HAT+ (Hailo-8, 26 TOPS)</td><td class='cap'>ordered 2026-10-23 (ADR-0131), deploy-gated upgrade; modelled when the Hailo bench rig is built</td></tr></tbody></table></div></details>
 <p class="sxcap"><b>Click-to-edit:</b> the <a href="https://claude.ai/artifact/Q4pEiLKY5JpFsEGy9QUgps">wiring editor</a> makes these diagrams tappable &mdash; it queues connection / state / status changes, and a Claude session applies them to the model (docs/sysml/README.md).</p>
 <h3 class="sx3">The model itself (SysML v2 textual notation)</h3><p class="sxcap">Edit these files, not the pictures. <code class="mono">python3 scripts/render_sysml.py</code> re-draws every view; <code class="mono">scripts/sysml/check_sysml_official.sh</code> validates the text against the OMG reference implementation. How-to: <code class="mono">docs/sysml/README.md</code>.</p>
 <details class="sxd"><summary>HardwareLibrary.sysml &mdash; 298 lines</summary><pre class="sxsrc"><span class="c">// =============================================================================</span>
@@ -3307,7 +3307,7 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
         }
     }
 }</pre></details>
-<details class="sxd"><summary>GroundSegment.sysml &mdash; 71 lines</summary><pre class="sxsrc"><span class="c">// =============================================================================</span>
+<details class="sxd"><summary>GroundSegment.sysml &mdash; 73 lines</summary><pre class="sxsrc"><span class="c">// =============================================================================</span>
 <span class="c">// GroundSegment.sysml -- what stays on the ground: one RC transmitter PER</span>
 <span class="c">// AIRCRAFT (each aircraft keeps an independent kill, ADR-0089), the charger,</span>
 <span class="c">// the laptop and the phone hotspot. Engagement.sysml wires these to the two</span>
@@ -3377,6 +3377,8 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
     @NotModelled { tab = <span class="s">&quot;brain&quot;</span>; bomName = <span class="s">&quot;Holybro PM02 V3 power module&quot;</span>; reason = <span class="s">&quot;first unit, vendor-refunded; the flying PM02 is the airframe-tab replacement&quot;</span>; }
     @NotModelled { tab = <span class="s">&quot;airframe&quot;</span>; bomName = <span class="s">&quot;Pixhawk 6C Mini + M10 GPS&quot;</span>; reason = <span class="s">&quot;duplicate row: the boards are modelled from the brain tab&quot;</span>; }
     @NotModelled { tab = <span class="s">&quot;airframe&quot;</span>; bomName = <span class="s">&quot;DIY thrust rig&quot;</span>; reason = <span class="s">&quot;bench test rig, not flight hardware&quot;</span>; }
+    @NotModelled { tab = <span class="s">&quot;seeker&quot;</span>; bomName = <span class="s">&quot;AR0234&quot;</span>; reason = <span class="s">&quot;ordered 2026-10-23 (ADR-0131), deploy-gated upgrade; modelled when the Hailo bench rig is built&quot;</span>; }
+    @NotModelled { tab = <span class="s">&quot;seeker&quot;</span>; bomName = <span class="s">&quot;AI HAT&quot;</span>; reason = <span class="s">&quot;ordered 2026-10-23 (ADR-0131), deploy-gated upgrade; modelled when the Hailo bench rig is built&quot;</span>; }
 }</pre></details>
 <details class="sxd"><summary>Engagement.sysml &mdash; 90 lines</summary><pre class="sxsrc"><span class="c">// =============================================================================</span>
 <span class="c">// Engagement.sysml -- the top-level context: the two aircraft, the ground</span>
@@ -3471,9 +3473,9 @@ not yet resolved. Kept visible so a refuted claim cannot quietly survive in the 
 
 <footer>
   Generated by <code class="mono">scripts/render_mbse.py</code> from
-  <code class="mono">docs/project_state.json</code> (updated 2026-10-22).
-  Contract digest <code class="mono">d52b2d962e75</code> · build
-  <code class="mono">a9046fc</code>.
+  <code class="mono">docs/project_state.json</code> (updated 2026-10-23).
+  Contract digest <code class="mono">5d5ef23aa555</code> · build
+  <code class="mono">3b05e1d</code>.
   Re-render with <code class="mono">python3 scripts/render_mbse.py</code>; drift fails
   <code class="mono">scripts/run_tests.sh</code>.
 </footer>

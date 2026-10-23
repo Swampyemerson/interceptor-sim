@@ -68,4 +68,6 @@ package GroundSegment {
     @NotModelled { tab = "brain"; bomName = "Holybro PM02 V3 power module"; reason = "first unit, vendor-refunded; the flying PM02 is the airframe-tab replacement"; }
     @NotModelled { tab = "airframe"; bomName = "Pixhawk 6C Mini + M10 GPS"; reason = "duplicate row: the boards are modelled from the brain tab"; }
     @NotModelled { tab = "airframe"; bomName = "DIY thrust rig"; reason = "bench test rig, not flight hardware"; }
+    @NotModelled { tab = "seeker"; bomName = "AR0234"; reason = "ordered 2026-10-23 (ADR-0131), deploy-gated upgrade; modelled when the Hailo bench rig is built"; }
+    @NotModelled { tab = "seeker"; bomName = "AI HAT"; reason = "ordered 2026-10-23 (ADR-0131), deploy-gated upgrade; modelled when the Hailo bench rig is built"; }
 }

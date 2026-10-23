@@ -3,8 +3,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-10-22",
- "updated_by": "Fable 5 head session (overnight, builder directive: 12 m/s demo video)",
+ "updated": "2026-10-23",
+ "updated_by": "ADR-0131: AR0234 (#000009907) + Hailo-8 HAT ordered; stock 80° lens kept; deploy stays Hailo-bench-gated",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -536,14 +536,13 @@
   },
   {
    "id": "hailo8-purchase",
-   "question": "ADR-0125: Hailo-8 AI HAT+ (~$110). DRY-RUN 2026-10-21: STOCK yolov8n compiles SINGLE-CONTEXT at 640 AND 1024 (runs/dfc_dryrun). CAVEAT from the deployment-path check (runs/dfc_dryrun_single): the 1-CLASS compile via --classes lands in 2 contexts (12.5 Mbps inter-context/frame) -- it RUNS, but whether context switching threatens the 10-15 Hz floor is a day-1 hailortcli-benchmark question; the recovery lead (classes via the NMS JSON) was tested and is DEAD -- the 1-class topology itself splits, so 2 contexts is the honest deployment expectation. Your calls: (1) HAT order -- evidence supports it, with the 2-context caveat disclosed; (2) AOT dataset go-ahead (>2 GB rule).",
+   "question": "ADR-0125/0131: the Hailo-8 26-TOPS HAT is ORDERED (2026-10-23, $160 — fair at the current street band) and the AR0234 is ORDERED (#000009907). ONE item remains on this thread: the AOT dataset download go-ahead (>2 GB rule) for the training pipeline.",
    "options": [
-    "DevZone account now, order after the DFC dry-run confirms our model compiles single-context (recommended order)",
-    "Order the HAT now in parallel (saves shipping days; the dry-run still de-risks the model side)",
-    "Hold both until the tag first-kill lands (NN thread continues on datasets/training only)"
+    "AOT download: yes, fetch now (license-clean; scripted + resumable)",
+    "AOT download: after the weekend attempt"
    ],
-   "rec": "DevZone first -- it is free and unblocks the dry-run; the compile result turns the $110 into an evidence-gated buy. AOT download: yes, it is license-clean and the fetch is scripted + resumable.",
-   "blocked": "Purchase + AOT download approval are builder-only. Nothing else blocks the Hailo phase's prep.",
+   "rec": "Yes — it is license-clean and the fetch script resumes; running it now overlaps the HAT's shipping time.",
+   "blocked": "Download approval is builder-only (>2 GB rule).",
    "doc": "docs/hailo_toolchain_runbook.md"
   },
   {
@@ -570,6 +569,12 @@
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-10-23",
+   "text": "SEEKER UPGRADE ORDERED (builder, ADR-0131): Arducam AR0234 color global-shutter camera, ORDER #000009907. The checkout email was mistyped, so NO confirmation or tracking email will arrive — this order number is the only tracking handle (recorded here on purpose). Spec check closed two items: the B0353 has an INTEGRAL IR-cut (the §0b verify-IR-cut line closes for this camera), and the stock 3.6 mm lens gives ~80° H at ~21 px/deg — better px/deg than the flying 70° OV9281 setup (19.3) while ADDING ~10° of FOV, so NO lens swap is needed (it is factory-fitted anyway). Hailo-8 26-TOPS HAT ORDERED at $160 — within the current street band ($160–185 post-2026 price rises); the HAT+ 2 variant (Hailo-10H) was considered and REJECTED (no vision gain, loses the chip-specific DFC dry-run evidence, unmeasured power/mass, +$40–60).",
+   "so_what": "The resolution path's hardware is in motion: AR0234 (~1.5x px/deg) + Hailo native-res input is the measured route past the 640-input ceiling. Deployment stays GATED on the Hailo bench — at 640 input on the CPU the AR0234 is ~6 px on target at 20 m, WORSE than the owned camera — so the OV9281 + 70° lens remains the flying seeker until the gates pass.",
+   "evidence": "ADR-0131 (decisions.md); builder order confirmation 2026-10-23 (#000009907, in session); px/deg math: ADR-0131 extending docs/lens_options_2026-10-22.md to the AR0234; runs/res_guidance_20261021"
+  },
   {
    "date": "2026-10-22",
    "text": "FOUR BUILDER RULINGS landed and were executed the same day: (1) ADR-0126 the ~70 deg lens FLIES (px/deg range; wide-fov constraint rewritten, graveyard #17 scope-amended, 110 deg lens = spare); (2) ADR-0127 FIELD INTERCEPTION DAY IS THIS WEEKEND - tripod day descoped as a gate, kill_day_protocol is operative, bench safety gates are all that stand; (3) ADR-0128 the stale 'camera never beat a dash' headline retired - and the pre-registered isim A/B flew SAME DAY and confirmed pursuit beats the blind dash at every cue error tested (through 10 deg; ~10 deg = the derived cue requirement); (4) stale docs to retired/ - 11 docs + 5 scripts moved, 28 refs repointed, Tier-1 deletions executed (logs Tier-3 held). Also: ADR-0129 engage window 30 s in pursuit mode (a default-config chase could have timed out mid-engagement on field day); cue_relay brought into the honesty audit with an auto-closure guard.",
@@ -635,12 +640,6 @@
    "text": "Interceptor Pi-rail filter DONE, builder at the bench: the 1000 uF 16 V cap (capacitor kit arrived today, biggest in it) soldered across the BEC's 5 V output pads in parallel with the Pi's USB-C pigtail, polarity and 5 V-side verified BEFORE power, rail measured a steady 5.3 V at the Pi end. The open 'where does the 5 V enter the Pi' wiring decision is closed: USB-C pigtail. One incident, no damage found: probing the BEC's battery-input pads bridged them with the meter tips and the arc blew the ground lead off -- battery pulled at once, pack checked (no swelling, cells balanced), joint cleaned and re-soldered, lesson logged: measure battery voltage at the XT60, clip the black probe first. 18650s for both Pocket TXs also in hand (IMREN 2500 -- radio-grade use only).",
    "so_what": "The interceptor's Pi power path is wired and verified end to end (battery -> BEC -> filtered 5 V -> Pi over USB-C) -- one of the three open wiring decisions closed, two remain (buzzer pin, ESC signal plug). Next bench items: heat-shrink + anchor the cap body, then RC bind for the target once its TX has cells.",
    "evidence": "bench 2026-10-17 (multimeter 5.3 V at Pi end); docs/sysml/Interceptor.sysml piRail + railSmoothing -> verified; SysML check green (19 verified / 60)"
-  },
-  {
-   "date": "2026-10-17",
-   "text": "Target drone PHYSICALLY COMPLETE (builder photo, bench): replacement Kakute H7 installed, full stack assembled on the Source One V6, CNHL 6S pack strapped on top, props mounted, GPS module lit. Remaining before it flies: RC bind (RP1 RX to the Pocket TX — 18650s being picked up today) and final calibration (accel/compass/ESC + motor direction re-verify on the replacement board).",
-   "so_what": "The thing we intercept now exists as hardware. Once bound + calibrated it can fly the AUTO waypoint legs, which unblocks the tripod decode-envelope gate and every outdoor pass that needs a moving target.",
-   "evidence": "Builder bench photo 2026-10-17 (session); remaining steps per the Kakute replacement checklist in build_tab target notes."
   }
  ],
  "narrative": {
@@ -1322,8 +1321,8 @@
     3
    ],
    "status": "half-done",
-   "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390 (~$1,080 if TX/charger/tools owned). Pi 5 8GB; OV9281 mono global-shutter wide (verify >=100 deg HFOV; AR0234 = upgrade path); Hailo-8 AI HAT+ (26 TOPS) purchase QUEUED per ADR-0125, DFC dry-run passed (1-class = 2-context caveat); nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
-   "note": "Permissions CLOSED (regulatory basis + site confirmed 2026-07-24; owned-land ruling 2026-08-10) — the critical path is BUILD + BENCH + tripod. ORDERED 2026-07-20: target-drone stack + seeker kit + interceptor brain (6C Mini/PM02/M10) + the must-add top-up. ORDERED 2026-09-22 (builder, ahead of the tripod tag-decode money gate — ADR-0109; the curve still gates kill-attempt flights + the Hailo/markerless phase): the Tier-2 airframe — Source One V6, Skystars KO60II 60A ESC, ECOII 2207 ×5, RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× buzzers, LiPo bag, zip ties. STILL MISSING for a full intercept (small, mostly print/bench): FC High-Endurance microSD (ULogs are the metrology), M2.5 standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). Bench-verify the 12S-Pro 5 V tap = 5.2 V under Pi load and Model Match on both TXs. COMPUTE unchanged: Pi 5 CPU = AprilTag baseline real-time; markerless requires the deferred Hailo HAT (constraint pi5-compute). Onboard flight software READY (real_flight.py SITL-verified ADR-0081 + scripts/field/); remaining is delivery, the physical build, bench tuning of the TODO-BUILDER constants, and the tripod test.",
+   "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390. Pi 5 8GB; FLYING seeker = OV9281 + ~70° lens (ADR-0126). UPGRADE PATH ORDERED 2026-10-23 (ADR-0131): AR0234 color GS camera, order #000009907 — checkout email mistyped, the order number is the ONLY tracking handle; stock 3.6 mm ≈80° lens kept (~21 px/deg, beats the 70° setup's 19.3 with +10° FOV); integral IR-cut. Hailo-8 26-TOPS HAT ORDERED at $160 (same day). AR0234 deploys ONLY behind the Hailo native-res bench gates — at 640/CPU it is WORSE than the OV9281. Nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
+   "note": "Permissions CLOSED (regulatory basis + site confirmed 2026-07-24; owned-land ruling 2026-08-10) — the critical path is BUILD + BENCH + tripod. ORDERED 2026-07-20: target-drone stack + seeker kit + interceptor brain (6C Mini/PM02/M10) + the must-add top-up. ORDERED 2026-09-22 (builder, ahead of the tripod tag-decode money gate — ADR-0109; the curve still gates kill-attempt flights + the Hailo/markerless phase): the Tier-2 airframe — Source One V6, Skystars KO60II 60A ESC, ECOII 2207 ×5, RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× buzzers, LiPo bag, zip ties. ORDERED 2026-10-23 (ADR-0131, ahead of the ADR-0078 tripod gate — spend-side ruling, the ADR-0109 pattern): AR0234 color global-shutter camera, order #000009907 (checkout email mistyped: NO confirmation email will arrive; the number is the tracking handle). Stock 3.6 mm ≈80° lens retained — on the 1920-px sensor it gives ~21 px/deg, beating the 70° OV9281 setup while widening FOV, so the ADR-0126 px/deg logic is satisfied WITHOUT a lens swap; integral IR-cut closes the §0b IR-cut check for this camera. Deploy gates: Hailo bench (thermal-soaked ≥10–15 Hz at native input), Pivariety driver + pinned kernel, own intrinsics calibration, ≤1 ms exposure control verified. Hailo-8 26-TOPS HAT ORDERED same day at $160 (fair; street band $160–185). STILL MISSING for a full intercept (small, mostly print/bench): FC High-Endurance microSD (ULogs are the metrology), M2.5 standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). Bench-verify the 12S-Pro 5 V tap = 5.2 V under Pi load and Model Match on both TXs. COMPUTE unchanged: Pi 5 CPU = AprilTag baseline real-time; markerless requires the deferred Hailo HAT (constraint pi5-compute). Onboard flight software READY (real_flight.py SITL-verified ADR-0081 + scripts/field/); remaining is delivery, the physical build, bench tuning of the TODO-BUILDER constants, and the tripod test.",
    "evidence": [
     "docs/hardware_order_list.md §0/§0b/§0c",
     "docs/next.md ROUND-5 (Pi5/HAT ruling, tripod test)"
@@ -2130,6 +2129,18 @@
       "status": "print",
       "role": "Feeds calibrate_camera.py — intrinsics + distortion.",
       "notes": "Pre-printed rigid board (~$8) beats a home print — flatness is signal. Print files exist too: hardware/prints/checkerboard_*.pdf (dimension-verified)."
+     },
+     {
+      "name": "Arducam AR0234 color global-shutter camera (B0353)",
+      "status": "ordered",
+      "role": "Upgrade seeker: 1920x1200 GS — ~1.5x the OV9281's px/deg; stock 3.6 mm ≈80° lens + integral IR-cut (no swap needed, ADR-0131).",
+      "notes": "ORDER #000009907 (2026-10-23). Checkout email mistyped — NO confirmation email will arrive; this order number is the ONLY tracking handle. Deploys ONLY behind the Hailo native-res bench gates (at 640/CPU it is worse than the OV9281). Needs: Pivariety driver (pin the Pi kernel), own intrinsics calibration, verify ≤1 ms exposure control."
+     },
+     {
+      "name": "Raspberry Pi AI HAT+ (Hailo-8, 26 TOPS)",
+      "status": "ordered",
+      "role": "NN accelerator: native-res input at ≥10–15 Hz inside the latency budget; yolov8n compiles (DFC dry-run 2026-10-21).",
+      "notes": "ORDERED 2026-10-23 at $160 (fair; street band $160–185 after the 2026 price rises). Stacks over the Pi active cooler on 16 mm standoffs (M2.5 nylon kit is on the must-add list); no extra cooler — the thermal-soak bench gate measures the stack. Day-1 bench: hailortcli benchmark of the 1-class 2-context compile vs the 10–15 Hz floor."
      }
     ],
     "connections": [
