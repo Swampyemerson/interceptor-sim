@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3b05e1d<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ae70738<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-10-23",
- "updated_by": "ADR-0131: AR0234 (#000009907) + Hailo-8 HAT ordered; stock 80° lens kept; deploy stays Hailo-bench-gated",
+ "updated_by": "ADR-0131 orders (AR0234 #000009907 + Hailo-8) merged with the pro-nav session-start drift sweep",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1473,6 +1473,12 @@
    "evidence": "ADR-0131 (decisions.md); builder order confirmation 2026-10-23 (#000009907, in session); px/deg math: ADR-0131 extending docs/lens_options_2026-10-22.md to the AR0234; runs/res_guidance_20261021"
   },
   {
+   "date": "2026-10-23",
+   "text": "Builder caught a recurring session-start drift: fresh sessions kept treating PRO-NAV as the current terminal law (he got a pro-nav-framed answer to a camera-mount question). Root cause: the contract was RIGHT (terminal stage = chase pursuit since ADR-0118, 2026-09-24) but three auto-loaded surfaces lagged it — the docs/goals.md STATUS banner ('camera-only pro-nav terminal') and the pronav + run-interceptor-sim skill descriptions. All three rewritten the same turn to name the chase pursuit and mark pro-nav as the retired sim-phase law (frozen stock/tag paths + M-gates only); ledger entry goals-pronav-terminal-banner records it.",
+   "so_what": "The surfaces a fresh session reads FIRST now agree with the contract on the single most load-bearing design fact (which guidance law flies). The same class of bug caused the 'simulation-only' drift (goals-simulation-only) — session-start banners need the same-turn sweep discipline the dashboard gets.",
+   "evidence": "ledger goals-pronav-terminal-banner - docs/goals.md:9-11 - .claude/skills/pronav/SKILL.md - .claude/skills/run-interceptor-sim/SKILL.md - ADR-0103/0118"
+  },
+  {
    "date": "2026-10-22",
    "text": "FOUR BUILDER RULINGS landed and were executed the same day: (1) ADR-0126 the ~70 deg lens FLIES (px/deg range; wide-fov constraint rewritten, graveyard #17 scope-amended, 110 deg lens = spare); (2) ADR-0127 FIELD INTERCEPTION DAY IS THIS WEEKEND - tripod day descoped as a gate, kill_day_protocol is operative, bench safety gates are all that stand; (3) ADR-0128 the stale 'camera never beat a dash' headline retired - and the pre-registered isim A/B flew SAME DAY and confirmed pursuit beats the blind dash at every cue error tested (through 10 deg; ~10 deg = the derived cue requirement); (4) stale docs to retired/ - 11 docs + 5 scripts moved, 28 refs repointed, Tier-1 deletions executed (logs Tier-3 held). Also: ADR-0129 engage window 30 s in pursuit mode (a default-config chase could have timed out mid-engagement on field day); cue_relay brought into the honesty audit with an auto-closure guard.",
    "so_what": "Saturday flies a config whose three load-bearing choices (70 deg lens, pursuit terminal, ~10 deg cue budget) each trace to a same-day ruling plus a registered measurement, and the repo a fresh session reads is finally the repo that exists.",
@@ -1531,12 +1537,6 @@
    "text": "Direction fix day-2: the builder swapped two phase wires at each of the three reversed motors (front-right, front-left, back-left); the verification sequence then showed all four corners AND directions matching the PX4 quad-X convention -- propulsion chain end-to-end verified on battery. CBRK_IO_SAFETY restored to 0 (fail-closed) with read-back the same session, closing the bypass the builder had authorized for the spin tests.",
    "so_what": "The interceptor's motors are flight-correct: mapping and rotation both verified by eye against commanded spins. The propulsion unknowns are closed; what remains before an arm attempt is logging (microSD), battery calibration, sensor cals and the RC kill-switch re-check.",
    "evidence": "bench 2026-10-17: 4x ACCEPTED actuator tests, builder corner/direction callouts 4/4 correct; CBRK_IO_SAFETY=0 read-back"
-  },
-  {
-   "date": "2026-10-17",
-   "text": "Interceptor Pi-rail filter DONE, builder at the bench: the 1000 uF 16 V cap (capacitor kit arrived today, biggest in it) soldered across the BEC's 5 V output pads in parallel with the Pi's USB-C pigtail, polarity and 5 V-side verified BEFORE power, rail measured a steady 5.3 V at the Pi end. The open 'where does the 5 V enter the Pi' wiring decision is closed: USB-C pigtail. One incident, no damage found: probing the BEC's battery-input pads bridged them with the meter tips and the arc blew the ground lead off -- battery pulled at once, pack checked (no swelling, cells balanced), joint cleaned and re-soldered, lesson logged: measure battery voltage at the XT60, clip the black probe first. 18650s for both Pocket TXs also in hand (IMREN 2500 -- radio-grade use only).",
-   "so_what": "The interceptor's Pi power path is wired and verified end to end (battery -> BEC -> filtered 5 V -> Pi over USB-C) -- one of the three open wiring decisions closed, two remain (buzzer pin, ESC signal plug). Next bench items: heat-shrink + anchor the cap body, then RC bind for the target once its TX has cells.",
-   "evidence": "bench 2026-10-17 (multimeter 5.3 V at Pi end); docs/sysml/Interceptor.sysml piRail + railSmoothing -> verified; SysML check green (19 verified / 60)"
   }
  ],
  "narrative": {
@@ -4877,6 +4877,19 @@
    "loc_b": "docs/lens_options_2026-10-22.md:5-6,48-59; project_state.json build_tab (M40180H13L order)",
    "current_truth": "RULED (ADR-0126, 2026-10-22): the ~70 deg delivered lens flies, for px/deg range; the >=100 deg constraint is rewritten as superseded, graveyard #17 scope-amended, and the cost is recorded: aim-tolerance/acquisition numbers earned at ~100 deg are not re-validated at 70 deg. The 110 deg lens in transit is the calibrated spare/fallback.",
    "resolution": "ADR-0126 (builder ruling): keep 70 deg for pixel resolution/range. Deliberate, evidence-cited supersession of ADR-0024 - not a silent violation."
+  },
+  {
+   "id": "goals-pronav-terminal-banner",
+   "verdict": "CONFIRMED",
+   "severity": "medium",
+   "status": "resolved",
+   "topic": "Session-start surfaces still named PRO-NAV as the current terminal law vs the ruled chase pursuit (ADR-0103/0118)",
+   "claim_a": "docs/goals.md STATUS banner (auto-loaded every session): current goal = 'coded open-loop dash -> camera-only pro-nav terminal'. Repeated by the pronav skill ('the portfolio headline is proportional navigation... the terminal phase') and the run-interceptor-sim skill description ('camera-only pro-nav').",
+   "loc_a": "docs/goals.md:10 (pre-fix); .claude/skills/pronav/SKILL.md:3,7; .claude/skills/run-interceptor-sim/SKILL.md:3,7",
+   "claim_b": "ADR-0103 (builder decision 2026-09-17) replaced the sprint-and-fly-by with the chase pursuit; ADR-0118 (2026-09-24) made it the flying default after the Gazebo gate passed (median 0.343 m). The contract's terminal stage is named 'Camera-only terminal (chase pursuit)'.",
+   "loc_b": "project_state.json stage 'terminal'; docs/decisions.md ADR-0103/0105/0118; docs/next.md item 0",
+   "current_truth": "The flying terminal law is the CHASE PURSUIT (flight/pursuit_terminal.py, default since ADR-0118). Pro-nav is the retired sim-phase law, alive only in the frozen stock/tag paths and the M-gates. The contract was right; the session-start banner and two skills lagged it by a month, so fresh sessions kept answering as if pro-nav were current (builder caught it 2026-10-23 — 'I've been having that issue a lot').",
+   "resolution": "Same turn 2026-10-23: goals.md banner rewritten to name the chase pursuit and mark pro-nav replaced (ADR-0103/0118); pronav skill given a STATUS header and a corrected description; run-interceptor-sim skill description and intro corrected. Historical sim-phase sections (M0-M5 ladder, README 'Earlier milestones') left intact as history."
   }
  ]
 }</script>
