@@ -2855,12 +2855,19 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
     for tr in sm.transitions:
         print(f"    {tr.t:7.2f}s  {tr.frm} -> {tr.to}  ({tr.reason})")
     if smoke:
-        need = (State.CODED_DASH, State.ENGAGE, State.SAFE)
+        # ADR-0105/0118: in pursuit_mode the GO edge enters ENGAGE directly --
+        # CODED_DASH is structurally unreachable, so requiring it would fail
+        # the flying default forever (it did, 2026-10-24, the first run of
+        # this gate after the ADR-0118 default flip). The dash remains
+        # required for the stock/tag paths, where skipping it IS a defect.
+        need = ((State.ENGAGE, State.SAFE) if sm.cfg.pursuit_mode
+                else (State.CODED_DASH, State.ENGAGE, State.SAFE))
         for st in need:
             if st not in visited:
                 print(f"[sitl-smoke] FAIL: never reached {st}")
                 rc_exit = 1
         if not offboard_ok:
+            print("[sitl-smoke] FAIL: offboard.start() never succeeded")
             rc_exit = 1
         if n_sp < 20:
             print(f"[sitl-smoke] FAIL: only {n_sp} setpoints streamed")

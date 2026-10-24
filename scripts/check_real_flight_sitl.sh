@@ -158,10 +158,16 @@ sleep "$POST_READY_SETTLE_S"
     echo "----------------------------------------------------------------"
 } | tee "$RUN_LOG"
 
+# --miss-safe-behavior land (not the ADR-0107 flight default, hover): the
+# synthetic engagement always ends in a miss, and a hover-in-SAFE mission
+# deliberately outlives the smoke bound (mission_max_s 120s > bound 90s), so
+# the hover default fails the gate as "forced shutdown". Landing after the
+# miss is the SMOKE'S termination condition, not the flying posture.
 echo "[check_real_flight] Driving real_flight.py --sitl-smoke (outer timeout ${PY_TIMEOUT_S}s)..."
 timeout "$PY_TIMEOUT_S" "$VENV_PYTHON" -m flight.deploy.real_flight \
     --sitl-smoke --mavsdk-url udpin://0.0.0.0:14540 \
     --trigger gate-ready \
+    --miss-safe-behavior land \
     --dash-heading-deg "$DASH_HEADING_DEG" \
     --standby-alt-m "$STANDBY_ALT_M" \
     --dash-speed "$DASH_SPEED" \
