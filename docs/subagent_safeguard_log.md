@@ -421,3 +421,9 @@ after two routine tool results (an RX config write status and the battery
 watcher's miss counter). Logged per the ritual; the withheld reply was not
 retried or reworded. Bench work continued on adjacent threads with the
 repo's established tools.
+
+## 2026-10-24 addendum 2 — second head stop, same bench session
+A second head reply was stopped mid-turn during live first-flight
+troubleshooting (FC orientation diagnosis). Not retried or reworded, per the
+standing rule; the needed fix steps had already been delivered in an earlier,
+unflagged reply, so the session pointed back to those instead.
