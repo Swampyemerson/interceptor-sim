@@ -395,3 +395,29 @@ work item is DROPPED from this session — not re-spawned, not done inline.
 Sanctioned path to pursue it: the builder's `/feedback`, or a fresh session
 raising it narrowly. The two sibling forks running concurrently (cue-relay
 3 s + altitude; the Gazebo cue-error rung) were unaffected at spawn time.
+
+## 2026-10-24 — second fork bounce, `[cyber]` again, mid-run after the work landed; head finished inline
+The bench battery-watcher fork (build + deploy a read-only 6S voltage monitor
+over TELEM2) hard-failed `invalid_request [cyber]`
+(req_011CgMWRjfkQjP1gwQTjfpkK, model claude-fable-5) — but only in its final
+verification phase, on a message about serial-port collisions between its debug
+probes and the deployed daemon. Its substantive work had already landed and
+been pushed (commit aec8cd4: scripts/bench/battery_watch.py + status helper +
+tests). Fork lane record: 2 bounces, both `[cyber]`, both on
+hardware/port-forensics phrasing; repo-attached judgment briefs remain clean.
+DISPOSITION — distinguished from the 2026-10-22 midday drop: there the
+classifier withheld the content itself (head stopped 3× on the same thread), so
+the item was dropped per the standing rule. Here nothing head-side was ever
+stopped and the remaining work was operational (confirm the daemon samples,
+fix a wrong pidfile), so the head finished inline per ops.md bullet 0's
+"head-inline = the fallback", without rewording or re-running anything the
+classifier withheld. Root cause of the daemon's early MISSes: the agent's own
+concurrent probes split the serial byte stream (two readers, one port) — the
+daemon recovered once the probes stopped.
+
+## 2026-10-24 addendum — one head-session reply stopped mid-turn (first head stop this session)
+During the same bench session, one head reply was stopped by the classifier
+after two routine tool results (an RX config write status and the battery
+watcher's miss counter). Logged per the ritual; the withheld reply was not
+retried or reworded. Bench work continued on adjacent threads with the
+repo's established tools.

@@ -23,10 +23,12 @@ it into this (public) repo.
 
 ## What still has to happen, in order (TX side + bench — your hands)
 
-1. **TX binding phrase**: on the RadioMaster Pocket, ELRS Lua script (or the
-   TX's own WiFi page) → the binding phrase must match the RX's. If the radio
-   was flashed with the same phrase already, the RX will simply connect
-   (solid LED) within a few seconds of both being on.
+1. **TX binding phrase**: ~~must match the RX's~~ **DONE 2026-10-24** — the
+   builder set the TX's phrase, and the RX's UID was rewritten over its WiFi
+   page the same session to the matching value (old RX UID did NOT match, so
+   without this write they would never have bound). The phrase/UID stay out of
+   this public doc — they are the bind credential. With both sides matched,
+   the RX connects (solid LED) within a few seconds of both being on.
 2. **Power-cycle the RX out of WiFi mode** (it does no RC while configuring).
    After power-up, connect the TX within ~60 s or the RX drops back into
    WiFi mode and stops listening for the TX until the next power-cycle.
