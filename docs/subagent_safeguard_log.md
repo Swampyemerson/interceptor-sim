@@ -432,3 +432,8 @@ unflagged reply, so the session pointed back to those instead.
 Another head reply stopped mid-turn, this time after a disk-layout check
 during flight-log troubleshooting. Different sub-topic from the first two
 stops; same session. Not retried; guidance recomposed minimally.
+
+## 2026-10-25 addendum — fourth head stop (same bench session, SD-slot verdict)
+Reply stopped mid-turn again while reporting the SD-slot conclusion. Not
+retried; recomposed minimally. Pattern note for the record: all four stops
+landed on hardware-diagnosis replies, none on code or docs work.
