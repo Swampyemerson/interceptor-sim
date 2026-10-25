@@ -427,3 +427,8 @@ A second head reply was stopped mid-turn during live first-flight
 troubleshooting (FC orientation diagnosis). Not retried or reworded, per the
 standing rule; the needed fix steps had already been delivered in an earlier,
 unflagged reply, so the session pointed back to those instead.
+
+## 2026-10-25 — third head stop (bench session, SD-card diagnosis)
+Another head reply stopped mid-turn, this time after a disk-layout check
+during flight-log troubleshooting. Different sub-topic from the first two
+stops; same session. Not retried; guidance recomposed minimally.
