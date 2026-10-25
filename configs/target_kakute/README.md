@@ -159,7 +159,9 @@ What the file sets (each param is annotated inline with its ArduPilot doc source
 
 ## 6. Flight-mode switch mapping (incl. the **AUTO** position)
 
-`target.param` sets the mode switch on **RC channel 5** (`FLTMODE_CH=5`) with:
+`target.param` sets the mode switch on **RC channel 12** (`FLTMODE_CH=12` — NOT
+channel 5: ELRS hard-limits AUX1/ch5 to 2 positions, the 2026-10-04 B1 finding;
+ch12 is ELRS's documented flight-mode channel) with:
 
 | Switch pos | `FLTMODEn` | Mode | Use |
 |---|---|---|---|
@@ -172,8 +174,9 @@ What the file sets (each param is annotated inline with its ArduPilot doc source
 
 To fly a pass: take off and stabilize in **Loiter** (pos 3), confirm GPS 3D fix +
 good HDOP, then flip the switch to **Auto** (pos 6) to run the loaded mission.
-Assign the 3-pos + 2-pos switches on the Pocket M2 to produce these six channel-5
-values (EdgeTX mixer). Source:
+Assign the 3-pos + 2-pos switches on the Pocket M2 to produce these six **channel-12**
+values (EdgeTX mixer: 3-pos at weight 25 + 2-pos at weight 40, both ADD, on CH12 —
+lands each combo at an ArduPilot mode-band center). Source:
 [Flight Modes / FLTMODE_CH](https://ardupilot.org/copter/docs/flight-modes.html).
 
 **Kill:** `RC6_OPTION=31` maps **channel 6** to **Motor Emergency Stop** — the
