@@ -437,3 +437,11 @@ stops; same session. Not retried; guidance recomposed minimally.
 Reply stopped mid-turn again while reporting the SD-slot conclusion. Not
 retried; recomposed minimally. Pattern note for the record: all four stops
 landed on hardware-diagnosis replies, none on code or docs work.
+
+## 2026-10-25 addendum 2 — fifth and sixth head stops; diagnosis thread CLOSED per the 3-stop precedent
+Two more mid-turn stops on the same bench-hardware diagnosis thread (nsh
+output reading; a stream-test verdict). Per the 2026-10-22 precedent the
+thread is now dropped: no further retries or analysis of the FC log-streaming
+lane this session. The stream-catcher script is parked on the Pi (~/stream_logger.py
++ repo copy) for a fresh session to pick up. Session total: six head stops,
+all on hardware-failure diagnosis prose; zero on code, docs, or sim work.
