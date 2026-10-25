@@ -25,6 +25,15 @@ the weekend**. Full drift register:
 
 ## KILL DAY — the weekend plan (2026-10-24/26)
 
+> **OUTCOME (2026-10-25): the scored attempt moved out ~a week; the weekend delivered the
+> interceptor's AIRWORTHINESS instead** — maiden flown after a 180° board-rotation root-cause
+> (`SENS_BOARD_ROT=4`), RC chain + failsafes verified, multi-minute Position flight. Still in
+> front of an attempt: an inner-loop hover wobble (wiring-class suspects queued), the target's
+> maiden + box legs, the 2nd TX (one-TX kill contention, ADR-0089), a working interceptor flight
+> recorder (FC microSD slot dead), and the camera-mount/calibration/L0–L2 rungs. Live detail:
+> `project_state.json` plain_log 2026-10-25. The ladder below remains the checklist for the
+> rescheduled attempt.
+
 **Bench ladder first (your hands, ~hours total — these are the only remaining gates):**
 1. ⬜ **tgt-01/02** — flash the Kakute H7 (board already in the stack), prove `.BIN` logging
    end-to-end. The dual-GPS logs ARE the scoring instrument (`field_score.py`) — no logs, no
