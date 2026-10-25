@@ -84,11 +84,15 @@ REQUIRED = [
     ("BATT_CRT_VOLT", lambda v: 3.0 <= v / 6.0 <= 3.6, "6S critical threshold, 3.0-3.6 V/cell"),
     ("BATT_FS_LOW_ACT", lambda v: v != 0,           "low-battery action set (not None)"),
     ("BATT_FS_CRT_ACT", lambda v: v != 0,           "critical-battery action set (not None)"),
-    ("RC6_OPTION",    lambda v: v == 31,            "ch6 = Motor Emergency Stop (RC kill)"),
-    # ELRS AUX1 (ch5) is protocol-limited to 2 positions, so a 6-mode switch
-    # there silently collapses to {FLTMODE1, FLTMODE6} -- the 2026-10-04 B1
-    # finding. ch12 is ELRS's documented mode channel (hybrid/wide).
-    ("FLTMODE_CH",    lambda v: v not in (0, 5, 6), "mode switch NOT on ELRS 2-pos AUX1 (ch5) or the kill channel (ch6)"),
+    ("RC5_OPTION",    lambda v: v == 31,            "ch5 (ELRS AUX1, 2-pos, sent every packet) = Motor Emergency Stop (RC kill)"),
+    # ch6 carries the flight modes -- an aux function there (e.g. a stale
+    # RC6_OPTION=31 from the pre-2026-10-25 layout) would fire on the Auto
+    # detent. Must be 0.
+    ("RC6_OPTION",    lambda v: v == 0,             "ch6 is the MODE channel -- no aux function allowed on it"),
+    # ELRS AUX1 (ch5) is protocol-limited to 2 positions, so a multi-mode
+    # switch there silently collapses to {FLTMODE1, FLTMODE6} -- the
+    # 2026-10-04 B1 finding. ch5 is also the kill channel (2026-10-25 layout).
+    ("FLTMODE_CH",    lambda v: v not in (0, 5),    "mode switch NOT on ELRS 2-pos AUX1 / the kill channel (ch5)"),
 ]
 
 # Cross-param invariants -- (description, predicate over the {name: value} dict).

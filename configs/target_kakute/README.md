@@ -159,9 +159,11 @@ What the file sets (each param is annotated inline with its ArduPilot doc source
 
 ## 6. Flight-mode switch mapping (incl. the **AUTO** position)
 
-`target.param` sets the mode switch on **RC channel 12** (`FLTMODE_CH=12` — NOT
-channel 5: ELRS hard-limits AUX1/ch5 to 2 positions, the 2026-10-04 B1 finding;
-ch12 is ELRS's documented flight-mode channel) with:
+`target.param` sets the mode switch on **RC channel 6** (`FLTMODE_CH=6`, builder
+call 2026-10-25, matching the Pocket as bound: 3-pos → CH6, 2-pos kill → CH5).
+Modes must never live on channel 5 — ELRS hard-limits AUX1/ch5 to 2 positions
+(the 2026-10-04 B1 finding) — but with only three modes flown, any AUX2+
+channel carries a 3-pos fine; ch12 (ELRS's suggested default) is not required.
 
 The table is a plain **3-pos switch at weight 100** (simplified from the earlier
 6-mode two-switch mix, builder call 2026-10-25 — see git history for the old
@@ -180,19 +182,19 @@ No Stabilize/AltHold position: GPS loss is covered by ArduPilot's EKF failsafe
 **Loiter**, confirm GPS 3D fix + good HDOP, flip to **Auto**. Source:
 [Flight Modes / FLTMODE_CH](https://ardupilot.org/copter/docs/flight-modes.html).
 
-**Kill:** `RC6_OPTION=31` maps **channel 6** to **Motor Emergency Stop** — the
-target's independent RC kill. Source:
+**Kill:** `RC5_OPTION=31` maps **channel 5** (ELRS AUX1) to **Motor Emergency
+Stop** — the target's independent RC kill. A kill is binary, so AUX1's 2-pos
+limit costs nothing, and ELRS sends AUX1 in every packet — the lowest-latency
+channel on the link. **`RC6_OPTION` must stay 0** (lint-enforced): ch6 is the
+mode channel, and a stale `RC6_OPTION=31` from the pre-2026-10-25 layout would
+fire Motor Emergency Stop on the Auto detent. Source:
 [Auxiliary function switches (RCx_OPTION 31)](https://ardupilot.org/copter/docs/channel-7-and-8-options.html).
 
-**TX side (the two-Pocket convention, 2026-10-25):** the PHYSICAL switch layout
-matches the interceptor's Pocket — the same 2-pos switch is the kill on both
-radios, the same 3-pos is modes — and the EdgeTX **mixer** points them at this
-FC's channels: 2-pos → **CH6** weight 100 (kill), 3-pos → **CH12** weight 100
-(modes). Channel numbers differ between the aircraft (interceptor kill is SBUS
-ch5 per `RC_MAP_KILL_SW`); the hands don't care, the mixers absorb it. Do NOT
-put either function on CH5 here — ELRS AUX1 is 2-pos-limited and this repo's
-lint forbids modes there. **Re-run radio calibration after re-pointing the
-mixer** (a channel that never moved during cal has junk min/max).
+**TX side (the two-Pocket convention, 2026-10-25):** both Pockets use the SAME
+physical layout — the 2-pos switch is the kill on both radios, the 3-pos is
+modes — and on this (target) Pocket they are bound straight to CH5 / CH6. The
+interceptor's kill is also its ch5 (`RC_MAP_KILL_SW=5` over SBUS), so the two
+aircraft match channel-for-channel as well as thumb-for-thumb.
 
 ---
 

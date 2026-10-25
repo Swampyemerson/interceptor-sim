@@ -219,20 +219,19 @@ LOG_FILE_DSRMROT,1
 # ---------------------------------------------------------------------------
 # FLIGHT MODES + RC KILL  (RadioMaster Pocket M2)
 # ---------------------------------------------------------------------------
-# 6-position mode switch on RC channel 12 (CORRECTED 2026-10-04, pre-upload
-# review finding B1: the old value 5 is ExpressLRS's AUX1, which the ELRS
-# protocol HARD-LIMITS to 2 positions regardless of TX switch config -- the
-# six-mode table would collapse to {FLTMODE1, FLTMODE6} = Stabilize/Auto, and
-# a flip "to AltHold" would engage AUTO. Channel 12 is ELRS's documented
-# flight-mode channel in hybrid/wide switch mode. TX SIDE: map the mode
-# switch(es) to CH12 in the Pocket's mixer, NOT AUX1.
-# src: https://www.expresslrs.org/quick-start/ardupilot-setup/ ("use channel 12
-# for flight modes"); https://www.expresslrs.org/software/switch-config/
-# (AUX1 "is always a 2-position channel").
-FLTMODE_CH,12
+# Mode switch on RC channel 6 (builder call 2026-10-25, matching the Pocket as
+# bound: 3-pos switch -> CH6, 2-pos kill -> CH5). History: the 2026-10-04 B1
+# finding moved modes OFF channel 5 because ELRS HARD-LIMITS AUX1 to 2
+# positions regardless of TX switch config; with only THREE modes flown, any
+# AUX2+ channel carries a 3-pos fine (ELRS hybrid mode: AUX2-7 are 3-pos;
+# wide mode: 64-pos), so ch6 works and ch12 (ELRS's suggested default) is not
+# required. Modes must still NEVER live on ch5.
+# src: https://www.expresslrs.org/software/switch-config/ (AUX1 "is always a
+# 2-position channel"; hybrid/wide aux resolution).
+FLTMODE_CH,6
 # Mode-switch map (SIMPLIFIED to a plain 3-pos switch, builder call 2026-10-25:
 # Loiter / RTL / Auto -- no Stabilize/AltHold; GPS loss is covered by the EKF
-# failsafe, which LANDs). A 3-pos at weight 100 on CH12 hits PWM ~988/1500/2012
+# failsafe, which LANDs). A 3-pos at weight 100 on CH6 hits PWM ~988/1500/2012
 # = mode bands 1 / 4 / 6; the table is filled in contiguous blocks so an
 # off-center PWM still lands in the intended mode. Numbers: 5 Loiter, 6 RTL,
 # 3 Auto. Take off / land in Loiter (GPS hold); slam-through transient when
@@ -244,11 +243,17 @@ FLTMODE3,5
 FLTMODE4,6
 FLTMODE5,6
 FLTMODE6,3
-# RC channel 6 switch = Motor Emergency Stop -- the target's independent RC KILL
-# (see the FAILSAFE note re: the two-aircraft / one-TX decision). 31 = Motor
-# Emergency Stop. Map this switch on the Pocket M2 (README.md).
+# RC channel 5 (ELRS AUX1) 2-pos switch = Motor Emergency Stop -- the target's
+# independent RC KILL (see the FAILSAFE note re: the two-aircraft / one-TX
+# decision). A kill is binary, so AUX1's 2-pos limit costs nothing, and ELRS
+# sends AUX1 in EVERY packet -- the lowest-latency channel on the link.
 # src: https://ardupilot.org/copter/docs/channel-7-and-8-options.html (RCx_OPTION 31)
-RC6_OPTION,31
+RC5_OPTION,31
+# ch6 is the MODE channel, so it must carry NO aux function: a stale
+# RC6_OPTION=31 here would fire Motor Emergency Stop on the Auto detent
+# (switch high) -- a guaranteed mid-air kill on mission start. Pinned 0 and
+# lint-enforced.
+RC6_OPTION,0
 
 
 # ---------------------------------------------------------------------------
