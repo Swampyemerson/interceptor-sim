@@ -230,13 +230,18 @@ LOG_FILE_DSRMROT,1
 # for flight modes"); https://www.expresslrs.org/software/switch-config/
 # (AUX1 "is always a 2-position channel").
 FLTMODE_CH,12
-# Mode-switch map. Numbers: 0 Stabilize, 2 AltHold, 5 Loiter, 6 RTL, 3 Auto.
-# Take off / land in Loiter (GPS hold); flip to Auto to run the tripod mission;
-# RTL is the manual bail-out. src: flight-modes.html
-FLTMODE1,0
-FLTMODE2,2
+# Mode-switch map (SIMPLIFIED to a plain 3-pos switch, builder call 2026-10-25:
+# Loiter / RTL / Auto -- no Stabilize/AltHold; GPS loss is covered by the EKF
+# failsafe, which LANDs). A 3-pos at weight 100 on CH12 hits PWM ~988/1500/2012
+# = mode bands 1 / 4 / 6; the table is filled in contiguous blocks so an
+# off-center PWM still lands in the intended mode. Numbers: 5 Loiter, 6 RTL,
+# 3 Auto. Take off / land in Loiter (GPS hold); slam-through transient when
+# flipping low->high passes RTL (benign), never engages Auto uncommanded.
+# src: flight-modes.html
+FLTMODE1,5
+FLTMODE2,5
 FLTMODE3,5
-FLTMODE4,5
+FLTMODE4,6
 FLTMODE5,6
 FLTMODE6,3
 # RC channel 6 switch = Motor Emergency Stop -- the target's independent RC KILL

@@ -163,25 +163,36 @@ What the file sets (each param is annotated inline with its ArduPilot doc source
 channel 5: ELRS hard-limits AUX1/ch5 to 2 positions, the 2026-10-04 B1 finding;
 ch12 is ELRS's documented flight-mode channel) with:
 
-| Switch pos | `FLTMODEn` | Mode | Use |
-|---|---|---|---|
-| 1 | `FLTMODE1=0` | **Stabilize** | manual fallback |
-| 2 | `FLTMODE2=2` | **AltHold** | manual, height held |
-| 3 | `FLTMODE3=5` | **Loiter** | GPS hold — **take off / land here** |
-| 4 | `FLTMODE4=5` | **Loiter** | (same; spare detent) |
-| 5 | `FLTMODE5=6` | **RTL** | manual bail-out |
-| 6 | `FLTMODE6=3` | **Auto** | **runs the tripod mission** |
+The table is a plain **3-pos switch at weight 100** (simplified from the earlier
+6-mode two-switch mix, builder call 2026-10-25 — see git history for the old
+table). The three detents hit mode bands 1 / 4 / 6; the table is filled in
+contiguous blocks so an off-center PWM still lands in the intended mode:
 
-To fly a pass: take off and stabilize in **Loiter** (pos 3), confirm GPS 3D fix +
-good HDOP, then flip the switch to **Auto** (pos 6) to run the loaded mission.
-Assign the 3-pos + 2-pos switches on the Pocket M2 to produce these six **channel-12**
-values (EdgeTX mixer: 3-pos at weight 25 + 2-pos at weight 40, both ADD, on CH12 —
-lands each combo at an ArduPilot mode-band center). Source:
+| 3-pos detent | Bands (`FLTMODEn`) | Mode | Use |
+|---|---|---|---|
+| low | 1–3 (`FLTMODE1..3=5`) | **Loiter** | GPS hold — **take off / land here** |
+| middle | 4–5 (`FLTMODE4..5=6`) | **RTL** | manual bail-out |
+| high | 6 (`FLTMODE6=3`) | **Auto** | **runs the mission** |
+
+No Stabilize/AltHold position: GPS loss is covered by ArduPilot's EKF failsafe
+(LAND), and all three flown modes are GPS modes. Slamming low→high transits RTL
+(benign); Auto is never engaged by a pass-through. To fly a pass: take off in
+**Loiter**, confirm GPS 3D fix + good HDOP, flip to **Auto**. Source:
 [Flight Modes / FLTMODE_CH](https://ardupilot.org/copter/docs/flight-modes.html).
 
 **Kill:** `RC6_OPTION=31` maps **channel 6** to **Motor Emergency Stop** — the
-target's independent RC kill. Assign a channel-6 switch on the Pocket. Source:
+target's independent RC kill. Source:
 [Auxiliary function switches (RCx_OPTION 31)](https://ardupilot.org/copter/docs/channel-7-and-8-options.html).
+
+**TX side (the two-Pocket convention, 2026-10-25):** the PHYSICAL switch layout
+matches the interceptor's Pocket — the same 2-pos switch is the kill on both
+radios, the same 3-pos is modes — and the EdgeTX **mixer** points them at this
+FC's channels: 2-pos → **CH6** weight 100 (kill), 3-pos → **CH12** weight 100
+(modes). Channel numbers differ between the aircraft (interceptor kill is SBUS
+ch5 per `RC_MAP_KILL_SW`); the hands don't care, the mixers absorb it. Do NOT
+put either function on CH5 here — ELRS AUX1 is 2-pos-limited and this repo's
+lint forbids modes there. **Re-run radio calibration after re-pointing the
+mixer** (a channel that never moved during cal has junk min/max).
 
 ---
 
