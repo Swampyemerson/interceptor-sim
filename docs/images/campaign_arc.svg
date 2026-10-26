@@ -1,0 +1,98 @@
+<svg viewBox="0 0 480 312" width="960" height="624" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Helvetica, Arial, sans-serif">
+<title>Guidance-law arc: closest approach per flight, pro-nav to chase pursuit, then chase under injected cue error</title>
+<rect width="480" height="312" fill="#ffffff"/>
+<line x1="36" x2="470" y1="256.0" y2="256.0" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="30" y="259.0" font-size="8" fill="#69788C" text-anchor="end">0</text>
+<line x1="36" x2="470" y1="214.9" y2="214.9" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="30" y="217.9" font-size="8" fill="#69788C" text-anchor="end">1</text>
+<line x1="36" x2="470" y1="173.8" y2="173.8" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="30" y="176.8" font-size="8" fill="#69788C" text-anchor="end">2</text>
+<line x1="36" x2="470" y1="132.7" y2="132.7" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="30" y="135.7" font-size="8" fill="#69788C" text-anchor="end">3</text>
+<line x1="36" x2="470" y1="91.6" y2="91.6" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="30" y="94.6" font-size="8" fill="#69788C" text-anchor="end">4</text>
+<line x1="36" x2="470" y1="50.5" y2="50.5" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="30" y="53.5" font-size="8" fill="#69788C" text-anchor="end">5</text>
+<text x="9" y="143.0" font-size="8" fill="#69788C" text-anchor="middle" transform="rotate(-90 9 143.0)">closest approach (m)</text>
+<line x1="36" x2="470" y1="241.6" y2="241.6" stroke="#2F5687" stroke-width="1.2" stroke-dasharray="4 3"/>
+<text x="42" y="236.6" font-size="8" fill="#2F5687" font-weight="600">0.35 m contact radius</text>
+<line x1="108.3" x2="108.3" y1="12" y2="256.0" stroke="#E5EAF0" stroke-width="0.8"/>
+<line x1="325.3" x2="325.3" y1="12" y2="256.0" stroke="#E5EAF0" stroke-width="0.8"/>
+<text x="72.2" y="22" font-size="7.5" fill="#69788C" text-anchor="middle" font-weight="600" letter-spacing="0.4">PRO-NAV TERMINAL</text>
+<text x="216.8" y="22" font-size="7.5" fill="#69788C" text-anchor="middle" font-weight="600" letter-spacing="0.4">CHASE PURSUIT · perfect launch cue</text>
+<text x="397.7" y="22" font-size="7.5" fill="#69788C" text-anchor="middle" font-weight="600" letter-spacing="0.4">CHASE · cue error injected</text>
+<circle cx="67.2" cy="200.5" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="77.2" cy="198.3" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="67.2" cy="166.2" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="77.2" cy="141.8" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="67.2" cy="74.2" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="77.2" cy="68.9" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="67.2" cy="44.2" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="77.2" cy="42.3" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="55.2" x2="89.2" y1="108.0" y2="108.0" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="92.2" y="111.0" font-size="8.5" fill="#18202C" font-weight="600">3.60</text>
+<text x="72.2" y="270" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Pro-nav</text>
+<text x="72.2" y="281" font-size="7.6" fill="#69788C" text-anchor="middle">stock terminal, Sep 17</text>
+<circle cx="139.5" cy="233.4" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="149.5" cy="221.5" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="139.5" cy="214.6" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="149.5" cy="205.0" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="139.5" cy="182.9" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="149.5" cy="179.5" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="139.5" cy="160.4" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="149.5" cy="160.1" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="127.5" x2="161.5" y1="194.0" y2="194.0" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="164.5" y="197.0" font-size="8.5" fill="#18202C" font-weight="600">1.51</text>
+<text x="144.5" y="270" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">First port</text>
+<text x="144.5" y="281" font-size="7.6" fill="#69788C" text-anchor="middle">chase in Gazebo</text>
+<circle cx="211.8" cy="252.1" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="221.8" cy="246.3" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="211.8" cy="244.0" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="221.8" cy="242.5" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="211.8" cy="241.4" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="221.8" cy="234.2" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="211.8" cy="226.7" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="221.8" cy="215.9" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="199.8" x2="233.8" y1="241.9" y2="241.9" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="236.8" y="244.9" font-size="8.5" fill="#18202C" font-weight="600">0.34</text>
+<text x="216.8" y="270" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Velocity bug</text>
+<text x="216.8" y="281" font-size="7.6" fill="#69788C" text-anchor="middle">found + fixed</text>
+<circle cx="284.2" cy="250.7" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="294.2" cy="248.8" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="284.2" cy="246.9" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="294.2" cy="246.5" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="284.2" cy="245.6" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="294.2" cy="241.7" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="284.2" cy="238.5" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="294.2" cy="235.9" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="272.2" x2="306.2" y1="246.0" y2="246.0" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="309.2" y="249.0" font-size="8.5" fill="#18202C" font-weight="600">0.24</text>
+<text x="289.2" y="270" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">Flying config</text>
+<text x="289.2" y="281" font-size="7.6" fill="#69788C" text-anchor="middle">brake adopted</text>
+<circle cx="356.5" cy="247.8" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="366.5" cy="246.4" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="356.5" cy="246.0" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="366.5" cy="245.6" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="356.5" cy="245.2" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="366.5" cy="242.1" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="356.5" cy="240.8" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="366.5" cy="234.1" r="3.2" fill="#ffffff" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="344.5" x2="378.5" y1="245.4" y2="245.4" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="381.5" y="248.4" font-size="8.5" fill="#18202C" font-weight="600">0.26</text>
+<text x="361.5" y="270" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">±5° cue error</text>
+<text x="361.5" y="281" font-size="7.6" fill="#69788C" text-anchor="middle">flying config</text>
+<circle cx="428.8" cy="247.3" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="438.8" cy="246.9" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="428.8" cy="246.6" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="438.8" cy="246.4" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="428.8" cy="245.5" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="438.8" cy="245.3" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="428.8" cy="244.6" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<circle cx="438.8" cy="244.4" r="3.2" fill="#2F5687" stroke="#2F5687" stroke-width="1.2"/>
+<line x1="416.8" x2="450.8" y1="246.0" y2="246.0" stroke="#18202C" stroke-width="2" stroke-linecap="round"/>
+<text x="453.8" y="249.0" font-size="8.5" fill="#18202C" font-weight="600">0.24</text>
+<text x="433.8" y="270" font-size="8.5" fill="#18202C" text-anchor="middle" font-weight="600">±10° cue error</text>
+<text x="433.8" y="281" font-size="7.6" fill="#69788C" text-anchor="middle">flying config</text>
+<text x="36" y="296" font-size="6.8" fill="#69788C">48 flights, 8 per campaign · same 9 m/s crossing geometry and 0.35 m bar throughout · filled dots are inside the contact radius</text>
+<text x="36" y="305" font-size="6.8" fill="#69788C">Sim camera (~100°-class FOV; the delivered 70° lens is not yet re-flown, ADR-0126) · pro-nav arm scored by the batch scorer, chase campaigns by centre-to-centre CPA</text>
+</svg>
