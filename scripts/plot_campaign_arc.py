@@ -73,8 +73,8 @@ def read_cue_error(deg):
 
 
 def svg(camps):
-    W, H = 480, 312
-    L, R, T, B = 36, 10, 30, 56
+    W, H = 480, 322
+    L, R, T, B = 36, 10, 30, 66
     pw, ph = W - L - R, H - T - B
     ymax = 5.5
 
@@ -126,13 +126,15 @@ def svg(camps):
                  f'text-anchor="middle" font-weight="600">{name}</text>')
         s.append(f'<text x="{cx:.1f}" y="{H-B+25}" font-size="7.6" fill="{MUTED}" '
                  f'text-anchor="middle">{sub}</text>')
+    s.append(f'<text x="{L}" y="{H-25}" font-size="6.8" fill="{MUTED}">'
+             '48 flights, 8 per campaign · same 9 m/s crossing geometry and '
+             '0.35 m bar throughout</text>')
     s.append(f'<text x="{L}" y="{H-16}" font-size="6.8" fill="{MUTED}">'
-             '48 flights, 8 per campaign · same 9 m/s crossing geometry and 0.35 m '
-             'bar throughout · filled dots are inside the contact radius</text>')
+             'Filled dots are inside the contact radius · sim camera ~100° FOV '
+             '(the 70° lens re-fly is queued, ADR-0126)</text>')
     s.append(f'<text x="{L}" y="{H-7}" font-size="6.8" fill="{MUTED}">'
-             'Sim camera (~100°-class FOV; the delivered 70° lens is not yet '
-             're-flown, ADR-0126) · pro-nav arm scored by the batch scorer, chase '
-             'campaigns by centre-to-centre CPA</text>')
+             'Pro-nav arm scored by the batch scorer; chase campaigns by '
+             'centre-to-centre CPA</text>')
     s.append("</svg>")
     return "\n".join(s) + "\n"
 
