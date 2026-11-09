@@ -3,8 +3,8 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-10-23",
-  "updated_by": "ADR-0132 landed (max-effort approach dash, gated + pre-registered); 3 remote branches merged/deleted",
+  "updated": "2026-11-09",
+  "updated_by": "Wobble-record review: ESC protocol contradiction logged (PWM on MAIN, not DShot)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -2536,9 +2536,9 @@
             "medium": "XT60 pigtail, 14 AWG"
           },
           {
-            "from": "6C Mini PWM header",
+            "from": "6C Mini MAIN 1-4 (IO rail)",
             "to": "KO60II signal",
-            "medium": "JST-SH 8-pin, DShot600"
+            "medium": "Plain PWM on the MAIN rail as last recorded (bench.params sec 5, 2026-10-16/17) -- NOT DShot; MAIN cannot speak DShot. Live read-back owed. See ledger interceptor-esc-protocol-pwm-not-dshot."
           },
           {
             "from": "LiPo main",
@@ -3997,6 +3997,19 @@
       "loc_b": "project_state.json stage 'terminal'; docs/decisions.md ADR-0103/0105/0118; docs/next.md item 0",
       "current_truth": "The flying terminal law is the CHASE PURSUIT (flight/pursuit_terminal.py, default since ADR-0118). Pro-nav is the retired sim-phase law, alive only in the frozen stock/tag paths and the M-gates. The contract was right; the session-start banner and two skills lagged it by a month, so fresh sessions kept answering as if pro-nav were current (builder caught it 2026-10-23 — 'I've been having that issue a lot').",
       "resolution": "Same turn 2026-10-23: goals.md banner rewritten to name the chase pursuit and mark pro-nav replaced (ADR-0103/0118); pronav skill given a STATUS header and a corrected description; run-interceptor-sim skill description and intro corrected. Historical sim-phase sections (M0-M5 ladder, README 'Earlier milestones') left intact as history."
+    },
+    {
+      "id": "interceptor-esc-protocol-pwm-not-dshot",
+      "verdict": "CONFIRMED",
+      "severity": "high",
+      "status": "open",
+      "topic": "Interceptor motor signal: the contract said DShot600; the param pack records plain PWM on the MAIN rail -- and the hover-wobble hunt never listed it",
+      "claim_a": "Build tab, airframe connection: '6C Mini PWM header -> KO60II signal, JST-SH 8-pin, DShot600'. docs/airframe_numbers.md also plans an RPM-tracking notch over bidirectional DShot.",
+      "loc_a": "project_state.json build_tab.airframe.connections[2] (pre-fix); docs/airframe_numbers.md sec 7",
+      "claim_b": "bench.params sec 5 (2026-10-16/17): PWM_MAIN_FUNC1..4 map the motors onto MAIN1-4, and its own comment says 'the IO co-processor's MAIN rail speaks PWM only'. No DSHOT_CONFIG, PWM_MAIN_MIN/MAX or ESC throttle-range calibration is recorded anywhere in the repo.",
+      "loc_b": "configs/px4_6cmini/bench.params:329-366",
+      "current_truth": "As last recorded, the interceptor flies on analog-timed PWM through the IO co-processor, not DShot. PX4 v1.16 docs: DShot is FMU (AUX) only, and PWM ESCs need a throttle-range calibration that DShot does not. Not yet confirmed on the live board (found from the repo, 2026-11-09). It matters for the wobble: an uncalibrated or noisy PWM path is an inner-loop, all-modes, motor-heating cause that the 2026-10-25 suspect list does not contain, and it makes suspect 3 (signal-harness ground) far more damaging than it would be on DShot.",
+      "resolution": "OPEN. Owed: live read-back of PWM_MAIN_FUNC*/PWM_AUX_FUNC*/DSHOT_CONFIG; then either move the four signal wires to AUX 1-4 with DShot600 (re-verify motor order + direction, props off) or run the PWM ESC calibration. Connection text corrected the same turn."
     }
   ]
 }
