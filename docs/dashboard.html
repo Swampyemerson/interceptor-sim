@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->05b3022<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->c363867<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-09",
- "updated_by": "Wobble-record review: ESC protocol contradiction logged (PWM on MAIN, not DShot)",
+ "updated_by": "Bench read of the live FC: motor layout was Quad + on an X frame -- corrected; hover test owed",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -913,14 +913,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-10-22",
-  "where": "FIELD INTERCEPTION DAY IS THIS WEEKEND (ADR-0127) - tripod day descoped as a gate. Between now and Saturday: bench safety gates only (tgt-01/02 logging proof, smoke stopper, kill switch, 70 deg lens calibration per ADR-0126, cue-relay end-to-end).",
-  "finding": "Review 3 swept a month of drift (wrong-HAT order list, three unswept rulings, stale headline). Same day, the pre-registered isim A/B confirmed: pursuit 6-12/16 inside 0.35 m through 10 deg cue error; blind dash 0/16 at every error; at 20 deg only 7/16. Derived: launch cue inside ~10 deg.",
+  "as_of": "2026-11-09",
+  "where": "Interceptor on the bench. A live read found the flight controller still set to a PLUS motor layout on an X frame -- left over from bare-board setup. Corrected to X and read back after a reboot.",
+  "finding": "Likely cause of the hover wobble and hot motors: every roll/pitch correction was applied 45 degrees off-axis. NOT yet proven -- no hover has been flown since the fix. Motors also confirmed on plain PWM, not DShot.",
   "next": [
-   "You: bench gates (tgt log proof, smoke stopper, kill switch) + Friday field-kit buys",
-   "Me: Gazebo rung if machine free; kill-day checklist + suite green before Saturday"
+   "You: props-OFF stick check (roll right = BOTH left motors speed up), then a short hover",
+   "Me: after the hover verdict, PWM calibration or the DShot move if wobble remains"
   ],
-  "evidence": "docs/review3_repo_review_2026-10-22.md - ADR-0126/0127/0128/0129 - docs/pursuit_vs_dash_prereg_2026-10-22.md - runs/pursuit_vs_dash_20261022/"
+  "evidence": "configs/px4_6cmini/dumps/20261109_{before,after}_geometry_fix.tsv (1122/1122 params each; diff = 5 lines) - ADR-0134 - ledger interceptor-allocator-quad-plus-on-x-frame"
  },
  "assumptions": [
   {
@@ -1467,6 +1467,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-11-09",
+   "text": "Read every parameter off the interceptor's flight controller over USB (1122 of 1122). Two findings. (1) The motor layout the controller uses to turn 'roll right' into motor commands was the generic PLUS layout (airframe 5001, motors on the nose/tail/left/right axes). The frame is an X (motors on the corners). The bench instructions from July said either generic airframe was fine for the bare board and that the real one would be set when the frame was built; it never was. On an X frame a plus layout still hovers, because thrust and yaw come out right, but every roll or pitch correction lands 45 degrees off-axis -- which eats the stability margin of the innermost loop in every flight mode. Corrected to the X layout (airframe 4001), rebooted, re-read: exactly the five intended values changed. (2) The motors are confirmed on plain PWM from MAIN 1-4 (400 Hz, 1100-1900 us); nothing is mapped to the DShot-capable AUX pins. Also found: the board holds rate gain K = 0.65, not the 0.8 the 2026-10-25 log says it was returned to, and the gyro notch filter is OFF, not on.",
+   "so_what": "The wobble hunt has a strong, mechanical explanation that was never on the suspect list -- but it is a prediction until a hover confirms it. Registered before flying: if the wobble and motor heat are gone, this was the cause; if they remain, the layout was wrong anyway and the next suspect is the uncalibrated PWM path. The 2026-10-25 'ruled out' list was built on a mis-set controller and has to be re-earned.",
+   "evidence": "configs/px4_6cmini/dumps/20261109_before_geometry_fix.tsv + ..._after_geometry_fix.tsv; scripts/bench/px4_param_dump.py, px4_param_set.py; PX4 v1.16.0 airframes 4001_quad_x / 5001_quad_+; ADR-0134"
+  },
+  {
    "date": "2026-10-25",
    "evidence": "Builder flight reports across modes + param read-backs (session transcript); plumb-line CG test; 843 g scale weigh-in; kill_day_protocol.md secs 1/4/10 sweep; docs/rc_link_setup.md; ADR-0133",
    "so_what": "The wobble hunt is down to wiring-class suspects with cheap bench discriminators queued; the intercept attempt moves out ~a week behind the 2nd TX, a working flight recorder, target maiden, and the camera-mount ladder. The interceptor itself is airworthy -- the weekend's actual gate.",
@@ -1531,12 +1537,6 @@
    "text": "Long-range follow-up to the demo video, builder directive: come in from a 500 m cue, rip ~80 mph in the dash, slow for detection. The capability did not exist, so it was built: approach_dash in flight/pursuit_terminal.py (default OFF, off-path byte-identical by golden test) widens the Phase-A speed cap to dash_v_max_ms, always applies the stopping-distance brake cap toward the believed rendezvous, and gives Phase A its own accel budget; Phase B untouched; honesty-clean (belief + own-EKF only). real_flight grew the four --pursuit-dash-* flags plus a fail-loud engage-window-vs-transit-time warning. isim velocity-curve study pre-registered then run (vmax x a_brake grid): prediction confirmed, and it found the cliff -- vmax 36 with a_brake 3 cannot shed the speed in the belief-error envelope (0/8, ~150 m miss); a_brake 4 is clean. PX4 ceiling: MPC_XY_VEL_MAX declares max 20 but that is GCS metadata -- no code-side clamp in MulticopterPositionControl, so set_px4_params.py (new, wired into fly_takes.sh) does a raw set with fresh read-back. Gazebo arm at the 500 m crossing geometry: 20 m/s takes 0.272/0.199 m; 36 m/s takes hr1-hr5 best 0.087 m CPA (hr5, 64 detections, plant peak 35.8 m/s), first detection at go+17.5 after a 17 s blind dash on pure belief. 58/58 terminal tests, full suite green (dev machine). VIDEO DELIVERED the same session: hr5 re-rendered in the long-range forest set (1.5 km ground, corridor tree band) through the cinema pipeline -- 31.7 s, 9 shots incl. a 3x FFWD transit badge and the 0.2x contact slow-mo; HUD shows the 35.8 m/s peak, the brake to ~7 m/s at first decode, TAG LOCK, and the honesty card (cue error injected, guidance saw camera + own-EKF only).",
    "so_what": "Far-cue engagements are now a flight-code capability, not a sim hack: the same deployed terminal can dash at whatever the airframe gives it and arrive slow enough to lock. The sized-brake rule (a_brake must match dash speed) and the engage-window warning are the two guards that keep a real far-cue flight from sailing past the target. The 36 m/s number is SIM-ONLY -- the real airframe's dash envelope is unmeasured and nothing was written to the real FCs.",
    "evidence": "isim/specs/approach_dash_2026-10-21.md - runs/cinema_longrange_20261021/ - logs/cinema_lr/ - commit 77eb94c - runs/cinema_longrange_20261021/intercept_500m_36ms.mp4"
-  },
-  {
-   "date": "2026-10-21",
-   "text": "Overnight demo-video directive executed end to end. Built the CINEMA pipeline (scripts/cinema/: fly -> export -> Blender re-render -> HUD video; README has the knobs) and flew six camera-in-the-loop Gazebo engagements at TARGET 12 m/s with a deliberately imperfect cue (2-3 m / 4-6 deg injected belief error, mover flies truth): one geometry-class reject (tail-chase start opens range past the ~12 m in-sim decode cliff and drops lock -- isim's decode model flattered it, Gazebo decided), then five full engagements, CPA 0.700 / 0.387 / 0.301 / 0.237 / 0.194 m -- four inside the 0.35 m contact radius. The video take (t6): gap-free camera lock from 7.7 m (+3.7 s after GO) to CPA at +8.0 s, 53 decodes consumed, CPA 0.194 m. The final video re-renders the logged 6-DoF poses in Blender (Cycles/CUDA, field + forest set, real tag texture) with a technical HUD (phase, INERTIAL-PREDICT vs CAMERA-TRACK, speeds, closing rate, range) and the REAL recorded seeker frames as picture-in-picture with offline re-detected tag corners.",
-   "so_what": "First demo asset where the camera correction is visibly load-bearing (the injected cue error would miss by metres; the camera closes it to 0.19 m) -- answers the stale-demo-assets question (#2) with an honest artifact, and the pipeline is config-driven so new videos are a parameter change. DEMO runs, not a gate: perfect-latch cue timing, windless, sim camera, 0.5 m sim tag; scope in each take's _meta.json.",
-   "evidence": "runs/cinema_20261021/ (takes + README) - scripts/cinema/ - renders/t6 (local) - logs/cinema/t6_meta.json - video: runs/cinema_20261021/intercept_12ms.mp4"
   }
  ],
  "narrative": {
@@ -3435,7 +3435,7 @@
      {
       "from": "6C Mini MAIN 1-4 (IO rail)",
       "to": "KO60II signal",
-      "medium": "Plain PWM on the MAIN rail as last recorded (bench.params sec 5, 2026-10-16/17) -- NOT DShot; MAIN cannot speak DShot. Live read-back owed. See ledger interceptor-esc-protocol-pwm-not-dshot."
+      "medium": "Plain PWM on MAIN 1-4, 400 Hz, 1100-1900 us (live dump 2026-11-09) -- NOT DShot; MAIN cannot speak DShot. See ledger interceptor-esc-protocol-pwm-not-dshot."
      },
      {
       "from": "LiPo main",
@@ -4905,8 +4905,21 @@
    "loc_a": "project_state.json build_tab.airframe.connections[2] (pre-fix); docs/airframe_numbers.md sec 7",
    "claim_b": "bench.params sec 5 (2026-10-16/17): PWM_MAIN_FUNC1..4 map the motors onto MAIN1-4, and its own comment says 'the IO co-processor's MAIN rail speaks PWM only'. No DSHOT_CONFIG, PWM_MAIN_MIN/MAX or ESC throttle-range calibration is recorded anywhere in the repo.",
    "loc_b": "configs/px4_6cmini/bench.params:329-366",
-   "current_truth": "As last recorded, the interceptor flies on analog-timed PWM through the IO co-processor, not DShot. PX4 v1.16 docs: DShot is FMU (AUX) only, and PWM ESCs need a throttle-range calibration that DShot does not. Not yet confirmed on the live board (found from the repo, 2026-11-09). It matters for the wobble: an uncalibrated or noisy PWM path is an inner-loop, all-modes, motor-heating cause that the 2026-10-25 suspect list does not contain, and it makes suspect 3 (signal-harness ground) far more damaging than it would be on DShot.",
-   "resolution": "OPEN. Owed: live read-back of PWM_MAIN_FUNC*/PWM_AUX_FUNC*/DSHOT_CONFIG; then either move the four signal wires to AUX 1-4 with DShot600 (re-verify motor order + direction, props off) or run the PWM ESC calibration. Connection text corrected the same turn."
+   "current_truth": "CONFIRMED ON THE LIVE BOARD 2026-11-09 (full USB dump): motors are on MAIN 1-4 as plain PWM at 400 Hz, range 1100-1900 us; all eight AUX functions are 0 (nothing on the DShot-capable pins). No ESC throttle-range calibration is recorded. On this firmware there is no DSHOT_CONFIG parameter -- DShot is chosen per AUX timer group (PWM_AUX_TIM*). An uncalibrated PWM path remains a possible inner-loop contributor, but it is now the SECOND suspect behind the wrong motor layout found the same day (ledger interceptor-allocator-quad-plus-on-x-frame).",
+   "resolution": "OPEN, live read-back done. Deliberately NOT changed on 2026-11-09 so the hover test changes one thing at a time. After the layout-fix hover: if wobble remains, run the PWM ESC calibration or move the four signal wires to AUX 1-4 on DShot600 (re-verify motor order + direction, props off)."
+  },
+  {
+   "id": "interceptor-allocator-quad-plus-on-x-frame",
+   "verdict": "CONFIRMED",
+   "severity": "high",
+   "status": "open",
+   "topic": "The flight controller mixed the motors for a PLUS-shaped quad; the airframe is an X -- every flight so far flew on the wrong motor layout",
+   "claim_a": "bench.params sec 5 (2026-10-17): 'ALL FOUR corners AND directions now match the PX4 quad-X convention. Propulsion chain fully verified.' The 2026-10-25 wobble record rules out rate gains, motors, CG and mounting, and ranks wiring suspects.",
+   "loc_a": "configs/px4_6cmini/bench.params sec 5; project_state.json plain_log 2026-10-25",
+   "claim_b": "Live dump 2026-11-09: SYS_AUTOSTART=5001 (Generic Quad +), rotor positions (0,1) (0,-1) (1,0) (-1,0). The spin test verified which motor sits where and which way it turns; it never checked the layout the controller mixes for. README sec 2 said either generic airframe was fine for the bare board and deferred the real one to the frame build.",
+   "loc_b": "configs/px4_6cmini/dumps/20261109_before_geometry_fix.tsv; configs/px4_6cmini/README.md sec 2",
+   "current_truth": "Fixed on the board 2026-11-09: SYS_AUTOSTART=4001, rotor positions (1,1) (-1,-1) (1,-1) (-1,1), read back after a reboot with no other value changed. With the old layout, thrust and yaw were correct but roll/pitch corrections were rotated 45 degrees (derivation in ADR-0134), which costs about 45 degrees of rate-loop phase margin in every mode -- consistent with a wobble present in all modes, hot motors, and no clean response to a gain change. Whether it IS the wobble's cause is unobserved: no flight since the fix.",
+   "resolution": "OPEN until flown. Owed, in order: props-off stick check in Stabilized (roll right = both LEFT motors speed up; pitch forward = both REAR motors), then a short hover. Wobble + heat gone = close this entry. Still there = the layout was wrong regardless; move to the PWM entry. Every 2026-10-25 'ruled out' verdict was made on the wrong layout and is void until re-earned."
   }
  ]
 }</script>

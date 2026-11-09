@@ -71,11 +71,11 @@
 #       init.d/rcS). Everything in THIS file except RC_MAP_* would be wiped.
 #       => Airframe first, then this file. And if you ever CHANGE the airframe
 #          later, RE-LOAD this file afterwards.
-#       (Any generic multicopter airframe lights up the MC + OFFBOARD stack for
-#        the plumbing test: 4001 "Generic Quadcopter" (Quadrotor x) or 5001
-#        "Generic Quad + geometry" (Quadrotor +) are equally fine with no motors
-#        attached. The REAL airframe ID, geometry, motors and tuning are set when
-#        the physical frame is built.)
+#       USE 4001 "Generic Quadcopter" (Quadrotor x) -- the frame is an X.
+#       (This note used to say 4001 or 5001 "Quad +" were equally fine with no
+#        motors attached and that the real one would be set at the frame build.
+#        It never was: the aircraft flew its maiden and the whole 2026-10-25
+#        wobble hunt on the PLUS layout. Fixed 2026-11-09, ADR-0134.)
 #    1. QGC > Vehicle Setup > Parameters > Tools > "Load from file" > this file.
 #    2. Reboot the FC (SDLOG_MODE and every MAV_*/SER_* line below are
 #       reboot-required). Re-open Parameters and confirm each value.
@@ -360,6 +360,21 @@
 #     two phase wires at each (2026-10-17) and a full re-fly verified ALL FOUR
 #     corners AND directions now match the PX4 quad-X convention. Propulsion
 #     chain fully verified on battery. CBRK_IO_SAFETY restored to 0 same session.
+#     MOTOR LAYOUT WAS WRONG UNTIL 2026-11-09 -- read this before trusting the
+#     paragraph above. The spin test proves WHICH motor is on WHICH pin and its
+#     direction. It does NOT prove the layout the controller MIXES for, and that
+#     was still the bare-board placeholder: SYS_AUTOSTART=5001 "Generic Quad +"
+#     (rotors at (0,1) (0,-1) (1,0) (-1,0)) on an X frame. Thrust and yaw come
+#     out right on that mismatch, so it arms, hovers and passes a spin test --
+#     but roll/pitch corrections land 45 deg off-axis (ADR-0134). Found by a
+#     full live dump, fixed the same session: SYS_AUTOSTART=4001 and
+#     CA_ROTOR0..3 = (1,1) (-1,-1) (1,-1) (-1,1), read back after a reboot with
+#     nothing else changed (dumps/20261109_{before,after}_geometry_fix.tsv).
+#     SYS_AUTOSTART stays OUT of this file (QGC's Apply wipes the pack, see the
+#     header) -- so CHECK IT BY HAND after any airframe change:
+#       python.exe scripts/bench/px4_param_dump.py --port COM5 --out x.tsv --show SYS_AUTOSTART CA_ROTOR
+#     ALSO LIVE-CONFIRMED 2026-11-09: PWM at 400 Hz, 1100-1900 us, all
+#     PWM_AUX_FUNC* = 0. No ESC throttle-range calibration is on record.
 1	1	PWM_MAIN_FUNC1	104	6
 1	1	PWM_MAIN_FUNC2	101	6
 1	1	PWM_MAIN_FUNC3	103	6

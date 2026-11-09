@@ -1276,3 +1276,51 @@ The "earned at ~100°" consequence line is imprecise: the Gazebo results (the ±
 - **Decision:** (c). `real_flight.py` smoke verdict: required states are `(ENGAGE, SAFE)` under `pursuit_mode`, `(CODED_DASH, ENGAGE, SAFE)` otherwise — skipping the dash remains a FAIL for the stock/tag paths, where it is a defect. The gate script passes `--miss-safe-behavior land` (commented: the smoke's termination condition, NOT the flying posture — the aircraft still hovers after a real miss). Rider fix: the silent `offboard_ok` failure now prints its FAIL line (no-silent-verdict rule).
 - **Verified:** gate re-run PASS end-to-end (STANDBY → ENGAGE(go_edge_pursuit) → BREAKOFF → SAFE → land+disarm, 153/154 ENGAGE ticks camera-GUIDED, OFFBOARD held, exit 0); `--audit` and `--self-test` PASS after the edit, on the laptop AND on the Pi (.venv-pi). Logs: `logs/real_flight_sitl_20261024T175806Z.log`.
 - **Why it matters for the weekend:** all three §1.2 pre-session gates are now green on the ACTUAL flying configuration, and the gate once again fails meaningfully if the pursuit path regresses.
+
+## ADR-0134 — Interceptor motor layout corrected from Quad + to Quad X on the live FC (2026-11-09, bench)
+
+**Context.** The interceptor flies with a visible wobble and hot motors in every mode; the
+2026-10-25 hunt ended on wiring suspects. A cloud review of the record (same day) flagged that
+the airframe ID on the board was never recorded. With the Pixhawk on USB, a full read-only dump
+(`scripts/bench/px4_param_dump.py`, 1122/1122 params) showed `SYS_AUTOSTART = 5001` (Generic
+Quad +) with rotor positions (0,1) (0,−1) (1,0) (−1,0). The frame is an X, and the motor
+outputs are mapped by the X convention (Motor1 front-right, 2 back-left, 3 front-left, 4
+back-right — spin-verified 2026-10-16/17).
+
+**Why it flew at all, and why it wobbled (derivation, not a measurement).** *Control
+allocation* is the step that turns "I want this much roll torque" into four motor commands,
+using the rotor positions it is told. Told "plus", it answers a roll-right demand by slowing
+rotor 0 ("the right motor") and speeding rotor 1 ("the left motor"). Physically those are the
+front-right and back-left motors, so the torque produced is about the diagonal: equal parts
+roll and pitch. Same for pitch. Thrust (all four) and yaw (the spin-direction pairs are the
+same in both layouts) are unaffected, which is why it armed, hovered and passed every spin
+test. For a symmetric quad, a plant rotated by 45° in the roll/pitch plane is equivalent to
+45° of phase lead on one whirl direction and 45° of lag on the other, so the rate loop loses
+about 45° of phase margin whatever the gain — an inner-loop, all-modes oscillation that a gain
+ladder does not cleanly move and that keeps the motors working hard.
+
+**Options.** (a) Leave it and keep chasing wiring. (b) Fix the layout only. (c) Fix the layout
+and move to DShot/calibrate PWM in the same session.
+
+**Decision.** (b). Wrote `SYS_AUTOSTART=4001` and `CA_ROTOR0..3` PX/PY = (1,1) (−1,−1) (1,−1)
+(−1,1) — the values of PX4 v1.16.0 `4001_quad_x` — with per-parameter read-back
+(`scripts/bench/px4_param_set.py`), rebooted, dumped again: the before/after diff is exactly
+five lines (the ID plus the four coordinates that differ). `SYS_AUTOCONFIG` stayed 0, so
+nothing was reset. Dumps: `configs/px4_6cmini/dumps/20261109_*`.
+
+**Why not (c).** One change per flight. The PWM finding (ledger
+`interceptor-esc-protocol-pwm-not-dshot`, live-confirmed the same read) is real but changing
+it now would make the hover result unattributable.
+
+**Pre-registered before any flight.** Prediction: wobble and post-hover motor heat are gone or
+clearly reduced at the gains now on the board (K = 0.65). Gate first, props off: Stabilized,
+roll right → both LEFT motors speed up; pitch forward → both REAR motors. *If the wobble
+remains unchanged:* the layout was still wrong and stays fixed, this explanation is demoted,
+and the next step is PWM calibration / the DShot move. *Either way* the 2026-10-25 "ruled out"
+list (gains, CG, mounting, battery sway) was produced on a mis-mixed aircraft and is void
+until re-earned.
+
+**Board-vs-record discrepancies the dump also showed** (recorded, not acted on):
+`MC_ROLLRATE_K`/`MC_PITCHRATE_K` = 0.65 (the log says they went back to 0.8);
+`IMU_GYRO_DNF_EN` = 0 (the log says the notch is on); `CBRK_IO_SAFETY` = 22027 (safety
+switch bypassed — the posture set on maiden day); autotune `MC_AT_EN` = 1.

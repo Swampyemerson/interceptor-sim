@@ -77,13 +77,16 @@ target. (CLI equivalent: `make px4_fmu-v6c_default`.) Insert a **microSD**
 (ULogs are the metrology) and confirm QGC shows it.
 
 ### 2. First connect + airframe  (over USB-C)
-QGC connects automatically over USB. Then *Vehicle Setup → Airframe* → select any
-generic multicopter → **Apply & reboot**. Either **Generic Quadcopter**
-(`SYS_AUTOSTART = 4001`, *Quadrotor x*) or **Generic Quad + geometry**
-(`SYS_AUTOSTART = 5001`, *Quadrotor +*) is fine — with no ESC and no motors the
-only difference between them is motor geometry, and both light up the
-multicopter control + OFFBOARD stack the plumbing test needs. The **real**
-airframe ID / geometry / motors are set when the frame is built.
+QGC connects automatically over USB. Then *Vehicle Setup → Airframe* → select
+**Generic Quadcopter** (`SYS_AUTOSTART = 4001`, *Quadrotor x*) → **Apply & reboot**.
+> **Use 4001, not 5001.** This section used to say *Generic Quad + geometry*
+> (`5001`) was equally fine for the bare board and that the real airframe would be
+> set when the frame was built. It never was, and the X-frame interceptor flew its
+> maiden and the 2026-10-25 wobble hunt mixing its motors for a **plus** layout —
+> roll/pitch corrections 45° off-axis. Found and fixed 2026-11-09 (ADR-0134). A
+> motor spin test does **not** catch this; read `SYS_AUTOSTART` and `CA_ROTOR*`
+> back with `scripts/bench/px4_param_dump.py`.
+
 > **Do the airframe BEFORE loading `bench.params` — this ordering is real, and
 > here is the actual mechanism** (verified 2026-07-26, stronger than the vague
 > claim this README used to make). QGC's Airframe *Apply* writes `SYS_AUTOSTART`

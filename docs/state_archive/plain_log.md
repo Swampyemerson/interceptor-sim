@@ -1,3 +1,11 @@
+### 2026-10-21
+
+Overnight demo-video directive executed end to end. Built the CINEMA pipeline (scripts/cinema/: fly -> export -> Blender re-render -> HUD video; README has the knobs) and flew six camera-in-the-loop Gazebo engagements at TARGET 12 m/s with a deliberately imperfect cue (2-3 m / 4-6 deg injected belief error, mover flies truth): one geometry-class reject (tail-chase start opens range past the ~12 m in-sim decode cliff and drops lock -- isim's decode model flattered it, Gazebo decided), then five full engagements, CPA 0.700 / 0.387 / 0.301 / 0.237 / 0.194 m -- four inside the 0.35 m contact radius. The video take (t6): gap-free camera lock from 7.7 m (+3.7 s after GO) to CPA at +8.0 s, 53 decodes consumed, CPA 0.194 m. The final video re-renders the logged 6-DoF poses in Blender (Cycles/CUDA, field + forest set, real tag texture) with a technical HUD (phase, INERTIAL-PREDICT vs CAMERA-TRACK, speeds, closing rate, range) and the REAL recorded seeker frames as picture-in-picture with offline re-detected tag corners.
+
+**So what:** First demo asset where the camera correction is visibly load-bearing (the injected cue error would miss by metres; the camera closes it to 0.19 m) -- answers the stale-demo-assets question (#2) with an honest artifact, and the pipeline is config-driven so new videos are a parameter change. DEMO runs, not a gate: perfect-latch cue timing, windless, sim camera, 0.5 m sim tag; scope in each take's _meta.json.
+
+*Evidence: runs/cinema_20261021/ (takes + README) - scripts/cinema/ - renders/t6 (local) - logs/cinema/t6_meta.json - video: runs/cinema_20261021/intercept_12ms.mp4*
+
 ### 2026-08-12
 
 The contract now renders a SECOND view: a set of systems-engineering diagrams and traceability tables (MBSE), generated from the same JSON as the dashboard. Nothing on it is hand-drawn.
