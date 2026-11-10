@@ -117,3 +117,49 @@ position plus plain blocks named `REF_*` standing in for the Pixhawk, Pi 5 and H
 Those blocks are envelopes from the parameter block, not real board models. Units are
 millimetres; x points to the nose, z is up from the top plate. A STEP import has no
 feature tree, so change dimensions in `pod.py` and regenerate.
+
+## Vendor CAD and sourced dimensions (found 2026-11-09; rev 1 does NOT use them yet)
+
+Rev 1 was drawn from remembered datasheet numbers. Official models exist and
+change the design. They are not committed here (vendor files); fetch them from:
+
+- Pixhawk 6C Mini STEP, three variants (Model A legacy, Model A current, Model B):
+  <https://docs.holybro.com/autopilot/pixhawk-6c-mini/download>
+- Pixhawk 6C Mini port layout drawings:
+  <https://docs.holybro.com/autopilot/pixhawk-6c-mini/pixhawk-6c-mini-ports>
+- Raspberry Pi 5 STEP: <https://datasheets.raspberrypi.com/rpi5/RaspberryPi5-step.zip>
+- AI HAT+ mechanical drawing:
+  <https://www.raspberrypi.com/documentation/accessories/ai-hat-plus.html>
+
+Measured from those files (bounding boxes, CadQuery import, WSL dev machine):
+
+| Item | Size (mm) | Rev 1 assumed |
+|---|---|---|
+| 6C Mini Model A, legacy | 53.3 x 39.0 x 16.2 | 53.3 x 38.4 x 16.5 |
+| 6C Mini Model A, current | 54.3 x 39.0 x 17.45 | same |
+| 6C Mini Model B | 58.3 x 39.0 x 18.15 | same |
+| Pi 5 with connectors | 88.5 x 57.6 x 19.0 (board 85 x 56) | board 85 x 56 |
+| AI HAT+ board | 65 x 56.5, holes 58 x 49 | 65 x 56 |
+
+What the port drawings show, and what it breaks in rev 1:
+
+- **No connector leaves the top of a Model A.** POWER, TELEM1, TELEM2, GPS1, CAN1
+  and CAN2 leave the FRONT end (the end the arrow points to) in two rows; USB-C,
+  FMU debug, I2C and GPS2 leave the left side; DSM, RSSI and the microSD the right
+  side; the servo pin header, AUX5, AUX6 and RC IN leave the REAR end. On a Model B
+  the servo pin header is on top instead. There is no TELEM3 port on this board.
+- So `FC_PLUG_ROOM = 12` is wasted height on a Model A: the Pi could sit roughly
+  9 mm lower. A Model B still needs it.
+- The room rev 1 lacks is at the ENDS. The front floor stops about 11 mm past the
+  FC's front face (the dock hook is there), and the rear release-screw boss sits
+  about 8 mm behind its rear face, in line with the servo header. Rev 2 must give
+  both ends plug-and-bend room, or turn the FC sideways.
+- The FC currently flies nose-backwards (`SENS_BOARD_ROT=4`). Rev 2 must pick an
+  orientation on purpose; changing it means changing that setting and re-checking.
+- Camera ribbon: the Pi 5's camera sockets are on its top face near the middle of
+  the board. Estimated run to a nose camera is 170-200 mm with the Pi at 36 mm
+  (an estimate, not measured). The AR0234 ships a 150 mm cable. Lowering the Pi
+  helps by under 20 mm; a 300 mm 22-pin-to-15-pin cable is the sure fix.
+
+Needed from the builder before rev 2: Model A or B, the camera ribbon's length,
+and the flat width of the top plate.
