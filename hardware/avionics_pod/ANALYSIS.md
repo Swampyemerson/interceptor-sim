@@ -106,9 +106,10 @@ on the nose-post assembly in SolidWorks Simulation, with the same inputs as this
   1143 kg/m^3, solid PETG times the print fill), the exact fixture faces, and the
   contact settings of each study.
 
-**SolidWorks static study at 10 g (builder, 2026-11-10).** Same assembly, same two
-materials, parts bonded, held at the bolts, with gravity set to ten times normal
-("Nose post static 10g"). The direction of the load is not recorded here.
+**SolidWorks static study at 10 g (builder, 2026-11-10).** "Nose post static 10g":
+`dock_cam`, `cam_plate_nose` and the 15 g camera stand-in, parts bonded, the dock's
+underside held flat (not the six screws: the hole faces could not be re-picked). Load is
+10 g on all three axes at once, 17.3 g combined.
 
 | Result | Peak | Picture |
 |---|---|---|
@@ -116,14 +117,16 @@ materials, parts bonded, held at the bolts, with gravity set to ten times normal
 | Movement | 0.072 mm, at the lens tip | `media/solidworks_nose_post_static_10g_displacement.png` |
 | Strain | 0.0004 (0.04 %) | `media/solidworks_nose_post_static_10g_strain.png` |
 
-- **Strength margin is large.** Printed PETG fails somewhere around 20 to 50 MPa
-  depending on layer direction (typical figures, not measured on this print), so 1 MPa
-  is a margin of 20 or more at 10 g.
-- **It agrees with the bolted frequency.** A part that sags 0.072 mm under 10 g would
-  ring at roughly sqrt(98.1 / 0.000072) / (2 pi) = 185 Hz if it moved in that one shape;
-  the bolted study gave 173 Hz.
-- **What it does not cover.** This is the mount carrying its own weight in a hard
-  manoeuvre. It says nothing about a knock on the camera itself, which sits out front.
+- **Strength margin is large.** About 45 times on the 45 MPa yield entered in the
+  "PETG printed E1900" material, about 25 times if layer adhesion is nearer 25 MPa.
+  Both strengths are typical values for printed PETG, not measurements of this print.
+- **It is consistent with the like-for-like frequency.** A part that sags 0.072 mm under
+  17.3 g would ring at roughly sqrt(169.9 / 0.000072) / (2 pi) = 244 Hz if it moved in
+  that one shape; the same hold gave 275 Hz in SolidWorks and 254 Hz here.
+- **What it means.** Steady g-loading does not size this mount. Vibration and a knock
+  on the camera, which sits out front, are the cases that matter, and this study covers
+  neither.
+- **Not done yet:** the same run with the pod included.
 
 **What this means for the camera.** The lid cradle is the least stiff place on the
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
