@@ -1427,3 +1427,22 @@ is now 25 %. Low stick no longer hovers.
 correction, evens loop gain across throttle), aimed at the brief oscillation the builder
 places "returning to hover from a climb", i.e. at a throttle transient. Gyro filters still 40/30.
 
+**Addendum 5, same day — source check of addendum 4's mechanism, written BEFORE the flight.**
+Reading PX4 v1.16.0 source corrects two statements above and weakens the prediction.
+(1) *"Mid-stick gives `MPC_THR_HOVER`"* holds only until the in-flight hover-thrust estimate
+is valid. With `MPC_THR_CURVE = 0` the stick centre follows the ESTIMATE, slewed at 5 % per
+second (`mc_att_control_main.cpp`); the setting is used on the ground and for the first
+seconds. (2) The estimator is confined to `MPC_THR_HOVER` ± `HTE_THR_RANGE` (0.2 on the
+board): at 0.5 it could search 0.30 to 0.70, at 0.25 it searches 0.05 to 0.45
+(`MulticopterHoverThrustEstimator.cpp`). (3) The derived hover command at `THR_MDL_FAC = 0`
+is 0.365 (0.315 to 0.398 across the thrust and weight estimates;
+`scripts/airframe_numbers.py hover_command`), which was INSIDE the old band. So on the
+derived numbers the estimator was not pinned, and a 0.12 floor is only (0.12 / 0.365)² ≈ 11 %
+of weight, which is plenty of room to descend. *Revised forecast:* the height change is a
+sound setting but may fly as a NULL for height hold; the registered criterion stands and is
+not softened. *Added discriminators:* lift-off stick position in Stabilized (derived ≈ 58 %;
+at or below mid-stick ⇒ hover ≤ 0.25 and the old band WAS pinning the estimator, so
+addendum 4's mechanism is right); and whether the throttle stick rests inside the ± 10 %
+hold band (`MPC_HOLD_DZ`), which a non-centring stick does not. The remaining ladder, with
+predictions per rung, is `docs/tuning_ladder.md`.
+

@@ -28,7 +28,7 @@ hosted at https://claude.ai/artifact/VZ8qf3qmhdcEfrwZ74F5jk
 | Thrust-to-weight | 7.5 : 1 at 800 g; 6.3 : 1 at 950 g (rule: ≥ 5 : 1) | derived |
 | Hover current | ≈ 7.5 A (5.5 to 7.5 A across the FM/efficiency band) | derived |
 | Hover time | ≈ 10 min (9.6 to 13.1 min), 80% of a 1500 mAh pack | derived |
-| Hover throttle | ≈ 37 % | derived; **not yet measured.** The board is set to 25 % (`MPC_THR_HOVER`, a racer-airframe starting value, 2026-11-09) and the flight evidence so far is by feel only |
+| Hover throttle | ≈ 37 % of the motor signal (≈ 30 % once the thrust-curve setting is 0.3) | derived; **not yet measured.** The board's starting value is 25 % (`MPC_THR_HOVER`, 2026-11-09). §5.1 reconciles the three figures in play |
 | Target drone weight | 610.5 g bare, 803.5 g with placard | derived (`placard_mount.md` §4.2) |
 
 ---
@@ -70,6 +70,12 @@ Target drone: same motors, props, frame and packs; Kakute H7 + Tekko32 65A, Ardu
 | CNHL 6S 1500 pack | 254 | vendor |
 | **AUW** | **≈ 800** | derived |
 | + AI HAT+ (neural-net phase) | +20 | estimate |
+| + Avionics pod, printed parts (dock ≈ 14, base ≈ 18, lid ≈ 6) | ≈ +39 | CAD estimate, `hardware/avionics_pod/mass_report.json` (rev 2 as of 2026-11-09, PETG, not printed or weighed; the design is still changing) |
+
+The pod is not in the roll-up above because it is not built. If it is, it **replaces the Pi
+tray** share of the 35 g "Printed Pi tray + camera boom" line (the split of that line was
+never recorded), so the net change is somewhere between about +4 g and +39 g, and AUW stays
+near 800 to 840 g. Hover power moves by about 1.5 × the weight change in percent (§5).
 
 The earlier roll-up in `docs/decisions.md` (≈ 770 g, payload-feasibility entry) used the
 first parts pick (Mark5 frame, XING2 motors). This table uses the parts actually ordered.
@@ -113,7 +119,7 @@ Momentum theory gives the ideal hover power; divide by the prop's figure of meri
 the motor plus ESC efficiency (η) for electrical power, then by pack voltage for current.
 
 ```
-At 800 g, sea level, 5.0 in props
+At the 800.5 g roll-up (written as 800 g), sea level, 5.0 in props
 W        = 0.800 × 9.81                    = 7.85 N
 T/rotor  = W / 4                           = 1.96 N   (200 g)
 A        = π (0.127/2)²                    = 0.01267 m²
@@ -141,7 +147,50 @@ throttle ≈ √(W / T_max) = √(1 / 7.5)       = 37 %
   at 28 to 45 A), which would use the usable pack in under a minute. The launch plan budgets
   30 to 60 s of standby hover (`launch_mechanism_plan.md`).
 - **How it gets measured:** a 60 s hover, current from the PM02 in the ULog, and the learned
-  hover throttle (PX4 MPC_THR_HOVER; ArduPilot MOT_THST_HOVER on the target).
+  hover throttle (PX4 MPC_THR_HOVER; ArduPilot MOT_THST_HOVER on the target). With the FC's
+  card slot dead, the substitute is `scripts/bench/hover_recorder.py` on the Pi: it logs the
+  motor signal, and hover throttle = (signal − 1100) / 800 on this board's 1100 to 1900 µs range.
+
+### 5.1 Three hover-throttle numbers, reconciled (2026-11-09)
+
+Three figures are in play. They are not three measurements of one thing.
+
+| Figure | What it actually is | Tier |
+|---|---|---|
+| **37 %** | The motor **signal** needed to hover, √(1 / 7.5), if thrust goes as signal squared and max thrust is 1.5 kg per motor | derived from estimates |
+| **25 %** | The **starting guess** written to the board (`MPC_THR_HOVER`), copied from PX4's QAV250 racer airframe | setting, not a measurement |
+| **"60 % stick launched it"** | The builder's observation in Stabilized, when the board still assumed 50 % | observation |
+
+- **The 60 % observation does not measure hover.** At that time mid-stick meant 50 % thrust
+  (the old setting), so 60 % stick commanded about 0.60. If hover needs 0.365, that is
+  (0.60 / 0.365)² ≈ 2.7 times the aircraft's weight in thrust: it leaps. The observation only
+  says hover is well below 0.6. It is consistent with 37 %, with 25 %, and with anything between.
+- **37 % and 25 % are in different units once the thrust-curve setting changes.** PX4 hover
+  numbers are in *commanded thrust*. With `THR_MDL_FAC = 0` (the board today) command equals
+  signal, so the derivation predicts **0.365**. With `THR_MDL_FAC = 0.3` PX4 bends the curve
+  (command = 0.3 s² + 0.7 s) and the same hover becomes **0.296**. The racer airframe's 0.25
+  ships together with 0.3, on a different aircraft.
+- **Spread from what is not measured:** max thrust 2.02 kg per motor (the highest listing)
+  instead of 1.5 gives 0.315 (and 0.250 with the 0.3 curve); a design-ceiling weight of
+  950 g gives 0.398. If the
+  speed controller was never calibrated to the FC's 1100 to 1900 µs range, every figure shifts
+  again (0.331 instead of 0.365 if its own range is 1000 to 2000 µs; this is an example, the
+  real range is unknown).
+- **Does the 25 % setting matter if it is wrong?** Less than it looks. In PX4 v1.16.0 the
+  height controller uses a live hover-thrust *estimate*; the setting is only its starting
+  point and the middle of the band it may search, ± 0.2 (`HTE_THR_RANGE`). At 0.5 the band
+  was 0.30 to 0.70; at 0.25 it is 0.05 to 0.45, which covers every figure above. The estimate
+  is not saved between flights.
+- **A by-eye check on the next flight.** Taking off in Stabilized, before the estimate
+  exists, mid-stick commands 0.25. On the derived numbers the aircraft should get light at
+  about **58 % stick** (54 % to 60 % across the spread above); at mid-stick or below would mean
+  hover is 0.25 or less and the thrust estimate in §4 is low. After a few seconds in the air
+  PX4 slides mid-stick to the estimated hover (5 % per second), so only the lift-off moment
+  is informative.
+
+All figures in this subsection come from `hover_command()` and `stick_for_command()` in
+`scripts/airframe_numbers.py`; the PX4 behaviour is read from the v1.16.0 source
+(`FunctionMotors.hpp`, `mc_att_control_main.cpp`, `MulticopterHoverThrustEstimator.cpp`).
 
 ---
 

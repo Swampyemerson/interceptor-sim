@@ -119,6 +119,33 @@ def hover(auw_g, thrust_g=THRUST_PER_MOTOR_G, rho=RHO_SL, fm=FIGURE_OF_MERIT,
     }
 
 
+def hover_command(tw, thr_mdl_fac=0.0, pwm_lo_frac=0.0, pwm_hi_frac=1.0):
+    """PX4's normalised hover thrust command (what MPC_THR_HOVER and the hover-thrust
+    estimator are measured in) for a given thrust-to-weight.
+
+    Assumes real thrust ~ (ESC throttle)^2. PX4 turns a command c into an output
+    signal s by solving  c = f s^2 + (1 - f) s  with f = THR_MDL_FAC
+    (PX4 v1.16.0 src/lib/mixer_module/functions/FunctionMotors.hpp). Hover needs
+    s = sqrt(1 / TW), so c = f / TW + (1 - f) sqrt(1 / TW).
+
+    pwm_lo_frac / pwm_hi_frac: where the FC's PWM_MIN / PWM_MAX sit inside the ESC's
+    own throttle range (0..1). 0 and 1 = a calibrated ESC. An ESC still on a
+    1000-2000 us range driven with 1100-1900 us would be 0.1 and 0.9."""
+    s_esc = math.sqrt(1.0 / tw)                          # ESC throttle fraction at hover
+    s = (s_esc - pwm_lo_frac) / (pwm_hi_frac - pwm_lo_frac)   # FC output signal 0..1
+    return thr_mdl_fac * s * s + (1.0 - thr_mdl_fac) * s
+
+
+def stick_for_command(cmd, centre, thr_min=0.08, thr_max=1.0):
+    """Throttle stick position (0 = low, 1 = high) that commands `cmd` in Stabilized.
+    PX4 v1.16.0 mc_att_control throttle_curve(): three-point map low stick -> thr_min,
+    mid stick -> `centre`, high stick -> thr_max. `centre` is MPC_THR_HOVER on the
+    ground and the hover-thrust ESTIMATE once that is valid in flight (MPC_THR_CURVE=0)."""
+    if cmd >= centre:
+        return 0.5 + 0.5 * (cmd - centre) / (thr_max - centre)
+    return 0.5 * (cmd - thr_min) / (centre - thr_min)
+
+
 def trim(auw_g, v_ms, rho=RHO_SL, cda=CDA_M2):
     w = auw_g / 1000 * G
     d = 0.5 * rho * v_ms ** 2 * cda
@@ -196,6 +223,10 @@ def main(argv=None):
         h = hover(auw, args.thrust, args.rho, fm, eta)
         print(f"  sensitivity FM {fm} eta {eta}: {h['hover_current_A']:.1f} A, {h['hover_time_min']:.1f} min")
     h = hover(auw, args.thrust, args.rho, args.fm, args.eta)
+    for f in (0.0, 0.3):
+        c = hover_command(h["tw"], f)
+        print(f"  hover command at THR_MDL_FAC {f}: {c:.3f}  "
+              f"(Stabilized lift-off stick with MPC_THR_HOVER 0.25: {stick_for_command(c, 0.25) * 100:.0f}%)")
     print(f"  lateral accel: paper {h['max_lateral_accel_ms2']:.1f} m/s^2, at {TILT_LIMIT_DEG:.0f} deg tilt limit "
           f"{h['tilt_limited_accel_ms2']:.1f} m/s^2")
     for v in (9.0, 16.0):
