@@ -94,13 +94,30 @@ Which face of the Pixhawk carries the USB-C port, SD slot and servo pins was NOT
 the bay is open on all sides so any orientation is reachable. The flight controller must
 still point the way `SENS_BOARD_ROT` says, or that parameter must be changed and re-verified.
 
-## Hardware
+## Hardware (order list, revision 4 with the nose camera post)
 
-- Dock to frame: 1 mm foam tape + 2 zip ties (up to 4.8 mm wide), OR 4 x M3 flat-head screws + nuts
-- 1 x M3 heat-set insert + 1 x M3 x 10 screw or thumbscrew (rear release)
-- 4 x M2.5 heat-set inserts (Pi bosses), 4 x M2.5 x 16 standoffs (come with the HAT),
-  4 x M2.5 x 8 male-female standoffs + 4 x M2.5 screws (lid)
-- 2 mm foam tape under the Pixhawk
+Counts come from the CAD. Screw lengths are worked out from the drawn thicknesses and
+are not fit-checked; the two marked "check" depend on things not yet measured.
+
+| Item | Qty needed | Where it goes |
+|---|---|---|
+| M3 flat-head (countersunk) screw, 10 mm | 6 | dock to the frame's standoffs, replacing six of the frame's own top screws. Check: 12 mm if the standoff threads start deep |
+| M3 heat-set insert, about 5.7 mm long, for a 4.0 mm hole | 5 | 1 rear release boss, 4 camera plate ears |
+| M3 button-head screw, 8 mm | 4 | camera pivot (2) and tilt lock (2) |
+| M3 screw, 10 mm (or a thumbscrew) | 1 | rear release |
+| M2.5 heat-set insert, 5 mm long or shorter, for a 3.6 mm hole | 4 | Pi bosses in the pod base |
+| Brass M2.5 male-female hex standoff, 16 mm | 4 | Pi to HAT (the HAT kit's are reported to be nylon) |
+| Brass M2.5 male-female hex standoff, 8 mm | 4 | HAT to lid |
+| M2.5 screw, 6 mm | 4 | lid |
+| M2 self-tapping screw for plastic, 6 mm | 4 | camera board to its plate. Check: board hole size is a guess |
+| Double-sided foam tape, 2 mm | 1 strip | under the Pixhawk (the Pixhawk kit's pads will do) |
+| JST-SH 1.0 mm 3-pin cable (sold as a "Raspberry Pi debug" cable) | 1 | Pi 5 serial socket to the Pixhawk TELEM2 lead; needs splicing to the existing lead |
+| Right-angle USB-C plug or adapter | 1 | Pi power, pointing aft, clear of the rear-right prop |
+| PETG filament, or a print service | about 75 g of parts | dock_cam 24 g, pod_base 18 g, pod_lid 6 g, cam_plate_nose 5 g, plus templates and a reprint |
+
+Not in this list because they are tracked elsewhere: the replacement Pi 5 (8 GB), the
+AI HAT+, and calipers. The camera ribbon already bought for the Pi 5 (22-pin to 15-pin)
+is long enough.
 
 ## Printing
 
