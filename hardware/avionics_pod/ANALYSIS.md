@@ -99,7 +99,12 @@ on the nose-post assembly in SolidWorks Simulation, with the same inputs as this
   instead of across its whole underside drops the first sway to 173 Hz, 37 % lower.
   That is the more realistic case, and it is below the hover motor rate (about 213 Hz):
   the motors pass through it on spin-up but do not sit on it in flight.
-- Not recorded here: the exact fixture faces and the contact settings of each study.
+- **Camera stand-in material checked** (`media/solidworks_material_camera_standin_15g.png`):
+  stiffness 5000 MPa, Poisson's ratio 0.3, density 2860 kg/m^3. On the stand-in's
+  5266 mm^3 that is 15.06 g, matching this model's 15 g and 5000 MPa.
+- Not recorded here: the density given to "PETG printed E1900" (this model uses
+  1143 kg/m^3, solid PETG times the print fill), the exact fixture faces, and the
+  contact settings of each study.
 
 **What this means for the camera.** The lid cradle is the least stiff place on the
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
