@@ -40,8 +40,8 @@ for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
          (0.1, 0.35, 0.7, 0.55)),
     ):
         ax.add_collection3d(Poly3DCollection(b, facecolors=c, edgecolors=(0, 0, 0, 0.4)))
-    ax.set_xlim(-60, 45); ax.set_ylim(-52, 52); ax.set_zlim(0, 75)
-    ax.set_box_aspect((105, 104, 75)); ax.view_init(elev=elev, azim=azim)
+    ax.set_xlim(-75, 45); ax.set_ylim(-52, 52); ax.set_zlim(0, 75)
+    ax.set_box_aspect((120, 104, 75)); ax.view_init(elev=elev, azim=azim)
     ax.set_xlabel("x  (nose +)"); ax.set_ylabel("y"); ax.set_title(title)
 fig.suptitle("Avionics pod: grey = dock (stays on frame), orange = removable pod, "
              "ghosts = Pixhawk (black), Pi 5 (green), USB/Ethernet block (silver), AI HAT+ (blue)")

@@ -39,10 +39,16 @@ TIE_XS = (-40.0, 18.0)   # zip-tie stations (clear of pins, bolt slots, boss, ho
 TIE_W, TIE_GROOVE = 5.0, 1.4   # fits ties up to 4.8 mm wide, 1.3 mm thick
 
 # --- Pixhawk 6C Mini --------------------------------------------------------
-FC_L, FC_W, FC_H = 53.3, 38.4, 16.5   # MEASURE (vendor sheet from memory)
-FC_X0 = -8.0             # FC centre, fore-aft
+# Model A, current case: bounding box of Holybro's own STEP (6C-MINI-A_rev.stp).
+# NOTHING plugs into the top of a Model A. Arrow end: POWER/TELEM1/TELEM2/GPS1/CAN.
+# Tail end: servo pin header, AUX5, AUX6, RC IN. Sides: USB-C, debug, I2C, GPS2 /
+# DSM, RSSI, microSD. So the plug room this pod must provide is at the ENDS.
+FC_L, FC_W, FC_H = 54.3, 39.0, 17.45
+FC_X0 = -12.0            # FC centre, fore-aft
+FC_ARROW_AFT = True      # as flown since maiden day (SENS_BOARD_ROT=4, yaw 180)
 FOAM_T = 2.0             # foam tape under the FC
-FC_PLUG_ROOM = 12.0      # height kept free above the FC for plugs + cable bend
+FC_PLUG_ROOM = 4.0       # air gap over the FC lid (Model A: no top plugs); a
+                         # Model B has its servo pins on top and needs ~14 here
 
 # --- Raspberry Pi 5 (official mechanical drawing) --------------------------
 PI_L, PI_W, PI_T = 85.0, 56.0, 1.6
@@ -60,8 +66,8 @@ INSERT_M25_D, INSERT_M25_DEPTH = 3.6, 5.0   # M2.5 heat-set insert pocket
 INSERT_M3_D, INSERT_M3_DEPTH = 4.0, 5.5     # M3 heat-set insert pocket
 PIN_D, PIN_CLEAR = 4.0, 0.25
 FLOOR_X_FRONT, FLOOR_X_REAR = 30.0, -44.0
-TAB_X_REAR, TAB_HALF_W = -57.0, 9.0
-SCREW_X = -50.0
+TAB_X_REAR, TAB_HALF_W = -71.0, 9.0
+SCREW_X = -64.0         # ~18 mm of plug-and-bend room behind the FC
 HOOK_HALF_W = 12.0
 LID_T = 1.6
 
@@ -150,7 +156,8 @@ def pod_base():
     # side panels with a low, wide cable window each (chamfered top = no supports)
     px0, px1 = HOLE_XS[0] - BOSS_D / 2, HOLE_XS[1] + BOSS_D / 2
     wx0, wx1 = FC_X0 - FC_L / 2 + 3.0, FC_X0 + FC_L / 2 - 3.0
-    wz_flat, wz_top = Z_FLOOR + 13.0, Z_PI - 8.0
+    wz_top = Z_PI - 6.0
+    wz_flat = wz_top - 1.5
     rise = wz_top - wz_flat
     for sy in (-1, 1):
         y0, y1 = sorted((sy * PANEL_Y_IN, sy * PI_W / 2))
@@ -170,7 +177,7 @@ def pod_base():
         fx0, fx1 = sorted((fx, fx + sx * 1.6))
         for sy in (-1, 1):
             ya, yb = sorted((sy * (FC_W / 2 - 9.0), sy * (FC_W / 2 - 1.0)))
-            b = b.union(box(fx0, fx1, ya, yb, Z_FLOOR, Z_FLOOR + 5.0))
+            b = b.union(box(fx0, fx1, ya, yb, Z_FLOOR, Z_FC0 + 1.5))   # low: clear of the end plugs
     # sockets for the dock's locating pins: one round, one slotted (no over-constraint)
     (x, y) = PINS[0]
     b = b.cut(cyl(x, y, Z_DOCK - 1, Z_FLOOR + 1, PIN_D + 2 * PIN_CLEAR))
@@ -239,7 +246,7 @@ def mass_report(parts):
     }
 
 
-def assembly(parts):
+def assembly(parts, vendor_fc=None):
     """One STEP for CAD inspection: the three printed parts in flight position,
     plus plain blocks standing in for the boards (envelopes, not real models)."""
     hw = PI_W / 2
@@ -247,9 +254,27 @@ def assembly(parts):
     asm.add(parts["dock"], name="dock", color=cq.Color(0.35, 0.35, 0.38))
     asm.add(parts["pod_base"], name="pod_base", color=cq.Color(0.95, 0.55, 0.15))
     asm.add(parts["pod_lid"], name="pod_lid", color=cq.Color(0.95, 0.75, 0.30))
-    asm.add(box(FC_X0 - FC_L / 2, FC_X0 + FC_L / 2, -FC_W / 2, FC_W / 2,
-                Z_FC0, Z_FC0 + FC_H),
-            name="REF_pixhawk_6c_mini_envelope", color=cq.Color(0.15, 0.15, 0.15))
+    fc = None
+    if vendor_fc and os.path.exists(vendor_fc):
+        # Holybro's model: +x = arrow end, underside at z = -1, centre x = 1.95
+        raw = cq.importers.importStep(vendor_fc)
+        fc = cq.Workplane(obj=cq.Compound.makeCompound(list(raw.vals())))
+        fc = fc.translate((-1.95, 0, 1.0))
+        if FC_ARROW_AFT:
+            fc = fc.rotate((0, 0, 0), (0, 0, 1), 180)
+        fc = fc.translate((FC_X0, 0, Z_FC0))
+    if fc is not None:
+        asm.add(fc, name="REF_pixhawk_6c_mini_modelA_vendor",
+                color=cq.Color(0.15, 0.15, 0.15))
+    else:
+        asm.add(box(FC_X0 - FC_L / 2, FC_X0 + FC_L / 2, -FC_W / 2, FC_W / 2,
+                    Z_FC0, Z_FC0 + FC_H),
+                name="REF_pixhawk_6c_mini_envelope", color=cq.Color(0.15, 0.15, 0.15))
+    # keep-clear volumes for plugs and cable bends at both ends of the FC
+    for nm, xa, xb in (("REF_plug_room_front", FC_X0 + FC_L / 2, FC_X0 + FC_L / 2 + 15.0),
+                       ("REF_plug_room_rear", FC_X0 - FC_L / 2 - 15.0, FC_X0 - FC_L / 2)):
+        asm.add(box(xa, xb, -FC_W / 2 + 1, FC_W / 2 - 1, Z_FC0 + 2.0, Z_FC0 + FC_H - 1.0),
+                name=nm, color=cq.Color(0.9, 0.2, 0.2, 0.35))
     asm.add(box(-PI_L / 2, PI_L / 2, -hw, hw, Z_PI, Z_PI + PI_T),
             name="REF_pi5_board", color=cq.Color(0.10, 0.60, 0.20))
     asm.add(box(PI_L / 2 - 21, PI_L / 2 + 2, -hw + 2, hw - 2, Z_PI + PI_T, Z_PI + 16),
@@ -262,6 +287,8 @@ def assembly(parts):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.dirname(os.path.abspath(__file__)))
+    ap.add_argument("--vendor-fc", default=None,
+                    help="path to Holybro's 6C-MINI-A_rev.stp (not committed; see README)")
     a = ap.parse_args()
     parts = {"dock": dock(), "pod_base": pod_base(), "pod_lid": pod_lid(),
              "dock_coupon": dock(coupon=True)}
@@ -273,7 +300,7 @@ def main() -> int:
         cq.exporters.export(wp, os.path.join(a.out, f"{name}.stl"), tolerance=0.02,
                             angularTolerance=0.2)
         cq.exporters.export(wp, os.path.join(a.out, f"{name}.step"))
-    assembly(parts).save(os.path.join(a.out, "avionics_pod_assembly.step"))
+    assembly(parts, a.vendor_fc).save(os.path.join(a.out, "avionics_pod_assembly.step"))
     rep = mass_report({k: v for k, v in parts.items() if k != "dock_coupon"})
     with open(os.path.join(a.out, "mass_report.json"), "w") as f:
         json.dump(rep, f, indent=1)
