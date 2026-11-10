@@ -21,19 +21,24 @@ Print `dock_coupon.stl` first (5 minutes, 0.8 mm thick) and check it against the
 wedge put it back in the same place each time, which matters because the flight controller's
 orientation is calibrated to the frame.
 
-## Fixing the dock to the frame: two ways
+## Fixing the dock to the frame
 
-1. **No drilling, no hole pattern needed (default for now):** thin foam tape (VHB-type,
-   about 1 mm) under the dock, plus two zip ties round the top plate. The ties lie in the two
-   grooves across the dock's top face and drop through the notches at its edges, so the pod
-   still sits flat. Tape on plastic and carbon is fine — the rule is no tape on a circuit board.
-   Use THIN tape: thick soft foam lets the whole pod rock, and the flight controller inside it
-   would rock with it. The Pixhawk already has its own vibration isolation inside the case.
-2. **Bolted:** four M3 flat-head screws through the slotted holes, once the top plate's hole
-   spacing is measured (`DOCK_HOLE_DX`, `DOCK_HOLE_DY`). The slots can simply be left unused.
+**Bolted is now the plan** (changed 2026-11-09 after the vibration analysis and the gap
+review; see `ANALYSIS.md` and `GAP_REVIEW.md`).
 
-Either way, the only number the dock really needs from the frame is the flat width of the top
-plate (`DOCK_W`, assumed 38 mm).
+1. **Bolted (for flight):** TBS's published drawing of the top plate shows no 30.5 mm
+   pattern. Its only holes are the standoff screws, 29.2 mm apart side to side. The dock's
+   four holes now match four of those screws (55.77 mm apart fore-aft), so the dock goes on
+   with four longer M3 flat-head screws into the frame's own standoffs. This is from the
+   drawing, not from the real plate: print `dock_coupon` and lay it on the plate first.
+2. **Tape and zip ties (for a fit check only):** thin tape under the dock and two ties
+   through the plate's strap slots. The analysis puts the whole pod's rocking on tape
+   inside the motor vibration range for any tape, and that rocking carries the Pixhawk.
+   Do not fly with the Pixhawk aboard on tape alone.
+
+The top plate is 42.5 mm wide for only about 40 mm of its length and 29 mm wide elsewhere,
+so the 38 mm dock overhangs the narrow parts. Its tail is narrowed to keep the corners away
+from the rear prop tips.
 
 ## Why it is laid out this way
 
@@ -69,16 +74,16 @@ by how much depends on where the battery sits, so re-do the plumb-line test afte
 | # | Measure | Parameter in `pod.py` | Value assumed |
 |---|---|---|---|
 | 1 | Flat width of the top plate where the dock sits | `DOCK_W` | 38 mm |
-| 2 | Spacing of four M3 holes/slots in the top plate you can use | `DOCK_HOLE_DX`, `DOCK_HOLE_DY` | 30.5 x 30.5 mm (a guess) |
+| 2 | Spacing of four M3 holes/slots in the top plate you can use | `DOCK_HOLE_DX`, `DOCK_HOLE_DY` | 55.77 x 29.2 mm, the frame's standoff screws (from TBS's drawing; check with the coupon) |
 | 3 | Pixhawk 6C Mini case length, width, height | `FC_L`, `FC_W`, `FC_H` | 53.3 x 38.4 x 16.5 mm |
 | 4 | Height of the tallest plug on top of the Pixhawk, cable bent over | `FC_PLUG_ROOM` | 4 mm (Model A has no top plugs; confirmed by the builder) |
 | 5 | Height of the tallest part on top of the HAT | `LID_STANDOFF` | 8 mm |
 | 6 | **Height of the prop tips above the top plate** | (check only) | must be well below 29 mm |
 | 7 | Where the battery rides (on top or underneath) | (layout) | assumed underneath |
 
-Item 6 matters: seen from above, the corners of the Pi sit at the edge of the prop discs
-(computed for a 240 mm wheelbase and 5 inch props: -0.2 mm). That is true of any centred
-Pi 5 on this frame. The Pi board is 29 mm above the top plate in this design; it is only
+Item 6 matters: seen from above, the corners of the Pi sit close to the prop discs. An
+earlier figure here (-0.2 mm, overlapping) did not reproduce; the gap review measured 5.6
+to 7.4 mm clear for a 240 mm wheelbase and 5 inch props, with the pod centred. The Pi board is 29 mm above the top plate in this design; it is only
 safe if the props spin clearly below that.
 
 Item 7 matters too: if the battery straps on top of the frame, this pod is in its place and
@@ -118,6 +123,40 @@ position plus plain blocks named `REF_*` standing in for the Pixhawk, Pi 5 and H
 Those blocks are envelopes from the parameter block, not real board models. Units are
 millimetres; x points to the nose, z is up from the top plate. A STEP import has no
 feature tree, so change dimensions in `pod.py` and regenerate.
+
+## Revision 3b (2026-11-09 late): analysis and gap-review fixes
+
+Read `ANALYSIS.md` (mass, vibration, heat) and `GAP_REVIEW.md` (14 ranked findings from a
+second look at the CAD against the vendors' own drawings). Applied in `pod.py`:
+
+- Dock holes moved to the frame's standoff screws; tie stations moved to the plate's
+  strap slots; dock tail narrowed (it was 3.8 mm from the rear prop tips in plan).
+- A cable slot through the dock and pod floor ahead of the Pixhawk, for wires coming up
+  from the stack below.
+- A taller notch in the right side panel for the Pixhawk's USB-C plug (it clashed by
+  1.5 mm).
+- The camera plate is open at its bottom edge for the camera's ribbon connector.
+- The camera cradle's arms now run the lid's full length outside the lid screws, with a
+  bridge bar: first shake mode 110 Hz to 138 Hz in the model. Still the softest place on
+  the aircraft for a camera; `ANALYSIS.md` section 2 gives the alternatives.
+- The vendor Pixhawk was drawn backwards in the assembly file (printed parts were not
+  affected). Fixed; checked by slicing both end walls of Holybro's model.
+
+Not CAD, but needed (from the gap review):
+
+- **Pi-to-Pixhawk serial cable:** the AI HAT+ covers the GPIO pins and they do not poke
+  through (builder, 2026-11-09), so the DuPont plugs cannot be used. Plan: the Pi 5's own
+  3-pin serial socket between the two HDMI ports. It is top-entry, so it must be plugged
+  in before the HAT goes on. It is a different port (`/dev/ttyAMA10`, not `/dev/ttyAMA0`)
+  and is the boot console by default, so the flight code and Pi setup need a change, and
+  it is untested here. It supports 921600 baud, the rate TELEM2 uses.
+- **Pi power plug:** a straight USB-C plug sticks out over the rear-right prop. Use a
+  right-angle plug pointing aft.
+- **Standoffs:** the HAT kit's are reported to be nylon. Use brass M2.5 male-female,
+  four 16 mm and four 8 mm, especially if a camera rides on the lid.
+- **Camera ribbon:** needs one diagonal fold to reach the Pi's sockets; about 100 to
+  110 mm of path, so a 150 mm cable reaches.
+- **GPS and compass position** is not designed.
 
 ## Revision 3 draft (2026-11-09 overnight): camera on the pod, and tidier parts
 

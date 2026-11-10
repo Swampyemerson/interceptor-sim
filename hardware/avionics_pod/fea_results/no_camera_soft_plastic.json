@@ -1,0 +1,93 @@
+{
+ "freqs_hz": [
+  245.7,
+  296.5,
+  392.8,
+  469.2,
+  537.9,
+  627.6
+ ],
+ "modes": [
+  [
+   "side-to-side",
+   [
+    0.03,
+    1.0,
+    0.04
+   ],
+   {
+    "pod_base": 0.56,
+    "pi_board": 0.25,
+    "hat_board": 0.17
+   }
+  ],
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.05,
+    0.03
+   ],
+   {
+    "pod_base": 0.65,
+    "pi_board": 0.18,
+    "hat_board": 0.14
+   }
+  ],
+  [
+   "side-to-side",
+   [
+    0.91,
+    1.0,
+    0.06
+   ],
+   {
+    "pod_base": 0.64,
+    "pi_board": 0.18,
+    "hat_board": 0.11,
+    "standoffs": 0.07
+   }
+  ],
+  [
+   "up-down",
+   [
+    0.03,
+    0.07,
+    1.0
+   ],
+   {
+    "lid": 0.99
+   }
+  ],
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.06,
+    0.6
+   ],
+   {
+    "pi_board": 0.82,
+    "pod_base": 0.15
+   }
+  ],
+  [
+   "up-down",
+   [
+    0.74,
+    0.16,
+    1.0
+   ],
+   {
+    "pi_board": 0.76,
+    "pod_base": 0.2
+   }
+  ]
+ ],
+ "mass_g": 127.9,
+ "nodes": 44076,
+ "tets": 21632,
+ "clamped_dofs": 8229,
+ "camera": false,
+ "e_petg_mpa": 1300.0
+}

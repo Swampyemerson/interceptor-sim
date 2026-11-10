@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->019c513<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->24c6ee3<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1468,13 +1468,13 @@
    "id": "camera-on-avionics-pod",
    "question": "Move the seeker camera from the planned nose boom onto the avionics pod? Geometry says the props stay out of frame from the pod (camera 68 mm above the top plate): about 20 degrees of margin at the shallowest tilt (10 degrees) with the delivered 70-degree lens or the AR0234, about 16 if the props sit 10 mm higher than reported. The published 118-degree lens would need 25 degrees of tilt or more.",
    "options": [
-    "Adopt the pod cradle (hardware/avionics_pod, pod_lid_cam + cam_plate) and retire the nose boom",
-    "Keep the nose boom as planned",
-    "Print both and compare blur and prop view on the bench before choosing"
+    "Camera on a short post off the dock's nose: stiff, works at dash tilt (25 degrees or more), not drawn yet",
+    "Camera cradle on the pod lid (drawn): best prop margin but the softest spot; print it and measure its shake first",
+    "Keep the nose boom as planned"
    ],
-   "rec": "Option 1, gated on a props-spinning wall check and a stiffness check. The pod puts camera, Pi and Pixhawk in one rigid unit, shortens the ribbon to under 100 mm, and takes the camera off the part of the aircraft that hits the target. Its risk is flex: the dock must be bolted or tied on thin tape, never soft foam.",
-   "blocked": "Unprinted (no printer). Derivation only: hardware/avionics_pod/camera_on_pod_fov.py ignores lens distortion and assumes the pod is centred on the frame.",
-   "doc": "hardware/avionics_pod/README.md"
+   "rec": "Option 1, or option 2 if you want data first. A finite-element model puts the lid cradle's first shake modes at 120 to 220 Hz at best, below and at the hover motor rate (213 Hz); the flex is spread across lid, base and both circuit boards, so no single stiffening fixes it. Either way the dock must be bolted, not taped.",
+   "blocked": "Unprinted (no printer). Model only: hardware/avionics_pod/ANALYSIS.md (joints glued, so real frequencies are lower) and camera_on_pod_fov.py (no lens distortion, pod assumed centred).",
+   "doc": "hardware/avionics_pod/ANALYSIS.md"
   }
  ],
  "plain_log": [

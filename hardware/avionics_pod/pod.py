@@ -30,13 +30,21 @@ import cadquery as cq
 
 # ============================== PARAMETERS ==================================
 # --- frame interface (TBS Source One V6 top plate) -------------------------
-DOCK_W = 38.0            # MEASURE  dock width  (<= flat width of the top plate)
-DOCK_HOLE_DX = 30.5      # MEASURE  fore-aft spacing of the 4 M3 holes you will use
-DOCK_HOLE_DY = 30.5      # MEASURE  left-right spacing of those holes
+# From TBS's published V6 drawing (So1-V6-2025-AUG-19.dxf, github.com/tbs-trappy/
+# source_one; read by the 2026-11-09 gap review, NOT yet checked against the real
+# plate): top plate 160.3 x 42.5 mm, but 42.5 wide for only ~40 mm and 29 mm wide
+# elsewhere. It has NO 30.5 mm pattern; its only holes are the standoff screws at
+# y = +-14.6. So the dock bolts to four of those screws, and overhangs the narrow
+# parts of the plate.
+DOCK_W = 38.0            # MEASURE  dock width
+DOCK_HOLE_DX = 55.77     # fore-aft spacing of the four standoff screws used (drawing)
+DOCK_HOLE_DY = 29.2      # left-right spacing of those screws (drawing)
+DOCK_NARROW_AFT_X = -44.0   # aft of here the dock is only +-10 wide (rear prop tips)
+CABLE_SLOT = (17.0, 25.0, 7.0)   # x0, x1, half-width: wires up from the stack below
 DOCK_HOLE_X0 = -8.0      # x of the hole pattern's centre (pod datum, see report)
-DOCK_SLOT = 4.0          # each hole is a slot this long (fore-aft) for adjustment
+DOCK_SLOT = 1.0          # each hole is a slot this long (fore-aft) for adjustment
 DOCK_T = 3.0
-TIE_XS = (-40.0, 18.0)   # zip-tie stations (clear of pins, bolt slots, boss, hook)
+TIE_XS = (-20.0, 6.0)     # zip-tie stations (clear of pins, bolt slots, boss, hook)
 TIE_W, TIE_GROOVE = 5.0, 1.4   # fits ties up to 4.8 mm wide, 1.3 mm thick
 
 # --- Pixhawk 6C Mini --------------------------------------------------------
@@ -80,8 +88,12 @@ CAM_PIVOT_X, CAM_PIVOT_ABOVE_LID = 52.0, 10.3   # pivot ahead of the USB ports
 CAM_TILT_MIN, CAM_TILT_MAX = 10.0, 45.0         # up-tilt range the lock slot allows
 CAM_TILT_SHOWN = 25.0    # tilt drawn in the assembly
 CAM_LOCK_R = 10.0        # lock screw sits this far behind the pivot
-CHEEK_T = 2.5
-CHEEK_Y_IN = CAM_BOARD / 2 + 1.5      # inner face of each cheek
+# Cheeks sit OUTBOARD of the lid screws and run the lid's full length as deep
+# beams, tied by a bridge bar. The first draft (2.5 mm cheeks off the lid's front
+# edge) had its first shake modes at 110-120 Hz in fea_modal.py -- too soft.
+CHEEK_T = 3.5
+CHEEK_Y_IN = 27.0        # inner face of each cheek (lid screws are at y = 24.5)
+CAM_PLATE_HALF_W = CHEEK_Y_IN - 0.5
 CORNER_R = 3.0           # rounded plan-view corners on dock, floor and lid
 
 # --- masses for the centre-of-mass report (grams) ---------------------------
@@ -145,6 +157,10 @@ def dock(coupon: bool = False):
                 cs = (cq.Workplane("XY").slot2D(DOCK_SLOT + 6.4, 6.4).extrude(1.6)
                       .translate((x, y, t - 1.6)))
                 d = d.cut(cs)
+    for sy in (-1, 1):       # narrow tail: keeps the corners away from the rear props
+        ya, yb = sorted((sy * 10.0, sy * (DOCK_W / 2 + 1)))
+        d = d.cut(box(TAB_X_REAR - 1, DOCK_NARROW_AFT_X, ya, yb, -1, t + 1))
+    d = d.cut(box(CABLE_SLOT[0], CABLE_SLOT[1], -CABLE_SLOT[2], CABLE_SLOT[2], -1, t + 1))
     if coupon:
         d = d.cut(cyl(0, 0, -1, 2, 2.0))          # x = 0 datum mark
         return d
@@ -155,7 +171,7 @@ def dock(coupon: bool = False):
         d = d.cut(box(gx - TIE_W / 2, gx + TIE_W / 2, -DOCK_W / 2 - 1, DOCK_W / 2 + 1,
                       DOCK_T - TIE_GROOVE, DOCK_T + 1))
         for sy in (-1, 1):
-            ya, yb = sorted((sy * (DOCK_W / 2 - 2.0), sy * (DOCK_W / 2 + 1)))
+            ya, yb = sorted((sy * 16.0, sy * (DOCK_W / 2 + 1)))   # over the plate's strap slots
             d = d.cut(box(gx - TIE_W / 2, gx + TIE_W / 2, ya, yb, -1, DOCK_T + 1))
     d = d.cut(nose_arrow(6.0, DOCK_T))            # which way round the dock goes
     # front wedge hook: 45-degree face, prints without support
@@ -202,6 +218,13 @@ def pod_base():
     for hx in HOLE_XS:
         for hy in HOLE_YS:
             b = b.cut(cyl(hx, hy, Z_PI - INSERT_M25_DEPTH, Z_PI + 1, INSERT_M25_D))
+    # wires up from the stack below (ESC signal, receiver) pass through the floor
+    b = b.cut(box(CABLE_SLOT[0], CABLE_SLOT[1], -CABLE_SLOT[2], CABLE_SLOT[2],
+                  Z_DOCK - 1, Z_FLOOR + 1))
+    # the Pixhawk's USB-C is high on its right side: a plug body reaches z ~24.4,
+    # above the normal window top, so the right panel gets a taller notch there
+    b = b.cut(box(FC_X0 - 20.0, FC_X0 - 1.0, -PI_W / 2 - 1, -PANEL_Y_IN + 1,
+                  Z_FLOOR + 6.0, Z_PI - 2.5))
     # FC corner fences (locate the foam-taped FC; open everywhere else)
     for sx in (-1, 1):
         fx = FC_X0 + sx * (FC_L / 2 + 0.6)
@@ -237,7 +260,8 @@ def cam_pivot():
 
 def pod_lid(camera: bool = False):
     x0, x1 = PI_X_SD, PI_X_SD + HAT_L
-    lid = rbox(x0, x1, -PI_W / 2, PI_W / 2, Z_LID, Z_LID + LID_T)
+    lid_hw = (CHEEK_Y_IN + CHEEK_T) if camera else PI_W / 2
+    lid = rbox(x0, x1, -lid_hw, lid_hw, Z_LID, Z_LID + LID_T)
     for sy in (-1, 1):                      # two stiffening / roll-over rails on top
         lid = lid.union(box(x0, x1, sy * 14 - 1.2, sy * 14 + 1.2,
                             Z_LID + LID_T, Z_LID + LID_T + 3.0))
@@ -257,8 +281,8 @@ def pod_lid(camera: bool = False):
     # --- camera cradle: two cheeks reaching forward over the USB ports ---------
     zt = Z_LID + LID_T
     px, pz = cam_pivot()
-    prof = [(x1 - 26.0, zt), (px + 6.0, zt), (px + 8.0, zt + 4.0), (px + 8.0, pz + 5.0),
-            (px + 3.0, pz + 8.0), (px - 13.0, pz + 8.0), (x1 - 26.0, zt + 3.0)]
+    prof = [(x0 + 2.0, zt), (px + 6.0, zt), (px + 8.0, zt + 4.0), (px + 8.0, pz + 5.0),
+            (px + 3.0, pz + 8.0), (px - 18.0, pz + 8.0), (x0 + 2.0, zt + 5.0)]
     for sy in (-1, 1):
         ya, yb = sorted((sy * CHEEK_Y_IN, sy * (CHEEK_Y_IN + CHEEK_T)))
         cheek = xz_prism(prof, ya, yb)
@@ -274,9 +298,9 @@ def pod_lid(camera: bool = False):
     # cross tie under the cheeks, just ahead of the lid's front edge
     lid = lid.union(box(x1 - 2.0, x1 + 5.0, -CHEEK_Y_IN - CHEEK_T, CHEEK_Y_IN + CHEEK_T,
                         Z_LID, zt))
-    for hx in HOLE_XS:                      # keep screwdriver access to the lid screws
-        for hy in HOLE_YS:
-            lid = lid.cut(cyl(hx, hy, zt, zt + 40.0, 6.5))
+    # bridge bar between the cheek tops, behind the plate's swing
+    lid = lid.union(box(px - 17.0, px - 13.5, -CHEEK_Y_IN - 0.5, CHEEK_Y_IN + 0.5,
+                        pz + 2.0, pz + 8.0))
     return lid
 
 
@@ -288,9 +312,11 @@ def _cam_local_to_body(wp, tilt_deg):
 
 def cam_plate_local():
     """Tilting plate the camera board screws to (local frame, see above)."""
-    half = CAM_BOARD / 2 + 1.0
-    pl = box(2.0, 4.4, -half, half, -half - 1.0, half + 1.0)
-    pl = pl.cut(box(1.0, 5.4, -12.0, 12.0, -12.0, 12.0))        # window: parts on the board's back
+    half = CAM_PLATE_HALF_W
+    bh = CAM_BOARD / 2 + 2.0
+    pl = box(2.0, 4.4, -half, half, -bh, bh)
+    pl = pl.cut(box(1.0, 5.4, -12.0, 12.0, -bh - 1.0, 12.0))   # window, open at the bottom
+    #                                   edge for the board's ribbon connector
     for sy in (-1, 1):
         for sz in (-1, 1):
             y, z = sy * CAM_HOLE / 2, sz * CAM_HOLE / 2
@@ -365,11 +391,12 @@ def assembly(parts, vendor_fc=None, camera=False):
         asm.add(parts["pod_lid"], name="pod_lid", color=cq.Color(0.95, 0.75, 0.30))
     fc = None
     if vendor_fc and os.path.exists(vendor_fc):
-        # Holybro's model: +x = arrow end, underside at z = -1, centre x = 1.95
+        # Holybro's model: -x = ARROW end (six small openings), +x = PIN end (one
+        # big opening); checked by slicing each end wall. Underside at z = -1.
         raw = cq.importers.importStep(vendor_fc)
         fc = cq.Workplane(obj=cq.Compound.makeCompound(list(raw.vals())))
         fc = fc.translate((-1.95, 0, 1.0))
-        if FC_ARROW_AFT:
+        if not FC_ARROW_AFT:
             fc = fc.rotate((0, 0, 0), (0, 0, 1), 180)
         fc = fc.translate((FC_X0, 0, Z_FC0))
     if fc is not None:
