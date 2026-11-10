@@ -72,7 +72,7 @@ LID_STANDOFF = 8.0       # MEASURE  M2.5 standoff above the HAT (clears the modu
 # --- printed structure ------------------------------------------------------
 FLOOR_T = 2.4
 PANEL_T = 2.4
-BOSS_D = 7.0
+BOSS_D = 6.6             # 0.2 mm inside the panel's outer face (7.0 was exactly tangent)
 INSERT_M25_D, INSERT_M25_DEPTH = 3.2, 5.0   # M2.5 heat-set insert pocket: fits the
 #   3.5 mm OD x 4 mm inserts the builder ordered (2026-11-10)
 INSERT_M3_D, INSERT_M3_DEPTH = 4.0, 5.5     # M3 heat-set insert pocket
@@ -284,7 +284,9 @@ def pod_base():
                    -PI_W / 2 - 1, PI_W / 2 + 1)
     b = b.cut(toe)
     # side panels with a low, wide cable window each (chamfered top = no supports)
-    px0, px1 = HOLE_XS[0] - BOSS_D / 2, HOLE_XS[1] + BOSS_D / 2
+    # panels run 1.2 mm past the end bosses: ending level with them left a 0.2 mm
+    # sliver face that SOLIDWORKS could not mesh (2026-11-10)
+    px0, px1 = HOLE_XS[0] - BOSS_D / 2 - 1.2, HOLE_XS[1] + BOSS_D / 2 + 1.2
     wx0, wx1 = FC_X0 - FC_L / 2 + 3.0, FC_X0 + FC_L / 2 - 3.0
     wz_top = Z_PI - 6.0
     wz_flat = wz_top - 1.5

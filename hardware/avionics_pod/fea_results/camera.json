@@ -1,11 +1,11 @@
 {
  "freqs_hz": [
-  136.9,
-  220.3,
-  264.5,
-  279.0,
-  453.1,
-  498.4
+  136.2,
+  221.9,
+  265.7,
+  272.1,
+  449.6,
+  499.7
  ],
  "modes": [
   [
@@ -18,7 +18,7 @@
    {
     "lid": 0.27,
     "pod_base": 0.24,
-    "pi_board": 0.17,
+    "pi_board": 0.18,
     "hat_board": 0.13,
     "cam_plate": 0.11
    }
@@ -27,46 +27,46 @@
    "fore-aft",
    [
     1.0,
-    0.06,
-    0.72
+    0.07,
+    0.77
    ],
    {
-    "lid": 0.41,
-    "pod_base": 0.22,
-    "cam_plate": 0.18,
+    "lid": 0.43,
+    "pod_base": 0.19,
+    "cam_plate": 0.19,
+    "camera": 0.06,
     "hat_board": 0.06,
-    "pi_board": 0.06,
-    "camera": 0.06
+    "pi_board": 0.05
    }
   ],
   [
    "fore-aft",
    [
     1.0,
-    0.19,
-    0.57
+    0.49,
+    0.53
    ],
    {
-    "pod_base": 0.32,
-    "lid": 0.25,
-    "cam_plate": 0.15,
-    "pi_board": 0.09,
-    "camera": 0.08,
-    "hat_board": 0.08
+    "pod_base": 0.35,
+    "lid": 0.21,
+    "cam_plate": 0.13,
+    "pi_board": 0.12,
+    "hat_board": 0.1,
+    "camera": 0.07
    }
   ],
   [
    "side-to-side",
    [
-    0.42,
+    0.61,
     1.0,
-    0.09
+    0.23
    ],
    {
-    "pod_base": 0.45,
-    "pi_board": 0.22,
-    "hat_board": 0.18,
-    "lid": 0.08
+    "pod_base": 0.44,
+    "pi_board": 0.19,
+    "hat_board": 0.16,
+    "lid": 0.11
    }
   ],
   [
@@ -77,10 +77,10 @@
     0.29
    ],
    {
+    "pod_base": 0.32,
     "lid": 0.31,
-    "pod_base": 0.31,
     "cam_plate": 0.17,
-    "pi_board": 0.08,
+    "pi_board": 0.07,
     "camera": 0.07
    }
   ],
@@ -92,17 +92,17 @@
     0.53
    ],
    {
-    "cam_plate": 0.42,
-    "camera": 0.27,
-    "pi_board": 0.13,
+    "cam_plate": 0.41,
+    "camera": 0.26,
+    "pi_board": 0.14,
     "pod_base": 0.1,
     "lid": 0.06
    }
   ]
  ],
  "mass_g": 162.2,
- "nodes": 59911,
- "tets": 29200,
+ "nodes": 59880,
+ "tets": 29162,
  "clamped_dofs": 7041,
  "camera": true,
  "e_petg_mpa": 1900.0

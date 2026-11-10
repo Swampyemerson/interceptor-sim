@@ -39,12 +39,14 @@ whose own natural frequency sits inside that range will be shaken hardest.
 
 | Case | 1st | 2nd | 3rd | What moves first |
 |---|---|---|---|---|
-| No camera | 273 Hz | 337 | 444 | whole stack swaying side to side |
-| No camera, softer plastic | 246 | 297 | 393 | same |
-| With camera cradle | 137 | 220 | 265 | stack swaying, camera leading |
-| With camera cradle, softer plastic | 121 | 189 | 229 | same |
+| No camera | 273 Hz | 344 | 441 | whole stack swaying side to side |
+| No camera, softer plastic | 248 | 303 | 394 | same |
+| With camera cradle | 136 | 222 | 266 | stack swaying, camera leading |
+| With camera cradle, softer plastic | 121 | 190 | 232 | same |
 | **Nose post** (dock held flat on the plate) | 254 | 276 | 545 | post and camera swaying side to side |
 | Nose post, softer plastic | 215 | 234 | 496 | same |
+| Nose post, held only at its six screws | 169 | 184 | 411 | same, the whole post rocking from the tongue |
+| Nose post dock with the loaded pod on it, held at the six screws | 109 to 160 | 180 | 190 | the pod stack swaying on the dock; then the camera post |
 
 - These are **upper bounds**. The model glues every joint; real screwed joints through two
   circuit boards are softer. Expect the real numbers 20 to 40 % lower. That figure is my
@@ -77,6 +79,10 @@ whose own natural frequency sits inside that range will be shaken hardest.
 - **Conclusion: bolt the dock.** The frame drawing gives four standoff screws under the
   dock (see `GAP_REVIEW.md` item 1); the dock now uses them. Tape plus zip ties stays as
   the no-drill fallback for a first fit check, not for flight with the Pixhawk aboard.
+- **Bolting is necessary, not sufficient.** See the cross-check below: the bolted dock
+  still shows a pod mode near 110 to 160 Hz. The tap test with the dock bolted to the
+  frame and the loaded pod latched on is now the first vibration check to do, followed
+  by a Pixhawk vibration log at hover.
 
 **Camera dimensions (2026-11-10).** The camera plates and the camera stand-in now use
 Arducam's own model of the B0353 (board 38 x 38, holes on a 34.04 mm square, lens barrel
@@ -84,55 +90,44 @@ Arducam's own model of the B0353 (board 38 x 38, holes on a 34.04 mm square, len
 posts, which is why the nose-post figures here are a little lower than the first run
 (270 Hz then, 254 Hz now).
 
-**SolidWorks cross-check (builder, 2026-11-10).** The builder ran two frequency studies
-on the nose-post assembly in SolidWorks Simulation, with the same inputs as this model
-(printed PETG at 1900 MPa, a 15 g camera stand-in; the pod and boards left out).
+**SOLIDWORKS cross-check (2026-11-10).** The builder ran the nose post and dock in
+SOLIDWORKS Simulation with the same materials. Full report: `SOLIDWORKS_CROSSCHECK.md`;
+numbers: `solidworks_results.json`; pictures: `media/solidworks_*.png` at the repo root.
 
-| Study | 1st | 2nd | 3rd | Picture |
-|---|---|---|---|---|
-| "Nose post modal" (like-for-like with the table above) | 275 Hz | 293 | 552 | `media/solidworks_nose_post_modal_modes_275hz.png` |
-| "Nose post bolted" (held at the bolts only) | 173 Hz | not recorded | not recorded | `media/solidworks_nose_post_bolted_mode1_173hz.png` |
-
-- **The two programs agree.** SolidWorks gives 275 / 293 / 552 Hz against 254 / 276 / 545
-  here, 8 % apart at most, and the same shape (post and camera swaying).
-- **How it is held matters more than which program.** Holding the dock at its bolts
-  instead of across its whole underside drops the first sway to 173 Hz, 37 % lower.
-  That is the more realistic case, and it is below the hover motor rate (about 213 Hz):
-  the motors pass through it on spin-up but do not sit on it in flight.
-- **Camera stand-in material checked** (`media/solidworks_material_camera_standin_15g.png`):
-  stiffness 5000 MPa, Poisson's ratio 0.3, density 2860 kg/m^3. On the stand-in's
-  5266 mm^3 that is 15.06 g, matching this model's 15 g and 5000 MPa.
-- Not recorded here: the density given to "PETG printed E1900" (this model uses
-  1143 kg/m^3, solid PETG times the print fill), the exact fixture faces, and the
-  contact settings of each study.
-
-**SolidWorks static study at 10 g (builder, 2026-11-10).** "Nose post static 10g":
-`dock_cam`, `cam_plate_nose` and the 15 g camera stand-in, parts bonded, the dock's
-underside held flat (not the six screws: the hole faces could not be re-picked). Load is
-10 g on all three axes at once, 17.3 g combined.
-
-| Result | Peak | Picture |
+| Case | SOLIDWORKS 1st / 2nd / 3rd | This model |
 |---|---|---|
-| Stress (von Mises) | 1.0 MPa | `media/solidworks_nose_post_static_10g_stress.png` |
-| Movement | 0.072 mm, at the lens tip | `media/solidworks_nose_post_static_10g_displacement.png` |
-| Strain | 0.0004 (0.04 %) | `media/solidworks_nose_post_static_10g_strain.png` |
+| Nose post, underside held flat | 275 / 293 / 552 Hz | 254 / 276 / 545 |
+| Nose post, six screw holes held | 173 / 184 / 410 | 169 / 184 / 411 (`--nose --screws`) |
+| Same, pod added | 127 / 173 / 185 (pod as a rigid 162 g lump) | 109 to 160 / 180 / 190 (`--full`, pod meshed) |
 
-- **Strength margin is large.** About 45 times on the 45 MPa yield entered in the
-  "PETG printed E1900" material, about 25 times if layer adhesion is nearer 25 MPa.
-  Both strengths are typical values for printed PETG, not measurements of this print.
-- **It is consistent with the like-for-like frequency.** A part that sags 0.072 mm under
-  17.3 g would ring at roughly sqrt(169.9 / 0.000072) / (2 pi) = 244 Hz if it moved in
-  that one shape; the same hold gave 275 Hz in SolidWorks and 254 Hz here.
-- **What it means.** Steady g-loading does not size this mount. Vibration and a knock
-  on the camera, which sits out front, are the cases that matter, and this study covers
-  neither.
-- **Not done yet:** the same run with the pod included.
+- **The two programs agree** to 8 % or better wherever they model the same thing.
+- **How the dock is held matters more than the program.** Held at its screws instead of
+  flat, the camera post's first sway drops from about 260 to about 170 Hz. That replaces
+  the "20 to 40 % lower" judgment above with a calculated 32 to 37 % for this part.
+- **Bolting the dock does not take the Pixhawk out of the motor band.** With the pod on
+  the screw-held dock, both programs put a pod mode between about 110 and 160 Hz, below
+  the hover motor rate of 213 Hz and crossed on every spool-up. The Pixhawk rides in the
+  pod, so this one reaches its sensors.
+- **That pod figure is the least certain number here.** In this model it moves with mesh
+  size (160 Hz at 4 mm elements, 109 at 3 mm, 144 at 2.5 mm), so it is a range, not a
+  value. This model glues the pod floor to the dock and leaves out the Pixhawk's 39 g;
+  SOLIDWORKS uses a lump with an estimated inertia. Neither has the carbon plate under
+  the dock, which would raise it, or the real hook, pins and single tail screw, which
+  would lower it.
+- **Static strength is not the limit.** At 10 g on all three axes at once the camera post
+  peaks at 1.0 MPa. The dock carrying the pod peaks at 27 MPa at the edge of one rigidly
+  held screw hole (an artifact of holding the hole wall) and stays under about 6 MPa
+  elsewhere. Printed PETG strength is assumed at 45 MPa, 25 MPa across layers.
+- **`pod_base` would not mesh in SOLIDWORKS.** Each Pi boss was exactly tangent to the
+  side panel's outer face and left a 0.2 mm sliver face. Fixed in `pod.py` the same day
+  (bosses 6.6 mm, panels 1.2 mm longer at each end); the pod rows of the table above are
+  rerun on the new base. Not yet retried in SOLIDWORKS.
 
 **What this means for the camera.** The lid cradle is the least stiff place on the
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
 (`dock_cam`, `cam_plate_nose`) and modelled:
 
-- **Stiffness.** First sway 254 Hz in the model against 137 Hz for the lid cradle, nearly
+- **Stiffness.** First sway 254 Hz in the model against 136 Hz for the lid cradle, nearly
   twice as stiff, and the load path is short: camera, plate, two cheeks, dock, carbon.
   No circuit boards or standoffs in it. The same caveat applies (glued joints, so read
   it as an upper bound; the softer-plastic row is 215 Hz, right at the hover motor rate).

@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->bfe2ee1<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4bbbf03<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-10",
- "updated_by": "Camera mount chosen and drawn: a short post off the avionics dock's nose (ADR-0135)",
+ "updated_by": "SOLIDWORKS cross-check of the camera post: models agree; pod mode 110-160 Hz found on the bolted dock",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1468,6 +1468,12 @@
  "plain_log": [
   {
    "date": "2026-11-10",
+   "text": "The builder checked the camera post in SOLIDWORKS and the two programs agree. Held flat, the post's first shake mode is 275 Hz there against 254 Hz in the repo's model. Held only at its six screws, which is nearer the truth, both give about 170 Hz. With the pod's weight on the dock a lower mode appears, somewhere between 110 and 160 Hz, and that one carries the Pixhawk. Strength is not a concern: at 10 g on every axis the camera post sees 1 MPa. SOLIDWORKS could not mesh the pod base because of a hair-thin face; that is fixed in the CAD.",
+   "so_what": "Bolting the dock is still right, but it does not put the Pixhawk clear of motor vibration by itself: hover is about 213 Hz and the pod mode sits below it, so every spool-up passes through it. The first vibration check is now a tap test with the dock bolted and the loaded pod latched on, then a Pixhawk vibration log at hover. If that confirms a low mode, the options are a seventh screw at the tail tab or a stiffer dock.",
+   "evidence": "hardware/avionics_pod/SOLIDWORKS_CROSSCHECK.md - hardware/avionics_pod/ANALYSIS.md section 2 - hardware/avionics_pod/fea_results/nose_post_screws.json, pod_on_dock_screws.json - media/solidworks_*.png"
+  },
+  {
+   "date": "2026-11-10",
    "text": "Camera mount decided and drawn. The builder picked a short post off the avionics dock's nose over the pod-lid cradle and the old nose boom. The dock grows a tongue to the frame's two nose screws and two cheeks that carry a tilting camera plate (10 to 45 degrees). The camera plate is fitted to Arducam's own 3D model of the B0353. Calculated, not built: first shake mode 254 Hz against 137 Hz for the lid cradle; props 17 degrees or more outside the picture with the delivered lens; whole aircraft 850 g. Known costs: it blocks the Pi's USB ports while fitted, and the camera plate overhangs the edge of the front prop circles by position (about 2 mm outside in top view, 16 mm or more above the blades).",
    "so_what": "The last open layout question on the avionics pod is closed, so the print list is fixed: template first, then dock, pod and camera plate. Every number is still a model; the printed part and a tap test decide whether the picture is steady.",
    "evidence": "ADR-0135 - hardware/avionics_pod/README.md (revision 4) - ANALYSIS.md - nose_post_check.py - fea_results/nose_post.json"
@@ -1531,12 +1537,6 @@
    "text": "The latency chapter CLOSED in five Gazebo arms: the 'cliff' was age-knowledge, not latency (known age flies 120 ms at baseline); jitter with a correct mean costs 1.53x with a 1.2 m tail (LJ90); and the stamped-age mode built to fix that VALIDATED overnight -- 1.08x, tail collapsed (LJ90-S; adopt bar missed by its letter at 3/6 strict pairs, recommendation = builder call, default OFF). Detector spec final: age KNOWN, jitter small, >=10-15 Hz, >=8-12 m. The HAILO purchase gate: builder created the DevZone account; DFC 3.34 fetched; after 11 live-fixed environment defects (ubuntu 22.04 container REQUIRED) stock yolov8n compiled SINGLE-CONTEXT at 640 AND 1024 -- but the 1-class deployment config is 2 CONTEXTS by topology (both paths tested); fps cost = day-1 hardware benchmark; order is evidence-supported with that caveat. The builder's blind-turn question became TWO registered studies: stern-approach geometry = NULL (defaults stand, router not built -- acquisition is cue-error-vs-decode-range, not path shape; d_behind footnote also null at n=32), and target-height cue error = the vertical given MEASURED at +/-2 m budget (target-ABOVE-belief breaks acquisition at +3 m; mechanism characterized in 3 probe rounds as a standoff-bounded belief-correction race; one layer open, no sign rule). An adversarial Fable-fork review caught a CRITICAL clock-base bug in the stamped-age wiring BEFORE the arm flew (ages would have clamped to 0 and falsely refuted the prediction) plus 2 overclaims, all swept. dash_alt_trim_m derivation attempted; the forensics instrument correctly REFUSED (no pre-dash baseline in this launch profile) -- datum definition is a daylight call. Full suite ALL GREEN twice (before and after the flight-code changes). Full overnight narrative: docs/state_archive/plain_log.md.",
    "so_what": "One night converted three standing unknowns into numbers (chip fits, height budget +/-2 m, jitter immunity works) and the review process caught a bug that would have shipped a false conclusion -- the project's honesty machinery paying for itself in real time.",
    "evidence": "runs/dfc_dryrun[_single]/README.md - runs/gz_latency_20261022/spec.md - runs/stern_approach_20261021/findings.md - runs/target_height_20261022/findings.md - docs/state_archive/plain_log.md"
-  },
-  {
-   "date": "2026-10-21",
-   "text": "NN seeker program opened in one evening, builder-consulted at the decision points (ADR-0125). Fleet: five detached research passes (edge detectors, accelerators, training pipeline, Hailo toolchain, tracker/capture) -- repo-attached workers still bounce [general_harms], so both isim studies ran head-inline. Studies, both pre-registered: (1) detector requirement sweep (58 cells): latency <=60 ms is the hard axis (120 ms -> 0.65-4 m miss), rate >=10-15 Hz, terminal range only ~8-12 m, p>=0.5 suffices; (2) resolution x guidance law: predictive PIP law is NOT rescued by resolution (null -- it points worse, not noisier), 640-wide input is dead on a 118 deg lens / fine on the delivered 70 deg, and a zoom lens is no substitute (FOV loss collapses pointing; variant A kept as that finding). Live bench on the flight Pi: yolov8n@640 154 ms, our v2 net 131 ms (ORT, CPU) -- past the latency spec, which settles CPU-vs-accelerator on our own hardware. Builder rulings: Hailo-8 HAT+ (26 TOPS, ~35 g, +2.7 W; yolov8n is its single-context fit -- NOT yolo11n); stock head @640 + full-res ROI re-detect; full staged training program (Det-Fly + AOT slice + randomized sim -> tag-auto-labeled real fine-tune, tagless validation day); NN runs as a parallel background thread, tag first-kill keeps priority. DFC compiles with no hardware on WSL2 -- fit/context questions get answered before money moves. isim grew camera/decode override fields + sensor-geometry fields (byte-identical defaults, 197 tests green). Program home docs/nn_seeker_program.md; toolchain docs/hailo_toolchain_runbook.md.",
-   "so_what": "The seeker decision is now evidence-shaped instead of taste-shaped: we know the one number the hardware must beat (60 ms), we measured that the CPU cannot beat it, and the resolution question the builder raised got a real answer that changes the lens story. Nothing was purchased and nothing touched the bench gates; the two builder actions are queued.",
-   "evidence": "ADR-0125 - docs/nn_seeker_program.md - runs/nn_requirements_20261021/ - runs/res_guidance_20261021/ - runs/pi_nn_bench_20261021.json - commit pending"
   }
  ],
  "narrative": {
@@ -3394,7 +3394,7 @@
       "name": "Nose-cantilever prop-clearance camera mount",
       "status": "print",
       "role": "Designs the own-prop phantom out of the FoV — no software fallback.",
-      "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. Drawn, not printed: hardware/avionics_pod/ (dock_cam, cam_plate_nose). Model only: first shake mode 254 Hz, props 17 deg or more outside the picture. Corner-spin gate at loaded throttle still caps the tilt."
+      "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. Drawn, not printed: hardware/avionics_pod/ (dock_cam, cam_plate_nose). Models only: first shake mode about 170 Hz held at its six screws (Python and SOLIDWORKS agree), props 17 deg or more outside the picture. Corner-spin gate still caps the tilt."
      },
      {
       "name": "FC High-Endurance microSD (ULogs)",

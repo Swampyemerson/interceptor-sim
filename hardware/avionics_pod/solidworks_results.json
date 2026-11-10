@@ -1,0 +1,134 @@
+{
+ "date": "2026-11-10",
+ "tool": "SOLIDWORKS Simulation 2025 SP5 Student Edition",
+ "model": "avionics_pod_assembly_nose_camera.step",
+ "e_petg_mpa": 1900.0,
+ "poisson_petg": 0.38,
+ "density_petg_kg_m3": 1143.0,
+ "yield_petg_mpa_assumed": 45.0,
+ "camera_mass_g": 15.0,
+ "motor_band_hz": [
+  213,
+  583
+ ],
+ "modal": {
+  "underside_fixed": {
+   "study": "Nose post modal",
+   "mesh_max_mm": 3.0,
+   "freqs_hz": [
+    275,
+    293,
+    552,
+    662,
+    1011,
+    1016
+   ],
+   "python_nose_post_hz": [
+    254.5,
+    275.7,
+    544.5,
+    639.4,
+    945.2,
+    957.3
+   ]
+  },
+  "six_screw_holes_fixed": {
+   "study": "Nose post bolted",
+   "mesh_max_mm": 3.0,
+   "freqs_hz": [
+    173,
+    184,
+    410,
+    414,
+    549,
+    731
+   ]
+  },
+  "six_screw_holes_fixed_pod_lump": {
+   "study": "Dock modal 6 screws pod lump",
+   "mesh_max_mm": 3.0,
+   "pod_mass_g": 162.0,
+   "pod_cg_mm": [
+    -7.1,
+    0.0,
+    29.4
+   ],
+   "pod_inertia_kg_m2": [
+    7.6e-05,
+    0.000131,
+    0.00014
+   ],
+   "pod_connection": "rigid, to the two rear top faces of dock_cam",
+   "freqs_hz": [
+    127.44,
+    173.09,
+    184.57,
+    414.5,
+    495.95,
+    548.76
+   ],
+   "mass_participation_xyz": [
+    [
+     0.28545,
+     3.0343e-08,
+     0.26617
+    ],
+    [
+     5.4405e-07,
+     0.10293,
+     2.5096e-07
+    ],
+    [
+     0.058475,
+     7.4234e-07,
+     0.007912
+    ],
+    [
+     0.015163,
+     1.7571e-08,
+     0.12291
+    ],
+    [
+     2.4632e-08,
+     0.57856,
+     1.2043e-07
+    ],
+    [
+     1.355e-08,
+     2.5536e-05,
+     8.7359e-11
+    ]
+   ],
+   "mass_participation_sum_xyz": [
+    0.35909,
+    0.68152,
+    0.39699
+   ]
+  }
+ },
+ "static": {
+  "accel_m_s2_per_axis": 98.1,
+  "combined_g": 17.32,
+  "nose_post_underside_fixed": {
+   "study": "Nose post static 10g",
+   "mesh_max_mm": 2.0,
+   "max_von_mises_mpa": 1.005,
+   "max_displacement_mm": 0.0724
+  },
+  "dock_six_screws_pod_lump": {
+   "study": "Dock static 10g pod lump",
+   "mesh_max_mm": 2.0,
+   "pod_mass_g": 162.0,
+   "pod_connection": "distributed, to the two rear top faces of dock_cam",
+   "max_von_mises_mpa": 27.1,
+   "max_von_mises_location": "edge of the rear-left dock screw hole (fixed hole wall)",
+   "field_stress_mpa_away_from_holes": "under about 6, read from the colour scale",
+   "max_displacement_mm": 1.21,
+   "max_displacement_location": "tail tab tip"
+  },
+  "pod_base_included": {
+   "study": "Pod static 10g",
+   "status": "not solved, pod_base failed to mesh"
+  }
+ }
+}

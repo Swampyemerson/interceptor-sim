@@ -12,7 +12,7 @@ and printed PETG is one uniform stiffness. Glued joints make the answer too HIGH
 so read the result as an upper bound and use the low-stiffness row as the working
 number. The foam-tape rocking estimate at the end is a separate hand formula.
 
-    <cad venv>/bin/python hardware/avionics_pod/fea_modal.py [--camera | --nose] [--epetg 1900]
+    <cad venv>/bin/python hardware/avionics_pod/fea_modal.py [--camera | --nose [--screws] | --full] [--epetg 1900]
 Needs cadquery, gmsh, scikit-fem, scipy (scratch venv; not part of run_tests.sh).
 """
 from __future__ import annotations
@@ -95,6 +95,36 @@ def build_nose(e_petg: float):
     cam = P.cam_ghost_nose()
     parts["camera"] = (cam, (5e3, 0.3, plate_density(15.0, cam.val().Volume())))
     return parts
+
+
+def build_full(e_petg: float):
+    """The nose-post dock with the loaded pod (base, Pi, HAT, standoffs, plain lid)
+    standing on it. The pod floor is glued to the dock top wherever they touch; the
+    real pod is held by a hook, two pins and one tail screw, so this is an upper bound."""
+    parts = build_nose(e_petg)
+    for name, v in build(False, e_petg).items():
+        parts[name] = v
+    return parts
+
+
+def screw_slots():
+    """(x, y) centres of the dock's six M3 slots: four standoff screws + the nose pair."""
+    out = [(P.DOCK_HOLE_X0 + sx * P.DOCK_HOLE_DX / 2, sy * P.DOCK_HOLE_DY / 2)
+           for sx in (-1, 1) for sy in (-1, 1)]
+    out += [(P.NOSE_SCREW_X, sy * P.NOSE_SCREW_DY / 2) for sy in (-1, 1)]
+    return out
+
+
+def screw_clamp(x):
+    """True for nodes on the walls of the six screw slots, below the countersinks.
+    Holding only these = the dock hanging on its screws with no plate under it."""
+    hit = np.zeros(x.shape[1], dtype=bool)
+    low = x[2] < P.DOCK_T - 1.6 + 0.05
+    for (cx, cy) in screw_slots():
+        dx = np.clip(x[0] - cx, -P.DOCK_SLOT / 2, P.DOCK_SLOT / 2)
+        r = np.hypot(x[0] - cx - dx, x[1] - cy)
+        hit |= low & (r < 1.7 + 0.06)
+    return hit
 
 
 def mesh_and_solve(parts, n_modes=6, size=4.0, clamp=None, z_top=None):
@@ -214,11 +244,25 @@ def main() -> int:
     ap.add_argument("--camera", action="store_true")
     ap.add_argument("--nose", action="store_true",
                     help="the dock's nose camera post instead of the pod tower")
+    ap.add_argument("--screws", action="store_true",
+                    help="with --nose/--full: hold only the six screw-slot walls")
+    ap.add_argument("--full", action="store_true",
+                    help="nose-post dock with the loaded pod on it, held at the six screws")
     ap.add_argument("--epetg", type=float, default=1900.0, help="printed PETG modulus, MPa")
     ap.add_argument("--size", type=float, default=4.0, help="max element size, mm")
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
-    if a.nose:
+    if a.full:
+        r = mesh_and_solve(build_full(a.epetg), size=a.size, clamp=screw_clamp, n_modes=8)
+        r["nose_post"] = True
+        r["pod_on_dock"] = True
+        r["hold"] = "six screw-slot walls"
+    elif a.nose and a.screws:
+        r = mesh_and_solve(build_nose(a.epetg), size=a.size, clamp=screw_clamp,
+                           z_top=P.NOSE_PIVOT_Z)
+        r["nose_post"] = True
+        r["hold"] = "six screw-slot walls"
+    elif a.nose:
         # held where the dock lies on the top plate (29 mm wide there) = bolted flat
         r = mesh_and_solve(build_nose(a.epetg), size=a.size,
                            clamp=lambda x: (x[2] < 0.05) & (abs(x[1]) < 14.6),
@@ -226,7 +270,7 @@ def main() -> int:
         r["nose_post"] = True
     else:
         r = mesh_and_solve(build(a.camera, a.epetg), size=a.size)
-    r["camera"] = a.camera or a.nose
+    r["camera"] = a.camera or a.nose or a.full
     r["e_petg_mpa"] = a.epetg
     print(json.dumps(r, indent=1))
     if a.json:

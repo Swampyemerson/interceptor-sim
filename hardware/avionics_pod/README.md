@@ -177,8 +177,10 @@ a rough picture.
 **Numbers** (from `nose_post_check.py`, `fea_modal.py --nose`, `analysis.py`)
 
 - Tilt axis 60 mm ahead of the pod datum, 36 mm above the top plate.
-- First shake mode 254 Hz in the model (215 Hz with softer plastic), against 137 Hz for
-  the lid cradle. Upper bounds; see `ANALYSIS.md` section 2.
+- First shake mode 254 Hz in the model with the dock held flat (215 Hz with softer
+  plastic), against 136 Hz for the lid cradle. Held only at its six screws it is about
+  170 Hz, in this model and in the builder's SOLIDWORKS run. See `ANALYSIS.md` section 2
+  and `SOLIDWORKS_CROSSCHECK.md`.
 - Props stay out of the picture with the delivered 70 degree lens and with the AR0234 at
   every tilt in the range (+17 degrees or better at the shallowest). The published
   118 degree lens needs about 25 degrees of tilt.
