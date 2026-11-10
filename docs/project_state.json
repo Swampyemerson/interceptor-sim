@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-09",
-  "updated_by": "Layout fix FLOWN: big improvement, holds position; a smaller, faster rock remains -- recorder built to measure it",
+  "updated_by": "Layout fix flown (big improvement); Pi 5 will not boot after being peeled off mounting tape -- replacement needed",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-11-09",
-    "where": "Motor-layout fix flown (33 s): much more stable, holds position for the first time. A smaller, much faster rock remains. Interceptor back on the bench; board re-read after the flight, settings intact.",
+    "where": "Motor-layout fix flown (33 s): much more stable, holds position for the first time. A smaller, faster rock remains and the motors still run hot. Separately, the Pi 5 no longer boots: it was peeled off sticky tape and parts came off its underside.",
     "finding": "The wrong PLUS layout was the big wobble. The leftover fast rock is a different, ordinary tuning-class problem -- but 'fast' is by eye. Its frequency decides which loop to adjust, so a recorder was built before touching any gain.",
     "next": [
-      "You: power the Pi on the aircraft so I can load the recorder; then one 30 s hover, no changes",
-      "Me: read the wobble frequency off the log and make ONE matching change (gain or filter)"
+      "You: slow-motion phone clip of a 10 s hover (wobble frequency); decide on a replacement Pi 5",
+      "Me: pick ONE tuning change from the measured frequency; re-provision the new Pi from the SD card"
     ],
-    "evidence": "Builder flight report 2026-11-09 - configs/px4_6cmini/dumps/20261109_postflight.tsv - scripts/bench/hover_recorder.py (99 Hz bench-proven) + hover_wobble_analysis.py - ADR-0134 addendum"
+    "evidence": "Builder flight report + underside photo 2026-11-09 - configs/px4_6cmini/dumps/20261109_postflight.tsv - scripts/bench/hover_recorder.py + hover_wobble_analysis.py - ADR-0134 addendum"
   },
   "assumptions": [
     {
@@ -572,7 +572,7 @@
     {
       "date": "2026-11-09",
       "text": "Found, fixed and FLEW the main cause of the hover wobble. A full read of the flight controller (1122 of 1122 settings) showed it was mixing the motors for a PLUS-shaped quad (airframe 5001, a bare-board placeholder from July that was never replaced) on this X frame. Thrust and yaw come out right on that mismatch, so it hovered and passed every spin test, but each roll or pitch correction landed 45 degrees off-axis. Corrected to the X layout (4001), read back after a reboot with exactly the five intended values changed, then flown for 33 s: the builder reports a huge improvement -- the aircraft holds its position for the first time. What remains is a smaller rock at a clearly higher frequency. Same read confirmed the motors run on plain PWM from MAIN 1-4 (400 Hz, 1100-1900 us), not DShot; left alone so one thing changed per flight. The board also disagrees with the 2026-10-25 log: rate gain K is 0.65 (log says 0.8) and the gyro notch is off (log says on).",
-      "so_what": "The registered prediction held: wobble clearly reduced. The leftover is a normal tuning problem, not a mystery -- but which knob depends on its frequency (slow = attitude loop, fast = rate loop or delay), and every call so far has been by eye because the FC's SD slot is dead. So before any gain is touched there is now a recorder (attitude + motor outputs at ~100 Hz to the Pi or a PC) and an analyser that fails closed. Motor heat after the fixed flight is not yet reported.",
+      "so_what": "The registered prediction held: wobble clearly reduced. The leftover is a normal tuning problem -- motors still hot, which leans toward the fast (rate-loop or filter) side -- but which knob depends on its measured frequency. A recorder and a fail-closed analyser now exist for that. SETBACK the same evening: the Pi 5 stopped booting (green for a second, then red, bare board on a good supply) after it was peeled off mounting tape; the builder's photo shows the capacitor field under the processor largely stripped. Treat the Pi as dead: no in-flight recorder and no seeker computer until it is replaced. The SD card is believed intact. Never stick tape to a bare board; mount by the corner holes.",
       "evidence": "configs/px4_6cmini/dumps/20261109_{before,after}_geometry_fix.tsv + 20261109_postflight.tsv; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py; builder flight report; ADR-0134"
     },
     {
