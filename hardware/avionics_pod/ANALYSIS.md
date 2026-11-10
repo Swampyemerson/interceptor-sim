@@ -13,8 +13,8 @@ Four layouts, each with frame, motors, battery underneath and all electronics:
 |---|---|---|---|---|
 | A. Old plan: boards low on the top plate, camera on a nose boom | 824 g | 23 mm below the props | 1.77 g·m² | 2.11 g·m² |
 | B. Pod, camera on a nose boom | 849 g | 20 mm below | 1.96 (+11 %) | 2.35 (+12 %) |
-| C. Pod with the camera cradle on its lid | 853 g | 17.5 mm below | 2.17 (+23 %) | 2.36 (+12 %) |
-| D. Pod, camera on the dock's nose post (chosen 2026-11-10) | 851 g | 19 mm below | 2.01 (+14 %) | 2.25 (+7 %) |
+| C. Pod with the camera cradle on its lid | 852 g | 17.5 mm below | 2.17 (+23 %) | 2.36 (+12 %) |
+| D. Pod, camera on the dock's nose post (chosen 2026-11-10) | 850 g | 19 mm below | 2.01 (+14 %) | 2.25 (+7 %) |
 
 Inertia is how hard the aircraft is to start and stop turning about an axis.
 
@@ -41,10 +41,10 @@ whose own natural frequency sits inside that range will be shaken hardest.
 |---|---|---|---|---|
 | No camera | 273 Hz | 337 | 444 | whole stack swaying side to side |
 | No camera, softer plastic | 246 | 297 | 393 | same |
-| With camera cradle | 138 | 221 | 266 | stack swaying, camera leading |
-| With camera cradle, softer plastic | 122 | 189 | 232 | same |
-| **Nose post** (dock held flat on the plate) | 270 | 292 | 626 | post and camera swaying side to side |
-| Nose post, softer plastic | 229 | 246 | 571 | same |
+| With camera cradle | 137 | 220 | 265 | stack swaying, camera leading |
+| With camera cradle, softer plastic | 121 | 189 | 229 | same |
+| **Nose post** (dock held flat on the plate) | 254 | 276 | 545 | post and camera swaying side to side |
+| Nose post, softer plastic | 215 | 234 | 496 | same |
 
 - These are **upper bounds**. The model glues every joint; real screwed joints through two
   circuit boards are softer. Expect the real numbers 20 to 40 % lower. That figure is my
@@ -78,24 +78,30 @@ whose own natural frequency sits inside that range will be shaken hardest.
   dock (see `GAP_REVIEW.md` item 1); the dock now uses them. Tape plus zip ties stays as
   the no-drill fallback for a first fit check, not for flight with the Pixhawk aboard.
 
+**Camera dimensions (2026-11-10).** The camera plates and the camera stand-in now use
+Arducam's own model of the B0353 (board 38 x 38, holes on a 34.04 mm square, lens barrel
+14 mm across and 19.2 mm tall). Fitting it widened the plate's window and slimmed its four
+posts, which is why the nose-post figures here are a little lower than the first run
+(270 Hz then, 254 Hz now).
+
 **What this means for the camera.** The lid cradle is the least stiff place on the
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
 (`dock_cam`, `cam_plate_nose`) and modelled:
 
-- **Stiffness.** First sway 270 Hz in the model against 138 Hz for the lid cradle, about
+- **Stiffness.** First sway 254 Hz in the model against 137 Hz for the lid cradle, nearly
   twice as stiff, and the load path is short: camera, plate, two cheeks, dock, carbon.
   No circuit boards or standoffs in it. The same caveat applies (glued joints, so read
-  it as an upper bound; the softer-plastic row is 229 Hz).
+  it as an upper bound; the softer-plastic row is 215 Hz, right at the hover motor rate).
 - **It is not out of the motor band.** Hover is about 213 Hz and full throttle about
-  583 Hz, so 230 to 290 Hz is crossed on every throttle-up. No printed mount gets above
+  583 Hz, so 215 to 275 Hz is crossed on every throttle-up. No printed mount gets above
   583 Hz. What the stiffer mount buys is less movement for the same shake. Whether the
   picture is steady enough is still a question for the printed part and a tap test.
 - **Props out of the picture** (`nose_post_check.py`, lens front as the viewpoint, props
-  level with the plate / 10 mm higher): 70° lens +21 / +16° at 10° of tilt, +40 / +33° at
-  25°; AR0234 80° lens +17 / +12° at 10°, +36 / +29° at 25°. The published 118° lens has
-  the props in frame at 10° (-1 / -7°) and clear from about 25° (+17 / +11°).
+  level with the plate / 10 mm higher): 70° lens +22 / +17° at 10° of tilt, +40 / +34° at
+  25°; AR0234 80° lens +18 / +12° at 10°, +36 / +30° at 25°. The published 118° lens has
+  the props in frame at 10° (-1 / -6°) and clear from about 25° (+18 / +12°).
 - **The camera sits over the edge of the prop circles.** In top view the plate's corners
-  come within 1.8 to 2.9 mm of the front prop circles; they are 16 to 21 mm above the
+  come within 1.8 to 3.1 mm of the front prop circles; they are 16 to 21 mm above the
   blades. The post itself keeps 6.5 mm at blade height, the same as the frame's own top
   plate. All of that assumes the pod is centred on the frame and the props are level with
   the top plate, and neither is measured. Check by turning the props by hand.

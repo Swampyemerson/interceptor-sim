@@ -1455,12 +1455,16 @@ camera rides. Three options were put to the builder with a calculation behind ea
 *Decision (builder: "docks nose sounds good").* The dock's nose. Drawn the same day as `dock_cam`
 + `cam_plate_nose` (tilt 10 to 45 degrees, axis 60 mm forward and 36 mm above the top plate).
 *Why.* Shortest, stiffest load path to the carbon plate with the camera still next to the Pi: the
-finite-element model puts its first shake mode at 270 Hz against 138 Hz for the lid cradle (both
+finite-element model puts its first shake mode at 254 Hz against 137 Hz for the lid cradle (both
 upper bounds, joints glued). Props stay 17 degrees or more outside the picture for the delivered
 70 degree lens and the AR0234 across the tilt range (`nose_post_check.py`).
 *Costs accepted.* It blocks the Pi's USB/Ethernet ports while fitted; the camera plate overhangs
 the edge of the front prop circles in top view (1.8 to 2.9 mm outside, 16 to 21 mm above the
 blades), on the unmeasured assumptions that the pod is centred and the props are level with the top
-plate; and 230 to 290 Hz is inside the motor band (213 to 583 Hz), so the mount is stiffer, not
+plate; and 215 to 275 Hz is inside the motor band (213 to 583 Hz), so the mount is stiffer, not
 isolated. *Not verified.* Nothing is printed. Fit, hand-turned prop clearance, a tap test and the
 props-spinning corner check all come before flight. The lid cradle and plain dock stay in the CAD.
+*Addendum, same day.* The camera plates are now fitted to Arducam's own B0353 model (38 x 38 board,
+2.5 mm holes on a 34.04 mm square, 14 x 19.2 mm lens barrel); the figures above are the re-run with
+those dimensions (first run: 270 Hz). The Pi-post insert holes went from 3.6 to 3.2 mm to fit the
+3.5 mm x 4 mm inserts the builder ordered.

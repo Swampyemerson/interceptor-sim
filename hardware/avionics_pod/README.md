@@ -105,11 +105,11 @@ are not fit-checked; the two marked "check" depend on things not yet measured.
 | M3 heat-set insert, about 5.7 mm long, for a 4.0 mm hole | 5 | 1 rear release boss, 4 camera plate ears |
 | M3 button-head screw, 8 mm | 4 | camera pivot (2) and tilt lock (2) |
 | M3 screw, 10 mm (or a thumbscrew) | 1 | rear release |
-| M2.5 heat-set insert, 5 mm long or shorter, for a 3.6 mm hole | 4 | Pi bosses in the pod base |
+| M2.5 heat-set insert, 3.5 mm outer diameter, 4 mm long (hole is 3.2 mm) | 4 | Pi bosses in the pod base |
 | Brass M2.5 male-female hex standoff, 16 mm | 4 | Pi to HAT (the HAT kit's are reported to be nylon) |
 | Brass M2.5 male-female hex standoff, 8 mm | 4 | HAT to lid |
 | M2.5 screw, 6 mm | 4 | lid |
-| M2 self-tapping screw for plastic, 6 mm | 4 | camera board to its plate. Check: board hole size is a guess |
+| M2 self-tapping screw for plastic, 6 mm | 4 | camera board to its plate. Board holes are 2.5 mm per Arducam's model, so M2 passes and M2.5 does not |
 | Double-sided foam tape, 2 mm | 1 strip | under the Pixhawk (the Pixhawk kit's pads will do) |
 | JST-SH 1.0 mm 3-pin cable (sold as a "Raspberry Pi debug" cable) | 1 | Pi 5 serial socket to the Pixhawk TELEM2 lead; needs splicing to the existing lead |
 | Right-angle USB-C plug or adapter | 1 | Pi power, pointing aft, clear of the rear-right prop |
@@ -152,7 +152,7 @@ one new template; everything else is unchanged, and the plain `dock` still exist
 | Part | What it is | Mass |
 |---|---|---|
 | `dock_cam` | the dock, plus a tongue along the top plate to the frame's two nose screws, plus two cheeks and two cross walls | 24.1 g (plain dock 12.4 g) |
-| `cam_plate_nose` | the tilting plate the camera board screws to | 5.1 g |
+| `cam_plate_nose` | the tilting plate the camera board screws to | 4.9 g |
 | `dock_cam_coupon` | 0.8 mm template of `dock_cam`'s outline and all six holes: **print this first** | |
 
 Open `avionics_pod_assembly_nose_camera.step` to inspect it; `preview_nose_camera.png` is
@@ -177,12 +177,12 @@ a rough picture.
 **Numbers** (from `nose_post_check.py`, `fea_modal.py --nose`, `analysis.py`)
 
 - Tilt axis 60 mm ahead of the pod datum, 36 mm above the top plate.
-- First shake mode 270 Hz in the model (229 Hz with softer plastic), against 138 Hz for
+- First shake mode 254 Hz in the model (215 Hz with softer plastic), against 137 Hz for
   the lid cradle. Upper bounds; see `ANALYSIS.md` section 2.
 - Props stay out of the picture with the delivered 70 degree lens and with the AR0234 at
   every tilt in the range (+17 degrees or better at the shallowest). The published
   118 degree lens needs about 25 degrees of tilt.
-- Whole aircraft 851 g, roll inertia +14 % over the old plan.
+- Whole aircraft 850 g, roll inertia +14 % over the old plan.
 
 **What it costs**
 
@@ -202,7 +202,13 @@ a rough picture.
 - With the camera fitted, turn each front prop by hand through a full circle at the
   tilt you will fly. Then the corner check from the contract: props spinning, camera at
   a plain wall, look at the picture's corners.
-- Camera board hole spacing (34 mm) is still a guess.
+- The camera plate is fitted to Arducam's own model of the B0353
+  (`uctronics.com/download/Mechanical_Drawing/B0353.STEP`, not committed): 38 x 38 board,
+  2.5 mm holes on a 34.04 mm square, ribbon connector on the back along one edge, and the
+  lens holder's two screw heads on the back 10 mm either side of centre. Compare the
+  delivered board against the printed plate before screwing it down. The board also has a
+  row of seven unpopulated pin holes at the edge opposite the connector; if yours has pins
+  soldered there, they will foul the plate's bottom bar.
 
 ## Revision 3b (2026-11-09 late): analysis and gap-review fixes
 

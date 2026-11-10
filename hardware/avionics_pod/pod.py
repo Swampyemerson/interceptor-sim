@@ -73,7 +73,8 @@ LID_STANDOFF = 8.0       # MEASURE  M2.5 standoff above the HAT (clears the modu
 FLOOR_T = 2.4
 PANEL_T = 2.4
 BOSS_D = 7.0
-INSERT_M25_D, INSERT_M25_DEPTH = 3.6, 5.0   # M2.5 heat-set insert pocket
+INSERT_M25_D, INSERT_M25_DEPTH = 3.2, 5.0   # M2.5 heat-set insert pocket: fits the
+#   3.5 mm OD x 4 mm inserts the builder ordered (2026-11-10)
 INSERT_M3_D, INSERT_M3_DEPTH = 4.0, 5.5     # M3 heat-set insert pocket
 PIN_D, PIN_CLEAR = 4.0, 0.25
 FLOOR_X_FRONT, FLOOR_X_REAR = 30.0, -44.0
@@ -83,9 +84,17 @@ HOOK_HALF_W = 12.0
 LID_T = 1.6
 
 # --- camera option (rev 3 draft): seeker camera on a tilting cradle on the lid --
-CAM_BOARD = 38.0         # Arducam B0353 (AR0234) board, vendor listing
-CAM_HOLE = 34.0          # MEASURE  hole spacing (not published; common Arducam value)
-CAM_LENS_D, CAM_LENS_L = 16.0, 18.0   # MEASURE  M12 lens + holder, for the ghost only
+# Arducam B0353 (AR0234), read from Arducam's own model 2026-11-10
+# (uctronics.com/download/Mechanical_Drawing/B0353.STEP): board 38 x 38, four
+# 2.5 mm holes on a 34.04 mm square with 4 mm pads (so M2 screws), lens centred,
+# barrel 14 mm across and 19.2 mm tall. On the back: ribbon connector along one
+# edge (17.6 wide, 2.05 tall) and the lens holder's two screws 10 mm either side
+# of centre. Not yet checked against the delivered board.
+CAM_BOARD = 38.0
+CAM_HOLE = 34.0
+CAM_BOSS_R = 2.0         # posts match the board's 4 mm pads
+CAM_WINDOW_HALF = 13.0   # clears the connector and the holder's screw heads
+CAM_LENS_D, CAM_LENS_L = 14.0, 19.2   # for the stand-in only
 CAM_PIVOT_X, CAM_PIVOT_ABOVE_LID = 52.0, 10.3   # pivot ahead of the USB ports
 CAM_TILT_MIN, CAM_TILT_MAX = 10.0, 45.0         # up-tilt range the lock slot allows
 CAM_TILT_SHOWN = 25.0    # tilt drawn in the assembly
@@ -389,12 +398,12 @@ def cam_plate_local():
     half = CAM_PLATE_HALF_W
     bh = CAM_BOARD / 2 + 2.0
     pl = box(2.0, 4.4, -half, half, -bh, bh)
-    pl = pl.cut(box(1.0, 5.4, -12.0, 12.0, -bh - 1.0, 12.0))   # window, open at the bottom
+    pl = pl.cut(box(1.0, 5.4, -CAM_WINDOW_HALF, CAM_WINDOW_HALF, -bh - 1.0, 12.0))   # window, open at the bottom
     #                                   edge for the board's ribbon connector
     for sy in (-1, 1):
         for sz in (-1, 1):
             y, z = sy * CAM_HOLE / 2, sz * CAM_HOLE / 2
-            boss = cq.Workplane("YZ").circle(2.6).extrude(2.5).translate((4.4, y, z))
+            boss = cq.Workplane("YZ").circle(CAM_BOSS_R).extrude(2.5).translate((4.4, y, z))
             pl = pl.union(boss)
             pl = pl.cut(cq.Workplane("YZ").circle(0.9).extrude(8).translate((1.0, y, z)))
         ya, yb = sorted((sy * (half - 7.0), sy * half))
@@ -438,11 +447,11 @@ def cam_plate_nose_local():
     xp = NOSE_PLATE_X
     bh = CAM_BOARD / 2 + 2.0
     pl = box(xp, xp + 2.4, -half, half, -bh, bh)
-    pl = pl.cut(box(xp - 1, xp + 3.4, -12.0, 12.0, -14.0, bh + 1.0))
+    pl = pl.cut(box(xp - 1, xp + 3.4, -CAM_WINDOW_HALF, CAM_WINDOW_HALF, -14.0, bh + 1.0))
     for sy in (-1, 1):
         for sz in (-1, 1):
             y, z = sy * CAM_HOLE / 2, sz * CAM_HOLE / 2
-            pl = pl.union(cq.Workplane("YZ").circle(2.6).extrude(2.5)
+            pl = pl.union(cq.Workplane("YZ").circle(CAM_BOSS_R).extrude(2.5)
                           .translate((xp + 2.4, y, z)))
             pl = pl.cut(cq.Workplane("YZ").circle(0.9).extrude(8).translate((xp - 1, y, z)))
     lx, lz = nose_lock_local()

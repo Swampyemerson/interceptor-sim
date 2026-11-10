@@ -571,7 +571,7 @@
   "plain_log": [
     {
       "date": "2026-11-10",
-      "text": "Camera mount decided and drawn. The builder picked a short post off the avionics dock's nose over the pod-lid cradle and the old nose boom. The dock grows a tongue to the frame's two nose screws and two cheeks that carry a tilting camera plate (10 to 45 degrees). Calculated, not built: first shake mode 270 Hz against 138 Hz for the lid cradle; props 17 degrees or more outside the picture with the delivered lens; whole aircraft 851 g. Known costs: it blocks the Pi's USB ports while fitted, and the camera plate overhangs the edge of the front prop circles by position (about 2 mm outside in top view, 16 mm or more above the blades).",
+      "text": "Camera mount decided and drawn. The builder picked a short post off the avionics dock's nose over the pod-lid cradle and the old nose boom. The dock grows a tongue to the frame's two nose screws and two cheeks that carry a tilting camera plate (10 to 45 degrees). The camera plate is fitted to Arducam's own 3D model of the B0353. Calculated, not built: first shake mode 254 Hz against 137 Hz for the lid cradle; props 17 degrees or more outside the picture with the delivered lens; whole aircraft 850 g. Known costs: it blocks the Pi's USB ports while fitted, and the camera plate overhangs the edge of the front prop circles by position (about 2 mm outside in top view, 16 mm or more above the blades).",
       "so_what": "The last open layout question on the avionics pod is closed, so the print list is fixed: template first, then dock, pod and camera plate. Every number is still a model; the printed part and a tap test decide whether the picture is steady.",
       "evidence": "ADR-0135 - hardware/avionics_pod/README.md (revision 4) - ANALYSIS.md - nose_post_check.py - fea_results/nose_post.json"
     },
@@ -2497,7 +2497,7 @@
             "name": "Nose-cantilever prop-clearance camera mount",
             "status": "print",
             "role": "Designs the own-prop phantom out of the FoV — no software fallback.",
-            "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. Drawn, not printed: hardware/avionics_pod/ (dock_cam, cam_plate_nose). Model only: first shake mode 270 Hz, props 17 deg or more outside the picture. Corner-spin gate at loaded throttle still caps the tilt."
+            "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. Drawn, not printed: hardware/avionics_pod/ (dock_cam, cam_plate_nose). Model only: first shake mode 254 Hz, props 17 deg or more outside the picture. Corner-spin gate at loaded throttle still caps the tilt."
           },
           {
             "name": "FC High-Endurance microSD (ULogs)",

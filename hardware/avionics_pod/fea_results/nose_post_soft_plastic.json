@@ -1,11 +1,11 @@
 {
  "freqs_hz": [
-  228.7,
-  246.4,
-  570.5,
-  606.7,
-  901.1,
-  912.0
+  214.6,
+  233.9,
+  495.6,
+  565.4,
+  821.7,
+  832.4
  ],
  "modes": [
   [
@@ -16,9 +16,9 @@
     0.05
    ],
    {
-    "dock_cam": 0.56,
-    "cam_plate_nose": 0.33,
-    "camera": 0.11
+    "dock_cam": 0.59,
+    "cam_plate_nose": 0.32,
+    "camera": 0.09
    }
   ],
   [
@@ -26,70 +26,70 @@
    [
     1.0,
     0.03,
-    0.41
+    0.4
    ],
    {
-    "dock_cam": 0.59,
-    "cam_plate_nose": 0.31,
-    "camera": 0.1
+    "dock_cam": 0.51,
+    "cam_plate_nose": 0.37,
+    "camera": 0.12
    }
   ],
   [
    "up-down",
    [
-    0.75,
+    0.72,
     0.07,
     1.0
    ],
    {
-    "camera": 0.47,
-    "cam_plate_nose": 0.41,
-    "dock_cam": 0.12
+    "camera": 0.46,
+    "cam_plate_nose": 0.44,
+    "dock_cam": 0.1
    }
   ],
   [
    "fore-aft",
    [
     1.0,
-    0.88,
-    0.14
+    0.91,
+    0.11
    ],
    {
-    "dock_cam": 0.52,
-    "camera": 0.26,
-    "cam_plate_nose": 0.21
+    "dock_cam": 0.43,
+    "camera": 0.31,
+    "cam_plate_nose": 0.26
    }
   ],
   [
    "up-down",
    [
-    0.59,
-    0.83,
+    0.76,
+    0.92,
     1.0
    ],
    {
-    "cam_plate_nose": 0.4,
-    "dock_cam": 0.3,
-    "camera": 0.3
-   }
-  ],
-  [
-   "up-down",
-   [
-    0.84,
-    0.13,
-    1.0
-   ],
-   {
-    "cam_plate_nose": 0.41,
     "dock_cam": 0.38,
-    "camera": 0.21
+    "cam_plate_nose": 0.36,
+    "camera": 0.25
+   }
+  ],
+  [
+   "up-down",
+   [
+    0.82,
+    0.12,
+    1.0
+   ],
+   {
+    "dock_cam": 0.41,
+    "cam_plate_nose": 0.37,
+    "camera": 0.22
    }
   ]
  ],
- "mass_g": 44.7,
- "nodes": 41150,
- "tets": 20781,
+ "mass_g": 44.4,
+ "nodes": 40595,
+ "tets": 20374,
  "clamped_dofs": 10830,
  "nose_post": true,
  "camera": true,
