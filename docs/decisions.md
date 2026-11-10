@@ -1386,3 +1386,20 @@ slow-motion phone clip read by `scripts/bench/phone_wobble_freq.py` (outline-til
 capture rate; fails closed on short clips, lost tracking, or no clear peak). Its frequency
 is trustworthy if the clip is filmed from directly behind or in front against plain sky;
 its tilt-in-degrees figure is a camera-view number, not a calibrated attitude.
+
+**Addendum 3, same day — the racer-gain flight, result.** Builder report: "night and day".
+Sideways position locked; motors "way less hot"; only a very small, intermittent oscillation,
+audible but not visible (so the phone clip carries no usable signal — night, string lights —
+and was not analysed). The registered prediction (fast rock smaller or gone, motors cooler)
+held on both counts. Caveats, as registered: two things changed versus the previous flight
+(K 0.65 → 1.0 and the P/D values), every verdict is by eye/ear/touch, and the four values
+were typed into QGC by the builder and have not yet been read back from the board.
+New observations, not yet explained: in Position mode the height hold is soft (throttle
+needed slow nudges up) and descents are slow and come in bursts; in Stabilized, ~60 %
+throttle launches the aircraft, so hover throttle is well under the `MPC_THR_HOVER = 0.5`
+on the board (the PX4 racer airframe ships 0.25, with `MPC_THR_MIN` 0.05 against this
+board's 0.12 and `THR_MDL_FAC` 0.3 against 0). Candidate causes for the height behaviour,
+unranked until a read-back: thrust floor too close to hover thrust (little room to descend);
+hover-thrust estimate starting far from truth; an un-sprung throttle stick sitting just below
+centre; ordinary descent through own prop wash. Next: read the board, then one change.
+

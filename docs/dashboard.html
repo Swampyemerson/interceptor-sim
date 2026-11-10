@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4567982<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->2fa9e63<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-09",
- "updated_by": "Layout fix flown (big improvement); Pi 5 will not boot after being peeled off mounting tape -- replacement needed",
+ "updated_by": "Racer-class rate gains flown: wobble essentially gone, motors far cooler; altitude hold is the next item",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -914,13 +914,13 @@
  },
  "now": {
   "as_of": "2026-11-09",
-  "where": "Motor-layout fix flown (33 s): much more stable, holds position for the first time. A smaller, faster rock remains and the motors still run hot. Separately, the Pi 5 no longer boots: it was peeled off sticky tape and parts came off its underside.",
-  "finding": "The wrong PLUS layout was the big wobble. The leftover fast rock is a different, ordinary tuning-class problem -- but 'fast' is by eye. Its frequency decides which loop to adjust, so a recorder was built before touching any gain.",
+  "where": "Third flight tonight, on PX4's small-racer rate gains: 'night and day'. Sideways hold locked, motors far less hot, only a faint intermittent oscillation (audible, not visible). The Pi 5 is still dead (parts stripped by mounting tape).",
+  "finding": "Two root causes found and flown in one evening: wrong motor layout (plus on an X frame), then gains sized for a big slow quad. Left over: height hold in Position mode is soft and descents come in slow bursts; 60% throttle in Stabilized launches it.",
   "next": [
-   "You: slow-motion phone clip of a 10 s hover (wobble frequency); decide on a replacement Pi 5",
-   "Me: pick ONE tuning change from the measured frequency; re-provision the new Pi from the SD card"
+   "You: plug the Pixhawk into USB so I can read back tonight's values and the learned hover throttle",
+   "Me: propose ONE height-hold change from that read-back; recorder waits on a replacement Pi"
   ],
-  "evidence": "Builder flight report + underside photo 2026-11-09 - configs/px4_6cmini/dumps/20261109_postflight.tsv - scripts/bench/hover_recorder.py + hover_wobble_analysis.py - ADR-0134 addendum"
+  "evidence": "Builder flight reports 2026-11-09 (three flights) - ADR-0134 + two addenda (prediction registered before the flight, commit 2fa9e63) - PX4 v1.16.0 airframe 4050_generic_250"
  },
  "assumptions": [
   {
@@ -1468,9 +1468,9 @@
  "plain_log": [
   {
    "date": "2026-11-09",
-   "text": "Found, fixed and FLEW the main cause of the hover wobble. A full read of the flight controller (1122 of 1122 settings) showed it was mixing the motors for a PLUS-shaped quad (airframe 5001, a bare-board placeholder from July that was never replaced) on this X frame. Thrust and yaw come out right on that mismatch, so it hovered and passed every spin test, but each roll or pitch correction landed 45 degrees off-axis. Corrected to the X layout (4001), read back after a reboot with exactly the five intended values changed, then flown for 33 s: the builder reports a huge improvement -- the aircraft holds its position for the first time. What remains is a smaller rock at a clearly higher frequency. Same read confirmed the motors run on plain PWM from MAIN 1-4 (400 Hz, 1100-1900 us), not DShot; left alone so one thing changed per flight. The board also disagrees with the 2026-10-25 log: rate gain K is 0.65 (log says 0.8) and the gyro notch is off (log says on).",
-   "so_what": "The registered prediction held: wobble clearly reduced. The leftover is a normal tuning problem -- motors still hot, which leans toward the fast (rate-loop or filter) side -- but which knob depends on its measured frequency. A recorder and a fail-closed analyser now exist for that. SETBACK the same evening: the Pi 5 stopped booting (green for a second, then red, bare board on a good supply) after it was peeled off mounting tape; the builder's photo shows the capacitor field under the processor largely stripped. Treat the Pi as dead: no in-flight recorder and no seeker computer until it is replaced. The SD card is believed intact. Never stick tape to a bare board; mount by the corner holes.",
-   "evidence": "configs/px4_6cmini/dumps/20261109_{before,after}_geometry_fix.tsv + 20261109_postflight.tsv; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py; builder flight report; ADR-0134"
+   "text": "The hover wobble is root-caused and essentially gone, in three flights in one evening. (1) A full read of the flight controller (1122 of 1122 settings) showed it mixing the motors for a PLUS-shaped quad (airframe 5001, a bare-board placeholder from July) on this X frame, so every roll or pitch correction landed 45 degrees off-axis. Corrected to the X layout and flown: holds position for the first time, a smaller faster rock remains, motors still hot. (2) The board was also carrying rate gains meant for a large, gentle quad (P 0.15, D 0.003) on an aircraft with roughly 7.5 times its weight in thrust. Set to the values PX4 ships for a small racing quad (P 0.08, D 0.001), prediction written down first, then flown: the builder calls it night and day -- sideways hold locked, motors far less hot, only a faint intermittent oscillation that can be heard but not seen. Also confirmed by the read: motors run on plain PWM from MAIN 1-4, not DShot (left alone). Still open from this flight: height hold in Position mode is soft (throttle had to be nudged up to stay level) and descents come slowly and in bursts; 60 percent throttle in Stabilized launches the aircraft, so hover throttle is far below the 50 percent the controller assumes.",
+   "so_what": "The interceptor now flies properly; the wobble that blocked everything since 2026-10-25 was two wrong settings, not wiring. Both fixes were predicted in writing before the flight that tested them. What remains is ordinary tuning of the height loop and filters. SETBACK the same evening: the Pi 5 no longer boots after being peeled off mounting tape (capacitors stripped from its underside, per the builder's photo) -- no in-flight recorder and no seeker computer until it is replaced; the SD card is believed intact. All flight verdicts tonight are builder reports by eye, ear and touch; nothing was logged.",
+   "evidence": "configs/px4_6cmini/dumps/20261109_*.tsv (before, after, post-flight; the P/D values were set by the builder in QGC and are NOT yet read back); ADR-0134 + addenda; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py, phone_wobble_freq.py; PX4 v1.16.0 airframes 4001/5001/4050"
   },
   {
    "date": "2026-10-25",
@@ -4906,7 +4906,7 @@
    "claim_b": "bench.params sec 5 (2026-10-16/17): PWM_MAIN_FUNC1..4 map the motors onto MAIN1-4, and its own comment says 'the IO co-processor's MAIN rail speaks PWM only'. No DSHOT_CONFIG, PWM_MAIN_MIN/MAX or ESC throttle-range calibration is recorded anywhere in the repo.",
    "loc_b": "configs/px4_6cmini/bench.params:329-366",
    "current_truth": "CONFIRMED ON THE LIVE BOARD 2026-11-09 (full USB dump): motors are on MAIN 1-4 as plain PWM at 400 Hz, range 1100-1900 us; all eight AUX functions are 0 (nothing on the DShot-capable pins). No ESC throttle-range calibration is recorded. On this firmware there is no DSHOT_CONFIG parameter -- DShot is chosen per AUX timer group (PWM_AUX_TIM*). An uncalibrated PWM path remains a possible inner-loop contributor, but it is now the SECOND suspect behind the wrong motor layout found the same day (ledger interceptor-allocator-quad-plus-on-x-frame).",
-   "resolution": "OPEN, live read-back done. Not changed on 2026-11-09 (one change per flight). The layout fix removed the large wobble, so PWM is no longer a leading suspect for it; it stays open as a possible contributor to the residual fast rock (output delay, uncalibrated range) and is decided after the recorded hover gives a frequency."
+   "resolution": "OPEN, low urgency. Live read-back done 2026-11-09; not changed. The wobble turned out to be the motor layout plus oversized rate gains, both fixed and flown, so PWM is no longer a wobble suspect. It stays open because the contract's planned DShot features (RPM-tracking notch) cannot work on the MAIN rail, and no ESC range calibration is on record."
   },
   {
    "id": "interceptor-allocator-quad-plus-on-x-frame",

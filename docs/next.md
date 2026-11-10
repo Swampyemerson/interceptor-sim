@@ -25,14 +25,14 @@ the weekend**. Full drift register:
 
 ## KILL DAY — the weekend plan (2026-10-24/26)
 
-> **UPDATE 2026-11-09 — the big wobble is fixed and flown.** The flight controller had been
-> mixing the motors for a **plus**-shaped quad (airframe 5001, a bare-board placeholder) on this
-> **X** frame; corrected to 4001 (ADR-0134) and flown: holds position for the first time.
-> **What is left:** a smaller, faster rock. Do NOT change gains by eye — slow and fast rocks
-> need opposite fixes. Next flight is one unchanged 30 s hover with
-> `scripts/bench/hover_recorder.py` running on the Pi, then
-> `hover_wobble_analysis.py` names the frequency and the one change to make. The "wiring-class
-> suspects" below and the 2026-10-25 "ruled out" list predate the fix and are void.
+> **UPDATE 2026-11-09 — the hover wobble is root-caused and flown out.** Two wrong settings,
+> not wiring: the flight controller mixed the motors for a **plus** quad on this **X** frame
+> (fixed: airframe 4001), and it carried rate gains for a big slow quad (fixed: PX4's
+> small-racer values, P 0.08 / D 0.001). Result: locked sideways hold, much cooler motors, a
+> faint intermittent oscillation only. ADR-0134 and its addenda hold the predictions and results.
+> **Open now:** soft height hold and slow, bursty descents in Position mode (hover throttle is
+> far below the 50 % the controller assumes); the Pi 5 is dead and needs replacing before any
+> camera or recorder work. The "wiring-class suspects" below are void.
 
 > **OUTCOME (2026-10-25): the scored attempt moved out ~a week; the weekend delivered the
 > interceptor's AIRWORTHINESS instead** — maiden flown after a 180° board-rotation root-cause
