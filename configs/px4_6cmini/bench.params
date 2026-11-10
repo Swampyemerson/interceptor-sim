@@ -389,7 +389,10 @@
 #                              a generic quad set from the Airframe tab -- and
 #                              NEVER from this file, see the header for why).
 #    - CA_* / actuator outputs motor mixing + geometry (control allocation).
-#    - DSHOT_CONFIG / PWM_*    ESC protocol + PWM ranges (no ESC on the bench).
+#    - PWM_MAIN_* / PWM_AUX_*  ESC protocol + PWM ranges (no ESC on the bench).
+#                              [2026-11-09: as flown = plain PWM on MAIN 1-4,
+#                              400 Hz, 1100-1900 us; see airframe.params. This
+#                              firmware has no DSHOT_CONFIG parameter.]
 #    - BAT1_N_CELLS, BAT1_*    [SUPERSEDED IN PART 2026-10-04: the airframe now
 #                              exists, and BAT1_N_CELLS=6 is an ACTIVE line in
 #                              section (4) above. BAT1 V/I CALIBRATION still

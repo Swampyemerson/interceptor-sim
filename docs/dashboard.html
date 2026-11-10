@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->6ab6f92<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->7787615<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -3003,9 +3003,9 @@
      },
      {
       "name": "Raspberry Pi 5, 8 GB",
-      "status": "in hand",
+      "status": "must-add",
       "role": "Runs the same stack the flight Pi will: capture, calibration, tag decode, NN shadow scoring.",
-      "notes": "In hand. The Pi 3 also on hand is capture-only fallback — useless for the fps bench."
+      "notes": "DEAD 2026-11-09: peeling it off mounting tape stripped parts from the underside. Buy a replacement Pi 5 8 GB; mount by the corner holes, never tape. The SD card is believed intact. The Pi 3 on hand is capture-only."
      },
      {
       "name": "SanDisk 128 GB microSD + reader",
@@ -3118,27 +3118,27 @@
     "parts": [
      {
       "name": "Pixhawk 6C Mini",
-      "status": "in hand",
+      "status": "built",
       "role": "The interceptor's PX4 autopilot — the exact stack the sim validated.",
-      "notes": "In hand. Front-loaded past the P2 gate (logged ADR-lite deviation). Confirm a microSD is included — ULogs are the metrology."
+      "notes": "On the airframe and flown 2026-11-09. Its microSD slot is dead, so there are no onboard flight logs; settings are pinned in configs/px4_6cmini/airframe.params."
      },
      {
       "name": "Holybro PM02 V3 power module (analog)",
-      "status": "ordered",
+      "status": "built",
       "role": "FC battery power + V/I telemetry when it flies; on the bench it is just the wiring dry-run.",
-      "notes": "Must be the ANALOG PM02 (the PM02D pairs with the 6X) — settled, see hardware_order_list.md."
+      "notes": "Analog PM02 (the PM02D pairs with the 6X). Installed on the airframe. Flown 2026-11-09 (three flights, ADR-0134). Voltage/current calibration still owed."
      },
      {
       "name": "Holybro M10 GPS + IST8310 compass",
-      "status": "in hand",
-      "role": "Position-hold / failsafe GPS for the future interceptor.",
-      "notes": "10-pin plug into GPS1."
+      "status": "built",
+      "role": "Position-hold / failsafe GPS for the interceptor.",
+      "notes": "10-pin plug into GPS1. On the airframe; Position mode held on it 2026-11-09."
      },
      {
       "name": "Pi-to-TELEM2 UART jumper leads",
-      "status": "ordered",
+      "status": "built",
       "role": "The three wires the whole deploy path rides on.",
-      "notes": ""
+      "notes": "Carried the Pi-to-FC link on the bench. Re-check on the replacement Pi."
      },
      {
       "name": "USB-C DATA cable",
@@ -3350,45 +3350,45 @@
      },
      {
       "name": "Skystars KO60II 60A 3-6S AM32 4-in-1 ESC (30x30)",
-      "status": "in hand",
-      "role": "Motor drive, DShot from the 6C Mini.",
-      "notes": "60A = extra headroom over the 45-55A plan. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
+      "status": "built",
+      "role": "Motor drive. Driven by plain PWM from the 6C Mini's MAIN 1-4, not DShot.",
+      "notes": "60A = extra headroom over the 45-55A plan. Flown 2026-11-09 (three flights, ADR-0134). No throttle-range calibration recorded; see ledger interceptor-esc-protocol-pwm-not-dshot."
      },
      {
       "name": "EMAX ECO II 2207 1900KV motors ×5",
-      "status": "ordered",
+      "status": "built",
       "role": "4 flight + 1 spare; identical to the target's motors (one spare pool).",
-      "notes": "Longest lead item — arrives ~Oct 5-15. [2026-10-02 builder, via wiring editor: ordered -> in hand.] [2026-10-03 builder, via wiring editor: in hand -> ordered — reverses yesterday's tap; matches the ~Oct 5-15 arrival window.]"
+      "notes": "Four mounted and flown 2026-11-09; ran hot until the rate gains were fixed, far cooler after. Motor layout is set by airframe 4001 (quad X)."
      },
      {
       "name": "RadioMaster RP3 ELRS diversity RX (UFL V2)",
-      "status": "in hand",
+      "status": "built",
       "role": "Kill/arm-only RC link (constraint no-datalink).",
       "notes": "WIRED + BENCH-VERIFIED 2026-10-02/03: bound to the Pocket (bind-phrase UID on both ends, survives reboots), serial protocol = plain SBUS ('Inverted SBUS' does NOT decode on the 6C Mini -- tested), 18-ch frames + live stick sweeps + no-pulses failsafe verified at the PX4 level (configs/px4_6cmini/rc_check.py). KILL SWITCH DONE: ch5 bumper, RC_MAP_KILL_SW=5 written + read-back verified across a reboot (verify_params.py 10/10), PX4 observed reading engage (1) and release (3) live. Root cause of the initial dead link: unseated DuPont junction + wrong polarity option, isolated by instruments (px4io counters + a 3.2 V pin probe). Still open: QGC radio calibration before arming. Field rule: TX on before (or within 60 s of) powering the aircraft, else the RX parks in WiFi mode until power-cycled."
      },
      {
       "name": "Matek 12S Pro BEC (Pi rail)",
-      "status": "in hand",
+      "status": "built",
       "role": "Dedicated Pi 5 power rail — two-rail rule.",
-      "notes": "Bench-verify the 5 V tap delivers 5.2 V under Pi load before first flight. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
+      "notes": "Wired, with the 1000 uF cap across its 5 V pads. Re-verify 5.2 V under load when the replacement Pi arrives."
      },
      {
       "name": "Holybro PM02 V3 analog power module",
-      "status": "in hand",
+      "status": "built",
       "role": "FC battery power + V/I telemetry.",
-      "notes": "Replacement — the first unit was vendor-refunded. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
+      "notes": "Replacement unit (the first was vendor-refunded). Installed; Flown 2026-11-09 (three flights, ADR-0134)."
      },
      {
       "name": "HQProp V2S 5x4.3x3 props ×16",
-      "status": "in hand",
+      "status": "built",
       "role": "Flight + spare sets, shared with the target.",
-      "notes": "Arrive ~Sep 25. [2026-10-02 builder, via wiring editor: ordered -> in hand.]"
+      "notes": "One set mounted and flown 2026-11-09; the rest are spares shared with the target."
      },
      {
       "name": "Pixhawk 6C Mini + M10 GPS (from the brain bench)",
-      "status": "in hand",
-      "role": "Autopilot + GPS move onto the airframe once the bench gates pass.",
-      "notes": ""
+      "status": "built",
+      "role": "Autopilot + GPS, moved from the brain bench onto the airframe.",
+      "notes": "Flown 2026-11-09 (three flights, ADR-0134). As-flown settings: configs/px4_6cmini/airframe.params (test-checked against the newest board read)."
      },
      {
       "name": "Nose-cantilever prop-clearance camera mount",
@@ -3398,15 +3398,15 @@
      },
      {
       "name": "FC High-Endurance microSD (ULogs)",
-      "status": "in hand",
-      "role": "ULogs are the kill metrology — no card, no scored flight.",
-      "notes": "Confirm whether the 6C Mini kit included one before buying. [2026-10-03 builder, via wiring editor: must-add -> in hand.]"
+      "status": "must-add",
+      "role": "Onboard flight logs (ULogs) for scoring a flight.",
+      "notes": "BLOCKED: the 6C Mini's microSD slot is dead, so a card does not help. Substitute is scripts/bench/hover_recorder.py on the Pi (needs the replacement Pi). All flight verdicts so far are by eye, ear and touch."
      },
      {
       "name": "M2.5 nylon standoff/screw kit (Pi tray)",
       "status": "must-add",
       "role": "Mounts the Pi 5 to the printed tray.",
-      "notes": ""
+      "notes": "Now also mounts the Pi inside the avionics pod (hardware/avionics_pod/). Never tape a circuit board."
      },
      {
       "name": "DIY thrust rig (inverted on a scale)",

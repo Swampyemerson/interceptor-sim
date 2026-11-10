@@ -28,7 +28,7 @@ hosted at https://claude.ai/artifact/VZ8qf3qmhdcEfrwZ74F5jk
 | Thrust-to-weight | 7.5 : 1 at 800 g; 6.3 : 1 at 950 g (rule: ≥ 5 : 1) | derived |
 | Hover current | ≈ 7.5 A (5.5 to 7.5 A across the FM/efficiency band) | derived |
 | Hover time | ≈ 10 min (9.6 to 13.1 min), 80% of a 1500 mAh pack | derived |
-| Hover throttle | ≈ 37 % | derived |
+| Hover throttle | ≈ 37 % | derived; **not yet measured.** The board is set to 25 % (`MPC_THR_HOVER`, a racer-airframe starting value, 2026-11-09) and the flight evidence so far is by feel only |
 | Target drone weight | 610.5 g bare, 803.5 g with placard | derived (`placard_mount.md` §4.2) |
 
 ---
@@ -181,8 +181,12 @@ hover RPM             ≈ 35,000 × √(200 g / 1500 g) ≈ 12,800 RPM
   rev/s), FM = T^1.5 / (P √(2ρA)).
 - Thrust falls toward zero as airspeed approaches the pitch speed, so static thrust
   overstates top speed.
-- The hover shaft and blade-pass frequencies are what the gyro notch filter has to remove;
-  AM32 ESCs can report RPM over bidirectional DShot for an RPM-tracking notch.
+- The hover shaft and blade-pass frequencies are what the gyro notch filter has to remove.
+  An RPM-tracking notch needs the ESC to report RPM over bidirectional DShot, and this
+  aircraft cannot do that as wired: the motors run on plain PWM from the Pixhawk's MAIN 1-4
+  pins, which cannot speak DShot (live board read 2026-11-09). It would need the signal
+  wires moved to the AUX pins. Until then the notch is a fixed-frequency one, currently off
+  (`IMU_GYRO_DNF_EN=0`).
 - Hot-motor fallback from `hardware_order_list.md` §3: 1755 KV and/or a lower-pitch prop.
   The 5x4.3x3 is already the cooler-running prop choice.
 

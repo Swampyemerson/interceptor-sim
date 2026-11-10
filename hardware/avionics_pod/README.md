@@ -111,4 +111,9 @@ cadenv/bin/python hardware/avionics_pod/preview.py  # preview.png
 
 `pod.py` refuses to export a part that is not a single valid solid. Checked for v1: zero
 overlap between dock and pod, and between the Pixhawk/Pi volumes and the printed parts.
-The STEP files open in Fusion, Onshape or FreeCAD for hand edits.
+The STEP files open in SolidWorks, Fusion, Onshape or FreeCAD for hand edits.
+For inspection open `avionics_pod_assembly.step`: the three printed parts in flight
+position plus plain blocks named `REF_*` standing in for the Pixhawk, Pi 5 and HAT.
+Those blocks are envelopes from the parameter block, not real board models. Units are
+millimetres; x points to the nose, z is up from the top plate. A STEP import has no
+feature tree, so change dimensions in `pod.py` and regenerate.

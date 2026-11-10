@@ -45,8 +45,10 @@ the rate the Pi *computed* setpoints at; `mavsdk_server` re-sends the last
 setpoint on its own timer, so the two are different numbers.
 
 **Deferred to the airframe (NOT here):** arming, motors actually responding to
-setpoints, takeoff/land, ESC/DShot, battery monitoring, control-allocation
+setpoints, takeoff/land, ESC signal, battery monitoring, control-allocation
 geometry, MC PID tuning. See the *WAITS FOR THE AIRFRAME* block in `bench.params`.
+(Most of these are now done on the airframe: the as-flown values live in
+`airframe.params`. The ESCs run on plain PWM, not DShot.)
 
 > **CORRECTED 2026-07-26 — you do NOT need a GPS fix for this bench.** This
 > README used to say PX4 would refuse OFFBOARD without an EKF horizontal

@@ -239,6 +239,26 @@ def mass_report(parts):
     }
 
 
+def assembly(parts):
+    """One STEP for CAD inspection: the three printed parts in flight position,
+    plus plain blocks standing in for the boards (envelopes, not real models)."""
+    hw = PI_W / 2
+    asm = cq.Assembly(name="avionics_pod")
+    asm.add(parts["dock"], name="dock", color=cq.Color(0.35, 0.35, 0.38))
+    asm.add(parts["pod_base"], name="pod_base", color=cq.Color(0.95, 0.55, 0.15))
+    asm.add(parts["pod_lid"], name="pod_lid", color=cq.Color(0.95, 0.75, 0.30))
+    asm.add(box(FC_X0 - FC_L / 2, FC_X0 + FC_L / 2, -FC_W / 2, FC_W / 2,
+                Z_FC0, Z_FC0 + FC_H),
+            name="REF_pixhawk_6c_mini_envelope", color=cq.Color(0.15, 0.15, 0.15))
+    asm.add(box(-PI_L / 2, PI_L / 2, -hw, hw, Z_PI, Z_PI + PI_T),
+            name="REF_pi5_board", color=cq.Color(0.10, 0.60, 0.20))
+    asm.add(box(PI_L / 2 - 21, PI_L / 2 + 2, -hw + 2, hw - 2, Z_PI + PI_T, Z_PI + 16),
+            name="REF_pi5_usb_ethernet_block", color=cq.Color(0.75, 0.75, 0.78))
+    asm.add(box(PI_X_SD, PI_X_SD + HAT_L, -hw, hw, Z_HAT, Z_HAT + PI_T),
+            name="REF_ai_hat_board", color=cq.Color(0.10, 0.35, 0.70))
+    return asm
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.dirname(os.path.abspath(__file__)))
@@ -253,6 +273,7 @@ def main() -> int:
         cq.exporters.export(wp, os.path.join(a.out, f"{name}.stl"), tolerance=0.02,
                             angularTolerance=0.2)
         cq.exporters.export(wp, os.path.join(a.out, f"{name}.step"))
+    assembly(parts).save(os.path.join(a.out, "avionics_pod_assembly.step"))
     rep = mass_report({k: v for k, v in parts.items() if k != "dock_coupon"})
     with open(os.path.join(a.out, "mass_report.json"), "w") as f:
         json.dump(rep, f, indent=1)
