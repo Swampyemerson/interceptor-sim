@@ -35,6 +35,8 @@ DOCK_HOLE_DY = 30.5      # MEASURE  left-right spacing of those holes
 DOCK_HOLE_X0 = -8.0      # x of the hole pattern's centre (pod datum, see report)
 DOCK_SLOT = 4.0          # each hole is a slot this long (fore-aft) for adjustment
 DOCK_T = 3.0
+TIE_XS = (-40.0, 18.0)   # zip-tie stations (clear of pins, bolt slots, boss, hook)
+TIE_W, TIE_GROOVE = 5.0, 1.4   # fits ties up to 4.8 mm wide, 1.3 mm thick
 
 # --- Pixhawk 6C Mini --------------------------------------------------------
 FC_L, FC_W, FC_H = 53.3, 38.4, 16.5   # MEASURE (vendor sheet from memory)
@@ -114,6 +116,15 @@ def dock(coupon: bool = False):
     if coupon:
         d = d.cut(cyl(0, 0, -1, 2, 2.0))          # x = 0 datum mark
         return d
+    # NO-DRILL OPTION: foam tape under the dock + two zip ties round the top plate.
+    # Each tie lies in a groove across the dock's top face (so the pod still sits
+    # flat) and drops through a notch at each edge.
+    for gx in TIE_XS:
+        d = d.cut(box(gx - TIE_W / 2, gx + TIE_W / 2, -DOCK_W / 2 - 1, DOCK_W / 2 + 1,
+                      DOCK_T - TIE_GROOVE, DOCK_T + 1))
+        for sy in (-1, 1):
+            ya, yb = sorted((sy * (DOCK_W / 2 - 2.0), sy * (DOCK_W / 2 + 1)))
+            d = d.cut(box(gx - TIE_W / 2, gx + TIE_W / 2, ya, yb, -1, DOCK_T + 1))
     # front wedge hook: 45-degree face, prints without support
     xf = FLOOR_X_FRONT + 0.2
     hook = xz_prism([(xf, Z_DOCK), (xf + 5.8, Z_DOCK), (xf + 5.8, Z_DOCK + 5.5),

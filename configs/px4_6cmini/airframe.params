@@ -1,0 +1,100 @@
+# =============================================================================
+#  airframe.params -- the interceptor's AS-FLOWN airframe settings (Pixhawk 6C Mini)
+# =============================================================================
+#  The settings that make this particular aircraft fly, copied from a full read of
+#  the live board: configs/px4_6cmini/dumps/20261109_height_block.tsv.
+#  bench.params is the bare-board plumbing pack; THIS file is the airframe on top.
+#  If the board is ever reflashed or reset, this is what has to go back on it.
+#
+#  Check the board against it (read-only):
+#    python.exe configs/px4_6cmini/verify_params.py --port COM5 --file airframe.params
+#  Check a saved dump against it (no board needed):
+#    python3 configs/px4_6cmini/verify_params.py --dump configs/px4_6cmini/dumps/<file>.tsv --file airframe.params
+#  When a value is changed on the board on purpose, change it here in the SAME commit;
+#  tests/test_airframe_params.py fails if this file and the newest dump disagree.
+#  Format: sys comp NAME VALUE TYPE (6 = integer, 9 = float), same as bench.params.
+# =============================================================================
+#
+#  MOTOR LAYOUT -- Quad X. Was Quad + (5001) until 2026-11-09; that was the big wobble (ADR-0134).
+#  SYS_AUTOSTART is listed so a read-back catches it; if it ever differs, fix it by hand
+#  (QGC's Airframe 'Apply' wipes other settings -- see README sec 2).
+1	1	SYS_AUTOSTART	4001	6
+1	1	CA_ROTOR_COUNT	4	6
+1	1	CA_ROTOR0_PX	1.0	9
+1	1	CA_ROTOR0_PY	1.0	9
+1	1	CA_ROTOR0_KM	0.05	9
+1	1	CA_ROTOR1_PX	-1.0	9
+1	1	CA_ROTOR1_PY	-1.0	9
+1	1	CA_ROTOR1_KM	0.05	9
+1	1	CA_ROTOR2_PX	1.0	9
+1	1	CA_ROTOR2_PY	-1.0	9
+1	1	CA_ROTOR2_KM	-0.05	9
+1	1	CA_ROTOR3_PX	-1.0	9
+1	1	CA_ROTOR3_PY	1.0	9
+1	1	CA_ROTOR3_KM	-0.05	9
+#
+#  MOTOR OUTPUTS -- plain PWM on MAIN 1-4, spin-verified corners (bench.params sec 5).
+1	1	PWM_MAIN_FUNC1	104	6
+1	1	PWM_MAIN_FUNC2	101	6
+1	1	PWM_MAIN_FUNC3	103	6
+1	1	PWM_MAIN_FUNC4	102	6
+1	1	PWM_MAIN_MIN1	1100	6
+1	1	PWM_MAIN_MIN2	1100	6
+1	1	PWM_MAIN_MIN3	1100	6
+1	1	PWM_MAIN_MIN4	1100	6
+1	1	PWM_MAIN_MAX1	1900	6
+1	1	PWM_MAIN_MAX2	1900	6
+1	1	PWM_MAIN_MAX3	1900	6
+1	1	PWM_MAIN_MAX4	1900	6
+1	1	PWM_MAIN_TIM0	400	6
+1	1	PWM_MAIN_TIM1	400	6
+#
+#  BOARD ORIENTATION -- FC is mounted 180 deg from the nose (maiden-day root cause).
+1	1	SENS_BOARD_ROT	4	6
+#
+#  RATE LOOP -- PX4 small-racer values, flown 2026-11-09 ('night and day', ADR-0134 addendum 3).
+#  Stock P 0.15 / D 0.003 is for a big slow quad and made this airframe rock and cook its motors.
+1	1	MC_ROLLRATE_P	0.08	9
+1	1	MC_ROLLRATE_I	0.2	9
+1	1	MC_ROLLRATE_D	0.001	9
+1	1	MC_ROLLRATE_K	1.0	9
+1	1	MC_PITCHRATE_P	0.08	9
+1	1	MC_PITCHRATE_I	0.2	9
+1	1	MC_PITCHRATE_D	0.001	9
+1	1	MC_PITCHRATE_K	1.0	9
+1	1	MC_YAWRATE_P	0.2	9
+1	1	MC_YAWRATE_I	0.1	9
+1	1	MC_YAWRATE_K	1.0	9
+1	1	MC_ROLL_P	6.5	9
+1	1	MC_PITCH_P	6.5	9
+1	1	MC_YAW_P	2.8	9
+1	1	IMU_GYRO_CUTOFF	40.0	9
+1	1	IMU_DGYRO_CUTOFF	30.0	9
+1	1	THR_MDL_FAC	0.0	9
+1	1	MC_AIRMODE	0	6
+#
+#  HEIGHT LOOP THRUST -- written 2026-11-09, NOT YET FLOWN (ADR-0134 addendum 4).
+1	1	MPC_THR_HOVER	0.25	9
+1	1	MPC_THR_MIN	0.08	9
+1	1	MPC_USE_HTE	1	6
+1	1	MPC_THR_CURVE	0	6
+1	1	MPC_MANTHR_MIN	0.08	9
+#
+#  RC + FAILSAFES -- as bound and verified on maiden day.
+1	1	RC_MAP_ROLL	1	6
+1	1	RC_MAP_PITCH	2	6
+1	1	RC_MAP_THROTTLE	3	6
+1	1	RC_MAP_YAW	4	6
+1	1	RC_MAP_KILL_SW	5	6
+1	1	RC_MAP_FLTMODE	6	6
+1	1	COM_FLTMODE1	8	6
+1	1	COM_FLTMODE4	1	6
+1	1	COM_FLTMODE6	2	6
+1	1	COM_LOW_BAT_ACT	3	6
+1	1	NAV_RCL_ACT	2	6
+1	1	COM_RC_LOSS_T	0.5	9
+1	1	BAT1_N_CELLS	6	6
+#
+#  SAFETY SWITCH -- 22027 = bypassed (no working switch on this build). bench.params says 0;
+#  the aircraft flies on 22027. Listed here so the difference is visible, not hidden.
+1	1	CBRK_IO_SAFETY	22027	6

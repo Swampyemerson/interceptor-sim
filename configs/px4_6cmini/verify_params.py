@@ -30,7 +30,10 @@ import struct
 import sys
 import time
 
-from pymavlink import mavutil
+try:
+    from pymavlink import mavutil
+except ImportError:          # --dump mode needs no MAVLink at all
+    mavutil = None
 
 PARAMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bench.params")
 MAV_PARAM_TYPE_INT32 = 6
@@ -52,6 +55,27 @@ def load_pack(path: str) -> list[tuple[str, float, int]]:
     if not out:
         raise SystemExit(f"{path!r} yielded ZERO parameters -- refusing a vacuous run")
     return out
+
+
+def compare_dump(dump_path: str, pack) -> int:
+    """Offline: does a saved full dump agree with a pack? Missing name = FAIL."""
+    board = {}
+    with open(dump_path, encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("#") or not line.strip():
+                continue
+            name, value, _ptype = line.rstrip("\n").split("\t")
+            board[name] = float(value)
+    if not board:
+        raise SystemExit(f"{dump_path!r} holds ZERO parameters -- refusing a vacuous run")
+    bad = 0
+    for name, want, _ptype in pack:
+        got = board.get(name)
+        if got is None or abs(got - want) > 1e-4 * max(1.0, abs(want)):
+            print(f"MISMATCH {name}: dump {got} vs pack {want}")
+            bad += 1
+    print(f"{len(pack) - bad}/{len(pack)} match ({os.path.basename(dump_path)})")
+    return 1 if bad else 0
 
 
 def wire_to_value(msg) -> float | int:
@@ -88,13 +112,25 @@ def matches(got, want: float, ptype: int) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", required=True)
+    ap.add_argument("--port")
+    ap.add_argument("--file", default="bench.params",
+                    help="pack to compare, relative to this directory "
+                         "(bench.params or airframe.params)")
+    ap.add_argument("--dump", help="compare a saved px4_param_dump.py TSV instead "
+                                   "of a live board (read-only by nature)")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--write", action="store_true",
                     help="write the params that differ, then re-read each")
     args = ap.parse_args()
 
-    pack = load_pack(PARAMS_FILE)
+    pack_path = os.path.join(os.path.dirname(PARAMS_FILE), args.file)
+    if args.dump:
+        return compare_dump(args.dump, load_pack(pack_path))
+    if not args.port:
+        ap.error("--port is required unless --dump is given")
+    if mavutil is None:
+        raise SystemExit("pymavlink is not installed -- needed for a live board")
+    pack = load_pack(pack_path)
     m = mavutil.mavlink_connection(args.port, baud=args.baud)
     hb = m.wait_heartbeat(timeout=8)
     if hb is None:

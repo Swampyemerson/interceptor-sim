@@ -20,6 +20,20 @@ Print `dock_coupon.stl` first (5 minutes, 0.8 mm thick) and check it against the
 wedge put it back in the same place each time, which matters because the flight controller's
 orientation is calibrated to the frame.
 
+## Fixing the dock to the frame: two ways
+
+1. **No drilling, no hole pattern needed (default for now):** thin foam tape (VHB-type,
+   about 1 mm) under the dock, plus two zip ties round the top plate. The ties lie in the two
+   grooves across the dock's top face and drop through the notches at its edges, so the pod
+   still sits flat. Tape on plastic and carbon is fine — the rule is no tape on a circuit board.
+   Use THIN tape: thick soft foam lets the whole pod rock, and the flight controller inside it
+   would rock with it. The Pixhawk already has its own vibration isolation inside the case.
+2. **Bolted:** four M3 flat-head screws through the slotted holes, once the top plate's hole
+   spacing is measured (`DOCK_HOLE_DX`, `DOCK_HOLE_DY`). The slots can simply be left unused.
+
+Either way, the only number the dock really needs from the frame is the flat width of the top
+plate (`DOCK_W`, assumed 38 mm).
+
 ## Why it is laid out this way
 
 - **Flight controller at the bottom.** Its cables (power module, GPS, ESC signal, receiver,
@@ -75,7 +89,7 @@ still point the way `SENS_BOARD_ROT` says, or that parameter must be changed and
 
 ## Hardware
 
-- 4 x M3 flat-head screws + nuts (dock to top plate), length to suit the plate
+- Dock to frame: 1 mm foam tape + 2 zip ties (up to 4.8 mm wide), OR 4 x M3 flat-head screws + nuts
 - 1 x M3 heat-set insert + 1 x M3 x 10 screw or thumbscrew (rear release)
 - 4 x M2.5 heat-set inserts (Pi bosses), 4 x M2.5 x 16 standoffs (come with the HAT),
   4 x M2.5 x 8 male-female standoffs + 4 x M2.5 screws (lid)

@@ -482,3 +482,20 @@ differ; every semantic claim above was re-checked at v1.16 on 2026-07-26.
 > **Card source now lives in the repo:** `configs/px4_6cmini/wiring_card.html` (published to the
 > URL above). Edit and republish them together — a bench surface that drifts from this pack is
 > the surface the builder actually reads with an iron in his hand.
+
+## The as-flown airframe settings: `airframe.params`
+
+`bench.params` is the bare-board plumbing pack. `airframe.params` holds the settings that make
+THIS aircraft fly — motor layout, board rotation, rate gains, thrust numbers, RC map,
+failsafes — copied from a full read of the live board (`dumps/`). If the board is reflashed
+or reset, that file is what has to go back on it.
+
+```
+python.exe configs/px4_6cmini/verify_params.py --port COM5 --file airframe.params   # live, read-only
+python3 configs/px4_6cmini/verify_params.py --dump configs/px4_6cmini/dumps/<file>.tsv --file airframe.params
+```
+
+Change a value on the board on purpose → take a new dump (`scripts/bench/px4_param_dump.py`)
+and edit `airframe.params` in the same commit. `tests/test_airframe_params.py` fails if the
+file and the newest dump disagree.
+
