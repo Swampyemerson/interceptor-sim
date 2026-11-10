@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-09",
-  "updated_by": "Racer-class rate gains flown: wobble essentially gone, motors far cooler; altitude hold is the next item",
+  "updated_by": "Racer gains read back from the board; hover-throttle + thrust-floor change written for the next flight",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -18,12 +18,12 @@
   "now": {
     "as_of": "2026-11-09",
     "where": "Third flight tonight, on PX4's small-racer rate gains: 'night and day'. Sideways hold locked, motors far less hot, only a faint intermittent oscillation (audible, not visible). The Pi 5 is still dead (parts stripped by mounting tape).",
-    "finding": "Two root causes found and flown in one evening: wrong motor layout (plus on an X frame), then gains sized for a big slow quad. Left over: height hold in Position mode is soft and descents come in slow bursts; 60% throttle in Stabilized launches it.",
+    "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
-      "You: plug the Pixhawk into USB so I can read back tonight's values and the learned hover throttle",
-      "Me: propose ONE height-hold change from that read-back; recorder waits on a replacement Pi"
+      "You: next flight tests the height change -- NOTE Stabilized now hovers near mid-stick, not low stick",
+      "Me: if the settle-after-climb oscillation persists, the thrust-curve setting is the next single change"
     ],
-    "evidence": "Builder flight reports 2026-11-09 (three flights) - ADR-0134 + two addenda (prediction registered before the flight, commit 2fa9e63) - PX4 v1.16.0 airframe 4050_generic_250"
+    "evidence": "configs/px4_6cmini/dumps/20261109_flight3.tsv + 20261109_height_block.tsv - ADR-0134 addenda 3-4 (prediction registered before the flight) - PX4 v1.16.0 airframes 4050/4052"
   },
   "assumptions": [
     {
@@ -573,7 +573,7 @@
       "date": "2026-11-09",
       "text": "The hover wobble is root-caused and essentially gone, in three flights in one evening. (1) A full read of the flight controller (1122 of 1122 settings) showed it mixing the motors for a PLUS-shaped quad (airframe 5001, a bare-board placeholder from July) on this X frame, so every roll or pitch correction landed 45 degrees off-axis. Corrected to the X layout and flown: holds position for the first time, a smaller faster rock remains, motors still hot. (2) The board was also carrying rate gains meant for a large, gentle quad (P 0.15, D 0.003) on an aircraft with roughly 7.5 times its weight in thrust. Set to the values PX4 ships for a small racing quad (P 0.08, D 0.001), prediction written down first, then flown: the builder calls it night and day -- sideways hold locked, motors far less hot, only a faint intermittent oscillation that can be heard but not seen. Also confirmed by the read: motors run on plain PWM from MAIN 1-4, not DShot (left alone). Still open from this flight: height hold in Position mode is soft (throttle had to be nudged up to stay level) and descents come slowly and in bursts; 60 percent throttle in Stabilized launches the aircraft, so hover throttle is far below the 50 percent the controller assumes.",
       "so_what": "The interceptor now flies properly; the wobble that blocked everything since 2026-10-25 was two wrong settings, not wiring. Both fixes were predicted in writing before the flight that tested them. What remains is ordinary tuning of the height loop and filters. SETBACK the same evening: the Pi 5 no longer boots after being peeled off mounting tape (capacitors stripped from its underside, per the builder's photo) -- no in-flight recorder and no seeker computer until it is replaced; the SD card is believed intact. All flight verdicts tonight are builder reports by eye, ear and touch; nothing was logged.",
-      "evidence": "configs/px4_6cmini/dumps/20261109_*.tsv (before, after, post-flight; the P/D values were set by the builder in QGC and are NOT yet read back); ADR-0134 + addenda; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py, phone_wobble_freq.py; PX4 v1.16.0 airframes 4001/5001/4050"
+      "evidence": "configs/px4_6cmini/dumps/20261109_*.tsv (before, after, post-flight; the QGC-set P/D values were read back after the flight: all landed); ADR-0134 + addenda; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py, phone_wobble_freq.py; PX4 v1.16.0 airframes 4001/5001/4050"
     },
     {
       "date": "2026-10-25",

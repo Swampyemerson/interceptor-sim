@@ -1403,3 +1403,27 @@ unranked until a read-back: thrust floor too close to hover thrust (little room 
 hover-thrust estimate starting far from truth; an un-sprung throttle stick sitting just below
 centre; ordinary descent through own prop wash. Next: read the board, then one change.
 
+**Addendum 4, same day — read-back, and the height change pre-registered.** Post-flight dump
+(`dumps/20261109_flight3.tsv`, 1122/1122): the builder's QGC values all landed (rate P 0.08,
+D 0.001, K 1.0 on roll and pitch); 63 s of flight logged by the flight counter; nothing else
+moved. `MPC_THR_HOVER` still read 0.5 — the in-flight hover-thrust estimate is not saved, so
+every flight starts from the assumption that hover needs half throttle.
+*Change written with read-back* (`dumps/20261109_height_block.tsv`, diff = these two lines):
+`MPC_THR_HOVER` 0.5 → 0.25 and `MPC_THR_MIN` 0.12 → 0.08. Source: PX4 v1.16.0
+`4052_holybro_qav250` ships 0.25 / 0.05; 0.08 is a deliberate half-step because the thrust
+floor also protects attitude authority at low throttle and airmode is off.
+*Reasoning.* T/W is about 7.5:1 on paper and ~60 % stick in Stabilized launches the
+aircraft, so hover thrust is far below 0.5. Starting the height controller from 0.5 means it
+over-thrusts until its estimator catches up, and a 0.12 floor leaves little room below hover
+thrust to descend — a candidate for the slow, stepped descents.
+*Prediction.* Position-mode height hold needs no throttle nudging; descents are smoother
+(still capped at the stock 1.5 m/s). *Null:* unchanged ⇒ not the thrust numbers; look at the
+throttle stick's centre and the height estimate (baro) next. *Worse low-throttle wobble in
+descents* ⇒ the floor is too low, return to 0.12.
+*Pilot-facing side effect, stated to the builder:* with `MPC_THR_CURVE = 0` the Stabilized
+throttle stick is rescaled so mid-stick gives `MPC_THR_HOVER`. Mid-stick was 50 % thrust; it
+is now 25 %. Low stick no longer hovers.
+*Not changed, queued as the next single change:* `THR_MDL_FAC` 0 → 0.3 (thrust-curve
+correction, evens loop gain across throttle), aimed at the brief oscillation the builder
+places "returning to hover from a climb", i.e. at a throttle transient. Gyro filters still 40/30.
+
