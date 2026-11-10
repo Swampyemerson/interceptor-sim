@@ -63,9 +63,15 @@ def configs():
     c = base + [pod_removable, dock, ("cradle lid extra", extra_lid, 10, 0, 62),
                 ("cam plate", pg.get("cam_plate", 6.0), 54, 0, 68),
                 ("camera on pod", cam, 62, 0, 70)]
+    # D: pod, camera on the short post off the dock's nose (chosen 2026-11-10)
+    post_extra = pg.get("dock_cam", 24.4) - pg["dock"]
+    d = base + [pod_removable, dock, ("nose post + tongue", post_extra, 55, 0, 14),
+                ("nose cam plate", pg.get("cam_plate_nose", 5.1), 64, 0, 37),
+                ("camera on nose post", cam, 72, 0, 40)]
     return {"A  old plan: boards low, camera on nose boom": a,
             "B  pod, camera on nose boom": b,
-            "C  pod with camera cradle": c}
+            "C  pod with camera cradle": c,
+            "D  pod, camera on the dock's nose post": d}
 
 
 def mass_props(items):

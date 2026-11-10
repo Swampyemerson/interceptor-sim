@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->24c6ee3<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->e9653f4<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,8 +900,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-11-09",
- "updated_by": "Racer gains read back from the board; hover-throttle + thrust-floor change written for the next flight",
+ "updated": "2026-11-10",
+ "updated_by": "Camera mount chosen and drawn: a short post off the avionics dock's nose (ADR-0135)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1463,21 +1463,15 @@
    "blocked": "~1-1.5 GB disk only; nothing on the kill path",
    "doc": "docs/deletion_candidates_2026-10-22.md (Tier 3)",
    "rec": "Keep until after the weekend attempt is scored - then prune with the provenance-safe rules."
-  },
-  {
-   "id": "camera-on-avionics-pod",
-   "question": "Move the seeker camera from the planned nose boom onto the avionics pod? Geometry says the props stay out of frame from the pod (camera 68 mm above the top plate): about 20 degrees of margin at the shallowest tilt (10 degrees) with the delivered 70-degree lens or the AR0234, about 16 if the props sit 10 mm higher than reported. The published 118-degree lens would need 25 degrees of tilt or more.",
-   "options": [
-    "Camera on a short post off the dock's nose: stiff, works at dash tilt (25 degrees or more), not drawn yet",
-    "Camera cradle on the pod lid (drawn): best prop margin but the softest spot; print it and measure its shake first",
-    "Keep the nose boom as planned"
-   ],
-   "rec": "Option 1, or option 2 if you want data first. A finite-element model puts the lid cradle's first shake modes at 120 to 220 Hz at best, below and at the hover motor rate (213 Hz); the flex is spread across lid, base and both circuit boards, so no single stiffening fixes it. Either way the dock must be bolted, not taped.",
-   "blocked": "Unprinted (no printer). Model only: hardware/avionics_pod/ANALYSIS.md (joints glued, so real frequencies are lower) and camera_on_pod_fov.py (no lens distortion, pod assumed centred).",
-   "doc": "hardware/avionics_pod/ANALYSIS.md"
   }
  ],
  "plain_log": [
+  {
+   "date": "2026-11-10",
+   "text": "Camera mount decided and drawn. The builder picked a short post off the avionics dock's nose over the pod-lid cradle and the old nose boom. The dock grows a tongue to the frame's two nose screws and two cheeks that carry a tilting camera plate (10 to 45 degrees). Calculated, not built: first shake mode 270 Hz against 138 Hz for the lid cradle; props 17 degrees or more outside the picture with the delivered lens; whole aircraft 851 g. Known costs: it blocks the Pi's USB ports while fitted, and the camera plate overhangs the edge of the front prop circles by position (about 2 mm outside in top view, 16 mm or more above the blades).",
+   "so_what": "The last open layout question on the avionics pod is closed, so the print list is fixed: template first, then dock, pod and camera plate. Every number is still a model; the printed part and a tap test decide whether the picture is steady.",
+   "evidence": "ADR-0135 - hardware/avionics_pod/README.md (revision 4) - ANALYSIS.md - nose_post_check.py - fea_results/nose_post.json"
+  },
   {
    "date": "2026-11-09",
    "text": "The hover wobble is root-caused and essentially gone, in three flights in one evening. (1) A full read of the flight controller (1122 of 1122 settings) showed it mixing the motors for a PLUS-shaped quad (airframe 5001, a bare-board placeholder from July) on this X frame, so every roll or pitch correction landed 45 degrees off-axis. Corrected to the X layout and flown: holds position for the first time, a smaller faster rock remains, motors still hot. (2) The board was also carrying rate gains meant for a large, gentle quad (P 0.15, D 0.003) on an aircraft with roughly 7.5 times its weight in thrust. Set to the values PX4 ships for a small racing quad (P 0.08, D 0.001), prediction written down first, then flown: the builder calls it night and day -- sideways hold locked, motors far less hot, only a faint intermittent oscillation that can be heard but not seen. Also confirmed by the read: motors run on plain PWM from MAIN 1-4, not DShot (left alone). Still open from this flight: height hold in Position mode is soft (throttle had to be nudged up to stay level) and descents come slowly and in bursts; 60 percent throttle in Stabilized launches the aircraft, so hover throttle is far below the 50 percent the controller assumes.",
@@ -1543,12 +1537,6 @@
    "text": "NN seeker program opened in one evening, builder-consulted at the decision points (ADR-0125). Fleet: five detached research passes (edge detectors, accelerators, training pipeline, Hailo toolchain, tracker/capture) -- repo-attached workers still bounce [general_harms], so both isim studies ran head-inline. Studies, both pre-registered: (1) detector requirement sweep (58 cells): latency <=60 ms is the hard axis (120 ms -> 0.65-4 m miss), rate >=10-15 Hz, terminal range only ~8-12 m, p>=0.5 suffices; (2) resolution x guidance law: predictive PIP law is NOT rescued by resolution (null -- it points worse, not noisier), 640-wide input is dead on a 118 deg lens / fine on the delivered 70 deg, and a zoom lens is no substitute (FOV loss collapses pointing; variant A kept as that finding). Live bench on the flight Pi: yolov8n@640 154 ms, our v2 net 131 ms (ORT, CPU) -- past the latency spec, which settles CPU-vs-accelerator on our own hardware. Builder rulings: Hailo-8 HAT+ (26 TOPS, ~35 g, +2.7 W; yolov8n is its single-context fit -- NOT yolo11n); stock head @640 + full-res ROI re-detect; full staged training program (Det-Fly + AOT slice + randomized sim -> tag-auto-labeled real fine-tune, tagless validation day); NN runs as a parallel background thread, tag first-kill keeps priority. DFC compiles with no hardware on WSL2 -- fit/context questions get answered before money moves. isim grew camera/decode override fields + sensor-geometry fields (byte-identical defaults, 197 tests green). Program home docs/nn_seeker_program.md; toolchain docs/hailo_toolchain_runbook.md.",
    "so_what": "The seeker decision is now evidence-shaped instead of taste-shaped: we know the one number the hardware must beat (60 ms), we measured that the CPU cannot beat it, and the resolution question the builder raised got a real answer that changes the lens story. Nothing was purchased and nothing touched the bench gates; the two builder actions are queued.",
    "evidence": "ADR-0125 - docs/nn_seeker_program.md - runs/nn_requirements_20261021/ - runs/res_guidance_20261021/ - runs/pi_nn_bench_20261021.json - commit pending"
-  },
-  {
-   "date": "2026-10-21",
-   "text": "Long-range follow-up to the demo video, builder directive: come in from a 500 m cue, rip ~80 mph in the dash, slow for detection. The capability did not exist, so it was built: approach_dash in flight/pursuit_terminal.py (default OFF, off-path byte-identical by golden test) widens the Phase-A speed cap to dash_v_max_ms, always applies the stopping-distance brake cap toward the believed rendezvous, and gives Phase A its own accel budget; Phase B untouched; honesty-clean (belief + own-EKF only). real_flight grew the four --pursuit-dash-* flags plus a fail-loud engage-window-vs-transit-time warning. isim velocity-curve study pre-registered then run (vmax x a_brake grid): prediction confirmed, and it found the cliff -- vmax 36 with a_brake 3 cannot shed the speed in the belief-error envelope (0/8, ~150 m miss); a_brake 4 is clean. PX4 ceiling: MPC_XY_VEL_MAX declares max 20 but that is GCS metadata -- no code-side clamp in MulticopterPositionControl, so set_px4_params.py (new, wired into fly_takes.sh) does a raw set with fresh read-back. Gazebo arm at the 500 m crossing geometry: 20 m/s takes 0.272/0.199 m; 36 m/s takes hr1-hr5 best 0.087 m CPA (hr5, 64 detections, plant peak 35.8 m/s), first detection at go+17.5 after a 17 s blind dash on pure belief. 58/58 terminal tests, full suite green (dev machine). VIDEO DELIVERED the same session: hr5 re-rendered in the long-range forest set (1.5 km ground, corridor tree band) through the cinema pipeline -- 31.7 s, 9 shots incl. a 3x FFWD transit badge and the 0.2x contact slow-mo; HUD shows the 35.8 m/s peak, the brake to ~7 m/s at first decode, TAG LOCK, and the honesty card (cue error injected, guidance saw camera + own-EKF only).",
-   "so_what": "Far-cue engagements are now a flight-code capability, not a sim hack: the same deployed terminal can dash at whatever the airframe gives it and arrive slow enough to lock. The sized-brake rule (a_brake must match dash speed) and the engage-window warning are the two guards that keep a real far-cue flight from sailing past the target. The 36 m/s number is SIM-ONLY -- the real airframe's dash envelope is unmeasured and nothing was written to the real FCs.",
-   "evidence": "isim/specs/approach_dash_2026-10-21.md - runs/cinema_longrange_20261021/ - logs/cinema_lr/ - commit 77eb94c - runs/cinema_longrange_20261021/intercept_500m_36ms.mp4"
   }
  ],
  "narrative": {
@@ -3406,7 +3394,7 @@
       "name": "Nose-cantilever prop-clearance camera mount",
       "status": "print",
       "role": "Designs the own-prop phantom out of the FoV — no software fallback.",
-      "notes": "Print ADJUSTABLE 10-30 deg; corner-spin gate at loaded throttle caps the tilt."
+      "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. Drawn, not printed: hardware/avionics_pod/ (dock_cam, cam_plate_nose). Model only: first shake mode 270 Hz, props 17 deg or more outside the picture. Corner-spin gate at loaded throttle still caps the tilt."
      },
      {
       "name": "FC High-Endurance microSD (ULogs)",

@@ -12,7 +12,7 @@ and printed PETG is one uniform stiffness. Glued joints make the answer too HIGH
 so read the result as an upper bound and use the low-stiffness row as the working
 number. The foam-tape rocking estimate at the end is a separate hand formula.
 
-    <cad venv>/bin/python hardware/avionics_pod/fea_modal.py [--camera] [--epetg 1900]
+    <cad venv>/bin/python hardware/avionics_pod/fea_modal.py [--camera | --nose] [--epetg 1900]
 Needs cadquery, gmsh, scikit-fem, scipy (scratch venv; not part of run_tests.sh).
 """
 from __future__ import annotations
@@ -76,7 +76,28 @@ def build(camera: bool, e_petg: float):
     return parts
 
 
-def mesh_and_solve(parts, n_modes=6, size=4.0):
+def build_nose(e_petg: float):
+    """The dock with its nose post, the tilting plate and the camera, on their own."""
+    petg = (e_petg, 0.38, P.PETG_G_PER_MM3 * 1e-6 * P.PRINT_FILL)
+    parts = {"dock_cam": (P.dock(nose_post=True), petg),
+             "cam_plate_nose": (P.cam_plate_nose(), petg)}
+    lx, lz = P.nose_lock_local()
+    dx, dz = P._tilt(lx, lz, P.CAM_TILT_SHOWN)
+    j = 0
+    for sy in (-1, 1):           # steel discs standing in for the pivot + lock screws
+        for (x, z) in ((P.NOSE_PIVOT_X, P.NOSE_PIVOT_Z),
+                       (P.NOSE_PIVOT_X + dx, P.NOSE_PIVOT_Z + dz)):
+            ya, yb = sorted((sy * P.NOSE_EAR_HALF, sy * P.NOSE_CHEEK_Y_IN))
+            d = (cq.Workplane("XZ").center(x, z).circle(3.0).extrude(-(yb - ya))
+                 .translate((0, ya, 0)))
+            parts[f"screw{j}"] = (d, STEEL)
+            j += 1
+    cam = P.cam_ghost_nose()
+    parts["camera"] = (cam, (5e3, 0.3, plate_density(15.0, cam.val().Volume())))
+    return parts
+
+
+def mesh_and_solve(parts, n_modes=6, size=4.0, clamp=None, z_top=None):
     import gmsh
     import skfem
     from skfem.models.elasticity import linear_elasticity, lame_parameters
@@ -139,7 +160,11 @@ def mesh_and_solve(parts, n_modes=6, size=4.0):
     tz[full.nodal_dofs[2]] = 1.0
     tz[full.edge_dofs[2]] = 1.0 if full.edge_dofs.size else 0.0
     total = float(tz @ (M @ tz))
-    fixed = full.get_dofs(lambda x: x[2] < P.Z_DOCK + 0.05).all()
+    if clamp is None:
+        clamp = lambda x: x[2] < P.Z_DOCK + 0.05          # noqa: E731
+    if z_top is None:
+        z_top = P.Z_LID - 1.0
+    fixed = full.get_dofs(clamp).all()
     if len(fixed) == 0:
         raise SystemExit("FAIL: no clamped nodes found")
     free = np.setdiff1d(np.arange(ndof), fixed)
@@ -155,7 +180,7 @@ def mesh_and_solve(parts, n_modes=6, size=4.0):
         comp = []
         for c in range(3):
             idx = np.concatenate([full.nodal_dofs[c], full.edge_dofs[c]])
-            top = idx[X[2, idx] > P.Z_LID - 1.0]
+            top = idx[X[2, idx] > z_top]
             comp.append(float(np.sqrt(np.mean(u[top] ** 2))))
         comp = np.array(comp) / (max(comp) + 1e-30)
         label = ("fore-aft", "side-to-side", "up-down")[int(np.argmax(comp))]
@@ -187,12 +212,21 @@ def tape_rocking(mass_g, cg_z_mm, g_mpa, tape_t_mm=1.0):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--camera", action="store_true")
+    ap.add_argument("--nose", action="store_true",
+                    help="the dock's nose camera post instead of the pod tower")
     ap.add_argument("--epetg", type=float, default=1900.0, help="printed PETG modulus, MPa")
     ap.add_argument("--size", type=float, default=4.0, help="max element size, mm")
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
-    r = mesh_and_solve(build(a.camera, a.epetg), size=a.size)
-    r["camera"] = a.camera
+    if a.nose:
+        # held where the dock lies on the top plate (29 mm wide there) = bolted flat
+        r = mesh_and_solve(build_nose(a.epetg), size=a.size,
+                           clamp=lambda x: (x[2] < 0.05) & (abs(x[1]) < 14.6),
+                           z_top=P.NOSE_PIVOT_Z)
+        r["nose_post"] = True
+    else:
+        r = mesh_and_solve(build(a.camera, a.epetg), size=a.size)
+    r["camera"] = a.camera or a.nose
     r["e_petg_mpa"] = a.epetg
     print(json.dumps(r, indent=1))
     if a.json:

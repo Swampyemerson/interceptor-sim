@@ -1,4 +1,4 @@
-# Avionics pod: mass, vibration and heat (2026-11-09)
+# Avionics pod: mass, vibration and heat (2026-11-09, nose post added 2026-11-10)
 
 **What this is:** calculations on the CAD and on estimated part weights. Nothing here was
 measured on the aircraft, because the pod is not printed. Each section says what it rests
@@ -7,13 +7,14 @@ on and what would test it. Numbers come from `analysis.py` (run it to reprint th
 
 ## 1. Mass and balance, whole aircraft
 
-Three layouts, each with frame, motors, battery underneath and all electronics:
+Four layouts, each with frame, motors, battery underneath and all electronics:
 
 | Layout | Mass | Centre of mass, height | Roll inertia | Pitch inertia |
 |---|---|---|---|---|
 | A. Old plan: boards low on the top plate, camera on a nose boom | 824 g | 23 mm below the props | 1.77 g·m² | 2.11 g·m² |
 | B. Pod, camera on a nose boom | 849 g | 20 mm below | 1.96 (+11 %) | 2.35 (+12 %) |
 | C. Pod with the camera cradle on its lid | 853 g | 17.5 mm below | 2.17 (+23 %) | 2.36 (+12 %) |
+| D. Pod, camera on the dock's nose post (chosen 2026-11-10) | 851 g | 19 mm below | 2.01 (+14 %) | 2.25 (+7 %) |
 
 Inertia is how hard the aircraft is to start and stop turning about an axis.
 
@@ -42,6 +43,8 @@ whose own natural frequency sits inside that range will be shaken hardest.
 | No camera, softer plastic | 246 | 297 | 393 | same |
 | With camera cradle | 138 | 221 | 266 | stack swaying, camera leading |
 | With camera cradle, softer plastic | 122 | 189 | 232 | same |
+| **Nose post** (dock held flat on the plate) | 270 | 292 | 626 | post and camera swaying side to side |
+| Nose post, softer plastic | 229 | 246 | 571 | same |
 
 - These are **upper bounds**. The model glues every joint; real screwed joints through two
   circuit boards are softer. Expect the real numbers 20 to 40 % lower. That figure is my
@@ -76,18 +79,28 @@ whose own natural frequency sits inside that range will be shaken hardest.
   the no-drill fallback for a first fit check, not for flight with the Pixhawk aboard.
 
 **What this means for the camera.** The lid cradle is the least stiff place on the
-aircraft to put it. Three ways forward, best first by my judgment:
+aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
+(`dock_cam`, `cam_plate_nose`) and modelled:
 
-1. **Camera on a short post off the dock's nose.** Low and stiff, bolted to the carbon
-   plate through the dock, still next to the Pi (ribbon about 100 mm). Prop margin from
-   `camera_on_pod_fov.py` at 60 to 80 mm forward, 30 mm up: +16 to +25° at 25° of tilt for
-   the 70° and 80° lenses, but only +1 to +12° at 10° of tilt. So it works at dash tilt
-   and not for a shallow tilt. Not drawn yet.
-2. **Keep the lid cradle and measure it.** Print it, tap it, film it with the phone
-   slow-motion tool (`scripts/bench/phone_wobble_freq.py`). If the sway is small it wins
-   on prop margin and on everything listed in the README.
-3. **Walls from the base straight up to the lid,** outside the boards, so the camera load
-   bypasses the circuit boards. Stiffest, heaviest, and it boxes in the Pi's side ports.
+- **Stiffness.** First sway 270 Hz in the model against 138 Hz for the lid cradle, about
+  twice as stiff, and the load path is short: camera, plate, two cheeks, dock, carbon.
+  No circuit boards or standoffs in it. The same caveat applies (glued joints, so read
+  it as an upper bound; the softer-plastic row is 229 Hz).
+- **It is not out of the motor band.** Hover is about 213 Hz and full throttle about
+  583 Hz, so 230 to 290 Hz is crossed on every throttle-up. No printed mount gets above
+  583 Hz. What the stiffer mount buys is less movement for the same shake. Whether the
+  picture is steady enough is still a question for the printed part and a tap test.
+- **Props out of the picture** (`nose_post_check.py`, lens front as the viewpoint, props
+  level with the plate / 10 mm higher): 70° lens +21 / +16° at 10° of tilt, +40 / +33° at
+  25°; AR0234 80° lens +17 / +12° at 10°, +36 / +29° at 25°. The published 118° lens has
+  the props in frame at 10° (-1 / -7°) and clear from about 25° (+17 / +11°).
+- **The camera sits over the edge of the prop circles.** In top view the plate's corners
+  come within 1.8 to 2.9 mm of the front prop circles; they are 16 to 21 mm above the
+  blades. The post itself keeps 6.5 mm at blade height, the same as the frame's own top
+  plate. All of that assumes the pod is centred on the frame and the props are level with
+  the top plate, and neither is measured. Check by turning the props by hand.
+- **The other two options** stay in the CAD: the lid cradle (best prop margin, softest)
+  and walls from the base straight up to the lid (not drawn).
 
 **Would test it:** a tap test on the printed pod (phone slow-motion, or the Pi's own
 camera pointed at a ruled target), then the same with motors running.

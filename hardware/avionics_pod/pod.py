@@ -10,6 +10,8 @@ Three printed parts, generated from the numbers in the PARAMETERS block:
             Pi 5 on four M2.5 bosses above it, HAT on the Pi's own standoffs.
   pod_lid   vented roof over the HAT (on 4 x M2.5 standoffs).
   dock_coupon   0.8 mm drilling/fit template of the dock -- PRINT THIS FIRST.
+  dock_cam + cam_plate_nose   the dock with a camera post off its nose, and the
+            tilting plate it carries (chosen 2026-11-10; dock_cam_coupon is its template).
 
 Axes: +x = nose, +y = left, +z = up. z = 0 is the top face of the frame's top
 plate. x = 0 is the centre of the Pi board.
@@ -96,6 +98,19 @@ CHEEK_Y_IN = 27.0        # inner face of each cheek (lid screws are at y = 24.5)
 CAM_PLATE_HALF_W = CHEEK_Y_IN - 0.5
 CORNER_R = 3.0           # rounded plan-view corners on dock, floor and lid
 
+# --- camera option chosen 2026-11-10: a short post off the dock's nose -------
+# The dock grows a tongue along the top plate to the frame's two nose standoff
+# screws, and two cheeks rise from it to carry a tilting camera plate. Low and
+# bolted to the frame, so it does not ride on the Pi/HAT tower.
+NOSE_PIVOT_X, NOSE_PIVOT_Z = 60.0, 36.0   # tilt axis (z above the top plate)
+NOSE_CHEEK_Y_IN, NOSE_CHEEK_T = 16.5, 3.5
+NOSE_PLATE_HALF_W = 19.7     # camera plate half-width (board is 38 wide)
+NOSE_PLATE_X = 5.0           # plate sits this far ahead of the tilt axis
+NOSE_SCREW_X = 72.78         # nose standoff screws (drawing 75.98, minus 3.2 datum)
+NOSE_SCREW_DY = 22.0         # their left-right spacing (drawing)
+NOSE_TONGUE_END = 76.5       # top plate's nose edge is at 76.95 (drawing)
+NOSE_LOCK_AT_DOWN = 45.0     # lock screw is straight below the axis at this tilt
+
 # --- masses for the centre-of-mass report (grams) ---------------------------
 PETG_G_PER_MM3 = 1.27e-3
 PRINT_FILL = 0.9         # walls are mostly solid at these thicknesses
@@ -143,9 +158,35 @@ def xz_prism(pts, y0, y1):
             .translate((0, y0, 0)))
 
 
-def dock(coupon: bool = False):
+def nose_lock_local():
+    """Lock-screw position on the camera plate, in the plate's own frame."""
+    a = math.radians(NOSE_LOCK_AT_DOWN)
+    return (-CAM_LOCK_R * math.sin(a), -CAM_LOCK_R * math.cos(a))
+
+
+def _tilt(x, z, tilt_deg):
+    t = math.radians(tilt_deg)
+    return (x * math.cos(t) - z * math.sin(t), x * math.sin(t) + z * math.cos(t))
+
+
+def dock(coupon: bool = False, nose_post: bool = False):
     t = 0.8 if coupon else DOCK_T
     d = rbox(TAB_X_REAR, FLOOR_X_FRONT + 6.0, -DOCK_W / 2, DOCK_W / 2, 0, t)
+    if nose_post:
+        # tongue: full width under the cheeks, then as narrow as the top plate.
+        # Every low edge stays 7 mm or more outside the front prop circles in
+        # top view (same gap the frame's own plate leaves).
+        w0, w1 = DOCK_W / 2, NOSE_CHEEK_Y_IN + NOSE_CHEEK_T
+        half = [(33.0, w0), (40.0, w1), (58.5, w1), (64.0, 14.5), (NOSE_TONGUE_END, 14.5)]
+        pts = half + [(x, -y) for (x, y) in reversed(half)]
+        d = d.union(cq.Workplane("XY").polyline(pts).close().extrude(t))
+        for sy in (-1, 1):
+            x, y = NOSE_SCREW_X, sy * NOSE_SCREW_DY / 2
+            d = d.cut(cq.Workplane("XY").slot2D(DOCK_SLOT + 3.4, 3.4).extrude(t + 1)
+                      .translate((x, y, -0.5)))
+            if not coupon:
+                d = d.cut(cq.Workplane("XY").slot2D(DOCK_SLOT + 6.4, 6.4).extrude(1.6)
+                          .translate((x, y, t - 1.6)))
     for sx in (-1, 1):
         for sy in (-1, 1):
             x = DOCK_HOLE_X0 + sx * DOCK_HOLE_DX / 2
@@ -185,7 +226,40 @@ def dock(coupon: bool = False):
     boss_top = Z_DOCK + 5.0
     d = d.union(cyl(SCREW_X, 0, Z_DOCK, boss_top, 9.0))
     d = d.cut(cyl(SCREW_X, 0, boss_top - INSERT_M3_DEPTH, boss_top + 1, INSERT_M3_D))
+    if nose_post:
+        d = d.union(_nose_cheeks())
     return d
+
+
+def _nose_cheeks():
+    """Two upright cheeks + two low cross walls = an open-topped box on the tongue."""
+    px, pz = NOSE_PIVOT_X, NOSE_PIVOT_Z
+    yi, yo = NOSE_CHEEK_Y_IN, NOSE_CHEEK_Y_IN + NOSE_CHEEK_T
+    # rear edge leans forward as it rises (room for the pod to hinge in); front
+    # edge leans forward too, under 45 degrees, so it prints without support
+    prof = [(44.0, DOCK_T - 0.5), (58.5, DOCK_T - 0.5), (px + 4.0, 12.0),
+            (px + 4.0, pz + 1.5), (px + 1.5, pz + 4.0), (px - 1.5, pz + 4.0),
+            (px - 4.0, pz + 1.5), (px - 11.0, pz - 6.0)]
+    out = None
+    lx, lz = nose_lock_local()
+    for sy in (-1, 1):
+        ya, yb = sorted((sy * yi, sy * yo))
+        c = xz_prism(prof, ya, yb)
+        c = c.cut(cq.Workplane("XZ").center(px, pz).circle(1.7).extrude(-80)
+                  .translate((0, -40, 0)))
+        n = 24
+        for i in range(n + 1):              # arc slot for the tilt-lock screw
+            dx, dz = _tilt(lx, lz, CAM_TILT_MIN + (CAM_TILT_MAX - CAM_TILT_MIN) * i / n)
+            c = c.cut(cq.Workplane("XZ").center(px + dx, pz + dz).circle(1.7).extrude(-80)
+                      .translate((0, -40, 0)))
+        out = c if out is None else out.union(c)
+    # rear wall: leans with the cheeks' rear edge and ties them together up to
+    # 2 mm under the tilting plate's ears (a low wall left the cheeks free to sway)
+    out = out.union(xz_prism([(44.0, DOCK_T - 0.5), (46.8, DOCK_T - 0.5),
+                              (px - 9.3, pz - 12.0), (px - 12.1, pz - 12.0)],
+                             -yi - 0.5, yi + 0.5))
+    out = out.union(box(56.0, 58.5, -yi - 0.5, yi + 0.5, DOCK_T - 0.5, 10.0))   # front wall
+    return out
 
 
 def pod_base():
@@ -348,6 +422,67 @@ def cam_ghost(tilt_deg=None):
                               CAM_TILT_SHOWN if tilt_deg is None else tilt_deg)
 
 
+def _nose_local_to_body(wp, tilt_deg):
+    return (wp.rotate((0, 0, 0), (0, 1, 0), -tilt_deg)
+            .translate((NOSE_PIVOT_X, 0, NOSE_PIVOT_Z)))
+
+
+NOSE_EAR_HALF = NOSE_CHEEK_Y_IN - 0.5
+
+
+def cam_plate_nose_local():
+    """Tilting plate for the nose post (local frame: +x optical axis, origin on
+    the tilt axis). The window is open at the TOP: mount the board with its
+    ribbon connector up, which is the short way to the Pi."""
+    half = NOSE_PLATE_HALF_W
+    xp = NOSE_PLATE_X
+    bh = CAM_BOARD / 2 + 2.0
+    pl = box(xp, xp + 2.4, -half, half, -bh, bh)
+    pl = pl.cut(box(xp - 1, xp + 3.4, -12.0, 12.0, -14.0, bh + 1.0))
+    for sy in (-1, 1):
+        for sz in (-1, 1):
+            y, z = sy * CAM_HOLE / 2, sz * CAM_HOLE / 2
+            pl = pl.union(cq.Workplane("YZ").circle(2.6).extrude(2.5)
+                          .translate((xp + 2.4, y, z)))
+            pl = pl.cut(cq.Workplane("YZ").circle(0.9).extrude(8).translate((xp - 1, y, z)))
+    lx, lz = nose_lock_local()
+    r = 4.5
+    ear_half = NOSE_EAR_HALF
+    k = r * math.sqrt(0.5)
+    prof = [(xp, r), (0.0, r), (-k, k), (lx - k, lz + k), (lx - k, lz - k),
+            (lx + k, lz - r), (xp, lz - r)]
+    for sy in (-1, 1):
+        ya, yb = sorted((sy * (ear_half - 6.5), sy * ear_half))
+        ear = xz_prism(prof, ya, yb)
+        for (ax, az) in ((0.0, 0.0), (lx, lz)):               # M3 heat-set inserts
+            pocket = (cq.Workplane("XZ").center(ax, az).circle(INSERT_M3_D / 2)
+                      .extrude(INSERT_M3_DEPTH))
+            ear = ear.cut(pocket.translate((0, ear_half if sy > 0
+                                            else -ear_half + INSERT_M3_DEPTH, 0)))
+        pl = pl.union(ear)
+    return pl
+
+
+def cam_plate_nose(tilt_deg=None):
+    return _nose_local_to_body(cam_plate_nose_local(),
+                               CAM_TILT_SHOWN if tilt_deg is None else tilt_deg)
+
+
+def cam_ghost_nose(tilt_deg=None):
+    xb = NOSE_PLATE_X + 4.9
+    b = box(xb, xb + 1.6, -CAM_BOARD / 2, CAM_BOARD / 2, -CAM_BOARD / 2, CAM_BOARD / 2)
+    lens = (cq.Workplane("YZ").circle(CAM_LENS_D / 2).extrude(CAM_LENS_L)
+            .translate((xb + 1.6, 0, 0)))
+    return _nose_local_to_body(b.union(lens),
+                               CAM_TILT_SHOWN if tilt_deg is None else tilt_deg)
+
+
+def nose_lens_xz(tilt_deg):
+    """Front of the lens stand-in, body frame: the viewpoint used for prop margin."""
+    dx, dz = _tilt(NOSE_PLATE_X + 6.5 + CAM_LENS_L, 0.0, tilt_deg)
+    return (NOSE_PIVOT_X + dx, NOSE_PIVOT_Z + dz)
+
+
 def mass_report(parts):
     items = []
     for name, wp in parts.items():
@@ -375,12 +510,19 @@ def mass_report(parts):
     }
 
 
-def assembly(parts, vendor_fc=None, camera=False):
+def assembly(parts, vendor_fc=None, camera=False, nose=False):
     """One STEP for CAD inspection: the three printed parts in flight position,
     plus plain blocks standing in for the boards (envelopes, not real models)."""
     hw = PI_W / 2
     asm = cq.Assembly(name="avionics_pod")
-    asm.add(parts["dock"], name="dock", color=cq.Color(0.35, 0.35, 0.38))
+    if nose:
+        asm.add(parts["dock_cam"], name="dock_cam", color=cq.Color(0.35, 0.35, 0.38))
+        asm.add(parts["cam_plate_nose"], name="cam_plate_nose",
+                color=cq.Color(0.85, 0.35, 0.10))
+        asm.add(cam_ghost_nose(), name="REF_camera_board_and_lens",
+                color=cq.Color(0.2, 0.2, 0.25))
+    else:
+        asm.add(parts["dock"], name="dock", color=cq.Color(0.35, 0.35, 0.38))
     asm.add(parts["pod_base"], name="pod_base", color=cq.Color(0.95, 0.55, 0.15))
     if camera:
         asm.add(parts["pod_lid_cam"], name="pod_lid_cam", color=cq.Color(0.95, 0.75, 0.30))
@@ -429,7 +571,9 @@ def main() -> int:
     os.makedirs(a.out, exist_ok=True)
     parts = {"dock": dock(), "pod_base": pod_base(), "pod_lid": pod_lid(),
              "dock_coupon": dock(coupon=True),
-             "pod_lid_cam": pod_lid(camera=True), "cam_plate": cam_plate()}
+             "pod_lid_cam": pod_lid(camera=True), "cam_plate": cam_plate(),
+             "dock_cam": dock(nose_post=True), "cam_plate_nose": cam_plate_nose(),
+             "dock_cam_coupon": dock(coupon=True, nose_post=True)}
     for name, wp in parts.items():
         solids = wp.val().Solids()
         if len(solids) != 1 or not wp.val().isValid():
@@ -441,10 +585,17 @@ def main() -> int:
     assembly(parts, a.vendor_fc).save(os.path.join(a.out, "avionics_pod_assembly.step"))
     assembly(parts, a.vendor_fc, camera=True).save(
         os.path.join(a.out, "avionics_pod_assembly_camera.step"))
-    rep = mass_report({k: v for k, v in parts.items() if k != "dock_coupon"})
+    assembly(parts, a.vendor_fc, nose=True).save(
+        os.path.join(a.out, "avionics_pod_assembly_nose_camera.step"))
+    rep = mass_report({k: v for k, v in parts.items() if not k.endswith("coupon")})
     px, pz = cam_pivot()
     rep["camera_option"] = {"pivot_x_mm": px, "pivot_z_above_top_plate_mm": round(pz, 1),
                             "tilt_range_deg": [CAM_TILT_MIN, CAM_TILT_MAX]}
+    rep["nose_camera_option"] = {
+        "pivot_x_mm": NOSE_PIVOT_X, "pivot_z_above_top_plate_mm": NOSE_PIVOT_Z,
+        "tilt_range_deg": [CAM_TILT_MIN, CAM_TILT_MAX],
+        "lens_front_xz_mm": {str(int(t)): [round(v, 1) for v in nose_lens_xz(t)]
+                             for t in (CAM_TILT_MIN, CAM_TILT_SHOWN, CAM_TILT_MAX)}}
     with open(os.path.join(a.out, "mass_report.json"), "w") as f:
         json.dump(rep, f, indent=1)
     print(json.dumps(rep, indent=1))
