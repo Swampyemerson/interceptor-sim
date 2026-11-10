@@ -213,6 +213,8 @@ run_selftest "scripts/forensics/inframe_attribution.py --self-test (is the targe
     python3 "$ROOT/scripts/forensics/inframe_attribution.py" --self-test
 run_selftest "scripts/bench/hover_wobble_analysis.py --self-test (hover wobble frequency, recorder->analyser contract)" \
     python3 "$ROOT/scripts/bench/hover_wobble_analysis.py" --self-test
+run_selftest "scripts/bench/phone_wobble_freq.py --self-test (wobble frequency from a slow-motion phone clip)" \
+    "$ROOT/.venv/bin/python" "$ROOT/scripts/bench/phone_wobble_freq.py" --self-test
 
 # NO LOG POLLUTION (audit hygiene fix, 2026-07-25): the field pack's scripts
 # each mkdir a timestamped run dir under logs/field/, so every invocation of

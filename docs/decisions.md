@@ -1340,3 +1340,49 @@ the frequency is measured first: `scripts/bench/hover_recorder.py` (attitude + b
 self-test wired into `run_tests.sh`). Registered next step: one unchanged 30 s hover recorded
 from the Pi over TELEM2, then exactly one change chosen by the measured band.
 
+
+**Second addendum, same day — PRE-REGISTERED before the flight (result not yet known).**
+
+*The change.* Set in QGC, on the ground, disarmed: `MC_ROLLRATE_P` = `MC_PITCHRATE_P` = 0.08
+(was 0.15) and `MC_ROLLRATE_D` = `MC_PITCHRATE_D` = 0.001 (was 0.003). The builder had
+already put `MC_ROLLRATE_K`/`MC_PITCHRATE_K` back to 1.0 (they were 0.65 for the 33 s
+flight). Gyro filters are deliberately NOT touched this flight: `IMU_GYRO_CUTOFF` 40,
+`IMU_DGYRO_CUTOFF` 30. Attitude gains stay `MC_ROLL_P`/`MC_PITCH_P` = 6.5.
+
+*Source of the numbers.* PX4 v1.16.0's own airframe file for this class of aircraft,
+`4050_generic_250`: rate P 0.08, rate D 0.001, `MC_ROLL_P`/`MC_PITCH_P` 8, gyro cutoff 90,
+D-term gyro cutoff 50, `THR_MDL_FAC` 0.3. `4052_holybro_qav250` is close to it (P 0.076 /
+0.082, D 0.0012, cutoffs 120 / 45). Board values before the change:
+`configs/px4_6cmini/dumps/20261109_postflight.tsv`.
+
+*Reasoning.* The board was flying a thrust-to-weight of roughly 7.5 : 1
+(`docs/airframe_numbers.md` sec 4, planning value) on rate gains written for a ~2 : 1
+airframe. More thrust per unit of command means every gain acts several times harder, so
+the stock numbers are too high for it. The D term is the worst offender: it multiplies
+gyro noise straight into the motor commands, and three times the racer value is the
+classic cause of motors that come down hot after a short hover. For reference, the
+K = 0.65 flight had effective P 0.0975 and D 0.00195 — already most of the way toward the
+racer values, and it was the best flight so far.
+
+*Prediction.* The fast rock is smaller or gone, and the motors are cooler after the hover.
+
+*What a null would mean.*
+- **Fast rock unchanged:** the loop is limited by delay, not gain. Next: raise the gyro
+  filters to the racer values (90 / 50), then look at the PWM output path (ledger
+  `interceptor-esc-protocol-pwm-not-dshot`).
+- **A NEW slow wallow appears:** the rate loop is now too soft for the attitude loop sitting
+  on it (`MC_ROLL_P` 6.5). Next: raise rate P toward 0.10, or lower the attitude P.
+- **Motors still hot with the rock gone:** D-term noise through the low 30 Hz filter is not
+  the heat source; suspect the uncalibrated PWM range or the motors/props themselves.
+
+*Caveat — this is not a clean A/B against the 33 s flight.* Two things differ from it: K
+went 0.65 -> 1.0 (builder) and P/D went to the racer values. Net effective change:
+P 0.0975 -> 0.08, D 0.00195 -> 0.001. The result is judged against the racer prediction
+above, not quoted as a paired delta.
+
+*Instrument.* No onboard recorder (FC SD slot dead, Pi down), so the measurement is a
+slow-motion phone clip read by `scripts/bench/phone_wobble_freq.py` (outline-tilt FFT;
+`--capture-fps` mandatory because an exported slo-mo file's own frame rate is not the
+capture rate; fails closed on short clips, lost tracking, or no clear peak). Its frequency
+is trustworthy if the clip is filmed from directly behind or in front against plain sky;
+its tilt-in-degrees figure is a camera-view number, not a calibrated attitude.
