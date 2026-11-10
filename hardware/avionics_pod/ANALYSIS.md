@@ -84,13 +84,22 @@ Arducam's own model of the B0353 (board 38 x 38, holes on a 34.04 mm square, len
 posts, which is why the nose-post figures here are a little lower than the first run
 (270 Hz then, 254 Hz now).
 
-**SolidWorks cross-check (builder, 2026-11-10).** The builder ran a frequency study on
-the nose-post assembly in SolidWorks Simulation, held at the bolts instead of across the
-whole underside: first mode **173 Hz**, the post and camera swaying
-(`media/solidworks_nose_post_bolted_mode1_173hz.png`). That is 32 % under this model's
-254 Hz, inside the 20 to 40 % drop predicted above for real joints. The material and
-contact settings of that study are not recorded here, so treat it as one independent
-data point, not a replacement for the table.
+**SolidWorks cross-check (builder, 2026-11-10).** The builder ran two frequency studies
+on the nose-post assembly in SolidWorks Simulation, with the same inputs as this model
+(printed PETG at 1900 MPa, a 15 g camera stand-in; the pod and boards left out).
+
+| Study | 1st | 2nd | 3rd | Picture |
+|---|---|---|---|---|
+| "Nose post modal" (like-for-like with the table above) | 275 Hz | 293 | 552 | `media/solidworks_nose_post_modal_modes_275hz.png` |
+| "Nose post bolted" (held at the bolts only) | 173 Hz | not recorded | not recorded | `media/solidworks_nose_post_bolted_mode1_173hz.png` |
+
+- **The two programs agree.** SolidWorks gives 275 / 293 / 552 Hz against 254 / 276 / 545
+  here, 8 % apart at most, and the same shape (post and camera swaying).
+- **How it is held matters more than which program.** Holding the dock at its bolts
+  instead of across its whole underside drops the first sway to 173 Hz, 37 % lower.
+  That is the more realistic case, and it is below the hover motor rate (about 213 Hz):
+  the motors pass through it on spin-up but do not sit on it in flight.
+- Not recorded here: the exact fixture faces and the contact settings of each study.
 
 **What this means for the camera.** The lid cradle is the least stiff place on the
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
