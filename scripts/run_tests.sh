@@ -211,6 +211,8 @@ run_selftest "scripts/forensics/breakoff_gate_replay.py --self-test (breakoff ga
     python3 "$ROOT/scripts/forensics/breakoff_gate_replay.py" --self-test
 run_selftest "scripts/forensics/inframe_attribution.py --self-test (is the target in the picture?)" \
     python3 "$ROOT/scripts/forensics/inframe_attribution.py" --self-test
+run_selftest "scripts/bench/hover_wobble_analysis.py --self-test (hover wobble frequency, recorder->analyser contract)" \
+    python3 "$ROOT/scripts/bench/hover_wobble_analysis.py" --self-test
 
 # NO LOG POLLUTION (audit hygiene fix, 2026-07-25): the field pack's scripts
 # each mkdir a timestamped run dir under logs/field/, so every invocation of

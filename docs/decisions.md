@@ -1324,3 +1324,19 @@ until re-earned.
 `MC_ROLLRATE_K`/`MC_PITCHRATE_K` = 0.65 (the log says they went back to 0.8);
 `IMU_GYRO_DNF_EN` = 0 (the log says the notch is on); `CBRK_IO_SAFETY` = 22027 (safety
 switch bypassed — the posture set on maiden day); autotune `MC_AT_EN` = 1.
+
+**Addendum, same day — flown.** One 33 s flight on the corrected layout (`LND_FLIGHT_T`
+advanced by 33.3 s; post-flight dump `dumps/20261109_postflight.tsv` shows no setting changed
+beyond the FC's own gyro/mag offset learning). Builder report: huge improvement, the aircraft
+holds position; a smaller rock at a much higher frequency remains. The prediction ("gone or
+clearly reduced") held on the second branch. The residual is treated as a NEW item, and no
+gain was changed, for a stated reason: by eye, "faster" does not say which loop. A rock of a
+few hertz points at the attitude loop (`MC_ROLL_P`/`MC_PITCH_P` 6.5 over a rate loop slowed by
+K = 0.65 and the stock 40/30 Hz gyro filters) and is made WORSE by lowering K; a buzz above
+~12 Hz points at the rate loop or output delay and is made better by it. Opposite fixes, so
+the frequency is measured first: `scripts/bench/hover_recorder.py` (attitude + body rates at
+~100 Hz, motor outputs at ~50 Hz; bench-proven over USB at 99/49 Hz) and
+`hover_wobble_analysis.py` (FFT peak per axis; fails closed on disarmed, short or slow logs;
+self-test wired into `run_tests.sh`). Registered next step: one unchanged 30 s hover recorded
+from the Pi over TELEM2, then exactly one change chosen by the measured band.
+

@@ -25,15 +25,14 @@ the weekend**. Full drift register:
 
 ## KILL DAY — the weekend plan (2026-10-24/26)
 
-> **UPDATE 2026-11-09 — the wobble has a new prime suspect, and it is fixed on the board but
-> NOT yet flown.** A full parameter read found the flight controller mixing the motors for a
-> **plus**-shaped quad (airframe 5001, a bare-board placeholder) on this **X** frame, so every
-> roll/pitch correction landed 45° off-axis. Corrected to 4001 and read back (ADR-0134).
-> **Before the next flight, props OFF:** arm in Stabilized, roll stick right → BOTH left motors
-> speed up; pitch forward → BOTH rear motors. Then a short hover. The "wiring-class suspects"
-> below and every 2026-10-25 "ruled out" verdict were made on the wrong layout — re-earn them
-> only if the wobble survives. Second suspect, untouched on purpose: motors run on uncalibrated
-> plain PWM, not DShot.
+> **UPDATE 2026-11-09 — the big wobble is fixed and flown.** The flight controller had been
+> mixing the motors for a **plus**-shaped quad (airframe 5001, a bare-board placeholder) on this
+> **X** frame; corrected to 4001 (ADR-0134) and flown: holds position for the first time.
+> **What is left:** a smaller, faster rock. Do NOT change gains by eye — slow and fast rocks
+> need opposite fixes. Next flight is one unchanged 30 s hover with
+> `scripts/bench/hover_recorder.py` running on the Pi, then
+> `hover_wobble_analysis.py` names the frequency and the one change to make. The "wiring-class
+> suspects" below and the 2026-10-25 "ruled out" list predate the fix and are void.
 
 > **OUTCOME (2026-10-25): the scored attempt moved out ~a week; the weekend delivered the
 > interceptor's AIRWORTHINESS instead** — maiden flown after a 180° board-rotation root-cause
