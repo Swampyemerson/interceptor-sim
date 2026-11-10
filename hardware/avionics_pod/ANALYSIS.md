@@ -84,6 +84,14 @@ Arducam's own model of the B0353 (board 38 x 38, holes on a 34.04 mm square, len
 posts, which is why the nose-post figures here are a little lower than the first run
 (270 Hz then, 254 Hz now).
 
+**SolidWorks cross-check (builder, 2026-11-10).** The builder ran a frequency study on
+the nose-post assembly in SolidWorks Simulation, held at the bolts instead of across the
+whole underside: first mode **173 Hz**, the post and camera swaying
+(`media/solidworks_nose_post_bolted_mode1_173hz.png`). That is 32 % under this model's
+254 Hz, inside the 20 to 40 % drop predicted above for real joints. The material and
+contact settings of that study are not recorded here, so treat it as one independent
+data point, not a replacement for the table.
+
 **What this means for the camera.** The lid cradle is the least stiff place on the
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
 (`dock_cam`, `cam_plate_nose`) and modelled:
