@@ -106,6 +106,25 @@ on the nose-post assembly in SolidWorks Simulation, with the same inputs as this
   1143 kg/m^3, solid PETG times the print fill), the exact fixture faces, and the
   contact settings of each study.
 
+**SolidWorks static study at 10 g (builder, 2026-11-10).** Same assembly, same two
+materials, parts bonded, held at the bolts, with gravity set to ten times normal
+("Nose post static 10g"). The direction of the load is not recorded here.
+
+| Result | Peak | Picture |
+|---|---|---|
+| Stress (von Mises) | 1.0 MPa | `media/solidworks_nose_post_static_10g_stress.png` |
+| Movement | 0.072 mm, at the lens tip | `media/solidworks_nose_post_static_10g_displacement.png` |
+| Strain | 0.0004 (0.04 %) | `media/solidworks_nose_post_static_10g_strain.png` |
+
+- **Strength margin is large.** Printed PETG fails somewhere around 20 to 50 MPa
+  depending on layer direction (typical figures, not measured on this print), so 1 MPa
+  is a margin of 20 or more at 10 g.
+- **It agrees with the bolted frequency.** A part that sags 0.072 mm under 10 g would
+  ring at roughly sqrt(98.1 / 0.000072) / (2 pi) = 185 Hz if it moved in that one shape;
+  the bolted study gave 173 Hz.
+- **What it does not cover.** This is the mount carrying its own weight in a hard
+  manoeuvre. It says nothing about a knock on the camera itself, which sits out front.
+
 **What this means for the camera.** The lid cradle is the least stiff place on the
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
 (`dock_cam`, `cam_plate_nose`) and modelled:
