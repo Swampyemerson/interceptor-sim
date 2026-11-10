@@ -103,6 +103,32 @@ pixels on each degree, so the tag is readable from farther away, at the cost
 of a smaller pointing margin. This replaces the project's earlier rule of a
 lens of at least 100 degrees. The first camera-guided flight is next.
 
+### Avionics pod: structural analysis, November 2026
+
+The flight controller, the Pi and the camera ride in a 3D-printed pod that bolts to the
+frame's top plate, with the camera on a short tilting post off the pod's nose. The pod is
+generated from one parametric script ([`hardware/avionics_pod/pod.py`](hardware/avionics_pod/pod.py))
+and was analysed before printing, twice: with an open-source finite-element model in the
+repo, and independently in SOLIDWORKS Simulation. Nothing here is measured on the aircraft yet.
+
+| CAD, camera on the nose post | SOLIDWORKS, first vibration mode held at the six screws |
+|---|---|
+| ![Pod with nose camera post](hardware/avionics_pod/preview_nose_camera.png) | ![First mode, 173 Hz](media/solidworks_nose_post_bolted_mode1_173hz.png) |
+
+| Question | Result |
+|---|---|
+| Do two independent solvers agree? | Yes. Camera post, first mode: 254 Hz (repo model) against 275 Hz (SOLIDWORKS) held flat; 169 against 173 Hz held at its screws. |
+| How much does the mounting assumption matter? | More than the solver. Holding the part at its six screws instead of across its whole underside lowers the first mode by 37 %. |
+| Where should the camera go? | On the nose post. On the pod's lid the first mode is 136 Hz; on the post it is 254 Hz on the same basis. |
+| Does bolting the pod down clear the motors? | No. Hover spins the motors at about 213 Hz, and with the pod's weight on the bolted dock both models show a mode between about 110 and 160 Hz that carries the flight controller. A tap test on the printed part comes before flight. |
+| Is it strong enough? | Yes, with margin. At 10 g on all three axes at once (17.3 g combined) the camera post peaks at 1.0 MPa and the lens moves 0.07 mm. The aircraft can pull about 7 g on paper. Printed PETG is assumed good for 25 to 45 MPa. |
+| What does the pod cost the aircraft? | About 850 g all-up, and 14 % more roll inertia than the earlier flat layout. |
+
+The cross-check also found a CAD defect: SOLIDWORKS could not mesh the pod base because of
+a face 0.2 mm wide, which was traced to two tangent features in the script and fixed.
+Full write-ups: [`ANALYSIS.md`](hardware/avionics_pod/ANALYSIS.md) and
+[`SOLIDWORKS_CROSSCHECK.md`](hardware/avionics_pod/SOLIDWORKS_CROSSCHECK.md).
+
 ## Not done yet
 
 - **No real intercept flight.** The interceptor has flown hover tests only; every miss
@@ -111,6 +137,8 @@ lens of at least 100 degrees. The first camera-guided flight is next.
   is built; its error in the field is not measured yet.
 - **In Gazebo the tag is a flat board on a scripted mover.** The pitching,
   banking quad is modeled in the fast simulator, not rendered in Gazebo.
+- **The avionics pod is drawn and analysed, not printed.** Its vibration numbers are
+  model results; no tap test or flight vibration log exists yet.
 - **The markerless detector is early.** Retrained on real photos it reaches
   0.44 AP50 on held-out images (the simulator-trained version scored 0.0003).
   It has not flown.
@@ -153,6 +181,8 @@ Harmonic. `scripts/env/bootstrap.sh` sets up a fresh machine.
 | `isim/` | the fast flight-code-in-the-loop simulator |
 | `scripts/` | Gazebo harnesses, milestone gates, Monte-Carlo runner, seeker tools |
 | `configs/` | flight controller parameters, camera calibration, bench tools |
+| `hardware/` | printable CAD for the avionics pod, with its vibration, mass and heat analysis |
+| `media/` | SOLIDWORKS study screenshots |
 | `worlds/`, `models/` | Gazebo worlds and target models |
 | `docs/` | project state, design decisions, design notes, build log |
 | `tests/` | offline test suite, including the ground-truth firewall tests |
