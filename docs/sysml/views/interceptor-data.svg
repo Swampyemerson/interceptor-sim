@@ -196,7 +196,7 @@
 <text class="sx-wd" x="52" y="848">6-pin JST-GH — 5.2 V + analog V/I sense to POWER1</text>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="852" width="22" height="16" rx="8"/><text x="31" y="864">2</text></g>
 <text class="sx-wl" x="52" y="864"><tspan class="sx-wn">escSignal</tspan><tspan class="sx-wm">  fc.mainOut → esc.signal</tspan><tspan class="sx-wt">  : DShotLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
-<text class="sx-wd" x="52" y="878">signal lead (pin map TBD) — DShot600 M1-M4 + GND; contract says JST-SH 8-pin, wiring card says MAIN is 3-pin S/+/- -- check at afr-01</text>
+<text class="sx-wd" x="52" y="878">signal lead (pin map TBD) — NOT DShot: plain PWM on MAIN 1-4, 400 Hz, 1100-1900 us (live board read 2026-11-09). MAIN cannot speak DShot; ledger interceptor-esc-protocol-pwm-not-dshot</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="882" width="22" height="16" rx="8"/><text x="31" y="894">3</text></g>
 <text class="sx-wl" x="52" y="894"><tspan class="sx-wn">gpsCable</tspan><tspan class="sx-wm">  fc.gps1 → gps.fcConn</tspan><tspan class="sx-wt">  : GPSCableLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-02)</tspan></text>
 <text class="sx-wd" x="52" y="908">10-pin JST-GH — GPS UART (UBX 10 Hz) + IST8310 compass on GPS1&#x27;s own I2C + 5 V</text>
@@ -211,7 +211,7 @@
 <text class="sx-wd" x="52" y="998">TBD — drive pin UNRESOLVED -- the 6C Mini has no buzzer pad</text>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="1002" width="22" height="16" rx="8"/><text x="31" y="1014">7</text></g>
 <text class="sx-wl" x="52" y="1014"><tspan class="sx-wn">ulogCard</tspan><tspan class="sx-wm">  fc.sdSlot → fcSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
-<text class="sx-wd" x="52" y="1028">onboard microSD slot — PX4 ULogs</text>
+<text class="sx-wd" x="52" y="1028">onboard microSD slot — PX4 ULogs -- SLOT DEAD: no onboard logs; substitute is hover_recorder.py on the Pi</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="1032" width="22" height="16" rx="8"/><text x="31" y="1044">8</text></g>
 <text class="sx-wl" x="52" y="1044"><tspan class="sx-wn">cameraRibbon</tspan><tspan class="sx-wm">  camera.csi → pi.cam0</tspan><tspan class="sx-wt">  : CSI2Link</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-02)</tspan></text>
 <text class="sx-wd" x="52" y="1058">22-to-15-pin CSI ribbon — MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono · cable: Wonrabai 22-to-15-pin CSI cable</text>

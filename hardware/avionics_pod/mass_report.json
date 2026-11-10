@@ -1,10 +1,12 @@
 {
  "printed_g": {
   "dock": 14.3,
-  "pod_base": 18.3,
-  "pod_lid": 6.2
+  "pod_base": 18.2,
+  "pod_lid": 6.2,
+  "pod_lid_cam": 10.9,
+  "cam_plate": 5.1
  },
- "removable_module_g": 162.5,
+ "removable_module_g": 162.4,
  "removable_module_cg_mm": [
   -7.0,
   0.0,
@@ -20,5 +22,13 @@
   "pi_underside": 28.85,
   "hat_underside": 46.45,
   "lid_underside": 56.050000000000004
+ },
+ "camera_option": {
+  "pivot_x_mm": 52.0,
+  "pivot_z_above_top_plate_mm": 68.0,
+  "tilt_range_deg": [
+   10.0,
+   45.0
+  ]
  }
 }

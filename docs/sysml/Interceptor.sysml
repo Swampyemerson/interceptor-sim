@@ -100,8 +100,8 @@ package Interceptor {
         // ---------------------------------------------------------- power: flight rail
         interface mainPower : DCPowerLink connect battery.main to pm02.battIn {
             attribute :>> connector = "XT60";
-            attribute :>> detail = "6S main power into the power module";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> detail = "6S main power into the power module; flown 2026-11-09";
+            attribute :>> linkState = LinkState::wired;
         }
         interface escPower : DCPowerLink connect pm02.battOut to esc.batt {
             attribute :>> connector = "XT60 pigtail, 14 AWG";
@@ -110,8 +110,8 @@ package Interceptor {
         }
         interface motorLeads : PhaseLink connect esc.motorOut to motors.phase {
             attribute :>> connector = "3-phase leads, soldered";
-            attribute :>> detail = "4 channels; verify order + direction in QGC (afr-03)";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> detail = "4 channels; flown 2026-11-09 on the quad-X layout (airframe 4001, ADR-0134)";
+            attribute :>> linkState = LinkState::wired;
         }
         interface fcPower : PowerModuleLink connect pm02.fcLead to fc.power1 {
             attribute :>> connector = "6-pin JST-GH";
@@ -147,7 +147,7 @@ package Interceptor {
         // ---------------------------------------------------------- data
         interface escSignal : DShotLink connect fc.mainOut to esc.signal {
             attribute :>> connector = "signal lead (pin map TBD)";
-            attribute :>> detail = "DShot600 M1-M4 + GND; contract says JST-SH 8-pin, wiring card says MAIN is 3-pin S/+/- -- check at afr-01";
+            attribute :>> detail = "NOT DShot: plain PWM on MAIN 1-4, 400 Hz, 1100-1900 us (live board read 2026-11-09). MAIN cannot speak DShot; ledger interceptor-esc-protocol-pwm-not-dshot";
             attribute :>> linkState = LinkState::wired;
         }
         interface gpsCable : GPSCableLink connect fc.gps1 to gps.fcConn {
@@ -175,7 +175,7 @@ package Interceptor {
         }
         interface ulogCard : SDCardLink connect fc.sdSlot to fcSd.contacts {
             attribute :>> connector = "onboard microSD slot";
-            attribute :>> detail = "PX4 ULogs";
+            attribute :>> detail = "PX4 ULogs -- SLOT DEAD: no onboard logs; substitute is hover_recorder.py on the Pi";
             attribute :>> linkState = LinkState::wired;
         }
         interface cameraRibbon : CSI2Link connect camera.csi to pi.cam0 {
@@ -195,20 +195,23 @@ package Interceptor {
         // ---------------------------------------------------------- mechanical
         interface motorMounts : MountLink connect airframe.arms to motors.base {
             attribute :>> connector = "M3x8 screws";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> detail = "flown 2026-11-09";
+            attribute :>> linkState = LinkState::wired;
         }
         interface propShafts : MountLink connect motors.shaft to props.hub {
             attribute :>> connector = "M5 shaft + nyloc";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> detail = "flown 2026-11-09";
+            attribute :>> linkState = LinkState::wired;
         }
         interface escMount : MountLink connect airframe.stack to esc.standoffs {
             attribute :>> connector = "30 mm standoffs";
             attribute :>> detail = "insulate the frame under every board (carbon conducts)";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> linkState = LinkState::wired;
         }
         interface fcMount : MountLink connect airframe.stack to fc.softMount {
             attribute :>> connector = "vibration mount";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> detail = "flown 2026-11-09; FC mounted arrow-aft (SENS_BOARD_ROT=4)";
+            attribute :>> linkState = LinkState::wired;
         }
         interface gpsMast : MountLink connect airframe.topPlate to gps.mast {
             attribute :>> connector = "short mast";
@@ -232,7 +235,8 @@ package Interceptor {
         }
         interface batteryStrap : MountLink connect airframe.batteryPad to battery.strap {
             attribute :>> connector = "strap";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> detail = "battery rides underneath; flown 2026-11-09";
+            attribute :>> linkState = LinkState::wired;
         }
     }
 }

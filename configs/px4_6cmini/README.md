@@ -418,7 +418,9 @@ deferred**:
 `max own_age` is the number `brn-05` exists to measure — it is what will size
 `GuidanceConfig.own_state_max_age_s`, which is deliberately unset until then.
 Evidence: the run log under `logs/deploy_seeker_bench_*.log` **and** the FC's ULog
-on the microSD (logged from boot, `SDLOG_MODE=2`).
+on the microSD (logged from boot, `SDLOG_MODE=2`). *(2026-11: this board's microSD
+slot has since died, so there is no onboard ULog; `scripts/bench/hover_recorder.py`
+on the Pi is the substitute.)*
 
 **If it fails, in likelihood order (v1.16-corrected 2026-07-26):**
 

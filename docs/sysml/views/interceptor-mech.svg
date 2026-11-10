@@ -136,15 +136,15 @@
 <text class="sx-chipt sx-acc" x="1576.0" y="621">PRINT</text>
 <line class="sx-rule" x1="1392" y1="628" x2="1606" y2="628"/>
 </g>
-<path class="sx-w sx-c-mechanical sx-s-planned" d="M1274.0 295.0 L1333.0 295.0 L1333.0 143.0 L1274.0 143.0"/>
-<path class="sx-w sx-c-mechanical sx-s-planned" d="M1274.0 121.0 L1340.0 121.0 L1340.0 121.0 L1392.0 121.0"/>
-<path class="sx-w sx-c-mechanical sx-s-planned" d="M1060.0 317.0 L1001.0 317.0 L1001.0 121.0 L942.0 121.0"/>
-<path class="sx-w sx-c-mechanical sx-s-planned" d="M1060.0 317.0 L1008.0 317.0 L1008.0 404.0 L676.0 404.0 L676.0 295.0 L610.0 295.0"/>
+<path class="sx-w sx-c-mechanical sx-s-wired" d="M1274.0 295.0 L1333.0 295.0 L1333.0 143.0 L1274.0 143.0"/>
+<path class="sx-w sx-c-mechanical sx-s-wired" d="M1274.0 121.0 L1340.0 121.0 L1340.0 121.0 L1392.0 121.0"/>
+<path class="sx-w sx-c-mechanical sx-s-wired" d="M1060.0 317.0 L1001.0 317.0 L1001.0 121.0 L942.0 121.0"/>
+<path class="sx-w sx-c-mechanical sx-s-wired" d="M1060.0 317.0 L1008.0 317.0 L1008.0 404.0 L676.0 404.0 L676.0 295.0 L610.0 295.0"/>
 <path class="sx-w sx-c-mechanical sx-s-planned" d="M1060.0 339.0 L994.0 339.0 L994.0 295.0 L942.0 295.0"/>
 <path class="sx-w sx-c-mechanical sx-s-planned" d="M1060.0 339.0 L1015.0 339.0 L1015.0 491.0 L610.0 491.0"/>
 <path class="sx-w sx-c-mechanical sx-s-planned" d="M1274.0 317.0 L1326.0 317.0 L1326.0 643.0 L1392.0 643.0"/>
 <path class="sx-w sx-c-mechanical sx-s-planned" d="M1392.0 665.0 L1319.0 665.0 L1319.0 643.0 L610.0 643.0"/>
-<path class="sx-w sx-c-mechanical sx-s-planned" d="M1060.0 295.0 L1022.0 295.0 L1022.0 222.0 L358.0 222.0 L358.0 121.0 L278.0 121.0"/>
+<path class="sx-w sx-c-mechanical sx-s-wired" d="M1060.0 295.0 L1022.0 295.0 L1022.0 222.0 L358.0 222.0 L358.0 121.0 L278.0 121.0"/>
 <rect class="sx-pc" x="273.0" y="116.0" width="10" height="10"/>
 <text class="sx-pl sx-end" x="269.0" y="124.5">strap</text>
 <rect class="sx-pc" x="937.0" y="116.0" width="10" height="10"/>
@@ -177,28 +177,28 @@
 <text class="sx-pl" x="1401.0" y="646.5">frameFoot</text>
 <rect class="sx-p" x="1387.0" y="660.0" width="10" height="10"/>
 <text class="sx-pl" x="1401.0" y="668.5">cameraSeat</text>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="1322.0" y="211.0" width="22" height="16" rx="8"/><text x="1333.0" y="223.0">1</text></g>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="1296.0" y="113.0" width="22" height="16" rx="8"/><text x="1307.0" y="125.0">2</text></g>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="990.0" y="211.0" width="22" height="16" rx="8"/><text x="1001.0" y="223.0">3</text></g>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="831.0" y="396.0" width="22" height="16" rx="8"/><text x="842.0" y="408.0">4</text></g>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="1322.0" y="211.0" width="22" height="16" rx="8"/><text x="1333.0" y="223.0">1</text></g>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="1296.0" y="113.0" width="22" height="16" rx="8"/><text x="1307.0" y="125.0">2</text></g>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="990.0" y="211.0" width="22" height="16" rx="8"/><text x="1001.0" y="223.0">3</text></g>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="831.0" y="396.0" width="22" height="16" rx="8"/><text x="842.0" y="408.0">4</text></g>
 <g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="1016.0" y="331.0" width="22" height="16" rx="8"/><text x="1027.0" y="343.0">5</text></g>
 <g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="801.5" y="483.0" width="22" height="16" rx="8"/><text x="812.5" y="495.0">6</text></g>
 <g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="1315.0" y="472.0" width="22" height="16" rx="8"/><text x="1326.0" y="484.0">7</text></g>
 <g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="953.5" y="635.0" width="22" height="16" rx="8"/><text x="964.5" y="647.0">8</text></g>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="679.0" y="214.0" width="22" height="16" rx="8"/><text x="690.0" y="226.0">9</text></g>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="679.0" y="214.0" width="22" height="16" rx="8"/><text x="690.0" y="226.0">9</text></g>
 <text class="sx-h" x="20" y="748">WIRE LIST — every connection in this view</text>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="756" width="22" height="16" rx="8"/><text x="31" y="768">1</text></g>
-<text class="sx-wl" x="52" y="768"><tspan class="sx-wn">motorMounts</tspan><tspan class="sx-wm">  airframe.arms → motors.base</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="782">M3x8 screws</text>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="786" width="22" height="16" rx="8"/><text x="31" y="798">2</text></g>
-<text class="sx-wl" x="52" y="798"><tspan class="sx-wn">propShafts</tspan><tspan class="sx-wm">  motors.shaft → props.hub</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="812">M5 shaft + nyloc</text>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="816" width="22" height="16" rx="8"/><text x="31" y="828">3</text></g>
-<text class="sx-wl" x="52" y="828"><tspan class="sx-wn">escMount</tspan><tspan class="sx-wm">  airframe.stack → esc.standoffs</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="20" y="756" width="22" height="16" rx="8"/><text x="31" y="768">1</text></g>
+<text class="sx-wl" x="52" y="768"><tspan class="sx-wn">motorMounts</tspan><tspan class="sx-wm">  airframe.arms → motors.base</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
+<text class="sx-wd" x="52" y="782">M3x8 screws — flown 2026-11-09</text>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="20" y="786" width="22" height="16" rx="8"/><text x="31" y="798">2</text></g>
+<text class="sx-wl" x="52" y="798"><tspan class="sx-wn">propShafts</tspan><tspan class="sx-wm">  motors.shaft → props.hub</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
+<text class="sx-wd" x="52" y="812">M5 shaft + nyloc — flown 2026-11-09</text>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="20" y="816" width="22" height="16" rx="8"/><text x="31" y="828">3</text></g>
+<text class="sx-wl" x="52" y="828"><tspan class="sx-wn">escMount</tspan><tspan class="sx-wm">  airframe.stack → esc.standoffs</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="842">30 mm standoffs — insulate the frame under every board (carbon conducts)</text>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="846" width="22" height="16" rx="8"/><text x="31" y="858">4</text></g>
-<text class="sx-wl" x="52" y="858"><tspan class="sx-wn">fcMount</tspan><tspan class="sx-wm">  airframe.stack → fc.softMount</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="872">vibration mount</text>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="20" y="846" width="22" height="16" rx="8"/><text x="31" y="858">4</text></g>
+<text class="sx-wl" x="52" y="858"><tspan class="sx-wn">fcMount</tspan><tspan class="sx-wm">  airframe.stack → fc.softMount</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
+<text class="sx-wd" x="52" y="872">vibration mount — flown 2026-11-09; FC mounted arrow-aft (SENS_BOARD_ROT=4)</text>
 <g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="876" width="22" height="16" rx="8"/><text x="31" y="888">5</text></g>
 <text class="sx-wl" x="52" y="888"><tspan class="sx-wn">gpsMast</tspan><tspan class="sx-wm">  airframe.topPlate → gps.mast</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
 <text class="sx-wd" x="52" y="902">short mast — compass away from power leads</text>
@@ -211,9 +211,9 @@
 <g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="966" width="22" height="16" rx="8"/><text x="31" y="978">8</text></g>
 <text class="sx-wl" x="52" y="978"><tspan class="sx-wn">cameraSeat</tspan><tspan class="sx-wm">  cameraMount.cameraSeat → camera.mount</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
 <text class="sx-wd" x="52" y="992">adjustable 10-30 deg bracket — angle locked from the first dash ULog</text>
-<g class="sx-pill sx-c-mechanical sx-s-planned"><rect x="20" y="996" width="22" height="16" rx="8"/><text x="31" y="1008">9</text></g>
-<text class="sx-wl" x="52" y="1008"><tspan class="sx-wn">batteryStrap</tspan><tspan class="sx-wm">  airframe.batteryPad → battery.strap</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="1022">strap</text>
+<g class="sx-pill sx-c-mechanical sx-s-wired"><rect x="20" y="996" width="22" height="16" rx="8"/><text x="31" y="1008">9</text></g>
+<text class="sx-wl" x="52" y="1008"><tspan class="sx-wn">batteryStrap</tspan><tspan class="sx-wm">  airframe.batteryPad → battery.strap</tspan><tspan class="sx-wt">  : MountLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
+<text class="sx-wd" x="52" y="1022">strap — battery rides underneath; flown 2026-11-09</text>
 <text class="sx-h" x="20" y="1040">KEY</text>
 <path class="sx-w sx-c-mechanical sx-s-verified" d="M60 1036 H90"/>
 <text class="sx-lg" x="96" y="1040">mechanical</text>

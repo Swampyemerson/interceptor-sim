@@ -119,6 +119,59 @@ Those blocks are envelopes from the parameter block, not real board models. Unit
 millimetres; x points to the nose, z is up from the top plate. A STEP import has no
 feature tree, so change dimensions in `pod.py` and regenerate.
 
+## Revision 3 draft (2026-11-09 overnight): camera on the pod, and tidier parts
+
+**Is a camera on this pod possible? Yes, by geometry.** `camera_on_pod_fov.py` works out
+how far outside the picture the front props sit. The props are fixed to the same body
+as the camera, so the answer depends only on where the camera is and how far it is
+tilted up, not on how the aircraft is flying.
+
+| Camera | Margin at 10 deg tilt | at 25 deg | at 45 deg |
+|---|---|---|---|
+| OV9281 as delivered (70 deg lens, measured) | +24 deg | +39 | +59 |
+| AR0234 stock lens (80 deg, vendor) | +20 | +35 | +55 |
+| OV9281 published lens (118 deg) | +1.5 (too close) | +16.5 | +36.5 |
+
+Lens at 60 mm forward, 68 mm up from the top plate (the cradle as drawn). If the props
+sit 10 mm higher than the builder's "level with the top plate", subtract about 4 deg.
+Rule used: 10 deg or more is clear. Limits of this derivation: pinhole lens (no
+distortion, which understates what a wide lens sees in the corners), pod assumed centred
+on the frame, props treated as flat discs. It is a reason to print and test, not a pass:
+the gate is still props spinning, camera at a plain wall, check the corners.
+
+Why the pod may be the better place than a nose boom (each maps to the contract's
+mount-risk checklist):
+
+- Camera, Pi and Pixhawk are one rigid unit, so the camera-to-IMU angle survives taking
+  the pod off and on.
+- The ribbon is under 100 mm and never crosses a flexing boom.
+- The camera is no longer the first thing to hit the target.
+- The lever arm from the centre of mass is shorter, so less parallax to correct.
+
+What could make it worse, and is NOT yet checked:
+
+- **Flex.** The camera now sits on top of a 61 mm tower. A rough beam estimate puts the
+  tower's sideways bending in the low hundreds of Hz, the same range as the motor shaft
+  frequency in hover (about 213 Hz). That estimate is crude; it needs a tap test or a
+  blur check on the printed part. Soft foam under the dock would make it far worse: with
+  a camera on board the dock must be bolted, or tied down on thin tape.
+- The lid rides on the Pi's standoff stack. Brass standoffs through-bolted are stiff in
+  theory; the joints through two circuit boards are the unknown.
+- Camera board hole spacing (34 mm) is a common Arducam value, not a published one.
+
+New parts: `pod_lid_cam` (the lid with two cheeks reaching forward over the USB ports)
+and `cam_plate` (the tilting plate). One M3 screw each side is the pivot, a second each
+side locks the tilt anywhere from 10 to 45 degrees. Open
+`avionics_pod_assembly_camera.step`; `preview_camera.png` shows it. The cheeks overhang
+the lid's front edge, so that part prints with supports. Checked in CAD at 10, 25 and
+45 degrees: plate and camera touch neither the lid nor the USB ports, and the top USB
+ports stay reachable. The plain `pod_lid` is unchanged if the camera stays on the nose.
+
+Tidying in the same pass: rounded corners on the dock, pod floor and lid; a sunk arrow
+on the dock and on the lid pointing to the nose; two zip-tie slots on the rear tab to
+anchor the cables leaving aft. Suggested hardware: an M3 thumb screw for the rear
+release, so the pod comes off without a tool.
+
 ## Revision 2 (2026-11-09): what changed
 
 Builder confirmed: Model A (nothing on the top face), and the Pixhawk flies with its

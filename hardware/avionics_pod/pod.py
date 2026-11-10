@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 
 import cadquery as cq
@@ -71,6 +72,18 @@ SCREW_X = -64.0         # ~18 mm of plug-and-bend room behind the FC
 HOOK_HALF_W = 12.0
 LID_T = 1.6
 
+# --- camera option (rev 3 draft): seeker camera on a tilting cradle on the lid --
+CAM_BOARD = 38.0         # Arducam B0353 (AR0234) board, vendor listing
+CAM_HOLE = 34.0          # MEASURE  hole spacing (not published; common Arducam value)
+CAM_LENS_D, CAM_LENS_L = 16.0, 18.0   # MEASURE  M12 lens + holder, for the ghost only
+CAM_PIVOT_X, CAM_PIVOT_ABOVE_LID = 52.0, 10.3   # pivot ahead of the USB ports
+CAM_TILT_MIN, CAM_TILT_MAX = 10.0, 45.0         # up-tilt range the lock slot allows
+CAM_TILT_SHOWN = 25.0    # tilt drawn in the assembly
+CAM_LOCK_R = 10.0        # lock screw sits this far behind the pivot
+CHEEK_T = 2.5
+CHEEK_Y_IN = CAM_BOARD / 2 + 1.5      # inner face of each cheek
+CORNER_R = 3.0           # rounded plan-view corners on dock, floor and lid
+
 # --- masses for the centre-of-mass report (grams) ---------------------------
 PETG_G_PER_MM3 = 1.27e-3
 PRINT_FILL = 0.9         # walls are mostly solid at these thicknesses
@@ -95,6 +108,19 @@ def box(x0, x1, y0, y1, z0, z1):
             .translate((x0, y0, z0)))
 
 
+def rbox(x0, x1, y0, y1, z0, z1, r=None):
+    """Box with its four vertical edges rounded (nicer to hold, no sharp corners)."""
+    r = CORNER_R if r is None else r
+    return box(x0, x1, y0, y1, z0, z1).edges("|Z").fillet(r)
+
+
+def nose_arrow(x_tip, z_top, size=7.0, depth=0.6):
+    """Shallow arrow sunk into a top face, pointing to the nose (+x)."""
+    pts = [(x_tip, 0), (x_tip - size, size * 0.6), (x_tip - size, -size * 0.6)]
+    return (cq.Workplane("XY").polyline(pts).close().extrude(depth + 0.5)
+            .translate((0, 0, z_top - depth)))
+
+
 def cyl(x, y, z0, z1, d):
     return cq.Workplane("XY").circle(d / 2).extrude(z1 - z0).translate((x, y, z0))
 
@@ -107,7 +133,7 @@ def xz_prism(pts, y0, y1):
 
 def dock(coupon: bool = False):
     t = 0.8 if coupon else DOCK_T
-    d = box(TAB_X_REAR, FLOOR_X_FRONT + 6.0, -DOCK_W / 2, DOCK_W / 2, 0, t)
+    d = rbox(TAB_X_REAR, FLOOR_X_FRONT + 6.0, -DOCK_W / 2, DOCK_W / 2, 0, t)
     for sx in (-1, 1):
         for sy in (-1, 1):
             x = DOCK_HOLE_X0 + sx * DOCK_HOLE_DX / 2
@@ -131,6 +157,7 @@ def dock(coupon: bool = False):
         for sy in (-1, 1):
             ya, yb = sorted((sy * (DOCK_W / 2 - 2.0), sy * (DOCK_W / 2 + 1)))
             d = d.cut(box(gx - TIE_W / 2, gx + TIE_W / 2, ya, yb, -1, DOCK_T + 1))
+    d = d.cut(nose_arrow(6.0, DOCK_T))            # which way round the dock goes
     # front wedge hook: 45-degree face, prints without support
     xf = FLOOR_X_FRONT + 0.2
     hook = xz_prism([(xf, Z_DOCK), (xf + 5.8, Z_DOCK), (xf + 5.8, Z_DOCK + 5.5),
@@ -147,7 +174,11 @@ def dock(coupon: bool = False):
 
 def pod_base():
     b = box(FLOOR_X_REAR, FLOOR_X_FRONT, -PI_W / 2, PI_W / 2, Z_DOCK, Z_FLOOR)
-    b = b.union(box(TAB_X_REAR, FLOOR_X_REAR, -TAB_HALF_W, TAB_HALF_W, Z_DOCK, Z_FLOOR))
+    b = b.union(rbox(TAB_X_REAR, FLOOR_X_REAR + 4.0, -TAB_HALF_W, TAB_HALF_W,
+                     Z_DOCK, Z_FLOOR))
+    for sy in (-1, 1):   # zip-tie slots: strain relief for the harness leaving aft
+        b = b.cut(box(FLOOR_X_REAR - 6.0, FLOOR_X_REAR - 3.0, sy * 6.5 - 1.0,
+                      sy * 6.5 + 1.0, Z_DOCK - 1, Z_FLOOR + 1))
     # 45-degree toe on the front edge, mates with the dock hook
     toe = xz_prism([(FLOOR_X_FRONT - FLOOR_T, Z_FLOOR), (FLOOR_X_FRONT + 1, Z_FLOOR),
                     (FLOOR_X_FRONT + 1, Z_DOCK - 1), (FLOOR_X_FRONT, Z_DOCK)],
@@ -200,9 +231,13 @@ def pod_base():
     return b
 
 
-def pod_lid():
+def cam_pivot():
+    return (CAM_PIVOT_X, Z_LID + LID_T + CAM_PIVOT_ABOVE_LID)
+
+
+def pod_lid(camera: bool = False):
     x0, x1 = PI_X_SD, PI_X_SD + HAT_L
-    lid = box(x0, x1, -PI_W / 2, PI_W / 2, Z_LID, Z_LID + LID_T)
+    lid = rbox(x0, x1, -PI_W / 2, PI_W / 2, Z_LID, Z_LID + LID_T)
     for sy in (-1, 1):                      # two stiffening / roll-over rails on top
         lid = lid.union(box(x0, x1, sy * 14 - 1.2, sy * 14 + 1.2,
                             Z_LID + LID_T, Z_LID + LID_T + 3.0))
@@ -216,7 +251,75 @@ def pod_lid():
         for hy in HOLE_YS:
             lid = lid.union(cyl(hx, hy, Z_LID, Z_LID + LID_T, 7.0))
             lid = lid.cut(cyl(hx, hy, Z_LID - 1, Z_LID + LID_T + 1, 2.8))
+    lid = lid.cut(nose_arrow(x1 - 1.0, Z_LID + LID_T, size=5.0))
+    if not camera:
+        return lid
+    # --- camera cradle: two cheeks reaching forward over the USB ports ---------
+    zt = Z_LID + LID_T
+    px, pz = cam_pivot()
+    prof = [(x1 - 26.0, zt), (px + 6.0, zt), (px + 8.0, zt + 4.0), (px + 8.0, pz + 5.0),
+            (px + 3.0, pz + 8.0), (px - 13.0, pz + 8.0), (x1 - 26.0, zt + 3.0)]
+    for sy in (-1, 1):
+        ya, yb = sorted((sy * CHEEK_Y_IN, sy * (CHEEK_Y_IN + CHEEK_T)))
+        cheek = xz_prism(prof, ya, yb)
+        # pivot hole + arc slot for the tilt lock (M3 clearance)
+        cheek = cheek.cut(cq.Workplane("XZ").circle(1.7).extrude(-60)
+                          .translate((px, -30, pz)))
+        n = 24
+        for i in range(n + 1):
+            th = math.radians(CAM_TILT_MIN + (CAM_TILT_MAX - CAM_TILT_MIN) * i / n)
+            cheek = cheek.cut(cq.Workplane("XZ").circle(1.7).extrude(-60).translate(
+                (px - CAM_LOCK_R * math.cos(th), -30, pz - CAM_LOCK_R * math.sin(th))))
+        lid = lid.union(cheek)
+    # cross tie under the cheeks, just ahead of the lid's front edge
+    lid = lid.union(box(x1 - 2.0, x1 + 5.0, -CHEEK_Y_IN - CHEEK_T, CHEEK_Y_IN + CHEEK_T,
+                        Z_LID, zt))
+    for hx in HOLE_XS:                      # keep screwdriver access to the lid screws
+        for hy in HOLE_YS:
+            lid = lid.cut(cyl(hx, hy, zt, zt + 40.0, 6.5))
     return lid
+
+
+def _cam_local_to_body(wp, tilt_deg):
+    """Local frame: +x = optical axis, origin = pivot. Tilt up, then move to the pivot."""
+    px, pz = cam_pivot()
+    return wp.rotate((0, 0, 0), (0, 1, 0), -tilt_deg).translate((px, 0, pz))
+
+
+def cam_plate_local():
+    """Tilting plate the camera board screws to (local frame, see above)."""
+    half = CAM_BOARD / 2 + 1.0
+    pl = box(2.0, 4.4, -half, half, -half - 1.0, half + 1.0)
+    pl = pl.cut(box(1.0, 5.4, -12.0, 12.0, -12.0, 12.0))        # window: parts on the board's back
+    for sy in (-1, 1):
+        for sz in (-1, 1):
+            y, z = sy * CAM_HOLE / 2, sz * CAM_HOLE / 2
+            boss = cq.Workplane("YZ").circle(2.6).extrude(2.5).translate((4.4, y, z))
+            pl = pl.union(boss)
+            pl = pl.cut(cq.Workplane("YZ").circle(0.9).extrude(8).translate((1.0, y, z)))
+        ya, yb = sorted((sy * (half - 7.0), sy * half))
+        ear = box(-CAM_LOCK_R - 4.0, 2.0, ya, yb, -4.0, 4.0)
+        for ax in (0.0, -CAM_LOCK_R):                             # M3 heat-set inserts
+            ys = sy * half
+            ear = ear.cut(cq.Workplane("XZ").circle(INSERT_M3_D / 2).extrude(-sy * INSERT_M3_DEPTH)
+                          .translate((ax, ys, 0)) if sy > 0 else
+                          cq.Workplane("XZ").circle(INSERT_M3_D / 2).extrude(INSERT_M3_DEPTH)
+                          .translate((ax, ys + INSERT_M3_DEPTH, 0)))
+        pl = pl.union(ear)
+    return pl
+
+
+def cam_plate(tilt_deg=None):
+    return _cam_local_to_body(cam_plate_local(),
+                              CAM_TILT_SHOWN if tilt_deg is None else tilt_deg)
+
+
+def cam_ghost(tilt_deg=None):
+    """Camera board + lens stand-in, for the assembly only."""
+    b = box(6.9, 8.5, -CAM_BOARD / 2, CAM_BOARD / 2, -CAM_BOARD / 2, CAM_BOARD / 2)
+    lens = cq.Workplane("YZ").circle(CAM_LENS_D / 2).extrude(CAM_LENS_L).translate((8.5, 0, 0))
+    return _cam_local_to_body(b.union(lens),
+                              CAM_TILT_SHOWN if tilt_deg is None else tilt_deg)
 
 
 def mass_report(parts):
@@ -246,14 +349,20 @@ def mass_report(parts):
     }
 
 
-def assembly(parts, vendor_fc=None):
+def assembly(parts, vendor_fc=None, camera=False):
     """One STEP for CAD inspection: the three printed parts in flight position,
     plus plain blocks standing in for the boards (envelopes, not real models)."""
     hw = PI_W / 2
     asm = cq.Assembly(name="avionics_pod")
     asm.add(parts["dock"], name="dock", color=cq.Color(0.35, 0.35, 0.38))
     asm.add(parts["pod_base"], name="pod_base", color=cq.Color(0.95, 0.55, 0.15))
-    asm.add(parts["pod_lid"], name="pod_lid", color=cq.Color(0.95, 0.75, 0.30))
+    if camera:
+        asm.add(parts["pod_lid_cam"], name="pod_lid_cam", color=cq.Color(0.95, 0.75, 0.30))
+        asm.add(parts["cam_plate"], name="cam_plate", color=cq.Color(0.85, 0.35, 0.10))
+        asm.add(cam_ghost(), name="REF_camera_board_and_lens",
+                color=cq.Color(0.2, 0.2, 0.25))
+    else:
+        asm.add(parts["pod_lid"], name="pod_lid", color=cq.Color(0.95, 0.75, 0.30))
     fc = None
     if vendor_fc and os.path.exists(vendor_fc):
         # Holybro's model: +x = arrow end, underside at z = -1, centre x = 1.95
@@ -290,8 +399,10 @@ def main() -> int:
     ap.add_argument("--vendor-fc", default=None,
                     help="path to Holybro's 6C-MINI-A_rev.stp (not committed; see README)")
     a = ap.parse_args()
+    os.makedirs(a.out, exist_ok=True)
     parts = {"dock": dock(), "pod_base": pod_base(), "pod_lid": pod_lid(),
-             "dock_coupon": dock(coupon=True)}
+             "dock_coupon": dock(coupon=True),
+             "pod_lid_cam": pod_lid(camera=True), "cam_plate": cam_plate()}
     for name, wp in parts.items():
         solids = wp.val().Solids()
         if len(solids) != 1 or not wp.val().isValid():
@@ -301,7 +412,12 @@ def main() -> int:
                             angularTolerance=0.2)
         cq.exporters.export(wp, os.path.join(a.out, f"{name}.step"))
     assembly(parts, a.vendor_fc).save(os.path.join(a.out, "avionics_pod_assembly.step"))
+    assembly(parts, a.vendor_fc, camera=True).save(
+        os.path.join(a.out, "avionics_pod_assembly_camera.step"))
     rep = mass_report({k: v for k, v in parts.items() if k != "dock_coupon"})
+    px, pz = cam_pivot()
+    rep["camera_option"] = {"pivot_x_mm": px, "pivot_z_above_top_plate_mm": round(pz, 1),
+                            "tilt_range_deg": [CAM_TILT_MIN, CAM_TILT_MAX]}
     with open(os.path.join(a.out, "mass_report.json"), "w") as f:
         json.dump(rep, f, indent=1)
     print(json.dumps(rep, indent=1))

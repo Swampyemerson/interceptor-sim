@@ -17,13 +17,16 @@ def ghost(x0, x1, y0, y1, z0, z1):
     f = [[0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5]]
     return [v[i] for i in f]
 
+CAM = "--camera" in sys.argv
+LID = "pod_lid_cam" if CAM else "pod_lid"
+EXTRA = (("cam_plate", (0.85, 0.35, 0.10)),) if CAM else ()
 fig = plt.figure(figsize=(16, 8))
 light = np.array([0.4, -0.5, 0.75]); light /= np.linalg.norm(light)
 for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
                                          (18, 150, "rear-left: SD card, power button, release screw")]):
     ax = fig.add_subplot(1, 2, k + 1, projection="3d")
     for name, col in (("dock", (0.35, 0.35, 0.38)), ("pod_base", (0.95, 0.55, 0.15)),
-                      ("pod_lid", (0.95, 0.75, 0.3))):
+                      (LID, (0.95, 0.75, 0.3))) + EXTRA:
         m = mesh.Mesh.from_file(os.path.join(HERE, name + ".stl"))
         n = m.normals / (np.linalg.norm(m.normals, axis=1, keepdims=True) + 1e-12)
         shade = 0.45 + 0.55 * np.clip(n @ light, 0, 1)
@@ -40,10 +43,10 @@ for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
          (0.1, 0.35, 0.7, 0.55)),
     ):
         ax.add_collection3d(Poly3DCollection(b, facecolors=c, edgecolors=(0, 0, 0, 0.4)))
-    ax.set_xlim(-75, 45); ax.set_ylim(-52, 52); ax.set_zlim(0, 75)
-    ax.set_box_aspect((120, 104, 75)); ax.view_init(elev=elev, azim=azim)
+    ax.set_xlim(-75, 85); ax.set_ylim(-52, 52); ax.set_zlim(0, 95)
+    ax.set_box_aspect((160, 104, 95)); ax.view_init(elev=elev, azim=azim)
     ax.set_xlabel("x  (nose +)"); ax.set_ylabel("y"); ax.set_title(title)
 fig.suptitle("Avionics pod: grey = dock (stays on frame), orange = removable pod, "
              "ghosts = Pixhawk (black), Pi 5 (green), USB/Ethernet block (silver), AI HAT+ (blue)")
 fig.tight_layout()
-fig.savefig(os.path.join(HERE, "preview.png"), dpi=70)
+fig.savefig(os.path.join(HERE, "preview_camera.png" if CAM else "preview.png"), dpi=70)

@@ -19,7 +19,7 @@ airframe and flight controller stack at left, radio transmitter at right.
 |:---:|:---:|:---:|:---:|
 | full-physics sim flights ending inside the 0.35 m contact radius | of 150 fast-sim runs inside 0.35 m, tag on a pitching, banking quad, worst-case blur and glare | seeker frame rate, measured on the Raspberry Pi 5 | automated tests |
 
-All three miss numbers are simulation. The aircraft has not flown yet.
+All three miss numbers are simulation. The interceptor has flown hover tests only; no intercept has been attempted.
 
 ## How it works
 
@@ -90,7 +90,9 @@ pursuit by 4.6 to 7.6x in miss distance against a 2 m/s target, camera only.
 
 ## Hardware, October 2026
 
-The airframe is assembled and has been powered on its 6S battery, props off.
+The interceptor is assembled and has flown manual and GPS position-hold hovers. An early
+hover wobble was traced to two wrong flight-controller settings (a plus-quad motor layout on
+an X frame, and rate gains sized for a much larger quad) and fixed.
 The radio motor-cutoff switch is wired and verified. The Pi commands the flight
 controller over a serial link, 300 of 300 setpoints at 19.5 Hz. The camera is
 calibrated to 0.73 px RMS, and the real flight state machine has run end to end
@@ -99,11 +101,12 @@ sees about 70 degrees, not the 118 the listing claimed, and a tape measure
 agreed. That lens is the one that will fly: the narrower view puts about 19
 pixels on each degree, so the tag is readable from farther away, at the cost
 of a smaller pointing margin. This replaces the project's earlier rule of a
-lens of at least 100 degrees. First flights are next.
+lens of at least 100 degrees. The first camera-guided flight is next.
 
 ## Not done yet
 
-- **No real flight.** Every miss number above is simulation.
+- **No real intercept flight.** The interceptor has flown hover tests only; every miss
+  number above is simulation.
 - **Both simulators assume a perfect launch cue and no wind.** The GPS cue relay
   is built; its error in the field is not measured yet.
 - **In Gazebo the tag is a flat board on a scripted mover.** The pitching,
