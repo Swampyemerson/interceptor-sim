@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Render preview.png from the generated STLs (plus ghost boxes for the boards)."""
+"""Render preview_nose_camera.png from the generated STLs (plus ghost boxes for the
+boards). Only the current layout is drawn: pod.py exports no older part files."""
 import os, sys
 import numpy as np
 import matplotlib
@@ -17,15 +18,18 @@ def ghost(x0, x1, y0, y1, z0, z1):
     f = [[0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5]]
     return [v[i] for i in f]
 
-CAM = "--camera" in sys.argv
-NOSE = "--nose" in sys.argv
-LID = "pod_lid_cam" if CAM else "pod_lid"
-DOCK = "dock_cam" if NOSE else "dock"
-EXTRA = (("cam_plate", (0.85, 0.35, 0.10)),) if CAM else ()
-if NOSE:
-    import cadquery as cq
-    cq.exporters.export(P.cam_ghost_nose(), os.path.join(HERE, "_ghost.stl"), tolerance=0.05)
-    EXTRA = (("cam_plate_nose", (0.85, 0.35, 0.10)), ("_ghost", (0.2, 0.2, 0.25)))
+NOSE = True          # --nose is accepted and ignored; it is the only layout
+LID = "pod_lid"
+DOCK = "dock_cam"
+import cadquery as cq
+import tempfile
+# The STL files in this folder are in PRINT pose, so the picture is drawn from
+# flight-position copies written to a temporary folder.
+TMP = tempfile.mkdtemp()
+for _n, _wp in ((DOCK, P.dock(nose_post=True)), ("pod_base", P.pod_base()), (LID, P.pod_lid()),
+                ("cam_plate_nose", P.cam_plate_nose()), ("_ghost", P.cam_ghost_nose())):
+    cq.exporters.export(_wp, os.path.join(TMP, _n + ".stl"), tolerance=0.05)
+EXTRA = (("cam_plate_nose", (0.85, 0.35, 0.10)), ("_ghost", (0.2, 0.2, 0.25)))
 fig = plt.figure(figsize=(16, 8))
 light = np.array([0.4, -0.5, 0.75]); light /= np.linalg.norm(light)
 for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
@@ -33,7 +37,7 @@ for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
     ax = fig.add_subplot(1, 2, k + 1, projection="3d")
     for name, col in ((DOCK, (0.35, 0.35, 0.38)), ("pod_base", (0.95, 0.55, 0.15)),
                       (LID, (0.95, 0.75, 0.3))) + EXTRA:
-        m = mesh.Mesh.from_file(os.path.join(HERE, name + ".stl"))
+        m = mesh.Mesh.from_file(os.path.join(TMP, name + ".stl"))
         n = m.normals / (np.linalg.norm(m.normals, axis=1, keepdims=True) + 1e-12)
         shade = 0.45 + 0.55 * np.clip(n @ light, 0, 1)
         ax.add_collection3d(Poly3DCollection(m.vectors, facecolors=np.outer(shade, col),
@@ -55,7 +59,6 @@ for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
 fig.suptitle("Avionics pod: grey = dock (stays on frame), orange = removable pod, "
              "ghosts = Pixhawk (black), Pi 5 (green), USB/Ethernet block (silver), AI HAT+ (blue)")
 fig.tight_layout()
-fig.savefig(os.path.join(HERE, "preview_nose_camera.png" if NOSE else
-                         "preview_camera.png" if CAM else "preview.png"), dpi=70)
-if NOSE:
-    os.remove(os.path.join(HERE, "_ghost.stl"))
+fig.savefig(os.path.join(HERE, "preview_nose_camera.png"), dpi=70)
+import shutil
+shutil.rmtree(TMP)

@@ -286,6 +286,19 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
   publishing anything public, anything that spends money. The head may PREPARE and EXPLAIN
   such a step; only the builder authorizes it. If a device code is needed, hand him the code
   and the URL — the flow works from ANY browser (his phone), so never make him get to the PC.
+- **NO SUPERSEDED FABRICATION FILES IN THE TREE (builder 2026-11-11: "I don't want old 3D
+  files sitting around, that's a mistake waiting to happen").** A folder of print or CAD
+  files (`hardware/**`: STL, STEP, DXF, print PDFs) holds the CURRENT design ONLY. The
+  same turn a part is superseded or an option is not chosen: delete its files (git
+  history is the archive, never an `old/` folder or a `_rev3` suffix), stop the
+  generator writing them, and fix every doc that names them. Write print files in PRINT
+  pose, and state each part's bed size in the folder README, MEASURED from the file.
+  Before telling the builder which file to send anywhere, list the folder and open the
+  file; do not answer from memory. This applies equally to any copy handed to him (a zip,
+  a Windows folder): refresh or remove it, or say it is stale. Enforced for the pod by
+  `tests/test_avionics_pod_analysis.py`. Incident: four superseded parts sat beside the five
+  current ones, he was one click from sending a lookalike to a print shop, and two
+  orientation notes in the print plan were wrong because nobody had measured the files.
 - **Fix root cause.** On breakage, read the actual error, check PX4/Gazebo docs and
   GitHub issues, and fix the cause — don't stack workarounds.
 

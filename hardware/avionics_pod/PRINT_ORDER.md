@@ -23,20 +23,34 @@ confirmed**: the ITLL does not publish them, so the first step is a question to 
 
 | Part | File | Material | Why |
 |---|---|---|---|
-| Template | `dock_cam_coupon.stl` | PLA, self-service Prusa | A 5 minute, few-cent fit check. Do this before paying for anything |
+| Fit-check set | all four flight parts below | PLA | A few cents. Checks the six screw holes, that both boards drop in, the latch, and the camera post's clearance, before paying for Onyx. Bench only: PLA softens near 55 to 60 C |
+| Template (optional) | `dock_cam_coupon.stl` | PLA | Flat copy of the dock's six holes. Redundant once `dock_cam` is printed in PLA; useful only for a faster first answer |
 | Dock with camera post | `dock_cam.stl` | **Onyx, solid fill** | The part every vibration number depends on. Ask for fibreglass in the tongue if offered (below) |
 | Camera plate | `cam_plate_nose.stl` | **Onyx, solid fill** | Same load path as the post |
 | Pod base | `pod_base.stl` | **Onyx, solid fill** | Carries the Pi and sits over the Pixhawk: most of the flex in the pod's sway mode is in this part, and it is the one next to the heat |
 | Pod lid | `pod_lid.stl` | Onyx if it rides along in the same order, PETG otherwise | Lightly loaded; material matters least here |
 
-Not printing: `dock`, `dock_coupon` (the plain dock without a camera post), `pod_lid_cam`
-and `cam_plate` (the lid-cradle option that was not chosen).
+The plain dock and the lid-cradle camera parts are no longer in this folder (removed
+2026-11-11), so every STL here is a current part.
+
+**Sizes on the bed** (measured from the STL files; the request form asks for inches)
+
+| File | Millimetres | Inches |
+|---|---|---|
+| `dock_cam.stl` | 140.0 x 40.0 x 40.0 | 5.51 x 1.57 x 1.57 |
+| `cam_plate_nose.stl` | 42.0 x 39.4 x 20.2 | 1.65 x 1.55 x 0.79 |
+| `pod_base.stl` | 101.0 x 56.0 x 25.9 | 3.98 x 2.20 x 1.02 |
+| `pod_lid.stl` | 65.0 x 56.0 x 4.6 | 2.56 x 2.20 x 0.18 |
+| `dock_cam_coupon.stl` | 137.9 x 40.0 x 0.8 | 5.43 x 1.57 x 0.03 |
 
 **Settings to ask for**
 
-- **Orientation:** flat face on the bed, no supports; all four were drawn for that.
-  `dock_cam`, `cam_plate_nose` and `pod_base` sit as modelled. `pod_lid` goes upside down
-  from the model (flat top on the bed, rails up).
+- **Orientation:** print each STL exactly as it sits in the file; they are saved in print
+  pose. `dock_cam`, `pod_base` and `pod_lid` have a flat face down and need no supports.
+  `cam_plate_nose` rests on its four screw bosses and **needs supports** under the plate.
+  Corrected 2026-11-11: this note used to say the lid goes upside down and that the camera
+  plate prints flat as modelled. Both were wrong; the lid's flat face is its underside,
+  and the camera plate's file was tilted in flight position.
 - **Fill:** solid (100 %). The default Markforged fill is a sparse triangle pattern, and
   these parts are thin enough (2.4 to 6 mm walls) that sparse fill would leave mostly skin.
 - **Layer height:** the printer's default (0.1 mm) is fine.
@@ -72,8 +86,9 @@ is about $14, perhaps $20 to $25 with a reprint or fibre. The ITLL's own rate ma
 
 ## Order of work
 
-1. Print `dock_cam_coupon.stl` in PLA and lay it on the interceptor's top plate. Six
-   holes must line up and the tongue must stop short of the plate's nose edge.
+1. Print the four flight parts in PLA. Bolt `dock_cam` to the interceptor's top plate:
+   six holes must line up and the tongue must stop short of the plate's nose edge. Fit
+   the Pixhawk and the Pi into `pod_base`, latch it into the dock, fit the camera plate.
 2. Look at where the wires come up from the stack. Revision 5 has no cable slot; they are
    meant to pass beside the plate into the pod's side windows.
 3. Ask ITLL staff: is a personal project eligible and under which purpose, the price per

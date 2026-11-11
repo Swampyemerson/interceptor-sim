@@ -29,3 +29,31 @@ def test_nose_post_is_stiffer_than_the_lid_cradle_in_the_saved_results():
     nose = json.loads((d / "nose_post.json").read_text())["freqs_hz"][0]
     lid = json.loads((d / "camera.json").read_text())["freqs_hz"][0]
     assert nose > 1.5 * lid, (nose, lid)
+
+
+def test_pod_folder_holds_only_current_3d_files():
+    """ops.md: no superseded fabrication files. The folder's STL/STEP files must be
+    exactly the parts pod.py exports (its EXPORT tuple) plus the one assembly."""
+    import ast
+    pod_dir = ROOT / "hardware" / "avionics_pod"
+    consts = {}
+    for node in ast.parse((pod_dir / "pod.py").read_text()).body:
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") in ("EXPORT", "ASSEMBLY"):
+            consts[node.targets[0].id] = ast.literal_eval(node.value)
+    assert len(consts.get("EXPORT", ())) >= 4 and consts.get("ASSEMBLY"), consts
+    want = {f"{n}.stl" for n in consts["EXPORT"]} | {f"{n}.step" for n in consts["EXPORT"]}
+    want.add(consts["ASSEMBLY"] + ".step")
+    have = {f.name for f in pod_dir.iterdir() if f.suffix.lower() in (".stl", ".step", ".stp")}
+    assert have == want, {"stale or unexpected": sorted(have - want), "missing": sorted(want - have)}
+
+
+def test_pod_readme_names_no_removed_file_as_current():
+    """Every STL the folder README's file table lists must exist."""
+    import re
+    pod_dir = ROOT / "hardware" / "avionics_pod"
+    text = (pod_dir / "README.md").read_text()
+    table = text.split("## Files in this folder", 1)[1].split("\n## ", 1)[0]
+    names = re.findall(r"`([a-z_]+\.stl)`", table)
+    assert len(names) >= 4, names
+    for n in names:
+        assert (pod_dir / n).exists(), n

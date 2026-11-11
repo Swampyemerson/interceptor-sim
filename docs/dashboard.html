@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->37b977c<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->6139e39<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1468,6 +1468,12 @@
  "plain_log": [
   {
    "date": "2026-11-11",
+   "text": "Avionics pod folder cleaned to the current design only. Twelve superseded files are deleted (the plain dock, its template and the two lid-cradle camera parts as STL and STEP, two old assemblies, two old pictures) and the CAD script no longer writes them. The print files are now saved the way they sit on the printer bed. Two orientation notes in the print plan were wrong and are corrected: the lid prints as drawn (not upside down), and the camera plate's file had been saved tilted in flight position. Plan change: all four flight parts are printed in cheap PLA for a fit check before the Onyx order.",
+   "so_what": "The builder was one click from sending a lookalike file to the print shop. A new standing rule in the operating notes says a fabrication folder holds only current parts, and a test now fails if an old file reappears. The camera plate needs supports when printed; the other parts do not.",
+   "evidence": "hardware/avionics_pod/README.md (Files in this folder); hardware/avionics_pod/PRINT_ORDER.md; .claude/ops.md (no superseded fabrication files); tests/test_avionics_pod_analysis.py"
+  },
+  {
+   "date": "2026-11-11",
    "text": "Print plan for the avionics pod decided. The four flight parts (dock with camera post, camera plate, pod base, lid) go to CU's ITLL to be printed in Onyx, a nylon filled with chopped carbon fibre, at solid fill. The fit-check template is printed first in cheap PLA. If the ITLL can lay continuous fibre, it goes in the flat tongue under the camera post and nowhere else. Its price list is not public; at a sister lab's rate the whole order is about 15 dollars.",
    "so_what": "Onyx buys heat margin for certain (it holds to about 145 C, PETG softens near 75) and about 10 percent in shake frequency, which is too little to plan around. The tap test on the printed parts still decides whether the mount is steady enough. Three questions go to ITLL staff before ordering: whether a personal project qualifies, the price, and whether fibre is offered.",
    "evidence": "hardware/avionics_pod/PRINT_ORDER.md - ADR-0136 - ITLL wiki (3D Printing FAQ, Submit a Request)"
@@ -1531,12 +1537,6 @@
    "text": "Builder caught a recurring session-start drift: fresh sessions kept treating PRO-NAV as the current terminal law (he got a pro-nav-framed answer to a camera-mount question). Root cause: the contract was RIGHT (terminal stage = chase pursuit since ADR-0118, 2026-09-24) but three auto-loaded surfaces lagged it — the docs/goals.md STATUS banner ('camera-only pro-nav terminal') and the pronav + run-interceptor-sim skill descriptions. All three rewritten the same turn to name the chase pursuit and mark pro-nav as the retired sim-phase law (frozen stock/tag paths + M-gates only); ledger entry goals-pronav-terminal-banner records it.",
    "so_what": "The surfaces a fresh session reads FIRST now agree with the contract on the single most load-bearing design fact (which guidance law flies). The same class of bug caused the 'simulation-only' drift (goals-simulation-only) — session-start banners need the same-turn sweep discipline the dashboard gets.",
    "evidence": "ledger goals-pronav-terminal-banner - docs/goals.md:9-11 - .claude/skills/pronav/SKILL.md - .claude/skills/run-interceptor-sim/SKILL.md - ADR-0103/0118"
-  },
-  {
-   "date": "2026-10-22",
-   "text": "FOUR BUILDER RULINGS landed and were executed the same day: (1) ADR-0126 the ~70 deg lens FLIES (px/deg range; wide-fov constraint rewritten, graveyard #17 scope-amended, 110 deg lens = spare); (2) ADR-0127 FIELD INTERCEPTION DAY IS THIS WEEKEND - tripod day descoped as a gate, kill_day_protocol is operative, bench safety gates are all that stand; (3) ADR-0128 the stale 'camera never beat a dash' headline retired - and the pre-registered isim A/B flew SAME DAY and confirmed pursuit beats the blind dash at every cue error tested (through 10 deg; ~10 deg = the derived cue requirement); (4) stale docs to retired/ - 11 docs + 5 scripts moved, 28 refs repointed, Tier-1 deletions executed (logs Tier-3 held). Also: ADR-0129 engage window 30 s in pursuit mode (a default-config chase could have timed out mid-engagement on field day); cue_relay brought into the honesty audit with an auto-closure guard.",
-   "so_what": "Saturday flies a config whose three load-bearing choices (70 deg lens, pursuit terminal, ~10 deg cue budget) each trace to a same-day ruling plus a registered measurement, and the repo a fresh session reads is finally the repo that exists.",
-   "evidence": "ADR-0126..0129 - runs/pursuit_vs_dash_20261022/ - docs/review3_repo_review_2026-10-22.md - retired/README.md 2026-10-22 section"
   }
  ],
  "narrative": {

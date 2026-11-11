@@ -436,3 +436,11 @@ Full-repo review session (builder-directed): 15 Fable-5 forks + 16 Opus workers 
 **So what:** The order list no longer directs a wrong $70 purchase; next.md's waiting table matches the actual open rulings (lens FOV, stamped-age, deletions, 2nd TX, field kit); review3 is the work queue for the remaining doc sweeps.
 
 *Evidence: docs/review3_repo_review_2026-10-22.md; docs/subagent_safeguard_log.md 2026-10-22 morning entry; this commit*
+
+## 2026-11-11 (overflowed from plain_log 2026-11-11)
+
+FOUR BUILDER RULINGS landed and were executed the same day: (1) ADR-0126 the ~70 deg lens FLIES (px/deg range; wide-fov constraint rewritten, graveyard #17 scope-amended, 110 deg lens = spare); (2) ADR-0127 FIELD INTERCEPTION DAY IS THIS WEEKEND - tripod day descoped as a gate, kill_day_protocol is operative, bench safety gates are all that stand; (3) ADR-0128 the stale 'camera never beat a dash' headline retired - and the pre-registered isim A/B flew SAME DAY and confirmed pursuit beats the blind dash at every cue error tested (through 10 deg; ~10 deg = the derived cue requirement); (4) stale docs to retired/ - 11 docs + 5 scripts moved, 28 refs repointed, Tier-1 deletions executed (logs Tier-3 held). Also: ADR-0129 engage window 30 s in pursuit mode (a default-config chase could have timed out mid-engagement on field day); cue_relay brought into the honesty audit with an auto-closure guard.
+
+**So what:** Saturday flies a config whose three load-bearing choices (70 deg lens, pursuit terminal, ~10 deg cue budget) each trace to a same-day ruling plus a registered measurement, and the repo a fresh session reads is finally the repo that exists.
+
+*Evidence: ADR-0126..0129 - runs/pursuit_vs_dash_20261022/ - docs/review3_repo_review_2026-10-22.md - retired/README.md 2026-10-22 section*

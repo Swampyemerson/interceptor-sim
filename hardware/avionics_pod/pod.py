@@ -9,9 +9,15 @@ Three printed parts, generated from the numbers in the PARAMETERS block:
             pins, one M3 screw at the rear. Flight controller on the floor,
             Pi 5 on four M2.5 bosses above it, HAT on the Pi's own standoffs.
   pod_lid   vented roof over the HAT (on 4 x M2.5 standoffs).
-  dock_coupon   0.8 mm drilling/fit template of the dock -- PRINT THIS FIRST.
   dock_cam + cam_plate_nose   the dock with a camera post off its nose, and the
             tilting plate it carries (chosen 2026-11-10; dock_cam_coupon is its template).
+
+STL files are written in PRINT pose (as the part sits on the bed, see print_pose);
+STEP files and the assembly are in flight position.
+ONLY the parts named in EXPORT below are written to disk. The plain dock and the
+lid-cradle camera option are still built in memory (the mass report and the vibration
+model compare against them) but no file of them is ever exported, so a superseded part
+cannot be picked up and printed by mistake.
 
 Axes: +x = nose, +y = left, +z = up. z = 0 is the top face of the frame's top
 plate. x = 0 is the centre of the Pi board.
@@ -29,6 +35,11 @@ import math
 import os
 
 import cadquery as cq
+
+# The CURRENT design: the only part files this script writes. tests/ checks that
+# the folder holds exactly these (plus ASSEMBLY) and nothing older.
+EXPORT = ("dock_cam", "cam_plate_nose", "pod_base", "pod_lid", "dock_cam_coupon")
+ASSEMBLY = "avionics_pod_assembly_nose_camera"
 
 # ============================== PARAMETERS ==================================
 # --- frame interface (TBS Source One V6 top plate) -------------------------
@@ -594,6 +605,19 @@ def assembly(parts, vendor_fc=None, camera=False, nose=False):
     return asm
 
 
+def print_pose(name, wp):
+    """The part as it should sit on the printer bed, lowest face at z = 0. The STL
+    files are written in THIS pose so nobody has to re-orient one; the STEP files
+    and the assembly stay in flight position for CAD inspection."""
+    # pod_lid needs no turning: its flat underside is already down and its two rails
+    # are on top. (Earlier notes said "print it upside down"; that was wrong and would
+    # have put it on the rails.)
+    if name == "cam_plate_nose":               # plate level, screw bosses down, ears up
+        wp = cam_plate_nose_local().rotate((0, 0, 0), (0, 1, 0), 90)
+    zmin = wp.val().BoundingBox().zmin
+    return wp if abs(zmin) < 1e-6 else wp.translate((0, 0, -zmin))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.dirname(os.path.abspath(__file__)))
@@ -611,14 +635,11 @@ def main() -> int:
         if len(solids) != 1 or not wp.val().isValid():
             print(f"FAIL: {name} is {len(solids)} solid(s), valid={wp.val().isValid()}")
             return 1
-        cq.exporters.export(wp, os.path.join(a.out, f"{name}.stl"), tolerance=0.02,
-                            angularTolerance=0.2)
-        cq.exporters.export(wp, os.path.join(a.out, f"{name}.step"))
-    assembly(parts, a.vendor_fc).save(os.path.join(a.out, "avionics_pod_assembly.step"))
-    assembly(parts, a.vendor_fc, camera=True).save(
-        os.path.join(a.out, "avionics_pod_assembly_camera.step"))
-    assembly(parts, a.vendor_fc, nose=True).save(
-        os.path.join(a.out, "avionics_pod_assembly_nose_camera.step"))
+    for name in EXPORT:
+        cq.exporters.export(print_pose(name, parts[name]), os.path.join(a.out, f"{name}.stl"),
+                            tolerance=0.02, angularTolerance=0.2)
+        cq.exporters.export(parts[name], os.path.join(a.out, f"{name}.step"))
+    assembly(parts, a.vendor_fc, nose=True).save(os.path.join(a.out, ASSEMBLY + ".step"))
     rep = mass_report({k: v for k, v in parts.items() if not k.endswith("coupon")})
     px, pz = cam_pivot()
     rep["camera_option"] = {"pivot_x_mm": px, "pivot_z_above_top_plate_mm": round(pz, 1),
