@@ -428,3 +428,11 @@ The latency chapter CLOSED in five Gazebo arms: the 'cliff' was age-knowledge, n
 **So what:** One night converted three standing unknowns into numbers (chip fits, height budget +/-2 m, jitter immunity works) and the review process caught a bug that would have shipped a false conclusion -- the project's honesty machinery paying for itself in real time.
 
 *Evidence: runs/dfc_dryrun[_single]/README.md - runs/gz_latency_20261022/spec.md - runs/stern_approach_20261021/findings.md - runs/target_height_20261022/findings.md - docs/state_archive/plain_log.md*
+
+## 2026-10-22 (overflowed from plain_log 2026-11-11)
+
+Full-repo review session (builder-directed): 15 Fable-5 forks + 16 Opus workers swept every doc cluster for contradictions and drift (~130 findings). The month of unswept rulings is fixed where it misled (ADR-0094 rows, slant ruling, passage-window port, Kakute status, Hailo-8L-vs-8 in the order list); everything else is filed with per-item status in docs/review3_repo_review_2026-10-22.md. Subagent lanes re-measured: forks 15/15 pass, Sonnet 8/8 bounce, Opus mostly passes.
+
+**So what:** The order list no longer directs a wrong $70 purchase; next.md's waiting table matches the actual open rulings (lens FOV, stamped-age, deletions, 2nd TX, field kit); review3 is the work queue for the remaining doc sweeps.
+
+*Evidence: docs/review3_repo_review_2026-10-22.md; docs/subagent_safeguard_log.md 2026-10-22 morning entry; this commit*

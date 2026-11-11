@@ -1483,3 +1483,23 @@ degrees or more outside the picture for the delivered lens and the AR0234. First
 258 Hz held flat. The SOLIDWORKS cross-check was made on the superseded geometry. *Lesson
 recorded:* the orientation was listed as unverified from the start and the first caliper session
 caught it before anything was printed; the template-first print order would have caught it too.
+
+
+## ADR-0136 — Avionics pod flight parts print in Markforged Onyx through the ITLL (2026-11-11)
+
+*Context.* The builder can send parts to CU Boulder's ITLL and asked for the print decisions to be
+made. Its wiki lists Markforged printers by fabrication request (form "Markforged Onyx Print"),
+self-service Prusa MK4S in PLA/TPU, and PETG by request. Prices are not published; an ITLL equipment
+listing names the machine as an Onyx Pro, which lays continuous fibreglass, not continuous carbon.
+*Options.* (a) everything in PETG as first planned; (b) the camera post only in Onyx; (c) all four
+flight parts in Onyx, templates in PLA. *Decision.* (c): `dock_cam`, `cam_plate_nose`, `pod_base`
+and `pod_lid` in Onyx at solid fill, `dock_cam_coupon` in PLA first; ask for continuous fibreglass
+in `dock_cam`'s tongue if offered. *Why.* The parts total about 56 g, so the cost difference is a
+few dollars (about $14 at the Idea Forge's published $0.25 per gram, used as a guide). Onyx's
+certain benefit is heat (about 145 C against 75 to 80 C for PETG, next to a Pi and its cooler);
+its stiffness gain is about a quarter, so about 10 % in frequency, which is inside the model's error
+and moves the post's nodding mode from 187 toward the 213 Hz hover rate, not clearly away from it.
+Fibre in the flat tongue is the only option here that would move that mode decisively.
+*Not verified.* Eligibility of a personal project (the form offers Class, Research, Student Club),
+the ITLL's price, whether fibre is available, and the Onyx properties, which are from memory of the
+maker's data sheet. Submitting and paying are the builder's. Plan: `hardware/avionics_pod/PRINT_ORDER.md`.

@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-10",
-  "updated_by": "Camera post redrawn for the real top plate after the caliper session (pod revision 5)",
+  "updated_by": "Print plan: pod flight parts in Onyx through the ITLL (ADR-0136)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -571,6 +571,12 @@
   "plain_log": [
     {
       "date": "2026-11-11",
+      "text": "Print plan for the avionics pod decided. The four flight parts (dock with camera post, camera plate, pod base, lid) go to CU's ITLL to be printed in Onyx, a nylon filled with chopped carbon fibre, at solid fill. The fit-check template is printed first in cheap PLA. If the ITLL can lay continuous fibre, it goes in the flat tongue under the camera post and nowhere else. Its price list is not public; at a sister lab's rate the whole order is about 15 dollars.",
+      "so_what": "Onyx buys heat margin for certain (it holds to about 145 C, PETG softens near 75) and about 10 percent in shake frequency, which is too little to plan around. The tap test on the printed parts still decides whether the mount is steady enough. Three questions go to ITLL staff before ordering: whether a personal project qualifies, the price, and whether fibre is offered.",
+      "evidence": "hardware/avionics_pod/PRINT_ORDER.md - ADR-0136 - ITLL wiki (3D Printing FAQ, Submit a Request)"
+    },
+    {
+      "date": "2026-11-11",
       "text": "Calipers arrived, and the first session caught a drawing error before anything was printed. The builder measured the screw pattern on the target drone's top plate (same frame as the interceptor): 56.0 by 29.3 mm against 55.77 by 29.2 in the maker's drawing, so the avionics dock's four holes are right. A third reading, 25.05 mm at the nose, plus his photo showed the plate had been drawn back to front: the narrow pair of screws the camera post bolted to is at the rear. The post is redrawn to the real front screws, 5 mm further forward, on a tongue twice as thick.",
       "so_what": "The camera post is printable again, and the corrected geometry is kinder than the mistaken one: more room to the pod, 8 mm or more outside the prop circles, props further out of the picture. One new weakness was found and fixed in the same pass: with its screws behind it the post nodded at 92 Hz, so the tongue went from 3 to 6 mm and the figure is 187 Hz. Still to check on the interceptor itself: the cable route, now that the slot is gone.",
       "evidence": "hardware/avionics_pod/README.md revision 5 - GAP_REVIEW.md - fea_results/nose_post*.json - nose_post_check.py - ADR-0135 addendum 2026-11-11"
@@ -634,12 +640,6 @@
       "text": "FOUR BUILDER RULINGS landed and were executed the same day: (1) ADR-0126 the ~70 deg lens FLIES (px/deg range; wide-fov constraint rewritten, graveyard #17 scope-amended, 110 deg lens = spare); (2) ADR-0127 FIELD INTERCEPTION DAY IS THIS WEEKEND - tripod day descoped as a gate, kill_day_protocol is operative, bench safety gates are all that stand; (3) ADR-0128 the stale 'camera never beat a dash' headline retired - and the pre-registered isim A/B flew SAME DAY and confirmed pursuit beats the blind dash at every cue error tested (through 10 deg; ~10 deg = the derived cue requirement); (4) stale docs to retired/ - 11 docs + 5 scripts moved, 28 refs repointed, Tier-1 deletions executed (logs Tier-3 held). Also: ADR-0129 engage window 30 s in pursuit mode (a default-config chase could have timed out mid-engagement on field day); cue_relay brought into the honesty audit with an auto-closure guard.",
       "so_what": "Saturday flies a config whose three load-bearing choices (70 deg lens, pursuit terminal, ~10 deg cue budget) each trace to a same-day ruling plus a registered measurement, and the repo a fresh session reads is finally the repo that exists.",
       "evidence": "ADR-0126..0129 - runs/pursuit_vs_dash_20261022/ - docs/review3_repo_review_2026-10-22.md - retired/README.md 2026-10-22 section"
-    },
-    {
-      "date": "2026-10-22",
-      "text": "Full-repo review session (builder-directed): 15 Fable-5 forks + 16 Opus workers swept every doc cluster for contradictions and drift (~130 findings). The month of unswept rulings is fixed where it misled (ADR-0094 rows, slant ruling, passage-window port, Kakute status, Hailo-8L-vs-8 in the order list); everything else is filed with per-item status in docs/review3_repo_review_2026-10-22.md. Subagent lanes re-measured: forks 15/15 pass, Sonnet 8/8 bounce, Opus mostly passes.",
-      "so_what": "The order list no longer directs a wrong $70 purchase; next.md's waiting table matches the actual open rulings (lens FOV, stamped-age, deletions, 2nd TX, field kit); review3 is the work queue for the remaining doc sweeps.",
-      "evidence": "docs/review3_repo_review_2026-10-22.md; docs/subagent_safeguard_log.md 2026-10-22 morning entry; this commit"
     }
   ],
   "narrative": {

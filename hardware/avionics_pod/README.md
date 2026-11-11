@@ -118,13 +118,16 @@ are not fit-checked; the two marked "check" depend on things not yet measured.
 | Double-sided foam tape, 2 mm | 1 strip | under the Pixhawk (the Pixhawk kit's pads will do) |
 | JST-SH 1.0 mm 3-pin cable (sold as a "Raspberry Pi debug" cable) | 1 | Pi 5 serial socket to the Pixhawk TELEM2 lead; needs splicing to the existing lead |
 | Right-angle USB-C plug or adapter | 1 | Pi power, pointing aft, clear of the rear-right prop |
-| PETG filament, or a print service | about 75 g of parts | dock_cam 26 g, pod_base 18 g, pod_lid 6 g, cam_plate_nose 5 g, plus templates and a reprint |
+| Print service (ITLL, Onyx; see `PRINT_ORDER.md`) or PETG filament | about 75 g of parts | dock_cam 26 g, pod_base 18 g, pod_lid 6 g, cam_plate_nose 5 g, plus templates and a reprint |
 
 Not in this list because they are tracked elsewhere: the replacement Pi 5 (8 GB), the
 AI HAT+, and calipers. The camera ribbon already bought for the Pi 5 (22-pin to 15-pin)
 is long enough.
 
 ## Printing
+
+**Current plan (2026-11-11): flight parts in Markforged Onyx through the ITLL, templates in
+PLA. See `PRINT_ORDER.md`.** The home-printer settings below still apply to a PETG print.
 
 PETG (or ASA), 0.2 mm layers, 4 perimeters, 40 % infill. `dock` and `pod_base` print flat
 side down with no supports (the hook and the window tops are 45 degree faces). `pod_lid`
