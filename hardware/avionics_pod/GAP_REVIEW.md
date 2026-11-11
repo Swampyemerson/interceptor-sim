@@ -61,6 +61,20 @@ Top plate, 2 mm, measured from its own centre (drawing y = long axis):
 - Two strap slots 2 x 36 mm at x = +-17.25, y = -22.8 to +13.2.
 - Standoffs per the drawing's parts list: 4 x 30 mm, 4 x 22 mm.
 
+**Checked with calipers, 2026-11-11.** The builder measured the top plate of the target
+drone, which is the same frame (its plate was easier to reach). Each distance was taken
+twice, to the inner and the outer edges of the screw sockets, and averaged to get the
+centre distance.
+
+| Distance | Inner | Outer | Centre | Drawing | Dock tolerance |
+|---|---|---|---|---|---|
+| Left to right, one screw row | 27.5 | 31.1 | 29.3 mm | 29.2 | holes 3.4 mm for 3.0 mm screws |
+| Fore and aft, front row to rear row of the dock's four | 54.22 | 57.78 | 56.0 mm | 55.77 | slots give +-0.5 mm |
+
+Both match the drawing within the dock's own slack. Not yet measured: the nose screw pair
+(22.0 mm apart, 52.87 mm ahead of the dock's front row in the drawing), and anything on
+the interceptor's own plate. The printed coupon is still the final check.
+
 Assumptions I could not settle from the drawing: that the end with the 22 mm hole
 pair is the nose, and that the bay between the middle four standoffs is the centre
 of the frame. The mapping used above is `plate y = pod x + 3.2`.
@@ -84,6 +98,8 @@ locating pins at x = -30: it fits, with about 1 mm to spare.
 ## Only the builder can check these
 
 1. Which end of the top plate is the nose, and are its screws flat-head or raised?
+   (On the target the GPS sits at the rear, builder 2026-11-11. Its top-plate screws
+   look raised in the photos. The interceptor's own plate is not yet confirmed.)
 2. Is the electronics bay really at the middle of the frame (motor to motor)?
 3. Camera board: hole spacing, and where its ribbon connector sits.
 4. Tallest part on top of the HAT (lid gap is 8 mm).

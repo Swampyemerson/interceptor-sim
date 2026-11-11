@@ -39,8 +39,9 @@ import cadquery as cq
 # y = +-14.6. So the dock bolts to four of those screws, and overhangs the narrow
 # parts of the plate.
 DOCK_W = 38.0            # MEASURE  dock width
-DOCK_HOLE_DX = 55.77     # fore-aft spacing of the four standoff screws used (drawing)
-DOCK_HOLE_DY = 29.2      # left-right spacing of those screws (drawing)
+DOCK_HOLE_DX = 55.77     # fore-aft spacing of the four standoff screws used (drawing;
+                         # calipers 2026-11-11 on the target's identical frame: 56.0)
+DOCK_HOLE_DY = 29.2      # left-right spacing of those screws (drawing; calipers: 29.3)
 DOCK_NARROW_AFT_X = -44.0   # aft of here the dock is only +-10 wide (rear prop tips)
 CABLE_SLOT = (17.0, 25.0, 7.0)   # x0, x1, half-width: wires up from the stack below
 DOCK_HOLE_X0 = -8.0      # x of the hole pattern's centre (pod datum, see report)

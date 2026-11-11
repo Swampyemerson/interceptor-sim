@@ -75,7 +75,7 @@ by how much depends on where the battery sits, so re-do the plumb-line test afte
 | # | Measure | Parameter in `pod.py` | Value assumed |
 |---|---|---|---|
 | 1 | Flat width of the top plate where the dock sits | `DOCK_W` | 38 mm |
-| 2 | Spacing of four M3 holes/slots in the top plate you can use | `DOCK_HOLE_DX`, `DOCK_HOLE_DY` | 55.77 x 29.2 mm, the frame's standoff screws (from TBS's drawing; check with the coupon) |
+| 2 | Spacing of four M3 holes/slots in the top plate you can use | `DOCK_HOLE_DX`, `DOCK_HOLE_DY` | 55.77 x 29.2 mm, the frame's standoff screws (from TBS's drawing; calipers on the target's identical frame read 56.0 x 29.3 on 2026-11-11; still check with the coupon) |
 | 3 | Pixhawk 6C Mini case length, width, height | `FC_L`, `FC_W`, `FC_H` | 53.3 x 38.4 x 16.5 mm |
 | 4 | Height of the tallest plug on top of the Pixhawk, cable bent over | `FC_PLUG_ROOM` | 4 mm (Model A has no top plugs; confirmed by the builder) |
 | 5 | Height of the tallest part on top of the HAT | `LID_STANDOFF` | 8 mm |
