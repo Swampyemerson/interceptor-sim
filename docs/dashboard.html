@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4bbbf03<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->9a58a45<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-10",
- "updated_by": "SOLIDWORKS cross-check of the camera post: models agree; pod mode 110-160 Hz found on the bolted dock",
+ "updated_by": "Caliper check: dock holes confirmed; camera post on hold, top plate looks reversed",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1467,6 +1467,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-11-11",
+   "text": "Calipers arrived. The builder measured the screw pattern on the target drone's top plate (same frame as the interceptor): 56.0 by 29.3 mm against 55.77 by 29.2 in the maker's drawing, so the avionics dock's four main holes are right. His photo also shows something the drawing could not: the plate's narrow pair of screws appears to sit at the rear, by the GPS, where the pod design had assumed it was at the nose. The camera post is drawn to bolt to that pair.",
+   "so_what": "The camera post and its template are on hold until one more caliper reading confirms which way round the plate goes. If confirmed, the post's tongue is redrawn to the full-width screw row 25 mm ahead of the dock, and the cable slot and prop-clearance checks are redone. The pod, its lid and the plain dock are probably unaffected in their holes but their position along the frame needs rechecking.",
+   "evidence": "hardware/avionics_pod/GAP_REVIEW.md - hardware/avionics_pod/README.md - builder photos and caliper readings 2026-11-11"
+  },
+  {
    "date": "2026-11-10",
    "text": "The builder checked the camera post in SOLIDWORKS and the two programs agree. Held flat, the post's first shake mode is 275 Hz there against 254 Hz in the repo's model. Held only at its six screws, which is nearer the truth, both give about 170 Hz. With the pod's weight on the dock a lower mode appears, somewhere between 110 and 160 Hz, and that one carries the Pixhawk. Strength is not a concern: at 10 g on every axis the camera post sees 1 MPa. SOLIDWORKS could not mesh the pod base because of a hair-thin face; that is fixed in the CAD.",
    "so_what": "Bolting the dock is still right, but it does not put the Pixhawk clear of motor vibration by itself: hover is about 213 Hz and the pod mode sits below it, so every spool-up passes through it. The first vibration check is now a tap test with the dock bolted and the loaded pod latched on, then a Pixhawk vibration log at hover. If that confirms a low mode, the options are a seventh screw at the tail tab or a stiffer dock.",
@@ -1531,12 +1537,6 @@
    "text": "Full-repo review session (builder-directed): 15 Fable-5 forks + 16 Opus workers swept every doc cluster for contradictions and drift (~130 findings). The month of unswept rulings is fixed where it misled (ADR-0094 rows, slant ruling, passage-window port, Kakute status, Hailo-8L-vs-8 in the order list); everything else is filed with per-item status in docs/review3_repo_review_2026-10-22.md. Subagent lanes re-measured: forks 15/15 pass, Sonnet 8/8 bounce, Opus mostly passes.",
    "so_what": "The order list no longer directs a wrong $70 purchase; next.md's waiting table matches the actual open rulings (lens FOV, stamped-age, deletions, 2nd TX, field kit); review3 is the work queue for the remaining doc sweeps.",
    "evidence": "docs/review3_repo_review_2026-10-22.md; docs/subagent_safeguard_log.md 2026-10-22 morning entry; this commit"
-  },
-  {
-   "date": "2026-10-22",
-   "text": "The latency chapter CLOSED in five Gazebo arms: the 'cliff' was age-knowledge, not latency (known age flies 120 ms at baseline); jitter with a correct mean costs 1.53x with a 1.2 m tail (LJ90); and the stamped-age mode built to fix that VALIDATED overnight -- 1.08x, tail collapsed (LJ90-S; adopt bar missed by its letter at 3/6 strict pairs, recommendation = builder call, default OFF). Detector spec final: age KNOWN, jitter small, >=10-15 Hz, >=8-12 m. The HAILO purchase gate: builder created the DevZone account; DFC 3.34 fetched; after 11 live-fixed environment defects (ubuntu 22.04 container REQUIRED) stock yolov8n compiled SINGLE-CONTEXT at 640 AND 1024 -- but the 1-class deployment config is 2 CONTEXTS by topology (both paths tested); fps cost = day-1 hardware benchmark; order is evidence-supported with that caveat. The builder's blind-turn question became TWO registered studies: stern-approach geometry = NULL (defaults stand, router not built -- acquisition is cue-error-vs-decode-range, not path shape; d_behind footnote also null at n=32), and target-height cue error = the vertical given MEASURED at +/-2 m budget (target-ABOVE-belief breaks acquisition at +3 m; mechanism characterized in 3 probe rounds as a standoff-bounded belief-correction race; one layer open, no sign rule). An adversarial Fable-fork review caught a CRITICAL clock-base bug in the stamped-age wiring BEFORE the arm flew (ages would have clamped to 0 and falsely refuted the prediction) plus 2 overclaims, all swept. dash_alt_trim_m derivation attempted; the forensics instrument correctly REFUSED (no pre-dash baseline in this launch profile) -- datum definition is a daylight call. Full suite ALL GREEN twice (before and after the flight-code changes). Full overnight narrative: docs/state_archive/plain_log.md.",
-   "so_what": "One night converted three standing unknowns into numbers (chip fits, height budget +/-2 m, jitter immunity works) and the review process caught a bug that would have shipped a false conclusion -- the project's honesty machinery paying for itself in real time.",
-   "evidence": "runs/dfc_dryrun[_single]/README.md - runs/gz_latency_20261022/spec.md - runs/stern_approach_20261021/findings.md - runs/target_height_20261022/findings.md - docs/state_archive/plain_log.md"
   }
  ],
  "narrative": {
@@ -3394,7 +3394,7 @@
       "name": "Nose-cantilever prop-clearance camera mount",
       "status": "print",
       "role": "Designs the own-prop phantom out of the FoV — no software fallback.",
-      "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. Drawn, not printed: hardware/avionics_pod/ (dock_cam, cam_plate_nose). Models only: first shake mode about 170 Hz held at its six screws (Python and SOLIDWORKS agree), props 17 deg or more outside the picture. Corner-spin gate still caps the tilt."
+      "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. ON HOLD 2026-11-11: a photo suggests the top plate's narrow screw pair is at the rear, so the post's tongue reaches for screws that are not at the nose. Redraw pending one caliper check. hardware/avionics_pod/GAP_REVIEW.md."
      },
      {
       "name": "FC High-Endurance microSD (ULogs)",

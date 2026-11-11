@@ -71,6 +71,16 @@ centre distance.
 | Left to right, one screw row | 27.5 | 31.1 | 29.3 mm | 29.2 | holes 3.4 mm for 3.0 mm screws |
 | Fore and aft, front row to rear row of the dock's four | 54.22 | 57.78 | 56.0 mm | 55.77 | slots give +-0.5 mm |
 
+**Which end is the nose: probably the opposite of what was assumed (2026-11-11).** In the
+builder's photo of the target, going from the GPS (rear) to the nose, the screw rows are
+spaced about 53, 56 and 25 mm, and the rear-most pair looks narrower. In the drawing
+that is the order +75.98, +23.11, -32.66, -57.66. So the narrow pair at +75.98 is the
+REAR, and the nose has a full-width row 25.0 mm ahead of the dock's front row. This
+design assumed the reverse (`NOSE_SCREW_X`, `NOSE_SCREW_DY`, the 3.2 mm mapping below, the
+cable cut-out and strap-slot positions). Read from one photo; one caliper check pending:
+the rear-most pair's spacing (22.0 expected) and the front two rows (25.0 expected). An
+earlier tip-to-tip reading of 23.77 mm is consistent with the 25.0.
+
 Both match the drawing within the dock's own slack. Not yet measured: the nose screw pair
 (22.0 mm apart, 52.87 mm ahead of the dock's front row in the drawing), and anything on
 the interceptor's own plate. The printed coupon is still the final check.
