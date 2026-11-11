@@ -119,12 +119,25 @@ def screw_clamp(x):
     """True for nodes on the walls of the six screw slots, below the countersinks.
     Holding only these = the dock hanging on its screws with no plate under it."""
     hit = np.zeros(x.shape[1], dtype=bool)
-    low = x[2] < P.DOCK_T - 1.6 + 0.05
+    low = x[2] < max(P.DOCK_T, getattr(P, 'NOSE_TONGUE_T', P.DOCK_T)) - 1.6 + 0.05
     for (cx, cy) in screw_slots():
         dx = np.clip(x[0] - cx, -P.DOCK_SLOT / 2, P.DOCK_SLOT / 2)
         r = np.hypot(x[0] - cx - dx, x[1] - cy)
         hit |= low & (r < 1.7 + 0.06)
     return hit
+
+
+def screw_pad_clamp(radius):
+    """Screw-slot walls PLUS the dock's underside within `radius` of each screw: the
+    patch a tightened screw head presses onto the carbon plate. Between 'walls only'
+    (nothing under the dock) and 'underside held flat' (glued everywhere)."""
+    def f(x):
+        hit = screw_clamp(x)
+        under = x[2] < 0.05
+        for (cx, cy) in screw_slots():
+            hit |= under & (np.hypot(x[0] - cx, x[1] - cy) < radius)
+        return hit
+    return f
 
 
 def mesh_and_solve(parts, n_modes=6, size=4.0, clamp=None, z_top=None):
@@ -246,6 +259,8 @@ def main() -> int:
                     help="the dock's nose camera post instead of the pod tower")
     ap.add_argument("--screws", action="store_true",
                     help="with --nose/--full: hold only the six screw-slot walls")
+    ap.add_argument("--pad", type=float, default=0.0,
+                    help="with --screws: also hold the underside within this many mm of each screw")
     ap.add_argument("--full", action="store_true",
                     help="nose-post dock with the loaded pod on it, held at the six screws")
     ap.add_argument("--epetg", type=float, default=1900.0, help="printed PETG modulus, MPa")
@@ -258,10 +273,12 @@ def main() -> int:
         r["pod_on_dock"] = True
         r["hold"] = "six screw-slot walls"
     elif a.nose and a.screws:
-        r = mesh_and_solve(build_nose(a.epetg), size=a.size, clamp=screw_clamp,
+        r = mesh_and_solve(build_nose(a.epetg), size=a.size,
+                           clamp=screw_pad_clamp(a.pad) if a.pad else screw_clamp,
                            z_top=P.NOSE_PIVOT_Z)
         r["nose_post"] = True
-        r["hold"] = "six screw-slot walls"
+        r["hold"] = ("six screw-slot walls" if not a.pad else
+                     f"six screw-slot walls + underside within {a.pad} mm of each screw")
     elif a.nose:
         # held where the dock lies on the top plate (29 mm wide there) = bolted flat
         r = mesh_and_solve(build_nose(a.epetg), size=a.size,

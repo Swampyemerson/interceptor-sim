@@ -1,16 +1,16 @@
 {
  "printed_g": {
-  "dock": 12.4,
-  "pod_base": 17.8,
+  "dock": 12.8,
+  "pod_base": 18.1,
   "pod_lid": 6.2,
   "pod_lid_cam": 19.0,
   "cam_plate": 5.7,
-  "dock_cam": 24.1,
+  "dock_cam": 26.4,
   "cam_plate_nose": 4.9
  },
- "removable_module_g": 161.9,
+ "removable_module_g": 162.3,
  "removable_module_cg_mm": [
-  -7.1,
+  -7.0,
   0.0,
   29.4
  ],
@@ -34,7 +34,7 @@
   ]
  },
  "nose_camera_option": {
-  "pivot_x_mm": 60.0,
+  "pivot_x_mm": 65.0,
   "pivot_z_above_top_plate_mm": 36.0,
   "tilt_range_deg": [
    10.0,
@@ -42,15 +42,15 @@
   ],
   "lens_front_xz_mm": {
    "10": [
-    90.2,
+    95.2,
     41.3
    ],
    "25": [
-    87.8,
+    92.8,
     49.0
    ],
    "45": [
-    81.7,
+    86.7,
     57.7
    ]
   }

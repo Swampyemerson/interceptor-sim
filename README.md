@@ -117,12 +117,13 @@ repo, and independently in SOLIDWORKS Simulation. Nothing here is measured on th
 
 | Question | Result |
 |---|---|
-| Do two independent solvers agree? | Yes. Camera post, first mode: 254 Hz (repo model) against 275 Hz (SOLIDWORKS) held flat; 169 against 173 Hz held at its screws. |
+| Do two independent solvers agree? | Yes. Camera post as first drawn, first mode: 254 Hz (repo model) against 275 Hz (SOLIDWORKS) held flat; 169 against 173 Hz held at its screws. |
 | How much does the mounting assumption matter? | More than the solver. Holding the part at its six screws instead of across its whole underside lowers the first mode by 37 %. |
-| Where should the camera go? | On the nose post. On the pod's lid the first mode is 136 Hz; on the post it is 254 Hz on the same basis. |
+| Where should the camera go? | On the nose post. On the pod's lid the first mode is 136 Hz; on the post it is 258 Hz on the same basis. |
 | Does bolting the pod down clear the motors? | No. Hover spins the motors at about 213 Hz, and with the pod's weight on the bolted dock both models show a mode between about 110 and 160 Hz that carries the flight controller. A tap test on the printed part comes before flight. |
 | Is it strong enough? | Yes, with margin. At 10 g on all three axes at once (17.3 g combined) the camera post peaks at 1.0 MPa and the lens moves 0.07 mm. The aircraft can pull about 7 g on paper. Printed PETG is assumed good for 25 to 45 MPa. |
-| What does the pod cost the aircraft? | About 850 g all-up, and 14 % more roll inertia than the earlier flat layout. |
+| What does the pod cost the aircraft? | About 853 g all-up, and 12 % more roll inertia than the earlier flat layout. |
+| Did measuring the real frame change anything? | Yes. Calipers confirmed the screw pattern to 0.3 mm, and a photo showed the top plate was drawn back to front. The camera post was redrawn for the real screw positions; the screws now sit behind the post, so its tongue was doubled in thickness to keep the first mode at 187 Hz held at the screws (92 Hz before thickening). |
 
 The cross-check also found a CAD defect: SOLIDWORKS could not mesh the pod base because of
 a face 0.2 mm wide, which was traced to two tangent features in the script and fixed.

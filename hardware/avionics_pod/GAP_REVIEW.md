@@ -71,23 +71,28 @@ centre distance.
 | Left to right, one screw row | 27.5 | 31.1 | 29.3 mm | 29.2 | holes 3.4 mm for 3.0 mm screws |
 | Fore and aft, front row to rear row of the dock's four | 54.22 | 57.78 | 56.0 mm | 55.77 | slots give +-0.5 mm |
 
-**Which end is the nose: probably the opposite of what was assumed (2026-11-11).** In the
-builder's photo of the target, going from the GPS (rear) to the nose, the screw rows are
-spaced about 53, 56 and 25 mm, and the rear-most pair looks narrower. In the drawing
-that is the order +75.98, +23.11, -32.66, -57.66. So the narrow pair at +75.98 is the
-REAR, and the nose has a full-width row 25.0 mm ahead of the dock's front row. This
-design assumed the reverse (`NOSE_SCREW_X`, `NOSE_SCREW_DY`, the 3.2 mm mapping below, the
-cable cut-out and strap-slot positions). Read from one photo; one caliper check pending:
-the rear-most pair's spacing (22.0 expected) and the front two rows (25.0 expected). An
-earlier tip-to-tip reading of 23.77 mm is consistent with the 25.0.
+| Fore and aft, dock's front row to the nose row | 23.2 | 26.9 | 25.05 mm | 25.0 | slots give +-0.5 mm |
 
-Both match the drawing within the dock's own slack. Not yet measured: the nose screw pair
-(22.0 mm apart, 52.87 mm ahead of the dock's front row in the drawing), and anything on
-the interceptor's own plate. The printed coupon is still the final check.
+**Which end is the nose: the opposite of what this review assumed (settled 2026-11-11).**
+In the builder's photo of the target, going from the GPS (rear) to the nose, the screw
+rows are spaced about 53, 56 and 25 mm. The 25.05 mm caliper reading at the nose
+confirms it. In this drawing's plate coordinates that is the order +75.98, +23.11,
+-32.66, -57.66: the narrow 22 mm pair at +75.98 is the REAR, and the nose has a
+full-width row 25.0 mm ahead of the dock's front row.
 
-Assumptions I could not settle from the drawing: that the end with the 22 mm hole
-pair is the nose, and that the bay between the middle four standoffs is the centre
-of the frame. The mapping used above is `plate y = pod x + 3.2`.
+TBS's drawing also has an assembled view. In it the motors are 77.13 mm fore and aft and
+91.93 mm left and right of the frame centre, and the dock's four screws sit 27.9 mm
+either side of that centre. So the frame centre is at pod x = -7.975, the front motors
+at pod x = +69.15, the nose row of screws at +44.9, and the plate's nose edge at +67.4.
+The plate's cut-out (item 10) is at pod x = -42 to -32, under the Pixhawk's tail.
+
+`pod.py` revision 5 uses these. What it replaced: `NOSE_SCREW_X` 72.78 and
+`NOSE_SCREW_DY` 22.0, the mapping `plate y = pod x + 3.2`, the front cable slot, and
+motors at 84.85 / 84.85. Items 1 and 10 in the table above were written before this.
+
+All three readings match the drawing within the dock's own slack. Not yet measured: the
+rear narrow pair, anything on the interceptor's own plate, and the motor positions. The
+printed coupon is still the final check.
 
 ## Parameter changes proposed for `pod.py`
 

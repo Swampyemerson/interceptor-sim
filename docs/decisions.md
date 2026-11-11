@@ -1468,3 +1468,18 @@ props-spinning corner check all come before flight. The lid cradle and plain doc
 2.5 mm holes on a 34.04 mm square, 14 x 19.2 mm lens barrel); the figures above are the re-run with
 those dimensions (first run: 270 Hz). The Pi-post insert holes went from 3.6 to 3.2 mm to fit the
 3.5 mm x 4 mm inserts the builder ordered.
+*Addendum, 2026-11-11 — the top plate was drawn back to front; post redrawn (pod revision 5).*
+The builder's calipers on the target drone's identical frame confirmed the dock's screw pattern
+(56.0 x 29.3 mm against 55.77 x 29.2 drawn) and measured 25.05 mm from the dock's front row to the
+row at the nose. With his photo, that settles which way the plate goes: the narrow 22 mm pair this
+ADR's drawing bolted the post's tongue to is at the REAR. The ruling (camera on a post off the
+dock's nose) stands; the geometry changed. Nose screws are now the frame's front row, behind the
+post; the post moved 5 mm forward (axis at 65 mm); the tongue is 6 mm thick ahead of the pod
+because the post now nods on it (92 Hz at 3 mm, 187 Hz at 6 mm, dock held only at its screws);
+the front cable slot is gone (the plate's cut-out is at the rear). The checks now use the motor
+positions from TBS's assembled drawing (77 mm fore and aft, 92 mm left and right, not 85 / 85),
+which is most of why the clearances improved: 8.4 to 10 mm outside the prop circles, props 28
+degrees or more outside the picture for the delivered lens and the AR0234. First shake mode
+258 Hz held flat. The SOLIDWORKS cross-check was made on the superseded geometry. *Lesson
+recorded:* the orientation was listed as unverified from the start and the first caliper session
+caught it before anything was printed; the template-first print order would have caught it too.

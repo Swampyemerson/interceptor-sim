@@ -10,16 +10,19 @@ depend on how the aircraft is flying -- only on where the camera sits and how fa
 it is tilted. Positive margin = props are outside the frame. Negative = in frame.
 
 Inputs and where they come from:
-  frame     240 mm wheelbase true-X, 5 in props (docs/airframe_numbers.md, vendor)
-            -> motors at (+-84.9, +-84.9) mm, prop radius 63.5 mm.
+  frame     TBS's V6 drawing (assembled view): motors 77.13 mm fore/aft and 91.93 mm
+            left/right of the frame centre (240 mm diagonal, wider than it is long),
+            5 in props, radius 63.5 mm. The pod's x = 0 is 7.98 mm AHEAD of the
+            frame centre (the dock's four screws straddle the centre), so the front
+            motors sit at pod x = +69.15.
   prop height  builder 2026-11-09: props level with the top plate (z = 0). UNMEASURED
             to the millimetre, so the sweep also shows +10 mm (props higher = worse).
   camera    delivered OV9281 lens ~70 deg HFOV (fx ~1104 px at 1280x800, measured,
             docs/camera_paper_check.md); the published 118 deg lens; AR0234 ~80 deg
             (vendor). Pinhole model: lens distortion is ignored, which UNDERSTATES
             what a wide lens sees at the corners -- hence the required margin below.
-  pod       hardware/avionics_pod/pod.py: pod centred on the frame is an ASSUMPTION
-            (the pod's fore-aft position on the top plate is not fixed yet).
+  pod       hardware/avionics_pod/pod.py: fixed on the frame by the dock's four
+            standoff screws (spacing checked with calipers 2026-11-11).
 
 Rule used for a verdict: margin >= 10 deg = CLEAR, 0..10 = MARGINAL (bench-check
 with props spinning before trusting it), < 0 = IN FRAME.
@@ -35,7 +38,9 @@ import sys
 
 WHEELBASE = 240.0
 PROP_R = 63.5
-MOTOR = WHEELBASE / 2 * math.cos(math.radians(45))   # 84.85 mm
+POD_X0_AHEAD_OF_FRAME_CENTRE = 7.975                 # = -DOCK_HOLE_X0 in pod.py
+MOTOR_X = 77.13 - POD_X0_AHEAD_OF_FRAME_CENTRE        # front motors, pod x
+MOTOR_Y = 91.93                                      # left/right of the centreline
 
 # name: (horizontal FoV deg, aspect = rows/cols)
 CAMERAS = {
@@ -53,7 +58,7 @@ def prop_points(z_prop: float, n: int = 240):
         for i in range(n):
             a = 2 * math.pi * i / n
             for r in (PROP_R, PROP_R * 0.66, PROP_R * 0.33):
-                pts.append((MOTOR + r * math.cos(a), sy * MOTOR + r * math.sin(a), z_prop))
+                pts.append((MOTOR_X + r * math.cos(a), sy * MOTOR_Y + r * math.sin(a), z_prop))
     return pts
 
 
@@ -90,7 +95,7 @@ def verdict(m: float) -> str:
 
 
 def table() -> int:
-    print(f"front motors at (+{MOTOR:.1f}, +-{MOTOR:.1f}) mm, prop radius {PROP_R} mm\n")
+    print(f"front motors at (+{MOTOR_X:.1f}, +-{MOTOR_Y:.1f}) mm in pod axes, prop radius {PROP_R} mm\n")
     cases = [
         ("pod cradle as drawn (rev 3)", 60.0, 68.0),   # lens ~8 mm ahead of the pivot
         ("pod top, set back 45 mm", 15.0, 68.0),
@@ -120,7 +125,7 @@ def self_test() -> int:
 
     # 1. a camera staring straight down at the props from between them must see them
     check("looking down at a prop from above it is IN FRAME",
-          margin_deg(MOTOR, 200.0, -90.0, 80.0, 0.625) < 0)
+          margin_deg(MOTOR_X, 200.0, -90.0, 80.0, 0.625) < 0)
     # 2. tilting up moves the lower image edge away from props that are below
     a = margin_deg(45.0, 62.0, 15.0, 80.0, 0.625)
     b = margin_deg(45.0, 62.0, 40.0, 80.0, 0.625)

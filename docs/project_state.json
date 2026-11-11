@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-10",
-  "updated_by": "Caliper check: dock holes confirmed; camera post on hold, top plate looks reversed",
+  "updated_by": "Camera post redrawn for the real top plate after the caliper session (pod revision 5)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -571,9 +571,9 @@
   "plain_log": [
     {
       "date": "2026-11-11",
-      "text": "Calipers arrived. The builder measured the screw pattern on the target drone's top plate (same frame as the interceptor): 56.0 by 29.3 mm against 55.77 by 29.2 in the maker's drawing, so the avionics dock's four main holes are right. His photo also shows something the drawing could not: the plate's narrow pair of screws appears to sit at the rear, by the GPS, where the pod design had assumed it was at the nose. The camera post is drawn to bolt to that pair.",
-      "so_what": "The camera post and its template are on hold until one more caliper reading confirms which way round the plate goes. If confirmed, the post's tongue is redrawn to the full-width screw row 25 mm ahead of the dock, and the cable slot and prop-clearance checks are redone. The pod, its lid and the plain dock are probably unaffected in their holes but their position along the frame needs rechecking.",
-      "evidence": "hardware/avionics_pod/GAP_REVIEW.md - hardware/avionics_pod/README.md - builder photos and caliper readings 2026-11-11"
+      "text": "Calipers arrived, and the first session caught a drawing error before anything was printed. The builder measured the screw pattern on the target drone's top plate (same frame as the interceptor): 56.0 by 29.3 mm against 55.77 by 29.2 in the maker's drawing, so the avionics dock's four holes are right. A third reading, 25.05 mm at the nose, plus his photo showed the plate had been drawn back to front: the narrow pair of screws the camera post bolted to is at the rear. The post is redrawn to the real front screws, 5 mm further forward, on a tongue twice as thick.",
+      "so_what": "The camera post is printable again, and the corrected geometry is kinder than the mistaken one: more room to the pod, 8 mm or more outside the prop circles, props further out of the picture. One new weakness was found and fixed in the same pass: with its screws behind it the post nodded at 92 Hz, so the tongue went from 3 to 6 mm and the figure is 187 Hz. Still to check on the interceptor itself: the cable route, now that the slot is gone.",
+      "evidence": "hardware/avionics_pod/README.md revision 5 - GAP_REVIEW.md - fea_results/nose_post*.json - nose_post_check.py - ADR-0135 addendum 2026-11-11"
     },
     {
       "date": "2026-11-10",
@@ -2497,7 +2497,7 @@
             "name": "Nose-cantilever prop-clearance camera mount",
             "status": "print",
             "role": "Designs the own-prop phantom out of the FoV — no software fallback.",
-            "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. ON HOLD 2026-11-11: a photo suggests the top plate's narrow screw pair is at the rear, so the post's tongue reaches for screws that are not at the nose. Redraw pending one caliper check. hardware/avionics_pod/GAP_REVIEW.md."
+            "notes": "Chosen 2026-11-10 (ADR-0135): a short post off the avionics dock's nose, tilt 10-45 deg. Redrawn 2026-11-11 for the real top plate (it had been drawn back to front). Drawn, not printed: hardware/avionics_pod/. Models only: first shake mode 187 Hz held at its screws, props 28 deg or more outside the picture."
           },
           {
             "name": "FC High-Endurance microSD (ULogs)",

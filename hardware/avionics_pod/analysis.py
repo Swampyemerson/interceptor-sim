@@ -4,8 +4,9 @@ vibration bands and heat. Plain arithmetic on stated inputs -- every input is
 listed with where it came from, and most are ESTIMATES, so every output is too.
 
 Frame: x forward, y left, z up; z = 0 is the top face of the top plate, which the
-builder reports is level with the props (2026-11-09). x = 0 is the pod datum,
-ASSUMED to sit at the frame centre.
+builder reports is level with the props (2026-11-09). x = 0 is the FRAME CENTRE. The
+pod's own datum is 7.975 mm ahead of it (TBS's assembled drawing: the dock's four
+screws straddle the frame centre), so pod parts are shifted by POD_DX.
 
     python3 hardware/avionics_pod/analysis.py            # prints the report numbers
     python3 hardware/avionics_pod/analysis.py --self-test
@@ -20,7 +21,8 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-MOTOR_XY = 240.0 / 2 * math.cos(math.radians(45))      # 84.85 mm (240 mm true-X, vendor)
+MOTOR_X, MOTOR_Y = 77.13, 91.93     # fore/aft, left/right (TBS V6 drawing; 240 mm diagonal)
+POD_DX = 7.975                      # pod datum ahead of the frame centre (= -DOCK_HOLE_X0)
 
 # ---- vertical layout of the frame: ASSUMED from the vendor's standoff/arm sizes
 Z_FRAME_MID = -20.0      # centre of the 30 mm standoff bay under the top plate
@@ -35,7 +37,7 @@ def airframe_items():
     it = [("frame", 136.5, 0, 0, Z_FRAME_MID)]
     for sx in (-1, 1):
         for sy in (-1, 1):
-            it.append(("motor+prop", 146 / 4, sx * MOTOR_XY, sy * MOTOR_XY, Z_MOTOR))
+            it.append(("motor+prop", 146 / 4, sx * MOTOR_X, sy * MOTOR_Y, Z_MOTOR))
     it += [("esc", 15, 0, 0, -28), ("pm02", 30, -20, 0, Z_FRAME_MID),
            ("bec", 10, 20, 0, Z_FRAME_MID), ("wiring", 30, 0, 0, -15),
            ("receiver", 5, -40, 0, Z_FRAME_MID), ("buzzer", 3, -40, 0, Z_FRAME_MID),
@@ -48,8 +50,8 @@ def configs():
     rep = json.load(open(os.path.join(HERE, "mass_report.json")))
     pg = rep["printed_g"]
     cg = rep["removable_module_cg_mm"]
-    pod_removable = ("pod (boards + printed)", rep["removable_module_g"], cg[0], cg[1], cg[2])
-    dock = ("dock", pg["dock"], -17, 0, 1.5)
+    pod_removable = ("pod (boards + printed)", rep["removable_module_g"], cg[0] + POD_DX, cg[1], cg[2])
+    dock = ("dock", pg["dock"], -17 + POD_DX, 0, 1.5)
     cam = 15.0
     base = airframe_items()
     # A: the old plan -- boards low on the top plate on a printed tray, camera on a nose boom
@@ -60,14 +62,14 @@ def configs():
                 ("camera on nose boom", cam, 110, 0, 15)]
     # C: pod with the camera cradle on its lid
     extra_lid = pg.get("pod_lid_cam", 19.0) - pg["pod_lid"]
-    c = base + [pod_removable, dock, ("cradle lid extra", extra_lid, 10, 0, 62),
-                ("cam plate", pg.get("cam_plate", 6.0), 54, 0, 68),
-                ("camera on pod", cam, 62, 0, 70)]
+    c = base + [pod_removable, dock, ("cradle lid extra", extra_lid, 10 + POD_DX, 0, 62),
+                ("cam plate", pg.get("cam_plate", 6.0), 54 + POD_DX, 0, 68),
+                ("camera on pod", cam, 62 + POD_DX, 0, 70)]
     # D: pod, camera on the short post off the dock's nose (chosen 2026-11-10)
     post_extra = pg.get("dock_cam", 24.4) - pg["dock"]
-    d = base + [pod_removable, dock, ("nose post + tongue", post_extra, 55, 0, 14),
-                ("nose cam plate", pg.get("cam_plate_nose", 5.1), 64, 0, 37),
-                ("camera on nose post", cam, 72, 0, 40)]
+    d = base + [pod_removable, dock, ("nose post + tongue", post_extra, 56 + POD_DX, 0, 12),
+                ("nose cam plate", pg.get("cam_plate_nose", 5.1), 69 + POD_DX, 0, 37),
+                ("camera on nose post", cam, 77 + POD_DX, 0, 40)]
     return {"A  old plan: boards low, camera on nose boom": a,
             "B  pod, camera on nose boom": b,
             "C  pod with camera cradle": c,

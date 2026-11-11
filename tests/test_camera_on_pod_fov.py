@@ -16,9 +16,9 @@ def test_self_test_passes():
 
 
 def test_readme_margins_match_the_script():
-    want = {"OV9281 as delivered (70 deg)": (24, 39, 59),
-            "AR0234 stock lens (80 deg)": (20, 35, 55),
-            "OV9281 published lens (118 deg)": (1.5, 16.5, 36.5)}
+    want = {"OV9281 as delivered (70 deg)": (29.5, 44.5, 64.5),
+            "AR0234 stock lens (80 deg)": (25.5, 40.5, 60.5),
+            "OV9281 published lens (118 deg)": (7, 22, 42)}
     for name, vals in want.items():
         hfov, asp = C.CAMERAS[name]
         for tilt, v in zip((10, 25, 45), vals):

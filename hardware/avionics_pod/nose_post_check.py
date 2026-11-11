@@ -56,7 +56,7 @@ def plan(wp, zlo, zhi):
     for p in v:
         if zlo<=p.z<zhi:
             for sy in (-1,1):
-                best=min(best, math.hypot(p.x-C.MOTOR,p.y-sy*C.MOTOR)-C.PROP_R)
+                best=min(best, math.hypot(p.x-C.MOTOR_X,p.y-sy*C.MOTOR_Y)-C.PROP_R)
     return best
 print(" dock_cam z<10:", round(plan(dock,-1,10),1), " z>=10:", round(plan(dock,10,200),1))
 for t in (10,25,45):

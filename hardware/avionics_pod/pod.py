@@ -43,8 +43,11 @@ DOCK_HOLE_DX = 55.77     # fore-aft spacing of the four standoff screws used (dr
                          # calipers 2026-11-11 on the target's identical frame: 56.0)
 DOCK_HOLE_DY = 29.2      # left-right spacing of those screws (drawing; calipers: 29.3)
 DOCK_NARROW_AFT_X = -44.0   # aft of here the dock is only +-10 wide (rear prop tips)
-CABLE_SLOT = (17.0, 25.0, 7.0)   # x0, x1, half-width: wires up from the stack below
-DOCK_HOLE_X0 = -8.0      # x of the hole pattern's centre (pod datum, see report)
+CABLE_SLOT = None        # was (17, 25, 7). The plate's own cut-out turned out to be at the
+                         # REAR (pod x -42 to -32, under the FC's tail), so wires come up
+                         # beside the 29 mm plate and in through the side windows instead.
+DOCK_HOLE_X0 = -8.0      # x of the hole pattern's centre. In TBS's assembled view the four
+                         # screws straddle the FRAME CENTRE, so the frame centre is here too.
 DOCK_SLOT = 1.0          # each hole is a slot this long (fore-aft) for adjustment
 DOCK_T = 3.0
 TIE_XS = (-20.0, 6.0)     # zip-tie stations (clear of pins, bolt slots, boss, hook)
@@ -112,13 +115,20 @@ CORNER_R = 3.0           # rounded plan-view corners on dock, floor and lid
 # The dock grows a tongue along the top plate to the frame's two nose standoff
 # screws, and two cheeks rise from it to carry a tilting camera plate. Low and
 # bolted to the frame, so it does not ride on the Pi/HAT tower.
-NOSE_PIVOT_X, NOSE_PIVOT_Z = 60.0, 36.0   # tilt axis (z above the top plate)
+NOSE_PIVOT_X, NOSE_PIVOT_Z = 65.0, 36.0   # tilt axis (z above the top plate)
+NOSE_DX = NOSE_PIVOT_X - 60.0            # the post was first drawn 5 mm further aft
 NOSE_CHEEK_Y_IN, NOSE_CHEEK_T = 16.5, 3.5
 NOSE_PLATE_HALF_W = 19.7     # camera plate half-width (board is 38 wide)
 NOSE_PLATE_X = 5.0           # plate sits this far ahead of the tilt axis
-NOSE_SCREW_X = 72.78         # nose standoff screws (drawing 75.98, minus 3.2 datum)
-NOSE_SCREW_DY = 22.0         # their left-right spacing (drawing)
-NOSE_TONGUE_END = 76.5       # top plate's nose edge is at 76.95 (drawing)
+# The plate's NOSE has a full-width screw row 25.0 mm ahead of the dock's front row
+# (calipers 2026-11-11: 25.05). The narrow 22 mm pair is at the REAR, by the GPS;
+# revision 4 had the plate the wrong way round.
+NOSE_SCREW_X = DOCK_HOLE_X0 + DOCK_HOLE_DX / 2 + 25.0     # 44.885
+NOSE_SCREW_DY = 29.2         # their left-right spacing (drawing; calipers 29.3)
+NOSE_TONGUE_END = 66.9       # top plate's nose edge is at 67.4 (drawing)
+NOSE_TONGUE_T = 6.0          # tongue thickness ahead of the pod's nose (dock is 3.0)
+NOSE_TONGUE_THICK_X = 40.0   # ... from here forward (full width starts here; the
+                             # pod's hook ends at 35.8)
 NOSE_LOCK_AT_DOWN = 45.0     # lock screw is straight below the axis at this tilt
 
 # --- masses for the centre-of-mass report (grams) ---------------------------
@@ -187,16 +197,24 @@ def dock(coupon: bool = False, nose_post: bool = False):
         # Every low edge stays 7 mm or more outside the front prop circles in
         # top view (same gap the frame's own plate leaves).
         w0, w1 = DOCK_W / 2, NOSE_CHEEK_Y_IN + NOSE_CHEEK_T
-        half = [(33.0, w0), (40.0, w1), (58.5, w1), (64.0, 14.5), (NOSE_TONGUE_END, 14.5)]
+        half = [(33.0, w0), (40.0, w1), (58.5 + NOSE_DX, w1), (NOSE_TONGUE_END, w1 - 3.0)]
         pts = half + [(x, -y) for (x, y) in reversed(half)]
         d = d.union(cq.Workplane("XY").polyline(pts).close().extrude(t))
+        tn = t
+        if not coupon:
+            # the post stands AHEAD of its two screws, so the tongue between the pod's
+            # nose and the post is the spring it nods on: make that part thick
+            tn = NOSE_TONGUE_T
+            thick = [(NOSE_TONGUE_THICK_X, w1)] + half[2:]
+            tp = thick + [(x, -y) for (x, y) in reversed(thick)]
+            d = d.union(cq.Workplane("XY").polyline(tp).close().extrude(tn))
         for sy in (-1, 1):
             x, y = NOSE_SCREW_X, sy * NOSE_SCREW_DY / 2
-            d = d.cut(cq.Workplane("XY").slot2D(DOCK_SLOT + 3.4, 3.4).extrude(t + 1)
+            d = d.cut(cq.Workplane("XY").slot2D(DOCK_SLOT + 3.4, 3.4).extrude(tn + 1)
                       .translate((x, y, -0.5)))
             if not coupon:
-                d = d.cut(cq.Workplane("XY").slot2D(DOCK_SLOT + 6.4, 6.4).extrude(1.6)
-                          .translate((x, y, t - 1.6)))
+                d = d.cut(cq.Workplane("XY").slot2D(DOCK_SLOT + 6.4, 6.4).extrude(1.6 + 1)
+                          .translate((x, y, tn - 1.6)))
     for sx in (-1, 1):
         for sy in (-1, 1):
             x = DOCK_HOLE_X0 + sx * DOCK_HOLE_DX / 2
@@ -211,7 +229,8 @@ def dock(coupon: bool = False, nose_post: bool = False):
     for sy in (-1, 1):       # narrow tail: keeps the corners away from the rear props
         ya, yb = sorted((sy * 10.0, sy * (DOCK_W / 2 + 1)))
         d = d.cut(box(TAB_X_REAR - 1, DOCK_NARROW_AFT_X, ya, yb, -1, t + 1))
-    d = d.cut(box(CABLE_SLOT[0], CABLE_SLOT[1], -CABLE_SLOT[2], CABLE_SLOT[2], -1, t + 1))
+    if CABLE_SLOT:
+        d = d.cut(box(CABLE_SLOT[0], CABLE_SLOT[1], -CABLE_SLOT[2], CABLE_SLOT[2], -1, t + 1))
     if coupon:
         d = d.cut(cyl(0, 0, -1, 2, 2.0))          # x = 0 datum mark
         return d
@@ -247,7 +266,7 @@ def _nose_cheeks():
     yi, yo = NOSE_CHEEK_Y_IN, NOSE_CHEEK_Y_IN + NOSE_CHEEK_T
     # rear edge leans forward as it rises (room for the pod to hinge in); front
     # edge leans forward too, under 45 degrees, so it prints without support
-    prof = [(44.0, DOCK_T - 0.5), (58.5, DOCK_T - 0.5), (px + 4.0, 12.0),
+    prof = [(44.0 + NOSE_DX, DOCK_T - 0.5), (58.5 + NOSE_DX, DOCK_T - 0.5), (px + 4.0, 12.0),
             (px + 4.0, pz + 1.5), (px + 1.5, pz + 4.0), (px - 1.5, pz + 4.0),
             (px - 4.0, pz + 1.5), (px - 11.0, pz - 6.0)]
     out = None
@@ -265,10 +284,10 @@ def _nose_cheeks():
         out = c if out is None else out.union(c)
     # rear wall: leans with the cheeks' rear edge and ties them together up to
     # 2 mm under the tilting plate's ears (a low wall left the cheeks free to sway)
-    out = out.union(xz_prism([(44.0, DOCK_T - 0.5), (46.8, DOCK_T - 0.5),
+    out = out.union(xz_prism([(44.0 + NOSE_DX, DOCK_T - 0.5), (46.8 + NOSE_DX, DOCK_T - 0.5),
                               (px - 9.3, pz - 12.0), (px - 12.1, pz - 12.0)],
                              -yi - 0.5, yi + 0.5))
-    out = out.union(box(56.0, 58.5, -yi - 0.5, yi + 0.5, DOCK_T - 0.5, 10.0))   # front wall
+    out = out.union(box(56.0 + NOSE_DX, 58.5 + NOSE_DX, -yi - 0.5, yi + 0.5, DOCK_T - 0.5, 10.0))   # front wall
     return out
 
 
@@ -305,8 +324,9 @@ def pod_base():
         for hy in HOLE_YS:
             b = b.cut(cyl(hx, hy, Z_PI - INSERT_M25_DEPTH, Z_PI + 1, INSERT_M25_D))
     # wires up from the stack below (ESC signal, receiver) pass through the floor
-    b = b.cut(box(CABLE_SLOT[0], CABLE_SLOT[1], -CABLE_SLOT[2], CABLE_SLOT[2],
-                  Z_DOCK - 1, Z_FLOOR + 1))
+    if CABLE_SLOT:
+        b = b.cut(box(CABLE_SLOT[0], CABLE_SLOT[1], -CABLE_SLOT[2], CABLE_SLOT[2],
+                      Z_DOCK - 1, Z_FLOOR + 1))
     # the Pixhawk's USB-C is high on its right side: a plug body reaches z ~24.4,
     # above the normal window top, so the right panel gets a taller notch there
     b = b.cut(box(FC_X0 - 20.0, FC_X0 - 1.0, -PI_W / 2 - 1, -PANEL_Y_IN + 1,

@@ -1,19 +1,19 @@
 {
  "freqs_hz": [
-  214.6,
-  233.9,
-  495.6,
-  565.4,
-  821.7,
-  832.4
+  217.7,
+  243.6,
+  500.1,
+  589.4,
+  843.7,
+  882.9
  ],
  "modes": [
   [
    "side-to-side",
    [
-    0.08,
+    0.09,
     1.0,
-    0.05
+    0.06
    ],
    {
     "dock_cam": 0.59,
@@ -25,72 +25,72 @@
    "fore-aft",
    [
     1.0,
-    0.03,
-    0.4
+    0.04,
+    0.34
    ],
    {
-    "dock_cam": 0.51,
-    "cam_plate_nose": 0.37,
+    "dock_cam": 0.47,
+    "cam_plate_nose": 0.4,
     "camera": 0.12
    }
   ],
   [
    "up-down",
    [
-    0.72,
-    0.07,
+    0.74,
+    0.09,
     1.0
    ],
    {
     "camera": 0.46,
     "cam_plate_nose": 0.44,
-    "dock_cam": 0.1
+    "dock_cam": 0.09
    }
   ],
   [
    "fore-aft",
    [
     1.0,
-    0.91,
+    0.88,
     0.11
    ],
    {
-    "dock_cam": 0.43,
-    "camera": 0.31,
-    "cam_plate_nose": 0.26
+    "dock_cam": 0.37,
+    "camera": 0.35,
+    "cam_plate_nose": 0.28
    }
   ],
   [
    "up-down",
    [
-    0.76,
-    0.92,
+    0.85,
+    0.97,
     1.0
    ],
    {
-    "dock_cam": 0.38,
-    "cam_plate_nose": 0.36,
-    "camera": 0.25
+    "dock_cam": 0.42,
+    "cam_plate_nose": 0.35,
+    "camera": 0.23
    }
   ],
   [
    "up-down",
    [
-    0.82,
-    0.12,
+    0.78,
+    0.13,
     1.0
    ],
    {
     "dock_cam": 0.41,
-    "cam_plate_nose": 0.37,
-    "camera": 0.22
+    "cam_plate_nose": 0.36,
+    "camera": 0.24
    }
   ]
  ],
- "mass_g": 44.4,
- "nodes": 40595,
- "tets": 20374,
- "clamped_dofs": 10830,
+ "mass_g": 46.7,
+ "nodes": 33313,
+ "tets": 16992,
+ "clamped_dofs": 12507,
  "nose_post": true,
  "camera": true,
  "e_petg_mpa": 1300.0

@@ -1,10 +1,10 @@
 {
  "freqs_hz": [
   120.7,
-  189.5,
-  232.3,
-  245.4,
-  387.6,
+  189.6,
+  231.7,
+  239.4,
+  387.2,
   441.2
  ],
  "modes": [
@@ -28,7 +28,7 @@
    [
     1.0,
     0.07,
-    0.9
+    0.91
    ],
    {
     "lid": 0.48,
@@ -41,30 +41,30 @@
    "fore-aft",
    [
     1.0,
-    0.27,
+    0.5,
     0.45
    ],
    {
-    "pod_base": 0.37,
-    "lid": 0.19,
-    "pi_board": 0.13,
-    "cam_plate": 0.13,
-    "hat_board": 0.11,
-    "camera": 0.06
+    "pod_base": 0.39,
+    "lid": 0.17,
+    "pi_board": 0.14,
+    "hat_board": 0.12,
+    "cam_plate": 0.11,
+    "camera": 0.05
    }
   ],
   [
    "side-to-side",
    [
-    0.46,
+    0.67,
     1.0,
-    0.12
+    0.23
    ],
    {
-    "pod_base": 0.48,
-    "pi_board": 0.2,
-    "hat_board": 0.16,
-    "lid": 0.08
+    "pod_base": 0.5,
+    "pi_board": 0.18,
+    "hat_board": 0.14,
+    "lid": 0.09
    }
   ],
   [
@@ -96,10 +96,10 @@
    }
   ]
  ],
- "mass_g": 162.2,
- "nodes": 59880,
- "tets": 29162,
- "clamped_dofs": 7041,
+ "mass_g": 162.5,
+ "nodes": 60016,
+ "tets": 29250,
+ "clamped_dofs": 7104,
  "camera": true,
  "e_petg_mpa": 1300.0
 }

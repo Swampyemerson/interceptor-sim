@@ -11,18 +11,20 @@ Four layouts, each with frame, motors, battery underneath and all electronics:
 
 | Layout | Mass | Centre of mass, height | Roll inertia | Pitch inertia |
 |---|---|---|---|---|
-| A. Old plan: boards low on the top plate, camera on a nose boom | 824 g | 23 mm below the props | 1.77 g·m² | 2.11 g·m² |
-| B. Pod, camera on a nose boom | 849 g | 20 mm below | 1.96 (+11 %) | 2.35 (+12 %) |
-| C. Pod with the camera cradle on its lid | 852 g | 17.5 mm below | 2.17 (+23 %) | 2.36 (+12 %) |
-| D. Pod, camera on the dock's nose post (chosen 2026-11-10) | 850 g | 19 mm below | 2.01 (+14 %) | 2.25 (+7 %) |
+| A. Old plan: boards low on the top plate, camera on a nose boom | 824 g | 23 mm below the props | 1.95 g·m² | 1.92 g·m² |
+| B. Pod, camera on a nose boom | 850 g | 20 mm below | 2.14 (+10 %) | 2.15 (+12 %) |
+| C. Pod with the camera cradle on its lid | 853 g | 17.5 mm below | 2.35 (+21 %) | 2.19 (+14 %) |
+| D. Pod, camera on the dock's nose post (chosen 2026-11-10) | 853 g | 19 mm below | 2.19 (+12 %) | 2.12 (+10 %) |
 
 Inertia is how hard the aircraft is to start and stop turning about an axis.
 
 - **Weight:** the pod costs about 25 to 30 g over the old plan (3 %).
 - **Balance:** the battery underneath outweighs the pod on top, so the centre of mass
   stays below the prop plane in every layout. The pod raises it by 3 to 5 mm. Fore-aft it
-  stays within 2 mm of the frame centre, on the assumption that the pod sits centred.
-- **Turning:** roll gets 11 to 23 % heavier to turn. The rate gains now on the board were
+  stays within 2 mm of the frame centre. The pod's place on the frame is now fixed by the
+  dock's four screws, which TBS's drawing puts either side of the frame centre.
+- **Turning:** roll gets 10 to 21 % heavier to turn. (Motor positions corrected
+  2026-11-11 from TBS's drawing: 77 mm fore and aft, 92 mm left and right, not 85 and 85.) The rate gains now on the board were
   tuned by feel on the aircraft without the pod, so expect to re-check them after the pod
   goes on: the same gain gives a slightly slower response.
 - **Rests on:** estimated weights for nearly every part (`docs/airframe_numbers.md` §3) and
@@ -39,14 +41,15 @@ whose own natural frequency sits inside that range will be shaken hardest.
 
 | Case | 1st | 2nd | 3rd | What moves first |
 |---|---|---|---|---|
-| No camera | 273 Hz | 344 | 441 | whole stack swaying side to side |
-| No camera, softer plastic | 248 | 303 | 394 | same |
+| No camera | 270 Hz | 343 | 437 | whole stack swaying side to side |
+| No camera, softer plastic | 241 | 303 | 389 | same |
 | With camera cradle | 136 | 222 | 266 | stack swaying, camera leading |
 | With camera cradle, softer plastic | 121 | 190 | 232 | same |
-| **Nose post** (dock held flat on the plate) | 254 | 276 | 545 | post and camera swaying side to side |
-| Nose post, softer plastic | 215 | 234 | 496 | same |
-| Nose post, held only at its six screws | 169 | 184 | 411 | same, the whole post rocking from the tongue |
-| Nose post dock with the loaded pod on it, held at the six screws | 109 to 160 | 180 | 190 | the pod stack swaying on the dock; then the camera post |
+| **Nose post** (dock held flat on the plate) | 258 | 287 | 550 | post and camera swaying side to side |
+| Nose post, softer plastic | 218 | 244 | 500 | same |
+| Nose post, held only at its six screws | 187 | 252 | 411 | the post nodding fore and aft on its tongue |
+| Nose post, screws plus a 5 mm patch of underside round each | 216 | 256 | 512 | same |
+| Nose post dock with the loaded pod on it, held at the six screws | 150 to 160 | 187 | 241 | the pod stack swaying on the dock; then the camera post |
 
 - These are **upper bounds**. The model glues every joint; real screwed joints through two
   circuit boards are softer. Expect the real numbers 20 to 40 % lower. That figure is my
@@ -88,9 +91,17 @@ whose own natural frequency sits inside that range will be shaken hardest.
 Arducam's own model of the B0353 (board 38 x 38, holes on a 34.04 mm square, lens barrel
 14 mm across and 19.2 mm tall). Fitting it widened the plate's window and slimmed its four
 posts, which is why the nose-post figures here are a little lower than the first run
-(270 Hz then, 254 Hz now).
+(270 Hz then, 254 Hz after).
 
-**SOLIDWORKS cross-check (2026-11-10).** The builder ran the nose post and dock in
+**Revision 5 (2026-11-11).** The nose-post rows above are for the post as redrawn for the
+real top plate: screws behind the post instead of ahead of it, post 5 mm further
+forward, tongue 6 mm thick. Before the tongue was thickened the screws-only case was
+92 Hz, because the post nodded on a 3 mm tongue; that is why it is thick. Revision 4's
+figures were 254 Hz held flat and 169 Hz at the screws.
+
+**SOLIDWORKS cross-check (2026-11-10), made on revision 4.** The "this model" column
+below is revision 4 as well, so the two columns compare like with like; neither is the
+current part. The builder ran the nose post and dock in
 SOLIDWORKS Simulation with the same materials. Full report: `SOLIDWORKS_CROSSCHECK.md`;
 numbers: `solidworks_results.json`; pictures: `media/solidworks_*.png` at the repo root.
 
@@ -109,8 +120,9 @@ numbers: `solidworks_results.json`; pictures: `media/solidworks_*.png` at the re
   the hover motor rate of 213 Hz and crossed on every spool-up. The Pixhawk rides in the
   pod, so this one reaches its sensors.
 - **That pod figure is the least certain number here.** In this model it moves with mesh
-  size (160 Hz at 4 mm elements, 109 at 3 mm, 144 at 2.5 mm), so it is a range, not a
-  value. This model glues the pod floor to the dock and leaves out the Pixhawk's 39 g;
+  size (160 Hz at 4 mm elements, 144 to 149 at 2.5 mm). The 3 mm run is discarded: on
+  revision 5 it returned a zero-frequency mode, meaning a part lost its glued contact in
+  meshing, and the 109 Hz it gave on revision 4 was probably the same fault. This model glues the pod floor to the dock and leaves out the Pixhawk's 39 g;
   SOLIDWORKS uses a lump with an estimated inertia. Neither has the carbon plate under
   the dock, which would raise it, or the real hook, pins and single tail screw, which
   would lower it.
@@ -127,23 +139,22 @@ numbers: `solidworks_results.json`; pictures: `media/solidworks_*.png` at the re
 aircraft to put it. The builder chose the nose post on 2026-11-10; it is drawn
 (`dock_cam`, `cam_plate_nose`) and modelled:
 
-- **Stiffness.** First sway 254 Hz in the model against 136 Hz for the lid cradle, nearly
+- **Stiffness.** First sway 258 Hz in the model against 136 Hz for the lid cradle, nearly
   twice as stiff, and the load path is short: camera, plate, two cheeks, dock, carbon.
   No circuit boards or standoffs in it. The same caveat applies (glued joints, so read
-  it as an upper bound; the softer-plastic row is 215 Hz, right at the hover motor rate).
+  it as an upper bound; the softer-plastic row is 218 Hz, right at the hover motor rate).
 - **It is not out of the motor band.** Hover is about 213 Hz and full throttle about
-  583 Hz, so 215 to 275 Hz is crossed on every throttle-up. No printed mount gets above
+  583 Hz, so 190 to 290 Hz is crossed on every throttle-up. No printed mount gets above
   583 Hz. What the stiffer mount buys is less movement for the same shake. Whether the
   picture is steady enough is still a question for the printed part and a tap test.
 - **Props out of the picture** (`nose_post_check.py`, lens front as the viewpoint, props
-  level with the plate / 10 mm higher): 70° lens +22 / +17° at 10° of tilt, +40 / +34° at
-  25°; AR0234 80° lens +18 / +12° at 10°, +36 / +30° at 25°. The published 118° lens has
-  the props in frame at 10° (-1 / -6°) and clear from about 25° (+18 / +12°).
-- **The camera sits over the edge of the prop circles.** In top view the plate's corners
-  come within 1.8 to 3.1 mm of the front prop circles; they are 16 to 21 mm above the
-  blades. The post itself keeps 6.5 mm at blade height, the same as the frame's own top
-  plate. All of that assumes the pod is centred on the frame and the props are level with
-  the top plate, and neither is measured. Check by turning the props by hand.
+  level with the plate / 10 mm higher): 70° lens +35 / +34° at 10° of tilt, +52 / +46° at
+  25°; AR0234 80° lens +31 / +29° at 10°, +48 / +42° at 25°. The published 118° lens is
+  marginal at 10° (+12 / +9.5°) and clear at 25° (+30 / +23°).
+- **Clear of the prop circles.** In top view the post and the camera plate stay 8.4 to
+  10 mm outside the front prop circles, and the plate is 16 to 21 mm above the blades.
+  That uses TBS's drawing for the motor positions and assumes the props are level with
+  the top plate, which is not measured. Check by turning the props by hand.
 - **The other two options** stay in the CAD: the lid cradle (best prop margin, softest)
   and walls from the base straight up to the lid (not drawn).
 

@@ -1,50 +1,38 @@
 {
  "freqs_hz": [
-  159.9,
-  181.0,
-  190.6,
-  229.1,
-  324.9,
-  442.4,
-  478.3,
-  523.0
+  148.9,
+  187.4,
+  241.0,
+  249.3,
+  327.0,
+  494.1,
+  535.9,
+  547.6
  ],
  "modes": [
   [
    "side-to-side",
    [
-    0.05,
+    0.0,
     1.0,
-    0.09
+    0.08
    ],
    {
-    "pod_base": 0.61,
-    "pi_board": 0.18,
-    "hat_board": 0.11,
-    "dock_cam": 0.09
-   }
-  ],
-  [
-   "side-to-side",
-   [
-    0.04,
-    1.0,
-    0.17
-   ],
-   {
-    "dock_cam": 0.76,
-    "cam_plate_nose": 0.15
+    "pod_base": 0.58,
+    "pi_board": 0.21,
+    "hat_board": 0.12,
+    "dock_cam": 0.06
    }
   ],
   [
    "fore-aft",
    [
     1.0,
-    0.03,
-    0.1
+    0.02,
+    0.17
    ],
    {
-    "dock_cam": 0.75,
+    "dock_cam": 0.79,
     "cam_plate_nose": 0.15,
     "camera": 0.06
    }
@@ -53,85 +41,94 @@
    "fore-aft",
    [
     1.0,
-    0.05,
-    0.06
+    0.06,
+    0.05
    ],
    {
-    "pod_base": 0.6,
-    "pi_board": 0.14,
-    "dock_cam": 0.14,
-    "hat_board": 0.1
+    "pod_base": 0.66,
+    "pi_board": 0.15,
+    "hat_board": 0.1,
+    "dock_cam": 0.06
    }
   ],
   [
    "side-to-side",
    [
-    0.87,
+    0.05,
+    1.0,
+    0.05
+   ],
+   {
+    "dock_cam": 0.6,
+    "cam_plate_nose": 0.3,
+    "camera": 0.1
+   }
+  ],
+  [
+   "side-to-side",
+   [
+    0.88,
     1.0,
     0.07
    ],
    {
-    "pod_base": 0.61,
+    "pod_base": 0.63,
     "pi_board": 0.16,
     "hat_board": 0.09,
-    "dock_cam": 0.06,
     "standoffs": 0.06
    }
   ],
   [
    "up-down",
    [
-    0.45,
-    0.06,
+    0.04,
+    0.05,
     1.0
    ],
    {
-    "dock_cam": 0.45,
-    "camera": 0.26,
-    "cam_plate_nose": 0.21,
-    "pod_base": 0.06
+    "pi_board": 0.57,
+    "pod_base": 0.3
    }
   ],
   [
    "up-down",
    [
-    0.03,
-    0.05,
+    0.47,
+    0.2,
     1.0
    ],
    {
-    "pi_board": 0.48,
-    "pod_base": 0.3,
-    "dock_cam": 0.12
+    "camera": 0.53,
+    "cam_plate_nose": 0.39,
+    "dock_cam": 0.07
    }
   ],
   [
    "side-to-side",
    [
-    0.94,
+    0.9,
     1.0,
-    0.25
+    0.18
    ],
    {
-    "dock_cam": 0.6,
-    "cam_plate_nose": 0.2,
-    "camera": 0.19
+    "dock_cam": 0.58,
+    "camera": 0.23,
+    "cam_plate_nose": 0.19
    }
   ]
  ],
- "mass_g": 172.3,
- "nodes": 68152,
- "tets": 34685,
- "clamped_dofs": 1440,
+ "mass_g": 174.9,
+ "nodes": 121441,
+ "tets": 63084,
+ "clamped_dofs": 3207,
  "nose_post": true,
  "pod_on_dock": true,
  "hold": "six screw-slot walls",
  "camera": true,
  "e_petg_mpa": 1900.0,
  "first_mode_hz_by_max_element_mm": {
-  "4.0": 159.9,
-  "3.0": 109.4,
-  "2.5": 143.8
+  "4.0": 159.8,
+  "2.5": 148.9
  },
- "note": "first mode is NOT mesh-converged (109 to 160 Hz); camera-post modes 2 and 3 are (179-181, 189-191 Hz). Pixhawk mass not included."
+ "note": "2.5 mm mesh. A 3 mm mesh returned a zero-frequency mode (a part lost its glued contact in meshing), so that run is discarded and the first mode should be read as roughly 150 to 160 Hz. Pixhawk mass not included."
 }

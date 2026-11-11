@@ -1,0 +1,96 @@
+{
+ "freqs_hz": [
+  215.6,
+  256.2,
+  512.1,
+  547.9,
+  570.2,
+  771.0
+ ],
+ "modes": [
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.03,
+    0.38
+   ],
+   {
+    "dock_cam": 0.72,
+    "cam_plate_nose": 0.2,
+    "camera": 0.08
+   }
+  ],
+  [
+   "side-to-side",
+   [
+    0.09,
+    1.0,
+    0.06
+   ],
+   {
+    "dock_cam": 0.59,
+    "cam_plate_nose": 0.31,
+    "camera": 0.1
+   }
+  ],
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.15,
+    0.88
+   ],
+   {
+    "dock_cam": 1.0
+   }
+  ],
+  [
+   "up-down",
+   [
+    0.79,
+    0.11,
+    1.0
+   ],
+   {
+    "camera": 0.54,
+    "cam_plate_nose": 0.39,
+    "dock_cam": 0.07
+   }
+  ],
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.91,
+    0.23
+   ],
+   {
+    "dock_cam": 0.56,
+    "camera": 0.25,
+    "cam_plate_nose": 0.2
+   }
+  ],
+  [
+   "up-down",
+   [
+    0.81,
+    0.13,
+    1.0
+   ],
+   {
+    "cam_plate_nose": 0.42,
+    "dock_cam": 0.3,
+    "camera": 0.28
+   }
+  ]
+ ],
+ "mass_g": 46.7,
+ "nodes": 33313,
+ "tets": 16992,
+ "clamped_dofs": 3987,
+ "nose_post": true,
+ "hold": "six screw-slot walls + underside within 5.0 mm of each screw",
+ "camera": true,
+ "e_petg_mpa": 1900.0
+}
