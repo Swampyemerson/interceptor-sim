@@ -1,14 +1,14 @@
 {
  "printed_g": {
   "dock": 12.8,
-  "pod_base": 18.1,
+  "pod_base": 17.9,
   "pod_lid": 6.2,
   "pod_lid_cam": 19.0,
   "cam_plate": 5.7,
   "dock_cam": 26.4,
   "cam_plate_nose": 4.9
  },
- "removable_module_g": 162.3,
+ "removable_module_g": 162.1,
  "removable_module_cg_mm": [
   -7.0,
   0.0,

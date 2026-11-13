@@ -571,6 +571,12 @@
   "plain_log": [
     {
       "date": "2026-11-13",
+      "text": "Avionics pod revision 6: two more locating pins near the front of the dock. On the PLA fit print the builder found the front of the pod could slide side to side. The two original pins sit on one line across the pod, so their small clearance let the far end swing about 1 mm each way. The new pins sit between the front pair of dock screws and hold the nose sideways. Checked in CAD only: 0.25 mm side play at the new pins, and the pod still hinges down from under the hook without touching them.",
+      "so_what": "The Pixhawk rides in this pod and its orientation is calibrated to the frame, so the pod must seat in the same place every time. The dock and the pod base both changed and need reprinting to confirm the fix. Still open from the same fit check: support material fills the pod's rear cup and cable windows, and both need reshaping before the Onyx order.",
+      "evidence": "hardware/avionics_pod/README.md (Revision 6); hardware/avionics_pod/pod.py PINS_FRONT; builder photo and report in session 2026-11-13"
+    },
+    {
+      "date": "2026-11-13",
       "text": "PLA fit-check prints of the four pod parts arrived. The builder reports the dock's screw holes line up with the drone's top plate and the front hook spacing looks right. The parts came back with support material in many places, including the pod's side cable windows. The rear latch has not been tried yet.",
       "so_what": "The hole pattern from the caliper session holds on a printed part. Still to check before ordering Onyx: the pod latched and screwed down at the rear, both boards seated, the camera plate between its cheeks, and where the wires come up. The Onyx request must say where supports are wanted (camera plate, pod base cable windows) and nowhere else.",
       "evidence": "builder report in session 2026-11-13 (no photo or measurement recorded); hardware/avionics_pod/PRINT_ORDER.md; hardware/avionics_pod/README.md (How the pod latches)"
@@ -634,12 +640,6 @@
       "text": "DASH RULING LANDED (builder, ADR-0132): when the far-cue approach dash flies, Phase A should run flat-out -- the speed cap set above what the airframe can physically do, so it holds full effort as long as possible -- with one rule: it must finish braking and level back out BEFORE the camera could first read the tag, so detection is never disturbed. The point: a faster transit gives the pre-launch cue's prediction less time to drift (should help against a turning target; on a straight-flying target we pre-registered that it should change nothing). Nothing flies differently yet -- the switch stays OFF, and turning it on by default requires a registered ON-vs-OFF paired test plus bench measurements of the real airframe's top speed, braking, camera decode range, and power-rail behavior at full throttle. Explicitly NOT part of this weekend's attempt. (His directive numbered it ADR-0131; that number was taken the same day by the camera/Hailo order, so it is ADR-0132.)",
       "so_what": "A standing design ruling is now on the books with its success test written before any flight, so a future 'max-speed dash helped' claim can't be invented after the fact.",
       "evidence": "ADR-0132 (docs/decisions.md); isim/specs/approach_dash_2026-10-21.md (the existing sweep + Gazebo takes)"
-    },
-    {
-      "date": "2026-10-23",
-      "text": "SEEKER UPGRADE ORDERED (builder, ADR-0131): Arducam AR0234 color global-shutter camera, ORDER #000009907. The checkout email was mistyped, so NO confirmation or tracking email will arrive — this order number is the only tracking handle (recorded here on purpose). Spec check closed two items: the B0353 has an INTEGRAL IR-cut (the §0b verify-IR-cut line closes for this camera), and the stock 3.6 mm lens gives ~80° H at ~21 px/deg — better px/deg than the flying 70° OV9281 setup (19.3) while ADDING ~10° of FOV, so NO lens swap is needed (it is factory-fitted anyway). Hailo-8 26-TOPS HAT ORDERED at $160 — within the current street band ($160–185 post-2026 price rises); the HAT+ 2 variant (Hailo-10H) was considered and REJECTED (no vision gain, loses the chip-specific DFC dry-run evidence, unmeasured power/mass, +$40–60).",
-      "so_what": "The resolution path's hardware is in motion: AR0234 (~1.5x px/deg) + Hailo native-res input is the measured route past the 640-input ceiling. Deployment stays GATED on the Hailo bench — at 640 input on the CPU the AR0234 is ~6 px on target at 20 m, WORSE than the owned camera — so the OV9281 + 70° lens remains the flying seeker until the gates pass.",
-      "evidence": "ADR-0131 (decisions.md); builder order confirmation 2026-10-23 (#000009907, in session); px/deg math: ADR-0131 extending docs/lens_options_2026-10-22.md to the AR0234; runs/res_guidance_20261021"
     }
   ],
   "narrative": {

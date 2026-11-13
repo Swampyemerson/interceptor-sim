@@ -452,3 +452,11 @@ Builder caught a recurring session-start drift: fresh sessions kept treating PRO
 **So what:** The surfaces a fresh session reads FIRST now agree with the contract on the single most load-bearing design fact (which guidance law flies). The same class of bug caused the 'simulation-only' drift (goals-simulation-only) — session-start banners need the same-turn sweep discipline the dashboard gets.
 
 *Evidence: ledger goals-pronav-terminal-banner - docs/goals.md:9-11 - .claude/skills/pronav/SKILL.md - .claude/skills/run-interceptor-sim/SKILL.md - ADR-0103/0118*
+
+## 2026-10-23 (overflowed from plain_log 2026-11-13)
+
+SEEKER UPGRADE ORDERED (builder, ADR-0131): Arducam AR0234 color global-shutter camera, ORDER #000009907. The checkout email was mistyped, so NO confirmation or tracking email will arrive — this order number is the only tracking handle (recorded here on purpose). Spec check closed two items: the B0353 has an INTEGRAL IR-cut (the §0b verify-IR-cut line closes for this camera), and the stock 3.6 mm lens gives ~80° H at ~21 px/deg — better px/deg than the flying 70° OV9281 setup (19.3) while ADDING ~10° of FOV, so NO lens swap is needed (it is factory-fitted anyway). Hailo-8 26-TOPS HAT ORDERED at $160 — within the current street band ($160–185 post-2026 price rises); the HAT+ 2 variant (Hailo-10H) was considered and REJECTED (no vision gain, loses the chip-specific DFC dry-run evidence, unmeasured power/mass, +$40–60).
+
+**So what:** The resolution path's hardware is in motion: AR0234 (~1.5x px/deg) + Hailo native-res input is the measured route past the 640-input ceiling. Deployment stays GATED on the Hailo bench — at 640 input on the CPU the AR0234 is ~6 px on target at 20 m, WORSE than the owned camera — so the OV9281 + 70° lens remains the flying seeker until the gates pass.
+
+*Evidence: ADR-0131 (decisions.md); builder order confirmation 2026-10-23 (#000009907, in session); px/deg math: ADR-0131 extending docs/lens_options_2026-10-22.md to the AR0234; runs/res_guidance_20261021*

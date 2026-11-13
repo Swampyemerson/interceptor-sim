@@ -29,7 +29,7 @@ appears.
   lid-cradle camera parts. Sections below that name `dock`, `dock_coupon`, `pod_lid_cam`
   or `cam_plate` are history.
 
-**Status: revision 5 (2026-11-11): camera post redrawn for the real top plate, see the
+**Status: revision 6 (2026-11-13): two front locating pins added after the PLA fit check, see the revision 6 section. Revision 5 (2026-11-11): camera post redrawn for the real top plate, see the
 revision 5 section. Calipers confirmed the dock's screw pattern; the earlier drawing had
 the top plate back to front.**
 
@@ -127,8 +127,10 @@ still point the way `SENS_BOARD_ROT` says, or that parameter must be changed and
 
 - **Front:** the pod floor's front edge is a 45 degree toe that slides under the dock's
   wedge hook.
-- **Middle:** two 4 mm pins on the dock enter a round hole and a slotted hole in the pod
-  floor, so the pod lands in the same place each time.
+- **Pins:** four 4 mm pins on the dock enter sockets in the pod floor, so the pod lands
+  in the same place each time. The two rear pins (a round hole and a sideways slot) fix
+  the pod fore-aft. The two front pins, added in revision 6, sit in fore-aft slots and
+  hold the nose from sliding side to side.
 - **Rear:** the dock has a round boss (9 mm across, 5 mm tall) with a 4.0 mm blind hole
   in its top. An M3 heat-set insert is melted into that hole. The pod has a round cup
   (14 mm across) at its tail that drops over the boss. One M3 screw, 10 mm, goes down
@@ -191,6 +193,26 @@ position plus plain blocks named `REF_*` standing in for the Pixhawk, Pi 5 and H
 Those blocks are envelopes from the parameter block, not real board models. Units are
 millimetres; x points to the nose, z is up from the top plate. A STEP import has no
 feature tree, so change dimensions in `pod.py` and regenerate.
+
+## Revision 6 (2026-11-13): two front locating pins
+
+Found on the PLA fit print: with the pod hooked in, its front could slide side to side.
+The two original pins sit on one line across the pod, 26 mm apart, so their 0.25 mm
+clearance let the front edge, 60 mm ahead, swing about 1 mm each way (worked out from
+the geometry, not measured on the print).
+
+- **Change:** two more 4 mm pins on the dock at pod x = +20 mm, 6 mm either side of the
+  centre line, between the front pair of dock screws. Their sockets in the pod floor are
+  slots 2.5 mm longer fore-aft than the pin.
+- **Checked in CAD:** side play at the front pins 0.25 mm; fore-aft freedom 1.5 mm each
+  way, so they do not fight the rear pins; no contact while the tail is lifted from 1 to
+  15 degrees about the hook; dock and pod do not overlap. `nose_post_check.py` still passes.
+- **Changed files:** `dock_cam` and `pod_base` (STL and STEP) and the assembly. The lid,
+  the camera plate and the template are unchanged. Pod base 18.1 g to 17.9 g.
+- **Not rerun:** the vibration model. Pins and sockets this small do not move its numbers.
+- **Not yet printed.** Still open from the same fit check: support material fills the
+  pod's rear cup and its cable windows; both need reshaping to print without supports
+  before the Onyx order.
 
 ## Revision 5 (2026-11-11): camera post redrawn for the real top plate
 

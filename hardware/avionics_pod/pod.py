@@ -159,6 +159,13 @@ HOLE_XS = (PI_X_SD + PI_HOLE_FROM_SD_END, PI_X_SD + PI_HOLE_FROM_SD_END + PI_HOL
 HOLE_YS = (-PI_HOLE_DY / 2, PI_HOLE_DY / 2)
 PANEL_Y_IN = PI_W / 2 - PANEL_T               # inner face of each side panel
 PINS = [(-30.0, 13.0), (-30.0, -13.0)]
+# Front pins (rev 6, 2026-11-13). The two rear pins sit on one line across the pod, 26 mm
+# apart, so their 0.25 mm clearance lets the pod's front edge, 60 mm ahead of them, swing
+# about 1 mm each way (geometry; the builder felt the play on the PLA fit print). These two hold the nose
+# sideways. Their sockets are slots running FORE-AFT, so they do not fight the rear pins
+# and the pod can still hinge down from under the hook. Between the front dock screws.
+PINS_FRONT = [(20.0, 6.0), (20.0, -6.0)]
+PIN_FRONT_SLOT = 2.5     # extra socket length fore-aft
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -261,7 +268,7 @@ def dock(coupon: bool = False, nose_post: bool = False):
                      (xf - 4.0, Z_DOCK + 5.5), (xf - 4.0, Z_DOCK + 4.0)],
                     -HOOK_HALF_W, HOOK_HALF_W)
     d = d.union(hook)
-    for (x, y) in PINS:
+    for (x, y) in PINS + PINS_FRONT:
         d = d.union(cyl(x, y, Z_DOCK, Z_DOCK + FLOOR_T - 0.2, PIN_D))
     boss_top = Z_DOCK + 5.0
     d = d.union(cyl(SCREW_X, 0, Z_DOCK, boss_top, 9.0))
@@ -355,6 +362,10 @@ def pod_base():
     (x, y) = PINS[1]
     b = b.cut(cq.Workplane("XY").slot2D(PIN_D + 2 * PIN_CLEAR + 1.5, PIN_D + 2 * PIN_CLEAR, 90)
               .extrude(FLOOR_T + 2).translate((x, y, Z_DOCK - 1)))
+    for (x, y) in PINS_FRONT:       # fore-aft slots: hold the nose sideways only
+        b = b.cut(cq.Workplane("XY").slot2D(PIN_D + 2 * PIN_CLEAR + PIN_FRONT_SLOT,
+                                            PIN_D + 2 * PIN_CLEAR, 0)
+                  .extrude(FLOOR_T + 2).translate((x, y, Z_DOCK - 1)))
     # rear screw "hat": sits over the dock boss, M3 clamps it down
     boss_top = Z_DOCK + 5.0
     hat = cyl(SCREW_X, 0, Z_DOCK, boss_top + 0.3 + 2.6, 14.0)
