@@ -359,6 +359,16 @@ Not CAD, but needed (from the gap review):
   in before the HAT goes on. It is a different port (`/dev/ttyAMA10`, not `/dev/ttyAMA0`)
   and is the boot console by default, so the flight code and Pi setup need a change, and
   it is untested here. It supports 921600 baud, the rate TELEM2 uses.
+  Pin order (Raspberry Pi's 3-pin debug connector specification, read 2026-11-13): pin 1
+  is RX (into the Pi), pin 2 is GND, pin 3 is TX (out of the Pi). So TELEM2 pin 2 (TX)
+  goes to Pi pin 1, TELEM2 pin 3 (RX) to Pi pin 3, TELEM2 pin 6 (GND) to Pi pin 2, and
+  TELEM2 pin 1 (+5 V) is left unconnected. Finding pin 1 on a top-entry socket, per the
+  specification's footprint drawing: look straight down at it with the three thin solder
+  legs on the far side and the two wide end tabs nearest you; pin 1 is then on the RIGHT.
+  (A side-entry socket is numbered the other way round.) This orientation has NOT been
+  checked on the board: ground is the middle pin either way, so confirm it by continuity
+  to a USB shell, tack the two outer wires, run the link check, and swap them if there is
+  no heartbeat before making the splice permanent.
 - **Pi power plug:** a straight USB-C plug sticks out over the rear-right prop. Use a
   right-angle plug pointing aft.
 - **Standoffs:** the HAT kit's are reported to be nylon. Use brass M2.5 male-female,
