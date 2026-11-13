@@ -444,3 +444,11 @@ FOUR BUILDER RULINGS landed and were executed the same day: (1) ADR-0126 the ~70
 **So what:** Saturday flies a config whose three load-bearing choices (70 deg lens, pursuit terminal, ~10 deg cue budget) each trace to a same-day ruling plus a registered measurement, and the repo a fresh session reads is finally the repo that exists.
 
 *Evidence: ADR-0126..0129 - runs/pursuit_vs_dash_20261022/ - docs/review3_repo_review_2026-10-22.md - retired/README.md 2026-10-22 section*
+
+## 2026-10-23 (overflowed from plain_log 2026-11-13)
+
+Builder caught a recurring session-start drift: fresh sessions kept treating PRO-NAV as the current terminal law (he got a pro-nav-framed answer to a camera-mount question). Root cause: the contract was RIGHT (terminal stage = chase pursuit since ADR-0118, 2026-09-24) but three auto-loaded surfaces lagged it — the docs/goals.md STATUS banner ('camera-only pro-nav terminal') and the pronav + run-interceptor-sim skill descriptions. All three rewritten the same turn to name the chase pursuit and mark pro-nav as the retired sim-phase law (frozen stock/tag paths + M-gates only); ledger entry goals-pronav-terminal-banner records it.
+
+**So what:** The surfaces a fresh session reads FIRST now agree with the contract on the single most load-bearing design fact (which guidance law flies). The same class of bug caused the 'simulation-only' drift (goals-simulation-only) — session-start banners need the same-turn sweep discipline the dashboard gets.
+
+*Evidence: ledger goals-pronav-terminal-banner - docs/goals.md:9-11 - .claude/skills/pronav/SKILL.md - .claude/skills/run-interceptor-sim/SKILL.md - ADR-0103/0118*

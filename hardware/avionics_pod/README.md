@@ -21,7 +21,8 @@ appears.
 
 - **STL files are in print pose:** each sits on the bed the way it should be printed, so
   nothing needs turning. `cam_plate_nose` rests on its four screw bosses and needs
-  supports under the plate; the other four have a flat face down and need none.
+  supports under the plate. `pod_base` needs supports in its two side cable windows
+  only. `dock_cam`, `pod_lid` and the template need none.
 - **STEP files are in flight position,** for CAD. `avionics_pod_assembly_nose_camera.step`
   is the whole pod with stand-in blocks for the boards.
 - **Removed 2026-11-11:** the plain dock and its template (no camera post) and the
@@ -122,6 +123,19 @@ Which face of the Pixhawk carries the USB-C port, SD slot and servo pins was NOT
 the bay is open on all sides so any orientation is reachable. The flight controller must
 still point the way `SENS_BOARD_ROT` says, or that parameter must be changed and re-verified.
 
+## How the pod latches to the dock
+
+- **Front:** the pod floor's front edge is a 45 degree toe that slides under the dock's
+  wedge hook.
+- **Middle:** two 4 mm pins on the dock enter a round hole and a slotted hole in the pod
+  floor, so the pod lands in the same place each time.
+- **Rear:** the dock has a round boss (9 mm across, 5 mm tall) with a 4.0 mm blind hole
+  in its top. An M3 heat-set insert is melted into that hole. The pod has a round cup
+  (14 mm across) at its tail that drops over the boss. One M3 screw, 10 mm, goes down
+  through the cup's roof into the insert. No hole goes through the bottom of the dock.
+- The cup is hollow underneath. Support material printed inside it must be picked out,
+  or the cup will not seat over the boss.
+
 ## Hardware (order list, revision 4 with the nose camera post)
 
 Counts come from the CAD. Screw lengths are worked out from the drawn thicknesses and
@@ -154,8 +168,9 @@ is long enough.
 PLA. See `PRINT_ORDER.md`.** The home-printer settings below still apply to a PETG print.
 
 PETG (or ASA), 0.2 mm layers, 4 perimeters, 40 % infill. The STL files are already in
-print pose. `dock_cam`, `pod_base` and `pod_lid` print flat side down with no supports
-(the hook and the window tops are 45 degree faces). `pod_lid` prints as modelled: flat
+print pose. `dock_cam` and `pod_lid` print flat side down with no supports (the hook is
+a 45 degree face). `pod_base` prints flat side down and needs supports in its two side
+cable windows, whose tops are a flat 48 mm span. `pod_lid` prints as modelled: flat
 underside on the bed, rails up. An earlier note here said "upside-down"; that was wrong.
 `cam_plate_nose` sits on its four screw bosses and needs supports under the plate.
 

@@ -46,8 +46,13 @@ The plain dock and the lid-cradle camera parts are no longer in this folder (rem
 **Settings to ask for**
 
 - **Orientation:** print each STL exactly as it sits in the file; they are saved in print
-  pose. `dock_cam`, `pod_base` and `pod_lid` have a flat face down and need no supports.
+  pose. `dock_cam` and `pod_lid` have a flat face down and need no supports.
   `cam_plate_nose` rests on its four screw bosses and **needs supports** under the plate.
+  `pod_base` needs supports in two places only: the two side cable windows (a flat
+  48 mm span, per `GAP_REVIEW.md` item 13) and nothing else. Say this on the request.
+  The PLA fit set (received 2026-11-13) was sent with "Supports ok" and came back with
+  support material in many places, including the cable windows, where it blocks the
+  wires until broken out. All of it is meant to be removed; none is part of the design.
   Corrected 2026-11-11: this note used to say the lid goes upside down and that the camera
   plate prints flat as modelled. Both were wrong; the lid's flat face is its underside,
   and the camera plate's file was tilted in flight position.
