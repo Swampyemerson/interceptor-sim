@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->8b07851<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->29bef10<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -1468,6 +1468,12 @@
  "plain_log": [
   {
    "date": "2026-11-13",
+   "text": "Onyx order prepared for the four pod parts, revision 6 files. Fibre decision: continuous carbon fibre in the dock's flat base only (the part the camera post nods on), plain Onyx for the pod base, lid and camera plate. Two CU shops run Markforged printers: the Idea Forge lists an X7, which lays carbon, and the ITLL lists an Onyx Pro, which lays fibreglass only. About 58 g of parts, roughly 20 to 25 dollars at the quoted rates.",
+   "so_what": "Fibre only stiffens flat layers, so it pays in the dock's tongue and nowhere else on this pod. The order goes out with two known risks: the new front pins have not been print-checked, and the pod base still needs supports inside its rear cup and cable windows. Both can be fixed by hand on the printed part.",
+   "evidence": "hardware/avionics_pod/PRINT_ORDER.md (The Onyx order); docs/decisions.md ADR-0136 addendum 2026-11-13"
+  },
+  {
+   "date": "2026-11-13",
    "text": "Avionics pod revision 6: two more locating pins near the front of the dock. On the PLA fit print the builder found the front of the pod could slide side to side. The two original pins sit on one line across the pod, so their small clearance let the far end swing about 1 mm each way. The new pins sit between the front pair of dock screws and hold the nose sideways. Checked in CAD only: 0.25 mm side play at the new pins, and the pod still hinges down from under the hook without touching them.",
    "so_what": "The Pixhawk rides in this pod and its orientation is calibrated to the frame, so the pod must seat in the same place every time. The dock and the pod base both changed and need reprinting to confirm the fix. Still open from the same fit check: support material fills the pod's rear cup and cable windows, and both need reshaping before the Onyx order.",
    "evidence": "hardware/avionics_pod/README.md (Revision 6); hardware/avionics_pod/pod.py PINS_FRONT; builder photo and report in session 2026-11-13"
@@ -1531,12 +1537,6 @@
    "evidence": "logs/deploy_seeker_bench_20261024T175123Z.log (Pi); logs/real_flight_sitl_20261024T175806Z.log; logs/field/bringup_20261024T175018Z/; ADR-0133; live TELEM2 param read-back this session",
    "so_what": "The interceptor is bench-cleared for the maiden: every gate runnable without hands is green, and the three remaining items are builder QGC actions (safety-breaker flip, flight-mode switch, kill-switch live check) — not unknowns.",
    "text": "First-flight bench diagnostics, interceptor on battery, all remotely-runnable gates GREEN: brn-05 OFFBOARD gate re-verified on BATTERY power (300/300 setpoints @ 19.5 Hz, own-state round trip, disarmed); FC health clean over TELEM2 (PX4 1.16.0, sensors calibrated, battery 24.20 V / 97%); Pi healthy on the battery BEC (no throttling, 41.7 C) and synced from 55 commits stale to current main (flight audit + self-test re-run ON the Pi, green). The SITL mission gate FAILED on first run and was root-caused to STALE GATE ASSERTIONS, not flight code (ADR-0133): it still demanded CODED_DASH and a self-landing SAFE, both deliberately changed by the ADR-0105/0118 pursuit default — first run of this gate since the flip. Fixed (pursuit-aware required states; smoke runs miss->land) and PASSED. Live param read-back for the maiden flight found the three QGC to-dos: CBRK_IO_SAFETY=0 makes the board unarmable (safety button unwired — flip to 22027 to fly, restore after), NO flight-mode switch assigned yet, kill switch on ch5 needs its live QGC verify. Bench battery-voltage watcher: code landed (scripts/bench/battery_watch.py, WARN 22.8 V / CRITICAL 22.2 V) but the on-Pi daemon is PARKED (first deployment wedged the TELEM2 port; stopped clean by pidfile); bench coverage is head-session spot reads for now (23.93 V / 87% at 18:18Z). Same evening: TX+RX binding phrase synced and BOUND -- FC receiving 18 RC channels at ~20 Hz over SBUS (read-only RC_CHANNELS listen)."
-  },
-  {
-   "date": "2026-10-23",
-   "text": "DASH RULING LANDED (builder, ADR-0132): when the far-cue approach dash flies, Phase A should run flat-out -- the speed cap set above what the airframe can physically do, so it holds full effort as long as possible -- with one rule: it must finish braking and level back out BEFORE the camera could first read the tag, so detection is never disturbed. The point: a faster transit gives the pre-launch cue's prediction less time to drift (should help against a turning target; on a straight-flying target we pre-registered that it should change nothing). Nothing flies differently yet -- the switch stays OFF, and turning it on by default requires a registered ON-vs-OFF paired test plus bench measurements of the real airframe's top speed, braking, camera decode range, and power-rail behavior at full throttle. Explicitly NOT part of this weekend's attempt. (His directive numbered it ADR-0131; that number was taken the same day by the camera/Hailo order, so it is ADR-0132.)",
-   "so_what": "A standing design ruling is now on the books with its success test written before any flight, so a future 'max-speed dash helped' claim can't be invented after the fact.",
-   "evidence": "ADR-0132 (docs/decisions.md); isim/specs/approach_dash_2026-10-21.md (the existing sweep + Gazebo takes)"
   }
  ],
  "narrative": {

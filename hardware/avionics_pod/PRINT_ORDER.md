@@ -1,7 +1,8 @@
 # Avionics pod: what to print where (decided 2026-11-11)
 
 The builder can send parts to the ITLL at CU Boulder, which runs Markforged printers.
-This is the print plan for pod revision 5. Prices and the fibre option are **not
+This is the print plan for pod revision 6 (the order section at the end is current; the
+research notes above it are from 2026-11-11). Prices and the fibre option are **not
 confirmed**: the ITLL does not publish them, so the first step is a question to its staff.
 
 ## What the ITLL offers (read from its wiki, 2026-11-11)
@@ -101,8 +102,57 @@ is about $14, perhaps $20 to $25 with a reprint or fibre. The ITLL's own rate ma
 4. Submit the four flight parts as one request.
 5. On the printed parts: weigh them, fit them, then the tap test in `ANALYSIS.md`.
 
+## The Onyx order (2026-11-13, revision 6 files)
+
+**Two CU shops run Markforged printers, and only one can lay carbon.**
+
+| Shop | Machines (from its own pages) | Continuous fibre |
+|---|---|---|
+| Idea Forge, Rapid Prototyping Lab | Markforged X7 and Onyx One | The X7 lays continuous carbon. Request through the Idea Portal; "parts are printed at cost"; contact named on the page is Patrick Maguire |
+| ITLL | Markforged Onyx Pro (its equipment page) | Fibreglass only on that model (from memory of the maker's range, not confirmed with staff). Request form "Markforged Onyx Print" |
+
+The $0.25 per gram (Onyx) and $0.35 per gram (carbon reinforced) figures match the Idea
+Forge's cost sheet. How the $0.35 is applied (whole part or fibre only) is not stated.
+
+**Decision: continuous carbon fibre in `dock_cam` only, and only in its flat base.**
+
+- Fibre is laid flat inside a layer. It stiffens a flat plate against bending and does
+  nothing for an upright wall, where the load crosses the layers.
+- `dock_cam`'s base (3 mm dock, 6 mm tongue) is the spring the camera post nods on: the
+  one place fibre pays. Ask for it as a sandwich: fibre layers near the bottom and near
+  the top of the base, none in the upright cheeks.
+- `pod_base` flexes in its upright side panels, `pod_lid` is 1.6 mm thick and lightly
+  loaded, `cam_plate_nose` is small and stiff already: plain Onyx for all three.
+- Not modelled: how far fibre moves the post's nodding mode (187 Hz in PETG at its
+  screws). The tap test on the printed part gives the number.
+
+**Estimated mass and cost** (STL volume at 1.2 g/cm3, solid; supports extra)
+
+| File | Bed size, inches | Bed size, mm | Solid Onyx |
+|---|---|---|---|
+| `dock_cam.stl` | 5.51 x 1.57 x 1.57 | 140 x 40 x 40 | 27.7 g |
+| `pod_base.stl` | 3.98 x 2.20 x 1.02 | 101 x 56 x 26 | 18.8 g |
+| `pod_lid.stl` | 2.56 x 2.20 x 0.18 | 65 x 56 x 4.6 | 6.5 g |
+| `cam_plate_nose.stl` | 1.65 x 1.55 x 0.79 | 42 x 39 x 20 | 5.1 g |
+
+About 58 g. At the quoted rates: about $15 all plain; about $17 if the dock is charged at
+$0.35; allow $20 to $25 with support material.
+
+**Supports.** Markforged's slicer (Eiger) places supports itself and they peel away, so
+the request asks for its standard supports with the files left in their saved pose.
+Places that will get supports and must be cleared: `pod_base`'s two side cable windows
+and the blind round pocket under its tail (9.6 mm across, 5.3 mm deep, the cup that drops
+over the dock's boss); under `cam_plate_nose`'s plate. `pod_lid` needs none.
+
+**Known risks accepted with this order.** The revision 6 front pins have not been
+printed in PLA. The rear cup and cable windows were not reshaped to print without
+supports. Both are recoverable on the printed part (clip a pin, dig out a pocket).
+
 ## Sources
 
+- Idea Forge, Rapid Prototyping Lab: <https://www.colorado.edu/ideaforge/facilities/rapid-prototyping-lab>
+- Idea Forge, Fabrication: <https://www.colorado.edu/ideaforge/fabrication>
+- ITLL wiki, Submit a Request: <https://itll-wiki.colorado.edu/bookstack/books/itll-website-usage/page/submit-a-request>
 - ITLL wiki, 3D Printing FAQ: <https://itll-wiki.colorado.edu/bookstack/books/3d-printing-equipment/page/3d-printing-faq>
 - ITLL wiki, Submit a Request: <https://itll-wiki.colorado.edu/bookstack/books/itll-website-usage/page/submit-a-request>
 - Idea Forge rapid prototyping costs: <https://www.colorado.edu/ideaforge/node/338>

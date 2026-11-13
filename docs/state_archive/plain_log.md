@@ -460,3 +460,11 @@ SEEKER UPGRADE ORDERED (builder, ADR-0131): Arducam AR0234 color global-shutter 
 **So what:** The resolution path's hardware is in motion: AR0234 (~1.5x px/deg) + Hailo native-res input is the measured route past the 640-input ceiling. Deployment stays GATED on the Hailo bench — at 640 input on the CPU the AR0234 is ~6 px on target at 20 m, WORSE than the owned camera — so the OV9281 + 70° lens remains the flying seeker until the gates pass.
 
 *Evidence: ADR-0131 (decisions.md); builder order confirmation 2026-10-23 (#000009907, in session); px/deg math: ADR-0131 extending docs/lens_options_2026-10-22.md to the AR0234; runs/res_guidance_20261021*
+
+## 2026-10-23 (overflowed from plain_log 2026-11-13)
+
+DASH RULING LANDED (builder, ADR-0132): when the far-cue approach dash flies, Phase A should run flat-out -- the speed cap set above what the airframe can physically do, so it holds full effort as long as possible -- with one rule: it must finish braking and level back out BEFORE the camera could first read the tag, so detection is never disturbed. The point: a faster transit gives the pre-launch cue's prediction less time to drift (should help against a turning target; on a straight-flying target we pre-registered that it should change nothing). Nothing flies differently yet -- the switch stays OFF, and turning it on by default requires a registered ON-vs-OFF paired test plus bench measurements of the real airframe's top speed, braking, camera decode range, and power-rail behavior at full throttle. Explicitly NOT part of this weekend's attempt. (His directive numbered it ADR-0131; that number was taken the same day by the camera/Hailo order, so it is ADR-0132.)
+
+**So what:** A standing design ruling is now on the books with its success test written before any flight, so a future 'max-speed dash helped' claim can't be invented after the fact.
+
+*Evidence: ADR-0132 (docs/decisions.md); isim/specs/approach_dash_2026-10-21.md (the existing sweep + Gazebo takes)*

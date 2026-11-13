@@ -1503,3 +1503,14 @@ Fibre in the flat tongue is the only option here that would move that mode decis
 *Not verified.* Eligibility of a personal project (the form offers Class, Research, Student Club),
 the ITLL's price, whether fibre is available, and the Onyx properties, which are from memory of the
 maker's data sheet. Submitting and paying are the builder's. Plan: `hardware/avionics_pod/PRINT_ORDER.md`.
+
+*Addendum 2026-11-13 (fibre choice for the order).* The builder reported a cost sheet of $0.25 per
+gram for Onyx and $0.35 with carbon fibre reinforcement, which matches the Idea Forge's. The Idea
+Forge lists a Markforged X7 (lays continuous carbon) and an Onyx One; the ITLL's equipment page
+lists an Onyx Pro (fibreglass only, from memory of the maker's range). *Decision.* Continuous carbon
+fibre in `dock_cam` only, in its flat base as a top-and-bottom sandwich; plain Onyx for `pod_base`,
+`pod_lid` and `cam_plate_nose`. *Why.* Fibre lies flat in a layer, so it stiffens the flat tongue the
+camera post nods on and does nothing for the upright walls that carry the load in the other parts.
+The extra cost is about three dollars. *Not verified.* Which shop the order goes to, how the $0.35
+rate is applied, and the effect on the nodding mode (not modelled). The order uses revision 6 files,
+whose front pins have not been print-checked.
