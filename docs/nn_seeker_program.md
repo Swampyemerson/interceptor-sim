@@ -34,7 +34,8 @@ yolov8n (single-context @640 on hailo8; yolo11n is not). Bench Pi measured
 131 ms — past the latency spec; NCNN ≈2× still leaves no margin.
 Pre-purchase: DFC dry-run compiles on WSL2 (docs/hailo_toolchain_runbook.md)
 — stock@640, then @1024 (the open higher-res experiment). PURCHASE +
-DevZone registration = builder actions (builder_queue `hailo8-purchase`).
+DevZone registration = builder actions (done; the HAT arrived and runs, 2026-11-13,
+runs/hailo_day1_20261113; first real-weights chip builds: runs/hailo_drone_20261113).
 Rail impact: Pi 5 wants 5 V/5 A peak; +2.7 W ≈ +0.55 A — size the BEC tap
 rework for it (the two-rail rule holds).
 

@@ -141,3 +141,29 @@ camera is not calibrated yet. Limits: 10 photos, all from one source dataset (DU
 chosen because the float model already finds them, so the numbers flatter the detector; a
 screen is not the sky; one screen pixel is about one sensor pixel, which a full-resolution
 model may see as a grid. Use it to COMPARE builds on the same optics, not as a range claim.
+
+## RESULT of rescue step 1 (2026-11-13): FAIL, and the loss moved rather than shrank
+
+The GPU build ran the fine-tune optimiser (log: "Using dataset with 1024 entries for
+finetune", 4 epochs; 1,200 calibration images; 1,736 s). Getting there took three fixes, now
+in `compile_ncolor_gpu.sh`: the converter only auto-picks an idle GPU (set
+`CUDA_VISIBLE_DEVICES=0`), the CUDA image's cuDNN 9.2 is too old (9.3 mounted), and XLA needs
+`cuda-nvcc`. Same 3 contexts, 98.7 fps.
+
+| Target size at 640 | Boxes | Float | CPU build | GPU build |
+|---|---|---|---|---|
+| under 8 px | 493 | 0.243 | 0.095 | 0.205 |
+| 8 to 16 px | 2,191 | 0.588 | 0.422 | 0.496 |
+| 16 to 32 px | 900 | 0.440 | 0.334 | 0.272 |
+| 32 to 64 px | 289 | 0.439 | 0.349 | 0.273 |
+| 64 px and up | 442 | 0.525 | 0.471 | 0.152 |
+| all | 4,315 | 0.502 | 0.367 | 0.366 |
+
+False detections per 1,000 target-free images: float 108.7, CPU build 29.9, GPU build 51.2.
+
+Against the registered prediction: small targets did recover (within 10 points below 16 px),
+but targets of 16 px and up got WORSE, far worse at 64 px and up. Overall recall is unchanged.
+So the fine-tune traded large-target recall for small-target recall; it did not fix the
+conversion. Not chased further on this model: `n-color` is YOLO11n, which is not the chip's
+target architecture. The remaining ladder steps (16-bit head outputs, calibration mix) go to
+the yolov8n retrain.

@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3003920<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->311a475<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-13",
- "updated_by": "First drone detector on the Hailo chip: runs, fails its 8-bit recall check (2026-11-13)",
+ "updated_by": "Drone detector on the chip: two conversions fail the 8-bit check; yolov8n retrain and AOT slice in hand (2026-11-13)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1432,17 +1432,6 @@
    "doc": "isim/specs/approach_dash_2026-10-21.md"
   },
   {
-   "id": "hailo8-purchase",
-   "question": "ADR-0125/0131: the Hailo-8 26-TOPS HAT is ORDERED (2026-10-23, $160 — fair at the current street band) and the AR0234 is ORDERED (#000009907). ONE item remains on this thread: the AOT dataset download go-ahead (>2 GB rule) for the training pipeline.",
-   "options": [
-    "AOT download: yes, fetch now (license-clean; scripted + resumable)",
-    "AOT download: after the weekend attempt"
-   ],
-   "rec": "Yes — it is license-clean and the fetch script resumes; running it now overlaps the HAT's shipping time.",
-   "blocked": "Download approval is builder-only (>2 GB rule).",
-   "doc": "docs/hailo_toolchain_runbook.md"
-  },
-  {
    "id": "stamped-age-adoption",
    "question": "The latency fix (telling the tracking filter the true age of each camera measurement) confirmed its prediction (1.08x baseline, the 1.2 m tail collapsed) but missed the strict adopt bar on 3 of 6 paired seeds. Adopt it as default, or keep it default-OFF?",
    "options": [
@@ -1468,9 +1457,9 @@
  "plain_log": [
   {
    "date": "2026-11-13",
-   "text": "First real drone detector on the Hailo chip. The existing real-image model (n-color, trained in July) was compiled and run on all 4,175 held-out test images on the chip: 99 frames/s, but recall fell from 0.50 (original) to 0.37 (chip), a drop of 5 to 17 points in every target-size bin. The pre-registered limit was 5 points, so this build fails and does not fly. Live through the camera it found a drone photo on a laptop screen only when the drone was large (about 50 px at the model's input). A yolov8n retrain at 640 and 1280 input is running on the laptop's GPU.",
-   "so_what": "The whole chain works: camera, chip, detection, at 60 frames/s. The detector itself is the weak part, twice over: the original only finds half the test targets, and the quick CPU-only conversion loses more. The conversion loss has a known next step (let the converter use the GPU). The larger gap needs better training, and above all footage of our own target through our own camera.",
-   "evidence": "runs/hailo_drone_20261113/README.md (pre-registrations, results, scripts); logs/nn_tier/train_v8n_color.log"
+   "text": "First real drone detectors on the Hailo chip. The July model (n-color) runs at 99 frames/s but loses recall in 8-bit conversion: 0.50 original to 0.37 on the chip, over all 4,175 held-out images. A second conversion using the laptop's GPU moved the loss around (small targets better, large targets much worse) without shrinking it. Both fail the pre-registered 5-point limit. A yolov8n retrain at 640 scores 0.53 before conversion; its chip build and a 1280-input retrain are in progress. Screen bench through the real camera: the chip build hits 67 to 82% of frames when the drone is 26 to 49 px, and 35 to 40% at 11 to 20 px. AOT data fetched: all 3,662 drone frames plus 8,000 bird, airplane and helicopter negatives (28.6 GB).",
+   "so_what": "The chain works end to end at 60 frames/s, and there is now a repeatable bench for comparing detector builds on the real optics. The detector is the weak part: it finds about half the test targets before conversion and a third after. The old AOT download plan would have fetched 30 GB of mostly helicopters; only 3,662 of AOT's 2.9 million labels are drones, from 7 flights. Footage of our own target through our own camera is still the missing ingredient.",
+   "evidence": "runs/hailo_drone_20261113/README.md (pre-registrations, results, screen bench); scripts/nn/fetch_aot_frames.py; data/aot/yolo_crops/stats.json; logs/nn_tier/train_v8n_color.log"
   },
   {
    "date": "2026-11-13",
@@ -3041,7 +3030,7 @@
       "name": "Raspberry Pi AI HAT+ (Hailo-8, 26 TOPS)",
       "status": "in hand",
       "role": "NN accelerator: native-res input at ≥10–15 Hz inside the latency budget; yolov8n compiles (DFC dry-run 2026-10-21).",
-      "notes": "RUNNING 2026-11-13: Hailo-8, firmware 4.23.0, PCIe Gen 3. Stock nano model on the chip: 431 fps at 640, 128 at 1280x800, 56 at full frame; medium is too big (31). Live camera-to-detection: 60 fps, 29 ms at 640. The project's real-image drone detector (n-color) now runs on the chip at 99 fps but FAILED its 8-bit check: recall 0.50 float to 0.37 on the chip. Next: a GPU-optimised conversion and the yolov8n retrain. Driver installed without DKMS."
+      "notes": "RUNNING 2026-11-13: Hailo-8, firmware 4.23.0, PCIe Gen 3. Stock nano model on the chip: 431 fps at 640, 128 at 1280x800, 56 at full frame; medium is too big (31). Live camera-to-detection: 60 fps, 29 ms at 640. The real-image drone detector runs at 99 fps but FAILS its 8-bit check twice (recall 0.50 float, 0.37 on the chip, CPU and GPU conversions). The converter can now use the laptop GPU. Next: the yolov8n retrain's chip build. Driver installed without DKMS."
      }
     ],
     "connections": [

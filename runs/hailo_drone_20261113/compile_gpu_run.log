@@ -1,0 +1,27 @@
+
+==========
+== CUDA ==
+==========
+
+CUDA Version 12.5.1
+
+Container image Copyright (c) 2016-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+
+This container image and its contents are governed by the NVIDIA Deep Learning Container License.
+By pulling and using the container, you accept the terms and conditions of this license:
+https://developer.nvidia.com/ngc/nvidia-deep-learning-container-license
+
+A copy of this license is made available in this container at /NGC-DL-CONTAINER-LICENSE for your convenience.
+
+ptxas-present
+gpu compile: OK in 1736 s
+[36m<Hailo Model Zoo INFO> Preparing calibration data...[0m
+[info] Found model with 3 input channels, using real RGB images for calibration instead of sampling random data.
+[info] Using dataset with 1200 entries for calibration
+[info] Finetune encoding skipped
+[info] Adaround skipped
+[info] Using dataset with 1024 entries for finetune
+[info] Trying to compile the network in a single context
+[info] Single context flow failed: Recoverable single context error
+[info] Using Multi-context flow
+NCOLOR_GPU_COMPILE_DONE
