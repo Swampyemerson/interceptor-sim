@@ -58,7 +58,9 @@ the weekend**. Full drift register:
    real decode-range datum.
 4. ⬜ **Cue-relay end-to-end on the bench** (`--cue-json` path latched at trigger) + a SITL
    pass of `check_real_flight_sitl.sh` / `check_deploy_sitl.sh` on the final flying config.
-5. ⬜ **Target maiden + AUTO box legs** at the field before any intercept pass
+5. ⬜ **Target maiden + AUTO box legs** at the field before any intercept pass. Switches and
+   first-flight settings loaded 2026-11-14 (ADR-0138); accelerometer + compass calibration
+   still to do before it will arm
    (`dash-envelope-on-real-fc` can ride along).
 **Buys that must land by Friday:** handheld anemometer (wind limits are unenforceable without
 it), tripod + ball head, FC High-Endurance microSD, soldering consumables, 2nd RadioMaster

@@ -70,7 +70,11 @@ REQUIRED = [
     # Copter-4.7.0: RADIUS @Range 30 10000, ALT_MAX @Range 10 1000, TYPE bitmask
     # bit0=Max altitude(1) bit1=Circle Centered on Home(2) bit2=Incl/Excl(4),
     # ACTION 0=Report Only .. 5=SmartRTL or Land.
-    ("FS_OPTIONS",    lambda v: int(v) & 1 == 1,    "bit0 SET: continue if in AUTO on RC failsafe"),
+    # 2026-11-14: the target has its own transmitter and flies a mission that
+    # loops forever, so "continue in AUTO on RC loss" (bit0) is REFUSED: it
+    # would leave a target with no radio link flying laps until the battery
+    # failsafe.
+    ("FS_OPTIONS",    lambda v: int(v) & 1 == 0,    "bit0 CLEAR: RC loss in AUTO returns home (the mission loops forever)"),
     ("FS_THR_ENABLE", lambda v: v >= 1,             "RC failsafe armed"),
     ("FENCE_ENABLE",  lambda v: v == 1,             "geofence on"),
     ("FENCE_TYPE",    lambda v: int(v) & 3 == 3,    "altitude ceiling AND circle both armed"),
@@ -84,7 +88,10 @@ REQUIRED = [
     ("BATT_CRT_VOLT", lambda v: 3.0 <= v / 6.0 <= 3.6, "6S critical threshold, 3.0-3.6 V/cell"),
     ("BATT_FS_LOW_ACT", lambda v: v != 0,           "low-battery action set (not None)"),
     ("BATT_FS_CRT_ACT", lambda v: v != 0,           "critical-battery action set (not None)"),
-    ("RC5_OPTION",    lambda v: v == 31,            "ch5 (ELRS AUX1, 2-pos, sent every packet) = Motor Emergency Stop (RC kill)"),
+    # 153 = arm/disarm switch (builder call 2026-11-14); DOWN disarms at once,
+    # in flight too, so it is also the RC kill. 31 (Motor Emergency Stop) and
+    # 165 (arm + emergency stop) are the other values that keep a kill on ch5.
+    ("RC5_OPTION",    lambda v: v in (153, 31, 165), "ch5 (ELRS AUX1, 2-pos, sent every packet) carries the RC kill (153 arm/disarm, 31 or 165 emergency stop)"),
     # ch6 carries the flight modes -- an aux function there (e.g. a stale
     # RC6_OPTION=31 from the pre-2026-10-25 layout) would fire on the Auto
     # detent. Must be 0.
@@ -93,6 +100,9 @@ REQUIRED = [
     # switch there silently collapses to {FLTMODE1, FLTMODE6} -- the
     # 2026-10-04 B1 finding. ch5 is also the kill channel (2026-10-25 layout).
     ("FLTMODE_CH",    lambda v: v not in (0, 5),    "mode switch NOT on ELRS 2-pos AUX1 / the kill channel (ch5)"),
+    # 3-pos switch, 2026-11-14 layout. Mode numbers: 0 Stabilize, 5 Loiter, 3 Auto.
+    ("FLTMODE1",      lambda v: v == 3,             "switch DOWN = Auto (the mission), at an END of the travel"),
+    ("FLTMODE6",      lambda v: v == 5,             "switch UP = Loiter (GPS position hold)"),
 ]
 
 # Cross-param invariants -- (description, predicate over the {name: value} dict).
@@ -107,6 +117,13 @@ INVARIANTS = [
      "and the circle bit set -- the geofence IS the safety argument for it",
      lambda v: (int(v["FS_OPTIONS"]) & 1) == 0
      or (v["FENCE_ENABLE"] == 1 and int(v["FENCE_TYPE"]) & 2 == 2)),
+    # The switch's centre was MEASURED at 1499, 9 us above the band 3/4 edge
+    # (1490/1491), so both bands must carry the middle mode, and neither may be
+    # Auto (a drifting centre must not start the mission).
+    ("FLTMODE3 == FLTMODE4 == FLTMODE5 == AltHold (the switch centre sits on the band 3/4 edge)",
+     lambda v: v.get("FLTMODE3") == v.get("FLTMODE4") == v.get("FLTMODE5") == 2),
+    ("Auto only on FLTMODE1-2 (never reachable from a drifting centre)",
+     lambda v: all(v.get(f"FLTMODE{i}") != 3 for i in range(3, 7))),
     ("FENCE_RADIUS > FENCE_MARGIN (a fence inside its own margin is instantly breached)",
      lambda v: "FENCE_MARGIN" not in v or v["FENCE_RADIUS"] > v["FENCE_MARGIN"]),
 ]

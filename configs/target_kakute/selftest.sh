@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# selftest.sh -- the target-config-pack gate. Exits 0 only if BOTH the mission
-# generator self-test AND the target.param lint pass. No hardware, no sim.
+# selftest.sh -- the target-config-pack gate. Exits 0 only if both mission
+# generators' self-tests AND the target.param lint pass. No hardware, no sim.
 #   configs/target_kakute/selftest.sh
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,6 +10,10 @@ PY="$DIR/../../.venv/bin/python"
 
 echo "== gen_tripod_mission.py --self-test =="
 "$PY" "$DIR/gen_tripod_mission.py" --self-test
+
+echo
+echo "== gen_loop_mission.py --self-test =="
+"$PY" "$DIR/gen_loop_mission.py" --self-test
 
 echo
 echo "== lint_param.py target.param =="

@@ -19,13 +19,17 @@ assembly + copy-paste, not research.
 > the `-bdshot`/`-Wing` variants. The ordered board is the V1.5 which runs the
 > `KakuteH7` firmware. Source: [Holybro Kakute H7 — Copter docs](https://ardupilot.org/copter/docs/common-holybro-kakuteh7.html).
 
-> ⚠️ **DECISION TO MAKE FIRST — "two aircraft, one TX"** (`docs/hardware_order_list.md`
-> §0b). One ELRS TX + both receivers on the same bind phrase needs Model Match,
-> and then the *unselected* aircraft is in RC failsafe (no independent kill).
-> `target.param` ships **OPTION A** (continue-in-AUTO + tight geofence); switch to
-> **OPTION B** (plain RTL) if you fly the target as the *selected*, kill-live
-> aircraft. See the FAILSAFE block in `target.param`. This changes how you fly, so
-> settle it before the field.
+> **Status 2026-11-14.** The board is flashed (ArduCopter 4.7.0), motor order and
+> direction are verified, the radio is calibrated, and `target.param` is loaded and
+> read back (65 of 65). It has never flown. Still to do before it can arm:
+> **accelerometer calibration and compass calibration** (§7). Before/after dumps of
+> every setting: `dumps/20261114_*.tsv`.
+>
+> **RC loss returns the target home, in every mode** (`FS_OPTIONS=0`, decided
+> 2026-11-14). The earlier "continue the mission on RC loss" option was written for
+> one shared transmitter and a mission that ended by itself. The target now has its
+> own transmitter and a mission that loops forever, so continuing would mean a
+> target with no radio link flying laps until the battery failsafe.
 
 ---
 
@@ -147,54 +151,51 @@ What the file sets (each param is annotated inline with its ArduPilot doc source
 - **DataFlash logging** with `POS`+`GPS` for `field_score.py` (`LOG_BITMASK=176126`,
   `LOG_FILE_DSRMROT=1` → one `.BIN` per flight).
 - **`WPNAV_SPEED=1000`** (10 m/s) so the AUTO legs clear the protocol's ≥9 m/s.
-- **Sane failsafes** (battery low/critical, RC failsafe, geofence) + the §0b
-  two-aircraft OPTION A/B blocks.
+- **Failsafes**: battery low/critical, RC loss = return home, geofence (80 m
+  around the arming point, 50 m ceiling).
+- **First-flight setup for a 5-inch quad** (gyro filter 75 Hz, thrust curve 0.49,
+  hover-throttle guess 0.2 and the matching filter and acceleration limits), from
+  Mission Planner's Initial Parameter Setup formulas. The rate PIDs stay at
+  firmware defaults.
 - **`ARMING_CHECK=1`** — all pre-arm checks left ON.
-- **Flight-mode + kill-switch mapping** (see §6).
+- **Flight-mode + arm-switch mapping** (see §6).
 
 > After writing, run the linter locally to confirm the file you loaded is the one
 > that passes the gate: `python3 lint_param.py target.param`.
 
 ---
 
-## 6. Flight-mode switch mapping (incl. the **AUTO** position)
+## 6. Switches: flight modes and arm/disarm (builder call 2026-11-14)
 
-`target.param` sets the mode switch on **RC channel 6** (`FLTMODE_CH=6`, builder
-call 2026-10-25, matching the Pocket as bound: 3-pos → CH6, 2-pos kill → CH5).
-Modes must never live on channel 5 — ELRS hard-limits AUX1/ch5 to 2 positions
-(the 2026-10-04 B1 finding) — but with only three modes flown, any AUX2+
-channel carries a 3-pos fine; ch12 (ELRS's suggested default) is not required.
+Sticks, the 3-position mode switch on **channel 6** and the 2-position switch on
+**channel 5** are the same channels as on the interceptor. Two things differ on
+purpose: the mode in the switch-down position, and what channel 5 does.
 
-The table is a plain **3-pos switch at weight 100** (simplified from the earlier
-6-mode two-switch mix, builder call 2026-10-25 — see git history for the old
-table). The three detents hit mode bands 1 / 4 / 6; the table is filled in
-contiguous blocks so an off-center PWM still lands in the intended mode:
+| Mode switch (ch6) | Reads | Bands (`FLTMODEn`) | Target (ArduPilot) | Interceptor (PX4) |
+|---|---|---|---|---|
+| up | 2011 | 6 (`FLTMODE6=5`) | **Loiter**: GPS position hold | Position |
+| middle | 1499 | 3–5 (`FLTMODE3..5=2`) | **AltHold**: holds height, no GPS needed | Altitude |
+| down | 987 | 1–2 (`FLTMODE1..2=3`) | **Auto**: flies the loaded mission | Stabilized |
 
-| 3-pos detent | Bands (`FLTMODEn`) | Mode | Use |
-|---|---|---|---|
-| low | 1–3 (`FLTMODE1..3=5`) | **Loiter** | GPS hold — **take off / land here** |
-| middle | 4–5 (`FLTMODE4..5=6`) | **RTL** | manual bail-out |
-| high | 6 (`FLTMODE6=3`) | **Auto** | **runs the mission** |
+- Auto is at an end of the travel, so moving between Loiter and AltHold never
+  passes through it. ArduPilot will not arm in Auto with this parameter set, so
+  a mission can only be started in the air.
+- The switch centre reads 1499, 9 µs above the edge between bands 3 and 4, so
+  bands 3, 4 and 5 all carry AltHold. `lint_param.py` enforces that.
+- There is no Stabilize position. ArduPilot's first-flight page says to fly first
+  in Stabilize and not to take off in AltHold until the height controller has been
+  tested in flight ([Initial tuning flight](https://ardupilot.org/copter/docs/initial-tuning-flight.html)).
+  To have Stabilize for the first hops, set `FLTMODE3..5` to 0 and put them back
+  to 2 afterwards.
 
-No Stabilize/AltHold position: GPS loss is covered by ArduPilot's EKF failsafe
-(LAND), and all three flown modes are GPS modes. Slamming low→high transits RTL
-(benign); Auto is never engaged by a pass-through. To fly a pass: take off in
-**Loiter**, confirm GPS 3D fix + good HDOP, flip to **Auto**. Source:
-[Flight Modes / FLTMODE_CH](https://ardupilot.org/copter/docs/flight-modes.html).
-
-**Kill:** `RC5_OPTION=31` maps **channel 5** (ELRS AUX1) to **Motor Emergency
-Stop** — the target's independent RC kill. A kill is binary, so AUX1's 2-pos
-limit costs nothing, and ELRS sends AUX1 in every packet — the lowest-latency
-channel on the link. **`RC6_OPTION` must stay 0** (lint-enforced): ch6 is the
-mode channel, and a stale `RC6_OPTION=31` from the pre-2026-10-25 layout would
-fire Motor Emergency Stop on the Auto detent. Source:
-[Auxiliary function switches (RCx_OPTION 31)](https://ardupilot.org/copter/docs/channel-7-and-8-options.html).
-
-**TX side (the two-Pocket convention, 2026-10-25):** both Pockets use the SAME
-physical layout — the 2-pos switch is the kill on both radios, the 3-pos is
-modes — and on this (target) Pocket they are bound straight to CH5 / CH6. The
-interceptor's kill is also its ch5 (`RC_MAP_KILL_SW=5` over SBUS), so the two
-aircraft match channel-for-channel as well as thumb-for-thumb.
+**Arm switch (ch5, `RC5_OPTION=153`):** down = disarmed, up = arm. Arming checks
+still run. Moving it down **in flight disarms at once and the motors stop**, so it
+is also the target's RC kill. Unlike the interceptor's kill switch it cannot be
+undone by flipping back quickly: a bumped switch at height is a dropped aircraft.
+Powering up with the switch up does not arm. Stick arming (throttle down, yaw
+right) still works as well. `RC6_OPTION` must stay 0 (lint-enforced): ch6 is the
+mode channel. Source: `RC_Channel.cpp` and `AP_Arming_Copter.cpp` at
+`Copter-4.7.0`; [Auxiliary functions](https://ardupilot.org/copter/docs/common-auxiliary-functions.html).
 
 ---
 
@@ -222,18 +223,26 @@ aircraft match channel-for-channel as well as thumb-for-thumb.
    numbering differs — do not assume). Fix order by reassigning `SERVOn_FUNCTION` or
    re-plugging; fix a wrong direction via BLHeli or `SERVO_BLH_RVMASK`. Source:
    [Motor order / connect ESCs and motors](https://ardupilot.org/copter/docs/connect-escs-and-motors.html).
-3. **Kill switch** — flip the channel-6 switch and confirm *Motor Emergency Stop*
-   engages (motors will not spin). Source:
-   [Motor Emergency Stop](https://ardupilot.org/copter/docs/channel-7-and-8-options.html).
+3. **Arm switch / kill** — props off, mode switch in the middle (AltHold): arm
+   switch up, the motors start at idle; arm switch down, they stop at once.
 4. **Arming** — confirm all pre-arm checks pass (they are ON). Fix the flagged
    cause; never disable a check to arm. Source:
    [Pre-arm safety checks](https://ardupilot.org/copter/docs/prearm_safety_check.html).
 
 ---
 
-## 9. Generate + load the tripod mission
+## 9. Missions
 
-Generate the AUTO `.waypoints` file for the pass matrix
+**A route that repeats.** Draw it in QGroundControl's Plan view and upload it, or
+generate a straight out-and-back leg with `gen_loop_mission.py` (upload with
+read-back; `--help` for the options, `--from-fc` uses the drone's own GPS
+position as the start of the leg). To make a QGroundControl route repeat, end it
+with a "Jump to item" command pointing at the first waypoint, repeat count -1.
+Keep every point within the fence: 80 m of where you arm, below 50 m. Auto flies at
+`WP_SPD` = 10 m/s unless the plan sets a speed; set about 4 m/s for the first tries.
+Fly it by taking off in Loiter or AltHold and moving the mode switch down.
+
+**The tripod mission.** Generate the AUTO `.waypoints` file for the pass matrix
 (`docs/tripod_test_protocol.md` §4). Set `--home-lat/--home-lon` to the **surveyed
 tripod GPS** and `--bearing-deg` to the compass direction the **camera faces**:
 
@@ -292,17 +301,16 @@ WP File*) or **QGC** (*Plan → Open*). Source:
 2. **AUTOTUNE** — one AUTOTUNE flight to set the PIDs (`target.param` ships firmware
    defaults on purpose). Source:
    [AutoTune](https://ardupilot.org/copter/docs/autotune.html).
-3. **AUTO passes** — Loiter takeoff → confirm fix → switch to **Auto** to fly the
-   loaded mission. Log the pass in the protocol §11 session sheet (pass #, aspect,
+3. **AUTO passes** — Loiter takeoff → confirm fix → mode switch down to **Auto** to
+   fly the loaded mission. Log the pass in the protocol §11 session sheet (pass #, aspect,
    speed, tilt, battery).
 
 > ⚠️ **WHERE YOU ARM MATTERS — the fence and the mission have different centres.**
 > ArduPilot sets **HOME at the arming point** (row 0 of the mission file is
 > ignored on upload), so the `FENCE_RADIUS` tin-can is centred on **where you
 > armed** while every waypoint is placed relative to the **surveyed tripod**. Arm
-> too far out and `FENCE_ACTION=1` will **RTL the target mid-pass** — which under
-> OPTION A's continue-in-AUTO reasoning looks exactly like an RC failsafe and is
-> not one. Nothing pre-arm-checks the mission against the fence; with
+> too far out and `FENCE_ACTION=1` will **RTL the target mid-pass**, which looks exactly like
+> an RC failsafe and is not one. Nothing pre-arm-checks the mission against the fence; with
 > `FS_GCS_ENABLE=0` there is no on-site message either, so an unexplained
 > mid-pass RTL means *pull the `.BIN` and look for the FENCE/ERR record*.
 >

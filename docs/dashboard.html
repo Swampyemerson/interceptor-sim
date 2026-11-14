@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ad3b184<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->13c2fdc<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,13 +914,13 @@
  },
  "now": {
   "as_of": "2026-11-14",
-  "where": "Third flight (2026-11-09) flew 'night and day' better. The new Pi runs camera and Hailo chip, talks to the Pixhawk, records the Pixhawk's flight log and camera video for each flight, and passes QGroundControl through over Wi-Fi (all bench-tested, not flown).",
+  "where": "Interceptor: flew well on 2026-11-09; its Pi now records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: switches and first-flight settings loaded 2026-11-14, never flown, not yet calibrated.",
   "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
   "next": [
-   "You: fly the height change. Expect lift-off near 58% stick in Stabilized; it may feel unchanged",
-   "You: move the Pixhawk's USB to the Pi; open QGroundControl; props off, arm 10 s, check video + log"
+   "You: target, props off: accelerometer + compass calibration in QGroundControl, then first hop",
+   "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
-  "evidence": "configs/px4_6cmini/dumps/20261109_flight3.tsv + 20261109_height_block.tsv - ADR-0134 addenda 3-4 - runs/fc_log_stream_20261113/README.md - ADR-0137"
+  "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
  },
  "assumptions": [
   {
@@ -1457,6 +1457,12 @@
  "plain_log": [
   {
    "date": "2026-11-14",
+   "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. All 65 settings read back after a reboot. Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it.",
+   "so_what": "The target cannot arm yet: its accelerometer and compass have never been calibrated, a hands-on job in QGroundControl. Two things to know before flying: moving the arm switch down in flight stops the motors and cannot be undone, and there is no Stabilize position although ArduPilot recommends first flights in it.",
+   "evidence": "ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md"
+  },
+  {
+   "date": "2026-11-14",
    "text": "QGroundControl can now reach the Pixhawk over Wi-Fi through the Pi, so the Pixhawk's USB cable can stay in the Pi for logging. The Pi's flight recorder passes the Pixhawk's messages to the PC and the PC's back; the flight-log packets stay on the Pi. Bench results with a script standing in for QGroundControl, disarmed: over USB all 1,122 settings downloaded in 0.7 s while a 60 s log recorded complete; over Wi-Fi through the Pi (still on the serial cable) the Pixhawk was found in 0.25 s and the settings took 5.3 s.",
    "so_what": "No more swapping the USB cable between the PC and the Pi. The port has no password: anything on the same Wi-Fi can command the Pixhawk through it (GCS_PORT=0 turns it off). Not yet tested with QGroundControl itself.",
    "evidence": "runs/fc_log_stream_20261113/gcs_bridge/; docs/fc_logging_without_sd.md; ADR-0137 addendum 2026-11-14"
@@ -1520,12 +1526,6 @@
    "text": "Calipers arrived, and the first session caught a drawing error before anything was printed. The builder measured the screw pattern on the target drone's top plate (same frame as the interceptor): 56.0 by 29.3 mm against 55.77 by 29.2 in the maker's drawing, so the avionics dock's four holes are right. A third reading, 25.05 mm at the nose, plus his photo showed the plate had been drawn back to front: the narrow pair of screws the camera post bolted to is at the rear. The post is redrawn to the real front screws, 5 mm further forward, on a tongue twice as thick.",
    "so_what": "The camera post is printable again, and the corrected geometry is kinder than the mistaken one: more room to the pod, 8 mm or more outside the prop circles, props further out of the picture. One new weakness was found and fixed in the same pass: with its screws behind it the post nodded at 92 Hz, so the tongue went from 3 to 6 mm and the figure is 187 Hz. Still to check on the interceptor itself: the cable route, now that the slot is gone.",
    "evidence": "hardware/avionics_pod/README.md revision 5 - GAP_REVIEW.md - fea_results/nose_post*.json - nose_post_check.py - ADR-0135 addendum 2026-11-11"
-  },
-  {
-   "date": "2026-11-10",
-   "text": "The builder checked the camera post in SOLIDWORKS and the two programs agree. Held flat, the post's first shake mode is 275 Hz there against 254 Hz in the repo's model. Held only at its six screws, which is nearer the truth, both give about 170 Hz. With the pod's weight on the dock a lower mode appears, somewhere between 110 and 160 Hz, and that one carries the Pixhawk. Strength is not a concern: at 10 g on every axis the camera post sees 1 MPa. SOLIDWORKS could not mesh the pod base because of a hair-thin face; that is fixed in the CAD.",
-   "so_what": "Bolting the dock is still right, but it does not put the Pixhawk clear of motor vibration by itself: hover is about 213 Hz and the pod mode sits below it, so every spool-up passes through it. The first vibration check is now a tap test with the dock bolted and the loaded pod latched on, then a Pixhawk vibration log at hover. If that confirms a low mode, the options are a seventh screw at the tail tab or a stiffer dock.",
-   "evidence": "hardware/avionics_pod/SOLIDWORKS_CROSSCHECK.md - hardware/avionics_pod/ANALYSIS.md section 2 - hardware/avionics_pod/fea_results/nose_post_screws.json, pod_on_dock_screws.json - media/solidworks_*.png"
   }
  ],
  "narrative": {

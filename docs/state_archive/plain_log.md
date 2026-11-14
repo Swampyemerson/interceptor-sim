@@ -508,3 +508,11 @@ Camera mount decided and drawn. The builder picked a short post off the avionics
 **So what:** The last open layout question on the avionics pod is closed, so the print list is fixed: template first, then dock, pod and camera plate. Every number is still a model; the printed part and a tap test decide whether the picture is steady.
 
 *Evidence: ADR-0135 - hardware/avionics_pod/README.md (revision 4) - ANALYSIS.md - nose_post_check.py - fea_results/nose_post.json*
+
+## 2026-11-10 (overflowed from plain_log 2026-11-14)
+
+The builder checked the camera post in SOLIDWORKS and the two programs agree. Held flat, the post's first shake mode is 275 Hz there against 254 Hz in the repo's model. Held only at its six screws, which is nearer the truth, both give about 170 Hz. With the pod's weight on the dock a lower mode appears, somewhere between 110 and 160 Hz, and that one carries the Pixhawk. Strength is not a concern: at 10 g on every axis the camera post sees 1 MPa. SOLIDWORKS could not mesh the pod base because of a hair-thin face; that is fixed in the CAD.
+
+**So what:** Bolting the dock is still right, but it does not put the Pixhawk clear of motor vibration by itself: hover is about 213 Hz and the pod mode sits below it, so every spool-up passes through it. The first vibration check is now a tap test with the dock bolted and the loaded pod latched on, then a Pixhawk vibration log at hover. If that confirms a low mode, the options are a seventh screw at the tail tab or a stiffer dock.
+
+*Evidence: hardware/avionics_pod/SOLIDWORKS_CROSSCHECK.md - hardware/avionics_pod/ANALYSIS.md section 2 - hardware/avionics_pod/fea_results/nose_post_screws.json, pod_on_dock_screws.json - media/solidworks_*.png*

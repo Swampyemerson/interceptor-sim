@@ -91,6 +91,54 @@ MOT_BAT_VOLT_MIN,19.8
 
 
 # ---------------------------------------------------------------------------
+# FIRST-FLIGHT SETUP FOR A 5-INCH QUAD  (added 2026-11-14, before the maiden)
+# ---------------------------------------------------------------------------
+# NOT a tune: the rate PIDs stay at firmware defaults. These are the settings
+# ArduPilot says to make BEFORE the first flight, which the firmware ships
+# sized for a 10-inch quad (read off this board 2026-11-14: gyro filter 20 Hz,
+# thrust expo 0.65). Same lesson as the interceptor's ADR-0134: defaults sized
+# for a big slow airframe.
+# Values = Mission Planner's "Initial Parameter Setup" helper for prop 5 in,
+# 6S LiPo (4.2 / 3.3 V per cell), formulas read from its source
+# (MissionPlanner GCSViews/ConfigurationView/ConfigInitialParams.cs, fetched
+# 2026-11-14) and recomputed here. ArduPilot's own table for 5-inch props says
+# gyro filter 80 Hz and expo 0.55; the helper's curve gives 75 and 0.49.
+# src: https://ardupilot.org/copter/docs/setting-up-for-tuning.html
+# IF IT OSCILLATES ON THE FIRST HOP: land at once and halve ATC_RAT_RLL_P/I/D
+# and ATC_RAT_PIT_P/I/D (the documented response).
+# src: https://ardupilot.org/copter/docs/initial-tuning-flight.html
+#
+# Gyro low-pass, Hz: max(20, round(289.22 * prop^-0.838)) = 75.
+INS_GYRO_FILTER,75
+# Accelerometer low-pass, Hz (helper constant; firmware default is 20).
+INS_ACCEL_FILTER,10
+# Rate-loop target and D-term filters = gyro filter / 2.
+ATC_RAT_RLL_FLTT,37.5
+ATC_RAT_RLL_FLTD,37.5
+ATC_RAT_PIT_FLTT,37.5
+ATC_RAT_PIT_FLTD,37.5
+ATC_RAT_YAW_FLTT,37.5
+# Yaw error filter, Hz (helper constant; firmware default 2.5).
+ATC_RAT_YAW_FLTE,2
+# Max commanded angular acceleration, DEG/s/s on 4.7 (the helper divides its
+# centidegree figures by 100 when the 4.7 names ATC_ACC_* exist, as they do
+# on this board). Roll/pitch: -2.613267 p^3 + 343.39216 p^2 - 15083.7121 p +
+# 235771 = 168,610 -> 1686. Yaw: -900 p + 36000 = 31,500 -> 315.
+ATC_ACC_R_MAX,1686
+ATC_ACC_P_MAX,1686
+ATC_ACC_Y_MAX,315
+# Thrust curve: min(round(0.15686 ln(prop) + 0.23693, 2), 0.80) = 0.49.
+MOT_THST_EXPO,0.49
+# Starting guess for hover throttle, deliberately LOW; the firmware learns the
+# real value in flight (MOT_HOVER_LEARN=2 on this board). A 2207 1900KV on 6S
+# hovers a light 5-inch far below the 0.35 default.
+MOT_THST_HOVER,0.2
+# Stabilize throttle mix for a first flight (already the firmware default; set
+# to 0.5 after the first good flight, per the helper's closing note).
+ATC_THR_MIX_MAN,0.1
+
+
+# ---------------------------------------------------------------------------
 # BATTERY MONITOR  --  onboard voltage + 4-in-1 ESC current sense
 # ---------------------------------------------------------------------------
 # Analog Voltage AND Current. KakuteH7 has an onboard voltage divider (B+) and
@@ -229,29 +277,54 @@ LOG_FILE_DSRMROT,1
 # src: https://www.expresslrs.org/software/switch-config/ (AUX1 "is always a
 # 2-position channel"; hybrid/wide aux resolution).
 FLTMODE_CH,6
-# Mode-switch map (SIMPLIFIED to a plain 3-pos switch, builder call 2026-10-25:
-# Loiter / RTL / Auto -- no Stabilize/AltHold; GPS loss is covered by the EKF
-# failsafe, which LANDs). A 3-pos at weight 100 on CH6 hits PWM ~988/1500/2012
-# = mode bands 1 / 4 / 6; the table is filled in contiguous blocks so an
-# off-center PWM still lands in the intended mode. Numbers: 5 Loiter, 6 RTL,
-# 3 Auto. Take off / land in Loiter (GPS hold); slam-through transient when
-# flipping low->high passes RTL (benign), never engages Auto uncommanded.
-# src: flight-modes.html
-FLTMODE1,5
-FLTMODE2,5
-FLTMODE3,5
-FLTMODE4,6
-FLTMODE5,6
-FLTMODE6,3
-# RC channel 5 (ELRS AUX1) 2-pos switch = Motor Emergency Stop -- the target's
-# independent RC KILL (see the FAILSAFE note re: the two-aircraft / one-TX
-# decision). A kill is binary, so AUX1's 2-pos limit costs nothing, and ELRS
-# sends AUX1 in EVERY packet -- the lowest-latency channel on the link.
-# src: https://ardupilot.org/copter/docs/channel-7-and-8-options.html (RCx_OPTION 31)
-RC5_OPTION,31
+# Mode-switch map (builder call 2026-11-14, replacing Loiter / RTL / Auto). He
+# named the positions from the switch as it sat on the bench; it read 2011 (UP)
+# at that moment, so:
+#   switch UP     = Loiter (5)   GPS position hold, ArduPilot's equivalent of
+#                                PX4 Position. Same thumb position as Position
+#                                on the interceptor.
+#   switch MIDDLE = AltHold (2)  holds height, pilot flies level; no GPS
+#                                needed. Same position as Altitude on the
+#                                interceptor.
+#   switch DOWN   = Auto (3)     flies the mission loaded from QGroundControl.
+#                                (The interceptor has Stabilized here.)
+# Auto sits at an END of the travel, so going Loiter <-> AltHold never passes
+# through it, and one click up from Auto is AltHold. ArduPilot will not ARM
+# in Auto with this parameter set (AUTO_OPTIONS=0; mode_auto.cpp
+# allows_arming at Copter-4.7.0), so the mission can only be started in the air.
+# There is NO Stabilize position. ArduPilot's first-flight page says to fly
+# first in Stabilize and not to take off in AltHold until the height
+# controller has been tested: the builder's call, flagged to him 2026-11-14.
+# MEASURED on the board 2026-11-14: the switch reads 987 down and 2011 up, and
+# its centre is 1499 -- 9 microseconds above the edge between mode bands 3 and
+# 4 (bands change at 1231 / 1361 / 1491 / 1621 / 1750, RC_Channel.cpp at
+# Copter-4.7.0). So bands 3, 4 and 5 ALL carry the middle mode: a centre that
+# drifts either way still reads AltHold. lint_param.py enforces it.
+# src: https://ardupilot.org/copter/docs/flight-modes.html
+FLTMODE1,3
+FLTMODE2,3
+FLTMODE3,2
+FLTMODE4,2
+FLTMODE5,2
+FLTMODE6,5
+# RC channel 5 (ELRS AUX1, the 2-pos switch) = ARM / DISARM (builder call
+# 2026-11-14: "the position it's in now should be unarmed"; it read 999, DOWN).
+#   switch DOWN = disarmed.  switch UP = arm (all arming checks still run).
+# This switch is ALSO the target's RC kill: moving it DOWN in flight disarms at
+# once and the motors stop. Read at Copter-4.7.0: RC_Channel.cpp
+# do_aux_function_armdisarm (LOW -> disarm(AUXSWITCH)) and
+# AP_Arming_Copter.cpp disarm(), which refuses an in-flight disarm only for
+# ground-station and stick-gesture requests, not for a switch. It is NOT
+# recoverable the way Motor Emergency Stop (31, used here until today) or the
+# interceptor's kill switch are: a bumped switch at height is a dropped
+# aircraft. A power-up with the switch UP does not arm (init_aux_function
+# skips ARMDISARM). Stick arming (throttle down + yaw right) still works too.
+# ELRS sends AUX1 in every packet -- the lowest-latency channel on the link.
+# src: https://ardupilot.org/copter/docs/common-auxiliary-functions.html (153)
+RC5_OPTION,153
 # ch6 is the MODE channel, so it must carry NO aux function: a stale
 # RC6_OPTION=31 here would fire Motor Emergency Stop on the Auto detent
-# (switch high) -- a guaranteed mid-air kill on mission start. Pinned 0 and
+# (switch high) -- a guaranteed mid-air kill. Pinned 0 and
 # lint-enforced.
 RC6_OPTION,0
 
@@ -272,43 +345,30 @@ ARMING_SKIPCHK,0
 
 
 # ============================================================================
-# FAILSAFE / GEOFENCE  --  OPEN DECISION: "two aircraft, one TX"
+# FAILSAFE / GEOFENCE  --  RC loss = come home (decided 2026-11-14)
 # ----------------------------------------------------------------------------
-# docs/hardware_order_list.md 0b (audit S2): one ELRS TX + both receivers on the
-# same bind phrase REQUIRES Model Match, else both aircraft answer the same
-# sticks. But with Model Match the UNSELECTED aircraft is in RC failsafe -- so
-# while you hold the INTERCEPTOR's kill, the TARGET has no independent RC kill.
-# You must pick ONE of the two options below BEFORE flying.
-#
-# This file ships OPTION A ACTIVE because the tripod passes ARE an AUTO mission
-# and you generally want a pass to FINISH rather than RTL mid-leg on a brief RC
-# dropout, with a TIGHT geofence as the hard safety bound. Switch to OPTION B if
-# you fly the target as the SELECTED (kill-live) aircraft with a 2nd TX/operator.
-# src: docs/hardware_order_list.md 0b ; https://ardupilot.org/copter/docs/radio-failsafe.html
+# The target now has its OWN transmitter, and its mission LOOPS FOREVER
+# (DO_JUMP, gen_loop_mission.py). "Continue the mission on RC loss" (the old
+# OPTION A, FS_OPTIONS bit0, written for one shared transmitter and a mission
+# that ended by itself) would now mean a target with no radio link flying laps
+# until the battery failsafe. So RC loss returns it to the arming point in
+# every mode, Auto included. The geofence stays as the second bound.
+# src: https://ardupilot.org/copter/docs/radio-failsafe.html
 # ============================================================================
-
-# ---- OPTION A (ACTIVE): continue the AUTO pass on RC-loss + TIGHT geofence ----
-# RC failsafe armed. On its own this = "Always RTL", but FS_OPTIONS below
-# overrides it for AUTO. 1 = Enabled Always RTL. src: radio-failsafe.html
+# RC failsafe armed: 1 = Enabled, always RTL. src: radio-failsafe.html
 FS_THR_ENABLE,1
-# bit0 (=1): CONTINUE if in AUTO mode on RC failsafe -> a pass completes instead
-# of RTL-ing mid-leg. The geofence below is the safety net. src: radio-failsafe.html (FS_OPTIONS)
-FS_OPTIONS,1
-# Geofence ON -- bounds a continue-in-AUTO target. src: https://ardupilot.org/copter/docs/common-ac2_simple_geofence.html
+# 0 = no exceptions: RC loss in Auto ALSO returns home (bit0 would continue the
+# mission). lint_param.py refuses bit0 set. src: radio-failsafe.html (FS_OPTIONS)
+FS_OPTIONS,0
+# Geofence ON. src: https://ardupilot.org/copter/docs/common-ac2_simple_geofence.html
 FENCE_ENABLE,1
 # Fence type = Altitude + Circle + Polygon (bitmask 1+2+4). src: common-ac2_simple_geofence.html
 FENCE_TYPE,7
-# TIGHT 80 m circular fence around home. **TUNE to your actual field / COA.** metres.
-# ⚠️ CENTRED ON *HOME* = THE POINT WHERE YOU ARM, not on the tripod. The AUTO
-# mission's waypoints are TRIPOD-referenced and reach ~20.7 m from it (26.2 m for
-# the off-protocol NN block), so arming more than (FENCE_RADIUS - that) metres
-# from the tripod puts far waypoints OUTSIDE the fence and FENCE_ACTION=1 will
-# RTL the target mid-pass -- which, under OPTION A's continue-in-AUTO reasoning,
-# reads exactly like an RC failsafe and is not one. Nothing pre-arm-checks the
-# mission against the fence; you find out mid-leg, and with FS_GCS_ENABLE=0 there
-# is no on-site message (pull the .BIN and look for the FENCE/ERR record).
-# gen_tripod_mission.py PRINTS the arm-within budget for the geometry it emitted
-# -- use that number, not one written down here.
+# 80 m circular fence around home. **TUNE to your actual field.** metres.
+# CENTRED ON *HOME* = THE POINT WHERE YOU ARM. A mission whose far waypoint is
+# more than (FENCE_RADIUS - margin) from the arming point breaches mid-leg and
+# FENCE_ACTION=1 brings the target home. The mission generators print the
+# arm-within budget for the route they emitted.
 # src: common-ac2_simple_geofence.html (FENCE_RADIUS)
 FENCE_RADIUS,80
 # 50 m altitude ceiling. **TUNE to your field / airspace authorization.** metres.
@@ -317,21 +377,9 @@ FENCE_ALT_MAX,50
 # Breach action = RTL or Land (fires even mid-AUTO if the target leaves the box).
 # 0:Report 1:RTL/Land 2:Land 3:SmartRTL 4:Brake. src: common-ac2_simple_geofence.html (FENCE_ACTION)
 FENCE_ACTION,1
-# GCS failsafe disabled -- the target has no companion/telemetry link on it (SiK
-# deferred, bom 0c). (firmware default, stated) src: https://ardupilot.org/copter/docs/gcs-failsafe.html
+# GCS failsafe disabled -- the target has no companion/telemetry link on it.
+# (firmware default, stated) src: https://ardupilot.org/copter/docs/gcs-failsafe.html
 FS_GCS_ENABLE,0
-
-# ---- OPTION B: plain RTL on RC-loss (target flown SELECTED, kill live) --------
-# To use OPTION B: comment out the OPTION-A block above (FS_THR_ENABLE..FS_GCS_ENABLE)
-# and uncomment the block below. Keep the geofence either way as a backstop.
-#   FS_THR_ENABLE,1     # Enabled Always RTL on RC failsafe. src: radio-failsafe.html
-#   FS_OPTIONS,0        # Do NOT continue in AUTO -> RTL immediately on RC-loss. src: radio-failsafe.html
-#   FENCE_ENABLE,1      # geofence backstop. src: common-ac2_simple_geofence.html
-#   FENCE_TYPE,7
-#   FENCE_RADIUS,80
-#   FENCE_ALT_MAX,50
-#   FENCE_ACTION,1
-#   FS_GCS_ENABLE,0
 # ============================================================================
 # End target.param
 

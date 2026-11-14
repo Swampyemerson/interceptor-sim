@@ -34,12 +34,16 @@ without moving the cable. The log packets are held back from the ground station,
 logging carries on underneath.
 
 - **To connect:** have the PC on the same Wi-Fi as the Pi and open QGroundControl. It
-  should find the Pixhawk by itself within a few seconds: the Pi announces it on UDP port
-  14550, the port QGroundControl listens on. If it does not, add the link by hand:
+  finds the Pixhawk by itself (8 s after launch on 2026-11-14): the Pi announces it on UDP
+  port 14550, the port QGroundControl listens on. If it does not, add the link by hand:
   Application Settings, Comm Links, Add, type UDP, port 14550, server address
   `192.168.0.61:14550`.
-- **Unplug the Pixhawk's USB from the PC first.** With both paths live QGroundControl
-  sees the same aircraft twice.
+- **Connect before you arm, and wait for QGroundControl to finish loading.** The first
+  minute after it connects cost the log about 45 s of data on 2026-11-14 (7,332 packets
+  in two holes, beginning 11 s and 56 s after it connected), while QGroundControl fetched the
+  settings and their descriptions. After that the log ran with no further gaps for as
+  long as QGroundControl stayed connected. A flight's file starts fresh at arming, so a
+  ground station that is already loaded costs it nothing.
 - **Speed depends on the Pixhawk-to-Pi cable.** Over USB a full settings download took
   0.7 s in the bench test. Over the 3-pin serial cable it took 5.3 s, because that cable
   is already full with the log.
@@ -62,9 +66,8 @@ away, and the two then steal it back and forth every 10 s. Stop the service firs
 | **Serial only** (the existing 3-pin cable) | About a third of the packets lost | Attitude stream on that cable halves, 100 to 50 Hz, and nothing else can use the cable while the recorder holds it. |
 
 The service picks USB by itself when the Pixhawk's USB is plugged into the Pi and uses the
-serial cable otherwise. Today the Pixhawk's USB is plugged into the PC, so the Pi is on
-the serial cable and its logs say `GAPS`. A short USB-C to USB-A cable between the two
-boards fixes that with no settings to change.
+serial cable otherwise. Since 2026-11-14 the Pixhawk's USB is in the Pi and the logs are
+complete. The airframe needs the same: a short USB-C to USB-A cable between the two boards.
 
 While the recorder is on the serial cable, stop it before running anything else that
 talks to the Pixhawk over that cable (the offboard bench gate, the hover recorder, the
@@ -99,6 +102,11 @@ Tested on the bench, Pixhawk disarmed:
   1.6 s later, recorded 918 frames at 59.5 frames/s with none dropped, and stopped 5 s
   after the pretend disarm.
 - Hard kill of the recorder mid-file: the file was recovered on the next start.
+- USB plugged into the Pi (2026-11-14): the service moved from the serial cable to
+  `/dev/pixhawk-usb` by itself when the port appeared, and recorded at 41 KB/s
+  with one start-up gap and none after (four minutes, until QGroundControl connected).
+- QGroundControl itself through the bridge (2026-11-14): found the Pixhawk unaided and
+  stayed connected; cost described under "QGroundControl over Wi-Fi" above.
 - Ground-station bridge, with a script standing in for QGroundControl (it listens on port
   14550, answers the Pixhawk's announcement and downloads every setting):
   over USB from the PC, all 1,122 settings in 0.7 s while a 60 s log recorded `CLEAN`
@@ -110,12 +118,9 @@ Not tested yet:
 
 - **A real arming.** The trigger has only seen a pretend signal. Check: props off, arm for
   10 s, disarm, then look for a new `sessions/video_*` folder and a `_flight.ulg`.
-- **USB plugged into the Pi.** The USB captures were taken from the PC. The Pi's switch to
-  USB (a device rule naming the port `/dev/pixhawk-usb`) has not run with a cable in.
 - **An armed, flying log.** The 40 KB/s figure is for a disarmed aircraft.
-- **QGroundControl itself on the bridge.** The test used a stand-in script. QGroundControl
-  asks for more on connecting (mission, files of settings descriptions), and whether that
-  burst costs the log a gap over USB has not been measured.
+- **Connecting QGroundControl while armed.** Its connection burst cost the log about 45 s
+  on the ground (see above); nobody has measured it in flight, and the plan is not to do it.
 - **Lining the video up with the log in time.** The stats file stores pairs of Pi clock and
   Pixhawk clock, and the video stores its start time; nobody has checked how well they agree.
 

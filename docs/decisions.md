@@ -1560,3 +1560,31 @@ its connect burst costs the log a gap. *Cost if wrong.* The port is unauthentica
 the same network can command the Pixhawk through it, as with any Wi-Fi telemetry link.
 `NAV_DLL_ACT` reads 0, so a ground station dropping out triggers nothing. Also found: PX4 serves
 one log stream at a time, and two recorders steal it from each other every 10 s.
+
+## ADR-0138 — Target drone controls: Position / Altitude / Auto on the mode switch, an arm switch that is also the kill, RC loss returns home (2026-11-14)
+
+*Context.* The builder wants the target flying today with the same controls as the
+interceptor, except for the flight modes. Read off the board (ArduCopter 4.7.0, never flown):
+sticks, mode channel (6) and switch channel (5) already matched; the mode table held Auto on
+switch-down, SmartRTL in the middle and PosHold up, from an unknown earlier edit; the firmware
+was on its 10-inch-quad defaults (gyro filter 20 Hz, thrust curve 0.65); accelerometer and
+compass were uncalibrated. *Decision (builder's calls, named from the switches as they sat on
+the bench).* Mode switch up = Loiter (PX4 Position's equivalent), middle = AltHold, down = Auto
+flying a mission he draws in QGroundControl. Channel 5 = arm/disarm (`RC5_OPTION=153`), down =
+disarmed. *My calls, logged.* (1) `FS_OPTIONS=0`: RC loss returns home in every mode. The
+continue-in-Auto option belonged to the one-transmitter plan (settled by buying a second
+transmitter, ADR-0089) and is unsafe with a mission that loops forever. (2) ArduPilot's
+first-flight setup for a 5-inch 6S quad, computed from Mission Planner's Initial Parameter
+Setup formulas (gyro filter 75 Hz, rate filters 37.5 Hz, thrust curve 0.49, hover guess 0.2,
+acceleration limits 1686 / 315 deg/s/s). Rate PIDs untouched. Same failure class as ADR-0134
+on the interceptor. (3) Bands 3 to 5 all carry the middle mode because the switch centre reads
+1499, 9 us above a band edge. *Costs the builder should know.* The arm switch disarms at once
+in flight (read in the 4.7.0 source), so it is the kill, and unlike Motor Emergency Stop or the
+interceptor's kill it cannot be undone by flipping back. There is no Stabilize position;
+ArduPilot's first-flight page asks for first flights in Stabilize. *Evidence.*
+`configs/target_kakute/dumps/20261114_before_modes.tsv` and `_after_modes.tsv` (26 settings
+differ: the 22 written and 4 the board re-measures at boot); write tool read back 65 of 65
+before and after a reboot. `gen_loop_mission.py` uploaded a placeholder route, read back 7 of 7
+items, and the route was then erased (0 items on board). *Not done.* Accelerometer and compass
+calibration (the board refuses to arm without them), a GPS fix (none indoors; the receiver is
+detected), any flight.

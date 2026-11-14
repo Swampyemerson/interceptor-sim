@@ -917,8 +917,7 @@ def main(argv=None) -> int:
     # file's row 0, but every waypoint here is placed relative to the SURVEYED
     # TRIPOD -- so the FENCE_RADIUS tin-can (target.param) is centred somewhere
     # else entirely from the mission. Arm too far out and FENCE_ACTION=1 RTLs the
-    # target mid-pass, which under OPTION A's continue-in-AUTO reasoning reads
-    # like an RC failsafe and is not one. The number is COMPUTED from the emitted
+    # target mid-pass, which reads like an RC failsafe and is not one. The number is COMPUTED from the emitted
     # waypoints rather than written into prose, because --standoff/--leg-length/
     # --cross-halfwidth all move it (the off-protocol NN block at --standoff 17
     # reaches 26.2 m, not 20.7 m).
