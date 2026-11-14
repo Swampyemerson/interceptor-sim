@@ -476,3 +476,11 @@ First-flight bench diagnostics, interceptor on battery, all remotely-runnable ga
 **So what:** The interceptor is bench-cleared for the maiden: every gate runnable without hands is green, and the three remaining items are builder QGC actions (safety-breaker flip, flight-mode switch, kill-switch live check) — not unknowns.
 
 *Evidence: logs/deploy_seeker_bench_20261024T175123Z.log (Pi); logs/real_flight_sitl_20261024T175806Z.log; logs/field/bringup_20261024T175018Z/; ADR-0133; live TELEM2 param read-back this session*
+
+## 2026-10-25 (overflowed from plain_log 2026-11-13)
+
+MAIDEN DAY (afr-04 flown, evidence pending a working recorder). Root cause of two instant takeoff flips: the FC was mounted 180 deg from the true nose with SENS_BOARD_ROT=0 -- the builder caught it via swapped nose/tail prompts in compass cal. Fix: SENS_BOARD_ROT=4 (Yaw 180), verified live (nose-down pitch -35, right-roll +40); compass recal; motor corners re-verified 1=FR 2=RL 3=FL 4=RR; prop nylocs torqued after CW corners shed props (RH threads self-loosen on CW motors). RESULT: stable hover + Position-mode flight, minutes long. Residual: visible wobble + motors too hot after hover -> rate-gain ladder started (MC_ROLL/PITCHRATE_K 1.0->0.8, read back; 0.65 next if heat persists). RC: TX+RX phrase synced, bound, 18ch @ 20 Hz, kill ch5, modes ch6 (Stab/Alt/Position), radio cal + CBRK_IO_SAFETY=22027 all read back. OPEN: FC microSD slot mounts NOTHING (two known-good FAT32 cards) -> no onboard ULog; mavlink log streaming to the Pi accepted once then refused -- tool parked (scripts/bench/pi_ulog_stream_catcher.py), do not re-grind. Slot inspection + replacement card are the weekend path.
+
+**So what:** The interceptor FLIES. The crash root cause was one wrong constant, now fixed and verified live. Open for the weekend: FC SD slot (hardware), tune convergence, and the evidence plan if the slot stays dead (target GPS log + video carry the call).
+
+*Evidence: Live TELEM2 attitude/param read-backs this session; docs/rc_link_setup.md; scripts/bench/pi_ulog_stream_catcher.py (parked); builder bench reports + flight video*

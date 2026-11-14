@@ -1,0 +1,103 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1794617916.703096    4943 cuda_dnn.cc:8310] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1794617916.707026    4943 cuda_blas.cc:1418] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+[warning] Cannot use graphviz, so no visualizations will be created
+In file included from /work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/ndarraytypes.h:1929,
+                 from /work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/ndarrayobject.h:12,
+                 from /work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/arrayobject.h:5,
+                 from /root/.pyxbld/temp.linux-x86_64-cpython-310/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/core/postprocessing/cython_utils/cython_nms.c:1273:
+/work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/npy_1_7_deprecated_api.h:17:2: warning: #warning "Using deprecated NumPy API, disable it with " "#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION" [-Wcpp]
+   17 | #warning "Using deprecated NumPy API, disable it with " \
+      |  ^~~~~~~
+[36m<Hailo Model Zoo INFO> Start run for network yolov11n ...[0m
+[36m<Hailo Model Zoo INFO> Initializing the hailo8 runner...[0m
+[info] Translation started on ONNX model yolov11n
+[info] Restored ONNX model yolov11n (completion time: 00:00:00.03)
+[info] Extracted ONNXRuntime meta-data for Hailo model (completion time: 00:00:00.19)
+[info] Start nodes mapped from original model: 'images': 'yolov11n/input_layer1'.
+[info] End nodes mapped from original model: '/model.23/cv2.0/cv2.0.2/Conv', '/model.23/cv3.0/cv3.0.2/Conv', '/model.23/cv2.1/cv2.1.2/Conv', '/model.23/cv3.1/cv3.1.2/Conv', '/model.23/cv2.2/cv2.2.2/Conv', '/model.23/cv3.2/cv3.2.2/Conv'.
+[info] Translation completed on ONNX model yolov11n (completion time: 00:00:00.70)
+[info] Saved HAR to: /work/runs/hailo_drone_20261113/yolov11n.har
+[36m<Hailo Model Zoo INFO> Preparing calibration data...[0m
+[info] Loading model script commands to yolov11n from /work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/cfg/alls/generic/yolov11n.alls
+[info] Found model with 3 input channels, using real RGB images for calibration instead of sampling random data.
+[info] Starting Model Optimization
+[warning] Reducing optimization level to 0 (the accuracy won't be optimized and compression won't be used) because there's no available GPU
+[warning] Running model optimization with zero level of optimization is not recommended for production use and might lead to suboptimal accuracy results
+[info] Model received quantization params from the hn
+[info] MatmulDecompose skipped
+[info] Starting Mixed Precision
+[info] Model Optimization Algorithm Mixed Precision is done (completion time is 00:00:00.91)
+[info] LayerNorm Decomposition skipped
+[info] Starting Statistics Collector
+[info] Using dataset with 64 entries for calibration
+Calibration:   0%|          | 0/64 [00:00<?, ?entries/s]Calibration:   2%|▏         | 1/64 [00:24<25:45, 24.53s/entries]Calibration:   3%|▎         | 2/64 [00:24<10:35, 10.25s/entries]Calibration:   5%|▍         | 3/64 [00:25<05:46,  5.67s/entries]Calibration:   6%|▋         | 4/64 [00:25<03:31,  3.52s/entries]Calibration:   8%|▊         | 5/64 [00:25<02:17,  2.33s/entries]Calibration:   9%|▉         | 6/64 [00:25<01:33,  1.61s/entries]Calibration:  11%|█         | 7/64 [00:25<01:05,  1.16s/entries]Calibration:  12%|█▎        | 8/64 [00:26<00:48,  1.16entries/s]Calibration:  14%|█▍        | 9/64 [00:26<00:36,  1.52entries/s]Calibration:  16%|█▌        | 10/64 [00:26<00:28,  1.90entries/s]Calibration:  17%|█▋        | 11/64 [00:26<00:23,  2.27entries/s]Calibration:  19%|█▉        | 12/64 [00:27<00:19,  2.66entries/s]Calibration:  20%|██        | 13/64 [00:27<00:16,  3.01entries/s]Calibration:  22%|██▏       | 14/64 [00:27<00:14,  3.36entries/s]Calibration:  23%|██▎       | 15/64 [00:27<00:13,  3.61entries/s]Calibration:  25%|██▌       | 16/64 [00:27<00:12,  3.84entries/s]Calibration:  27%|██▋       | 17/64 [00:28<00:11,  4.03entries/s]Calibration:  28%|██▊       | 18/64 [00:28<00:11,  4.12entries/s]Calibration:  30%|██▉       | 19/64 [00:28<00:10,  4.19entries/s]Calibration:  31%|███▏      | 20/64 [00:28<00:10,  4.28entries/s]Calibration:  33%|███▎      | 21/64 [00:29<00:09,  4.36entries/s]Calibration:  34%|███▍      | 22/64 [00:29<00:09,  4.39entries/s]Calibration:  36%|███▌      | 23/64 [00:29<00:09,  4.41entries/s]Calibration:  38%|███▊      | 24/64 [00:29<00:09,  4.37entries/s]Calibration:  39%|███▉      | 25/64 [00:29<00:08,  4.42entries/s]Calibration:  41%|████      | 26/64 [00:30<00:08,  4.40entries/s]Calibration:  42%|████▏     | 27/64 [00:30<00:08,  4.38entries/s]Calibration:  44%|████▍     | 28/64 [00:30<00:08,  4.39entries/s]Calibration:  45%|████▌     | 29/64 [00:30<00:08,  4.32entries/s]Calibration:  47%|████▋     | 30/64 [00:31<00:07,  4.32entries/s]Calibration:  48%|████▊     | 31/64 [00:31<00:07,  4.36entries/s]Calibration:  50%|█████     | 32/64 [00:31<00:07,  4.40entries/s]Calibration:  52%|█████▏    | 33/64 [00:31<00:06,  4.45entries/s]Calibration:  53%|█████▎    | 34/64 [00:32<00:06,  4.49entries/s]Calibration:  55%|█████▍    | 35/64 [00:32<00:06,  4.45entries/s]Calibration:  56%|█████▋    | 36/64 [00:32<00:06,  4.55entries/s]Calibration:  58%|█████▊    | 37/64 [00:32<00:06,  4.50entries/s]Calibration:  59%|█████▉    | 38/64 [00:32<00:05,  4.40entries/s]Calibration:  61%|██████    | 39/64 [00:33<00:05,  4.39entries/s]Calibration:  62%|██████▎   | 40/64 [00:33<00:05,  4.32entries/s]Calibration:  64%|██████▍   | 41/64 [00:33<00:05,  4.32entries/s]Calibration:  66%|██████▌   | 42/64 [00:33<00:05,  4.37entries/s]Calibration:  67%|██████▋   | 43/64 [00:34<00:04,  4.38entries/s]Calibration:  69%|██████▉   | 44/64 [00:34<00:04,  4.46entries/s]Calibration:  70%|███████   | 45/64 [00:34<00:04,  4.52entries/s]Calibration:  72%|███████▏  | 46/64 [00:34<00:03,  4.58entries/s]Calibration:  73%|███████▎  | 47/64 [00:34<00:03,  4.66entries/s]Calibration:  75%|███████▌  | 48/64 [00:35<00:03,  4.58entries/s]Calibration:  77%|███████▋  | 49/64 [00:35<00:03,  4.56entries/s]Calibration:  78%|███████▊  | 50/64 [00:35<00:03,  4.66entries/s]Calibration:  80%|███████▉  | 51/64 [00:35<00:02,  4.61entries/s]Calibration:  81%|████████▏ | 52/64 [00:36<00:02,  4.55entries/s]Calibration:  83%|████████▎ | 53/64 [00:36<00:02,  4.60entries/s]Calibration:  84%|████████▍ | 54/64 [00:36<00:02,  4.59entries/s]Calibration:  86%|████████▌ | 55/64 [00:36<00:01,  4.59entries/s]Calibration:  88%|████████▊ | 56/64 [00:36<00:01,  4.49entries/s]Calibration:  89%|████████▉ | 57/64 [00:37<00:01,  4.51entries/s]Calibration:  91%|█████████ | 58/64 [00:37<00:01,  4.45entries/s]Calibration:  92%|█████████▏| 59/64 [00:37<00:01,  4.46entries/s]Calibration:  94%|█████████▍| 60/64 [00:37<00:00,  4.49entries/s]Calibration:  95%|█████████▌| 61/64 [00:37<00:00,  4.56entries/s]Calibration:  97%|█████████▋| 62/64 [00:38<00:00,  4.52entries/s]Calibration:  98%|█████████▊| 63/64 [00:38<00:00,  4.60entries/s]Calibration: 100%|██████████| 64/64 [00:38<00:00,  4.62entries/s]Calibration: 100%|██████████| 64/64 [00:38<00:00,  4.62entries/s]Calibration: 100%|██████████| 64/64 [00:38<00:00,  1.66entries/s]
+[info] Model Optimization Algorithm Statistics Collector is done (completion time is 00:00:39.56)
+[info] Starting Fix zp_comp Encoding
+[info] Model Optimization Algorithm Fix zp_comp Encoding is done (completion time is 00:00:00.00)
+[info] Starting Matmul Equalization
+[info] Model Optimization Algorithm Matmul Equalization is done (completion time is 00:00:00.02)
+[info] Starting MatmulDecomposeFix
+[info] Model Optimization Algorithm MatmulDecomposeFix is done (completion time is 00:00:00.00)
+[info] activation fitting started for yolov11n/reduce_sum_softmax1/act_op
+[warning] Reducing output bits of yolov11n/conv65 by 7.0 bits (More than half)
+Traceback (most recent call last):
+  File "/work/.venv-dfc-2204/bin/hailomz", line 6, in <module>
+    sys.exit(main())
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main.py", line 122, in main
+    run(args)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main.py", line 111, in run
+    return handlers[args.command](args)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main_driver.py", line 248, in compile
+    _ensure_optimized(runner, logger, args, network_info)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main_driver.py", line 91, in _ensure_optimized
+    optimize_model(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/core/main_utils.py", line 353, in optimize_model
+    runner.optimize(calib_feed_callback)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_common/states/states.py", line 16, in wrapped_func
+    return func(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/runner/client_runner.py", line 2206, in optimize
+    result = self._optimize(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_common/states/states.py", line 16, in wrapped_func
+    return func(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/runner/client_runner.py", line 2025, in _optimize
+    checkpoint_info = self._sdk_backend.full_quantization(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/sdk_backend/sdk_backend.py", line 1138, in full_quantization
+    new_checkpoint_info = self._full_acceleras_run(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/sdk_backend/sdk_backend.py", line 1376, in _full_acceleras_run
+    new_checkpoint_info = self._optimization_flow_runner(optimization_flow, checkpoint_info)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/sdk_backend/sdk_backend.py", line 2029, in _optimization_flow_runner
+    optimization_flow.run()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/tools/orchestator.py", line 239, in wrapper
+    return func(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/flows/optimization_flow.py", line 357, in run
+    step_func()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/tools/subprocess_wrapper.py", line 153, in parent_wrapper
+    func(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/flows/optimization_flow.py", line 376, in step1
+    self.core_quantization()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/flows/optimization_flow.py", line 443, in core_quantization
+    self._create_hw_params()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/flows/optimization_flow.py", line 491, in _create_hw_params
+    algo.run()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/optimization_algorithm.py", line 55, in run
+    return super().run()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/algorithm_base.py", line 159, in run
+    self._run_int()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/create_hw_params/create_hw_params.py", line 353, in _run_int
+    comp_to_retry = self._create_hw_params_component(matching_component_group)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/create_hw_params/create_hw_params.py", line 211, in _create_hw_params_component
+    retry_negative_exp_list = self._hanlde_negative_exponent(layer, matching_component_group)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/create_hw_params/create_hw_params.py", line 227, in _hanlde_negative_exponent
+    algo.run()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/optimization_algorithm.py", line 55, in run
+    return super().run()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/algorithm_base.py", line 159, in run
+    self._run_int()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/neg_exponent_fixer/neg_exp_fixer.py", line 77, in _run_int
+    l_fix = self.fix_output(l_fix)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/neg_exponent_fixer/neg_exp_fixer.py", line 123, in fix_output
+    self._log_negative_exponent_shift(l_fix)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/neg_exponent_fixer/neg_exp_fixer.py", line 227, in _log_negative_exponent_shift
+    raise NegativeSlopeExponentNonFixable(
+hailo_model_optimization.acceleras.utils.acceleras_exceptions.NegativeSlopeExponentNonFixable: Quantization failed in layer yolov11n/conv80 due to unsupported required slope. Desired shift is 9.0, but op has only 8 data bits. This error raises when the data or weight range are not balanced. Mostly happens when using random calibration-set/weights, the calibration-set is not normalized properly or batch-normalization was not used during training.

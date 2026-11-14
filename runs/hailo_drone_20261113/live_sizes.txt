@@ -1,0 +1,7 @@
+h=95 {"frames": 120, "frames_with_drone": 120, "loop_fps": 59.7, "score_median": 0.38, "box_long_side_native_px_median": 148.7, "capture_to_result_ms_median": 29.0, "p95": 30.5}
+h=70 {"frames": 120, "frames_with_drone": 0, "loop_fps": 59.7, "score_median": null, "box_long_side_native_px_median": null, "capture_to_result_ms_median": 29.2, "p95": 30.4}
+h=50 {"frames": 120, "frames_with_drone": 2, "loop_fps": 59.7, "score_median": 0.314, "box_long_side_native_px_median": 72.8, "capture_to_result_ms_median": 29.1, "p95": 30.3}
+h=35 {"frames": 120, "frames_with_drone": 0, "loop_fps": 59.7, "score_median": null, "box_long_side_native_px_median": null, "capture_to_result_ms_median": 29.1, "p95": 30.4}
+h=25 {"frames": 120, "frames_with_drone": 0, "loop_fps": 59.7, "score_median": null, "box_long_side_native_px_median": null, "capture_to_result_ms_median": 29.0, "p95": 30.0}
+h=18 {"frames": 120, "frames_with_drone": 0, "loop_fps": 59.7, "score_median": null, "box_long_side_native_px_median": null, "capture_to_result_ms_median": 29.1, "p95": 30.0}
+h=12 {"frames": 120, "frames_with_drone": 0, "loop_fps": 59.7, "score_median": null, "box_long_side_native_px_median": null, "capture_to_result_ms_median": 29.1, "p95": 30.3}

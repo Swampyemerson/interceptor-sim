@@ -1,0 +1,10 @@
+NMS JSON classes -> 1 score th 0.2
+compile n-color: OK in 600 s
+[warning] Reducing optimization level to 0 (the accuracy won't be optimized and compression won't be used) because there's no available GPU
+[info] Finetune encoding skipped
+[info] Adaround skipped
+[info] Trying to compile the network in a single context
+[info] Single context flow failed: Recoverable single context error
+[info] Using Multi-context flow
+[info] Bandwidth of inter context tensors: 22.2656 Mbps (for a single frame)
+NCOLOR_COMPILE_DONE

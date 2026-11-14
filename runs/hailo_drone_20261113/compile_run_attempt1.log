@@ -1,0 +1,10 @@
+NMS JSON classes -> 1 score th 0.2
+compile n-color: FAILED in 85 s
+    l_fix = self.fix_output(l_fix)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/neg_exponent_fixer/neg_exp_fixer.py", line 123, in fix_output
+    self._log_negative_exponent_shift(l_fix)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/algorithms/neg_exponent_fixer/neg_exp_fixer.py", line 227, in _log_negative_exponent_shift
+    raise NegativeSlopeExponentNonFixable(
+hailo_model_optimization.acceleras.utils.acceleras_exceptions.NegativeSlopeExponentNonFixable: Quantization failed in layer yolov11n/conv80 due to unsupported required slope. Desired shift is 9.0, but op has only 8 data bits. This error raises when the data or weight range are not balanced. Mostly happens when using random calibration-set/weights, the calibration-set is not normalized properly or batch-normalization was not used during training.
+[warning] Reducing optimization level to 0 (the accuracy won't be optimized and compression won't be used) because there's no available GPU
+NCOLOR_COMPILE_DONE
