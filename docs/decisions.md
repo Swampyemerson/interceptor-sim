@@ -1644,3 +1644,26 @@ motor outputs at their floor during the climb means A; outputs well above the fl
 stick low means B, and the vibration and clipping records say which kind of B. *If neither:*
 the cause is something not listed and the log's mode and message records are read first.
 Tool: `scripts/bench/ap_flight_summary.py`. No flight until this is closed.
+
+**Addendum 6, same day: crash cause, read from the board's log.** Neither candidate as written.
+*B is refuted:* the height controller's throttle output was 0.00 for the whole climb and it was
+asking for -2.5 m/s. *A is refuted in its strict form:* the motors were not sitting at their
+floor (mean 1302 us against a 1150 floor), though one of the four was on the floor in every
+sample. *What happened:* the roll and pitch rate loops oscillated from lift-off (rate error 27
+and 24 deg/s standard deviation, controller output flipping sign every sample; yaw calm). In
+Loiter and AltHold ArduPilot lets attitude control raise the average thrust up to half of
+`MOT_THST_HOVER` to keep authority. The mixer sat on that cap, 0.10, for the whole flight
+(`MOTB.ThrOut` = `ThrAvMx` = 0.10). This aircraft lifts off at roughly 1200 to 1250 us, about
+0.06 thrust, so the cap was well above hover and it climbed to 23 m in 3.8 s with stick and
+height controller both asking for down. *Whose numbers:* `MOT_THST_HOVER=0.2` was written by
+the head that morning from Mission Planner's formula and never checked against this power
+system (the firmware default 0.35 would have put the cap at 0.175); the rate gains were left
+at firmware defaults with "halve them if it oscillates" as the plan, which assumed an
+oscillation could be landed from. In Stabilize the same cap is 0.1 x hover = 0.02, below
+lift-off, and there was no Stabilize position on the switch. *Also in the log:* "ground mag
+anomaly, yaw re-aligned" at lift-off. Evidence: `runs/target_bench_20261114/README.md` and
+`crash_flight_timeline.txt`. *Before any further flight:* damage check; halve the roll/pitch
+rate gains; bring the hover figure and thrust-mix cap below this aircraft's real hover, or cut
+the motor range so hover sits higher in it; Stabilize back on the switch for first hops;
+confirm on the ground, tethered or hand-checked props-off, that minimum throttle means
+descent.

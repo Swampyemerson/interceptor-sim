@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4a62c63<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->9bbe1b8<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,10 +914,10 @@
  },
  "now": {
   "as_of": "2026-11-14",
-  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause not yet known.",
+  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause found in its log, not yet fixed.",
   "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
   "next": [
-   "You: target: battery outside on concrete; plug the board into USB (no battery) so I can read the log",
+   "You: target: battery outside; check frame, arms, motors, props, GPS mast; tell me what broke",
    "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
   "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -1457,9 +1457,9 @@
  "plain_log": [
   {
    "date": "2026-11-14",
-   "text": "The target drone's first flight ended in a crash. As the builder reported it: the drone climbed even with the throttle stick at minimum, he used the arm switch to cut the motors at roughly 100 ft, and it fell and hit the lawn battery first. Cause not yet known. The flight log on the board has not been read; the board was not connected when this was written. Two candidate causes are written down before reading the log: the firmware's minimum motor speed (15% of full, never checked against this 6S power system) may already lift the drone, or the height controller drove the throttle up. The log separates them: motors at their floor while climbing means the first, motors commanded high with the stick low means the second.",
-   "so_what": "No flight of the target until the log is read and the cause is fixed. The battery took the impact and must be treated as a fire risk. Damage not yet assessed. Settings written that day (hover-throttle guess, thrust curve, filters) are part of what the log has to clear or implicate.",
-   "evidence": "Builder report in session, 2026-11-14; settings on the board for the flight: configs/target_kakute/dumps/20261114_after.tsv; ADR-0138"
+   "text": "The target drone's first flight ended in a crash, and the board's log explains it. It flew for 3.8 seconds in Position hold and reached 23 m before the builder cut the motors; it fell and hit the lawn battery first. The roll and pitch control loops were oscillating from lift-off. ArduPilot lets attitude control raise the motors to keep its grip, up to a cap of half the hover thrust it has been told. That figure had been set to 0.20 that morning; the log shows this drone really hovers at about 0.06. So the cap sat well above hover, and the drone climbed at up to 7.6 m/s while the stick and the height controller were both asking for down.",
+   "so_what": "No flight of the target until: damage is checked, the roll/pitch gains are halved, the hover figure and that cap are brought below the drone's real hover, Stabilize is back on the switch for first hops, and minimum throttle is shown on the ground to mean descent. Both candidate causes written before reading the log were wrong as stated; the hover figure was mine. The battery took the impact and is a fire risk.",
+   "evidence": "runs/target_bench_20261114/README.md + crash_flight_timeline.txt; ADR-0138 addenda 5 and 6"
   },
   {
    "date": "2026-11-14",
