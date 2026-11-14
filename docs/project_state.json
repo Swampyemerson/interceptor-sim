@@ -20,7 +20,7 @@
     "where": "Interceptor: flew well on 2026-11-09; its Pi now records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: switches and first-flight settings loaded 2026-11-14, never flown, not yet calibrated.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
-      "You: target, props off: accelerometer + compass calibration in QGroundControl, then first hop",
+      "You: target, props off: motor test (A = front-right of the real nose), then calibrate",
       "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
     ],
     "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -560,8 +560,8 @@
   "plain_log": [
     {
       "date": "2026-11-14",
-      "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. All 65 settings read back after a reboot. Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it.",
-      "so_what": "The target cannot arm yet: its accelerometer and compass have never been calibrated, a hands-on job in QGroundControl. Two things to know before flying: moving the arm switch down in flight stops the motors and cannot be undone, and there is no Stabilize position although ArduPilot recommends first flights in it.",
+      "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. The flight controller turned out to be mounted backwards, like the interceptor's was; the board rotation is now set to 180 degrees and the attitude reading flipped as it should. All 66 settings read back after a reboot. Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it.",
+      "so_what": "The target cannot arm yet: accelerometer and compass calibration are hands-on jobs in QGroundControl. Before the first arm, re-run the motor test with props off: motor A must be front-right of the real nose, because the October check may have used the board's arrow as the front. Also: arm switch down in flight stops the motors for good, and there is no Stabilize position.",
       "evidence": "ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md"
     },
     {

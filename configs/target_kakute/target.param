@@ -73,6 +73,29 @@ FRAME_TYPE,1
 
 
 # ---------------------------------------------------------------------------
+# BOARD ROTATION  --  the flight controller is mounted BACKWARDS (2026-11-14)
+# ---------------------------------------------------------------------------
+# Builder found it on the bench: the Kakute's arrow points at the tail, the
+# same mistake as the interceptor's Pixhawk (SENS_BOARD_ROT=4 there). 4 =
+# Yaw180. Rotates the gyro, accelerometer and any on-board compass into the
+# airframe's axes; needs a reboot. The external GPS compass has its own
+# setting (COMPASS_ORIENT, found automatically by the compass calibration).
+# Observed on the bench: resting roll/pitch read -3.4 / -4.3 deg before the
+# write and +3.4 / +4.3 after the reboot, which is what a 180 degree turn
+# must do.
+# CALIBRATE THE ACCELEROMETER AND COMPASS *AFTER* THIS IS SET.
+# This does NOT move the motors: the motor order below was verified corner by
+# corner on 2026-10-13, and the record does not say which end was called
+# "front" that day. RE-RUN THE MOTOR TEST, PROPS OFF, before the first arm:
+# motor A must be the FRONT-RIGHT of the real nose. If A is back-left, the
+# order was set against the board's arrow and SERVO1..4_FUNCTION need the
+# 180 degree swap (33<->34, 35<->36) or the first take-off flips.
+# src: https://ardupilot.org/copter/docs/common-sensor-offset-compensation.html
+# src: https://ardupilot.org/copter/docs/parameters.html (AHRS_ORIENTATION)
+AHRS_ORIENTATION,4
+
+
+# ---------------------------------------------------------------------------
 # MOTORS / ESC  --  Tekko32 F4 Metal 65A 4-in-1, DShot
 # ---------------------------------------------------------------------------
 # DShot600. The Tekko32 is a digital BLHeli32 ESC -> DShot needs no ESC

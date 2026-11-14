@@ -21,9 +21,16 @@ assembly + copy-paste, not research.
 
 > **Status 2026-11-14.** The board is flashed (ArduCopter 4.7.0), motor order and
 > direction are verified, the radio is calibrated, and `target.param` is loaded and
-> read back (65 of 65). It has never flown. Still to do before it can arm:
+> read back (66 of 66). It has never flown. Still to do before it can arm:
 > **accelerometer calibration and compass calibration** (§7). Before/after dumps of
-> every setting: `dumps/20261114_*.tsv`.
+> every setting: `dumps/20261114_before.tsv` and `_after.tsv`.
+>
+> **The flight controller is mounted backwards** (arrow at the tail, found
+> 2026-11-14), so `AHRS_ORIENTATION=4`. Calibrate after that is set, never before.
+> **Re-run the motor test, props off, before the first arm:** motor A must be the
+> front-right of the real nose. The 2026-10-13 record does not say which end was
+> called "front"; if A turns out to be back-left, the motor order needs the
+> 180° swap first or the first take-off flips.
 >
 > **RC loss returns the target home, in every mode** (`FS_OPTIONS=0`, decided
 > 2026-11-14). The earlier "continue the mission on RC loss" option was written for

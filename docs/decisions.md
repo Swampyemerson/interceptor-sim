@@ -1582,9 +1582,18 @@ on the interceptor. (3) Bands 3 to 5 all carry the middle mode because the switc
 in flight (read in the 4.7.0 source), so it is the kill, and unlike Motor Emergency Stop or the
 interceptor's kill it cannot be undone by flipping back. There is no Stabilize position;
 ArduPilot's first-flight page asks for first flights in Stabilize. *Evidence.*
-`configs/target_kakute/dumps/20261114_before_modes.tsv` and `_after_modes.tsv` (26 settings
-differ: the 22 written and 4 the board re-measures at boot); write tool read back 65 of 65
+`configs/target_kakute/dumps/20261114_before.tsv` and `_after.tsv` (the settings written,
+plus the few the board re-measures at boot); write tool read back every setting in the file
 before and after a reboot. `gen_loop_mission.py` uploaded a placeholder route, read back 7 of 7
 items, and the route was then erased (0 items on board). *Not done.* Accelerometer and compass
 calibration (the board refuses to arm without them), a GPS fix (none indoors; the receiver is
 detected), any flight.
+
+**Addendum, same day: the Kakute is mounted backwards.** The builder found the board's arrow
+pointing at the tail, the interceptor's mistake again. `AHRS_ORIENTATION=4` (Yaw180) written,
+read back 66 of 66 after a reboot, and the effect observed: resting roll / pitch went from
+-3.4 / -4.3 deg to +3.4 / +4.3. No calibration had been done yet, so nothing has to be
+redone. *Open, and it gates the first arm:* the motor order was verified corner by corner on
+2026-10-13, and the record does not say which end was called "front". If it was the board's
+arrow, the order is now 180 degrees out and the first take-off flips. Check: motor test, props
+off, motor A must be the front-right of the real nose. Lint now requires the rotation line.

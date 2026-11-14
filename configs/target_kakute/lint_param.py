@@ -52,6 +52,10 @@ TARGET_FIRMWARE = "ArduCopter 4.7.0"
 # Predicates are written against the FIRMWARE's own ranges/defaults where one
 # exists, so they can actually fail, rather than restating target.param's value.
 REQUIRED = [
+    # The Kakute is mounted with its arrow at the tail (found 2026-11-14). A
+    # re-upload that dropped this line would put the board back to "forwards"
+    # and the first take-off would flip.
+    ("AHRS_ORIENTATION", lambda v: v == 4,          "board rotation Yaw180 (the FC is mounted backwards)"),
     ("MOT_PWM_TYPE",  lambda v: 4 <= v <= 7,        "DShot (Tekko32 4-in-1)"),
     ("SERVO_BLH_AUTO", lambda v: v == 1,            "BLHeli passthrough on"),
     ("BATT_MONITOR",  lambda v: v == 4,             "analog V+I current sense"),
