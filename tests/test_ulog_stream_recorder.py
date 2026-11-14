@@ -212,3 +212,100 @@ def test_no_on_arm_command_means_nothing_runs():
     hook = rec.ArmHook(None, "/repo", popen=lambda *a, **k: 1 / 0)
     hook.start("x")
     assert hook.stop() == {}
+
+
+# --- ground-station bridge ---------------------------------------------------
+
+class _FakeSock:
+    def __init__(self):
+        self.inbox, self.sent, self.fail_sends = [], [], False
+
+    def recvfrom(self, _n):
+        if not self.inbox:
+            raise BlockingIOError
+        return self.inbox.pop(0)
+
+    def sendto(self, data, addr):
+        if self.fail_sends:
+            raise OSError("Network is unreachable")
+        self.sent.append((data, addr))
+
+
+def _packets():
+    """Real MAVLink 2 packets, built by the same library the recorder reads with."""
+    os.environ["MAVLINK20"] = "1"
+    from pymavlink.dialects.v20 import common as mav
+    fc = mav.MAVLink(None, srcSystem=1, srcComponent=1)
+    gcs = mav.MAVLink(None, srcSystem=255, srcComponent=190)
+    parse = mav.MAVLink(None)
+    parse.robust_parsing = True
+
+    def decoded(m):
+        return parse.parse_buffer(m.pack(fc))[0]
+    return {
+        "fc_heartbeat": decoded(mav.MAVLink_heartbeat_message(2, 12, 0, 0, 0, 3)),
+        "fc_attitude": decoded(mav.MAVLink_attitude_message(1, 0, 0, 0, 0, 0, 0)),
+        "fc_log": decoded(mav.MAVLink_logging_data_message(1, 155, 7, 3, 255, [0] * 249)),
+        "fc_ack_to_recorder": decoded(mav.MAVLink_command_ack_message(
+            2510, 0, target_system=1, target_component=155)),
+        "gcs_heartbeat": mav.MAVLink_heartbeat_message(6, 8, 0, 0, 0, 3).pack(gcs),
+        "gcs_param_list": mav.MAVLink_param_request_list_message(1, 1).pack(gcs),
+    }
+
+
+def _bridge():
+    sock, now, to_fc = _FakeSock(), [100.0], []
+    b = rec.GcsBridge(14550, sock=sock, clock=lambda: now[0])
+    b.write_to_fc = to_fc.append
+    return b, sock, now, to_fc
+
+
+def test_bridge_announces_itself_then_talks_only_to_the_ground_station():
+    b, sock, now, to_fc = _bridge()
+    p = _packets()
+    QGC = ("192.168.0.25", 14550)
+    # Nobody connected: only the Pixhawk's heartbeat goes out, as a broadcast.
+    b.to_gcs(p["fc_attitude"])
+    b.to_gcs(p["fc_heartbeat"])
+    assert sock.sent == [(bytes(p["fc_heartbeat"].get_msgbuf()), ("255.255.255.255", 14550))]
+    # The ground station answers; what it sends reaches the Pixhawk byte for byte.
+    sock.inbox += [(p["gcs_heartbeat"], QGC), (p["gcs_param_list"], QGC)]
+    now[0] += 1.0
+    b.pump()
+    assert to_fc == [p["gcs_heartbeat"], p["gcs_param_list"]]
+    # From now on telemetry goes to it directly, and the log packets do not.
+    sock.sent.clear()
+    for name in ("fc_attitude", "fc_log", "fc_ack_to_recorder", "fc_heartbeat"):
+        b.to_gcs(p[name])
+    assert sock.sent == [(bytes(p["fc_attitude"].get_msgbuf()), QGC),
+                         (bytes(p["fc_heartbeat"].get_msgbuf()), QGC)]
+    report = b.take_report()
+    assert report["ground_stations_seen"] == ["192.168.0.25"]
+    assert report["bytes_from_ground_station"] == len(p["gcs_heartbeat"]) + len(p["gcs_param_list"])
+
+
+def test_bridge_ignores_its_own_broadcast_and_anything_that_is_not_mavlink():
+    b, sock, now, to_fc = _bridge()
+    p = _packets()
+    echo = bytes(p["fc_heartbeat"].get_msgbuf())
+    sock.inbox += [(echo, ("192.168.0.61", 14550)), (b"GET / HTTP/1.1\r\n", ("192.168.0.9", 5000)),
+                   (b"", ("192.168.0.9", 5001))]
+    now[0] += 1.0
+    b.pump()
+    assert to_fc == [] and b.clients == {}
+
+
+def test_bridge_drops_a_silent_ground_station_and_survives_a_dead_network():
+    b, sock, now, to_fc = _bridge()
+    p = _packets()
+    sock.inbox.append((p["gcs_heartbeat"], ("192.168.0.25", 14550)))
+    now[0] += 1.0
+    b.pump()
+    assert len(b.clients) == 1
+    sock.fail_sends = True
+    b.to_gcs(p["fc_attitude"])              # must not raise: the recording comes first
+    now[0] += rec.GCS_SILENT_AFTER_S + 1.0
+    b.pump()
+    assert b.clients == {}
+    b.to_gcs(p["fc_heartbeat"])             # back to announcing, network still down
+    assert b.take_report()["bytes_to_ground_station"] == 0

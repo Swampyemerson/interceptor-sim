@@ -1543,3 +1543,20 @@ first client died without sending stop; the recorder sends stop before every sta
 the Pi itself (captures were taken from the PC), an armed in-flight log, and how well the video
 and the log line up in time. *Cost if wrong.* The service is one `systemctl disable` from gone
 and changes no Pixhawk setting. Guide: `docs/fc_logging_without_sd.md`.
+
+**Addendum 2026-11-14: the recorder also bridges a ground station.** *Context.* With the
+Pixhawk's USB in the Pi, QGroundControl on the PC lost its cable, and the builder did not want
+to swap it back and forth. *Options.* (a) swap the cable; (b) install a MAVLink router on the Pi
+and make the recorder one of its clients; (c) have the recorder itself pass traffic to and from
+a UDP port. *Decision.* (c): `--gcs-udp-port 14550`, on by default in the Pi service
+(`GCS_PORT`, 0 turns it off). The Pixhawk's heartbeat is broadcast while no ground station is
+connected, so QGroundControl finds it without setup; log packets and acks addressed to the
+recorder are not passed on. *Why.* The recorder already owns the port and parses every message,
+so the bridge is about 80 lines and no new process; a router would have to be built from source
+and adds a second thing to keep running. *Measured (stand-in ground station, disarmed).* USB:
+1,122 settings in 0.73 s, log `CLEAN` alongside. Wi-Fi through the Pi on the serial cable:
+found in 0.25 s, 1,122 settings in 5.25 s. *Not yet shown.* QGroundControl itself, and whether
+its connect burst costs the log a gap. *Cost if wrong.* The port is unauthenticated: anything on
+the same network can command the Pixhawk through it, as with any Wi-Fi telemetry link.
+`NAV_DLL_ACT` reads 0, so a ground station dropping out triggers nothing. Also found: PX4 serves
+one log stream at a time, and two recorders steal it from each other every 10 s.

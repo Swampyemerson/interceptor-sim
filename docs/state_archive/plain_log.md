@@ -500,3 +500,11 @@ The hover wobble is root-caused and essentially gone, in three flights in one ev
 **So what:** The interceptor now flies properly; the wobble that blocked everything since 2026-10-25 was two wrong settings, not wiring. Both fixes were predicted in writing before the flight that tested them. What remains is ordinary tuning of the height loop and filters. SETBACK the same evening: the Pi 5 no longer boots after being peeled off mounting tape (capacitors stripped from its underside, per the builder's photo) -- no in-flight recorder and no seeker computer until it is replaced; the SD card is believed intact. All flight verdicts tonight are builder reports by eye, ear and touch; nothing was logged.
 
 *Evidence: configs/px4_6cmini/dumps/20261109_*.tsv (before, after, post-flight; the QGC-set P/D values were read back after the flight: all landed); ADR-0134 + addenda; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py, phone_wobble_freq.py; PX4 v1.16.0 airframes 4001/5001/4050*
+
+## 2026-11-10 (overflowed from plain_log 2026-11-14)
+
+Camera mount decided and drawn. The builder picked a short post off the avionics dock's nose over the pod-lid cradle and the old nose boom. The dock grows a tongue to the frame's two nose screws and two cheeks that carry a tilting camera plate (10 to 45 degrees). The camera plate is fitted to Arducam's own 3D model of the B0353. Calculated, not built: first shake mode 254 Hz against 137 Hz for the lid cradle; props 17 degrees or more outside the picture with the delivered lens; whole aircraft 850 g. Known costs: it blocks the Pi's USB ports while fitted, and the camera plate overhangs the edge of the front prop circles by position (about 2 mm outside in top view, 16 mm or more above the blades).
+
+**So what:** The last open layout question on the avionics pod is closed, so the print list is fixed: template first, then dock, pod and camera plate. Every number is still a model; the printed part and a tap test decide whether the picture is steady.
+
+*Evidence: ADR-0135 - hardware/avionics_pod/README.md (revision 4) - ANALYSIS.md - nose_post_check.py - fea_results/nose_post.json*

@@ -37,6 +37,14 @@ if [[ ! -e /etc/default/flight-recorder ]]; then
 #VIDEO_CMD=$PY scripts/field/record_video.py --note flight --exposure-us 1000
 CONF
 fi
+if ! grep -q GCS_PORT /etc/default/flight-recorder; then
+    sudo tee -a /etc/default/flight-recorder > /dev/null <<CONF
+#
+# Network port where QGroundControl reaches the Pixhawk through this Pi.
+# 0 turns the bridge off (nothing on the network can then reach the Pixhawk).
+#GCS_PORT=14550
+CONF
+fi
 mkdir -p "$HOME/fc_logs"
 sudo systemctl daemon-reload
 sudo udevadm control --reload

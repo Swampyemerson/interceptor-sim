@@ -1,0 +1,17 @@
+ground-station bridge on UDP port 14550
+link: COM5
+ground station connected: 127.0.0.1:61858
+      5s armed=False 0.12 MB (24.6 KB/s) gaps=1 lost=6
+     10s armed=False 0.32 MB (32.1 KB/s) gaps=1 lost=6
+     15s armed=False 0.52 MB (34.6 KB/s) gaps=1 lost=6
+     20s armed=False 0.72 MB (36.0 KB/s) gaps=1 lost=6
+     25s armed=False 0.92 MB (36.9 KB/s) gaps=1 lost=6
+     30s armed=False 1.12 MB (37.3 KB/s) gaps=1 lost=6
+     35s armed=False 1.32 MB (37.7 KB/s) gaps=1 lost=6
+ground station gone: 127.0.0.1:61858
+     40s armed=False 1.52 MB (37.9 KB/s) gaps=1 lost=6
+     45s armed=False 1.72 MB (38.1 KB/s) gaps=1 lost=6
+     50s armed=False 1.92 MB (38.3 KB/s) gaps=1 lost=6
+     55s armed=False 2.11 MB (38.4 KB/s) gaps=1 lost=6
+CLEAN: C:\Temp\fc_logs\bridge_usb\fc_20261114T164349Z_ground.ulg 2.32 MB in 60s (38.71 KB/s), gaps=1 (1 at start-up, 0 after), lost packets=6, ended: --seconds reached
+recorder exit 0

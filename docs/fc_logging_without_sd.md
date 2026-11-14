@@ -20,8 +20,39 @@ three are kept. Both the log and the video are pushed to the card every second, 
 the battery costs about the last second. A file that was cut off is trimmed to its last
 whole record and kept as `_recovered.ulg` the next time the Pi starts.
 
-The service sends the Pixhawk three things only: "start log stream", "stop log stream" and
-packet acknowledgements. It sets no parameters and cannot arm.
+Of its own accord the service sends the Pixhawk three things only: "start log stream",
+"stop log stream" and packet acknowledgements. It sets no parameters and does not arm.
+It also carries a ground station's traffic both ways (next section), and a ground station
+can do anything it could do over a USB cable.
+
+### QGroundControl over Wi-Fi, through the Pi (added 2026-11-14)
+
+The Pixhawk's USB cable can stay in the Pi. The recorder passes everything the Pixhawk
+says on to the PC over the network and passes QGroundControl's messages back, so
+QGroundControl (the ground-station program: settings, calibration, live status) works
+without moving the cable. The log packets are held back from the ground station, so
+logging carries on underneath.
+
+- **To connect:** have the PC on the same Wi-Fi as the Pi and open QGroundControl. It
+  should find the Pixhawk by itself within a few seconds: the Pi announces it on UDP port
+  14550, the port QGroundControl listens on. If it does not, add the link by hand:
+  Application Settings, Comm Links, Add, type UDP, port 14550, server address
+  `192.168.0.61:14550`.
+- **Unplug the Pixhawk's USB from the PC first.** With both paths live QGroundControl
+  sees the same aircraft twice.
+- **Speed depends on the Pixhawk-to-Pi cable.** Over USB a full settings download took
+  0.7 s in the bench test. Over the 3-pin serial cable it took 5.3 s, because that cable
+  is already full with the log.
+- **Anyone on the same Wi-Fi can reach the Pixhawk through this port**, with no password,
+  the same as any Wi-Fi telemetry link. On the home network that is your own devices. To
+  turn the bridge off, set `GCS_PORT=0` in `/etc/default/flight-recorder` and restart
+  the service.
+- **Losing the link in flight does nothing.** The Pixhawk's "ground station lost" action
+  (`NAV_DLL_ACT`) reads 0, disabled, on this board (read 2026-11-14).
+
+Only one program can receive the log stream at a time. A second recorder (for example
+one run by hand on the PC's USB port while the Pi's service is running) takes the stream
+away, and the two then steal it back and forth every 10 s. Stop the service first.
 
 ### The one thing it needs from you: a USB cable
 
@@ -46,6 +77,7 @@ program opening the port gets "Device or resource busy" instead of half the byte
 journalctl -u flight-recorder -f              # watch it (on the Pi)
 sudo systemctl stop flight-recorder           # free the serial cable and the camera
 sudo systemctl start flight-recorder
+journalctl -u flight-recorder | grep "ground station"   # when QGroundControl connected and left
 scripts/pi_setup/install_flight_recorder.sh   # install or update after a git pull
 scp -r admin@192.168.0.61:fc_logs .           # copy the logs to the laptop
 ```
@@ -67,6 +99,12 @@ Tested on the bench, Pixhawk disarmed:
   1.6 s later, recorded 918 frames at 59.5 frames/s with none dropped, and stopped 5 s
   after the pretend disarm.
 - Hard kill of the recorder mid-file: the file was recovered on the next start.
+- Ground-station bridge, with a script standing in for QGroundControl (it listens on port
+  14550, answers the Pixhawk's announcement and downloads every setting):
+  over USB from the PC, all 1,122 settings in 0.7 s while a 60 s log recorded `CLEAN`
+  (one start-up gap, none after) and attitude stayed at 100 Hz; over Wi-Fi through the
+  Pi's service on the serial cable, found by itself in 0.25 s, all 1,122 settings in 5.3 s.
+  The Pixhawk's console was also read from the laptop through the Pi.
 
 Not tested yet:
 
@@ -75,6 +113,9 @@ Not tested yet:
 - **USB plugged into the Pi.** The USB captures were taken from the PC. The Pi's switch to
   USB (a device rule naming the port `/dev/pixhawk-usb`) has not run with a cable in.
 - **An armed, flying log.** The 40 KB/s figure is for a disarmed aircraft.
+- **QGroundControl itself on the bridge.** The test used a stand-in script. QGroundControl
+  asks for more on connecting (mission, files of settings descriptions), and whether that
+  burst costs the log a gap over USB has not been measured.
 - **Lining the video up with the log in time.** The stats file stores pairs of Pi clock and
   Pixhawk clock, and the video stores its start time; nobody has checked how well they agree.
 
@@ -107,7 +148,8 @@ start. Reproduced on the bench: session ended without stop, next bare start refu
 | `scripts/field/record_video.py` | The camera recorder the service starts. |
 
 Evidence: `runs/fc_log_stream_20261113/` (stats for every capture, the Pixhawk console
-output, the bench gate log). Decision record: ADR-0137.
+output, the bench gate log, and `gcs_bridge/` for the ground-station tests). Decision
+record: ADR-0137 and its addendum.
 
 ## Predictions, written before the first measurement (2026-11-13)
 

@@ -3,9 +3,14 @@
 #     is dead) to ~/fc_logs, one file per flight, synced to the card every second
 #   - starts the camera recording when the Pixhawk reports ARMED and stops it a
 #     few seconds after disarm (sessions/video_<time>/ in the repo folder)
+#   - passes the Pixhawk's MAVLink traffic to a ground station (QGroundControl)
+#     on the network, UDP port 14550, and the ground station's back, so the
+#     Pixhawk's USB cable can stay in the Pi. Anyone on the same network can
+#     reach the Pixhawk through it; GCS_PORT=0 turns it off.
 #
-# It sends the Pixhawk nothing except "start log stream", "stop log stream" and
-# packet acknowledgements. docs/fc_logging_without_sd.md has the measurements.
+# Of its own accord it sends the Pixhawk nothing except "start log stream",
+# "stop log stream" and packet acknowledgements. docs/fc_logging_without_sd.md
+# has the measurements.
 #
 #     scripts/pi_setup/install_flight_recorder.sh     # install or update
 #     journalctl -u flight-recorder -f                # watch it
@@ -13,7 +18,7 @@
 #     sudo systemctl start flight-recorder
 #
 # Settings live in /etc/default/flight-recorder (the installer writes a
-# commented copy): FALLBACK_PORT, VIDEO_CMD. The user and paths below are this
+# commented copy): FALLBACK_PORT, VIDEO_CMD, GCS_PORT. The user and paths below are this
 # project's Pi (user `admin`); the installer rewrites them for whoever runs it.
 
 [Unit]
@@ -25,10 +30,13 @@ Type=simple
 User=admin
 WorkingDirectory=/home/admin/interceptor-sim
 Environment=FALLBACK_PORT=/dev/ttyAMA10
+Environment=GCS_PORT=14550
 Environment="VIDEO_CMD=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/field/record_video.py --note flight"
 EnvironmentFile=-/etc/default/flight-recorder
-ExecStart=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/bench/ulog_stream_recorder.py --port auto --fallback-port ${FALLBACK_PORT} --per-flight --out-dir /home/admin/fc_logs --on-arm "${VIDEO_CMD}"
+ExecStart=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/bench/ulog_stream_recorder.py --port auto --fallback-port ${FALLBACK_PORT} --per-flight --gcs-udp-port ${GCS_PORT} --out-dir /home/admin/fc_logs --on-arm "${VIDEO_CMD}"
 Restart=always
+# Exit code 3 = "stopped while the log had gaps", normal on the serial cable.
+SuccessExitStatus=3
 RestartSec=2
 KillSignal=SIGTERM
 TimeoutStopSec=30

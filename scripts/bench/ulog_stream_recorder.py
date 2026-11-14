@@ -6,9 +6,15 @@ This asks for that stream on whatever link it is given (the Pi's serial cable, a
 USB cable, or a UDP port from a MAVLink router) and writes a normal .ulg file
 that pyulog / Flight Review / PlotJuggler open.
 
-Toward flight behaviour it is READ-ONLY: it sends heartbeats, the two logging
-commands (start / stop) and packet acknowledgements. No params, no arming, no
-setpoints.
+Of its own accord it sends the Pixhawk heartbeats, the two logging commands
+(start / stop) and packet acknowledgements. No params, no arming, no setpoints.
+
+--gcs-udp-port 14550 also makes it a BRIDGE for a ground station: everything the
+Pixhawk says (except the log packets) goes out over the network to
+QGroundControl, and whatever QGroundControl sends comes back to the Pixhawk. So
+the one Pixhawk cable can stay in this computer. The bridge passes a ground
+station's commands through unchanged and unauthenticated, exactly as a USB cable
+or a telemetry radio would: anyone on the same network can reach the Pixhawk.
 
     probe (bench):  ulog_stream_recorder.py --port /dev/ttyACM0 --seconds 60
     flight:         ulog_stream_recorder.py --port auto --per-flight \
@@ -44,6 +50,7 @@ import os
 import shlex
 import shutil
 import signal
+import socket
 import struct
 import subprocess
 import sys
@@ -74,6 +81,10 @@ STARTUP_GRACE_S = 1.0
 SYNC_EVERY_S = 1.0
 HOOK_MIN_FREE_BYTES = 5 * 1024**3   # do not start a video with less card space than this
 HOOK_STOP_WAIT_S = 20.0
+MAV_COMP_ID_AUTOPILOT = 1
+GCS_DEFAULT_PORT = 14550            # the port QGroundControl listens on by itself
+GCS_SILENT_AFTER_S = 10.0           # a ground station sends a heartbeat every second
+GCS_MAX_CLIENTS = 4
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
@@ -310,8 +321,111 @@ class ArmHook:
         return report
 
 
+def mavlink_source(datagram: bytes) -> tuple[int, int] | None:
+    """(system id, component id) of the first MAVLink packet in a datagram, or None."""
+    if len(datagram) >= 12 and datagram[0] == 0xFD:      # MAVLink 2
+        return datagram[5], datagram[6]
+    if len(datagram) >= 8 and datagram[0] == 0xFE:       # MAVLink 1
+        return datagram[3], datagram[4]
+    return None
+
+
+class GcsBridge:
+    """Pass the Pixhawk's MAVLink traffic to a ground station over UDP, and back.
+
+    A ground station becomes a client by sending anything to our port (add a UDP
+    link to this computer in QGroundControl), or by answering the Pixhawk's
+    heartbeat, which is broadcast on the local network while no client is
+    connected (QGroundControl listens for exactly that, so it connects by itself).
+    The log packets are not passed on: they are large, and a ground station that
+    acknowledged them would confuse the stream this recorder is saving.
+    """
+    NOT_FORWARDED = ("LOGGING_DATA", "LOGGING_DATA_ACKED", "BAD_DATA")
+
+    def __init__(self, port: int, sock=None, clock=time.monotonic,
+                 announce_to=("255.255.255.255", GCS_DEFAULT_PORT)):
+        if sock is None:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.bind(("0.0.0.0", port))
+            sock.setblocking(False)
+        self.port, self.sock, self.clock, self.announce_to = port, sock, clock, announce_to
+        self.write_to_fc = None                # set by whoever owns the Pixhawk link
+        self.clients: dict[tuple, float] = {}  # address -> when it last spoke
+        self.last_pump = 0.0
+        self._reset_counts()
+
+    def _reset_counts(self) -> None:
+        self.bytes_to_gcs = self.bytes_from_gcs = 0
+        self.seen: set[str] = set()
+
+    def _send(self, data: bytes, addr: tuple) -> None:
+        try:
+            self.sock.sendto(data, addr)
+            self.bytes_to_gcs += len(data)
+        except OSError:
+            pass                               # no network, client gone: never the recorder's problem
+
+    def to_gcs(self, msg) -> None:
+        """Pass one message from the Pixhawk on to every connected ground station."""
+        t = msg.get_type()
+        # Replies addressed to the recorder itself (acks of its log commands) are
+        # not a ground station's business either.
+        if t in self.NOT_FORWARDED or getattr(msg, "target_component", 0) == MAV_COMP_ID_LOG:
+            return
+        data = bytes(msg.get_msgbuf())
+        if self.clients:
+            for addr in self.clients:
+                self._send(data, addr)
+        elif (t == "HEARTBEAT" and msg.get_srcComponent() == MAV_COMP_ID_AUTOPILOT
+              and self.announce_to is not None):
+            self._send(data, self.announce_to)
+
+    def pump(self) -> None:
+        """Pass whatever ground stations have sent on to the Pixhawk."""
+        now = self.clock()
+        if now - self.last_pump < 0.005:
+            return
+        self.last_pump = now
+        for _ in range(64):
+            try:
+                data, addr = self.sock.recvfrom(4096)
+            except (BlockingIOError, InterruptedError):
+                break
+            except OSError:
+                break
+            src = mavlink_source(data)
+            # Not MAVLink, or it claims to be the autopilot: that is our own
+            # broadcast heartbeat coming back, never a ground station.
+            if src is None or src[1] == MAV_COMP_ID_AUTOPILOT:
+                continue
+            if addr not in self.clients:
+                if len(self.clients) >= GCS_MAX_CLIENTS:
+                    continue
+                print(f"ground station connected: {addr[0]}:{addr[1]}", flush=True)
+            self.clients[addr] = now
+            self.seen.add(addr[0])
+            self.bytes_from_gcs += len(data)
+            if self.write_to_fc is not None:
+                self.write_to_fc(data)
+        for addr in [a for a, t in self.clients.items() if now - t > GCS_SILENT_AFTER_S]:
+            del self.clients[addr]
+            print(f"ground station gone: {addr[0]}:{addr[1]}", flush=True)
+
+    def take_report(self) -> dict:
+        """Traffic since the last report (one report per log file)."""
+        r = {"udp_port": self.port, "ground_stations_seen": sorted(self.seen),
+             "connected_now": len(self.clients),
+             "bytes_to_ground_station": self.bytes_to_gcs,
+             "bytes_from_ground_station": self.bytes_from_gcs}
+        self._reset_counts()
+        self.seen.update(a[0] for a in self.clients)
+        return r
+
+
 class Recorder:
-    def __init__(self, args):
+    def __init__(self, args, bridge: GcsBridge | None = None):
         # The log packets only exist in MAVLink 2; PX4 answers in the version it hears.
         os.environ.setdefault("MAVLINK20", "1")
         from pymavlink import mavutil
@@ -323,6 +437,9 @@ class Recorder:
                                             source_system=args.source_system,
                                             source_component=MAV_COMP_ID_LOG)
         self._claim_port()
+        self.bridge = bridge
+        if bridge is not None:
+            bridge.write_to_fc = self.m.write
         self.armed = self.real_armed = False
         self.last_beat = 0.0
         self.hook = ArmHook(args.on_arm, args.hook_cwd)
@@ -349,12 +466,22 @@ class Recorder:
                                       self.mavutil.mavlink.MAV_AUTOPILOT_INVALID, 0, 0, 0)
             self.last_beat = now
 
+    def recv(self, timeout: float):
+        """Next message from the Pixhawk (None on timeout); also runs the bridge."""
+        msg = self.m.recv_match(blocking=True, timeout=timeout)
+        if self.bridge is not None:
+            if msg is not None:
+                self.bridge.to_gcs(msg)
+            self.bridge.pump()
+        return msg
+
     def wait_vehicle(self, timeout: float) -> bool:
         t0 = time.monotonic()
         while time.monotonic() - t0 < timeout and not self.should_stop():
             self.beat()
-            msg = self.m.recv_match(type="HEARTBEAT", blocking=True, timeout=0.5)
-            if msg is not None and msg.get_srcComponent() == 1:
+            msg = self.recv(0.05)
+            if (msg is not None and msg.get_type() == "HEARTBEAT"
+                    and msg.get_srcComponent() == MAV_COMP_ID_AUTOPILOT):
                 self.sysid = msg.get_srcSystem()
                 self.real_armed = self.armed = bool(msg.base_mode & ARMED_FLAG)
                 return True
@@ -369,7 +496,7 @@ class Recorder:
         t0 = time.monotonic()
         while time.monotonic() - t0 < timeout:
             self.beat()
-            msg = self.m.recv_match(blocking=True, timeout=0.02)
+            msg = self.recv(0.02)
             if msg is None:
                 continue
             if msg.get_type() == "COMMAND_ACK" and msg.command == cmd:
@@ -501,7 +628,7 @@ class Recorder:
                 # Short timeout on purpose: on Windows pymavlink SLEEPS half of it when
                 # idle, and every header packet waits for our ack (0.2 s here made the
                 # header take 22 s and cost a gap when the data began).
-                msg = self.m.recv_match(blocking=True, timeout=0.02)
+                msg = self.recv(0.02)
                 if msg is not None:
                     handle(msg)
                 if now - last_print > (5.0 if a.seconds is not None else 60.0):
@@ -543,6 +670,8 @@ class Recorder:
         )
         if hook_report:
             stats["on_arm_command"] = hook_report
+        if self.bridge is not None:
+            stats["ground_station_bridge"] = self.bridge.take_report()
         stats["gaps_after_startup"] = stats["gaps"] - stats["gaps_at_startup"]
         stats["verdict"] = verdict(stats)
         kind = "flight" if ever_armed else "ground"
@@ -590,6 +719,9 @@ def main() -> int:
     ap.add_argument("--out-dir", default=os.path.expanduser("~/fc_logs"))
     ap.add_argument("--source-system", type=int, default=1,
                     help="MAVLink system id to speak as (default: the vehicle's own, 1)")
+    ap.add_argument("--gcs-udp-port", type=int, default=0,
+                    help="also bridge the Pixhawk to a ground station (QGroundControl) on this "
+                         f"UDP port; {GCS_DEFAULT_PORT} is the usual one, 0 = off (default)")
     ap.add_argument("--pretend-armed", type=float, nargs=2, metavar=("AFTER_S", "FOR_S"),
                     default=None,
                     help="diagnostic only: treat the vehicle as armed for FOR_S seconds, "
@@ -613,6 +745,9 @@ def main() -> int:
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, on_signal)
 
+    bridge = GcsBridge(args.gcs_udp_port) if args.gcs_udp_port else None
+    if bridge is not None:
+        print(f"ground-station bridge on UDP port {args.gcs_udp_port}", flush=True)
     worst = 0
     while not stop["now"]:
         args.active_port = args.port
@@ -624,7 +759,7 @@ def main() -> int:
                     return 2
                 time.sleep(1.0)
                 continue
-        rec = Recorder(args)
+        rec = Recorder(args, bridge)
         rec.should_stop = lambda: (stop["now"] or rec.stop_requested
                                    or os.path.exists(STOP_FLAG))
         print(f"link: {args.active_port}", flush=True)

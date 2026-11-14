@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->65d659b<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ad3b184<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,7 +900,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-11-13",
+ "updated": "2026-11-14",
  "updated_by": "Pi flight recorder: PX4 log stream + video while armed, bench-tested (2026-11-13)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -913,12 +913,12 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-11-13",
-  "where": "Third flight (2026-11-09) flew 'night and day' better. The new Pi runs camera and Hailo chip, talks to the Pixhawk, and since 2026-11-13 records the Pixhawk's flight log and camera video for each flight (bench-tested, not flown).",
+  "as_of": "2026-11-14",
+  "where": "Third flight (2026-11-09) flew 'night and day' better. The new Pi runs camera and Hailo chip, talks to the Pixhawk, records the Pixhawk's flight log and camera video for each flight, and passes QGroundControl through over Wi-Fi (all bench-tested, not flown).",
   "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
   "next": [
    "You: fly the height change. Expect lift-off near 58% stick in Stabilized; it may feel unchanged",
-   "You: plug the Pixhawk's USB into the Pi; props off, arm 10 s, disarm; check for a video and a log"
+   "You: move the Pixhawk's USB to the Pi; open QGroundControl; props off, arm 10 s, check video + log"
   ],
   "evidence": "configs/px4_6cmini/dumps/20261109_flight3.tsv + 20261109_height_block.tsv - ADR-0134 addenda 3-4 - runs/fc_log_stream_20261113/README.md - ADR-0137"
  },
@@ -1456,6 +1456,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-11-14",
+   "text": "QGroundControl can now reach the Pixhawk over Wi-Fi through the Pi, so the Pixhawk's USB cable can stay in the Pi for logging. The Pi's flight recorder passes the Pixhawk's messages to the PC and the PC's back; the flight-log packets stay on the Pi. Bench results with a script standing in for QGroundControl, disarmed: over USB all 1,122 settings downloaded in 0.7 s while a 60 s log recorded complete; over Wi-Fi through the Pi (still on the serial cable) the Pixhawk was found in 0.25 s and the settings took 5.3 s.",
+   "so_what": "No more swapping the USB cable between the PC and the Pi. The port has no password: anything on the same Wi-Fi can command the Pixhawk through it (GCS_PORT=0 turns it off). Not yet tested with QGroundControl itself.",
+   "evidence": "runs/fc_log_stream_20261113/gcs_bridge/; docs/fc_logging_without_sd.md; ADR-0137 addendum 2026-11-14"
+  },
+  {
    "date": "2026-11-13",
    "text": "The interceptor has a flight recorder again, on the Pi. The Pixhawk's card slot is dead, so PX4 now sends its flight log down a cable and a Pi service writes it to the Pi's card, one file per flight. The same service starts the camera recording when the Pixhawk reports armed and stops it 5 s after disarm. Bench results, disarmed: over a USB cable the log is complete (40 KB/s, one 4-packet gap at start-up, none after) and the guidance link is untouched; over the existing serial cable about a third of the log is lost and the guidance link's attitude stream halves. The October failure (streaming accepted once, then refused) is explained and reproduced: the first client quit without sending stop. The offboard bench gate was re-run on the new Pi and passed.",
    "so_what": "The rule that a kill needs logs from both aircraft can now be met, once a Pixhawk-to-Pi USB cable is fitted. Until then the Pi records over the serial cable and its logs have gaps. Not yet tested: a real arming (the video trigger has only seen a pretend signal), USB plugged into the Pi itself, and a log from an actual flight.",
@@ -1520,12 +1526,6 @@
    "text": "The builder checked the camera post in SOLIDWORKS and the two programs agree. Held flat, the post's first shake mode is 275 Hz there against 254 Hz in the repo's model. Held only at its six screws, which is nearer the truth, both give about 170 Hz. With the pod's weight on the dock a lower mode appears, somewhere between 110 and 160 Hz, and that one carries the Pixhawk. Strength is not a concern: at 10 g on every axis the camera post sees 1 MPa. SOLIDWORKS could not mesh the pod base because of a hair-thin face; that is fixed in the CAD.",
    "so_what": "Bolting the dock is still right, but it does not put the Pixhawk clear of motor vibration by itself: hover is about 213 Hz and the pod mode sits below it, so every spool-up passes through it. The first vibration check is now a tap test with the dock bolted and the loaded pod latched on, then a Pixhawk vibration log at hover. If that confirms a low mode, the options are a seventh screw at the tail tab or a stiffer dock.",
    "evidence": "hardware/avionics_pod/SOLIDWORKS_CROSSCHECK.md - hardware/avionics_pod/ANALYSIS.md section 2 - hardware/avionics_pod/fea_results/nose_post_screws.json, pod_on_dock_screws.json - media/solidworks_*.png"
-  },
-  {
-   "date": "2026-11-10",
-   "text": "Camera mount decided and drawn. The builder picked a short post off the avionics dock's nose over the pod-lid cradle and the old nose boom. The dock grows a tongue to the frame's two nose screws and two cheeks that carry a tilting camera plate (10 to 45 degrees). The camera plate is fitted to Arducam's own 3D model of the B0353. Calculated, not built: first shake mode 254 Hz against 137 Hz for the lid cradle; props 17 degrees or more outside the picture with the delivered lens; whole aircraft 850 g. Known costs: it blocks the Pi's USB ports while fitted, and the camera plate overhangs the edge of the front prop circles by position (about 2 mm outside in top view, 16 mm or more above the blades).",
-   "so_what": "The last open layout question on the avionics pod is closed, so the print list is fixed: template first, then dock, pod and camera plate. Every number is still a model; the printed part and a tap test decide whether the picture is steady.",
-   "evidence": "ADR-0135 - hardware/avionics_pod/README.md (revision 4) - ANALYSIS.md - nose_post_check.py - fea_results/nose_post.json"
   }
  ],
  "narrative": {
