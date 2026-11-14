@@ -1,0 +1,7 @@
+normalization1 = normalization([0.0, 0.0, 0.0], [255.0, 255.0, 255.0])
+change_output_activation(conv54, sigmoid)
+change_output_activation(conv65, sigmoid)
+change_output_activation(conv80, sigmoid)
+quantization_param([conv54, conv65, conv80], force_range_out=[0.0, 1.0])
+nms_postprocess("/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/cfg/postprocess_config/yolov11n_nms_config.json", meta_arch=yolov8, engine=cpu)
+allocator_param(width_splitter_defuse=disabled)
