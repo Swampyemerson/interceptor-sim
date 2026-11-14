@@ -2,7 +2,112 @@
 
 The interceptor's Pixhawk 6C Mini cannot mount a microSD card, so it writes no flight log
 (ULog, PX4's flight-recorder file). This page is the substitute: PX4 sends the same log
-over a cable to the Raspberry Pi, and the Pi writes it to its own card.
+over a cable to the Raspberry Pi, and the Pi writes it to its own card. The same Pi service
+starts a camera recording when the Pixhawk reports "armed".
+
+## What is set up (2026-11-13)
+
+A service called `flight-recorder` runs on the Pi from boot. For every flight it writes:
+
+| What | Where on the Pi | Notes |
+|---|---|---|
+| The Pixhawk's flight log | `~/fc_logs/fc_<time>_flight.ulg` | One file per flight, from before arming to 5 s after disarm. Opens in Flight Review, PlotJuggler or `pyulog`. |
+| A report on that log | `~/fc_logs/fc_<time>_flight.stats.json` | Verdict (`CLEAN` or `GAPS`), packets lost, which cable was used, whether the video ran. |
+| Camera video | `~/interceptor-sim/sessions/video_<time>/` | 1920x1200 at 60 frames/s, starts about 1.6 s after arming, stops 5 s after disarm. `meta.json` reports dropped frames. |
+
+Time on the ground is recorded too, in rolling 10-minute `_ground` files; only the newest
+three are kept. Both the log and the video are pushed to the card every second, so pulling
+the battery costs about the last second. A file that was cut off is trimmed to its last
+whole record and kept as `_recovered.ulg` the next time the Pi starts.
+
+The service sends the Pixhawk three things only: "start log stream", "stop log stream" and
+packet acknowledgements. It sets no parameters and cannot arm.
+
+### The one thing it needs from you: a USB cable
+
+| Pixhawk-to-Pi cable used for the log | Log completeness | Effect on the guidance link |
+|---|---|---|
+| **USB** (Pixhawk USB-C to a Pi USB port) | Complete: 40 KB/s, one 4-packet gap in the first 5 s, none after | None. Serial link stayed at 100 Hz attitude; the offboard bench gate passed alongside it. |
+| **Serial only** (the existing 3-pin cable) | About a third of the packets lost | Attitude stream on that cable halves, 100 to 50 Hz, and nothing else can use the cable while the recorder holds it. |
+
+The service picks USB by itself when the Pixhawk's USB is plugged into the Pi and uses the
+serial cable otherwise. Today the Pixhawk's USB is plugged into the PC, so the Pi is on
+the serial cable and its logs say `GAPS`. A short USB-C to USB-A cable between the two
+boards fixes that with no settings to change.
+
+While the recorder is on the serial cable, stop it before running anything else that
+talks to the Pixhawk over that cable (the offboard bench gate, the hover recorder, the
+seeker): `sudo systemctl stop flight-recorder`, and `start` it again afterwards. A second
+program opening the port gets "Device or resource busy" instead of half the bytes.
+
+### Commands
+
+```bash
+journalctl -u flight-recorder -f              # watch it (on the Pi)
+sudo systemctl stop flight-recorder           # free the serial cable and the camera
+sudo systemctl start flight-recorder
+scripts/pi_setup/install_flight_recorder.sh   # install or update after a git pull
+scp -r admin@192.168.0.61:fc_logs .           # copy the logs to the laptop
+```
+
+Settings are in `/etc/default/flight-recorder` on the Pi. The one worth changing is the
+video command: outdoors add `--exposure-us 1000` so a fixed short exposure freezes motion
+(the default is auto exposure).
+
+## What has and has not been tested
+
+Tested on the bench, Pixhawk disarmed:
+
+- Log over USB: three captures from the PC's USB port, the last one 45 s, verdict `CLEAN`,
+  while the Pi ran the offboard bench gate over the serial cable (300 of 300 setpoints,
+  largest gap 0.05 s, oldest own-state reading 0.02 s; the same figures as the 2026-10-18
+  run with no logging).
+- Log over the serial cable: works, lossy, as the table says.
+- Arm trigger: with the recorder told to pretend "armed" for 12 s, the camera started
+  1.6 s later, recorded 918 frames at 59.5 frames/s with none dropped, and stopped 5 s
+  after the pretend disarm.
+- Hard kill of the recorder mid-file: the file was recovered on the next start.
+
+Not tested yet:
+
+- **A real arming.** The trigger has only seen a pretend signal. Check: props off, arm for
+  10 s, disarm, then look for a new `sessions/video_*` folder and a `_flight.ulg`.
+- **USB plugged into the Pi.** The USB captures were taken from the PC. The Pi's switch to
+  USB (a device rule naming the port `/dev/pixhawk-usb`) has not run with a cable in.
+- **An armed, flying log.** The 40 KB/s figure is for a disarmed aircraft.
+- **Lining the video up with the log in time.** The stats file stores pairs of Pi clock and
+  Pixhawk clock, and the video stores its start time; nobody has checked how well they agree.
+
+Known limits:
+
+- The log is PX4's default set: gyro at 50 Hz, attitude at 20 Hz. PX4's high-rate set for
+  filter tuning has not been tried and may not fit: PX4 gives the log at most 70 KB/s over
+  USB and the default set already uses 40.
+- With USB connected PX4 does not play the critical-battery warning tune (read from the
+  PX4 source, not tested). The battery failsafe itself is separate. This firmware allows
+  arming with USB connected by default.
+- On a flight where the seeker owns the camera, the video command fails to open it and
+  the log's stats file says so. The log itself is unaffected.
+
+## Why log streaming was "accepted once, then refused" on 2026-10-25
+
+PX4's logger refuses a start request while it believes a stream is already running, and
+only a stop request clears that. The first client was killed without sending stop, so
+every later start was refused until reboot. The recorder now sends stop before every
+start. Reproduced on the bench: session ended without stop, next bare start refused
+(result code 1), stop-then-start accepted.
+
+## Tools
+
+| Tool | Use |
+|---|---|
+| `scripts/bench/ulog_stream_recorder.py` | The recorder. `--port COM5 --seconds 60` on the PC or `--port /dev/ttyACM0` on the Pi for a one-off capture. |
+| `scripts/bench/px4_shell_readonly.py` | Status commands in the Pixhawk's console over any MAVLink cable (`logger status`, `mavlink status`, `dmesg`). Refuses anything not on its read-only list. |
+| `scripts/bench/hover_recorder.py` | Older, lighter fallback: attitude and body rates at 100 Hz over the serial cable, as CSV. Needs the flight recorder stopped if that is on the serial cable. |
+| `scripts/field/record_video.py` | The camera recorder the service starts. |
+
+Evidence: `runs/fc_log_stream_20261113/` (stats for every capture, the Pixhawk console
+output, the bench gate log). Decision record: ADR-0137.
 
 ## Predictions, written before the first measurement (2026-11-13)
 
@@ -28,3 +133,20 @@ ordinary telemetry.
 
 A path counts as a usable flight recorder when a 60 s capture opens in `pyulog` (the
 standard ULog reader), has no packet gaps, and leaves the attitude stream at 100 Hz.
+
+## Results (same day)
+
+Both predictions held.
+
+1. A session ended without a stop command; the next bare start came back "temporarily
+   rejected"; stop-then-start was accepted every time, in more than ten sessions that day.
+2. Over the serial cable, 20 s: 2,294 packets received, 966 lost in 163 gaps, and the
+   attitude stream on that cable read 50.0 Hz against 100.0 Hz before. The file still
+   opens in `pyulog` (100 topics, 1,122 parameters) with 163 dropouts marked.
+
+Over USB the 60 s test met the bar except for one gap at the very start: 4 packets lost
+as PX4 switched from the acknowledged header to free-running data, none in the 55 s after,
+every topic at its normal spacing, and the serial cable undisturbed at 100.1 Hz. A first
+USB run lost 74 packets at that same moment because the recorder acknowledged the header
+slowly (22 s for the header against 4.9 s after the fix). The recorder reports a single
+gap in the first second of data as a start-up gap and anything else as `GAPS`.

@@ -147,9 +147,11 @@ throttle ≈ √(W / T_max) = √(1 / 7.5)       = 37 %
   at 28 to 45 A), which would use the usable pack in under a minute. The launch plan budgets
   30 to 60 s of standby hover (`launch_mechanism_plan.md`).
 - **How it gets measured:** a 60 s hover, current from the PM02 in the ULog, and the learned
-  hover throttle (PX4 MPC_THR_HOVER; ArduPilot MOT_THST_HOVER on the target). With the FC's
-  card slot dead, the substitute is `scripts/bench/hover_recorder.py` on the Pi: it logs the
-  motor signal, and hover throttle = (signal − 1100) / 800 on this board's 1100 to 1900 µs range.
+  hover throttle (PX4 MPC_THR_HOVER; ArduPilot MOT_THST_HOVER on the target). The FC's
+  card slot is dead, so the ULog comes from the Pi's flight recorder, which saves the log PX4
+  streams to it (`docs/fc_logging_without_sd.md`; bench-tested 2026-11-13, not yet flown).
+  The lighter fallback is `scripts/bench/hover_recorder.py`: it logs the motor signal, and
+  hover throttle = (signal − 1100) / 800 on this board's 1100 to 1900 µs range.
 
 ### 5.1 Three hover-throttle numbers, reconciled (2026-11-09)
 

@@ -39,8 +39,9 @@ the weekend**. Full drift register:
 > (`SENS_BOARD_ROT=4`), RC chain + failsafes verified, multi-minute Position flight. Still in
 > front of an attempt (list corrected 2026-11-09; the hover wobble that headed it is fixed,
 > see the update above): a replacement Pi 5, the target's maiden + box legs, the 2nd TX
-> (one-TX kill contention, ADR-0089), a working interceptor flight recorder (FC microSD slot
-> dead; `scripts/bench/hover_recorder.py` on the Pi is the substitute), and the
+> (one-TX kill contention, ADR-0089), a first real flight on the interceptor's new flight recorder (FC microSD slot
+> dead; since 2026-11-13 the Pi records PX4's streamed log plus camera video while armed,
+> bench-tested only, complete logs need a Pixhawk-to-Pi USB cable: `docs/fc_logging_without_sd.md`), and the
 > camera-mount/calibration/L0–L2 rungs. The ladder below remains the checklist for the
 > rescheduled attempt.
 

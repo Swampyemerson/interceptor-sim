@@ -9,10 +9,13 @@ pre-registration rule). After a rung is adopted, change `airframe.params` and ad
 board dump in the same commit, or `tests/test_airframe_params.py` fails. Writing to the
 board is done with `scripts/bench/px4_param_set.py` (it reads every value back).
 
-**What judges a rung today.** The flight controller's card slot is dead and the Pi is dead,
-so there are no logs. Every verdict below is by eye, ear and a finger on the motor bells
+**What judges a rung today.** The flight controller's card slot is dead, and no flight has
+yet carried the Pi. Every verdict so far is by eye, ear and a finger on the motor bells
 within about 30 s of landing. That is good enough for rungs 1 to 3 and weak for the filter
-rungs; `scripts/bench/hover_recorder.py` on the replacement Pi is the upgrade.
+rungs. The upgrade is the Pi's flight recorder (set up and bench-tested 2026-11-13, not yet
+flown): it saves PX4's own flight log, with hover thrust, altitude and setpoints, whenever
+the Pi rides along. Its default log holds the gyro at 50 Hz, so for the filter rungs use
+`scripts/bench/hover_recorder.py` (100 Hz) instead. See `docs/fc_logging_without_sd.md`.
 
 **Where the numbers come from.** `[PX4]` = read from PX4 v1.16.0 source or its tuning guide
 (links at the bottom; I fetched each one). `[judgment]` = my choice, not a PX4 number.

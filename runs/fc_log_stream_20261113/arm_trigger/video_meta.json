@@ -1,0 +1,24 @@
+{
+ "created_utc": "20261114T053651Z",
+ "size": [
+  1920,
+  1200
+ ],
+ "asked_fps": 60,
+ "flip_180": false,
+ "note": "armtest",
+ "recording_started_unix_approx": 1794634613.108,
+ "fc_log_stamp": "20261114T053643Z",
+ "requested_exposure_us": "auto",
+ "applied_exposure_us": 16605,
+ "applied_gain": 12.0,
+ "frames": 918,
+ "seconds_of_video": 15.41,
+ "wall_seconds": 16.5,
+ "measured_fps": 59.51,
+ "gaps_over_1.5_frames": 0,
+ "worst_gap_ms": 16.8,
+ "video_MB": 53.0,
+ "temp": "temp=53.8'C",
+ "throttled": "throttled=0x0"
+}

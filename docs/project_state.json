@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-13",
-  "updated_by": "Pi-to-Pixhawk link up on /dev/ttyAMA10 after the wire swap (2026-11-13)",
+  "updated_by": "Pi flight recorder: PX4 log stream + video while armed, bench-tested (2026-11-13)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -16,14 +16,14 @@
     "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
   },
   "now": {
-    "as_of": "2026-11-09",
-    "where": "Third flight (2026-11-09), on PX4's small-racer rate gains: 'night and day', only a faint audible oscillation. The replacement Pi 5 (2026-11-13) runs the AR0234 camera and the Hailo chip end to end on the bench; and talks to the Pixhawk both ways.",
+    "as_of": "2026-11-13",
+    "where": "Third flight (2026-11-09) flew 'night and day' better. The new Pi runs camera and Hailo chip, talks to the Pixhawk, and since 2026-11-13 records the Pixhawk's flight log and camera video for each flight (bench-tested, not flown).",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
       "You: fly the height change. Expect lift-off near 58% stick in Stabilized; it may feel unchanged",
-      "Me: remaining steps are in docs/tuning_ladder.md, one change per flight, thrust curve first"
+      "You: plug the Pixhawk's USB into the Pi; props off, arm 10 s, disarm; check for a video and a log"
     ],
-    "evidence": "configs/px4_6cmini/dumps/20261109_flight3.tsv + 20261109_height_block.tsv - ADR-0134 addenda 3-4 (prediction registered before the flight) - PX4 v1.16.0 airframes 4050/4052"
+    "evidence": "configs/px4_6cmini/dumps/20261109_flight3.tsv + 20261109_height_block.tsv - ADR-0134 addenda 3-4 - runs/fc_log_stream_20261113/README.md - ADR-0137"
   },
   "assumptions": [
     {
@@ -560,6 +560,12 @@
   "plain_log": [
     {
       "date": "2026-11-13",
+      "text": "The interceptor has a flight recorder again, on the Pi. The Pixhawk's card slot is dead, so PX4 now sends its flight log down a cable and a Pi service writes it to the Pi's card, one file per flight. The same service starts the camera recording when the Pixhawk reports armed and stops it 5 s after disarm. Bench results, disarmed: over a USB cable the log is complete (40 KB/s, one 4-packet gap at start-up, none after) and the guidance link is untouched; over the existing serial cable about a third of the log is lost and the guidance link's attitude stream halves. The October failure (streaming accepted once, then refused) is explained and reproduced: the first client quit without sending stop. The offboard bench gate was re-run on the new Pi and passed.",
+      "so_what": "The rule that a kill needs logs from both aircraft can now be met, once a Pixhawk-to-Pi USB cable is fitted. Until then the Pi records over the serial cable and its logs have gaps. Not yet tested: a real arming (the video trigger has only seen a pretend signal), USB plugged into the Pi itself, and a log from an actual flight.",
+      "evidence": "runs/fc_log_stream_20261113/README.md; docs/fc_logging_without_sd.md; ADR-0137; tests/test_ulog_stream_recorder.py (13 tests)"
+    },
+    {
+      "date": "2026-11-13",
       "text": "Pi-to-Pixhawk link is up. The cable's two signal wires were swapped: with the Pi's transmit pin switched to an input, the Pixhawk's data stream showed up on it. The builder swapped the wires and the Pi now reads the Pixhawk's firmware version (PX4 1.16), mode and health over the 3-pin serial socket at 921600. This corrects an earlier statement the same day that a swap was ruled out: that test left the Pi driving its transmit pin, which hid the incoming signal. The builder had suspected a swap.",
       "so_what": "The new Pi can now command and log the aircraft again, with the AI HAT+ fitted. Scripts default to the new port (/dev/ttyAMA10). Not yet re-run on this Pi: the props-off offboard bench gate and the hover recorder. Lesson for the instrument: a pin that is being driven cannot be used to listen.",
       "evidence": "runs/link_ttyAMA10_20261113/fc_link_check.json; runs/hailo_day1_20261113/README.md (Pixhawk link, corrected)"
@@ -623,12 +629,6 @@
       "text": "Camera mount decided and drawn. The builder picked a short post off the avionics dock's nose over the pod-lid cradle and the old nose boom. The dock grows a tongue to the frame's two nose screws and two cheeks that carry a tilting camera plate (10 to 45 degrees). The camera plate is fitted to Arducam's own 3D model of the B0353. Calculated, not built: first shake mode 254 Hz against 137 Hz for the lid cradle; props 17 degrees or more outside the picture with the delivered lens; whole aircraft 850 g. Known costs: it blocks the Pi's USB ports while fitted, and the camera plate overhangs the edge of the front prop circles by position (about 2 mm outside in top view, 16 mm or more above the blades).",
       "so_what": "The last open layout question on the avionics pod is closed, so the print list is fixed: template first, then dock, pod and camera plate. Every number is still a model; the printed part and a tap test decide whether the picture is steady.",
       "evidence": "ADR-0135 - hardware/avionics_pod/README.md (revision 4) - ANALYSIS.md - nose_post_check.py - fea_results/nose_post.json"
-    },
-    {
-      "date": "2026-11-09",
-      "text": "The hover wobble is root-caused and essentially gone, in three flights in one evening. (1) A full read of the flight controller (1122 of 1122 settings) showed it mixing the motors for a PLUS-shaped quad (airframe 5001, a bare-board placeholder from July) on this X frame, so every roll or pitch correction landed 45 degrees off-axis. Corrected to the X layout and flown: holds position for the first time, a smaller faster rock remains, motors still hot. (2) The board was also carrying rate gains meant for a large, gentle quad (P 0.15, D 0.003) on an aircraft with roughly 7.5 times its weight in thrust. Set to the values PX4 ships for a small racing quad (P 0.08, D 0.001), prediction written down first, then flown: the builder calls it night and day -- sideways hold locked, motors far less hot, only a faint intermittent oscillation that can be heard but not seen. Also confirmed by the read: motors run on plain PWM from MAIN 1-4, not DShot (left alone). Still open from this flight: height hold in Position mode is soft (throttle had to be nudged up to stay level) and descents come slowly and in bursts; 60 percent throttle in Stabilized launches the aircraft, so hover throttle is far below the 50 percent the controller assumes.",
-      "so_what": "The interceptor now flies properly; the wobble that blocked everything since 2026-10-25 was two wrong settings, not wiring. Both fixes were predicted in writing before the flight that tested them. What remains is ordinary tuning of the height loop and filters. SETBACK the same evening: the Pi 5 no longer boots after being peeled off mounting tape (capacitors stripped from its underside, per the builder's photo) -- no in-flight recorder and no seeker computer until it is replaced; the SD card is believed intact. All flight verdicts tonight are builder reports by eye, ear and touch; nothing was logged.",
-      "evidence": "configs/px4_6cmini/dumps/20261109_*.tsv (before, after, post-flight; the QGC-set P/D values were read back after the flight: all landed); ADR-0134 + addenda; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py, phone_wobble_freq.py; PX4 v1.16.0 airframes 4001/5001/4050"
     }
   ],
   "narrative": {
@@ -2492,7 +2492,7 @@
             "name": "FC High-Endurance microSD (ULogs)",
             "status": "must-add",
             "role": "Onboard flight logs (ULogs) for scoring a flight.",
-            "notes": "BLOCKED: the 6C Mini's microSD slot is dead, so a card does not help. Substitute is scripts/bench/hover_recorder.py on the Pi (the Pi-to-Pixhawk link works again as of 2026-11-13; not yet re-run). All flight verdicts so far are by eye, ear and touch."
+            "notes": "NOT NEEDED as a card: the 6C Mini's microSD slot is dead. Instead PX4 streams its log to the Pi (flight-recorder service, set up 2026-11-13, bench-tested, not flown). What must be added is a short USB-C to USB-A cable from the Pixhawk to a Pi USB port; without it the log goes over the serial cable and loses about a third. Guide: docs/fc_logging_without_sd.md."
           },
           {
             "name": "M2.5 nylon standoff/screw kit (Pi tray)",
@@ -4021,10 +4021,10 @@
       "topic": "The success rule asks for flight logs from both aircraft; the interceptor cannot write one",
       "claim_a": "Constraint binary-kill: success is a binary kill 'confirmed on video + both ULogs'.",
       "loc_a": "project_state.json constraints/binary-kill; docs/hardware_order_list.md sec 0b/0c",
-      "claim_b": "The interceptor's Pixhawk 6C Mini microSD slot is dead, so it writes no ULog. Every flight verdict since the maiden has been by eye, ear and touch.",
-      "loc_b": "project_state.json build_tab (FC High-Endurance microSD); docs/next.md kill-day banner",
-      "current_truth": "As written the success rule cannot be met. The stand-in is scripts/bench/hover_recorder.py on the Pi (attitude, body rates and motor outputs over the telemetry cable), which has only been proven on the bench over USB (the Pi-to-Pixhawk link is back as of 2026-11-13, not yet used for this). It records far less than a ULog: no position estimate, no setpoints.",
-      "resolution": "OPEN. Builder to choose: (a) accept the Pi recorder plus onboard video as the interceptor's evidence and reword the rule, (b) extend the recorder to log position and setpoints first, or (c) replace or repair the flight controller so it can log. Found by the 2026-11-09 staleness audit."
+      "claim_b": "The interceptor's Pixhawk 6C Mini microSD slot is dead, so it cannot write a flight log to its own card. Every flight verdict up to 2026-11-13 has been by eye, ear and touch.",
+      "loc_b": "project_state.json build_tab (FC High-Endurance microSD); docs/fc_logging_without_sd.md",
+      "current_truth": "The rule can be met another way but has not been yet. Since 2026-11-13 a Pi service saves the flight log PX4 streams to it, plus camera video while armed. On the bench the log is complete over a USB cable and loses about a third over the serial cable. No real flight has been recorded, and the USB cable is not fitted on the aircraft.",
+      "resolution": "OPEN until a real flight produces a clean interceptor log. Path chosen in ADR-0137: fit a Pixhawk-to-Pi USB cable, do a props-off arm test, then fly with the Pi. Replacing the flight controller stays the builder's option. Found by the 2026-11-09 staleness audit."
     }
   ]
 }

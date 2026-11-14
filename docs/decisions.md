@@ -1514,3 +1514,32 @@ camera post nods on and does nothing for the upright walls that carry the load i
 The extra cost is about three dollars. *Not verified.* Which shop the order goes to, how the $0.35
 rate is applied, and the effect on the nodding mode (not modelled). The order uses revision 6 files,
 whose front pins have not been print-checked.
+
+## ADR-0137 — Interceptor flight evidence without an SD card: PX4 log streamed to the Pi, video while armed (2026-11-13)
+
+*Context.* The interceptor's Pixhawk 6C Mini mounts no microSD card (two known-good cards, PX4
+console shows nothing mounted), so it writes no flight log. The success rule asks for logs from
+both aircraft (ledger `kill-evidence-needs-ulogs-fc-slot-dead`). A first try at MAVLink log
+streaming on 2026-10-25 was "accepted once, then refused" and parked. The builder asked for
+workarounds, and for the Pi's camera to record whenever a flight starts.
+*Options.* (a) the plain-telemetry hover recorder only (attitude, rates, motor outputs; no
+position, no setpoints); (b) PX4's log stream over the existing serial cable; (c) the log stream
+over a second cable, Pixhawk USB to a Pi USB port; (d) a MAVLink router on the Pi so the log and
+the seeker share the serial cable; (e) replace the flight controller.
+*Decision.* (c), with (b) as the automatic fallback while no USB cable is fitted. One Pi service,
+`flight-recorder`, starts at boot, writes one `.ulg` per flight and runs the camera recorder
+from "armed" to 5 s after disarm. (a) stays as a light tool. (d) is not built. (e) stays open
+to the builder; nothing here depends on it.
+*Why.* Measured on the bench, disarmed, PX4 v1.16.0 (`runs/fc_log_stream_20261113/`). PX4 caps
+the serial link at 46,080 bytes/s and ordinary telemetry already uses 24,042; the full log needs
+about 40,000. Over serial, 966 of 3,260 packets were lost in 20 s and the attitude stream the
+guidance code reads fell from 100 to 50 Hz. Over USB, 45 to 60 s captures ran at 40 KB/s with one
+4-packet gap at start-up and none after, the serial link stayed at 100 Hz, and the offboard bench
+gate passed alongside (300 setpoints, largest gap 0.05 s, oldest own-state 0.02 s). A router
+would add a process in the offboard path and still share one 92 KB/s wire. The 2026-10-25 refusal
+is explained and reproduced: PX4 rejects a start while it thinks a stream is running, and the
+first client died without sending stop; the recorder sends stop before every start.
+*Not yet shown.* A real arming (the trigger was tested with a pretend signal), USB plugged into
+the Pi itself (captures were taken from the PC), an armed in-flight log, and how well the video
+and the log line up in time. *Cost if wrong.* The service is one `systemctl disable` from gone
+and changes no Pixhawk setting. Guide: `docs/fc_logging_without_sd.md`.

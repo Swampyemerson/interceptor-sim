@@ -504,7 +504,7 @@ class Recorder:
                 msg = self.m.recv_match(blocking=True, timeout=0.02)
                 if msg is not None:
                     handle(msg)
-                if now - last_print > 5.0:
+                if now - last_print > (5.0 if a.seconds is not None else 60.0):
                     dt = now - t0
                     print(f"  {dt:5.0f}s armed={self.armed} {asm.bytes_written / 1e6:.2f} MB "
                           f"({asm.bytes_written / dt / 1000:.1f} KB/s) gaps={asm.gaps} "

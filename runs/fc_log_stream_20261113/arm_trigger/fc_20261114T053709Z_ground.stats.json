@@ -1,0 +1,98 @@
+{
+ "started_utc": "20261114T053709Z",
+ "port": "/dev/ttyAMA10",
+ "baud": 921600,
+ "link": "serial or other",
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 5.29,
+ "end_reason": "stop requested",
+ "ever_armed": false,
+ "bytes_written": 175053,
+ "kb_per_s": 33.1,
+ "packets": 711,
+ "acked_packets": 525,
+ "duplicates": 0,
+ "gaps": 18,
+ "lost_packets": 102,
+ "gaps_at_startup": 0,
+ "gap_times_s": [
+  3.67,
+  3.77,
+  3.88,
+  3.98,
+  4.08,
+  4.18,
+  4.28,
+  4.38,
+  4.49,
+  4.59,
+  4.69,
+  4.79,
+  4.89,
+  5.0,
+  5.1,
+  5.2,
+  5.3,
+  5.4
+ ],
+ "header_seconds": 3.67,
+ "framing_errors": 0,
+ "dropout_ms_total": 1272,
+ "first_data_delay_s": 0.0,
+ "stop_result": "accepted",
+ "link_rates_hz": {
+  "ALTITUDE": 5.3,
+  "ATTITUDE": 55.4,
+  "ATTITUDE_QUATERNION": 27.8,
+  "ATTITUDE_TARGET": 5.5,
+  "BATTERY_STATUS": 0.2,
+  "ESTIMATOR_STATUS": 0.6,
+  "EXTENDED_SYS_STATE": 2.8,
+  "GLOBAL_POSITION_INT": 27.6,
+  "GPS_RAW_INT": 11.0,
+  "HIGHRES_IMU": 27.8,
+  "HOME_POSITION": 0.2,
+  "LOCAL_POSITION_NED": 16.6,
+  "MISSION_CURRENT": 0.9,
+  "ODOMETRY": 15.7,
+  "OPEN_DRONE_ID_LOCATION": 0.6,
+  "OPEN_DRONE_ID_SYSTEM": 0.6,
+  "PING": 1.1,
+  "POSITION_TARGET_LOCAL_NED": 5.5,
+  "SCALED_PRESSURE": 0.6,
+  "SERVO_OUTPUT_RAW": 5.5,
+  "SYSTEM_TIME": 0.6,
+  "SYS_STATUS": 2.5,
+  "TIMESYNC": 5.5,
+  "UNKNOWN_380": 0.4,
+  "UNKNOWN_410": 4.5,
+  "UNKNOWN_411": 0.4,
+  "UNKNOWN_436": 0.2,
+  "UNKNOWN_8": 0.6,
+  "VFR_HUD": 5.5,
+  "VIBRATION": 0.2
+ },
+ "armed_seen_s": null,
+ "armed_was_pretended": true,
+ "clock_pairs_unix_vs_fc_boot_ms": [
+  [
+   1794634631.676,
+   3026098
+  ],
+  [
+   1794634635.634,
+   3030053
+  ]
+ ],
+ "gaps_after_startup": 18,
+ "verdict": "GAPS"
+}

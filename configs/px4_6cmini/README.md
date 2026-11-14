@@ -427,8 +427,8 @@ deferred**:
 `GuidanceConfig.own_state_max_age_s`, which is deliberately unset until then.
 Evidence: the run log under `logs/deploy_seeker_bench_*.log` **and** the FC's ULog
 on the microSD (logged from boot, `SDLOG_MODE=2`). *(2026-11: this board's microSD
-slot has since died, so there is no onboard ULog; `scripts/bench/hover_recorder.py`
-on the Pi is the substitute.)*
+slot has since died, so there is no onboard ULog; PX4 streams the log to the Pi
+instead, see `docs/fc_logging_without_sd.md`.)*
 
 **If it fails, in likelihood order (v1.16-corrected 2026-07-26):**
 
