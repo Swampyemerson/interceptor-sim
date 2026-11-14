@@ -159,7 +159,7 @@ package Interceptor {
         interface companion : UARTLink connect fc.telem2 to pi.gpioUart {
             @BOM { tab = "brain"; bomName = "Pi-to-TELEM2"; }
             attribute :>> connector = "JST-GH 6-pin -> JST-SH 3-pin (3 wires)";
-            attribute :>> detail = "Plugged in 2026-11-13 but SILENT: no Pixhawk signal on any Pi pin. Target: the Pi's 3-pin serial socket (/dev/ttyAMA10, 921600). Pin map: hardware/avionics_pod/README.md";
+            attribute :>> detail = "Plugged into the Pi's 3-pin serial socket 2026-11-13 with the two signal wires SWAPPED (Pixhawk TX lands on the Pi's TX pin). Swap the outer wires at the Pi plug. /dev/ttyAMA10, 921600. Pin map: hardware/avionics_pod/README.md";
             attribute :>> linkState = LinkState::wired;
         }
         interface rcSbus : RCInLink connect fc.rcIn to rx.fcConn {

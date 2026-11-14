@@ -77,8 +77,16 @@ the 1-class compile pays about 3.6x for its second context but is still 119 fps.
   (control: a pin toggled by hand registered 10 edges). No pin held high against a pull-down.
 - 3-pin socket pins read 2,420 and 3,583 times: never low
   (control: the Pi's own slow transmit read low 1,847 times out of 2,067).
-- So no transmit signal from the Pixhawk reaches any Pi pin. Swapped wires alone would
-  put that signal on the Pi's transmit pin, where it would have been seen.
+- ~~So no transmit signal from the Pixhawk reaches any Pi pin. Swapped wires alone would
+  put that signal on the Pi's transmit pin, where it would have been seen.~~
+  **WRONG, corrected the same evening.** The read of the Pi's transmit pin (213) was taken
+  while the Pi was DRIVING that pin as its UART output, so it could only ever read high.
+  Repeated with the pin set as an input (`pinctrl set 213 ip`): low on 225 of 2,719 reads
+  with a pull-down, 276 of 3,370 with a pull-up, 201 of 2,563 with no pull. That is a data
+  stream arriving on the Pi's TRANSMIT pin. The receive pin (214) as an input: 0 low of 2,615.
+  **The two signal wires are swapped**, as the builder suspected. `pinctrl funcs` shows pin 213
+  can only be a transmit pin and 214 only a receive pin, so the Pi cannot swap them. Pin 213
+  is parked as an input until the wires are swapped (a reboot undoes the parking).
 - Neither end can swap the two wires in software: the Pi's pins are fixed, and the
   Pixhawk's settings list has only speed settings for its serial ports.
 - Pixhawk settings dump: `configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv`.

@@ -369,6 +369,10 @@ Not CAD, but needed (from the gap review):
   checked on the board: ground is the middle pin either way, so confirm it by continuity
   to a USB shell, tack the two outer wires, run the link check, and swap them if there is
   no heartbeat before making the splice permanent.
+  Bench finding 2026-11-13: the first cable had the two signal wires swapped. To check without a
+  multimeter, set the Pi's transmit pin to an input (`sudo pinctrl set 213 ip pn`) and poll it
+  (`pinctrl lev 213`): lows mean the Pixhawk's transmit wire is on the wrong pin. A pin the Pi
+  is driving always reads high, so it must be an input first.
 - **Pi power plug:** a straight USB-C plug sticks out over the rear-right prop. Use a
   right-angle plug pointing aft.
 - **Standoffs:** the HAT kit's are reported to be nylon. Use brass M2.5 male-female,

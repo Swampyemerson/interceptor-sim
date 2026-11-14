@@ -202,7 +202,7 @@
 <text class="sx-wd" x="52" y="908">10-pin JST-GH — GPS UART (UBX 10 Hz) + IST8310 compass on GPS1&#x27;s own I2C + 5 V</text>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="912" width="22" height="16" rx="8"/><text x="31" y="924">4</text></g>
 <text class="sx-wl" x="52" y="924"><tspan class="sx-wn">companion</tspan><tspan class="sx-wm">  fc.telem2 → pi.gpioUart</tspan><tspan class="sx-wt">  : UARTLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
-<text class="sx-wd" x="52" y="938">JST-GH 6-pin -&gt; JST-SH 3-pin (3 wires) — Plugged in 2026-11-13 but SILENT: no Pixhawk signal on any Pi pin. Target: the Pi&#x27;s 3-pin serial socket (/dev/ttyAMA10, 921600). Pin map: hardware/avionics_pod/README.md · cable: Pi-to-TELEM2 UART jumper leads</text>
+<text class="sx-wd" x="52" y="938">JST-GH 6-pin -&gt; JST-SH 3-pin (3 wires) — Plugged into the Pi&#x27;s 3-pin serial socket 2026-11-13 with the two signal wires SWAPPED (Pixhawk TX lands on the Pi&#x27;s TX pin). Swap the outer wires at the Pi plug. /dev/ttyAMA10, 921600. Pin map: hardware/avionics_pod/README.md · cable: Pi-to-TELEM2 UART jumper leads</text>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="942" width="22" height="16" rx="8"/><text x="31" y="954">5</text></g>
 <text class="sx-wl" x="52" y="954"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="968">RC IN socket — SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only</text>

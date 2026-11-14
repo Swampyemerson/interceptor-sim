@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-13",
-  "updated_by": "yolov8n drone detector on the chip: 319 fps, recall 0.50 vs 0.53 float (2026-11-13)",
+  "updated_by": "Pi-to-Pixhawk cable: signal wires swapped (earlier 'not a swap' claim corrected) (2026-11-13)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,7 +17,7 @@
   },
   "now": {
     "as_of": "2026-11-09",
-    "where": "Third flight (2026-11-09), on PX4's small-racer rate gains: 'night and day', only a faint audible oscillation. The replacement Pi 5 (2026-11-13) runs the AR0234 camera and the Hailo chip end to end on the bench; the Pi-to-Pixhawk link is still silent.",
+    "where": "Third flight (2026-11-09), on PX4's small-racer rate gains: 'night and day', only a faint audible oscillation. The replacement Pi 5 (2026-11-13) runs the AR0234 camera and the Hailo chip end to end on the bench; the Pi-to-Pixhawk cable has its two signal wires swapped.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
       "You: fly the height change. Expect lift-off near 58% stick in Stabilized; it may feel unchanged",
@@ -560,14 +560,20 @@
   "plain_log": [
     {
       "date": "2026-11-13",
+      "text": "Pi-to-Pixhawk cable fault found: the two signal wires are swapped. With the Pi's transmit pin switched to an input, it reads low about 8% of the time, which is the Pixhawk's data stream arriving on the wrong pin; the Pi's receive pin sees nothing. This corrects an earlier statement the same day that a swap was ruled out: that test left the Pi driving its transmit pin, which hid the incoming signal. The builder had suspected a swap.",
+      "so_what": "A two-minute fix at the Pi plug (swap the two outer wires) should bring the link up; nothing is broken. Software cannot do it: on the Pi each of the two pins has only one direction, and the Pixhawk has no swap setting. Lesson for the instrument: a pin that is being driven cannot be used to listen.",
+      "evidence": "runs/hailo_day1_20261113/README.md (Pixhawk link, corrected); pinctrl readings in this session"
+    },
+    {
+      "date": "2026-11-13",
       "text": "First real drone detectors on the Hailo chip, scored on all 4,175 held-out images. The July model (YOLO11n) loses a quarter of its recall in 8-bit conversion (0.50 to 0.37), with or without the GPU doing the conversion. A yolov8n retrain on the same data converts almost cleanly: 0.53 before, 0.50 on the chip, at 319 frames/s in a single pass. It misses the pre-registered 5-point limit in one size bin only (targets of 64 px and up, down 8 points). Screen bench through the real camera, older build: 67 to 82% of frames hit at 26 to 49 px, 35 to 40% at 11 to 20 px. AOT data fetched: all 3,662 drone frames plus 8,000 negatives (28.6 GB). A 1280-input retrain is running.",
       "so_what": "Architecture mattered more than conversion settings: the chip-friendly yolov8n now gives on the chip what the old model gave on a laptop, three times faster. What still limits it is the detector itself, which finds about half the test targets. The levers left are input size (the 1280 run), more air-to-air data, and above all footage of our own target through our own camera.",
       "evidence": "runs/hailo_drone_20261113/README.md (pre-registrations, results, screen bench); scripts/nn/fetch_aot_frames.py; data/aot/yolo_crops/stats.json; logs/nn_tier/train_v8n_color.log"
     },
     {
       "date": "2026-11-13",
-      "text": "Replacement Pi 5 brought up on the bench with the AI HAT+ and the AR0234 camera. Camera: works at 1920x1200 and 60 fps after installing Arducam's camera library; an AprilTag on a laptop screen decoded in 90 of 90 frames, also at 1 ms exposure. Hailo-8: the link was running at half speed; at full speed a stock nano detector does 431 frames/s on the chip, and the live camera-to-detection loop runs at the camera's 60 fps with 29 ms from frame start to result. Pixhawk over USB: settings unchanged. Not working: no signal from the Pixhawk reaches any Pi pin, although a cable is plugged in.",
-      "so_what": "Compute is no longer the limit for the camera-only seeker: a nano detector fits with a wide margin even at 1280x800 input (42 frames/s live), which doubles the pixels on a distant target over 640. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi; it is not just two swapped wires.",
+      "text": "Replacement Pi 5 brought up on the bench with the AI HAT+ and the AR0234 camera. Camera: works at 1920x1200 and 60 fps after installing Arducam's camera library; an AprilTag on a laptop screen decoded in 90 of 90 frames, also at 1 ms exposure. Hailo-8: the link was running at half speed; at full speed a stock nano detector does 431 frames/s on the chip, and the live camera-to-detection loop runs at the camera's 60 fps with 29 ms from frame start to result. Pixhawk over USB: settings unchanged. Not working: the Pixhawk link (later the same day traced to two swapped signal wires).",
+      "so_what": "Compute is no longer the limit for the camera-only seeker: a nano detector fits with a wide margin even at 1280x800 input (42 frames/s live), which doubles the pixels on a distant target over 640. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi.",
       "evidence": "runs/hailo_day1_20261113/README.md (benchmarks, live tests, camera and link probes); runs/dfc_native_res_20261113/README.md; configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv"
     },
     {
@@ -623,12 +629,6 @@
       "text": "The hover wobble is root-caused and essentially gone, in three flights in one evening. (1) A full read of the flight controller (1122 of 1122 settings) showed it mixing the motors for a PLUS-shaped quad (airframe 5001, a bare-board placeholder from July) on this X frame, so every roll or pitch correction landed 45 degrees off-axis. Corrected to the X layout and flown: holds position for the first time, a smaller faster rock remains, motors still hot. (2) The board was also carrying rate gains meant for a large, gentle quad (P 0.15, D 0.003) on an aircraft with roughly 7.5 times its weight in thrust. Set to the values PX4 ships for a small racing quad (P 0.08, D 0.001), prediction written down first, then flown: the builder calls it night and day -- sideways hold locked, motors far less hot, only a faint intermittent oscillation that can be heard but not seen. Also confirmed by the read: motors run on plain PWM from MAIN 1-4, not DShot (left alone). Still open from this flight: height hold in Position mode is soft (throttle had to be nudged up to stay level) and descents come slowly and in bursts; 60 percent throttle in Stabilized launches the aircraft, so hover throttle is far below the 50 percent the controller assumes.",
       "so_what": "The interceptor now flies properly; the wobble that blocked everything since 2026-10-25 was two wrong settings, not wiring. Both fixes were predicted in writing before the flight that tested them. What remains is ordinary tuning of the height loop and filters. SETBACK the same evening: the Pi 5 no longer boots after being peeled off mounting tape (capacitors stripped from its underside, per the builder's photo) -- no in-flight recorder and no seeker computer until it is replaced; the SD card is believed intact. All flight verdicts tonight are builder reports by eye, ear and touch; nothing was logged.",
       "evidence": "configs/px4_6cmini/dumps/20261109_*.tsv (before, after, post-flight; the QGC-set P/D values were read back after the flight: all landed); ADR-0134 + addenda; scripts/bench/px4_param_dump.py, px4_param_set.py, hover_recorder.py, hover_wobble_analysis.py, phone_wobble_freq.py; PX4 v1.16.0 airframes 4001/5001/4050"
-    },
-    {
-      "date": "2026-10-25",
-      "evidence": "Builder flight reports across modes + param read-backs (session transcript); plumb-line CG test; 843 g scale weigh-in; kill_day_protocol.md secs 1/4/10 sweep; docs/rc_link_setup.md; ADR-0133",
-      "so_what": "The wobble hunt is down to wiring-class suspects with cheap bench discriminators queued; the intercept attempt moves out ~a week behind the 2nd TX, a working flight recorder, target maiden, and the camera-mount ladder. The interceptor itself is airworthy -- the weekend's actual gate.",
-      "text": "Day-2 wrap (rewritten end of day). WOBBLE: localized to the INNER LOOP by experiment -- present and strong in ALL modes (worst outside Position), so GPS/EKF outer-loop causes are ruled out along with rate gains (K 0.65 null, back at 0.8), motors/props (hand checks), CG (plumb-line vs composite: agree, ~28 mm below thrust plane at a measured 843 g AUW), the FC+Pi stack (Pi swapped off the stack with the M10 -- marginal gain), and battery sway (mount hardened -- marginal gain). RANKED REMAINING SUSPECTS, wiring-focused: (1) taut cable umbilicals guy-wiring the soft-mounted FC to the frame (every cable needs a slack loop); (2) crash-damaged motor phase wiring / solder -> ESC desync (passes unpowered hand-spin, misfires under load, explains heat; listen test + joint inspection queued); (3) FC->ESC signal-harness ground integrity. Next measurements: slow-mo wobble frequency re-count after the mechanical mods (frequency moved = structural; pinned = electrical/timing), compass RECAL owed (M10 relocated). Battery failsafe COM_LOW_BAT_ACT=3 set after a pack hit 17 V (taped, suspect); FFT notch on; autotune module never engages (parked). ATTEMPT RULING: no scored intercept this weekend -- target never flown (maiden+box legs are rungs), one-TX kill contention (ADR-0089, 2nd Pocket unbought), FC microSD slot dead (no interceptor ULog; kill provable by video+target .BIN, miss unmeasurable), camera mount/calibration/L0-L2 unstarted. The weekend's real yield: the interceptor became a flying, root-caused aircraft (SENS_BOARD_ROT 180-deg find, RC chain, failsafes, maiden + multi-minute Position flight)."
     }
   ],
   "narrative": {
@@ -2097,7 +2097,7 @@
             "name": "Raspberry Pi 5, 8 GB",
             "status": "in hand",
             "role": "Runs the same stack the flight Pi will: capture, calibration, tag decode, NN shadow scoring.",
-            "notes": "REPLACED 2026-11-13 (the first died 2026-11-09, parts stripped by mounting tape). The new board boots from the old SD card at 192.168.0.61: 8 GB, 5.09 V with no undervoltage flag, fan works, bootloader updated. Camera and Hailo chip both run on it. The Pixhawk link is silent. Mount by the corner holes, never tape."
+            "notes": "REPLACED 2026-11-13 (the first died 2026-11-09, parts stripped by mounting tape). The new board boots from the old SD card at 192.168.0.61: 8 GB, 5.09 V with no undervoltage flag, fan works, bootloader updated. Camera and Hailo chip both run on it. The Pixhawk link needs its two signal wires swapped. Mount by the corner holes, never tape."
           },
           {
             "name": "SanDisk 128 GB microSD + reader",
@@ -2230,7 +2230,7 @@
             "name": "Pi-to-TELEM2 UART jumper leads",
             "status": "built",
             "role": "The three wires the whole deploy path rides on.",
-            "notes": "A lead is plugged in (builder, 2026-11-13) but the link is SILENT: no signal from the Pixhawk reaches any Pi pin, on the header or the 3-pin serial socket. Swapped wires alone would not look like this. Check which socket each end is in. Target wiring: Pi 3-pin socket pin 1 RX, 2 GND, 3 TX; port /dev/ttyAMA10. Pin map: hardware/avionics_pod/README.md."
+            "notes": "Plugged into the Pi 5's 3-pin serial socket, but the two signal wires are SWAPPED: the Pixhawk's transmit signal arrives on the Pi's transmit pin (measured 2026-11-13 with that pin set as an input). Neither end can swap in software. Fix: swap the two outer wires at the Pi plug; ground (middle) stays. Until then the Pi's transmit pin is parked as an input so the two outputs do not fight. Port after the fix: /dev/ttyAMA10."
           },
           {
             "name": "USB-C DATA cable",
