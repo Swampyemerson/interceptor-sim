@@ -194,3 +194,33 @@ What changed versus `n-color`: the architecture. yolov8n on the chip (0.503) now
 old model's FLOAT recall (0.502), at three times the speed, where the YOLO11n build lost
 13.5 points. Not yet run: this build on the screen bench, and the GPU-optimised conversion
 (the GPU is busy with the 1280 arm).
+
+## SCREEN BENCH, second camera position (2026-11-13 evening, whole screen in view)
+
+The builder moved the camera back; the screen now spans about 790 px of the sensor's height
+(7.9 px per 1% of screen height), so there is no screen-pixel grid to worry about. The bench
+needed two changes for this view (`bench_pi.py`): the timing sync reads a small patch on the
+screen (whole-frame brightness fails because auto-exposure lifts the dark room), and the
+calibration finds the disc inside the bright screen area. `cal2.py` + `cal2.html` give the
+scale and centre for a new position. One run came back with an 8% different calibration
+(`bench2_v8n640_run1_cal7.3.json`); the repeat matched the others and gave the same hit rates.
+
+| Drone at 640 input | yolov8n-640 chip build | n-color chip build (CPU) | Control (no drone) |
+|---|---|---|---|
+| 50 px | 0.40 | 0.61 | 0.00 |
+| 37 px | 0.60 | 0.51 | 0.00 |
+| 27 px | 0.36 | 0.45 | 0.00 |
+| 20 px | 0.29 | 0.38 | 0.00 |
+| 15 px | 0.37 | 0.30 | 0.00 |
+| 11 px | 0.30 | 0.21 | 0.00 |
+| 8 px | 0.20 (not valid) | 0.13 | 0.10 |
+| 6 px | 0.00 | 0.06 | 0.00 |
+
+Files: `bench2_v8n640.json`, `bench2_ncolor640.json`, `bench2_v8n640_control.json`.
+Reading: no clear winner. The ten photos were CHOSEN as ones `n-color`'s float model finds
+with a high score, so the set is biased toward `n-color`; the next photo set must be picked
+without reference to any model. Each photo is either found in most frames or in none, so the
+real sample size is 10, and differences under about 0.2 mean nothing. Hit rates here are
+lower than in the first position for `n-color` at 26 to 49 px (0.45 to 0.61 against 0.67 to
+0.82): position, angle and focus change the result, which is why builds are only ever compared
+within one position.

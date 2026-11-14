@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Pi side of the screen bench: run a one-class drone HEF on every frame while bench.html plays,
 then cut the frames into the page's steps using the white-to-black sync edge.
-Usage: bench_pi.py <hef> <out_json>     (start it, then load bench.html within a few seconds)"""
-import json, sys, time
+Usage: bench_pi.py <hef> <out_json> [page_ppv]   (start it, then load bench.html?ppv=<page_ppv> within a few seconds)"""
+import json, os, sys, time
 import numpy as np, cv2
 from picamera2 import Picamera2
 from picamera2.devices import Hailo
 hef, out = sys.argv[1], sys.argv[2]
-SIZES = [150, 110, 80, 60, 45, 33, 24, 18]; N = 10; STEP = 2.5; TOTAL = 7.5 + N * len(SIZES) * STEP + 14
+PPV_PAGE = float(sys.argv[3]) if len(sys.argv) > 3 else 15.6      # the ?ppv= value the page was loaded with
+# sync patch: a spot ON the screen, beside the calibration disc (native px), from a prior disc calibration
+SYNC_XY = (float(sys.argv[4]) - 260, float(sys.argv[5])) if len(sys.argv) > 5 else (600.0, 800.0)
+SIZES = [150, 110, 80, 60, 45, 33, 24, 18]; N = 10; STEP = 2.5; TOTAL = float(os.environ.get("BENCH_TOTAL", 7.5 + N * len(SIZES) * STEP + 14))
 rec = []; cal_frames = []
 with Hailo(hef) as hailo:
     h, w, _ = hailo.get_input_shape()
@@ -25,33 +28,44 @@ with Hailo(hef) as hailo:
             frame = lo
         res = hailo.run(frame)
         dets = res[0] if isinstance(res, list) and len(res) and getattr(res[0], "ndim", 1) == 2 else res
-        k = 1920 / lo_size[0]; roi = lo[int(450 / k):, :, 1]
+        g_small = lo[::lo_size[1] // 200, ::lo_size[0] // 320, 1]            # about 320 x 200 green channel
         nat = []
         for d in dets:
             if d[4] < 0.2: continue
             if h == 640: b = [d[1] * 1920, (d[0] * 640 - 120) * 3, d[3] * 1920, (d[2] * 640 - 120) * 3]
             else: b = [d[1] * 1920, d[0] * 1200, d[3] * 1920, d[2] * 1200]
             nat.append([round(float(v), 1) for v in b] + [round(float(d[4]), 3)])
-        rec.append((ts, float(roi[::4, ::4].mean()), nat))
-        if len(cal_frames) < 2000: cal_frames.append((ts, cv2.resize(lo[:, :, 1], (640, 400)) if lo_size[0] != 640 else lo[:, :, 1].copy()))
-        else: cal_frames.pop(0) if False else None
+        py, px = int(SYNC_XY[1] / 1200 * g_small.shape[0]), int(SYNC_XY[0] / 1920 * g_small.shape[1])
+        rec.append((ts, float(g_small[max(py - 8, 0):py + 8, max(px - 8, 0):px + 8].mean()), nat))
+        if time.time() - t_start < 30 and len(rec) % 4 == 0: cal_frames.append((ts, g_small.copy()))
     cam.stop()
 ts = np.array([r[0] for r in rec]); br = np.array([r[1] for r in rec])
-white = np.where(br > 140)[0]
-if not len(white): sys.exit("no white sync phase seen -- was the page started?")
-after = np.where((br < 45) & (np.arange(len(br)) > white[0]))[0]
-if not len(after): sys.exit("no black sync phase seen")
-t_black = ts[after[0]]; t_cal = t_black + 2.0; t_steps = t_cal + 2.5
-# calibration disc: dark blob on white, below the bezel (lores y > 150)
-cal = [f for t, f in cal_frames if t_cal + 1.0 < t < t_cal + 2.2]
-if not cal: sys.exit("calibration frames missing")
-g = np.median(np.stack(cal[:20]), 0)[150:, :]; mask = g < 70; ys, xs = np.nonzero(mask)
-if len(xs) < 50: sys.exit("calibration disc not found")
-cx, cy = xs.mean() * 3, (ys.mean() + 150) * 3; dia = 2 * np.sqrt(len(xs) / np.pi) * 3; px_per_vh = dia / 20.0
+# Sync: the page goes white (3 s) then black (2 s). Read a small patch ON the screen (whole-frame
+# brightness fails: auto-exposure lifts the dark room). Edge = dark after 2 s of steady white.
+early = br[ts < ts[0] + 30]; p5, p95 = np.percentile(early, 5), np.percentile(early, 95)
+lo_th, hi_th = p5 + 0.3 * (p95 - p5), p5 + 0.7 * (p95 - p5); t_black = None
+for i in range(130, len(br)):
+    if ts[i] > ts[0] + 30: break
+    prev = br[i - 125:i - 5].min()            # 2 s of steady white (auto-exposure settles it near 160, not 255)
+    if prev > 100 and br[i] < 0.4 * prev:
+        t_black = ts[i]; break
+if t_black is None:
+    json.dump({"t": [round(float(x - ts[0]), 3) for x in ts[::6]], "patch_brightness": [round(float(x), 1) for x in br[::6]], "lo": float(lo_th), "hi": float(hi_th)}, open(out + ".trace.json", "w"))
+    sys.exit("no white-then-black sync edge seen -- trace written to " + out + ".trace.json")
+t_cal = t_black + 2.0; t_steps = t_cal + 2.5
+# Calibration: the screen is the big bright area in the white phase; the disc is the dark blob inside it.
+pick = lambda t0: min(cal_frames, key=lambda f: abs(f[0] - t0))[1]
+white, calf = pick(t_black - 1.0), pick(t_cal + 1.5); sy, sx = 1200 / white.shape[0], 1920 / white.shape[1]
+scr = (white > 0.5 * white.max()).astype(np.uint8); n, lab, st, _ = cv2.connectedComponentsWithStats(scr)
+if n < 2: sys.exit("screen not found in the white phase")
+k = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA])); inside = cv2.erode((lab == k).astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
+ys, xs = np.nonzero((calf < 0.35 * white.max()) & inside)
+if len(xs) < 30: sys.exit("calibration disc not found")
+cx, cy = float(xs.mean() * sx), float(ys.mean() * sy); dia = 2 * np.sqrt(len(xs) * sx * sy / np.pi); px_per_vh = dia / 20.0
 steps = []
 for s in range(N * len(SIZES)):
     a, b = t_steps + s * STEP + 0.7, t_steps + (s + 1) * STEP - 0.3
-    idx = np.where((ts >= a) & (ts <= b))[0]; exp = SIZES[s % len(SIZES)] * px_per_vh / 15.6; tol = max(30.0, 0.6 * exp)
+    idx = np.where((ts >= a) & (ts <= b))[0]; exp = SIZES[s % len(SIZES)] * px_per_vh / PPV_PAGE; tol = max(30.0, 0.6 * exp)
     hit = anyd = 0; sc = []; sz = []
     for i in idx:
         ds = [d for d in rec[i][2] if d[4] >= 0.25]; anyd += bool(ds)

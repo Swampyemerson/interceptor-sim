@@ -112,3 +112,37 @@ Parallel background thread. Order of work: DFC dry-runs + dataset scripts
 4070 → Hailo compile + Pi bench (AFTER brn/afr bench gates undisturbed) →
 tagless validation day → isim/Gazebo seeker-model re-fit from measured
 curves. The tag seeker remains the first-kill baseline throughout.
+
+## Data that looks like OUR target (2026-11-13; the target cannot be flown yet)
+
+Builder: "there has to be a dataset of drones like the target." A sourced web survey the same
+day (two research passes, findings in the session's reports) says otherwise:
+
+- **No verified, labelled, downloadable dataset of 5-inch FPV quads seen from outside exists.**
+  Racing datasets (UZH-FPV, TII "Race Against the Machine", AlphaPilot) are filmed FROM the
+  drone and label gates. The corpus we train on is mostly DJI-style camera drones.
+- **Closest real data, fetched:** MIDGARD (CTU MRS group): 8,776 frames, air-to-air, open-frame
+  research quads on legs, low over fields. 752 x 480, washed-out colour, loose auto-labelled
+  boxes. `scripts/nn/fetch_midgard.sh` -> `data/midgard/`. No licence stated: research use only.
+- **AOT:** only 3,662 of its 2.9 M labels are drones (7 flights, median box 6 px).
+  `scripts/nn/fetch_aot_frames.py` took those plus 8,000 bird/airplane/helicopter frames as
+  negatives; `scripts/nn/convert_aot_slice.py` cut them into 1280 px native-resolution crops.
+- **Unverified, needs an account and a look:** several Roboflow Universe "FPV drone" projects
+  (230 to about 10,000 images each, uploader-declared licences, airframes unknown; some are
+  likely larger FPV drones). Creating the account and API key is a builder action.
+- **Not worth paying for:** no priced dataset beats the free air-to-air sets. The one paid item
+  with a use is labelling our own footage (Roboflow, from $0.10 a box).
+
+**The route that does not need a flight: photograph the real drone and paste it.**
+`scripts/nn/make_cutouts.py` cuts the drone out of photos taken against open sky or a plain
+wall; `scripts/nn/cutpaste_synth.py` pastes the cut-outs onto real air-to-air backgrounds (the
+AOT negatives) at chosen pixel sizes with exact boxes, brightness matching, blur and motion
+blur. Smoke-tested 2026-11-13 with stand-in cut-outs from the corpus (83 clean cut-outs after
+a plain-background gate; the stand-ins are DJI-style, so they prove the tool, not the idea).
+What it needs: 60 to 100 photos (or a two-minute video) of the target AND the interceptor
+(same frame), props on, battery on, against the sky, from below, level and above, all the way
+round. A phone is fine. Held-out photos, never used in training, then go on the screen bench.
+
+Honest limits of the paste route: lighting and prop blur of a parked drone differ from a flying
+one; pasted edges can teach the net a shortcut; a synthetic validation score is not a field
+score. It is a bridge until the tag auto-labeller (step 4 above) can run on real flights.

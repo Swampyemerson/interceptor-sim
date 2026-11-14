@@ -1,14 +1,15 @@
 <!doctype html><meta charset="utf-8"><title>Screen bench</title>
 <style>html,body{margin:0;height:100%;overflow:hidden;background:#fff}
-#t{position:fixed;left:50vw;bottom:23vh;transform:translate(-50%,50%) rotate(180deg);display:none;
+#t{position:fixed;left:50vw;top:50vh;transform:translate(-50%,-50%) rotate(180deg);display:none;
  -webkit-mask-image:radial-gradient(circle closest-side,#000 45%,transparent 98%);mask-image:radial-gradient(circle closest-side,#000 45%,transparent 98%)}
-#disc{position:fixed;left:50vw;bottom:23vh;width:20vh;height:20vh;border-radius:50%;background:#000;transform:translate(-50%,50%);display:none}</style>
+#disc{position:fixed;left:50vw;top:50vh;width:20vh;height:20vh;border-radius:50%;background:#000;transform:translate(-50%,-50%);display:none}</style>
 <img id="t"><div id="disc"></div>
 <script>
 // Self-timed: 3 s white, 2 s black (sync edge), 2.5 s calibration disc, then 10 photos x 8 sizes, 2.5 s each.
 const BG=["#c4c2b9", "#6b81a5", "#a0a9bf", "#898ea0", "#afbdc5", "#6f8cb4", "#a2aab5", "#7d8188", "#b5bbc7", "#c5d0e2"];
 // each photo fades radially into its own edge colour, so there is no square outline to detect
-const PX_PER_VH=15.6, FRAC=1/3, SIZES=[150,110,80,60,45,33,24,18], N=10, STEP=2500;
+// ?ppv= sensor pixels per 1% of screen height for the current camera position (from the disc calibration)
+const PX_PER_VH=parseFloat(new URLSearchParams(location.search).get('ppv')||'15.6'), FRAC=1/3, SIZES=[150,110,80,60,45,33,24,18], N=10, STEP=2500;
 const imgs=[...Array(N).keys()].map(k=>{const i=new Image();i.src='bench/'+(new URLSearchParams(location.search).get('set')||'d')+k+'.jpg';return i;});
 const t=document.getElementById('t'), disc=document.getElementById('disc'); let t0=null, last=-2;
 function frame(now){ if(t0===null)t0=now; const e=now-t0; let s;
