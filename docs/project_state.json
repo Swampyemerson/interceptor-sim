@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-13",
-  "updated_by": "Replacement Pi 5 booted; bench survey of the Pi and the Pixhawk (2026-11-13)",
+  "updated_by": "Replacement Pi 5 bench: Hailo-8 running, AR0234 identified, Pixhawk link silent (2026-11-13)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,7 +17,7 @@
   },
   "now": {
     "as_of": "2026-11-09",
-    "where": "Third flight tonight, on PX4's small-racer rate gains: 'night and day'. Sideways hold locked, motors far less hot, only a faint intermittent oscillation (audible, not visible). The replacement Pi 5 boots (2026-11-13) but has no cable to the Pixhawk and no camera yet.",
+    "where": "Third flight (2026-11-09), on PX4's small-racer rate gains: 'night and day'. Sideways hold locked, motors far less hot, only a faint audible oscillation. The replacement Pi 5 boots (2026-11-13) and its Hailo chip runs; the Pixhawk link is silent and the camera software is not set up.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
       "You: fly the height change. Expect lift-off near 58% stick in Stabilized; it may feel unchanged",
@@ -571,9 +571,9 @@
   "plain_log": [
     {
       "date": "2026-11-13",
-      "text": "Replacement Pi 5 booted for the first time, on the old SD card, with the AI HAT+ fitted. Checked over Wi-Fi: 8 GB board, 5.09 V and no undervoltage flag, 30 C, fan spins when forced, Hailo-8 chip visible, both serial ports present and free of the login console. Pixhawk read over USB: all 1122 settings match the 2026-11-09 dump except the gyro offsets it re-learns itself. Not working: no camera answers on the Pi, nothing is heard from the Pixhawk on either Pi serial port (no cable is fitted), and the Hailo software is not installed.",
-      "so_what": "The brain is back. Three jobs stand between it and a flight: the 3-wire cable from the Pixhawk to the Pi's 3-pin serial socket, a camera that the Pi detects, and the Hailo software. The Pi moved to 192.168.0.61.",
-      "evidence": "configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv; Pi survey over SSH 2026-11-13 (this session); sessions/fieldcheck_20261024T175019Z"
+      "text": "Replacement Pi 5 booted for the first time, on the old SD card, with the AI HAT+ fitted. Working: 8 GB board, 5.09 V with no undervoltage flag, fan, Wi-Fi, bootloader updated. Hailo-8 runs: chip-only benchmark 65 frames/s at 13 ms on the 1-class 640 compile. The camera plugged in is the AR0234, and its driver answers. Pixhawk over USB: all 1122 settings match the 2026-11-09 dump except self-learned gyro offsets. Not working: the Pi's camera library cannot use the AR0234, and no signal from the Pixhawk reaches any Pi pin although a cable is plugged in.",
+      "so_what": "The brain is back and the accelerator clears its speed floor by four times on the chip alone. Two jobs stand before a flight: find why the Pixhawk cable is silent (it is not just two swapped wires), and install Arducam's camera packages so the Pi can take pictures. The Pi moved to 192.168.0.61.",
+      "evidence": "runs/hailo_day1_20261113/README.md (benchmark logs, camera and link probes); configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv"
     },
     {
       "date": "2026-11-13",
@@ -1455,7 +1455,7 @@
   "constraints": [
     {
       "id": "pi5-compute",
-      "text": "MEASURED 2026-07-26 on the real board, confirming this constraint: the Pi 5 CPU runs the AprilTag seeker comfortably real-time (96.6 fps sustained at decimate 2.0) but CPU YOLO manages only 6.09 fps (162 ms/inference) -- inside the predicted 5-10 band and NOT viable at terminal LOS rates. The markerless path still REQUIRES the deferred Hailo AI HAT+, so first real kills fly the tag. Note the frame-rate win does NOT rescue the markerless path: 96.6 fps is the tag pipeline, 6.09 is the NN's.",
+      "text": "MEASURED 2026-07-26 on the real board, confirming this constraint: the Pi 5 CPU runs the AprilTag seeker comfortably real-time (96.6 fps sustained at decimate 2.0) but CPU YOLO manages only 6.09 fps (162 ms/inference) -- inside the predicted 5-10 band and NOT viable at terminal LOS rates. The markerless path REQUIRES the Hailo AI HAT+ (fitted 2026-11-13; chip-only 65 fps on the 1-class compile, camera-to-detection rate not yet measured), so first real kills fly the tag. Note the frame-rate win does NOT rescue the markerless path: 96.6 fps is the tag pipeline, 6.09 is the NN's.",
       "evidence": [
         "docs/hardware_order_list.md §0c",
         "docs/next.md ROUND-5"
@@ -2108,7 +2108,7 @@
             "name": "Raspberry Pi 5, 8 GB",
             "status": "in hand",
             "role": "Runs the same stack the flight Pi will: capture, calibration, tag decode, NN shadow scoring.",
-            "notes": "REPLACED 2026-11-13 (the first died 2026-11-09, parts stripped by mounting tape). The new board boots from the old SD card at 192.168.0.61: 8 GB, Wi-Fi up, 5.09 V with no undervoltage flag, fan spins when forced. Not yet wired to the Pixhawk, and no camera answers. Mount by the corner holes, never tape."
+            "notes": "REPLACED 2026-11-13 (the first died 2026-11-09, parts stripped by mounting tape). The new board boots from the old SD card at 192.168.0.61: 8 GB, Wi-Fi up, 5.09 V with no undervoltage flag, fan spins when forced, bootloader updated. The Pixhawk link is silent and the camera library cannot use the AR0234 yet. Mount by the corner holes, never tape."
           },
           {
             "name": "SanDisk 128 GB microSD + reader",
@@ -2136,15 +2136,15 @@
           },
           {
             "name": "Arducam AR0234 color global-shutter camera (B0353)",
-            "status": "ordered",
+            "status": "in hand",
             "role": "Upgrade seeker: 1920x1200 GS — ~1.5x the OV9281's px/deg; stock 3.6 mm ≈80° lens + integral IR-cut (no swap needed, ADR-0131).",
-            "notes": "ORDER #000009907 (2026-10-23). Checkout email mistyped — NO confirmation email will arrive; this order number is the ONLY tracking handle. Deploys ONLY behind the Hailo native-res bench gates (at 640/CPU it is worse than the OV9281). Needs: Pivariety driver (pin the Pi kernel), own intrinsics calibration, verify ≤1 ms exposure control."
+            "notes": "PLUGGED INTO the new Pi 2026-11-13, socket CAM/DISP0: the driver answers (1920x1200, firmware 0x10004), but the Pi's stock camera library cannot use it. Needs Arducam's own camera packages, which replace the stock ones (builder's go-ahead). Then: own intrinsics calibration and a check of 1 ms exposure control. Deploys ONLY behind the Hailo native-res bench gates (at 640/CPU it is worse than the OV9281)."
           },
           {
             "name": "Raspberry Pi AI HAT+ (Hailo-8, 26 TOPS)",
             "status": "in hand",
             "role": "NN accelerator: native-res input at ≥10–15 Hz inside the latency budget; yolov8n compiles (DFC dry-run 2026-10-21).",
-            "notes": "FITTED on the new Pi 2026-11-13: the Hailo-8 chip shows on the Pi's PCIe bus. Hailo software is NOT installed yet (hailo-all, about 1 GB class download). The HAT covers the GPIO pins, so the Pixhawk cable must use the Pi's 3-pin serial socket. Day-1 bench after install: hailortcli benchmark of the 1-class compile vs the 10-15 Hz floor, and the thermal soak of the stack."
+            "notes": "FITTED and running 2026-11-13: Hailo-8, firmware 4.23.0. Chip-only benchmark on the 1-class 640 compile: 65 frames/s, 13 ms latency (floor was 10-15). That is synthetic input on a compile dry-run, NOT the trained seeker and NOT camera-to-detection. Driver installed without DKMS, so a kernel update drops it. Still to do: thermal soak of the stack, and the real model end to end. The HAT covers the GPIO pins."
           }
         ],
         "connections": [
@@ -2239,9 +2239,9 @@
           },
           {
             "name": "Pi-to-TELEM2 UART jumper leads",
-            "status": "must-add",
+            "status": "built",
             "role": "The three wires the whole deploy path rides on.",
-            "notes": "The old DuPont lead proved the link on the first Pi. With the HAT on, the GPIO pins are covered, so it cannot be used. Make a 3-wire lead to the Pi 5's 3-pin serial socket (JST-SH 1.0 mm; pin 1 RX, 2 GND, 3 TX; port /dev/ttyAMA10). Plug it in before the HAT goes on. Pin map: hardware/avionics_pod/README.md."
+            "notes": "A lead is plugged in (builder, 2026-11-13) but the link is SILENT: no signal from the Pixhawk reaches any Pi pin, on the header or the 3-pin serial socket. Swapped wires alone would not look like this. Check which socket each end is in. Target wiring: Pi 3-pin socket pin 1 RX, 2 GND, 3 TX; port /dev/ttyAMA10. Pin map: hardware/avionics_pod/README.md."
           },
           {
             "name": "USB-C DATA cable",

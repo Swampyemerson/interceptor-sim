@@ -1,0 +1,54 @@
+Starting Measurements...
+Measuring FPS in HW-only mode
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Measuring FPS (and Power on supported platforms) in streaming mode
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Measuring HW Latency
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=======
+Summary
+=======
+FPS     (hw_only)                 = 65.3058
+        (streaming)               = 65.1945
+Latency (hw)                      = 13.2064 ms

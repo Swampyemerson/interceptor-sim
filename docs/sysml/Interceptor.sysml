@@ -159,8 +159,8 @@ package Interceptor {
         interface companion : UARTLink connect fc.telem2 to pi.gpioUart {
             @BOM { tab = "brain"; bomName = "Pi-to-TELEM2"; }
             attribute :>> connector = "JST-GH 6-pin -> JST-SH 3-pin (3 wires)";
-            attribute :>> detail = "NOT MADE (2026-11-13): the HAT covers the GPIO pins, so use the Pi's 3-pin serial socket (/dev/ttyAMA10, 921600). Pin map: hardware/avionics_pod/README.md";
-            attribute :>> linkState = LinkState::planned;
+            attribute :>> detail = "Plugged in 2026-11-13 but SILENT: no Pixhawk signal on any Pi pin. Target: the Pi's 3-pin serial socket (/dev/ttyAMA10, 921600). Pin map: hardware/avionics_pod/README.md";
+            attribute :>> linkState = LinkState::wired;
         }
         interface rcSbus : RCInLink connect fc.rcIn to rx.fcConn {
             attribute :>> connector = "RC IN socket";
@@ -180,7 +180,7 @@ package Interceptor {
         interface cameraRibbon : CSI2Link connect camera.csi to pi.cam0 {
             @BOM { tab = "seeker"; bomName = "Wonrabai"; }
             attribute :>> connector = "22-to-15-pin CSI ribbon";
-            attribute :>> detail = "MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02); NO camera answers on the replacement Pi (2026-11-13)";
+            attribute :>> detail = "MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02). On the replacement Pi this socket now holds the AR0234 (2026-11-13), not this camera";
             attribute :>> linkState = LinkState::planned;
         }
         interface frameCard : SDCardLink connect pi.sdSlot to piSd.contacts {

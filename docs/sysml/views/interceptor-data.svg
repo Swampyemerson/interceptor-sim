@@ -139,7 +139,7 @@
 <path class="sx-w sx-c-data sx-s-wired" d="M610.0 121.0 L669.0 121.0 L669.0 295.0 L610.0 295.0"/>
 <path class="sx-w sx-c-data sx-s-wired" d="M610.0 273.0 L676.0 273.0 L676.0 121.0 L728.0 121.0"/>
 <path class="sx-w sx-c-data sx-s-verified" d="M610.0 317.0 L683.0 317.0 L683.0 273.0 L728.0 273.0"/>
-<path class="sx-w sx-c-data sx-s-planned" d="M610.0 383.0 L662.0 383.0 L662.0 535.0 L610.0 535.0"/>
+<path class="sx-w sx-c-data sx-s-wired" d="M610.0 383.0 L662.0 383.0 L662.0 535.0 L610.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-wired" d="M610.0 361.0 L690.0 361.0 L690.0 535.0 L728.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-wired" d="M610.0 339.0 L1001.0 339.0 L1001.0 535.0 L1060.0 535.0"/>
 <path class="sx-w sx-c-data sx-s-wired" d="M396.0 273.0 L337.0 273.0 L337.0 273.0 L278.0 273.0"/>
@@ -184,7 +184,7 @@
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="658.0" y="200.0" width="22" height="16" rx="8"/><text x="669.0" y="212.0">1</text></g>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="665.0" y="166.2" width="22" height="16" rx="8"/><text x="676.0" y="178.2">2</text></g>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="635.5" y="309.0" width="22" height="16" rx="8"/><text x="646.5" y="321.0">3</text></g>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="651.0" y="451.0" width="22" height="16" rx="8"/><text x="662.0" y="463.0">4</text></g>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="651.0" y="451.0" width="22" height="16" rx="8"/><text x="662.0" y="463.0">4</text></g>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="679.0" y="440.0" width="22" height="16" rx="8"/><text x="690.0" y="452.0">5</text></g>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="794.5" y="331.0" width="22" height="16" rx="8"/><text x="805.5" y="343.0">6</text></g>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="296.5" y="265.0" width="22" height="16" rx="8"/><text x="307.5" y="277.0">7</text></g>
@@ -200,9 +200,9 @@
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="882" width="22" height="16" rx="8"/><text x="31" y="894">3</text></g>
 <text class="sx-wl" x="52" y="894"><tspan class="sx-wn">gpsCable</tspan><tspan class="sx-wm">  fc.gps1 → gps.fcConn</tspan><tspan class="sx-wt">  : GPSCableLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (brn-02)</tspan></text>
 <text class="sx-wd" x="52" y="908">10-pin JST-GH — GPS UART (UBX 10 Hz) + IST8310 compass on GPS1&#x27;s own I2C + 5 V</text>
-<g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="912" width="22" height="16" rx="8"/><text x="31" y="924">4</text></g>
-<text class="sx-wl" x="52" y="924"><tspan class="sx-wn">companion</tspan><tspan class="sx-wm">  fc.telem2 → pi.gpioUart</tspan><tspan class="sx-wt">  : UARTLink</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="938">JST-GH 6-pin -&gt; JST-SH 3-pin (3 wires) — NOT MADE (2026-11-13): the HAT covers the GPIO pins, so use the Pi&#x27;s 3-pin serial socket (/dev/ttyAMA10, 921600). Pin map: hardware/avionics_pod/README.md · cable: Pi-to-TELEM2 UART jumper leads</text>
+<g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="912" width="22" height="16" rx="8"/><text x="31" y="924">4</text></g>
+<text class="sx-wl" x="52" y="924"><tspan class="sx-wn">companion</tspan><tspan class="sx-wm">  fc.telem2 → pi.gpioUart</tspan><tspan class="sx-wt">  : UARTLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
+<text class="sx-wd" x="52" y="938">JST-GH 6-pin -&gt; JST-SH 3-pin (3 wires) — Plugged in 2026-11-13 but SILENT: no Pixhawk signal on any Pi pin. Target: the Pi&#x27;s 3-pin serial socket (/dev/ttyAMA10, 921600). Pin map: hardware/avionics_pod/README.md · cable: Pi-to-TELEM2 UART jumper leads</text>
 <g class="sx-pill sx-c-data sx-s-wired"><rect x="20" y="942" width="22" height="16" rx="8"/><text x="31" y="954">5</text></g>
 <text class="sx-wl" x="52" y="954"><tspan class="sx-wn">rcSbus</tspan><tspan class="sx-wm">  fc.rcIn → rx.fcConn</tspan><tspan class="sx-wt">  : RCInLink</tspan><tspan class="sx-ws sx-s-wired">  WIRED</tspan></text>
 <text class="sx-wd" x="52" y="968">RC IN socket — SBUS (ELRS flashed to SBUS out) + 5 V; kill/arm only</text>
@@ -214,7 +214,7 @@
 <text class="sx-wd" x="52" y="1028">onboard microSD slot — PX4 ULogs -- SLOT DEAD: no onboard logs; substitute is hover_recorder.py on the Pi</text>
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="1032" width="22" height="16" rx="8"/><text x="31" y="1044">8</text></g>
 <text class="sx-wl" x="52" y="1044"><tspan class="sx-wn">cameraRibbon</tspan><tspan class="sx-wm">  camera.csi → pi.cam0</tspan><tspan class="sx-wt">  : CSI2Link</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="1058">22-to-15-pin CSI ribbon — MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02); NO camera answers on the replacement Pi (2026-11-13) · cable: Wonrabai 22-to-15-pin CSI cable</text>
+<text class="sx-wd" x="52" y="1058">22-to-15-pin CSI ribbon — MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02). On the replacement Pi this socket now holds the AR0234 (2026-11-13), not this camera · cable: Wonrabai 22-to-15-pin CSI cable</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="1062" width="22" height="16" rx="8"/><text x="31" y="1074">9</text></g>
 <text class="sx-wl" x="52" y="1074"><tspan class="sx-wn">frameCard</tspan><tspan class="sx-wm">  pi.sdSlot → piSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-01, skr-05)</tspan></text>
 <text class="sx-wd" x="52" y="1088">Pi microSD slot — Pi OS + raw PNG frames</text>
