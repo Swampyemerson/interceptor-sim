@@ -1,0 +1,135 @@
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1794620287.943756    2643 cuda_dnn.cc:8310] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1794620287.948634    2643 cuda_blas.cc:1418] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+[warning] Cannot use graphviz, so no visualizations will be created
+In file included from /work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/ndarraytypes.h:1929,
+                 from /work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/ndarrayobject.h:12,
+                 from /work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/arrayobject.h:5,
+                 from /root/.pyxbld/temp.linux-x86_64-cpython-310/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/core/postprocessing/cython_utils/cython_nms.c:1273:
+/work/.venv-dfc-2204/lib/python3.10/site-packages/numpy/core/include/numpy/npy_1_7_deprecated_api.h:17:2: warning: #warning "Using deprecated NumPy API, disable it with " "#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION" [-Wcpp]
+   17 | #warning "Using deprecated NumPy API, disable it with " \
+      |  ^~~~~~~
+[36m<Hailo Model Zoo INFO> Start run for network yolov11n ...[0m
+[36m<Hailo Model Zoo INFO> Initializing the hailo8 runner...[0m
+[info] Translation started on ONNX model yolov11n
+[info] Restored ONNX model yolov11n (completion time: 00:00:00.05)
+[info] Extracted ONNXRuntime meta-data for Hailo model (completion time: 00:00:00.20)
+[info] Start nodes mapped from original model: 'images': 'yolov11n/input_layer1'.
+[info] End nodes mapped from original model: '/model.23/cv2.0/cv2.0.2/Conv', '/model.23/cv3.0/cv3.0.2/Conv', '/model.23/cv2.1/cv2.1.2/Conv', '/model.23/cv3.1/cv3.1.2/Conv', '/model.23/cv2.2/cv2.2.2/Conv', '/model.23/cv3.2/cv3.2.2/Conv'.
+[info] Translation completed on ONNX model yolov11n (completion time: 00:00:00.81)
+[info] Saved HAR to: /work/runs/hailo_drone_20261113/gpu_build/yolov11n.har
+[36m<Hailo Model Zoo INFO> Preparing calibration data...[0m
+[info] Loading model script commands to yolov11n from n-color-gpu.alls
+[info] Found model with 3 input channels, using real RGB images for calibration instead of sampling random data.
+[info] Starting Model Optimization
+I0000 00:00:1794620299.650498    2643 gpu_device.cc:2022] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 5520 MB memory:  -> device: 0, name: NVIDIA GeForce RTX 4070 Laptop GPU, pci bus id: 0000:64:00.0, compute capability: 8.9
+I0000 00:00:1794620300.162233    2643 gpu_device.cc:2022] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 5520 MB memory:  -> device: 0, name: NVIDIA GeForce RTX 4070 Laptop GPU, pci bus id: 0000:64:00.0, compute capability: 8.9
+[info] Model received quantization params from the hn
+I0000 00:00:1794620302.507242    2643 gpu_device.cc:2022] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 5520 MB memory:  -> device: 0, name: NVIDIA GeForce RTX 4070 Laptop GPU, pci bus id: 0000:64:00.0, compute capability: 8.9
+I0000 00:00:1794620303.092822    2643 gpu_device.cc:2022] Created device /job:localhost/replica:0/task:0/device:GPU:0 with 5520 MB memory:  -> device: 0, name: NVIDIA GeForce RTX 4070 Laptop GPU, pci bus id: 0000:64:00.0, compute capability: 8.9
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+W0000 00:00:1794620303.274464    2944 gpu_backend_lib.cc:579] Can't find libdevice directory ${CUDA_DIR}/nvvm/libdevice. This may result in compilation or runtime failures, if the program we try to run uses routines from libdevice.
+Searched for CUDA in the following directories:
+  ./cuda_sdk_lib
+  /work/.venv-dfc-2204/bin/hailomz.runfiles/cuda_nvcc
+  /work/./cuda_nvcc
+  
+  /usr/local/cuda
+  /work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/platform/../../../nvidia/cuda_nvcc
+  /work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/platform/../../../../nvidia/cuda_nvcc
+  /work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/platform/../../cuda
+  .
+You can choose the search directory by setting xla_gpu_cuda_data_dir in HloModule's DebugOptions.  For most apps, setting the environment variable XLA_FLAGS=--xla_gpu_cuda_data_dir=/path/to/cuda will work.
+W0000 00:00:1794620303.282525    2948 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.283997    2947 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.285503    2950 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.286647    2946 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.287596    2942 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.288547    2943 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.289648    2945 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.290686    2949 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.291598    2944 gpu_kernel_to_blob_pass.cc:190] Failed to compile generated PTX with ptxas. Falling back to compilation by driver.
+W0000 00:00:1794620303.658285    2887 gpu_backend_lib.cc:617] libdevice is required by this HLO module but was not found at ./libdevice.10.bc
+error: libdevice not found at ./libdevice.10.bc
+Traceback (most recent call last):
+  File "/work/.venv-dfc-2204/bin/hailomz", line 6, in <module>
+    sys.exit(main())
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main.py", line 122, in main
+    run(args)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main.py", line 111, in run
+    return handlers[args.command](args)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main_driver.py", line 248, in compile
+    _ensure_optimized(runner, logger, args, network_info)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/main_driver.py", line 91, in _ensure_optimized
+    optimize_model(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_zoo/core/main_utils.py", line 353, in optimize_model
+    runner.optimize(calib_feed_callback)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_common/states/states.py", line 16, in wrapped_func
+    return func(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/runner/client_runner.py", line 2206, in optimize
+    result = self._optimize(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_common/states/states.py", line 16, in wrapped_func
+    return func(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/runner/client_runner.py", line 2025, in _optimize
+    checkpoint_info = self._sdk_backend.full_quantization(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/sdk_backend/sdk_backend.py", line 1138, in full_quantization
+    new_checkpoint_info = self._full_acceleras_run(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/sdk_backend/sdk_backend.py", line 1376, in _full_acceleras_run
+    new_checkpoint_info = self._optimization_flow_runner(optimization_flow, checkpoint_info)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_sdk_client/sdk_backend/sdk_backend.py", line 2029, in _optimization_flow_runner
+    optimization_flow.run()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/tools/orchestator.py", line 239, in wrapper
+    return func(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/flows/optimization_flow.py", line 357, in run
+    step_func()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/tools/subprocess_wrapper.py", line 140, in parent_wrapper
+    raise SubprocessTracebackFailure(*child_messages)
+hailo_model_optimization.acceleras.utils.acceleras_exceptions.SubprocessTracebackFailure: Subprocess failed with exception: {{function_node __wrapped__Log_device_/job:localhost/replica:0/task:0/device:GPU:0}} JIT compilation failed. [Op:Log] name: 
+
+ Exception traceback: 
+
+ Traceback (most recent call last):
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/tools/subprocess_wrapper.py", line 100, in child_wrapper
+    self.reset_subprocess()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/flows/optimization_flow.py", line 274, in reset_subprocess
+    self.build_model()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/flows/optimization_flow.py", line 239, in build_model
+    model: HailoModel = HailoModel(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/model/hailo_model/hailo_model.py", line 147, in __init__
+    self.import_hn(hn_dict)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/model/hailo_model/hailo_model.py", line 73, in wrap
+    retval = foo(self, *args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/model/hailo_model/hailo_model.py", line 463, in import_hn
+    self._acceleras_layers = self._create_acceleras_layers_from_hn(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/model/hailo_model/hailo_model.py", line 1052, in _create_acceleras_layers_from_hn
+    new_acceleras_layers = gen_acceleras_layers_from_hn(layer_name, layer_data, optimization_target, logger)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/hailo_layers/op_factories.py", line 341, in gen_acceleras_layers_from_hn
+    returned_dict = op_class.from_hn(lname, hn_layer, logger=logger)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/hailo_layers/hailo_depthwise.py", line 72, in from_hn
+    layer = cls(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/hailo_layers/hailo_depthwise.py", line 49, in __init__
+    super().__init__(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/hailo_layers/base_hailo_conv.py", line 101, in __init__
+    self.act_op = ActivationOp(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/atomic_ops/activation_op.py", line 139, in __init__
+    self.update_mantissa_exponent_decomposition()
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/atomic_ops/activation_op.py", line 1229, in update_mantissa_exponent_decomposition
+    ) = self._get_mantissa_exponent_decomposition(
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/hailo_model_optimization/acceleras/atomic_ops/activation_op.py", line 1259, in _get_mantissa_exponent_decomposition
+    tf.experimental.numpy.log2(tf.math.abs(non_zero_factor_candidates)) - APU_MANTISSA_BITS
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/ops/weak_tensor_ops.py", line 88, in wrapper
+    return op(*args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/ops/numpy_ops/np_math_ops.py", line 1015, in log2
+    return log(x) / np.log(2)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/ops/weak_tensor_ops.py", line 88, in wrapper
+    return op(*args, **kwargs)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/ops/numpy_ops/np_math_ops.py", line 683, in log
+    return _scalar(math_ops.log, x, True)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/ops/numpy_ops/np_math_ops.py", line 677, in _scalar
+    return tf_fn(x)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/ops/gen_math_ops.py", line 5681, in log
+    _ops.raise_from_not_ok_status(e, name)
+  File "/work/.venv-dfc-2204/lib/python3.10/site-packages/tensorflow/python/framework/ops.py", line 6002, in raise_from_not_ok_status
+    raise core._status_to_exception(e) from None  # pylint: disable=protected-access
+tensorflow.python.framework.errors_impl.UnknownError: {{function_node __wrapped__Log_device_/job:localhost/replica:0/task:0/device:GPU:0}} JIT compilation failed. [Op:Log] name: 
+

@@ -275,8 +275,14 @@ one-paragraph primer before using it as if obvious. Keep it concise — teaching
   changes and republish the dashboard; an update that isn't in the contract didn't happen.
   The other memory files below are subordinate to it.
 - **Numbers trace to a run or a derivation.** No unsourced quantitative claims.
-- **Ask before** downloads over ~2 GB, or changes to the system outside this project
-  dir and apt packages.
+- **Large downloads and system changes: DO THEM, then report (builder 2026-11-13: "you
+  don't need these permissions in the future, you're on an environment with nothing
+  critical from me").** This replaces the old "ask before downloads over ~2 GB, or changes
+  to the system outside this project dir". It covers the dev laptop (WSL) and the bench Pi:
+  big dataset pulls, apt repositories and packages, Docker configuration, Pi boot config.
+  Check free disk first, and say afterwards what changed and how to undo it. It does NOT
+  loosen the credentials / external accounts / money rule below, the builder-only
+  `CBRK_IO_SAFETY` call, or anything that could spin a motor.
 - **NEVER touch CREDENTIALS or EXTERNAL ACCOUNTS without the builder explicitly asking —
   and never from a subagent (2026-07-25 incident).** A worker unilaterally launched a
   `gh auth refresh` device flow to widen the local token's OAuth scope. Even though the

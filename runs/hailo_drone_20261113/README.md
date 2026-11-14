@@ -96,3 +96,48 @@ Loop rate 59.7 fps, 29 ms from frame start to result (`live_drone_largest.jpg`).
 This is ONE photo, seen at a steep angle with a cable across part of the frame, on a screen
 closer than the lens's focus distance. It shows the whole chain works and that this build
 only finds a large target; it is not a range measurement.
+
+## RESCUE STEP 1, registered before running (2026-11-13)
+Same model, same test, same metric and pass mark as pre-registration 1. One change: the
+converter runs with the laptop's GPU (Docker + NVIDIA Container Toolkit, CUDA 12.5 image,
+cuDNN 9.3 supplied separately because the image's 9.2 is too old for TensorFlow 2.18),
+optimisation level 2, compression level 0, all 1,200 calibration images
+(`compile_ncolor_gpu.sh`). Prediction: the recall loss shrinks to under 5 points in the bins
+of 16 px and up, and to under 10 points below 16 px. If the log again says the optimisers
+were skipped, the run does not count.
+
+## SCREEN BENCH (2026-11-13, camera square-on to the laptop screen)
+
+What it is: `screen_bench/bench.html` plays itself (white, black, a calibration disc, then
+10 held-out drone photos at 8 sizes, 2.5 s each); `screen_bench/bench_pi.py` runs the detector
+on every camera frame and cuts the frames into steps from the white-to-black edge. The disc
+gives the scale (15.3 sensor px per 1% of screen height) and the target point. About 89
+frames per step, 60 fps. A hit is a detection at the target point whose box is 0.5 to 1.6
+times the drone's size.
+
+Two instrument faults found and fixed before any number was kept:
+1. First run (`bench_ncolor_640_run1_square_patch_artefact.json`): photos were shown as hard
+   squares on grey and the detector fired on the SQUARE (box 3.3 times the drone) at small
+   sizes. Fix: photos fade radially into their own edge colour; hits must be drone-sized.
+2. Control pass (`bench_ncolor_640_control.json`, drone-free patches of the same photos):
+   0 false hits at every size down to 32 px on the sensor, but 10% and 30% at the two
+   smallest sizes. So the bench is NOT valid below about 11 px at 640 input.
+
+Result for the current chip build of `n-color` (`bench_ncolor_640.json`):
+
+| Drone on the sensor | At 640 input | Like a 0.3 m target at | Frames hit | Photos hit in half their frames | Control |
+|---|---|---|---|---|---|
+| 147 px | 49 px | 2.3 m | 0.70 | 7 of 10 | 0.00 |
+| 108 px | 36 px | 3.2 m | 0.82 | 8 of 10 | 0.00 |
+| 78 px | 26 px | 4.4 m | 0.67 | 7 of 10 | 0.00 |
+| 59 px | 20 px | 5.8 m | 0.40 | 4 of 10 | 0.00 |
+| 44 px | 15 px | 7.8 m | 0.38 | 4 of 10 | 0.00 |
+| 32 px | 11 px | 10.6 m | 0.35 | 4 of 10 | 0.00 |
+| 24 px | 8 px | 14 m | not valid | | 0.10 |
+| 18 px | 6 px | 19 m | not valid | | 0.30 |
+
+The distance column assumes the lens's listed 80 degree view (focal length 1,144 px); this
+camera is not calibrated yet. Limits: 10 photos, all from one source dataset (DUT Anti-UAV),
+chosen because the float model already finds them, so the numbers flatter the detector; a
+screen is not the sky; one screen pixel is about one sensor pixel, which a full-resolution
+model may see as a grid. Use it to COMPARE builds on the same optics, not as a range claim.

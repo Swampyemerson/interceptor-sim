@@ -9,3 +9,4 @@ hailo_sdk.*.log
 acceleras.log
 calib640/
 eval640/
+gpu_build/
