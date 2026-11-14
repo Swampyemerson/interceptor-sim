@@ -1,0 +1,45 @@
+{
+ "port": "COM4",
+ "started": "2026-11-14 10:43:32",
+ "outcome": "CALIBRATED",
+ "positions_done": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6
+ ],
+ "messages": [
+  "PreArm: 3D Accel calibration needed",
+  "PreArm: Compass not calibrated",
+  "PreArm: GPS 1: Bad fix",
+  "PreArm: Fence requires position",
+  "Trim OK: roll=3.67 pitch=3.55 yaw=0.00",
+  "Calibration successful"
+ ],
+ "before": {
+  "INS_ACCOFFS_X": 0.0,
+  "INS_ACCOFFS_Y": 0.0,
+  "INS_ACCOFFS_Z": 0.0,
+  "INS_ACCSCAL_X": 1.0,
+  "INS_ACCSCAL_Y": 1.0,
+  "INS_ACCSCAL_Z": 1.0
+ },
+ "after_before_reboot": {
+  "INS_ACCOFFS_X": 0.06709,
+  "INS_ACCOFFS_Y": -0.01558,
+  "INS_ACCOFFS_Z": 0.03092,
+  "INS_ACCSCAL_X": 0.99897,
+  "INS_ACCSCAL_Y": 1.00015,
+  "INS_ACCSCAL_Z": 1.00161
+ },
+ "after_reboot": {
+  "INS_ACCOFFS_X": 0.06709,
+  "INS_ACCOFFS_Y": -0.01558,
+  "INS_ACCOFFS_Z": 0.03092,
+  "INS_ACCSCAL_X": 0.99897,
+  "INS_ACCSCAL_Y": 1.00015,
+  "INS_ACCSCAL_Z": 1.00161
+ }
+}

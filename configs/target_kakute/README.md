@@ -21,8 +21,9 @@ assembly + copy-paste, not research.
 
 > **Status 2026-11-14.** The board is flashed (ArduCopter 4.7.0), motor order and
 > direction are verified, the radio is calibrated, and `target.param` is loaded and
-> read back (66 of 66). It has never flown. Still to do before it can arm:
-> **accelerometer calibration and compass calibration** (§7). Before/after dumps of
+> read back (66 of 66). It has never flown. The accelerometer was calibrated
+> 2026-11-14. Still to do before it can arm: **compass calibration** (§7), outdoors,
+> where the GPS can also get its first fix. Before/after dumps of
 > every setting: `dumps/20261114_before.tsv` and `_after.tsv`.
 >
 > **The flight controller is mounted backwards** (arrow at the tail, found
@@ -208,7 +209,10 @@ mode channel. Source: `RC_Channel.cpp` and `AP_Arming_Copter.cpp` at
 
 ## 7. Sensor calibration
 
-1. **Accelerometer** — *Setup → Mandatory Hardware → Accel Calibration.* Place the
+1. **Accelerometer** — done 2026-11-14 with `scripts/bench/ap_accel_cal.py COM4` (a console
+   window that names each of the six positions and waits for Enter), because
+   QGroundControl's page would not advance past the first position on this firmware. In
+   Mission Planner: *Setup → Mandatory Hardware → Accel Calibration.* Place the
    board level, on each side, nose up/down, inverted as prompted. Source:
    [Accelerometer Calibration](https://ardupilot.org/copter/docs/common-accelerometer-calibration.html).
 2. **Compass** (Matek M10Q-5883 external mag) — *Setup → Mandatory Hardware →

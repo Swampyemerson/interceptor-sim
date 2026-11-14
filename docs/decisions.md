@@ -1597,3 +1597,12 @@ redone. *Open, and it gates the first arm:* the motor order was verified corner 
 2026-10-13, and the record does not say which end was called "front". If it was the board's
 arrow, the order is now 180 degrees out and the first take-off flips. Check: motor test, props
 off, motor A must be the front-right of the real nose. Lint now requires the rotation line.
+
+**Addendum 2, same day: accelerometer calibrated.** QGroundControl's accelerometer page
+stayed on "hold still, press Next" (cause not found; ArduPilot 4.7.0's source says it still
+accepts QGroundControl's style of acknowledgement). `scripts/bench/ap_accel_cal.py` runs the
+same six positions in a console window using the command Mission Planner uses, reboots the
+board and reads the result back. The builder ran it: offsets 0.067 / -0.016 / 0.031 m/s/s,
+identical before and after the reboot (`runs/target_bench_20261114/`). The board now lists
+three things against arming, all expected indoors on USB power: compass not calibrated, GPS
+bad fix, fence needs a position.
