@@ -516,3 +516,11 @@ The builder checked the camera post in SOLIDWORKS and the two programs agree. He
 **So what:** Bolting the dock is still right, but it does not put the Pixhawk clear of motor vibration by itself: hover is about 213 Hz and the pod mode sits below it, so every spool-up passes through it. The first vibration check is now a tap test with the dock bolted and the loaded pod latched on, then a Pixhawk vibration log at hover. If that confirms a low mode, the options are a seventh screw at the tail tab or a stiffer dock.
 
 *Evidence: hardware/avionics_pod/SOLIDWORKS_CROSSCHECK.md - hardware/avionics_pod/ANALYSIS.md section 2 - hardware/avionics_pod/fea_results/nose_post_screws.json, pod_on_dock_screws.json - media/solidworks_*.png*
+
+## 2026-11-11 (overflowed from plain_log 2026-11-14)
+
+Calipers arrived, and the first session caught a drawing error before anything was printed. The builder measured the screw pattern on the target drone's top plate (same frame as the interceptor): 56.0 by 29.3 mm against 55.77 by 29.2 in the maker's drawing, so the avionics dock's four holes are right. A third reading, 25.05 mm at the nose, plus his photo showed the plate had been drawn back to front: the narrow pair of screws the camera post bolted to is at the rear. The post is redrawn to the real front screws, 5 mm further forward, on a tongue twice as thick.
+
+**So what:** The camera post is printable again, and the corrected geometry is kinder than the mistaken one: more room to the pod, 8 mm or more outside the prop circles, props further out of the picture. One new weakness was found and fixed in the same pass: with its screws behind it the post nodded at 92 Hz, so the tongue went from 3 to 6 mm and the figure is 187 Hz. Still to check on the interceptor itself: the cable route, now that the slot is gone.
+
+*Evidence: hardware/avionics_pod/README.md revision 5 - GAP_REVIEW.md - fea_results/nose_post*.json - nose_post_check.py - ADR-0135 addendum 2026-11-11*

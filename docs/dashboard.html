@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->a7273c6<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4a62c63<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,10 +914,10 @@
  },
  "now": {
   "as_of": "2026-11-14",
-  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: set up and accelerometer-calibrated 2026-11-14, never flown; GPS fixed and has a 3D fix.",
+  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause not yet known.",
   "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
   "next": [
-   "You: target, props off: motor test (A = front-right of real nose); redo compass away from metal",
+   "You: target: battery outside on concrete; plug the board into USB (no battery) so I can read the log",
    "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
   "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -1457,6 +1457,12 @@
  "plain_log": [
   {
    "date": "2026-11-14",
+   "text": "The target drone's first flight ended in a crash. As the builder reported it: the drone climbed even with the throttle stick at minimum, he used the arm switch to cut the motors at roughly 100 ft, and it fell and hit the lawn battery first. Cause not yet known. The flight log on the board has not been read; the board was not connected when this was written. Two candidate causes are written down before reading the log: the firmware's minimum motor speed (15% of full, never checked against this 6S power system) may already lift the drone, or the height controller drove the throttle up. The log separates them: motors at their floor while climbing means the first, motors commanded high with the stick low means the second.",
+   "so_what": "No flight of the target until the log is read and the cause is fixed. The battery took the impact and must be treated as a fire risk. Damage not yet assessed. Settings written that day (hover-throttle guess, thrust curve, filters) are part of what the log has to clear or implicate.",
+   "evidence": "Builder report in session, 2026-11-14; settings on the board for the flight: configs/target_kakute/dumps/20261114_after.tsv; ADR-0138"
+  },
+  {
+   "date": "2026-11-14",
    "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. The flight controller turned out to be mounted backwards, like the interceptor's was; the board rotation is now set to 180 degrees and the attitude reading flipped as it should. All 66 settings read back after a reboot. The accelerometer is calibrated (QGroundControl's page stuck, so a small helper in the repo did it). Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it. Outdoors the GPS gave no fix; the cause was a stray strand of wire joining its two signal lines, so the board had only ever heard its own messages (including on 2026-10-13, when it was logged as detected). With the strand removed it has a 3D fix and 15 satellites.",
    "so_what": "Left before the target can arm: the compass check fails (reading is 168 against a limit of 100, taken next to the laptop), so recalibrate it away from metal; and the props-off motor test, where motor A must be front-right of the real nose. One cross-check is open: the compass calibration says the GPS module faces backwards, which is only right if its arrow points at the tail.",
    "evidence": "ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md; runs/target_bench_20261114/"
@@ -1520,12 +1526,6 @@
    "text": "Print plan for the avionics pod decided. The four flight parts (dock with camera post, camera plate, pod base, lid) go to CU's ITLL to be printed in Onyx, a nylon filled with chopped carbon fibre, at solid fill. The fit-check template is printed first in cheap PLA. If the ITLL can lay continuous fibre, it goes in the flat tongue under the camera post and nowhere else. Its price list is not public; at a sister lab's rate the whole order is about 15 dollars.",
    "so_what": "Onyx buys heat margin for certain (it holds to about 145 C, PETG softens near 75) and about 10 percent in shake frequency, which is too little to plan around. The tap test on the printed parts still decides whether the mount is steady enough. Three questions go to ITLL staff before ordering: whether a personal project qualifies, the price, and whether fibre is offered.",
    "evidence": "hardware/avionics_pod/PRINT_ORDER.md - ADR-0136 - ITLL wiki (3D Printing FAQ, Submit a Request)"
-  },
-  {
-   "date": "2026-11-11",
-   "text": "Calipers arrived, and the first session caught a drawing error before anything was printed. The builder measured the screw pattern on the target drone's top plate (same frame as the interceptor): 56.0 by 29.3 mm against 55.77 by 29.2 in the maker's drawing, so the avionics dock's four holes are right. A third reading, 25.05 mm at the nose, plus his photo showed the plate had been drawn back to front: the narrow pair of screws the camera post bolted to is at the rear. The post is redrawn to the real front screws, 5 mm further forward, on a tongue twice as thick.",
-   "so_what": "The camera post is printable again, and the corrected geometry is kinder than the mistaken one: more room to the pod, 8 mm or more outside the prop circles, props further out of the picture. One new weakness was found and fixed in the same pass: with its screws behind it the post nodded at 92 Hz, so the tongue went from 3 to 6 mm and the figure is 187 Hz. Still to check on the interceptor itself: the cable route, now that the slot is gone.",
-   "evidence": "hardware/avionics_pod/README.md revision 5 - GAP_REVIEW.md - fea_results/nose_post*.json - nose_post_check.py - ADR-0135 addendum 2026-11-11"
   }
  ],
  "narrative": {

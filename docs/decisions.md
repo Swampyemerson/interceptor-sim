@@ -1632,3 +1632,15 @@ laptop: the compass reading disagrees with the expected field at that spot by mo
 limit. *Open cross-check:* an automatic compass orientation of Yaw180 is right only if the GPS
 module's arrow also points at the tail; if it points at the nose, the compass and the board
 rotation disagree about which end is the front. Motor test (props off) still not reported.
+
+**Addendum 5, same day: first flight crashed; cause open.** Builder's report: the target climbed
+with the throttle stick at minimum; he cut the motors with the arm switch at roughly 100 ft; it
+fell and landed battery first. *Written before reading the flight log.* Candidate A: the motors
+never go below `MOT_SPIN_MIN` (0.15, firmware default, not checked against a 1900KV motor on 6S)
+and that floor already lifts the aircraft, so no mode or stick position can bring it down.
+Candidate B: the height controller commanded throttle (hover-throttle guess 0.2 too high for this
+power system, or vibration corrupting the vertical estimate). *What decides it:* in the log,
+motor outputs at their floor during the climb means A; outputs well above the floor with the
+stick low means B, and the vibration and clipping records say which kind of B. *If neither:*
+the cause is something not listed and the log's mode and message records are read first.
+Tool: `scripts/bench/ap_flight_summary.py`. No flight until this is closed.
