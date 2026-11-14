@@ -1621,3 +1621,14 @@ comes back byte for byte at two baud rates. So T3 and R3 are connected to each o
 self-echo; the compass half of that claim stands (it is on I2C and is read normally). *Not
 fixed:* it is a soldering job. Until it is, Loiter and Auto are unavailable, and with the fence
 on the board will not arm in any mode.
+
+**Addendum 4, same day: GPS fixed.** The builder found a stray strand of wire crossing the two
+GPS signal lines and removed it. Re-check: no echo, the module answers as a u-blox SAM-M10Q with
+a 3D fix and 14 satellites; after a reboot the board's own driver reports a 3D fix with 15 to 16
+satellites (`runs/target_bench_20261114/gps_wire_poll_after_fix.json`). He also calibrated the
+compass in QGroundControl (offsets -157 / -68 / 165, orientation found automatically as Yaw180).
+*Still against arming:* "Check mag field (xy diff 168 > 100)", read with the drone beside the
+laptop: the compass reading disagrees with the expected field at that spot by more than the
+limit. *Open cross-check:* an automatic compass orientation of Yaw180 is right only if the GPS
+module's arrow also points at the tail; if it points at the nose, the compass and the board
+rotation disagree about which end is the front. Motor test (props off) still not reported.

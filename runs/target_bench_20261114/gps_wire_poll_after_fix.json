@@ -1,0 +1,131 @@
+{
+ "230400": {
+  "bytes_heard_while_silent_3s": 2062,
+  "answers_who_are_you": true,
+  "raw_bytes_after_poll": 1230,
+  "sw": "ROM SPG 5.10 (7b202e)",
+  "hw": "000A0000",
+  "ext": [
+   "FWVER=SPG 5.10",
+   "PROTVER=34.10",
+   "MOD=SAM-M10Q",
+   "GPS;GLO;GAL;BDS",
+   "SBAS;QZSS"
+  ],
+  "echo_test_sent_bytes": 30,
+  "echo_test_came_back": false,
+  "echo_test_heard_hex": "(removed: contains a position)",
+  "who_are_you_heard_hex": "(removed)",
+  "who_are_you_frames": [
+   [
+    "0A-04",
+    190
+   ],
+   [
+    "01-07",
+    92
+   ],
+   [
+    "01-04",
+    18
+   ],
+   [
+    "01-20",
+    16
+   ],
+   [
+    "01-07",
+    92
+   ],
+   [
+    "01-04",
+    18
+   ],
+   [
+    "01-07",
+    92
+   ],
+   [
+    "01-04",
+    18
+   ],
+   [
+    "01-07",
+    92
+   ],
+   [
+    "0A-09",
+    56
+   ],
+   [
+    "0A-0B",
+    28
+   ],
+   [
+    "01-04",
+    18
+   ],
+   [
+    "01-07",
+    92
+   ],
+   [
+    "01-04",
+    18
+   ],
+   [
+    "01-07",
+    92
+   ],
+   [
+    "01-04",
+    18
+   ],
+   [
+    "01-20",
+    16
+   ],
+   [
+    "01-07",
+    92
+   ],
+   [
+    "01-04",
+    18
+   ]
+  ],
+  "fix_type": 3,
+  "fix_flags": 1,
+  "satellites_used": 14,
+  "pdop": 1.84,
+  "settings_in_use": {
+   "NAV-PVT output rate on UART1": 1,
+   "UART1 baud": 230400,
+   "UART1 sends UBX": 1,
+   "UART1 sends NMEA": 0,
+   "measurement period ms": 200,
+   "NMEA GGA rate on UART1": 1
+  },
+  "legacy_NAV_PVT_rates_per_port": [
+   0,
+   1,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "115200": {
+  "bytes_heard_while_silent_3s": 4,
+  "answers_who_are_you": false,
+  "raw_bytes_after_poll": 2,
+  "echo_test_sent_bytes": 30,
+  "echo_test_came_back": false,
+  "echo_test_heard_hex": "(removed: contains a position)",
+  "who_are_you_heard_hex": "(removed)",
+  "who_are_you_frames": [],
+  "fix_type": "no answer",
+  "settings_in_use": "no answer (0 bytes, frames [])",
+  "legacy_NAV_PVT_rates_per_port": "no answer"
+ }
+}
