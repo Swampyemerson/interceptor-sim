@@ -1,0 +1,22 @@
+{
+ "created_utc": "20261114T034721Z",
+ "size": [
+  1920,
+  1200
+ ],
+ "asked_fps": 60,
+ "flip_180": false,
+ "note": "bench endurance test, camera at laptop screen",
+ "requested_exposure_us": "auto",
+ "applied_exposure_us": 8894,
+ "applied_gain": 1.0,
+ "frames": 10683,
+ "seconds_of_video": 179.48,
+ "wall_seconds": 180.5,
+ "measured_fps": 59.52,
+ "gaps_over_1.5_frames": 0,
+ "worst_gap_ms": 16.8,
+ "video_MB": 1346.0,
+ "temp": "temp=55.4'C",
+ "throttled": "throttled=0x0"
+}

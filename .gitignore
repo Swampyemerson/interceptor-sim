@@ -187,3 +187,5 @@ runs/dfc_dryrun_single/*.onnx
 runs/dfc_dryrun_single/*.yaml
 runs/dfc_dryrun_single/*.har
 runs/dfc_dryrun_single/*.hef
+# recorded video is heavy and may show private scenes; keep the small meta.json + frames.pts only
+sessions/*/video.h264

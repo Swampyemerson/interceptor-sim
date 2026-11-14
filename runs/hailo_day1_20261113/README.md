@@ -82,3 +82,20 @@ the 1-class compile pays about 3.6x for its second context but is still 119 fps.
 - Neither end can swap the two wires in software: the Pi's pins are fixed, and the
   Pixhawk's settings list has only speed settings for its serial ports.
 - Pixhawk settings dump: `configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv`.
+
+## Recording to disk (2026-11-13 evening)
+
+`scripts/field/record_video.py` (software H.264 to the SD card, one sensor timestamp per frame):
+
+| Mode | Result |
+|---|---|
+| 1920 x 1200 at 60 fps, 15 s | 59.5 fps, 0 gaps |
+| 1920 x 1200 at 60 fps, 180 s (`record_endurance_meta.json`) | 10,683 frames, 59.52 fps, 0 gaps over 1.5 frame periods, worst gap 16.8 ms, 1,346 MB, 55 C, no throttle flag |
+| 1280 x 720 at 120 fps, 15 s | 119 fps (8.3 ms gaps), 0 gaps |
+| MJPEG 1920 x 1200 at 60 fps, 15 s | 59.5 fps, 0 gaps, about 800 MB a minute |
+
+A 4 s clip with a fixed 1 ms exposure (992 us applied) and the 180 degree flip decoded to 205
+frames of 1920 x 1200. H.264 runs near 450 MB a minute at full resolution whatever bitrate is
+asked, so 43 GB free is about 95 minutes. Measured indoors on the bench, Pi on its bench
+supply, nothing else running. NOT measured: recording while the detector also runs, the Pi on
+the aircraft's regulator, vibration, or sunlight heat.
