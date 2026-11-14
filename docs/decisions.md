@@ -1606,3 +1606,18 @@ board and reads the result back. The builder ran it: offsets 0.067 / -0.016 / 0.
 identical before and after the reboot (`runs/target_bench_20261114/`). The board now lists
 three things against arming, all expected indoors on USB power: compass not calibrated, GPS
 bad fix, fence needs a position.
+
+**Addendum 3, same day: the target's GPS has never reached the board; the board was hearing
+itself.** Outdoors with a clear sky the board reported "GPS 1: Bad fix" and repeated two lines
+every 12.6 s: "probing for u-blox at 230400 baud", "u-blox saving config". Read against the
+4.7.0 source: the first line is printed as soon as any valid u-blox frame is seen, the line
+that means a real GPS ("GPS 1: detected u-blox") needs a position message and never appeared,
+and 12.6 s is the 4 s no-data timeout plus seven baud rates at 1.2 s each. *Measurement*
+(`scripts/bench/ap_gps_wire_check.py`, `runs/target_bench_20261114/gps_wire_poll.json`): the
+port is silent when the board sends nothing, and a nonsense 30-byte string sent toward the GPS
+comes back byte for byte at two baud rates. So T3 and R3 are connected to each other somewhere
+(pads, cable or module) and the module's output is not arriving. *What this invalidates.* The
+2026-10-13 entry "GPS detected immediately: the rebuilt wiring is good" rested on the same
+self-echo; the compass half of that claim stands (it is on I2C and is read normally). *Not
+fixed:* it is a soldering job. Until it is, Loiter and Auto are unavailable, and with the fence
+on the board will not arm in any mode.

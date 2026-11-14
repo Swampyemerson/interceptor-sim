@@ -1,0 +1,38 @@
+{
+ "230400": {
+  "bytes_heard_while_silent_3s": 0,
+  "answers_who_are_you": false,
+  "raw_bytes_after_poll": 8,
+  "echo_test_sent_bytes": 30,
+  "echo_test_came_back": true,
+  "echo_test_heard_hex": "b56255aa0400deadbeef4543484f2d544553542d31323334353637383930",
+  "who_are_you_heard_hex": "b5620a0400000e34",
+  "who_are_you_frames": [
+   [
+    "0A-04",
+    0
+   ]
+  ],
+  "fix_type": "no answer",
+  "settings_in_use": "no answer (36 bytes, frames [('0x6', '0x8b', 28)])",
+  "legacy_NAV_PVT_rates_per_port": "no answer"
+ },
+ "115200": {
+  "bytes_heard_while_silent_3s": 0,
+  "answers_who_are_you": false,
+  "raw_bytes_after_poll": 8,
+  "echo_test_sent_bytes": 30,
+  "echo_test_came_back": true,
+  "echo_test_heard_hex": "b56255aa0400deadbeef4543484f2d544553542d31323334353637383930",
+  "who_are_you_heard_hex": "b5620a0400000e34",
+  "who_are_you_frames": [
+   [
+    "0A-04",
+    0
+   ]
+  ],
+  "fix_type": "no answer",
+  "settings_in_use": "no answer (36 bytes, frames [('0x6', '0x8b', 28)])",
+  "legacy_NAV_PVT_rates_per_port": "no answer"
+ }
+}

@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->b7f7395<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ff01ba0<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -914,10 +914,10 @@
  },
  "now": {
   "as_of": "2026-11-14",
-  "where": "Interceptor: flew well on 2026-11-09; its Pi now records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: switches and first-flight settings loaded 2026-11-14, never flown, compass not yet calibrated.",
+  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: set up and accelerometer-calibrated 2026-11-14, never flown; its GPS wiring is faulty.",
   "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
   "next": [
-   "You: target, props off: motor test (A = front-right of real nose); compass calibration outdoors",
+   "You: target: find what connects the GPS T3 and R3 lines (meter, power off) and fix it; then tell me",
    "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
   "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -1457,8 +1457,8 @@
  "plain_log": [
   {
    "date": "2026-11-14",
-   "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. The flight controller turned out to be mounted backwards, like the interceptor's was; the board rotation is now set to 180 degrees and the attitude reading flipped as it should. All 66 settings read back after a reboot. The accelerometer is calibrated (QGroundControl's page stuck, so a small helper in the repo did it). Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it.",
-   "so_what": "Left before the target can arm: compass calibration, and a GPS fix, both outdoors. Before the first arm, re-run the motor test with props off: motor A must be front-right of the real nose, because the October check may have used the board's arrow as the front. Also: arm switch down in flight stops the motors for good, and there is no Stabilize position.",
+   "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. The flight controller turned out to be mounted backwards, like the interceptor's was; the board rotation is now set to 180 degrees and the attitude reading flipped as it should. All 66 settings read back after a reboot. The accelerometer is calibrated (QGroundControl's page stuck, so a small helper in the repo did it). Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it. Outdoors the GPS gave no fix, and the cause is wiring: the board's GPS transmit and receive lines are connected to each other, so it was hearing its own messages and has never received anything from the GPS, including on 2026-10-13 when it was logged as detected.",
+   "so_what": "The target cannot fly in Position or Auto, or arm at all with the fence on, until the GPS wiring is fixed (a soldering job: find what joins the T3 and R3 lines). Compass calibration is still to do. Before the first arm, re-run the motor test with props off: motor A must be front-right of the real nose.",
    "evidence": "ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md; runs/target_bench_20261114/"
   },
   {

@@ -8,3 +8,4 @@ Kakute H7, ArduCopter 4.7.0, on USB, props off, never flown. Write-up: ADR-0138.
 
 Setting dumps from the same session: `configs/target_kakute/dumps/20261114_before.tsv`, `_after.tsv`
 (taken before the calibration).
+| `gps_wire_poll.json` | Outdoors, clear sky, `scripts/bench/ap_gps_wire_check.py`. On the board's GPS port: nothing heard in 3 s of listening, a 30-byte nonsense test string came back byte for byte at both 230400 and 115200 baud, and the module answered none of four questions (the only replies were the questions themselves). The board's GPS transmit and receive lines are connected to each other and the module's output does not reach the board. |
