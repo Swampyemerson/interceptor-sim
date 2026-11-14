@@ -30,3 +30,36 @@ Loiter mode, 3.8 s in the air, 23 m at the top. From lift-off to the motor cut:
 The cap is half of `MOT_THST_HOVER` in Loiter and AltHold (`ATC_THR_MIX_MAX` 0.5). With the hover
 guess at 0.20 the cap was 0.10, well above this aircraft's real hover thrust, so an oscillating
 attitude controller held the aircraft in a climb the height controller could not cancel.
+
+## Thrust-to-weight and speed estimates from the crash log (derived 2026-11-14)
+
+Inputs are all from board log 7: accelerometer (25 Hz), motor RPM from ESC telemetry, climb
+rate, and the fall after the motors were cut. Weight is not needed for thrust-to-weight: an
+accelerometer reads (thrust minus drag) divided by mass directly.
+
+| Step | Value | From |
+|---|---|---|
+| Thrust/weight just after lift-off, climbing under 2.5 m/s | 1.45 | accelerometer, 12 samples |
+| Motor speed at that moment | 13,080 rpm mean, at 30% throttle command (1298 us) | ESC telemetry |
+| Thrust/weight per unit of summed rpm squared | 0.213 per 1e8 | the two rows above |
+| Hover | about 10,800 rpm per motor, about 1235 us, 0.06 in ArduPilot thrust units | thrust scales with rpm squared |
+| Check: on the ground at 8,940 rpm | predicts 0.68 of weight; it had not lifted | same constant |
+| Full-throttle rpm | NOT measured. 28,000 to 32,000 assumed (1900 KV on 6S is 45,600 unloaded; these props load it down to roughly two thirds) | assumption |
+| **Thrust-to-weight at full throttle** | **6.7 to 8.7, about 8** | rpm squared scaling |
+| Thrust lost in the climb | 31% at 7.5 m/s (13,500 rpm), so thrust reaches zero near 24 m/s at that rpm, 0.107 m per turn | accelerometer plus drag, against the static constant |
+| Drag, falling with motors off | deceleration = 0.017 x speed squared (quartiles 0.015 to 0.018), terminal fall 24 m/s | accelerometer and speed, 44 samples above 8 m/s |
+
+Speed, from those:
+
+| Case | Speed | Limited by |
+|---|---|---|
+| Auto, as configured | 10 m/s | `WP_SPD` |
+| Loiter, as configured | 12.5 m/s | `LOIT_SPEED_MS` |
+| Held at the 35 degree lean limit | about 20 m/s (17 to 24) | drag: sqrt(g tan 35 / k) |
+| Flat out, no lean limit | about 38 m/s (33 to 44) | thrust falling with speed against drag |
+
+Weak points. The full-throttle rpm is an assumption, and thrust-to-weight moves with its square.
+The drag figure is for a tumbling airframe with stopped props, used here for forward flight. The
+flat-out figure needs about 80 degrees of lean, which no configured mode allows. The ESC
+telemetry's current reading is not usable (it reads about 450 A) and the board's own current
+sensor is uncalibrated, so no power figures are given.
