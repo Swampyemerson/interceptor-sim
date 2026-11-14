@@ -1,0 +1,11 @@
+*.hef
+*.onnx
+*.har
+*.pt
+apt.log
+allocator.log
+hailo_examples.log
+hailo_sdk.*.log
+acceleras.log
+calib640/
+eval640/
