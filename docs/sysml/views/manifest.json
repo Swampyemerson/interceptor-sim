@@ -8,20 +8,20 @@
     "svg_sha256": "83a8dc2158de5d12b014510ffd7c1fe3323a2ab165c072837e69df96c1651705"
   },
   "interceptor-data": {
-    "png_sha256": "099dd5027af04d8f53e4c8d2aba401833f228162cc418555d3f90ca37ba6df88",
-    "svg_sha256": "adda93c2a5ec9102e71af3eb65c433419cb1ce9f550a288d6dbd11108ddd0bc6"
+    "png_sha256": "d68d67affecb9510d53388b3c91f4a9c1d1f08c28faa133fea085248ccc26716",
+    "svg_sha256": "a874e77583d6532d96199dfa5109c79156b8b4f4fde4168b554fd51d1841d2ab"
   },
   "interceptor-mech": {
-    "png_sha256": "b54939a85a4c3fe80054d6aefa42a36f2f99952af9118ad67aab2b4bcd978746",
-    "svg_sha256": "072bffebce7cc62d7b47ebda41e7657ebe9c4a596d57235183b7b959532f21c2"
+    "png_sha256": "fc817d73fbcdc6b528c5fa8fb0e96d6815e4bc1dc5858772fb09202a73ebeb39",
+    "svg_sha256": "71a7f9d55e1555886c33173b432ec873b8678de6a1b1de8c9326770acf3c49be"
   },
   "interceptor-power": {
-    "png_sha256": "067a3000bb738d102057cb62e11042501cfc7f6fccd3f9d230b24874575a1be1",
-    "svg_sha256": "e471372947f803e9ae10b844d055af0bae3a022f13f9cdeb8a03bfae5871576b"
+    "png_sha256": "3b507aa34dbded262a23a8cdad281b9d5a4aa6768597fc273ee23207674db98b",
+    "svg_sha256": "90e80052da1fa182fe154eceb1c8fedb1ab4a3e6ecc34b2c95c85174f1f51997"
   },
   "seeker-rig": {
-    "png_sha256": "af98bfa6462eb753ebfa9939ece2cc3de0edeed4c21c652542e493b32b4979eb",
-    "svg_sha256": "81afb32097491de055a06be43270843f8123a3925070625e5eafa43eec815363"
+    "png_sha256": "45fab8faa218ee5be9d62815ef7ec8fbf00a06a4ba20302aca0ebf8a5597a772",
+    "svg_sha256": "0b06eb1ac095d37adc582ec06184b327810f8b9ac0e694d36d046d8c05c00fa0"
   },
   "target-data": {
     "png_sha256": "06c3de7766a099e36c1f4661c3e3f77977031e630db50366445570dcb001c79b",

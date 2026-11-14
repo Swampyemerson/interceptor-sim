@@ -158,10 +158,9 @@ package Interceptor {
         }
         interface companion : UARTLink connect fc.telem2 to pi.gpioUart {
             @BOM { tab = "brain"; bomName = "Pi-to-TELEM2"; }
-            attribute :>> connector = "JST-GH 6-pin -> DuPont (3 wires)";
-            attribute :>> detail = "MAVLink 921600: pin2 TX -> GPIO15 (pin 10), pin3 RX <- GPIO14 (pin 8), pin6 GND -> pin 6; pin1 +5 V NOT connected";
-            attribute :>> linkState = LinkState::verified;
-            attribute :>> evidence = "brn-03, brn-05";
+            attribute :>> connector = "JST-GH 6-pin -> JST-SH 3-pin (3 wires)";
+            attribute :>> detail = "NOT MADE (2026-11-13): the HAT covers the GPIO pins, so use the Pi's 3-pin serial socket (/dev/ttyAMA10, 921600). Pin map: hardware/avionics_pod/README.md";
+            attribute :>> linkState = LinkState::planned;
         }
         interface rcSbus : RCInLink connect fc.rcIn to rx.fcConn {
             attribute :>> connector = "RC IN socket";
@@ -181,9 +180,8 @@ package Interceptor {
         interface cameraRibbon : CSI2Link connect camera.csi to pi.cam0 {
             @BOM { tab = "seeker"; bomName = "Wonrabai"; }
             attribute :>> connector = "22-to-15-pin CSI ribbon";
-            attribute :>> detail = "MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono";
-            attribute :>> linkState = LinkState::verified;
-            attribute :>> evidence = "skr-02";
+            attribute :>> detail = "MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02); NO camera answers on the replacement Pi (2026-11-13)";
+            attribute :>> linkState = LinkState::planned;
         }
         interface frameCard : SDCardLink connect pi.sdSlot to piSd.contacts {
             attribute :>> connector = "Pi microSD slot";
