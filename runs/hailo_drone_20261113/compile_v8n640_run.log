@@ -1,0 +1,6 @@
+NMS JSON: classes 1, image_dims [640, 640]
+v8n-color-640 plain: OK in 98 s
+[info] Trying to compile the network in a single context
+v8n-color-640 h16: OK in 96 s
+[info] Trying to compile the network in a single context
+V8N_COMPILE_DONE

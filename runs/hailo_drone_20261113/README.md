@@ -167,3 +167,30 @@ So the fine-tune traded large-target recall for small-target recall; it did not 
 conversion. Not chased further on this model: `n-color` is YOLO11n, which is not the chip's
 target architecture. The remaining ladder steps (16-bit head outputs, calibration mix) go to
 the yolov8n retrain.
+
+## RESULT 3 (2026-11-13): the yolov8n retrain at 640 converts almost cleanly
+
+`v8n-color-640` (arm A of pre-registration 2: yolov8n, 1 class, same colour corpus, 60 epochs)
+compiled with `compile_v8n.sh` on CPU (optimisation level 0, the one-class range fix).
+With trained weights it fits the chip in ONE context: 319 fps, 6.3 ms.
+
+| Target size at 640 | Boxes | Float | Chip, plain | Chip, 16-bit outputs |
+|---|---|---|---|---|
+| under 8 px | 493 | 0.351 | 0.302 (-4.9) | 0.296 (-5.5) |
+| 8 to 16 px | 2,191 | 0.594 | 0.565 (-2.9) | 0.560 (-3.4) |
+| 16 to 32 px | 900 | 0.476 | 0.481 (+0.5) | 0.474 (-0.2) |
+| 32 to 64 px | 289 | 0.356 | 0.394 (+3.8) | 0.391 (+3.5) |
+| 64 px and up | 442 | 0.615 | 0.534 (-8.1) | 0.541 (-7.4) |
+| all | 4,315 | 0.528 | 0.503 (-2.5) | 0.499 (-2.9) |
+
+False detections per 1,000 target-free images: float 100.2, plain 70.4, 16-bit 66.1.
+
+Against the same pass mark as pre-registration 1 (5 points or less in every bin): four bins
+pass, the 64 px and up bin misses by 3 points. So strictly it is still a FAIL, on the bin that
+matters most for the last metres. 16-bit output layers (rescue-ladder step 4) made no
+difference, so the loss at large sizes is not in the output layers.
+
+What changed versus `n-color`: the architecture. yolov8n on the chip (0.503) now equals the
+old model's FLOAT recall (0.502), at three times the speed, where the YOLO11n build lost
+13.5 points. Not yet run: this build on the screen bench, and the GPU-optimised conversion
+(the GPU is busy with the 1280 arm).
