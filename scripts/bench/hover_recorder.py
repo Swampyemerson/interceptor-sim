@@ -4,8 +4,10 @@
 WHY: the FC's microSD slot is dead, so every wobble verdict so far was by eye.
 This asks PX4 for three plain MAVLink streams at a fixed rate and writes them to
 a file on whatever computer is on the link (the Pi over TELEM2 in flight, or a
-PC over USB on the bench). It is NOT the parked ULog-streaming tool
-(pi_ulog_stream_catcher.py) -- no log-streaming protocol, just telemetry.
+PC over USB on the bench). It is NOT the full flight log -- that is
+ulog_stream_recorder.py, which needs the Pixhawk's USB port (see
+docs/fc_logging_without_sd.md). This is the no-extra-cable fallback: three
+plain telemetry streams, attitude and body rates at 100 Hz.
 
 READ-ONLY toward flight behaviour: it sends heartbeats and
 MAV_CMD_SET_MESSAGE_INTERVAL (stream rates on THIS link only). No params, no

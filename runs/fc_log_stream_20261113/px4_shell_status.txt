@@ -1,0 +1,146 @@
+=== ver all
+ver all
+HW arch: PX4_FMU_V6C
+HW type: V6C002002
+HW version: 0x002
+HW revision: 0x002
+PX4 git-hash: 6ea3539157ca358c70a515878b77077af7d4611d
+PX4 version: Release 1.16.0 (17826047)
+OS: NuttX
+OS version: Release 11.0.0 (184549631)
+OS git-hash: 886acbbdb4f061e5c0ce1a76afbcfa7cb7df9849
+Build datetime: Aug  6 2025 15:07:26
+Build uri: localhost
+Build variant: default
+Toolchain: GNU GCC, 9.3.1 20200408 (release)
+PX4GUID: 000600000000353537393034510100420029
+MCU: STM32H7[4|5]xxx, rev. V
+nsh> [K
+
+=== logger status
+logger status
+INFO  [logger] Running in mode: all
+INFO  [logger] Number of subscriptions: 166 (5312 bytes)
+INFO  [logger] Not logging
+nsh> [K
+
+=== mavlink status
+mavlink status
+
+instance #0:
+	mavlink chan: #0
+	type:		GENERIC LINK OR RADIO
+	flow control: OFF
+	rates:
+	  tx: 24406.9 B/s
+	  txerr: 0.0 B/s
+	  tx rate mult: 1.000
+	  tx rate max: 46080 B/s
+	  rx: 74.9 B/s
+	  rx loss: 0.4%
+	Received Messages:
+	  sysid:255, compid:  0, Total: 1916 (lost: 0)
+	  sysid:245, compid:190, Total: 22 (lost: 0)
+	  sysid:255, compid:190, Total: 287 (lost: 749)
+	    msgid:    0, Rate:  3.3 Hz, last 4.09s ago
+	    msgid:  126, Rate:  3.2 Hz, last 0.01s ago
+	  sysid:  1, compid:155, Total: 4198 (lost: 1962)
+	FTP enabled: YES, TX enabled: YES
+	mode: Onboard
+	Forwarding: On
+	MAVLink version: 2
+	transport protocol: serial (/dev/ttyS3 @921600)
+	ping statistics:
+	  last: 7.46 ms
+	  mean: 6.86 ms
+	  max: 7.99 ms
+	  min: 6.72 ms
+	  dropped packets: 0
+
+instance #1:
+	mavlink chan: #1
+	type:		USB CDC
+	flow control: OFF
+	rates:
+	  tx: 0.0 B/s
+	  txerr: 1853.3 B/s
+	  tx rate mult: 0.050
+	  tx rate max: 100000 B/s
+	  rx: 0.0 B/s
+	  rx loss: 0.1%
+	Received Messages:
+	  sysid:  1, compid:155, Total: 1423 (lost: 189)
+	FTP enabled: YES, TX enabled: YES
+	mode: Onboard
+	Forwarding: On
+	MAVLink version: 2
+	transport protocol: serial (/dev/ttyACM0 @2000000)
+
+instance #2:
+	mavlink chan: #2
+	type:		GENERIC LINK OR RADIO
+	flow control: ON
+	rates:
+	  tx: 752.5 B/s
+	  txerr: 0.0 B/s
+	  tx rate mult: 0.291
+	  tx rate max: 1200 B/s
+	  rx: 0.0 B/s
+	  rx loss: 0.0%
+	FTP enabled: YES, TX enabled: YES
+	mode: Normal
+	Forwarding: On
+	MAVLink version: 1
+	transport protocol: serial (/dev/ttyS5 @57600)
+nsh> [K
+
+=== mount
+mount
+  /bin type binfs
+  /etc type cromfs
+  /proc type procfs
+nsh> [K
+
+=== param show SDLOG*
+param show SDLOG*
+Symbols: x = used, + = saved, * = unsaved
+x   SDLOG_BOOT_BAT [931,1412] : 0
+x   SDLOG_DIRS_MAX [932,1413] : 0
+x   SDLOG_MISSION [933,1416] : 0
+x + SDLOG_MODE [934,1417] : 2
+x   SDLOG_PROFILE [935,1418] : 1
+x   SDLOG_UTC_OFFSET [936,1419] : 0
+x   SDLOG_UUID [937,1420] : 1
+
+ 1122/2065 parameters used.
+nsh> [K
+
+=== param show MAV_1*
+param show MAV_1*
+Symbols: x = used, + = saved, * = unsaved
+x + MAV_1_CONFIG [536,950] : 102
+x + MAV_1_FLOW_CTRL [537,951] : 0
+x + MAV_1_FORWARD [538,952] : 1
+x   MAV_1_MODE [539,954] : 2
+x   MAV_1_RADIO_CTL [540,955] : 1
+x   MAV_1_RATE [541,956] : 0
+
+ 1122/2065 parameters used.
+nsh> [K
+
+=== param show CBRK_USB_CHK
+param show CBRK_USB_CHK
+Symbols: x = used, + = saved, * = unsaved
+x   CBRK_USB_CHK [236,459] : 197848
+
+ 1122/2065 parameters used.
+nsh> [K
+
+=== param show COM_ARM_SDCARD
+param show COM_ARM_SDCARD
+Symbols: x = used, + = saved, * = unsaved
+x   COM_ARM_SDCARD [253,476] : 1
+
+ 1122/2065 parameters used.
+nsh> [K
+

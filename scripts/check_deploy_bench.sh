@@ -402,6 +402,23 @@ echo "[check_deploy_bench] link: $LINK  (only 'telem2' can close brn-05 -- see -
 # just hangs. (USB fallback: BENCH_DEVICE=/dev/ttyACM0 -- baud is ignored there.)
 if [[ "$BENCH_MAVSDK_URL" == serial://* ]]; then
     dev="${BENCH_MAVSDK_URL#serial://}"; dev="${dev%%:*}"
+    # Someone else already reading this port? Two readers on one serial port each get
+    # part of the bytes and neither reports an error. The usual holder is the flight
+    # recorder service while the Pixhawk's USB is not plugged into the Pi.
+    holder=""
+    for fd in /proc/[0-9]*/fd/*; do
+        [[ "$(readlink "$fd" 2>/dev/null)" == "$dev" ]] || continue
+        pid="${fd#/proc/}"; pid="${pid%%/*}"
+        holder="pid $pid ($(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | cut -c1-90))"
+        break
+    done
+    if [[ -n "$holder" ]]; then
+        echo "[check_deploy_bench] FAIL: $dev is already open in $holder"
+        echo "[check_deploy_bench]   If that is the flight recorder: sudo systemctl stop flight-recorder"
+        echo "[check_deploy_bench]   (start it again afterwards), or plug the Pixhawk's USB into the Pi"
+        echo "[check_deploy_bench]   so the recorder leaves the serial cable alone."
+        exit 6
+    fi
     if [[ ! -e "$dev" ]]; then
         echo "[check_deploy_bench] FAIL: serial device '$dev' not found."
         echo "[check_deploy_bench]   Wire TELEM2<->Pi (see configs/px4_6cmini/README.md), free the Pi console,"

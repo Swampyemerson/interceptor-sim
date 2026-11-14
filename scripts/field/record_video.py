@@ -8,6 +8,8 @@ Writes sessions/video_<UTC>/ with video.h264 (software H.264; the Pi 5 has no ha
 encoder), frames.pts (one sensor timestamp per frame, ms) and meta.json (what was asked, what
 the camera applied, frames written, gaps, size, temperature). Exits 1 if more than 1% of
 frame gaps exceed 1.5 frame periods, so a recording that dropped frames cannot pass as clean.
+The video is synced to the card every second, so a power cut costs about the last second.
+The flight recorder service starts this at arming (scripts/pi_setup/flight-recorder.service).
 Measured 2026-11-13 on the Pi 5 + AR0234: 1920x1200 at 59.5 fps and 1280x720 at 119 fps with
 no dropped frames (runs/hailo_day1_20261113/README.md).
 """
@@ -45,15 +47,24 @@ def main() -> int:
     stop = {"now": False}
     signal.signal(signal.SIGINT, lambda *_: stop.update(now=True)); signal.signal(signal.SIGTERM, lambda *_: stop.update(now=True))
     video, pts = os.path.join(d, "video.h264"), os.path.join(d, "frames.pts")
-    cam.start_recording(H264Encoder(bitrate=a.bitrate), FileOutput(video, pts=pts)); t0 = time.time()
+    out = FileOutput(video, pts=pts)
+    cam.start_recording(H264Encoder(bitrate=a.bitrate), out); t0 = time.time()
     time.sleep(1.0); applied = cam.capture_metadata()
     print(f"recording to {d}  ({w}x{h} at {a.fps:g} fps; Ctrl-C to stop)", flush=True)
+    # Push the video to the card every second: a flight usually ends with the battery being
+    # unplugged, and Linux otherwise holds up to ~30 s of written data in memory.
+    fds = [os.open(p, os.O_RDONLY) for p in (video, pts)]; last_sync = time.time()
     while not stop["now"] and (a.seconds <= 0 or time.time() - t0 < a.seconds):
         time.sleep(0.2)
+        if time.time() - last_sync >= 1.0:
+            for fd in fds: os.fsync(fd)
+            last_sync = time.time()
+    for fd in fds: os.close(fd)
     cam.stop_recording(); cam.close(); wall = time.time() - t0
     ts = np.array([float(x) for x in open(pts).read().split()[1:] if x.strip()]); dt = np.diff(ts) if len(ts) > 2 else np.array([0.0])
     bad = int((dt > 1500.0 / a.fps).sum())
     meta = {"created_utc": os.path.basename(d)[6:], "size": [w, h], "asked_fps": a.fps, "flip_180": a.flip, "note": a.note,
+            "recording_started_unix_approx": round(t0, 3), "fc_log_stamp": os.environ.get("FC_LOG_STAMP"),
             "requested_exposure_us": a.exposure_us or "auto", "applied_exposure_us": applied.get("ExposureTime"), "applied_gain": applied.get("AnalogueGain"),
             "frames": int(len(ts)), "seconds_of_video": round(float(ts[-1] - ts[0]) / 1000, 2) if len(ts) > 1 else 0, "wall_seconds": round(wall, 1),
             "measured_fps": round(1000.0 / float(np.median(dt)), 2) if len(ts) > 2 else None, "gaps_over_1.5_frames": bad, "worst_gap_ms": round(float(dt.max()), 1),

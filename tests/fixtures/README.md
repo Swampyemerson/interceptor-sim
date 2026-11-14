@@ -38,3 +38,13 @@ branch` and the pack exited 1. This is the SECOND cause that kept CI red: it is
 venv-independent and sits in CI stage 4, which was added 2026-07-25 to close the
 review-2 "green != ran" finding. One tracked frame (the seq-5 left image from the
 same rig capture) makes the check run everywhere.
+
+## `px4_v1160_log_stream_capture.ulg` — 170 KB (real PX4 log stream, for the recorder tests)
+
+The first 170 KB of a flight log streamed off the interceptor's own Pixhawk 6C Mini
+(PX4 v1.16.0, over USB, 2026-11-13; full capture and its stats are under
+`runs/fc_log_stream_20261113/usb/`). It is trimmed on a record boundary and holds the
+whole log header (formats, 1,122 parameters) plus the first seconds of data, including
+the one start-up dropout record. `tests/test_ulog_stream_recorder.py` cuts it back into
+MAVLink-sized packets, loses and repeats some, and requires the recorder's output to
+open in `pyulog`. `*.ulg` is gitignored, so this file is force-added.

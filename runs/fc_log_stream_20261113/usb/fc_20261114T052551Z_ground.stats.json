@@ -1,0 +1,63 @@
+{
+ "started_utc": "20261114T052551Z",
+ "port": "COM5",
+ "baud": 115200,
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 60.01,
+ "end_reason": "--seconds reached",
+ "ever_armed": false,
+ "bytes_written": 2410113,
+ "kb_per_s": 40.16,
+ "packets": 9680,
+ "acked_packets": 524,
+ "duplicates": 0,
+ "gaps": 1,
+ "lost_packets": 4,
+ "framing_errors": 0,
+ "dropout_ms_total": 12,
+ "first_data_delay_s": 0.0,
+ "stop_result": "accepted",
+ "link_rates_hz": {
+  "ALTITUDE": 10.1,
+  "ATTITUDE": 100.9,
+  "ATTITUDE_QUATERNION": 50.4,
+  "ATTITUDE_TARGET": 10.1,
+  "BATTERY_STATUS": 0.5,
+  "CURRENT_MODE": 0.5,
+  "ESTIMATOR_STATUS": 1.0,
+  "EXTENDED_SYS_STATE": 5.0,
+  "GLOBAL_POSITION_INT": 50.4,
+  "GPS_GLOBAL_ORIGIN": 0.0,
+  "GPS_RAW_INT": 10.1,
+  "HIGHRES_IMU": 50.4,
+  "HOME_POSITION": 0.5,
+  "LOCAL_POSITION_NED": 30.3,
+  "MISSION_CURRENT": 1.0,
+  "ODOMETRY": 30.3,
+  "OPEN_DRONE_ID_LOCATION": 1.0,
+  "OPEN_DRONE_ID_SYSTEM": 1.0,
+  "PING": 1.0,
+  "POSITION_TARGET_LOCAL_NED": 10.1,
+  "SCALED_PRESSURE": 1.0,
+  "SERVO_OUTPUT_RAW": 10.1,
+  "SYSTEM_TIME": 1.0,
+  "SYS_STATUS": 5.0,
+  "TIMESYNC": 10.1,
+  "UNKNOWN_380": 0.5,
+  "UNKNOWN_410": 4.7,
+  "UNKNOWN_411": 0.3,
+  "UNKNOWN_8": 1.0,
+  "VFR_HUD": 10.1,
+  "VIBRATION": 0.5
+ },
+ "verdict": "GAPS"
+}

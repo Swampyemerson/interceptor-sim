@@ -1,0 +1,37 @@
+# Flight recorder for the interceptor's Pi. Starts at boot and, for every flight:
+#   - writes the Pixhawk's flight log (PX4 streams it; the Pixhawk's own SD slot
+#     is dead) to ~/fc_logs, one file per flight, synced to the card every second
+#   - starts the camera recording when the Pixhawk reports ARMED and stops it a
+#     few seconds after disarm (sessions/video_<time>/ in the repo folder)
+#
+# It sends the Pixhawk nothing except "start log stream", "stop log stream" and
+# packet acknowledgements. docs/fc_logging_without_sd.md has the measurements.
+#
+#     scripts/pi_setup/install_flight_recorder.sh     # install or update
+#     journalctl -u flight-recorder -f                # watch it
+#     sudo systemctl stop flight-recorder             # free the serial port / camera
+#     sudo systemctl start flight-recorder
+#
+# Settings live in /etc/default/flight-recorder (the installer writes a
+# commented copy): FALLBACK_PORT, VIDEO_CMD. The user and paths below are this
+# project's Pi (user `admin`); the installer rewrites them for whoever runs it.
+
+[Unit]
+Description=Interceptor flight recorder (Pixhawk log stream + camera video while armed)
+After=multi-user.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/interceptor-sim
+Environment=FALLBACK_PORT=/dev/ttyAMA10
+Environment="VIDEO_CMD=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/field/record_video.py --note flight"
+EnvironmentFile=-/etc/default/flight-recorder
+ExecStart=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/bench/ulog_stream_recorder.py --port auto --fallback-port ${FALLBACK_PORT} --per-flight --out-dir /home/admin/fc_logs --on-arm "${VIDEO_CMD}"
+Restart=always
+RestartSec=2
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

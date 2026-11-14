@@ -1,0 +1,5 @@
+# Pixhawk 6C Mini (PX4 firmware) plugged into one of the Pi's USB ports gets a
+# fixed name, /dev/pixhawk-usb. The flight recorder service switches to it by
+# itself. USB id 3185:0038 was read off this board on 2026-11-13.
+# Install with scripts/pi_setup/install_flight_recorder.sh.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="3185", ATTRS{idProduct}=="0038", SYMLINK+="pixhawk-usb", ENV{ID_MM_DEVICE_IGNORE}="1"
