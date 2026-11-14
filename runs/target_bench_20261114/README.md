@@ -63,3 +63,19 @@ The drag figure is for a tumbling airframe with stopped props, used here for for
 flat-out figure needs about 80 degrees of lean, which no configured mode allows. The ESC
 telemetry's current reading is not usable (it reads about 450 A) and the board's own current
 sensor is uncalibrated, so no power figures are given.
+
+## Impact (derived 2026-11-14, same log)
+
+| Quantity | Value | From |
+|---|---|---|
+| Fall | from 23.0 m, 3.1 s | height and time, motor cut to first clipping |
+| Speed just before the ground | 18.4 m/s | logged vertical speed at the last record before the hit; the drag fit above predicts 17.9 m/s for a 24 m fall |
+| Rebound | about 3.2 m/s, 0.5 m | second burst of clipping 0.65 s after the first |
+| What the accelerometer recorded | saturated: 38 raw readings above ArduPilot's 15.5 g clipping flag at the first hit, 20 more at the second | `VIBE.Clip`; the sensor's range is about 16 g, so the peak itself was not recorded |
+| Mean deceleration, from stopping distance | 580 g at 3 cm, 345 g at 5 cm, 215 g at 8 cm, 175 g at 10 cm | v squared / (2 d); the distance the turf and battery gave was not measured |
+| Mean deceleration, from clipping time | 58 to 116 g | 21.6 m/s change over 19 to 38 ms (38 readings at 2,000 or 1,000 per second; the raw rate is not confirmed). Implies 17 to 35 cm of travel, more than a lawn gives, so this is too low: the clipping count includes the frame ringing after the hit |
+
+The logged 25 Hz accelerometer value reads a steady 2.7 g for 0.6 s after the hit, which is not
+physical for an airframe lying on grass; it is the sensor recovering from overload and is not
+used. Energy at impact is 103 J for the 610.5 g bare weight in `docs/airframe_numbers.md` (a
+derived weight, not a weighed one).
