@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-13",
-  "updated_by": "Pi-to-Pixhawk cable: signal wires swapped (earlier 'not a swap' claim corrected) (2026-11-13)",
+  "updated_by": "Pi-to-Pixhawk link up on /dev/ttyAMA10 after the wire swap (2026-11-13)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,7 +17,7 @@
   },
   "now": {
     "as_of": "2026-11-09",
-    "where": "Third flight (2026-11-09), on PX4's small-racer rate gains: 'night and day', only a faint audible oscillation. The replacement Pi 5 (2026-11-13) runs the AR0234 camera and the Hailo chip end to end on the bench; the Pi-to-Pixhawk cable has its two signal wires swapped.",
+    "where": "Third flight (2026-11-09), on PX4's small-racer rate gains: 'night and day', only a faint audible oscillation. The replacement Pi 5 (2026-11-13) runs the AR0234 camera and the Hailo chip end to end on the bench; and talks to the Pixhawk both ways.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
       "You: fly the height change. Expect lift-off near 58% stick in Stabilized; it may feel unchanged",
@@ -560,9 +560,9 @@
   "plain_log": [
     {
       "date": "2026-11-13",
-      "text": "Pi-to-Pixhawk cable fault found: the two signal wires are swapped. With the Pi's transmit pin switched to an input, it reads low about 8% of the time, which is the Pixhawk's data stream arriving on the wrong pin; the Pi's receive pin sees nothing. This corrects an earlier statement the same day that a swap was ruled out: that test left the Pi driving its transmit pin, which hid the incoming signal. The builder had suspected a swap.",
-      "so_what": "A two-minute fix at the Pi plug (swap the two outer wires) should bring the link up; nothing is broken. Software cannot do it: on the Pi each of the two pins has only one direction, and the Pixhawk has no swap setting. Lesson for the instrument: a pin that is being driven cannot be used to listen.",
-      "evidence": "runs/hailo_day1_20261113/README.md (Pixhawk link, corrected); pinctrl readings in this session"
+      "text": "Pi-to-Pixhawk link is up. The cable's two signal wires were swapped: with the Pi's transmit pin switched to an input, the Pixhawk's data stream showed up on it. The builder swapped the wires and the Pi now reads the Pixhawk's firmware version (PX4 1.16), mode and health over the 3-pin serial socket at 921600. This corrects an earlier statement the same day that a swap was ruled out: that test left the Pi driving its transmit pin, which hid the incoming signal. The builder had suspected a swap.",
+      "so_what": "The new Pi can now command and log the aircraft again, with the AI HAT+ fitted. Scripts default to the new port (/dev/ttyAMA10). Not yet re-run on this Pi: the props-off offboard bench gate and the hover recorder. Lesson for the instrument: a pin that is being driven cannot be used to listen.",
+      "evidence": "runs/link_ttyAMA10_20261113/fc_link_check.json; runs/hailo_day1_20261113/README.md (Pixhawk link, corrected)"
     },
     {
       "date": "2026-11-13",
@@ -2097,7 +2097,7 @@
             "name": "Raspberry Pi 5, 8 GB",
             "status": "in hand",
             "role": "Runs the same stack the flight Pi will: capture, calibration, tag decode, NN shadow scoring.",
-            "notes": "REPLACED 2026-11-13 (the first died 2026-11-09, parts stripped by mounting tape). The new board boots from the old SD card at 192.168.0.61: 8 GB, 5.09 V with no undervoltage flag, fan works, bootloader updated. Camera and Hailo chip both run on it. The Pixhawk link needs its two signal wires swapped. Mount by the corner holes, never tape."
+            "notes": "REPLACED 2026-11-13 (the first died 2026-11-09, parts stripped by mounting tape). The new board boots from the old SD card at 192.168.0.61: 8 GB, 5.09 V with no undervoltage flag, fan works, bootloader updated. Camera and Hailo chip both run on it. The Pixhawk link works on the 3-pin serial socket. Mount by the corner holes, never tape."
           },
           {
             "name": "SanDisk 128 GB microSD + reader",
@@ -2230,7 +2230,7 @@
             "name": "Pi-to-TELEM2 UART jumper leads",
             "status": "built",
             "role": "The three wires the whole deploy path rides on.",
-            "notes": "Plugged into the Pi 5's 3-pin serial socket, but the two signal wires are SWAPPED: the Pixhawk's transmit signal arrives on the Pi's transmit pin (measured 2026-11-13 with that pin set as an input). Neither end can swap in software. Fix: swap the two outer wires at the Pi plug; ground (middle) stays. Until then the Pi's transmit pin is parked as an input so the two outputs do not fight. Port after the fix: /dev/ttyAMA10."
+            "notes": "WORKING 2026-11-13 on the Pi 5's 3-pin serial socket (/dev/ttyAMA10, 921600): after the builder swapped the two signal wires, the Pi read the Pixhawk's firmware version, mode and health both ways. Pin map: TELEM2 TX to socket pin 1, RX to pin 3, ground to pin 2. Plug it in before the HAT goes on. Scripts now default to this port."
           },
           {
             "name": "USB-C DATA cable",
@@ -2492,7 +2492,7 @@
             "name": "FC High-Endurance microSD (ULogs)",
             "status": "must-add",
             "role": "Onboard flight logs (ULogs) for scoring a flight.",
-            "notes": "BLOCKED: the 6C Mini's microSD slot is dead, so a card does not help. Substitute is scripts/bench/hover_recorder.py on the Pi (needs the new Pi's cable to the Pixhawk). All flight verdicts so far are by eye, ear and touch."
+            "notes": "BLOCKED: the 6C Mini's microSD slot is dead, so a card does not help. Substitute is scripts/bench/hover_recorder.py on the Pi (the Pi-to-Pixhawk link works again as of 2026-11-13; not yet re-run). All flight verdicts so far are by eye, ear and touch."
           },
           {
             "name": "M2.5 nylon standoff/screw kit (Pi tray)",
@@ -4023,7 +4023,7 @@
       "loc_a": "project_state.json constraints/binary-kill; docs/hardware_order_list.md sec 0b/0c",
       "claim_b": "The interceptor's Pixhawk 6C Mini microSD slot is dead, so it writes no ULog. Every flight verdict since the maiden has been by eye, ear and touch.",
       "loc_b": "project_state.json build_tab (FC High-Endurance microSD); docs/next.md kill-day banner",
-      "current_truth": "As written the success rule cannot be met. The stand-in is scripts/bench/hover_recorder.py on the Pi (attitude, body rates and motor outputs over the telemetry cable), which needs the new Pi wired to the Pixhawk and has only been proven on the bench over USB. It records far less than a ULog: no position estimate, no setpoints.",
+      "current_truth": "As written the success rule cannot be met. The stand-in is scripts/bench/hover_recorder.py on the Pi (attitude, body rates and motor outputs over the telemetry cable), which has only been proven on the bench over USB (the Pi-to-Pixhawk link is back as of 2026-11-13, not yet used for this). It records far less than a ULog: no position estimate, no setpoints.",
       "resolution": "OPEN. Builder to choose: (a) accept the Pi recorder plus onboard video as the interceptor's evidence and reword the rule, (b) extend the recorder to log position and setpoints first, or (c) replace or repair the flight controller so it can log. Found by the 2026-11-09 staleness audit."
     }
   ]

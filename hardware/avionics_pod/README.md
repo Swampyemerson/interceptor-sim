@@ -358,7 +358,8 @@ Not CAD, but needed (from the gap review):
   3-pin serial socket between the two HDMI ports. It is top-entry, so it must be plugged
   in before the HAT goes on. It is a different port (`/dev/ttyAMA10`, not `/dev/ttyAMA0`)
   and is the boot console by default, so the flight code and Pi setup need a change, and
-  it is untested here. It supports 921600 baud, the rate TELEM2 uses.
+  it was untested until 2026-11-13: a two-way MAVSDK link at 921600 now runs on it
+  (`runs/link_ttyAMA10_20261113`), and the scripts default to `/dev/ttyAMA10`.
   Pin order (Raspberry Pi's 3-pin debug connector specification, read 2026-11-13): pin 1
   is RX (into the Pi), pin 2 is GND, pin 3 is TX (out of the Pi). So TELEM2 pin 2 (TX)
   goes to Pi pin 1, TELEM2 pin 3 (RX) to Pi pin 3, TELEM2 pin 6 (GND) to Pi pin 2, and

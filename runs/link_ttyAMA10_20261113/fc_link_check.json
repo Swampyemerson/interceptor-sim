@@ -1,0 +1,21 @@
+{
+  "url": "serial:///dev/ttyAMA10:921600",
+  "connected": true,
+  "version": "Version: [flight_sw_major: 1, flight_sw_minor: 16, flight_sw_patch: 0, flight_sw_vendor_major: 0, flight_sw_vendor_minor: 0, flight_sw_vendor_patch: 0, os_sw_major: 11, os_sw_minor: 0, os_sw_patch: 0, flight_sw_git_hash: 6ea353915\u0000, os_sw_git_hash: 886acbbdb4f061e\u0000, flight_sw_version_type: RELEASE]",
+  "product": "Product: [vendor_id: 12677, vendor_name: undefined, product_id: 56, product_name: undefined]",
+  "identification": "Identification: [hardware_uid: 000600000000353537393034510100420029\u0000, legacy_uid: 3473490278238992185]",
+  "armed": false,
+  "flight_mode": "HOLD",
+  "gps_num_satellites": 0,
+  "gps_fix_type": "NO_GPS",
+  "battery_voltage_v": 0.0,
+  "health": {
+    "gyrometer calibration": true,
+    "accelerometer calibration": true,
+    "magnetometer calibration": true,
+    "local position": true,
+    "global position": false,
+    "home position": false,
+    "armable (autopilot's own flag)": false
+  }
+}

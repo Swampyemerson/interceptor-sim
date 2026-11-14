@@ -87,7 +87,9 @@ What it changes, and why each camera line is safe:
   `sudo raspi-config nonint do_serial_cons 0` (or restore
   `cmdline.txt.interceptor-sim.bak`), then reboot. Also: **do not point MAVLink
   at `/dev/serial0` on a Pi 5** — it resolves to the debug header, not
-  GPIO14/15. Use `/dev/ttyAMA0` explicitly.
+  GPIO14/15. Use `/dev/ttyAMA0` explicitly on a HAT-less Pi. **With the AI HAT+ fitted (the
+  current build, 2026-11-13) the link is on the 3-pin socket instead: `/dev/ttyAMA10`**, which
+  works because this provisioning already strips its boot console.
 - The block is **marker-guarded** (`# >>> interceptor-sim seeker provision >>>`),
   so re-running is a no-op and `sudo bash provision.sh --revert` strips it
   cleanly (originals are also backed up to `*.interceptor-sim.bak`).

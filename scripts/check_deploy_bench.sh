@@ -131,7 +131,7 @@
 #   scripts/check_deploy_bench.sh -h             # help
 #
 # Env (all optional; defaults shown):
-#   BENCH_DEVICE       /dev/ttyAMA0                        # Pi UART to TELEM2 (USB fallback: /dev/ttyACM0 -- see the link block above)
+#   BENCH_DEVICE       /dev/ttyAMA10                       # Pi 5 3-pin serial socket to TELEM2 (the AI HAT+ covers GPIO14/15 = ttyAMA0; verified 2026-11-13) (USB fallback: /dev/ttyACM0 -- see the link block above)
 #   BENCH_BAUD         921600                              # must match SER_TEL2_BAUD. IGNORED on a ttyACM* (USB CDC) endpoint.
 #   BENCH_MAVSDK_URL   serial://$BENCH_DEVICE:$BENCH_BAUD  # full override wins (e.g. udpin://0.0.0.0:14540)
 #   BENCH_LINK         <auto from the URL>                 # telem2 | usb | other -- forces the classification above
@@ -160,7 +160,7 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # ------------------------------------------------------------------ config (env)
-BENCH_DEVICE="${BENCH_DEVICE:-/dev/ttyAMA0}"
+BENCH_DEVICE="${BENCH_DEVICE:-/dev/ttyAMA10}"
 BENCH_BAUD="${BENCH_BAUD:-921600}"
 BENCH_MAVSDK_URL="${BENCH_MAVSDK_URL:-serial://${BENCH_DEVICE}:${BENCH_BAUD}}"
 # Default interpreter: .venv-seeker (dev box), falling back to .venv-pi (the

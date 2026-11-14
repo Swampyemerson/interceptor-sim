@@ -88,7 +88,10 @@ LOG = "[fc-link]"
 
 # --- the wire, per configs/px4_6cmini/README.md §5 + bench.params -------------
 # /dev/ttyAMA0 is the Pi 5 GPIO14/15 UART (README §5). `SER_TEL2_BAUD` = 921600.
-DEF_DEVICE = "/dev/ttyAMA0"
+# DEFAULT CHANGED 2026-11-13: with the AI HAT+ fitted the GPIO pins are covered, so the
+# flight link is on the Pi 5's 3-pin serial socket = /dev/ttyAMA10 (two-way MAVSDK link
+# verified, runs/link_ttyAMA10_20261113). Pass --device /dev/ttyAMA0 for a HAT-less Pi.
+DEF_DEVICE = "/dev/ttyAMA10"
 DEF_BAUD = 921600
 DEF_SECONDS = 3.0
 

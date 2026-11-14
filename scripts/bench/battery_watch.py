@@ -214,7 +214,7 @@ def _round_opt(x: Optional[float]) -> Optional[float]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--device", default="/dev/ttyAMA0")
+    ap.add_argument("--device", default="/dev/ttyAMA10")   # Pi 5 3-pin socket (HAT covers GPIO14/15)
     ap.add_argument("--baud", type=int, default=921600)
     ap.add_argument("--interval", type=float, default=60.0,
                     help="seconds between bursts (port is FREE in between)")

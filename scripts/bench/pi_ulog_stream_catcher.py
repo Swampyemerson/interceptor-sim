@@ -26,7 +26,7 @@ async def main(seconds: float | None) -> None:
     path = os.path.join(OUT_DIR, f"stream_{ts}.ulg")
 
     drone = System()
-    await drone.connect(system_address="serial:///dev/ttyAMA0:921600")
+    await drone.connect(system_address="serial:///dev/ttyAMA10:921600")
     print("[stream_logger] connecting ...", flush=True)
     async for state in drone.core.connection_state():
         if state.is_connected:

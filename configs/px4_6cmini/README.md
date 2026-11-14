@@ -183,6 +183,14 @@ why writing `0` there would silently *disable* RC on a board that does have it.)
 
 ### 5. Wire the three leads: TELEM2 ↔ Pi  (`brn-03`)
 
+> **CURRENT BUILD (2026-11-13): the AI HAT+ covers the 40-pin header, so the link is on the
+> Pi 5's 3-pin serial socket between the HDMI ports, port `/dev/ttyAMA10`.** TELEM2 pin 2 (TX)
+> → socket pin 1 (RX); TELEM2 pin 3 (RX) → socket pin 3 (TX); TELEM2 pin 6 (GND) → socket
+> pin 2. Verified two-way with MAVSDK at 921600 (`runs/link_ttyAMA10_20261113`). The first
+> cable had the two signal wires swapped; how to spot that from software is in
+> `hardware/avionics_pod/README.md`. The table below is the HAT-less GPIO wiring
+> (`/dev/ttyAMA0`), kept for a Pi without the HAT. Scripts now default to `/dev/ttyAMA10`.
+
 > **⚠️ CORRECTED 2026-07-27 — this heading used to say "three Dupont jumpers",
 > which is only true of the PI end and sent the builder looking for somewhere to
 > push a jumper into.** **TELEM2 is a JST-GH 1.25 mm 6-pin socket** (the same

@@ -11,7 +11,7 @@ READ-ONLY toward flight behaviour: it sends heartbeats and
 MAV_CMD_SET_MESSAGE_INTERVAL (stream rates on THIS link only). No params, no
 arming, no setpoints.
 
-    Pi (flight):  .venv-pi/bin/python scripts/bench/hover_recorder.py --port /dev/ttyAMA0 --baud 921600
+    Pi (flight):  .venv-pi/bin/python scripts/bench/hover_recorder.py --port /dev/ttyAMA10 --baud 921600
     PC (bench):   python.exe hover_recorder.py --port COM5 --seconds 10
     stop:         touch /tmp/hover_recorder.stop      (or Ctrl-C, or --seconds)
 
