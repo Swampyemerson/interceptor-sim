@@ -1,0 +1,11 @@
+=== export yolov8n @1280x800 ===
+=== compile yolov8n @1280x800 for hailo8 (CPU) ===
+compile @1280x800: OK in 94 s
+[info] Trying to compile the network in a single context
+[info] Bandwidth of inter context tensors: 0.0 Mbps (for a single frame)
+=== export yolov8n @1920x1216 ===
+=== compile yolov8n @1920x1216 for hailo8 (CPU) ===
+compile @1920x1216: OK in 120 s
+[info] Trying to compile the network in a single context
+[info] Bandwidth of inter context tensors: 0.0 Mbps (for a single frame)
+NATIVE_RES_DONE

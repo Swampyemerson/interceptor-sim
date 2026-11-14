@@ -7,13 +7,19 @@ BOOT = time.CLOCK_BOOTTIME
 with Hailo(hef) as hailo:
     h, w, _ = hailo.get_input_shape()
     cam = Picamera2()
-    cfg = cam.create_video_configuration(main={"size": (1920, 1200), "format": "RGB888"},
-                                         lores={"size": (w, h), "format": "RGB888"}, controls={"FrameRate": 60})
+    native = h > 1200          # model taller than the sensor: feed the full frame, padded
+    streams = {"main": {"size": (1920, 1200), "format": "RGB888"}}
+    if not native: streams["lores"] = {"size": (w, h), "format": "RGB888"}
+    cfg = cam.create_video_configuration(**streams, controls={"FrameRate": 60})
     cam.configure(cfg); cam.start(); time.sleep(1.0)
     lat = []; inf = []; dts = []; t_prev = None; best = {}; n = 0; t0 = time.time(); hits = 0
     while n < 300:
-        req = cam.capture_request(); frame = req.make_array("lores"); md = req.get_metadata()
-        if n == 150: big = req.make_array("main")
+        req = cam.capture_request(); md = req.get_metadata()
+        if native:
+            big_now = req.make_array("main"); frame = np.zeros((h, w, 3), np.uint8); frame[:1200] = big_now
+        else:
+            frame = req.make_array("lores")
+        if n == 150: big = big_now.copy() if native else req.make_array("main")
         req.release()
         t1 = time.perf_counter(); out = hailo.run(frame); t2 = time.perf_counter()
         now = time.clock_gettime_ns(BOOT); ts = md["SensorTimestamp"]

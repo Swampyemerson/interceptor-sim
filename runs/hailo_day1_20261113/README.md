@@ -25,6 +25,8 @@ USB to the PC (COM5). All run over SSH from the WSL dev machine.
 | yolov8s, COCO (`hailo-models`) | 640 x 640 | 1 | - | 310 fps | 6.7 ms |
 | yolov8m, COCO (Hailo Model Zoo v2.17) | 640 x 640 | 3 | - | 31 fps | 25.8 ms |
 | stock yolov8n compile (`runs/dfc_dryrun`) | 1024 x 1024 | 1 | 92 fps | 125 fps | 12.6 ms |
+| stock yolov8n compile (`runs/dfc_native_res_20261113`) | 1280 x 800 | 1 | - | 128 fps | 13.5 ms |
+| stock yolov8n compile (same folder) | 1920 x 1216 | 1 | - | 56 fps | 26.0 ms |
 
 Logs: `bench_*.log`, `bench_sizes_gen3.txt`. Reading: nano and small are far inside the
 budget; medium falls off a cliff because it no longer fits the chip in one piece (3 contexts);
@@ -59,8 +61,13 @@ the 1-class compile pays about 3.6x for its second context but is still 119 fps.
 | yolov8s | 59.2 fps | 11.1 ms | 31.8 / 33.3 / 91.0 ms | 300/300 (0.79) |
 | yolov8n | 59.6 fps | 7.9 ms | 28.5 / 30.0 / 35.4 ms | 300/300 (0.81) |
 | project 1-class compile (random weights, timing only) | 59.6 fps | 7.9 ms | 28.8 / 30.2 / 35.5 ms | n/a |
+| yolov8n at 1280 x 800 | 41.7 fps | 23.0 ms | 52.8 / 61.1 / 65.6 ms | 300/300 (0.88) |
+| yolov8n at 1920 x 1216 (full frame) | 19.1 fps | 48.1 ms | 79.7 / 89.2 / 90.9 ms | 300/300 (0.79) |
 
-  The loop is limited by the camera's 60 fps, not the chip. Annotated frame:
+  At 640 the loop is limited by the camera's 60 fps, not the chip. At the two larger sizes
+  the simple one-frame-at-a-time Python call is the limit (the chip alone does 128 and 56 fps);
+  the larger-input files use pretrained weights with synthetic calibration, so they show
+  timing and fit, not accuracy, and their box coordinates are not valid. Annotated frame:
   `live_detect_yolov8s.jpg`. Not measured: the trained seeker weights on the chip, a
   quantised-versus-float recall comparison, small or distant targets, motion blur, sunlight.
 

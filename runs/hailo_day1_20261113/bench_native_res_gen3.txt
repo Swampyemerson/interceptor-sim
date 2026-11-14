@@ -1,0 +1,2 @@
+yolov8n_1280x800 | Network group name: yolov8n, Single Context Input  yolov8n/input_layer1 UINT8, NHWC(800x1280x3)  | Measuring FPS (and Power on supported platforms) in streaming mode;FPS (hw_only) = 128.122; (streaming) = 128.126;Latency (hw) = 13.493 ms;
+yolov8n_1920x1216 | Network group name: yolov8n, Single Context Input  yolov8n/input_layer1 UINT8, NHWC(1216x1920x3)  | Measuring FPS (and Power on supported platforms) in streaming mode;FPS (hw_only) = 56.2664; (streaming) = 56.1676;Latency (hw) = 25.9964 ms;

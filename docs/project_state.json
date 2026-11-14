@@ -572,8 +572,8 @@
     {
       "date": "2026-11-13",
       "text": "Replacement Pi 5 brought up on the bench with the AI HAT+ and the AR0234 camera. Camera: works at 1920x1200 and 60 fps after installing Arducam's camera library; an AprilTag on a laptop screen decoded in 90 of 90 frames, also at 1 ms exposure. Hailo-8: the link was running at half speed; at full speed a stock nano detector does 431 frames/s on the chip, and the live camera-to-detection loop runs at the camera's 60 fps with 29 ms from frame start to result. Pixhawk over USB: settings unchanged. Not working: no signal from the Pixhawk reaches any Pi pin, although a cable is plugged in.",
-      "so_what": "Compute is no longer the limit for the camera-only seeker: a nano or small detector fits with a wide margin, and a medium one does not. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi; it is not just two swapped wires.",
-      "evidence": "runs/hailo_day1_20261113/README.md (benchmarks, live tests, camera and link probes); configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv"
+      "so_what": "Compute is no longer the limit for the camera-only seeker: a nano detector fits with a wide margin even at 1280x800 input (42 frames/s live), which doubles the pixels on a distant target over 640. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi; it is not just two swapped wires.",
+      "evidence": "runs/hailo_day1_20261113/README.md (benchmarks, live tests, camera and link probes); runs/dfc_native_res_20261113/README.md; configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv"
     },
     {
       "date": "2026-11-13",
@@ -2144,7 +2144,7 @@
             "name": "Raspberry Pi AI HAT+ (Hailo-8, 26 TOPS)",
             "status": "in hand",
             "role": "NN accelerator: native-res input at ≥10–15 Hz inside the latency budget; yolov8n compiles (DFC dry-run 2026-10-21).",
-            "notes": "RUNNING 2026-11-13: Hailo-8, firmware 4.23.0, PCIe set to Gen 3. Chip-only: stock nano 431 fps, small 310, medium 31 (too big for one pass), the project's 1-class 640 compile 119. Live camera-to-detection with a stock nano model: 60 fps (camera-limited), 29 ms median from frame start to result. NOT yet done: the trained seeker on the chip, its recall after 8-bit conversion, thermal soak. Driver installed without DKMS."
+            "notes": "RUNNING 2026-11-13: Hailo-8, firmware 4.23.0, PCIe Gen 3. Chip-only, stock nano model: 431 fps at 640, 128 at 1280x800, 56 at the full 1920x1216 frame; small 310; medium 31 (too big for one pass). Live camera-to-detection, stock nano: 60 fps / 29 ms at 640, 42 fps / 53 ms at 1280x800, 19 fps / 80 ms at full frame. NOT yet done: the trained seeker on the chip, its recall after 8-bit conversion, thermal soak. Driver installed without DKMS."
           }
         ],
         "connections": [
