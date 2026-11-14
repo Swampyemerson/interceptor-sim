@@ -6,28 +6,63 @@ USB to the PC (COM5). All run over SSH from the WSL dev machine.
 
 ## Hailo
 - Installed `hailort`, `hailort-pcie-driver`, `python3-hailort`, all 4.23.0 (NOT `hailo-all`,
-  which would replace the camera libraries and pull about 200 build packages).
+  which would replace the camera libraries and pull about 200 build packages), plus
+  `hailo-models` 1.0.0-2 (Raspberry Pi's ready-made model files).
   The driver installed WITHOUT DKMS, so a kernel update will drop it; reinstall then.
-- `identify.log`: Hailo-8, firmware 4.23.0.
-- `hailortcli benchmark -t 15`, chip only, synthetic input:
+- `identify.log`: Hailo-8, firmware 4.23.0. DFC 3.34 files run on HailoRT 4.23 (pairing confirmed).
+- **PCIe speed was the first bottleneck.** The link came up at Gen 2 (5 GT/s, one lane).
+  Adding `dtparam=pciex1_gen=3` to `/boot/firmware/config.txt` brought it to Gen 3 (8 GT/s):
+  `pcie_link_gen3.log`.
 
-| Model file | Input | Contexts | Frames/s (hardware) | Frames/s (streaming) | Latency |
+`hailortcli benchmark`, chip only, synthetic input, one frame at a time unless noted:
+
+| Model file | Input | Contexts | Gen 2 | Gen 3 | Gen 3 latency |
 |---|---|---|---|---|---|
-| `runs/dfc_dryrun_single/yolov8n.hef` (1 class) | 640 x 640 | 2 | 65.3 | 65.2 | 13.2 ms |
-| `runs/dfc_dryrun/yolov8n.hef` (80 classes) | 1024 x 1024 | 1 | 91.7 | 91.6 | 13.5 ms |
+| project 1-class compile (`runs/dfc_dryrun_single`), random weights | 640 x 640 | 2 | 65 fps | 119 fps | 6.4 ms |
+| same, batch 8 | 640 x 640 | 2 | 139 fps | 276 fps | 16.8 ms |
+| stock yolov8n, COCO (Hailo Model Zoo v2.17) | 640 x 640 | 1 | - | 431 fps | 3.4 ms |
+| yolov6n, COCO (`hailo-models`) | 640 x 640 | 1 | - | 586 fps | 3.2 ms |
+| yolov8s, COCO (`hailo-models`) | 640 x 640 | 1 | - | 310 fps | 6.7 ms |
+| yolov8m, COCO (Hailo Model Zoo v2.17) | 640 x 640 | 3 | - | 31 fps | 25.8 ms |
+| stock yolov8n compile (`runs/dfc_dryrun`) | 1024 x 1024 | 1 | 92 fps | 125 fps | 12.6 ms |
 
-Pi at 47 C afterwards, no throttle flag. These are NOT camera-to-detection rates and the
-files are compile dry-runs, not the trained seeker weights.
+Logs: `bench_*.log`, `bench_sizes_gen3.txt`. Reading: nano and small are far inside the
+budget; medium falls off a cliff because it no longer fits the chip in one piece (3 contexts);
+the 1-class compile pays about 3.6x for its second context but is still 119 fps.
 
-## Camera
+## Camera (AR0234, B0353)
 - `dtoverlay=ov9281` fails on both sockets (no answer at I2C address 0x60).
 - `dtoverlay=arducam-pivariety,cam0` answers: firmware 0x10004, 1920 x 1200, 10-bit GRBG.
-  That is the AR0234 (B0353) in socket CAM/DISP0.
-- `rpicam-hello --list-cameras` still says "No cameras available": the stock camera
-  library (libcamera 0.7.2) has no support for this sensor family. Arducam's own
-  packages are needed; not installed.
-- `/boot/firmware/config.txt` now carries `dtoverlay=arducam-pivariety,cam0`
-  (backup: `config.txt.camprobe.bak`). `provision.sh` still writes the OV9281 line.
+- The stock camera library could not use it. Fixed by installing Arducam's rebuilt
+  `libcamera0.7` and `libcamera-ipa` 0.7.2+rpt20260819-2 (two .deb files from Arducam's
+  GitHub release, read before install; same version line as stock) and holding both with
+  `apt-mark hold`. Before/after package lists: `packages_before.txt`, `packages_after.txt`.
+  Roll back with `apt install --allow-downgrades libcamera0.7=0.7.2+rpt20260817-1 libcamera-ipa=0.7.2+rpt20260817-1`.
+- Modes now listed: 1920 x 1200 at 60 fps, 1920 x 1080 at 60, 1280 x 720 at 120.
+- A warning remains: no colour tuning file for this sensor (`arducam-pivariety.json`).
+- `/boot/firmware/config.txt` after the session: `config_txt_after.txt`
+  (backup on the Pi: `config.txt.camprobe.bak`). `provision.sh` still writes the OV9281 line
+  and knows nothing of the PCIe line; re-running it would undo the camera setting.
+- The image is upside down as mounted on the bench (see the saved frames).
+
+## Live tests, camera pointed at the laptop screen (`live_results.json`)
+- **AprilTag (CPU):** tag36h11 id 0 decoded in 90/90 frames in auto exposure and 90/90 at a
+  1 ms exposure (992 us applied), 59.5 fps sensor rate, about 9 to 10 ms per decode
+  (`tag_live.py`, `tag_on_screen_1ms.jpg`). The tag was 358 px across: a works/doesn't check,
+  not a range test.
+- **Camera to Hailo to detection (`hailo_live.py`):** a stop sign on the screen
+  (`stop_sign_test_page.html`), COCO models, 300 frames each, 640 x 640 input resized by the
+  camera pipeline:
+
+| Model | Loop rate | Inference call | Frame start to result (median / 95% / worst) | Frames with the sign |
+|---|---|---|---|---|
+| yolov8s | 59.2 fps | 11.1 ms | 31.8 / 33.3 / 91.0 ms | 300/300 (0.79) |
+| yolov8n | 59.6 fps | 7.9 ms | 28.5 / 30.0 / 35.4 ms | 300/300 (0.81) |
+| project 1-class compile (random weights, timing only) | 59.6 fps | 7.9 ms | 28.8 / 30.2 / 35.5 ms | n/a |
+
+  The loop is limited by the camera's 60 fps, not the chip. Annotated frame:
+  `live_detect_yolov8s.jpg`. Not measured: the trained seeker weights on the chip, a
+  quantised-versus-float recall comparison, small or distant targets, motion blur, sunlight.
 
 ## Pixhawk link (builder reports a cable is plugged in)
 - 0 bytes received on `/dev/ttyAMA0` and `/dev/ttyAMA10` at 921600, 115200 and 57600.

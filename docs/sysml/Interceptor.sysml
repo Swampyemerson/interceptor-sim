@@ -180,7 +180,7 @@ package Interceptor {
         interface cameraRibbon : CSI2Link connect camera.csi to pi.cam0 {
             @BOM { tab = "seeker"; bomName = "Wonrabai"; }
             attribute :>> connector = "22-to-15-pin CSI ribbon";
-            attribute :>> detail = "MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02). On the replacement Pi this socket now holds the AR0234 (2026-11-13), not this camera";
+            attribute :>> detail = "MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02). On the replacement Pi this socket now holds the AR0234, working at 1920 x 1200 (2026-11-13), not this camera";
             attribute :>> linkState = LinkState::planned;
         }
         interface frameCard : SDCardLink connect pi.sdSlot to piSd.contacts {

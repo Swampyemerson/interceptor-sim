@@ -1,0 +1,4 @@
+Measuring FPS (and Power on supported platforms) in streaming mode
+FPS     (hw_only)                 = 119.417
+        (streaming)               = 119.317
+Latency (hw)                      = 6.42202 ms

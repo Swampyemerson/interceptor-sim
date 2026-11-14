@@ -1,0 +1,12 @@
+{
+ "date": "2026-11-13",
+ "setup": "Pi 5 8 GB, AR0234 1920x1200 at 60 fps, picamera2 lores 640x640 (squashed), Hailo-8 on PCIe Gen 3, picamera2.devices.Hailo synchronous run; camera pointed at a laptop screen; 300 frames per model",
+ "latency_definition": "SensorTimestamp (start of frame) to the detection result in Python, same clock (CLOCK_BOOTTIME)",
+ "tag36h11_cpu": {"auto_exposure": {"frames": 90, "frames_with_tag": 90, "tag_side_px": 357.6, "sensor_fps": 59.5, "loop_fps": 53.2, "decode_ms": 9.1, "exposure_us": 9996},
+                  "exposure_1ms": {"frames": 90, "frames_with_tag": 90, "tag_side_px": 358.3, "sensor_fps": 59.5, "loop_fps": 59.0, "decode_ms": 9.9, "exposure_us": 992}},
+ "hailo_live": [
+  {"model": "yolov8s COCO (hailo-models yolov8s_h8.hef)", "loop_fps": 59.2, "infer_call_ms_median": 11.1, "capture_to_result_ms_median": 31.8, "p95": 33.3, "max": 91.0, "frames_with_stop_sign": 300, "stop_sign_conf": 0.79},
+  {"model": "yolov8n COCO (Hailo Model Zoo v2.17 yolov8n.hef)", "loop_fps": 59.6, "infer_call_ms_median": 7.9, "capture_to_result_ms_median": 28.5, "p95": 30.0, "max": 35.4, "frames_with_stop_sign": 300, "stop_sign_conf": 0.81},
+  {"model": "project 1-class 640 compile, 2 contexts, RANDOM weights (timing only)", "loop_fps": 59.6, "infer_call_ms_median": 7.9, "capture_to_result_ms_median": 28.8, "p95": 30.2, "max": 35.5, "frames_with_detection": 0}
+ ]
+}

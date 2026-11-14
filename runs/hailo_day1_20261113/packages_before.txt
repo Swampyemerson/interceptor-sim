@@ -1,0 +1,17 @@
+libcamera-ipa:arm64=0.7.2+rpt20260817-1
+libcamera-tools=0.7.2+rpt20260817-1
+libcamera-v4l2:arm64=0.7.2+rpt20260817-1
+libcamera0.7:arm64=0.7.2+rpt20260817-1
+libpisp-common=1.7.0-1
+libpisp1:arm64=1.7.0-1
+librpicam-app1:arm64=1.13.0-1
+libspa-0.2-libcamera:arm64=1.4.2-1+rpt3
+pipewire-libcamera=1.4.2-1+rpt3
+python3-libcamera=0.7.2+rpt20260817-1
+python3-picamera2=0.3.37-1
+rpicam-apps=1.13.0-1
+rpicam-apps-core=1.13.0-1
+rpicam-apps-encoder:arm64=1.13.0-1
+rpicam-apps-lite=1.13.0-1
+rpicam-apps-opencv-postprocess=1.13.0-1
+rpicam-apps-preview:arm64=1.13.0-1

@@ -214,7 +214,7 @@
 <text class="sx-wd" x="52" y="1028">onboard microSD slot — PX4 ULogs -- SLOT DEAD: no onboard logs; substitute is hover_recorder.py on the Pi</text>
 <g class="sx-pill sx-c-data sx-s-planned"><rect x="20" y="1032" width="22" height="16" rx="8"/><text x="31" y="1044">8</text></g>
 <text class="sx-wl" x="52" y="1044"><tspan class="sx-wn">cameraRibbon</tspan><tspan class="sx-wm">  camera.csi → pi.cam0</tspan><tspan class="sx-wt">  : CSI2Link</tspan><tspan class="sx-ws sx-s-planned">  PLANNED</tspan></text>
-<text class="sx-wd" x="52" y="1058">22-to-15-pin CSI ribbon — MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02). On the replacement Pi this socket now holds the AR0234 (2026-11-13), not this camera · cable: Wonrabai 22-to-15-pin CSI cable</text>
+<text class="sx-wd" x="52" y="1058">22-to-15-pin CSI ribbon — MIPI CSI-2 into CAM/DISP0; 1280 x 800 mono. Verified on the first Pi (skr-02). On the replacement Pi this socket now holds the AR0234, working at 1920 x 1200 (2026-11-13), not this camera · cable: Wonrabai 22-to-15-pin CSI cable</text>
 <g class="sx-pill sx-c-data sx-s-verified"><rect x="20" y="1062" width="22" height="16" rx="8"/><text x="31" y="1074">9</text></g>
 <text class="sx-wl" x="52" y="1074"><tspan class="sx-wn">frameCard</tspan><tspan class="sx-wm">  pi.sdSlot → piSd.contacts</tspan><tspan class="sx-wt">  : SDCardLink</tspan><tspan class="sx-ws sx-s-verified">  VERIFIED (skr-01, skr-05)</tspan></text>
 <text class="sx-wd" x="52" y="1088">Pi microSD slot — Pi OS + raw PNG frames</text>
