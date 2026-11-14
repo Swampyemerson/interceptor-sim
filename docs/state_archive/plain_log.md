@@ -524,3 +524,11 @@ Calipers arrived, and the first session caught a drawing error before anything w
 **So what:** The camera post is printable again, and the corrected geometry is kinder than the mistaken one: more room to the pod, 8 mm or more outside the prop circles, props further out of the picture. One new weakness was found and fixed in the same pass: with its screws behind it the post nodded at 92 Hz, so the tongue went from 3 to 6 mm and the figure is 187 Hz. Still to check on the interceptor itself: the cable route, now that the slot is gone.
 
 *Evidence: hardware/avionics_pod/README.md revision 5 - GAP_REVIEW.md - fea_results/nose_post*.json - nose_post_check.py - ADR-0135 addendum 2026-11-11*
+
+## 2026-11-11 (overflowed from plain_log 2026-11-14)
+
+Print plan for the avionics pod decided. The four flight parts (dock with camera post, camera plate, pod base, lid) go to CU's ITLL to be printed in Onyx, a nylon filled with chopped carbon fibre, at solid fill. The fit-check template is printed first in cheap PLA. If the ITLL can lay continuous fibre, it goes in the flat tongue under the camera post and nowhere else. Its price list is not public; at a sister lab's rate the whole order is about 15 dollars.
+
+**So what:** Onyx buys heat margin for certain (it holds to about 145 C, PETG softens near 75) and about 10 percent in shake frequency, which is too little to plan around. The tap test on the printed parts still decides whether the mount is steady enough. Three questions go to ITLL staff before ordering: whether a personal project qualifies, the price, and whether fibre is offered.
+
+*Evidence: hardware/avionics_pod/PRINT_ORDER.md - ADR-0136 - ITLL wiki (3D Printing FAQ, Submit a Request)*

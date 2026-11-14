@@ -20,4 +20,20 @@ echo "== lint_param.py target.param =="
 "$PY" "$DIR/lint_param.py" "$DIR/target.param"
 
 echo
+echo "== lint_param.py must REJECT the 2026-11-14 crash settings (full motor range) =="
+MUT="$(mktemp)"
+sed 's/^MOT_SPIN_MAX,.*/MOT_SPIN_MAX,0.95/' "$DIR/target.param" > "$MUT"
+if "$PY" "$DIR/lint_param.py" "$MUT" > /dev/null; then
+    rm -f "$MUT"
+    echo "FAIL: the lint passed a file whose thrust ceiling is above hover"
+    exit 1
+fi
+rm -f "$MUT"
+echo "rejected, as it must be"
+
+echo
+echo "== ap_thrust_ceiling_check.py --self-test =="
+"$PY" "$DIR/../../scripts/bench/ap_thrust_ceiling_check.py" --self-test
+
+echo
 echo "ALL TARGET-CONFIG-PACK CHECKS PASSED"

@@ -1667,3 +1667,62 @@ rate gains; bring the hover figure and thrust-mix cap below this aircraft's real
 the motor range so hover sits higher in it; Stabilize back on the switch for first hops;
 confirm on the ground, tethered or hand-checked props-off, that minimum throttle means
 descent.
+
+### ADR-0138 addendum 7 (2026-11-14): the climb fix is on the board, and it is NOT yet proven
+
+**Context.** The builder asked whether the climbing fault was definitely fixed. It was not:
+a read of the board showed the exact settings it crashed with (66 of 66 unchanged).
+
+**What the firmware does (read from source at Copter-4.7.0, not from memory).**
+`AC_AttitudeControl_Multi::get_throttle_avg_max` sets a ceiling of
+`throttle x (1 - mix) + MOT_THST_HOVER x mix`, and `AP_MotorsMatrix::output_armed_stabilizing`
+raises average thrust up to that ceiling whenever roll/pitch demands need the room, regardless
+of the throttle demand. `mix` is `ATC_THR_MIX_MAX` (0.5, firmware minimum 0.5) in Loiter,
+AltHold and Auto, and `ATC_THR_MIX_MAN` (0.1) in Stabilize. `MOT_THST_HOVER` cannot usefully
+go below 0.125: the in-flight learning clamps it there. On the full motor range this airframe
+hovers at about 0.06, so no legal pair of those two settings puts the ceiling under hover.
+
+**Options.** (a) `MOT_THST_HOVER` 0.125: ceiling 0.0625 = 1239 us, level with hover (1235).
+Not a fix. (b) Halve the rate gains only: treats the trigger, leaves the ceiling above hover.
+(c) Cut the motor range with `MOT_SPIN_MAX` so hover sits higher in it. (d) Hardware: a 4-cell
+battery or smaller props. Not available today.
+
+**Decision (mine, reversible): (c), `MOT_SPIN_MAX` 0.95 -> 0.40**, `MOT_THST_HOVER` stays 0.2
+but now means something true. Computed from the crash log's rpm-vs-signal figures and the
+firmware's thrust curve:
+
+| | crash settings | new settings |
+|---|---|---|
+| motor signal range | 1150-1950 us | 1150-1400 us |
+| hover (about 1235 us) in thrust units | 0.06 | 0.17 to 0.23 |
+| ceiling in Loiter/AltHold/Auto | 0.10 = 1285 us, about 1.35x weight | 0.10 = 1192 us, about 0.7x weight |
+| ceiling in Stabilize | 0.02 = 1180 us | 0.02 = 1161 us |
+| top thrust | about 8x weight | about 2.4x weight (extrapolated) |
+| roll/pitch loop gain at hover | 1 | about 0.23 |
+
+The model reproduces the crash (1285 us computed, 1302 logged; 1.35x computed, 1.45x measured),
+which is the reason to trust its prediction for the new settings. Rate PIDs stay at firmware
+defaults: the range cut already lowers loop gain by more than the "halve P/I/D" in addendum 6,
+and doing both would leave about a tenth of the original gain.
+
+**Cost.** Top thrust falls to about 2.4x weight. The 10 m/s route needs about 10 degrees of
+lean (drag fit, addendum 6), so the target still does its job; the 38 m/s flat-out estimate no
+longer applies.
+
+**Guard.** `lint_param.py` now recomputes the ceiling from the five settings and fails if it
+is above 1210 us (hover 1235 minus 25); `selftest.sh` checks that it rejects the crash
+settings. Written with `upload_params.py` (1 changed, read back 69 of 69, persisted across a
+restart, no new start-up complaint).
+
+**Not proven. Pre-registered check** (`scripts/bench/ap_thrust_ceiling_check.py`, listens
+only): props off, builder arms in AltHold, raises the stick, tilts the drone by hand, drops
+the stick. PASS = four-motor average stays below 1235 us while the board fights. Prediction:
+1190 to 1210. FAIL = at or above 1235. If the board never fights (motors within 30 us of each
+other) the result is NOT EXERCISED, which is not a pass. Even a PASS shows only the ceiling;
+whether the oscillation is gone needs a hop.
+
+**Weak points.** The 1235 us hover point comes from a 3.8 s flight that never hovered. If real
+hover is lower (say 1215 us), the ceiling at 1192 us is still under it, with less margin. The
+top-thrust and loop-gain figures extrapolate the rpm line beyond the 1300 us it was measured to.
+Still open from addendum 6: damage check, Stabilize on the switch for first hops (builder's
+switch layout, his call), compass recalibration.

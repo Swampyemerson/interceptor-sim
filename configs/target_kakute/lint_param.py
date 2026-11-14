@@ -109,6 +109,27 @@ REQUIRED = [
     ("FLTMODE6",      lambda v: v == 5,             "switch UP = Loiter (GPS position hold)"),
 ]
 
+# Hover point of THIS airframe, read from its first-flight log (2026-11-14,
+# runs/target_bench_20261114/README.md): thrust equals weight near 10,800 rpm,
+# which the motors reach at about 1235 us. Derived from a 3.8 s flight that
+# never hovered, so the margin is wide. Re-measure after any change of motors,
+# props, battery cell count or weight.
+HOVER_US_MEASURED = 1235
+HOVER_US_MARGIN = 25
+
+
+def thrust_ceiling_us(v: dict) -> float:
+    """Motor signal (us) of the highest average thrust ArduPilot may hold in
+    Loiter/AltHold/Auto while the throttle demand is zero: ATC_THR_MIX_MAX x
+    MOT_THST_HOVER pushed through the firmware's thrust curve
+    (AP_Motors_Thrust_Linearization.cpp thrust_to_actuator, Copter-4.7.0, at
+    full battery). Fails closed: a missing input raises KeyError."""
+    expo, lo, hi = v["MOT_THST_EXPO"], v["MOT_SPIN_MIN"], v["MOT_SPIN_MAX"]
+    thrust = v["ATC_THR_MIX_MAX"] * v["MOT_THST_HOVER"]
+    ratio = thrust if expo == 0 else ((expo - 1) + ((1 - expo) ** 2 + 4 * expo * thrust) ** 0.5) / (2 * expo)
+    return 1000.0 + 1000.0 * (lo + (hi - lo) * ratio)
+
+
 # Cross-param invariants -- (description, predicate over the {name: value} dict).
 # No per-param range check can express these, and each is a real fat-finger:
 # every individual value can pass its own bounds while the PAIR is nonsense.
@@ -128,6 +149,13 @@ INVARIANTS = [
      lambda v: v.get("FLTMODE3") == v.get("FLTMODE4") == v.get("FLTMODE5") == 2),
     ("Auto only on FLTMODE1-2 (never reachable from a drifting centre)",
      lambda v: all(v.get(f"FLTMODE{i}") != 3 for i in range(3, 7))),
+    # 2026-11-14 crash (ADR-0138 addenda 6 and 7): the mixer may hold average
+    # thrust at ATC_THR_MIX_MAX x MOT_THST_HOVER against a minimum throttle
+    # stick. That ceiling must sit BELOW the motor signal this airframe hovers
+    # at, or an oscillating drone climbs with the stick at the bottom.
+    ("thrust ceiling at minimum throttle is at or below %d us (measured hover signal %d us minus %d margin)"
+     % (HOVER_US_MEASURED - HOVER_US_MARGIN, HOVER_US_MEASURED, HOVER_US_MARGIN),
+     lambda v: thrust_ceiling_us(v) <= HOVER_US_MEASURED - HOVER_US_MARGIN),
     ("FENCE_RADIUS > FENCE_MARGIN (a fence inside its own margin is instantly breached)",
      lambda v: "FENCE_MARGIN" not in v or v["FENCE_RADIUS"] > v["FENCE_MARGIN"]),
 ]

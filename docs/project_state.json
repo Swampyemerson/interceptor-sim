@@ -20,7 +20,7 @@
     "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause found in its log, not yet fixed.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
-      "You: target: battery outside; check frame, arms, motors, props, GPS mast; tell me what broke",
+      "You: target: check for damage; then props-off thrust check (I open the window) before any flight",
       "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
     ],
     "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -560,6 +560,12 @@
   "plain_log": [
     {
       "date": "2026-11-14",
+      "text": "The fix for the target drone's runaway climb is on its board but not yet proven. The firmware may raise the motors to keep roll and pitch control even with the throttle stick at the bottom, up to a ceiling tied to the hover setting. On this very overpowered drone no allowed value of that setting puts the ceiling under hover, so the motor range was cut instead: the motors now work between 1150 and 1400 instead of 1150 and 1950. Computed from the crash log, the ceiling drops from about 1.35 times the weight to about 0.7 times. Top thrust falls from about 8 times the weight to about 2.4, still plenty for the 10 m/s route.",
+      "so_what": "Still no flight: a props-off bench check (the board fights you with the stick at the bottom; the motor average must stay under the hover point) comes first, then a low hop. The settings checker now rejects any file whose ceiling is above hover.",
+      "evidence": "ADR-0138 addendum 7; configs/target_kakute/target.param + lint_param.py; runs/target_bench_20261114/README.md; scripts/bench/ap_thrust_ceiling_check.py"
+    },
+    {
+      "date": "2026-11-14",
       "text": "The target drone's first flight ended in a crash, and the board's log explains it. It flew for 3.8 seconds in Position hold and reached 23 m before the builder cut the motors; it fell and hit the lawn battery first. The roll and pitch control loops were oscillating from lift-off. ArduPilot lets attitude control raise the motors to keep its grip, up to a cap of half the hover thrust it has been told. That figure had been set to 0.20 that morning; the log shows this drone really hovers at about 0.06. So the cap sat well above hover, and the drone climbed at up to 7.6 m/s while the stick and the height controller were both asking for down.",
       "so_what": "No flight of the target until: damage is checked, the roll/pitch gains are halved, the hover figure and that cap are brought below the drone's real hover, Stabilize is back on the switch for first hops, and minimum throttle is shown on the ground to mean descent. Both candidate causes written before reading the log were wrong as stated; the hover figure was mine. The battery took the impact and is a fire risk.",
       "evidence": "runs/target_bench_20261114/README.md + crash_flight_timeline.txt; ADR-0138 addenda 5 and 6"
@@ -623,12 +629,6 @@
       "text": "Avionics pod folder cleaned to the current design only. Twelve superseded files are deleted (the plain dock, its template and the two lid-cradle camera parts as STL and STEP, two old assemblies, two old pictures) and the CAD script no longer writes them. The print files are now saved the way they sit on the printer bed. Two orientation notes in the print plan were wrong and are corrected: the lid prints as drawn (not upside down), and the camera plate's file had been saved tilted in flight position. Plan change: all four flight parts are printed in cheap PLA for a fit check before the Onyx order.",
       "so_what": "The builder was one click from sending a lookalike file to the print shop. A new standing rule in the operating notes says a fabrication folder holds only current parts, and a test now fails if an old file reappears. The camera plate needs supports when printed; the other parts do not.",
       "evidence": "hardware/avionics_pod/README.md (Files in this folder); hardware/avionics_pod/PRINT_ORDER.md; .claude/ops.md (no superseded fabrication files); tests/test_avionics_pod_analysis.py"
-    },
-    {
-      "date": "2026-11-11",
-      "text": "Print plan for the avionics pod decided. The four flight parts (dock with camera post, camera plate, pod base, lid) go to CU's ITLL to be printed in Onyx, a nylon filled with chopped carbon fibre, at solid fill. The fit-check template is printed first in cheap PLA. If the ITLL can lay continuous fibre, it goes in the flat tongue under the camera post and nowhere else. Its price list is not public; at a sister lab's rate the whole order is about 15 dollars.",
-      "so_what": "Onyx buys heat margin for certain (it holds to about 145 C, PETG softens near 75) and about 10 percent in shake frequency, which is too little to plan around. The tap test on the printed parts still decides whether the mount is steady enough. Three questions go to ITLL staff before ordering: whether a personal project qualifies, the price, and whether fibre is offered.",
-      "evidence": "hardware/avionics_pod/PRINT_ORDER.md - ADR-0136 - ITLL wiki (3D Printing FAQ, Submit a Request)"
     }
   ],
   "narrative": {

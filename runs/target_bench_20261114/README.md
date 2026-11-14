@@ -79,3 +79,18 @@ The logged 25 Hz accelerometer value reads a steady 2.7 g for 0.6 s after the hi
 physical for an airframe lying on grass; it is the sensor recovering from overload and is not
 used. Energy at impact is 103 J for the 610.5 g bare weight in `docs/airframe_numbers.md` (a
 derived weight, not a weighed one).
+
+## The climb fix (written to the board 2026-11-14, NOT yet proven)
+
+One setting changed: `MOT_SPIN_MAX` 0.95 -> 0.40 (ADR-0138 addendum 7). The motors now work
+between 1150 and 1400 us instead of 1150 to 1950.
+
+- Before: the highest average thrust the board could hold against a bottom stick was 1285 us
+  computed (1302 us logged), about 1.35 times the weight computed (1.45 measured).
+- After: 1192 us computed, about 0.7 times the weight. Hover is near 1235 us.
+- Read-back 69 of 69, persisted across a restart.
+
+**Check to run, props off, before any flight** (criterion written before running it):
+`python.exe ap_thrust_ceiling_check.py COM4` from `C:\Temp\bench`. PASS = motor average
+below 1235 us while the board fights a bottom stick; predicted 1190 to 1210. NOT EXERCISED is
+not a pass. Result file goes here as `thrust_ceiling_result.json`.

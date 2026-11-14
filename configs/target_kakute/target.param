@@ -152,9 +152,36 @@ ATC_ACC_P_MAX,1686
 ATC_ACC_Y_MAX,315
 # Thrust curve: min(round(0.15686 ln(prop) + 0.23693, 2), 0.80) = 0.49.
 MOT_THST_EXPO,0.49
-# Starting guess for hover throttle, deliberately LOW; the firmware learns the
-# real value in flight (MOT_HOVER_LEARN=2 on this board). A 2207 1900KV on 6S
-# hovers a light 5-inch far below the 0.35 default.
+# MOTOR RANGE CUT + HOVER THRUST  (rewritten 2026-11-14 after the first-flight
+# crash, ADR-0138 addendum 7). The old line here was MOT_THST_HOVER,0.2 with
+# the full motor range, called "deliberately LOW". It was HIGH: this airframe
+# hovers at about 1235 us, which on the full range is 0.06 thrust.
+# Why that matters (AC_AttitudeControl_Multi.cpp get_throttle_avg_max and
+# AP_MotorsMatrix.cpp at Copter-4.7.0): when roll/pitch demands are large the
+# mixer RAISES average thrust, whatever the throttle stick says, up to
+#     ATC_THR_MIX_MAX x MOT_THST_HOVER   (Loiter, AltHold, Auto)
+#     ATC_THR_MIX_MAN x MOT_THST_HOVER   (Stabilize)
+# With 0.5 x 0.2 = 0.10 that ceiling was 1285 us = about 1.35x the weight, so
+# an oscillating drone climbed at minimum throttle. MOT_THST_HOVER cannot go
+# below 0.125 (firmware learning clamps it), so the cure is the motor range:
+# with MOT_SPIN_MAX 0.40 the outputs span 1150-1400 us, hover lands near 0.17
+# to 0.23 thrust, and the ceiling 0.5 x 0.2 = 0.10 is 1192 us = about 0.7x the
+# weight: a descent. Numbers from the crash log (rpm vs motor signal), see
+# runs/target_bench_20261114/README.md. lint_param.py recomputes the ceiling
+# from the five values below and FAILS if it reaches the measured hover point.
+# Cost: top thrust about 2.4x weight instead of about 8x (extrapolated). The
+# 10 m/s route needs about 10 deg of lean, so the target still does its job.
+# Side effect: roll/pitch loop gain falls to about a quarter (same PIDs, a
+# quarter of the motor range per unit of command), which is MORE than the
+# "halve P/I/D" ArduPilot prescribes for the oscillation in the log. So the
+# rate PIDs stay at firmware defaults. NOT YET FLOWN: unproven until a
+# props-off output check and a low hop.
+MOT_SPIN_MIN,0.15
+MOT_SPIN_MAX,0.40
+ATC_THR_MIX_MAX,0.5
+# Hover thrust on the CUT range. Estimate 0.17-0.23 from the log; 0.2 keeps the
+# ceiling under hover across that band. The firmware refines it in flight
+# (MOT_HOVER_LEARN=2 on this board).
 MOT_THST_HOVER,0.2
 # Stabilize throttle mix for a first flight (already the firmware default; set
 # to 0.5 after the first good flight, per the helper's closing note).
