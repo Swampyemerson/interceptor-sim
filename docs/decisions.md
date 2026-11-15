@@ -1809,8 +1809,9 @@ margin; I lowered the margin from 25 because the estimate became a measurement, 
 saying so because a margin changed after seeing the number deserves suspicion. A lower motor
 floor would restore it and still needs a props-off motor test.
 
-**Not established.** Whether the bounce is gone (no flight since). Why the flight ended in a
-tip-over: the log shows accelerometer clipping on a touch-down at 35 s, the height estimate
-then 2 m below the barometer, and at 38.5 s in Loiter three motors at about 1630 us against
-one at 1100. Consistent with the controller fighting the ground while its target was below
-it, not proven. Damage from that, and from the morning crash, is still unreported.
+**Not established.** Whether the bounce is gone (no flight since). How the flight ended: the
+log shows accelerometer clipping on a touch-down at 35 s, the height estimate then 2 m below
+the barometer, and at 38.5 s in Loiter one reading with three motors at about 1630 us against
+one at 1100 and roll at 40 degrees. I wrote this up as a tip-over; the builder, who watched
+it, says there was no roll-over, and one reading plus a 17 degree resting angle do not show
+one. Corrected the same evening. Damage from the morning crash is still unreported.

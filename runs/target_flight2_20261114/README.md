@@ -26,8 +26,11 @@ Only log 13 is a flight (39 s armed: Loiter, Stabilize, Loiter, Stabilize, Loite
   That is 1216 us, lower than the 1235 us estimated from the crash flight.
 - **Ending.** Accelerometer clipping (22 readings) at 35.0 s just after a switch to Stabilize
   at low stick, then the height estimate read 2 m below the barometer. At 38.5 s, back in
-  Loiter, three motors went to about 1630 us with one at 1100, roll reached 40 degrees, 17
-  more clipped readings, and it came to rest at 17 degrees. Disarmed at 40.3 s.
+  Loiter, one reading has three motors at about 1630 us with one at 1100 and roll at 40
+  degrees, with 17 more clipped readings; the drone rests at 17 degrees after the disarm at
+  40.3 s. I first called this a tip-over. **The builder, who watched it, says there was no
+  roll-over.** One 10 Hz reading and a resting angle do not show one; a firm landing on uneven
+  ground fits as well.
 - A failed switch to Auto is logged (no route loaded).
 
 ## Cause of the bounce
