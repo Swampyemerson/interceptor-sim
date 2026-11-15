@@ -1,0 +1,69 @@
+{
+ "data": "data/own_target/video_20261115T182243Z",
+ "conf": 0.25,
+ "iou": 0.3,
+ "positives": 484,
+ "negatives": 106,
+ "models": [
+  {
+   "model": "v8n-color-640.pt",
+   "imgsz": 640,
+   "gray": false,
+   "recall": 0.692,
+   "hits": 335,
+   "recall_by_long_side_px": {
+    "128_and_up": "48/65",
+    "32_to_64": "166/212",
+    "64_to_128": "121/207"
+   },
+   "extra_boxes_on_labelled_frames": 197,
+   "false_fire_frames": 67,
+   "false_fire_rate": 0.632
+  },
+  {
+   "model": "v8n-color-1280.pt",
+   "imgsz": 1280,
+   "gray": false,
+   "recall": 0.566,
+   "hits": 274,
+   "recall_by_long_side_px": {
+    "128_and_up": "47/65",
+    "32_to_64": "88/212",
+    "64_to_128": "139/207"
+   },
+   "extra_boxes_on_labelled_frames": 851,
+   "false_fire_frames": 106,
+   "false_fire_rate": 1.0
+  },
+  {
+   "model": "n-color.pt",
+   "imgsz": 640,
+   "gray": false,
+   "recall": 0.457,
+   "hits": 221,
+   "recall_by_long_side_px": {
+    "128_and_up": "45/65",
+    "32_to_64": "69/212",
+    "64_to_128": "107/207"
+   },
+   "extra_boxes_on_labelled_frames": 39,
+   "false_fire_frames": 5,
+   "false_fire_rate": 0.047
+  },
+  {
+   "model": "n-mono.pt",
+   "imgsz": 640,
+   "gray": true,
+   "recall": 0.382,
+   "hits": 185,
+   "recall_by_long_side_px": {
+    "128_and_up": "43/65",
+    "32_to_64": "42/212",
+    "64_to_128": "100/207"
+   },
+   "extra_boxes_on_labelled_frames": 138,
+   "false_fire_frames": 0,
+   "false_fire_rate": 0.0
+  }
+ ]
+}

@@ -596,3 +596,11 @@ The interceptor has a flight recorder again, on the Pi. The Pixhawk's card slot 
 **So what:** The rule that a kill needs logs from both aircraft can now be met, once a Pixhawk-to-Pi USB cable is fitted. Until then the Pi records over the serial cable and its logs have gaps. Not yet tested: a real arming (the video trigger has only seen a pretend signal), USB plugged into the Pi itself, and a log from an actual flight.
 
 *Evidence: runs/fc_log_stream_20261113/README.md; docs/fc_logging_without_sd.md; ADR-0137; tests/test_ulog_stream_recorder.py (13 tests)*
+
+## 2026-11-14 (overflowed from plain_log 2026-11-15)
+
+QGroundControl can now reach the Pixhawk over Wi-Fi through the Pi, so the Pixhawk's USB cable can stay in the Pi for logging. The Pi's flight recorder passes the Pixhawk's messages to the PC and the PC's back; the flight-log packets stay on the Pi. Bench results with a script standing in for QGroundControl, disarmed: over USB all 1,122 settings downloaded in 0.7 s while a 60 s log recorded complete; over Wi-Fi through the Pi (still on the serial cable) the Pixhawk was found in 0.25 s and the settings took 5.3 s.
+
+**So what:** No more swapping the USB cable between the PC and the Pi. The port has no password: anything on the same Wi-Fi can command the Pixhawk through it (GCS_PORT=0 turns it off). Not yet tested with QGroundControl itself.
+
+*Evidence: runs/fc_log_stream_20261113/gcs_bridge/; docs/fc_logging_without_sd.md; ADR-0137 addendum 2026-11-14*

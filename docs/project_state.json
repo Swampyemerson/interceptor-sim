@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-15",
-  "updated_by": "Target drone: flight seven's climb was the low-battery return home, read from its log (2026-11-15)",
+  "updated_by": "NN seeker: first frames of our own target through our own camera; existing detectors scored on them (2026-11-15)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -560,6 +560,12 @@
   "plain_log": [
     {
       "date": "2026-11-15",
+      "text": "First real pictures of our own target through our own camera. The Pi's camera sat on the ground and filmed the target's flight, and a new tool picked the drone out of the video by what moved against the empty-sky footage from before take-off: 484 frames with the drone boxed and 106 empty ones. I looked at 144 of the boxed frames and all 144 are the drone. The existing detectors, which have never seen this drone, were then scored on them with the prediction written first. The newer one found the drone in 69% of frames, as predicted, but also fired on 63% of the empty frames, nearly all on one paper lantern in the trees. Its larger-input version fired on every empty frame. The older ones are quiet and find the drone under half the time.",
+      "so_what": "No current detector is usable in a real place: the one that sees our drone also sees things that are not drones. Footage from the site is needed for both halves, and this session supplies the first of it. It cannot also be the exam: all of it is one flight on one morning at close range, with the drone always bigger than the hard case. The next step is a second filmed session on another day with the loop further away, kept aside as the test.",
+      "evidence": "runs/own_target_20261115/README.md + existing_detectors.json + summary.json; scripts/nn/ground_video_labels.py; tests/test_ground_video_labels.py"
+    },
+    {
+      "date": "2026-11-15",
       "text": "On its seventh flight the target drone began climbing by itself; the builder cut the motors and it fell from 5.8 m. The cause was written down as two candidates before the log was read, and the log settled it: the battery had been under 21.6 V for ten seconds, so the drone began its automatic return home. Away from home that starts with a climb toward 15 m and ignores the throttle stick. He pulled the throttle down, nothing happened, and he cut the motors three seconds in. The storage card was intact after all; the board had just not connected to it after the landing, and all three logs are copied. The flight lasted 8.3 minutes and included about 13 more automatic laps.",
       "so_what": "This was the drone doing what it was set up to do, not a control fault, but a setting nobody had explained to the pilot is a hazard of its own. Proposed, his choice: make low battery mean land in place for yard flying, put height-hold in the middle switch position so getting out of return-home does not pass through manual throttle, and fly on a 6 minute timer. The drone needs a look-over after the fall before it flies again.",
       "evidence": "runs/target_flight7_20261115/README.md (predictions and result); ADR-0138 addenda 17 and 18; log 3 copy on the PC (not in the repo)"
@@ -623,12 +629,6 @@
       "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. The flight controller turned out to be mounted backwards, like the interceptor's was; the board rotation is now set to 180 degrees and the attitude reading flipped as it should. All 66 settings read back after a reboot. The accelerometer is calibrated (QGroundControl's page stuck, so a small helper in the repo did it). Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it. Outdoors the GPS gave no fix; the cause was a stray strand of wire joining its two signal lines, so the board had only ever heard its own messages (including on 2026-10-13, when it was logged as detected). With the strand removed it has a 3D fix and 15 satellites.",
       "so_what": "Left before the target can arm: the compass check fails (reading is 168 against a limit of 100, taken next to the laptop), so recalibrate it away from metal; and the props-off motor test, where motor A must be front-right of the real nose. One cross-check is open: the compass calibration says the GPS module faces backwards, which is only right if its arrow points at the tail.",
       "evidence": "ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md; runs/target_bench_20261114/"
-    },
-    {
-      "date": "2026-11-14",
-      "text": "QGroundControl can now reach the Pixhawk over Wi-Fi through the Pi, so the Pixhawk's USB cable can stay in the Pi for logging. The Pi's flight recorder passes the Pixhawk's messages to the PC and the PC's back; the flight-log packets stay on the Pi. Bench results with a script standing in for QGroundControl, disarmed: over USB all 1,122 settings downloaded in 0.7 s while a 60 s log recorded complete; over Wi-Fi through the Pi (still on the serial cable) the Pixhawk was found in 0.25 s and the settings took 5.3 s.",
-      "so_what": "No more swapping the USB cable between the PC and the Pi. The port has no password: anything on the same Wi-Fi can command the Pixhawk through it (GCS_PORT=0 turns it off). Not yet tested with QGroundControl itself.",
-      "evidence": "runs/fc_log_stream_20261113/gcs_bridge/; docs/fc_logging_without_sd.md; ADR-0137 addendum 2026-11-14"
     }
   ],
   "narrative": {

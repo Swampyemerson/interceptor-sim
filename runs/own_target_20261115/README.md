@@ -70,3 +70,38 @@ held-out own-target set for them. Models: `v8n-color-640.pt`, `v8n-color-1280.pt
 - **False fires** on the 106 empty frames (string lights, lantern, streamers, trees) are
   reported per model; the July model's bar on public desert frames was 4.9%.
 - Whatever the number, it is an upper bound (see Limits) and one session.
+
+---
+
+# RESULT of the pre-registered check (`existing_detectors.json`, 484 labelled + 106 empty frames, conf 0.25, IoU 0.3)
+
+| Model | Input | Recall | 32-64 px | 64-128 px | 128 px up | Extra boxes on labelled frames | Empty frames fired on |
+|---|---|---|---|---|---|---|---|
+| `v8n-color-640` | 640 | **0.692** (335/484) | 166/212 | 121/207 | 48/65 | 197 | **67/106 (63%)** |
+| `v8n-color-1280` | 1280 | 0.566 (274/484) | 88/212 | 139/207 | 47/65 | 851 | **106/106 (100%)** |
+| `n-color` | 640 | 0.457 (221/484) | 69/212 | 107/207 | 45/65 | 39 | 5/106 (4.7%) |
+| `n-mono` (grey) | 640 | 0.382 (185/484) | 42/212 | 100/207 | 43/65 | 138 | 0/106 (0%) |
+
+**Against what was written first.**
+- Recall 0.5 to 0.75 for the v8n colour model at 640: **held** (0.692).
+- "The 1280 model should be higher": **wrong** (0.566, lower in the 32-64 px bin especially).
+- The 0.6 line was written for recall only. On recall the public-data model does carry over
+  to our target at this range. I set no pass line for false fires, and that is where it
+  fails: 63% and 100% of empty frames against the 4.9% the July model scored on public frames.
+
+**What the false fires are** (every box on the empty frames overlaid): one fixed object per
+model. `v8n-color-640`: 66 of 68 boxes on a small pale paper lantern hanging in the trees
+(confidence 0.28 median, 0.40 max). `v8n-color-1280`: 115 of 145 on a metal bracket on the
+pole at the left edge (0.57 median, 0.68 max). So "63%" is one object seen in 63% of frames,
+not scattered noise; the same object would steal a handoff streak just the same.
+
+**Reading.** The newer v8n weights see our drone more often and also see drones that are not
+there; the older n weights are quiet and miss more than half. Neither is usable as it stands.
+Site footage is needed for BOTH halves: positives of this target and negatives of this place.
+
+**Not shown by this.** Anything under 32 px; anything from a moving camera; whether a
+fine-tune fixes it. A fine-tune on this session cannot be tested on this session.
+
+**Next, proposed.** A second ground-camera session on another day, with the loop further out
+so the target is under 32 px for part of it, as the held-out test. Then fine-tune on this
+session and score on that one, criteria written first.
