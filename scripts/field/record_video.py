@@ -12,6 +12,9 @@ The video is synced to the card every second, so a power cut costs about the las
 The flight recorder service starts this at arming (scripts/pi_setup/flight-recorder.service).
 Measured 2026-11-13 on the Pi 5 + AR0234: 1920x1200 at 59.5 fps and 1280x720 at 119 fps with
 no dropped frames (runs/hailo_day1_20261113/README.md).
+Outdoors 2026-11-15, full sun, --flip --exposure-us 150: 59.5 fps, no gaps, about 7.8 MB per second of
+video (58 MB for 7.4 s), so budget about 470 MB per minute. The camera sits upside down on the airframe
+as of that date: pass --flip.
 """
 import argparse
 import json
@@ -25,7 +28,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--seconds", type=float, default=0, help="0 = until Ctrl-C")
     ap.add_argument("--size", default="1920x1200"); ap.add_argument("--fps", type=float, default=60)
-    ap.add_argument("--exposure-us", type=int, default=0, help="0 = auto exposure; outdoors use 1000 or less to freeze motion")
+    ap.add_argument("--exposure-us", type=int, default=0, help="0 = auto exposure (in full sun it chose about 150 us, measured 2026-11-15); a fixed 1000 us clipped 56%% of a sky frame in that light, so outdoors fix it near 150 or leave it on auto")
     ap.add_argument("--gain", type=float, default=0, help="analogue gain with a fixed exposure; 0 = leave to the camera")
     ap.add_argument("--bitrate", type=int, default=30_000_000); ap.add_argument("--flip", action="store_true", help="rotate 180 deg (camera mounted upside down)")
     ap.add_argument("--out-dir", default="sessions"); ap.add_argument("--note", default="")
