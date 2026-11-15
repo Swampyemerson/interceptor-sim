@@ -20,7 +20,7 @@
     "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause found in its log, not yet fixed.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
-      "You: target: draw a small slow course in QGroundControl, fly it; wait 5 s after disarm to unplug",
+      "You: target: photo of the torn USB area; check 5V-GND not shorted before any battery",
       "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
     ],
     "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -560,6 +560,12 @@
   "plain_log": [
     {
       "date": "2026-11-14",
+      "text": "The USB-C connector came off the target drone's flight controller. USB was the only way to talk to that board from a computer: none of its other serial ports is set up for a ground-station link, and setting one up needs a link. The drone still flies as it is configured, and its logs can be read by pulling the storage card. What is blocked is anything that needs a connection: changing settings, and uploading the slow pre-programmed course planned next.",
+      "so_what": "Proposed fix: solder a USB cable to the board's four USB points, then set up a second way in on a spare serial port so this cannot strand the board again. If the pads are gone, the board is replaced and the settings file reloaded. The board is frozen with two temporary settings on it: route speed 3 m/s and fast logging.",
+      "evidence": "builder report 2026-11-14 night; ADR-0138 addendum 13; configs/target_kakute/dumps/20261114_after.tsv (SERIALn_PROTOCOL)"
+    },
+    {
+      "date": "2026-11-14",
       "text": "The builder recalibrated the target drone's compass outdoors and flew a fifth time; he reports it improved again. That flight's log is empty on the card, so the three predictions written before it could not be checked against data. He now wants to fly a small pre-programmed course slowly. The board's route speed has been lowered from 10 m/s to 3 m/s for that first automatic flight.",
       "so_what": "The 3 m/s is a temporary setting on the board only. The project's settings file still says 10 m/s, which is the speed the target exists to fly, and loading that file puts 10 back. The empty log means the storage card is suspect: wait a few seconds after disarming before unplugging the battery.",
       "evidence": "ADR-0138 addendum 12; board read-back WP_SPD 3.0; log list (log 21, 0 bytes)"
@@ -623,12 +629,6 @@
       "text": "First real drone detectors on the Hailo chip, scored on all 4,175 held-out images. The July model (YOLO11n) loses a quarter of its recall in 8-bit conversion (0.50 to 0.37), with or without the GPU doing the conversion. A yolov8n retrain on the same data converts almost cleanly: 0.53 before, 0.50 on the chip, at 319 frames/s in a single pass. It misses the pre-registered 5-point limit in one size bin only (targets of 64 px and up, down 8 points). Screen bench through the real camera, older build: 67 to 82% of frames hit at 26 to 49 px, 35 to 40% at 11 to 20 px. AOT data fetched: all 3,662 drone frames plus 8,000 negatives (28.6 GB). A 1280-input retrain is running.",
       "so_what": "Architecture mattered more than conversion settings: the chip-friendly yolov8n now gives on the chip what the old model gave on a laptop, three times faster. What still limits it is the detector itself, which finds about half the test targets. The levers left are input size (the 1280 run), more air-to-air data, and above all footage of our own target through our own camera.",
       "evidence": "runs/hailo_drone_20261113/README.md (pre-registrations, results, screen bench); scripts/nn/fetch_aot_frames.py; data/aot/yolo_crops/stats.json; logs/nn_tier/train_v8n_color.log"
-    },
-    {
-      "date": "2026-11-13",
-      "text": "Replacement Pi 5 brought up on the bench with the AI HAT+ and the AR0234 camera. Camera: works at 1920x1200 and 60 fps after installing Arducam's camera library; an AprilTag on a laptop screen decoded in 90 of 90 frames, also at 1 ms exposure. Hailo-8: the link was running at half speed; at full speed a stock nano detector does 431 frames/s on the chip, and the live camera-to-detection loop runs at the camera's 60 fps with 29 ms from frame start to result. Pixhawk over USB: settings unchanged. Not working: the Pixhawk link (later the same day traced to two swapped signal wires).",
-      "so_what": "Compute is no longer the limit for the camera-only seeker: a nano detector fits with a wide margin even at 1280x800 input (42 frames/s live), which doubles the pixels on a distant target over 640. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi.",
-      "evidence": "runs/hailo_day1_20261113/README.md (benchmarks, live tests, camera and link probes); runs/dfc_native_res_20261113/README.md; configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv"
     }
   ],
   "narrative": {

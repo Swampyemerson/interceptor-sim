@@ -1893,3 +1893,26 @@ automatic flight a 10 m/s one inside an 80 m fence. `target.param` still says 10
 still requires 9 or more, because 10 m/s is the aircraft's job. **Uploading `target.param`
 restores 10**: that is the way back, and also the trap. Restore deliberately once a slow
 course has flown clean.
+
+### ADR-0138 addendum 13 (2026-11-14 night): the target FC's USB-C connector came off the board
+
+**Report (builder).** The USB-C port ripped off the Kakute; he says it had been handled gently.
+Not inspected by me; no photo yet. Possible contributor, not shown: the morning's battery-first
+impact (addendum 6) loading the connector's solder joints.
+
+**What this removes.** USB was the only ground-station link. From the last settings dump
+(`configs/target_kakute/dumps/20261114_after.tsv`) no externally reachable serial port speaks
+MAVLink: SERIAL1 (T1/R1) is protocol 33, SERIAL3 and SERIAL4 are GPS, SERIAL6 is the receiver,
+SERIAL7 is ESC telemetry, and SERIAL2 (the one set to MAVLink) is not brought out on this
+board per ArduPilot's KakuteH7 page. Scripting is off (`SCR_ENABLE` 0). So: no settings
+changes, no route upload, no log download over the wire, until a link exists.
+
+**What it leaves.** The aircraft flies as configured. Logs come off the microSD card directly.
+
+**State frozen on the board as of this moment:** addendum 11's gains and trims, `WP_SPD` 3
+(the temporary override of addendum 12), `LOG_BITMASK` 180223 (fast logging). The slow Auto
+course is blocked: it needs an uploaded route.
+
+**Way back, proposed to the builder.** Solder a USB cable to the 5V / GND / D+ / D- points;
+then, first thing on reconnecting, set SERIAL1 to MAVLink so a USB-serial adapter on T1/R1 is
+a second way in. Fallback: replace the FC and reload `target.param` (calibrations redone).

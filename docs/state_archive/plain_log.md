@@ -564,3 +564,11 @@ Onyx order prepared for the four pod parts, revision 6 files. Fibre decision: co
 **So what:** Fibre only stiffens flat layers, so it pays in the dock's tongue and nowhere else on this pod. The order goes out with two known risks: the new front pins have not been print-checked, and the pod base still needs supports inside its rear cup and cable windows. Both can be fixed by hand on the printed part.
 
 *Evidence: hardware/avionics_pod/PRINT_ORDER.md (The Onyx order); docs/decisions.md ADR-0136 addendum 2026-11-13*
+
+## 2026-11-13 (overflowed from plain_log 2026-11-14)
+
+Replacement Pi 5 brought up on the bench with the AI HAT+ and the AR0234 camera. Camera: works at 1920x1200 and 60 fps after installing Arducam's camera library; an AprilTag on a laptop screen decoded in 90 of 90 frames, also at 1 ms exposure. Hailo-8: the link was running at half speed; at full speed a stock nano detector does 431 frames/s on the chip, and the live camera-to-detection loop runs at the camera's 60 fps with 29 ms from frame start to result. Pixhawk over USB: settings unchanged. Not working: the Pixhawk link (later the same day traced to two swapped signal wires).
+
+**So what:** Compute is no longer the limit for the camera-only seeker: a nano detector fits with a wide margin even at 1280x800 input (42 frames/s live), which doubles the pixels on a distant target over 640. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi.
+
+*Evidence: runs/hailo_day1_20261113/README.md (benchmarks, live tests, camera and link probes); runs/dfc_native_res_20261113/README.md; configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv*
