@@ -580,3 +580,11 @@ First real drone detectors on the Hailo chip, scored on all 4,175 held-out image
 **So what:** Architecture mattered more than conversion settings: the chip-friendly yolov8n now gives on the chip what the old model gave on a laptop, three times faster. What still limits it is the detector itself, which finds about half the test targets. The levers left are input size (the 1280 run), more air-to-air data, and above all footage of our own target through our own camera.
 
 *Evidence: runs/hailo_drone_20261113/README.md (pre-registrations, results, screen bench); scripts/nn/fetch_aot_frames.py; data/aot/yolo_crops/stats.json; logs/nn_tier/train_v8n_color.log*
+
+## 2026-11-13 (overflowed from plain_log 2026-11-15)
+
+Pi-to-Pixhawk link is up. The cable's two signal wires were swapped: with the Pi's transmit pin switched to an input, the Pixhawk's data stream showed up on it. The builder swapped the wires and the Pi now reads the Pixhawk's firmware version (PX4 1.16), mode and health over the 3-pin serial socket at 921600. This corrects an earlier statement the same day that a swap was ruled out: that test left the Pi driving its transmit pin, which hid the incoming signal. The builder had suspected a swap.
+
+**So what:** The new Pi can now command and log the aircraft again, with the AI HAT+ fitted. Scripts default to the new port (/dev/ttyAMA10). Not yet re-run on this Pi: the props-off offboard bench gate and the hover recorder. Lesson for the instrument: a pin that is being driven cannot be used to listen.
+
+*Evidence: runs/link_ttyAMA10_20261113/fc_link_check.json; runs/hailo_day1_20261113/README.md (Pixhawk link, corrected)*

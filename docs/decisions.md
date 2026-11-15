@@ -1957,3 +1957,34 @@ fly at once and left no log of a first Auto flight.
 **Also.** `WP_SPD` on the board read 10 m/s, not addendum 12's 3; cause not established; set
 back to 3 and read back. His uploaded mission carries a 5 m/s speed change after each
 waypoint, which overrides `WP_SPD`; told him to untick Flight Speed and upload again.
+
+### ADR-0138 addendum 16 (2026-11-15): sixth flight; first automatic course flown, flight-four predictions graded
+
+**Flight.** Log 2 on the reformatted card, 318 s airborne, no `ERR` records. The aircraft
+armed and logged, which closes addendum 15's open item. Evidence:
+`runs/target_flight6_20261115/`.
+
+**Automatic course.** 11 laps of the builder's five-waypoint loop, 12.7 to 13.0 s each.
+Horizontal error 0.26 m rms against the controller's target, height 0.06 m rms, estimator
+checks at most 0.33 of their limits. Peak speed 1.75 m/s: the legs are about 3 m, so neither
+the board's 3 m/s nor the mission's 5 m/s items were reached. The speed setting is untested.
+
+**Flight-four predictions.** Pitch rate 1.43 deg/s rms in a still hover with the 23 Hz peak
+gone to 0.13 deg/s: held. Height within 0.084 m from 25 s after arming: held. Hover attitude
+roll -0.75, pitch +1.09 degrees: roll held, pitch missed the 1 degree bar by 0.09, and the
+trim sign is right. No gain or trim change made on this evidence.
+
+**Two full-throttle climbs in Stabilize (the pilot's).** 18 m/s, 24 m, about 5 g, battery to
+18.3 V (3.05 V per cell). Findings: mid-stick in Stabilize is 1.6 times hover thrust because
+`MOT_THST_HOVER` cannot go below 0.125 and the airframe hovers at 0.077; at zero throttle the
+aircraft rolled to 50 degrees while falling; the compass check went to 4.5 times its limit
+under that current.
+
+**Decisions.** `WP_SPD` stays 3 until a course with legs long enough to reach it has flown.
+Speed steps toward the 9 m/s the target owes the project go 3, 5, 7, 10 on legs of 40 m or
+more (11.6 m to reach 9 m/s at `WP_ACC` 3.5, the same to stop), which is the field, not the
+yard. Fast logging stays on for the filter work.
+
+**Open.** Current sensor over-reads (1682 mAh counted from a 1500 mAh pack resting at 3.74 V
+per cell); calibrate from the charger's mAh. Compass against motor current before fast
+courses. Whether to keep control authority at zero throttle is the builder's call.

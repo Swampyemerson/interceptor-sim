@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->710e6ba<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->cd4543b<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-15",
- "updated_by": "Target drone: card that blocked arming formatted; logging and pre-arm checks pass (2026-11-15)",
+ "updated_by": "Target drone: first automatic course flown, 11 laps, no errors (2026-11-15)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -914,13 +914,13 @@
  },
  "now": {
   "as_of": "2026-11-15",
-  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log and video per flight. Target: five flights on 2026-11-14 after a first-flight crash, height now holds. On 2026-11-15 it refused to arm because its storage card would not start a log; the card was reformatted and logs again.",
-  "finding": "The ground station showed the target ready while arming was refused: the board opens its log file only at the moment of arming, so a bad card hides until then. Why the card stopped is not known. Still open: an intermittent USB port and a first slow automatic course.",
+  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log and video per flight. Target: flew its first automatic course on 2026-11-15, 11 laps of a small loop with no errors, after its storage card was reformatted so it could arm.",
+  "finding": "The target holds a drawn course to about 0.3 m and height to 0.06 m at walking pace. Speed is untested: the yard loop is too short to exceed 1.75 m/s, and the target owes the project 9 m/s. Its thrust is at least 5 times its weight.",
   "next": [
-   "You: target: untick Flight Speed on every waypoint, upload again, arm in Loiter, then Auto",
+   "You: target: draw a course with legs of 40 m or more at the field; speeds go 3, 5, 7, 10 m/s",
    "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
-  "evidence": "ADR-0138 addendum 15 - runs/target_sdcard_20261115/README.md - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum"
+  "evidence": "ADR-0138 addenda 15 and 16 - runs/target_flight6_20261115/README.md - runs/target_sdcard_20261115/README.md"
  },
  "assumptions": [
   {
@@ -1457,6 +1457,12 @@
  "plain_log": [
   {
    "date": "2026-11-15",
+   "text": "The target drone flew its first automatic course: five waypoints drawn in the ground-station app, repeated 11 times, about 13 seconds a lap, with no errors in the log. It stayed within 0.26 m of where its controller wanted it and within 0.06 m in height. Top speed was only 1.75 m/s because the loop's sides are about 3 m long. Three predictions written before an earlier flight were checked: pitch wobble and height hold passed, and the level trim passed in roll and missed in pitch by a tenth of a degree. The builder also did two full-throttle climbs by hand: 18 m/s upward, 24 m high, about 5 g.",
+   "so_what": "The target can fly a pre-drawn route on its own, which is its job in an intercept test. What is not shown is speed: it must fly 9 m/s, and that needs sides of 40 m or more, so the next step is a bigger course at the field, stepping 3, 5, 7, 10 m/s. Three things from the climbs to settle first: the compass is disturbed at high motor current, the drone tumbles when throttle is cut to zero in manual mode, and the current sensor reads roughly double.",
+   "evidence": "runs/target_flight6_20261115/README.md; ADR-0138 addendum 16; log copy on the PC (not in the repo)"
+  },
+  {
+   "date": "2026-11-15",
    "text": "The target drone would not arm although the ground station showed it ready. Listening while the builder tried three times showed the same refusal each time: the board could not start its flight log. Battery, satellites and radio were all good. The board opens its log file only at the moment of arming, which is why nothing looked wrong beforehand. Asking the board to start a log without arming reproduced it: no new file, and the empty log from flight five was still empty. The six logs not yet on the PC were copied off, the storage card was reformatted over USB, and the same test then wrote an 8 MB log. The pre-arm checks pass.",
    "so_what": "The drone should arm again; the builder confirms that, since no tool arms it. Why the card stopped is not known: power removed while a log was open fits, and so does a failing card, so if the message returns the card gets replaced. The route speed on the board had gone back to 10 m/s and is set to 3 again, and the course he uploaded carries its own 5 m/s setting that needs unticking before the first automatic flight.",
    "evidence": "runs/target_sdcard_20261115/README.md + arm_watch_20261115.txt; ADR-0138 addendum 15; board read-back WP_SPD 3"
@@ -1520,12 +1526,6 @@
    "text": "The interceptor has a flight recorder again, on the Pi. The Pixhawk's card slot is dead, so PX4 now sends its flight log down a cable and a Pi service writes it to the Pi's card, one file per flight. The same service starts the camera recording when the Pixhawk reports armed and stops it 5 s after disarm. Bench results, disarmed: over a USB cable the log is complete (40 KB/s, one 4-packet gap at start-up, none after) and the guidance link is untouched; over the existing serial cable about a third of the log is lost and the guidance link's attitude stream halves. The October failure (streaming accepted once, then refused) is explained and reproduced: the first client quit without sending stop. The offboard bench gate was re-run on the new Pi and passed.",
    "so_what": "The rule that a kill needs logs from both aircraft can now be met, once a Pixhawk-to-Pi USB cable is fitted. Until then the Pi records over the serial cable and its logs have gaps. Not yet tested: a real arming (the video trigger has only seen a pretend signal), USB plugged into the Pi itself, and a log from an actual flight.",
    "evidence": "runs/fc_log_stream_20261113/README.md; docs/fc_logging_without_sd.md; ADR-0137; tests/test_ulog_stream_recorder.py (13 tests)"
-  },
-  {
-   "date": "2026-11-13",
-   "text": "Pi-to-Pixhawk link is up. The cable's two signal wires were swapped: with the Pi's transmit pin switched to an input, the Pixhawk's data stream showed up on it. The builder swapped the wires and the Pi now reads the Pixhawk's firmware version (PX4 1.16), mode and health over the 3-pin serial socket at 921600. This corrects an earlier statement the same day that a swap was ruled out: that test left the Pi driving its transmit pin, which hid the incoming signal. The builder had suspected a swap.",
-   "so_what": "The new Pi can now command and log the aircraft again, with the AI HAT+ fitted. Scripts default to the new port (/dev/ttyAMA10). Not yet re-run on this Pi: the props-off offboard bench gate and the hover recorder. Lesson for the instrument: a pin that is being driven cannot be used to listen.",
-   "evidence": "runs/link_ttyAMA10_20261113/fc_link_check.json; runs/hailo_day1_20261113/README.md (Pixhawk link, corrected)"
   }
  ],
  "narrative": {
