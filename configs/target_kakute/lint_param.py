@@ -109,13 +109,17 @@ REQUIRED = [
     ("FLTMODE6",      lambda v: v == 5,             "switch UP = Loiter (GPS position hold)"),
 ]
 
-# Hover point of THIS airframe, read from its first-flight log (2026-11-14,
-# runs/target_bench_20261114/README.md): thrust equals weight near 10,800 rpm,
-# which the motors reach at about 1235 us. Derived from a 3.8 s flight that
-# never hovered, so the margin is wide. Re-measure after any change of motors,
-# props, battery cell count or weight.
-HOVER_US_MEASURED = 1235
-HOVER_US_MARGIN = 25
+# Hover point of THIS airframe, MEASURED in the 2026-11-14 evening flight
+# (runs/target_flight2_20261114/README.md): 96 manual-mode readings put 1 g at
+# 0.08 thrust, which on floor 0.10 / top 0.95 / expo 0.49 is 1216 us. (The
+# first estimate, from the 3.8 s crash flight, was 1235.) Re-measure after any
+# change of motors, props, battery cell count or weight.
+# The margin was 25 when the hover point was an estimate; against the measured
+# point the present ceiling (1194) clears by 22, so the margin is 20. That is
+# thin. A lower motor floor restores it and needs a props-off motor test.
+HOVER_US_MEASURED = 1216
+HOVER_US_MARGIN = 20
+HOVER_THRUST_MEASURED = 0.08
 
 
 def thrust_ceiling_us(v: dict) -> float:
@@ -148,8 +152,14 @@ INVARIANTS = [
     # The switch's centre was MEASURED at 1499, 9 us above the band 3/4 edge
     # (1490/1491), so both bands must carry the middle mode, and neither may be
     # Auto (a drifting centre must not start the mission).
-    ("FLTMODE3 == FLTMODE4 == FLTMODE5 == AltHold (the switch centre sits on the band 3/4 edge)",
-     lambda v: v.get("FLTMODE3") == v.get("FLTMODE4") == v.get("FLTMODE5") == 2),
+    ("FLTMODE3 == FLTMODE4 == FLTMODE5 == Stabilize (the switch centre sits on the band 3/4 edge)",
+     lambda v: v.get("FLTMODE3") == v.get("FLTMODE4") == v.get("FLTMODE5") == 0),
+    # ArduPilot's rule (initial-tuning-flight, Test AltHold): P = 0.1 x hover
+    # thrust, I = 0.2 x. The firmware defaults are 6x that for this airframe
+    # and made the height loop pulse the motors (2026-11-14 evening flight).
+    ("height controller gains scaled to the measured hover thrust (PSC_D_ACC_P <= 0.1 x %.2f x 1.6, I <= 0.2 x %.2f x 1.6)"
+     % (HOVER_THRUST_MEASURED, HOVER_THRUST_MEASURED),
+     lambda v: v["PSC_D_ACC_P"] <= 0.1 * HOVER_THRUST_MEASURED * 1.6 and v["PSC_D_ACC_I"] <= 0.2 * HOVER_THRUST_MEASURED * 1.6),
     ("Auto only on FLTMODE1-2 (never reachable from a drifting centre)",
      lambda v: all(v.get(f"FLTMODE{i}") != 3 for i in range(3, 7))),
     # 2026-11-14 crash (ADR-0138 addenda 6 and 7): the mixer may hold average

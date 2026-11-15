@@ -1,0 +1,16 @@
+stabilize near-level samples: 96
+  ThO 0.00: n=  7 mean accel 0.18 g
+  ThO 0.02: n= 10 mean accel 0.47 g
+  ThO 0.04: n= 25 mean accel 0.69 g
+  ThO 0.06: n= 16 mean accel 0.86 g
+  ThO 0.08: n= 14 mean accel 1.04 g
+  ThO 0.10: n=  6 mean accel 1.37 g
+  ThO 0.12: n= 11 mean accel 1.38 g
+  ThO 0.14: n=  1 mean accel 1.52 g
+  ThO 0.16: n=  1 mean accel 1.50 g
+  ThO 0.18: n=  3 mean accel 1.94 g
+  ThO 0.24: n=  1 mean accel 2.58 g
+  ThO 0.38: n=  1 mean accel 2.86 g
+fit accel_g = 0.33 + 8.4 x ThO  -> 1 g at ThO = 0.079
+Loiter IMU log rate 25.0 Hz, accZ up-crossings 39 in 7.0s -> 5.6 Hz apparent; accZ min 0.26 max 1.92 g
+ESC0 rpm in that window: min 6614 max 15655

@@ -192,6 +192,16 @@ ATC_RAT_RLL_D,0.0018
 ATC_RAT_PIT_P,0.0675
 ATC_RAT_PIT_I,0.0675
 ATC_RAT_PIT_D,0.0018
+# HEIGHT CONTROLLER gains scaled to hover thrust (ADR-0138 addendum 9). The
+# firmware defaults (0.05 / 0.1) suit a drone that hovers at half throttle.
+# ArduPilot's rule: PSC_D_ACC_P = 0.1 x hover thrust, PSC_D_ACC_I = 0.2 x.
+# src: https://ardupilot.org/copter/docs/initial-tuning-flight.html (Test AltHold)
+# Hover thrust MEASURED in the 2026-11-14 evening flight: 0.08 (96 manual-mode
+# readings, vertical acceleration against thrust). On the defaults the height
+# loop was about 6x too strong and pulsed the motors between idle and 1400 us
+# five or more times a second in Loiter.
+PSC_D_ACC_P,0.008
+PSC_D_ACC_I,0.016
 # Stabilize throttle mix for a first flight (already the firmware default; set
 # to 0.5 after the first good flight, per the helper's closing note).
 ATC_THR_MIX_MAN,0.1
@@ -342,29 +352,28 @@ FLTMODE_CH,6
 #   switch UP     = Loiter (5)   GPS position hold, ArduPilot's equivalent of
 #                                PX4 Position. Same thumb position as Position
 #                                on the interceptor.
-#   switch MIDDLE = AltHold (2)  holds height, pilot flies level; no GPS
-#                                needed. Same position as Altitude on the
-#                                interceptor.
+#   switch MIDDLE = Stabilize (0) plain manual throttle. The builder put
+#                                Stabilize here himself for the 2026-11-14
+#                                evening flights (it had been AltHold).
 #   switch DOWN   = Auto (3)     flies the mission loaded from QGroundControl.
 #                                (The interceptor has Stabilized here.)
-# Auto sits at an END of the travel, so going Loiter <-> AltHold never passes
-# through it, and one click up from Auto is AltHold. ArduPilot will not ARM
+# Auto sits at an END of the travel, so going Loiter <-> Stabilize never passes
+# through it, and one click up from Auto is Stabilize. ArduPilot will not ARM
 # in Auto with this parameter set (AUTO_OPTIONS=0; mode_auto.cpp
 # allows_arming at Copter-4.7.0), so the mission can only be started in the air.
-# There is NO Stabilize position. ArduPilot's first-flight page says to fly
-# first in Stabilize and not to take off in AltHold until the height
-# controller has been tested: the builder's call, flagged to him 2026-11-14.
 # MEASURED on the board 2026-11-14: the switch reads 987 down and 2011 up, and
 # its centre is 1499 -- 9 microseconds above the edge between mode bands 3 and
 # 4 (bands change at 1231 / 1361 / 1491 / 1621 / 1750, RC_Channel.cpp at
 # Copter-4.7.0). So bands 3, 4 and 5 ALL carry the middle mode: a centre that
-# drifts either way still reads AltHold. lint_param.py enforces it.
+# drifts either way still reads Stabilize. lint_param.py enforces it. (He set
+# only band 4 in QGroundControl; bands 3 and 5 follow so that a centre reading
+# below 1491 cannot land in AltHold by surprise.)
 # src: https://ardupilot.org/copter/docs/flight-modes.html
 FLTMODE1,3
 FLTMODE2,3
-FLTMODE3,2
-FLTMODE4,2
-FLTMODE5,2
+FLTMODE3,0
+FLTMODE4,0
+FLTMODE5,0
 FLTMODE6,5
 # RC channel 5 (ELRS AUX1, the 2-pos switch) = ARM / DISARM (builder call
 # 2026-11-14: "the position it's in now should be unarmed"; it read 999, DOWN).

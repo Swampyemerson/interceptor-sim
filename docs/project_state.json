@@ -20,7 +20,7 @@
     "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause found in its log, not yet fixed.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
-      "You: target: check for damage; then props-off thrust check (I open the window) before any flight",
+      "You: target: check for damage, then a low hop: does Position mode still bounce? Tell me",
       "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
     ],
     "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -560,6 +560,12 @@
   "plain_log": [
     {
       "date": "2026-11-14",
+      "text": "The target drone flew again in the evening and the runaway climb did not come back. Roll and pitch were calm on the halved gains. A new fault showed in Position mode: the drone bounced up and down. The log shows the height controller pulsing the motors between idle and about 1400 several times a second. Its gains were still the firmware defaults, sized for a drone that hovers at half throttle; this one hovers at 8% (measured in this flight), so they were about 6 times too strong. ArduPilot's first-flight page says to scale them to the hover thrust, and that step had been skipped. They are now scaled and written to the board. The flight ended with a tip-over on the ground.",
+      "so_what": "Not yet flown with the new height gains. Next is a low hop to see whether Position mode holds height. In Position mode the stick in the middle holds height; below about 40% it descends. The measured hover point leaves the safety margin against the climb thinner than computed (the motors' ceiling is about 0.9 times the weight, not 0.7).",
+      "evidence": "runs/target_flight2_20261114/README.md + height_loop_analysis.txt + hover_thrust_fit.txt; ADR-0138 addendum 9; configs/target_kakute/target.param"
+    },
+    {
+      "date": "2026-11-14",
       "text": "The fix for the target drone's runaway climb is on its board but not yet proven. The firmware may raise the motors to keep roll and pitch control even with the throttle stick at the bottom, up to a ceiling it will not let anyone set lower. What that ceiling means in motor signal depends on the motors' floor, so the floor was lowered from 15% to 10% (the logs show the motors running steadily there). Computed from the crash log, the ceiling drops from about 1.4 times the weight to about 0.7 times. Full top-end power is kept, at the builder's request; a first version that cut the motors' top instead was withdrawn the same day. The roll and pitch gains were halved, the documented response to the wobble that started it.",
       "so_what": "Still no flight: a props-off bench check (the board fights you with the stick at the bottom; the motor average must stay under the hover point) comes first, then a low hop. The settings checker now rejects any file whose ceiling is above hover.",
       "evidence": "ADR-0138 addenda 7 and 8; configs/target_kakute/target.param + lint_param.py; runs/target_bench_20261114/README.md; scripts/bench/ap_thrust_ceiling_check.py"
@@ -623,12 +629,6 @@
       "text": "PLA fit-check prints of the four pod parts arrived. The builder reports the dock's screw holes line up with the drone's top plate and the front hook spacing looks right. The parts came back with support material in many places, including the pod's side cable windows. The rear latch has not been tried yet.",
       "so_what": "The hole pattern from the caliper session holds on a printed part. Still to check before ordering Onyx: the pod latched and screwed down at the rear, both boards seated, the camera plate between its cheeks, and where the wires come up. The Onyx request must say where supports are wanted (camera plate, pod base cable windows) and nowhere else.",
       "evidence": "builder report in session 2026-11-13 (no photo or measurement recorded); hardware/avionics_pod/PRINT_ORDER.md; hardware/avionics_pod/README.md (How the pod latches)"
-    },
-    {
-      "date": "2026-11-11",
-      "text": "Avionics pod folder cleaned to the current design only. Twelve superseded files are deleted (the plain dock, its template and the two lid-cradle camera parts as STL and STEP, two old assemblies, two old pictures) and the CAD script no longer writes them. The print files are now saved the way they sit on the printer bed. Two orientation notes in the print plan were wrong and are corrected: the lid prints as drawn (not upside down), and the camera plate's file had been saved tilted in flight position. Plan change: all four flight parts are printed in cheap PLA for a fit check before the Onyx order.",
-      "so_what": "The builder was one click from sending a lookalike file to the print shop. A new standing rule in the operating notes says a fabrication folder holds only current parts, and a test now fails if an old file reappears. The camera plate needs supports when printed; the other parts do not.",
-      "evidence": "hardware/avionics_pod/README.md (Files in this folder); hardware/avionics_pod/PRINT_ORDER.md; .claude/ops.md (no superseded fabrication files); tests/test_avionics_pod_analysis.py"
     }
   ],
   "narrative": {

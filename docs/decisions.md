@@ -1774,3 +1774,43 @@ ceiling at 1150 us, about 0.5x weight. It needs a props-off motor test showing s
 crash settings (checked in `selftest.sh`). Written with `upload_params.py`: 9 changed, read
 back 76 of 76, persisted across a restart. The pre-registered props-off check from addendum 7
 stands unchanged (PASS below 1235 us; prediction now 1190 to 1215).
+
+### ADR-0138 addendum 9 (2026-11-14 evening): second flight; climb gone, height loop oscillates; gains scaled to hover
+
+**What happened.** The builder flew the target (log 13, 39 s armed) on addendum 8's settings,
+having put Stabilize on the middle switch position himself. His report: no runaway climb,
+but Loiter "had trouble with altitude and did this weird bounce up and down".
+
+**Read from the log** (`runs/target_flight2_20261114/`). Roll/pitch rate error 3.4 and 2.9
+deg/s in Loiter (27 and 24 in the crash): the halved gains hold. In Loiter the height
+controller's throttle demand reverses on every log sample and the motors pulse between 1100
+and about 1400 us; vertical acceleration 0.3 to 1.9 g. Hover thrust measured from 96
+Stabilize readings: 0.08 (1216 us), not the 0.093 / 1235 us estimated from the crash flight.
+
+**Cause, and it is my omission.** ArduPilot's first-flight page (Test AltHold) says to set
+`PSC_D_ACC_P` = 0.1 x hover thrust and `PSC_D_ACC_I` = 0.2 x. The morning setup took Mission
+Planner's helper values and did not do this step, so the gains stayed at 0.05 / 0.1, about 6
+times too strong for hover 0.08. Second time on this aircraft that a default sized for a
+half-throttle hover was left in place (the first was `MOT_THST_HOVER`).
+
+**Decision.** `PSC_D_ACC_P` 0.008, `PSC_D_ACC_I` 0.016 (the documented rule on the measured
+hover). Position and velocity gains (`PSC_D_POS_P` 1, `PSC_D_VEL_P` 5) left alone: the
+documented response to a slow height oscillation is to halve those, and this one is fast.
+If a slow bob remains after this change, that is the next step.
+
+**Switch.** The board had `FLTMODE4` = Stabilize from the builder; `FLTMODE3` and `FLTMODE5`
+were still AltHold, reachable only by a switch centre reading below 1491 (it measures 1499).
+All three now Stabilize, in the file and the lint. AltHold is no longer on the switch.
+
+**Thrust ceiling, corrected with measured data.** Hover at 1216 us leaves the 1194 us ceiling
+22 us of margin and about 0.9 times the weight (this flight: 0.86 g at 0.06 thrust), not the
+0.7 computed in addendum 8. The lint's hover point is now the measured 1216 with a 20 us
+margin; I lowered the margin from 25 because the estimate became a measurement, and I am
+saying so because a margin changed after seeing the number deserves suspicion. A lower motor
+floor would restore it and still needs a props-off motor test.
+
+**Not established.** Whether the bounce is gone (no flight since). Why the flight ended in a
+tip-over: the log shows accelerometer clipping on a touch-down at 35 s, the height estimate
+then 2 m below the barometer, and at 38.5 s in Loiter three motors at about 1630 us against
+one at 1100. Consistent with the controller fighting the ground while its target was below
+it, not proven. Damage from that, and from the morning crash, is still unreported.

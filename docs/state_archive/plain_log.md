@@ -532,3 +532,11 @@ Print plan for the avionics pod decided. The four flight parts (dock with camera
 **So what:** Onyx buys heat margin for certain (it holds to about 145 C, PETG softens near 75) and about 10 percent in shake frequency, which is too little to plan around. The tap test on the printed parts still decides whether the mount is steady enough. Three questions go to ITLL staff before ordering: whether a personal project qualifies, the price, and whether fibre is offered.
 
 *Evidence: hardware/avionics_pod/PRINT_ORDER.md - ADR-0136 - ITLL wiki (3D Printing FAQ, Submit a Request)*
+
+## 2026-11-11 (overflowed from plain_log 2026-11-14)
+
+Avionics pod folder cleaned to the current design only. Twelve superseded files are deleted (the plain dock, its template and the two lid-cradle camera parts as STL and STEP, two old assemblies, two old pictures) and the CAD script no longer writes them. The print files are now saved the way they sit on the printer bed. Two orientation notes in the print plan were wrong and are corrected: the lid prints as drawn (not upside down), and the camera plate's file had been saved tilted in flight position. Plan change: all four flight parts are printed in cheap PLA for a fit check before the Onyx order.
+
+**So what:** The builder was one click from sending a lookalike file to the print shop. A new standing rule in the operating notes says a fabrication folder holds only current parts, and a test now fails if an old file reappears. The camera plate needs supports when printed; the other parts do not.
+
+*Evidence: hardware/avionics_pod/README.md (Files in this folder); hardware/avionics_pod/PRINT_ORDER.md; .claude/ops.md (no superseded fabrication files); tests/test_avionics_pod_analysis.py*

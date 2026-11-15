@@ -182,19 +182,16 @@ purpose: the mode in the switch-down position, and what channel 5 does.
 | Mode switch (ch6) | Reads | Bands (`FLTMODEn`) | Target (ArduPilot) | Interceptor (PX4) |
 |---|---|---|---|---|
 | up | 2011 | 6 (`FLTMODE6=5`) | **Loiter**: GPS position hold | Position |
-| middle | 1499 | 3–5 (`FLTMODE3..5=2`) | **AltHold**: holds height, no GPS needed | Altitude |
+| middle | 1499 | 3–5 (`FLTMODE3..5=0`) | **Stabilize**: plain manual throttle (builder's change 2026-11-14 evening; was AltHold) | Altitude |
 | down | 987 | 1–2 (`FLTMODE1..2=3`) | **Auto**: flies the loaded mission | Stabilized |
 
-- Auto is at an end of the travel, so moving between Loiter and AltHold never
+- Auto is at an end of the travel, so moving between Loiter and Stabilize never
   passes through it. ArduPilot will not arm in Auto with this parameter set, so
   a mission can only be started in the air.
 - The switch centre reads 1499, 9 µs above the edge between bands 3 and 4, so
-  bands 3, 4 and 5 all carry AltHold. `lint_param.py` enforces that.
-- There is no Stabilize position. ArduPilot's first-flight page says to fly first
-  in Stabilize and not to take off in AltHold until the height controller has been
-  tested in flight ([Initial tuning flight](https://ardupilot.org/copter/docs/initial-tuning-flight.html)).
-  To have Stabilize for the first hops, set `FLTMODE3..5` to 0 and put them back
-  to 2 afterwards.
+  bands 3, 4 and 5 all carry Stabilize. `lint_param.py` enforces that.
+- AltHold is not on the switch. In Loiter the throttle stick commands climb rate:
+  middle holds height, below about 40% descends, above about 60% climbs.
 
 **Arm switch (ch5, `RC5_OPTION=153`):** down = disarmed, up = arm. Arming checks
 still run. Moving it down **in flight disarms at once and the motors stop**, so it
@@ -234,7 +231,7 @@ mode channel. Source: `RC_Channel.cpp` and `AP_Arming_Copter.cpp` at
    numbering differs — do not assume). Fix order by reassigning `SERVOn_FUNCTION` or
    re-plugging; fix a wrong direction via BLHeli or `SERVO_BLH_RVMASK`. Source:
    [Motor order / connect ESCs and motors](https://ardupilot.org/copter/docs/connect-escs-and-motors.html).
-3. **Arm switch / kill** — props off, mode switch in the middle (AltHold): arm
+3. **Arm switch / kill** — props off, mode switch in the middle (Stabilize): arm
    switch up, the motors start at idle; arm switch down, they stop at once.
 4. **Arming** — confirm all pre-arm checks pass (they are ON). Fix the flagged
    cause; never disable a check to arm. Source:
@@ -251,7 +248,7 @@ position as the start of the leg). To make a QGroundControl route repeat, end it
 with a "Jump to item" command pointing at the first waypoint, repeat count -1.
 Keep every point within the fence: 80 m of where you arm, below 50 m. Auto flies at
 `WP_SPD` = 10 m/s unless the plan sets a speed; set about 4 m/s for the first tries.
-Fly it by taking off in Loiter or AltHold and moving the mode switch down.
+Fly it by taking off in Loiter or Stabilize and moving the mode switch down.
 
 **The tripod mission.** Generate the AUTO `.waypoints` file for the pass matrix
 (`docs/tripod_test_protocol.md` §4). Set `--home-lat/--home-lon` to the **surveyed

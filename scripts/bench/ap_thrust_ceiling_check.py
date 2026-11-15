@@ -12,7 +12,8 @@ signals the board sends while you provoke exactly that case on the bench.
 
 THIS SCRIPT ONLY LISTENS. It never arms, never sends a motor command and
 never changes a setting. YOU arm with the transmitter, PROPS OFF:
-  1. AltHold (mode switch middle). Arm.
+  1. Loiter (mode switch up; needs a GPS fix, so do it outdoors). Arm.
+     (Stabilize has a much lower ceiling, so it does not test this.)
   2. Raise the throttle stick above the middle for 2 seconds (the board now
      thinks it has taken off).
   3. Pick the drone up and keep tilting and twisting it (the board fights you).
@@ -21,8 +22,8 @@ never changes a setting. YOU arm with the transmitter, PROPS OFF:
 
 Verdict (written before the first run):
   PASS          every low-stick reading taken while the board was fighting has
-                a four-motor average below hover_us (default 1235, from the
-                2026-11-14 flight log).
+                a four-motor average below hover_us (default 1216, measured in
+                the 2026-11-14 evening flight).
   FAIL          any such reading at or above hover_us.
   NOT EXERCISED no low-stick reading where the board was fighting (the motors
                 differed by less than 30 us, or the stick was never raised
@@ -115,7 +116,7 @@ if __name__ == "__main__":
         raise SystemExit(__doc__)
     code = 3
     try:
-        code = run(sys.argv[1], float(sys.argv[2]) if len(sys.argv) > 2 else 1235.0,
+        code = run(sys.argv[1], float(sys.argv[2]) if len(sys.argv) > 2 else 1216.0,
                    sys.argv[3] if len(sys.argv) > 3 else "thrust_ceiling_result.json")
     finally:
         print("\nThis window can be closed.", flush=True)
