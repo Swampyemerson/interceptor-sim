@@ -208,7 +208,7 @@ first time, testable — and is a redesign decision, queued for the builder. Det
 ## Standing cautions
 
 - **Every first power-up after soldering goes through the smoke stopper, props off** (tgt-04 gate). The stopper is in hand as of 2026-07-26 — the gate is now a step to perform, not a part to wait for.
-- **LiPos:** store ~3.8 V/cell, in the bag, never charge unattended.
+- **LiPos:** store ~3.8 V/cell, in the bag, never charge unattended. Charge the CNHL 6S 1500 packs at **3.0 A (2C)** for field turnaround, 1.5 A (1C) when not in a hurry; the vendor page lists 5C (7.5 A) as the maximum (builder read it 2026-11-15), which is a limit, not a habit. Cool to room temperature before charging; land at about 3.5 V/cell resting.
 - **One sim at a time, at idle load.** Gates and batches only when the machine is quiet.
 - **A green run is only as good as the machine that produced it** — `docs/verification_environment.md` says what the dev box, CI and a fresh cloud clone each can and cannot verify. Nothing from a cloud session has flown.
 - **Pre-register** any arm that could change a belief — prediction, criterion, and what a null means — *before* it flies.
