@@ -80,17 +80,20 @@ physical for an airframe lying on grass; it is the sensor recovering from overlo
 used. Energy at impact is 103 J for the 610.5 g bare weight in `docs/airframe_numbers.md` (a
 derived weight, not a weighed one).
 
-## The climb fix (written to the board 2026-11-14, NOT yet proven)
+## The climb fix (on the board 2026-11-14, NOT yet proven)
 
-One setting changed: `MOT_SPIN_MAX` 0.95 -> 0.40 (ADR-0138 addendum 7). The motors now work
-between 1150 and 1400 us instead of 1150 to 1950.
+ADR-0138 addenda 7 and 8. The motor floor came down and the top stayed (builder's call: keep
+the top-end power). Settings changed from the crash: `MOT_SPIN_MIN` 0.15 -> 0.10,
+`MOT_THST_HOVER` 0.2 -> 0.125, roll/pitch rate P/I/D halved.
 
-- Before: the highest average thrust the board could hold against a bottom stick was 1285 us
-  computed (1302 us logged), about 1.35 times the weight computed (1.45 measured).
-- After: 1192 us computed, about 0.7 times the weight. Hover is near 1235 us.
-- Read-back 69 of 69, persisted across a restart.
+- Crash settings: the highest average thrust the board could hold against a bottom stick was
+  1285 us computed (1302 us logged), about 1.4 times the weight (1.45 measured).
+- Now: 1194 us computed, about 0.7 times the weight. Hover is near 1235 us.
+- Why 0.10: 60 logged readings at the armed idle (1100 us), motors at 4,700 to 5,600 rpm,
+  none stalled.
+- Read-back 76 of 76, persisted across a restart.
 
 **Check to run, props off, before any flight** (criterion written before running it):
 `python.exe ap_thrust_ceiling_check.py COM4` from `C:\Temp\bench`. PASS = motor average
-below 1235 us while the board fights a bottom stick; predicted 1190 to 1210. NOT EXERCISED is
+below 1235 us while the board fights a bottom stick; predicted 1190 to 1215. NOT EXERCISED is
 not a pass. Result file goes here as `thrust_ceiling_result.json`.

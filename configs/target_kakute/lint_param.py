@@ -125,7 +125,10 @@ def thrust_ceiling_us(v: dict) -> float:
     (AP_Motors_Thrust_Linearization.cpp thrust_to_actuator, Copter-4.7.0, at
     full battery). Fails closed: a missing input raises KeyError."""
     expo, lo, hi = v["MOT_THST_EXPO"], v["MOT_SPIN_MIN"], v["MOT_SPIN_MAX"]
-    thrust = v["ATC_THR_MIX_MAX"] * v["MOT_THST_HOVER"]
+    # The firmware's own clamps: get_throttle_hover() returns at least 0.125,
+    # parameter_sanity_check() resets ATC_THR_MIX_MAX below 0.5. A file that
+    # asks for less does not get less.
+    thrust = max(0.5, v["ATC_THR_MIX_MAX"]) * max(0.125, v["MOT_THST_HOVER"])
     ratio = thrust if expo == 0 else ((expo - 1) + ((1 - expo) ** 2 + 4 * expo * thrust) ** 0.5) / (2 * expo)
     return 1000.0 + 1000.0 * (lo + (hi - lo) * ratio)
 
@@ -156,6 +159,15 @@ INVARIANTS = [
     ("thrust ceiling at minimum throttle is at or below %d us (measured hover signal %d us minus %d margin)"
      % (HOVER_US_MEASURED - HOVER_US_MARGIN, HOVER_US_MEASURED, HOVER_US_MARGIN),
      lambda v: thrust_ceiling_us(v) <= HOVER_US_MEASURED - HOVER_US_MARGIN),
+    ("MOT_SPIN_ARM <= MOT_SPIN_MIN (the board refuses to arm otherwise)",
+     lambda v: v["MOT_SPIN_ARM"] <= v["MOT_SPIN_MIN"]),
+    # Lowest motor signal shown steady in this airframe's logs is 0.10 (the
+    # armed idle, 2026-11-14). Below that needs a props-off motor test; raise
+    # this bound's evidence, not just the number, when one is done.
+    ("MOT_SPIN_MIN >= 0.10 (no evidence yet that the motors run steadily below it)",
+     lambda v: v["MOT_SPIN_MIN"] >= 0.10),
+    ("roll/pitch rate P at or below 0.0675 (the 0.135 defaults oscillated on the 2026-11-14 flight)",
+     lambda v: v["ATC_RAT_RLL_P"] <= 0.0675 and v["ATC_RAT_PIT_P"] <= 0.0675),
     ("FENCE_RADIUS > FENCE_MARGIN (a fence inside its own margin is instantly breached)",
      lambda v: "FENCE_MARGIN" not in v or v["FENCE_RADIUS"] > v["FENCE_MARGIN"]),
 ]

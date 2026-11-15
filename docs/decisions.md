@@ -1726,3 +1726,51 @@ hover is lower (say 1215 us), the ceiling at 1192 us is still under it, with les
 top-thrust and loop-gain figures extrapolate the rpm line beyond the 1300 us it was measured to.
 Still open from addendum 6: damage check, Stabilize on the switch for first hops (builder's
 switch layout, his call), compass recalibration.
+
+### ADR-0138 addendum 8 (2026-11-14): builder wants the top-end power, so the motor floor comes down instead
+
+**Context.** Addendum 7 cut `MOT_SPIN_MAX` to 0.40, costing about two thirds of top thrust.
+The builder: "I want that top end power though, can't we just lower the minimum throttle and
+the max the attitude control can use?"
+
+**His two levers, checked against source (Copter-4.7.0).**
+- *Lower the share attitude control may use* (`ATC_THR_MIX_MAX`): no. `parameter_sanity_check`
+  resets anything below 0.5, and `get_throttle_hover()` returns at least 0.125 whatever is
+  stored. The ceiling cannot go below 0.0625 in thrust units.
+- *Lower the minimum throttle* (`MOT_SPIN_MIN`): yes. The ceiling is a thrust fraction measured
+  from the floor, so a lower floor puts the same 0.0625 at a lower motor signal. I had missed
+  this in addendum 7.
+
+**Evidence for the floor.** The 2026-11-14 logs hold 60 readings at the armed idle (1100 us,
+`MOT_SPIN_ARM` 0.10) over two armings: all four motors at 4,700 to 5,600 rpm, none stalled.
+Nothing steady exists below that (5 spool-up readings at 1050 to 1099 us).
+
+**Decision.** `MOT_SPIN_MIN` 0.15 -> 0.10, `MOT_SPIN_MAX` back to 0.95, `MOT_THST_HOVER`
+0.2 -> 0.125 (the firmware's minimum; real hover on this range is about 0.09), roll/pitch rate
+P/I/D halved (0.0675 / 0.0675 / 0.0018), because the full range brings the full loop gain back.
+
+| | crash | addendum 7 (withdrawn) | now |
+|---|---|---|---|
+| motor signal range, us | 1150-1950 | 1150-1400 | 1100-1950 |
+| ceiling at bottom stick, Loiter/AltHold/Auto | 1285 us, 1.4x weight | 1192 us, 0.7x | 1194 us, 0.7x |
+| ceiling in Stabilize | 1180 us | 1159 us | 1120 us, 0.3x |
+| all four motors on the floor | 0.5x weight | 0.5x | 0.25x |
+| top thrust | about 8x (assumed) | about 2.4x | about 8x (assumed) |
+| roll/pitch gain at hover vs crash | 1 | 0.23 | 0.5 |
+
+Thrust-to-weight here uses the measured idle point (5,440 rpm at 1100 us) and the hover
+estimate (10,800 rpm near 1235 us), so the figures differ slightly from addendum 7's.
+
+**What is weaker than addendum 7.** Loop gain is halved, not quartered, so the oscillation is
+less certain to be gone; the ceiling protects against a climb either way. The firmware's hover
+figure (0.125) sits above real hover (about 0.09); the altitude controller's integrator absorbs
+that, at the price of a slightly eager lift-off.
+
+**What would be better still.** Floor 0.05 puts real hover at 0.126 (representable) and the
+ceiling at 1150 us, about 0.5x weight. It needs a props-off motor test showing steady spin at
+1050 us, which is the builder's to run. `lint_param.py` refuses a floor below 0.10 until then.
+
+**Guard and state.** Lint recomputes the ceiling with the firmware's clamps and rejects the
+crash settings (checked in `selftest.sh`). Written with `upload_params.py`: 9 changed, read
+back 76 of 76, persisted across a restart. The pre-registered props-off check from addendum 7
+stands unchanged (PASS below 1235 us; prediction now 1190 to 1215).
