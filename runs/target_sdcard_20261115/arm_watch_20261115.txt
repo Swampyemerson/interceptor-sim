@@ -1,0 +1,41 @@
+10:38:47 listening only; this script never arms
+10:38:47 health: unhealthy bits 0x0 | pre-arm ok True | battery V 24.364
+10:38:47 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1500 | roll 1500 | pitch 1500 | rssi 229
+10:38:47 gps: fix 4 sats 23
+10:38:48 state: disarmed Loiter
+10:39:56 gps: fix 4 sats 19
+10:39:57 gps: fix 4 sats 21
+10:40:52 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1800 | roll 1500 | pitch 1500 | rssi 243
+10:40:52 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 2000 | roll 1500 | pitch 1500 | rssi 243
+10:40:56 health: unhealthy bits 0x1000020 | pre-arm ok True | battery V 24.357
+10:40:56 BOARD SAYS: Arm: Logging not started
+10:40:57 health: unhealthy bits 0x11000000 | pre-arm ok False | battery V 24.356
+10:40:58 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1950 | roll 1500 | pitch 1500 | rssi 254
+10:40:58 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:00 BOARD SAYS: PreArm: Logging failed
+10:41:00 health: unhealthy bits 0x10000000 | pre-arm ok False | battery V 24.357
+10:41:00 health: unhealthy bits 0x11000000 | pre-arm ok False | battery V 24.357
+10:41:05 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1550 | roll 1500 | pitch 1500 | rssi 254
+10:41:05 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1850 | roll 1500 | pitch 1500 | rssi 254
+10:41:05 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 2000 | roll 1500 | pitch 1500 | rssi 254
+10:41:08 BOARD SAYS: Arm: Logging failed
+10:41:09 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1950 | roll 1500 | pitch 1500 | rssi 254
+10:41:10 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 2000 | roll 1500 | pitch 1500 | rssi 254
+10:41:13 BOARD SAYS: Arm: Logging failed
+10:41:13 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1950 | roll 1500 | pitch 1500 | rssi 254
+10:41:13 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1750 | roll 1500 | pitch 1500 | rssi 254
+10:41:13 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:13 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1450 | roll 1500 | pitch 1500 | rssi 254
+10:41:13 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1200 | roll 1500 | pitch 1500 | rssi 254
+10:41:13 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1250 | yaw 1350 | roll 1500 | pitch 1500 | rssi 254
+10:41:14 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1250 | yaw 1400 | roll 1500 | pitch 1500 | rssi 254
+10:41:14 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1200 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:14 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1150 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:14 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:16 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1200 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:16 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1250 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:16 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1100 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:16 radio: arm-switch ch5 2000 | mode ch6 2000 | throttle 1000 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+10:41:28 health: unhealthy bits 0x10000000 | pre-arm ok False | battery V 24.355
+10:41:31 health: unhealthy bits 0x0 | pre-arm ok True | battery V 24.354
+10:42:07 done

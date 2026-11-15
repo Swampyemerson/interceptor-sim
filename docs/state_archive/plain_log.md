@@ -572,3 +572,11 @@ Replacement Pi 5 brought up on the bench with the AI HAT+ and the AR0234 camera.
 **So what:** Compute is no longer the limit for the camera-only seeker: a nano detector fits with a wide margin even at 1280x800 input (42 frames/s live), which doubles the pixels on a distant target over 640. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi.
 
 *Evidence: runs/hailo_day1_20261113/README.md (benchmarks, live tests, camera and link probes); runs/dfc_native_res_20261113/README.md; configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv*
+
+## 2026-11-13 (overflowed from plain_log 2026-11-15)
+
+First real drone detectors on the Hailo chip, scored on all 4,175 held-out images. The July model (YOLO11n) loses a quarter of its recall in 8-bit conversion (0.50 to 0.37), with or without the GPU doing the conversion. A yolov8n retrain on the same data converts almost cleanly: 0.53 before, 0.50 on the chip, at 319 frames/s in a single pass. It misses the pre-registered 5-point limit in one size bin only (targets of 64 px and up, down 8 points). Screen bench through the real camera, older build: 67 to 82% of frames hit at 26 to 49 px, 35 to 40% at 11 to 20 px. AOT data fetched: all 3,662 drone frames plus 8,000 negatives (28.6 GB). A 1280-input retrain is running.
+
+**So what:** Architecture mattered more than conversion settings: the chip-friendly yolov8n now gives on the chip what the old model gave on a laptop, three times faster. What still limits it is the detector itself, which finds about half the test targets. The levers left are input size (the 1280 run), more air-to-air data, and above all footage of our own target through our own camera.
+
+*Evidence: runs/hailo_drone_20261113/README.md (pre-registrations, results, screen bench); scripts/nn/fetch_aot_frames.py; data/aot/yolo_crops/stats.json; logs/nn_tier/train_v8n_color.log*

@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->859f0f0<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->26ac414<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,8 +900,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-11-14",
- "updated_by": "Pi flight recorder: PX4 log stream + video while armed, bench-tested (2026-11-13)",
+ "updated": "2026-11-15",
+ "updated_by": "Target drone: card that blocked arming formatted; logging and pre-arm checks pass (2026-11-15)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -913,14 +913,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-11-14",
-  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause found in its log, not yet fixed.",
-  "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
+  "as_of": "2026-11-15",
+  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log and video per flight. Target: five flights on 2026-11-14 after a first-flight crash, height now holds. On 2026-11-15 it refused to arm because its storage card would not start a log; the card was reformatted and logs again.",
+  "finding": "The ground station showed the target ready while arming was refused: the board opens its log file only at the moment of arming, so a bad card hides until then. Why the card stopped is not known. Still open: an intermittent USB port and a first slow automatic course.",
   "next": [
-   "You: target: USB works only intermittently; solder the two data pins or fit a serial adapter",
+   "You: target: untick Flight Speed on every waypoint, upload again, arm in Loiter, then Auto",
    "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
-  "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
+  "evidence": "ADR-0138 addendum 15 - runs/target_sdcard_20261115/README.md - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum"
  },
  "assumptions": [
   {
@@ -1456,6 +1456,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-11-15",
+   "text": "The target drone would not arm although the ground station showed it ready. Listening while the builder tried three times showed the same refusal each time: the board could not start its flight log. Battery, satellites and radio were all good. The board opens its log file only at the moment of arming, which is why nothing looked wrong beforehand. Asking the board to start a log without arming reproduced it: no new file, and the empty log from flight five was still empty. The six logs not yet on the PC were copied off, the storage card was reformatted over USB, and the same test then wrote an 8 MB log. The pre-arm checks pass.",
+   "so_what": "The drone should arm again; the builder confirms that, since no tool arms it. Why the card stopped is not known: power removed while a log was open fits, and so does a failing card, so if the message returns the card gets replaced. The route speed on the board had gone back to 10 m/s and is set to 3 again, and the course he uploaded carries its own 5 m/s setting that needs unticking before the first automatic flight.",
+   "evidence": "runs/target_sdcard_20261115/README.md + arm_watch_20261115.txt; ADR-0138 addendum 15; board read-back WP_SPD 3"
+  },
+  {
    "date": "2026-11-14",
    "text": "The USB-C connector came off the target drone's flight controller. USB was the only way to talk to that board from a computer. The builder pressed it back on and glued it; the connection now comes and goes. In one of the moments it held, a spare pair of solder pads on the board (T1/R1) was set up as a second way in, so a cheap USB-to-serial adapter can reach the board if the USB port fails for good. The drone itself still flies as configured, and its logs can be read by pulling the storage card.",
    "so_what": "The glued port is not a repair yet: it connects only some of the time, which is what pins held by pressure do. Soldering the two data pins, or wiring an adapter to T1/R1, makes it dependable. Two temporary settings are still on the board: route speed 3 m/s and fast logging.",
@@ -1520,12 +1526,6 @@
    "text": "Pi-to-Pixhawk link is up. The cable's two signal wires were swapped: with the Pi's transmit pin switched to an input, the Pixhawk's data stream showed up on it. The builder swapped the wires and the Pi now reads the Pixhawk's firmware version (PX4 1.16), mode and health over the 3-pin serial socket at 921600. This corrects an earlier statement the same day that a swap was ruled out: that test left the Pi driving its transmit pin, which hid the incoming signal. The builder had suspected a swap.",
    "so_what": "The new Pi can now command and log the aircraft again, with the AI HAT+ fitted. Scripts default to the new port (/dev/ttyAMA10). Not yet re-run on this Pi: the props-off offboard bench gate and the hover recorder. Lesson for the instrument: a pin that is being driven cannot be used to listen.",
    "evidence": "runs/link_ttyAMA10_20261113/fc_link_check.json; runs/hailo_day1_20261113/README.md (Pixhawk link, corrected)"
-  },
-  {
-   "date": "2026-11-13",
-   "text": "First real drone detectors on the Hailo chip, scored on all 4,175 held-out images. The July model (YOLO11n) loses a quarter of its recall in 8-bit conversion (0.50 to 0.37), with or without the GPU doing the conversion. A yolov8n retrain on the same data converts almost cleanly: 0.53 before, 0.50 on the chip, at 319 frames/s in a single pass. It misses the pre-registered 5-point limit in one size bin only (targets of 64 px and up, down 8 points). Screen bench through the real camera, older build: 67 to 82% of frames hit at 26 to 49 px, 35 to 40% at 11 to 20 px. AOT data fetched: all 3,662 drone frames plus 8,000 negatives (28.6 GB). A 1280-input retrain is running.",
-   "so_what": "Architecture mattered more than conversion settings: the chip-friendly yolov8n now gives on the chip what the old model gave on a laptop, three times faster. What still limits it is the detector itself, which finds about half the test targets. The levers left are input size (the 1280 run), more air-to-air data, and above all footage of our own target through our own camera.",
-   "evidence": "runs/hailo_drone_20261113/README.md (pre-registrations, results, screen bench); scripts/nn/fetch_aot_frames.py; data/aot/yolo_crops/stats.json; logs/nn_tier/train_v8n_color.log"
   }
  ],
  "narrative": {

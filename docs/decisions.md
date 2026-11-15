@@ -1929,3 +1929,31 @@ restart. Undo: 33. After that QGroundControl held the port, so no second read-ba
 Not established: whether the glued joints will hold. Enumeration came and went within
 minutes, which is what pins held by pressure look like. The durable repair is solder on the
 data pins. `target.param` now pins `SERIAL1_PROTOCOL` 2 so an upload cannot undo the backup.
+
+### ADR-0138 addendum 15 (2026-11-15): target would not arm; the microSD card refused new logs; card formatted
+
+**Report (builder).** QGroundControl showed "Ready to Fly", arming in the yard did nothing,
+and arming while connected printed errors.
+
+**Evidence.** Listening while he armed three times with the yaw stick: "Arm: Logging not
+started", then "Logging failed", every time; battery 24.4 V, 19 to 23 satellites, radio good,
+Loiter. Idle pre-arm checks passed 122 of 122. With `LOG_DISARMED` 0 the board opens its log
+file at the moment of arming, so the fault is invisible until then. Reproduced without
+arming: `LOG_DISARMED` 1 for 25 s gave "Logging failed", no new log, and log 21 (flight five)
+still 0 bytes. Table and transcript: `runs/target_sdcard_20261115/`.
+
+**Action.** Copied the six logs not yet on the PC off the card and parsed each (all 20 logs
+are now on the PC), then formatted the card over MAVLink (`MAV_CMD_STORAGE_FORMAT`, "Format:
+OK"), rebooted, and repeated the test: an 8.2 MB log was written and pre-arm passes. Tools:
+`scripts/bench/ap_arm_watch.py`, `ap_log_start_test.py`, `ap_sd_format.py`.
+
+**Not established.** Why the card stopped. Power removed while a log was open fits; so does a
+failing card. If it returns, replace the card. No tool armed the aircraft, so "it arms" is
+his to confirm.
+
+**Not chosen.** Skipping the logging check (`ARMING_SKIPCHK` bit 10): it would have let him
+fly at once and left no log of a first Auto flight.
+
+**Also.** `WP_SPD` on the board read 10 m/s, not addendum 12's 3; cause not established; set
+back to 3 and read back. His uploaded mission carries a 5 m/s speed change after each
+waypoint, which overrides `WP_SPD`; told him to untick Flight Speed and upload again.
