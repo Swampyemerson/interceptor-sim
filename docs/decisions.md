@@ -1815,3 +1815,27 @@ the barometer, and at 38.5 s in Loiter one reading with three motors at about 16
 one at 1100 and roll at 40 degrees. I wrote this up as a tip-over; the builder, who watched
 it, says there was no roll-over, and one reading plus a 17 degree resting angle do not show
 one. Corrected the same evening. Damage from the morning crash is still unreported.
+
+### ADR-0138 addendum 10 (2026-11-14 night): third flight; height loop quiet, roll rings, estimator learns an accelerometer bias
+
+**Flight.** Log 15, 114 s, on addendum 9's settings. Builder: "much better, still not perfect".
+Evidence and figures: `runs/target_flight3_20261114/`.
+
+**Height.** The fast pulsing is gone (throttle sd 0.001 in still hover), so the hover-scaled
+height gains did their job. What remains is slow: in the first still hover the estimator
+believed it was sinking at 0.34 to 0.46 m/s while barometer and GPS both said otherwise, and
+its vertical accelerometer bias estimate rose from +0.01 to +0.11 m/s2 over 45 s. By 93 s a
+still hover held to 0.13 m. I had told the builder to expect prop wash on the barometer; the
+log does not support that as the main cause, and I have said so. No height setting changed.
+
+**Roll.** On equal gains roll's rate error is about 4 times pitch's and alternates between
+readings; it rang at 55 deg/s when he tugged the airframe. Decision (mine, reversible): roll
+rate P/I/D x0.7, pitch unchanged. It is a cut made without knowing the frequency, so
+`LOG_BITMASK` now logs rates and PID terms at 400 Hz for the next flight (to be put back
+afterwards). Predictions are pre-registered in the run folder's README.
+
+**Level reference, not changed.** Every still hover sits at roll -3.0, pitch -4.4 degrees
+with centred sticks; the trims set by the accelerometer calibration are +3.7 and +3.6. If
+that is trim error and not wind, Stabilize drifts right and backward with sticks centred.
+Asked the builder which way it drifts before touching it: a trim with the wrong sign would
+double the drift in the mode he takes off in.

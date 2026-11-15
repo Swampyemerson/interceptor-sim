@@ -186,9 +186,13 @@ MOT_THST_HOVER,0.125
 # deg/s, outputs reversing every sample); halving P, I and D is ArduPilot's
 # documented response. May need halving again: judge on a low hop.
 # src: https://ardupilot.org/copter/docs/initial-tuning-flight.html
-ATC_RAT_RLL_P,0.0675
-ATC_RAT_RLL_I,0.0675
-ATC_RAT_RLL_D,0.0018
+# ROLL only, a further x0.7 (2026-11-14 night flight, ADR-0138 addendum 10):
+# on equal gains roll's rate error was 4x pitch's (6-17 against 1.4-3.8 deg/s
+# in a still hover) with successive readings alternating, and it rang at 55
+# deg/s when the builder tugged the airframe. Pitch stays at half defaults.
+ATC_RAT_RLL_P,0.047
+ATC_RAT_RLL_I,0.047
+ATC_RAT_RLL_D,0.00126
 ATC_RAT_PIT_P,0.0675
 ATC_RAT_PIT_I,0.0675
 ATC_RAT_PIT_D,0.0018
@@ -323,7 +327,12 @@ ATC_ANGLE_MAX,35
 # POS message (preferred) and falls back to GPS -- both are present in this set.
 # Written to the Kakute's microSD (see README.md -- NO card = NO scored pass).
 # src: https://ardupilot.org/copter/docs/common-logs.html (LOG_BITMASK, default 176126)
-LOG_BITMASK,176126
+# 2026-11-14 night: default plus bit 0 (attitude and rates at the full 400 Hz
+# loop rate) and bit 12 (PID terms), 176126 + 1 + 4096. At the default 10 Hz a
+# roll oscillation only shows as readings that alternate; its frequency cannot
+# be read. TUNING AID: logs grow roughly tenfold. Put back to 176126 when the
+# roll loop is tuned.
+LOG_BITMASK,180223
 # Do not log on the bench while disarmed -- log from arm. (firmware default, stated)
 # src: common-logs.html
 LOG_DISARMED,0

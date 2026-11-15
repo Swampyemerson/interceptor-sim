@@ -540,3 +540,11 @@ Avionics pod folder cleaned to the current design only. Twelve superseded files 
 **So what:** The builder was one click from sending a lookalike file to the print shop. A new standing rule in the operating notes says a fabrication folder holds only current parts, and a test now fails if an old file reappears. The camera plate needs supports when printed; the other parts do not.
 
 *Evidence: hardware/avionics_pod/README.md (Files in this folder); hardware/avionics_pod/PRINT_ORDER.md; .claude/ops.md (no superseded fabrication files); tests/test_avionics_pod_analysis.py*
+
+## 2026-11-13 (overflowed from plain_log 2026-11-14)
+
+PLA fit-check prints of the four pod parts arrived. The builder reports the dock's screw holes line up with the drone's top plate and the front hook spacing looks right. The parts came back with support material in many places, including the pod's side cable windows. The rear latch has not been tried yet.
+
+**So what:** The hole pattern from the caliper session holds on a printed part. Still to check before ordering Onyx: the pod latched and screwed down at the rear, both boards seated, the camera plate between its cheeks, and where the wires come up. The Onyx request must say where supports are wanted (camera plate, pod base cable windows) and nowhere else.
+
+*Evidence: builder report in session 2026-11-13 (no photo or measurement recorded); hardware/avionics_pod/PRINT_ORDER.md; hardware/avionics_pod/README.md (How the pod latches)*

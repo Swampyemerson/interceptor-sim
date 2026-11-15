@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->60a9238<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->ec73855<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -917,7 +917,7 @@
   "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause found in its log, not yet fixed.",
   "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
   "next": [
-   "You: target: low hop, Stabilize up, then Position with stick centred: does it still bounce?",
+   "You: target: fly again, hover still 60 s in Position; tell me which way Stabilize drifts",
    "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
   "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -1457,6 +1457,12 @@
  "plain_log": [
   {
    "date": "2026-11-14",
+   "text": "Third flight of the target drone, two minutes, mostly in Position mode. The builder: much better, still not perfect. The log agrees. The fast bounce is gone. What is left: for the first 40 seconds the drone's height estimator believed it was sinking at about 0.4 m/s when the barometer and GPS both said it was not, so it held height about half a metre off; by a minute and a half it held to 0.13 m. And roll still wobbles about four times as much as pitch, which is the oscillation he can hear; it rang hard when he tugged the airframe by hand.",
+   "so_what": "Roll gains cut by a further 30% and fast logging switched on, so the next flight shows the wobble's real frequency. Nothing changed for height: the prediction is that a still hover tightens up after the first 40 seconds. Both predictions are written down before the flight.",
+   "evidence": "runs/target_flight3_20261114/README.md + segment_analysis.txt + flight_timeline.txt; ADR-0138 addendum 10"
+  },
+  {
+   "date": "2026-11-14",
    "text": "The target drone flew again in the evening and the runaway climb did not come back. Roll and pitch were calm on the halved gains. A new fault showed in Position mode: the drone bounced up and down. The log shows the height controller pulsing the motors between idle and about 1400 several times a second. Its gains were still the firmware defaults, sized for a drone that hovers at half throttle; this one hovers at 8% (measured in this flight), so they were about 6 times too strong. ArduPilot's first-flight page says to scale them to the hover thrust, and that step had been skipped. They are now scaled and written to the board.",
    "so_what": "Not yet flown with the new height gains. Next is a low hop to see whether Position mode holds height. In Position mode the stick in the middle holds height; below about 40% it descends. The measured hover point leaves the safety margin against the climb thinner than computed (the motors' ceiling is about 0.9 times the weight, not 0.7).",
    "evidence": "runs/target_flight2_20261114/README.md + height_loop_analysis.txt + hover_thrust_fit.txt; ADR-0138 addendum 9; configs/target_kakute/target.param"
@@ -1520,12 +1526,6 @@
    "text": "Avionics pod revision 6: two more locating pins near the front of the dock. On the PLA fit print the builder found the front of the pod could slide side to side. The two original pins sit on one line across the pod, so their small clearance let the far end swing about 1 mm each way. The new pins sit between the front pair of dock screws and hold the nose sideways. Checked in CAD only: 0.25 mm side play at the new pins, and the pod still hinges down from under the hook without touching them.",
    "so_what": "The Pixhawk rides in this pod and its orientation is calibrated to the frame, so the pod must seat in the same place every time. The dock and the pod base both changed and need reprinting to confirm the fix. Still open from the same fit check: support material fills the pod's rear cup and cable windows, and both need reshaping before the Onyx order.",
    "evidence": "hardware/avionics_pod/README.md (Revision 6); hardware/avionics_pod/pod.py PINS_FRONT; builder photo and report in session 2026-11-13"
-  },
-  {
-   "date": "2026-11-13",
-   "text": "PLA fit-check prints of the four pod parts arrived. The builder reports the dock's screw holes line up with the drone's top plate and the front hook spacing looks right. The parts came back with support material in many places, including the pod's side cable windows. The rear latch has not been tried yet.",
-   "so_what": "The hole pattern from the caliper session holds on a printed part. Still to check before ordering Onyx: the pod latched and screwed down at the rear, both boards seated, the camera plate between its cheeks, and where the wires come up. The Onyx request must say where supports are wanted (camera plate, pod base cable windows) and nowhere else.",
-   "evidence": "builder report in session 2026-11-13 (no photo or measurement recorded); hardware/avionics_pod/PRINT_ORDER.md; hardware/avionics_pod/README.md (How the pod latches)"
   }
  ],
  "narrative": {
