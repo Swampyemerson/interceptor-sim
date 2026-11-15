@@ -189,13 +189,17 @@ MOT_THST_HOVER,0.125
 # ROLL only, a further x0.7 (2026-11-14 night flight, ADR-0138 addendum 10):
 # on equal gains roll's rate error was 4x pitch's (6-17 against 1.4-3.8 deg/s
 # in a still hover) with successive readings alternating, and it rang at 55
-# deg/s when the builder tugged the airframe. Pitch stays at half defaults.
+# deg/s when the builder tugged the airframe.
 ATC_RAT_RLL_P,0.047
 ATC_RAT_RLL_I,0.047
 ATC_RAT_RLL_D,0.00126
-ATC_RAT_PIT_P,0.0675
-ATC_RAT_PIT_I,0.0675
-ATC_RAT_PIT_D,0.0018
+# PITCH brought down to match roll (2026-11-14, fourth flight, ADR-0138
+# addendum 11). The 400 Hz log shows one oscillation at 23.4 Hz in both axes,
+# carried mostly by the D term. Roll on 0.047 measured 1.3 deg/s at that
+# frequency; pitch, still on 0.0675, measured 3.4.
+ATC_RAT_PIT_P,0.047
+ATC_RAT_PIT_I,0.047
+ATC_RAT_PIT_D,0.00126
 # HEIGHT CONTROLLER gains scaled to hover thrust (ADR-0138 addendum 9). The
 # firmware defaults (0.05 / 0.1) suit a drone that hovers at half throttle.
 # ArduPilot's rule: PSC_D_ACC_P = 0.1 x hover thrust, PSC_D_ACC_I = 0.2 x.

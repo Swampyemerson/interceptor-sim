@@ -548,3 +548,11 @@ PLA fit-check prints of the four pod parts arrived. The builder reports the dock
 **So what:** The hole pattern from the caliper session holds on a printed part. Still to check before ordering Onyx: the pod latched and screwed down at the rear, both boards seated, the camera plate between its cheeks, and where the wires come up. The Onyx request must say where supports are wanted (camera plate, pod base cable windows) and nowhere else.
 
 *Evidence: builder report in session 2026-11-13 (no photo or measurement recorded); hardware/avionics_pod/PRINT_ORDER.md; hardware/avionics_pod/README.md (How the pod latches)*
+
+## 2026-11-13 (overflowed from plain_log 2026-11-14)
+
+Avionics pod revision 6: two more locating pins near the front of the dock. On the PLA fit print the builder found the front of the pod could slide side to side. The two original pins sit on one line across the pod, so their small clearance let the far end swing about 1 mm each way. The new pins sit between the front pair of dock screws and hold the nose sideways. Checked in CAD only: 0.25 mm side play at the new pins, and the pod still hinges down from under the hook without touching them.
+
+**So what:** The Pixhawk rides in this pod and its orientation is calibrated to the frame, so the pod must seat in the same place every time. The dock and the pod base both changed and need reprinting to confirm the fix. Still open from the same fit check: support material fills the pod's rear cup and cable windows, and both need reshaping before the Onyx order.
+
+*Evidence: hardware/avionics_pod/README.md (Revision 6); hardware/avionics_pod/pod.py PINS_FRONT; builder photo and report in session 2026-11-13*

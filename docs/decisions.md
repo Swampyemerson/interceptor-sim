@@ -1839,3 +1839,37 @@ with centred sticks; the trims set by the accelerometer calibration are +3.7 and
 that is trim error and not wind, Stabilize drifts right and backward with sticks centred.
 Asked the builder which way it drifts before touching it: a trim with the wrong sign would
 double the drift in the mode he takes off in.
+
+### ADR-0138 addendum 11 (2026-11-14 night): fourth flight; both predictions held, battery failsafe landed it, pitch matched to roll, level trim corrected
+
+**Flight.** Log 19, 102 s in Loiter, first with 400 Hz logging. Evidence:
+`runs/target_flight4_20261114/`.
+
+**Predictions from addendum 10.** Both held. Roll rate error 1.0 to 1.9 deg/s against a 5
+deg/s bar. Height within 0.09 m from 34 s on, after starting 0.35 to 0.45 m off while the
+estimator learned a +0.08 m/s2 vertical accelerometer bias. Two flights now show the same
+bias and the same settling time, so it is a property of this airframe with motors running,
+relearned after every power-up.
+
+**The landing.** Low-battery failsafe (21.57 V under load for 10 s, RTL, landed at home). Not
+a fault. The FC current sensor reads about 25 A in a hover and is not to be believed.
+
+**Oscillation.** One 23.4 Hz peak in both axes, D term about three times the P term there.
+Roll at 0.047 moved 1.3 deg/s at that frequency, pitch at 0.0675 moved 3.4. Decision: pitch
+P/I/D to roll's values. Not done: changing the P to D ratio or the filters. The MP-helper
+filters (gyro 75 Hz, D 37.5 Hz) are slow for a 5-inch quad and are a likely reason the loop
+oscillates as low as 23 Hz, and motor-speed noise near 180 Hz is now half of the roll output;
+the proper next step is an ESC-rpm harmonic notch and then faster filters. That is a larger
+change than tonight's evidence asks for and wants its own flight.
+
+**Level trim.** Two flights, same still-hover attitude (roll -3.15, pitch -4.05 degrees; sd
+0.18 and 0.32 over 36 s at under 0.05 m/s). Sign taken from source, not memory: Save Trim adds
+the held hover attitude to `AHRS_TRIM`. New values 0.0090 and -0.0086 rad, both near zero. I
+had asked the builder which way Stabilize drifts and did not get an answer; the second flight
+and the source reading replaced the question. Undo: 0.0640 / 0.0620. A wrong sign would show
+as a hover attitude of about twice the old values (pre-registered).
+
+**Drift he corrected by hand.** The controller held its estimate to 0.03 to 0.23 m and the
+estimate held GPS to 0.27 m, so the motion was the estimate's. Compass and GPS headings
+disagreed by 8 to 10 degrees at lift-off. The compass recalibration away from metal, open
+since addendum 4, is the lead.

@@ -1,0 +1,35 @@
+PID fields: ['TimeUS', 'Tar', 'Act', 'Err', 'P', 'I', 'D', 'FF', 'DFF', 'Dmod', 'SRate', 'Flags']
+-- still hover 10-40 s
+   roll P: sd 0.00128  in 18-30 Hz 0.00103  in 150-200 Hz 0.00059
+   roll I: sd 0.00073  in 18-30 Hz 0.00027  in 150-200 Hz 0.00003
+   roll D: sd 0.00412  in 18-30 Hz 0.00296  in 150-200 Hz 0.00268
+   roll FF: sd 0.00000  in 18-30 Hz nan  in 150-200 Hz nan
+   roll gyro rate sd 1.56 deg/s (18-30 Hz 1.26, 150-200 Hz 0.71) output sd 0.0051 (18-30 Hz 0.0037, 150-200 Hz 0.0033)
+   pitch P: sd 0.00412  in 18-30 Hz 0.00395  in 150-200 Hz 0.00102
+   pitch I: sd 0.00080  in 18-30 Hz 0.00065  in 150-200 Hz 0.00003
+   pitch D: sd 0.01317  in 18-30 Hz 0.01212  in 150-200 Hz 0.00492
+   pitch FF: sd 0.00000  in 18-30 Hz nan  in 150-200 Hz nan
+   pitch gyro rate sd 3.56 deg/s (18-30 Hz 3.41, 150-200 Hz 0.87) output sd 0.0162 (18-30 Hz 0.0149, 150-200 Hz 0.0060)
+-- still hover 50-80 s
+   roll P: sd 0.00117  in 18-30 Hz 0.00087  in 150-200 Hz 0.00059
+   roll I: sd 0.00069  in 18-30 Hz 0.00016  in 150-200 Hz 0.00002
+   roll D: sd 0.00363  in 18-30 Hz 0.00239  in 150-200 Hz 0.00261
+   roll FF: sd 0.00000  in 18-30 Hz nan  in 150-200 Hz nan
+   roll gyro rate sd 1.37 deg/s (18-30 Hz 1.04, 150-200 Hz 0.69) output sd 0.0045 (18-30 Hz 0.0030, 150-200 Hz 0.0032)
+   pitch P: sd 0.00321  in 18-30 Hz 0.00300  in 150-200 Hz 0.00103
+   pitch I: sd 0.00038  in 18-30 Hz 0.00024  in 150-200 Hz 0.00002
+   pitch D: sd 0.01047  in 18-30 Hz 0.00913  in 150-200 Hz 0.00495
+   pitch FF: sd 0.00000  in 18-30 Hz nan  in 150-200 Hz nan
+   pitch gyro rate sd 2.78 deg/s (18-30 Hz 2.60, 150-200 Hz 0.88) output sd 0.0128 (18-30 Hz 0.0112, 150-200 Hz 0.0060)
+-- horizontal estimate vs GPS, 10 s bins: |pos innovation| m, |vel innovation| m/s, GPS HAcc m, accel bias X/Y, mean hover roll/pitch, EKF speed
+     0- 10: pos 0.10 (max 0.22)  vel 0.06  HAcc 0.36 VAcc 0.54  biasX +0.025 biasY -0.040  roll -4.94 pitch -7.81  spd 0.08  stick roll 1500 pitch 1502
+    10- 20: pos 0.22 (max 0.27)  vel 0.08  HAcc 0.38 VAcc 0.56  biasX +0.040 biasY -0.039  roll -3.29 pitch -4.28  spd 0.09  stick roll 1500 pitch 1502
+    20- 30: pos 0.16 (max 0.22)  vel 0.05  HAcc 0.36 VAcc 0.52  biasX +0.035 biasY -0.030  roll -3.25 pitch -4.21  spd 0.08  stick roll 1500 pitch 1502
+    30- 40: pos 0.09 (max 0.14)  vel 0.03  HAcc 0.35 VAcc 0.50  biasX +0.030 biasY -0.030  roll -3.12 pitch -3.99  spd 0.06  stick roll 1500 pitch 1502
+    40- 50: pos 0.07 (max 0.09)  vel 0.05  HAcc 0.34 VAcc 0.50  biasX +0.030 biasY -0.021  roll -3.16 pitch -3.78  spd 0.13  stick roll 1504 pitch 1485
+    50- 60: pos 0.07 (max 0.13)  vel 0.04  HAcc 0.34 VAcc 0.49  biasX +0.030 biasY -0.020  roll -3.19 pitch -4.08  spd 0.04  stick roll 1500 pitch 1502
+    60- 70: pos 0.06 (max 0.11)  vel 0.03  HAcc 0.32 VAcc 0.47  biasX +0.030 biasY -0.020  roll -3.10 pitch -3.98  spd 0.04  stick roll 1500 pitch 1502
+    70- 80: pos 0.04 (max 0.06)  vel 0.04  HAcc 0.31 VAcc 0.46  biasX +0.030 biasY -0.020  roll -3.16 pitch -4.12  spd 0.03  stick roll 1500 pitch 1502
+    80- 90: pos 0.04 (max 0.12)  vel 0.07  HAcc 0.34 VAcc 0.47  biasX +0.030 biasY -0.020  roll -3.29 pitch -4.35  spd 0.13  stick roll 1509 pitch 1442
+    90-100: pos 0.08 (max 0.14)  vel 0.08  HAcc 0.36 VAcc 0.49  biasX +0.030 biasY -0.030  roll -3.00 pitch -3.92  spd 0.29  stick roll 1548 pitch 1429
+hover attitude 46-82 s (sticks centred, speed ~0): roll -3.15 sd 0.18  pitch -4.05 sd 0.32 deg
