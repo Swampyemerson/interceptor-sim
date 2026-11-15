@@ -105,6 +105,7 @@ REQUIRED = [
     # 2026-10-04 B1 finding. ch5 is also the kill channel (2026-10-25 layout).
     ("FLTMODE_CH",    lambda v: v not in (0, 5),    "mode switch NOT on ELRS 2-pos AUX1 / the kill channel (ch5)"),
     # 3-pos switch, 2026-11-14 layout. Mode numbers: 0 Stabilize, 5 Loiter, 3 Auto.
+    ("SERIAL1_PROTOCOL", lambda v: v == 2,          "T1/R1 pads carry MAVLink: the way in when USB is gone (it tore off 2026-11-14)"),
     ("FLTMODE1",      lambda v: v == 3,             "switch DOWN = Auto (the mission), at an END of the travel"),
     ("FLTMODE6",      lambda v: v == 5,             "switch UP = Loiter (GPS position hold)"),
 ]

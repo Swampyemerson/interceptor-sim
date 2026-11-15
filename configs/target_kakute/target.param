@@ -96,6 +96,18 @@ AHRS_ORIENTATION,4
 
 
 # ---------------------------------------------------------------------------
+# BACKUP GROUND-STATION LINK on the T1/R1 pads  (2026-11-14, ADR-0138 add. 14)
+# ---------------------------------------------------------------------------
+# The USB-C connector came off the board that night and USB was the only way
+# in. SERIAL1 is UART1 (Telem1) on this board; firmware default here was 33
+# (DJI FPV). With MAVLink2 at 115200 a 3.3 V USB-serial adapter on T1/R1/GND
+# reaches the board without USB.
+# src: https://ardupilot.org/copter/docs/common-holybro-kakuteh7.html
+SERIAL1_PROTOCOL,2
+SERIAL1_BAUD,115
+
+
+# ---------------------------------------------------------------------------
 # MOTORS / ESC  --  Tekko32 F4 Metal 65A 4-in-1, DShot
 # ---------------------------------------------------------------------------
 # DShot600. The Tekko32 is a digital BLHeli32 ESC -> DShot needs no ESC

@@ -1916,3 +1916,16 @@ course is blocked: it needs an uploaded route.
 **Way back, proposed to the builder.** Solder a USB cable to the 5V / GND / D+ / D- points;
 then, first thing on reconnecting, set SERIAL1 to MAVLink so a USB-serial adapter on T1/R1 is
 a second way in. Fallback: replace the FC and reload `target.param` (calibrations redone).
+
+### ADR-0138 addendum 14 (2026-11-14 night): USB connector glued back, link intermittent; backup link set on T1/R1
+
+The builder pressed the connector back on and superglued it. Windows first reported "Unknown
+USB Device (Device Descriptor Request Failed)" (power and ground connected, data not), then
+the board enumerated as COM4 at 20:54:44, dropped, and returned at 21:01. A watcher wrote
+`SERIAL1_PROTOCOL` 33 -> 2 (MAVLink2; `SERIAL1_BAUD` already 115) on the second contact, read
+back OK; the first attempt died mid-transfer when the port vanished. Takes effect at the next
+restart. Undo: 33. After that QGroundControl held the port, so no second read-back from me.
+
+Not established: whether the glued joints will hold. Enumeration came and went within
+minutes, which is what pins held by pressure look like. The durable repair is solder on the
+data pins. `target.param` now pins `SERIAL1_PROTOCOL` 2 so an upload cannot undo the backup.
