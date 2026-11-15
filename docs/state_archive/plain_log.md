@@ -588,3 +588,11 @@ Pi-to-Pixhawk link is up. The cable's two signal wires were swapped: with the Pi
 **So what:** The new Pi can now command and log the aircraft again, with the AI HAT+ fitted. Scripts default to the new port (/dev/ttyAMA10). Not yet re-run on this Pi: the props-off offboard bench gate and the hover recorder. Lesson for the instrument: a pin that is being driven cannot be used to listen.
 
 *Evidence: runs/link_ttyAMA10_20261113/fc_link_check.json; runs/hailo_day1_20261113/README.md (Pixhawk link, corrected)*
+
+## 2026-11-13 (overflowed from plain_log 2026-11-15)
+
+The interceptor has a flight recorder again, on the Pi. The Pixhawk's card slot is dead, so PX4 now sends its flight log down a cable and a Pi service writes it to the Pi's card, one file per flight. The same service starts the camera recording when the Pixhawk reports armed and stops it 5 s after disarm. Bench results, disarmed: over a USB cable the log is complete (40 KB/s, one 4-packet gap at start-up, none after) and the guidance link is untouched; over the existing serial cable about a third of the log is lost and the guidance link's attitude stream halves. The October failure (streaming accepted once, then refused) is explained and reproduced: the first client quit without sending stop. The offboard bench gate was re-run on the new Pi and passed.
+
+**So what:** The rule that a kill needs logs from both aircraft can now be met, once a Pixhawk-to-Pi USB cable is fitted. Until then the Pi records over the serial cable and its logs have gaps. Not yet tested: a real arming (the video trigger has only seen a pretend signal), USB plugged into the Pi itself, and a log from an actual flight.
+
+*Evidence: runs/fc_log_stream_20261113/README.md; docs/fc_logging_without_sd.md; ADR-0137; tests/test_ulog_stream_recorder.py (13 tests)*

@@ -1988,3 +1988,29 @@ yard. Fast logging stays on for the filter work.
 **Open.** Current sensor over-reads (1682 mAh counted from a 1500 mAh pack resting at 3.74 V
 per cell); calibrate from the charger's mAh. Compass against motor current before fast
 courses. Whether to keep control authority at zero throttle is the builder's call.
+
+### ADR-0138 addendum 17 (2026-11-15): seventh flight; a climb the pilot did not command, killed in the air; card not mounted afterwards; cause NOT established
+
+**Report (builder).** "It started climbing uncontrolled again, I kill switched it but much
+lower"; a semi-hard landing; battery unplugged straight after.
+
+**State.** The board lists no logs and every card path fails with FatFS "no work area": no
+card is mounted. This flight's log is unread. The Pi filmed the yard for 864 s from the
+ground; that video is on the PC.
+
+**Two candidates, pre-registered before any log is seen**
+(`runs/target_flight7_20261115/README.md`): (A) low-battery return home, which climbs toward
+`RTL_ALT_M` 15 m at 2.5 m/s and ignores the throttle stick; settings read back, and flight
+six was within 0.3 to 0.4 V of the 21.6 V trigger after 5.3 minutes; (B) Stabilize with the
+stick at mid, 1.6 times hover thrust at once, measured in flight six. The file states what
+the log must show for each and what would refute both.
+
+**Decisions.** No setting changed on an unconfirmed cause. No flight until the card has been
+read in a PC: if its files survive under a damaged index, a new log could overwrite them.
+My recommendation once the cause is known, his call: in the yard the low-battery action
+should be Land, because a 15 m climb goes into the wires and trees over it.
+
+**Lesson already owed.** Addendum 16 recorded that flight six ended 0.3 V above the failsafe
+and said nothing to the builder about what the failsafe does away from home. Flight four's
+return-home started next to home, where the cone rule suppresses the climb, so "it lands
+itself" was the only behaviour he had seen.

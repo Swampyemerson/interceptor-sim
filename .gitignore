@@ -189,3 +189,6 @@ runs/dfc_dryrun_single/*.har
 runs/dfc_dryrun_single/*.hef
 # recorded video is heavy and may show private scenes; keep the small meta.json + frames.pts only
 sessions/*/video.h264
+# raw Pi video is gigabytes per session and holds the site; it stays out of git
+sessions/**/*.h264
+sessions/**/pull.log
