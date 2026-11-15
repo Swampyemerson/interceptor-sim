@@ -1,0 +1,68 @@
+{
+ "frames_decoded": 47778,
+ "video_s_decoded": 803.0,
+ "frame_size": [
+  1920,
+  1200
+ ],
+ "background_frames": 294,
+ "clutter_mask_fraction": 0.3826,
+ "flight_frames_examined": 14785,
+ "flight_frames_with_any_candidate": 14594,
+ "clutter": {
+  "clutter_frames": 1468,
+  "segments": 10,
+  "segments_needed": 3,
+  "raw_clutter_fraction": 0.2589
+ },
+ "tracks_total": 960,
+ "tracks_qualified": 25,
+ "tracks_rejected": {
+  "too_short": 779,
+  "went_nowhere": 95,
+  "on_clutter": 61
+ },
+ "flight_frames_with_one_track": 2702,
+ "flight_frames_ambiguous_dropped": 0,
+ "flight_frames_box_cut_by_clutter_dropped": 1472,
+ "flight_frames_no_track_dropped": 10611,
+ "positives_written": 484,
+ "negatives_written": 106,
+ "label_fps": 5.0,
+ "positive_long_side_px_bins": {
+  "under_16": 0,
+  "16_to_32": 0,
+  "32_to_64": 212,
+  "64_and_up": 272
+ },
+ "labels_from": "motion against a static background; no detector",
+ "settings": {
+  "thr": 30.0,
+  "min_area": 12,
+  "max_side": 400,
+  "stride": 2,
+  "coast": 30,
+  "min_obs": 20,
+  "min_travel": 120.0,
+  "flight_start": 306.0,
+  "flight_end": 803.0,
+  "merge_px": 10,
+  "max_clutter": 0.08,
+  "clutter_stride": 12,
+  "clutter_segments": 3,
+  "clutter_grow": 8
+ },
+ "teacher_report": {
+  "weights": "drone_yolo11x.pt",
+  "conf": 0.1,
+  "iou": 0.3,
+  "labelled": 484,
+  "teacher_hits": 392,
+  "agreement": 0.81,
+  "by_long_side_px": {
+   "64_and_up": "249/272",
+   "32_to_64": "143/212"
+  }
+ },
+ "video": "sessions/video_20261115T182243Z/video.h264"
+}
