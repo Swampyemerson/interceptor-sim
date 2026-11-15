@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->1fb89e3<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->aaf3d89<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-15",
- "updated_by": "Target drone: unexplained climb on flight seven, killed in the air; its log is unread (2026-11-15)",
+ "updated_by": "Target drone: flight seven's climb was the low-battery return home, read from its log (2026-11-15)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -914,13 +914,13 @@
  },
  "now": {
   "as_of": "2026-11-15",
-  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log and video per flight. Target: flew its first automatic course on 2026-11-15 (11 laps, no errors). On the next flight it climbed without being told to; the builder cut the motors low and it landed hard.",
-  "finding": "The cause of the target's climb is not known: its board cannot see its storage card, so the log is unread. Two candidates are written down with what the log must show: the low-battery return home, which climbs to 15 m, or manual mode with the stick at mid.",
+  "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log and video per flight. Target: flies a drawn course by itself (two flights on 2026-11-15). Its last flight ended in a 5.8 m fall when the builder cut the motors during an automatic low-battery climb; it needs inspecting.",
+  "finding": "The target's climb was not a fault: on low battery it is set to return home, which climbs toward 15 m and ignores the throttle stick. The pilot had never seen that and had not been warned. A pack lasts 8.3 minutes to that point.",
   "next": [
-   "You: target: do not fly; put its storage card in the PC reader so the flight log can be read",
+   "You: target: inspect after the fall; choose low battery = land for the yard; fly on a 6 min timer",
    "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
   ],
-  "evidence": "ADR-0138 addenda 16 and 17 - runs/target_flight7_20261115/README.md - runs/target_flight6_20261115/README.md"
+  "evidence": "ADR-0138 addenda 17 and 18 - runs/target_flight7_20261115/README.md - runs/target_flight6_20261115/README.md"
  },
  "assumptions": [
   {
@@ -1457,9 +1457,9 @@
  "plain_log": [
   {
    "date": "2026-11-15",
-   "text": "On its seventh flight the target drone began climbing without being told to. The builder cut the motors while it was still low and it came down in a semi-hard landing. Afterwards the board could not see its storage card at all, so the flight log has not been read and the cause is not known. Two explanations are written down, each with what the log has to show. One: the battery ran low and the drone began its automatic return home, which climbs to 15 m and ignores the throttle stick. Two: manual mode was selected with the throttle stick in the middle, which on this drone is 1.6 times hover thrust. The Pi filmed the flight from the ground for 14 minutes.",
-   "so_what": "The target is grounded until the card has been read in a PC, both to find the cause and because a new flight could overwrite the log. Nothing was changed on the drone on a guess. If it was the low-battery return home, the fix for flying in the yard is to make low battery mean land where you are, since a 15 m climb there goes into wires and trees.",
-   "evidence": "builder report 2026-11-15; runs/target_flight7_20261115/README.md (pre-registered); ADR-0138 addendum 17; board read-back of the failsafe settings"
+   "text": "On its seventh flight the target drone began climbing by itself; the builder cut the motors and it fell from 5.8 m. The cause was written down as two candidates before the log was read, and the log settled it: the battery had been under 21.6 V for ten seconds, so the drone began its automatic return home. Away from home that starts with a climb toward 15 m and ignores the throttle stick. He pulled the throttle down, nothing happened, and he cut the motors three seconds in. The storage card was intact after all; the board had just not connected to it after the landing, and all three logs are copied. The flight lasted 8.3 minutes and included about 13 more automatic laps.",
+   "so_what": "This was the drone doing what it was set up to do, not a control fault, but a setting nobody had explained to the pilot is a hazard of its own. Proposed, his choice: make low battery mean land in place for yard flying, put height-hold in the middle switch position so getting out of return-home does not pass through manual throttle, and fly on a 6 minute timer. The drone needs a look-over after the fall before it flies again.",
+   "evidence": "runs/target_flight7_20261115/README.md (predictions and result); ADR-0138 addenda 17 and 18; log 3 copy on the PC (not in the repo)"
   },
   {
    "date": "2026-11-15",

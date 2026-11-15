@@ -47,3 +47,53 @@ repo) may show the climb rate, which separates A (steady) from B (violent).
 - Why the card is not mounted: knocked loose by the landing, or failed. The morning's
   refusal to start a log (addendum 15) makes a failing card more likely than it was.
 - Whether this flight's log exists on the card.
+
+---
+
+# RESULT (added after the card was read in the PC, same day)
+
+The card was intact: logs 1, 2 and 3 were all on it, `LASTLOG.TXT` = 3. The board had simply
+not mounted it after the landing. Everything was copied to
+`C:\Temp\bench\target_card_copy_20261115\`; this flight is `00000003.BIN`, 105 MB, 557 s.
+
+## Verdict: candidate A. Candidate B is refuted (the log has no Stabilize at all).
+
+| Prediction for A | Log | Verdict |
+|---|---|---|
+| `MODE` to RTL with a battery failsafe `ERR` | 546.77 s: `MODE` 6 reason 4, `ERR` subsystem 6 code 1, "Battery 1 is low 21.52V", "Battery Failsafe" | held |
+| Under 21.6 V for the 10 s before | 21.48 to 21.55 V from 543 s on | held |
+| Climb rate close to 2.5 m/s | 0 to 1.86 m/s in 3.1 s and still rising when the motors were cut | consistent; cut before it reached the limit |
+| Throttle stick not followed | stick to the bottom (987) by 547.5 s; height went 3.24 to 5.26 m | held |
+
+## Sequence (log seconds; clock time from the log's GPS time)
+
+| Log time | UTC | Event |
+|---|---|---|
+| 52.3 | 18:27:50.8 | Armed (yaw stick) |
+| 143.9 to 240.2 | | Auto: 7 laps completed (jumps 1 to 7 of 10) |
+| 376.4 to 461.6 | | Auto again: 4 more laps to the end of the mission (jumps 8 to 10, then the last pass), restart, 2 more |
+| 461.6 to 546.8 | | Loiter, flown by hand, leaning up to 26 degrees |
+| 546.77 | 18:36:05.3 | Battery failsafe, return home begins at 3.24 m |
+| 549.87 | 18:36:08.4 | Motors cut with the arm switch at 5.26 m, rising 1.86 m/s |
+| about 550.1 | | Peak 5.8 m |
+| about 551.2 | | Ground. A fall of 5.8 m is about 10.7 m/s at impact; the log's last airborne climb rate is -9.5 m/s |
+
+Flight from arming to the cut: 497.6 s (8.3 minutes). Battery 24.55 V at the start, 21.5 V
+under hover load at the failsafe. The board counted 2758 mAh from a 1500 mAh pack, so the
+current sensor over-reads by more than the factor of two estimated from flight six.
+
+After the impact the board reported "Check mag field (xy diff:243>100)" and "DCM Roll/Pitch
+inconsistent 17 deg". Both were logged within two seconds of hitting the ground and may be
+only that; the compass mount is worth a look.
+
+## Ground video
+
+`sessions/video_20261115T182243Z/` started at 18:22:44 UTC, so arming is at 306 s into the
+video and the motor cut at 804 s of its 864 s. `scripts/bench/ap_log_clock_times.py`.
+
+## What this changes
+
+- The climb was the aircraft doing what it was configured to do, not a control fault.
+- Leaving return-home from Loiter needs the mode switch to move, and the next position is
+  Stabilize: with the stick at the bottom that is motors at the floor, with it at mid 1.6
+  times hover thrust (flight six). The switch layout makes the recovery itself hazardous.

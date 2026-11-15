@@ -2014,3 +2014,27 @@ should be Land, because a 15 m climb goes into the wires and trees over it.
 and said nothing to the builder about what the failsafe does away from home. Flight four's
 return-home started next to home, where the cone rule suppresses the climb, so "it lands
 itself" was the only behaviour he had seen.
+
+### ADR-0138 addendum 18 (2026-11-15): flight seven's climb was the low-battery return home; card intact
+
+**Card.** Read in the PC: logs 1 to 3 present and whole, the board had not mounted it after
+the landing. All copied. Why it failed to mount is not established (knocked loose fits).
+
+**Cause, from log 3.** Candidate A of addendum 17 held on all four pre-registered points and
+B is refuted: at 546.77 s the battery had been under 21.6 V for 10 s, the board declared a
+battery failsafe and entered return home at 3.24 m; the pilot pulled the throttle to the
+bottom, which return home ignores; it climbed to 5.26 m at up to 1.86 m/s; he cut the motors
+3.1 s in and it fell from 5.8 m. Evidence and table: `runs/target_flight7_20261115/README.md`.
+
+**So.** Not a control fault. The aircraft did what `BATT_FS_LOW_ACT` 2 and `RTL_ALT_M` 15
+tell it to do; the pilot had never seen that behaviour and had not been told. 8.3 minutes
+from arming to the failsafe on one pack.
+
+**Proposed to the builder, not set:** (1) low-battery action Land for yard flying, return
+home again for the field; (2) AltHold in the middle switch position in place of Stabilize,
+so that leaving return-home does not pass through 1.6 times hover thrust or motors at the
+floor; (3) a 6 minute timer on the radio. Each is his call: (1) and (2) change how the
+aircraft behaves in his hands.
+
+**Owed after a 5.8 m fall:** frame, props, motors, compass mount and the pack inspected
+before the next flight; the board logged a compass inconsistency just after impact.
