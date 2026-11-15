@@ -1873,3 +1873,23 @@ as a hover attitude of about twice the old values (pre-registered).
 estimate held GPS to 0.27 m, so the motion was the estimate's. Compass and GPS headings
 disagreed by 8 to 10 degrees at lift-off. The compass recalibration away from metal, open
 since addendum 4, is the lead.
+
+### ADR-0138 addendum 12 (2026-11-14 night): fifth flight not recorded; board route speed lowered to 3 m/s for a first Auto flight
+
+**Fifth flight.** The builder recalibrated the compass (offsets now -152 / -35 / 153, were
+-157 / -68 / 165) and flew again: "seems improved again". The board lists that flight as log
+21 with 0 bytes and no timestamp, and it cannot be downloaded; log 20 is a 6.6 s arm and
+disarm. So addendum 11's three predictions (pitch under 2 deg/s, hover attitude within 1
+degree of zero, height soft then within 0.1 m) are **not checked**. His report is the only
+evidence, and it is consistent with the trim sign being right (a wrong sign doubles the drift).
+Cause of the empty log not established. This card also produced "Logging failed" earlier the
+same day, and a file left open when power is pulled shows as zero length.
+
+**Request.** A small pre-programmed course at slow speed, drawn in QGroundControl.
+
+**Decision (mine, temporary, BOARD ONLY).** `WP_SPD` on the board 10 -> 3 m/s. The route file
+is his to draw and can carry its own speed, but a forgotten tick box would make the first
+automatic flight a 10 m/s one inside an 80 m fence. `target.param` still says 10 and the lint
+still requires 9 or more, because 10 m/s is the aircraft's job. **Uploading `target.param`
+restores 10**: that is the way back, and also the trap. Restore deliberately once a slow
+course has flown clean.

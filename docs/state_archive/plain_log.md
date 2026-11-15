@@ -556,3 +556,11 @@ Avionics pod revision 6: two more locating pins near the front of the dock. On t
 **So what:** The Pixhawk rides in this pod and its orientation is calibrated to the frame, so the pod must seat in the same place every time. The dock and the pod base both changed and need reprinting to confirm the fix. Still open from the same fit check: support material fills the pod's rear cup and cable windows, and both need reshaping before the Onyx order.
 
 *Evidence: hardware/avionics_pod/README.md (Revision 6); hardware/avionics_pod/pod.py PINS_FRONT; builder photo and report in session 2026-11-13*
+
+## 2026-11-13 (overflowed from plain_log 2026-11-14)
+
+Onyx order prepared for the four pod parts, revision 6 files. Fibre decision: continuous carbon fibre in the dock's flat base only (the part the camera post nods on), plain Onyx for the pod base, lid and camera plate. Two CU shops run Markforged printers: the Idea Forge lists an X7, which lays carbon, and the ITLL lists an Onyx Pro, which lays fibreglass only. About 58 g of parts, roughly 20 to 25 dollars at the quoted rates.
+
+**So what:** Fibre only stiffens flat layers, so it pays in the dock's tongue and nowhere else on this pod. The order goes out with two known risks: the new front pins have not been print-checked, and the pod base still needs supports inside its rear cup and cable windows. Both can be fixed by hand on the printed part.
+
+*Evidence: hardware/avionics_pod/PRINT_ORDER.md (The Onyx order); docs/decisions.md ADR-0136 addendum 2026-11-13*

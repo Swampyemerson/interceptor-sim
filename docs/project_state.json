@@ -20,7 +20,7 @@
     "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log (complete over USB) and video per flight and passes QGroundControl through over Wi-Fi. Target: crashed on its first flight 2026-11-14 after climbing at minimum throttle; cause found in its log, not yet fixed.",
     "finding": "Two root causes found and flown in one evening: wrong motor layout, then gains sized for a big slow quad (now read back from the board). Left over: soft height hold and slow, bursty descents in Position mode; a brief oscillation when settling after a climb.",
     "next": [
-      "You: target: charge the pack; redo the compass calibration outdoors, away from metal; fly again",
+      "You: target: draw a small slow course in QGroundControl, fly it; wait 5 s after disarm to unplug",
       "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
     ],
     "evidence": "ADR-0138 - configs/target_kakute/dumps/20261114_*.tsv - ADR-0137 + addendum - docs/fc_logging_without_sd.md"
@@ -560,6 +560,12 @@
   "plain_log": [
     {
       "date": "2026-11-14",
+      "text": "The builder recalibrated the target drone's compass outdoors and flew a fifth time; he reports it improved again. That flight's log is empty on the card, so the three predictions written before it could not be checked against data. He now wants to fly a small pre-programmed course slowly. The board's route speed has been lowered from 10 m/s to 3 m/s for that first automatic flight.",
+      "so_what": "The 3 m/s is a temporary setting on the board only. The project's settings file still says 10 m/s, which is the speed the target exists to fly, and loading that file puts 10 back. The empty log means the storage card is suspect: wait a few seconds after disarming before unplugging the battery.",
+      "evidence": "ADR-0138 addendum 12; board read-back WP_SPD 3.0; log list (log 21, 0 bytes)"
+    },
+    {
+      "date": "2026-11-14",
       "text": "Fourth flight of the target drone, 102 seconds in Position mode. Both predictions written beforehand held: roll wobble fell to under 2 deg/s, and height settled to within 9 cm after the first 35 seconds. It landed itself because the battery reached its low-voltage limit, which is the safety setting working. The faster logging gave the wobble a frequency for the first time: 23 times a second, in both roll and pitch, now larger in pitch because only roll had been turned down. The log also shows the drone hovering tilted about 3 degrees left and 4 nose-down in two flights running, which means its idea of level was off.",
       "so_what": "Pitch gains turned down to match roll, and the level reference corrected from the hover data. Neither flown yet. The sideways drift the builder corrected by hand traces to the position estimate, and the compass disagreed with GPS by about 10 degrees at take-off: the compass needs recalibrating outdoors, away from metal.",
       "evidence": "runs/target_flight4_20261114/README.md + timeline_and_spectra.txt + terms_and_drift.txt; ADR-0138 addendum 11"
@@ -623,12 +629,6 @@
       "text": "Replacement Pi 5 brought up on the bench with the AI HAT+ and the AR0234 camera. Camera: works at 1920x1200 and 60 fps after installing Arducam's camera library; an AprilTag on a laptop screen decoded in 90 of 90 frames, also at 1 ms exposure. Hailo-8: the link was running at half speed; at full speed a stock nano detector does 431 frames/s on the chip, and the live camera-to-detection loop runs at the camera's 60 fps with 29 ms from frame start to result. Pixhawk over USB: settings unchanged. Not working: the Pixhawk link (later the same day traced to two swapped signal wires).",
       "so_what": "Compute is no longer the limit for the camera-only seeker: a nano detector fits with a wide margin even at 1280x800 input (42 frames/s live), which doubles the pixels on a distant target over 640. What is missing is the trained seeker on the chip and proof it still sees small targets after 8-bit conversion. The Pixhawk cable is the one thing blocking a flight with the Pi.",
       "evidence": "runs/hailo_day1_20261113/README.md (benchmarks, live tests, camera and link probes); runs/dfc_native_res_20261113/README.md; configs/px4_6cmini/dumps/20261113_bench_new_pi.tsv"
-    },
-    {
-      "date": "2026-11-13",
-      "text": "Onyx order prepared for the four pod parts, revision 6 files. Fibre decision: continuous carbon fibre in the dock's flat base only (the part the camera post nods on), plain Onyx for the pod base, lid and camera plate. Two CU shops run Markforged printers: the Idea Forge lists an X7, which lays carbon, and the ITLL lists an Onyx Pro, which lays fibreglass only. About 58 g of parts, roughly 20 to 25 dollars at the quoted rates.",
-      "so_what": "Fibre only stiffens flat layers, so it pays in the dock's tongue and nowhere else on this pod. The order goes out with two known risks: the new front pins have not been print-checked, and the pod base still needs supports inside its rear cup and cable windows. Both can be fixed by hand on the printed part.",
-      "evidence": "hardware/avionics_pod/PRINT_ORDER.md (The Onyx order); docs/decisions.md ADR-0136 addendum 2026-11-13"
     }
   ],
   "narrative": {
