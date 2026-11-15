@@ -13,8 +13,8 @@ The flight recorder service starts this at arming (scripts/pi_setup/flight-recor
 Measured 2026-11-13 on the Pi 5 + AR0234: 1920x1200 at 59.5 fps and 1280x720 at 119 fps with
 no dropped frames (runs/hailo_day1_20261113/README.md).
 Outdoors 2026-11-15, full sun, --flip --exposure-us 150: 59.5 fps, no gaps, about 7.8 MB per second of
-video (58 MB for 7.4 s), so budget about 470 MB per minute. The camera sits upside down on the airframe
-as of that date: pass --flip.
+video (58 MB for 7.4 s), so budget about 470 MB per minute. The picture came out upside down
+as the rig sat that day (not checked whether the airframe itself was upright): check a frame, pass --flip if so.
 """
 import argparse
 import json
