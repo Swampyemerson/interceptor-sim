@@ -117,3 +117,60 @@ transit. Even the no-drag October-style rows rose 9 m while accelerating.
 - **Plant R cells of the first run were not on the lean limit** (peak lean 54°
   against a 60° limit) and their misses stand as observed; they are rerun anyway
   so every cell shares one model.
+
+## STAGE 1 RESULT (2026-11-18, rerun with the repair on; 864 runs, 54 cells)
+
+Rows: `runs/approach_dash_drag_20261118/stage1.json`.
+
+- **Prediction 1 (top speed): held.** Peak speed with the 36 m/s cap: plant X
+  21 to 23 m/s at D1 and 17 to 18.5 at D2; plant R 30 to 33.5 at D1 and 24 to
+  27 at D2. Nothing with drag reached 36. D0 reached 32 to 35.5.
+- **Prediction 2 (intercepts hold): held at D1, failed at D2.**
+  At D1 (the expected drag): 287 of 288 kills; the one miss is 0.37 m. No cell
+  loses 2 seeds, so no finding at D1.
+  At D2 (doubled drag): 270 of 288. Five cells lose 2 or more of 16, which is a
+  finding by the registered threshold: demo 20/3 R (12/16), demo 36/3 R
+  (12/16), demo 20/3 X (13/16), near 36/3 X (13/16), near 36/4 R (15/16, one
+  miss at 0.36 m; listed for completeness, below threshold).
+  At D0: 288 of 288.
+- **Median miss grows with drag in every cell** even where every run is a
+  kill: about 0.02 to 0.05 m at D0, 0.05 to 0.10 at D1, 0.08 to 0.18 at D2.
+- **Prediction 3 (time): held.** Time to closest approach grows 1 to 3 s at D1
+  and 3 to 6 s at D2 on plant R; up to 16 s on plant X in the tail geometry.
+- **Mechanism of the D2 misses, from the state machine's own reasons.** 13 of
+  the 19 misses end `target_lost(2.0s)` then BREAKOFF then SAFE. In all 13 the
+  closest approach (0.75 to 3.5 m, about 7 m/s closing) comes at or before the
+  first decode: the target passes the vehicle at the merge, the vehicle then
+  has to chase a target that is pulling away, loses sight of it, and 2.0 s
+  later the wrapper gives up. The other 6 end `pursuit_miss` between 0.36 and
+  0.80 m with about 1 m/s closing: a slow final close that ends just outside
+  the ram radius.
+- **The October "cliff" profile (36 / 3)** shows no cliff here at D0 or D1 in
+  any of the three geometries.
+
+## AMENDMENT 2 (2026-11-18, registered before flying): the lost-target clock
+
+The 13 lost-target misses point at one constant. `MissionConfig.engage_lost_target_s`
+is 2.0 s; the pursuit terminal's own return-to-belief-chase fallback
+(`PursuitTerminalConfig.fallback_s`) is 3.0 s. If the wrapper's clock fires
+first, the terminal's fallback can never run. An earlier registered A/B
+(`isim/specs/parity_flightcode_2026-09-21.md`, clocks of 2 / 4 / 10 / 30 s) was
+a byte-identical null, but at short range with a 9 m/s chase, where the loss
+happens inside 3 m and is permanent. This regime loses the target farther out,
+so that null does not carry over (the regime rule).
+
+- **Stage 3 config:** plant R and X, the four cells that lost 2 or more seeds
+  plus near 36 / 4 as a clean control, drag D0 / D1 / D2, clock 2.0 (flying) /
+  3.5 / 6.0 / 10.0 s, the same 16 seeds. Truth-side only apart from the clock.
+- **Prediction:** at 3.5 s and above, at least 10 of the 13 lost-target misses
+  become kills, because the terminal's fallback re-flies the belief chase and
+  the camera re-acquires. Cells with no lost-target miss do not get worse (their
+  kill counts are unchanged; the miss is the minimum over the window, so a longer
+  window cannot raise it).
+- **A null** (fewer than 4 of 13 convert) means the loss is as permanent here as
+  it was at short range, and the fix has to come from how the vehicle arrives
+  (speed and geometry at the merge), not from waiting longer.
+- **Adopt / reject:** nothing is adopted on this arm alone. A positive result
+  earns a Stage 2 style run with all errors on, and the safety cost has to be
+  stated beside it: a longer clock is more seconds of blind flight near the
+  target after a real miss.
