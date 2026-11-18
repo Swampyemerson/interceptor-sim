@@ -156,3 +156,45 @@ supports. Both are recoverable on the printed part (clip a pin, dig out a pocket
 - ITLL wiki, 3D Printing FAQ: <https://itll-wiki.colorado.edu/bookstack/books/3d-printing-equipment/page/3d-printing-faq>
 - ITLL wiki, Submit a Request: <https://itll-wiki.colorado.edu/bookstack/books/itll-website-usage/page/submit-a-request>
 - Idea Forge rapid prototyping costs: <https://www.colorado.edu/ideaforge/node/338>
+
+## If Onyx is not available (2026-11-17)
+
+Asked by the builder after trouble getting the Onyx prints; the other shop offers "FDM Prusa
+/ Bambu" and "Formlabs Form 4 SLA". Its material list has not been seen yet.
+
+**Stiffness is not what rules a material out.** `ANALYSIS.md` was run at printed PETG's
+1.9 GPa, and Onyx was expected to raise the frequencies only about 10 % (above). What Onyx
+added for certain was heat margin. So the choice turns on heat, toughness and inserts.
+
+| Material | Stiffness, flat in the layer | Across layers | Softens (0.45 MPa) | Fit for the flight parts |
+|---|---|---|---|---|
+| Onyx (reference) | about 3 GPa flexural; 2.4 GPa tensile is the common figure, 1.4 appears in some Markforged sheets | not given | 145 C | the plan above |
+| PAHT-CF (Bambu, nylon + chopped carbon) | 4.12 GPa | 1.68 GPa | not retrieved | closest like-for-like; first choice if offered |
+| PET-CF (Bambu) | 5.32 GPa | not retrieved | 205 C | stiffest filament here; good |
+| ASA-CF (Bambu) | 3.74 GPa | not retrieved | not retrieved | good |
+| PETG-CF (Bambu) | 2.89 GPa | 1.68 GPa | 74 C | Onyx-like stiffness, PETG's heat limit |
+| ASA (Bambu) | 1.92 GPa | 1.65 GPa | not retrieved | the modelled stiffness; more heat margin than PETG |
+| PETG | 1.9 GPa (the `ANALYSIS.md` figure) | | 75 to 80 C (above) | the modelled baseline; heat check owed |
+| PLA-CF (Bambu) | 3.95 GPa | | 55 C | no: softens beside a Pi |
+| Rigid 10K (Formlabs) | about 10 GPa | same in all directions | 163 C, 218 C after a thermal cure | no: breaks at about 1 % stretch |
+| Rigid 4000 (Formlabs) | 4.1 GPa | same in all directions | 77 C | camera plate at most |
+| Tough 2000 (Formlabs) | 1.8 GPa | same in all directions | 70 C | no gain over PETG |
+
+- **Resin and inserts:** cured resin does not melt, so the heat-set inserts this pod uses
+  cannot be pressed in hot. That alone rules resin out for `dock_cam` and `pod_base`.
+- **The dock loses its continuous fibre.** Frequency goes with the square root of
+  stiffness, so a 4.1 GPa tongue against 1.9 would put the nodding mode near 275 Hz where
+  PETG gave 187 (scaled, not rerun). The upright cheeks load across the layers, where every
+  filled filament is about 1.7 GPa, no better than PETG. The tap test still decides.
+- Carbon-filled filaments are slightly conductive, like Onyx: same care with bare joints.
+
+Sources (vendor data sheets; versions differ, values are for comparison only):
+[Markforged composites sheet](https://3dverkstan.se/wp-content/uploads/2018/07/markforged_composites_datasheet.pdf),
+[Bambu PETG-CF](https://cdn.shopify.com/s/files/1/0380/5149/files/Bambu_PETG-CF_Technical_Data_Sheet.pdf),
+[Bambu PAHT-CF](https://cdn.shopify.com/s/files/1/0380/5149/files/Bambu_PAHT-CF_Technical_Data_Sheet.pdf),
+[Bambu PET-CF](https://cdn.shopify.com/s/files/1/0224/5205/files/Bambu_PET-CF_Technical_Data_Sheet.pdf),
+[Bambu PLA-CF](https://cdn.shopify.com/s/files/1/0584/7236/6216/files/Bambu_PLA-CF_Technical_Data_Sheet_V3.pdf),
+[Bambu ASA](https://polyalkemi.no/wp-content/uploads/2024/01/Bambu_ASA_Technical_Data_Sheet.pdf),
+[Bambu ASA-CF](https://www.lesimprimantes3d.fr/dl/Bambus_ASA-CF_Technical_Data_Sheet.pdf),
+[Formlabs Rigid 10K](https://www.protolabs.com/media/4xmkxqpx/formlabs-rigid-10k.pdf),
+[Formlabs Rigid 4000](https://www.protolabs.com/media/1dtppgj1/formlabs-rigid-4000.pdf).
