@@ -61,6 +61,7 @@ __all__ = [
     "cue_to_target_start_arg", "cue_to_target_vel_arg",
     "cue_target_height_m", "cue_target_climb_ms",
     "load_cue_for_real_flight",
+    "BootToUtc", "MIN_VALID_UNIX_S",
 ]
 
 # ------------------------------------------------------------ capture window
@@ -677,6 +678,68 @@ def mavlink_stream_to_cue_records(connection_str: str,
             continue
         records.append(cue_record_from_global_position_int(msg, time.monotonic()))
     return records
+
+
+# ------------------------------------------------------------ shared time base
+#
+# Builder ruling 2026-11-18: the cue "should be timestamped so delay is
+# factored into guidance". Two GPS receivers already share a clock: both
+# autopilots publish MAVLink SYSTEM_TIME, which pairs UTC (from GPS) with the
+# autopilot's own boot clock, and every GLOBAL_POSITION_INT carries that boot
+# clock at the instant its sample was taken. So a record can say WHEN ITS
+# SAMPLE WAS TAKEN in UTC, the receiver can say what UTC is now, and the
+# difference is that record's true age: radio, laptop and Wi-Fi delay included,
+# measured per record instead of assumed.
+
+#: A SYSTEM_TIME below this is not a UTC time: an autopilot with no GPS time
+#: reports zero or seconds-since-boot. 1.5e9 s is 2017.
+MIN_VALID_UNIX_S = 1.5e9
+
+
+class BootToUtc:
+    """An autopilot's boot clock -> UTC, from its own SYSTEM_TIME messages.
+
+    Both fields of SYSTEM_TIME are stamped by the autopilot at the same
+    instant, so `unix - boot` is exact whatever the link delay. FAIL CLOSED:
+    `utc_of_boot_ms` returns None until `need` consecutive messages agree to
+    within `jump_tol_s`, and again after the offset jumps (the GPS time base
+    being acquired or corrected mid-stream). No pymavlink dependency."""
+
+    def __init__(self, jump_tol_s: float = 0.25, need: int = 2) -> None:
+        self.jump_tol_s = float(jump_tol_s)
+        self.need = int(need)
+        self._offset: Optional[float] = None    # seconds: unix - boot
+        self._agree = 0
+        self.n_msgs = 0
+        self.n_jumps = 0
+        self.n_invalid = 0
+
+    def ingest(self, time_unix_usec: float, time_boot_ms: float) -> None:
+        self.n_msgs += 1
+        unix_s = float(time_unix_usec) / 1e6
+        if unix_s < MIN_VALID_UNIX_S:
+            self.n_invalid += 1
+            self._offset, self._agree = None, 0
+            return
+        off = unix_s - float(time_boot_ms) / 1e3
+        if self._offset is not None and abs(off - self._offset) <= self.jump_tol_s:
+            self._agree += 1
+        else:
+            if self._offset is not None:
+                self.n_jumps += 1
+            self._agree = 1
+        self._offset = off
+
+    @property
+    def ok(self) -> bool:
+        return self._offset is not None and self._agree >= self.need
+
+    def utc_of_boot_ms(self, time_boot_ms: float) -> Optional[float]:
+        """UTC seconds of a sample stamped `time_boot_ms`, or None (no trusted
+        mapping yet)."""
+        if not self.ok:
+            return None
+        return self._offset + float(time_boot_ms) / 1e3
 
 
 # --------------------------------------------------------- integration loader
