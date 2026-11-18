@@ -85,3 +85,35 @@ directly; a=3 at 36 m/s is kept as a profile here for that reason.
 - isim's vertical channel is soft and unfitted. A height excursion under a
   saturated lean is logged (`alt_drop_max`) but is not evidence either way.
 - Quadratic drag here acts per axis and does not depend on lean.
+
+## AMENDMENT 1 (2026-11-18, written after the first Stage 1 run, before the rerun)
+
+**The first Stage 1 run is void for plant X with drag, and suspect for plant X
+without it.** Every 36 m/s cell on plant X with drag came back 0 / 16 with no
+detections. The rows show why: the vehicle climbed about 2,500 m. That is the
+fast sim's vehicle model, not the guidance. `isim/vehicle.py` sized thrust from
+the unclipped demand and applied it along the lean-clipped direction, so a
+vehicle held on its lean limit pushed the surplus upward and climbed without
+bound. Drag plus a cap it cannot reach holds it on the limit for the whole
+transit. Even the no-drag October-style rows rose 9 m while accelerating.
+
+- **Instrument repair:** `VehicleParams.tilt_sat_vertical_priority` (default
+  off, byte-identical; the instrument check still matches October with it off).
+  On, thrust under a clipped lean is sized from the vertical demand, which is
+  what PX4's position controller does. Shown working before the rerun: near,
+  36 / 4, D1, plant X, seed 0 went from a 118.7 m miss with a 2,556 m climb to
+  a 0.073 m miss with a 0.1 m climb, peak speed 21.3 m/s (prediction 1 said
+  about 22).
+- **What changes in the design:** plants X and R both run with the repair on.
+  Nothing else changes: same cells, seeds, predictions and finding thresholds.
+  The first run's rows are kept as `stage1_void_asfitted.json`.
+- **A consequence for the October spec.** Its "one real cliff" (36 m/s with
+  brake a=3 at the far crossing: 0 / 8, no decodes, closest about 150 m at 17 s)
+  has the same signature as these void rows (no decodes, closest 104 to 193 m
+  at 16 to 26 s). I cannot rerun that geometry, so this is a probable cause, not
+  a shown one: that cliff was likely the sim climbing away, not the brake
+  schedule. "Do NOT fly 36 / 3" should be read as unproven until someone
+  reproduces it with the repair on.
+- **Plant R cells of the first run were not on the lean limit** (peak lean 54°
+  against a 60° limit) and their misses stand as observed; they are rerun anyway
+  so every cell shares one model.

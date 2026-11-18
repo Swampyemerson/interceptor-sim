@@ -32,8 +32,14 @@ PROFILES = [(20, 3), (36, 4), (36, 3)]          # (dash_v_max_ms, brake_accel_ms
 # Quadratic horizontal body drag, 1/m, ADDED to the fitted linear term.
 # k = 0.5 * rho * CdA / m with rho 1.042 (Boulder), m 0.853 kg.
 DRAG = {"D0": 0.0, "D1": 0.0086, "D2": 0.0171}  # none / CdA 0.014 m2 / twice that
-PLANTS = {"X": {},                               # ENGAGE fit as fitted (tilt 37.7 deg)
-          "R": {"max_tilt_deg": 60.0, "thrust_max": 39.2}}  # demo tilt limit, 4 g
+# AMENDMENT 1 (2026-11-18, after the first Stage 1 run; see the prereg): every
+# plant now sets tilt_sat_vertical_priority, because the model as fitted climbs
+# without bound when held on its tilt limit. "X0" keeps the as-fitted rule so
+# the defect stays reproducible.
+PLANTS = {"X": {"tilt_sat_vertical_priority": True},   # ENGAGE fit, tilt 37.7 deg
+          "R": {"max_tilt_deg": 60.0, "thrust_max": 39.2,  # demo tilt limit, 4 g
+                "tilt_sat_vertical_priority": True},
+          "X0": {}}                                    # as fitted (defect on show)
 OUT = os.path.join(ROOT, "runs/approach_dash_drag_20261118")
 
 
@@ -96,6 +102,9 @@ def run_one(job):
     row["alt_drop_max"] = float((d - d[0]).max()); row["alt_rise_max"] = float((d[0] - d).max())
     st = list(getattr(guidance, "state_log", []))
     row["transitions"] = "|".join(f"{s}@{tt:.1f}" for tt, s in st)
+    sm = getattr(guidance, "_sm", None)
+    row["reasons"] = " || ".join(f"{tr.to}@{tr.t:.1f}: {tr.reason}"
+                                 for tr in getattr(sm, "transitions", []))[:600]
     return row
 
 
@@ -163,7 +172,7 @@ def main():
         n = 16
         for geom in GEOMS:
             for vmax, a in PROFILES:
-                for plant in PLANTS:
+                for plant in ("X", "R"):
                     for drag in DRAG:
                         jobs += cell_jobs(geom, vmax, a, drag, plant, range(n))
     else:

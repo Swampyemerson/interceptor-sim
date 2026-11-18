@@ -86,6 +86,20 @@ class VehicleParams:
     # as a rate-limited first-order lag (a cheap stand-in for the attitude
     # controller's closed loop) ---
     max_tilt_deg: float = 35.0  # deg, hard tilt-magnitude ceiling
+    # TILT-SATURATION THRUST RULE (2026-11-18, found by the approach-dash drag
+    # screen, isim/specs/approach_dash_drag_prereg_2026-11-18.md). False
+    # (default) = the model as fitted, byte-identical: thrust magnitude is the
+    # norm of the UNCLIPPED demand, applied along the tilt-CLIPPED direction.
+    # While the demanded tilt exceeds max_tilt_deg that pushes the surplus
+    # magnitude upward, and a vehicle held on its tilt limit climbs without
+    # bound (2.5 km in a 120 s run with body drag on and a 36 m/s cap). The
+    # fits never visited that regime. True = while the tilt clip is active the
+    # magnitude is the VERTICAL demand divided by cos(max tilt), which is what
+    # PX4's position controller does (it limits tilt first and then sizes
+    # collective thrust from the vertical demand): height is held and the
+    # horizontal demand is what gets short-changed. Identical to the default
+    # whenever the tilt clip is not active.
+    tilt_sat_vertical_priority: bool = False
     max_tilt_rate_deg_s: float = 220.0  # deg/s, physical tilt-rate ceiling
     tilt_time_constant_s: float = 0.12  # s, first-order lag time constant
 
@@ -262,6 +276,11 @@ class QuadVelocityModel:
         max_sin_tilt = math.sin(math.radians(p.max_tilt_deg))
         desired_tilt, sat = _clip_norm(_dir_to_tilt(thrust_dir_desired), max_sin_tilt)
         saturated = saturated or sat
+        if sat and p.tilt_sat_vertical_priority:
+            # Tilt-limited: size the thrust from the vertical demand alone
+            # (see VehicleParams.tilt_sat_vertical_priority).
+            cos_max = math.sqrt(max(1e-9, 1.0 - max_sin_tilt * max_sin_tilt))
+            desired_mag = max(0.0, G - accel_cmd_vert) / cos_max
 
         desired_thrust_mag = min(p.thrust_max, max(p.thrust_min, desired_mag))
         saturated = saturated or not (p.thrust_min <= desired_mag <= p.thrust_max)
