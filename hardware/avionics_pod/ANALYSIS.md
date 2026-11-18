@@ -195,3 +195,22 @@ camera pointed at a ruled target), then the same with motors running.
 - Electrical noise from the speed controller into the camera ribbon and the serial cable.
 - Compass error from the Pi and the power wiring: the GPS and compass position is not
   designed yet (`GAP_REVIEW.md` item 12).
+
+## 5. The dash (added 2026-11-18, raised by the builder)
+
+Sections 2 and 3 were written around hover. What the dash changes, by hand calculation:
+
+- **Air load on the pod is smaller than the 10 g case already checked.** Worst case is the
+  pod's top face (107 x 56 mm) square to the wind, flat-plate drag 1.17, Boulder air
+  1.042 kg/m³: 0.9 N at the planned 16 m/s, 4.7 N at 36 m/s (80 mph). The 10 g check put
+  16 N on the 163 g module. Air load does not change the material choice.
+- **Motor rate during the planned dash is about 225 to 260 Hz**, not the 213 Hz hover
+  figure (same estimate as `docs/airframe_numbers.md` §7, scaled by the square root of
+  thrust: 8.6 N steady at 16 m/s, 11.9 N during the 10 m/s² ramp). That is where a stiffer
+  camera post would sit (about 275 Hz scaled for a 4.1 GPa base, lower on real joints).
+  So a stiffer material cannot be said to move the post clear of the motors; it gives
+  less movement for the same shake. The tap test and a vibration log in flight decide.
+- **Heat from the motors, ESC and pack is not in section 3.** They sit below the top plate
+  and the dash lasts a few seconds, so I expect little to reach the pod. Not calculated.
+- **A dash near full throttle is not analysed anywhere:** motor rate up to about 583 Hz,
+  and the current limits in `docs/airframe_numbers.md` §6.

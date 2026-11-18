@@ -213,6 +213,17 @@ Why 6S: for the same power, higher voltage means lower current; I²R loss in pac
 ESC drops with the square of current, and voltage sag on a dash is smaller. Both aircraft
 also share one pack type and one charger.
 
+**Full-throttle current against the power path (2026-11-18, raised by the builder).**
+All pack current passes through the PM02 V3 (battery, PM02, ESC). PX4's page for it gives
+60 A rated, 120 A for under 60 s, and 120 A as the most it can sense. Four motors at their
+listed 45 A peak is 180 A, and the pack's listed burst is 150 A. So a full-throttle punch
+would exceed the PM02's limit and the logged current would clip at 120 A. Not measured.
+The planned dash is far below this: 16 m/s with a 10 m/s² ramp needs about 12 N of thrust
+(0.853 kg × √(9.81² + 10²)), about 20 % of static, which scales from the hover estimate
+to roughly 15 A (7.5 A × (1.2 / 0.8)^1.5). A dash near full throttle is a different
+aircraft for this purpose: re-check the PM02, the pack and the XT60 leads before
+commanding one. Source: <https://docs.px4.io/main/en/power_module/holybro_pm02>
+
 ---
 
 ## 7. Motor and prop constants
