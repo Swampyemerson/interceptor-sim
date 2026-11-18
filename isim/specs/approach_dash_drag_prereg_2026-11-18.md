@@ -276,3 +276,36 @@ Rows: `runs/approach_dash_drag_20261118/stage3.json`.
   the target was last seen beyond the 3 m miss range" a candidate for a Gazebo
   rung and a builder ruling. It changes how long the aircraft flies blind near
   the target after losing it, which is his call, so nothing is switched here.
+
+## STAGE 2b RESULT (2026-11-18; which error loses the target, 700 runs)
+
+Rows: `runs/approach_dash_drag_20261118/stage2b.json` (profile 36 / 4, plant R,
+D0, straight target, 50 paired seeds per package).
+
+| Error package | near: kills, no decode | demo: kills, no decode |
+|---|---|---|
+| full | 16 / 50, 31 | 17 / 50, 30 |
+| without the target-speed belief error | 50 / 50, 0 | 45 / 50, 6 |
+| speed belief error cut to 4 % | 27 / 50, 21 | 31 / 50, 18 |
+| without heading error | 18 / 50, 29 | 20 / 50, 27 |
+| without wind | 16 / 50, 31 | 17 / 50, 30 |
+| without own-state errors | 16 / 50, 31 | 17 / 50, 30 |
+| without vehicle scatter | 16 / 50, 31 | 17 / 50, 30 |
+
+- **Prediction held on the cause, missed on the 4 % level.** The target-speed
+  belief error is the whole effect: without it the no-decode share is 0 % (near)
+  and 12 % (demo), against my "under 15 %". At 4 % (about 0.48 m/s, the class
+  the cue plan hopes for) it is still 42 % and 36 %, against my "under 30 %".
+  Heading is a distant second; wind, own-state and vehicle scatter change nothing.
+- **Where the target is when it is never decoded.** At closest approach the
+  target is BEHIND the vehicle in 28 of 31 no-decode runs (near) and 25 of 30
+  (demo): median 7.6 and 9.6 m behind, out to about 30 m, with 6 to 7 m of
+  cross-track offset that the heading error supplies. The vehicle parks 8 m
+  behind where it BELIEVES the target is, facing forward. If the belief runs
+  fast, the real target is behind the vehicle, and a rear-facing tag cannot be
+  read from in front. The runs where the belief runs slow leave the target
+  ahead and in view, and those are the runs that decode.
+- **Arithmetic check.** 10 % of 12 m/s is 1.2 m/s; over a 22 to 27 s transit
+  that is 26 to 32 m of along-track error (one sigma) at arrival. The same 10 %
+  at the 16 m canon geometry is a few metres, which is why the short-range
+  studies never saw this.
