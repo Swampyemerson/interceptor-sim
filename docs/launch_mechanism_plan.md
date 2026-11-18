@@ -3,7 +3,7 @@
 > **Status: IMPLEMENTATION DESIGN (2026-07-24), NOT RATIFIED.** The builder PARKED
 > the launch mechanism on 2026-07-21 ("until real flights inform it"); this note
 > does not un-park it. It converts the prior 4-lens **options** evaluation
-> (`docs/launch_mechanism_options.md` → recommend **B-core**: manual trigger +
+> (`retired/docs/launch_mechanism_options.md` → recommend **B-core**: manual trigger +
 > coded dash + an honesty-clean pre-flight aim stack) into a **buildable plan on
 > the parts that are already ordered**, so that when it is un-parked there is
 > nothing left to decide except "go". Nothing here changes
@@ -418,7 +418,7 @@ interception day is 2026-10-24/25, ADR-0127.)*
 
 ---
 
-*Provenance: `docs/launch_mechanism_options.md` (4-lens eval + adversarial critic,
+*Provenance: `retired/docs/launch_mechanism_options.md` (4-lens eval + adversarial critic,
 2026-07-21) for the option ranking; `docs/project_state.json` (`launch_mech`
 decision, `bom_tiers`, constraints `no-datalink` / `forward-camera-boom` /
 `honesty-boundary`, graveyard) for status and hard limits;

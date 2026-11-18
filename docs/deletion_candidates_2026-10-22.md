@@ -5,7 +5,7 @@ Tier 1 EXECUTED 2026-10-22 (builder approval, review-3 sweep — per-row status 
 Tier 3 (logs) remains HELD: gitignored data, irreversible. Each row: why it's dead, the superseding pointer, live
 inbound references (from CLAUDE.md / ops.md / goals / next / progress /
 contract / scripts), and a recommendation. Ranked by review-load saved.
-Prior art: `docs/doc_hygiene_2026-09-17.md` (archived ADR-0001–0080; its
+Prior art: `retired/docs/doc_hygiene_2026-09-17.md` (archived ADR-0001–0080; its
 method is reused here). **The builder decides; the head executes per row.**
 
 ## Tier 1 — docs that cost review attention and serve no live surface
@@ -69,5 +69,5 @@ every session's recall surface:
 (they ARE the archive), `bird_discrimination_design.md` +
 `detection_tracking_methods.md` + `quad_target_retrain.md` (contract-
 referenced design records; archive only with contract re-pointing),
-`doc_hygiene_2026-09-17.md` (prior art for this file — though once this
+`retired/docs/doc_hygiene_2026-09-17.md` (prior art for this file — though once this
 file's actions land, both could merge into one hygiene log).

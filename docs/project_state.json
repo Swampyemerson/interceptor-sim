@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-18",
-  "updated_by": "Long-range dash meets realistic cue errors; interface audit and bench; live cue link (2026-11-18)",
+  "updated_by": "Flight modes, cue as GO, arrival search and the flying-optics rerun merged; doc sweep (2026-11-18)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-11-18",
-    "where": "Desk and bench day. The flight program has never run on the real Pixhawk and has no real-flight mode; safety fixes are being built. The 500 m fast dash met realistic cue errors for the first time, in the fast sim.",
-    "finding": "A 10% error in the target's believed speed leaves the 500 m dash 22 m off on arrival: 13 to 17 kills of 50, and the tag is never read in 61% of runs. Without that one error it is 45 to 50. And the cue is read once at start, so by GO it is hundreds of metres stale.",
+    "where": "The flight program now has a guarded flight mode, a props-off bench mode, a watchdog, a live cue link and the cue as the GO command. All of it is tested on the laptop only: nothing has run on the real Pi and Pixhawk, because the props are on.",
+    "finding": "Flying lens, 20 degrees of camera tilt, all errors on: searching along the track on arrival takes the 500 m dash from 117 to 190 kills of 192 against a straight target. A weaving target is still rarely caught. The target's tag is drawn side-facing, which a chase from behind cannot read.",
     "next": [
-      "Me: wire the live cue link and the safety fixes into the flight program; props-off bench run",
-      "You: pick the board's speed envelope; fly the target on one straight fast leg, logged"
+      "You: take the props off and say so; I then run the bench rehearsal and watchdog check",
+      "You: rule on the tag's facing and the camera plate angle (questions below)"
     ],
-    "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md - docs/interface_audit_2026-11-18.md - docs/arrival_geometry_2026-11-18.md - docs/guidance_review_2026-11-18.md - runs/fc_readonly_20261118/"
+    "evidence": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md - isim/specs/arrival_search_prereg_2026-11-18.md - docs/interface_audit_2026-11-18.md - docs/cue_over_control_link.md - docs/decisions.md ADR-0139"
   },
   "assumptions": [
     {
@@ -146,7 +146,7 @@
       "test": {
         "how": "Bench L6: log the GO-edge timestamp on the Pi vs the operator's switch throw (video timestamp); measure latency + jitter. Needs only ordered parts (Pocket M2, 6C Mini, Pi).",
         "cost": "One bench hour, ordered parts only",
-        "status": "planned (launch plan §7 L6)"
+        "status": "planned (launch plan §7 L6); with --trigger cue (2026-11-18) GO is fired by the cue and timed by GPS clocks, so human latency no longer enters on that path"
       },
       "state": "planned",
       "ruling": "",
@@ -155,7 +155,7 @@
     },
     {
       "id": "dash-accel-profile",
-      "statement": "The real aircraft's dash acceleration (10 m/s²) and top speed (16 m/s) are sim-fitted guesses — and the C2 lead correction that aims the whole intercept is sized directly from that acceleration.",
+      "statement": "Real dash acceleration and top speed are unmeasured: the coded dash assumes 10 m/s2 and 16 m/s; the approach dash caps at 36 m/s and the fast sim, with assumed drag, peaks near 26 to 30 m/s.",
       "grade": "unmeasured",
       "if_wrong": "The lead solve points the dash at the wrong spot: the same error class cost ~1 m of CPA in sim — several times the 0.35 m kill envelope. Mis-sizing C2 silently spends the entire ±2.4° aim budget.",
       "stages": [
@@ -167,7 +167,7 @@
       "test": {
         "how": "L9: fly the first real dash, read the achieved horizontal acceleration profile from the ULog — that single curve IS C2. Needs the Tier-2 airframe.",
         "cost": "First Tier-2 flight",
-        "status": "planned (launch plan §7 L9, [T2])"
+        "status": "planned (launch plan §7 L9, [T2]); 2026-11-18: board speed limit raised to 33 m/s, acceleration limit 5 m/s2 and lean 45 deg unchanged, no fast flight yet"
       },
       "state": "planned",
       "ruling": "",
@@ -306,9 +306,9 @@
     },
     {
       "id": "go-bit-not-a-cue",
-      "statement": "The ELRS GO switch is classed as a command (not a target cue), and the intercept is claimed to complete with the radio link dead after the trigger — the jam-resistance headline. Asserted, never flown.",
+      "statement": "The intercept is claimed to finish with the radio link dead after GO. Since 2026-11-18 the cue fires GO and the RC switch only enables it; the link-dead claim is still asserted, never flown.",
       "grade": "unmeasured",
-      "if_wrong": "The project's one-line reason to exist ('when the datalink is denied, the camera finishes the intercept') is an unsupported claim; ADR-lite #3 forbids making it anywhere until L11 passes.",
+      "if_wrong": "It cannot pass as the board is set: radio loss returns home 0.5 s later even in automatic flight (COM_RCL_EXCEPT 0), so switching the transmitter off after GO aborts the intercept.",
       "stages": [
         "launch_aim",
         "hardware"
@@ -317,7 +317,7 @@
       "test": {
         "how": "L11: kill the TX immediately after the GO edge on ≥3 flights; the dash + terminal must complete unaided and the ULog must show no RC input after the edge.",
         "cost": "3 Tier-2 flights",
-        "status": "planned (launch plan §7 L11, [T2], mandatory)"
+        "status": "planned (launch plan §7 L11, [T2], mandatory); 2026-11-18 read-only board snapshot shows the radio-loss exception is not set (interface audit G5, builder's call)"
       },
       "state": "planned",
       "ruling": "",
@@ -360,7 +360,7 @@
       "test": {
         "how": "Bench L3/L6 (real Pi→TELEM2 link cadence — the driver prints max observed sample age every run), L4/L5 (OV9281 intrinsics + measured box-width noise re-derive breakoff_min_rise), and the first real ULogs replace the dash constants. The full checklist is the Build sheet's 'numbers still guessed' section.",
         "cost": "Bench sessions on ordered parts; no airframe needed for L3–L6",
-        "status": "planned (each constant's comment names its bench item)"
+        "status": "planned (each constant's comment names its bench item); 2026-11-18 adds more unmeasured constants: the search's declared cue errors, the 1.0 s own-state bound, the 0.5 s watchdog, the 6 s far-loss clock"
       },
       "state": "planned",
       "ruling": "",
@@ -482,7 +482,7 @@
       "test": {
         "how": "Kitchen scale on the built aircraft; DIY thrust rig (motor inverted on a scale, grams + amps per throttle step); 60 s hover with PM02 current in the ULog. Re-run scripts/airframe_numbers.py --auw --thrust, update doc + test.",
         "cost": "One bench afternoon; thrust rig ~$20 still on the must-add list",
-        "status": "planned (airframe_numbers.md §10)"
+        "status": "planned (airframe_numbers.md §10); 2026-11-15 the target drone (same motors, props, pack) logged about 5 g and about 86 A at full throttle with the pack at 3.05 V per cell; the interceptor itself is still unweighed"
       },
       "state": "planned",
       "ruling": "",
@@ -512,7 +512,7 @@
       "id": "cue-speed-error-at-long-range",
       "statement": "The 500 m approach dash was shown with a cue whose target speed was exact (the Gazebo takes, including the 80 mph video) or with no errors at all (the October fast-sim sweep).",
       "grade": "given-perfect",
-      "if_wrong": "It is wrong at the cue plan's worst case. A 10% speed error is 22 m along the track at arrival: kills fall to 13-17 of 50 and the tag is never read in 61% of runs. At 4% it is 27-31 of 50.",
+      "if_wrong": "A 10% speed error is 22 m along the track at arrival. Old park-and-wait: 16 kills of 50, the tag never read in 61% of runs (flying lens). With search on arrival: 62 of 64 at 10%, sim only.",
       "stages": [
         "launch_aim",
         "terminal"
@@ -521,12 +521,12 @@
       "test": {
         "how": "Fast sim, all errors on, then one error removed at a time (stages 2 and 2b of the drag screen); an independent geometry check from its own traces. Real figure: log the target on one straight leg at 9 to 12 m/s and compare its reported velocity with the position slope.",
         "cost": "fast sim: done. Real: one target flight on a long straight leg",
-        "status": "fast sim run 2026-11-18 (1900 runs). Real cue speed error on a fast straight leg: not measured; the target's own log self-reports 0.09 m/s on slow 3 m legs"
+        "status": "fast sim run 2026-11-18 on October's optics (1900 runs) and again on the flying lens (9,400 runs): same collapse without the search. Real cue speed error on a fast straight leg: still not measured; the target's own log self-reports 0.09 m/s on slow 3 m legs. Cue window raised to 5 s the same day."
       },
       "state": "violated",
-      "ruling": "VIOLATED in the fast sim (2026-11-18). With a 10% one-sigma error in the believed target speed the 500 m dash kills 13 to 17 of 50 and never decodes the tag in 61% of runs; removing that one error gives 45 to 50 of 50; at 4% it is 27 to 31. A kill needs the target 0 to about 21 m ahead of where the vehicle parks. October's optics, not the flying ones. The real cue's speed error on a fast straight leg is unmeasured, so how far this bites in the field is open.",
+      "ruling": "VIOLATED in the fast sim (2026-11-18), on October's optics and on the flying lens. Park-and-wait kills 16 of 50 at a 10% speed error and 24 at 4%; the cue plan's own worst case is near 10%. Mitigations built the same day, sim-only: a 5 s cue window, and a search along the believed track on arrival (190 kills of 192 at 20 deg of camera tilt, 117 without). How far the error bites in the field waits on a measured cue from a fast straight leg.",
       "origin": "Builder question 2026-11-18 (does the sim need air drag?) led to the first all-errors run of the 500 m dash; the builder also recalled a 10% cue error, which had only been flown at 16 m range.",
-      "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md (stage 2, 2b, corrections); docs/arrival_geometry_2026-11-18.md; logs/cinema_lr/hr5_meta.json (cue_speed_err 0.0)"
+      "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md (stage 2, 2b, corrections); docs/arrival_geometry_2026-11-18.md; logs/cinema_lr/hr5_meta.json (cue_speed_err 0.0); isim/specs/flight_hardware_rerun_prereg_2026-11-18.md; isim/specs/arrival_search_prereg_2026-11-18.md"
     },
     {
       "id": "cue-fresh-at-go",
@@ -541,12 +541,32 @@
       "test": {
         "how": "Live cue link (flight/cue_link.py): the Pi keeps the freshest GPS records through standby and latches once at GO, advanced to GO. Bench over Wi-Fi with a made-up 12 m/s target, then wire it into the flight program, then a real target's GPS.",
         "cost": "desk and bench: hours. The target-to-ground radio leg needs the builder's hands",
-        "status": "link built and bench-tested 2026-11-18 (belief 0.3 m from truth after 30 s; stale stream refused); NOT yet wired into the flight program; no real target GPS yet"
+        "status": "fix BUILT and merged 2026-11-18: --trigger cue latches the freshest 5 s fit at GO with per-record delay removed (offline and fake-vehicle tests; Wi-Fi bench of the link alone). NOT proven: on the real Pi and Pixhawk, or with a real target's GPS (no radio leg yet). The old --cue-json path is unchanged and still stale for a moving target."
       },
       "state": "violated",
-      "ruling": "VIOLATED by reading the code (2026-11-18): the cue is read once in build_config with no trigger time and nothing advances it to GO. A live link that latches at GO now exists and passed a Wi-Fi bench test with a made-up target, but the flight program does not use it yet, and no path gets the real target's GPS to the Pi.",
+      "ruling": "VIOLATED by reading the code (2026-11-18): the --cue-json path reads once in build_config and nothing advances it to GO. The replacement exists: the cue is the GO command, latched once at GO and advanced to that instant. It stays 'violated' until a props-off run on the real board and a real target stream show it working.",
       "origin": "Interface audit 2026-11-18 (G3), asked for by the builder: how will the 3 second cue link work in the field.",
       "evidence": "docs/interface_audit_2026-11-18.md G3, G9; flight/deploy/real_flight.py build_config (cue read once, no trigger time); runs/fc_readonly_20261118/README.md"
+    },
+    {
+      "id": "search-declared-cue-quality",
+      "statement": "The search on arrival sizes the stretch of track it sweeps from two declared numbers: a 10% speed error and 3 m of position error, one sigma. Nobody has measured either for this cue.",
+      "grade": "unmeasured",
+      "if_wrong": "Declared too small, the sweep stops short: with a true 10% error and 4% declared, 7 to 8 runs of 50 never decode. Declared too large, the search takes longer and makes more blind passes.",
+      "stages": [
+        "launch_aim",
+        "terminal"
+      ],
+      "key_numbers": [],
+      "test": {
+        "how": "Measure the cue's speed and position error on a logged straight fast leg of the target (reported velocity against position slope, over 5 s windows), then set the two constants from it.",
+        "cost": "one target flight on a long straight leg; desk analysis",
+        "status": "planned; the constants are the fast-sim defaults"
+      },
+      "state": "planned",
+      "ruling": "",
+      "origin": "Arrival search build 2026-11-18 (isim/specs/arrival_search_prereg_2026-11-18.md, arm stern_decl04).",
+      "evidence": "flight/pursuit_terminal.py search_sigma_speed_frac, search_sigma_pos0_m; runs/arrival_search_20261118/report.txt"
     }
   ],
   "builder_queue": [
@@ -564,14 +584,14 @@
     },
     {
       "id": "dash-envelope-on-real-fc",
-      "question": "You raised the interceptor's speed limit to 33 m/s on 2026-11-18 (it was the stock 12 m/s, which cannot catch a 12 m/s target). The lean limit is still the stock 45 degrees, which by the assumed drag holds about 25 m/s. Raise the lean limit too?",
+      "question": "The interceptor's speed limit is now 33 m/s (your instruction) and the sim says to leave the lean limit at 45 degrees. What is left before a long-range flight is the geofence: it holds the aircraft at 457 m, and a 500 m engagement with a search can cross it. Widen it for those flights?",
       "options": [
-        "Leave 45 degrees for the first fast flights and measure the real top speed and braking",
-        "Raise to about 55 to 60 degrees now (needed for 30 to 33 m/s; also lets the aircraft lean harder in your Position mode)"
+        "Keep 457 m and use cues inside about 300 m until the dash and the search have flown",
+        "Widen the geofence for the long-range attempts only, to a figure you set from the field's size"
       ],
-      "rec": "Option 1. The speed limit is no longer the block; real thrust, drag and braking are still unmeasured, and the lean limit is the one setting here that changes how the aircraft handles in your hands.",
-      "blocked": "Reboot check of the new limit is owed (not done with props on). Power path at full throttle: docs/airframe_numbers.md section 6. Geofence is 457 m, inside a 500 m engagement.",
-      "doc": "isim/specs/approach_dash_2026-10-21.md"
+      "rec": "Option 1 first. Lean limit: answered, leave 45 degrees (45, 52 and 60 are within 1 kill at every usable tilt; top speed 26.5 against 30 m/s). That answer assumes the board's 5 m/s2 limit applies to commanded speeds, which is not known.",
+      "blocked": "Owed before any fast flight: a reboot check of the 33 m/s setting (not done with props on), the full-throttle power check in docs/airframe_numbers.md section 6, and a measured brake.",
+      "doc": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md; runs/fc_readonly_20261118/README.md"
     },
     {
       "id": "stamped-age-adoption",
@@ -597,30 +617,48 @@
     },
     {
       "id": "cue-radio-leg",
-      "question": "The interceptor needs the target's GPS up to the moment of GO. The Pi side now exists and works on the bench, but nothing yet gets the target's GPS off the target. Which path do we build?",
+      "question": "The Pi side of the cue works on the bench, but nothing yet gets the target's GPS off the target. The route you asked about (down the control link, out of the transmitter's USB, laptop, Wi-Fi to the Pi) is researched and its laptop program written. Try it?",
       "options": [
-        "Typed belief for now: the target waits at the start of a straight leg and is released on the GO call (what the sims assume; no new hardware)",
-        "A small telemetry radio pair straight from the target to the Pi (one hop, no laptop in the loop)",
-        "The transmitter's Wi-Fi backpack to a laptop, then laptop to Pi over the field hotspot (no new hardware, unproven on this firmware)"
+        "Yes: the handset USB route first (three menu settings, target disarmed; then check sticks and kill switch with the cable in)",
+        "Skip to a small telemetry radio on the target (leaves the control link alone; new part)",
+        "Typed belief for now: the target waits at the start of a straight leg and is released on the GO call"
       ],
-      "rec": "Option 1 for the first moving-target flights, and build option 2 behind it. Option 1 is honest only for a straight leg from a known start; it is not the cued-interceptor concept.",
-      "blocked": "Needs your hands either way (radio wiring on the target, or the transmitter's menus).",
-      "doc": "docs/interface_audit_2026-11-18.md G3, G9; docs/cue_relay_plan.md sections 2 and 13; flight/cue_link.py"
+      "rec": "Option 1. It cannot disturb the kill-switch path. Its limit is 2 position reports a second with no timestamps, so the Pi assumes the link delay instead of measuring it; if that proves too coarse, option 2.",
+      "blocked": "Needs your hands at the transmitter. Unverified until tried: the bytes this handset really sends, and that it keeps controlling normally with USB in Serial mode.",
+      "doc": "docs/cue_over_control_link.md; scripts/field/crsf_cue_source.py; flight/cue_link.py"
     },
     {
-      "id": "lost-target-clock",
-      "question": "When the camera loses a target that is still ahead, the aircraft gives up after 2.0 s, before its own return-to-chase logic (3.0 s) can run. A 6 s clock gained 11 kills of 400 in the fast sim with all errors on and lost none. Lengthen it?",
+      "id": "target-tag-facing",
+      "question": "The target's tag placard is designed side-facing, to keep drag off the target. The chase comes from behind and cannot read it: 0 kills of 16 in the sim. A rear-facing plate is the option the mount design rejected, because its drag holds the target near 6 m/s. Which way do we go?",
       "options": [
-        "Keep 2.0 s everywhere",
-        "6 s only when the target was last seen beyond the 3 m miss range (the close-miss rule stays as you ruled it)",
-        "6 s always"
+        "Keep the side-facing placard and plan the intercept to arrive from the side (sim: 9 and 15 of 16 in the one side-arrival geometry tried)",
+        "Fly a rear-facing tag for the first chase flights and accept a slow target",
+        "Leave the tag for calibration and put the effort into the markerless seeker, which does not need it"
       ],
-      "rec": "Option 2, after one Gazebo rung. The gain is real but small; the larger fixes are camera up-tilt and not starting the clock on a stray early decode (guidance review items 1 and 2).",
-      "blocked": "It lengthens blind flight near the target after a genuine miss, which is your 2026-09-22 ruling to change.",
-      "doc": "isim/specs/approach_dash_drag_prereg_2026-11-18.md (stages 3 and 5); docs/guidance_review_2026-11-18.md"
+      "rec": "Do not build either placard yet. I run the side-arrival geometry with the search first; that costs an hour and tells us whether option 1 is real.",
+      "blocked": "The placard has not been built. Every pursuit result in the contract assumes a rear-facing tag.",
+      "doc": "docs/placard_mount.md section 3; isim/specs/flight_hardware_rerun_prereg_2026-11-18.md (Brackets)"
+    },
+    {
+      "id": "camera-plate-angle",
+      "question": "You ruled the camera at +10 degrees with the placard canted 12 degrees down (2026-09-24). Today's rerun with the flying lens says 10 degrees loses the tag off the top of the picture and 20 degrees holds it, but it did not model the target pitching or the canted placard. What do we set?",
+      "options": [
+        "Nothing yet: one more fast-sim grid with pitch, cant and the flying lens, then set the plate",
+        "Set 20 degrees now (the plate adjusts 10 to 45, so it can be changed again)",
+        "Keep the ruled +10 degrees"
+      ],
+      "rec": "Option 1. The plate is adjustable, so waiting costs nothing, and the two results were earned under different conditions.",
+      "blocked": "Nothing. Not above 25 degrees in any case: from 30 the picture looks over the target.",
+      "doc": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md (Camera tilt); docs/decisions.md ADR-0114; hardware/avionics_pod/README.md"
     }
   ],
   "plain_log": [
+    {
+      "date": "2026-11-18",
+      "text": "Second half of the day. The flight program gained a guarded flight mode with a radio arm permit, a props-off rehearsal mode that cannot arm, a watchdog that ends the command stream if the Pi program hangs, and a check of the board's limits before arming. The cue became the GO command: the target's GPS arrives live, the freshest five seconds are fitted, and the belief is locked at the instant of GO with the link delay taken out. A search along the believed track on arrival was built and tested in the fast sim, then everything was rerun with the flying camera, tag size and the board's real limits: at 20 degrees of camera tilt the search takes a straight target from 117 to 190 kills of 192. A weaving target is still rarely caught. A reader for the target's GPS over the control link and the transmitter's USB port was written from the published formats; it has not met the real transmitter.",
+      "so_what": "All of this is laptop-tested only. The props are on, so nothing has run on the real Pi and Pixhawk; that rehearsal is the next step once they are off. Two things need rulings: the tag placard is designed side-facing, which a chase from behind cannot read, and the rerun's 20 degree camera tilt disagrees with the +10 degrees ruled in September under different conditions.",
+      "evidence": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md; isim/specs/arrival_search_prereg_2026-11-18.md; flight/tests/test_cue_go.py; runs/real_flight_driver_sih_20261118/README.md; docs/cue_over_control_link.md; docs/decisions.md ADR-0139"
+    },
     {
       "date": "2026-11-18",
       "text": "Asked whether the sim needs air drag, I put drag into the fast sim and ran the 500 m dash about 6,000 times. Expected drag barely matters for hitting the target, but the aircraft never reaches 80 mph with it (about 67 mph), so that figure is a no-drag number. The sim's own vehicle model was climbing thousands of metres when held on its lean limit; that is repaired. The real finding was not drag: with a 10% error in the target's believed speed, the long dash arrives about 22 m off along the track, parks behind where it thinks the target is, and never sees it in 61% of runs. October's long-range runs had no speed error in the cue. An independent check of my geometry corrected two of my numbers and confirmed the cause.",
@@ -686,16 +724,10 @@
       "text": "Third flight of the target drone, two minutes, mostly in Position mode. The builder: much better, still not perfect. The log agrees. The fast bounce is gone. What is left: for the first 40 seconds the drone's height estimator believed it was sinking at about 0.4 m/s when the barometer and GPS both said it was not, so it held height about half a metre off; by a minute and a half it held to 0.13 m. And roll still wobbles about four times as much as pitch, which is the oscillation he can hear; it rang hard when he tugged the airframe by hand.",
       "so_what": "Roll gains cut by a further 30% and fast logging switched on, so the next flight shows the wobble's real frequency. Nothing changed for height: the prediction is that a still hover tightens up after the first 40 seconds. Both predictions are written down before the flight.",
       "evidence": "runs/target_flight3_20261114/README.md + segment_analysis.txt + flight_timeline.txt; ADR-0138 addendum 10"
-    },
-    {
-      "date": "2026-11-14",
-      "text": "The target drone flew again in the evening and the runaway climb did not come back. Roll and pitch were calm on the halved gains. A new fault showed in Position mode: the drone bounced up and down. The log shows the height controller pulsing the motors between idle and about 1400 several times a second. Its gains were still the firmware defaults, sized for a drone that hovers at half throttle; this one hovers at 8% (measured in this flight), so they were about 6 times too strong. ArduPilot's first-flight page says to scale them to the hover thrust, and that step had been skipped. They are now scaled and written to the board.",
-      "so_what": "Not yet flown with the new height gains. Next is a low hop to see whether Position mode holds height. In Position mode the stick in the middle holds height; below about 40% it descends. The measured hover point leaves the safety margin against the climb thinner than computed (the motors' ceiling is about 0.9 times the weight, not 0.7).",
-      "evidence": "runs/target_flight2_20261114/README.md + height_loop_analysis.txt + hover_thrust_fit.txt; ADR-0138 addendum 9; configs/target_kakute/target.param"
     }
   ],
   "narrative": {
-    "as_of": "2026-07-24",
+    "as_of": "2026-11-18",
     "program": {
       "headline": "The 4-phase intercept-accuracy program — a causal stack; pointing gates everything",
       "summary": "⛔ SUPERSEDED (2026-07-24/25) — this 4-phase 'pointing gates everything' program predates the SETTLED conclusions: the dash-only control arms flew (aim is the dominant lever, ADR-0080/0083), Phase A (accel-cap + loft + wedge) is NET-NEGATIVE at correct aim and NOT a do-first lever, Phase B (fov_guidance) is PARKED (the wrong lever), and the terminal-precision phases are NULLs. Read the levers table + big_lever for the current stack. Kept for the causal-reasoning history. Not a menu: each phase only pays off once the one before it lands, and NONE is ratified — all four are ranked hypotheses, each with a pre-registered sim/bench test (full option-by-option detail: decision intercept_accuracy under the pointing stage, §2.1). Sim numbers are UPPER BOUNDS (the sim has no motion-blur model); the Stage-0 bench confirms. First kills fly the AprilTag — some levers are markerless-only.",
@@ -748,7 +780,7 @@
       {
         "date": "2026-07-21",
         "text": "LAUNCH MECHANISM PARKED until real flights inform it. The standing recommendation for when it is revisited: B-core (manual trigger + coded dash) + an honesty-clean pre-flight aim stack; auto-fire and any live datalink cue are REJECTED.",
-        "evidence": "decision launch_mech (§2.1) · docs/launch_mechanism_options.md"
+        "evidence": "decision launch_mech (§2.1) · retired/docs/launch_mechanism_options.md"
       },
       {
         "date": "2026-07-21",
@@ -759,6 +791,16 @@
         "date": "2026-07-17",
         "text": "FIXED up-tilt wedge over adaptive tilt (simplicity), angle = the REAL measured dash pitch — now explicitly co-sized with the Phase-A dash profile, never frozen in isolation.",
         "evidence": "pointing stage (FINAL 2026-07-17) · docs/intercept_accuracy_levers.md"
+      },
+      {
+        "date": "2026-11-18",
+        "text": "The cue is the GO command: the cue arriving with a good estimate starts the intercept, timestamped so link delay is taken out. Cue window 5 s. A human enable switch stays in the loop for real flights.",
+        "evidence": "docs/decisions.md ADR-0130 addendum, ADR-0139 · flight/cue_link.py"
+      },
+      {
+        "date": "2026-11-18",
+        "text": "Engage time: no limit for now. Lost-target rule: whatever scores the most intercepts, the builder supervising. Lean limit: free as long as the camera copes. Board speed limit 33 m/s; 30 to 33 m/s is acceptable for the dash.",
+        "evidence": "docs/decisions.md ADR-0132 addenda of 2026-11-18, ADR-0139"
       }
     ]
   },
@@ -888,13 +930,17 @@
         0
       ],
       "status": "implemented",
-      "active": "Auto collision-lead heading from pre-flight target kinematics (honest constant, no live gt); --dash-heading-deg override ('human points it'). Hardware cue piping BUILT 2026-09-22: --cue-json fail-closed GPS relay -- ~3 s of the target's own MAVLink GPS fitted (ADR-0130; altitude now consumed end-to-end, the vehicle arrives co-altitude) on the field laptop, latched at the trigger, link then dead; straight-or-turning fitter with refuse-don't-guess caps. Serves the chase terminal only, never the sprint.",
-      "note": "Aim tolerance measured: all 48 flights still acquired/engaged at up to +/-30 deg heading error (weave) — but #18g showed ENGAGE streaks can be phantom, so read that as dash-robustness, not perception proof. Onboard acoustic tracking REJECTED (own-noise ~40 dB the wrong way); acoustics OK only as a future GROUND launch-cue (idea). RELEASE/LAUNCH-MECHANISM options evaluated 2026-07-21 (decision launch_mech, docs/launch_mechanism_options.md): recommend B-core (manual trigger + coded dash) + an honesty-clean launch-time aim stack — a static-camera bearing latch and an OPTIONAL no-radio one-shot ground spotter, both latched as pre-flight constants; autonomous launch-on-detect (auto-fire) and a live-datalink cue are REJECTED (graveyard + constraint no-datalink). The launch choice is largely orthogonal to the binding wall (POINTING); the aim-stack extension is validation-gated on the fixed-tilt re-fly, NOT ratified. | AIM LEVER CONFIRMED 2026-07-24 (G20dash decomposition, n=8 paired dash-only, logs/mc_fp_armG20dash_line9_s123.csv): the crossing-bias aim constant was MIS-SIZED (collision_lead_heading solves a constant-speed triangle but the dash accelerates from rest). Correcting +30°→+20° for the baseline accel drops the OPEN-LOOP dash-only ballistic combined median 1.37→0.75 m, 7/8 paired better (l2r 2.05→0.73 the big win; r2l already near-optimal) — meets the pre-registered CONFIRM (≥6/8 AND median ≤0.90). A free, honest, pre-flight lever (launch-time constant, no gt/cue) = the cheapest miss-reduction found for the coded dash. HONEST: 0.75 m is the dash-only floor (camera off); the point-mass model over-predicted 0.14 m (ranked the aim right, absolute wrong). Real build implication: the collision-lead constant must be sized for the ACCELERATING dash, not constant-speed — a code fix that carries to hardware. Next: G20 (camera-live bias 20) tests if the terminal improves on 0.75 m at correct aim. | ADR-0080 SIM-VALIDATED 2026-07-24 (accel-aware lead auto-derives the aim): AAL dash-only reproduces the hand-tuned +20 on seed 123 (0.71 vs 0.75, 6/8 within 0.2 m) AND GENERALIZES to disjoint seed 777 (0.57 m, tighter; auto-derived +21.3°, honesty-clean pre-flight constants only). The crossing-bias is now a DERIVED kinematic constant, not a per-config knob — removes the aim-tuning burden from the real build. | ⭐ AIM OPTIMUM NOT YET REACHED (2026-07-24): the dash-only aim curve measures 0° 0.71 m → +5° 0.43 m → +15° 1.43 m (same seeds, paired), so ADR-0080's derived lead sits ~5° off a real optimum worth ~0.28 m. Load-bearing because the honest 5-inch ram envelope is 0.35 m (ADR-0084): a 0.43 m open-loop dash is knocking on it, 0.71 m is not. AIM REFINEMENT — not the camera — is the only measured path into the kill envelope, and it costs pre-flight arithmetic. AE2/AE7/AE10 bracketing arms staged to DERIVE the optimum into the solver rather than leave a hand-found offset. | ADR-0083 ADOPTED 2026-07-24: a +5.0° EMPIRICAL aim trim (--dash-aim-trim-deg, default off) takes the open-loop dash-only miss 0.71 → ~0.43 m pooled (14/16 paired, p=0.0021, seeds 123+777; r2l cell 0.33 m = INSIDE the ~0.36 m ram envelope). MEASURED, NOT DERIVED — the mechanism hunt found a real defect (solver a=10 vs measured pre-CPA ~3.1 m/s²; 22.2 m predicted travel by CPA vs 8.2 m actual) but substituting it swings the heading 30-70° against a ~5° empirical optimum, so it is deliberately NOT baked into the solver. Per-config constant: MUST be re-measured on the real airframe from the first dash ULog.",
+      "active": "THE CUE IS THE GO COMMAND (builder ruling 2026-11-18; --trigger cue). The Pi receives the target's GPS live over UDP through standby (flight/cue_link.py), fits the freshest 5 s (ADR-0130 addendum), and at the first tick with the standby gates held, the enable switch HIGH and a fresh fit, latches the belief once, advanced to that instant, and starts the engagement. Each record carries its GPS-clock time, so link delay is measured per record and removed; with a source that has no timestamps (the handset USB route) it falls back to the minimum-delay estimate and says so. Nothing after GO reads the link. Bench (home Wi-Fi, made-up 12 m/s target): belief 0.3 m from truth after 30 s; a stale stream refuses GO. NOT YET: any real target GPS (the radio leg off the target is unbuilt; docs/cue_over_control_link.md is the first route to try), a run on the real Pi and Pixhawk, standby height and yaw from the cue. The older --cue-json file path reads once at program start and is hundreds of metres stale for a moving target; it suits a hovering target only. Legacy: auto collision-lead heading for the coded dash, --dash-heading-deg override.",
+      "note": "Aim tolerance measured: all 48 flights still acquired/engaged at up to +/-30 deg heading error (weave) — but #18g showed ENGAGE streaks can be phantom, so read that as dash-robustness, not perception proof. Onboard acoustic tracking REJECTED (own-noise ~40 dB the wrong way); acoustics OK only as a future GROUND launch-cue (idea). RELEASE/LAUNCH-MECHANISM options evaluated 2026-07-21 (decision launch_mech, retired/docs/launch_mechanism_options.md): recommend B-core (manual trigger + coded dash) + an honesty-clean launch-time aim stack — a static-camera bearing latch and an OPTIONAL no-radio one-shot ground spotter, both latched as pre-flight constants; autonomous launch-on-detect (auto-fire) and a live-datalink cue are REJECTED (graveyard + constraint no-datalink). The launch choice is largely orthogonal to the binding wall (POINTING); the aim-stack extension is validation-gated on the fixed-tilt re-fly, NOT ratified. | AIM LEVER CONFIRMED 2026-07-24 (G20dash decomposition, n=8 paired dash-only, logs/mc_fp_armG20dash_line9_s123.csv): the crossing-bias aim constant was MIS-SIZED (collision_lead_heading solves a constant-speed triangle but the dash accelerates from rest). Correcting +30°→+20° for the baseline accel drops the OPEN-LOOP dash-only ballistic combined median 1.37→0.75 m, 7/8 paired better (l2r 2.05→0.73 the big win; r2l already near-optimal) — meets the pre-registered CONFIRM (≥6/8 AND median ≤0.90). A free, honest, pre-flight lever (launch-time constant, no gt/cue) = the cheapest miss-reduction found for the coded dash. HONEST: 0.75 m is the dash-only floor (camera off); the point-mass model over-predicted 0.14 m (ranked the aim right, absolute wrong). Real build implication: the collision-lead constant must be sized for the ACCELERATING dash, not constant-speed — a code fix that carries to hardware. Next: G20 (camera-live bias 20) tests if the terminal improves on 0.75 m at correct aim. | ADR-0080 SIM-VALIDATED 2026-07-24 (accel-aware lead auto-derives the aim): AAL dash-only reproduces the hand-tuned +20 on seed 123 (0.71 vs 0.75, 6/8 within 0.2 m) AND GENERALIZES to disjoint seed 777 (0.57 m, tighter; auto-derived +21.3°, honesty-clean pre-flight constants only). The crossing-bias is now a DERIVED kinematic constant, not a per-config knob — removes the aim-tuning burden from the real build. | ⭐ AIM OPTIMUM NOT YET REACHED (2026-07-24): the dash-only aim curve measures 0° 0.71 m → +5° 0.43 m → +15° 1.43 m (same seeds, paired), so ADR-0080's derived lead sits ~5° off a real optimum worth ~0.28 m. Load-bearing because the honest 5-inch ram envelope is 0.35 m (ADR-0084): a 0.43 m open-loop dash is knocking on it, 0.71 m is not. AIM REFINEMENT — not the camera — is the only measured path into the kill envelope, and it costs pre-flight arithmetic. AE2/AE7/AE10 bracketing arms staged to DERIVE the optimum into the solver rather than leave a hand-found offset. | ADR-0083 ADOPTED 2026-07-24: a +5.0° EMPIRICAL aim trim (--dash-aim-trim-deg, default off) takes the open-loop dash-only miss 0.71 → ~0.43 m pooled (14/16 paired, p=0.0021, seeds 123+777; r2l cell 0.33 m = INSIDE the ~0.36 m ram envelope). MEASURED, NOT DERIVED — the mechanism hunt found a real defect (solver a=10 vs measured pre-CPA ~3.1 m/s²; 22.2 m predicted travel by CPA vs 8.2 m actual) but substituting it swings the heading 30-70° against a ~5° empirical optimum, so it is deliberately NOT baked into the solver. Per-config constant: MUST be re-measured on the real airframe from the first dash ULog.",
       "evidence": [
         "ADR-0076 add #18b/#18c",
         "Fable strategic review 2026-07-16 (docs/next.md ROUND-5)",
-        "docs/launch_mechanism_options.md (4-lens eval 2026-07-21)",
-        "docs/cue_relay_plan.md · flight/cue_relay.py (--cue-json)"
+        "retired/docs/launch_mechanism_options.md (4-lens eval 2026-07-21)",
+        "docs/cue_relay_plan.md · flight/cue_relay.py (--cue-json)",
+        "flight/cue_link.py · flight/tests/test_cue_go.py",
+        "docs/interface_audit_2026-11-18.md G3/G9",
+        "runs/fc_readonly_20261118/README.md (cue link over Wi-Fi)",
+        "docs/cue_over_control_link.md"
       ],
       "changelog": [
         {
@@ -907,7 +953,7 @@
         },
         {
           "date": "2026-07-21",
-          "note": "Release/launch-mechanism options (auto-fire perch / manual coded dash / smart live-cue launcher) evaluated -> recommend B-core + honesty-clean launch-time aim stack; auto-fire + live datalink REJECTED. Design exploration, not ratified (decision launch_mech, docs/launch_mechanism_options.md)."
+          "note": "Release/launch-mechanism options (auto-fire perch / manual coded dash / smart live-cue launcher) evaluated -> recommend B-core + honesty-clean launch-time aim stack; auto-fire + live datalink REJECTED. Design exploration, not ratified (decision launch_mech, retired/docs/launch_mechanism_options.md)."
         },
         {
           "date": "2026-07-21",
@@ -936,9 +982,13 @@
         {
           "date": "2026-10-22",
           "note": "ADR-0130: capture window 2->3 s (3.5 s listened); cue altitude + climb consumed (standby defaults to target height + loft; pursuit belief seeded with true vertical geometry)."
+        },
+        {
+          "date": "2026-11-18",
+          "note": "Cue window 3 to 5 s; live cue link built and bench-tested; cue-as-GO trigger with GPS-clock timestamps merged (offline tests only); handset-USB route for the target's GPS researched, reader written, untried."
         }
       ],
-      "caption": "Point the drone the right way before launch. Works in sim — but only with a perfect cue.",
+      "caption": "The cue that starts the intercept. Live link built and bench-tested; no radio leg yet.",
       "consumes": [
         "launch-cue-error-free",
         "bearing-latch-accuracy",
@@ -1050,12 +1100,15 @@
         1
       ],
       "status": "half-done",
-      "active": "RULED (builder 2026-09-24): the chase-regime camera bracket locks at +10 deg up-tilt AND the target's tag placard prints canted 12 deg DOWN (~cruise pitch; index disc records it) -- the ADR-0114 pair. Bench corner-spin at +10 deg stays the hard gate; tripod block A3 validates the cant; the 12 deg is an estimate until the target's first ULog measures real cruise pitch. Sprint-era spec (tilt = measured dash pitch) applies only if the sprint returns as the flying mode.",
+      "active": "UNSETTLED AS OF 2026-11-18. Ruled 2026-09-24 (ADR-0114 pair): camera bracket +10 deg up, target placard canted 12 deg down. The flying-optics rerun (fx 1104, upright rear tag, target not pitching) finds 10 deg loses the tag off the top of the picture during the catch-up (105 kills of 192 with no random errors) and 20 deg holds it (192 of 192); above 25 deg kills collapse. That rerun did not model the target's pitch or the canted placard, so it does not overturn the ruling by itself; one more fast-sim grid with both decides. The nose-post plate adjusts 10 to 45 deg, so nothing has to be remade. Bench corner-spin at the chosen angle stays the hard gate. Sprint-era spec (tilt = measured dash pitch) applies only if the sprint returns as the flying mode.",
       "note": "MEASURED 2026-09-17 (docs/pointing_prereg.md): pointing has TWO parts. Vertical: a 25 deg up-tilt centres the target on 100/89/69% of frames by range band (35 deg: 89/84/63) -- first number from real attitude data. Horizontal: on a lead course the target is 40-75 deg off the nose, so the vehicle must yaw toward the predicted target, not along its sprint, and must point the nose BEFORE launching. Together: 2% -> 99% central in sim. NOT in the adopted flight config, because today's terminal flies worse once it can see (see stage terminal). TWO HONEST LIMITS of the chosen fixed tilt: (a) it CANNOT track the pitch swing (accel ~+40° -> brake ~-35°) — it is tuned for ACQUISITION (the binding wall) and gives up some terminal centring (acceptable: target is large close-in + the streak coasts); (b) tilt and mount are ONE decision — a >~15° tilt exceeds the flush mount's ~11° prop clearance, so a dash-pitch tilt needs the boom/elevated-mast geometry. The prior up15 NULL (ADR-0068) was a different context (cue-era terminal parity, guessed +15°); this is acquisition-first, sized to the measured dash pitch.",
       "evidence": [
         "ADR-0065 (#46)",
         "ADR-0067/0068 (fixed-tilt NO-adopt)",
-        "ADR-0076 add #18j-fix/#18k"
+        "ADR-0076 add #18j-fix/#18k",
+        "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md",
+        "docs/decisions.md ADR-0114, ADR-0139",
+        "hardware/avionics_pod/README.md (plate range)"
       ],
       "changelog": [
         {
@@ -1093,6 +1146,10 @@
         {
           "date": "2026-09-24",
           "note": "BUILDER RULING: bracket +10 + placard cant 12 down adopted as a pair (ADR-0114 2nd addendum); chase-bracket-angle queue item closed."
+        },
+        {
+          "date": "2026-11-18",
+          "note": "Flying-optics rerun: 20 deg of camera tilt beats the ruled 10 deg by a wide margin, but without target pitch or the canted placard in the model; conflict opened for the builder (ADR-0139)."
         }
       ],
       "caption": "Tilting the camera so the target stays in the picture during the sprint. Half-built.",
@@ -1148,7 +1205,7 @@
         3
       ],
       "status": "half-done",
-      "active": "chase-only pursuit IS THE FLYING DEFAULT (ADR-0118, 2026-09-24: the ADR-0103/0105 gate -- the Gazebo cross-check -- passed at median 0.343 m with the ADR-0117 velocity fix). flight/pursuit_terminal.py: relative-state KF (pose-range channel, every-tick detect), Phase A belief rendezvous -> Phase B camera close; passage window + SAFE hover on miss (ADR-0107). Config-gated, default-OFF levers in-tree: brake package (--pursuit-brake), rehearsal break-off (--pursuit-rehearsal, margins unproven), adaptive speed (ADR-0108). approach_dash (--pursuit-approach-dash, 2026-10-21) -- far-cue Phase-A dash-then-brake toward the believed rendezvous; default OFF, off-path byte-identical; Gazebo: 500 m cue, 35.8 m/s peak, CPA 0.087 m. ADR-0132 (builder, 2026-10-23) sets its target operating point: Phase A at MAXIMUM effort (cap above airframe capability so the controller saturates), sole constraint = braking + attitude recovery done before the maximum MEASURED decode range; expected null on straight legs (pre-registered); default swap gated on a paired ON/OFF A/B with a cue-staleness axis + straight-target control (isim then one Gazebo rung); re-earn bench v_max/brake, decode range, timings, Pi-rail sag first. NOT flown on field day. Stock/tag selectable, as-flown.",
+      "active": "Chase-only pursuit is the flying default (ADR-0118; Gazebo cross-check median 0.343 m at the 16 m canon range). flight/pursuit_terminal.py: Phase A flies on the believed track, Phase B closes on camera decodes. FLIGHT PRESET (--fly only, FLY_PRESET in flight/deploy/real_flight.py; typed flags win; every other mode keeps the old defaults): search on arrival ('believed' start), stale-decode guard, approach-dash brake 3 m/s2 with vertical arrival-sync, no lost-target clock before a track or during the search, 6 s clock when the target is lost beyond 3 m, no engage or mission time limit. Close misses inside 3 m still go straight to SAFE. APPROACH DASH (--pursuit-approach-dash): the 500 m, 36 m/s-cap transit. Its Gazebo takes (35.8 m/s peak, 0.087 m) had no cue speed error and no drag. Fast sim with the flying lens (fx 1104, 0.35 m rear tag), board limits and all errors: 16 kills of 50 at a 10% speed error with the old park-and-wait, and 190 of 192 across 10/4/1% errors with the search at 20 deg of camera tilt (117 without). With the assumed drag the vehicle peaks at 26.5 m/s on the board's 45 deg lean limit. A weaving target is caught in 2 to 11 of 50 whatever the cue. None of this is flown or Gazebo-checked. Stock/tag terminals stay selectable, as-flown.",
       "note": "GUIDANCE IS VALIDATED; THE CAMERA-GUIDED 3D-QUAD KILL IS NOT. Validated: the law + architecture (billboard: Pk@2.8 m 72/72, ADR-0064; AprilTag regimes M4+). Not validated: every 'sub-meter 3D-quad kill' was an open-loop dash-ballistics MIRAGE (dash-only control 0.30 m ≈ with-terminal 0.29 m — the camera added ~nothing, add #18h). The block is UPSTREAM (detector recall + pointing), not guidance. UPDATE 2026-07-22 (Phase A Gazebo A/B): the pointing lever LIFTED 8-12 m real-detection recall 3.0%→35.4% and ENGAGE fired on real detections — pointing partially attacks the upstream block — but the CAMERA-DRIVEN kill is STILL UNCONFIRMED: the no-cheat audit (a/b) is clean, but check (c) camera-LOS coupling is weak and NO dash-only control was run, so per #18g/#18h this could still be dash ballistics. The #18h caution STANDS; a dash-only control arm is the anti-mirage gate before any 'camera-guided intercept exists' claim. (And miss got WORSE at 9 m/s — the accel-cap's closing-speed cost; see decision intercept_accuracy + gazebo_results.md.) | SETTLED 2026-07-24 (dash-only controls FLOWN — Adash/Bdash, antimirage_verdict.py, paired by run_idx): TWO findings. (1) The camera terminal is REAL — baseline Arm A l2r tightens the miss 4/4 paired flights (cam 0.68 vs dash-only 2.05 m, Δmed −1.18 m): the FIRST confirmed camera-DRIVEN 3D-quad intercept in this sim (scoped to line@9 +30bias flat-dash l2r; does NOT overturn #18h, whose weave geometry gave dash-only 0.30≈0.29). (2) The loft-dive+accel-cap LEVER BREAKS the terminal — Arm B camera-ON is WORSE than dash-only on 8/8 paired flights (l2r +0.86, r2l +1.54 m); the Phase A 'sub-1 m camera-tracked' wording for Arm B is REFUTED (Bdash dash-only 1.76/2.38 beats B camera 2.53/3.92). The accel-cap slows the close so much the framed terminal converges WORSE than dash ballistics; the framing win (recall 3%→35%) does NOT convert to a terminal win at 9 m/s. r2l also carries the ADR-0056 aspect bias (camera hurts even at baseline). ⇒ next = LIGHTER accel-cap θ≈30° / loft-only to recover closing speed (docs/flight_plan_candidates.md). | CORRECTION 2026-07-24 (independent Opus 5 review + validated ballistic model dash_cpa_model.py MAE 0.29 m): the 'accel-cap closing-speed cost dominates' attribution is CONFOUNDED. STANDS: A-l2r camera-DRIVEN (−1.18 m 4/4) and B-vs-Bdash camera-worse 8/8 (within-arm, aim common-mode). SOFTENED: the lever's net-negativity is confounded by a MIS-SIZED aim constant — collision_lead_heading solves a constant-speed triangle but the dash accelerates from rest, so the flown +30° bias is wrong (model-optimal ~64° at a=3.57, ~20° at a=10); and the accel-cap contributed the LEAST centring (+5° vs wedge +10°, loft +7.1°) while carrying all the cost. Camera-hurt is now MEASURED: terminal lambda−gtLOS = +9..+17° (l2r) / −17..−21° (r2l) = ADR-0056 aspect bias → Phase B FOV-hold is the WRONG lever (Arm B was centred −3.6° and still lost); the right lever is aspect-bias compensation (--terminal-bearing-bias-deg, code-gated). Decomposition arms pre-registered (G20dash/C/E, docs/flight_plan_candidates.md); adoption needs pooled ≥13/16. | G20 2026-07-24 (camera-live at CORRECT aim, n=8 vs G20dash): the terminal does NOT beat the well-aimed open-loop dash — combined camera median 1.02 m vs dash-only 0.75 m, tighter on only 2/8 (camera engaged 7/8). The measured aspect bias degrades a trajectory that correct pre-flight aim already made near-optimal. KEY REFRAME: in the line@9 aim-known regime the well-aimed open-loop dash is the strongest performer; the camera is a slight liability as built. HONEST SCOPE: the sim dash computes its lead from KNOWN target kinematics (assumes aim right); the camera's real value is aim-ERROR robustness (±30° envelope) + it could only BEAT 0.75 m with (1) aspect-bias compensation (--terminal-bearing-bias-deg, direction-keyed pre-flight constant, honesty-legal, UNBUILT) or (2) proven under deliberate aim error. Those two are the highest-value next steps. | COMPENSATION built + validation redirected 2026-07-24: the ADR-0056 aspect bias is largely a ~190 ms LOS-RATE LAG (self-explains the l2r/r2l sign flip; direction-agnostic knob --terminal-los-lag-ms). The stable direction-keyed constant existed ONLY in ARM B (accel-cap slows the approach -> many stable ticks); CG (framed, no cap) has an UNSTABLE bias (LOO +1%) so the constant is a predicted null there. Also FRAMING HURTS at correct aim (CG-777 1.92 m > G20 level 1.32 m). Decisive remaining test: GL = level + lag 190 vs the G20-777 baseline 1.32 m (pending clean idle). --terminal-bearing-bias/-los-lag built + committed (byte-identical off, 22 tests, honesty re-earned); measure_aspect_bias.py --loo reads a null offline for free. | GL NULL 2026-07-24 (lag knob on the level arm): combined 1.44 vs G20-777 1.32, 5/8 — fails the gate. It helps the aspect-biased r2l (2.13->1.80) but hurts the already-tight l2r (0.61->0.78); the in-flight lag isn't a clean constant (α-β absorbs a direction-varying share). BOTH terminal-precision compensations are now NULLs (constant = regime-confounded, lag = this) — the ADR-0056 terminal-bearing wall does not yield to a simple constant/lag (consistent with the ADR-0071 subpixel null). CONCLUSION: correct AIM is the dominant proven lever (0.75 m open-loop, DERIVED by ADR-0080); the camera does NOT defend imperfect aim (REFUTED in sim — it lost to its own dash-only control at 0°/5°/15° aim error, ADR-0076 add #18k-family); it does not beat a well-aimed dash; spend on aim + real-data detection, not terminal tricks. | ⛔ AIM-ERROR SWEEP COMPLETE 2026-07-24 — 'the camera defends imperfect aim' is REFUTED IN SIM, downgraded from settled. Camera vs its OWN dash-only twin, paired n=8 per cell, seed 123: 0° err camera 1.02 vs dash 0.71 (2/8) | 5° 0.58 vs 0.43 (0/8) | 15° 1.51 vs 1.43 (3/8). The camera NEVER clears the pre-registered ≥6/8 at any tested aim error. Do NOT read the pooled 15° number: l2r the camera IS starting to earn it (3/4 tighter, once −0.43 m) while r2l is catastrophic (+2.15, +2.12) — the ADR-0056 aspect bias alone drags it to null. That wall has now defeated the bias constant, the LOS-lag correction, subpixel bearing (ADR-0071) AND the entire aim-error rationale. SCOPE: this indicts the SIM's markerless seeker on the r2l aspect, not the camera-terminal architecture — first kills fly the AprilTag, and the real lever is the outdoor real-data detector (44.2% vs 1.1% recall on real imagery); if real data fixes the aspect bias the question reopens and this sweep is the pre-registered harness. BUILD CONSEQUENCE: ENGAGE on the markerless seeker is not justified by any sim evidence — gate it to the favourable aspect, run it in SHADOW until real data earns it, or hold it behind the tag baseline. | ✅ 2026-07-25 frozen_vworld FIX: the coded-dash --fpv terminal latched a ZERO horizontal-velocity vector whenever ENGAGE began inside TERMINAL_FREEZE_RANGE_M (the NN's short r_hat) — so the camera-arm sweep verdicts ('camera adds ~nothing', add #18h) were partly measured on a terminal that never steered. The latch now holds a real law-aware vector (PIP/pursuit/pronav each latch their own), audit_per_tick check (e) FAILS a zero-command run, and one SITL flight confirmed 0/104 ENGAGE ticks zero-command (published arms: up to 661/668). The camera-arm conclusions are DOWNGRADED to PENDING RE-FLY; the guidance-law validation and the AIM (dash-only) conclusions stand. The sim↔hw negative-r_hat divergence is FIXED (86d60b3, 2026-07-25): a diverged negative r_hat (the ADR-0041 post-CPA -12..-21 m class) can no longer ARM the coast — seeker_loop broken-track parity, truth-table + replay drills pin it. RE-FLY FLOWN + SCORED (2026-07-25 eve, all 40 flights, idle load, dash-only twins reused; full table docs/flight_plan_candidates.md RESULTS 2026-07-25): the PENDING RE-FLY verdicts RESOLVE to a CONFIRMATION -- the camera terminal does NOT earn its handoff at 0/5/15 deg aim error even when provably steering (audit (e): 0/674 pre-CPA ENGAGE ticks zero-command; cam-beats-twin 3/8, 1/8, 4/8 -- never near the pre-registered 6/8). One honest SOFTENING: at correct aim the camera arm is now ~PARITY with the open-loop dash (G20 med 0.895/0.750 vs the 0.75 floor; was 'slight liability' on the braking terminal), and G20-s777 median improved 1.316->0.750. The 190 ms LOS-lag comp is CONFIRMED NEGATIVE (GL 1.213 vs G20 0.750, 2/8), closing that lever. Dash-only conclusions (ADR-0080/0083, 0.71/0.43 m floor) never affected. Two adjudicated (c)-marginal flights (railed V_PERP_MAX lead / deliberate lag offset -- the ADR-0013 legitimate-lead class); the re-fly also surfaced + fixed two auditor blind spots (latched-coast exclusion cdffe12, lambda-winding azimuth lift 51d3441).",
       "evidence": [
         "ADR-0064 (billboard 72/72)",
@@ -1156,7 +1213,12 @@
         "docs/real_build_coded_dash.md",
         "isim/specs/parity_trace_2026-09-22.md (4 port defects)",
         "docs/xcheck_gazebo_pursuit_prereg.md (defect #5)",
-        "ADR-0105/0107/0108/0132 · flight/pursuit_terminal.py"
+        "ADR-0105/0107/0108/0132 · flight/pursuit_terminal.py",
+        "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md",
+        "isim/specs/arrival_search_prereg_2026-11-18.md",
+        "isim/specs/approach_dash_drag_prereg_2026-11-18.md",
+        "docs/guidance_review_2026-11-18.md",
+        "docs/decisions.md ADR-0139"
       ],
       "changelog": [
         {
@@ -1278,9 +1340,13 @@
         {
           "date": "2026-10-23",
           "note": "ADR-0132 (builder ruling): the approach dash's target operating point is MAXIMUM effort -- velocity cap set above airframe capability so the controller saturates, held as long as possible; the sole constraint is that braking and attitude recovery complete before the maximum measured decode range (including the earliest far-decode class that fixes the cue's vertical belief). Why: less time-of-flight = less time for the latched cue's extrapolation error to grow (matters for maneuvering targets; pre-registered EXPECTED NULL on straight legs). Default stays OFF; any default swap is gated on a pre-registered paired ON/OFF A/B (cue-staleness axis + straight-target control, isim then one Gazebo rung; adopt iff ON never worsens median CPA and speed+attitude at first decode match the chase baseline). Re-earn first: real v_max/brake accel (bench), decode range at 70 deg (tripod), passage/engage timings at the new speeds, Pi-rail sag at sustained full throttle. Does NOT fly on field day."
+        },
+        {
+          "date": "2026-11-18",
+          "note": "Long-range dash met realistic cue errors (61% never decode at a 10% speed error); arrival search, stale-decode guard, lost-target switches and the --fly preset built and merged; flying-optics rerun sets tilt 20, brake 3, lean 45; ADR-0139."
         }
       ],
-      "caption": "Camera homing. Chase-only pursuit ruled; port matches prototype; Gazebo check open.",
+      "caption": "Camera homing by chase. Works with a good cue; search on arrival is new and sim-only.",
       "consumes": [
         "launch-cue-error-free",
         "camera-terminal-earns-handoff",
@@ -1377,11 +1443,13 @@
         3
       ],
       "status": "half-done",
-      "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390. Pi 5 8GB; FLYING seeker = OV9281 + ~70° lens (ADR-0126). UPGRADE PATH ORDERED 2026-10-23 (ADR-0131): AR0234 color GS camera, order #000009907 — checkout email mistyped, the order number is the ONLY tracking handle; stock 3.6 mm ≈80° lens kept (~21 px/deg, beats the 70° setup's 19.3 with +10° FOV); integral IR-cut. Hailo-8 26-TOPS HAT ORDERED at $160 (same day). AR0234 deploys ONLY behind the Hailo native-res bench gates — at 640/CPU it is WORSE than the OV9281. Nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item.",
+      "active": "Lean binary-kill BOM: interceptor ~$740, everything-new ~$1,390. Pi 5 8GB; FLYING seeker = OV9281 + ~70° lens (ADR-0126). UPGRADE PATH ORDERED 2026-10-23 (ADR-0131): AR0234 color GS camera, order #000009907 — checkout email mistyped, the order number is the ONLY tracking handle; stock 3.6 mm ≈80° lens kept (~21 px/deg, beats the 70° setup's 19.3 with +10° FOV); integral IR-cut. Hailo-8 26-TOPS HAT ORDERED at $160 (same day). AR0234 deploys ONLY behind the Hailo native-res bench gates — at 640/CPU it is WORSE than the OV9281. Nose-cantilever prop-clearance mount = HARD bench gate; RTK cut; Remote ID = legal line item. BENCH 2026-11-18 (read-only): the Pi reaches PX4 1.16 over TELEM2 at 921600 while the recorder holds USB. Board speed limit raised 12 to 33 m/s on the builder's instruction (lean limit 45 deg, acceleration 5 m/s2 unchanged; reboot check owed). Radio loss returns home even in automatic flight; geofence 457 m. Power module limit 60 A rated, 120 A under a minute.",
       "note": "Permissions CLOSED (regulatory basis + site confirmed 2026-07-24; owned-land ruling 2026-08-10) — the critical path is BUILD + BENCH + tripod. ORDERED 2026-07-20: target-drone stack + seeker kit + interceptor brain (6C Mini/PM02/M10) + the must-add top-up. ORDERED 2026-09-22 (builder, ahead of the tripod tag-decode money gate — ADR-0109; the curve still gates kill-attempt flights + the Hailo/markerless phase): the Tier-2 airframe — Source One V6, Skystars KO60II 60A ESC, ECOII 2207 ×5, RP3 RX, Matek 12S-Pro BEC, replacement PM02 V3, 2nd Pocket TX (ADR-0089 closed), HQ V2S props ×16, 2× buzzers, LiPo bag, zip ties. ORDERED 2026-10-23 (ADR-0131, ahead of the ADR-0078 tripod gate — spend-side ruling, the ADR-0109 pattern): AR0234 color global-shutter camera, order #000009907 (checkout email mistyped: NO confirmation email will arrive; the number is the tracking handle). Stock 3.6 mm ≈80° lens retained — on the 1920-px sensor it gives ~21 px/deg, beating the 70° OV9281 setup while widening FOV, so the ADR-0126 px/deg logic is satisfied WITHOUT a lens swap; integral IR-cut closes the §0b IR-cut check for this camera. Deploy gates: Hailo bench (thermal-soaked ≥10–15 Hz at native input), Pivariety driver + pinned kernel, own intrinsics calibration, ≤1 ms exposure control verified. Hailo-8 26-TOPS HAT ORDERED same day at $160 (fair; street band $160–185). STILL MISSING for a full intercept (small, mostly print/bench): the new Pi 5's cable to the Pixhawk and a camera on it (the Pi was replaced 2026-11-13; the first died 2026-11-09), a working flight recorder (the FC's microSD slot is dead, so no onboard ULogs), M2.5 standoffs, thrust rig, camera-mount/checkerboard/placard prints, field layer (PD power bank, tripod + head, cones/tape, +2 6S packs), kill-attempt spares (arms/RX). Bench-verify the 12S-Pro 5 V tap = 5.2 V under Pi load and Model Match on both TXs. COMPUTE unchanged: Pi 5 CPU = AprilTag baseline real-time; markerless requires the deferred Hailo HAT (constraint pi5-compute). Onboard flight software READY (real_flight.py SITL-verified ADR-0081 + scripts/field/); the interceptor is built and hovering cleanly (ADR-0134); remaining is the Pi swap, bench tuning of the TODO-BUILDER constants, the target's maiden and the camera rungs.",
       "evidence": [
         "docs/hardware_order_list.md §0/§0b/§0c",
-        "docs/next.md ROUND-5 (Pi5/HAT ruling, tripod test)"
+        "docs/next.md ROUND-5 (Pi5/HAT ruling, tripod test)",
+        "runs/fc_readonly_20261118/README.md",
+        "docs/airframe_numbers.md section 6"
       ],
       "changelog": [
         {
@@ -1415,9 +1483,13 @@
         {
           "date": "2026-09-24",
           "note": "Onboard frame recorder BUILT (builder directive #3): decoupled JPEG writer (12 fps, quality 80), bounded copy-on-accept queue that drops rather than blocks, fail-closed counters, crash-safe index; --record-frames on the flight CLI + --record on pi_fps_soak (the Pi bench gate, one command). 556 tests + audit green. Value gated on the bench soak + a live picamera2 source in run_mavsdk_mission (hook wired)."
+        },
+        {
+          "date": "2026-11-18",
+          "note": "Read-only bench snapshot of the interceptor's board; MPC_XY_VEL_MAX 12 to 33 m/s; Pi-to-Pixhawk link confirmed with the recorder on USB."
         }
       ],
-      "caption": "The physical drones. Interceptor flies; new Pi 5 boots, not yet wired to the Pixhawk.",
+      "caption": "Physical drones. Interceptor flies by hand; Pi reaches the Pixhawk; no auto flight yet.",
       "consumes": [
         "bearing-latch-accuracy",
         "dash-accel-profile",
@@ -1626,12 +1698,12 @@
     {
       "what": "Live mid-course datalink cue from a 'smart launcher' (Option C as-stated)",
       "why": "REJECTED as-stated: a persistent launcher->interceptor cue VIOLATES the no-datalink jam-resistance constraint (it IS the link an adversary jams) and was MEASURED to hurt aim (cue-guided r2l 0/8 vs coded-dash 5/8 @Pk2.5, aspect-biased bearing). Survives ONLY recast as a zero-radio ONE-SHOT pre-launch spotter that latches a single pre-flight constant and lets the link die at launch. Do not add a live guidance datalink.",
-      "evidence": "docs/launch_mechanism_options.md; ADR-0076 add #18; constraint no-datalink"
+      "evidence": "retired/docs/launch_mechanism_options.md; ADR-0076 add #18; constraint no-datalink"
     },
     {
       "what": "Autonomous launch-on-detect (auto-fire a spinning-prop ram on an NN lock)",
       "why": "REJECTED as a standalone/auto-fire path: zero added acquisition range + reaction-time-starved (~1.8 s vs 9 m/s inbound), does not touch the pointing wall, and auto-firing a RAM on an unmeasured outdoor false-positive rate (ADR-0078 bird/clutter) is the least-defensible ROE. The salvageable half — latching the reliable STATIC camera bearing as a pre-flight-constant launch heading — is kept, but the human keeps the fire decision.",
-      "evidence": "docs/launch_mechanism_options.md; project_state.json decision launch_mech; ADR-0078"
+      "evidence": "retired/docs/launch_mechanism_options.md; project_state.json decision launch_mech; ADR-0078"
     },
     {
       "what": "Porpoise / pitch-up re-framing pulses during the dash",
@@ -3300,7 +3372,7 @@
         }
       ],
       "chosen_rationale": "RECOMMENDED (design exploration 2026-07-21, NOT ratified): B-core + an honesty-clean, jam-proof launch-time aim stack — keep the committed human-triggered coded dash, and pull ONLY the pre-flight-constant pieces off A (the static-camera bearing latch) and C (an OPTIONAL no-radio one-shot ground spotter), both baked in at trigger so nothing enters the guidance loop after launch, with a mandatory link-DENIED test arm to DEMONSTRATE the camera terminal finishing unaided. Discard exactly the parts the evidence punishes: A's auto-fire (reaction-starved + unmeasured outdoor false-fire on a ram) and C's live datalink (self-refuting for the headline; measurably corrupted aim). Crucial sequencing: NO launch mechanism moves the binding wall (POINTING, owned by the still-unvalidated fixed-tilt wedge) or the real bar (0.35 m RAM (ADR-0084), not Pk@2.5 m) — so the fixed-tilt x coded-dash re-fly vs a dash-only-ballistics control is the ONE experiment that decides whether a camera terminal exists at all; build and prove that on B BEFORE buying A's or C's hardware. Higher-leverage than any launch option, left open for the builder: a 2-axis seeker gimbal (the only full elevation-decoupler, revives lock-carry), dual ONBOARD cameras (C's reach, jam-proof), or a forgiving NET kill (~1.5-2 m radius dissolves the pointing bar). BUILDER RULING 2026-07-21: RAM kill CONFIRMED (net NOT pursued for now — revisit only if the intercept proves impossible at the ram bar); the LAUNCH MECHANISM is PARKED until the first real flights show how the drone actually behaves. This recommended hybrid stands as the recommendation for when it is revisited; the active near-term effort is IMPROVING THE INTERCEPT itself (acquire earlier + hit to ram range) — see the intercept-accuracy levers program.",
-      "evidence": "docs/launch_mechanism_options.md (4-lens eval -> adversarial critic -> synthesis, 2026-07-21); constraint no-datalink; real_build_coded_dash.md #18g/#18h (dash ballistics); seeker_acquisition_range_note.md (R_acq=fx*W/w_floor); kill_mechanism.md §1-2 (ram vs net); inview_probe_results.md (pointing wall); project_state.json pointing (fixed-tilt FINAL 2026-07-17)"
+      "evidence": "retired/docs/launch_mechanism_options.md (4-lens eval -> adversarial critic -> synthesis, 2026-07-21); constraint no-datalink; real_build_coded_dash.md #18g/#18h (dash ballistics); seeker_acquisition_range_note.md (R_acq=fx*W/w_floor); kill_mechanism.md §1-2 (ram vs net); inview_probe_results.md (pointing wall); project_state.json pointing (fixed-tilt FINAL 2026-07-17)"
     },
     {
       "stage_id": "pointing",
@@ -4099,7 +4171,7 @@
       "loc_a": "project_state.json stages/terminal; isim/specs/approach_dash_2026-10-21.md RESULT",
       "claim_b": "With the standing error package on (10% target-speed error among others) the same dash kills 13 to 17 of 50 against a straight target and never decodes the tag in 61% of runs. The 80 mph figure is also a no-drag number: with the assumed drag the vehicle tops out near 30 m/s.",
       "loc_b": "isim/specs/approach_dash_drag_prereg_2026-11-18.md stage 1, 2, 2b; docs/arrival_geometry_2026-11-18.md",
-      "current_truth": "The long-range dash works when the cue's speed is right to about 2.5% fast or 6% slow, and has no way to find a target that is not where it believes. Fast-sim evidence on October's optics (wide lens, 0.5 m tag, no camera tilt); a real cue's speed error on a fast leg is not measured. A search-on-arrival prototype is being tested.",
+      "current_truth": "Confirmed on the flying lens as well (2026-11-18 rerun): with park-and-wait the long dash kills 16 of 50 at a 10% speed error. A search along the believed track on arrival, now in the flight preset, takes straight-target kills from 117 to 190 of 192 at 20 deg of camera tilt in the fast sim; a weaving target stays at 2 to 11 of 50. Still open: nothing here is Gazebo-checked or flown, the real cue's speed error is unmeasured, and the 80 mph figure remains a no-drag sim number (about 26 to 30 m/s with the assumed drag).",
       "resolution": ""
     },
     {
@@ -4112,20 +4184,46 @@
       "loc_a": "docs/kill_day_protocol.md sections 4 (L0), 5.3, 5.4",
       "claim_b": "The only live path is the simulator smoke mode: default trigger fires GO by itself, default detector is synthetic, the program arms and takes off on its own, a hung program keeps the last velocity command flowing, and teardown commands a landing under a pilot who has taken over. Radio loss returns home even in automatic flight, so the transmitter-off test cannot pass as the board is set.",
       "loc_b": "docs/interface_audit_2026-11-18.md G1, G2, G5, G6, G11; runs/fc_readonly_20261118/interceptor_params.txt",
-      "current_truth": "Open. Fixes (a guarded flight mode, a props-off bench mode, a watchdog, teardown and own-state age) are being built on a branch and are untested on hardware. The Pi does reach the Pixhawk over TELEM2 with the recorder on USB (bench, read-only, 2026-11-18).",
+      "current_truth": "Code now exists and is merged (2026-11-18): --fly (the only mode that arms on a serial link; RC arm permit; refuses synthetic trigger or detector), --bench-props-off (cannot arm), an out-of-process watchdog, a teardown that leaves a pilot alone, stale own-state goes SAFE, and the board's limits are read before arming. Tested on the laptop against a fake vehicle and a simulated PX4 only. STILL OPEN: no run on the real Pi and Pixhawk (held: props on), the GO and permit switches never read from the real board, radio loss still returns home in automatic flight (G5), the recorder can still fall back onto the guidance port (G8), and the field protocol's wording is ahead of any bench proof.",
       "resolution": ""
     },
     {
       "id": "october-36-3-cliff-probably-a-sim-defect",
       "verdict": "PLAUSIBLE",
       "severity": "low",
-      "status": "open",
+      "status": "resolved",
       "topic": "October's 'do NOT fly 36 m/s with brake a=3' rests on runs that look like a sim defect",
       "claim_a": "One real cliff: vmax=36 with a=3 at the far crossing fails 0/8 (closest ~150 m); do NOT fly 36/3.",
       "loc_a": "isim/specs/approach_dash_2026-10-21.md RESULT",
       "claim_b": "The fast sim's vehicle model climbed without bound when held on its lean limit (2,500 m in one run). Runs with that defect show the same signature: no decodes, closest approach 100 to 190 m at 16 to 26 s. With the defect repaired, 36/3 intercepts in all three geometries tested.",
       "loc_b": "isim/specs/approach_dash_drag_prereg_2026-11-18.md amendment 1 and stage 1; isim/vehicle.py tilt_sat_vertical_priority",
-      "current_truth": "Probable, not shown: October's far-crossing geometry is not recorded and its script was not committed, so that exact case cannot be rerun.",
+      "current_truth": "The instruction is withdrawn. Two screens with the sim repaired (the drag screen on October's optics and the flying-optics rerun) intercept with brake 3 in every geometry tested; at 20 deg of camera tilt brakes 2, 3 and 4 all give 16 of 16. Brake 3 is now the flight preset. October's exact far-crossing case was never rerun (its geometry is not recorded), so the cause stays 'probably the sim'.",
+      "resolution": "RESOLVED 2026-11-18: superseded by two independent reruns; brake 3 adopted in FLY_PRESET (ADR-0139). isim/specs/approach_dash_2026-10-21.md carries the pointer."
+    },
+    {
+      "id": "target-tag-drawn-side-facing-chase-needs-rear",
+      "verdict": "CONFIRMED",
+      "severity": "high",
+      "status": "open",
+      "topic": "The placard is designed side-facing; the chase that now flies can only read a tag that faces rearward",
+      "claim_a": "Decision 1: ONE flat panel, vertical, in the target's fore-aft centreline plane, i.e. EDGE-ON to flight, tag facing sideways (beam), printed on both faces. A plate facing fore or aft was REJECTED: 11.8 N of drag, about 1.5 times the aircraft's weight, capping the target near 5.8 m/s.",
+      "loc_a": "docs/placard_mount.md sections 0 and 3 (decision 1, options A to D)",
+      "claim_b": "ADR-0103: the tag must face the arrival direction; every pursuit study since models a rear-facing tag. Flying-optics rerun: the side-facing placard gives 0 kills of 16 in the near and demo geometries (never decoded in near), 9 and 15 of 16 only when the vehicle arrives from the side.",
+      "loc_b": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md (Brackets); ADR-0103; ADR-0114",
+      "current_truth": "Unresolved, and both sides have a real reason. A chase from astern cannot read a side-facing tag; a rear-facing 0.35 m plate is the option the mount doc rejected for drag that keeps the target under 9 m/s. The ways out are a side arrival, a smaller or see-through rear tag, or the markerless seeker; none is designed or simulated. Builder's ruling needed before a placard is built for chase flights.",
+      "resolution": ""
+    },
+    {
+      "id": "camera-tilt-ruled-10-rerun-says-20",
+      "verdict": "PLAUSIBLE",
+      "severity": "medium",
+      "status": "open",
+      "topic": "The ruled camera tilt (+10 deg, with the placard canted 12 deg down) against the flying-optics rerun (20 deg)",
+      "claim_a": "RULED (builder 2026-09-24): the chase-regime camera bracket locks at +10 deg up-tilt AND the target's tag placard prints canted 12 deg down, the ADR-0114 pair.",
+      "loc_a": "project_state.json stages/pointing; docs/decisions.md ADR-0114 2nd addendum",
+      "claim_b": "Flying lens, no random errors, kills of 192: 105 at 10 deg, 165 at 15, 192 at 20, 191 at 25; from 30 deg kills collapse. At 10 deg the tag leaves the top of the picture during the catch-up in 28 to 32% of chase frames.",
+      "loc_b": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md (Camera tilt)",
+      "current_truth": "Not comparable yet. The ruling was earned with the target pitching and a canted placard, at the wider lens; the rerun used the flying lens with an upright tag on a target that does not pitch. One fast-sim grid with pitch, cant and the flying lens together decides. The plate adjusts 10 to 45 deg, so no part depends on it.",
       "resolution": ""
     }
   ]

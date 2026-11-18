@@ -503,7 +503,7 @@ where the target is GOING, not where it spent the last two seconds.
 
 ---
 *Provenance: `docs/launch_mechanism_plan.md` §§1-3 (launch geometry, aim-error
-budget, honesty stack), `docs/launch_mechanism_options.md` (relay-path
+budget, honesty stack), `retired/docs/launch_mechanism_options.md` (relay-path
 tradeoffs framework), ADR-0103/ADR-0105 (`docs/decisions.md`, the pursuit
 terminal and its measured tolerance), `docs/next.md` ("Launch-aim cue" ruling),
 `docs/hardware_order_list.md` (BOM facts, §1's correction),

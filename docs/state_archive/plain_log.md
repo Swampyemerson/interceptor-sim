@@ -628,3 +628,11 @@ The fix for the target drone's runaway climb is on its board but not yet proven.
 **So what:** Still no flight: a props-off bench check (the board fights you with the stick at the bottom; the motor average must stay under the hover point) comes first, then a low hop. The settings checker now rejects any file whose ceiling is above hover.
 
 *Evidence: ADR-0138 addenda 7 and 8; configs/target_kakute/target.param + lint_param.py; runs/target_bench_20261114/README.md; scripts/bench/ap_thrust_ceiling_check.py*
+
+## 2026-11-14 (overflowed from plain_log 2026-11-18)
+
+The target drone flew again in the evening and the runaway climb did not come back. Roll and pitch were calm on the halved gains. A new fault showed in Position mode: the drone bounced up and down. The log shows the height controller pulsing the motors between idle and about 1400 several times a second. Its gains were still the firmware defaults, sized for a drone that hovers at half throttle; this one hovers at 8% (measured in this flight), so they were about 6 times too strong. ArduPilot's first-flight page says to scale them to the hover thrust, and that step had been skipped. They are now scaled and written to the board.
+
+**So what:** Not yet flown with the new height gains. Next is a low hop to see whether Position mode holds height. In Position mode the stick in the middle holds height; below about 40% it descends. The measured hover point leaves the safety margin against the climb thinner than computed (the motors' ceiling is about 0.9 times the weight, not 0.7).
+
+*Evidence: runs/target_flight2_20261114/README.md + height_loop_analysis.txt + hover_thrust_fit.txt; ADR-0138 addendum 9; configs/target_kakute/target.param*

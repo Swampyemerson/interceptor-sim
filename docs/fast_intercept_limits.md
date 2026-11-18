@@ -106,7 +106,7 @@ no.
 
 Where a long lens COULD still earn a place, honestly scoped: long-range
 ACQUISITION/verification before launch — the launcher-side one-shot
-spotter concept already evaluated in `docs/launch_mechanism_options.md`
+spotter concept already evaluated in `retired/docs/launch_mechanism_options.md`
 (kept as the honesty-clean recast of option C), and the real-world decode
 range that the tripod day measures. Neither touches the terminal miss, and
 the in-flight acquisition problem the project actually measured (the

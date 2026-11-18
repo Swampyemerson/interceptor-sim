@@ -93,7 +93,26 @@ reference-checked repo-wide, inbound pointers repointed or served by a stub):
 
 Kept, deliberately: `placard_mount.md` (live test/script consumers),
 `pi_emulation_check.md` (cited by the contract's `pi5-emulation-gap`
-constraint), `launch_mechanism_options.md` (banner-superseded in place —
-decisions.md cites it), `transfer_bet_kill_test.md` (its §0 kill-test criteria
+constraint), `transfer_bet_kill_test.md` (its §0 kill-test criteria
 are live; the stale detect-then-track passages in §6/§7 were corrected in
-place instead).
+place instead). (`launch_mechanism_options.md` was kept here in October and
+moved on 2026-11-18, below.)
+
+Moved 2026-11-18 (the builder's standing final task after the cue, flight-mode
+and long-range-dash work: "clean the repo of the retired content"). Every live
+pointer was re-pointed to `retired/docs/`:
+
+- `docs/launch_mechanism_options.md`: the option-by-option launch exploration,
+  banner-superseded since 2026-10-22 by `docs/launch_mechanism_plan.md`.
+- `docs/doc_hygiene_2026-09-17.md`: a one-shot hygiene audit, fully executed;
+  its successor log is `docs/deletion_candidates_2026-10-22.md`.
+- `docs/ground_modality.md`: ground-sensor research for the parent project's
+  sensing half, which this repo does not build (`docs/goals.md`, scope).
+
+Not moved, and why: the six-line stubs in `docs/` (`compute_setup.md`,
+`ekf_design_brief.md`, `scoring_fix_plan.md`, `candidate_nn_shortlist.md`,
+`inview_probe_results.md`, `seeker_upgrades.md`) exist only so 3 to 10 older
+references each still resolve; `docs/publish_cleanup_work_order.md` still holds
+two open builder-only items; `docs/regulatory_site_capture.md` is the closed
+ruling's own record; the October approach-dash spec stays as the registered
+record with a pointer to the 2026-11-18 corrections.

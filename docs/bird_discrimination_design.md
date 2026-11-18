@@ -511,11 +511,11 @@ not on a bigger onboard net.
 **The three honest onboard binders (not compute):**
 - **Pixels-on-target.** NN classification "degrades severely below ~10×10 px"
   ([FLIR C-UAS](https://oem.flir.com/learn/discover/thermal-infrared-sensor-design-considerations-for-counter-uas-defense/));
-  Johnson's criteria put *recognition* ("drone not bird") at ~8 px (ground_modality.md §1). A
+  Johnson's criteria put *recognition* ("drone not bird") at ~8 px (retired/docs/ground_modality.md §1). A
   drone at 100 m is ~10×10 px in 1080p. **This sets the ARM range** — the same acquisition-range
   lever that dominates the miss (ADR-0023/0024).
 - **Domain fragility.** A classifier scoring 93.55% on known scenes fell to **66% AP on unknown
-  scenes** (ground_modality.md §3;
+  scenes** (retired/docs/ground_modality.md §3;
   [drone-warfare EO/IR](https://drone-warfare.com/counter-uas/eo-ir-detection/)). This is *why*
   onboard-alone must be *confirmed* mid-course, not trusted from cold.
 - **Thermal/power on a vibrating FPV airframe.** 2.5 W typ is trivial, but sustained inference on
@@ -975,7 +975,7 @@ discriminants against reality:
 
 **Repo / ADR:** `docs/goals.md`; `docs/decisions.md` ADR-0013/0015/0016/0017/0018/0019(+addendum)/0023/
 0024/0025/0033/0034; `docs/seeker_design_brief.md` (§, R6/R7, line 47); `retired/docs/stage0_bench_plan.md`;
-`docs/ground_modality.md`; `retired/docs/audit_targets.md`; `docs/ekf_design_brief.md`;
+`retired/docs/ground_modality.md`; `retired/docs/audit_targets.md`; `docs/ekf_design_brief.md`;
 `scripts/m4_intercept.py` (lines 274/275/281/282/300/302, conjunction 1747–1749, `run_acquire_and_engage`
 1415); `scripts/m4_target_mover.py` (line/weave/jink); `models/fpv_target_markerless/`.
 

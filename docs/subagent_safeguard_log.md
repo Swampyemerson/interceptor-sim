@@ -37,7 +37,7 @@
   no session so far has been able to arrange.
 - **2026-09-16.** `opus5-worker` also bounced once (1 of 1), on a read-only closing-speed
   analysis, mid-task, same `[general_harms]` signature. Not retried or reworded.
-- **2026-09-17.** Doc-hygiene audit (`docs/doc_hygiene_2026-09-17.md`) measured the
+- **2026-09-17.** Doc-hygiene audit (`retired/docs/doc_hygiene_2026-09-17.md`) measured the
   always-loaded chain at 6,353 words / ~92 flagged-term hits, and `docs/decisions.md`
   separately at 118 ADRs / 93,536 words / 408 hits — the latter split into
   `docs/decisions_archive.md`, and a rule codified that subagent prompts must never
@@ -64,7 +64,7 @@
   vocabulary beyond pre-existing, established terms (`ENGAGE`/`BREAKOFF` states, the
   `binary-kill proximity radius` constant, etc.) and zero dramatization — one agent
   found a comment that explicitly de-escalates ("only needs to touch the target, not
-  hit it hard"). `docs/doc_hygiene_2026-09-17.md` was flagged for literally enumerating
+  hit it hard"). `retired/docs/doc_hygiene_2026-09-17.md` was flagged for literally enumerating
   the classifier's own watch-list as a word-list (diagnostic self-reference, not
   narrative) — it is not in the always-loaded chain and ops.md's one pointer to it was
   already removed earlier the same day. `project_state.json` itself carries ~365 raw
