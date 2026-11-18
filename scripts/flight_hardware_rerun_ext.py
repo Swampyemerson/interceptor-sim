@@ -103,7 +103,7 @@ def run_jobs_fov(jobs, workers):
 
 
 def jobs_for(tag, geom, seeds, lean, tilt, *, scatter=False, speed_err=None,
-             motion="straight", clock=None, extra_port=None, a=3, drag="D1"):
+             motion="straight", clock=None, extra_port=None, a=3, drag="D1", mission=None):
     over = dict(LEANS[lean])
     over["drag_quad_horiz"] = sw.DRAG[drag]
     extra = dict(OPTICS)
@@ -114,8 +114,10 @@ def jobs_for(tag, geom, seeds, lean, tilt, *, scatter=False, speed_err=None,
     for s in seeds:
         scn = scenario(geom, fh.DASH_CAP, a, s, veh_over=over, scatter=scatter,
                        extra_port=extra_port, extra_scn=extra, scatter_over=so)
-        out.append((tag, scn) if clock is None
-                   else (tag, scn, dict(engage_lost_target_s=float(clock))))
+        mo = dict(mission or {})
+        if clock is not None:
+            mo["engage_lost_target_s"] = float(clock)
+        out.append((tag, scn, mo) if mo else (tag, scn))
     return out
 
 
@@ -224,37 +226,92 @@ def report():
               f"median time to closest approach of kills "
               f"{np.median([r['t_cpa'] - go_time(r) for r in allr.values() if r['miss'] <= 0.35]):.1f} s after GO")
     if search:
-        print("\n== ARRIVAL SEARCH (all errors, tilt 10, clock 120 s, 32 seeds): kills of 32 "
-              "(camera kills / never decoded) ==")
-        print(f"{'cell':>22} | {'off':>12} | {'stern':>12} | {'believed':>12} | stern vs off lost/gained | t_cpa off/stern")
+        print("\n== ARRIVAL SEARCH (all errors, 32 seeds): kills of 32 (camera kills / never decoded) ==")
+        print(f"{'cell':>26} | {'off':>12} | {'stern':>12} | {'believed':>12} | {'stern+preset':>12} | "
+              "stern vs off lost/gained | preset vs stern lost/gained | median s to kill off/stern")
         tot = collections.Counter()
-        for lean in (45, 60):
+
+        def cell(c):
+            return ("     --     " if c is None else
+                    f"{kills(c):2d} ({sum(camera_kill(r) for r in c.values()):2d}/"
+                    f"{sum(r['first_det'] is None for r in c.values()):2d})")
+
+        def tk(c):
+            v = [r["t_cpa"] - go_time(r) for r in c.values() if r["miss"] <= 0.35]
+            return float(np.median(v)) if v else float("nan")
+
+        for tilt, lean in ((20, 45), (20, 60), (10, 45)):
             for m in ("st", "we"):
                 for g in ("near", "demo"):
                     for e in ("10", "4", "1"):
-                        key = f"{m}|{g}|e{e}|L{lean}"
+                        key = f"{m}|{g}|e{e}|L{lean}|t{tilt}"
                         if f"{key}|off" not in search:
                             continue
-                        cs = {x: search[f"{key}|{x}"] for x in ("off", "stern", "believed")}
-                        def cell(c):
-                            return (f"{kills(c):2d} ({sum(camera_kill(r) for r in c.values()):2d}/"
-                                    f"{sum(r['first_det'] is None for r in c.values()):2d})")
+                        cs = {x: search.get(f"{key}|{x}") for x in ("off", "stern", "believed", "sternP")}
                         for x, c in cs.items():
-                            tot[(lean, e, x)] += kills(c)
-                        tk = lambda c: np.median([r["t_cpa"] - go_time(r) for r in c.values() if r["miss"] <= 0.35] or [float("nan")])  # noqa: E731
+                            if c is not None:
+                                tot[(tilt, lean, m, e, x)] += kills(c)
                         lo, ga = paired(cs["off"], cs["stern"])
-                        print(f"{key:>22} | {cell(cs['off']):>12} | {cell(cs['stern']):>12} | {cell(cs['believed']):>12} | "
-                              f"{lo}/{ga} | {tk(cs['off']):.0f}/{tk(cs['stern']):.0f}")
-        print("  totals:", {f"L{k[0]} e{k[1]} {k[2]}": v for k, v in sorted(tot.items())})
-        allr = {i: r for i, r in enumerate(r for t, c in search.items() if t.endswith("stern") for r in c.values())}
-        print(f"  stern arms: late kills 30/45/60 s: {late(allr, 30)}/{late(allr, 45)}/{late(allr, 60)} of "
-              f"{sum(r['miss'] <= 0.35 for r in allr.values())}; blind kills {sum(blind_kill(r) for r in allr.values())}")
-
+                        pp = ("%d/%d" % paired(cs["stern"], cs["sternP"])) if cs["sternP"] else "--"
+                        print(f"{key:>26} | {cell(cs['off'])} | {cell(cs['stern'])} | {cell(cs['believed'])} | "
+                              f"{cell(cs['sternP'])} | {lo}/{ga} | {pp} | {tk(cs['off']):.0f}/{tk(cs['stern']):.0f}")
+        agg = collections.Counter()
+        for (tilt, lean, m, e, x), v in tot.items():
+            agg[(tilt, lean, m, x)] += v
+        print("  totals by tilt, lean, target, arm:", {f"t{k[0]} L{k[1]} {k[2]} {k[3]}": v for k, v in sorted(agg.items())})
+        for arm in ("stern", "sternP"):
+            allr = {i: r for i, r in enumerate(r for t, c in search.items()
+                                               if t.endswith("|t20|" + arm) for r in c.values())}
+            nk = sum(r["miss"] <= 0.35 for r in allr.values())
+            ends = collections.Counter()
+            for r in allr.values():
+                if r["miss"] > 0.35:
+                    ends["never decoded" if r["first_det"] is None else
+                         ("target lost" if "target_lost" in r["reasons"] else
+                          ("close miss" if "pursuit_miss" in r["reasons"] else "still engaged / other"))] += 1
+            print(f"  tilt 20 {arm}: {nk} kills of {len(allr)}; later than 30/45/60 s: {late(allr, 30)}/{late(allr, 45)}/"
+                  f"{late(allr, 60)}; blind {sum(blind_kill(r) for r in allr.values())}; misses: {dict(ends)}")
+        if lost:
+            same = n_cmp = 0
+            for g in ("near", "demo"):
+                a_, b_ = search.get(f"st|{g}|e4|L45|t10|off"), lost.get(f"st|{g}|e4|T120")
+                if a_ and b_:
+                    for s_ in a_:
+                        n_cmp += 1
+                        same += abs(a_[s_]["miss"] - b_[s_]["miss"]) < 1e-9
+            print(f"  cross-merge identity (search off at tilt 10 vs lost T120): {same} of {n_cmp} rows identical")
+    b20, c = cells_of("brake20"), cells_of("c")
+    if b20:
+        print("\n== BRAKE at lean 45, tilt 20 (no errors): kills of 16, median time to closest approach, "
+              "peak speed, speed and lean at first decode ==")
+        dts = collections.defaultdict(list)
+        for g in fh.GEOMS:
+            for drag in ("D1", "D2"):
+                cs = {a: b20[f"{g}|L45|{drag}|a{a}|t20"] for a in fh.BRAKES}
+                tm = {a: float(np.median([r["t_cpa"] for r in x.values()])) for a, x in cs.items()}
+                for a in fh.BRAKES:
+                    dts[a].append(tm[a] - min(tm.values()))
+                print(f"  {g}|{drag}: " + " | ".join(
+                    f"a{a}: {kills(x):2d}, {tm[a]:5.1f} s, peak {np.median([r['peak_v'] for r in x.values()]):.0f}, "
+                    f"{np.median([r['v_first'] for r in x.values() if r['v_first'] is not None]):.1f} m/s, "
+                    f"{np.median([r['tilt_first'] for r in x.values() if r['tilt_first'] is not None]):.0f} deg"
+                    for a, x in cs.items()))
+        print("  time penalty against the fastest brake (median, max):",
+              {a: (round(float(np.median(v)), 1), round(max(v), 1)) for a, v in dts.items()})
+        if c:
+            same = n_cmp = 0
+            for g in fh.GEOMS:
+                for drag in ("D1", "D2"):
+                    a_, b_ = b20[f"{g}|L45|{drag}|a3|t20"], c[f"{g}|now|{drag}|a3|t20"]
+                    for s_ in a_:
+                        n_cmp += 1
+                        same += abs(a_[s_]["miss"] - b_[s_]["miss"]) < 1e-9
+            print(f"  cross-merge identity (brake 3 here vs stage c): {same} of {n_cmp} rows identical")
 
 def main():
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stage", choices=["grid", "gridb", "lost", "search"])
+    ap.add_argument("--stage", choices=["grid", "gridb", "lost", "search", "brake20"])
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--workers", type=int, default=12)
     args = ap.parse_args()
@@ -287,18 +344,35 @@ def main():
                     jobs += jobs_for(f"{base}|T120", g, range(n), 45, 10, clock=120.0, **kw)
                     jobs += jobs_for(f"{base}|T120x", g, range(n), 45, 10, clock=120.0,
                                      extra_port=dict(no_fallback_range_m=0.0), **kw)
-    else:  # search
+    elif args.stage == "brake20":
+        n = 16                                   # AMENDMENT 2
+        for g in fh.GEOMS:
+            for drag in ("D1", "D2"):
+                for a in fh.BRAKES:
+                    jobs += jobs_for(f"{g}|L45|{drag}|a{a}|t20", g, range(n), 45, 20, a=a, drag=drag)
+    else:  # search (as amended: tilt 20 main, tilt 10 subset)
         n = 32
-        modes = {"off": None, "stern": dict(arrival_search=True, search_start="stern"),
-                 "believed": dict(arrival_search=True, search_start="believed")}
-        for lean in (45, 60):
-            for m in (("straight", "weave") if lean == 45 else ("straight",)):
-                for g in ("near", "demo"):
-                    for e in (0.10, 0.04, 0.01):
-                        for name, port in modes.items():
-                            jobs += jobs_for(f"{m[:2]}|{g}|e{e * 100:g}|L{lean}|{name}", g, range(n),
-                                             lean, 10, scatter=True, speed_err=e, motion=m,
-                                             clock=120.0, extra_port=port)
+        stern = dict(arrival_search=True, search_start="stern")
+        believed = dict(arrival_search=True, search_start="believed")
+        preset = dict(pursuit_lost_clock_needs_track=True, pursuit_lost_clock_off_in_search=True,
+                      engage_far_lost_target_s=6.0)
+        arms45 = {"off": (None, dict(clock=120.0)), "stern": (stern, dict(clock=120.0)),
+                  "believed": (believed, dict(clock=120.0)), "sternP": (stern, dict(mission=preset))}
+        for tilt, leans in ((20, (45, 60)), (10, (45,))):
+            for lean in leans:
+                motions = ("straight", "weave") if (lean == 45 and tilt == 20) else ("straight",)
+                errs = (0.10, 0.04, 0.01) if tilt == 20 else (0.10, 0.04)
+                for m in motions:
+                    for g in ("near", "demo"):
+                        for e in errs:
+                            for name, (port, kw) in arms45.items():
+                                if lean == 60 and name not in ("off", "stern"):
+                                    continue
+                                if tilt == 10 and name == "sternP":
+                                    continue
+                                jobs += jobs_for(f"{m[:2]}|{g}|e{e * 100:g}|L{lean}|t{tilt}|{name}", g,
+                                                 range(n), lean, tilt, scatter=True, speed_err=e,
+                                                 motion=m, extra_port=port, **kw)
     rows = run_jobs_fov(jobs, args.workers) if fov else run_jobs(jobs, args.workers)
     json.dump(rows, open(os.path.join(OUT, f"{args.stage}.json"), "w"))
     cells = collections.Counter(r["tag"] for r in rows)

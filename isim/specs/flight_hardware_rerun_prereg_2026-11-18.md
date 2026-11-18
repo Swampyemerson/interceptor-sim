@@ -210,3 +210,155 @@ switches with a flight preset). The instrument check passes again on the merged 
 
 **Null.** If `stern` does not beat off at tilt 20 by the finding threshold (scaled: net 4
 of 32), the search does not carry to the flying lens.
+
+## RESULT (2026-11-18, run as registered and amended; 9,400 runs)
+
+Rows and logs: `runs/flight_hardware_rerun_20261118/` (one JSON per stage). Tables:
+`scripts/flight_hardware_rerun_report.py` and `scripts/flight_hardware_rerun_ext.py --report`.
+Fast sim on the Gazebo x500 fit with this board's limits laid over it; it ranks and
+locates. Two identity checks across the merge of main passed: 64 of 64 and 96 of 96 rows
+identical. No cell was short. The scorer's blind kills (inside 0.35 m with no decode
+first) are counted separately and never exceed 5 in a cell of 50.
+
+### Camera tilt is the largest lever with the flying lens
+
+No random errors, brake 3, kills of 16 per cell; totals over 12 cells (three geometries,
+two envelopes, D1 and D2):
+
+| Tilt | 10 | 15 | 20 | 25 |
+|---|---|---|---|---|
+| Kills of 192 | 105 | 165 | 192 | 191 |
+
+The grid (D1 only, kills of 48 over three geometries; share of frames with the tag out
+of the picture during the chase):
+
+| Lean limit | tilt 10 | 15 | 20 | 25 | 30 | 35 | 45 |
+|---|---|---|---|---|---|---|---|
+| 45 | 40, 28 % | 48, 15 % | 48, 1.6 % | 48, 4 % | 34, 19 % | 28, 36 % | 22, 48 % |
+| 52 | 38, 31 % | 48, 14 % | 48, 2.3 % | 47, 5 % | 32, 20 % | 24, 36 % | 19, 49 % |
+| 60 | 38, 32 % | 48, 14 % | 48, 1.7 % | 47, 5 % | 38, 18 % | 27, 36 % | 17, 49 % |
+
+- At 10 degrees the tag leaves by the TOP of the picture while the vehicle leans into
+  the catch-up (nose 28 to 32 degrees down in those frames), for about 1.1 s at a time,
+  and the 2.0 s clock ends the engagement. At 20 degrees it stays in. From 30 degrees
+  the picture looks over the target and kills fall.
+- On arrival (target inside 48 m, not yet decoded, vehicle nose-up from braking) the
+  tag is out of the picture in 58 % of frames at tilt 10, 79 to 85 % at 20 and 95 to
+  98 % at 25 and above. So 20 is the top of the usable range, not the middle of it.
+- **The lean limit does not change kills.** 45, 52 and 60 are within 1 kill at every
+  tilt up to 25, and 0.3 s apart in time, because the board's 5 m/s² acceleration limit
+  sets the climb to speed. Peak speed under expected drag: 26.5 m/s at 45 degrees, 30.0
+  at 60.
+- All errors on (speed error 4 %, 120 s clock, 32 seeds, kills of 128): lean 45 tilt 20:
+  58. Lean 60 tilt 20: 56. Lean 52 tilt 20: 55. Lean 45 tilt 10: 42. By the registered
+  rule the pair is **lean 45, tilt 20**; the three lean limits are not distinguishable.
+- Tilt 20 against 10 with all errors on, 2.0 s clock, kills of 50: 24 to 28 and 24 to 33
+  at 4 %; 42 to 45 and 33 to 40 at 1 %.
+
+### Kill rates by cue speed error (all errors on, straight target, kills of 50)
+
+Envelope now, D1, brake 3, tilt 10, as registered (near / demo):
+
+| Speed error | 10 % | 4 % | 2 % | 1 % | 0 % |
+|---|---|---|---|---|---|
+| 2.0 s clock | 16 / 16 | 24 / 24 | 38 / 27 | 42 / 33 | 44 / 40 |
+| 6.0 s clock | 17 / 19 | 24 / 29 | 38 / 34 | 42 / 38 | 45 / 44 |
+| Never decoded (of 100) | 61 | 40 | 28 | 13 | 6 |
+
+- The flying optics do not rescue the long dash: at 10 % and 4 % the kills are what
+  October's optics gave (13 to 17 and 27 to 31), and the never-decoded runs again have
+  the target behind the vehicle (57 of 61 at 10 %).
+- **A weaving target is hardly ever killed, whatever the cue:** 2 to 11 of 50 in every
+  cell, including 6 and 11 at zero speed error. The misses are close passes (17 to 27
+  per cell) and lost targets (13 to 18), not failures to find it. This is a terminal
+  problem, separate from the cue.
+
+### Arrival search carries over to the flying lens
+
+Tilt 20, lean 45, all errors on, 32 seeds, kills of 32 (near / demo):
+
+| Speed error | Search off | `stern` | `believed` | `stern` + flight preset |
+|---|---|---|---|---|
+| 10 % | 10 / 11 | 30 / 29 | 31 / 31 | 28 / 28 |
+| 4 % | 18 / 21 | 32 / 32 | 32 / 32 | 32 / 32 |
+| 1 % | 30 / 27 | 32 / 32 | 32 / 32 | 31 / 31 |
+| Straight total of 192 | 117 | 187 | 190 | 182 |
+| Weaving total of 192 | 43 | 57 | 70 | 54 |
+
+- At tilt 10 the same search gives 101 of 128 where tilt 20 gives 123 (10 % and 4 %
+  straight cells), so the two changes add.
+- Lean 60 against 45: 184 against 187 with the search, 116 against 117 without.
+- Kills with the search come about 40 s after GO: of 428 `stern` kills at tilt 20, 424
+  are later than 30 s, 86 later than 45 s and 46 later than 60 s. The old 30 s engage
+  window would have cut nearly all of them.
+- The flight preset's switches stand in well for "no clock": 182 against 187 straight,
+  54 against 57 weaving; 10 seeds lost and 2 gained over 12 cells, at most 2 in a cell.
+  Its non-kills end as close misses (129 of 148), i.e. the kept inside-3 m rule.
+
+### Lost-target rule (no search, tilt 10, first 32 seeds, kills of 256)
+
+| 2.0 s | 6.0 s | 20 s | 120 s | 120 s, close-range rule off |
+|---|---|---|---|---|
+| 88 | 98 | 106 | 107 | 107 |
+
+No seed that was a kill at 2.0 s is lost at 120 s. Letting the terminal re-chase after
+losing a target inside 3 m changes no total and moves single cells by 2 or fewer, with
+kills as late as 116 s. So the longest clock gives the most kills, nearly all of the
+gain is in by 20 s, and the close-miss rule costs nothing measurable without the search
+and about 5 of 192 with it.
+
+### Brake
+
+At tilt 10 the registered rule picks nothing: the differences are camera losses (demo
+D1: 7 to 8 of 16 at brake 2 and 3, 13 to 14 at brake 4). At tilt 20 (amendment 2) every
+brake gives 16 of 16 in all six cells; time to closest approach is 0.8 s later at brake 3
+(1.2 s at most) and 3.1 s later at brake 2 (3.6 s at most) than at brake 4; lean at first
+decode is 19 to 25 degrees at brake 2, 21 to 32 at brake 3, 23 to 35 at brake 4. **By the
+rule: brake 3.** October's "do not fly 36 m/s with brake 3" does not survive in any form:
+brake 3 intercepts in every geometry here once the camera can see.
+
+### Brackets
+
+- fx 933 instead of 1104: never worse, and 16 and 14 of 16 where fx 1104 gives 8 and 7
+  (demo, D1, tilt 10). The difference is vertical field of view, so the true lens (about
+  42 degrees tall against this sim's 39.8) should sit between the two.
+- **Side-facing tag, the placard as `docs/placard_mount.md` draws it: 0 of 16 in the
+  near and demo geometries** (never decoded at all in near), 9 and 15 of 16 in the tail
+  geometry, where the vehicle arrives from the side. A chase from astern needs the tag
+  to face rear.
+
+### Predictions, graded
+
+- **Failed:** 1 (D1 already loses kills at tilt 10: demo 7 to 8 of 16). 4 (tilt 20, not
+  15, and 25 loses only 1). 5's side-tag bound in the tail geometry. 6 at 4 % (24, not
+  28 to 38), at 2 % and 1 % in demo, and on the weaving target (30 or more fewer, not 10
+  to 20). 7 (the 6 s clock gains up to 7 in a cell, and one cell loses 2). 8 (tilt 20
+  moves the cells by 3 to 9). 9's "tilt 35 and 45 below half everywhere" (demo holds) and
+  "lean 60 is 1 to 2 s faster" (0.3 s). 10's 0-to-2 bound (one cell gains 4). 11's
+  "`believed` gains less than `stern`" (it gains as much or more). 12's "never more than
+  1 below" (2 below in two cells).
+- **Held:** 2 and 14 on the brake at tilt 20. 3 (envelopes agree; peak 26.5 and 30.0
+  against 25 and 30). 5 on fx 933. 6 at 10 % and 0 %. 7 and 10 in sign (longer clock,
+  more kills, summed). 9 on where kills peak and on lean. 11 and 13 on the size of the
+  search's gain. 12 within 2 per cell.
+
+### What I would set, and what is unsure
+
+- **Camera plate: 20 degrees up.** Not above 25. This is the one setting here that
+  changes kills by a lot, and it holds across drag, lean limit and error level.
+- **Lean limit: leave 45.** Raising it buys 3.5 m/s of top speed and no kills in these
+  runs. That conclusion depends on the 5 m/s² acceleration limit being applied to
+  offboard setpoints, which is not known.
+- **Brake 3.**
+- **Lost-target rule: the flight preset as it stands** (no clock before a track, none
+  during the search, 6 s beyond 3 m). A plain long clock is 5 of 192 better and keeps
+  the aircraft chasing after close misses for up to two minutes.
+- **Arrival search on.** `believed` did at least as well as `stern` here and is the
+  milder change; I would not choose between them on 32 seeds.
+- **Tag: rear-facing.** The beam-facing placard cannot be read from astern.
+- **Unsure:** the decode curve is a literature guess with one Gazebo anchor; the pinhole
+  camera is 2 degrees short vertically; the vehicle is the x500 fit; drag is assumed;
+  the target neither leans nor wobbles here. The tilt optimum sits on a 40-degree-tall
+  picture, so a real lens that is 2 degrees taller and a principal point 2.5 degrees
+  off-centre could move it by a few degrees. One Gazebo rung at tilt 15, 20 and 25 with
+  the flying lens model would settle that.
