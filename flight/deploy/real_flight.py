@@ -2139,7 +2139,10 @@ class CueTrigger:
         link, and was seen LOW first (a switch left on at start-up never
         counts). Lowering it is the veto: no GO while it is LOW;
       * the live cue link holds a quality-gated fit over the capture window
-        that is fresh and whose time base is trusted (`flight.cue_link`);
+        that is fresh, spans most of that window (`min_span_s`: a stream that
+        has only just started, or just come back, does not fire GO on its
+        first second of data -- the 5 s window is what buys the speed
+        estimate), and whose time base is trusted (`flight.cue_link`);
       * `go_check`, if given, has no objection to that fit (range, geofence).
     At that instant the belief is LATCHED ONCE, advanced to that instant, and
     the link is closed. `take_belief()` hands it to the driver for exactly one
@@ -2169,6 +2172,7 @@ class CueTrigger:
     def __init__(self, receiver, own_lla: Callable[[], Optional[Tuple[float, float, float]]],
                  enable: Optional["RcChannelTrigger"] = None, *,
                  hold_ticks: int = 4, window_s: Optional[float] = None,
+                 min_span_s: Optional[float] = None,
                  max_staleness_s: float = 1.0, max_gap_s: Optional[float] = 1.0,
                  go_check: Optional[Callable[[Any], Optional[str]]] = None,
                  log: Callable[[str], None] = print):
@@ -2177,6 +2181,11 @@ class CueTrigger:
         self.enable = enable
         self.hold_ticks = int(hold_ticks)
         self.window_s = window_s
+        if min_span_s is None:
+            from flight.cue_relay import DEFAULT_CAPTURE_DURATION_S
+            w = DEFAULT_CAPTURE_DURATION_S if window_s is None else float(window_s)
+            min_span_s = max(1.0, 0.8 * w)       # 4.4 s of the 5.5 s window
+        self.min_span_s = float(min_span_s)
         self.max_staleness_s = float(max_staleness_s)
         self.max_gap_s = max_gap_s
         self.go_check = go_check
@@ -2194,15 +2203,17 @@ class CueTrigger:
         self._ok_ticks = self._ok_ticks + 1 if gate_ok else 0
 
     def _say(self, key: str, msg: str) -> None:
-        """Print a wait reason when its KIND changes, not every tick."""
+        """Print a wait reason when its KIND changes, not every tick (numbers
+        are stripped from the key: "span 1.8 s" and "span 2.0 s" are one kind)."""
         self.status = msg
+        key = "".join("#" if c.isdigit() else c for c in key)
         if key != self._status_key:
             self._status_key = key
             self._log(f"[cue] {msg}")
 
     def _fit_kwargs(self, t: float) -> dict:
         kw = dict(now_t=t, max_staleness_s=self.max_staleness_s,
-                  max_gap_s=self.max_gap_s)
+                  max_gap_s=self.max_gap_s, min_span_s=self.min_span_s)
         if self.window_s is not None:
             kw["window_s"] = self.window_s
         return kw
@@ -2243,7 +2254,7 @@ class CueTrigger:
         try:
             sol = self.receiver.peek(own[0], own[1], own[2], **self._fit_kwargs(t))
         except (CueQualityError, CueLinkError) as e:
-            self._say("fit:" + str(e)[:24], f"waiting: no usable cue yet ({e})")
+            self._say("fit:" + str(e)[:40], f"waiting: no usable cue yet ({e})")
             return idle
         if self.go_check is not None:
             why = self.go_check(sol)
@@ -4980,10 +4991,17 @@ def build_cue_trigger(args, cfg: MissionConfig) -> "CueTrigger":
     The driver supplies own position and, under --fly, the GO-time checks."""
     from flight.cue_link import CueReceiver, MonoToUtc, SystemClockUtc
     src = args.cue_utc_source
-    vehicle_utc = MonoToUtc() if src == "vehicle" else None
+    # ONE clock: the link, the UTC mapping and the driver all read this
+    # module's `time.monotonic` (the trigger is polled with it, and the latch
+    # advances the belief to it).
+    def mono() -> float:
+        return time.monotonic()
+
+    vehicle_utc = MonoToUtc(clock=mono) if src == "vehicle" else None
     utc = vehicle_utc if src == "vehicle" else (
-        SystemClockUtc() if src == "system" else None)
-    rx = CueReceiver(port=args.cue_udp_port, utc=utc,
+        SystemClockUtc(clock=mono, wall=lambda: time.time())
+        if src == "system" else None)
+    rx = CueReceiver(port=args.cue_udp_port, utc=utc, clock=mono,
                      allow_unsynced=bool(args.cue_allow_unsynced))
     rx.start()
     enable = (None if args.cue_no_enable else
@@ -4991,6 +5009,7 @@ def build_cue_trigger(args, cfg: MissionConfig) -> "CueTrigger":
                                cfg.link_timeout_s))
     trig = CueTrigger(rx, own_lla=lambda: None, enable=enable,
                       window_s=args.cue_window_s,
+                      min_span_s=args.cue_min_span_s,
                       max_staleness_s=args.cue_max_staleness_s,
                       max_gap_s=args.cue_max_gap_s)
     trig.vehicle_utc = vehicle_utc
@@ -5395,6 +5414,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     trg.add_argument("--cue-window-s", type=float, default=None,
                      help="--trigger cue: seconds of records fitted (default: "
                           "flight.cue_relay.DEFAULT_CAPTURE_DURATION_S, 5.5)")
+    trg.add_argument("--cue-min-span-s", type=float, default=None,
+                     help="--trigger cue: the fitted records must span at least "
+                          "this long before GO can fire (default: 0.8 x the "
+                          "window, 4.4 s)")
     trg.add_argument("--cue-max-staleness-s", type=float, default=1.0,
                      help="--trigger cue: the newest record must be this fresh "
                           "for GO to fire")
