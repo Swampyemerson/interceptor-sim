@@ -40,11 +40,36 @@ PLANTS = {"X": {"tilt_sat_vertical_priority": True},   # ENGAGE fit, tilt 37.7 d
           "R": {"max_tilt_deg": 60.0, "thrust_max": 39.2,  # demo tilt limit, 4 g
                 "tilt_sat_vertical_priority": True},
           "X0": {}}                                    # as fitted (defect on show)
+# AMENDMENT 3: flight-controller envelopes laid over plant X (truth side only;
+# guidance still commands up to its own caps). "stock" is what the interceptor's
+# board held on 2026-11-18 (runs/fc_readonly_20261118/): 12 m/s, 5 m/s2, 45 deg.
+ENVELOPES = {"stock": {"max_setpoint_speed_horiz": 12.0, "max_setpoint_accel_horiz": 5.0,
+                       "max_tilt_deg": 45.0},
+             "mid": {"max_setpoint_speed_horiz": 20.0, "max_setpoint_accel_horiz": 8.0,
+                     "max_tilt_deg": 55.0, "thrust_max": 39.2},
+             "demo": {"max_setpoint_speed_horiz": 36.0, "max_setpoint_accel_horiz": 15.0,
+                      "max_tilt_deg": 60.0, "thrust_max": 39.2}}
+# AMENDMENT 4: Scatter overrides, each removing one family of errors.
+ERROR_PACKAGES = {
+    "full": {},
+    "no_speed_belief": {"target_speed_belief_sigma_frac": 0.0},
+    "no_heading": {"heading_sigma_deg": 0.0},
+    "no_wind": {"wind_mean_max_ms": 0.0, "gust_std_ms": 0.0},
+    "no_ownstate": {"ownstate_attitude_bias_rp_sigma_deg": 0.0,
+                    "ownstate_attitude_bias_yaw_sigma_deg": 0.0,
+                    "ownstate_attitude_white_sigma_deg": 0.0,
+                    "ownstate_vel_bias_sigma_ms": 0.0, "ownstate_vel_white_sigma_ms": 0.0,
+                    "ownstate_pos_randomwalk_sigma_ms_sqrt_s": 0.0,
+                    "ownstate_frame_ts_bias_max_s": 0.0,
+                    "ownstate_frame_ts_jitter_sigma_s": 0.0},
+    "no_vehicle": {"vehicle_param_sigma_frac": 0.0, "latency_extra_s_max": 0.0},
+    "speed_belief_4pct": {"target_speed_belief_sigma_frac": 0.04},
+}
 OUT = os.path.join(ROOT, "runs/approach_dash_drag_20261118")
 
 
 def scenario(geom, vmax, a, seed, veh_over=None, scatter=False, extra_port=None,
-             extra_scn=None):
+             extra_scn=None, scatter_over=None):
     port = dict(approach_dash=True, dash_v_max_ms=float(vmax), brake_shaping=True,
                 brake_accel_ms2=float(a), brake_vert_sync=True)
     if extra_port:
@@ -55,7 +80,8 @@ def scenario(geom, vmax, a, seed, veh_over=None, scatter=False, extra_port=None,
               decode_overrides={"min_decode_interval_s": 0.096},
               port_pursuit_overrides=port, seed=int(seed),
               vehicle_overrides=dict(veh_over) if veh_over else None,
-              scatter=Scatter() if scatter else None, **GEOMS[geom])
+              scatter=(Scatter(**(scatter_over or {})) if scatter else None),
+              **GEOMS[geom])
     if extra_scn:
         kw.update(extra_scn)
     return Scenario(**kw)
@@ -67,9 +93,15 @@ def tilt_deg(q):
 
 
 def run_one(job):
-    tag, scn = job
+    tag, scn = job[0], job[1]
+    mission_over = job[2] if len(job) > 2 else None
     vp = load_params(FIT)
     ecfg, vehicle, target, seeker, guidance, init_state = build(scn, vp)
+    if mission_over:
+        # MissionConfig overrides (e.g. engage_lost_target_s): rebuild the
+        # state machine on the changed config before anything runs.
+        guidance.cfg = dataclasses.replace(guidance.cfg, **mission_over)
+        guidance.reset()
     guidance.supply_pose_range = True
     with contextlib.redirect_stdout(io.StringIO()):
         res = run_engagement(ecfg, vehicle, target, seeker, guidance, init_state,
@@ -86,6 +118,15 @@ def run_one(job):
                n_dec=int(res.n_decoded), n_in_fov=int(res.n_in_fov),
                frac_sat=float(res.frac_saturated), peak_v=float(v.max()),
                max_tilt=float(tl.max()), closing=float(res.closing_speed_ms))
+    # miss split along / across the target's track at closest approach
+    # (miss_vec = target - vehicle; along > 0 means the target is AHEAD)
+    k = int(np.argmin(np.abs(t - res.t_cpa)))
+    tv = tr["tgt_vel"][k, :2]; tvn = float(np.linalg.norm(tv))
+    if tvn > 1e-6:
+        u = tv / tvn; mv = np.asarray(res.miss_vec_ned, dtype=float)[:2]
+        row["miss_along"] = float(mv @ u); row["miss_cross"] = float(u[0] * mv[1] - u[1] * mv[0])
+    else:
+        row["miss_along"] = row["miss_cross"] = None
     if det.any():
         i = int(np.argmax(det))
         row.update(first_det=float(t[i]), v_first=float(v[i]), tilt_first=float(tl[i]),
@@ -146,7 +187,7 @@ def summarize(rows, expect_n):
 def main():
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stage", required=True, choices=["check", "1", "2"])
+    ap.add_argument("--stage", required=True, choices=["check", "1", "2", "2b", "3", "4"])
     ap.add_argument("--workers", type=int, default=12)
     args = ap.parse_args()
     if args.stage == "check":
@@ -175,6 +216,40 @@ def main():
                 for plant in ("X", "R"):
                     for drag in DRAG:
                         jobs += cell_jobs(geom, vmax, a, drag, plant, range(n))
+    elif args.stage == "2b":
+        # AMENDMENT 4: which error loses the target (leave-one-out on Scatter).
+        n = 50
+        over = dict(PLANTS["R"]); over["drag_quad_horiz"] = DRAG["D0"]
+        for geom in ("near", "demo"):
+            for name, so in ERROR_PACKAGES.items():
+                jobs += [(f"{geom}|{name}", scenario(geom, 36, 4, s, veh_over=over,
+                                                    scatter=True, scatter_over=so))
+                         for s in range(n)]
+    elif args.stage == "3":
+        # AMENDMENT 2: the lost-target clock. (geometry, profile, plant) cells
+        # that lost 2+ seeds in Stage 1, plus one clean control.
+        n = 16
+        for geom, (vmax, a), plant in (("demo", (20, 3), "R"), ("demo", (36, 3), "R"),
+                                       ("demo", (20, 3), "X"), ("near", (36, 3), "X"),
+                                       ("near", (36, 4), "R")):
+            for drag in DRAG:
+                for clock in (2.0, 3.5, 6.0, 10.0):
+                    jobs += [j + (dict(engage_lost_target_s=clock),) for j in cell_jobs(
+                        geom, vmax, a, drag, plant, range(n),
+                        label=f"{geom}|v{vmax}a{a}|{drag}|{plant}|T{clock:g}")]
+    elif args.stage == "4":
+        # AMENDMENT 3: the real board's stock envelope under the same guidance.
+        n = 16
+        for tspeed in (9.0, 12.0):
+            for geom in GEOMS:
+                for env in ENVELOPES:
+                    for drag in ("D0", "D1"):
+                        over = dict(PLANTS["X"]); over.update(ENVELOPES[env])
+                        over["drag_quad_horiz"] = DRAG[drag]
+                        tag = f"t{tspeed:g}|{geom}|{env}|{drag}"
+                        jobs += [(tag, scenario(geom, 36, 4, s, veh_over=over,
+                                                extra_scn=dict(target_speed_ms=tspeed)))
+                                 for s in range(n)]
     else:
         n = 50
         for motion in ("straight", "weave"):

@@ -77,6 +77,13 @@ class VehicleParams:
     # --- setpoint slew, like PX4 MPC_ACC_HOR / MPC_ACC_UP_MAX limiting the
     # *setpoint* itself before it ever reaches the velocity loop ---
     max_setpoint_accel_horiz: float = 6.0  # m/s^2, slew limit on cmd v_n/v_e
+    # Horizontal SPEED limit on the setpoint, m/s -- PX4's MPC_XY_VEL_MAX: a
+    # velocity setpoint faster than this is scaled down by the flight
+    # controller, and the guidance is not told. 0.0 (default) = no limit,
+    # byte-identical. Added 2026-11-18 to fly the real board's stock envelope
+    # (12 m/s read off the interceptor that day) under guidance that commands
+    # more (isim/specs/approach_dash_drag_prereg_2026-11-18.md, Stage 4).
+    max_setpoint_speed_horiz: float = 0.0
     max_setpoint_accel_vert: float = 4.0  # m/s^2, slew limit on cmd v_d
 
     # --- horizontal accel demand clamp (post velocity-loop, pre tilt-solve) ---
@@ -228,6 +235,9 @@ class QuadVelocityModel:
         cmd_yaw = math.radians(applied_cmd.yaw_deg)
 
         saturated = False
+        if p.max_setpoint_speed_horiz > 0.0:
+            cmd_v[:2], sat_speed = _clip_norm(cmd_v[:2], p.max_setpoint_speed_horiz)
+            saturated = saturated or sat_speed
 
         # --- setpoint slew (rate-limit the setpoint itself, PX4 MPC_ACC_*) ---
         if not hasattr(self, "_slewed_v"):

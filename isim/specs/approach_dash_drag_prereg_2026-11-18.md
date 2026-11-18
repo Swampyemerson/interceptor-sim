@@ -174,3 +174,68 @@ so that null does not carry over (the regime rule).
   earns a Stage 2 style run with all errors on, and the safety cost has to be
   stated beside it: a longer clock is more seconds of blind flight near the
   target after a real miss.
+
+## STAGE 2 RESULT (2026-11-18; all errors on, 1200 runs, 24 cells of 50)
+
+Rows: `runs/approach_dash_drag_20261118/stage2.json`.
+
+- **Prediction 4 held for the expected drag and failed for doubled drag on a
+  weaving target.** Paired against the D0 twin, net kills lost: D1 between -2
+  and +3 of 50 in every cell (inside the 6-of-50 threshold). D2 straight target
+  +1 to +3 (inside). D2 weaving target +7 in both near cells (a finding), +2 and
+  +4 in the demo cells.
+- **The larger result is not about drag.** With the standing error package on,
+  the 500 m approach dash kills in only 13 to 17 of 50 runs against a straight
+  target at D0, and 6 to 8 of 50 against a weaving one. In 730 of the 1200 runs
+  the camera never decodes the tag at all, and the run ends still in ENGAGE at
+  the 120 s window. Of the 468 runs that did decode, 243 are kills.
+  In the no-decode runs the closest approach is 12.5 m median (4.5 to 35 m,
+  10th to 90th percentile), nearly all of it horizontal, and the tag is inside
+  the picture for hundreds of frames without decoding: the vehicle is near the
+  target but not behind it where the rear-facing tag can be read.
+- **So October's "every cell intercepts" was a statement about a 2.5 m class
+  cue.** Its sweep had no scatter. This is the first time the 500 m dash has met
+  the error package every other A/B in this repo runs under, and it mostly does
+  not acquire. Stage 2b below asks which error does it.
+
+## AMENDMENT 3 (2026-11-18, registered before flying): the real board's envelope
+
+Read off the interceptor's flight controller today, read-only
+(`runs/fc_readonly_20261118/interceptor_params.txt`): speed limit 12 m/s,
+horizontal acceleration 5 m/s², lean limit 45°. The guidance commands up to
+36 m/s and is not told about the limit. `VehicleParams.max_setpoint_speed_horiz`
+(default off) now models that clamp on the truth side.
+
+- **Stage 4 config:** plant X with the repair on, guidance profile 36 / 4
+  unchanged, three envelopes: stock (12 m/s, 5 m/s², 45°), mid (20, 8, 55°,
+  thrust 4 g), demo (36, 15, 60°, 4 g); target 9 and 12 m/s; three geometries;
+  drag D0 and D1; no scatter; 16 seeds. 72 cells, 1152 runs.
+- **Prediction:** on the stock envelope a 12 m/s target is not caught in any
+  geometry that ends as a tail chase, because the vehicle cannot go faster than
+  the target (0 of 16 in tail, and demo and near decided by whether the merge
+  itself puts the vehicle inside decode range behind the target; I expect under
+  half). A 9 m/s target is caught on stock (16 of 16) but late. Mid and demo
+  catch both speeds. D1 changes nothing on stock (drag at 12 m/s is small).
+- **A null** (stock catches the 12 m/s target as often as demo) would mean the
+  merge geometry, not top speed, does the work and the envelope question is
+  less urgent than it looks.
+- This informs the builder's open envelope decision; it adopts nothing.
+
+## AMENDMENT 4 (2026-11-18, registered before flying): which error loses the target
+
+- **Stage 2b config:** straight target, plant R, D0, profile 36 / 4, near and
+  demo geometries, 50 paired seeds, and seven error packages: full; full
+  without the target-speed belief error (10 % one sigma); without the heading
+  error (2° one sigma); without wind and gusts; without own-state errors;
+  without vehicle-parameter scatter and extra latency; and full with the speed
+  belief error cut to 4 % (about 0.45 m/s at 12 m/s, the cue plan's own
+  velocity-error figure). Rows gain the miss split along and across the
+  target's track at closest approach.
+- **Prediction:** the speed-belief error is the dominant cause. Without it the
+  no-decode share falls from about 61 % to under 15 %; at 4 % it falls to under
+  30 %. Heading error is second. The other three packages change the kill count
+  by 3 of 50 or less. In the no-decode runs of the full package the miss lies
+  mostly ALONG the track (the vehicle ahead of or behind the target), not across.
+- **A null** (no single removal recovers half of the lost decodes) means the
+  loss is spread across errors and the dash needs a search on arrival whatever
+  the cue quality.
