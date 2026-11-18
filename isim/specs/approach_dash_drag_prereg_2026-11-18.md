@@ -239,3 +239,40 @@ horizontal acceleration 5 m/s², lean limit 45°. The guidance commands up to
 - **A null** (no single removal recovers half of the lost decodes) means the
   loss is spread across errors and the dash needs a search on arrival whatever
   the cue quality.
+
+## STAGE 3 RESULT (2026-11-18; the lost-target clock, 960 runs, 60 cells of 16)
+
+Rows: `runs/approach_dash_drag_20261118/stage3.json`.
+
+- **The earlier null does not carry over to this regime.** Of the 13 runs that
+  end `target_lost` at the flying 2.0 s clock, 9 become kills at 3.5 s and 10 at
+  6 s and at 10 s. I predicted at least 10 at 3.5 s and above: one short at
+  3.5 s, met at 6 s. Of the 2 `pursuit_miss` runs in these cells, 1 becomes a kill.
+- **Nothing got worse.** Across all 60 cells no run that was a kill at 2.0 s is
+  a miss at a longer clock, and the D0 and D1 cells stay 16 of 16.
+- **What is left:** 4 misses at 6 s, between 0.42 and 0.97 m. Three end
+  `pursuit_miss` (the vehicle re-closed to inside 3 m and missed narrowly); one
+  is lost again.
+- **Reading.** The wrapper's 2.0 s clock does pre-empt the terminal's own 3.0 s
+  return to the belief chase, and when the target is lost while still ahead and
+  catchable that costs kills. Evidence so far is doubled drag with no other
+  errors, 13 runs. Stage 5 asks the same question under the full error package,
+  where 117 of 1200 Stage 2 runs ended the same way.
+
+## AMENDMENT 5 (2026-11-18, registered before flying): the clock under all errors
+
+- **Stage 5 config:** the Stage 2 cells at D0 (straight and weaving target, near
+  and demo, 20 / 3 and 36 / 4, plant R, all errors on, 50 paired seeds), clock
+  3.5 s and 6.0 s. The 2.0 s arm is Stage 2 itself (same seeds, same config).
+  800 new runs.
+- **Prediction:** of the Stage 2 D0 runs that ended `target_lost` then BREAKOFF,
+  at least a third are kills at 6.0 s. Kill counts rise by 2 to 6 of 50 per
+  cell at 6.0 s, weaving cells gaining most. No cell loses more than 1 kill.
+  The no-decode runs are untouched (the clock only starts after a decode), so
+  this cannot fix the larger Stage 2 problem.
+- **A null** (fewer than 1 in 6 converted, or any cell down by 3 or more) means
+  the 13-run result was specific to drag and the clock stays at 2.0 s.
+- **Adopt / reject:** a positive result makes "3.5 to 6 s lost-target clock when
+  the target was last seen beyond the 3 m miss range" a candidate for a Gazebo
+  rung and a builder ruling. It changes how long the aircraft flies blind near
+  the target after losing it, which is his call, so nothing is switched here.

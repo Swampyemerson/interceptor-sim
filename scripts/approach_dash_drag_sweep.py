@@ -187,7 +187,8 @@ def summarize(rows, expect_n):
 def main():
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--stage", required=True, choices=["check", "1", "2", "2b", "3", "4"])
+    ap.add_argument("--stage", required=True,
+                    choices=["check", "1", "2", "2b", "3", "4", "5"])
     ap.add_argument("--workers", type=int, default=12)
     args = ap.parse_args()
     if args.stage == "check":
@@ -237,6 +238,19 @@ def main():
                     jobs += [j + (dict(engage_lost_target_s=clock),) for j in cell_jobs(
                         geom, vmax, a, drag, plant, range(n),
                         label=f"{geom}|v{vmax}a{a}|{drag}|{plant}|T{clock:g}")]
+    elif args.stage == "5":
+        # AMENDMENT 5: the lost-target clock under the full error package
+        # (Stage 2's D0 cells; the 2.0 s arm is Stage 2 itself).
+        n = 50
+        over = dict(PLANTS["R"]); over["drag_quad_horiz"] = DRAG["D0"]
+        for motion in ("straight", "weave"):
+            for geom in ("near", "demo"):
+                for vmax, a in ((20, 3), (36, 4)):
+                    for clock in (3.5, 6.0):
+                        tag = f"{motion[:2]}|{geom}|v{vmax}a{a}|D0|T{clock:g}"
+                        jobs += [(tag, scenario(geom, vmax, a, s, veh_over=over, scatter=True,
+                                                extra_scn=dict(target_motion=motion)),
+                                  dict(engage_lost_target_s=clock)) for s in range(n)]
     elif args.stage == "4":
         # AMENDMENT 3: the real board's stock envelope under the same guidance.
         n = 16
