@@ -1,4 +1,11 @@
-# Cue relay plan — getting ~3 s of target GPS from the target to the interceptor
+# Cue relay plan — getting ~5 s of target GPS from the target to the interceptor
+
+> **AMENDED 2026-11-18 (builder ruling, ADR-0130 addendum): the capture window is now 5 s
+> nominal (5.5 s listened), the cue is to arrive LIVE and be latched at GO
+> (`flight/cue_link.py`; the read-once file path below is hundreds of metres stale for a
+> moving target, `docs/interface_audit_2026-11-18.md` G3), and the cue itself becomes the GO
+> command. Sections below that say 3 s or describe a file handed over before take-off are
+> history until rewritten.**
 
 > **AMENDED 2026-10-22 (builder ruling, ADR-0130): the capture window is now
 > 3 s nominal (was 2 s; code listens 3.5 s so ≥3 s of span survives first-fix

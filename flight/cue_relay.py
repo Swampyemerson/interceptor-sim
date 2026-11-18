@@ -7,7 +7,7 @@ interceptor launches off a GPS-derived estimate of the target's position and
 velocity, LATCHED at the trigger instant, after which no further target
 information reaches the vehicle -- the ELRS link is arm/kill only and the SiK
 link is telemetry-monitoring only (constraint `no-datalink`). This module is
-the PIPING: ~3 s of the target's own GPS telemetry (2 s nominal before
+the PIPING: ~5 s of the target's own GPS telemetry (3 s, and 2 s nominal before
 ADR-0130, 2026-10-22), relayed target -> ground -> Pi pre-launch, fitted into
 what `flight.deploy.real_flight` consumes -- `--target-start`/`--target-vel`
 (the C1 lead-solve inputs), the pursuit terminal's `belief_r0_ned`/
@@ -65,15 +65,20 @@ __all__ = [
 
 # ------------------------------------------------------------ capture window
 #
-# NOMINAL relay window (builder directive 2026-10-22, ADR-0130): capture ~3 s
-# of target GPS. 3.5 s is listened so that >= 3 s of SPAN survives first-fix
-# latency and edge losses. At the bench rates (5-8 Hz, reported Doppler
-# velocities) the step from 2 s to 3 s buys ~25% on the fitted velocity
-# (N 15 -> ~23, sigma_v/sqrt(N)) and ~1.8x on turn-detection significance
-# (sigma_omega ~ 1/T^1.5) -- see docs/cue_relay_plan.md. NOTE this is the
-# CAPTURE window, not the latch->trigger gap: the plan doc's "keep T short"
-# extrapolation rule (section 7) is a different quantity and is unchanged.
-DEFAULT_CAPTURE_DURATION_S = 3.5
+# NOMINAL relay window: capture about 5 s of target GPS (builder ruling
+# 2026-11-18, ADR-0130 addendum; it was 3 s from 2026-10-22 and 2 s before).
+# 5.5 s is listened so that at least 5 s of SPAN survives first-fix latency and
+# edge losses. Why longer: the 500 m approach dash turns the cue's speed error
+# into along-track miss at about 2.2 m per 1 % (isim/specs/
+# approach_dash_drag_prereg_2026-11-18.md), so the speed estimate is what
+# limits the long-range engagement. Going from 3 s to 5 s improves the fitted
+# velocity by about 1.3x when the autopilot's reported velocities are averaged
+# (sqrt of the sample count) and about 2.2x on the position-slope fallback
+# (T^1.5), and brings position-only turn detection into range (it needed 4 to
+# 5 s). Cost: the straight-or-steady-turn assumption has to hold for 5 s.
+# NOTE this is the CAPTURE window, not the latch-to-trigger gap, which the
+# live link (flight/cue_link.py) keeps near zero.
+DEFAULT_CAPTURE_DURATION_S = 5.5
 
 # --------------------------------------------------------------- quality gate
 # (REFUSAL FLOORS, not the nominal -- unchanged by ADR-0130: a degraded
@@ -272,7 +277,7 @@ def fit_cue(records: Sequence[CueRecord], own_lat: float, own_lon: float,
             min_span_s: float = DEFAULT_MIN_SPAN_S,
             max_staleness_s: float = DEFAULT_MAX_STALENESS_S,
             max_residual_m: float = DEFAULT_MAX_RESIDUAL_M) -> CueSolution:
-    """Fit ~3 s of target GPS records (the ADR-0130 nominal window) + the
+    """Fit ~5 s of target GPS records (the ADR-0130 nominal window) + the
     interceptor's own pre-launch position into a `CueSolution`. FAILS CLOSED (raises `CueQualityError`,
     never degrades) on: too few points, too short a span to fit a velocity,
     stale data (only checked if `now_t` given), a non-converging/degenerate

@@ -697,7 +697,7 @@ def _climbing_records(h_above_own_m=10.0, climb_ms=0.5, n=31, dt=0.1,
 
 
 def test_capture_window_is_three_seconds_nominal():
-    """ADR-0130: the nominal relay window is 3 s (3.5 s captured). Pins the
+    """ADR-0130 (addendum 2026-11-18): the nominal relay window is 5 s (5.5 s captured). Pins the
     producer default AND the bench gate's fit window (read from its source --
     scripts/bench isn't a package) so neither can quietly fall back to 2 s."""
     import inspect
