@@ -3997,7 +3997,8 @@ async def _wait_arm_permit(args, trigger, permit_trigger, state: dict) -> bool: 
     import asyncio
     permit = ArmPermit(args.rc_go_us, args.rc_low_us)
     timeout_s = float(args.arm_permit_timeout_s)
-    print(f"[arm-permit] WAITING up to {timeout_s:.0f} s. With the GO switch "
+    _sw = "ENABLE" if isinstance(trigger, CueTrigger) else "GO"
+    print(f"[arm-permit] WAITING up to {timeout_s:.0f} s. With the {_sw} switch "
           f"(ch {args.rc_channel}) LOW, flip the permit switch (ch "
           f"{args.arm_permit_channel}) LOW then HIGH to let this program arm "
           f"and take off. Ctrl-C, or doing nothing, leaves the aircraft disarmed.")
@@ -5113,6 +5114,17 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
                   f"loss failsafe distances scale with speed (0.5 s at "
                   f"{pcfg.dash_v_max_ms:.0f} m/s = {0.5*pcfg.dash_v_max_ms:.0f} m "
                   f"unflown -- TODO-BUILDER constants, bench L3/L6).")
+    _search = getattr(args, "pursuit_arrival_search", "off") or "off"
+    if _search != "off":
+        pcfg = replace(pcfg, arrival_search=True, search_start=_search)
+        if getattr(args, "pursuit_search_speed_sigma", None) is not None:
+            pcfg = replace(pcfg, search_sigma_speed_frac=float(
+                args.pursuit_search_speed_sigma))
+        print(f"[terminal] pursuit ARRIVAL SEARCH ON (start '{_search}', declared "
+              f"speed error {pcfg.search_sigma_speed_frac*100:.0f} % one sigma, "
+              f"sweep +{pcfg.search_sweep_ms:.0f} / drop -{pcfg.search_drop_ms:.0f} "
+              f"m/s about the believed target; fast-sim result only, "
+              f"isim/specs/arrival_search_prereg_2026-11-18.md)")
     if getattr(args, "pursuit_rehearsal", False):
         # PRACTICE mode: ONE switch applies the WHOLE registered practice
         # profile (rehearsal + brake package + reduced 10 m/s cap) -- the
@@ -5526,6 +5538,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
                      help="override brake_accel_ms2 for the approach-dash "
                           "deceleration schedule (default: whatever the "
                           "brake package / config already set)")
+    trm.add_argument("--pursuit-arrival-search", choices=("off", "stern", "believed"),
+                     default="off",
+                     help="pursuit-mode ARRIVAL SEARCH (flight.pursuit_terminal "
+                          "`arrival_search`, 2026-11-18; default off): search "
+                          "the along-track interval the target can be in "
+                          "instead of parking behind where it is believed to be. "
+                          "'stern' starts deep astern and sweeps forward. Needs "
+                          "ground speed of the target's plus the sweep rate.")
+    trm.add_argument("--pursuit-search-speed-sigma", type=float, default=None,
+                     help="--pursuit-arrival-search: the DECLARED one-sigma "
+                          "error of the believed target speed, as a fraction "
+                          "(a given describing the cue; default 0.10)")
     trm.add_argument("--pursuit-rehearsal", action="store_true",
                      help="pursuit-mode REHEARSAL BREAK-OFF (builder "
                           "directive 2026-09-24): practice passes without "

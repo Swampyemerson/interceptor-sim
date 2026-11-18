@@ -579,6 +579,25 @@ def test_far_loss_clock_applies_beyond_the_miss_range_only():
     assert close.transitions[-1].t == pytest.approx(3.05, abs=0.06)
 
 
+def test_arrival_search_is_off_unless_asked_for_and_reaches_the_terminal(capsys):
+    """The flight program can now switch the arrival search on (it could only
+    be reached from the fast sim before); off by default."""
+    from flight.camera import CameraModel
+    cam = CameraModel(540.0, 540.0, 640.0, 480.0)
+
+    def build(extra):
+        args = rf.build_arg_parser().parse_args(
+            ["--sitl-smoke", "--target-start", "0,16.7", "--target-vel", "9,0",
+             "--terminal", "pursuit"] + extra)
+        return rf.build_terminal(args, rf.build_config(args), rf.GuidanceConfig(), cam)
+    assert build([]).cfg.arrival_search is False
+    on = build(["--pursuit-arrival-search", "stern",
+                "--pursuit-search-speed-sigma", "0.04"])
+    assert on.cfg.arrival_search and on.cfg.search_start == "stern"
+    assert on.cfg.search_sigma_speed_frac == 0.04
+    assert "ARRIVAL SEARCH ON" in capsys.readouterr().out
+
+
 def test_launch_lines_warn_when_the_clock_cannot_outlast_the_terminals_fallback():
     from flight.pursuit_terminal import PursuitTerminalConfig
     p = PursuitTerminalConfig()

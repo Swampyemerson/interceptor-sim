@@ -61,3 +61,36 @@ ending engagements under the preset, and the rows' own end reasons say what.
 One cell, 50 seeds, the fast sim on an extrapolated vehicle fit, October's
 optics. It ranks; the flight-hardware sims and a Gazebo rung decide. Nothing
 is adopted on this cell: the head sets `FLY_PRESET` from the fuller results.
+
+## RESULT (2026-11-18, run as registered; 300 runs)
+
+Rows: `runs/lost_clock_switches_20261118/cell.json`. Kills of 50 at 0.35 m.
+
+| Arm | Kills | Never decoded | Paired against A2 (won / lost) | How the non-kills ended |
+|---|---|---|---|---|
+| A0 no search, 2 s clock | 16 | 31 | | 3 lost-target, 31 never decoded |
+| A1 no search, (a)+(b) | 17 | 31 | | 2 still engaged at the window's end |
+| A2 search, 2 s clock | 20 | 2 | | 28 lost-target, 2 never decoded |
+| A3 search, 120 s clock | 46 | 2 | 26 / 0 | 2 still engaged, 2 never decoded |
+| A4 search, the `--fly` preset | 46 | 2 | 26 / 0 | 2 still engaged, 2 never decoded |
+| A5 search, (a)+(c) only | 26 | 2 | 6 / 0 | 20 lost-target |
+
+- **Instrument check passed:** A0 reproduces Stage 2's stored cell exactly.
+- **All five predictions held.** A1 is 1 kill over A0 and loses none. A2 is 26
+  kills under A3. A4 equals A3 (46 and 46) and loses no seed that A2 won. A5
+  sits between at 26.
+- **Reading.** Under the flying 2.0 s clock the arrival search is nearly
+  wasted: 28 of 50 runs end lost-target and only 20 kill. The preset gives it
+  back everything the 120 s clock did. Most of that comes from the far-loss
+  clock: without it (A5) 20 runs still end lost-target, because once the
+  terminal has a track and loses it while the target is ahead, the 2.0 s clock
+  fires before the terminal's own 3.0 s return to the search.
+- **What it does not show.** One cell, one target motion, October's optics, the
+  fast sim. Median time to a kill is 34 s under the preset, past the old 30 s
+  engage window, which is why the same day's ruling removed that limit. The 2
+  runs "still engaged at the window's end" are runs the sim's 120 s window cut
+  off; in flight nothing but the pilot, the geofence or the battery would end
+  them.
+- **Standing.** Not adopted here. `FLY_PRESET` in `flight/deploy/real_flight.py`
+  holds these values as a starting point for the head to confirm or change from
+  the flight-hardware sims.
