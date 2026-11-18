@@ -141,7 +141,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field, replace
-from typing import Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if _REPO_ROOT not in sys.path:
@@ -286,6 +286,33 @@ class MissionConfig:
     # --- terminal / breakoff (all TODO-BUILDER: sim-derived) -------------------
     engage_max_s: float = 12.0
     engage_lost_target_s: float = 2.0      # no fresh detection this long -> BREAKOFF
+    # LOST-TARGET CLOCK SWITCHES (2026-11-18; all default OFF = the clock above,
+    # byte-identical). Why they exist: the 2.0 s clock was earned at 9 m/s and
+    # 16 m range, where a loss happens inside 3 m and is final. On the 500 m
+    # approach dash it ends engagements the terminal could still win
+    # (docs/guidance_review_2026-11-18.md F1, section 1; isim/specs/
+    # approach_dash_drag_prereg_2026-11-18.md stages 3 and 5). Builder ruling
+    # the same day: "whatever gets highest intercept rate, I'll be supervising
+    # so I can disengage if it gets ugly". The flying values live in ONE place,
+    # FLY_LOST_TARGET_PRESET below; every other mode keeps these defaults.
+    #  (a) needs_track: in pursuit mode a decode does not start the clock until
+    #      the terminal has had a track (its Phase B). One stray decode during
+    #      the belief transit can then no longer end the engagement 2 s later.
+    pursuit_lost_clock_needs_track: bool = False
+    #  (c) off_in_search: the clock does not run on any tick the terminal
+    #      reports it is in its arrival search (still looking, by design).
+    pursuit_lost_clock_off_in_search: bool = False
+    #  (b) far-loss clock: used INSTEAD of engage_lost_target_s when the last
+    #      range estimate is beyond pursuit_miss_range_m, so the terminal's own
+    #      return-to-belief logic (fallback_s, 3.0 s) gets to run. None = off.
+    #      The close-miss rule is untouched: inside the miss range the short
+    #      clock still sends the aircraft straight to SAFE.
+    engage_far_lost_target_s: Optional[float] = None
+    # THE CUE IS THE GO COMMAND (--trigger cue, builder ruling 2026-11-18). When
+    # True the GO edge must arrive WITH a belief latched from the live cue link
+    # that same tick (VehicleObs.cue_belief) and the terminal must be able to
+    # take it; otherwise GO goes SAFE instead of flying on a stale belief.
+    cue_go: bool = False
     # ADR-0103 "chase only": the pursuit terminal deliberately does NOT fly a
     # fly-by -- Phase A matches the target's speed at a standoff, so range can
     # legitimately hold flat or wobble for seconds before Phase B ever starts
@@ -542,6 +569,45 @@ class MissionConfig:
         return self.standby_alt_m - self.dash_loft_m
 
 
+# THE FLYING PRESET (one place, on purpose). `--fly` applies these over the
+# defaults above unless the operator typed the matching flag; no other mode
+# does, so every existing gate and test keeps the old behaviour. Builder
+# rulings 2026-11-18: on the lost-target rule, "whatever gets highest intercept
+# rate, I'll be supervising so I can disengage if it gets ugly"; on the engage
+# time, "no limit at least for now". THE HEAD SETS THESE VALUES from the
+# flight-hardware sim results; change them HERE and nowhere else.
+FLY_PRESET = {
+    # lost-target clock (MissionConfig docstrings (a), (c), (b))
+    "pursuit_lost_clock_needs_track": True,
+    "pursuit_lost_clock_off_in_search": True,
+    "engage_far_lost_target_s": 6.0,   # fast sim: 91 -> 102 kills of 400, none lost
+    # time limits in pursuit mode: none. What then ends an engagement that never
+    # finds the target is listed in `what_ends_an_unbounded_engagement()`.
+    "engage_max_s": math.inf,
+    "mission_max_s": math.inf,
+}
+
+# Horizon used where a finite number is needed and the engage window is not
+# (the believed-rendezvous arithmetic of the pre-arm limit check).
+_UNBOUNDED_HORIZON_S = 300.0
+
+
+def what_ends_an_unbounded_engagement() -> List[str]:
+    """With no engage time limit, the things that still end an engagement that
+    never finds its target. Printed in the pre-arm summary. Pure."""
+    return [
+        "the pilot: the mode switch takes the aircraft (this program then sends "
+        "nothing), and the kill switch always works",
+        "the board's geofence: on a breach PX4 leaves OFFBOARD and this program "
+        "goes SAFE",
+        "the board's battery failsafe: PX4 returns or lands, and this program "
+        "goes SAFE",
+        "a stale own-state stream or a hung program (the watchdog ends the "
+        "setpoint stream)",
+        "a target that was found and then lost for good (the lost-target rule)",
+    ]
+
+
 # ---------------------------------------------------------------- observations
 
 
@@ -621,6 +687,14 @@ class VehicleObs:
     # the terminal's staleness check and FAILSAFE 9 both stay inactive, exactly
     # as before. See MissionConfig.own_state_stale_s.
     own_state_age_s: Optional[float] = None
+    # THE CUE, LATCHED (--trigger cue): ((north, east, down) m, (vn, ve, vd)
+    # m/s), the target relative to THIS vehicle and its velocity, advanced to
+    # this instant. The driver sets it on exactly ONE tick, the tick the cue
+    # trigger fires GO, and it is None on every other tick of the flight. A
+    # pre-flight given (graded given-noisy), read at the GO edge and never
+    # after -- the same class as the bearing latch above.
+    cue_belief: Optional[Tuple[Tuple[float, float, float],
+                               Tuple[float, float, float]]] = None
 
     def own_state(self) -> OwnState:
         return OwnState(quat=self.quat,
@@ -854,6 +928,10 @@ class RealFlightSM:
         # THE latch. Written at exactly one call site (the GO edge); `--audit`
         # proves that statically and LatchOnce enforces it at runtime.
         self.dash_heading = LatchOnce("dash_heading_deg")
+        # The belief latched from the live cue at the GO edge (cfg.cue_go).
+        # Same rule, same audit: exactly one call site writes it.
+        self.cue_belief = LatchOnce("cue_belief")
+        self._had_track = False            # the terminal has reached Phase B
         self.transitions: List[Transition] = []
         self.safe_reason: Optional[str] = None
         self.streak = 0
@@ -1460,6 +1538,29 @@ class RealFlightSM:
                                  obs, events)
                 self.safe_reason = "arm_gate_failed_at_go"
                 return self._safe_setpoint(obs)
+            if cfg.cue_go:
+                # THE CUE IS THE GO COMMAND: the belief arrives on this tick or
+                # there is no GO. Fail closed, loudly -- never a dash on the
+                # placeholder belief the terminal was built with.
+                hook = getattr(self.guidance, "set_belief_once", None)
+                why = None
+                if obs.cue_belief is None:
+                    why = "cue_go_without_belief"
+                elif hook is None:
+                    why = "cue_go_terminal_cannot_take_belief"
+                if why is not None:
+                    self._transition(State.SAFE, why, obs, events)
+                    self.safe_reason = why
+                    return self._safe_setpoint(obs)
+                self.cue_belief.set(obs.cue_belief, t=obs.t)
+                r0, v0 = self.cue_belief.value
+                hook(r0, v0, obs.t)
+                self._emit(f"[{obs.t:7.2f}s] GO edge: cue belief LATCHED -- target "
+                           f"{math.hypot(r0[0], r0[1]):.1f} m away (north "
+                           f"{r0[0]:+.1f}, east {r0[1]:+.1f}, down {r0[2]:+.1f}) "
+                           f"moving {math.hypot(v0[0], v0[1]):.2f} m/s -- "
+                           "immutable for the rest of the flight; the link is "
+                           "now closed", events)
             # ---- THE GO EDGE: latch C1 here and NOWHERE ELSE. -----------------
             heading = cfg.preflight_heading_deg
             src = "preflight lead solve"
@@ -1765,13 +1866,29 @@ class RealFlightSM:
             elif self._recede_streak == 0:
                 self._breakoff_held_logged = False   # the rising run broke
 
+        # LOST-TARGET CLOCK SWITCHES (MissionConfig; all default off). Applied
+        # after this tick's detection bookkeeping and before the clock is read.
+        if tel is not None and getattr(tel, "phase", None) == "B":
+            self._had_track = True
+        if cfg.pursuit_mode and self._last_det_t is not None:
+            if cfg.pursuit_lost_clock_needs_track and not self._had_track:
+                self._last_det_t = None    # nothing to lose yet: no track
+            elif cfg.pursuit_lost_clock_off_in_search \
+                    and getattr(self.guidance, "searching", False):
+                self._last_det_t = None    # the terminal is still looking
+        lost_s = cfg.engage_lost_target_s
+        if cfg.pursuit_mode and cfg.engage_far_lost_target_s is not None \
+                and self._last_r_hat_m is not None \
+                and self._last_r_hat_m > cfg.pursuit_miss_range_m:
+            lost_s = cfg.engage_far_lost_target_s      # far loss: the long clock
+
         # FAILSAFE 5 -- the terminal lost the target and did not recover.
         # NOT during a rehearsal evade: the evade is itself the timed exit
         # from the target's airspace (bounded by rehearsal_evade_s, sim
         # time) and ends in SAFE on its own; losing the tag while climbing
         # away is expected and must not relabel the pass `pursuit_miss`.
         if self._last_det_t is not None and rehearsal_t is None and \
-                (obs.t - self._last_det_t) > cfg.engage_lost_target_s:
+                (obs.t - self._last_det_t) > lost_s:
             # PURSUIT-MODE MISS POLICY (builder ruling 2026-09-22, builder's
             # words: "as soon as an intercept is MISSED, abort immediately
             # and either hover in place or return home"). isim/specs/
@@ -1792,11 +1909,11 @@ class RealFlightSM:
                     State.SAFE,
                     f"pursuit_miss(r_hat={self._last_r_hat_m:.2f} m <= "
                     f"{cfg.pursuit_miss_range_m:.2f} m, target lost "
-                    f"{cfg.engage_lost_target_s:.1f}s)", obs, events)
+                    f"{lost_s:.1f}s)", obs, events)
                 self.safe_reason = "pursuit_miss"
                 return self._safe_setpoint(obs), tel
             self._transition(State.BREAKOFF,
-                             f"target_lost({cfg.engage_lost_target_s:.1f}s)",
+                             f"target_lost({lost_s:.1f}s)",
                              obs, events)
             return self._breakoff_setpoint(obs), tel
 
@@ -2010,6 +2127,164 @@ class GateReadyTrigger(ScriptedTrigger):
             self.forced_go = True
 
 
+class CueTrigger:
+    """`--trigger cue`: THE CUE IS THE GO COMMAND (builder ruling 2026-11-18:
+    "the cue receiving and estimate is the go command").
+
+    GO fires on the first tick where ALL of these hold:
+      * the state machine's own arm gate has been satisfied for `hold_ticks`
+        ticks running (armed, OFFBOARD, at standby height and yaw, settled) --
+        so a stream that was already valid before take-off still waits;
+      * the human ENABLE switch, if one is configured, is HIGH with a live RC
+        link, and was seen LOW first (a switch left on at start-up never
+        counts). Lowering it is the veto: no GO while it is LOW;
+      * the live cue link holds a quality-gated fit over the capture window
+        that is fresh and whose time base is trusted (`flight.cue_link`);
+      * `go_check`, if given, has no objection to that fit (range, geofence).
+    At that instant the belief is LATCHED ONCE, advanced to that instant, and
+    the link is closed. `take_belief()` hands it to the driver for exactly one
+    tick; the state machine writes it into the terminal at the GO edge.
+
+    WHAT IT DOES WHEN THINGS GO WRONG (every case refuses, none guesses):
+      * no records yet, too few, stale, a hole in the window, a clock that
+        cannot be trusted, a refused fit: no GO. STANDBY continues and the
+        reason is printed when it changes. The standby time budget
+        (standby_max_s) is what ends a wait that never resolves.
+      * the stream dies in STANDBY: the same -- the fit goes stale, no GO. It
+        does not abort the sortie, so a Wi-Fi dropout costs time, not the
+        flight; a stream that returns must refill a clean window first.
+      * after GO nothing here touches the link again.
+
+    THE RC LINK: with an enable switch, `link_ok` is that RC link's, so losing
+    the transmitter in STANDBY is still FAILSAFE 1 (no dash, SAFE). Without
+    one, `link_ok` is always True and there is no human veto after the arm
+    permit; `--fly` refuses that configuration.
+
+    HONESTY: the cue is a pre-flight given (graded given-noisy). `poll()`
+    reads the link only before the latch; `take_belief()` returns the belief
+    once and None ever after."""
+
+    clock_base = "absolute"
+
+    def __init__(self, receiver, own_lla: Callable[[], Optional[Tuple[float, float, float]]],
+                 enable: Optional["RcChannelTrigger"] = None, *,
+                 hold_ticks: int = 4, window_s: Optional[float] = None,
+                 max_staleness_s: float = 1.0, max_gap_s: Optional[float] = 1.0,
+                 go_check: Optional[Callable[[Any], Optional[str]]] = None,
+                 log: Callable[[str], None] = print):
+        self.receiver = receiver
+        self.own_lla = own_lla
+        self.enable = enable
+        self.hold_ticks = int(hold_ticks)
+        self.window_s = window_s
+        self.max_staleness_s = float(max_staleness_s)
+        self.max_gap_s = max_gap_s
+        self.go_check = go_check
+        self._log = log
+        self._ok_ticks = 0
+        self._enable_seen_low = enable is None
+        self.fired = False
+        self.fired_t: Optional[float] = None
+        self.solution = None
+        self._belief_out = None
+        self.status = "waiting"
+        self._status_key: Optional[str] = None
+
+    def observe_gate(self, gate_ok: bool) -> None:
+        self._ok_ticks = self._ok_ticks + 1 if gate_ok else 0
+
+    def _say(self, key: str, msg: str) -> None:
+        """Print a wait reason when its KIND changes, not every tick."""
+        self.status = msg
+        if key != self._status_key:
+            self._status_key = key
+            self._log(f"[cue] {msg}")
+
+    def _fit_kwargs(self, t: float) -> dict:
+        kw = dict(now_t=t, max_staleness_s=self.max_staleness_s,
+                  max_gap_s=self.max_gap_s)
+        if self.window_s is not None:
+            kw["window_s"] = self.window_s
+        return kw
+
+    def poll(self, t: float) -> TriggerState:
+        if self.fired:
+            # After the latch the link is closed and is not consulted again.
+            return TriggerState(go=True, link_ok=True, age_s=0.0, raw_us=None)
+        en = (self.enable.poll(t) if self.enable is not None
+              else TriggerState(go=True, link_ok=True, age_s=0.0))
+        idle = TriggerState(go=False, link_ok=en.link_ok, age_s=en.age_s,
+                            raw_us=en.raw_us, clock_fault=en.clock_fault)
+        if self.enable is not None:
+            if en.link_ok and not en.go:
+                self._enable_seen_low = True
+            if not en.link_ok:
+                self._say("rc", "waiting: no live RC link for the enable switch")
+                return idle
+            if not self._enable_seen_low:
+                self._say("high", "REFUSED so far: the enable switch was already "
+                                  "HIGH at start -- lower it, then raise it")
+                return idle
+            if not en.go:
+                self._say("veto", "holding: the enable switch is LOW (your veto); "
+                                  "raise it to let the cue fire GO")
+                return idle
+        if self._ok_ticks < self.hold_ticks:
+            self._say("gate", "waiting: the aircraft is not yet steady at its "
+                              "standby point (arm gate)")
+            return idle
+        own = self.own_lla()
+        if own is None:
+            self._say("own", "waiting: no own GPS position to place the target "
+                             "against")
+            return idle
+        from flight.cue_link import CueLinkError
+        from flight.cue_relay import CueQualityError
+        try:
+            sol = self.receiver.peek(own[0], own[1], own[2], **self._fit_kwargs(t))
+        except (CueQualityError, CueLinkError) as e:
+            self._say("fit:" + str(e)[:24], f"waiting: no usable cue yet ({e})")
+            return idle
+        if self.go_check is not None:
+            why = self.go_check(sol)
+            if why:
+                self._say("check:" + why[:24], f"holding: {why}")
+                return idle
+        # ---- THE LATCH: the one place the link becomes the belief. ----------
+        try:
+            sol = self.receiver.latch(own[0], own[1], own[2], **self._fit_kwargs(t))
+        except (CueQualityError, CueLinkError) as e:   # cannot differ from peek
+            self._say("latch", f"REFUSED at the latch ({e}); the link is closed "
+                               f"and no GO will fire")
+            return idle
+        self.fired, self.fired_t, self.solution = True, t, sol
+        self._belief_out = (tuple(float(x) for x in sol.belief_r0_ned),
+                            tuple(float(x) for x in sol.belief_vel0_ned))
+        info = getattr(self.receiver, "latch_info", None) or {}
+        base = info.get("time_base", "?")
+        delay = ""
+        if base == "utc":
+            delay = (f", link delay measured {info['delay_min_s']*1e3:.0f} to "
+                     f"{info['delay_max_s']*1e3:.0f} ms (median "
+                     f"{info['delay_median_s']*1e3:.0f}) and removed")
+        elif base == "min_delay":
+            delay = (", link delay NOT measured (no shared clock): the belief "
+                     "lags by the link's minimum delay")
+        elif base == "receive":
+            delay = ", link delay NOT measured and not reduced (receive time only)"
+        self._log(f"[cue] GO: fit of {sol.n_points} records over {sol.span_s:.1f} s "
+                  f"({sol.model}, velocity {sol.vel_source}, residual "
+                  f"{sol.residual_rms_m:.2f} m), advanced "
+                  f"{info.get('advanced_by_s', float('nan'))*1e3:.0f} ms to now on "
+                  f"the '{base}' time base{delay}")
+        return TriggerState(go=True, link_ok=True, age_s=0.0, raw_us=en.raw_us)
+
+    def take_belief(self):
+        """The latched belief, ONCE (the GO tick); None before and ever after."""
+        out, self._belief_out = self._belief_out, None
+        return out
+
+
 # ---------------------------------------------------------------- offline vehicle
 
 
@@ -2044,6 +2319,9 @@ class FakeVehicle:
 
 
 _LATCH_ATTR = "dash_heading"
+# The second latch (2026-11-18): the belief taken from the live cue at the GO
+# edge. Same rule -- exactly one call site may write it.
+_CUE_LATCH_ATTR = "cue_belief"
 # Identifier prefixes that would mean a ground-truth read. There is no ground
 # truth on real hardware; this asserts none crept in from a sim-side copy/paste.
 #
@@ -2081,6 +2359,8 @@ _AUDITED_MODULES = (
     # Added 2026-10-22 (review 3): cue_relay seeds the terminal's belief and had
     # escaped the audit -- the same rot that once left seeker_loop uncovered.
     os.path.join("flight", "cue_relay.py"),
+    # Added 2026-11-18: the live cue link feeds the belief latched at GO.
+    os.path.join("flight", "cue_link.py"),
     # frame_recorder is log-only, but it runs on the vehicle, so it is audited
     # rather than exempted: cheaper to walk it than to argue about it.
     os.path.join("flight", "deploy", "frame_recorder.py"),
@@ -2117,6 +2397,8 @@ def _audit_one(path: str, check_latch: bool) -> Tuple[List[str], int]:
         return any(name.startswith(p) for p in _FORBIDDEN_ID_PREFIXES)
 
     latch_sets = 0
+    cue_latch_sets = 0
+    cue_link_latches = 0
     for node in ast.walk(tree):
         if isinstance(node, ast.Name) and bad(node.id):
             problems.append(f"line {node.lineno}: ground-truth identifier {node.id}")
@@ -2139,11 +2421,29 @@ def _audit_one(path: str, check_latch: bool) -> Tuple[List[str], int]:
                     and isinstance(f.value, ast.Attribute) \
                     and f.value.attr == _LATCH_ATTR:
                 latch_sets += 1
+            if isinstance(f, ast.Attribute) and f.attr == "set" \
+                    and isinstance(f.value, ast.Attribute) \
+                    and f.value.attr == _CUE_LATCH_ATTR:
+                cue_latch_sets += 1
+            # `<anything>.receiver.latch(...)`: the call that turns the live
+            # link into the belief and closes it.
+            if isinstance(f, ast.Attribute) and f.attr == "latch" \
+                    and isinstance(f.value, ast.Attribute) \
+                    and f.value.attr == "receiver":
+                cue_link_latches += 1
 
     if check_latch and latch_sets != 1:
         problems.append(
             f"the dash-heading latch is written at {latch_sets} call sites "
             "(must be EXACTLY 1 -- the GO edge)")
+    if check_latch and cue_latch_sets != 1:
+        problems.append(
+            f"the cue belief latch is written at {cue_latch_sets} call sites "
+            "(must be EXACTLY 1 -- the GO edge)")
+    if check_latch and cue_link_latches != 1:
+        problems.append(
+            f"the live cue link is latched at {cue_link_latches} call sites "
+            "(must be EXACTLY 1 -- the cue trigger's GO)")
     return problems, latch_sets
 
 
@@ -2238,6 +2538,10 @@ def honesty_audit(path: Optional[str] = None, verbose: bool = True,
         if latch_checked:
             print(f"  [{'PASS' if latch_total == 1 else 'FAIL'}] dash heading "
                   f"latched at exactly one call site (found {latch_total})")
+            n_cue = sum(1 for p in all_problems if "cue " in p and "latch" in p)
+            print(f"  [{'PASS' if n_cue == 0 else 'FAIL'}] cue belief written at "
+                  f"exactly one call site, and the live link latched at exactly "
+                  f"one (the GO edge)")
         n_gt = sum(1 for p in all_problems if "ground-truth" in p)
         print(f"  [{'PASS' if n_gt == 0 else 'FAIL'}] no ground-truth identifier "
               f"({'/'.join(_FORBIDDEN_ID_PREFIXES)}) is read in ANY audited "
@@ -2546,9 +2850,28 @@ def validate_fly_args(args) -> List[str]:
     if not getattr(args, "mavsdk_url", None):
         why.append("--fly needs --mavsdk-url (on the Pi: "
                    "serial:///dev/ttyAMA10:921600)")
-    if getattr(args, "trigger", None) != "rc":
-        why.append(f"--fly needs --trigger rc: '{getattr(args, 'trigger', None)}' "
+    trig = getattr(args, "trigger", None)
+    if trig not in ("rc", "cue"):
+        why.append(f"--fly needs --trigger rc or --trigger cue: '{trig}' "
                    f"is a synthetic GO that fires with no human")
+    if trig == "cue":
+        if getattr(args, "terminal", "stock") != "pursuit":
+            why.append("--trigger cue needs --terminal pursuit (the only "
+                       "terminal that can take a belief latched at GO)")
+        if getattr(args, "cue_no_enable", False):
+            why.append("--fly refuses --cue-no-enable: with the cue as the GO "
+                       "command, the enable switch is the only human veto "
+                       "between the arm permit and the dash")
+        if getattr(args, "cue_utc_source", "vehicle") == "none" \
+                and not getattr(args, "cue_allow_unsynced", False):
+            why.append("--cue-utc-source none can never fire GO unless "
+                       "--cue-allow-unsynced is also given")
+        for flag, name in (("standby_alt_m", "--standby-alt-m"),
+                           ("standby_yaw_deg", "--standby-yaw-deg")):
+            if getattr(args, flag, None) is None:
+                why.append(f"--trigger cue needs {name} typed: the belief does "
+                           f"not exist until GO, so the standby hold cannot be "
+                           f"derived from it")
     src = getattr(args, "source", None)
     if not src:
         why.append("--fly needs a real camera (--source picamera): without "
@@ -2557,7 +2880,9 @@ def validate_fly_args(args) -> List[str]:
         why.append(f"--fly refuses --source {src}: replayed images are not a "
                    f"camera")
     explicit = set(getattr(args, "explicit_flags", None) or ())
-    if not getattr(args, "cue_json", None):
+    if trig == "cue":
+        pass    # the belief is the cue, latched at GO; nothing to type
+    elif not getattr(args, "cue_json", None):
         missing = [f for f in ("target_start", "target_vel") if f not in explicit]
         if missing:
             why.append("--fly needs an explicit belief: --cue-json FILE, or BOTH "
@@ -2585,9 +2910,13 @@ def validate_bench_args(args) -> List[str]:
     why: List[str] = []
     if not getattr(args, "mavsdk_url", None):
         why.append("--bench-props-off needs --mavsdk-url")
-    if getattr(args, "trigger", None) not in ("rc", "timer"):
-        why.append("--bench-props-off needs --trigger rc (the real GO switch) "
-                   "or --trigger timer (unattended)")
+    if getattr(args, "trigger", None) not in ("rc", "timer", "cue"):
+        why.append("--bench-props-off needs --trigger rc (the real GO switch), "
+                   "--trigger cue (the live cue link) or --trigger timer "
+                   "(unattended)")
+    if getattr(args, "trigger", None) == "cue" \
+            and getattr(args, "terminal", "stock") != "pursuit":
+        why.append("--trigger cue needs --terminal pursuit")
     return why
 
 
@@ -2852,14 +3181,18 @@ def check_platform_limits(limits: dict, unread: Sequence[str], caps: dict,
     r0, v0 = caps["belief_r0_ne"], caps["belief_v_ne"]
     tgt_speed = math.hypot(v0[0], v0[1])
     belief_range = math.hypot(r0[0], r0[1])
-    point, t_meet, catchable = believed_rendezvous(r0, v0, v_eff, cfg.engage_max_s)
+    horizon = (cfg.engage_max_s if math.isfinite(cfg.engage_max_s)
+               else _UNBOUNDED_HORIZON_S)
+    point, t_meet, catchable = believed_rendezvous(r0, v0, v_eff, horizon)
     d_meet = math.hypot(point[0], point[1])
     if not catchable:
         notes.append(
             f"at {v_eff:.0f} m/s the vehicle does not reach the believed target "
-            f"({tgt_speed:.1f} m/s, {belief_range:.0f} m away) inside the "
-            f"{cfg.engage_max_s:.0f} s engage window; the chase can carry it "
-            f"{d_meet:.0f} m from launch")
+            f"({tgt_speed:.1f} m/s, {belief_range:.0f} m away) inside "
+            + (f"the {cfg.engage_max_s:.0f} s engage window"
+               if math.isfinite(cfg.engage_max_s)
+               else f"{horizon:.0f} s (there is no engage time limit)")
+            + f"; the chase can carry it {d_meet:.0f} m from launch")
     gf_act = limits.get("GF_ACTION")
     gf_h = limits.get("GF_MAX_HOR_DIST")
     gf_v = limits.get("GF_MAX_VER_DIST")
@@ -3062,10 +3395,14 @@ def _new_link_state() -> dict:
             "t_quat": None, "t_euler": None, "t_pos": None, "t_vel": None,
             "t_mode": None, "gs": None,
             "batt_v": None, "t_batt": None,
-            "rc_n": 0, "t_rc": None, "rc_max_gap_s": 0.0, "t_rc_first": None}
+            "rc_n": 0, "t_rc": None, "rc_max_gap_s": 0.0, "t_rc_first": None,
+            # own GPS position (lat deg, lon deg, alt m AMSL): what the cue's
+            # target position is placed against at the GO edge (--trigger cue)
+            "lla": None, "systime_n": 0}
 
 
-def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False):  # pragma: no cover -- driven by the fake in tests
+def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False,
+                     utc_sink=None):  # pragma: no cover -- driven by the fake in tests
     """Subscribe to every stream the driver reads and return the tasks. Each
     own-state stream STAMPS its arrival (`t_quat`, `t_euler`, `t_pos`, `t_vel`):
     a generator that dies leaves its slice of `state` frozen at the last value,
@@ -3090,6 +3427,12 @@ def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False
         async for p in drone.telemetry.position():
             state["alt"] = p.relative_altitude_m
             state["t_pos"] = time.monotonic()
+            lat = getattr(p, "latitude_deg", None)
+            lon = getattr(p, "longitude_deg", None)
+            amsl = getattr(p, "absolute_altitude_m", None)
+            if lat is not None and lon is not None and amsl is not None \
+                    and all(math.isfinite(float(x)) for x in (lat, lon, amsl)):
+                state["lla"] = (float(lat), float(lon), float(amsl))
 
     async def _vel():
         """Own-state EKF horizontal ground speed -- FAILSAFE 4 integrates this
@@ -3148,11 +3491,25 @@ def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False
                     AttributeError) as e:
                 print(f"[rc] skipped a malformed RC_CHANNELS: {e}")
 
+    async def _systime():
+        """SYSTEM_TIME -> this machine's monotonic-to-UTC mapping
+        (flight.cue_link.MonoToUtc), so the cue link can measure each record's
+        delay against the vehicle's own GPS-disciplined clock."""
+        async for msg in drone.mavlink_direct.message("SYSTEM_TIME"):
+            try:
+                fields = json.loads(msg.fields_json)
+                utc_sink.ingest(float(fields["time_unix_usec"]), time.monotonic())
+                state["systime_n"] += 1
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
+                print(f"[cue] skipped a malformed SYSTEM_TIME: {e}")
+
     coros = [_att_q, _att_e, _pos, _vel, _armed, _landed, _mode]
     if want_battery:
         coros.append(_batt)
     if rc_sinks:
         coros.append(_rc)
+    if utc_sink is not None:
+        coros.append(_systime)
     tasks = [asyncio.ensure_future(c()) for c in coros]
 
     def _task_died(task):
@@ -3281,6 +3638,56 @@ async def _enter_offboard(drone, cfg: MissionConfig, state: dict) -> bool:  # pr
     return True
 
 
+def _rc_readers(*triggers) -> list:
+    """Every RC_CHANNELS reader among `triggers`: the RC triggers themselves and
+    a cue trigger's enable switch."""
+    out = []
+    for tr in triggers:
+        if isinstance(tr, RcChannelTrigger):
+            out.append(tr)
+        elif isinstance(tr, CueTrigger) and tr.enable is not None:
+            out.append(tr.enable)
+    return out
+
+
+def _wire_cue_trigger(trigger, state: dict) -> None:
+    """Give a cue trigger the driver's own GPS position (own-state)."""
+    if isinstance(trigger, CueTrigger):
+        trigger.own_lla = lambda: state["lla"]
+
+
+def make_cue_go_check(limits: dict, caps: dict, max_range_m: Optional[float]):
+    """The GO-time half of the pre-arm limit check, for `--trigger cue`: at arm
+    time the real belief does not exist yet, so the questions that need it are
+    asked when it does. Returns f(solution) -> refusal text or None. Pure."""
+    v_cmd = float(caps["v_cap_ms"])
+    v_plat = limits.get("MPC_XY_VEL_MAX")
+    v_eff = min(v_cmd, float(v_plat)) if v_plat is not None else v_cmd
+    gf_act, gf_h = limits.get("GF_ACTION"), limits.get("GF_MAX_HOR_DIST")
+
+    def check(sol) -> Optional[str]:
+        r0 = (float(sol.belief_r0_ned[0]), float(sol.belief_r0_ned[1]))
+        v0 = (float(sol.belief_vel0_ned[0]), float(sol.belief_vel0_ned[1]))
+        rng = math.hypot(*r0)
+        if max_range_m is not None and rng > float(max_range_m):
+            return (f"the cued target is {rng:.0f} m away, beyond "
+                    f"--cue-max-range-m {float(max_range_m):.0f}")
+        point, _t, catchable = believed_rendezvous(r0, v0, v_eff,
+                                                   _UNBOUNDED_HORIZON_S)
+        if not catchable:
+            return (f"at the {v_eff:.0f} m/s this aircraft can fly it does not "
+                    f"reach the cued target ({math.hypot(*v0):.1f} m/s, "
+                    f"{rng:.0f} m away) within {_UNBOUNDED_HORIZON_S:.0f} s")
+        d_meet = math.hypot(point[0], point[1])
+        if gf_act is not None and int(gf_act) != 0 and gf_h is not None \
+                and float(gf_h) > 0.0 and d_meet > float(gf_h):
+            return (f"the believed rendezvous is {d_meet:.0f} m from here, "
+                    f"outside the {float(gf_h):.0f} m geofence")
+        return None
+
+    return check
+
+
 async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
                         trigger, detector, state: dict, frame_recorder,
                         supervisor, *, outer_bound_s: float,
@@ -3352,6 +3759,10 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
         # its poll() must get the same base -- polling it with mission
         # time made the RC age negative and pinned link_ok True forever.
         trig = trigger.poll(trigger_poll_time(trigger, t, time.monotonic()))
+        # --trigger cue: the belief latched from the live link, on the GO tick
+        # only (None on every other tick; see VehicleObs.cue_belief).
+        cue_belief = (trigger.take_belief() if isinstance(trigger, CueTrigger)
+                      else None)
         det_new = det_range = det_box = det_pose = det_age = None
         if detector is not None and sm.t_dash_start is not None \
                 and t >= sm.t_dash_start + acquire_after_s:
@@ -3418,8 +3829,9 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
                          vel_ned=state.get("vel_ned"), trigger=trig,
                          det_new=bool(det_new), det_range_m=det_range,
                          det_box_xywh=det_box, det_range_pose_m=det_pose,
-                         det_age_s=det_age, own_state_age_s=_own_age)
-        if isinstance(trigger, GateReadyTrigger):
+                         det_age_s=det_age, own_state_age_s=_own_age,
+                         cue_belief=cue_belief)
+        if isinstance(trigger, (GateReadyTrigger, CueTrigger)):
             trigger.observe_gate(sm.arm_gate(obs)[0])
         dec = sm.step(obs)
         n_off_true += 1 if state["offboard"] is True else 0
@@ -3504,23 +3916,54 @@ def prearm_summary(args, cfg: MissionConfig, caps: dict) -> List[str]:
               if getattr(args, "cue_json", None)
               else "TYPED by the operator (--manual-belief)")
     r0, v0 = caps["belief_r0_ne"], caps["belief_v_ne"]
+    cue = getattr(args, "trigger", None) == "cue"
+    if cue:
+        belief_line = (
+            "[fly] belief: NONE YET. The cue is the GO command: the target's GPS "
+            f"arrives on UDP port {args.cue_udp_port}, and at GO the freshest "
+            "fit is advanced to that instant (each record's link delay "
+            + ("measured against the Pixhawk's GPS clock" if
+               args.cue_utc_source == "vehicle" else
+               "measured against this computer's clock" if
+               args.cue_utc_source == "system" else "NOT measured")
+            + ") and latched once.")
+        go_line = (
+            f"[fly] it then waits up to {cfg.standby_max_s:.0f} s. GO fires BY "
+            f"ITSELF on the first usable cue while the enable switch (RC channel "
+            f"{args.rc_channel}) is HIGH; keep it LOW to hold fire. ")
+    else:
+        belief_line = (
+            f"[fly] belief: target {math.hypot(r0[0], r0[1]):.0f} m away (north "
+            f"{r0[0]:+.1f}, east {r0[1]:+.1f}) moving {math.hypot(v0[0], v0[1]):.1f} "
+            f"m/s -- {belief}. It is used AS IF TRUE AT THE GO EDGE: nothing "
+            f"advances it for the time between when it was taken and GO.")
+        go_line = (
+            f"[fly] it then waits up to {cfg.standby_max_s:.0f} s for GO on RC "
+            f"channel {args.rc_channel} (LOW then HIGH). ")
+    if math.isfinite(cfg.engage_max_s):
+        limit_lines = [go_line + f"GO starts the engagement: up to "
+                       f"{caps['v_cap_ms']:.0f} m/s commanded, for at most "
+                       f"{cfg.engage_max_s:.0f} s."]
+    else:
+        limit_lines = [go_line + f"GO starts the engagement: up to "
+                       f"{caps['v_cap_ms']:.0f} m/s commanded, with NO TIME LIMIT "
+                       f"(--engage-max-s sets one). What still ends an "
+                       f"engagement that never finds the target:"]
+        limit_lines += [f"[fly]    - {x}" for x in what_ends_an_unbounded_engagement()]
+    if math.isfinite(cfg.mission_max_s):
+        limit_lines.append(f"[fly] whole-run backstop: {cfg.mission_max_s:.0f} s "
+                           f"from program start, any state.")
     return [
         "[fly] ===== PRE-ARM SUMMARY: read this before raising the permit switch =====",
         f"[fly] link: {args.mavsdk_url}   terminal: {caps['terminal']}   "
         f"camera: {args.source} ({args.detector})",
-        f"[fly] belief: target {math.hypot(r0[0], r0[1]):.0f} m away (north "
-        f"{r0[0]:+.1f}, east {r0[1]:+.1f}) moving {math.hypot(v0[0], v0[1]):.1f} "
-        f"m/s -- {belief}. It is used AS IF TRUE AT THE GO EDGE: nothing "
-        f"advances it for the time between when it was taken and GO.",
+        belief_line,
         f"[fly] on the arm permit this program will: set MIS_TAKEOFF_ALT to "
         f"{cfg.standby_alt_m:.1f} m (a parameter WRITE, by MAVSDK's "
         f"set_takeoff_altitude -- the only one), ARM, TAKE OFF to "
         f"{cfg.standby_alt_m:.1f} m, enter OFFBOARD and hold, yawed to "
         f"{cfg.aim_yaw_deg:.1f} deg.",
-        f"[fly] it then waits up to {cfg.standby_max_s:.0f} s for GO on RC "
-        f"channel {args.rc_channel} (LOW then HIGH). GO starts the engagement: "
-        f"up to {caps['v_cap_ms']:.0f} m/s commanded, for at most "
-        f"{cfg.engage_max_s:.0f} s.",
+    ] + limit_lines + [
         f"[fly] it ends by: {cfg.miss_safe_behavior} after a miss, "
         f"{cfg.safe_behavior} after a fault. If you take the aircraft with the "
         f"mode switch, this program sends nothing further.",
@@ -3550,9 +3993,12 @@ async def _wait_arm_permit(args, trigger, permit_trigger, state: dict) -> bool: 
     deadline = time.monotonic() + timeout_s
     last = None
     said_refused = False
+    # Under --trigger cue the "GO switch" of the permit rule is the cue's
+    # ENABLE switch: it must be LOW (no automatic GO possible) while you arm.
+    go_switch = trigger.enable if isinstance(trigger, CueTrigger) else trigger
     while time.monotonic() < deadline and not permit.granted:
         now = time.monotonic()
-        permit.update(trigger.poll(now), permit_trigger.poll(now))
+        permit.update(go_switch.poll(now), permit_trigger.poll(now))
         if permit.refused_go_high and not said_refused:
             said_refused = True
             print("[arm-permit] REFUSED once: the permit switch rose while the "
@@ -3713,9 +4159,10 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
 
     # OWN-STATE EKF + own status. The ONLY non-camera, non-constant inputs.
     state = _new_link_state()
-    rc_sinks = [s for s in (trigger, permit_trigger)
-                if isinstance(s, RcChannelTrigger)]
-    tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=fly)
+    rc_sinks = _rc_readers(trigger, permit_trigger)
+    _wire_cue_trigger(trigger, state)
+    tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=fly,
+                             utc_sink=getattr(trigger, "vehicle_utc", None))
 
     supervisor, sup_ok = _start_supervisor(drone, args, required=fly)
 
@@ -3762,6 +4209,9 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
                       "guidance cap, the belief or the board), or pass "
                       "--override-platform-limits to fly it knowingly.")
                 return 1
+            if isinstance(trigger, CueTrigger):
+                trigger.go_check = make_cue_go_check(
+                    limits, caps, getattr(args, "cue_max_range_m", None))
             for line in prearm_summary(args, cfg, caps):
                 print(line)
             if permit_trigger is None or not await _wait_arm_permit(
@@ -3951,8 +4401,10 @@ async def run_bench_props_off(args, cfg: MissionConfig, sm: RealFlightSM,
     if not await _connect_vehicle(drone, args.mavsdk_url):
         return 1
     state = _new_link_state()
-    rc_sinks = [trigger] if isinstance(trigger, RcChannelTrigger) else []
-    tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=True)
+    rc_sinks = _rc_readers(trigger)
+    _wire_cue_trigger(trigger, state)
+    tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=True,
+                             utc_sink=getattr(trigger, "vehicle_utc", None))
     supervisor, _sup_ok = _start_supervisor(drone, args, required=False)
 
     max_batt = float(args.bench_max_batt_v)
@@ -4400,6 +4852,31 @@ def build_config(args) -> MissionConfig:
               "the floor will fail closed (breakoff never gated early) and the "
               "ceiling will never fire. This is by design (ADR-0101 Portability), "
               "not a bug -- pass a solved heading if the passage window matters.")
+    is_pursuit = getattr(args, "terminal", "stock") == "pursuit"
+    fly_pursuit = bool(getattr(args, "fly", False)) and is_pursuit
+    explicit = set(getattr(args, "explicit_flags", None) or ())
+
+    def _preset(name, typed):
+        """A typed value wins; else FLY_PRESET under --fly in pursuit mode;
+        else None (the caller's own default)."""
+        if typed is not None:
+            return typed
+        return FLY_PRESET[name] if fly_pursuit else None
+
+    def _onoff(v):
+        return None if v is None else (v == "on")
+
+    far_typed = getattr(args, "engage_far_lost_target_s", None)
+    far_lost = _preset("engage_far_lost_target_s", far_typed)
+    if far_lost is not None and far_lost < 0:
+        far_lost = None                       # negative = off, as elsewhere
+    engage_max = _preset("engage_max_s", args.engage_max_s)
+    if engage_max is None:
+        engage_max = 30.0 if is_pursuit else 12.0
+    mission_max = _preset("mission_max_s", (args.mission_max_s
+                                            if "mission_max_s" in explicit else None))
+    if mission_max is None:
+        mission_max = args.mission_max_s
     return MissionConfig(
         preflight_heading_deg=heading,
         # ADR-0130: C3 is computed per its own definition (standby = target
@@ -4430,12 +4907,18 @@ def build_config(args) -> MissionConfig:
         # 30 s = max measured contact time + transit margin; the t_transit_min
         # launch check still warns when a long cue needs more. Stock/tag keep
         # the as-flown 12 s. An explicit --engage-max-s wins in any mode.
-        engage_max_s=(args.engage_max_s if args.engage_max_s is not None
-                      else (30.0 if getattr(args, "terminal", "stock") == "pursuit"
-                            else 12.0)),
+        engage_max_s=engage_max,
         standby_settle_s=args.standby_settle_s,
         standby_max_s=args.standby_max_s,
-        mission_max_s=args.mission_max_s,
+        mission_max_s=mission_max,
+        pursuit_lost_clock_needs_track=bool(_preset(
+            "pursuit_lost_clock_needs_track",
+            _onoff(getattr(args, "lost_clock_needs_track", None)))),
+        pursuit_lost_clock_off_in_search=bool(_preset(
+            "pursuit_lost_clock_off_in_search",
+            _onoff(getattr(args, "lost_clock_off_in_search", None)))),
+        engage_far_lost_target_s=far_lost,
+        cue_go=(getattr(args, "trigger", None) == "cue"),
         link_timeout_s=args.link_timeout_s,
         alt_tol_m=args.alt_tol_m,
         dash_alt_trim_m=args.dash_alt_trim_m,
@@ -4465,6 +4948,61 @@ def build_config(args) -> MissionConfig:
         # terminal under the fly-by breakoff rule is a false-abort machine.
         pursuit_mode=(getattr(args, "terminal", "stock") == "pursuit"),
     )
+
+
+def lost_clock_lines(cfg: MissionConfig, pcfg) -> List[str]:
+    """The lost-target rule as it will fly, in plain lines, with a WARNING when
+    the wrapper's clock is not longer than the terminal's own fallback time (the
+    terminal's return-to-belief logic can then never run). Pure."""
+    far = cfg.engage_far_lost_target_s
+    eff = cfg.engage_lost_target_s if far is None else far
+    lines = [
+        f"[terminal] lost-target rule: {cfg.engage_lost_target_s:.1f} s without a "
+        f"decode ends the engagement"
+        + ("" if far is None else
+           f" inside {cfg.pursuit_miss_range_m:.0f} m, {far:.1f} s beyond it")
+        + ("; the clock starts only once the terminal has a track"
+           if cfg.pursuit_lost_clock_needs_track else "")
+        + ("; it does not run during the arrival search"
+           if cfg.pursuit_lost_clock_off_in_search else "") + "."]
+    if eff <= float(pcfg.fallback_s):
+        lines.append(
+            f"[terminal] WARNING: the lost-target clock ({eff:.1f} s) is not "
+            f"longer than the terminal's own fallback time "
+            f"({float(pcfg.fallback_s):.1f} s), so a target lost while still "
+            f"ahead ends the engagement before the terminal can return to its "
+            f"belief chase (--engage-far-lost-target-s).")
+    return lines
+
+
+def build_cue_trigger(args, cfg: MissionConfig) -> "CueTrigger":
+    """`--trigger cue`: start the live cue link and wrap it as the GO trigger.
+    The driver supplies own position and, under --fly, the GO-time checks."""
+    from flight.cue_link import CueReceiver, MonoToUtc, SystemClockUtc
+    src = args.cue_utc_source
+    vehicle_utc = MonoToUtc() if src == "vehicle" else None
+    utc = vehicle_utc if src == "vehicle" else (
+        SystemClockUtc() if src == "system" else None)
+    rx = CueReceiver(port=args.cue_udp_port, utc=utc,
+                     allow_unsynced=bool(args.cue_allow_unsynced))
+    rx.start()
+    enable = (None if args.cue_no_enable else
+              RcChannelTrigger(args.rc_channel, args.rc_go_us, args.rc_low_us,
+                               cfg.link_timeout_s))
+    trig = CueTrigger(rx, own_lla=lambda: None, enable=enable,
+                      window_s=args.cue_window_s,
+                      max_staleness_s=args.cue_max_staleness_s,
+                      max_gap_s=args.cue_max_gap_s)
+    trig.vehicle_utc = vehicle_utc
+    print(f"[cue] THE CUE IS THE GO COMMAND. Listening on UDP {rx.port}; UTC "
+          f"source '{src}'"
+          + (" (delay is measured per record and removed)" if utc is not None
+             else " (no shared clock)")
+          + ("; unsynced records ALLOWED (delay then not measured)"
+             if args.cue_allow_unsynced else "; unsynced records REFUSE GO")
+          + (f"; enable switch on RC channel {args.rc_channel} (LOW = your veto)"
+             if enable is not None else "; NO enable switch (no human veto)"))
+    return trig
 
 
 def build_terminal(args, cfg: MissionConfig, gcfg, cam):
@@ -4573,6 +5111,11 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
               f"below t_go {pcfg.rehearsal_t_late_s:.1f} s, then SAFE "
               f"'rehearsal_breakoff'; isim-derived margins -- Gazebo "
               f"spot-check pending)")
+    if cfg.cue_go:
+        print("[terminal] --trigger cue: the belief above is a PLACEHOLDER. The "
+              "real one is latched from the live cue at the GO edge.")
+    for line in lost_clock_lines(cfg, pcfg):
+        print(line)
     return PursuitTerminalGuidance(
         pcfg, cam, gcfg.target_span_m, gcfg,
         belief_r0_ned=belief_r0_ned, belief_vel0_ned=belief_vel0_ned,
@@ -4719,7 +5262,24 @@ def build_arg_parser() -> argparse.ArgumentParser:
     saf = ap.add_argument_group("safety / failsafe (ALL TODO-BUILDER)")
     saf.add_argument("--standby-settle-s", type=float, default=2.0)
     saf.add_argument("--standby-max-s", type=float, default=60.0)
-    saf.add_argument("--mission-max-s", type=float, default=120.0)
+    saf.add_argument("--mission-max-s", type=float, default=120.0,
+                     action=_ExplicitStore,
+                     help="absolute backstop on the whole run, any state. Under "
+                          "--fly in pursuit mode there is NO limit unless you "
+                          "type one (FLY_PRESET, builder ruling 2026-11-18).")
+    saf.add_argument("--lost-clock-needs-track", choices=("on", "off"), default=None,
+                     help="pursuit: a decode does not start the lost-target "
+                          "clock until the terminal has had a track. Default "
+                          "off; --fly takes FLY_PRESET unless typed.")
+    saf.add_argument("--lost-clock-off-in-search", choices=("on", "off"),
+                     default=None,
+                     help="pursuit: the lost-target clock does not run while the "
+                          "terminal is in its arrival search. Default off; "
+                          "--fly takes FLY_PRESET unless typed.")
+    saf.add_argument("--engage-far-lost-target-s", type=float, default=None,
+                     help="pursuit: lost-target clock used when the target was "
+                          "last estimated beyond the miss range (negative = "
+                          "off). Default off; --fly takes FLY_PRESET unless typed.")
     saf.add_argument("--link-timeout-s", type=float, default=1.0)
     saf.add_argument("--alt-tol-m", type=float, default=0.3)
     # ADR-0099. Both were settable ONLY by editing source or building a
@@ -4820,10 +5380,44 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "mission_max_s backstop still lands a hover.")
 
     trg = ap.add_argument_group("trigger")
-    trg.add_argument("--trigger", choices=("rc", "timer", "gate-ready"),
+    trg.add_argument("--trigger", choices=("rc", "cue", "timer", "gate-ready"),
                      default="gate-ready",
                      help="'rc' = the REAL ELRS aux channel via MAVLink RC_CHANNELS; "
+                          "'cue' = THE CUE IS THE GO COMMAND: GO fires when the "
+                          "live cue link holds a fresh, quality-gated fit, and "
+                          "the belief is latched at that instant (pursuit "
+                          "terminal only; --rc-channel becomes the ENABLE "
+                          "switch, your veto); "
                           "'timer'/'gate-ready' are OFFLINE/SMOKE synthetics")
+    trg.add_argument("--cue-udp-port", type=int, default=47810,
+                     help="--trigger cue: UDP port the target's GPS records "
+                          "arrive on (scripts/field/cue_send.py)")
+    trg.add_argument("--cue-window-s", type=float, default=None,
+                     help="--trigger cue: seconds of records fitted (default: "
+                          "flight.cue_relay.DEFAULT_CAPTURE_DURATION_S, 5.5)")
+    trg.add_argument("--cue-max-staleness-s", type=float, default=1.0,
+                     help="--trigger cue: the newest record must be this fresh "
+                          "for GO to fire")
+    trg.add_argument("--cue-max-gap-s", type=float, default=1.0,
+                     help="--trigger cue: largest hole allowed inside the "
+                          "fitted window")
+    trg.add_argument("--cue-utc-source", choices=("vehicle", "system", "none"),
+                     default="vehicle",
+                     help="--trigger cue: this side's UTC clock, used to measure "
+                          "each record's link delay. 'vehicle' = the Pixhawk's "
+                          "GPS time (SYSTEM_TIME over MAVLink); 'system' = this "
+                          "computer's clock, right only if it is disciplined "
+                          "(desk/NTP); 'none' = no shared clock")
+    trg.add_argument("--cue-allow-unsynced", action="store_true",
+                     help="--trigger cue: when the shared clock is missing or "
+                          "implausible, fall back to the minimum-delay anchor "
+                          "instead of refusing GO (delay is then NOT measured)")
+    trg.add_argument("--cue-no-enable", action="store_true",
+                     help="--trigger cue: no RC enable switch; the cue fires GO "
+                          "with no human veto after the gates. Refused by --fly.")
+    trg.add_argument("--cue-max-range-m", type=float, default=None,
+                     help="--trigger cue: hold GO while the cued target is "
+                          "farther than this")
     trg.add_argument("--rc-channel", type=int, default=7,
                      help="RC_CHANNELS index of the GO switch (TODO-BUILDER: verify "
                           "against the PX4 RC map)")
@@ -5073,12 +5667,21 @@ def main(argv=None) -> int:
             ap.error("--desk is its own mode (no --dry-run / --sitl-smoke)")
         if args.mavsdk_url:
             ap.error("--desk has no vehicle link: drop --mavsdk-url")
-        if args.trigger == "rc":
-            ap.error("--desk has no RC link: use --trigger gate-ready|timer")
+        if args.trigger in ("rc", "cue"):
+            ap.error("--desk has no RC or vehicle link: use --trigger "
+                     "gate-ready|timer")
         if not args.source:
             ap.error("--desk needs --source picamera | dir:PATH")
     if args.source and args.dry_run:
         ap.error("--source applies to --desk / --sitl-smoke, not --dry-run")
+    if args.trigger == "cue":
+        if args.dry_run:
+            ap.error("--trigger cue needs a live mode (--sitl-smoke, "
+                     "--bench-props-off or --fly): the cue is placed against "
+                     "the vehicle's own GPS position")
+        if args.terminal != "pursuit" and not (args.fly or args.bench_props_off):
+            ap.error("--trigger cue needs --terminal pursuit (the only terminal "
+                     "that can take a belief latched at GO)")
     # A serial link is a real flight controller. The SITL smoke path arms and
     # takes off on its own with a synthetic trigger and a synthetic target, so
     # it may never be pointed at one (interface audit 2026-11-18, gap G1).
@@ -5184,6 +5787,8 @@ def main(argv=None) -> int:
                   "input by default, so this will (correctly) never fire a GO.")
         trigger = RcChannelTrigger(args.rc_channel, args.rc_go_us, args.rc_low_us,
                                    cfg.link_timeout_s)
+    elif args.trigger == "cue":
+        trigger = build_cue_trigger(args, cfg)
     elif args.trigger == "timer":
         trigger = ScriptedTrigger(go_at_s=args.go_after_s)
     else:
@@ -5204,22 +5809,32 @@ def main(argv=None) -> int:
               f"(target_fps={frame_recorder.target_fps}, "
               f"jpeg_quality={frame_recorder.jpeg_quality})")
     import asyncio
-    if args.bench_props_off:
-        return asyncio.run(run_bench_props_off(args, cfg, sm, trigger, detector,
-                                               frame_recorder=frame_recorder))
-    if args.fly:
-        # The arm-permit switch: a second reader on the same RC_CHANNELS
-        # stream, a different channel (validate_fly_args checked both).
-        permit_trigger = RcChannelTrigger(args.arm_permit_channel, args.rc_go_us,
-                                          args.rc_low_us, cfg.link_timeout_s)
+    try:
+        if args.bench_props_off:
+            return asyncio.run(run_bench_props_off(args, cfg, sm, trigger, detector,
+                                                   frame_recorder=frame_recorder))
+        if args.fly:
+            # The arm-permit switch: a second reader on the same RC_CHANNELS
+            # stream, a different channel (validate_fly_args checked both).
+            permit_trigger = RcChannelTrigger(args.arm_permit_channel, args.rc_go_us,
+                                              args.rc_low_us, cfg.link_timeout_s)
+            return asyncio.run(run_mavsdk_mission(args, cfg, sm, trigger, detector,
+                                                  smoke=False,
+                                                  frame_recorder=frame_recorder,
+                                                  fly=True,
+                                                  permit_trigger=permit_trigger))
         return asyncio.run(run_mavsdk_mission(args, cfg, sm, trigger, detector,
-                                              smoke=False,
-                                              frame_recorder=frame_recorder,
-                                              fly=True,
-                                              permit_trigger=permit_trigger))
-    return asyncio.run(run_mavsdk_mission(args, cfg, sm, trigger, detector,
-                                          smoke=True,
-                                          frame_recorder=frame_recorder))
+                                              smoke=True,
+                                              frame_recorder=frame_recorder))
+    finally:
+        if isinstance(trigger, CueTrigger):
+            # Idempotent: the latch already closed it on a GO.
+            trigger.receiver.close()
+            st = trigger.receiver.stats()
+            print(f"[cue] link closed: {st.n_rx} records received, {st.n_bad} "
+                  f"malformed, {st.n_after_latch} dropped after the latch; GO "
+                  f"{'fired' if trigger.fired else 'never fired'} "
+                  f"(last status: {trigger.status})")
 
 
 if __name__ == "__main__":

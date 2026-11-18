@@ -654,6 +654,8 @@ class PursuitTerminalGuidance:
     # passes it ONLY to a terminal that declares it, so other terminals'
     # duck-typed step() contracts never grow a surprise kwarg.
     SUPPORTS_STAMPED_AGE = True
+    #: `set_belief_once` exists (the cue latched at the GO edge, 2026-11-18).
+    SUPPORTS_BELIEF_LATCH = True
 
     def __init__(self, cfg: PursuitTerminalConfig, cam: CameraModel, tag_side_m: float,
                  gcfg: GuidanceConfig, belief_r0_ned, belief_vel0_ned,
@@ -671,6 +673,15 @@ class PursuitTerminalGuidance:
         self._r_track = np.asarray(belief_r0_ned, dtype=np.float64).copy()
         self._v_track = self._belief_vel0.copy()
         self._phase = "A"
+        # Set-once belief latch (set_belief_once): has the GO-edge belief been
+        # written, and has this object already flown a post-GO tick on the one
+        # it holds.
+        self._belief_latched = False
+        self._flown_post_go = False
+        #: True on a tick whose command came from the arrival search. The
+        #: wrapper reads it so its lost-target clock can stay off while the
+        #: terminal is still looking (MissionConfig.pursuit_lost_clock_off_in_search).
+        self.searching = False
         self._kf = _ConstVelKF(cfg.kf_q_accel_ms2)
         # (t, quat) ring buffer for the capture-instant attitude lookup --
         # filled from every step()'s own-state, module docstring LATENCY (1).
@@ -721,6 +732,39 @@ class PursuitTerminalGuidance:
         self._search_b_updates: int = 0
         self._warned: set = set()
         self.n_track_broken = 0
+
+    def set_belief_once(self, belief_r0_ned, belief_vel0_ned,
+                        t: Optional[float] = None) -> None:
+        """Replace the constructor's belief with the one LATCHED AT THE GO EDGE
+        (builder ruling 2026-11-18: the cue is the GO command, and the belief
+        is the cue advanced to that instant). Same meaning as the constructor
+        arguments: the target's position relative to the vehicle, and its
+        velocity, north-east-down, AT the instant ENGAGE begins. `t` is that
+        instant on step()'s clock; the arrival search starts its uncertainty
+        clock there.
+
+        ONCE, AND ONLY BEFORE THE FIRST POST-GO TICK: a second call raises, and
+        so does a call after step() has already flown on the belief. This is
+        the honesty boundary's latch-once rule in code: after GO nothing may
+        move the belief except the camera."""
+        if self._belief_latched:
+            raise RuntimeError("pursuit belief already latched -- it is written "
+                               "once, at the GO edge")
+        if self._flown_post_go:
+            raise RuntimeError("the terminal has already flown on its belief -- "
+                               "a belief cannot be latched after GO")
+        r0 = np.asarray(belief_r0_ned, dtype=np.float64).copy()
+        v0 = np.asarray(belief_vel0_ned, dtype=np.float64).copy()
+        if r0.shape != (3,) or v0.shape != (3,) \
+                or not (np.all(np.isfinite(r0)) and np.all(np.isfinite(v0))):
+            raise ValueError(f"belief must be two finite NED 3-vectors, got "
+                             f"{belief_r0_ned!r} / {belief_vel0_ned!r}")
+        self._belief_latched = True
+        self._belief_vel0 = v0
+        self._r_track = r0.copy()
+        self._v_track = v0.copy()
+        if t is not None:
+            self._search_t0 = float(t)
 
     def _emit_fault(self, tel: StepTelemetry, flag: str, msg: str, once: bool = False) -> None:
         tel.health.append(flag)
@@ -843,6 +887,8 @@ class PursuitTerminalGuidance:
         # (own-state, honesty-clean) -- the vehicle is holding the standby aim
         # yaw at the GO edge, and slewing from the constructor default instead
         # points the camera away exactly when Phase A needs it on the belief.
+        self._flown_post_go = True
+        self.searching = False
         if not self._yaw_seeded:
             self._yaw_seeded = True
             if own.psi_rad is not None:
@@ -949,6 +995,7 @@ class PursuitTerminalGuidance:
             # legacy Phase-A command and its brake cap; the keepframe term,
             # the norm cap and the slew below are shared with the legacy path.
             cmd_v, yaw = self._search_cmd(t, own_vel)
+            self.searching = True
             if cfg.keepframe_assist:
                 cmd_v = cmd_v + np.array([0.0, 0.0, -self._keepframe_term(t)])
             cmd_v = _clip_norm(cmd_v, v_cap)
