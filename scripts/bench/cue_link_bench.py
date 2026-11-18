@@ -27,6 +27,11 @@ def main() -> int:
     ap.add_argument("--listen-s", type=float, default=30.0)
     ap.add_argument("--own-lla", default="40.0,-105.0,1650.0")
     ap.add_argument("--max-staleness-s", type=float, default=1.0)
+    ap.add_argument("--utc", choices=("none", "system"), default="none",
+                    help="system = use this computer's clock as UTC and REQUIRE "
+                         "the records' t_utc stamps (both clocks must be "
+                         "disciplined): the link delay is then measured per "
+                         "record and reported in latch_info")
     args = ap.parse_args()
     own = tuple(float(x) for x in args.own_lla.split(","))
 
@@ -42,7 +47,12 @@ def main() -> int:
             except OSError:
                 pass
 
-    rx = CueReceiver(port=args.port, on_record=on_record)
+    if args.utc == "system":
+        from flight.cue_link import SystemClockUtc
+        rx = CueReceiver(port=args.port, on_record=on_record,
+                         utc=SystemClockUtc(), allow_unsynced=False)
+    else:
+        rx = CueReceiver(port=args.port, on_record=on_record)
     holder["rx"] = rx
     rx.start()
     t0 = time.monotonic()
@@ -69,8 +79,10 @@ def main() -> int:
         out["residual_rms_m"] = sol.residual_rms_m
         out["vel_source"] = sol.vel_source
         out["model"] = sol.model
-        if items and all(ts is not None for _, ts, _ in items):
-            out["latch_t_on_sender_clock"] = go - min(t_rx - ts for t_rx, ts, _ in items)
+        # each kept item is (t_rx, t_src, record, t_utc, utc_at_receipt)
+        if items and all(it[1] is not None for it in items):
+            out["latch_t_on_sender_clock"] = go - min(it[0] - it[1] for it in items)
+        out["latch_info"] = rx.latch_info
     except (CueQualityError, CueLinkError) as e:
         out["latched"] = False
         out["refused"] = str(e)

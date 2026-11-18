@@ -6,6 +6,25 @@
 >
 > *Rewritten 2026-07-26: this file had grown to 883 lines of stacked superseded banners — the "too much text" problem in miniature. It is now the SHORT live queue only. **Rule: items live here or on the board, not both; superseded blocks go to the archive the same turn they are superseded, never left in place with a strikethrough.***
 
+## Open from 2026-11-18 (in order)
+
+1. ⬜ **Merge the three agent branches** when they report: flight-hardware sim rerun with the
+   brake question, cue-as-GO with timestamps and the lost-target clock, and the reader that
+   takes the target's GPS off the control link. Review each diff before merging.
+2. ⬜ **Props-off bench run on the real Pi and Pixhawk** of `real_flight.py
+   --bench-props-off` and the watchdog check. **HELD: the builder said the props are on
+   (2026-11-18). Nothing live runs on the vehicle link until he says they are off.**
+3. ⬜ **Reboot check** of `MPC_XY_VEL_MAX` 33 m/s (written and read back; reboot not done).
+4. ⬜ **FINAL, STANDING (builder, 2026-11-18): once all of the above is implemented, clean the
+   repo of retired content and make every pointer and management doc reflect the latest
+   state, numbers and decisions.** That means: move superseded docs to `retired/` (or delete
+   where git history is enough), sweep `docs/next.md`, `docs/progress.md`, `README.md`,
+   `docs/goals.md` banners, `docs/kill_day_protocol.md`, `docs/cue_relay_plan.md`,
+   `.claude/ops.md`, `CLAUDE.md`, the contract and the memory index against today's findings
+   (the 16 m/s versus 33 m/s dash, the 5 s cue window, cue-as-GO, the new flight modes, the
+   board's speed limit, the flying optics), and finish with the suite green and the
+   Artifact republished.
+
 ## Where the project is
 
 **FIELD INTERCEPTION DAY IS THIS WEEKEND (builder ruling 2026-10-22, ADR-0127).** Tripod day is

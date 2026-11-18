@@ -121,6 +121,17 @@ class FakeDrone:
         self.mode_script: Optional[Callable[[float, str], Optional[str]]] = None
         self.freeze_after: Dict[str, float] = {}    # stream name -> mission t
         self.arm_script: Optional[Callable[[float], Optional[bool]]] = None
+        # --trigger cue support: own GPS position (lat, lon, launch height AMSL;
+        # None = the vehicle publishes no global position), the UTC the
+        # vehicle reports in SYSTEM_TIME (seconds at connect; None = no GPS
+        # time, the message carries zero), and a hook the physics loop calls
+        # every 10 ms of fake time so a test can feed the cue link on the
+        # same clock the driver runs on.
+        self.lla: Optional[Tuple[float, float, float]] = (40.0, -105.0, 1650.0)
+        self.utc0: Optional[float] = 1.8e9
+        self.systime_period_s = 1.0
+        self.tick_hook: Optional[Callable[[float], None]] = None
+        self.pos_ne = [0.0, 0.0]                    # dead-reckoned, for lla
         self.t0: Optional[float] = None
         self._server_process = None                 # tests may attach a Popen
         self.connect_url: Optional[str] = None
@@ -182,10 +193,14 @@ class FakeDrone:
                 a = self.arm_script(t)
                 if a is not None:
                     self.armed = a
+            if self.tick_hook is not None:
+                self.tick_hook(t)
             if self.mode == "OFFBOARD" and self.armed:
                 vn, ve, vd, yaw = self._sp
                 self.vel = (vn, ve, vd)
                 self.alt += -vd * dt
+                self.pos_ne[0] += vn * dt
+                self.pos_ne[1] += ve * dt
                 self.yaw_deg = yaw
             elif self.mode == "OFFBOARD":
                 self.yaw_deg = self.yaw_deg     # disarmed: nothing moves
@@ -224,7 +239,15 @@ class FakeDrone:
         return types.SimpleNamespace(yaw_deg=self.yaw_deg)
 
     def _pos(self):
-        return types.SimpleNamespace(relative_altitude_m=self.alt)
+        if self.lla is None:
+            return types.SimpleNamespace(relative_altitude_m=self.alt)
+        r = 6378137.0
+        lat = self.lla[0] + math.degrees(self.pos_ne[0] / r)
+        lon = self.lla[1] + math.degrees(
+            self.pos_ne[1] / (r * math.cos(math.radians(self.lla[0]))))
+        return types.SimpleNamespace(relative_altitude_m=self.alt,
+                                     latitude_deg=lat, longitude_deg=lon,
+                                     absolute_altitude_m=self.lla[2] + self.alt)
 
     def _vel(self):
         return types.SimpleNamespace(north_m_s=self.vel[0], east_m_s=self.vel[1],
@@ -247,7 +270,13 @@ class FakeDrone:
             await asyncio.sleep(1.0)
 
     async def _mav_message(self, name):
-        assert name == "RC_CHANNELS", name
+        assert name in ("RC_CHANNELS", "SYSTEM_TIME"), name
+        while name == "SYSTEM_TIME":
+            await asyncio.sleep(self.systime_period_s)
+            unix = 0.0 if self.utc0 is None else self.utc0 + self.t()
+            yield types.SimpleNamespace(fields_json=json.dumps(
+                {"time_unix_usec": int(unix * 1e6),
+                 "time_boot_ms": int(self.t() * 1e3)}))
         while True:
             await asyncio.sleep(self.rc_period_s)
             if self.rc_script is None:

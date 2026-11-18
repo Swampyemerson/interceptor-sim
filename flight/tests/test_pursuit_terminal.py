@@ -1544,3 +1544,284 @@ def test_stamped_age_is_clamped_to_attitude_history():
     tel = _drive_b(g, 10.0)           # insane stamp: clamp, never crash
     assert tel.phase == "B"
     assert np.isfinite(tel.r_hat_m)
+
+
+# ======================================================== arrival search
+# cfg.arrival_search (2026-11-18, isim/specs/arrival_search_prereg_2026-11-18.md):
+# Phase A searches the along-track interval the target can be in instead of
+# parking d_behind_m behind the believed target. Half-width
+# h(t) = k * (sigma_pos0 + sigma_speed * believed speed * (t - t0)).
+
+
+def test_arrival_search_off_is_byte_identical_to_prefeature_code():
+    """REPO INVARIANT: arrival_search=False (the default) reproduces the golden
+    fixture exactly -- explicitly passed and defaulted alike."""
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    _assert_matches_golden(_keepframe_identity_drive(), golden)
+    _assert_matches_golden(_keepframe_identity_drive({"arrival_search": False}), golden)
+    assert PursuitTerminalConfig().arrival_search is False
+
+
+def test_arrival_search_on_differs_from_off_on_a_long_phase_a():
+    """The other half of the invariant: a long no-detection Phase A must come
+    out DIFFERENT with the flag on (else a flag that did nothing would pass
+    every test here). Same ideal-plant drive, flag on vs off."""
+    def run(flag):
+        g, _, _ = guidance(belief_r0_ned=(60.0, 0.0, 0.0),
+                           belief_vel0_ned=(10.0, 0.0, 0.0), v_max_ms=40.0,
+                           arrival_search=flag)
+        o_vel, out, t = np.zeros(3), [], 0.0
+        for _ in range(400):
+            t += DT
+            sp, _tel = g.step(None, OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0,
+                                             age_s=0.0, vel_ned=tuple(o_vel)), t=t)
+            o_vel = np.array([sp.v_north, sp.v_east, sp.v_down])
+            out.append(float(np.linalg.norm(g._r_track)))
+        return out
+    off, on = run(False), run(True)
+    # OFF parks d_behind_m behind the believed target and stays there.
+    assert off[-1] == pytest.approx(PursuitTerminalConfig().d_behind_m, abs=0.5)
+    # ON has left that point to search.
+    assert max(abs(a - b) for a, b in zip(on, off)) > 5.0
+
+
+_SEARCH = dict(arrival_search=True, v_max_ms=60.0, search_sigma_speed_frac=0.0,
+               search_sigma_pos0_m=10.0, search_k_sigma=2.0, **_NO_SLEW)
+# sigma_speed 0 -> a CONSTANT half-width h = 2 * 10 = 20 m: turn points at
+# +20 m (ahead of the believed target) and -(d_behind + 20) = -28 m.
+
+
+def _search_drive(n_ticks, belief_r0=(100.0, 0.0, 0.0), belief_vel=(10.0, 0.0, 0.0),
+                  dets=None, **cfgkw):
+    """Ideal plant (own velocity = the last command), believed target moving
+    NORTH. -> (log of (t, leg, s_own, v_north, yaw_deg, phase), g, cfg), where
+    s_own is the vehicle's along-track position relative to the believed
+    target (negative = behind), read from the terminal's own relative belief
+    after the tick."""
+    kw = dict(_SEARCH)
+    kw.update(cfgkw)
+    g, cfg, _ = guidance(belief_r0_ned=belief_r0, belief_vel0_ned=belief_vel, **kw)
+    u = np.array(belief_vel, dtype=float)
+    u = u / max(float(np.linalg.norm(u)), 1e-9)
+    o_vel = np.zeros(3)
+    log, t = [], 0.0
+    for i in range(n_ticks):
+        t += DT
+        det = dets(i, g) if dets is not None else None
+        sp, tel = g.step(det, OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0, age_s=0.0,
+                                       vel_ned=tuple(o_vel)), t=t)
+        s_own = -float(np.dot(g._r_track, u))
+        log.append((t, g.search_leg, s_own, sp.v_north, sp.yaw_deg, tel.phase))
+        o_vel = np.array([sp.v_north, sp.v_east, sp.v_down])
+    return log, g, cfg
+
+
+def _leg_switches(log):
+    legs = [row[1] for row in log]
+    return [(i, legs[i]) for i in range(1, len(legs)) if legs[i] != legs[i - 1]]
+
+
+def test_arrival_search_stern_start_goes_behind_then_runs_up_the_track():
+    """`stern`: the approach leg ends d_behind + h behind the believed target
+    (28 m here), NOT at the legacy 8 m; then the forward leg commands the
+    believed speed plus search_sweep_ms, nose along the track."""
+    log, g, cfg = _search_drive(600)
+    switches = _leg_switches(log)
+    assert switches and switches[0][1] == "fwd"
+    i_fwd = switches[0][0]
+    assert log[i_fwd][2] == pytest.approx(-(cfg.d_behind_m + 20.0),
+                                          abs=cfg.search_arrive_m + 1.0)
+    # forward leg: believed 10 m/s + sweep 8 m/s north, yaw north (0 deg)
+    fwd = [row for row in log[i_fwd + 2:] if row[1] == "fwd"]
+    assert fwd, "forward leg produced no ticks"
+    assert fwd[0][3] == pytest.approx(10.0 + cfg.search_sweep_ms, abs=1e-6)
+    assert abs(_wrap(fwd[0][4])) < 1.0
+
+
+def test_arrival_search_turns_at_the_interval_ends():
+    """fwd ends h AHEAD of the believed target; back ends d_behind + h behind
+    it; the legs alternate. The back leg flies SLOWER than the believed
+    target (10 - 6 = 4 m/s) with the nose still along the track."""
+    log, g, cfg = _search_drive(1400)
+    switches = _leg_switches(log)
+    assert [name for _, name in switches][:4] == ["fwd", "back", "fwd", "back"]
+    i_back, i_fwd2 = switches[1][0], switches[2][0]
+    assert log[i_back][2] == pytest.approx(20.0, abs=2 * cfg.search_sweep_ms * DT)
+    assert log[i_fwd2][2] == pytest.approx(-(cfg.d_behind_m + 20.0),
+                                           abs=2 * cfg.search_drop_ms * DT)
+    back = log[i_back + 2:i_fwd2]
+    assert back[0][3] == pytest.approx(10.0 - cfg.search_drop_ms, abs=1e-6)
+    assert abs(_wrap(back[0][4])) < 1.0
+    assert g.search_n_legs >= 4
+
+
+def test_arrival_search_interval_grows_with_the_declared_speed_sigma():
+    """h(t) = k * (sigma_pos0 + sigma_speed * believed speed * (t - t0)): with
+    sigma_pos0 = 0 and a 10 % speed sigma on a 10 m/s belief the half-width
+    grows 2 m/s. Checked against the formula at the forward leg's turn."""
+    log, g, cfg = _search_drive(2400, search_sigma_speed_frac=0.10,
+                                search_sigma_pos0_m=0.0)
+    switches = _leg_switches(log)
+    i_back = next(i for i, name in switches if name == "back")
+    t_turn, s_turn = log[i_back][0], log[i_back][2]
+    assert s_turn == pytest.approx(2.0 * 0.10 * 10.0 * t_turn, abs=1.0)
+    assert t_turn > 5.0 and s_turn > 10.0   # it grew: at t = 0 it was zero
+
+
+def test_arrival_search_believed_start_holds_the_legacy_point_then_falls_back():
+    """`believed`: approach to the legacy point (8 m behind), dwell there, and
+    the FIRST sweep leg is `back`."""
+    log, g, cfg = _search_drive(400, search_start="believed")
+    switches = _leg_switches(log)
+    assert switches and switches[0][1] == "back"
+    i = switches[0][0]
+    assert log[i][2] == pytest.approx(-cfg.d_behind_m, abs=cfg.search_arrive_m)
+    arrived = [row for row in log[:i] if abs(row[2] + cfg.d_behind_m) <= cfg.search_arrive_m]
+    assert len(arrived) * DT >= cfg.search_dwell_s - 2 * DT
+
+
+def test_arrival_search_drop_speed_is_limited_for_a_slow_target():
+    """The back leg never falls back faster than 0.8 x the believed speed: a
+    2 m/s belief with a 6 m/s drop setting commands 2 - 1.6 = 0.4 m/s."""
+    log, g, cfg = _search_drive(2600, belief_vel=(2.0, 0.0, 0.0),
+                                belief_r0=(30.0, 0.0, 0.0))
+    back = [row for row in log if row[1] == "back"]
+    assert back, "never reached the back leg"
+    assert back[2][3] == pytest.approx(2.0 - 0.8 * 2.0, abs=1e-6)
+
+
+def test_arrival_search_is_inert_for_a_hovering_belief():
+    """Below search_min_speed_ms there is no track to search: flag ON must
+    emit exactly the flag-OFF commands."""
+    def run(flag):
+        g, _, _ = guidance(belief_r0_ned=(20.0, 3.0, 0.0),
+                           belief_vel0_ned=(0.5, 0.0, 0.0), arrival_search=flag)
+        out, t = [], 0.0
+        for _ in range(200):
+            t += DT
+            sp, _tel = g.step(None, own(), t=t)
+            out.append((sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg))
+        return np.array(out)
+    assert np.array_equal(run(True), run(False))
+
+
+def test_arrival_search_decodes_hand_over_to_phase_b():
+    """The ordinary acquisition gate ends the search: two fresh decodes on the
+    forward leg start Phase B."""
+    def dets(i, g):
+        return box_for(12.0, 0.0, 0.0) if g.search_leg == "fwd" else None
+    log, g, cfg = _search_drive(600, dets=dets)
+    phases = [row[5] for row in log]
+    assert "B" in phases
+    assert log[phases.index("B") - 1][1] == "fwd"
+    assert g._phase == "B"
+
+
+def _short_track_box(i):
+    """Fix number i: 20 m north, drifting EAST 0.5 m per tick -- a target
+    whose real velocity is NOT the pre-flight belief's (which is due north)."""
+    return box_for(20.0, 6.0 + 0.5 * i, 0.0)
+
+
+def _short_track_then_dropout(n_fixes, **cfgkw):
+    """Phase B fed `n_fixes` decodes (`_short_track_box`), then a dropout
+    longer than fallback_s. -> the guidance after the fallback."""
+    g, cfg, _ = guidance(belief_r0_ned=(30.0, 0.0, 0.0),
+                         belief_vel0_ned=(10.0, 0.0, 0.0),
+                         acquire_n=2, acquire_window_s=0.3, **cfgkw)
+    t = 0.0
+    o = own(n_e_d_vel=(10.0, 0.0, 0.0))
+    for i in range(n_fixes):
+        t += DT
+        g.step(_short_track_box(i), o, t=t)
+    assert g._phase == "B"
+    for _ in range(int(cfg.fallback_s / DT) + 3):
+        t += DT
+        g.step(None, o, t=t)
+    return g, cfg, t
+
+
+def test_arrival_search_short_track_fallback_keeps_the_prior_velocity():
+    """After a handful of fixes the filter's velocity is not a measurement.
+    With the search on, the fallback belief keeps the last MEASURED position
+    (carried with the pre-flight velocity; own matches it here, so it stays
+    put) and the PRE-FLIGHT velocity, and the search restarts with its clock.
+    With the search off the legacy rule is untouched."""
+    g_on, cfg, t = _short_track_then_dropout(4, arrival_search=True)
+    assert g_on._phase == "A"
+    assert np.array_equal(g_on._v_track, np.array([10.0, 0.0, 0.0]))
+    # The terminal's OWN reading of the LAST fix (slant correction included).
+    measured = g_on._measured_r_ned(_short_track_box(3), IDENT)[0]
+    assert g_on._r_track == pytest.approx(measured, abs=1e-6)
+    assert g_on.search_leg == "approach"
+    assert g_on._search_t0 > 0.0
+
+    g_off, _, _ = _short_track_then_dropout(4)
+    assert g_off._phase == "A"
+    assert not np.array_equal(g_off._v_track, np.array([10.0, 0.0, 0.0]))
+
+
+def test_arrival_search_long_track_fallback_uses_the_legacy_rule():
+    """At or above search_trust_updates filter updates the fallback takes the
+    filter's (clamped) velocity, the legacy rule, not the pre-flight one."""
+    n = PursuitTerminalConfig().search_trust_updates + 6
+    g_on, _, _ = _short_track_then_dropout(n, arrival_search=True)
+    assert g_on._phase == "A"
+    assert g_on._search_b_updates >= PursuitTerminalConfig().search_trust_updates
+    # the fixes drift east, so the filter's velocity has a real east component
+    assert float(g_on._v_track[1]) > 3.0
+    assert not np.array_equal(g_on._v_track, np.array([10.0, 0.0, 0.0]))
+
+
+def _ticks_after_fallback(g, n, own_vel=(10.0, 0.0, 0.0), t0=100.0):
+    """n more no-detection ticks. -> list of (phase, |r_track|) after each."""
+    out, t = [], t0
+    for _ in range(n):
+        t += DT
+        g.step(None, own(n_e_d_vel=own_vel), t=t)
+        out.append((g._phase, float(np.linalg.norm(g._r_track))))
+    return out
+
+
+def test_arrival_search_fallback_is_not_pinned_by_stale_decodes():
+    """With the search on, the acquisition list is pruned by time every tick,
+    so after the fallback the terminal STAYS in Phase A and its belief keeps
+    moving (here the believed target, 10 m/s north plus the filter's east
+    drift, pulls away from a vehicle holding 10 m/s north)."""
+    n = PursuitTerminalConfig().search_trust_updates + 6
+    g, cfg, t = _short_track_then_dropout(n, arrival_search=True)
+    after = _ticks_after_fallback(g, 40, t0=t)
+    assert all(phase == "A" for phase, _ in after)
+    assert after[-1][1] - after[0][1] > 5.0      # the belief propagated
+    assert g._decode_positions == []
+
+
+def test_stale_decode_guard_alone_unpins_the_legacy_fallback():
+    """cfg.stale_decode_guard without the search: the legacy Phase-A law runs
+    after a fallback (belief propagates, phase stays A) -- and the default,
+    guard off, is still the golden fixture."""
+    n = PursuitTerminalConfig().search_trust_updates + 6
+    g, cfg, t = _short_track_then_dropout(n, stale_decode_guard=True)
+    after = _ticks_after_fallback(g, 40, t0=t)
+    assert all(phase == "A" for phase, _ in after)
+    assert after[-1][1] - after[0][1] > 5.0
+    assert PursuitTerminalConfig().stale_decode_guard is False
+    golden = np.load(_FIXTURE_PATH)["cmds"]
+    _assert_matches_golden(_keepframe_identity_drive({"stale_decode_guard": False}), golden)
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "LEGACY DEFECT, reported 2026-11-18 and deliberately NOT fixed on the "
+    "default path (it would change flown behaviour without a registered "
+    "test): after a Phase-B -> A fallback the unpruned acquisition list "
+    "restarts Phase B from a stale decode every tick, so the belief is pinned "
+    "at the last decode's relative offset. Fix = prune the list by time "
+    "(cfg.stale_decode_guard, default off); when that becomes the default "
+    "this test passes and the marker must come off."))
+def test_legacy_fallback_is_pinned_by_stale_decodes():
+    """What the default path SHOULD do after a fallback: keep propagating the
+    belief. It does not (see the marker)."""
+    n = PursuitTerminalConfig().search_trust_updates + 6
+    g, cfg, t = _short_track_then_dropout(n)
+    after = _ticks_after_fallback(g, 40, t0=t)
+    assert after[-1][1] - after[0][1] > 5.0

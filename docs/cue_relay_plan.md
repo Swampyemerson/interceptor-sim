@@ -542,3 +542,85 @@ below the line needs it powered.
    CUE-UNTESTED; an outdoor run with a 3D fix upgrades it to CUE-PASS.
 6. If ELRS < 3.4: report the versions and stop — the choice is flash (a
    separate, deliberate step) or the SERIAL2 dedicated-radio fallback.
+
+---
+## 14. The field sequence as it now works (2026-11-18: the cue is the GO command)
+
+Builder rulings the same day: the capture window is 5 s; "the cue receiving and
+estimate is the go command"; "it should be timestamped so delay is factored into
+guidance". This section is the operator's view of what was built for that.
+Sections 8 and 9 above describe the older hand-over (a file read once before
+take-off) and are history.
+
+**What runs where**
+
+| Where | Program | What it does |
+|---|---|---|
+| Ground (laptop) | `scripts/field/cue_send.py --mavlink <target telemetry> --to <Pi>` | Reads the target's position reports, stamps each with the UTC time its sample was TAKEN (the target autopilot's own GPS clock), sends one small UDP packet per report |
+| Interceptor (Pi) | `flight/deploy/real_flight.py --fly --trigger cue ...` | Keeps the freshest reports through standby, and fires GO by itself when it has a usable 5 s estimate |
+
+**The sequence**
+
+1. Power on both aircraft outdoors and wait for a GPS fix on each. Start
+   `cue_send.py`. Both ends need GPS time: the target's for the stamps, the
+   interceptor's so the Pi knows what time it is now.
+2. Start the flight program. It prints a pre-arm summary: there is no belief
+   yet, the cue is the GO command, and there is no engage time limit.
+3. With the ENABLE switch LOW (the `--rc-channel` switch), raise the arm-permit
+   switch. The program arms, takes off to the typed standby height and yaw
+   (`--standby-alt-m`, `--standby-yaw-deg`) and holds.
+4. Raise the ENABLE switch when you are ready for it to go. From here GO is
+   automatic. It fires on the first control tick where the aircraft has been
+   steady at standby for four ticks AND the link holds at least 4.4 s of clean
+   reports whose newest is under 1 s old.
+5. At that instant the estimate is advanced to that instant, placed against
+   the interceptor's own GPS position, written into the guidance once, and the
+   link is closed. Reports that arrive afterwards are counted and dropped.
+
+**How the link delay is taken out.** Each report says when its sample was
+taken. The Pi reads UTC from its own Pixhawk (the `SYSTEM_TIME` message, once
+a second), so for each report it knows the true age on arrival: radio, laptop
+and Wi-Fi delay together, measured per report. The estimate is advanced by
+that much more, so a late report is not a wrong report. The GO line in the log
+states the delay it measured (minimum, median, maximum).
+
+**What it does when something is wrong** (it refuses; it never guesses)
+
+| Situation | What happens |
+|---|---|
+| Reports already arriving before take-off | Nothing yet. GO still waits for the arm permit, the take-off, the standby gates and the enable switch |
+| Stream has only just started, or has just come back | No GO until it holds 4.4 s of clean reports |
+| Stream dies while holding at standby | No GO (the estimate goes stale). The aircraft keeps holding; the standby time budget (60 s by default) ends the wait with a landing. A Wi-Fi dropout costs time, not the flight |
+| A hole longer than 1 s inside the window | No GO until a clean window has refilled |
+| The two clocks disagree (a report from the future, a delay over 3 s, the target's clock mapping jumped, the Pixhawk has no GPS time) | No GO. `--cue-allow-unsynced` permits the older minimum-delay method instead, and the log then says the delay was NOT measured |
+| The fit is refused (too few points, neither a straight line nor a steady turn) | No GO; the reason is printed when it changes |
+| The cued target is out of reach (as fast as the interceptor, beyond the geofence, beyond `--cue-max-range-m`) | No GO while that is so |
+| GO fired but no estimate reached the guidance | SAFE. It never dashes on the placeholder belief |
+| Transmitter lost while holding | SAFE, as before (the enable switch's radio link is the monitored link) |
+
+**Your veto.** The ENABLE switch LOW means no automatic GO. `--fly` will not
+start without one. After GO the switch does nothing: taking the aircraft back
+is the mode switch, and the kill switch always works.
+
+**After GO, with no time limit.** The engage window is unlimited in pursuit
+mode under `--fly` unless `--engage-max-s` is typed (builder: "no limit at
+least for now"). An engagement that never finds the target is ended by the
+pilot, the board's geofence, the board's battery failsafe, a stale own-state
+stream, or the watchdog. The lost-target rule the flight flies is printed at
+start and is set in one place, `FLY_PRESET` in `real_flight.py`.
+
+**Not built yet**
+
+- **The radio leg off the target.** Nothing yet carries the target's position
+  reports from the target to the laptop in the field. Another piece of work is
+  looking at the control-link route (transmitter USB to the laptop).
+- **A provisional estimate for the standby height and yaw.** They are typed.
+  If the target's height differs from what was typed, the guidance still gets
+  the true height difference at GO; the aircraft just starts from the typed
+  height.
+- **A props-off run on the real Pi and Pixhawk.** Everything above is tested
+  on the desk (a fake vehicle, and real UDP on one machine). Not yet shown on
+  the hardware: that the Pi receives `SYSTEM_TIME` over the serial cable
+  through MAVSDK, and that its GPS position reaches the program.
+- **Two things this does not fix:** the cue's own speed error (that is what
+  the 5 s window is for), and a target that turns after GO.

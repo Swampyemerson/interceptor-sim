@@ -1,0 +1,118 @@
+rows: 4200; arms: ['base', 'base_T', 'base_T_guard', 'stern', 'believed', 'stern_decl04', 'believed_T2']; cells: 12; cells with a wrong row count: 0
+
+TABLE 1  kills of 50 (first contact within 45 s in brackets)
+          cell          base        base_T  base_T_guard         stern      believed  stern_decl04   believed_T2
+   st|near|e10       16 [16]       17 [17]       17 [17]       46 [46]       48 [38]       43 [39]       43 [38]
+   st|near|e04       27 [27]       29 [28]       28 [27]       50 [50]       49 [45]       49 [46]       44 [43]
+   st|near|e00       50 [50]       50 [50]       50 [50]       49 [49]       50 [48]       50 [49]       48 [48]
+   st|demo|e10       17 [17]       19 [19]       18 [18]       47 [46]       49 [40]       42 [38]       41 [38]
+   st|demo|e04       31 [31]       31 [31]       31 [31]       50 [50]       49 [44]       50 [46]       44 [44]
+   st|demo|e00       45 [45]       45 [45]       45 [45]       49 [49]       50 [48]       50 [49]       48 [48]
+   we|near|e10        8 [ 8]       10 [10]       11 [11]       15 [14]       18 [15]       21 [21]       13 [13]
+   we|near|e04       10 [10]       11 [11]       11 [11]       21 [20]       16 [15]       23 [21]       13 [13]
+   we|near|e00       21 [21]       22 [21]       22 [21]       22 [20]       19 [18]       24 [22]       16 [16]
+   we|demo|e10        6 [ 6]        9 [ 9]        8 [ 8]       20 [18]       18 [15]       13 [11]       12 [11]
+   we|demo|e04       14 [14]       15 [14]       15 [14]       22 [21]       22 [19]       25 [24]       17 [16]
+   we|demo|e00       16 [16]       18 [18]       18 [18]       27 [27]       17 [16]       14 [14]       14 [14]
+
+TABLE 2  runs that never decoded, of 50
+          cell          base        base_T  base_T_guard         stern      believed  stern_decl04   believed_T2
+   st|near|e10            31            31            31             2             1             7             1
+   st|near|e04            21            21            21             0             0             0             0
+   st|near|e00             0             0             0             0             0             0             0
+   st|demo|e10            30            30            30             2             1             8             1
+   st|demo|e04            18            18            18             0             0             0             0
+   st|demo|e00             6             6             6             0             0             0             0
+   we|near|e10            31            31            31             2             1             7             1
+   we|near|e04            20            20            20             0             0             0             0
+   we|near|e00             0             0             0             0             0             0             0
+   we|demo|e10            29            29            29             1             1             8             1
+   we|demo|e04            19            19            19             0             0             1             0
+   we|demo|e00             6             6             6             0             0             0             0
+
+TABLE 3  paired against base_T: kills lost / gained / net (same seeds)
+          cell          base  base_T_guard         stern      believed  stern_decl04   believed_T2
+   st|near|e10        1/0/-1        0/0/+0      0/29/+29      0/31/+31      0/26/+26      1/27/+26
+   st|near|e04        2/0/-2        1/0/-1      0/21/+21      0/20/+20      1/21/+20      3/18/+15
+   st|near|e00        0/0/+0        0/0/+0        1/0/-1        0/0/+0        0/0/+0        2/0/-2
+   st|demo|e10        2/0/-2        1/0/-1      0/28/+28      0/30/+30      0/23/+23      4/26/+22
+   st|demo|e04        0/0/+0        0/0/+0      0/19/+19      0/18/+18      0/19/+19      3/16/+13
+   st|demo|e00        0/0/+0        0/0/+0        1/5/+4        0/5/+5        0/5/+5        2/5/+3
+   we|near|e10        2/0/-2        0/1/+1       8/13/+5       3/11/+8      2/13/+11        5/8/+3
+   we|near|e04        1/0/-1        0/0/+0      7/17/+10        3/8/+5      6/18/+12        5/7/+2
+   we|near|e00        1/0/-1        0/0/+0      12/12/+0        8/5/-3       8/10/+2        8/2/-6
+   we|demo|e10        3/0/-3        1/0/-1      4/15/+11       2/11/+9       6/10/+4        5/8/+3
+   we|demo|e04        1/0/-1        0/0/+0       8/15/+7       4/11/+7      6/16/+10        5/7/+2
+   we|demo|e00        3/1/-2        0/0/+0       8/17/+9        8/7/-1       11/7/-4        9/5/-4
+
+TABLE 4  median time to first contact, s (kills only; n in brackets)
+          cell          base        base_T  base_T_guard         stern      believed  stern_decl04   believed_T2
+   st|near|e10     27.1 [16]     27.4 [17]     27.4 [17]     33.3 [46]     30.8 [48]     30.8 [43]     30.2 [43]
+   st|near|e04     26.2 [27]     26.2 [29]     26.2 [28]     33.5 [50]     28.5 [49]     31.2 [49]     28.1 [44]
+   st|near|e00     25.4 [50]     25.4 [50]     25.4 [50]     33.3 [49]     25.6 [50]     31.8 [50]     25.4 [48]
+   st|demo|e10     27.0 [17]     28.2 [19]     27.6 [18]     33.1 [47]     30.8 [49]     30.5 [42]     30.0 [41]
+   st|demo|e04     26.3 [31]     26.3 [31]     26.3 [31]     33.0 [50]     28.9 [49]     30.4 [50]     28.2 [44]
+   st|demo|e00     25.6 [45]     25.6 [45]     25.6 [45]     33.0 [49]     26.5 [50]     30.1 [50]     26.0 [48]
+   we|near|e10     27.0 [ 8]     28.7 [10]     30.1 [11]     33.3 [15]     30.6 [18]     29.5 [21]     28.3 [13]
+   we|near|e04     26.9 [10]     27.3 [11]     27.3 [11]     35.0 [21]     29.8 [16]     32.9 [23]     29.3 [13]
+   we|near|e00     25.5 [21]     25.7 [22]     25.7 [22]     33.7 [22]     25.9 [19]     33.1 [24]     25.4 [16]
+   we|demo|e10     24.7 [ 6]     29.6 [ 9]     27.6 [ 8]     35.4 [20]     32.5 [18]     31.2 [13]     31.0 [12]
+   we|demo|e04     28.1 [14]     28.4 [15]     28.4 [15]     35.0 [22]     30.0 [22]     32.0 [25]     29.7 [17]
+   we|demo|e00     27.3 [16]     28.0 [18]     28.0 [18]     33.6 [27]     29.3 [17]     30.1 [14]     28.4 [14]
+
+TABLE 5  blind passes (within 3 m before any decode), of 50; then how many of those runs still ended a kill
+          cell          base        base_T  base_T_guard         stern      believed  stern_decl04   believed_T2
+   st|near|e10        5 ( 4)        5 ( 4)        5 ( 4)        7 ( 7)        9 ( 9)        8 ( 8)        9 ( 8)
+   st|near|e04       14 ( 7)       14 ( 8)       14 ( 8)        7 ( 7)        8 ( 8)        8 ( 8)        8 ( 8)
+   st|near|e00        8 ( 8)        8 ( 8)        8 ( 8)        7 ( 7)        8 ( 8)        7 ( 7)        8 ( 8)
+   st|demo|e10        9 ( 6)        9 ( 6)        9 ( 6)        5 ( 5)       12 (11)       10 (10)       12 ( 9)
+   st|demo|e04        8 ( 7)        8 ( 7)        8 ( 7)        1 ( 1)        8 ( 8)       16 (16)        8 ( 8)
+   st|demo|e00       15 (11)       15 (11)       15 (11)        3 ( 3)        9 ( 9)       14 (14)        9 ( 9)
+   we|near|e10        6 ( 2)        6 ( 2)        6 ( 2)        7 ( 6)       11 ( 5)       10 ( 3)       11 ( 5)
+   we|near|e04       17 ( 5)       17 ( 5)       17 ( 5)        7 ( 6)       11 ( 4)        9 ( 5)       11 ( 4)
+   we|near|e00        7 ( 3)        7 ( 3)        7 ( 3)        7 ( 7)        7 ( 2)        7 ( 4)        7 ( 2)
+   we|demo|e10       11 ( 3)       11 ( 3)       11 ( 3)        5 ( 3)       15 ( 5)       11 ( 6)       15 ( 3)
+   we|demo|e04       11 ( 3)       11 ( 3)       11 ( 3)        3 ( 1)       12 ( 4)       14 ( 9)       12 ( 2)
+   we|demo|e00       18 ( 4)       18 ( 5)       18 ( 5)        3 ( 2)       12 ( 4)       13 ( 6)       12 ( 2)
+
+TABLE 6  seconds within 5 m before first contact (median / p90)
+          cell          base        base_T  base_T_guard         stern      believed  stern_decl04   believed_T2
+   st|near|e10     0.0/  3.5     0.0/  3.5     0.0/  3.5     1.9/  2.3     2.0/  4.1     2.0/  2.9     2.0/  4.1
+   st|near|e04     2.1/ 17.9     2.1/ 22.7     2.1/ 22.7     2.0/  2.4     2.0/  3.8     2.1/  2.7     2.0/  3.8
+   st|near|e00     2.0/  3.1     2.0/  3.1     2.0/  3.1     2.0/  2.3     2.0/  3.1     2.0/  2.5     2.0/  3.1
+   st|demo|e10     0.0/  3.4     0.0/  3.4     0.0/  3.4     1.9/  2.3     2.1/  3.5     1.9/  2.8     2.0/  3.5
+   st|demo|e04     2.0/  4.3     2.0/  4.3     2.0/  4.3     1.9/  2.2     2.0/  3.6     2.0/  2.9     2.0/  3.6
+   st|demo|e00     2.2/  7.4     2.2/  7.4     2.2/  7.4     1.9/  2.2     2.0/  3.1     2.0/  2.6     2.0/  3.1
+   we|near|e10     0.0/  4.8     0.0/  5.1     0.0/  5.1     3.2/ 13.5     4.4/ 10.6     2.8/  9.3     3.9/  5.0
+   we|near|e04     2.7/ 10.1     3.0/ 21.6     3.0/ 21.6     3.6/ 10.1     4.7/ 17.1     3.2/  9.8     3.3/  5.3
+   we|near|e00     3.3/  4.8     3.9/ 12.6     3.9/ 11.6     3.0/  9.9     3.7/ 10.8     3.4/ 12.7     3.2/  5.0
+   we|demo|e10     0.0/  4.8     0.0/  6.0     0.0/  6.0     3.7/ 10.1     5.0/ 11.6     3.0/  8.2     3.7/  5.3
+   we|demo|e04     2.3/  7.0     3.3/ 15.6     3.3/ 15.6     3.2/ 10.1     3.2/  8.1     2.9/  6.8     3.1/  5.7
+   we|demo|e00     3.9/  7.2     4.3/ 14.3     4.3/ 14.3     3.0/ 10.0     4.0/ 11.8     4.0/ 10.1     3.4/  5.8
+
+TABLE 7  what the misses are, per arm, all 12 cells pooled
+           arm  runs kills no decode cross>12m  <=1 m  other
+          base   600   261       205        13     69     52
+        base_T   600   276       205         5     74     40
+  base_T_guard   600   274       205         9     73     39
+         stern   600   418         7         2    121     52
+      believed   600   405         4         0    129     62
+  stern_decl04   600   404        31         0    123     42
+   believed_T2   600   353         4        33    130     80
+
+TABLE 8  search legs flown before the end (median / max), search arms
+         stern median 1  max 5
+      believed median 1  max 6
+  stern_decl04 median 0  max 7
+   believed_T2 median 1  max 4
+
+TABLE 9  the flying 2.0 s lost-target clock: runs that decoded, did not kill, and ended target_lost / pursuit_miss on that clock (all 12 cells pooled); 'sparse' = 5 or fewer decodes in the whole run
+          base runs 600; decoded-but-died-on-the-clock 134; of those sparse 13
+   believed_T2 runs 600; decoded-but-died-on-the-clock 243; of those sparse 37
+
+REGISTERED CRITERION (straight target, against base_T): +15 net at 10 % and +8 net at 4 % in BOTH geometries, and no worse than -2 net in either 0 % cell
+         stern net: near|e10 +29, demo|e10 +28, near|e04 +21, demo|e04 +19, near|e00 -1, demo|e00 +4  -> MEETS
+      believed net: near|e10 +31, demo|e10 +30, near|e04 +20, demo|e04 +18, near|e00 +0, demo|e00 +5  -> MEETS
+  stern_decl04 net: near|e10 +26, demo|e10 +23, near|e04 +20, demo|e04 +19, near|e00 +0, demo|e00 +5  -> MEETS
+   believed_T2 net: near|e10 +26, demo|e10 +22, near|e04 +15, demo|e04 +13, near|e00 -2, demo|e00 +3  -> MEETS
+  base_T_guard net: near|e10 +0, demo|e10 -1, near|e04 -1, demo|e04 +0, near|e00 +0, demo|e00 +0  -> does not meet
