@@ -13,6 +13,13 @@ reference for the parent project's ground-sensing half).*
 > PURSUIT**: no sprint, no acquire-streak gate (lineage ADR-0103 → ADR-0105 → ADR-0118;
 > Gazebo gate passed, median 0.343 m). This doc remains the reference for the coded-dash
 > mechanics and the open-loop aim-calibration findings.
+>
+> **2026-11-18:** two more things below are now legacy-only. "No ground-sensor cue": the
+> flying path takes the target's GPS live until GO and the cue is the GO command
+> (`docs/cue_relay_plan.md` section 14). And the 16 m/s dash speed quoted here is the coded
+> dash's; the long-range transit is the pursuit's approach dash (36 m/s cap, about 26 to
+> 30 m/s with the assumed drag; `isim/specs/flight_hardware_rerun_prereg_2026-11-18.md`).
+> What flies and how it is started: `docs/next.md`, `docs/kill_day_protocol.md` (status note).
 
 ## Operating model (one line)
 

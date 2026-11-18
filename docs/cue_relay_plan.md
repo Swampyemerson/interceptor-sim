@@ -239,6 +239,15 @@ straight AUTO leg once airborne, and feed that log through the same test.
 
 ## 6. Error budget — converted to launch-aim degrees
 
+> **2026-11-18: this budget is for the 16.7 m canon range.** At 500 m the cue's
+> SPEED error is what matters, because it acts over the whole transit: about
+> 2.2 m of along-track error at arrival per 1 % of speed error, and the old
+> park-and-wait arrival needs the target within about 21 m ahead of the parked
+> vehicle (`docs/arrival_geometry_2026-11-18.md`). The bench accuracy figures used
+> below (2.29 m, 1.72 m/s) also look pessimistic against the target's own outdoor
+> flight log, which self-reports 0.21 m and 0.09 m/s on slow legs; neither is
+> checked against a reference, and no fast straight leg has been logged.
+
 Reusing the geometry `docs/launch_mechanism_plan.md` §3 already validates:
 canonical range at launch **R ≈ 16.7 m**, and its CPA-vs-heading-error table
 (`dash_cpa_model.py`, validated to 0.29–0.58 m MAE against flown arms).
@@ -612,8 +621,14 @@ start and is set in one place, `FLY_PRESET` in `real_flight.py`.
 **Not built yet**
 
 - **The radio leg off the target.** Nothing yet carries the target's position
-  reports from the target to the laptop in the field. Another piece of work is
-  looking at the control-link route (transmitter USB to the laptop).
+  reports from the target to the laptop in the field. The control-link route
+  (down the ExpressLRS link, out of the transmitter's USB, laptop, Wi-Fi to the
+  Pi) is researched and its laptop reader is written and tested on made-up
+  data: `docs/cue_over_control_link.md`, `scripts/field/crsf_cue_source.py`.
+  It has not met the real transmitter. Its limits: at most 2 position reports
+  a second, speed and course instead of a velocity vector, height in whole
+  metres, and no autopilot timestamps, so on that route the Pi assumes the
+  link delay (`--cue-allow-unsynced`) instead of measuring it.
 - **A provisional estimate for the standby height and yaw.** They are typed.
   If the target's height differs from what was typed, the guidance still gets
   the true height difference at GO; the aircraft just starts from the typed

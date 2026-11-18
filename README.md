@@ -23,10 +23,15 @@ All three miss numbers are simulation. The interceptor has flown hover tests onl
 
 ## How it works
 
-1. **Cue.** A ground GPS relay hands the interceptor the target's position once,
-   at launch. After that the link is dead by design.
+1. **Cue.** The target's GPS reaches the interceptor's computer while it waits
+   in a hover. The cue is also the launch command: when about five seconds of
+   it give a good estimate of where the target is and how fast it is going,
+   the estimate is locked once and the intercept starts. After that the link
+   is dead by design.
 2. **Rendezvous.** The interceptor flies to a point behind where it believes the
-   target is and matches its speed, with the camera turned toward it.
+   target is and matches its speed, with the camera turned toward it. If the
+   target is not there, it sweeps along the believed track until the camera
+   finds it.
 3. **Track.** A camera on a Raspberry Pi 5 reads an AprilTag on the practice
    target. Bearing comes from the tag's position in the image, range from its
    size, and a Kalman filter estimates the target's position and velocity.
@@ -101,7 +106,14 @@ sees about 70 degrees, not the 118 the listing claimed, and a tape measure
 agreed. That lens is the one that will fly: the narrower view puts about 19
 pixels on each degree, so the tag is readable from farther away, at the cost
 of a smaller pointing margin. This replaces the project's earlier rule of a
-lens of at least 100 degrees. The first camera-guided flight is next.
+lens of at least 100 degrees.
+
+As of November 2026 the flight program has a guarded flight mode (it arms only
+after a radio permit), a props-off rehearsal mode that cannot arm, and a
+watchdog that ends the command stream if the onboard computer hangs. These are
+tested on a development machine against a simulated flight controller. The
+next step is the props-off rehearsal on the real hardware, then the first
+camera-guided flight.
 
 ### Avionics pod: structural analysis, November 2026
 
@@ -134,8 +146,15 @@ Full write-ups: [`ANALYSIS.md`](hardware/avionics_pod/ANALYSIS.md) and
 
 - **No real intercept flight.** The interceptor has flown hover tests only; every miss
   number above is simulation.
-- **Both simulators assume a perfect launch cue and no wind.** The GPS cue relay
-  is built; its error in the field is not measured yet.
+- **The cue is the weak point at long range, and its real error is not
+  measured.** The headline numbers above assume a short-range launch with a
+  good cue and no wind. In the fast simulator, a 500 m launch with a 10% error
+  in the target's believed speed killed in 16 of 50 runs; with the search on
+  arrival and the camera tilted up 20 degrees it was 190 of 192 against a
+  straight target, and still poor against a weaving one. Nothing yet carries
+  the real target's GPS to the interceptor.
+- **The flight program has not run on the real flight controller.** Its
+  safety modes exist and pass their tests; the props-off rehearsal is next.
 - **In Gazebo the tag is a flat board on a scripted mover.** The pitching,
   banking quad is modeled in the fast simulator, not rendered in Gazebo.
 - **The avionics pod is drawn and analysed, not printed.** Its vibration numbers are

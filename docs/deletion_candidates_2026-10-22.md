@@ -71,3 +71,12 @@ every session's recall surface:
 referenced design records; archive only with contract re-pointing),
 `retired/docs/doc_hygiene_2026-09-17.md` (prior art for this file — though once this
 file's actions land, both could merge into one hygiene log).
+
+## 2026-11-18 sweep (the builder's standing final task)
+
+Moved to `retired/docs/`, every live pointer re-pointed: `launch_mechanism_options.md`
+(banner-superseded since 2026-10-22), `doc_hygiene_2026-09-17.md` (executed; this file is
+its successor) and `ground_modality.md` (parent-project ground sensing, out of this repo's
+scope). The live queue `docs/next.md` was rewritten short and its old body moved verbatim to
+`docs/next_archive.md`. Reasons for what was left in place are in `retired/README.md`.
+Tier 3 (logs) and Tier 4 (dead levers) above are unchanged and still the builder's call.

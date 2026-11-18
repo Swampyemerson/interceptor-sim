@@ -2042,3 +2042,74 @@ aircraft behaves in his hands.
 
 **Owed after a 5.8 m fall:** frame, props, motors, compass mount and the pack inspected
 before the next flight; the board logged a compass inconsistency just after impact.
+
+## ADR-0139 — What flies under `--fly`: flight modes, the cue as GO, search on arrival, and the preset (2026-11-18)
+
+*Context.* One day's work, started by the builder asking whether the sim needed air drag,
+ended up changing how the real program is started and what it flies. The pieces each have
+their own record (ADR-0130 addendum: 5 s cue window; ADR-0132 addenda: power path, the
+33 m/s board limit, the rulings on lean, engage time and the lost-target rule). This entry
+is the one place that says what the flying configuration now is and what it rests on.
+
+*Evidence.* All fast-sim or laptop: the drag screen and its corrections
+(`isim/specs/approach_dash_drag_prereg_2026-11-18.md`), the independent geometry check
+(`docs/arrival_geometry_2026-11-18.md`), the guidance review
+(`docs/guidance_review_2026-11-18.md`), the interface audit
+(`docs/interface_audit_2026-11-18.md`), the arrival search
+(`isim/specs/arrival_search_prereg_2026-11-18.md`), the flying-optics rerun
+(`isim/specs/flight_hardware_rerun_prereg_2026-11-18.md`), the driver tests against
+a fake vehicle and a simulated PX4 (`runs/real_flight_driver_sih_20261118/`), and a Wi-Fi
+bench of the cue link (`runs/fc_readonly_20261118/README.md`). Nothing has run on the real
+Pi and Pixhawk; the builder said the props are on.
+
+*Decisions.*
+
+1. **Flight modes.** `--fly` is the only mode that arms on a serial link, after a radio arm
+   permit and a printed pre-arm summary. `--bench-props-off` runs the same loop and cannot
+   arm. An out-of-process watchdog ends the setpoint stream after 0.5 s without a control
+   tick; teardown sends nothing when the pilot has taken a manual mode; own-state older
+   than 1.0 s goes SAFE; the board's limits are read before arming and a mismatch refuses.
+2. **The cue is the GO command** (builder: "it should be programmed that the cue receiving
+   and estimate is the go command ... timestamped so delay is factored into guidance").
+   `--trigger cue`: live records over UDP, the freshest 5 s fitted, the belief latched once
+   at GO and advanced to that instant with per-record delay removed when both ends have GPS
+   time. A human enable switch stays in the loop under `--fly`. The older `--cue-json` file
+   path is unchanged and is hundreds of metres stale for a moving target.
+3. **The flight preset** (`FLY_PRESET`, `flight/deploy/real_flight.py`; `--fly` in pursuit
+   mode only; typed flags win; every other mode and every gate keeps its defaults):
+   search on arrival with the `believed` start; stale-decode guard on; approach-dash brake
+   3 m/s² with vertical arrival-sync; no lost-target clock before the camera has a track or
+   during the search; a 6 s clock when the target is lost beyond 3 m; no engage or mission
+   time limit. The close-miss rule (straight to SAFE inside 3 m) is kept: the rerun found it
+   costs nothing without the search and about 5 kills of 192 with it, and it keeps the
+   aircraft from chasing for minutes after a near miss.
+   *Why these values:* the builder's ruling was "whatever gets highest intercept rate". With
+   the flying lens at 20° of camera tilt and all errors on, a straight target is killed in
+   117 of 192 runs without the search, 190 with `believed`, 187 with `stern` (not
+   distinguishable on 32 seeds; `believed` was the registered tie-break). Brakes 2, 3 and 4
+   all give 16 of 16 at that tilt; 3 costs 0.8 s against 4 and leaves margin on braking that
+   has never been measured. October's "do not fly 36 m/s with brake 3" is withdrawn.
+4. **The search's uncertainty clock starts at GO on every trigger.** On the RC and timer
+   triggers it had been running since program start.
+5. **Board:** speed limit 33 m/s (written); lean limit stays 45° (45, 52 and 60 are within
+   one kill at every usable tilt; top speed 26.5 against 30 m/s with the assumed drag). That
+   rests on the board's 5 m/s² limit applying to commanded speeds, which is not known.
+
+*Not decided, and the builder's to rule (contract questions).*
+
+- **Camera plate angle.** The rerun says 20° (105 kills of 192 at 10°, 192 at 20°, collapse
+  from 30°). ADR-0114's ruled pair is +10° with the placard canted 12° down, earned with a
+  pitching target at the wider lens; the rerun had neither the pitch nor the cant. One more
+  fast-sim grid with all three is owed before the plate is set. The plate adjusts 10 to 45°.
+- **Tag facing.** `docs/placard_mount.md` draws the placard side-facing, for drag. A chase
+  from behind cannot read it (0 of 16 in the sim). A rear-facing plate is the option that
+  doc rejected because its drag holds the target near 6 m/s. Not redesigned here.
+- **Radio loss in automatic flight** returns home after 0.5 s on this board, so the
+  transmitter-off test cannot pass as set (`COM_RCL_EXCEPT`).
+- **Geofence** 457 m against a 500 m engagement plus a search.
+
+*What this does not show.* A weaving target is killed in 2 to 11 of 50 whatever the cue, and
+70 of 192 with the search; that is unexplained. The decode curve and the drag are assumed,
+the vehicle is the Gazebo x500 fit, and the real cue's speed error on a fast leg is not
+measured. No Gazebo rung has flown the search or the preset.
+

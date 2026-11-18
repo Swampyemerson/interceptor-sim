@@ -290,6 +290,14 @@ flat plate face-on Cd    ≈ 1.17 (Hoerner)
 disk loading W/(4A)      155 N/m² at 800 g
 ```
 
+**At approach-dash speed (added 2026-11-18).** The same formula at 35.8 m/s (80 mph, the
+Gazebo take's peak) gives about 11 N of drag at sea level and 9.4 N at Boulder: more than the
+aircraft's weight, and about 50 to 54° of steady lean just to hold the speed. Gazebo's airframe
+has no body drag, so its 80 mph is a no-drag number. The fast sim with this drag added and the
+board's limits laid over it peaks at 26.5 m/s on the 45° lean limit and 30.0 m/s at 60°
+(`isim/specs/flight_hardware_rerun_prereg_2026-11-18.md`). The Cd·A figure is still an
+assumption; a steady fast leg (lean angle at a known speed) measures it.
+
 Air density (ISA standard day): sea level 1.225, 975 m 1.114, 1655 m (Boulder) 1.042 kg/m³.
 Max thrust scales with ρ (about −15 % at 1655 m); ideal hover power with 1/√ρ (about +8 %).
 A T/W measured at sea level is optimistic at altitude, and hot days lower ρ further.

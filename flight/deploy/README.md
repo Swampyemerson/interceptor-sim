@@ -35,6 +35,34 @@ written at **exactly one call site** — the GO edge — after which a second wr
 raises. That is the enforceable form of "nothing re-steers the dash after
 launch" (plan L2 / ADR-lite #5).
 
+### How it is started, as of 2026-11-18 (ADR-0139)
+
+The paragraph above is the original sprint-era flow. The flying default is the chase
+pursuit (`--terminal pursuit`, ADR-0118), where GO enters `ENGAGE` directly, and the program
+now has explicit modes:
+
+| Mode | What it is for | Can it arm? |
+|---|---|---|
+| `--self-test`, `--audit`, `--dry-run`, `--desk` | offline logic, the honesty audit, a fake vehicle, live camera with no vehicle link | no |
+| `--sitl-smoke` | the simulator gate over UDP; it refuses a serial link | simulator only |
+| `--bench-props-off` | rehearsal on the real board: requires disarmed and no flight battery, runs the real loop in OFFBOARD, ends by stopping OFFBOARD | **no, structurally** (a syntax-tree test proves its call path never names the arm or take-off calls) |
+| `--fly` | the real flight. Refuses a synthetic trigger or detector and a belief nobody typed; prints a pre-arm summary; arms only after the RC arm permit (`--arm-permit-channel` LOW then HIGH while GO is LOW) | yes, the only one on a serial link |
+
+- **GO:** `--trigger rc` (switch edge) or `--trigger cue`, where the target's GPS arriving
+  over UDP (`flight/cue_link.py`) with a fresh 5 s estimate fires GO and the RC channel
+  becomes an enable switch (`docs/cue_relay_plan.md` section 14).
+- **Watchdog:** `loop_supervisor.py`, a separate process, kills the MAVSDK server after
+  0.5 s without a control tick or when the program dies, so PX4's own offboard-loss
+  failsafe takes the aircraft. Run `--fly` detached with output to a file.
+- **The flight preset** (`FLY_PRESET`, pursuit mode under `--fly` only; typed flags win):
+  search on arrival (`believed`), stale-decode guard, approach-dash brake 3 m/s² with
+  vertical arrival-sync, lost-target clock off before a track and during the search, 6 s
+  when lost beyond 3 m, no engage or mission time limit.
+- **Before arming** it reads the board's limits (speed, lean, geofence, radio-loss and
+  offboard-loss settings) and refuses on a mismatch unless overridden.
+
+None of this has run on the real Pi and Pixhawk yet (`docs/next.md`).
+
 **What is NOT ready:** every constant tagged `TODO-BUILDER` in `MissionConfig`
 (RC channel map + PWM endpoints, link timeout, altitude/yaw tolerances, dash
 speed/accel, all terminal/breakoff ranges), the geofence and kill-switch

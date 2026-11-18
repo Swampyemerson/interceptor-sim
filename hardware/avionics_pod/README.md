@@ -293,6 +293,15 @@ a rough picture.
    written yet.
 4. Fit the plate between the cheeks with two M3 pivot screws and two M3 lock screws.
    Set the tilt (10 to 45 degrees up), tighten all four.
+   **Which angle (2026-11-18): not settled.** The builder ruled +10 degrees for the
+   chase on 2026-09-24, together with a placard canted 12 degrees down (ADR-0114). A
+   fast-sim rerun with the flying lens then found 10 degrees loses the tag off the top
+   of the picture while the aircraft leans into the catch-up and 20 degrees holds it
+   (192 kills of 192 against 105, no random errors), with kills collapsing from 30
+   degrees up. That rerun had an upright tag on a target that does not pitch, so the
+   two are not yet comparable (`isim/specs/flight_hardware_rerun_prereg_2026-11-18.md`;
+   contract question `camera-plate-angle`). Do not go above 25 degrees. The plate
+   covers every candidate, so nothing has to be reprinted.
 5. Hinge the pod in as before. The post is clear of the Pi's USB block to at least
    12 degrees of tip.
 

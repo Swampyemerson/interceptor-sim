@@ -46,6 +46,18 @@ The >20 cells are reported as extrapolated-plant reference curves only.
 
 ## RESULT (2026-10-21, run as registered + a geometry screen)
 
+> **READ WITH THE 2026-11-18 CORRECTIONS.** Three things below no longer stand as written:
+> (1) "do NOT fly 36/3" is withdrawn: the fast sim's vehicle model climbed without bound
+> when held on its lean limit, runs with that defect carry this cliff's signature, and with
+> it repaired brake 3 intercepts in every geometry tested; brake 3 is now the flight preset
+> (`approach_dash_drag_prereg_2026-11-18.md` amendment 1; `flight_hardware_rerun_prereg_2026-11-18.md`).
+> (2) "Every cell intercepts" was earned with NO cue error: with a 10 % error in the believed
+> target speed the same dash kills 13 to 17 of 50 and never reads the tag in 61 % of runs,
+> which is what the search on arrival was built for (`arrival_search_prereg_2026-11-18.md`).
+> (3) The optics here (fx 540, 0.5 m tag, no camera tilt) are not the flying ones, and the
+> 36 m/s peak is a no-drag figure. The "far crossing" geometry of this spec was never written
+> down and its script was not committed, so its table cannot be reproduced.
+
 Registered sweep (two geometries, n=8 seeds/cell; tables in
 runs/cinema_longrange_20261021/dash_sweep*.json, curves in curve_*.csv):
 

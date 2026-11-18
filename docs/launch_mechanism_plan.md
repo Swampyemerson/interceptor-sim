@@ -1,5 +1,16 @@
 # Launch mechanism — IMPLEMENTATION plan on the ordered hardware (B-core)
 
+> **2026-11-18: the trigger changed; read this plan through it.** This plan is the
+> sprint-era launch stack: a human GO switch, then a coded dash aimed by a pre-flight
+> solve. What flies now is the chase pursuit (ADR-0118), and since ADR-0139 the cue is the
+> GO command: the target's GPS arrives live through standby, the first fresh 5 s estimate
+> fires GO, the belief is latched once at that instant, and the link is dead from then on.
+> The RC channel becomes an enable switch and a separate channel is the arm permit. The
+> standby hover, the latch-once rule and rule 5 below ("nothing reads a sensor after the GO
+> edge") stand unchanged; the bearing latch, the human-latency budget and the dash aim
+> calibration apply to the legacy coded dash only. Field sequence:
+> `docs/cue_relay_plan.md` section 14; status: `docs/next.md`.
+
 > **Status: IMPLEMENTATION DESIGN (2026-07-24), NOT RATIFIED.** The builder PARKED
 > the launch mechanism on 2026-07-21 ("until real flights inform it"); this note
 > does not un-park it. It converts the prior 4-lens **options** evaluation

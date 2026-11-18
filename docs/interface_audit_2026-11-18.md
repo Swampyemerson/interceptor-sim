@@ -18,6 +18,30 @@ Short answer to the builder's two questions:
 
 ---
 
+## Status of each gap after the same day's fixes (added 2026-11-18, evening)
+
+The text below the table is the audit as written that morning and is left as found. "In
+code" means merged and tested on the laptop against a fake vehicle and a simulated PX4
+(`runs/real_flight_driver_sih_20261118/README.md`). **Nothing has been run on the real Pi
+and Pixhawk yet.** Decision record: `docs/decisions.md` ADR-0139.
+
+| Gap | Now |
+|---|---|
+| G1 no real-flight mode | **In code.** `--fly` with an RC arm permit; `--sitl-smoke` refuses a serial link. |
+| G2 hung program keeps flying | **In code.** Out-of-process watchdog (`flight/deploy/loop_supervisor.py`). Simulated PX4: frozen program, server dead at 0.47 s, out of OFFBOARD 2.3 s later. Bench proof owed. |
+| G3 cue never advanced to GO | **In code for `--trigger cue`** (live link, latched at GO, delay removed). The `--cue-json` file path is unchanged and still stale for a moving target. |
+| G4 board limits unchecked | **In code** (limits read before arming; mismatches refuse). The board's speed limit is now 33 m/s, not 12; the geofence is still 457 m. |
+| G5 radio loss aborts the intercept | **Open.** Builder's call, after the watchdog is bench-proven. |
+| G6 landing commanded under a pilot | **In code.** Nothing is sent while the aircraft is in a pilot mode. |
+| G7 frozen own-state unnoticed | **In code.** Each stream is stamped; older than 1.0 s goes SAFE (FAILSAFE 9). |
+| G8 recorder can grab the guidance port | **Open.** |
+| G9 cue link not built end to end | **Partly.** Pi side built and bench-tested over Wi-Fi; own position now comes from the vehicle's GPS on the cue path. The leg off the target is researched (`docs/cue_over_control_link.md`), its reader written, untried. |
+| G10 GO switch never read from the real board | **Open.** Also true of the new arm-permit channel. |
+| G11 no props-off rehearsal | **In code** (`--bench-props-off`, cannot arm). **Not yet run**: the builder said the props are on. |
+| G12 smaller items | The approach dash now has one preset under `--fly` (brake 3 with vertical arrival-sync); the engage window is unlimited under `--fly`; the pre-arm summary names the one parameter write. Unchanged: standby is a zero-velocity hold, the battery failsafe can pull the aircraft out of a hard dash. |
+
+---
+
 ## Ranked gaps (most likely to cause a miss or unsafe behaviour first)
 
 ### G1. The only way to fly the real aircraft is `--sitl-smoke`, with simulator defaults and no guards

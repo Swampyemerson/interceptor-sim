@@ -1,5 +1,17 @@
 # AprilTag placard mount — the target drone's tag carrier (mechanical design)
 
+> **OPEN CONFLICT, 2026-11-18 (read before building this placard).** Decision 1 below puts
+> the tag EDGE-ON to flight, facing sideways, because a plate facing fore or aft has drag the
+> target cannot carry (section 3, options A to D). That decision was made for the sprint-era
+> crossing pass. The engagement that flies now is a chase from behind (ADR-0103, ADR-0118),
+> and a chase cannot read a side-facing tag: in the fast sim with the flying lens the
+> side-facing placard gives 0 kills of 16 in the two stern-arrival geometries and 9 and 15 of
+> 16 only when the interceptor arrives from the side
+> (`isim/specs/flight_hardware_rerun_prereg_2026-11-18.md`, Brackets). ADR-0114 also rules a
+> placard canted 12 degrees down, which this design does not draw. Nothing here is redesigned:
+> the choice between a side arrival, a rear-facing tag on a slow target, and the markerless
+> seeker is the builder's (contract question `target-tag-facing`).
+>
 > **What this is.** `docs/hardware_order_list.md` §E buys a *parts bag* ("Placard mount +
 > misc… Rigidly mounts the tag facing the approach", $22) but no *design*. `docs/placard_sizing.md`
 > settled **how big** the tag is (0.35 m black-square edge, the carry limit). Nobody has yet

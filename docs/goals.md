@@ -4,19 +4,23 @@
 > building and *why*. It is self-contained: you do not need the parent project's
 > files to start, though a pointer to them is at the bottom for deep context.
 
-> **STATUS (2026-07-15 real-build pivot):** "Simulation-only" below describes the completed sim
-> phase, not current project scope. The repo now also carries the physical interceptor's build
-> path — the current goal is an OUTDOOR camera-only BINARY KILL of a >=9 m/s target (coded
-> open-loop dash -> camera-only CHASE-PURSUIT terminal, no datalink; pro-nav was the sim-phase
-> law and was REPLACED by the chase pursuit, ADR-0103 / ADR-0118). Current truth:
-> `docs/real_build_coded_dash.md`, `docs/hardware_order_list.md` (§0c), `docs/project_state.json`.
+> **STATUS (2026-07-15 real-build pivot; engagement lines corrected 2026-11-18):**
+> "Simulation-only" below describes the completed sim phase, not current project scope. The
+> repo now also carries the physical interceptor's build path — the current goal is an OUTDOOR
+> camera-only BINARY KILL of a >=9 m/s target. **What flies (ADR-0118, ADR-0139):** the
+> target's GPS cue arrives live until GO and is itself the GO command; then a camera-only
+> CHASE PURSUIT with no datalink: fly to the believed track, search along it if the target is
+> not there, close on camera decodes. The coded open-loop dash and pro-nav are legacy,
+> selectable paths. Current truth: `docs/project_state.json`, `docs/next.md`,
+> `docs/hardware_order_list.md` (§0c); `docs/real_build_coded_dash.md` is the reference for
+> the legacy coded dash only.
 
 ## Mission (one line)
 
 > ⚠️ **THE LINE BELOW IS THE ORIGINAL 2026 SIM-PHASE MISSION AND IS NO LONGER THE PROJECT'S
 > MISSION.** It is kept because the milestone ladder (M0–M5) and the frame conventions below
 > still govern the sim harness. **The CURRENT mission is a REAL outdoor BINARY KILL of a
-> ≥9 m/s target by a physical interceptor — coded open-loop dash → camera-only terminal, no
+> ≥9 m/s target by a physical interceptor — cued until GO, then a camera-only chase with no
 > datalink.** The sim phase is closed; the live truth is `docs/project_state.json` (and its
 > dashboard/Artifact). Two things the sim phase established that the sentence below does NOT
 > say, and that a fresh session must not re-learn the hard way: the AprilTag was replaced by a

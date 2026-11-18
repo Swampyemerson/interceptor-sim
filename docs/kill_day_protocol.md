@@ -9,16 +9,42 @@
 > two-aircraft mid-air happens after four cheaper things have already proven the
 > stack.
 >
-> **SCHEDULED: THIS WEEKEND, 2026-10-24/26 (builder ruling ADR-0127, 2026-10-22).**
-> Tripod day no longer gates this — its decode capture rides along if time (see the
-> banner in `tripod_test_protocol.md`). The ruled flying config: **chase pursuit**
-> terminal (ADR-0118; engage window now 30 s in pursuit mode, ADR-0129), the
-> **~70° lens** (ADR-0126), AprilTag seeker, pre-flight-latched GPS cue — and the
-> same-day isim A/B says **plan the launch cue inside ~10° of truth** (at 20° the
-> kill converts only ~half the time; ADR-0128 addendum) — and the **Gazebo
-> camera-in-the-loop rung CONFIRMED it the same evening**: 10° of injected cue error
-> flew median 0.244 m, 8/8 inside the contact radius, indistinguishable from the 0°
-> baseline (prereg amendment RESULT; sim optic, not the 70° lens).
+> **STATUS, 2026-11-18: NOT SCHEDULED, AND NOT YET FLYABLE AS WRITTEN.** The
+> 2026-10-24/26 weekend delivered the interceptor's first flights, not an attempt
+> (`docs/progress.md`). Since then the flight program changed, and the steps below
+> have to be read through these changes (ADR-0139; `docs/interface_audit_2026-11-18.md`):
+>
+> - **How it is started.** `--fly` is the only mode that arms on the real link, and
+>   only after an ARM PERMIT: a second radio channel (`--arm-permit-channel`) taken
+>   LOW then HIGH while the GO channel is LOW. It prints a pre-arm summary first.
+>   Run it detached (tmux or `systemd-run`) with output to a file: a stalled SSH
+>   terminal now ends the flight through the watchdog.
+> - **GO.** With `--trigger cue` (builder ruling 2026-11-18) the cue itself fires GO:
+>   the target's GPS arrives live, and the first fresh 5 s estimate starts the
+>   intercept. The GO switch becomes an ENABLE switch: LOW holds fire, and a switch
+>   found HIGH at start never counts. `--trigger rc` keeps the old switch-edge GO.
+> - **What it flies under `--fly`** (the flight preset): chase pursuit with a search
+>   along the believed track on arrival, no lost-target clock before the camera has
+>   a track or while searching, a 6 s clock when the target is lost beyond 3 m, and
+>   **no engage time limit** (it was 30 s). What still ends an engagement that
+>   finds nothing: the pilot, the geofence (457 m, Hold), the battery failsafe,
+>   stale own-state and the watchdog. Typed flags override any of it.
+> - **L0 can now be run** as `--bench-props-off`, which cannot arm. It has not been
+>   run on the real board yet.
+> - **Pilot takeover (5.3).** If you take the aircraft with the mode switch the
+>   program now sends NOTHING further; before 2026-11-18 it commanded a landing
+>   about 2.5 s later.
+> - **The link-denied arm (5.4) cannot pass as the board is set.** Radio loss
+>   returns home 0.5 s later even in automatic flight (`COM_RCL_EXCEPT` 0). Changing
+>   that is the builder's call, after the watchdog is bench-proven.
+> - **Unsettled:** the camera plate angle (ruled +10 degrees; the flying-lens rerun
+>   says 20) and the tag's facing (the placard is drawn side-facing; the chase
+>   needs it rear-facing). `docs/next.md` "Waiting on the builder".
+>
+> The ruled flying config is otherwise unchanged: chase pursuit terminal (ADR-0118),
+> the ~70° lens (ADR-0126), AprilTag seeker. The 2026-10-22 fast-sim A/B says plan the
+> launch cue inside about 10° of truth (ADR-0128 addendum), and the Gazebo rung
+> confirmed it at the 16 m canon range (sim optic, not the 70° lens).
 >
 > Sources: `docs/project_state.json` (`build_plan` P4/P5, `kill` stage, constraints
 > `binary-kill`, `no-datalink`, `target-is-ardupilot`, `prop-clearance`),
@@ -194,6 +220,13 @@ Full sequence on the bench with props removed: power up, ssh in, start the state
 machine, watch `STANDBY` hold, flip the GO switch, watch `CODED_DASH` command a
 setpoint, kill the TX, watch it keep going, then let a failsafe end it.
 
+*(2026-11-18: this rung is `real_flight.py --bench-props-off`. It requires a
+disarmed vehicle and no flight battery (under 6 V on USB power), runs the same
+control loop as flight in OFFBOARD while disarmed, and cannot arm. In pursuit
+mode GO enters `ENGAGE` directly, not `CODED_DASH`. Add the watchdog check here:
+`kill -STOP` the program during ENGAGE and the flight mode must leave OFFBOARD
+within about 1.5 s. Not yet run on the real board.)*
+
 - **PASS:** every transition appears in the log with a reason, and the mission ends
   in `SAFE` with `land_requested`.
 - **ABORT the day if:** the GO switch does not produce exactly one rising edge, or
@@ -316,7 +349,13 @@ pilot takes manual control mid-engagement — or PX4 drops OFFBOARD for any othe
 reason — the state machine goes SAFE, and **SAFE is absorbing**. That means when
 OFFBOARD is handed back, the vehicle receives a zero-velocity hold and a land
 request, **not** a live half-ramped dash command that would fire the instant
-control returns. It is safe to take the aircraft back manually. Note the
+control returns. It is safe to take the aircraft back manually. *(Since
+2026-11-18 the program's teardown also sends no land or return command while the
+aircraft is in a pilot mode; that fix is laptop-tested, not bench-proven.)*
+Two failsafes were added the same day: **9**, own-state data older than 1.0 s goes
+SAFE; and the out-of-process **watchdog**, which ends the setpoint stream after
+0.5 s without a control tick so that PX4's own offboard-loss failsafe (1.0 s,
+then Position mode) takes the aircraft. Note the
 deliberate asymmetry with FAILSAFE 1: **post-GO RF LINK loss is expected and
 ignored** — that is the jam-resistance claim, and §7 tests it on purpose.
 
@@ -335,6 +374,8 @@ after the GO edge** and let the intercept complete unaided
   first, and it is briefed as such.
 - Recover the kill switch by re-powering the TX; know how long that takes before
   you try it.
+- **As the board is set this arm cannot pass (read 2026-11-18):** PX4 returns home
+  0.5 s after radio loss, automatic flight included. See the status note at the top.
 
 ---
 
