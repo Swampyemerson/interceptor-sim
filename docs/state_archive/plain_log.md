@@ -612,3 +612,19 @@ Target drone set up for its first flight, on the bench. Its sticks and switch ch
 **So what:** Left before the target can arm: the compass check fails (reading is 168 against a limit of 100, taken next to the laptop), so recalibrate it away from metal; and the props-off motor test, where motor A must be front-right of the real nose. One cross-check is open: the compass calibration says the GPS module faces backwards, which is only right if its arrow points at the tail.
 
 *Evidence: ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md; runs/target_bench_20261114/*
+
+## 2026-11-14 (overflowed from plain_log 2026-11-18)
+
+The target drone's first flight ended in a crash, and the board's log explains it. It flew for 3.8 seconds in Position hold and reached 23 m before the builder cut the motors; it fell and hit the lawn battery first. The roll and pitch control loops were oscillating from lift-off. ArduPilot lets attitude control raise the motors to keep its grip, up to a cap of half the hover thrust it has been told. That figure had been set to 0.20 that morning; the log shows this drone really hovers at about 0.06. So the cap sat well above hover, and the drone climbed at up to 7.6 m/s while the stick and the height controller were both asking for down.
+
+**So what:** No flight of the target until: damage is checked, the roll/pitch gains are halved, the hover figure and that cap are brought below the drone's real hover, Stabilize is back on the switch for first hops, and minimum throttle is shown on the ground to mean descent. Both candidate causes written before reading the log were wrong as stated; the hover figure was mine. The battery took the impact and is a fire risk.
+
+*Evidence: runs/target_bench_20261114/README.md + crash_flight_timeline.txt; ADR-0138 addenda 5 and 6*
+
+## 2026-11-14 (overflowed from plain_log 2026-11-18)
+
+The fix for the target drone's runaway climb is on its board but not yet proven. The firmware may raise the motors to keep roll and pitch control even with the throttle stick at the bottom, up to a ceiling it will not let anyone set lower. What that ceiling means in motor signal depends on the motors' floor, so the floor was lowered from 15% to 10% (the logs show the motors running steadily there). Computed from the crash log, the ceiling drops from about 1.4 times the weight to about 0.7 times. Full top-end power is kept, at the builder's request; a first version that cut the motors' top instead was withdrawn the same day. The roll and pitch gains were halved, the documented response to the wobble that started it.
+
+**So what:** Still no flight: a props-off bench check (the board fights you with the stick at the bottom; the motor average must stay under the hover point) comes first, then a low hop. The settings checker now rejects any file whose ceiling is above hover.
+
+*Evidence: ADR-0138 addenda 7 and 8; configs/target_kakute/target.param + lint_param.py; runs/target_bench_20261114/README.md; scripts/bench/ap_thrust_ceiling_check.py*

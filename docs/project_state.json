@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-18",
-  "updated_by": "80 mph dash: pod loads and power path checked by hand against the sim take; power module limit found",
+  "updated_by": "Long-range dash meets realistic cue errors; interface audit and bench; live cue link (2026-11-18)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -16,14 +16,14 @@
     "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
   },
   "now": {
-    "as_of": "2026-11-15",
-    "where": "Interceptor: flew well on 2026-11-09; its Pi records the flight log and video per flight. Target: flies a drawn course by itself (two flights on 2026-11-15). Its last flight ended in a 5.8 m fall when the builder cut the motors during an automatic low-battery climb; it needs inspecting.",
-    "finding": "The target's climb was not a fault: on low battery it is set to return home, which climbs toward 15 m and ignores the throttle stick. The pilot had never seen that and had not been warned. A pack lasts 8.3 minutes to that point.",
+    "as_of": "2026-11-18",
+    "where": "Desk and bench day. The flight program has never run on the real Pixhawk and has no real-flight mode; safety fixes are being built. The 500 m fast dash met realistic cue errors for the first time, in the fast sim.",
+    "finding": "A 10% error in the target's believed speed leaves the 500 m dash 22 m off on arrival: 13 to 17 kills of 50, and the tag is never read in 61% of runs. Without that one error it is 45 to 50. And the cue is read once at start, so by GO it is hundreds of metres stale.",
     "next": [
-      "You: target: inspect after the fall; choose low battery = land for the yard; fly on a 6 min timer",
-      "You: interceptor, props off: arm 10 s, disarm; check the Pi for a new video and a flight log"
+      "Me: wire the live cue link and the safety fixes into the flight program; props-off bench run",
+      "You: pick the board's speed envelope; fly the target on one straight fast leg, logged"
     ],
-    "evidence": "ADR-0138 addenda 17 and 18 - runs/target_flight7_20261115/README.md - runs/target_flight6_20261115/README.md"
+    "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md - docs/interface_audit_2026-11-18.md - docs/arrival_geometry_2026-11-18.md - docs/guidance_review_2026-11-18.md - runs/fc_readonly_20261118/"
   },
   "assumptions": [
     {
@@ -507,6 +507,46 @@
       "ruling": "Stamped-age mode stays default-OFF until this passes (builder_queue stamped-age-adoption).",
       "origin": "2026-10-22 review 3 (assumptions-register audit, finding 1)",
       "evidence": "runs/gz_latency_20261022/spec.md - flight --pursuit-meas-latency-s - docs/review3_repo_review_2026-10-22.md §C"
+    },
+    {
+      "id": "cue-speed-error-at-long-range",
+      "statement": "The 500 m approach dash was shown with a cue whose target speed was exact (the Gazebo takes, including the 80 mph video) or with no errors at all (the October fast-sim sweep).",
+      "grade": "given-perfect",
+      "if_wrong": "It is wrong at the cue plan's worst case. A 10% speed error is 22 m along the track at arrival: kills fall to 13-17 of 50 and the tag is never read in 61% of runs. At 4% it is 27-31 of 50.",
+      "stages": [
+        "launch_aim",
+        "terminal"
+      ],
+      "key_numbers": [],
+      "test": {
+        "how": "Fast sim, all errors on, then one error removed at a time (stages 2 and 2b of the drag screen); an independent geometry check from its own traces. Real figure: log the target on one straight leg at 9 to 12 m/s and compare its reported velocity with the position slope.",
+        "cost": "fast sim: done. Real: one target flight on a long straight leg",
+        "status": "fast sim run 2026-11-18 (1900 runs). Real cue speed error on a fast straight leg: not measured; the target's own log self-reports 0.09 m/s on slow 3 m legs"
+      },
+      "state": "violated",
+      "ruling": "VIOLATED in the fast sim (2026-11-18). With a 10% one-sigma error in the believed target speed the 500 m dash kills 13 to 17 of 50 and never decodes the tag in 61% of runs; removing that one error gives 45 to 50 of 50; at 4% it is 27 to 31. A kill needs the target 0 to about 21 m ahead of where the vehicle parks. October's optics, not the flying ones. The real cue's speed error on a fast straight leg is unmeasured, so how far this bites in the field is open.",
+      "origin": "Builder question 2026-11-18 (does the sim need air drag?) led to the first all-errors run of the 500 m dash; the builder also recalled a 10% cue error, which had only been flown at 16 m range.",
+      "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md (stage 2, 2b, corrections); docs/arrival_geometry_2026-11-18.md; logs/cinema_lr/hr5_meta.json (cue_speed_err 0.0)"
+    },
+    {
+      "id": "cue-fresh-at-go",
+      "statement": "Every sim hands the guidance a belief that is exact at the GO instant. The flight program reads the cue file once at start, then arms, takes off and waits, and never advances it.",
+      "grade": "given-perfect",
+      "if_wrong": "By GO the belief is wrong by target speed times the wait: an estimated 225 to 480 m for a 9 to 12 m/s target and 25 to 40 s. As coded the cue only suits a hovering target.",
+      "stages": [
+        "launch_aim",
+        "hardware"
+      ],
+      "key_numbers": [],
+      "test": {
+        "how": "Live cue link (flight/cue_link.py): the Pi keeps the freshest GPS records through standby and latches once at GO, advanced to GO. Bench over Wi-Fi with a made-up 12 m/s target, then wire it into the flight program, then a real target's GPS.",
+        "cost": "desk and bench: hours. The target-to-ground radio leg needs the builder's hands",
+        "status": "link built and bench-tested 2026-11-18 (belief 0.3 m from truth after 30 s; stale stream refused); NOT yet wired into the flight program; no real target GPS yet"
+      },
+      "state": "violated",
+      "ruling": "VIOLATED by reading the code (2026-11-18): the cue is read once in build_config with no trigger time and nothing advances it to GO. A live link that latches at GO now exists and passed a Wi-Fi bench test with a made-up target, but the flight program does not use it yet, and no path gets the real target's GPS to the Pi.",
+      "origin": "Interface audit 2026-11-18 (G3), asked for by the builder: how will the 3 second cue link work in the field.",
+      "evidence": "docs/interface_audit_2026-11-18.md G3, G9; flight/deploy/real_flight.py build_config (cue read once, no trigger time); runs/fc_readonly_20261118/README.md"
     }
   ],
   "builder_queue": [
@@ -530,7 +570,7 @@
         "Raise moderately (e.g. 16-20 m/s + ACC_HOR 8-10) at the first far-cue test, sized by the isim brake rule",
         "Match the sim demo envelope now (36/15/60/30) -- NOT recommended while the airframe is unmeasured"
       ],
-      "rec": "Option 1. The isim cliff finding is the reason: a dash the airframe cannot brake out of misses by design, and brake authority is exactly what is unmeasured. Nothing was written tonight; the target drone (ArduPilot) needs no change for this feature.",
+      "rec": "Still Option 1 for the first flights, but the fast sim now sizes the cost: on the stock envelope a 12 m/s target is never caught and a 9 m/s tail chase takes 69 s; about 20 m/s, 8 m/s2 and 55 deg catches everything the 36 m/s envelope does, 2 to 10 s later. So Option 2 is where to go once thrust, mass and braking are measured. Nothing was written to the board.",
       "blocked": "Open assumptions: airframe-thrust-and-mass-unmeasured, dash-accel-profile. Needs a measured airframe. Also the power path: the power module (PM02) is rated 60 A, 120 A for under 60 s. The sim's 80 mph take asks for only 1.4 times weight in thrust (rough estimate 30 to 50 A with real drag); a saturated full-throttle dash is about 86 A as logged on the target drone, with the pack down to 3.05 V per cell. Check before raising the envelope: docs/airframe_numbers.md section 6.",
       "doc": "isim/specs/approach_dash_2026-10-21.md"
     },
@@ -555,9 +595,45 @@
       "blocked": "~1-1.5 GB disk only; nothing on the kill path",
       "doc": "docs/deletion_candidates_2026-10-22.md (Tier 3)",
       "rec": "Keep until after the weekend attempt is scored - then prune with the provenance-safe rules."
+    },
+    {
+      "id": "cue-radio-leg",
+      "question": "The interceptor needs the target's GPS up to the moment of GO. The Pi side now exists and works on the bench, but nothing yet gets the target's GPS off the target. Which path do we build?",
+      "options": [
+        "Typed belief for now: the target waits at the start of a straight leg and is released on the GO call (what the sims assume; no new hardware)",
+        "A small telemetry radio pair straight from the target to the Pi (one hop, no laptop in the loop)",
+        "The transmitter's Wi-Fi backpack to a laptop, then laptop to Pi over the field hotspot (no new hardware, unproven on this firmware)"
+      ],
+      "rec": "Option 1 for the first moving-target flights, and build option 2 behind it. Option 1 is honest only for a straight leg from a known start; it is not the cued-interceptor concept.",
+      "blocked": "Needs your hands either way (radio wiring on the target, or the transmitter's menus).",
+      "doc": "docs/interface_audit_2026-11-18.md G3, G9; docs/cue_relay_plan.md sections 2 and 13; flight/cue_link.py"
+    },
+    {
+      "id": "lost-target-clock",
+      "question": "When the camera loses a target that is still ahead, the aircraft gives up after 2.0 s, before its own return-to-chase logic (3.0 s) can run. A 6 s clock gained 11 kills of 400 in the fast sim with all errors on and lost none. Lengthen it?",
+      "options": [
+        "Keep 2.0 s everywhere",
+        "6 s only when the target was last seen beyond the 3 m miss range (the close-miss rule stays as you ruled it)",
+        "6 s always"
+      ],
+      "rec": "Option 2, after one Gazebo rung. The gain is real but small; the larger fixes are camera up-tilt and not starting the clock on a stray early decode (guidance review items 1 and 2).",
+      "blocked": "It lengthens blind flight near the target after a genuine miss, which is your 2026-09-22 ruling to change.",
+      "doc": "isim/specs/approach_dash_drag_prereg_2026-11-18.md (stages 3 and 5); docs/guidance_review_2026-11-18.md"
     }
   ],
   "plain_log": [
+    {
+      "date": "2026-11-18",
+      "text": "Asked whether the sim needs air drag, I put drag into the fast sim and ran the 500 m dash about 6,000 times. Expected drag barely matters for hitting the target, but the aircraft never reaches 80 mph with it (about 67 mph), so that figure is a no-drag number. The sim's own vehicle model was climbing thousands of metres when held on its lean limit; that is repaired. The real finding was not drag: with a 10% error in the target's believed speed, the long dash arrives about 22 m off along the track, parks behind where it thinks the target is, and never sees it in 61% of runs. October's long-range runs had no speed error in the cue. An independent check of my geometry corrected two of my numbers and confirmed the cause.",
+      "so_what": "The long-range dash is only as good as the cue's speed estimate, and the aircraft has no way yet to search for a target that is not where it believes. Three things follow: measure the real cue's speed error on one straight fast leg, build a search on arrival (prototype under test), and stop reading the 80 mph video as a demonstrated capability.",
+      "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md; docs/arrival_geometry_2026-11-18.md; docs/guidance_review_2026-11-18.md; runs/approach_dash_drag_20261118/"
+    },
+    {
+      "date": "2026-11-18",
+      "text": "Audit of how the flight program talks to the Pi and Pixhawk in automatic flight, read from the code and checked on the bench. The state machine and failsafes are solid in tests. But the program has never run on the real Pixhawk, its only live mode is the simulator's (it fires GO by itself, uses a fake target and arms on its own), a hung program would keep the last speed command flowing, and the target cue is read once at start so it is hundreds of metres stale by GO. On the bench, read-only: the Pi reaches the Pixhawk over its serial cable while the recorder uses USB; the board is limited to 12 m/s, returns home on radio loss even in automatic flight, and has a 457 m geofence. A new live cue link was built and tested over Wi-Fi: after 30 s of a made-up moving target the Pi's belief at the latch was 0.3 m from the truth, and a stale stream was refused.",
+      "so_what": "Nothing automatic should fly on the real aircraft until the guarded flight mode, the watchdog and a props-off rehearsal exist; they are being built now. The cue link's Pi half works; getting the target's GPS off the target still needs a radio path and your hands.",
+      "evidence": "docs/interface_audit_2026-11-18.md; runs/fc_readonly_20261118/README.md; flight/cue_link.py; flight/tests/test_cue_link.py"
+    },
     {
       "date": "2026-11-18",
       "text": "The builder asked whether the pod material choice and the power wiring had been checked against the 80 mph approach dash. They had not: the pod's vibration and heat sums were built around hover. Redone by hand: wind on the pod at 80 mph is about 4.7 N, less than the 16 N already checked, so wind does not drive the material; heat is still the solid reason for a carbon-filled nylon. On the wiring: all battery current passes through the power module (PM02), rated 60 A and 120 A for under a minute. The simulator's 80 mph take never asked for more than 1.4 times the aircraft's weight in thrust, so it is not a full-throttle dash; with air drag added (the simulator has none) my rough estimate is 30 to 50 A. A true full-throttle dash is the heavier case: the target drone, same motors and battery, logged about 86 A (uncalibrated sensor) while the battery sagged to 3.05 V per cell.",
@@ -617,18 +693,6 @@
       "text": "The target drone flew again in the evening and the runaway climb did not come back. Roll and pitch were calm on the halved gains. A new fault showed in Position mode: the drone bounced up and down. The log shows the height controller pulsing the motors between idle and about 1400 several times a second. Its gains were still the firmware defaults, sized for a drone that hovers at half throttle; this one hovers at 8% (measured in this flight), so they were about 6 times too strong. ArduPilot's first-flight page says to scale them to the hover thrust, and that step had been skipped. They are now scaled and written to the board.",
       "so_what": "Not yet flown with the new height gains. Next is a low hop to see whether Position mode holds height. In Position mode the stick in the middle holds height; below about 40% it descends. The measured hover point leaves the safety margin against the climb thinner than computed (the motors' ceiling is about 0.9 times the weight, not 0.7).",
       "evidence": "runs/target_flight2_20261114/README.md + height_loop_analysis.txt + hover_thrust_fit.txt; ADR-0138 addendum 9; configs/target_kakute/target.param"
-    },
-    {
-      "date": "2026-11-14",
-      "text": "The fix for the target drone's runaway climb is on its board but not yet proven. The firmware may raise the motors to keep roll and pitch control even with the throttle stick at the bottom, up to a ceiling it will not let anyone set lower. What that ceiling means in motor signal depends on the motors' floor, so the floor was lowered from 15% to 10% (the logs show the motors running steadily there). Computed from the crash log, the ceiling drops from about 1.4 times the weight to about 0.7 times. Full top-end power is kept, at the builder's request; a first version that cut the motors' top instead was withdrawn the same day. The roll and pitch gains were halved, the documented response to the wobble that started it.",
-      "so_what": "Still no flight: a props-off bench check (the board fights you with the stick at the bottom; the motor average must stay under the hover point) comes first, then a low hop. The settings checker now rejects any file whose ceiling is above hover.",
-      "evidence": "ADR-0138 addenda 7 and 8; configs/target_kakute/target.param + lint_param.py; runs/target_bench_20261114/README.md; scripts/bench/ap_thrust_ceiling_check.py"
-    },
-    {
-      "date": "2026-11-14",
-      "text": "The target drone's first flight ended in a crash, and the board's log explains it. It flew for 3.8 seconds in Position hold and reached 23 m before the builder cut the motors; it fell and hit the lawn battery first. The roll and pitch control loops were oscillating from lift-off. ArduPilot lets attitude control raise the motors to keep its grip, up to a cap of half the hover thrust it has been told. That figure had been set to 0.20 that morning; the log shows this drone really hovers at about 0.06. So the cap sat well above hover, and the drone climbed at up to 7.6 m/s while the stick and the height controller were both asking for down.",
-      "so_what": "No flight of the target until: damage is checked, the roll/pitch gains are halved, the hover figure and that cap are brought below the drone's real hover, Stabilize is back on the switch for first hops, and minimum throttle is shown on the ground to mean descent. Both candidate causes written before reading the log were wrong as stated; the hover figure was mine. The battery took the impact and is a fire risk.",
-      "evidence": "runs/target_bench_20261114/README.md + crash_flight_timeline.txt; ADR-0138 addenda 5 and 6"
     }
   ],
   "narrative": {
@@ -4025,6 +4089,45 @@
       "loc_b": "project_state.json build_tab (FC High-Endurance microSD); docs/fc_logging_without_sd.md",
       "current_truth": "The rule can be met another way but has not been yet. Since 2026-11-13 a Pi service saves the flight log PX4 streams to it, plus camera video while armed. On the bench the log is complete over a USB cable and loses about a third over the serial cable. No real flight has been recorded, and the USB cable is not fitted on the aircraft.",
       "resolution": "OPEN until a real flight produces a clean interceptor log. Path chosen in ADR-0137: fit a Pixhawk-to-Pi USB cable, do a props-off arm test, then fly with the Pi. Replacing the flight controller stays the builder's option. Found by the 2026-11-09 staleness audit."
+    },
+    {
+      "id": "approach-dash-shown-only-with-a-near-perfect-cue",
+      "verdict": "CONFIRMED",
+      "severity": "high",
+      "status": "open",
+      "topic": "The 500 m, 80 mph approach dash reads as demonstrated; it was demonstrated with a cue that had no speed error",
+      "claim_a": "Stage 'terminal': approach_dash ... Gazebo: 500 m cue, 35.8 m/s peak, CPA 0.087 m. October spec: every cell with brake a<=4 locks 8/8 and intercepts.",
+      "loc_a": "project_state.json stages/terminal; isim/specs/approach_dash_2026-10-21.md RESULT",
+      "claim_b": "With the standing error package on (10% target-speed error among others) the same dash kills 13 to 17 of 50 against a straight target and never decodes the tag in 61% of runs. The 80 mph figure is also a no-drag number: with the assumed drag the vehicle tops out near 30 m/s.",
+      "loc_b": "isim/specs/approach_dash_drag_prereg_2026-11-18.md stage 1, 2, 2b; docs/arrival_geometry_2026-11-18.md",
+      "current_truth": "The long-range dash works when the cue's speed is right to about 2.5% fast or 6% slow, and has no way to find a target that is not where it believes. Fast-sim evidence on October's optics (wide lens, 0.5 m tag, no camera tilt); a real cue's speed error on a fast leg is not measured. A search-on-arrival prototype is being tested.",
+      "resolution": ""
+    },
+    {
+      "id": "real-flight-program-has-no-flight-mode",
+      "verdict": "CONFIRMED",
+      "severity": "high",
+      "status": "open",
+      "topic": "The kill-day protocol assumes a flight program that can be rehearsed props-off and started deliberately; the code has neither",
+      "claim_a": "L0 props-off rehearsal: start the state machine, watch STANDBY, flip GO, kill the transmitter. The pilot can take the aircraft back at any time.",
+      "loc_a": "docs/kill_day_protocol.md sections 4 (L0), 5.3, 5.4",
+      "claim_b": "The only live path is the simulator smoke mode: default trigger fires GO by itself, default detector is synthetic, the program arms and takes off on its own, a hung program keeps the last velocity command flowing, and teardown commands a landing under a pilot who has taken over. Radio loss returns home even in automatic flight, so the transmitter-off test cannot pass as the board is set.",
+      "loc_b": "docs/interface_audit_2026-11-18.md G1, G2, G5, G6, G11; runs/fc_readonly_20261118/interceptor_params.txt",
+      "current_truth": "Open. Fixes (a guarded flight mode, a props-off bench mode, a watchdog, teardown and own-state age) are being built on a branch and are untested on hardware. The Pi does reach the Pixhawk over TELEM2 with the recorder on USB (bench, read-only, 2026-11-18).",
+      "resolution": ""
+    },
+    {
+      "id": "october-36-3-cliff-probably-a-sim-defect",
+      "verdict": "PLAUSIBLE",
+      "severity": "low",
+      "status": "open",
+      "topic": "October's 'do NOT fly 36 m/s with brake a=3' rests on runs that look like a sim defect",
+      "claim_a": "One real cliff: vmax=36 with a=3 at the far crossing fails 0/8 (closest ~150 m); do NOT fly 36/3.",
+      "loc_a": "isim/specs/approach_dash_2026-10-21.md RESULT",
+      "claim_b": "The fast sim's vehicle model climbed without bound when held on its lean limit (2,500 m in one run). Runs with that defect show the same signature: no decodes, closest approach 100 to 190 m at 16 to 26 s. With the defect repaired, 36/3 intercepts in all three geometries tested.",
+      "loc_b": "isim/specs/approach_dash_drag_prereg_2026-11-18.md amendment 1 and stage 1; isim/vehicle.py tilt_sat_vertical_priority",
+      "current_truth": "Probable, not shown: October's far-crossing geometry is not recorded and its script was not committed, so that exact case cannot be rerun.",
+      "resolution": ""
     }
   ]
 }
