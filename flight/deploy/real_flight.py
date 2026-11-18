@@ -109,6 +109,25 @@ RUN IT
   .venv/bin/python -m flight.deploy.real_flight --sitl-smoke \
       --mavsdk-url udpin://0.0.0.0:14540
 
+  # PROPS-OFF REHEARSAL on the real Pi + Pixhawk (cannot arm; no flight battery)
+  .venv-pi/bin/python -m flight.deploy.real_flight --bench-props-off \
+      --mavsdk-url serial:///dev/ttyAMA10:921600 --trigger rc --rc-channel 7
+
+  # THE REAL FLIGHT (the only mode that may arm over a serial link)
+  .venv-pi/bin/python -m flight.deploy.real_flight --fly \
+      --mavsdk-url serial:///dev/ttyAMA10:921600 --trigger rc --rc-channel 7 \
+      --arm-permit-channel 8 --source picamera --target-span-m 0.30 \
+      --cue-json cue.jsonl --own-lat ... --own-lon ... --own-alt-m-msl ...
+
+THE THREE LIVE MODES (2026-11-18, interface audit): `--sitl-smoke` arms and
+takes off on its own with a synthetic GO and a synthetic target, so it refuses
+a serial link. `--bench-props-off` runs the same control loop on the real board
+and structurally cannot arm. `--fly` is the real flight: it refuses synthetic
+triggers and detectors and a belief nobody entered, reads the board's limits,
+prints a pre-arm summary, and arms only on the operator's RC arm permit. Every
+live path runs under flight/deploy/loop_supervisor.py, which ends the setpoint
+stream if the control loop stalls or this program dies.
+
 DEPS: pure stdlib + numpy (via seeker_loop). `mavsdk` is a GUARDED import used
 only by the live driver, so every offline path runs on this x86 desk.
 """
@@ -460,6 +479,29 @@ class MissionConfig:
     # MAVSDK-side cadence as identical.
     offboard_stale_s: Optional[float] = 3.0
 
+    # --- FAILSAFE 9: STALE OWN-STATE (interface audit 2026-11-18, gap G7) ------
+    # Attitude, yaw, height and velocity each arrive on their own telemetry
+    # stream. If one stops, its last value stays in the driver's dict FOREVER
+    # and every consumer keeps computing on it: a frozen height makes the
+    # STANDBY height loop command a constant climb or descent, a frozen
+    # attitude rotates every camera bearing by the wrong amount. The terminal
+    # already refuses to STEER on own-state older than
+    # GuidanceConfig.own_state_max_age_s (0.25 s) -- but until 2026-11-18 this
+    # driver never told it the age, so that check never ran here.
+    # This bound is the state machine's own: own-state older than this, in ANY
+    # state but SAFE, goes SAFE. It is deliberately looser than the terminal's
+    # 0.25 s (a short gap should cost a few held ticks, not the flight) and
+    # tighter than FAILSAFE 7's 3.0 s mode-sample bound, which until now was
+    # the only thing that could notice a dead link after GO -- 3 s at dash
+    # speed is up to 100 m.
+    # None disables it. `VehicleObs.own_state_age_s` None (a driver that does
+    # not stamp its streams: the offline vehicle, the desk mode, isim's
+    # adapter) leaves it inactive, byte-identical to before.
+    # TODO-BUILDER: 1.0 s is 30 missed samples of the slowest consumed stream
+    # as measured on the real TELEM2 link (30 Hz, runs/fc_readonly_20261118/);
+    # tighten it once the bench props-off run has printed the worst age seen.
+    own_state_stale_s: Optional[float] = 1.0
+
     # --- vertical / hold control ----------------------------------------------
     kp_alt: float = 1.0
     v_vert_max_ms: float = 2.0
@@ -573,12 +615,19 @@ class VehicleObs:
     # relative-velocity estimator reads it via own_state() below -- own-state,
     # not ground truth, the vector twin of `ground_speed_ms` above.
     vel_ned: Optional[Tuple[float, float, float]] = None
+    # Age (s) of the OLDEST own-state stream the guidance consumes (attitude
+    # quaternion, yaw, height, velocity), as stamped by the driver on arrival.
+    # None = the driver does not stamp (offline vehicle, desk, isim adapter):
+    # the terminal's staleness check and FAILSAFE 9 both stay inactive, exactly
+    # as before. See MissionConfig.own_state_stale_s.
+    own_state_age_s: Optional[float] = None
 
     def own_state(self) -> OwnState:
         return OwnState(quat=self.quat,
                         psi_rad=(None if self.yaw_deg is None
                                  else math.radians(self.yaw_deg)),
-                        alt_m=self.alt_m, vel_ned=self.vel_ned)
+                        alt_m=self.alt_m, vel_ned=self.vel_ned,
+                        age_s=self.own_state_age_s)
 
 
 @dataclass
@@ -833,6 +882,7 @@ class RealFlightSM:
         # it is reading True right now). Persistence, not a single bad tick.
         self._offboard_bad_since: Optional[float] = None
         self.max_offboard_sample_age_s: float = 0.0        # evidence for the log
+        self.max_own_state_age_s: float = 0.0              # FAILSAFE 9 evidence
         self._broken_streak = 0            # FAILSAFE 8 persistence counter
         # Own displacement since the dash began -- ONE running integrator that
         # feeds BOTH FAILSAFE 4's optional distance bound (CODED_DASH) and the
@@ -1049,6 +1099,24 @@ class RealFlightSM:
                                "is a FROZEN value, not a live one)")
         return True, "ok"
 
+    def own_state_status_sm(self, obs: VehicleObs) -> Tuple[bool, str]:
+        """FAILSAFE 9 input. Returns (ok, reason). Pure + public, like
+        offboard_status(). Inactive (always ok) when the driver supplies no age
+        or the bound is None."""
+        age = obs.own_state_age_s
+        if age is None:
+            return True, "not_instrumented"
+        self.max_own_state_age_s = max(self.max_own_state_age_s, float(age))
+        bound = self.cfg.own_state_stale_s
+        if bound is None:
+            return True, "disabled"
+        if age < 0.0:
+            return False, (f"age={age:.2f}s < 0 -- stamp and reader are on "
+                           "different clocks")
+        if age > bound:
+            return False, f"oldest stream {age:.2f}s > {bound:.2f}s"
+        return True, "ok"
+
     def arm_gate(self, obs: VehicleObs) -> Tuple[bool, List[str]]:
         """The Sec 4 arm gate: the Pi REFUSES to dash unless the aircraft is in a
         fit state. Pure + public so the driver (and the tests) can ask."""
@@ -1253,6 +1321,27 @@ class RealFlightSM:
                            f"path is gone after the GO edge -- SAFE is absorbing, "
                            f"so the vehicle gets a ZERO-velocity hold + land "
                            f"request if control returns, NOT the dash command",
+                           events)
+                return self._decide(before, transition_before,
+                                    self._safe_setpoint(obs), events, None)
+
+        # FAILSAFE 9 -- STALE OWN-STATE (MissionConfig.own_state_stale_s). Every
+        # state but SAFE, STANDBY included: a frozen height in STANDBY drives
+        # the height loop, which is as bad as a frozen attitude in ENGAGE.
+        # Checked before the state body so no tick steers on numbers known to
+        # be old. A NEGATIVE age is a clock-base fault and is treated as loss,
+        # the same rule as the RC and flight-mode ages.
+        if self.state != State.SAFE:
+            own_ok, own_why = self.own_state_status_sm(obs)
+            if not own_ok:
+                self._last_obs_t = obs.t
+                self._transition(State.SAFE, f"own_state_stale({own_why})",
+                                 obs, events)
+                self.safe_reason = "own_state_stale"
+                self._emit(f"[{obs.t:7.2f}s] FAILSAFE 9: own-state telemetry is "
+                           f"stale ({own_why}) -- an attitude, height or "
+                           f"velocity stream has stopped and its last value is "
+                           f"frozen. SAFE: zero-velocity hold + land request.",
                            events)
                 return self._decide(before, transition_before,
                                     self._safe_setpoint(obs), events, None)
@@ -1995,6 +2084,9 @@ _AUDITED_MODULES = (
     # frame_recorder is log-only, but it runs on the vehicle, so it is audited
     # rather than exempted: cheaper to walk it than to argue about it.
     os.path.join("flight", "deploy", "frame_recorder.py"),
+    # The setpoint-stream watchdog (2026-11-18). A separate process that reads
+    # no sensor, but it runs on the vehicle: same rule as the recorder.
+    os.path.join("flight", "deploy", "loop_supervisor.py"),
 )
 
 # Modules REACHABLE from the audited closure that the audit deliberately does
@@ -2405,6 +2497,514 @@ def run_desk(cfg: MissionConfig, sm: "RealFlightSM", trigger, detector,
     return sm, rows
 
 
+# ---------------------------------------------------------------- live-driver safety
+#
+# Built 2026-11-18 from the interface audit of the same day. The audit read the
+# live driver and found that the only way to fly the real aircraft was the SITL
+# smoke path with its simulator defaults (G1), that a hung Pi program keeps the
+# aircraft flying its last command (G2), that the board's limits are below what
+# the guidance commands and nothing checks (G4), that teardown lands the aircraft
+# out from under a pilot who has taken over (G6), that a frozen own-state stream
+# goes unnoticed (G7), and that the props-off rehearsal the field protocol asks
+# for could not be run at all (G11).
+#
+# Everything in this section is PURE, or a thin wrapper round one child process,
+# so it is tested on the desk (flight/tests/test_real_flight_driver.py). The
+# driver below only wires it together.
+
+
+def is_serial_url(url) -> bool:
+    """True for a MAVSDK URL that addresses a REAL serial link (the Pi's UART to
+    TELEM2, or the Pixhawk's USB port). A simulator is always UDP or TCP."""
+    return bool(url) and str(url).strip().lower().startswith("serial")
+
+
+class _ExplicitStore(argparse.Action):
+    """argparse `store`, plus a record that the operator TYPED this flag.
+
+    `--target-start` and `--target-vel` have simulator defaults (a 9 m/s target
+    16.7 m north). A real flight must not be able to inherit a belief nobody
+    entered, and a value equal to the default is still a decision if it was
+    typed -- so "explicit" is recorded, not inferred by comparing values."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        seen = set(getattr(namespace, "explicit_flags", None) or ())
+        seen.add(self.dest)
+        namespace.explicit_flags = seen
+
+
+def validate_fly_args(args) -> List[str]:
+    """Every reason `--fly` must refuse to start, as plain sentences. Empty list
+    = allowed. Pure, so the refusals are unit-tested without a vehicle.
+
+    `--fly` is the ONLY mode that may arm over a serial link. It exists so a
+    real flight cannot be started with a synthetic trigger, a synthetic target
+    or a belief nobody entered -- all three were the DEFAULTS of the only live
+    path before 2026-11-18."""
+    why: List[str] = []
+    if not getattr(args, "mavsdk_url", None):
+        why.append("--fly needs --mavsdk-url (on the Pi: "
+                   "serial:///dev/ttyAMA10:921600)")
+    if getattr(args, "trigger", None) != "rc":
+        why.append(f"--fly needs --trigger rc: '{getattr(args, 'trigger', None)}' "
+                   f"is a synthetic GO that fires with no human")
+    src = getattr(args, "source", None)
+    if not src:
+        why.append("--fly needs a real camera (--source picamera): without "
+                   "--source the detector is a synthetic target")
+    elif str(src).startswith("dir:"):
+        why.append(f"--fly refuses --source {src}: replayed images are not a "
+                   f"camera")
+    explicit = set(getattr(args, "explicit_flags", None) or ())
+    if not getattr(args, "cue_json", None):
+        missing = [f for f in ("target_start", "target_vel") if f not in explicit]
+        if missing:
+            why.append("--fly needs an explicit belief: --cue-json FILE, or BOTH "
+                       "--target-start and --target-vel typed (with "
+                       "--manual-belief). The defaults are a simulator's.")
+        elif not getattr(args, "manual_belief", False):
+            why.append("a typed --target-start/--target-vel belief needs "
+                       "--manual-belief, to say on the record that the aim came "
+                       "from a person and not from the GPS cue")
+    ch = getattr(args, "arm_permit_channel", None)
+    if ch is None:
+        why.append("--fly needs --arm-permit-channel N: the RC switch whose "
+                   "LOW-to-HIGH flip permits the program to arm and take off")
+    elif ch == getattr(args, "rc_channel", None):
+        why.append(f"--arm-permit-channel {ch} is the GO channel: the permit "
+                   f"must be a different switch")
+    if not (getattr(args, "loop_watchdog_s", 0.0) or 0.0) > 0.0:
+        why.append("--fly refuses --loop-watchdog-s 0: a real flight does not "
+                   "run without the setpoint-stream watchdog")
+    return why
+
+
+def validate_bench_args(args) -> List[str]:
+    """Reasons `--bench-props-off` must refuse to start. Empty list = allowed."""
+    why: List[str] = []
+    if not getattr(args, "mavsdk_url", None):
+        why.append("--bench-props-off needs --mavsdk-url")
+    if getattr(args, "trigger", None) not in ("rc", "timer"):
+        why.append("--bench-props-off needs --trigger rc (the real GO switch) "
+                   "or --trigger timer (unattended)")
+    return why
+
+
+class ArmPermit:
+    """`--fly`'s deliberate human step, as a pure latch.
+
+    Launching the program must NOT be the arm command (it was, before
+    2026-11-18: the driver armed the moment GPS health went good). Under
+    `--fly` the program connects, checks, prints what it is about to do, and
+    then WAITS for this permit before it arms:
+
+        1. the RC link is alive and the GO switch is seen LOW;
+        2. the PERMIT switch (a different channel) is seen LOW;
+        3. the permit switch then goes HIGH while the GO switch is still LOW.
+
+    Fail-closed at every step: a permit switch found already HIGH never counts
+    (it must be seen LOW first, the same rule as the GO edge); a rise while the
+    GO switch is HIGH is refused and the permit must go LOW again; no RC link
+    means no progress. The permit is a one-way latch for this run -- lowering
+    the switch afterwards does nothing (stopping the aircraft is the kill
+    switch's job, and PX4's, not this program's).
+
+    Feed it the two `TriggerState`s from two `RcChannelTrigger`s every poll."""
+
+    def __init__(self, high_us: int = 1700, low_us: int = 1300):
+        if low_us >= high_us:
+            raise ValueError("low_us must be < high_us")
+        self.high_us, self.low_us = int(high_us), int(low_us)
+        self.go_seen_low = False
+        self.permit_seen_low = False
+        self.granted = False
+        self.refused_go_high = False
+        self._permit_prev_high: Optional[bool] = None
+
+    def _level(self, ts: TriggerState) -> Optional[str]:
+        if not ts.link_ok or ts.raw_us is None:
+            return None
+        if ts.raw_us >= self.high_us:
+            return "high"
+        if ts.raw_us <= self.low_us:
+            return "low"
+        return "mid"
+
+    def update(self, go: TriggerState, permit: TriggerState) -> bool:
+        if self.granted:
+            return True
+        g, p = self._level(go), self._level(permit)
+        if g is None or p is None:
+            # No link, no progress -- and a stale switch is not a seen switch.
+            self._permit_prev_high = None
+            return False
+        if g == "low":
+            self.go_seen_low = True
+        if p == "low":
+            self.permit_seen_low = True
+        rose = (p == "high" and self._permit_prev_high is False)
+        self._permit_prev_high = (p == "high") if p != "mid" else self._permit_prev_high
+        if rose and self.permit_seen_low:
+            if g == "low" and self.go_seen_low:
+                self.granted = True
+            else:
+                # GO is up (or was never seen down): refuse, and make the
+                # operator lower the permit switch before trying again.
+                self.refused_go_high = True
+                self.permit_seen_low = False
+        return self.granted
+
+    def status(self) -> str:
+        if self.granted:
+            return "GRANTED"
+        if not self.go_seen_low:
+            return "waiting: GO switch not yet seen LOW with a live RC link"
+        if not self.permit_seen_low:
+            return "waiting: permit switch not yet seen LOW"
+        return "ready: raise the permit switch (GO must stay LOW)"
+
+
+# Flight modes in which THIS PROGRAM owns the aircraft. In any other mode
+# either the pilot has taken it (manual, stabilized, altitude, position, acro)
+# or PX4 is already running its own failsafe (return, land).
+_PROGRAM_OWNED_MODES = ("OFFBOARD", "HOLD", "TAKEOFF")
+
+
+def teardown_plan(mode_name: Optional[str], mode_age_s: Optional[float],
+                  stale_s: Optional[float], safe_behavior: str
+                  ) -> Tuple[bool, Optional[str], str]:
+    """What the driver may send when it shuts down. Returns
+    (stop_offboard, action, why) with action in ('land', 'rtl', None).
+
+    THE FAULT THIS FIXES (audit gap G6): teardown used to send `offboard.stop()`
+    and then LAND unconditionally. MAVSDK's `offboard.stop()` itself commands
+    HOLD. So when the pilot flipped the mode switch to take the aircraft back --
+    the thing the field protocol tells him is safe -- the program answered about
+    2.5 s later by pulling it into HOLD and then LAND under his hands.
+
+    RULE: commands go out only while the aircraft is in a mode this program put
+    it in (OFFBOARD, HOLD, or TAKEOFF before OFFBOARD was ever reached). In a
+    pilot mode, or a PX4 failsafe mode, the program sends NOTHING -- not even
+    the offboard stop.
+
+    UNKNOWN is the one judgment call: with no flight-mode sample at all, or a
+    stale one, nobody can say who has the aircraft. This keeps the old
+    behaviour there (stop and land), because an aircraft left hovering with no
+    program and no known owner is the worse of the two errors, and a pilot who
+    does have it can cancel a LAND with his mode switch. Pure."""
+    action = "rtl" if safe_behavior == "rtl" else "land"
+    name = None if mode_name is None else \
+        str(mode_name).rsplit(".", 1)[-1].strip().upper()
+    stale = (mode_age_s is not None
+             and (mode_age_s < 0.0
+                  or (stale_s is not None and mode_age_s > stale_s)))
+    if name is None or name in ("", "UNKNOWN", "NONE") or stale:
+        return True, action, ("flight mode unknown or stale -- cannot tell who "
+                              "has the aircraft; stopping and landing")
+    if name in _PROGRAM_OWNED_MODES:
+        return True, action, f"aircraft is in {name}, which this program commanded"
+    return False, None, (f"aircraft is in {name}: the pilot or a PX4 failsafe "
+                         f"has it -- this program sends NOTHING")
+
+
+def own_state_age(stamps: dict, now: float) -> Optional[float]:
+    """Age of the OLDEST own-state stream, given each stream's last arrival
+    stamp (None = that stream has not delivered yet, which the arm gate already
+    refuses on -- so it is not counted as old). None when nothing has arrived.
+    `now` and the stamps MUST share one clock."""
+    ages = [now - t for t in stamps.values() if t is not None]
+    return max(ages) if ages else None
+
+
+# The PX4 settings the guidance silently depends on, read ONCE before arming.
+# READ-ONLY: this module never writes a parameter (a test walks the syntax tree
+# for any set_param call). The one write on the live path is MAVSDK's own
+# `set_takeoff_altitude`, which sets MIS_TAKEOFF_ALT; the pre-arm summary says so.
+PLATFORM_PARAMS: Tuple[Tuple[str, str, str], ...] = (
+    ("MPC_XY_VEL_MAX", "float", "horizontal speed limit, m/s"),
+    ("MPC_TILTMAX_AIR", "float", "lean limit, deg"),
+    ("MPC_ACC_HOR_MAX", "float", "horizontal acceleration limit, m/s^2"),
+    ("GF_ACTION", "int", "geofence action (0 none, 1 warn, 2 hold, 3 return, "
+                         "4 terminate, 5 land)"),
+    ("GF_MAX_HOR_DIST", "float", "geofence radius, m (0 = off)"),
+    ("GF_MAX_VER_DIST", "float", "geofence height, m (0 = off)"),
+    ("COM_RCL_EXCEPT", "int", "modes exempt from RC-loss failsafe (bit 2 = offboard)"),
+    ("COM_OF_LOSS_T", "float", "offboard stream loss timeout, s"),
+    ("COM_OBL_RC_ACT", "int", "action on offboard loss (0 position, 1 altitude, "
+                              "2 manual, 3 return, 4 land, 5 hold)"),
+)
+
+
+async def read_platform_limits(drone, timeout_s: float = 5.0
+                               ) -> Tuple[dict, List[str]]:  # pragma: no cover -- needs a link; driven by the fake in tests
+    """Read `PLATFORM_PARAMS` from the vehicle. Returns (values, unread) where
+    `unread` lists every parameter that did not come back and why. Never
+    substitutes a default for a value it could not read."""
+    import asyncio
+    vals: dict = {}
+    unread: List[str] = []
+    for name, kind, _what in PLATFORM_PARAMS:
+        getter = (drone.param.get_param_float if kind == "float"
+                  else drone.param.get_param_int)
+        try:
+            vals[name] = await asyncio.wait_for(getter(name), timeout=timeout_s)
+        except Exception as e:  # noqa: BLE001 -- any failure is "not read"
+            unread.append(f"{name} ({type(e).__name__}: {e})")
+    return vals, unread
+
+
+def approach_transit_lower_bound_s(belief_range_m: float, v_cap_ms: float,
+                                   brake_accel_ms2: float) -> float:
+    """Shortest time an approach dash to a belief `belief_range_m` away can
+    take: the transit at the speed ceiling, the braking tail, and a fixed 8 s
+    terminal allowance. (The expression build_terminal has always printed.)"""
+    return (belief_range_m / max(v_cap_ms, 1e-6)
+            + v_cap_ms / max(brake_accel_ms2, 1e-6) / 2.0
+            + 8.0)
+
+
+def believed_rendezvous(r0_ne: Tuple[float, float], v_ne: Tuple[float, float],
+                        v_own_ms: float, horizon_s: float
+                        ) -> Tuple[Tuple[float, float], float, bool]:
+    """Where and when a vehicle flying straight at `v_own_ms` from the launch
+    point meets a target believed at `r0_ne` moving at `v_ne` (north, east).
+    Returns (point_ne, t_s, catchable). When there is no meeting inside
+    `horizon_s` (the target is as fast as the vehicle, or faster), returns the
+    believed target position AT the horizon and catchable=False -- the farthest
+    the engagement can drag the vehicle."""
+    rn, re_ = float(r0_ne[0]), float(r0_ne[1])
+    vn, ve = float(v_ne[0]), float(v_ne[1])
+    a = vn * vn + ve * ve - v_own_ms * v_own_ms
+    b = 2.0 * (rn * vn + re_ * ve)
+    c = rn * rn + re_ * re_
+    t_hit: Optional[float] = None
+    if abs(a) < 1e-9:
+        if abs(b) > 1e-9 and -c / b > 0.0:
+            t_hit = -c / b
+    else:
+        disc = b * b - 4.0 * a * c
+        if disc >= 0.0:
+            roots = [(-b - math.sqrt(disc)) / (2.0 * a),
+                     (-b + math.sqrt(disc)) / (2.0 * a)]
+            pos = [r for r in roots if r > 0.0]
+            if pos:
+                t_hit = min(pos)
+    if t_hit is None or t_hit > horizon_s:
+        t = float(horizon_s)
+        return (rn + vn * t, re_ + ve * t), t, False
+    return (rn + vn * t_hit, re_ + ve * t_hit), t_hit, True
+
+
+def commanded_caps(args, cfg: MissionConfig, guidance) -> dict:
+    """What the guidance may COMMAND, gathered in one place so it can be printed
+    beside what the board will actually fly. Pure."""
+    which = getattr(args, "terminal", "stock")
+    t_e, t_n = (float(v) for v in str(args.target_start).split(",")[:2])
+    v_e, v_n = (float(v) for v in str(args.target_vel).split(",")[:2])
+    caps = {"terminal": which, "belief_r0_ne": (t_n, t_e), "belief_v_ne": (v_n, v_e),
+            "approach_dash": False, "brake_accel_ms2": None}
+    p = getattr(guidance, "cfg", None)
+    if which == "pursuit" and p is not None:
+        v = float(p.v_max_ms)
+        accel = max(float(p.accel_max_ms2), float(p.accel_max_horiz_b_ms2))
+        if getattr(p, "adaptive_speed", False):
+            v = max(v, float(p.v_hw_max_ms))
+        if getattr(p, "approach_dash", False):
+            v = max(v, float(p.dash_v_max_ms))
+            accel = max(accel, float(p.dash_accel_max_ms2))
+            caps["approach_dash"] = True
+            caps["brake_accel_ms2"] = float(p.brake_accel_ms2)
+        caps.update(v_cap_ms=v, accel_ms2=accel)
+    else:
+        caps.update(v_cap_ms=float(cfg.dash_speed_ms),
+                    accel_ms2=float(cfg.dash_accel_cap_ms2 or cfg.dash_accel_ms2))
+    return caps
+
+
+def check_platform_limits(limits: dict, unread: Sequence[str], caps: dict,
+                          cfg: MissionConfig) -> Tuple[List[str], List[str], List[str]]:
+    """Compare what the guidance commands with what the board will fly.
+    Returns (hard, refusals, notes):
+
+      hard      -- cannot be overridden: a limit that was not READ. A number
+                   that should have been measured is never replaced by a guess.
+      refusals  -- `--fly` stops on these unless --override-platform-limits:
+                   a commanded speed above the board's, a believed rendezvous
+                   outside the geofence, a standby height above its ceiling, a
+                   transit that cannot fit the engage window at the speed the
+                   board allows.
+      notes     -- printed, never blocking.
+    Pure."""
+    hard = [f"not read from the vehicle: {u}" for u in unread]
+    refusals: List[str] = []
+    notes: List[str] = []
+    v_cmd = float(caps["v_cap_ms"])
+    v_plat = limits.get("MPC_XY_VEL_MAX")
+    v_eff = v_cmd
+    if v_plat is not None:
+        v_eff = min(v_cmd, float(v_plat))
+        if v_cmd > float(v_plat) + 1e-6:
+            refusals.append(
+                f"the guidance commands up to {v_cmd:.0f} m/s but the board "
+                f"flies at most {float(v_plat):.0f} m/s (MPC_XY_VEL_MAX): it "
+                f"would silently fly slower than every timing assumes")
+    r0, v0 = caps["belief_r0_ne"], caps["belief_v_ne"]
+    tgt_speed = math.hypot(v0[0], v0[1])
+    belief_range = math.hypot(r0[0], r0[1])
+    point, t_meet, catchable = believed_rendezvous(r0, v0, v_eff, cfg.engage_max_s)
+    d_meet = math.hypot(point[0], point[1])
+    if not catchable:
+        notes.append(
+            f"at {v_eff:.0f} m/s the vehicle does not reach the believed target "
+            f"({tgt_speed:.1f} m/s, {belief_range:.0f} m away) inside the "
+            f"{cfg.engage_max_s:.0f} s engage window; the chase can carry it "
+            f"{d_meet:.0f} m from launch")
+    gf_act = limits.get("GF_ACTION")
+    gf_h = limits.get("GF_MAX_HOR_DIST")
+    gf_v = limits.get("GF_MAX_VER_DIST")
+    if gf_act is not None and int(gf_act) != 0:
+        if gf_h is not None and float(gf_h) > 0.0 and d_meet > float(gf_h):
+            refusals.append(
+                f"the believed rendezvous is {d_meet:.0f} m from launch, "
+                f"outside the {float(gf_h):.0f} m geofence (GF_MAX_HOR_DIST, "
+                f"action {int(gf_act)}): PX4 would leave OFFBOARD on the way")
+        if gf_v is not None and float(gf_v) > 0.0 \
+                and cfg.standby_alt_m > float(gf_v):
+            refusals.append(
+                f"standby height {cfg.standby_alt_m:.1f} m is above the "
+                f"{float(gf_v):.1f} m geofence ceiling (GF_MAX_VER_DIST)")
+    elif gf_act is not None:
+        notes.append("geofence action is 0 (none): nothing on the board bounds "
+                     "how far the chase can go")
+    if caps.get("approach_dash") and caps.get("brake_accel_ms2"):
+        t_min = approach_transit_lower_bound_s(belief_range, v_eff,
+                                               caps["brake_accel_ms2"])
+        if cfg.engage_max_s < t_min:
+            refusals.append(
+                f"the approach dash needs at least {t_min:.0f} s to cover the "
+                f"{belief_range:.0f} m cue at the {v_eff:.0f} m/s the board "
+                f"allows, but the engage window is {cfg.engage_max_s:.0f} s "
+                f"(--engage-max-s): it would time out mid-dash")
+    acc_plat = limits.get("MPC_ACC_HOR_MAX")
+    if acc_plat is not None and caps["accel_ms2"] > float(acc_plat) + 1e-6:
+        notes.append(f"the guidance slews its command at up to "
+                     f"{caps['accel_ms2']:.0f} m/s^2; the board accelerates at "
+                     f"most {float(acc_plat):.0f} (MPC_ACC_HOR_MAX)")
+    rcl = limits.get("COM_RCL_EXCEPT")
+    if rcl is not None and not (int(rcl) & 0b100):
+        notes.append("RC loss in OFFBOARD triggers PX4's RC-loss failsafe "
+                     "(COM_RCL_EXCEPT has no offboard bit): switching the "
+                     "transmitter off after GO ends the intercept")
+    of_t, of_act = limits.get("COM_OF_LOSS_T"), limits.get("COM_OBL_RC_ACT")
+    if of_t is not None and of_act is not None:
+        notes.append(f"if the setpoint stream stops, PX4 waits {float(of_t):.1f} s "
+                     f"(COM_OF_LOSS_T) and then takes action {int(of_act)} "
+                     f"(COM_OBL_RC_ACT; 0 = Position mode)")
+    return hard, refusals, notes
+
+
+def format_platform_table(limits: dict, caps: dict) -> List[str]:
+    """The board's limits beside the guidance's caps, one line each."""
+    lines = [f"[limits] guidance: terminal {caps['terminal']}, commands up to "
+             f"{caps['v_cap_ms']:.0f} m/s, slews at up to {caps['accel_ms2']:.0f} "
+             f"m/s^2" + (", approach dash ON" if caps.get("approach_dash") else "")]
+    for name, _kind, what in PLATFORM_PARAMS:
+        val = limits.get(name)
+        lines.append(f"[limits] board:    {name:<16} = "
+                     f"{'NOT READ' if val is None else val}   ({what})")
+    return lines
+
+
+# What the supervisor must find in a process's command line before it will kill
+# it. A module constant so a test can point it at a stand-in process.
+_SERVER_MATCH = "mavsdk_server"
+_SUPERVISOR_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "loop_supervisor.py")
+
+
+class LoopSupervisor:
+    """This program's end of flight/deploy/loop_supervisor.py (read that file's
+    header for the fault it exists for). Usage: `start(server_pid)` once the
+    MAVSDK server exists; `watch()` when the control loop begins; `beat()` every
+    tick; `unwatch()` before any deliberate pause (teardown); `close()` at exit.
+
+    The pipe is NON-BLOCKING: a watchdog that could stall the loop it watches
+    would be its own fault. A write that fails marks the supervisor LOST, and
+    the driver stops flying on a lost supervisor rather than carry on unwatched."""
+
+    def __init__(self, bound_s: float, log_path: Optional[str] = None,
+                 match: Optional[str] = None):
+        self.bound_s = float(bound_s)
+        self.log_path = log_path
+        self.match = _SERVER_MATCH if match is None else match
+        self._proc = None
+        self.lost = False
+
+    def start(self, server_pid: int) -> bool:
+        import subprocess
+        cmd = [sys.executable, _SUPERVISOR_SCRIPT, "--server-pid", str(server_pid),
+               "--bound-s", f"{self.bound_s:.3f}", "--match", self.match]
+        if self.log_path:
+            cmd += ["--log", self.log_path]
+        try:
+            # Its own session: a terminal Ctrl-C or a dropped SSH session must
+            # reach this program, not the thing watching it.
+            self._proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                                          stdout=subprocess.DEVNULL,
+                                          start_new_session=True, close_fds=True)
+            os.set_blocking(self._proc.stdin.fileno(), False)
+        except OSError as e:
+            print(f"[watchdog] FAULT: could not start the loop supervisor: {e}")
+            self._proc = None
+            self.lost = True
+            return False
+        return True
+
+    def _send(self, b: bytes) -> bool:
+        if self._proc is None or self.lost:
+            return False
+        try:
+            os.write(self._proc.stdin.fileno(), b)
+            return True
+        except (BlockingIOError, BrokenPipeError, OSError, ValueError):
+            self.lost = True
+            return False
+
+    def watch(self) -> bool:
+        """Start timing the gap between beats (the control loop has begun)."""
+        return self._send(b"W")
+
+    def beat(self) -> bool:
+        return self._send(b".")
+
+    def unwatch(self) -> bool:
+        """Stop timing: a deliberate pause follows (teardown, a clean exit)."""
+        return self._send(b"U")
+
+    def alive(self) -> bool:
+        return (self._proc is not None and not self.lost
+                and self._proc.poll() is None)
+
+    def exit_code(self) -> Optional[int]:
+        return None if self._proc is None else self._proc.poll()
+
+    def close(self, wait_s: float = 2.0) -> Optional[int]:
+        """Clean goodbye: disarm, close the pipe, wait for it to go."""
+        if self._proc is None:
+            return None
+        self.unwatch()
+        try:
+            self._proc.stdin.close()
+        except OSError:
+            pass
+        try:
+            return self._proc.wait(timeout=wait_s)
+        except Exception:  # noqa: BLE001 -- it ignores SIGTERM by design
+            self._proc.kill()
+            return self._proc.poll()
+
+
 # ---------------------------------------------------------------- MAVSDK driver
 
 # Timeouts mirror flight/deploy/seeker_loop.py (same PX4 SITL boot, same traps).
@@ -2443,79 +3043,38 @@ def _stamped_det_age(d, t_mission, now_monotonic):
     return None
 
 
-async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
-                             trigger, detector=None,
-                             smoke: bool = False,
-                             frame_recorder=None):  # pragma: no cover -- needs a vehicle
-    """Live driver: connect over MAVLink, stream own-state EKF + RC_CHANNELS, and
-    stream the state machine's NED velocity+yaw setpoints through PX4 OFFBOARD.
+_BENCH_STREAM_WAIT_S = 10.0      # bench: wait this long for armed + battery samples
+_ARM_PERMIT_POLL_S = 0.05
 
-    Unlike seeker_loop, this driver OWNS the takeoff in BOTH modes -- the standby
-    hover is the whole point, so arm/takeoff/land are part of the real sequence,
-    not a smoke-only synthesis. `smoke=True` changes only two things:
-      * the trigger is synthetic (GateReadyTrigger / a timed edge) instead of a
-        human on an ELRS switch, and the detector is synthetic (no camera), and
-      * the run asserts a PASS/FAIL contract at the end (states visited, setpoint
-        count, heading latched) so the SITL check can exit 0/1.
+# The own-state streams the guidance consumes, by the key their arrival stamp
+# is stored under. FAILSAFE 9 ages the oldest of these.
+_OWN_STATE_STAMPS = ("t_quat", "t_euler", "t_pos", "t_vel")
 
-    `frame_recorder` (flight.deploy.frame_recorder.FrameRecorder, optional):
-    dependency-injected via `build_frame_recorder`/`--record-frames`; None by
-    default and this function never imports the recorder module itself. When
-    attached, every raw frame is `offer()`ed right after `detector.detect()`
-    consumes it (never before), and `close()` runs at mission end (the
-    `finally` below) with one summary line printed.
 
-    TODO-BUILDER before this ever flies: PX4 geofence sized to the range box,
-    the RC kill switch verified live (RC_MAP_KILL_SW), battery failsafe, and a
-    props-off bench pass of the whole sequence (launch_mechanism_plan L3)."""
+def _new_link_state() -> dict:
+    """The driver's one mutable dict of own-state + own status. `offboard` and
+    `mode` start None and are owned by the flight_mode SUBSCRIBER -- never by
+    "offboard.start() returned". arm_gate uses `is not True`, so None fails
+    CLOSED (no GO can be accepted), and standby_settle_s=2.0 means no GO is
+    possible inside the first-sample window."""
+    return {"quat": None, "psi": None, "alt": None, "armed": None, "vel_ned": None,
+            "landed": None, "offboard": None, "mode": None,
+            "t_quat": None, "t_euler": None, "t_pos": None, "t_vel": None,
+            "t_mode": None, "gs": None,
+            "batt_v": None, "t_batt": None,
+            "rc_n": 0, "t_rc": None, "rc_max_gap_s": 0.0, "t_rc_first": None}
+
+
+def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False):  # pragma: no cover -- driven by the fake in tests
+    """Subscribe to every stream the driver reads and return the tasks. Each
+    own-state stream STAMPS its arrival (`t_quat`, `t_euler`, `t_pos`, `t_vel`):
+    a generator that dies leaves its slice of `state` frozen at the last value,
+    and only the age of the stamp can say so (FAILSAFE 9).
+
+    Read-only: subscriptions only. `rc_sinks` are the `RcChannelTrigger`s fed
+    from the one RC_CHANNELS subscription (the GO switch, and under --fly the
+    arm-permit switch)."""
     import asyncio
-
-    from mavsdk import System
-    from mavsdk.offboard import OffboardError, VelocityNedYaw
-    from mavsdk.telemetry import LandedState
-
-    drone = System()
-
-    def _kill_server():
-        # MAVSDK-Python spawns a mavsdk_server child per System(); kill it if we
-        # bail out, so a failed connect never leaks a server (the trap measured
-        # 2026-07-24 in seeker_loop.py / fc_link_check.py).
-        proc = getattr(drone, "_server_process", None)
-        if proc is not None and proc.poll() is None:
-            proc.kill()
-
-    print(f"[mavsdk] connecting {args.mavsdk_url} ...")
-    # connect() itself blocks forever on a dead link (mavsdk_server does not open
-    # its gRPC port until it discovers a vehicle), so the timeout MUST wrap it.
-    try:
-        await asyncio.wait_for(drone.connect(system_address=args.mavsdk_url),
-                               timeout=_CONNECT_TIMEOUT_S)
-    except asyncio.TimeoutError:
-        print(f"[mavsdk] FAIL: connect() did not return within {_CONNECT_TIMEOUT_S}s")
-        _kill_server()
-        return 1
-
-    async def _wait_connected():
-        async for st in drone.core.connection_state():
-            if st.is_connected:
-                return
-
-    try:
-        await asyncio.wait_for(_wait_connected(), timeout=_CONNECT_TIMEOUT_S)
-    except asyncio.TimeoutError:
-        print(f"[mavsdk] FAIL: no connection within {_CONNECT_TIMEOUT_S}s")
-        _kill_server()
-        return 1
-    print("[mavsdk] connected")
-
-    # OWN-STATE EKF + own status. The ONLY non-camera, non-constant inputs.
-    # `offboard` and `mode` start None and are owned by the flight_mode
-    # SUBSCRIBER -- never by "offboard.start() returned". arm_gate uses
-    # `is not True`, so None fails CLOSED (no GO can be accepted), and
-    # standby_settle_s=2.0 means no GO is possible inside the first-sample window.
-    state = {"quat": None, "psi": None, "alt": None, "armed": None, "vel_ned": None,
-             "landed": None, "offboard": None, "mode": None,
-             "t_quat": None, "t_mode": None, "gs": None}
 
     async def _att_q():
         async for q in drone.telemetry.attitude_quaternion():
@@ -2525,10 +3084,12 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
     async def _att_e():
         async for e in drone.telemetry.attitude_euler():
             state["psi"] = e.yaw_deg
+            state["t_euler"] = time.monotonic()
 
     async def _pos():
         async for p in drone.telemetry.position():
             state["alt"] = p.relative_altitude_m
+            state["t_pos"] = time.monotonic()
 
     async def _vel():
         """Own-state EKF horizontal ground speed -- FAILSAFE 4 integrates this
@@ -2542,6 +3103,7 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
             # lines) -- measured 3.6-4.2 m/s off actual, the driver of the
             # -2.6 m endgame range collapse and the ~3 m early coast latch.
             state["vel_ned"] = (v.north_m_s, v.east_m_s, v.down_m_s)
+            state["t_vel"] = time.monotonic()
 
     async def _armed():
         async for a in drone.telemetry.armed():
@@ -2551,14 +3113,19 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         async for ls in drone.telemetry.landed_state():
             state["landed"] = ls
 
+    async def _batt():
+        async for b in drone.telemetry.battery():
+            state["batt_v"] = b.voltage_v
+            state["t_batt"] = time.monotonic()
+
     # THE OFFBOARD INPUT. Without this subscriber `state["offboard"]` was a
     # latched constant and the arm gate's OFFBOARD check was structurally
     # unreachable in flight (review2 BLOCKER).
     _mode = make_mode_subscriber(drone, state)
 
     async def _rc():
-        """RC_CHANNELS -> the ELRS aux switch. MAVSDK's telemetry plugin has no
-        per-channel accessor, so this uses the mavlink_direct raw subscription.
+        """RC_CHANNELS -> the ELRS aux switch(es). MAVSDK's telemetry plugin has
+        no per-channel accessor, so this uses the mavlink_direct raw subscription.
 
         CLOCK: absolute time.monotonic(), matching RcChannelTrigger.clock_base
         (the driver polls it through `trigger_poll_time`)."""
@@ -2566,13 +3133,25 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
             # NARROW: a programming error in here must not masquerade as "a
             # malformed RC_CHANNELS" forever (that swallow hid the clock defect).
             try:
-                trigger.ingest(json.loads(msg.fields_json), time.monotonic())
+                now = time.monotonic()
+                fields = json.loads(msg.fields_json)
+                for sink in rc_sinks:
+                    sink.ingest(fields, now)
+                if state["t_rc"] is not None:
+                    state["rc_max_gap_s"] = max(state["rc_max_gap_s"],
+                                                now - state["t_rc"])
+                else:
+                    state["t_rc_first"] = now
+                state["t_rc"] = now
+                state["rc_n"] += 1
             except (json.JSONDecodeError, KeyError, TypeError, ValueError,
                     AttributeError) as e:
                 print(f"[rc] skipped a malformed RC_CHANNELS: {e}")
 
     coros = [_att_q, _att_e, _pos, _vel, _armed, _landed, _mode]
-    if isinstance(trigger, RcChannelTrigger):
+    if want_battery:
+        coros.append(_batt)
+    if rc_sinks:
         coros.append(_rc)
     tasks = [asyncio.ensure_future(c()) for c in coros]
 
@@ -2588,13 +3167,563 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
 
     for tk in tasks:
         tk.add_done_callback(_task_died)
+    return tasks
+
+
+async def _connect_vehicle(drone, url) -> bool:  # pragma: no cover -- driven by the fake in tests
+    """Connect and wait for the link. False (after killing the server it
+    spawned) on a dead link."""
+    import asyncio
+
+    def _kill_server():
+        # MAVSDK-Python spawns a mavsdk_server child per System(); kill it if we
+        # bail out, so a failed connect never leaks a server (the trap measured
+        # 2026-07-24 in seeker_loop.py / fc_link_check.py).
+        proc = getattr(drone, "_server_process", None)
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+
+    print(f"[mavsdk] connecting {url} ...")
+    # connect() itself blocks forever on a dead link (mavsdk_server does not open
+    # its gRPC port until it discovers a vehicle), so the timeout MUST wrap it.
+    try:
+        await asyncio.wait_for(drone.connect(system_address=url),
+                               timeout=_CONNECT_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        print(f"[mavsdk] FAIL: connect() did not return within {_CONNECT_TIMEOUT_S}s")
+        _kill_server()
+        return False
+
+    async def _wait_connected():
+        async for st in drone.core.connection_state():
+            if st.is_connected:
+                return
+
+    try:
+        await asyncio.wait_for(_wait_connected(), timeout=_CONNECT_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        print(f"[mavsdk] FAIL: no connection within {_CONNECT_TIMEOUT_S}s")
+        _kill_server()
+        return False
+    print("[mavsdk] connected")
+    return True
+
+
+def _start_supervisor(drone, args, required: bool):
+    """Start the out-of-process loop watchdog on this run's MAVSDK server.
+    Returns (supervisor_or_None, ok). `ok` is False only when the watchdog is
+    `required` (a real flight, or the bench rehearsal of one) and could not be
+    started -- the caller then refuses to go on."""
+    bound = float(getattr(args, "loop_watchdog_s", 0.0) or 0.0)
+    if bound <= 0.0:
+        print("[watchdog] OFF (--loop-watchdog-s 0): a hung program would keep "
+              "the aircraft flying its last command")
+        return None, not required
+    proc = getattr(drone, "_server_process", None)
+    pid = getattr(proc, "pid", None)
+    if pid is None:
+        print("[watchdog] no MAVSDK server process to watch (an external server "
+              "was supplied) -- the setpoint stream is UNWATCHED")
+        return None, not required
+    log_csv = getattr(args, "log_csv", None)
+    log_path = None
+    if log_csv:
+        # Beside the tick log, and created NOW: the watchdog's one line of
+        # evidence is written at the moment the tick log may never be.
+        log_path = log_csv + ".watchdog.log"
+        try:
+            os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+        except OSError:
+            log_path = None
+    sup = LoopSupervisor(bound, log_path=log_path)
+    if not sup.start(pid):
+        return None, not required
+    print(f"[watchdog] loop supervisor watching server pid {pid}: no control "
+          f"tick for {bound:.2f} s, or this program dying, ends the setpoint "
+          f"stream")
+    return sup, True
+
+
+async def _enter_offboard(drone, cfg: MissionConfig, state: dict) -> bool:  # pragma: no cover -- driven by the fake in tests
+    """Prime one setpoint, start OFFBOARD, and wait (bounded, LOUD) for the
+    first flight-mode sample. Returns whether `offboard.start()` succeeded --
+    a different fact from "the vehicle IS in OFFBOARD", which only telemetry
+    may answer."""
+    import asyncio
+    from mavsdk.offboard import OffboardError, VelocityNedYaw
+
+    # OFFBOARD needs an established setpoint stream before the mode switch.
+    await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0,
+                                                         cfg.aim_yaw_deg))
+    try:
+        await drone.offboard.start()
+        # "start() SUCCEEDED" -- a different fact from "the vehicle IS in
+        # OFFBOARD right now", which only telemetry may answer. Do NOT latch
+        # state["offboard"] here (review2 BLOCKER).
+        print("[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins")
+    except OffboardError as e:
+        print(f"[mavsdk] FAIL: offboard start failed: {e}")
+        return False
+
+    # Wait (bounded, LOUD) for the first flight_mode sample so the arm gate is
+    # not merely failing closed on a warm-up None.
+    _deadline = time.monotonic() + _MODE_FIRST_SAMPLE_TIMEOUT_S
+    while time.monotonic() < _deadline and state["offboard"] is None:
+        await asyncio.sleep(0.1)
+    if state["offboard"] is None:
+        print(f"[mavsdk] WARNING: no telemetry.flight_mode() sample within "
+              f"{_MODE_FIRST_SAMPLE_TIMEOUT_S:.0f}s -- offboard_active "
+              f"stays None and the arm gate will (correctly) REFUSE every "
+              f"GO. This is fail-closed, not a silent pass.")
+    else:
+        print(f"[mavsdk] flight mode = {state['mode']} "
+              f"(offboard_active={state['offboard']}) from TELEMETRY")
+    return True
+
+
+async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
+                        trigger, detector, state: dict, frame_recorder,
+                        supervisor, *, outer_bound_s: float,
+                        acquire_after_s: float, bench: bool = False,
+                        bench_max_batt_v: Optional[float] = None) -> dict:  # pragma: no cover -- driven by the fake in tests
+    """THE control loop: observe, step the state machine, send one setpoint,
+    feed the watchdog. Shared by the flight driver and the props-off bench
+    rehearsal ON PURPOSE -- a rehearsal that ran different loop code would
+    rehearse nothing.
+
+    It sends velocity setpoints and NOTHING else: no arm, no takeoff, no land,
+    no mode change (a test walks the syntax tree to prove it).
+
+    `bench=True` (props-off rehearsal) changes exactly two things: the height
+    fed to the state machine is the standby height (a board on a desk is not at
+    7 m, and the height gate is not what is being rehearsed), and the loop
+    ABORTS the instant the vehicle reports armed or a flight battery appears."""
+    import asyncio
+    from mavsdk.offboard import VelocityNedYaw
+
+    out = {"rc_exit": 0, "n_tick": 0, "n_sp": 0, "n_off_true": 0,
+           "csv_rows": [], "offboard_lost_after_go": False, "abort": None,
+           "max_tick_gap_s": 0.0, "bound_reached": False}
+    csv_rows: List[str] = out["csv_rows"]
+    n_tick = n_sp = n_off_true = 0
+    offboard_lost_after_go = False
+    t0 = time.monotonic()
+    frame = None
+    if detector is not None:
+        import numpy as _np
+        frame = _np.zeros((960, 1280, 3), dtype=_np.uint8)
+    if supervisor is not None:
+        supervisor.watch()
+    t_prev_tick: Optional[float] = None
+    while True:
+        t_abs = time.monotonic()
+        t = t_abs - t0
+        if t_prev_tick is not None:
+            out["max_tick_gap_s"] = max(out["max_tick_gap_s"], t_abs - t_prev_tick)
+        t_prev_tick = t_abs
+        if t > outer_bound_s:
+            out["bound_reached"] = True
+            if bench:
+                print(f"[bench] run bound {outer_bound_s:.0f}s reached in state "
+                      f"{sm.state} -- ending the rehearsal")
+            else:
+                print(f"[mavsdk] outer smoke bound {outer_bound_s:.0f}s "
+                      f"reached in state {sm.state} -- forcing shutdown")
+                out["rc_exit"] = 1
+            break
+        if bench:
+            # THE BENCH INTERLOCKS, every tick. Props are off and no flight
+            # battery is connected, or this stops.
+            if state["armed"] is not False:
+                out["abort"] = (f"vehicle reports armed={state['armed']} during "
+                                f"a props-off rehearsal")
+            elif (bench_max_batt_v is not None and state["batt_v"] is not None
+                  and state["batt_v"] > bench_max_batt_v):
+                out["abort"] = (f"battery reads {state['batt_v']:.1f} V (> "
+                                f"{bench_max_batt_v:.1f} V): a flight battery "
+                                f"is connected")
+            if out["abort"]:
+                print(f"[bench] ABORT: {out['abort']} -- stopping the setpoint "
+                      f"stream NOW")
+                out["rc_exit"] = 1
+                break
+        # ONE clock contract, declared by the trigger (review2 BLOCKER):
+        # RcChannelTrigger.ingest() stamps absolute time.monotonic(), so
+        # its poll() must get the same base -- polling it with mission
+        # time made the RC age negative and pinned link_ok True forever.
+        trig = trigger.poll(trigger_poll_time(trigger, t, time.monotonic()))
+        det_new = det_range = det_box = det_pose = det_age = None
+        if detector is not None and sm.t_dash_start is not None \
+                and t >= sm.t_dash_start + acquire_after_s:
+            # Detection runs EVERY tick (2026-09-23, tick-trace S3 fix:
+            # the old `n_tick % 2 == 0` gate capped a live detector --
+            # the Gazebo cross-check -- at ~9.6 Hz against a 30 fps
+            # camera, 5.2 consumed det/s vs isim's 25.5; the camera was
+            # never the limit). CPU caveat: the decode now runs in the
+            # control loop every tick -- the tick trace measured detect
+            # ticks only +4 ms (0.056 vs 0.052 s), but the re-fly must
+            # confirm tick dt stays ~0.05 s with the doubled decode
+            # rate. The "no new result -> HOLD" streak branch this
+            # gate once exercised in the synthetic smoke is still
+            # covered by the offline self-test drive (det_new every
+            # other tick there) and by real decode misses/dropouts.
+            d = detector.detect(frame, t)
+            # A frame-fed detector (frame_feed.FeedDetector, --source)
+            # returns the frame it actually decoded + its capture time,
+            # or frame=None on a poll with no new frame (nothing to
+            # record). Detectors without these attributes keep the
+            # placeholder path unchanged.
+            _rec_frame = getattr(d, "frame", frame)
+            if frame_recorder is not None and _rec_frame is not None:
+                # AFTER the detector consumed the frame, never before
+                # -- the seeker's latency budget comes first. offer()
+                # is O(1)/non-blocking (flight/deploy/frame_recorder.py).
+                frame_recorder.offer(_rec_frame,
+                                     getattr(d, "t_capture", t))
+            det_new, det_range, det_box = (getattr(d, "is_new", True),
+                                           d.range_m, d.box_xywh)
+            # Detector-PnP slant range, if this detector publishes one
+            # (the Gazebo cross-check driver's tag_range_m; None from
+            # the synthetic smoke detector) -- see VehicleObs.
+            det_pose = getattr(d, "tag_range_m", None)
+            # STAMPED measurement age (--pursuit-stamped-age):
+            # extracted to _stamped_det_age so the clock-base
+            # convention is pinned by a unit test (review R2-F2 --
+            # the F1 bug lived exactly in this block with no test
+            # between the driver and the terminal).
+            det_age = None
+            if (getattr(args, "pursuit_stamped_age", False)
+                    and det_range is not None):
+                det_age = _stamped_det_age(d, t, time.monotonic())
+                if det_age is not None and os.environ.get("DEBUG_DET_AGE"):
+                    print(f"[det-age] stamped age = "
+                          f"{det_age*1000:.0f} ms")
+        # FAILSAFE 7 arm 2 input: how old the flight-mode sample is, on
+        # the SAME clock base it was stamped with (absolute monotonic --
+        # mission time here would reproduce the RC clock-base defect, and
+        # offboard_status() treats a negative age as a hard fault).
+        _now = time.monotonic()
+        _t_mode = state["t_mode"]
+        _offb_age = (None if _t_mode is None else _now - _t_mode)
+        # FAILSAFE 9 input: the age of the OLDEST own-state stream, same clock.
+        _own_age = own_state_age({k: state[k] for k in _OWN_STATE_STAMPS}, _now)
+        obs = VehicleObs(t=t, armed=state["armed"],
+                         offboard_active=state["offboard"],
+                         offboard_sample_age_s=_offb_age,
+                         mode=state["mode"],
+                         alt_m=(cfg.standby_alt_m if bench else state["alt"]),
+                         yaw_deg=state["psi"],
+                         quat=state["quat"],
+                         ground_speed_ms=state["gs"],
+                         vel_ned=state.get("vel_ned"), trigger=trig,
+                         det_new=bool(det_new), det_range_m=det_range,
+                         det_box_xywh=det_box, det_range_pose_m=det_pose,
+                         det_age_s=det_age, own_state_age_s=_own_age)
+        if isinstance(trigger, GateReadyTrigger):
+            trigger.observe_gate(sm.arm_gate(obs)[0])
+        dec = sm.step(obs)
+        n_off_true += 1 if state["offboard"] is True else 0
+        if state["offboard"] is not True and sm.dash_heading.is_set:
+            if not offboard_lost_after_go:
+                offboard_lost_after_go = True
+                print(f"[mavsdk] FAULT offboard_lost_after_go: PX4 flight "
+                      f"mode is {state['mode']} at t={t:.2f}s in state "
+                      f"{dec.state} -- the setpoints below this line were "
+                      f"NOT flown by the vehicle. POLICY (FAILSAFE 7, "
+                      f"builder decision #22): the STATE MACHINE aborts to "
+                      f"SAFE once this persists {cfg.offboard_lost_s:.2f}s "
+                      f"(or the mode sample goes stale past "
+                      f"{cfg.offboard_stale_s}s), and SAFE is absorbing, so "
+                      f"restoring OFFBOARD hands the vehicle a zero-velocity "
+                      f"hold + land request rather than a live dash. This "
+                      f"is NOT the link failsafe: post-GO LINK loss is "
+                      f"still expected and ignored (constraint no-datalink).")
+        csv_rows.append(_csv_row(obs, dec))
+        sp = dec.setpoint
+        if args.dry_run:
+            print(f"[dry-run] {dec.state} SETPOINT {sp.as_tuple()}")
+        else:
+            await drone.offboard.set_velocity_ned(VelocityNedYaw(
+                sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg))
+        n_sp += 1
+        n_tick += 1
+        if supervisor is not None:
+            supervisor.beat()
+            if not supervisor.alive():
+                # The watchdog is gone (or has already ended the stream).
+                # Flying on unwatched is the one thing it exists to prevent.
+                out["abort"] = (f"loop supervisor is gone (exit "
+                                f"{supervisor.exit_code()})")
+                print(f"[watchdog] FAULT: {out['abort']} -- the setpoint "
+                      f"stream is no longer watched; stopping")
+                out["rc_exit"] = 1
+                break
+        if n_tick % 20 == 0:
+            _alt = state["alt"]
+            _alt_s = "None" if _alt is None else f"{_alt:.2f}"
+            _yaw = state["psi"]
+            _yaw_s = "None" if _yaw is None else f"{_yaw:+.1f}"
+            print(f"[mavsdk] t={t:5.1f}s {dec.state:<10} "
+                  f"streak={dec.streak} alt={_alt_s} yaw={_yaw_s} "
+                  f"| SP vN={sp.v_north:+.2f} vE={sp.v_east:+.2f} "
+                  f"vD={sp.v_down:+.2f} yaw={sp.yaw_deg:+.1f}")
+        if dec.terminated:
+            print(f"[mavsdk] state machine TERMINATED in SAFE "
+                  f"(reason={dec.safe_reason})")
+            break
+        await asyncio.sleep(1.0 / args.fps)
+    out.update(n_tick=n_tick, n_sp=n_sp, n_off_true=n_off_true,
+               offboard_lost_after_go=offboard_lost_after_go)
+    return out
+
+
+def _write_mission_logs(args, csv_rows, frame_recorder) -> None:
+    if getattr(args, "log_csv", None):
+        os.makedirs(os.path.dirname(args.log_csv), exist_ok=True)
+        with open(args.log_csv, "w") as fh:
+            fh.write(_CSV_HEADER)
+            fh.writelines(csv_rows)
+        print(f"[log] {len(csv_rows)} ticks -> {args.log_csv}")
+    # MISSION END: drain + finalize the onboard footage recorder (--record-
+    # frames), unconditionally -- this runs on every exit path (clean
+    # shutdown, the outer bound, an exception), so a recorder attached to a
+    # mission that fails partway still gets its meta.json written and its
+    # queued frames drained within the deadline.
+    if frame_recorder is not None:
+        fr_meta = frame_recorder.close()
+        print(f"[frame_recorder] {fr_meta['n_written']} written, "
+              f"{fr_meta['n_dropped']} dropped "
+              f"(rate={fr_meta['drop_rate']:.1%}), target_fps="
+              f"{fr_meta['config']['target_fps']} -> {fr_meta['out_dir']}")
+
+
+def prearm_summary(args, cfg: MissionConfig, caps: dict) -> List[str]:
+    """What `--fly` is about to do, in plain lines, printed before the arm
+    permit is asked for. Pure."""
+    belief = ("from the GPS cue file " + str(args.cue_json)
+              if getattr(args, "cue_json", None)
+              else "TYPED by the operator (--manual-belief)")
+    r0, v0 = caps["belief_r0_ne"], caps["belief_v_ne"]
+    return [
+        "[fly] ===== PRE-ARM SUMMARY: read this before raising the permit switch =====",
+        f"[fly] link: {args.mavsdk_url}   terminal: {caps['terminal']}   "
+        f"camera: {args.source} ({args.detector})",
+        f"[fly] belief: target {math.hypot(r0[0], r0[1]):.0f} m away (north "
+        f"{r0[0]:+.1f}, east {r0[1]:+.1f}) moving {math.hypot(v0[0], v0[1]):.1f} "
+        f"m/s -- {belief}. It is used AS IF TRUE AT THE GO EDGE: nothing "
+        f"advances it for the time between when it was taken and GO.",
+        f"[fly] on the arm permit this program will: set MIS_TAKEOFF_ALT to "
+        f"{cfg.standby_alt_m:.1f} m (a parameter WRITE, by MAVSDK's "
+        f"set_takeoff_altitude -- the only one), ARM, TAKE OFF to "
+        f"{cfg.standby_alt_m:.1f} m, enter OFFBOARD and hold, yawed to "
+        f"{cfg.aim_yaw_deg:.1f} deg.",
+        f"[fly] it then waits up to {cfg.standby_max_s:.0f} s for GO on RC "
+        f"channel {args.rc_channel} (LOW then HIGH). GO starts the engagement: "
+        f"up to {caps['v_cap_ms']:.0f} m/s commanded, for at most "
+        f"{cfg.engage_max_s:.0f} s.",
+        f"[fly] it ends by: {cfg.miss_safe_behavior} after a miss, "
+        f"{cfg.safe_behavior} after a fault. If you take the aircraft with the "
+        f"mode switch, this program sends nothing further.",
+        f"[fly] watchdog: no control tick for {args.loop_watchdog_s:.2f} s ends "
+        f"the setpoint stream; own-state older than {cfg.own_state_stale_s} s "
+        f"goes SAFE.",
+        "[fly] THE KILL SWITCH stays yours for the whole flight.",
+    ]
+
+
+async def _wait_arm_permit(args, trigger, permit_trigger, state: dict) -> bool:  # pragma: no cover -- driven by the fake in tests
+    """Block until the operator gives the RC arm permit (see `ArmPermit`), or
+    the timeout passes. True only on a granted permit with the vehicle still
+    disarmed. Sends nothing."""
+    import asyncio
+    permit = ArmPermit(args.rc_go_us, args.rc_low_us)
+    timeout_s = float(args.arm_permit_timeout_s)
+    print(f"[arm-permit] WAITING up to {timeout_s:.0f} s. With the GO switch "
+          f"(ch {args.rc_channel}) LOW, flip the permit switch (ch "
+          f"{args.arm_permit_channel}) LOW then HIGH to let this program arm "
+          f"and take off. Ctrl-C, or doing nothing, leaves the aircraft disarmed.")
+    deadline = time.monotonic() + timeout_s
+    last = None
+    said_refused = False
+    while time.monotonic() < deadline and not permit.granted:
+        now = time.monotonic()
+        permit.update(trigger.poll(now), permit_trigger.poll(now))
+        if permit.refused_go_high and not said_refused:
+            said_refused = True
+            print("[arm-permit] REFUSED once: the permit switch rose while the "
+                  "GO switch was not LOW. Lower both, then raise the permit "
+                  "switch alone.")
+        st = permit.status()
+        if st != last:
+            last = st
+            print(f"[arm-permit] {st}")
+        if not permit.granted:
+            await asyncio.sleep(_ARM_PERMIT_POLL_S)
+    if not permit.granted:
+        print(f"[arm-permit] NOT GRANTED within {timeout_s:.0f} s -- NOT arming")
+        return False
+    if state["armed"] is not False:
+        print(f"[arm-permit] the vehicle reports armed={state['armed']} before "
+              f"this program armed it -- NOT taking it over")
+        return False
+    return True
+
+
+def _end_setpoint_stream(drone) -> bool:
+    """Stop the setpoint stream WITHOUT commanding a mode: end the MAVSDK server
+    that is re-sending it. (`offboard.stop()` is not that -- it commands HOLD.)"""
+    proc = getattr(drone, "_server_process", None)
+    if proc is not None and proc.poll() is None:
+        proc.kill()
+        return True
+    return False
+
+
+async def _teardown_flight(drone, cfg: MissionConfig, sm: RealFlightSM,
+                           state: dict, offboard_ok: bool,
+                           armed_by_program: bool, LandedState) -> None:  # pragma: no cover -- driven by the fake in tests
+    """Hand the aircraft back at the end of a run. With `_wait_arm_permit`'s
+    caller this is the ONLY code in the module that touches the action plugin.
+
+    What it may send is decided by `teardown_plan` from the flight mode the
+    vehicle is in RIGHT NOW: land (or return) only while the aircraft is still
+    in a mode this program commanded; NOTHING when the pilot has taken it."""
+    import asyncio
+    if not armed_by_program:
+        print("[mavsdk] teardown: this program never armed the vehicle -- "
+              "sending nothing")
+        return
+    _t_mode = state["t_mode"]
+    _age = None if _t_mode is None else time.monotonic() - _t_mode
+    stop_offboard, action, why = teardown_plan(
+        state["mode"], _age, cfg.offboard_stale_s, sm.effective_safe_behavior())
+    print(f"[mavsdk] teardown: {why}")
+    if action is None:
+        ended = _end_setpoint_stream(drone)
+        print(f"[mavsdk] no offboard stop, no land, no return sent"
+              f"{'; setpoint stream ended' if ended else ''}")
+        return
+    if offboard_ok and stop_offboard:
+        try:
+            await drone.offboard.stop()
+            print("[mavsdk] offboard stopped")
+        except Exception as e:  # noqa: BLE001 -- best-effort teardown
+            print(f"[mavsdk] offboard.stop skipped: {e}")
+    try:
+        # SAFE behavior (builder ruling 2026-09-22): the STATE MACHINE
+        # never knows what RTL is -- it stays exactly as pure for
+        # safe_behavior='rtl' as for the 'land' default (same
+        # land_requested/terminated timing, see RealFlightSM._decide).
+        # Only the LIVE DRIVER, here, picks which PX4 ACTION to issue.
+        # RETURN-TO-LAUNCH is PX4's OWN GPS-based safety behaviour (fly
+        # home at a safe altitude, then auto-land) -- a SAFETY fallback,
+        # NOT a guidance decision, and must never be read as one. This is
+        # the teardown path for every program-owned exit (also reached on
+        # the outer forced-shutdown bound), so 'hover' still comes down
+        # here rather than being stranded airborne forever.
+        if action == "rtl":
+            await drone.action.return_to_launch()
+            print(f"[mavsdk] RETURN-TO-LAUNCH commanded (effective safe "
+                  f"behavior 'rtl', reason={sm.safe_reason}); waiting up "
+                  f"to {_LAND_TIMEOUT_S}s for touchdown + disarm (PX4 "
+                  f"flies home first -- may not complete within this "
+                  f"bound; that is a teardown-wait timeout, not a "
+                  f"failsafe) ...")
+        else:
+            await drone.action.land()
+            print(f"[mavsdk] landing; waiting up to {_LAND_TIMEOUT_S}s for "
+                  f"touchdown + disarm ...")
+        deadline = time.monotonic() + _LAND_TIMEOUT_S
+        touch_t = None
+        forced = False
+        while time.monotonic() < deadline:
+            if state["armed"] is False:
+                break
+            if state["landed"] == LandedState.ON_GROUND and touch_t is None:
+                touch_t = time.monotonic()
+            if touch_t is not None and not forced and \
+                    time.monotonic() - touch_t > 5.0:
+                forced = True
+                try:
+                    await drone.action.disarm()
+                    print("[mavsdk] forced disarm (auto-disarm lagged)")
+                except Exception as e:  # noqa: BLE001
+                    print(f"[mavsdk] disarm request skipped: {e}")
+            await asyncio.sleep(0.5)
+        print(f"[mavsdk] landed_state={state['landed']} armed={state['armed']}")
+    except Exception as e:  # noqa: BLE001 -- best-effort teardown
+        print(f"[mavsdk] land skipped: {e}")
+
+
+async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
+                             trigger, detector=None,
+                             smoke: bool = False,
+                             frame_recorder=None, *,
+                             fly: bool = False,
+                             permit_trigger=None):  # pragma: no cover -- needs a vehicle; driven by the fake in tests
+    """Live driver: connect over MAVLink, stream own-state EKF + RC_CHANNELS, and
+    stream the state machine's NED velocity+yaw setpoints through PX4 OFFBOARD.
+
+    Unlike seeker_loop, this driver OWNS the takeoff in BOTH modes -- the standby
+    hover is the whole point, so arm/takeoff/land are part of the real sequence,
+    not a smoke-only synthesis. `smoke=True` changes only two things:
+      * the trigger is synthetic (GateReadyTrigger / a timed edge) instead of a
+        human on an ELRS switch, and the detector is synthetic (no camera), and
+      * the run asserts a PASS/FAIL contract at the end (states visited, setpoint
+        count, heading latched) so the SITL check can exit 0/1.
+
+    `fly=True` is the REAL FLIGHT (`--fly`, 2026-11-18). It is the only way this
+    function will arm over a serial link, and before it arms it (1) reads the
+    board's limits and refuses if the guidance commands more than the board
+    flies or the believed rendezvous is outside the geofence, (2) prints a
+    plain pre-arm summary, and (3) waits for the operator's RC arm permit.
+
+    `frame_recorder` (flight.deploy.frame_recorder.FrameRecorder, optional):
+    dependency-injected via `build_frame_recorder`/`--record-frames`; None by
+    default and this function never imports the recorder module itself. When
+    attached, every raw frame is `offer()`ed right after `detector.detect()`
+    consumes it (never before), and `close()` runs at mission end with one
+    summary line printed.
+
+    TODO-BUILDER before this ever flies: the RC kill switch verified live
+    (RC_MAP_KILL_SW), battery failsafe, and a props-off bench pass of the whole
+    sequence (`--bench-props-off`, launch_mechanism_plan L3)."""
+    import asyncio
+
+    # Defence in depth behind main()'s own refusal: a serial link is a real
+    # aircraft, and only `--fly` (with its permit and its checks) may arm one.
+    if is_serial_url(args.mavsdk_url) and not fly:
+        print(f"[mavsdk] REFUSED: {args.mavsdk_url} is a serial link to a real "
+              f"flight controller, and this path would arm and take off with "
+              f"no human step. Use --fly (real flight) or --bench-props-off "
+              f"(rehearsal, cannot arm).")
+        return 1
+
+    from mavsdk import System
+    from mavsdk.telemetry import LandedState
+
+    drone = System()
+    if not await _connect_vehicle(drone, args.mavsdk_url):
+        return 1
+
+    # OWN-STATE EKF + own status. The ONLY non-camera, non-constant inputs.
+    state = _new_link_state()
+    rc_sinks = [s for s in (trigger, permit_trigger)
+                if isinstance(s, RcChannelTrigger)]
+    tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=fly)
+
+    supervisor, sup_ok = _start_supervisor(drone, args, required=fly)
 
     rc_exit = 0
     offboard_ok = False
-    offboard_lost_after_go = False
-    n_tick = n_sp = n_off_true = 0
-    csv_rows: List[str] = []
+    armed_by_program = False
+    loop_out = {"n_tick": 0, "n_sp": 0, "n_off_true": 0, "csv_rows": [],
+                "offboard_lost_after_go": False, "abort": None}
     try:
+        if not sup_ok:
+            print("[fly] REFUSED: the setpoint-stream watchdog could not be "
+                  "started -- NOT arming")
+            return 1
         print(f"[mavsdk] waiting for health (global+home position ok), timeout "
               f"{_HEALTH_TIMEOUT_S}s ...")
 
@@ -2610,9 +3739,34 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
             return 1
         print("[mavsdk] health OK")
 
+        if fly:
+            limits, unread = await read_platform_limits(drone)
+            caps = commanded_caps(args, cfg, sm.guidance)
+            for line in format_platform_table(limits, caps):
+                print(line)
+            hard, refusals, notes = check_platform_limits(limits, unread, caps, cfg)
+            for n in notes:
+                print(f"[limits] note: {n}")
+            for h in hard:
+                print(f"[limits] REFUSED (cannot be overridden): {h}")
+            override = bool(getattr(args, "override_platform_limits", False))
+            for r in refusals:
+                print(f"[limits] {'OVERRIDDEN by --override-platform-limits' if override else 'REFUSED'}: {r}")
+            if hard or (refusals and not override):
+                print("[fly] NOT ARMING: fix the mismatch above (change the "
+                      "guidance cap, the belief or the board), or pass "
+                      "--override-platform-limits to fly it knowingly.")
+                return 1
+            for line in prearm_summary(args, cfg, caps):
+                print(line)
+            if permit_trigger is None or not await _wait_arm_permit(
+                    args, trigger, permit_trigger, state):
+                return 1
+
         alt = cfg.standby_alt_m
         print(f"[mavsdk] set takeoff altitude {alt:.1f} m (standby/loft); arm; takeoff ...")
         await drone.action.set_takeoff_altitude(alt)
+        armed_by_program = True
         await drone.action.arm()
         await drone.action.takeoff()
         deadline = time.monotonic() + _TAKEOFF_TIMEOUT_S
@@ -2624,229 +3778,40 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         print(f"[mavsdk] airborne at rel_alt="
               f"{'None' if a_now is None else f'{a_now:.2f}'} m")
 
-        # OFFBOARD needs an established setpoint stream before the mode switch.
-        await drone.offboard.set_velocity_ned(VelocityNedYaw(0.0, 0.0, 0.0,
-                                                             cfg.aim_yaw_deg))
-        try:
-            await drone.offboard.start()
-            offboard_ok = True     # "start() SUCCEEDED" -- a different fact from
-                                   # "the vehicle IS in OFFBOARD right now", which
-                                   # only telemetry may answer. Do NOT latch
-                                   # state["offboard"] here (review2 BLOCKER).
-            print("[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins")
-        except OffboardError as e:
-            print(f"[mavsdk] FAIL: offboard start failed: {e}")
+        offboard_ok = await _enter_offboard(drone, cfg, state)
+        if not offboard_ok:
             rc_exit = 1
 
         if offboard_ok:
-            # Wait (bounded, LOUD) for the first flight_mode sample so the arm
-            # gate is not merely failing closed on a warm-up None.
-            _deadline = time.monotonic() + _MODE_FIRST_SAMPLE_TIMEOUT_S
-            while time.monotonic() < _deadline and state["offboard"] is None:
-                await asyncio.sleep(0.1)
-            if state["offboard"] is None:
-                print(f"[mavsdk] WARNING: no telemetry.flight_mode() sample within "
-                      f"{_MODE_FIRST_SAMPLE_TIMEOUT_S:.0f}s -- offboard_active "
-                      f"stays None and the arm gate will (correctly) REFUSE every "
-                      f"GO. This is fail-closed, not a silent pass.")
-            else:
-                print(f"[mavsdk] flight mode = {state['mode']} "
-                      f"(offboard_active={state['offboard']}) from TELEMETRY")
-
-        if offboard_ok:
-            t0 = time.monotonic()
-            frame = None
-            if detector is not None:
-                import numpy as _np
-                frame = _np.zeros((960, 1280, 3), dtype=_np.uint8)
-            while True:
-                t = time.monotonic() - t0
-                if t > args.smoke_duration:
-                    print(f"[mavsdk] outer smoke bound {args.smoke_duration:.0f}s "
-                          f"reached in state {sm.state} -- forcing shutdown")
-                    rc_exit = 1
-                    break
-                # ONE clock contract, declared by the trigger (review2 BLOCKER):
-                # RcChannelTrigger.ingest() stamps absolute time.monotonic(), so
-                # its poll() must get the same base -- polling it with mission
-                # time made the RC age negative and pinned link_ok True forever.
-                trig = trigger.poll(trigger_poll_time(trigger, t, time.monotonic()))
-                det_new = det_range = det_box = det_pose = det_age = None
-                if detector is not None and sm.t_dash_start is not None \
-                        and t >= sm.t_dash_start + args.smoke_acquire_after_s:
-                    # Detection runs EVERY tick (2026-09-23, tick-trace S3 fix:
-                    # the old `n_tick % 2 == 0` gate capped a live detector --
-                    # the Gazebo cross-check -- at ~9.6 Hz against a 30 fps
-                    # camera, 5.2 consumed det/s vs isim's 25.5; the camera was
-                    # never the limit). CPU caveat: the decode now runs in the
-                    # control loop every tick -- the tick trace measured detect
-                    # ticks only +4 ms (0.056 vs 0.052 s), but the re-fly must
-                    # confirm tick dt stays ~0.05 s with the doubled decode
-                    # rate. The "no new result -> HOLD" streak branch this
-                    # gate once exercised in the synthetic smoke is still
-                    # covered by the offline self-test drive (det_new every
-                    # other tick there) and by real decode misses/dropouts.
-                    d = detector.detect(frame, t)
-                    # A frame-fed detector (frame_feed.FeedDetector, --source)
-                    # returns the frame it actually decoded + its capture time,
-                    # or frame=None on a poll with no new frame (nothing to
-                    # record). Detectors without these attributes keep the
-                    # placeholder path unchanged.
-                    _rec_frame = getattr(d, "frame", frame)
-                    if frame_recorder is not None and _rec_frame is not None:
-                        # AFTER the detector consumed the frame, never before
-                        # -- the seeker's latency budget comes first. offer()
-                        # is O(1)/non-blocking (flight/deploy/frame_recorder.py).
-                        frame_recorder.offer(_rec_frame,
-                                             getattr(d, "t_capture", t))
-                    det_new, det_range, det_box = (getattr(d, "is_new", True),
-                                                   d.range_m, d.box_xywh)
-                    # Detector-PnP slant range, if this detector publishes one
-                    # (the Gazebo cross-check driver's tag_range_m; None from
-                    # the synthetic smoke detector) -- see VehicleObs.
-                    det_pose = getattr(d, "tag_range_m", None)
-                    # STAMPED measurement age (--pursuit-stamped-age):
-                    # extracted to _stamped_det_age so the clock-base
-                    # convention is pinned by a unit test (review R2-F2 --
-                    # the F1 bug lived exactly in this block with no test
-                    # between the driver and the terminal).
-                    det_age = None
-                    if (getattr(args, "pursuit_stamped_age", False)
-                            and det_range is not None):
-                        det_age = _stamped_det_age(d, t, time.monotonic())
-                        if det_age is not None and os.environ.get("DEBUG_DET_AGE"):
-                            print(f"[det-age] stamped age = "
-                                  f"{det_age*1000:.0f} ms")
-                # FAILSAFE 7 arm 2 input: how old the flight-mode sample is, on
-                # the SAME clock base it was stamped with (absolute monotonic --
-                # mission time here would reproduce the RC clock-base defect, and
-                # offboard_status() treats a negative age as a hard fault).
-                _t_mode = state["t_mode"]
-                _offb_age = (None if _t_mode is None
-                             else time.monotonic() - _t_mode)
-                obs = VehicleObs(t=t, armed=state["armed"],
-                                 offboard_active=state["offboard"],
-                                 offboard_sample_age_s=_offb_age,
-                                 mode=state["mode"],
-                                 alt_m=state["alt"], yaw_deg=state["psi"],
-                                 quat=state["quat"],
-                                 ground_speed_ms=state["gs"],
-                                 vel_ned=state.get("vel_ned"), trigger=trig,
-                                 det_new=bool(det_new), det_range_m=det_range,
-                                 det_box_xywh=det_box, det_range_pose_m=det_pose,
-                                 det_age_s=det_age)
-                if isinstance(trigger, GateReadyTrigger):
-                    trigger.observe_gate(sm.arm_gate(obs)[0])
-                dec = sm.step(obs)
-                n_off_true += 1 if state["offboard"] is True else 0
-                if state["offboard"] is not True and sm.dash_heading.is_set:
-                    if not offboard_lost_after_go:
-                        offboard_lost_after_go = True
-                        print(f"[mavsdk] FAULT offboard_lost_after_go: PX4 flight "
-                              f"mode is {state['mode']} at t={t:.2f}s in state "
-                              f"{dec.state} -- the setpoints below this line were "
-                              f"NOT flown by the vehicle. POLICY (FAILSAFE 7, "
-                              f"builder decision #22): the STATE MACHINE aborts to "
-                              f"SAFE once this persists {cfg.offboard_lost_s:.2f}s "
-                              f"(or the mode sample goes stale past "
-                              f"{cfg.offboard_stale_s}s), and SAFE is absorbing, so "
-                              f"restoring OFFBOARD hands the vehicle a zero-velocity "
-                              f"hold + land request rather than a live dash. This "
-                              f"is NOT the link failsafe: post-GO LINK loss is "
-                              f"still expected and ignored (constraint no-datalink).")
-                csv_rows.append(_csv_row(obs, dec))
-                sp = dec.setpoint
-                if args.dry_run:
-                    print(f"[dry-run] {dec.state} SETPOINT {sp.as_tuple()}")
-                else:
-                    await drone.offboard.set_velocity_ned(VelocityNedYaw(
-                        sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg))
-                n_sp += 1
-                n_tick += 1
-                if n_tick % 20 == 0:
-                    _alt = state["alt"]
-                    _alt_s = "None" if _alt is None else f"{_alt:.2f}"
-                    _yaw = state["psi"]
-                    _yaw_s = "None" if _yaw is None else f"{_yaw:+.1f}"
-                    print(f"[mavsdk] t={t:5.1f}s {dec.state:<10} "
-                          f"streak={dec.streak} alt={_alt_s} yaw={_yaw_s} "
-                          f"| SP vN={sp.v_north:+.2f} vE={sp.v_east:+.2f} "
-                          f"vD={sp.v_down:+.2f} yaw={sp.yaw_deg:+.1f}")
-                if dec.terminated:
-                    print(f"[mavsdk] state machine TERMINATED in SAFE "
-                          f"(reason={dec.safe_reason})")
-                    break
-                await asyncio.sleep(1.0 / args.fps)
+            loop_out = await _control_loop(
+                drone, args, cfg, sm, trigger, detector, state, frame_recorder,
+                supervisor,
+                # A real flight is bounded by the state machine's own mission
+                # backstop; the smoke bound (90 s, shorter than mission_max_s)
+                # and the 2 s synthetic-detection delay are SITL conveniences.
+                outer_bound_s=(cfg.mission_max_s + cfg.safe_hold_s + 15.0 if fly
+                               else args.smoke_duration),
+                acquire_after_s=(0.0 if fly else args.smoke_acquire_after_s))
+            rc_exit = rc_exit or loop_out["rc_exit"]
     finally:
-        if offboard_ok:
-            try:
-                await drone.offboard.stop()
-                print("[mavsdk] offboard stopped")
-            except Exception as e:  # noqa: BLE001 -- best-effort teardown
-                print(f"[mavsdk] offboard.stop skipped: {e}")
+        # The loop is over: tell the watchdog the silence that follows (the
+        # landing wait) is deliberate.
+        if supervisor is not None:
+            supervisor.unwatch()
         try:
-            # SAFE behavior (builder ruling 2026-09-22): the STATE MACHINE
-            # never knows what RTL is -- it stays exactly as pure for
-            # safe_behavior='rtl' as for the 'land' default (same
-            # land_requested/terminated timing, see RealFlightSM._decide).
-            # Only the LIVE DRIVER, here, picks which PX4 ACTION to issue.
-            # RETURN-TO-LAUNCH is PX4's OWN GPS-based safety behaviour (fly
-            # home at a safe altitude, then auto-land) -- a SAFETY fallback,
-            # NOT a guidance decision, and must never be read as one. This is
-            # the UNCONDITIONAL teardown path (also reached on the outer
-            # smoke-duration forced-shutdown bound), so 'hover' still comes
-            # down here rather than being stranded airborne forever.
-            if sm.effective_safe_behavior() == "rtl":
-                await drone.action.return_to_launch()
-                print(f"[mavsdk] RETURN-TO-LAUNCH commanded (effective safe "
-                      f"behavior 'rtl', reason={sm.safe_reason}); waiting up "
-                      f"to {_LAND_TIMEOUT_S}s for touchdown + disarm (PX4 "
-                      f"flies home first -- may not complete within this "
-                      f"bound; that is a teardown-wait timeout, not a "
-                      f"failsafe) ...")
-            else:
-                await drone.action.land()
-                print(f"[mavsdk] landing; waiting up to {_LAND_TIMEOUT_S}s for "
-                      f"touchdown + disarm ...")
-            deadline = time.monotonic() + _LAND_TIMEOUT_S
-            touch_t = None
-            forced = False
-            while time.monotonic() < deadline:
-                if state["armed"] is False:
-                    break
-                if state["landed"] == LandedState.ON_GROUND and touch_t is None:
-                    touch_t = time.monotonic()
-                if touch_t is not None and not forced and \
-                        time.monotonic() - touch_t > 5.0:
-                    forced = True
-                    try:
-                        await drone.action.disarm()
-                        print("[mavsdk] forced disarm (auto-disarm lagged)")
-                    except Exception as e:  # noqa: BLE001
-                        print(f"[mavsdk] disarm request skipped: {e}")
-                await asyncio.sleep(0.5)
-            print(f"[mavsdk] landed_state={state['landed']} armed={state['armed']}")
-        except Exception as e:  # noqa: BLE001 -- best-effort teardown
-            print(f"[mavsdk] land skipped: {e}")
+            await _teardown_flight(drone, cfg, sm, state, offboard_ok,
+                                   armed_by_program, LandedState)
+        finally:
+            if supervisor is not None:
+                supervisor.close()
         for tk in tasks:
             tk.cancel()
-        if getattr(args, "log_csv", None):
-            os.makedirs(os.path.dirname(args.log_csv), exist_ok=True)
-            with open(args.log_csv, "w") as fh:
-                fh.write(_CSV_HEADER)
-                fh.writelines(csv_rows)
-            print(f"[log] {len(csv_rows)} ticks -> {args.log_csv}")
-        # MISSION END: drain + finalize the onboard footage recorder (--record-
-        # frames), unconditionally -- this `finally` runs on every exit path
-        # (clean shutdown, the outer smoke-duration bound, an exception), so a
-        # recorder attached to a mission that fails partway still gets its
-        # meta.json written and its queued frames drained within the deadline.
-        if frame_recorder is not None:
-            fr_meta = frame_recorder.close()
-            print(f"[frame_recorder] {fr_meta['n_written']} written, "
-                  f"{fr_meta['n_dropped']} dropped "
-                  f"(rate={fr_meta['drop_rate']:.1%}), target_fps="
-                  f"{fr_meta['config']['target_fps']} -> {fr_meta['out_dir']}")
+        _write_mission_logs(args, loop_out["csv_rows"], frame_recorder)
+
+    n_tick, n_sp, n_off_true = (loop_out["n_tick"], loop_out["n_sp"],
+                                loop_out["n_off_true"])
+    csv_rows = loop_out["csv_rows"]
+    offboard_lost_after_go = loop_out["offboard_lost_after_go"]
 
     # ---- PASS/FAIL for the SITL gate ------------------------------------------
     visited = sm.visited
@@ -2854,6 +3819,8 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
     print("[mission] transitions:")
     for tr in sm.transitions:
         print(f"    {tr.t:7.2f}s  {tr.frm} -> {tr.to}  ({tr.reason})")
+    print(f"[mission] oldest own-state sample seen: {sm.max_own_state_age_s:.2f}s "
+          f"(FAILSAFE 9 bound = {cfg.own_state_stale_s}s)")
     if smoke:
         # ADR-0105/0118: in pursuit_mode the GO edge enters ENGAGE directly --
         # CODED_DASH is structurally unreachable, so requiring it would fail
@@ -2935,6 +3902,176 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
         print(f"[sitl-smoke] {'PASS' if rc_exit == 0 else 'FAIL'} "
               f"({n_sp} setpoints, dash heading "
               f"{sm.dash_heading.value if sm.dash_heading.is_set else 'unset'})")
+    return rc_exit
+
+
+def bench_config(cfg: MissionConfig) -> MissionConfig:
+    """The mission config for a PROPS-OFF rehearsal: the three arm-gate checks
+    a board on a desk cannot meet are stubbed, and nothing else.
+
+      * `require_armed=False` -- the vehicle must stay DISARMED the whole run;
+      * the height gate is met by the driver feeding the standby height (see
+        `_control_loop(bench=True)`);
+      * `yaw_tol_deg=180` -- a disarmed vehicle cannot turn to the aim yaw.
+
+    The OFFBOARD gate, the attitude-quaternion gate, the settle time, the GO
+    edge rules, every failsafe and the whole terminal run as they will fly."""
+    return replace(cfg, require_armed=False, yaw_tol_deg=180.0)
+
+
+async def run_bench_props_off(args, cfg: MissionConfig, sm: RealFlightSM,
+                              trigger, detector=None,
+                              frame_recorder=None):  # pragma: no cover -- needs the board; driven by the fake in tests
+    """PROPS-OFF REHEARSAL of the real program on the real board
+    (`--bench-props-off`). The field protocol's L0 rung ("start the state
+    machine, watch STANDBY, flip GO") could not be run before 2026-11-18,
+    because the only live path always armed and took off.
+
+    It connects, PROVES the vehicle is disarmed and that no flight battery is
+    connected, reads the board's limits, enters OFFBOARD while disarmed, and
+    runs the SAME control loop the flight runs: STANDBY -> GO (the real RC
+    switch, or a timer) -> ENGAGE, with the real setpoint stream, the real
+    own-state streams and the real watchdog. It ends by stopping OFFBOARD.
+
+    IT CANNOT ARM, AND THAT IS STRUCTURAL: neither this coroutine nor anything
+    it calls names the vehicle's `action` plugin (arm, takeoff, land, disarm
+    all live there). flight/tests/test_real_flight_driver.py walks the syntax
+    tree of this function's whole call closure to prove it. The physical
+    interlock is still PROPS OFF."""
+    import asyncio
+
+    from mavsdk import System
+
+    drone = System()
+    if not await _connect_vehicle(drone, args.mavsdk_url):
+        return 1
+    state = _new_link_state()
+    rc_sinks = [trigger] if isinstance(trigger, RcChannelTrigger) else []
+    tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=True)
+    supervisor, _sup_ok = _start_supervisor(drone, args, required=False)
+
+    max_batt = float(args.bench_max_batt_v)
+    rc_exit = 0
+    offboard_ok = False
+    unread: List[str] = []
+    loop_out = {"n_tick": 0, "n_sp": 0, "n_off_true": 0, "csv_rows": [],
+                "offboard_lost_after_go": False, "abort": None,
+                "max_tick_gap_s": 0.0}
+    try:
+        # INTERLOCKS. Both need a REAL sample: "no reading" is not "disarmed"
+        # and it is not "no battery".
+        deadline = time.monotonic() + _BENCH_STREAM_WAIT_S
+        while time.monotonic() < deadline and (state["armed"] is None
+                                               or state["batt_v"] is None):
+            await asyncio.sleep(0.1)
+        if state["armed"] is not False:
+            print(f"[bench] REFUSED: the vehicle reports armed={state['armed']} "
+                  f"-- a props-off rehearsal needs a DISARMED vehicle")
+            return 1
+        if state["batt_v"] is None:
+            print(f"[bench] REFUSED: no battery reading within "
+                  f"{_BENCH_STREAM_WAIT_S:.0f} s -- cannot show that no flight "
+                  f"battery is connected")
+            return 1
+        if state["batt_v"] > max_batt:
+            print(f"[bench] REFUSED: battery reads {state['batt_v']:.1f} V (> "
+                  f"{max_batt:.1f} V, --bench-max-batt-v): a flight battery is "
+                  f"connected. Unplug it; this rehearsal runs on USB power.")
+            return 1
+        print(f"[bench] interlocks OK: disarmed, battery {state['batt_v']:.2f} V "
+              f"(<= {max_batt:.1f} V). PROPS MUST BE OFF. This mode cannot arm.")
+        print("[bench] stubs: armed gate off, height gate fed the standby "
+              "height, yaw tolerance 180 deg. Everything else runs as it flies.")
+
+        limits, unread = await read_platform_limits(drone)
+        caps = commanded_caps(args, cfg, sm.guidance)
+        for line in format_platform_table(limits, caps):
+            print(line)
+        hard, refusals, notes = check_platform_limits(limits, unread, caps, cfg)
+        for n in notes:
+            print(f"[limits] note: {n}")
+        for h in hard:
+            print(f"[limits] {h}")
+        for r in refusals:
+            print(f"[limits] --fly WOULD REFUSE: {r}")
+
+        offboard_ok = await _enter_offboard(drone, cfg, state)
+        if not offboard_ok:
+            rc_exit = 1
+        else:
+            loop_out = await _control_loop(
+                drone, args, cfg, sm, trigger, detector, state, frame_recorder,
+                supervisor, outer_bound_s=args.smoke_duration,
+                acquire_after_s=args.smoke_acquire_after_s,
+                bench=True, bench_max_batt_v=max_batt)
+            rc_exit = rc_exit or loop_out["rc_exit"]
+    finally:
+        if supervisor is not None:
+            supervisor.unwatch()
+        if loop_out.get("abort"):
+            # Something is wrong with the bench itself (armed, or a battery).
+            # Send NO mode command; just end the stream.
+            _end_setpoint_stream(drone)
+            print("[bench] setpoint stream ended; no mode command sent")
+        elif offboard_ok:
+            try:
+                await drone.offboard.stop()
+                print("[bench] offboard stopped (no land, no disarm: nothing "
+                      "was ever armed)")
+            except Exception as e:  # noqa: BLE001 -- best-effort teardown
+                print(f"[bench] offboard.stop skipped: {e}")
+        sup_exit = None
+        if supervisor is not None:
+            sup_exit = supervisor.close()
+        for tk in tasks:
+            tk.cancel()
+        _write_mission_logs(args, loop_out["csv_rows"], frame_recorder)
+
+    # ---- the rehearsal's own PASS/FAIL ----------------------------------------
+    visited = sm.visited
+    csv_rows = loop_out["csv_rows"]
+    print(f"[mission] states visited: {' -> '.join(visited)}")
+    print("[mission] transitions:")
+    for tr in sm.transitions:
+        print(f"    {tr.t:7.2f}s  {tr.frm} -> {tr.to}  ({tr.reason})")
+    eng = [r.split(",") for r in csv_rows if f",{State.ENGAGE}," in r]
+    i_mode = _CSV_FIELDS.index("mode")
+    n_eng_offb = sum(1 for r in eng if r[i_mode] == "OFFBOARD")
+    checks: List[Tuple[str, bool]] = [
+        ("the vehicle stayed disarmed and no battery appeared",
+         loop_out.get("abort") is None and state["armed"] is False),
+        ("OFFBOARD was entered while disarmed (flight mode from telemetry)",
+         loop_out["n_off_true"] > 0),
+        (f"setpoints streamed ({loop_out['n_sp']})", loop_out["n_sp"] >= 20),
+        ("the GO edge was accepted and ENGAGE ran", State.ENGAGE in visited),
+        (f"every ENGAGE tick was in OFFBOARD ({n_eng_offb}/{len(eng)})",
+         bool(eng) and n_eng_offb == len(eng)),
+        ("every platform limit was read from the board", not unread),
+    ]
+    if isinstance(trigger, RcChannelTrigger):
+        span = (0.0 if state["t_rc"] is None or state["t_rc_first"] is None
+                else state["t_rc"] - state["t_rc_first"])
+        rate = (state["rc_n"] - 1) / span if span > 0 else 0.0
+        checks.append((f"RC_CHANNELS reached the Pi ({state['rc_n']} frames, "
+                       f"{rate:.1f} Hz, worst gap {state['rc_max_gap_s']:.2f} s; "
+                       f"link bound {cfg.link_timeout_s:.1f} s)",
+                       state["rc_n"] > 1
+                       and state["rc_max_gap_s"] <= cfg.link_timeout_s))
+    if supervisor is not None:
+        checks.append((f"the loop watchdog ran and exited clean (exit {sup_exit})",
+                       sup_exit == 0))
+    print("[bench] ---- props-off rehearsal ----")
+    for what, ok in checks:
+        print(f"[bench] {'ok  ' if ok else 'FAIL'} {what}")
+        if not ok:
+            rc_exit = 1
+    print(f"[bench] measured: oldest own-state sample {sm.max_own_state_age_s:.2f} s "
+          f"(FAILSAFE 9 bound {cfg.own_state_stale_s} s); worst control-tick gap "
+          f"{loop_out.get('max_tick_gap_s', 0.0):.2f} s (watchdog bound "
+          f"{getattr(args, 'loop_watchdog_s', 0.0)} s); oldest flight-mode sample "
+          f"{sm.max_offboard_sample_age_s:.2f} s (FAILSAFE 7 bound "
+          f"{cfg.offboard_stale_s} s)")
+    print(f"[bench] {'PASS' if rc_exit == 0 else 'FAIL'}")
     return rc_exit
 
 
@@ -3129,6 +4266,13 @@ def self_test() -> int:
 # ---------------------------------------------------------------- CLI
 
 
+def _negative_disables(v: Optional[float]) -> Optional[float]:
+    """A NEGATIVE bound on the command line is the explicit "disable" spelling
+    (argparse has no clean optional-float). It must never be read as a
+    0-second bound, which would abort every flight instantly."""
+    return None if v is not None and v < 0 else v
+
+
 def build_config(args) -> MissionConfig:
     """Resolve the pre-flight constants ONCE, before anything flies."""
     # OPTIONAL GPS-fitted cue (docs/cue_relay_plan.md): overrides the
@@ -3272,6 +4416,10 @@ def build_config(args) -> MissionConfig:
         # which would abort every flight instantly.
         offboard_stale_s=(None if args.offboard_stale_s is not None
                           and args.offboard_stale_s < 0 else args.offboard_stale_s),
+        # Same spelling for FAILSAFE 9: negative = disabled. getattr, because
+        # callers that build their own Namespace predate the flag.
+        own_state_stale_s=_negative_disables(
+            getattr(args, "own_state_stale_s", 1.0)),
         breakoff_min_rise_m=args.breakoff_min_rise_m,
         breakoff_max_range_m=args.breakoff_max_range_m,
         breakoff_min_flown_frac=args.breakoff_min_flown_frac,
@@ -3363,9 +4511,11 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
         # Transit lower bound: straight-line belief range at the dash ceiling
         # plus the braking tail and a terminal allowance.
         belief_range = math.hypot(belief_r0_ned[0], belief_r0_ned[1])
-        t_transit_min = (belief_range / max(pcfg.dash_v_max_ms, 1e-6)
-                         + pcfg.dash_v_max_ms / max(pcfg.brake_accel_ms2, 1e-6) / 2.0
-                         + 8.0)
+        # (This is the COMMANDED ceiling: no link is open yet, so the board's
+        # own limit is unknown here. --fly repeats the check with
+        # min(commanded, board) once it has read MPC_XY_VEL_MAX.)
+        t_transit_min = approach_transit_lower_bound_s(
+            belief_range, pcfg.dash_v_max_ms, pcfg.brake_accel_ms2)
         if cfg.engage_max_s < t_transit_min:
             print(f"[terminal] WARNING: engage_max_s={cfg.engage_max_s:.0f}s is "
                   f"shorter than the approach-dash transit lower bound "
@@ -3426,6 +4576,23 @@ def build_arg_parser() -> argparse.ArgumentParser:
                            "vehicle link -- no MAVSDK, cannot arm; setpoints "
                            "computed + logged, never sent. Own-state is the "
                            "FakeVehicle stand-in.")
+    mode.add_argument("--fly", action="store_true",
+                      help="THE REAL FLIGHT, and the only mode that may arm "
+                           "over a serial link. Needs --mavsdk-url, --trigger "
+                           "rc, a real camera (--source picamera), an explicit "
+                           "belief (--cue-json, or typed --target-start and "
+                           "--target-vel with --manual-belief) and "
+                           "--arm-permit-channel. It reads the board's limits, "
+                           "prints what it is about to do, and arms only on "
+                           "the operator's RC arm permit.")
+    mode.add_argument("--bench-props-off", action="store_true",
+                      help="PROPS-OFF REHEARSAL on the real board: requires a "
+                           "disarmed vehicle with no flight battery, never "
+                           "arms or takes off, and runs STANDBY -> GO -> "
+                           "ENGAGE with the real setpoint stream in OFFBOARD. "
+                           "Needs --mavsdk-url and --trigger rc|timer. "
+                           "Without --source the detector is synthetic. "
+                           "Exits 0/1.")
     mode.add_argument("--mavsdk-url", default=None,
                       help="MAVSDK connect URL (e.g. udpin://0.0.0.0:14540)")
 
@@ -3463,10 +4630,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     aim.add_argument("--dash-heading-deg", type=float, default=None,
                      help="C1 override (NED compass deg). Omit to solve the "
                           "collision lead from --target-start/--target-vel.")
-    aim.add_argument("--target-start", default="0,16.7",
+    aim.add_argument("--target-start", default="0,16.7", action=_ExplicitStore,
                      help="operator-entered target position at launch, 'east,north' m")
-    aim.add_argument("--target-vel", default="9,0",
+    aim.add_argument("--target-vel", default="9,0", action=_ExplicitStore,
                      help="operator-entered target velocity, 'east,north' m/s")
+    aim.add_argument("--manual-belief", action="store_true",
+                     help="--fly: acknowledge that the belief was TYPED "
+                          "(--target-start/--target-vel) and did not come "
+                          "from the GPS cue (--cue-json)")
     aim.add_argument("--no-accel-aware-lead", action="store_true",
                      help="use the old CONSTANT-SPEED lead solve (under-leads: the "
                           "dash starts at rest -- see ADR-0080)")
@@ -3551,6 +4722,27 @@ def build_arg_parser() -> argparse.ArgumentParser:
                      help="FAILSAFE 7 arm 2: a flight-mode sample older than this "
                           "is treated as LOSS (a frozen subscriber pins "
                           "offboard_active True). Negative disables the arm.")
+    saf.add_argument("--own-state-stale-s", type=float, default=1.0,
+                     help="FAILSAFE 9: own-state (attitude, yaw, height, "
+                          "velocity) whose OLDEST stream is older than this "
+                          "goes SAFE, in any state. Negative disables it.")
+    saf.add_argument("--loop-watchdog-s", type=float, default=0.5,
+                     help="live paths: an out-of-process watchdog "
+                          "(flight/deploy/loop_supervisor.py) ends the "
+                          "setpoint stream if the control loop has not ticked "
+                          "for this long, or if this program dies, so PX4's "
+                          "own offboard-loss failsafe acts. 0 = off (refused "
+                          "by --fly).")
+    saf.add_argument("--override-platform-limits", action="store_true",
+                     help="--fly: go ahead although the guidance commands "
+                          "more than the board flies, or the believed "
+                          "rendezvous is outside the geofence, or the transit "
+                          "cannot fit the engage window. Never overrides a "
+                          "limit that could not be READ.")
+    saf.add_argument("--bench-max-batt-v", type=float, default=6.0,
+                     help="--bench-props-off: refuse (and abort) above this "
+                          "battery voltage. USB power reads about 0 V; any "
+                          "flight battery reads far more.")
     saf.add_argument("--breakoff-min-rise-m", type=float, default=0.30,
                      help="past-CPA breakoff MAGNITUDE guard: total range rise "
                           "from the base of the rising run (mirrors m4's "
@@ -3608,6 +4800,15 @@ def build_arg_parser() -> argparse.ArgumentParser:
     trg.add_argument("--rc-low-us", type=int, default=1300)
     trg.add_argument("--go-after-s", type=float, default=8.0,
                      help="--trigger timer: synthesise the GO edge at this time")
+    trg.add_argument("--arm-permit-channel", type=int, default=None,
+                     help="--fly (required): RC_CHANNELS index of the ARM "
+                          "PERMIT switch. The program arms and takes off only "
+                          "after this switch goes LOW then HIGH while the GO "
+                          "switch is LOW. Must differ from --rc-channel. "
+                          "Uses the --rc-go-us / --rc-low-us thresholds.")
+    trg.add_argument("--arm-permit-timeout-s", type=float, default=120.0,
+                     help="--fly: give up (without arming) if no arm permit "
+                          "arrives within this long")
 
     trm = ap.add_argument_group("terminal seeker (composed from seeker_loop)")
     trm.add_argument("--terminal", choices=("stock", "tag", "pursuit"),
@@ -3827,9 +5028,15 @@ def main(argv=None) -> int:
     if args.self_test:
         return self_test()
 
-    if not (args.dry_run or args.sitl_smoke or args.desk):
+    if not (args.dry_run or args.sitl_smoke or args.desk or args.fly
+            or args.bench_props_off):
         ap.error("pick a mode: --self-test | --audit | --dry-run | --sitl-smoke "
-                 "| --desk")
+                 "| --desk | --fly | --bench-props-off")
+    # The two modes that touch a REAL board are each their own mode.
+    for flag, name in ((args.fly, "--fly"), (args.bench_props_off, "--bench-props-off")):
+        if flag and (args.dry_run or args.sitl_smoke or args.desk
+                     or (args.fly and args.bench_props_off)):
+            ap.error(f"{name} is its own mode: drop the other mode flag")
     if args.desk:
         if args.dry_run or args.sitl_smoke:
             ap.error("--desk is its own mode (no --dry-run / --sitl-smoke)")
@@ -3841,8 +5048,26 @@ def main(argv=None) -> int:
             ap.error("--desk needs --source picamera | dir:PATH")
     if args.source and args.dry_run:
         ap.error("--source applies to --desk / --sitl-smoke, not --dry-run")
+    # A serial link is a real flight controller. The SITL smoke path arms and
+    # takes off on its own with a synthetic trigger and a synthetic target, so
+    # it may never be pointed at one (interface audit 2026-11-18, gap G1).
+    if args.sitl_smoke and is_serial_url(args.mavsdk_url):
+        ap.error(f"--sitl-smoke refuses {args.mavsdk_url}: that is a serial link "
+                 f"to a real flight controller, and this mode would arm and "
+                 f"take off with no human step. Use --fly (real flight) or "
+                 f"--bench-props-off (rehearsal, cannot arm).")
+    # Each real-board mode states ALL its refusals before anything is opened.
+    if args.fly or args.bench_props_off:
+        why = validate_fly_args(args) if args.fly else validate_bench_args(args)
+        if why:
+            tag = "fly" if args.fly else "bench"
+            for w in why:
+                print(f"[{tag}] REFUSED: {w}")
+            return 2
 
     cfg = build_config(args)
+    if args.bench_props_off:
+        cfg = bench_config(cfg)
     print(f"[config] standby alt {cfg.standby_alt_m:.1f} m, aim yaw "
           f"{cfg.aim_yaw_deg:.1f} deg, dash {cfg.dash_speed_ms:.1f} m/s "
           f"(cap {cfg.dash_accel_cap_ms2}), loft {cfg.dash_loft_m:.1f} m, "
@@ -3919,12 +5144,13 @@ def main(argv=None) -> int:
     if args.desk:
         return run_desk_mode(args, cfg, guidance, src_detector)
 
-    # --sitl-smoke
+    # --sitl-smoke | --fly | --bench-props-off: the three live modes.
     if not args.mavsdk_url:
         ap.error("--sitl-smoke requires --mavsdk-url (e.g. udpin://0.0.0.0:14540)")
     if args.trigger == "rc":
-        print("[trigger] REAL RC_CHANNELS path selected -- SITL has no RC input "
-              "by default, so this will (correctly) never fire a GO.")
+        if args.sitl_smoke:
+            print("[trigger] REAL RC_CHANNELS path selected -- SITL has no RC "
+                  "input by default, so this will (correctly) never fire a GO.")
         trigger = RcChannelTrigger(args.rc_channel, args.rc_go_us, args.rc_low_us,
                                    cfg.link_timeout_s)
     elif args.trigger == "timer":
@@ -3934,8 +5160,12 @@ def main(argv=None) -> int:
     if src_detector is not None:
         detector = src_detector
     else:
+        # Unreachable under --fly: validate_fly_args refused a missing --source.
         from flight.deploy.seeker_loop import SmokeSeeker
         detector = SmokeSeeker(cam.fx, gcfg.target_span_m, cx=cam.cx, cy=cam.cy)
+        if args.bench_props_off:
+            print("[bench] no --source: the detector is SYNTHETIC (a fake "
+                  "target). Add --source picamera to rehearse with the camera.")
     sm = RealFlightSM(cfg, guidance=guidance, on_event=print)
     frame_recorder = build_frame_recorder(args.record_frames)
     if frame_recorder is not None:
@@ -3943,6 +5173,19 @@ def main(argv=None) -> int:
               f"(target_fps={frame_recorder.target_fps}, "
               f"jpeg_quality={frame_recorder.jpeg_quality})")
     import asyncio
+    if args.bench_props_off:
+        return asyncio.run(run_bench_props_off(args, cfg, sm, trigger, detector,
+                                               frame_recorder=frame_recorder))
+    if args.fly:
+        # The arm-permit switch: a second reader on the same RC_CHANNELS
+        # stream, a different channel (validate_fly_args checked both).
+        permit_trigger = RcChannelTrigger(args.arm_permit_channel, args.rc_go_us,
+                                          args.rc_low_us, cfg.link_timeout_s)
+        return asyncio.run(run_mavsdk_mission(args, cfg, sm, trigger, detector,
+                                              smoke=False,
+                                              frame_recorder=frame_recorder,
+                                              fly=True,
+                                              permit_trigger=permit_trigger))
     return asyncio.run(run_mavsdk_mission(args, cfg, sm, trigger, detector,
                                           smoke=True,
                                           frame_recorder=frame_recorder))
