@@ -174,3 +174,39 @@ clock before a track exists" and "hold the clock off during a search" are code i
 `flight/deploy/real_flight.py`, which this rerun does not touch. A 120 s clock stands in
 for both here; it also removes the clock where those switches would keep it, so it is
 an upper bound on what they can give, not a test of them.
+
+## AMENDMENT 2 (2026-11-18, written before the runs it changes or adds)
+
+Written after stages a, c, brackets, b, btilt, grid, gridb and lost had reported, and
+before the search stage or anything below ran. What I knew when writing it: tilt 20 gives
+192 of 192 with no errors where tilt 10 gives 105; the grid's rule picked lean 45 with
+tilt 20; at tilt 10 no brake value satisfies the brake rule because the losses there are
+the camera's, not the brake's. Main is merged (arrival search, and three lost-target
+switches with a flight preset). The instrument check passes again on the merged code.
+
+- **The search stage moves to tilt 20**, the tilt the grid's rule chose, because that is
+  the configuration a recommendation would fly. Lean 45: speed error 10 / 4 / 1 % x
+  straight / weaving x near / demo x four arms: search off; `stern`; `believed`; and
+  `stern` with the flight preset's lost-target switches (`FLY_PRESET`: clock not started
+  before a track, held off during the search, 6 s when lost beyond 3 m) instead of the
+  120 s clock. Lean 60: straight only, off and `stern`. 60 cells of 32 = 1920 runs.
+- **A tilt-10 subset is kept** so the search can be compared at both tilts: lean 45,
+  straight, near and demo, 10 % and 4 %, off / `stern` / `believed`, clock 120 s. 12 cells
+  of 32 = 384 runs. Its off cells at 4 % repeat the lost stage's 120 s cells on the merged
+  code and must match them run for run.
+- **brake20 (no errors, 288 runs):** brake 2 / 3 / 4 at lean 45 and tilt 20, D1 and D2,
+  three geometries, 16 seeds, clock 2.0 s as in stage a. The brake 3 cells repeat stage c
+  and must match. The brake rule registered above is applied to these rows, because at
+  tilt 10 it compares camera losses.
+
+**Predictions.**
+12. With the flight preset the `stern` arm is within 2 kills of 32 per cell of the same
+    arm under the 120 s clock, and never more than 1 below it.
+13. At tilt 20 `stern` raises the 10 % straight cells by 10 or more of 32 and the 4 %
+    cells by 5 or more; at 1 % it costs 2 or fewer. Weaving cells gain 4 or more at 10 %.
+14. brake20: all three brakes give 16 of 16 at D1; at D2 none loses more than 1. Brake 2
+    costs about 4 s and brake 3 about 1.5 s against brake 4. By the rule that would make
+    brake 3 the choice (softest within 2.0 s).
+
+**Null.** If `stern` does not beat off at tilt 20 by the finding threshold (scaled: net 4
+of 32), the search does not carry to the flying lens.
