@@ -392,6 +392,16 @@ class PursuitTerminalConfig:
     # too large costs time. Inputs otherwise: the pre-flight belief and
     # own-state velocity only. Inert (legacy command) when the believed speed
     # is under `search_min_speed_ms`: a hovering target has no track to search.
+    # SPEED MARGIN: the forward leg needs a ground speed of the believed
+    # target's speed plus `search_sweep_ms`. The Phase-A norm cap still
+    # applies (v_max_ms, or dash_v_max_ms with approach_dash), and so does the
+    # flight controller's own limit, which this module cannot see: on a board
+    # limited to the target's speed the forward leg cannot close and only the
+    # back leg does anything.
+    # NOT COVERED: an error ACROSS the track larger than the decode range, and
+    # the wrapper's lost-target clock (flight/deploy/real_flight.py), which
+    # ends the engagement a fixed time after the last decode whether or not
+    # this search is still running.
     arrival_search: bool = False
     search_start: str = "stern"            # "stern" | "believed"
     search_sigma_speed_frac: float = 0.10  # GIVEN: 1-sigma believed-speed error

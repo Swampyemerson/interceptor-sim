@@ -186,3 +186,120 @@ searched interval behind when the declared sigma is too small.
   (`engage_max_s` is 30 s in the flight program's defaults).
 - The sweep speeds are sized by hand from the brake schedule and the decode
   range; they were not swept.
+
+## RESULT (2026-11-18; 4200 runs, 84 cells of 50, no cell short)
+
+Rows: `runs/arrival_search_20261118/main.json`. Tables:
+`python scripts/arrival_search_report.py` (output saved as `report.txt`).
+Ran on the dev laptop. Fast sim only.
+
+**Kills of 50** (in brackets: first contact inside 45 s)
+
+| Target, geometry, true speed error | `base` | `base_T` | `base_T_guard` | `stern` | `believed` | `stern_decl04` | `believed_T2` |
+|---|---|---|---|---|---|---|---|
+| straight, near, 10 % | 16 | 17 | 17 | 46 [46] | 48 [38] | 43 [39] | 43 [38] |
+| straight, near, 4 % | 27 | 29 | 28 | 50 [50] | 49 [45] | 49 [46] | 44 [43] |
+| straight, near, 0 % | 50 | 50 | 50 | 49 [49] | 50 [48] | 50 [49] | 48 [48] |
+| straight, demo, 10 % | 17 | 19 | 18 | 47 [46] | 49 [40] | 42 [38] | 41 [38] |
+| straight, demo, 4 % | 31 | 31 | 31 | 50 [50] | 49 [44] | 50 [46] | 44 [44] |
+| straight, demo, 0 % | 45 | 45 | 45 | 49 [49] | 50 [48] | 50 [49] | 48 [48] |
+| weave, near, 10 % | 8 | 10 | 11 | 15 | 18 | 21 | 13 |
+| weave, near, 4 % | 10 | 11 | 11 | 21 | 16 | 23 | 13 |
+| weave, near, 0 % | 21 | 22 | 22 | 22 | 19 | 24 | 16 |
+| weave, demo, 10 % | 6 | 9 | 8 | 20 | 18 | 13 | 12 |
+| weave, demo, 4 % | 14 | 15 | 15 | 22 | 22 | 25 | 17 |
+| weave, demo, 0 % | 16 | 18 | 18 | 27 | 17 | 14 | 14 |
+
+**Paired against `base_T`, straight target (kills lost / gained):** `stern`
+0 / 29, 0 / 28 at 10 %; 0 / 21, 0 / 19 at 4 %; 1 / 0, 1 / 5 at 0 %. `believed`
+0 / 31, 0 / 30 at 10 %; 0 / 20, 0 / 18 at 4 %; 0 / 0, 0 / 5 at 0 %.
+
+**Runs that never decode, straight target at 10 %:** 31 and 30 of 50 for the
+three baselines; 2 and 2 for `stern`, 1 and 1 for `believed`, 7 and 8 for
+`stern_decl04`.
+
+**Median time to first contact, straight target:** `base_T` 25.4 to 28.2 s.
+`stern` 33.0 to 33.5 s at every error level. `believed` 25.6 and 26.5 s at 0 %,
+28.5 and 28.9 s at 4 %, 30.8 s at 10 %, with a long tail at 10 %: 10 and 9 of
+its kills come after 45 s and 7 and 7 after 60 s (the latest at 81 s). `stern`
+has one kill after 45 s in those two cells and none after 46 s.
+
+### Predictions
+
+1. **10 %, straight: held.** 46, 47 (`stern`) and 48, 49 (`believed`) against 40.
+2. **4 %, straight: held.** 49 or 50 in all four cells against 43.
+3. **0 % control: held.** `believed` loses nothing and is 0.2 and 0.9 s slower.
+   `stern` nets -1 and +4 and is 7.9 and 7.4 s slower. Its two lost kills are
+   misses of 0.37 and 0.40 m.
+4. **Weaving target: failed.** I predicted 25 or more of 50 at 10 %; the search
+   arms got 15 to 20. They do gain (+5 to +11 net), and almost every run now
+   decodes, but against a weaving target the kills are decided in the terminal:
+   the baselines only manage 16 to 22 of 50 with a perfect speed belief, and
+   paired seeds flip both ways (8 to 12 lost against 5 to 17 gained at 0 %).
+   The search does not help a target the terminal cannot hit.
+5. **The clock alone is not the fix: held.** `base_T` is 1 to 3 above `base`.
+   `believed_T2` keeps most of the gain (43 and 41 against 48 and 49) but loses
+   5 to 8 kills per straight cell to the 2.0 s clock; pooled over all cells, 243
+   of its 600 runs decode, do not kill and end on that clock, 37 of them with 5
+   or fewer decodes in the whole run (`base`: 134 and 13).
+6. **Too small a declared sigma: held on kills, missed on time.** `stern_decl04`
+   at a true 10 % kills 3 and 5 fewer than `stern` and leaves 7 and 8 runs
+   undecoded. At 4 % and 0 % it is 1.5 to 2.9 s quicker than `stern`, not the 3 s
+   I predicted.
+7. **Blind passes: held for `stern`, missed for `believed`.** Against `base_T`,
+   `believed` has 4 and 3 more at 10 % straight (9 and 12 of 50) and 5 and 4
+   more against a weaving target; `stern` has 2 more and 4 fewer. With a
+   straight target nearly all of them still end as kills (9 of 9, 11 of 12).
+8. **The stale-decode guard alone: failed.** I predicted +2 to +8; it changes
+   nothing measurable (0, -1, +1, -1 at 10 %). So the search arms' gain is the
+   sweep. The guard still matters inside the search (without it a fallback
+   pins the search), but as a repair to the default path it buys nothing here.
+
+### Against the registered criterion
+
+Both `stern` and `believed` meet it (so do `stern_decl04` and `believed_T2`).
+By the registered tie-break `believed` goes first: it costs nothing when the
+cue is good (25.6 against 33.3 s at 0 %), and `stern` is not 5 kills ahead at
+10 % (93 against 97 over the two cells). Recorded beside that, because the
+tie-break did not ask: inside a 45 s bound `stern` has 92 kills at 10 % and
+`believed` 78. Which matters more depends on the engagement time limit, which
+is 30 s in the flight program today; under 30 s neither arm's median kill at
+10 % fits.
+
+### Failure modes only the search arms have
+
+- **Longer engagements.** +5 s (`believed`) to +8 s (`stern`) to the median
+  kill at 10 %; `believed`'s slow tail reaches 60 to 81 s when its first leg
+  goes the wrong way. Up to 5 to 7 legs flown in the worst runs.
+- **Blind passes** on the `believed` back leg: the target overtakes from behind
+  before it can be seen. Counts above.
+- **A wrong declared sigma** leaves targets outside the first pass (7 and 8
+  undecoded of 50 with 4 % declared against 10 % true).
+- **Time within 5 m before contact** is unchanged for a straight target (2 s
+  median) and longer against a weaving one (3 to 5 s median, 10 to 17 s at the
+  90th percentile, against 0 to 4 and 5 to 22 for the baselines).
+- Not seen: any straight-target cell where a search arm loses more than 1 kill
+  against `base_T`.
+
+### What this result does not show
+
+- **Optics.** fx 540.3 (a 100 degree lens), a 0.5 m tag and zero camera
+  up-tilt: the October demo setup, not the flying camera or tag. The decode
+  range (about 12 m at even odds, useful to about 20 m) sets the sweep speed
+  and every time above.
+- **The flight controller's speed limit.** The forward leg flies the target's
+  speed plus 8 m/s, about 20 m/s here. The interceptor's board is limited to
+  12 m/s today (read 2026-11-18), which is the target's speed in this test: the
+  forward leg cannot close on it. Only the back leg works without speed margin.
+- **The wrapper clock.** Five of the seven arms run with the lost-target clock
+  set to the window. The search as built needs the wrapper not to run that
+  clock while the terminal is searching; that rule is not written.
+- **Across-track error.** Pooled, 2 runs of 600 (`stern`) end more than 12 m
+  off to the side after decoding; the heading error here is 2 degrees. A worse
+  heading would need a search across the track, which this is not.
+- **Drag, a real plant, a real camera.** isim, extrapolated plant, no body drag.
+- **The independent geometry check** (same day, another agent) puts the
+  along-track error at arrival at about 22 m one sigma, not the 30 m quoted at
+  the top of this file (the vehicle parks 18 s after GO, not 25), and counts 25
+  of the 30 no-decode runs with the target behind and 5 to 6 with it far ahead.
+  Neither changes the design: the search covers both sides.
