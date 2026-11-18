@@ -604,3 +604,11 @@ QGroundControl can now reach the Pixhawk over Wi-Fi through the Pi, so the Pixha
 **So what:** No more swapping the USB cable between the PC and the Pi. The port has no password: anything on the same Wi-Fi can command the Pixhawk through it (GCS_PORT=0 turns it off). Not yet tested with QGroundControl itself.
 
 *Evidence: runs/fc_log_stream_20261113/gcs_bridge/; docs/fc_logging_without_sd.md; ADR-0137 addendum 2026-11-14*
+
+## 2026-11-14 (overflowed from plain_log 2026-11-18)
+
+Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. The flight controller turned out to be mounted backwards, like the interceptor's was; the board rotation is now set to 180 degrees and the attitude reading flipped as it should. All 66 settings read back after a reboot. The accelerometer is calibrated (QGroundControl's page stuck, so a small helper in the repo did it). Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it. Outdoors the GPS gave no fix; the cause was a stray strand of wire joining its two signal lines, so the board had only ever heard its own messages (including on 2026-10-13, when it was logged as detected). With the strand removed it has a 3D fix and 15 satellites.
+
+**So what:** Left before the target can arm: the compass check fails (reading is 168 against a limit of 100, taken next to the laptop), so recalibrate it away from metal; and the props-off motor test, where motor A must be front-right of the real nose. One cross-check is open: the compass calibration says the GPS module faces backwards, which is only right if its arrow points at the tail.
+
+*Evidence: ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md; runs/target_bench_20261114/*

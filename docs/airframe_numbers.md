@@ -213,16 +213,41 @@ Why 6S: for the same power, higher voltage means lower current; I²R loss in pac
 ESC drops with the square of current, and voltage sag on a dash is smaller. Both aircraft
 also share one pack type and one charger.
 
-**Full-throttle current against the power path (2026-11-18, raised by the builder).**
-All pack current passes through the PM02 V3 (battery, PM02, ESC). PX4's page for it gives
-60 A rated, 120 A for under 60 s, and 120 A as the most it can sense. Four motors at their
-listed 45 A peak is 180 A, and the pack's listed burst is 150 A. So a full-throttle punch
-would exceed the PM02's limit and the logged current would clip at 120 A. Not measured.
-The planned dash is far below this: 16 m/s with a 10 m/s² ramp needs about 12 N of thrust
-(0.853 kg × √(9.81² + 10²)), about 20 % of static, which scales from the hover estimate
-to roughly 15 A (7.5 A × (1.2 / 0.8)^1.5). A dash near full throttle is a different
-aircraft for this purpose: re-check the PM02, the pack and the XT60 leads before
-commanding one. Source: <https://docs.px4.io/main/en/power_module/holybro_pm02>
+**Dash current against the power path (2026-11-18, raised by the builder).**
+Two different dashes are on the books, and they load the power path differently.
+
+- **Limits in the path.** All pack current passes through the PM02 V3 (battery, PM02,
+  ESC). PX4's page gives 60 A rated, 120 A for under 60 s, and 120 A as the most it can
+  sense. ESC 60 A per motor. Pack listed burst 150 A.
+- **The 80 mph dash as flown in Gazebo** (take hr5, `runs/cinema_longrange_20261021/`;
+  limits 36 m/s, 15 m/s², 60° tilt). From its pose log: peak 35.8 m/s reached 6 s after
+  the start, 4.4 s above 30 m/s, 8.6 s above 20 m/s, tilt never past 52°, and the thrust
+  asked for never above 1.42 times weight. That is about a fifth of this airframe's
+  estimated static thrust, so the sim's dash is not a full-throttle dash.
+- **What the sim leaves out.** Gazebo has no body drag (`docs/sim_to_real_gaps.md` A1),
+  and a prop makes less thrust the faster air arrives through it. With the assumed
+  Cd·A of 0.014 m², holding 35.8 m/s takes about 12.5 N at 48° of tilt; at the 60° tilt
+  limit it is 16.7 N, twice weight. A crude prop model (thrust falling in a straight line
+  to zero at pitch speed) puts the motors at about 70 to 85 % of full-throttle speed, and
+  thrust times airspeed through the prop at 50 % overall efficiency gives about 30 to
+  50 A. My estimate, resting on an assumed drag figure; not measured.
+- **The saturated dash ADR-0132 asks for** (speed cap above what the airframe can do) is
+  the full-throttle case. Listings say 4 × 45 A = 180 A. The one measurement says less:
+  the target drone, with the same motors, props and pack, logged 86.5 A and 80.5 A peak in
+  two full-throttle climbs while the pack fell to 18.3 V, 3.05 V per cell, on a pack more
+  than half used (`runs/target_flight6_20261115/README.md`). That sensor is uncalibrated.
+  A fresh pack holds more voltage and pushes more current: scaled by voltage squared to
+  about 21 V that is roughly 110 A. Also an estimate.
+- **Reading.** The sim-style 80 mph dash should sit inside the PM02's 60 A rating. The
+  saturated dash sits above it and inside the 120 A short-term limit, with little margin
+  on a fresh pack. In the saturated case the pack is the larger problem: 3.05 V per cell
+  under load is below the 3.5 V land-by figure above, and it is the Pi-rail sag risk
+  ADR-0132 lists.
+- **Would settle it:** calibrate the target's current sensor from the charger's mAh, then
+  a 2 to 3 s full-throttle punch on the interceptor with a fresh pack, reading PM02
+  current and voltage from the log and feeling the PM02 and XT60 for heat afterwards.
+
+Source: <https://docs.px4.io/main/en/power_module/holybro_pm02>
 
 ---
 

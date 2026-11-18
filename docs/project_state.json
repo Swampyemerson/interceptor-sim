@@ -3,8 +3,8 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-11-15",
-  "updated_by": "NN seeker: first frames of our own target through our own camera; existing detectors scored on them (2026-11-15)",
+  "updated": "2026-11-18",
+  "updated_by": "80 mph dash: pod loads and power path checked by hand against the sim take; power module limit found",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -531,7 +531,7 @@
         "Match the sim demo envelope now (36/15/60/30) -- NOT recommended while the airframe is unmeasured"
       ],
       "rec": "Option 1. The isim cliff finding is the reason: a dash the airframe cannot brake out of misses by design, and brake authority is exactly what is unmeasured. Nothing was written tonight; the target drone (ArduPilot) needs no change for this feature.",
-      "blocked": "Open assumptions: airframe-thrust-and-mass-unmeasured, dash-accel-profile. Needs a measured airframe.",
+      "blocked": "Open assumptions: airframe-thrust-and-mass-unmeasured, dash-accel-profile. Needs a measured airframe. Also the power path: the power module (PM02) is rated 60 A, 120 A for under 60 s. The sim's 80 mph take asks for only 1.4 times weight in thrust (rough estimate 30 to 50 A with real drag); a saturated full-throttle dash is about 86 A as logged on the target drone, with the pack down to 3.05 V per cell. Check before raising the envelope: docs/airframe_numbers.md section 6.",
       "doc": "isim/specs/approach_dash_2026-10-21.md"
     },
     {
@@ -558,6 +558,12 @@
     }
   ],
   "plain_log": [
+    {
+      "date": "2026-11-18",
+      "text": "The builder asked whether the pod material choice and the power wiring had been checked against the 80 mph approach dash. They had not: the pod's vibration and heat sums were built around hover. Redone by hand: wind on the pod at 80 mph is about 4.7 N, less than the 16 N already checked, so wind does not drive the material; heat is still the solid reason for a carbon-filled nylon. On the wiring: all battery current passes through the power module (PM02), rated 60 A and 120 A for under a minute. The simulator's 80 mph take never asked for more than 1.4 times the aircraft's weight in thrust, so it is not a full-throttle dash; with air drag added (the simulator has none) my rough estimate is 30 to 50 A. A true full-throttle dash is the heavier case: the target drone, same motors and battery, logged about 86 A (uncalibrated sensor) while the battery sagged to 3.05 V per cell.",
+      "so_what": "Keep the power module and buy nothing. The 80 mph dash as simulated should sit inside its rating; a saturated full-throttle dash sits inside its one-minute limit with little margin, and there the battery sagging is the larger problem (below the land-by voltage, and a threat to the Pi's supply). A 2 to 3 second full-throttle punch with a fresh battery settles it. I first answered that the planned dash was 36 mph, from an older config; the builder corrected me.",
+      "evidence": "docs/airframe_numbers.md section 6; hardware/avionics_pod/ANALYSIS.md section 5; runs/cinema_longrange_20261021/ (take hr5); runs/target_flight6_20261115/README.md; ADR-0132 addendum 2026-11-18"
+    },
     {
       "date": "2026-11-15",
       "text": "First real pictures of our own target through our own camera. The Pi's camera sat on the ground and filmed the target's flight, and a new tool picked the drone out of the video by what moved against the empty-sky footage from before take-off: 484 frames with the drone boxed and 106 empty ones. I looked at 144 of the boxed frames and all 144 are the drone. The existing detectors, which have never seen this drone, were then scored on them with the prediction written first. The newer one found the drone in 69% of frames, as predicted, but also fired on 63% of the empty frames, nearly all on one paper lantern in the trees. Its larger-input version fired on every empty frame. The older ones are quiet and find the drone under half the time.",
@@ -623,12 +629,6 @@
       "text": "The target drone's first flight ended in a crash, and the board's log explains it. It flew for 3.8 seconds in Position hold and reached 23 m before the builder cut the motors; it fell and hit the lawn battery first. The roll and pitch control loops were oscillating from lift-off. ArduPilot lets attitude control raise the motors to keep its grip, up to a cap of half the hover thrust it has been told. That figure had been set to 0.20 that morning; the log shows this drone really hovers at about 0.06. So the cap sat well above hover, and the drone climbed at up to 7.6 m/s while the stick and the height controller were both asking for down.",
       "so_what": "No flight of the target until: damage is checked, the roll/pitch gains are halved, the hover figure and that cap are brought below the drone's real hover, Stabilize is back on the switch for first hops, and minimum throttle is shown on the ground to mean descent. Both candidate causes written before reading the log were wrong as stated; the hover figure was mine. The battery took the impact and is a fire risk.",
       "evidence": "runs/target_bench_20261114/README.md + crash_flight_timeline.txt; ADR-0138 addenda 5 and 6"
-    },
-    {
-      "date": "2026-11-14",
-      "text": "Target drone set up for its first flight, on the bench. Its sticks and switch channels already matched the interceptor. The mode switch is now: up = Position hold (ArduPilot calls it Loiter), middle = Altitude hold, down = Auto, which flies a route drawn in QGroundControl. The two-position switch arms and disarms; down is disarmed. Losing the radio link now brings it home in every mode. The board was still on settings sized for a 10-inch quad, so ArduPilot's documented first-flight setup for a 5-inch quad was written too. The flight controller turned out to be mounted backwards, like the interceptor's was; the board rotation is now set to 180 degrees and the attitude reading flipped as it should. All 66 settings read back after a reboot. The accelerometer is calibrated (QGroundControl's page stuck, so a small helper in the repo did it). Also today: the Pixhawk's USB cable went into the Pi and the interceptor's log is complete over it. Outdoors the GPS gave no fix; the cause was a stray strand of wire joining its two signal lines, so the board had only ever heard its own messages (including on 2026-10-13, when it was logged as detected). With the strand removed it has a 3D fix and 15 satellites.",
-      "so_what": "Left before the target can arm: the compass check fails (reading is 168 against a limit of 100, taken next to the laptop), so recalibrate it away from metal; and the props-off motor test, where motor A must be front-right of the real nose. One cross-check is open: the compass calibration says the GPS module faces backwards, which is only right if its arrow points at the tail.",
-      "evidence": "ADR-0138; configs/target_kakute/dumps/20261114_*.tsv; configs/target_kakute/README.md section 6; docs/fc_logging_without_sd.md; runs/target_bench_20261114/"
     }
   ],
   "narrative": {

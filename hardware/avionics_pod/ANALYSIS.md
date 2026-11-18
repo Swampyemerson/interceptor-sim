@@ -198,19 +198,28 @@ camera pointed at a ruled target), then the same with motors running.
 
 ## 5. The dash (added 2026-11-18, raised by the builder)
 
-Sections 2 and 3 were written around hover. What the dash changes, by hand calculation:
+Sections 2 and 3 were written around hover. The approach dash peaks at 35.8 m/s (80 mph)
+in Gazebo (take hr5, `runs/cinema_longrange_20261021/`), and ADR-0132 sets its target at
+maximum effort. Not yet flown on the real aircraft. What that changes, by hand calculation:
 
 - **Air load on the pod is smaller than the 10 g case already checked.** Worst case is the
   pod's top face (107 x 56 mm) square to the wind, flat-plate drag 1.17, Boulder air
-  1.042 kg/m³: 0.9 N at the planned 16 m/s, 4.7 N at 36 m/s (80 mph). The 10 g check put
-  16 N on the 163 g module. Air load does not change the material choice.
-- **Motor rate during the planned dash is about 225 to 260 Hz**, not the 213 Hz hover
-  figure (same estimate as `docs/airframe_numbers.md` §7, scaled by the square root of
-  thrust: 8.6 N steady at 16 m/s, 11.9 N during the 10 m/s² ramp). That is where a stiffer
-  camera post would sit (about 275 Hz scaled for a 4.1 GPa base, lower on real joints).
-  So a stiffer material cannot be said to move the post clear of the motors; it gives
-  less movement for the same shake. The tap test and a vibration log in flight decide.
-- **Heat from the motors, ESC and pack is not in section 3.** They sit below the top plate
-  and the dash lasts a few seconds, so I expect little to reach the pod. Not calculated.
-- **A dash near full throttle is not analysed anywhere:** motor rate up to about 583 Hz,
-  and the current limits in `docs/airframe_numbers.md` §6.
+  1.042 kg/m³: 4.7 N at 35.8 m/s. The 10 g check put 16 N on the 163 g module. Air load
+  does not change the material choice.
+- **Acceleration is inside the 10 g case too.** The sim take never asked for more than
+  1.42 times weight in thrust. The target drone, same motors and pack, measured about 5 g
+  at full throttle (`runs/target_flight6_20261115/README.md`).
+- **Motor rate in the dash is above the camera post's first mode either way.** Roughly 70
+  to 85 % of the full-throttle 583 Hz for the sim-style dash on the real airframe (crude
+  estimate, `docs/airframe_numbers.md` §6), 583 Hz if saturated. The post's first mode is
+  187 Hz modelled in PETG, about 275 scaled for a 4.1 GPa base. It is crossed on spool-up
+  and again when braking, and is not sat on during the dash.
+- **The camera is not used during the dash.** ADR-0132 requires braking and attitude
+  recovery to finish before decode range. Picture steadiness matters in the terminal,
+  where throttle is back near hover and up (213 Hz and above), so section 2 still
+  applies there. A stiffer post gives less movement for the same shake; it does not
+  leave the motor band. The tap test and a vibration log in flight decide.
+- **Heat from the motors, ESC and pack is not in section 3.** The sim take's dash lasts
+  17 s, 4.4 s of it above 30 m/s, below the top plate, with fast air over everything. I
+  expect little to reach the pod. Not calculated.
+- **Pack current and the power module:** `docs/airframe_numbers.md` §6.
