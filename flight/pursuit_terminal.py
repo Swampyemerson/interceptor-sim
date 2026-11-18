@@ -357,6 +357,69 @@ class PursuitTerminalConfig:
     # is flown FASTER. Inputs: the held command only (honesty boundary).
     commit_sprint: bool = False
 
+    # --- arrival search (2026-11-18, default OFF = legacy) ---------------------
+    # Pre-registration: isim/specs/arrival_search_prereg_2026-11-18.md.
+    # WHY: Phase A parks `d_behind_m` behind the BELIEVED target, facing it. At
+    # a long cue the belief's along-track error is the believed-speed error
+    # times the transit time (10 % of 12 m/s over 25 s is 30 m). If the belief
+    # runs ahead of the real target, the real target is BEHIND the parked
+    # vehicle and a rear-facing tag can never be read; if it runs behind, the
+    # target is ahead but beyond decode range. Either way Phase B never starts
+    # (isim/specs/approach_dash_drag_prereg_2026-11-18.md, Stage 2 / 2b).
+    # WHAT (Phase A only; Phase B is untouched): the along-track interval the
+    # target can be in is searched instead of assumed away. Its half-width is
+    #   h(t) = min(search_k_sigma * (search_sigma_pos0_m
+    #              + search_sigma_speed_frac * |believed speed| * (t - t0)),
+    #              search_max_half_m)
+    # with t0 = GO (or the instant of a Phase-B -> A fallback). Legs:
+    #   approach  fly to the start point: `d_behind_m + h` behind the believed
+    #             target ("stern"), or `d_behind_m` behind it ("believed", the
+    #             legacy point, held `search_dwell_s` first);
+    #   fwd       run UP the believed track at `search_sweep_ms` faster than
+    #             the believed target, nose along the track, until the vehicle
+    #             is `h` AHEAD of the believed target;
+    #   back      fall back at `search_drop_ms` slower than the believed target
+    #             (a target that is behind overtakes and comes into view),
+    #             until the vehicle is `d_behind_m + h` behind again; then fwd.
+    # "stern" starts with fwd, "believed" with back. A target anywhere inside
+    # the interval is therefore approached from astern, in the tag's readable
+    # aspect, at a closing speed set here and not by the dash. The ordinary
+    # acquisition gate ends the search the moment the tag decodes.
+    # The two sigmas are GIVENS: declared constants describing the cue's
+    # quality, never read from anything live (honesty boundary; they belong in
+    # the assumptions register beside the cue itself). A declared sigma that
+    # is too small leaves part of the real interval unsearched; one that is
+    # too large costs time. Inputs otherwise: the pre-flight belief and
+    # own-state velocity only. Inert (legacy command) when the believed speed
+    # is under `search_min_speed_ms`: a hovering target has no track to search.
+    arrival_search: bool = False
+    search_start: str = "stern"            # "stern" | "believed"
+    search_sigma_speed_frac: float = 0.10  # GIVEN: 1-sigma believed-speed error
+    search_sigma_pos0_m: float = 3.0       # GIVEN: 1-sigma along-track error at t0
+    search_k_sigma: float = 2.0            # interval half-width, in sigmas
+    search_max_half_m: float = 150.0       # hard bound on the half-width
+    search_sweep_ms: float = 8.0           # TODO-BUILDER estimate: sized so the
+    #                                        brake schedule (4 m/s^2, 0.45 s lead)
+    #                                        can shed it inside the ~12 m decode
+    #                                        range of a 0.5 m tag at fx 540
+    search_drop_ms: float = 6.0            # TODO-BUILDER estimate; never more
+    #                                        than 0.8 x the believed speed
+    search_arrive_m: float = 5.0           # horizontal distance to the start
+    #                                        point that counts as arrived
+    search_dwell_s: float = 1.0            # "believed" start only: wait this
+    #                                        long at the legacy point first
+    search_min_speed_ms: float = 1.0
+    # SHORT-TRACK FALLBACK (search on only). The legacy Phase-B -> A fallback
+    # adopts the filter's position AND velocity as the new belief. After only
+    # a handful of long-range fixes the filter's velocity is not a
+    # measurement (a development trace: 14.4 m/s and 10 deg off, from five
+    # fixes on a 12 m/s target), and a search run along it walks away from
+    # the target. With fewer than this many filter updates since Phase B
+    # began, the fallback keeps the last MEASURED relative position (carried
+    # forward with the pre-flight believed velocity) and re-uses the
+    # pre-flight believed velocity. At or above it, the legacy rule applies.
+    search_trust_updates: int = 10
+
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -621,6 +684,15 @@ class PursuitTerminalGuidance:
         self.rehearsal_too_late_t: Optional[float] = None
         self.rehearsal_too_late_t_go_s: Optional[float] = None
         self.rehearsal_too_late_range_m: Optional[float] = None
+        # Arrival-search state (cfg.arrival_search; inert -- never read or
+        # written -- while the flag is off). `search_leg` is the mode's
+        # telemetry: "approach" | "fwd" | "back".
+        self.search_leg: str = "approach"
+        self.search_n_legs: int = 0
+        self._search_t0: float = self.go_at_s
+        self._search_arrive_t: Optional[float] = None
+        self._search_anchor_r = np.zeros(3)
+        self._search_b_updates: int = 0
         self._warned: set = set()
         self.n_track_broken = 0
 
@@ -774,6 +846,16 @@ class PursuitTerminalGuidance:
             if det_box_xywh is not None:
                 self._update_kf(det_box_xywh, quat_cap, own_vel, t,
                                 det_range_pose_m, age_s=meas_age_s)
+            if cfg.arrival_search:
+                # Short-track anchor (config docstring): the last MEASURED
+                # relative position, carried forward with the pre-flight
+                # believed velocity and own velocity -- never the KF's.
+                if det_box_xywh is not None:
+                    self._search_anchor_r = np.asarray(meas_r, dtype=np.float64).copy()
+                    self._search_b_updates += 1
+                else:
+                    self._search_anchor_r = self._search_anchor_r \
+                        + (self._belief_vel0 - own_vel) * dt
             range_est = float(np.linalg.norm(self._kf.r))
             dropout_s = t - self._last_decode_t
             if dropout_s > cfg.fallback_s and range_est >= cfg.no_fallback_range_m:
@@ -781,6 +863,18 @@ class PursuitTerminalGuidance:
                 self._r_track = self._kf.r.copy()
                 self._v_track = safe_vel
                 self._phase = "A"
+                if cfg.arrival_search:
+                    # A fresh, camera-derived belief: restart the search and
+                    # its uncertainty clock from here.
+                    self.search_leg = "approach"
+                    self._search_t0 = t
+                    self._search_arrive_t = None
+                    if self._search_b_updates < cfg.search_trust_updates:
+                        # Too few fixes to have measured a velocity: keep the
+                        # measured POSITION, take the velocity from the
+                        # pre-flight belief instead of the filter.
+                        self._r_track = self._search_anchor_r.copy()
+                        self._v_track = self._belief_vel0.copy()
 
         broken = self._phase == "B" and not (
             np.all(np.isfinite(self._kf.r)) and np.all(np.isfinite(self._kf.v_t)))
@@ -814,6 +908,18 @@ class PursuitTerminalGuidance:
                 tel.r_hat_m = float(np.linalg.norm(self._kf.r))
             if (t - self.rehearsal_trigger_t) >= cfg.rehearsal_evade_s:
                 self.rehearsal_complete = True
+        elif self._phase == "A" and cfg.arrival_search and self._search_active():
+            # ARRIVAL SEARCH (cfg.arrival_search docstring). Replaces the
+            # legacy Phase-A command and its brake cap; the keepframe term,
+            # the norm cap and the slew below are shared with the legacy path.
+            cmd_v, yaw = self._search_cmd(t, own_vel)
+            if cfg.keepframe_assist:
+                cmd_v = cmd_v + np.array([0.0, 0.0, -self._keepframe_term(t)])
+            cmd_v = _clip_norm(cmd_v, v_cap)
+            a_budget = cfg.dash_accel_max_ms2 if cfg.approach_dash \
+                else cfg.accel_max_ms2
+            cmd_v = _slew_combined(cmd_v, self._prev_v_cmd, a_budget, dt)
+            tel.phase = "A"
         elif self._phase == "A":
             cmd_v, yaw = self._phase_a_cmd()
             if cfg.brake_shaping or cfg.approach_dash:
@@ -944,6 +1050,91 @@ class PursuitTerminalGuidance:
         # frozen bearing pointing along-track anyway.
         yaw = _yaw_toward(self._r_track, self._prev_yaw_deg)
         return cmd_v, yaw
+
+    # ------------------------------------------------------- arrival search
+
+    def _search_active(self) -> bool:
+        """The search needs a track to search along: inert (legacy Phase-A
+        command) while the believed speed is under search_min_speed_ms."""
+        return float(np.linalg.norm(self._v_track)) >= self.cfg.search_min_speed_ms
+
+    def _search_half_width(self, t: float) -> Tuple[float, float]:
+        """-> (h, dh/dt): the searched interval's half-width and its growth
+        rate, from the DECLARED sigmas and the time since t0 (config
+        docstring). The growth rate is zero once the hard bound binds."""
+        cfg = self.cfg
+        rate = cfg.search_k_sigma * cfg.search_sigma_speed_frac \
+            * float(np.linalg.norm(self._v_track))
+        h = cfg.search_k_sigma * cfg.search_sigma_pos0_m \
+            + rate * max(t - self._search_t0, 0.0)
+        if h >= cfg.search_max_half_m:
+            return cfg.search_max_half_m, 0.0
+        return h, rate
+
+    def _search_cmd(self, t: float, own_vel: np.ndarray) -> Tuple[np.ndarray, float]:
+        """One tick of the arrival search (cfg.arrival_search docstring).
+        -> (cmd_v, yaw), before the keepframe term, the norm cap and the slew.
+        Reads the belief (`_r_track`/`_v_track`) and own velocity only."""
+        cfg = self.cfg
+        track_dir = _unit(self._v_track, np.array([1.0, 0.0, 0.0]))
+        h, h_rate = self._search_half_width(t)
+        d_stern = cfg.d_behind_m + h
+        # Own position along the believed track, relative to the believed
+        # target: negative = behind it.
+        s_own = -float(np.dot(self._r_track, track_dir))
+
+        if self.search_leg == "approach":
+            stern = cfg.search_start != "believed"
+            d_aim = d_stern if stern else cfg.d_behind_m
+            # The stern point recedes from the believed target as h grows;
+            # feed its own velocity forward so the vehicle does not trail it.
+            v_aim = self._v_track - (h_rate if stern else 0.0) * track_dir
+            r_aim = self._r_track - d_aim * track_dir
+            cmd_v = v_aim + cfg.kp_pos * r_aim
+            if cfg.brake_shaping or cfg.approach_dash:
+                cmd_v = self._brake_cap_to_point(cmd_v, v_aim, r_aim, own_vel)
+            yaw = _yaw_toward(self._r_track, self._prev_yaw_deg)
+            if math.hypot(float(r_aim[0]), float(r_aim[1])) <= cfg.search_arrive_m:
+                if self._search_arrive_t is None:
+                    self._search_arrive_t = t
+                dwell = 0.0 if stern else cfg.search_dwell_s
+                if (t - self._search_arrive_t) >= dwell:
+                    self.search_leg = "fwd" if stern else "back"
+                    self.search_n_legs += 1
+            return cmd_v, yaw
+
+        # Sweep legs: ride the believed track line (cross-track and vertical
+        # offsets pulled to zero by the Phase-A position gain), nose along it.
+        r_perp = self._r_track + s_own * track_dir
+        if self.search_leg == "fwd":
+            v_along = cfg.search_sweep_ms
+            if s_own >= h:
+                self.search_leg = "back"
+                self.search_n_legs += 1
+        else:
+            speed = float(np.linalg.norm(self._v_track))
+            v_along = -min(cfg.search_drop_ms, 0.8 * speed)
+            if s_own <= -d_stern:
+                self.search_leg = "fwd"
+                self.search_n_legs += 1
+        cmd_v = self._v_track + v_along * track_dir + cfg.kp_pos * r_perp
+        yaw = _yaw_toward(track_dir, self._prev_yaw_deg)
+        return cmd_v, yaw
+
+    def _brake_cap_to_point(self, cmd_v: np.ndarray, v_ref: np.ndarray,
+                            r_point: np.ndarray, own_vel: np.ndarray) -> np.ndarray:
+        """`_brake_cap_phase_a`'s rule for an arbitrary rendezvous point
+        `r_point` moving at `v_ref` (the search's start point): the relative
+        command is capped only once the point is inside 2x the current
+        stopping envelope. Called only with cfg.arrival_search on."""
+        cfg = self.cfg
+        r_gate = np.array([r_point[0], r_point[1], 0.0]) \
+            if cfg.brake_horizontal_only else r_point
+        closing = self._brake_closing(r_gate, v_ref, own_vel)
+        d_stop = closing ** 2 / (2.0 * cfg.brake_accel_ms2) + cfg.brake_lead_s * closing
+        if float(np.linalg.norm(r_gate)) > 2.0 * d_stop:
+            return cmd_v
+        return self._brake_cap(cmd_v, v_ref, r_point, own_vel)
 
     def _phase_b_cmd(self, own_vel: np.ndarray) -> Tuple[np.ndarray, float, bool]:
         """-> (cmd_v, yaw, coasting). `coasting=True` means the previous
@@ -1182,6 +1373,9 @@ class PursuitTerminalGuidance:
 
     def _start_phase_b(self, t: float) -> None:
         r0 = self._decode_positions[-1][1]
+        if self.cfg.arrival_search:
+            self._search_anchor_r = np.asarray(r0, dtype=np.float64).copy()
+            self._search_b_updates = 0
         self._kf.init(r0, self._v_track, self.cfg.kf_p0_pos_m, self.cfg.kf_p0_vel_ms)
         self._last_decode_t = self._decode_positions[-1][0]
         self._phase = "B"
