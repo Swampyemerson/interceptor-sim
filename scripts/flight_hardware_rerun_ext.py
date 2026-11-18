@@ -215,8 +215,9 @@ def report():
                     c20, c120, cx = (lost[f"{m}|{g}|e{e}|{x}"] for x in ("T20", "T120", "T120x"))
                     for k, c in (("T2", ref2), ("T6", ref6), ("T20", c20), ("T120", c120), ("T120x", cx)):
                         tot[k] += kills(c)
-                    print(f"{m + '|' + g + '|' + e + ' %':>16} | {kills(ref2):2d} | {kills(ref6):2d} | {kills(c20):3d} | "
-                          f"{kills(c120):4d} | {kills(cx):4d} | %d/%d" % paired(ref2, c120))
+                    lo, ga = paired(ref2, c120)
+                    print(f"{m + '|' + g + '|e' + e:>16} | {kills(ref2):2d} | {kills(ref6):2d} | {kills(c20):3d} | "
+                          f"{kills(c120):4d} | {kills(cx):4d} | {lo}/{ga}")
         print("  totals of 256:", dict(tot))
         allr = {i: r for i, r in enumerate(r for t, c in lost.items() if t.endswith("T120") for r in c.values())}
         print(f"  T120: late kills 30/45/60 s: {late(allr, 30)}/{late(allr, 45)}/{late(allr, 60)}; "
@@ -241,9 +242,9 @@ def report():
                         for x, c in cs.items():
                             tot[(lean, e, x)] += kills(c)
                         tk = lambda c: np.median([r["t_cpa"] - go_time(r) for r in c.values() if r["miss"] <= 0.35] or [float("nan")])  # noqa: E731
+                        lo, ga = paired(cs["off"], cs["stern"])
                         print(f"{key:>22} | {cell(cs['off']):>12} | {cell(cs['stern']):>12} | {cell(cs['believed']):>12} | "
-                              "%d/%d" % paired(cs["off"], cs["stern"])
-                              + f" | {tk(cs['off']):.0f}/{tk(cs['stern']):.0f}")
+                              f"{lo}/{ga} | {tk(cs['off']):.0f}/{tk(cs['stern']):.0f}")
         print("  totals:", {f"L{k[0]} e{k[1]} {k[2]}": v for k, v in sorted(tot.items())})
         allr = {i: r for i, r in enumerate(r for t, c in search.items() if t.endswith("stern") for r in c.values())}
         print(f"  stern arms: late kills 30/45/60 s: {late(allr, 30)}/{late(allr, 45)}/{late(allr, 60)} of "
