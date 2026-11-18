@@ -564,14 +564,13 @@
     },
     {
       "id": "dash-envelope-on-real-fc",
-      "question": "The far-cue dash code (approach_dash) was deployed and tested on the Pi that has since died, but the real interceptor FC still holds STOCK speed limits -- read over TELEM2 tonight (read-only): MPC_XY_VEL_MAX 12 m/s, ACC_HOR 5, TILTMAX 45, JERK 8. The demo's 36 m/s envelope is SIM-ONLY and was deliberately NOT written to the real FC (airframe thrust/mass/brake authority unmeasured). The airframe now flies (hover only, 2026-11-09): what speed envelope goes on it?",
+      "question": "You raised the interceptor's speed limit to 33 m/s on 2026-11-18 (it was the stock 12 m/s, which cannot catch a 12 m/s target). The lean limit is still the stock 45 degrees, which by the assumed drag holds about 25 m/s. Raise the lean limit too?",
       "options": [
-        "Keep stock (12 m/s) through the first flights; raise only after measured thrust/mass + a brake-authority check",
-        "Raise moderately (e.g. 16-20 m/s + ACC_HOR 8-10) at the first far-cue test, sized by the isim brake rule",
-        "Match the sim demo envelope now (36/15/60/30) -- NOT recommended while the airframe is unmeasured"
+        "Leave 45 degrees for the first fast flights and measure the real top speed and braking",
+        "Raise to about 55 to 60 degrees now (needed for 30 to 33 m/s; also lets the aircraft lean harder in your Position mode)"
       ],
-      "rec": "Still Option 1 for the first flights, but the fast sim now sizes the cost: on the stock envelope a 12 m/s target is never caught and a 9 m/s tail chase takes 69 s; about 20 m/s, 8 m/s2 and 55 deg catches everything the 36 m/s envelope does, 2 to 10 s later. So Option 2 is where to go once thrust, mass and braking are measured. Nothing was written to the board.",
-      "blocked": "Open assumptions: airframe-thrust-and-mass-unmeasured, dash-accel-profile. Needs a measured airframe. Also the power path: the power module (PM02) is rated 60 A, 120 A for under 60 s. The sim's 80 mph take asks for only 1.4 times weight in thrust (rough estimate 30 to 50 A with real drag); a saturated full-throttle dash is about 86 A as logged on the target drone, with the pack down to 3.05 V per cell. Check before raising the envelope: docs/airframe_numbers.md section 6.",
+      "rec": "Option 1. The speed limit is no longer the block; real thrust, drag and braking are still unmeasured, and the lean limit is the one setting here that changes how the aircraft handles in your hands.",
+      "blocked": "Reboot check of the new limit is owed (not done with props on). Power path at full throttle: docs/airframe_numbers.md section 6. Geofence is 457 m, inside a 500 m engagement.",
       "doc": "isim/specs/approach_dash_2026-10-21.md"
     },
     {

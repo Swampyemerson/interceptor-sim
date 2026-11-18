@@ -53,3 +53,19 @@ while suspecting the Pi's Wi-Fi. The fault was mine. Starting the listener with
 exits, so the sender started after it had gone. A sniffer on the Pi's interface
 showed the packets arriving. I had switched the Pi's Wi-Fi power saving off and
 on while testing; it is back on, as found.
+
+## One setting written (2026-11-18, builder's instruction: "change the board's stock 12 m/s limit to one that works")
+
+`MPC_XY_VEL_MAX` 12.0 -> **33.0** m/s, written with `scripts/bench/px4_param_set.py`
+through the Pi's bridge and read back as 33.0 on a fresh connection. Vehicle disarmed, no
+flight battery, props on (the builder said so; nothing was armed and no program was run on
+the vehicle link). Undo: set it back to 12.0.
+
+- Not changed: lean limit 45 deg (`MPC_TILTMAX_AIR`), horizontal acceleration 5 m/s2, jerk 8.
+  With the assumed drag a 45 deg lean holds roughly 25 m/s; reaching the 30 to 33 m/s the
+  builder accepted needs about 60 deg. Raising the lean limit also changes how hard the
+  aircraft can lean in the pilot's Position mode, so that one is left for him.
+- The pilot's own speeds are unchanged: Position-mode stick speed 10 m/s
+  (`MPC_VEL_MANUAL`), mission and return speed 5 m/s (`MPC_XY_CRUISE`).
+- Owed: a reboot and a fresh read to confirm it survived (not done with props on), and a
+  first real flight at this limit. `interceptor_params.txt` above is the BEFORE state.
