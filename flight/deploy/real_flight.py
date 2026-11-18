@@ -3528,7 +3528,12 @@ def prearm_summary(args, cfg: MissionConfig, caps: dict) -> List[str]:
         f"the setpoint stream; own-state older than {cfg.own_state_stale_s} s "
         f"goes SAFE.",
         "[fly] THE KILL SWITCH stays yours for the whole flight.",
-    ]
+    ] + ([
+        "[fly] WARNING: output is going to a terminal. If that terminal is an "
+        "SSH session and it stalls, print() blocks the control loop and the "
+        "watchdog ends the flight (PX4 takes over). Run detached (tmux, or "
+        "systemd-run) with output to a file.",
+    ] if sys.stdout.isatty() else [])
 
 
 async def _wait_arm_permit(args, trigger, permit_trigger, state: dict) -> bool:  # pragma: no cover -- driven by the fake in tests
@@ -4258,6 +4263,32 @@ def self_test() -> int:
     check(_engage_then(drift, 0.0).state == State.BREAKOFF,
           "...and with min_rise=0 the same drift DOES fire it -- proof the guard "
           "is what changed the outcome, not the fixture")
+
+    # 10) FAILSAFE 9 -- stale own-state -> SAFE, in STANDBY and after GO; and a
+    #     driver that supplies no age leaves it inactive (the offline paths).
+    sm = _sm(cfg)
+    sm.step(_obs(0.0, trigger=no, own_state_age_s=0.02))
+    sm.step(_obs(0.05, trigger=no, own_state_age_s=1.5))
+    check(sm.state == State.SAFE and sm.safe_reason == "own_state_stale",
+          "own-state 1.5 s old in STANDBY -> SAFE (a frozen height stream "
+          "would otherwise drive the height loop)")
+    sm = _sm(cfg)
+    sm.step(_obs(0.0, trigger=no, own_state_age_s=0.02))
+    sm.step(_obs(0.05, trigger=go, own_state_age_s=0.02))
+    sm.step(_obs(0.10, trigger=no, own_state_age_s=1.5))
+    check(sm.state == State.SAFE and sm.safe_reason == "own_state_stale",
+          "...and after the GO edge too")
+    sm = _sm(cfg)
+    for i in range(60):
+        sm.step(_obs(0.05 * i, trigger=no))
+    check(sm.state == State.STANDBY,
+          "...and with no age supplied (offline vehicle, desk) it never fires")
+    stop, action, _why = teardown_plan("POSCTL", 0.2, 3.0, "land")
+    check(stop is False and action is None,
+          "teardown sends NOTHING once the pilot has taken a manual mode")
+    stop, action, _why = teardown_plan("OFFBOARD", 0.2, 3.0, "land")
+    check(stop is True and action == "land",
+          "...and still lands an aircraft this program is flying")
 
     print(f"\n[self-test] {'PASS' if ok else 'FAIL'}")
     return 0 if ok else 1
