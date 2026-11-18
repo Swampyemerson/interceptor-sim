@@ -309,3 +309,47 @@ D0, straight target, 50 paired seeds per package).
   that is 26 to 32 m of along-track error (one sigma) at arrival. The same 10 %
   at the 16 m canon geometry is a few metres, which is why the short-range
   studies never saw this.
+
+## STAGE 4 RESULT (2026-11-18; the flight controller's envelope, 1152 runs)
+
+Rows: `runs/approach_dash_drag_20261118/stage4.json` (guidance profile 36 / 4
+unchanged, no scatter, 16 seeds per cell; kills of 16, then time to closest
+approach).
+
+| Target | Geometry | stock (12 m/s, 5 m/s², 45°) | mid (20, 8, 55°) | demo (36, 15, 60°) |
+|---|---|---|---|---|
+| 9 m/s | near | 16, 34 s | 16, 28 s | 16, 24 s |
+| 9 m/s | demo | 16, 34 s | 16, 27 s | 16, 23 s |
+| 9 m/s | tail | 15, 69 s | 16, 38 s | 16, 28 s |
+| 12 m/s | near | 0 (0.76 m) | 16, 27 s | 16, 24 s |
+| 12 m/s | demo | 0 (6.0 m) | 16, 26 s | 16, 23 s |
+| 12 m/s | tail | 0 (never decodes) | 16, 38 s | 16, 28 s |
+
+(D0 shown; D1 differs by at most one kill and 1 to 2 s.)
+
+- **Prediction held.** On the stock envelope the vehicle cannot fly faster
+  than a 12 m/s target and never catches it: it sits 0.76 m off the target's
+  tail in the near geometry with the tag decoding the whole time, 6 m off in
+  demo, and never gets within sight in the tail chase. A 9 m/s target is caught
+  on stock, but the tail chase takes 69 s, which is past the flight program's
+  default 30 s engage window.
+- **The mid envelope catches everything the demo envelope does,** 2 to 10 s
+  later. Under the expected drag the demo envelope does not reach 36 m/s
+  anyway (Stage 1).
+- **Reading for the open envelope decision.** The stock limits rule out the
+  12 m/s target and make the 9 m/s goal marginal in a chase. Something like
+  20 m/s, 8 m/s², 55° buys nearly all of the benefit. No scatter here, so this
+  says nothing about the cue-error problem of Stage 2.
+
+## INSTRUMENT CAVEATS found by the guidance review (2026-11-18, apply to every stage)
+
+`docs/guidance_review_2026-11-18.md`. The sweep camera is the October
+Gazebo-matched one, not the flying one: fx 540 (about 100° wide), a 0.5 m tag
+and ZERO camera up-tilt. The review reran four doubled-drag cells with 10° of
+up-tilt: 50 of 64 kills became 64 of 64, none broke. With its reading of the
+flying lens and tag (fx 933, 0.30 m) the EXPECTED drag gives 7 of 16 at zero
+tilt and 16 of 16 at 10°. So the drag losses here are a lean-against-field-of-
+view effect, they depend on optics this screen did not match to the aircraft,
+and "expected drag changes nothing" holds for the October optics only. The
+scorer also counts a pass inside 0.35 m with no decode as a kill (11 of 245 in
+Stage 2).
