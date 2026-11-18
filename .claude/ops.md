@@ -107,11 +107,14 @@ don't spawn a subagent where doing the thing inline is cheaper.
      [general_harms]` 2026-10-22, reconfirming 3/3 on 2026-10-14). Do not spawn it
      until the safeguard log records a clean retest.
    - **Head-inline = the fallback** for anything that bounces.
-   - **Never spawn bare `model: fable`** — it may resolve to Fable 5.1, which
-     hard-fails on this repo (version-only paired control 2026-09-21:
-     `claude-fable-5` passes, `claude-fable-5-1` fails identically). Fable judgment
-     in a subagent = a FORK. Do NOT try to get 5.1 working here — that would mean
-     hiding context from the classifier, i.e. evasion, which the standing rule forbids.
+   - **Fable 5.2 subagents are APPROVED (builder, 2026-11-18: "fable 5.2 subagents
+     approved").** The head now runs `claude-fable-5-2`. Spawn them as FORKS, which
+     inherit the head's model for certain; two forks launched clean the same day.
+     A bare `model: fable` is still not the way to ask for one: what the alias
+     resolves to is the running CLI's choice, and Fable 5.1 hard-fails on this repo
+     (version-only paired control 2026-09-21). Do NOT try to get 5.1 working here —
+     that would mean hiding context from the classifier, i.e. evasion, which the
+     standing rule forbids.
    - **Standing rules, unaffected:** do not word prompts to evade the classifier;
      `/feedback` (the builder's to send) is the sanctioned remedy; the head pins
      `claude-fable-5`, and a flagged-turn auto-switch to Opus is product behavior —
