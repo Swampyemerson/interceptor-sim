@@ -1,0 +1,39 @@
+2026-11-18T13:02:48 [loop-supervisor] watching server pid 1460252, bound 0.50 s
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+2026-11-18T13:03:19 [loop-supervisor] clean exit (283 beats, worst gap 0.069 s)
+[aim] C1 = 25.00 deg (operator-entered --dash-heading-deg) -- ADR-0101 passage window has no plan distance here: the floor fails CLOSED, the ceiling never fires, by design (Portability note, ADR-0101)
+[config] standby alt 7.0 m, aim yaw 25.0 deg, dash 6.0 m/s (cap None), loft 0.0 m, streak 5, dash bound 10.0 s
+[config] *** SKELETON -- every failsafe constant above is TODO-BUILDER (unmeasured on the airframe) ***
+[terminal] target span 1.000 m (config default -- NOT range-calibrated; synthetic-detector modes only)
+[terminal] pursuit (ADR-0103 chase only): belief seed rel NED (+16.7, +0.0, +0.0) m at +0.0/+9.0 m/s -- receding-range breakoff SUPPRESSED (contact floor / lost-target / engage-max-s active, engage_max_s=8s)
+[mavsdk] connecting udpin://0.0.0.0:14541 ...
+[mavsdk] connected
+[watchdog] loop supervisor watching server pid 1460252: no control tick for 0.50 s, or this program dying, ends the setpoint stream
+[mavsdk] waiting for health (global+home position ok), timeout 60.0s ...
+[mavsdk] health OK
+[mavsdk] set takeoff altitude 7.0 m (standby/loft); arm; takeoff ...
+[mavsdk] airborne at rel_alt=5.66 m
+[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins
+[mavsdk] flight mode = TAKEOFF (offboard_active=False) from TELEMETRY
+[   0.00s] START in STANDBY (aim yaw 25.0 deg, standby alt 7.0 m)
+[   3.55s] GO edge: dash heading LATCHED +25.00 deg (preflight lead solve) -- this value is now immutable for the rest of the flight
+[   3.55s] STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+[  11.58s] ENGAGE -> BREAKOFF  (engage_timeout(8.0s))
+[  13.09s] BREAKOFF -> SAFE  (breakoff_complete)
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] teardown: aircraft is in OFFBOARD, which this program commanded
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[log] 283 ticks -> /tmp/claude-1000/-home-emerson-interceptor-sim/9f356921-9aa9-4fa7-970a-02847616f721/scratchpad/fork_driver/sih_smoke.csv
+[mission] states visited: STANDBY -> ENGAGE -> BREAKOFF -> SAFE
+[mission] transitions:
+       3.55s  STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+      11.58s  ENGAGE -> BREAKOFF  (engage_timeout(8.0s))
+      13.09s  BREAKOFF -> SAFE  (breakoff_complete)
+[mission] oldest own-state sample seen: 0.04s (FAILSAFE 9 bound = 1.0s)
+[sitl-smoke] terminal: 149 ENGAGE ticks, 148 camera-GUIDED, 149 distinct horizontal commands
+[sitl-smoke] offboard_active was True on 270/283 ticks (telemetry-sourced, not latched)
+[sitl-smoke] max flight_mode sample age observed: 1.06s (FAILSAFE 7 arm 2 bound = 3.0s; set the bound to ~5x the observed cadence, or None if the stream is on-change-only)
+[sitl-smoke] PASS (283 setpoints, dash heading 25.0)

@@ -1,0 +1,73 @@
+2026-11-18T13:12:34 [loop-supervisor] watching server pid 1468936, bound 0.50 s
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+2026-11-18T13:13:32 [loop-supervisor] clean exit (535 beats, worst gap 0.082 s)
+[aim] C1 = 25.00 deg (operator-entered --dash-heading-deg) -- ADR-0101 passage window has no plan distance here: the floor fails CLOSED, the ceiling never fires, by design (Portability note, ADR-0101)
+[config] standby alt 7.0 m, aim yaw 25.0 deg, dash 16.0 m/s (cap None), loft 0.0 m, streak 5, dash bound 8.0 s
+[config] *** SKELETON -- every failsafe constant above is TODO-BUILDER (unmeasured on the airframe) ***
+[terminal] pursuit (ADR-0103 chase only): belief seed rel NED (+16.7, +0.0, +0.0) m at +0.0/+9.0 m/s -- receding-range breakoff SUPPRESSED (contact floor / lost-target / engage-max-s active, engage_max_s=8s)
+[mavsdk] connecting udpin://0.0.0.0:14541 ...
+[mavsdk] connected
+[watchdog] loop supervisor watching server pid 1468936: no control tick for 0.50 s, or this program dying, ends the setpoint stream
+[mavsdk] waiting for health (global+home position ok), timeout 60.0s ...
+[mavsdk] health OK
+[limits] guidance: terminal pursuit, commands up to 16 m/s, slews at up to 8 m/s^2
+[limits] board:    MPC_XY_VEL_MAX   = 12.0   (horizontal speed limit, m/s)
+[limits] board:    MPC_TILTMAX_AIR  = 45.0   (lean limit, deg)
+[limits] board:    MPC_ACC_HOR_MAX  = 5.0   (horizontal acceleration limit, m/s^2)
+[limits] board:    GF_ACTION        = 2   (geofence action (0 none, 1 warn, 2 hold, 3 return, 4 terminate, 5 land))
+[limits] board:    GF_MAX_HOR_DIST  = 0.0   (geofence radius, m (0 = off))
+[limits] board:    GF_MAX_VER_DIST  = 0.0   (geofence height, m (0 = off))
+[limits] board:    COM_RCL_EXCEPT   = 0   (modes exempt from RC-loss failsafe (bit 2 = offboard))
+[limits] board:    COM_OF_LOSS_T    = 1.0   (offboard stream loss timeout, s)
+[limits] board:    COM_OBL_RC_ACT   = 0   (action on offboard loss (0 position, 1 altitude, 2 manual, 3 return, 4 land, 5 hold))
+[limits] note: the guidance slews its command at up to 8 m/s^2; the board accelerates at most 5 (MPC_ACC_HOR_MAX)
+[limits] note: RC loss in OFFBOARD triggers PX4's RC-loss failsafe (COM_RCL_EXCEPT has no offboard bit): switching the transmitter off after GO ends the intercept
+[limits] note: if the setpoint stream stops, PX4 waits 1.0 s (COM_OF_LOSS_T) and then takes action 0 (COM_OBL_RC_ACT; 0 = Position mode)
+[limits] OVERRIDDEN by --override-platform-limits: the guidance commands up to 16 m/s but the board flies at most 12 m/s (MPC_XY_VEL_MAX): it would silently fly slower than every timing assumes
+[fly] ===== PRE-ARM SUMMARY: read this before raising the permit switch =====
+[fly] link: udpin://0.0.0.0:14541   terminal: pursuit   camera: picamera (tag)
+[fly] belief: target 17 m away (north +16.7, east +0.0) moving 9.0 m/s -- TYPED by the operator (--manual-belief). It is used AS IF TRUE AT THE GO EDGE: nothing advances it for the time between when it was taken and GO.
+[fly] on the arm permit this program will: set MIS_TAKEOFF_ALT to 7.0 m (a parameter WRITE, by MAVSDK's set_takeoff_altitude -- the only one), ARM, TAKE OFF to 7.0 m, enter OFFBOARD and hold, yawed to 25.0 deg.
+[fly] it then waits up to 60 s for GO on RC channel 7 (LOW then HIGH). GO starts the engagement: up to 16 m/s commanded, for at most 8 s.
+[fly] it ends by: land after a miss, land after a fault. If you take the aircraft with the mode switch, this program sends nothing further.
+[fly] watchdog: no control tick for 0.50 s ends the setpoint stream; own-state older than 1.0 s goes SAFE.
+[fly] THE KILL SWITCH stays yours for the whole flight.
+[arm-permit] WAITING up to 120 s. With the GO switch (ch 7) LOW, flip the permit switch (ch 8) LOW then HIGH to let this program arm and take off. Ctrl-C, or doing nothing, leaves the aircraft disarmed.
+[arm-permit] ready: raise the permit switch (GO must stay LOW)
+[arm-permit] GRANTED
+[mavsdk] set takeoff altitude 7.0 m (standby/loft); arm; takeoff ...
+[mavsdk] airborne at rel_alt=5.71 m
+[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins
+[mavsdk] flight mode = TAKEOFF (offboard_active=False) from TELEMETRY
+[   0.00s] START in STANDBY (aim yaw 25.0 deg, standby alt 7.0 m)
+[  17.31s] GO edge: dash heading LATCHED +25.00 deg (preflight lead solve) -- this value is now immutable for the rest of the flight
+[  17.31s] STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+[  25.31s] ENGAGE -> BREAKOFF  (engage_timeout(8.0s))
+[  26.84s] BREAKOFF -> SAFE  (breakoff_complete)
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+[mavsdk] teardown: aircraft is in OFFBOARD, which this program commanded
+[mavsdk] offboard stopped
+[mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+[mavsdk] landed_state=ON_GROUND armed=False
+[log] 535 ticks -> /tmp/claude-1000/-home-emerson-interceptor-sim/9f356921-9aa9-4fa7-970a-02847616f721/scratchpad/fork_driver/sih_fly.csv
+[mission] states visited: STANDBY -> ENGAGE -> BREAKOFF -> SAFE
+[mission] transitions:
+      17.31s  STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+      25.31s  ENGAGE -> BREAKOFF  (engage_timeout(8.0s))
+      26.84s  BREAKOFF -> SAFE  (breakoff_complete)
+[mission] oldest own-state sample seen: 0.05s (FAILSAFE 9 bound = 1.0s)
+
+==== timeline (wall seconds) ====
+     1.2  program: [watchdog] loop supervisor watching server pid 1468936: no control tick for 0.50 s, or this program dying, ends the setpoint stream
+     2.1  program: [limits] OVERRIDDEN by --override-platform-limits: the guidance commands up to 16 m/s but the board flies at most 12 m/s (MPC_XY_VEL_MAX): it would si
+     2.1  program: [arm-permit] WAITING up to 120 s. With the GO switch (ch 7) LOW, flip the permit switch (ch 8) LOW then HIGH to let this program arm and take off. Ctr
+     2.1  program: [arm-permit] ready: raise the permit switch (GO must stay LOW)
+    12.0  transmitter: permit switch HIGH
+    12.0  program: [arm-permit] GRANTED
+    12.0  program: [mavsdk] set takeoff altitude 7.0 m (standby/loft); arm; takeoff ...
+    40.0  transmitter: go switch HIGH
+    40.1  program: [  17.31s] GO edge: dash heading LATCHED +25.00 deg (preflight lead solve) -- this value is now immutable for the rest of the flight
+    51.7  program: [mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+    51.7  program: [mavsdk] landing; waiting up to 60.0s for touchdown + disarm ...
+EXIT 0
