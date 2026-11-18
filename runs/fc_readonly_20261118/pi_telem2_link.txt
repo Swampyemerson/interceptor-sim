@@ -1,0 +1,37 @@
+[fc-link] connecting to serial:///dev/ttyAMA10:921600 ...
+[fc-link] connected -- heartbeat is alive
+[fc-link] version       : flight_sw 1.16.0, os_sw 11.0
+[fc-link] product       : vendor_id 12677, product_id 56
+[fc-link] armed         : False   <- this tool never changes it
+[fc-link] flight mode   : HOLD
+[fc-link] attitude      : roll -87.1 deg  pitch +59.9 deg  yaw +86.5 deg
+[fc-link] gps           : 0 sats, fix NO_GPS
+[fc-link] battery       : 0.00 V (-1.0) [USB-powered on the bench]
+[fc-link] health: OK gyro cal, OK accel cal, OK mag cal, OK local position, -- global position, OK home position, -- armable
+
+listened 15.0 s on /dev/ttyAMA10@921600; 5244 messages, 24 types
+ATTITUDE                           100.0 Hz   worst gap     15 ms
+HIGHRES_IMU                         50.0 Hz   worst gap     23 ms
+ATTITUDE_QUATERNION                 50.0 Hz   worst gap     26 ms
+LOCAL_POSITION_NED                  30.0 Hz   worst gap     37 ms
+ODOMETRY                            30.0 Hz   worst gap     37 ms
+GPS_RAW_INT                         10.0 Hz   worst gap    118 ms
+TIMESYNC                            10.0 Hz   worst gap    103 ms
+ALTITUDE                            10.0 Hz   worst gap    103 ms
+ATTITUDE_TARGET                     10.0 Hz   worst gap    103 ms
+POSITION_TARGET_LOCAL_NED           10.0 Hz   worst gap    103 ms
+SERVO_OUTPUT_RAW                    10.0 Hz   worst gap    104 ms
+VFR_HUD                             10.0 Hz   worst gap    104 ms
+EXTENDED_SYS_STATE                   5.0 Hz   worst gap    205 ms
+SYS_STATUS                           5.0 Hz   worst gap    204 ms
+HEARTBEAT                            1.9 Hz   worst gap    672 ms
+MISSION_CURRENT                      1.0 Hz   worst gap   1011 ms
+ESTIMATOR_STATUS                     1.0 Hz   worst gap   1002 ms
+OPEN_DRONE_ID_LOCATION               1.0 Hz   worst gap   1001 ms
+PING                                 1.0 Hz   worst gap   1001 ms
+SCALED_PRESSURE                      1.0 Hz   worst gap   1001 ms
+SYSTEM_TIME                          1.0 Hz   worst gap   1001 ms
+BATTERY_STATUS                       0.5 Hz   worst gap   2001 ms
+VIBRATION                            0.5 Hz   worst gap   2001 ms
+HOME_POSITION                        0.5 Hz   worst gap   2002 ms
+(RC_CHANNELS absent: transmitter off)
