@@ -1,0 +1,16 @@
+{
+ "listen_s": 40.0,
+ "first_record_after_s": 2.1024924000375904,
+ "stats": {
+  "n_rx": 171,
+  "n_bad": 0,
+  "n_after_latch": 0,
+  "newest_age_s": 3.944189144996926,
+  "rate_hz": 5.0001036403014645,
+  "max_gap_s": 0.21462165703997016,
+  "span_s": 11.799755413958337,
+  "latched": false
+ },
+ "latched": false,
+ "refused": "stale: last record is 3.95s old (limit 1.00s)"
+}

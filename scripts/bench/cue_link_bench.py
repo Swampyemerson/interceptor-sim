@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import socket
 import sys
 import time
 
@@ -31,19 +30,20 @@ def main() -> int:
     args = ap.parse_args()
     own = tuple(float(x) for x in args.own_lla.split(","))
 
-    echo = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    last_src = {"t_src": None, "t_rx": None}
+    holder = {}
 
     def on_record(d, addr):
-        if addr is not None and "seq" in d:
+        # Echo from the RECEIVING socket: a reply from any other port does not
+        # get back through the laptop's address translation.
+        sock = getattr(holder.get("rx"), "_sock", None)
+        if addr is not None and "seq" in d and sock is not None:
             try:
-                echo.sendto(json.dumps({"seq": d["seq"]}).encode(), addr)
+                sock.sendto(json.dumps({"seq": d["seq"]}).encode(), addr)
             except OSError:
                 pass
-        last_src["t_src"] = d.get("t_src")
-        last_src["t_rx"] = time.monotonic()
 
     rx = CueReceiver(port=args.port, on_record=on_record)
+    holder["rx"] = rx
     rx.start()
     t0 = time.monotonic()
     first = None

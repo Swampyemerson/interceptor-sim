@@ -26,3 +26,30 @@ What it shows for automatic flight:
 - Power module scale 36.37 A/V, so the board cannot read above 120 A.
 - No flight mode slot or switch is mapped to Offboard; the Pi's program has to
   request it.
+
+## Cue link over Wi-Fi (added the same day)
+
+`cue_link_wifi_tx.json` / `cue_link_wifi_rx.json`: the laptop sent a made-up
+target (12 m/s, 0.3 m position noise, 5 Hz) with `scripts/field/cue_send.py`;
+the Pi received it with `scripts/bench/cue_link_bench.py` and latched after 30 s.
+
+- Received at 5.00 Hz, largest gap 0.21 s, nothing malformed.
+- Latched belief against the truth at the matching instant: 0.12 m north,
+  0.29 m east. The stale answer (where the target was when the stream began)
+  would have been 336 m behind.
+- Round trip laptop to Pi and back: 4.3 ms at best, 6.9 ms median. Some echoes
+  took 1.5 to 2.5 s while the Pi's receive gaps stayed at 0.21 s, so the stalls
+  were on the return path.
+- `cue_link_wifi_rx_stale_refusal.json`: with the sender stopped 4 s before the
+  latch, the Pi refused ("last record is 3.95 s old, limit 1.00 s").
+
+Not covered: a real target's GPS (the laptop made the track up), the field
+network (this was home Wi-Fi), and the flight program, which does not use this
+link yet.
+
+A wrong turn worth recording: my first runs delivered nothing, and I spent a
+while suspecting the Pi's Wi-Fi. The fault was mine. Starting the listener with
+`cd DIR && nohup ... &` over SSH keeps the SSH command open until the listener
+exits, so the sender started after it had gone. A sniffer on the Pi's interface
+showed the packets arriving. I had switched the Pi's Wi-Fi power saving off and
+on while testing; it is back on, as found.

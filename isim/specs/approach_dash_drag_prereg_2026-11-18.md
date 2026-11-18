@@ -353,3 +353,50 @@ view effect, they depend on optics this screen did not match to the aircraft,
 and "expected drag changes nothing" holds for the October optics only. The
 scorer also counts a pass inside 0.35 m with no decode as a kill (11 of 245 in
 Stage 2).
+
+## STAGE 5 RESULT (2026-11-18; the lost-target clock under all errors, 800 runs)
+
+Rows: `runs/approach_dash_drag_20261118/stage5.json`, paired against the Stage 2
+D0 cells (same seeds).
+
+| Clock | Kills over the 8 cells (of 400) | Kills lost in any cell |
+|---|---|---|
+| 2.0 s (flying) | 91 | |
+| 3.5 s | 96 | 0 |
+| 6.0 s | 102 | 0 |
+
+- **Positive but smaller than I predicted.** Of the 30 runs that ended
+  `target_lost` at 2.0 s, 7 are kills at 6.0 s (23 %); I predicted at least a
+  third. Per cell the gain at 6.0 s is 0 to 3 of 50 against my 2 to 6. The other
+  4 of the 11 gained kills were `pursuit_miss` runs. No cell lost a kill, and the
+  registered null (fewer than 1 in 6, or a cell down by 3) did not occur.
+- **Why it is small:** the guidance review found that about half of the
+  lost-target exits under all errors are a different defect. One or two stray
+  decodes during the belief transit start the same 2.0 s clock while there is no
+  track to lose, and a longer clock does not help a run that never gets a second
+  decode (`docs/guidance_review_2026-11-18.md`, F1).
+- **Standing:** a candidate, not adopted. It lengthens blind flight near the
+  target after a real miss, which is the builder's ruling of 2026-09-22 to change.
+
+## CORRECTIONS from the independent geometry check (2026-11-18)
+
+`docs/arrival_geometry_2026-11-18.md` re-derived the Stage 2b reading from 466
+traced runs of its own. Two of my numbers were wrong and are corrected here:
+
+- **Error at arrival is about 22 m, not 30 m.** The vehicle reaches its park
+  point 18.2 s after GO; 25 s is when the kills happen. Measured: 2.19 m of
+  along-track error per 1 % of speed error, 21 to 23 m one sigma at 10 %.
+- **"Target behind in 28 of 31 and 25 of 30" should be 25 behind and 6 ahead
+  (near), 25 and 5 (demo).** I classified by the sign at closest approach, which
+  is wrong for the belief-slow runs: their closest approach is the head-on pass
+  on the way out. In those runs the target ends 31 to 63 m AHEAD, in view and
+  too small to decode. The two groups need opposite remedies.
+- **What stands:** the speed-belief error decides the outcome, in a clean band.
+  A kill needs the target between 0 and about 21 m ahead of the parked vehicle.
+  The band is lopsided: the belief may run up to about 6 to 10 % slow but only
+  2.5 % fast.
+- **On the cue itself:** the target's own flight log reports GPS speed accuracy
+  of 0.09 m/s outdoors (self-reported, not checked against a reference), against
+  the 1.72 m/s bench figure the cue plan budgets with. If that holds on a fast
+  straight leg, the real cue is better than this screen's 4 % case, provided the
+  cue is advanced to the GO instant, which the flight program does not do today.

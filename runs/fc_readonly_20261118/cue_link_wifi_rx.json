@@ -1,0 +1,31 @@
+{
+ "listen_s": 30.0,
+ "first_record_after_s": 2.0524003010359593,
+ "stats": {
+  "n_rx": 141,
+  "n_bad": 0,
+  "n_after_latch": 0,
+  "newest_age_s": 0.03365518897771835,
+  "rate_hz": 5.000425681650067,
+  "max_gap_s": 0.20922751404577866,
+  "span_s": 11.998978451010771,
+  "latched": false
+ },
+ "latched": true,
+ "belief_r0_ned": [
+  200.12146743070326,
+  36.730492466658184,
+  -10.0
+ ],
+ "belief_vel0_ned": [
+  0.0,
+  12.0,
+  0.0
+ ],
+ "n_points": 18,
+ "span_s": 3.401609885971993,
+ "residual_rms_m": 0.3462264225815496,
+ "vel_source": "reported",
+ "model": "cv",
+ "latch_t_on_sender_clock": 1465291.113883313
+}
