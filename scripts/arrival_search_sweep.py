@@ -70,6 +70,9 @@ _TL = dict(engage_lost_target_s=LONG_CLOCK_S)
 ARMS = {
     "base": dict(port={}, mission=None),
     "base_T": dict(port={}, mission=_TL),
+    # The stale-decode guard alone (no search), long clock: separates the
+    # fallback repair from the sweep (prereg, amendment 1).
+    "base_T_guard": dict(port=dict(stale_decode_guard=True), mission=_TL),
     "stern": dict(port=dict(arrival_search=True, search_start="stern"), mission=_TL),
     "believed": dict(port=dict(arrival_search=True, search_start="believed"),
                      mission=_TL),

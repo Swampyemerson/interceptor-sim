@@ -420,6 +420,22 @@ class PursuitTerminalConfig:
     # pre-flight believed velocity. At or above it, the legacy rule applies.
     search_trust_updates: int = 10
 
+    # --- stale-decode guard (2026-11-18, default OFF = legacy) -----------------
+    # Found by the arrival search's unit tests. The acquisition list is pruned
+    # to `acquire_window_s` only when a new decode arrives. After a Phase-B ->
+    # A fallback it can still hold `acquire_n` fixes from before the dropout,
+    # so the gate restarts Phase B from the last of them on the next tick, the
+    # dropout clock (still at the old decode time) falls straight back to A,
+    # and this repeats every tick: the belief stays PINNED at the stale
+    # relative offset and no Phase-A law, legacy or search, ever runs. When
+    # ON (and always with arrival_search on) the list is pruned by time on
+    # every tick, so only decodes inside the window can start Phase B. The
+    # default is left OFF, byte-identical, because turning it on changes
+    # flown behaviour and has no registered test of its own yet; the defect
+    # on the default path is pinned by the strict-xfail unit test
+    # test_legacy_fallback_is_pinned_by_stale_decodes.
+    stale_decode_guard: bool = False
+
 
 def _unit(v: np.ndarray, fallback: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
@@ -837,6 +853,16 @@ class PursuitTerminalGuidance:
             self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
             if cfg.keepframe_assist:
                 self._keepframe_update(det_box_xywh, meas_r, t)
+
+        if (cfg.arrival_search or cfg.stale_decode_guard) and det_box_xywh is None \
+                and self._decode_positions:
+            # STALE-DECODE GUARD (cfg.stale_decode_guard docstring). The list
+            # above is pruned to the acquisition window only when a NEW decode
+            # arrives, so after a Phase-B -> A fallback it can still hold the
+            # last fixes from before the dropout and the gate below would
+            # restart Phase B from them on the very next tick.
+            cutoff = t - cfg.acquire_window_s
+            self._decode_positions = [p for p in self._decode_positions if p[0] >= cutoff]
 
         if self._phase == "A" and len(self._decode_positions) >= cfg.acquire_n:
             self._start_phase_b(t)

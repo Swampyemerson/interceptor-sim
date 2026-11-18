@@ -68,6 +68,43 @@ On those 36 probe runs, with both in place: baseline 5, 4 and 12 kills of 12
 (near 10 %, demo 10 %, near 0 %); `stern` 12, 11 and 11; `believed` 11, 11 and 12.
 These guided the predictions below. They are not the result.
 
+## AMENDMENT 1 (2026-11-18, before any registered row existed)
+
+The registered run was launched once at commit `4654843` and stopped a few
+minutes later, before it had written a row (`main.log` empty, no `main.json`),
+because the feature's own unit tests turned up a third defect:
+
+3. **A fallback pins the belief on a stale decode.** The acquisition list is
+   pruned to its 0.3 s window only when a new decode arrives. After a Phase B
+   dropout it can still hold two fixes from before the dropout, so the next tick
+   restarts Phase B from the last of them, the dropout clock (still at the old
+   decode time) falls straight back to Phase A, and this repeats every tick. The
+   belief stays pinned at the stale relative offset and no Phase A law runs at
+   all, search or legacy. One probe run sat in `approach` for 100 s this way.
+   This is in the DEFAULT path too: it is likely part of why the September
+   abort-timer A/B found the fallback "never produces a second converging pass".
+   - **Search on:** the list is now pruned by time every tick.
+   - **Default path:** left exactly as it is, and reported. A strict-xfail unit
+     test (`test_legacy_fallback_is_pinned_by_stale_decodes`) asserts the
+     correct behaviour and fails on the default path today; it will pass, and
+     demand its marker be removed, when someone fixes it there.
+   - **Consequence for the control.** `base_T` runs the default path under a
+     long clock, so its fallback is the pinned one. That is the as-built
+     behaviour and the honest control for "the clock alone", but part of any
+     search gain could then be this repair and not the sweep. So the repair is
+     also its own switch (`stale_decode_guard`, default OFF) and the matrix
+     gains a seventh arm, **`base_T_guard`**: search off, guard on, long clock.
+     Prediction 8: it gains 2 to 8 kills of 50 over `base_T` at 10 % (runs that
+     saw the target briefly and lost it), loses none at 0 %, and stays far
+     below the search arms because it cannot touch a run that never decodes.
+
+Nothing else changed: same cells, seeds, predictions 1 to 7 and thresholds;
+seven arms, 4200 runs.
+Probe numbers with all three repairs in place (seeds 1000 to 1011): baseline 5,
+4 and 12 kills of 12 (near 10 %, demo 10 %, near 0 %); `base_T` 5, 6 and 12;
+`stern` 12, 12 and 11; `believed` 11, 11 and 12. The figures quoted above this
+amendment were from the build before the third repair.
+
 ## Config (registered)
 
 - **Setup:** Stage 2 exactly. Real flight code (port arm), profile 36 / 4, plant
@@ -76,13 +113,14 @@ These guided the predictions below. They are not the result.
   window, target 12 m/s.
 - **Cells (12):** target straight or weaving; geometry near (6.5 / 500 m) or
   demo (150 / 477 m); TRUE speed-belief error 10 %, 4 % or 0 % (one sigma).
-- **Arms (6):**
+- **Arms (7; the seventh added by amendment 1):**
   - `base`: as flown (search off, 2.0 s clock). Context.
   - `base_T`: search off, clock at the window. **The control.**
+  - `base_T_guard`: `base_T` plus the stale-decode guard, nothing else.
   - `stern`, `believed`: search on, declared sigma 10 %, clock at the window.
   - `stern_decl04`: `stern` with the declared sigma at 4 %.
   - `believed_T2`: `believed` under the flying 2.0 s clock.
-- **Seeds:** 0 to 49, paired across arms. 3600 runs.
+- **Seeds:** 0 to 49, paired across arms. 4200 runs.
 - **Kill:** closest approach 0.35 m or less. **Time to kill:** first instant
   inside 0.35 m. **Blind pass:** the vehicle came within 3 m of the target
   before it had decoded anything. **Time near:** seconds within 5 m before
