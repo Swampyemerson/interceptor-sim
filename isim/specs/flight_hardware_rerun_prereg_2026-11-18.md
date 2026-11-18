@@ -108,3 +108,69 @@ nine decimals. So every difference below comes from the configuration, not the r
   apply it to offboard setpoints the real transit is shorter than these runs.
 - The target is level and steady (no target lean or wobble), as in today's other screens.
 - Engage window 120 s in the sim; the flight default is 30 s. Late kills are counted.
+
+## AMENDMENT 1 (2026-11-18, written before any of the runs it adds)
+
+Three builder rulings arrived after registration, and main gained the arrival search.
+Stages a, c, brackets, b and btilt above run as registered; none had reported when
+this was written. The stages below are added. Script: `scripts/flight_hardware_rerun_ext.py`.
+
+**The rulings.**
+1. Lean limit: "I don't care about lean limit as long as it doesn't affect the camera
+   more than we can correct for reasonably." So the lean limit is free up to about
+   60 degrees and the question becomes the camera: which lean limit and mount tilt
+   keep the tag in the picture and give the most kills.
+2. Engage time: "no limit at least for now". Nothing is cut at 30 s. Every stage
+   reports how many kills come later than 30, 45 and 60 s after GO.
+3. Lost-target rule: "whatever gets highest intercept rate, I'll be supervising so
+   I can disengage."
+
+**Added stages** (flying optics, D1, brake 3, board speed limit 33 m/s, 5 m/s²):
+
+- **grid (no errors, 1008 runs):** lean limit 45 / 52 / 60 x mount tilt 10 / 15 / 20 /
+  25 / 30 / 35 / 45 x near / demo / tail, 16 seeds. Each run also records, from truth
+  and for scoring only: the share of camera frames with the tag outside the picture
+  (a) in the chase, from first decode to closest approach, with the longest such gap,
+  and (b) on arrival, while the target is inside 48 m (8 px) and not yet decoded;
+  and the vehicle's pitch in those frames (nose down means the tag left by the top).
+- **gridb (all errors, 32 seeds, 512 runs):** the three (lean, tilt) pairs with the most
+  grid kills (ties: smaller chase out-of-picture share, then smaller tilt, then smaller
+  lean) plus the (45, 10) baseline; speed error 4 %; straight and weaving; near and
+  demo; lost-target clock 120 s (no limit, ruling 2 and 3). **Recommendation rule:**
+  the pair with the most gridb kills; a tie goes to the grid order above.
+- **lost (all errors, 32 seeds, 768 runs):** speed error 4 % and 1 %, straight and
+  weaving, near and demo, envelope now, tilt 10: clock 20 s; clock 120 s; clock 120 s
+  with the terminal's close-range rule off (`no_fallback_range_m` 0, so it re-chases
+  after losing a target inside 3 m instead of coasting). Compared, on the same seeds,
+  with stage b's 2.0 s and 6.0 s rows. The wrapper's close-miss rule (inside 3 m, go
+  SAFE when the clock expires) is inert at 120 s, so the 20 s against 120 s rows show
+  what it and the clock cost together.
+- **search (all errors, 32 seeds, 1728 runs; needs main at 4044c45 merged first):**
+  arrival search off / `stern` / `believed`, its declared speed sigma left at 10 %,
+  clock 120 s in all three so the off arm is a fair twin. Lean 45: speed error
+  10 / 4 / 1 % x straight / weaving x near / demo. Lean 60: the same, straight only.
+  Tilt 10.
+
+**Predictions for the added stages.**
+
+9. **grid.** At tilt 10 the chase out-of-picture share is larger at lean 60 than at 45.
+   Raising the tilt cuts it and raises the arrival out-of-picture share. Kills peak at
+   tilt 15 to 20 at every lean limit; at tilt 35 and 45 every cell is below half. At its
+   best tilt, lean 60 is within 1 kill of 16 per cell of lean 45 and 1 to 2 s faster.
+10. **lost.** 20 s gains 0 to 2 of 32 per cell over 6 s; 120 s gains 0 to 1 over 20 s;
+    no cell loses more than 1. Turning the close-range rule off changes any cell by 2 or
+    fewer either way.
+11. **search.** `stern` raises the 10 % straight cells by 10 or more of 32 over the off
+    twin and the weaving cells by 5 or more; at 1 % it costs 2 or fewer. `believed`
+    gains less than `stern` at 10 %. Lean 60 against 45 differs by 3 or fewer of 32.
+
+**Nulls.** If no pair in the grid beats (45, 10) by 2 of 16 in any cell, the plate goes
+to 10 degrees and the lean limit is a matter of time, not kills. If the search arms do
+not beat their off twins with these optics, October's 17 to 46 result does not carry
+over to the flying lens.
+
+**What this cannot settle for the switches being built elsewhere:** "do not start the
+clock before a track exists" and "hold the clock off during a search" are code in
+`flight/deploy/real_flight.py`, which this rerun does not touch. A 120 s clock stands in
+for both here; it also removes the clock where those switches would keep it, so it is
+an upper bound on what they can give, not a test of them.
