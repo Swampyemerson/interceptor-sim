@@ -585,6 +585,26 @@ FLY_PRESET = {
     # finds the target is listed in `what_ends_an_unbounded_engagement()`.
     "engage_max_s": math.inf,
     "mission_max_s": math.inf,
+    # ARRIVAL SEARCH ON (builder ruling 2026-11-18, "whatever gets highest
+    # intercept rate"). Flight-hardware rerun, flying lens at 20 deg of camera
+    # tilt, all errors on, straight target: 117 kills of 192 without the
+    # search, 190 with `believed`, 187 with `stern` (within 3 of 192; `believed`
+    # is the registered tie-break because it costs no time when the cue is
+    # good). Fast-sim evidence only. Cost: engagements run to about 40 s with a
+    # tail past 60 s, and `believed` adds blind passes close to the target.
+    # isim/specs/flight_hardware_rerun_prereg_2026-11-18.md,
+    # isim/specs/arrival_search_prereg_2026-11-18.md.
+    "pursuit_arrival_search": "believed",
+    # The search re-uses the acquisition list after a dropout; the guard stops
+    # a stale decode restarting the camera phase every tick.
+    "pursuit_stale_decode_guard": True,
+    # APPROACH-DASH BRAKE 3 m/s^2, with the vertical arrival-sync it was
+    # simulated with. Same rerun: brakes 2, 3 and 4 all gave 16 kills of 16 at
+    # 20 deg of tilt; 3 costs 0.8 s against 4 and leaves more margin on a
+    # braking authority that has never been measured on the real aircraft.
+    # Applies only when the approach dash is on.
+    "pursuit_dash_brake_accel": 3.0,
+    "pursuit_brake_vert_sync": True,
 }
 
 # Horizon used where a finite number is needed and the engage window is not
@@ -3155,6 +3175,13 @@ def commanded_caps(args, cfg: MissionConfig, guidance) -> dict:
             accel = max(accel, float(p.dash_accel_max_ms2))
             caps["approach_dash"] = True
             caps["brake_accel_ms2"] = float(p.brake_accel_ms2)
+            caps["brake_vert_sync"] = bool(getattr(p, "brake_vert_sync", False))
+        if getattr(p, "arrival_search", False):
+            caps["arrival_search"] = str(p.search_start)
+            caps["search_sweep_ms"] = float(p.search_sweep_ms)
+            caps["search_drop_ms"] = float(p.search_drop_ms)
+            caps["search_sigma_speed_frac"] = float(p.search_sigma_speed_frac)
+        caps["stale_decode_guard"] = bool(getattr(p, "stale_decode_guard", False))
         caps.update(v_cap_ms=v, accel_ms2=accel)
     else:
         caps.update(v_cap_ms=float(cfg.dash_speed_ms),
@@ -3964,6 +3991,25 @@ def prearm_summary(args, cfg: MissionConfig, caps: dict) -> List[str]:
     if math.isfinite(cfg.mission_max_s):
         limit_lines.append(f"[fly] whole-run backstop: {cfg.mission_max_s:.0f} s "
                            f"from program start, any state.")
+    if caps.get("approach_dash"):
+        limit_lines.append(
+            f"[fly] approach dash: it brakes into the believed rendezvous at "
+            f"{caps['brake_accel_ms2']:.1f} m/s^2"
+            + (" with vertical arrival-sync." if caps.get("brake_vert_sync")
+               else " (vertical arrival-sync OFF)."))
+    if caps.get("arrival_search"):
+        limit_lines.append(
+            f"[fly] ARRIVAL SEARCH is ON ('{caps['arrival_search']}'): if the "
+            f"target is not where the cue says, the aircraft sweeps along the "
+            f"believed track, up to {caps['search_sweep_ms']:.0f} m/s faster and "
+            f"{caps['search_drop_ms']:.0f} m/s slower than the believed target, "
+            f"until the camera reads the tag. It may pass close to the target "
+            f"without having seen it, and it keeps searching until one of the "
+            f"things above stops it. Declared cue speed error: "
+            f"{caps['search_sigma_speed_frac']*100:.0f} % (one sigma).")
+    elif caps.get("terminal") == "pursuit":
+        limit_lines.append("[fly] arrival search is OFF: the aircraft parks behind "
+                           "where it believes the target is and waits to see it.")
     return [
         "[fly] ===== PRE-ARM SUMMARY: read this before raising the permit switch =====",
         f"[fly] link: {args.mavsdk_url}   terminal: {caps['terminal']}   "
@@ -5083,13 +5129,23 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
                        brake_accel_ms2=3.0, brake_vert_sync=True)
         print("[terminal] pursuit BRAKE PACKAGE ON (ADR-0115: a=3 m/s^2, "
               "lead 0.45 s, horizontal-only cap + vertical arrival-sync)")
+    # THE FLYING PRESET (FLY_PRESET): --fly takes the search, the guard and the
+    # approach-dash brake from it unless the operator typed the matching flag.
+    fly_preset = bool(getattr(args, "fly", False))
     if getattr(args, "pursuit_approach_dash", False):
         pcfg = replace(pcfg, approach_dash=True,
                        dash_v_max_ms=float(args.pursuit_dash_vmax),
                        dash_accel_max_ms2=float(args.pursuit_dash_accel))
-        if getattr(args, "pursuit_dash_brake_accel", None) is not None:
+        _brake = getattr(args, "pursuit_dash_brake_accel", None)
+        if _brake is not None:
+            pcfg = replace(pcfg, brake_accel_ms2=float(_brake))
+        elif fly_preset:
             pcfg = replace(pcfg,
-                           brake_accel_ms2=float(args.pursuit_dash_brake_accel))
+                           brake_accel_ms2=float(FLY_PRESET["pursuit_dash_brake_accel"]),
+                           brake_vert_sync=bool(FLY_PRESET["pursuit_brake_vert_sync"]))
+            print(f"[terminal] --fly preset: approach-dash brake "
+                  f"{pcfg.brake_accel_ms2:.1f} m/s^2 with vertical arrival-sync "
+                  f"(--pursuit-dash-brake-accel to change)")
         print(f"[terminal] pursuit APPROACH DASH ON (transit cap "
               f"{pcfg.dash_v_max_ms:.0f} m/s, slew {pcfg.dash_accel_max_ms2:.0f} "
               f"m/s^2, decel schedule a={pcfg.brake_accel_ms2:.1f} m/s^2 into "
@@ -5114,7 +5170,16 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
                   f"loss failsafe distances scale with speed (0.5 s at "
                   f"{pcfg.dash_v_max_ms:.0f} m/s = {0.5*pcfg.dash_v_max_ms:.0f} m "
                   f"unflown -- TODO-BUILDER constants, bench L3/L6).")
-    _search = getattr(args, "pursuit_arrival_search", "off") or "off"
+    _search = getattr(args, "pursuit_arrival_search", None)
+    if _search is None:                       # not typed
+        _search = FLY_PRESET["pursuit_arrival_search"] if fly_preset else "off"
+    _guard = getattr(args, "pursuit_stale_decode_guard", None)
+    _guard = (FLY_PRESET["pursuit_stale_decode_guard"] if fly_preset else False) \
+        if _guard is None else (_guard == "on")
+    if _guard:
+        pcfg = replace(pcfg, stale_decode_guard=True)
+        print("[terminal] pursuit STALE-DECODE GUARD ON (a dropout cannot restart "
+              "the camera phase from decodes older than the acquisition window)")
     if _search != "off":
         pcfg = replace(pcfg, arrival_search=True, search_start=_search)
         if getattr(args, "pursuit_search_speed_sigma", None) is not None:
@@ -5539,13 +5604,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
                           "deceleration schedule (default: whatever the "
                           "brake package / config already set)")
     trm.add_argument("--pursuit-arrival-search", choices=("off", "stern", "believed"),
-                     default="off",
+                     default=None,
                      help="pursuit-mode ARRIVAL SEARCH (flight.pursuit_terminal "
-                          "`arrival_search`, 2026-11-18; default off): search "
-                          "the along-track interval the target can be in "
-                          "instead of parking behind where it is believed to be. "
-                          "'stern' starts deep astern and sweeps forward. Needs "
-                          "ground speed of the target's plus the sweep rate.")
+                          "`arrival_search`, 2026-11-18): search the along-track "
+                          "interval the target can be in instead of parking "
+                          "behind where it is believed to be. 'stern' starts "
+                          "deep astern and sweeps forward; 'believed' goes to "
+                          "the believed point first. Needs ground speed of the "
+                          "target's plus the sweep rate. Default off; --fly "
+                          "takes FLY_PRESET ('believed') unless typed.")
+    trm.add_argument("--pursuit-stale-decode-guard", choices=("on", "off"),
+                     default=None,
+                     help="pursuit-mode: prune the acquisition list on ticks "
+                          "with no decode, so a dropout cannot restart the "
+                          "camera phase from stale decodes "
+                          "(flight.pursuit_terminal `stale_decode_guard`). "
+                          "Default off; --fly takes FLY_PRESET (on) unless typed.")
     trm.add_argument("--pursuit-search-speed-sigma", type=float, default=None,
                      help="--pursuit-arrival-search: the DECLARED one-sigma "
                           "error of the believed target speed, as a fraction "

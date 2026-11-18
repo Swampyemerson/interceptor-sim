@@ -624,6 +624,12 @@ class _ConstVelKF:
         return self.x[3:6].copy()
 
 
+# A first step() this much later than the constructor's go_at_s means go_at_s
+# was not the GO instant (see `_search_t0`). One second is far more than a
+# control tick and far less than any real take-off and standby.
+_GO_AT_S_IS_NOT_GO_S = 1.0
+
+
 class PursuitTerminalGuidance:
     """SAME CONTRACT AS `TagInterceptGuidance` (duck-typed, no `isinstance`
     check anywhere on `RealFlightSM.guidance`):
@@ -726,7 +732,16 @@ class PursuitTerminalGuidance:
         # telemetry: "approach" | "fwd" | "back".
         self.search_leg: str = "approach"
         self.search_n_legs: int = 0
+        # The search's uncertainty clock starts AT GO on every path: at
+        # `go_at_s` when this object was stepped through its own pre-GO hold
+        # (the fast sim), at the time handed to `set_belief_once` (the cue
+        # trigger), and otherwise at the first post-GO tick. The flight
+        # program builds the terminal with go_at_s=0.0 and first steps it on
+        # the GO tick, so without that last rule the interval had already
+        # grown for the whole of take-off and standby by the time of GO.
         self._search_t0: float = self.go_at_s
+        self._search_t0_latched = False
+        self._stepped_pre_go = False
         self._search_arrive_t: Optional[float] = None
         self._search_anchor_r = np.zeros(3)
         self._search_b_updates: int = 0
@@ -765,6 +780,7 @@ class PursuitTerminalGuidance:
         self._v_track = v0.copy()
         if t is not None:
             self._search_t0 = float(t)
+            self._search_t0_latched = True
 
     def _emit_fault(self, tel: StepTelemetry, flag: str, msg: str, once: bool = False) -> None:
         tel.health.append(flag)
@@ -876,6 +892,7 @@ class PursuitTerminalGuidance:
                 once=True)
 
         if t < self.go_at_s:
+            self._stepped_pre_go = True
             tel.phase = "STANDBY"
             self._prev_v_cmd = np.zeros(3)
             self._prev_yaw_deg = self.initial_yaw_deg
@@ -887,6 +904,15 @@ class PursuitTerminalGuidance:
         # (own-state, honesty-clean) -- the vehicle is holding the standby aim
         # yaw at the GO edge, and slewing from the constructor default instead
         # points the camera away exactly when Phase A needs it on the belief.
+        if not self._flown_post_go and not self._stepped_pre_go \
+                and not self._search_t0_latched \
+                and t - self.go_at_s > _GO_AT_S_IS_NOT_GO_S:
+            # First tick ever, it is the GO tick, and the constructor's
+            # go_at_s is long past (the flight program's RC and timer
+            # triggers pass 0.0): GO is now. A caller that passes the real GO
+            # time (the fast sim's port arm, within one tick) is left alone,
+            # so its stored rows keep reproducing exactly.
+            self._search_t0 = t
         self._flown_post_go = True
         self.searching = False
         if not self._yaw_seeded:

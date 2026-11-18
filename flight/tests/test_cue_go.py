@@ -648,6 +648,67 @@ def test_a_typed_value_beats_the_preset(capsys):
     assert on.pursuit_lost_clock_needs_track and on.engage_far_lost_target_s == 5.0
 
 
+def _terminal_from(argv):
+    from flight.camera import CameraModel
+    args = parse(argv)
+    return rf.build_terminal(args, rf.build_config(args), rf.GuidanceConfig(),
+                             CameraModel(540.0, 540.0, 640.0, 480.0)), args
+
+
+def test_fly_preset_turns_on_the_search_the_guard_and_the_soft_brake(capsys):
+    """Builder ruling 2026-11-18 ("whatever gets highest intercept rate") and
+    the flight-hardware rerun: --fly searches on arrival (`believed`), guards
+    against stale decodes, and brakes the approach dash at 3 m/s^2 with the
+    vertical arrival-sync it was simulated with. No other mode does."""
+    fly, _ = _terminal_from(["--fly"] + BASE + ["--pursuit-approach-dash"])
+    p = fly.cfg
+    assert p.arrival_search and p.search_start == rf.FLY_PRESET["pursuit_arrival_search"] == "believed"
+    assert p.stale_decode_guard is True
+    assert p.brake_accel_ms2 == rf.FLY_PRESET["pursuit_dash_brake_accel"] == 3.0
+    assert p.brake_vert_sync is True
+    out = capsys.readouterr().out
+    assert "ARRIVAL SEARCH ON" in out and "STALE-DECODE GUARD ON" in out
+    for mode in ("--sitl-smoke", "--bench-props-off", "--dry-run"):
+        other, _ = _terminal_from([mode] + BASE + ["--pursuit-approach-dash"])
+        q = other.cfg
+        assert (q.arrival_search, q.stale_decode_guard, q.brake_accel_ms2,
+                q.brake_vert_sync) == (False, False, 4.0, False), mode
+    # without the approach dash the brake preset has nothing to apply to
+    plain, _ = _terminal_from(["--fly"] + BASE)
+    assert plain.cfg.arrival_search and plain.cfg.brake_accel_ms2 == 4.0
+
+
+def test_typed_search_guard_and_brake_beat_the_preset(capsys):
+    off, _ = _terminal_from(["--fly"] + BASE + [
+        "--pursuit-approach-dash", "--pursuit-arrival-search", "off",
+        "--pursuit-stale-decode-guard", "off", "--pursuit-dash-brake-accel", "4"])
+    assert (off.cfg.arrival_search, off.cfg.stale_decode_guard,
+            off.cfg.brake_accel_ms2) == (False, False, 4.0)
+    stern, _ = _terminal_from(["--fly"] + BASE + ["--pursuit-arrival-search", "stern"])
+    assert stern.cfg.search_start == "stern"
+    on, _ = _terminal_from(["--sitl-smoke"] + BASE + ["--pursuit-stale-decode-guard", "on"])
+    assert on.cfg.stale_decode_guard is True and on.cfg.arrival_search is False
+
+
+def test_prearm_summary_says_what_the_search_and_the_brake_will_do(capsys):
+    term, args = _terminal_from(["--fly", "--mavsdk-url", SERIAL, "--trigger", "rc",
+                                 "--arm-permit-channel", str(PERMIT_CH),
+                                 "--source", "picamera", "--manual-belief"]
+                                + BASE + ["--pursuit-approach-dash"])
+    cfg = rf.build_config(args)
+    text = "\n".join(rf.prearm_summary(args, cfg, rf.commanded_caps(args, cfg, term)))
+    assert "ARRIVAL SEARCH is ON ('believed')" in text
+    assert "without having seen it" in text
+    assert "brakes into the believed rendezvous at 3.0 m/s^2 with vertical arrival-sync" in text
+    off, args2 = _terminal_from(["--fly", "--mavsdk-url", SERIAL, "--trigger", "rc",
+                                 "--arm-permit-channel", str(PERMIT_CH),
+                                 "--source", "picamera", "--manual-belief"]
+                                + BASE + ["--pursuit-arrival-search", "off"])
+    cfg2 = rf.build_config(args2)
+    text2 = "\n".join(rf.prearm_summary(args2, cfg2, rf.commanded_caps(args2, cfg2, off)))
+    assert "arrival search is OFF" in text2 and "ARRIVAL SEARCH is ON" not in text2
+
+
 def test_an_unlimited_engagement_never_times_out_and_says_what_ends_it():
     term = HookTerminal()
     sm = engaged(term, engage_max_s=math.inf, mission_max_s=math.inf)

@@ -1825,3 +1825,61 @@ def test_legacy_fallback_is_pinned_by_stale_decodes():
     g, cfg, t = _short_track_then_dropout(n)
     after = _ticks_after_fallback(g, 40, t0=t)
     assert after[-1][1] - after[0][1] > 5.0
+
+
+# ---- the search's uncertainty clock starts AT GO on every path (2026-11-18) ----
+#
+# Reported by the cue-as-GO build: the flight program builds the terminal with
+# go_at_s=0.0 and first steps it on the GO tick, so on the RC and timer
+# triggers the searched interval had been growing since program start (all of
+# take-off and standby) by the time of GO.
+
+_T0 = dict(arrival_search=True, search_sigma_speed_frac=0.10,
+           search_sigma_pos0_m=3.0, search_k_sigma=2.0)
+
+
+def _own_level():
+    return OwnState(quat=IDENT, psi_rad=0.0, alt_m=5.0, age_s=0.0,
+                    vel_ned=(0.0, 0.0, 0.0))
+
+
+def test_search_clock_starts_at_the_go_tick_when_first_stepped_at_go():
+    """Flight program, non-cue trigger: go_at_s=0.0, first step() is the GO
+    tick, 100 s after program start. The half-width at GO must be the
+    position term alone (2 * 3 m), not that plus 100 s of growth (200 m,
+    which would also hit the hard bound)."""
+    g, cfg, _ = guidance(belief_r0_ned=(100.0, 0.0, 0.0),
+                         belief_vel0_ned=(10.0, 0.0, 0.0), go_at_s=0.0, **_T0)
+    g.step(None, _own_level(), t=100.0)
+    h, rate = g._search_half_width(100.0)
+    assert h == pytest.approx(cfg.search_k_sigma * cfg.search_sigma_pos0_m)
+    assert rate == pytest.approx(2.0 * 0.10 * 10.0)
+    h5, _ = g._search_half_width(105.0)
+    assert h5 == pytest.approx(6.0 + 2.0 * 5.0)
+
+
+def test_search_clock_keeps_go_at_s_when_stepped_through_its_own_standby():
+    """The fast sim steps the terminal before GO; there the clock starts at
+    go_at_s exactly, as before (stored rows must keep reproducing)."""
+    g, cfg, _ = guidance(belief_r0_ned=(100.0, 0.0, 0.0),
+                         belief_vel0_ned=(10.0, 0.0, 0.0), go_at_s=5.0, **_T0)
+    for t in (4.90, 4.95, 5.03):
+        g.step(None, _own_level(), t=t)
+    assert g._search_t0 == 5.0
+
+
+def test_search_clock_keeps_go_at_s_when_first_stepped_within_a_tick_of_it():
+    """The fast sim's port arm passes the real GO time and first steps the
+    terminal on the GO tick, a few milliseconds later: go_at_s stands."""
+    g, cfg, _ = guidance(belief_r0_ned=(100.0, 0.0, 0.0),
+                         belief_vel0_ned=(10.0, 0.0, 0.0), go_at_s=7.0, **_T0)
+    g.step(None, _own_level(), t=7.015)
+    assert g._search_t0 == 7.0
+
+
+def test_search_clock_keeps_the_latched_go_time_on_the_cue_path():
+    g, cfg, _ = guidance(belief_r0_ned=(100.0, 0.0, 0.0),
+                         belief_vel0_ned=(10.0, 0.0, 0.0), go_at_s=0.0, **_T0)
+    g.set_belief_once((120.0, 0.0, 0.0), (10.0, 0.0, 0.0), t=50.0)
+    g.step(None, _own_level(), t=50.02)
+    assert g._search_t0 == 50.0
