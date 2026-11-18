@@ -281,7 +281,7 @@ def test_datagram_equals_the_receivers_own_writer_and_is_accepted_by_it():
     assert rx.feed(sent[0], t_rx=60.0) == 1
     stats = rx.stats(now_t=60.0)
     assert (stats.n_rx, stats.n_bad) == (1, 0)
-    (rec,) = rx._records_on_local_clock()
+    (rec,) = [item[2] for item in rx._buf]      # the one stored record
     assert rec.lat == fix.lat and rec.alt_m_msl == 1655.0
     assert math.hypot(rec.vn, rec.ve) == pytest.approx(9.0)
     assert rec.vd == 0.0
