@@ -153,7 +153,11 @@ def stage_b(b, bt):
             for err in ("4", "1"):
                 ref = b[f"st|{geom}|e{err}|T2"]
                 cur = bt[f"st|{geom}|e{err}|T2|t20"]
-                print(f"  {geom} {err} %: tilt 10 {kills(ref)} | tilt 20 {kills(cur)} | lost/gained %d/%d" % paired(ref, cur))
+                lost, gained = paired(ref, cur)
+                print(f"  {geom} {err} pct: tilt 10 {kills(ref)} | tilt 20 {kills(cur)} | "
+                      f"lost/gained {lost}/{gained}; never decoded "
+                      f"{sum(r['first_det'] is None for r in ref.values())} -> "
+                      f"{sum(r['first_det'] is None for r in cur.values())}")
 
 
 if __name__ == "__main__":
