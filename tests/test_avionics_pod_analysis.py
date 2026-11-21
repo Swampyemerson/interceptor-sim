@@ -57,3 +57,33 @@ def test_pod_readme_names_no_removed_file_as_current():
     assert len(names) >= 4, names
     for n in names:
         assert (pod_dir / n).exists(), n
+
+
+def test_insert_pockets_leave_room_for_melt_and_thread():
+    """2026-11-20: the Pi-boss pockets were 1 mm deeper than their inserts, the melted
+    plastic rose into the threads and all four standoffs stripped. pod.py checks this
+    before exporting (insert_pocket_check); this mirrors the rule where the suite runs
+    without CadQuery, reading the numbers from pod.py itself."""
+    import ast
+    c = {}
+    for node in ast.parse((ROOT / "hardware" / "avionics_pod" / "pod.py").read_text()).body:
+        if not isinstance(node, ast.Assign):
+            continue
+        tgt, val = node.targets[0], node.value
+        names = [tgt] if isinstance(tgt, ast.Name) else list(getattr(tgt, "elts", []))
+        vals = [val] if isinstance(tgt, ast.Name) else list(getattr(val, "elts", []))
+        for n, v in zip(names, vals):
+            if isinstance(n, ast.Name) and isinstance(v, ast.Constant) and isinstance(v.value, (int, float)):
+                c[n.id] = float(v.value)
+    need = ("INSERT_RELIEF_MIN", "INSERT_M25_DEPTH", "INSERT_M25_L", "M25_STUD_L", "INSERT_M3_L",
+            "BOSS_M3_DEPTH", "REAR_SCREW_L", "REAR_HAT_ROOF", "REAR_HAT_GAP", "NOSE_EAR_T", "DOCK_T")
+    missing = [k for k in need if k not in c]
+    assert not missing, missing          # a renamed constant must fail, not pass empty
+    assert c["INSERT_RELIEF_MIN"] >= 2.0
+    assert c["INSERT_M25_DEPTH"] >= c["INSERT_M25_L"] + c["INSERT_RELIEF_MIN"]
+    assert c["INSERT_M25_DEPTH"] >= c["M25_STUD_L"] + 1.0
+    reach = c["REAR_SCREW_L"] - c["REAR_HAT_ROOF"] - c["REAR_HAT_GAP"]
+    assert c["BOSS_M3_DEPTH"] >= c["INSERT_M3_L"] + c["INSERT_RELIEF_MIN"]
+    assert c["BOSS_M3_DEPTH"] >= reach + 1.0 and reach >= 3.0
+    assert 5.0 + c["DOCK_T"] - c["BOSS_M3_DEPTH"] >= 0.8
+    assert c["INSERT_M3_L"] <= c["NOSE_EAR_T"]

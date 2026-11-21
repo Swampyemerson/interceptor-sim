@@ -88,9 +88,24 @@ LID_STANDOFF = 8.0       # MEASURE  M2.5 standoff above the HAT (clears the modu
 FLOOR_T = 2.4
 PANEL_T = 2.4
 BOSS_D = 6.6             # 0.2 mm inside the panel's outer face (7.0 was exactly tangent)
-INSERT_M25_D, INSERT_M25_DEPTH = 3.2, 5.0   # M2.5 heat-set insert pocket: fits the
-#   3.5 mm OD x 4 mm inserts the builder ordered (2026-11-10)
-INSERT_M3_D, INSERT_M3_DEPTH = 4.0, 5.5     # M3 heat-set insert pocket
+# Heat-set insert pockets. RULE (2026-11-20, learned on the first real parts): a
+# pocket must be deeper than its insert by INSERT_RELIEF_MIN, because the plastic the
+# insert melts aside collects below it, and it must also be deeper than the screw or
+# stud that enters it. The first pockets were 1 mm deeper than the M2.5 inserts: the
+# melt rose into the threads, the standoffs went in a few turns and all four stripped.
+INSERT_RELIEF_MIN = 2.0
+INSERT_M25_D, INSERT_M25_DEPTH = 3.2, 8.0   # M2.5 pocket: fits the 3.5 mm OD x 4 mm
+INSERT_M25_L = 4.0                          #   inserts the builder ordered (2026-11-10)
+M25_STUD_L = 6.0         # thread on a brass M2.5 male-female standoff (common size;
+                         # MEASURE). Must not bottom even with no board under it
+INSERT_M3_D = 4.0        # M3 heat-set insert pocket diameter
+INSERT_M3_L = 4.0        # LONGEST M3 insert these pockets take (buy 4 mm or shorter)
+INSERT_M3_DEPTH = 5.5    # legacy lid-cradle plate only (not exported)
+BOSS_M3_DEPTH = 7.0      # rear release boss: 5 mm of boss + 2 mm into the 3 mm dock
+REAR_HAT_ROOF, REAR_HAT_GAP = 2.6, 0.3      # pod's cup over that boss
+REAR_SCREW_L = 8.0       # rear release screw, under the head
+NOSE_EAR_T = 6.5         # camera plate ear thickness; its insert holes go right through
+NOSE_PIVOT_SCREW_L = 8.0 # camera pivot and tilt-lock screws, under the head
 PIN_D, PIN_CLEAR = 4.0, 0.25
 FLOOR_X_FRONT, FLOOR_X_REAR = 30.0, -44.0
 TAB_X_REAR, TAB_HALF_W = -71.0, 9.0
@@ -272,7 +287,7 @@ def dock(coupon: bool = False, nose_post: bool = False):
         d = d.union(cyl(x, y, Z_DOCK, Z_DOCK + FLOOR_T - 0.2, PIN_D))
     boss_top = Z_DOCK + 5.0
     d = d.union(cyl(SCREW_X, 0, Z_DOCK, boss_top, 9.0))
-    d = d.cut(cyl(SCREW_X, 0, boss_top - INSERT_M3_DEPTH, boss_top + 1, INSERT_M3_D))
+    d = d.cut(cyl(SCREW_X, 0, boss_top - BOSS_M3_DEPTH, boss_top + 1, INSERT_M3_D))
     if nose_post:
         d = d.union(_nose_cheeks())
     return d
@@ -368,8 +383,8 @@ def pod_base():
                   .extrude(FLOOR_T + 2).translate((x, y, Z_DOCK - 1)))
     # rear screw "hat": sits over the dock boss, M3 clamps it down
     boss_top = Z_DOCK + 5.0
-    hat = cyl(SCREW_X, 0, Z_DOCK, boss_top + 0.3 + 2.6, 14.0)
-    hat = hat.cut(cyl(SCREW_X, 0, Z_DOCK - 1, boss_top + 0.3, 9.6))
+    hat = cyl(SCREW_X, 0, Z_DOCK, boss_top + REAR_HAT_GAP + REAR_HAT_ROOF, 14.0)
+    hat = hat.cut(cyl(SCREW_X, 0, Z_DOCK - 1, boss_top + REAR_HAT_GAP, 9.6))
     b = b.cut(cyl(SCREW_X, 0, Z_DOCK - 1, Z_FLOOR + 1, 9.6)).union(hat)
     b = b.cut(cyl(SCREW_X, 0, boss_top, boss_top + 5, 3.4))
     # floor: cooling/lightening slots beside the FC pad, and two strap slots
@@ -506,15 +521,45 @@ def cam_plate_nose_local():
     prof = [(xp, r), (0.0, r), (-k, k), (lx - k, lz + k), (lx - k, lz - k),
             (lx + k, lz - r), (xp, lz - r)]
     for sy in (-1, 1):
-        ya, yb = sorted((sy * (ear_half - 6.5), sy * ear_half))
+        ya, yb = sorted((sy * (ear_half - NOSE_EAR_T), sy * ear_half))
         ear = xz_prism(prof, ya, yb)
-        for (ax, az) in ((0.0, 0.0), (lx, lz)):               # M3 heat-set inserts
-            pocket = (cq.Workplane("XZ").center(ax, az).circle(INSERT_M3_D / 2)
-                      .extrude(INSERT_M3_DEPTH))
-            ear = ear.cut(pocket.translate((0, ear_half if sy > 0
-                                            else -ear_half + INSERT_M3_DEPTH, 0)))
+        for (ax, az) in ((0.0, 0.0), (lx, lz)):   # M3 heat-set inserts, set from the
+            # outer face. The hole goes right through the ear so the melt has a way out
+            through = (cq.Workplane("XZ").center(ax, az).circle(INSERT_M3_D / 2)
+                       .extrude(NOSE_EAR_T + 2.0))
+            ear = ear.cut(through.translate((0, yb + 1.0, 0)))
         pl = pl.union(ear)
     return pl
+
+
+def insert_pocket_check():
+    """Every insert pocket has room below the insert for the displaced plastic and for
+    the thread that enters it. Returns a list of failures (empty = pass)."""
+    bad = []
+    def need(ok, msg):
+        if not ok:
+            bad.append(msg)
+    # Pi bosses: standoff stud, with and without the Pi board under the standoff
+    need(INSERT_M25_DEPTH >= INSERT_M25_L + INSERT_RELIEF_MIN,
+         f"M2.5 pocket {INSERT_M25_DEPTH} < insert {INSERT_M25_L} + relief {INSERT_RELIEF_MIN}")
+    need(INSERT_M25_DEPTH >= M25_STUD_L + 1.0,
+         f"M2.5 pocket {INSERT_M25_DEPTH} < bare stud {M25_STUD_L} + 1")
+    need(M25_STUD_L - PI_T >= 0.8 * INSERT_M25_L,
+         f"stud through the Pi reaches {M25_STUD_L - PI_T}, under 80 % of the insert")
+    need(Z_PI - Z_FLOOR >= INSERT_M25_DEPTH + 2.0, "Pi boss shorter than its pocket")
+    # rear release boss
+    reach = REAR_SCREW_L - REAR_HAT_ROOF - REAR_HAT_GAP
+    need(BOSS_M3_DEPTH >= INSERT_M3_L + INSERT_RELIEF_MIN,
+         f"rear pocket {BOSS_M3_DEPTH} < insert {INSERT_M3_L} + relief {INSERT_RELIEF_MIN}")
+    need(BOSS_M3_DEPTH >= reach + 1.0, f"rear screw reaches {reach}, pocket {BOSS_M3_DEPTH}")
+    need(reach >= 3.0, f"rear screw only {reach} mm into the insert")
+    need(5.0 + DOCK_T - BOSS_M3_DEPTH >= 0.8, "rear pocket breaks through the dock")
+    # camera plate ears: through holes, so only the screw's bite matters
+    gap = NOSE_CHEEK_Y_IN - NOSE_EAR_HALF
+    bite = NOSE_PIVOT_SCREW_L - NOSE_CHEEK_T - gap
+    need(INSERT_M3_L <= NOSE_EAR_T, "M3 insert longer than the ear is thick")
+    need(3.0 <= bite <= NOSE_EAR_T, f"pivot screw bite {bite} mm outside 3..{NOSE_EAR_T}")
+    return bad
 
 
 def cam_plate_nose(tilt_deg=None):
@@ -641,6 +686,10 @@ def main() -> int:
              "pod_lid_cam": pod_lid(camera=True), "cam_plate": cam_plate(),
              "dock_cam": dock(nose_post=True), "cam_plate_nose": cam_plate_nose(),
              "dock_cam_coupon": dock(coupon=True, nose_post=True)}
+    bad = insert_pocket_check()
+    if bad:
+        print("FAIL: insert pockets: " + "; ".join(bad))
+        return 1
     for name, wp in parts.items():
         solids = wp.val().Solids()
         if len(solids) != 1 or not wp.val().isValid():

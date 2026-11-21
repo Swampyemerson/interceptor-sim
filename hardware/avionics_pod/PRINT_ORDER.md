@@ -1,7 +1,9 @@
 # Avionics pod: what to print where (decided 2026-11-11)
 
 The builder can send parts to the ITLL at CU Boulder, which runs Markforged printers.
-This is the print plan for pod revision 6 (the order section at the end is current; the
+The files in this folder are now revision 7 (2026-11-20: deeper insert pockets only; parts
+printed from revision 6 are brought up to it with a drill, see the README's revision 7
+section). This is the print plan written for pod revision 6 (the order section at the end is current; the
 research notes above it are from 2026-11-11). Prices and the fibre option are **not
 confirmed**: the ITLL does not publish them, so the first step is a question to its staff.
 
@@ -87,7 +89,9 @@ is about $14, perhaps $20 to $25 with a reprint or fibre. The ITLL's own rate ma
 - **Electrical:** chopped carbon makes Onyx slightly conductive. No bare solder joint or
   board edge should rest on it. The Pi and HAT are on standoffs and the Pixhawk is cased,
   so the design already respects this; keep it in mind for loose wires.
-- **Heat-set inserts** go into nylon the same way as into PETG. Hole sizes are unchanged.
+- **Heat-set inserts** go into nylon the same way as into PETG. Hole diameters are
+  unchanged. Pocket depths changed in revision 7: the revision 6 pockets were too shallow
+  and the melted plastic filled the threads (README, revision 7 section).
 - **Strength** was never the limit (1 MPa at 10 g in the SOLIDWORKS check).
 
 ## Order of work
