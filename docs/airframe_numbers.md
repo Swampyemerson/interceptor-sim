@@ -5,7 +5,10 @@ hover current and time, the battery, motor and prop constants, drag, air density
 carbon fibre frame. The target drone shares the same motors, props, frame and packs, so
 most of this applies to it too.
 
-**Status: nothing on the interceptor has been weighed or thrust-tested yet.** Every number
+**Status: the built interceptor weighs 930 g with its battery and the target 620 g with its
+battery (builder's scale, 2026-11-21; see the weighed rows in section 1). Nothing has been
+thrust-tested.** The worked examples below still use the 800 g parts roll-up, which the
+aircraft turned out 130 g over. Every number
 below is tagged `vendor` (manufacturer or retailer spec), `derived` (calculated here),
 `estimate` (a typical value or assumption to replace with a measurement), or `bench`.
 Every `derived` number comes out of **`scripts/airframe_numbers.py`** and is pinned by
@@ -23,6 +26,9 @@ hosted at https://claude.ai/artifact/VZ8qf3qmhdcEfrwZ74F5jk
 | Quantity | Value | Tier |
 |---|---|---|
 | All-up weight (AUW), interceptor | ≈ 800 g (546.5 g dry + 254 g pack) | derived from estimates |
+| **Weighed** all-up weight, interceptor, with battery, pod and nose camera | **930 g** | bench (builder's scale, 2026-11-21; which pack and scale not recorded) |
+| **Weighed** all-up weight, target, with battery | **620 g** | bench (same day; whether the placard was on is not recorded, the roll-up for the bare target was 610 g) |
+| At the weighed 930 g (`airframe_numbers.py --auw 930`) | T/W 6.45 : 1 if the motors make 1.5 kg each; hover 9.4 A, 7.7 min, throttle 39 % | derived from one measured and one estimated input |
 | Design ceiling used for sizing | 950 g | plan |
 | Max static thrust | 1.5 kg per motor, 6.0 kg total (listings 1.4 to 2.0 kg) | estimate |
 | Thrust-to-weight | 7.5 : 1 at 800 g; 6.3 : 1 at 950 g (rule: ≥ 5 : 1) | derived |
@@ -76,6 +82,20 @@ The pod is not in the roll-up above because it is not built. If it is, it **repl
 tray** share of the 35 g "Printed Pi tray + camera boom" line (the split of that line was
 never recorded), so the net change is somewhere between about +4 g and +39 g, and AUW stays
 near 800 to 840 g. Hover power moves by about 1.5 × the weight change in percent (§5).
+
+**Weighed 2026-11-21: 930 g**, with the revision 7 pod, nose camera post, AI HAT+, GPS on the
+lid and battery. That is 90 to 130 g over this roll-up and 77 g over the pod model's 853 g
+whole-aircraft figure (`hardware/avionics_pod/README.md`); the difference has not been traced
+to parts. It is 20 g under the 950 g design ceiling.
+
+**A thrust floor from the target's log.** The target shares these motors, props and packs. On
+2026-11-15 its IMU peaked at 49.8 m/s² in a full-throttle climb (`runs/target_flight6_20261115/`,
+25 Hz samples, motor output 1950 of 2000, pack sagging to about 18.8 V, more than half used).
+If the target weighed 620 g on that flight, thrust was at least 5.08 × 620 g = 3.15 kg, about
+0.79 kg per motor in that pack state. For the 930 g interceptor that is at least 3.4 : 1 on a
+sagging, half-used pack, which is under the 5 : 1 rule. Scaling thrust with voltage squared to a
+full pack (25.2 V) gives about 1.4 kg per motor and about 6 : 1, but that scaling is a rule of
+thumb, not a measurement. The thrust rig is still the measurement that settles it.
 
 The earlier roll-up in `docs/decisions.md` (≈ 770 g, payload-feasibility entry) used the
 first parts pick (Mark5 frame, XING2 motors). This table uses the parts actually ordered.

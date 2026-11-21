@@ -1,5 +1,13 @@
 ### 2026-11-14
 
+Fourth flight of the target drone, 102 seconds in Position mode. Both predictions written beforehand held: roll wobble fell to under 2 deg/s, and height settled to within 9 cm after the first 35 seconds. It landed itself because the battery reached its low-voltage limit, which is the safety setting working. The faster logging gave the wobble a frequency for the first time: 23 times a second, in both roll and pitch, now larger in pitch because only roll had been turned down. The log also shows the drone hovering tilted about 3 degrees left and 4 nose-down in two flights running, which means its idea of level was off.
+
+**So what:** Pitch gains turned down to match roll, and the level reference corrected from the hover data. Neither flown yet. The sideways drift the builder corrected by hand traces to the position estimate, and the compass disagreed with GPS by about 10 degrees at take-off: the compass needs recalibrating outdoors, away from metal.
+
+*Evidence: runs/target_flight4_20261114/README.md + timeline_and_spectra.txt + terms_and_drift.txt; ADR-0138 addendum 11*
+
+### 2026-11-14
+
 Third flight of the target drone, two minutes, mostly in Position mode. The builder: much better, still not perfect. The log agrees. The fast bounce is gone. What is left: for the first 40 seconds the drone's height estimator believed it was sinking at about 0.4 m/s when the barometer and GPS both said it was not, so it held height about half a metre off; by a minute and a half it held to 0.13 m. And roll still wobbles about four times as much as pitch, which is the oscillation he can hear; it rang hard when he tugged the airframe by hand.
 
 **So what:** Roll gains cut by a further 30% and fast logging switched on, so the next flight shows the wobble's real frequency. Nothing changed for height: the prediction is that a still hover tightens up after the first 40 seconds. Both predictions are written down before the flight.
