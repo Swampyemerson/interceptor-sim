@@ -1,3 +1,11 @@
+### 2026-11-14
+
+Third flight of the target drone, two minutes, mostly in Position mode. The builder: much better, still not perfect. The log agrees. The fast bounce is gone. What is left: for the first 40 seconds the drone's height estimator believed it was sinking at about 0.4 m/s when the barometer and GPS both said it was not, so it held height about half a metre off; by a minute and a half it held to 0.13 m. And roll still wobbles about four times as much as pitch, which is the oscillation he can hear; it rang hard when he tugged the airframe by hand.
+
+**So what:** Roll gains cut by a further 30% and fast logging switched on, so the next flight shows the wobble's real frequency. Nothing changed for height: the prediction is that a still hover tightens up after the first 40 seconds. Both predictions are written down before the flight.
+
+*Evidence: runs/target_flight3_20261114/README.md + segment_analysis.txt + flight_timeline.txt; ADR-0138 addendum 10*
+
 ### 2026-10-21
 
 Overnight demo-video directive executed end to end. Built the CINEMA pipeline (scripts/cinema/: fly -> export -> Blender re-render -> HUD video; README has the knobs) and flew six camera-in-the-loop Gazebo engagements at TARGET 12 m/s with a deliberately imperfect cue (2-3 m / 4-6 deg injected belief error, mover flies truth): one geometry-class reject (tail-chase start opens range past the ~12 m in-sim decode cliff and drops lock -- isim's decode model flattered it, Gazebo decided), then five full engagements, CPA 0.700 / 0.387 / 0.301 / 0.237 / 0.194 m -- four inside the 0.35 m contact radius. The video take (t6): gap-free camera lock from 7.7 m (+3.7 s after GO) to CPA at +8.0 s, 53 decodes consumed, CPA 0.194 m. The final video re-renders the logged 6-DoF poses in Blender (Cycles/CUDA, field + forest set, real tag texture) with a technical HUD (phase, INERTIAL-PREDICT vs CAMERA-TRACK, speeds, closing rate, range) and the REAL recorded seeker frames as picture-in-picture with offline re-detected tag corners.
