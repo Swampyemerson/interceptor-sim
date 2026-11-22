@@ -1,0 +1,6 @@
+status: { "state": "recording", "port": "/dev/pixhawk-usb", "link": "usb", "armed": false, "file": "fc_20261122T223520Z.ulg.part", "seconds": 276.5, "megabyte
+T0 1795387197.715056908
+CAM_ON 1795387222.716954962
+CAM_OFF 1795387254.088291329 exit 0
+T1 1795387279.090095708
+/home/admin/fc_logs/fc_20261122T223520Z.ulg.part
