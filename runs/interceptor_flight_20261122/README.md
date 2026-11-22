@@ -61,10 +61,31 @@ the same moment. As built, it cannot have both.
   count them).
 - Pack: 23.9 V resting before, 22.4 V average in hover, 20.7 V lowest. Voltage against
   current gives 32 milliohms.
-- PX4's "battery remaining" fell from 0.85 to 0.21 in 80 s of hover while 178 mAh, 12 % of
-  the pack, was used. The board estimates from voltage alone (`BAT1_CAPACITY` is unset), so
-  load sag reads as an empty battery. A dash at several times hover current would trip the
-  low-battery failsafe on a pack that is mostly full. Not changed yet.
+- PX4's "battery remaining" fell from 0.85 to a lowest 0.21 in 80 s of hover while the
+  sensor counted 178 mAh, 12 % of the pack. **Corrected reading (same afternoon):** I first
+  called that a pessimistic gauge. Half an hour later the pack rested at 22.7 V, 3.79 V per
+  cell, which really is about 43 %. The avionics draw current the power module cannot see,
+  and the aircraft had been powered for about an hour, so the pack was emptier than the
+  counted 178 mAh says. The 0.21 was a momentary sag; the board was already correcting for
+  load with its own live estimate of the pack's resistance (0.021 read back).
+- Changed on the board 2026-11-22, builder's go-ahead: `BAT1_CAPACITY` -1 to 1350 (90 % of
+  the label), read back. `BAT1_R_INTERNAL` left at -1 (live estimate). The gauge now also
+  counts charge used, which steadies it under a dash; it still cannot see the avionics'
+  draw on the ground.
+
+## After the builder wrapped the camera ribbon in foil (`gps_cam_test3_after_foil.out`)
+
+| Condition | Satellites used (median, range) | Fix | Speed accuracy |
+|---|---|---|---|
+| Camera off, before | 7 (7 to 7) | 3D | 0.57 m/s |
+| Camera recording 1920x1200 | 7 (5 to 7) | 3D throughout | 0.85 m/s |
+| Camera off, after | 7 (7 to 7) | 3D | 0.67 m/s |
+
+The same test without the foil gave 0 satellites and a lost fix. So the shielding removes
+most of the camera's effect. What is left: one dip to 5 satellites (PX4 wants 6) and a
+speed accuracy above PX4's 0.5 m/s arming limit, with or without the camera, so reception
+as a whole is still weak (7 satellites under open sky; a healthy unit shows 15 or more).
+One 30 s test, on the ground, motors stopped.
 
 ## Also seen, not followed up
 

@@ -189,10 +189,11 @@ Tested on the bench, Pixhawk disarmed:
 
 **The video the service starts at arming jams the GPS (found 2026-11-22).** With the
 camera running the GPS loses its fix within a second; the flight above lost its position
-3.5 s after takeoff for that reason (`runs/interceptor_flight_20261122/README.md`). Until
-the camera ribbon is shielded or the GPS moved, a flight has either the video or the GPS.
-To fly with GPS and no video, set `VIDEO_CMD=` (empty) in `/etc/default/flight-recorder`
-and restart the service; the log still records.
+3.5 s after takeoff for that reason (`runs/interceptor_flight_20261122/README.md`). The
+builder then wrapped the camera ribbon in foil and the fix held at 7 satellites through a
+30 s recording on the ground; not yet confirmed in flight. If it fails again, to fly with
+GPS and no video set `VIDEO_CMD=` (empty) in `/etc/default/flight-recorder` and restart
+the service; the log still records.
 
 Not tested yet:
 - **A cable pulled by hand**, and a cable lost with the motors running.

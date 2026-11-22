@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3412e72<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->330283f<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-22",
- "updated_by": "First flight with the pod: flew well, lost GPS because the camera link jams it; hover 8.8 A measured (2026-11-22)",
+ "updated_by": "Foil on the camera ribbon: GPS holds its fix with the camera running; first flight read; hover 8.8 A (2026-11-22)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -915,9 +915,9 @@
  "now": {
   "as_of": "2026-11-22",
   "where": "The assembled interceptor (930 g) flew by hand for 81 s and the Pi saved a clean flight log and video. The aircraft itself flew well. It lost its GPS position 3.5 s after takeoff and a false geofence alarm ended the flight.",
-  "finding": "The camera link jams the GPS: camera off, 6 to 7 satellites; camera running, 0 and the fix is lost; back within 3 s of stopping. The chase needs both at once, so as built it cannot fly. Hover measured at 8.8 A, about 8 minutes.",
+  "finding": "Unshielded, the camera link jammed the GPS (0 satellites, fix lost). With the ribbon wrapped in foil the fix held at 7 satellites through a 30 s recording. Reception is still weak: 7 where 15 is normal. Hover measured at 8.8 A, about 8 minutes.",
   "next": [
-   "You: shield the camera ribbon or raise the GPS on a mast; I rerun the 30 s camera test",
+   "You: fly one short hop on a fresh pack to see whether the GPS holds with motors and camera running",
    "Me: the flight program's camera reader must flip the upside-down picture"
   ],
   "evidence": "runs/interceptor_flight_20261122/README.md - runs/interceptor_arming_gps_20261122/README.md - runs/recorder_fault_test_20261122/ - docs/fc_logging_without_sd.md"
@@ -1553,7 +1553,7 @@
   {
    "date": "2026-11-22",
    "text": "First flight of the assembled interceptor, by hand, 81 seconds, under 1.6 m. The Pi recorder saw its first real arming and saved a clean log and 88 seconds of video. The builder reported an unstable flight that ended itself. The log says the aircraft followed its commands well (1.4 and 1.6 degrees of error). What went wrong: 3.5 seconds after takeoff the GPS position was lost, so it dropped to height-hold only and drifted; the estimator's position then ran away to 470 m while the aircraft stayed within 33 m, crossed the 457 m geofence and triggered a descent. Ground tests straight after found the cause: the GPS holds 6 to 7 satellites with the camera off and loses its fix within a second of the camera starting, at either picture size, with or without recording. Loading the processor alone barely matters.",
-   "so_what": "The recorder starts the camera at arming, so every armed flight jams the GPS, and the chase needs camera and GPS together. This is hardware: shield the camera ribbon, or move the GPS away on a mast, then repeat the 30 second test. Hover is now measured: 8.8 A, about 8 minutes on a 1500 mAh pack. The board's battery gauge read 21% after using 12% of the pack, so a dash would trip the low-battery failsafe early; not changed yet.",
+   "so_what": "The builder then wrapped the camera ribbon in foil and the same test held a 3D fix at 7 satellites with the camera recording. Not yet flown that way, and 7 satellites is still weak. Hover is now measured: 8.8 A, about 8 minutes on a 1500 mAh pack. The pack's capacity is now set on the board (1350 mAh). The avionics drain the pack unseen on the ground, about a quarter of it per hour by estimate: that pack was at 43% after one short flight.",
    "evidence": "runs/interceptor_flight_20261122/README.md (timeline, tracking, the camera on/off tests, power); the raw log is kept out of git because it holds GPS positions"
   },
   {
@@ -5146,7 +5146,7 @@
    "loc_a": "docs/goals.md status banner; docs/decisions.md ADR-0118 and ADR-0139; flight/deploy/real_flight.py",
    "claim_b": "Measured on the assembled aircraft 2026-11-22: camera off, 6 to 7 satellites and a 3D fix; camera streaming at 1920x1200 or 1280x720, with or without encoding, 0 to 5 satellites and the fix lost within a second, back within 3 s of stopping. Processor load alone costs one satellite. In flight the position was lost 3.5 s after takeoff, 5 s after the recorder started the camera.",
    "loc_b": "runs/interceptor_flight_20261122/README.md; gps_camera_test.py and gps_windows.py in that folder",
-   "current_truth": "As built, the aircraft cannot hold a GPS position while its camera runs. The source is the camera and its ribbon cable under the GPS unit on the pod lid, not the Pi's processing. Not yet tried: a shielded or foil-wrapped ribbon, a ground plate under the GPS, the GPS on a mast. Even with the camera off the GPS is weak for open sky (6 to 7 satellites, 8 on the old bench rig).",
+   "current_truth": "Mostly cured on the ground by wrapping the camera ribbon in foil (builder, 2026-11-22): the fix held at 7 satellites through a 30 s recording, one dip to 5, where the bare ribbon gave 0 and a lost fix. Not yet shown in flight with the motors running. Reception is still weak with or without the camera (7 satellites under open sky, speed accuracy 0.6 to 0.85 m/s against PX4's 0.5 limit), so the GPS over the Pi still wants distance or a proper ground plate.",
    "resolution": ""
   }
  ]
