@@ -148,7 +148,7 @@ sun on 2026-11-15; a fixed 1000 µs clipped 56% of a sky frame in that light. So
 leave it on auto or fix it near 150 (`--exposure-us 150`), not 1000 as this page used to say.
 The video command carries `--flip` because the nose camera is mounted ribbon connector up:
 on 2026-11-22, with the aircraft level, the picture was upside down without it and upright
-with it (`runs/recorder_fault_test_20261122/camera_frame_*.jpg`). **The flip is in the
+with it (frames kept on the laptop in `runs/recorder_fault_test_20261122/`, not in git). **The flip is in the
 video recorder only. The flight program's camera reader has no flip yet**, so the seeker
 would see the target on the wrong side; that has to be written before any camera-guided
 flight (`docs/next.md`).
@@ -242,7 +242,7 @@ start. Reproduced on the bench: session ended without stop, next bare start refu
 Evidence: `runs/fc_log_stream_20261113/` (stats for every capture, the Pixhawk console
 output, the bench gate log, and `gcs_bridge/` for the ground-station tests);
 `runs/recorder_fault_test_20261122/` (the fault tests: scripts, outputs, stats, the
-ground-station messages received, and a camera frame with and without the flip).
+ground-station messages received; the two camera frames stay on the laptop).
 Decision record: ADR-0137 and its addenda.
 
 ## Predictions, written before the first measurement (2026-11-13)

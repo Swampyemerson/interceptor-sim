@@ -186,6 +186,10 @@ throttle ≈ √(W / T_max) = √(1 / 7.5)       = 37 %
   going as command squared, so either the motors make more than 1.5 kg each or thrust is
   closer to linear in command on this ESC; the thrust rig settles which. One flight, one
   pack, wind not recorded. The pack measured 32 milliohms (voltage against current).
+- **Full throttle, MEASURED 2026-11-22 (second flight):** 4.23 g peak, 3.93 kg total, 0.98 kg
+  per motor, at 77 A with the pack sagging from 24.5 V resting to 18.0 V (61 milliohms).
+  So T/W is 4.2 : 1 on that pack, not the planned 6.5 : 1, and the battery is the limit
+  (`runs/interceptor_flight2_20261122/README.md`).
 - **How it gets measured:** a 60 s hover, current from the PM02 in the ULog, and the learned
   hover throttle (PX4 MPC_THR_HOVER; ArduPilot MOT_THST_HOVER on the target). The FC's
   card slot is dead, so the ULog comes from the Pi's flight recorder, which saves the log PX4

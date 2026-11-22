@@ -300,17 +300,12 @@
 #     pack measurement (FC param writes need a read-back; so do ADC dividers).
 #     Source: docs.px4.io/v1.16 parameter reference (BAT1_N_CELLS).
 1	1	BAT1_N_CELLS	6	6
-#  BAT1_CAPACITY = 1350 -> lets PX4 count the charge used instead of judging the
-#     pack from voltage alone. 90 % of the 1500 mAh label, as the PX4 battery
-#     page advises. Written to the board 2026-11-22 (builder's go-ahead) and read
-#     back. BAT1_R_INTERNAL stays -1: the board already estimates the pack's
-#     resistance live (0.021 read that day) and uses it to correct for load.
-#     KNOWN GAP: the power module reads 0.00 A with only the avionics running, so
-#     charge used while sitting powered on the ground is not counted (roughly a
-#     quarter of the pack per hour, estimated from resting voltage on 2026-11-22,
-#     not measured). A power cycle re-reads the pack from its voltage.
-#     Source: docs.px4.io/v1.16 config/battery (BAT1_CAPACITY, BAT1_R_INTERNAL).
-1	1	BAT1_CAPACITY	1350.000000	9
+#  BAT1_CAPACITY is deliberately NOT set (board value -1). It was set to 1350 on
+#     2026-11-22 and reverted the same day: a capacity switches on PX4's
+#     remaining-flight-time check, which fired twice in flight because the position
+#     estimate was broken and the time-to-home it computed was nonsense
+#     (runs/interceptor_flight2_20261122/README.md). Set it (90 % of the label, per
+#     docs.px4.io/v1.16 config/battery) once the position estimate is dependable.
 #
 # =============================================================================
 #  NOT NEEDED FOR THIS BENCH -- checked and deliberately left alone

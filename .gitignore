@@ -192,3 +192,6 @@ sessions/*/video.h264
 # raw Pi video is gigabytes per session and holds the site; it stays out of git
 sessions/**/*.h264
 sessions/**/pull.log
+
+# Camera frames show the builder's home and surroundings: kept on the laptop, not in the public repo.
+runs/**/*.jpg

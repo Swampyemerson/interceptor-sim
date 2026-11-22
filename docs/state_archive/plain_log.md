@@ -668,3 +668,11 @@ The USB-C connector came off the target drone's flight controller. USB was the o
 **So what:** The glued port is not a repair yet: it connects only some of the time, which is what pins held by pressure do. Soldering the two data pins, or wiring an adapter to T1/R1, makes it dependable. Two temporary settings are still on the board: route speed 3 m/s and fast logging.
 
 *Evidence: builder report 2026-11-14 night; ADR-0138 addenda 13 and 14; board read-back SERIAL1_PROTOCOL 2*
+
+## 2026-11-15 (overflowed from plain_log 2026-11-22)
+
+The target drone would not arm although the ground station showed it ready. Listening while the builder tried three times showed the same refusal each time: the board could not start its flight log. Battery, satellites and radio were all good. The board opens its log file only at the moment of arming, which is why nothing looked wrong beforehand. Asking the board to start a log without arming reproduced it: no new file, and the empty log from flight five was still empty. The six logs not yet on the PC were copied off, the storage card was reformatted over USB, and the same test then wrote an 8 MB log. The pre-arm checks pass.
+
+**So what:** The drone should arm again; the builder confirms that, since no tool arms it. Why the card stopped is not known: power removed while a log was open fits, and so does a failing card, so if the message returns the card gets replaced. The route speed on the board had gone back to 10 m/s and is set to 3 again, and the course he uploaded carries its own 5 m/s setting that needs unticking before the first automatic flight.
+
+*Evidence: runs/target_sdcard_20261115/README.md + arm_watch_20261115.txt; ADR-0138 addendum 15; board read-back WP_SPD 3*

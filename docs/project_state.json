@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-22",
-  "updated_by": "Foil on the camera ribbon: GPS holds its fix with the camera running; first flight read; hover 8.8 A (2026-11-22)",
+  "updated_by": "Second flight: GPS fine with foil but PX4 gate drops it; thrust 4.2:1 measured; roll trim applied (2026-11-22)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-11-22",
-    "where": "The assembled interceptor (930 g) flew by hand for 81 s and the Pi saved a clean flight log and video. The aircraft itself flew well. It lost its GPS position 3.5 s after takeoff and a false geofence alarm ended the flight.",
-    "finding": "Unshielded, the camera link jammed the GPS (0 satellites, fix lost). With the ribbon wrapped in foil the fix held at 7 satellites through a 30 s recording. Reception is still weak: 7 where 15 is normal. Hover measured at 8.8 A, about 8 minutes.",
+    "where": "The assembled interceptor (930 g) has flown twice by hand, with a clean log and video each time. It follows its commands well. Position mode still drops out in flight, so every flight so far ends up flown in height-hold only.",
+    "finding": "Foil on the camera ribbon fixed reception (11 satellites in flight, was 5). Position still drops because the GPS rates its own speed at 0.51 m/s and PX4's limit is 0.5. Full throttle measured 4.2 times weight; the pack sags to 3.0 V per cell. Hover 8.9 A.",
     "next": [
-      "You: fly one short hop on a fresh pack to see whether the GPS holds with motors and camera running",
-      "Me: the flight program's camera reader must flip the upside-down picture"
+      "You: say yes or no to raising the GPS speed-accuracy limit from 0.5 to 1.0 m/s",
+      "You: recalibrate the compass; note the mAh the charger puts back after a flight"
     ],
-    "evidence": "runs/interceptor_flight_20261122/README.md - runs/interceptor_arming_gps_20261122/README.md - runs/recorder_fault_test_20261122/ - docs/fc_logging_without_sd.md"
+    "evidence": "runs/interceptor_flight2_20261122/README.md - runs/interceptor_flight_20261122/README.md - runs/recorder_fault_test_20261122/ - docs/fc_logging_without_sd.md"
   },
   "assumptions": [
     {
@@ -469,9 +469,9 @@
     },
     {
       "id": "airframe-thrust-and-mass-unmeasured",
-      "statement": "The interceptor's weight (930 g) and hover current (8.8 A, 2026-11-22) are measured. Motor thrust (1.5 kg each) is still a retailer-class figure, so T/W is half measured.",
+      "statement": "Weight (930 g), hover current (8.8 A) and full-throttle thrust (0.98 kg per motor on a sagging pack, T/W 4.2) are measured, 2026-11-22. Thrust on a pack that holds its voltage is not.",
       "grade": "unmeasured",
-      "if_wrong": "T/W, hover throttle, hover time and the standby budget shift. At 930 g, T/W is 6.45:1 if the motors make 1.5 kg each and falls under the 5:1 rule below about 1.16 kg per motor.",
+      "if_wrong": "T/W on a good pack decides whether the 5:1 rule is met. At 930 g it needs 1.16 kg per motor; the sagging pack gave 0.98, and about 1.45 is expected at 22 V.",
       "stages": [
         "hardware"
       ],
@@ -655,6 +655,12 @@
   "plain_log": [
     {
       "date": "2026-11-22",
+      "text": "Second flight, with foil round the camera ribbon: 131 seconds in a box of about 8 by 6 metres, two full-throttle punches. The GPS held 11 satellites with the camera recording, against 5 on the first flight, so the foil works. Position mode still dropped out three times. The reason this time is a threshold: the GPS rates its own speed accuracy at about 0.51 m/s and PX4 refuses anything above 0.5, although the GPS agreed well with the other sensors whenever it was used. Full throttle gave 4.2 times the aircraft's weight, 0.98 kg per motor, at 77 A, with the pack sagging to 3.0 V per cell. The camera sits about 17 degrees up, read from a video frame. I set the pack capacity on the board before this flight; that switched on a time-to-empty check which misfired twice, so I took it off again.",
+      "so_what": "Thrust is limited by the battery, not the motors: on a pack that held its voltage the same motors would make about 1.45 kg each. A roll trim of 2 degrees is applied from the hover data; it is right if there was no steady crosswind. Lean angle against speed could not be measured: the flight never held a steady speed above 2 m/s. The compass in the GPS unit was declared faulty late in the flight and needs recalibrating.",
+      "evidence": "runs/interceptor_flight2_20261122/README.md (GPS, thrust and sag tables, trim, camera angle); board read-back SENS_BOARD_X_OFF -0.61, BAT1_CAPACITY -1"
+    },
+    {
+      "date": "2026-11-22",
       "text": "First flight of the assembled interceptor, by hand, 81 seconds, under 1.6 m. The Pi recorder saw its first real arming and saved a clean log and 88 seconds of video. The builder reported an unstable flight that ended itself. The log says the aircraft followed its commands well (1.4 and 1.6 degrees of error). What went wrong: 3.5 seconds after takeoff the GPS position was lost, so it dropped to height-hold only and drifted; the estimator's position then ran away to 470 m while the aircraft stayed within 33 m, crossed the 457 m geofence and triggered a descent. Ground tests straight after found the cause: the GPS holds 6 to 7 satellites with the camera off and loses its fix within a second of the camera starting, at either picture size, with or without recording. Loading the processor alone barely matters.",
       "so_what": "The builder then wrapped the camera ribbon in foil and the same test held a 3D fix at 7 satellites with the camera recording. Not yet flown that way, and 7 satellites is still weak. Hover is now measured: 8.8 A, about 8 minutes on a 1500 mAh pack. The pack's capacity is now set on the board (1350 mAh). The avionics drain the pack unseen on the ground, about a quarter of it per hour by estimate: that pack was at 43% after one short flight.",
       "evidence": "runs/interceptor_flight_20261122/README.md (timeline, tracking, the camera on/off tests, power); the raw log is kept out of git because it holds GPS positions"
@@ -718,12 +724,6 @@
       "text": "The target drone flew its first automatic course: five waypoints drawn in the ground-station app, repeated 11 times, about 13 seconds a lap, with no errors in the log. It stayed within 0.26 m of where its controller wanted it and within 0.06 m in height. Top speed was only 1.75 m/s because the loop's sides are about 3 m long. Three predictions written before an earlier flight were checked: pitch wobble and height hold passed, and the level trim passed in roll and missed in pitch by a tenth of a degree. The builder also did two full-throttle climbs by hand: 18 m/s upward, 24 m high, about 5 g.",
       "so_what": "The target can fly a pre-drawn route on its own, which is its job in an intercept test. What is not shown is speed: it must fly 9 m/s, and that needs sides of 40 m or more, so the next step is a bigger course at the field, stepping 3, 5, 7, 10 m/s. Three things from the climbs to settle first: the compass is disturbed at high motor current, the drone tumbles when throttle is cut to zero in manual mode, and the current sensor reads roughly double.",
       "evidence": "runs/target_flight6_20261115/README.md; ADR-0138 addendum 16; log copy on the PC (not in the repo)"
-    },
-    {
-      "date": "2026-11-15",
-      "text": "The target drone would not arm although the ground station showed it ready. Listening while the builder tried three times showed the same refusal each time: the board could not start its flight log. Battery, satellites and radio were all good. The board opens its log file only at the moment of arming, which is why nothing looked wrong beforehand. Asking the board to start a log without arming reproduced it: no new file, and the empty log from flight five was still empty. The six logs not yet on the PC were copied off, the storage card was reformatted over USB, and the same test then wrote an 8 MB log. The pre-arm checks pass.",
-      "so_what": "The drone should arm again; the builder confirms that, since no tool arms it. Why the card stopped is not known: power removed while a log was open fits, and so does a failing card, so if the message returns the card gets replaced. The route speed on the board had gone back to 10 m/s and is set to 3 again, and the course he uploaded carries its own 5 m/s setting that needs unticking before the first automatic flight.",
-      "evidence": "runs/target_sdcard_20261115/README.md + arm_watch_20261115.txt; ADR-0138 addendum 15; board read-back WP_SPD 3"
     }
   ],
   "narrative": {
@@ -1898,11 +1898,11 @@
     },
     {
       "label": "Thrust-to-weight, interceptor (planned)",
-      "value": "≈6.5 : 1",
-      "plain": "Motor thrust over aircraft weight. The weight is now weighed (930 g); the thrust is still an estimate.",
-      "provenance": "docs/airframe_numbers.md §4 · scripts/airframe_numbers.py · tests/test_airframe_numbers.py",
+      "value": "4.2 : 1 measured",
+      "plain": "Full-throttle thrust over aircraft weight. Measured in flight on a pack that sagged to 3.0 V per cell.",
+      "provenance": "runs/interceptor_flight2_20261122/README.md (flight2_read.py) · docs/airframe_numbers.md §4",
       "trust": "bench",
-      "note": "4 × 1.5 kg (planning; listings 1.4-2.0 kg, not thrust-tested) over 930 g weighed 2026-11-21. Rule ≥5 : 1. The target's flight log puts a floor of about 3.4 : 1 on a sagging, half-used pack. The thrust rig replaces the estimate."
+      "note": "MEASURED 2026-11-22: peak 4.23 g at full throttle, 3.93 kg total, 0.98 kg per motor, 77 A, pack at 18.0 V. Rule is 5 : 1; the plan assumed 1.5 kg per motor (6.5 : 1). The pack limits it: at 22 V the same motors would make about 1.45 kg each (thrust taken as voltage squared). One pack, temperature and age not recorded."
     },
     {
       "label": "Hover current / time, interceptor (estimate)",
@@ -1910,7 +1910,7 @@
       "plain": "Battery current to hover, measured in one flight, and how long a 1500 mAh pack lasts at it.",
       "provenance": "runs/interceptor_flight_20261122/README.md (flight_window.py) · docs/airframe_numbers.md §5",
       "trust": "bench",
-      "note": "MEASURED 2026-11-22: 8.8 A at 22.4 V (197 W) over 64 s of hover at the weighed 930 g; one flight, one pack, wind not recorded. 80% of the pack usable gives 8.2 min. The calculated band was 7.3 to 9.8 A with avionics. The sensor reads 0.00 A with only the avionics on, so their roughly 0.4 A is not in the 8.8."
+      "note": "MEASURED 2026-11-22: 8.8 A at 22.4 V (197 W) over 64 s of hover at the weighed 930 g; one pack, wind not recorded; the second flight averaged 8.9 A including two punches. 80% of the pack usable gives 8.2 min. The calculated band was 7.3 to 9.8 A with avionics. The sensor reads 0.00 A with only the avionics on, so their roughly 0.4 A is not in the 8.8."
     }
   ],
   "bom_tiers": [
@@ -4235,7 +4235,7 @@
       "claim_a": "The seeker turns a pixel into a bearing assuming the picture is upright: x right, y down, z forward (flight/camera.py; flight/geometry.py derotate_bearing_lambda). PicameraSource in flight/deploy/seeker_loop.py opens the camera with no rotation.",
       "loc_a": "flight/deploy/seeker_loop.py PicameraSource; flight/deploy/frame_feed.py; flight/camera.py",
       "claim_b": "Measured 2026-11-22 on the assembled aircraft sitting level (roll 1 deg, pitch 4 deg from the Pixhawk's log): the picture is rotated 180 degrees. The pod's assembly step mounts the board ribbon connector up and says the software flip is not written.",
-      "loc_b": "runs/recorder_fault_test_20261122/camera_frame_unflipped_aircraft_level.jpg and camera_frame_with_flip.jpg; hardware/avionics_pod/README.md (camera plate, step 3)",
+      "loc_b": "runs/recorder_fault_test_20261122/ (two camera frames, kept on the laptop and out of git); hardware/avionics_pod/README.md (camera plate, step 3)",
       "current_truth": "A target to the right and above would be read as left and below, so the chase would steer away from it. The video recorder now flips its picture; the flight program's reader, the calibration capture and the lens calibration must all use the same flipped picture before any camera-guided flight. Not fixed yet.",
       "resolution": ""
     },
@@ -4249,7 +4249,7 @@
       "loc_a": "docs/goals.md status banner; docs/decisions.md ADR-0118 and ADR-0139; flight/deploy/real_flight.py",
       "claim_b": "Measured on the assembled aircraft 2026-11-22: camera off, 6 to 7 satellites and a 3D fix; camera streaming at 1920x1200 or 1280x720, with or without encoding, 0 to 5 satellites and the fix lost within a second, back within 3 s of stopping. Processor load alone costs one satellite. In flight the position was lost 3.5 s after takeoff, 5 s after the recorder started the camera.",
       "loc_b": "runs/interceptor_flight_20261122/README.md; gps_camera_test.py and gps_windows.py in that folder",
-      "current_truth": "Mostly cured on the ground by wrapping the camera ribbon in foil (builder, 2026-11-22): the fix held at 7 satellites through a 30 s recording, one dip to 5, where the bare ribbon gave 0 and a lost fix. Not yet shown in flight with the motors running. Reception is still weak with or without the camera (7 satellites under open sky, speed accuracy 0.6 to 0.85 m/s against PX4's 0.5 limit), so the GPS over the Pi still wants distance or a proper ground plate.",
+      "current_truth": "Reception is cured by foil round the camera ribbon (builder, 2026-11-22): 11 satellites and a 3D fix through a 131 s flight with the camera recording, against 5 to 6 and a lost fix before. Position mode still dropped out, for a different reason: the GPS reports its own speed accuracy at about 0.51 m/s and PX4's limit is 0.5 (EKF2_REQ_SACC), so the estimator keeps letting go of a GPS that otherwise agrees with it. Open: raise that limit or clean the signal further, make the foil permanent, recalibrate the compass.",
       "resolution": ""
     }
   ]
