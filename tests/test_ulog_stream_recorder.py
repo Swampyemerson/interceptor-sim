@@ -471,7 +471,7 @@ def _recorder(tmp_path, link, hook):
     r = rec.Recorder.__new__(rec.Recorder)
     r.args = argparse.Namespace(
         out_dir=str(tmp_path), baud=921600, usb_port="/dev/pixhawk-usb", port="auto",
-        no_stop_first=False, seconds=None, stall_s=10.0, pretend_armed=None, per_flight=True,
+        no_stop_first=False, seconds=None, stall_s=10.0, first_data_s=3.0, pretend_armed=None, per_flight=True,
         linger_s=5.0, ground_rotate_min=10.0, leave_running=False)
     os.environ["MAVLINK20"] = "1"
     from pymavlink import mavutil
@@ -568,3 +568,27 @@ def test_video_watchdog_fires_only_when_the_file_stops_growing():
     assert not w.stalled(0, 1.0) and not w.stalled(1000, 2.9)
     assert not w.stalled(2000, 5.0) and not w.stalled(2000, 7.9)
     assert w.stalled(2000, 8.1)
+
+
+def test_a_start_that_is_accepted_but_silent_is_retried_after_three_seconds_not_ten(tmp_path):
+    os.environ["MAVLINK20"] = "1"
+    from pymavlink.dialects.v20 import common as mav
+    fc = mav.MAVLink(None, srcSystem=1, srcComponent=1)
+    hb = mav.MAVLink(None).parse_buffer(mav.MAVLink_heartbeat_message(2, 12, 0, 0, 0, 3).pack(fc))[0]
+
+    class Silent(_FakeLink):
+        def recv_match(self, blocking=True, timeout=None):
+            return self.script.pop(0) if self.script else hb      # heartbeats, never any log data
+
+    r = _recorder(tmp_path, Silent([]), rec.ArmHook(None, "/repo"))
+    clock = [0.0]
+    real = rec.time.monotonic
+    rec.time.monotonic = lambda: clock.__setitem__(0, clock[0] + 0.01) or clock[0]
+    try:
+        stats = r.record_one()
+    finally:
+        rec.time.monotonic = real
+    assert stats["verdict"] == "EMPTY" and stats["file"] is None
+    assert stats["end_reason"] == "no log data in the first 3 s after start"
+    assert stats["seconds"] < 4.0 and not r.link_lost
+    assert not os.listdir(tmp_path) or os.listdir(tmp_path) == ["status.json"]

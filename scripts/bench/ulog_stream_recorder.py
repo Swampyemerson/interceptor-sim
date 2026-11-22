@@ -95,12 +95,16 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fi
 NOTIFY = None        # set in main(): shows a line in the ground station's message list
 
 
-def note(text: str, severity: int = 6) -> None:
-    """Print to the journal and, when a ground station is connected, show it there too."""
+def note(text: str, severity: int = 6, short: str | None = None) -> None:
+    """Print to the journal and, when a ground station is connected, show it there too.
+
+    A ground-station message holds 50 characters, 4 of them the "Pi: " in front, so
+    `short` is the wording for that screen (46 at most) when `text` would be cut.
+    """
     print(text, flush=True)
     if NOTIFY is not None:
         try:
-            NOTIFY(text, severity)
+            NOTIFY(short or text, severity)
         except Exception:                      # telling the operator must never stop the recording
             pass
 
@@ -384,7 +388,8 @@ class ArmHook:
                 {"exit_code": self.proc.returncode,
                  "s_after_its_start": round(now - self.last_start, 1)})
             note(f"on-arm command DIED (exit {self.proc.returncode}), starting it again "
-                 f"(start {self.starts + 1} of at most {HOOK_MAX_STARTS})", 4)
+                 f"(start {self.starts + 1} of at most {HOOK_MAX_STARTS})", 4,
+                 short=f"video DIED, restarting ({self.starts + 1} of {HOOK_MAX_STARTS})")
             self.proc = None
         self.starts += 1
         self.last_start = now
@@ -393,19 +398,20 @@ class ArmHook:
         self.report["starts"] = self.starts
         if self._free_bytes(self.cwd) < HOOK_MIN_FREE_BYTES:
             self.report["skipped"] = "less than 5 GB free on the card"
-            note("on-arm command SKIPPED: card nearly full, NO VIDEO this flight", 3)
+            note("on-arm command SKIPPED: card nearly full, NO VIDEO this flight", 3,
+                 short="NO VIDEO: card nearly full")
             return
         try:
             self.proc = self._popen(self.argv, cwd=self.cwd,
                                     env={**os.environ, "FC_LOG_STAMP": stamp})
         except OSError as e:
             self.report["skipped"] = f"could not start: {e}"
-            note(f"on-arm command FAILED to start: {e}", 3)
+            note(f"on-arm command FAILED to start: {e}", 3, short="NO VIDEO: recorder would not start")
             return
         if self.starts == 1:
             self.report.update(pid=self.proc.pid, started_unix=round(time.time(), 3),
                                started_s_after_arm_seen=round(t_since_arm, 2))
-        note(f"on-arm command started (pid {self.proc.pid})")
+        note(f"on-arm command started (pid {self.proc.pid})", short="video recording started")
 
     def keep_alive(self) -> None:
         """While the Pixhawk link is away and a flight's command was running: restart it if it died."""
@@ -736,6 +742,12 @@ class Recorder:
                     if now - last_data_t > a.stall_s:
                         reason = f"no log data for {a.stall_s:.0f} s"
                         break
+                    if first_data_t is None and now - t0 > a.first_data_s:
+                        # PX4 said yes to START and then sent nothing (seen 2026-11-22 when the
+                        # stream had just been stopped on the other cable). Ask again now
+                        # instead of waiting out the full stall time.
+                        reason = f"no log data in the first {a.first_data_s:.0f} s after start"
+                        break
                     if shutil.disk_usage(a.out_dir).free < MIN_FREE_BYTES:
                         reason = "disk nearly full"
                         self.stop_requested = True
@@ -801,7 +813,9 @@ class Recorder:
                 reason = f"link lost: {e}"
                 self.link_lost = True
                 note(f"Pixhawk link LOST on {self.port}"
-                     + (" WHILE ARMED; video keeps recording" if self.armed else ""), 4)
+                     + (" WHILE ARMED; video keeps recording" if self.armed else ""), 4,
+                     short=("Pixhawk cable LOST, armed. Video still on" if self.armed
+                            else "Pixhawk cable lost, looking for it"))
 
             t_stream_end = time.monotonic()
             # STOP makes PX4 send a short acked tail (post-flight CPU load); keep
@@ -888,6 +902,9 @@ def main() -> int:
                          f"(only the newest {GROUND_FILES_KEPT} ground files are kept)")
     ap.add_argument("--stall-s", type=float, default=10.0,
                     help="restart the stream if no log data arrives for this long")
+    ap.add_argument("--first-data-s", type=float, default=3.0,
+                    help="restart the stream if a start that was accepted brings no data this soon "
+                         "(data normally begins within 0.1 s)")
     ap.add_argument("--wait-s", type=float, default=None,
                     help="how long to wait for the Pixhawk (default: 15 s, forever with --per-flight)")
     ap.add_argument("--out-dir", default=os.path.expanduser("~/fc_logs"))
@@ -945,7 +962,8 @@ def main() -> int:
                            f"is in use by {', '.join(busy)}: NOT LOGGING until the USB is back"
                            if busy else "no cable to the Pixhawk found: NOT LOGGING")
                     if why != said_no_port:
-                        note(why, 3)
+                        note(why, 3, short=("NO LOG: no USB, serial cable is busy" if busy
+                                            else "NO LOG: no cable to the Pixhawk"))
                         said_no_port = why
                     status.write(state="no link to the Pixhawk", detail=why, video=hook.state(),
                                  free_gb=round(shutil.disk_usage(args.out_dir).free / 1e9, 1))
@@ -963,7 +981,8 @@ def main() -> int:
                 print(f"link: {args.active_port}", flush=True)
                 if args.port == "auto" and args.active_port != args.usb_port:
                     note("logging over the SERIAL cable: part of the log is lost. "
-                         "Plug the Pixhawk USB into the Pi", 4)
+                         "Plug the Pixhawk USB into the Pi", 4,
+                         short="log on SERIAL cable, lossy. Plug USB in Pi")
                 wait = args.wait_s if args.wait_s is not None else (1e12 if args.per_flight else 15.0)
                 if not rec.wait_vehicle(wait):
                     if rec.should_stop():
@@ -975,27 +994,32 @@ def main() -> int:
                 while True:
                     stats = rec.record_one()
                     v = stats["verdict"]
-                    worst = max(worst, {"CLEAN": 0, "GAPS": 3, "UNCLEAN_STOP": 3}.get(v, 2))
+                    worst = max(worst, {"CLEAN": 0, "GAPS": 3, "UNCLEAN_STOP": 3,
+                                        "LINK_LOST": 3, "EMPTY": 3}.get(v, 2))
                     if rec.should_stop() or args.seconds is not None or not args.per_flight:
                         return worst
                     if rec.switch_to_usb or rec.link_lost:
                         break
-                    if v in ("START_REFUSED", "EMPTY"):
+                    if v == "START_REFUSED":
                         time.sleep(2.0)       # Pixhawk rebooting or link down: keep trying
                         rec.wait_vehicle(1e12)
+                    elif v == "EMPTY":
+                        time.sleep(0.5)       # accepted but silent: ask again straight away
             except OSError as e:
                 # The port vanished while opening it or between files (cable pulled, Pixhawk
                 # rebooting). In service mode that is an event to ride out, not a crash.
                 if not args.per_flight:
                     raise
-                note(f"Pixhawk link error on {args.active_port}: {e}; reconnecting", 4)
+                note(f"Pixhawk link error on {args.active_port}: {e}; reconnecting", 4,
+                     short="Pixhawk cable error, reconnecting")
                 time.sleep(0.5)
             except Exception:                  # noqa: BLE001 -- a bug must not end the video
                 if not args.per_flight:
                     raise
                 import traceback
                 traceback.print_exc()
-                note("recorder error (see the journal); carrying on", 3)
+                note("recorder error (see the journal); carrying on", 3,
+                     short="recorder error, carrying on")
                 time.sleep(1.0)
             finally:
                 if rec is not None:
