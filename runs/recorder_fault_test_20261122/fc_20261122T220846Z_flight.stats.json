@@ -1,0 +1,82 @@
+{
+ "started_utc": "20261122T220846Z",
+ "port": "/dev/pixhawk-usb",
+ "baud": 921600,
+ "link": "usb",
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 2.88,
+ "end_reason": "link lost: device reports readiness to read but returned no data (device disconnected or multiple access on port?)",
+ "ever_armed": true,
+ "bytes_written": 163109,
+ "kb_per_s": 56.72,
+ "packets": 657,
+ "acked_packets": 469,
+ "duplicates": 0,
+ "gaps": 1,
+ "lost_packets": 3,
+ "gaps_at_startup": 1,
+ "gap_times_s": [
+  1.77
+ ],
+ "header_seconds": 1.77,
+ "framing_errors": 0,
+ "dropout_ms_total": 7,
+ "first_data_delay_s": 0.0,
+ "stop_result": "not sent (link lost)",
+ "link_rates_hz": {
+  "ALTITUDE": 8.3,
+  "ATTITUDE": 82.8,
+  "ATTITUDE_QUATERNION": 41.4,
+  "ATTITUDE_TARGET": 8.3,
+  "BATTERY_STATUS": 0.3,
+  "ESTIMATOR_STATUS": 1.0,
+  "EXTENDED_SYS_STATE": 4.2,
+  "GPS_RAW_INT": 9.7,
+  "HIGHRES_IMU": 41.4,
+  "LOCAL_POSITION_NED": 24.7,
+  "MISSION_CURRENT": 1.0,
+  "ODOMETRY": 24.7,
+  "OPEN_DRONE_ID_LOCATION": 1.0,
+  "PING": 1.0,
+  "POSITION_TARGET_LOCAL_NED": 8.3,
+  "RC_CHANNELS": 16.7,
+  "SCALED_PRESSURE": 1.0,
+  "SERVO_OUTPUT_RAW": 8.3,
+  "STATUSTEXT": 0.7,
+  "SYS_STATUS": 4.2,
+  "TIMESYNC": 8.3,
+  "UNKNOWN_380": 0.7,
+  "UNKNOWN_410": 3.1,
+  "UNKNOWN_436": 0.3,
+  "UNKNOWN_8": 1.0,
+  "VFR_HUD": 8.3,
+  "VIBRATION": 0.3
+ },
+ "armed_seen_s": 0.0,
+ "armed_was_pretended": true,
+ "clock_pairs_unix_vs_fc_boot_ms": [],
+ "on_arm_command": {
+  "still_running_into_next_file": true,
+  "starts": 1
+ },
+ "ground_station_bridge": {
+  "udp_port": 14550,
+  "ground_stations_seen": [
+   "192.168.0.25"
+  ],
+  "connected_now": 2,
+  "bytes_to_ground_station": 146236,
+  "bytes_from_ground_station": 267
+ },
+ "gaps_after_startup": 0,
+ "verdict": "LINK_LOST"
+}

@@ -1,0 +1,88 @@
+{
+ "started_utc": "20261122T220900Z",
+ "port": "/dev/pixhawk-usb",
+ "baud": 921600,
+ "link": "usb",
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 8.49,
+ "end_reason": "stop requested",
+ "ever_armed": true,
+ "bytes_written": 403084,
+ "kb_per_s": 47.5,
+ "packets": 1621,
+ "acked_packets": 525,
+ "duplicates": 0,
+ "gaps": 1,
+ "lost_packets": 2,
+ "gaps_at_startup": 1,
+ "gap_times_s": [
+  1.77
+ ],
+ "header_seconds": 1.77,
+ "framing_errors": 0,
+ "dropout_ms_total": 7,
+ "first_data_delay_s": 0.0,
+ "stop_result": "accepted",
+ "link_rates_hz": {
+  "ALTITUDE": 10.3,
+  "ATTITUDE": 102.4,
+  "ATTITUDE_QUATERNION": 51.1,
+  "ATTITUDE_TARGET": 10.3,
+  "BATTERY_STATUS": 0.5,
+  "COMMAND_ACK": 0.1,
+  "ESTIMATOR_STATUS": 0.9,
+  "EXTENDED_SYS_STATE": 5.1,
+  "GPS_RAW_INT": 10.3,
+  "HIGHRES_IMU": 51.1,
+  "LOCAL_POSITION_NED": 30.6,
+  "MISSION_CURRENT": 1.1,
+  "ODOMETRY": 30.6,
+  "OPEN_DRONE_ID_LOCATION": 0.9,
+  "PING": 1.1,
+  "POSITION_TARGET_LOCAL_NED": 10.3,
+  "RC_CHANNELS": 20.5,
+  "SCALED_PRESSURE": 0.9,
+  "SERVO_OUTPUT_RAW": 10.3,
+  "STATUSTEXT": 0.5,
+  "SYS_STATUS": 5.1,
+  "TIMESYNC": 10.3,
+  "UNKNOWN_380": 0.6,
+  "UNKNOWN_410": 2.1,
+  "UNKNOWN_411": 0.4,
+  "UNKNOWN_436": 0.5,
+  "UNKNOWN_8": 0.9,
+  "VFR_HUD": 10.3,
+  "VIBRATION": 0.5
+ },
+ "armed_seen_s": 0.0,
+ "armed_was_pretended": true,
+ "clock_pairs_unix_vs_fc_boot_ms": [],
+ "on_arm_command": {
+  "cmd": ".venv-pi/bin/python scripts/field/record_video.py --flip --note bench-fault-test --out-dir /tmp/rec_test/video",
+  "starts": 1,
+  "pid": 2473,
+  "started_unix": 1795385314.138,
+  "started_s_after_arm_seen": 0.0,
+  "exit_code": 0
+ },
+ "ground_station_bridge": {
+  "udp_port": 14550,
+  "ground_stations_seen": [
+   "192.168.0.25"
+  ],
+  "connected_now": 2,
+  "bytes_to_ground_station": 519772,
+  "bytes_from_ground_station": 1466
+ },
+ "gaps_after_startup": 0,
+ "verdict": "CLEAN"
+}

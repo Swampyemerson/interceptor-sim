@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->f9aefb8<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->758d74e<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,8 +900,8 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-11-21",
- "updated_by": "Interceptor assembled with the pod and weighed: 930 g, target 620 g (2026-11-21)",
+ "updated": "2026-11-22",
+ "updated_by": "Flight recorder hardened and bench-tested for cable loss; nose camera found upside down (2026-11-22)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -1551,6 +1551,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-11-22",
+   "text": "Bench check of the assembled interceptor, on battery, disarmed. The Pi was saving the Pixhawk's log over USB: a 108 second file opened with 93 data streams and about half a second missing, all while QGroundControl was connecting. The camera recorded 60 frames a second with none dropped, but the picture is upside down with the aircraft level: the nose camera is mounted connector-up. Asked to make the recorder robust, I pulled the Pixhawk cable in software: the old recorder crashed and was restarted, which in flight would also have stopped the video. Rewritten: a lost cable is handled in place, the video keeps running through it, a video that dies is restarted, and the recorder no longer takes the serial cable the flight program steers through.",
+   "so_what": "For the compass calibration: unplug the USB from the Pi, calibrate, plug it back, then run the one-line check and wait for GO (38 s on the bench). Still untested: a real arming, a cable pulled by hand, and the battery current sensor, which reads zero with the motors stopped. The video recorder now flips the picture; the flight program's camera reader does not yet, and must before any camera-guided flight.",
+   "evidence": "runs/recorder_fault_test_20261122/ (scripts, outputs, stats, frames); docs/fc_logging_without_sd.md; tests/test_ulog_stream_recorder.py (27 tests); commits 2b20557, 758d74e"
+  },
+  {
    "date": "2026-11-21",
    "text": "The interceptor is assembled with the new pod and nose camera mount, and both aircraft were weighed with their batteries: interceptor 930 g, target 620 g. The builder reports the mount is sturdy. The interceptor came out 130 g over the old parts estimate and 20 g under the 950 g ceiling the design was sized for. Knowing the target's weight also turns its 15 November full-throttle climb into a thrust reading: at least 0.79 kg per motor on a sagging, half-used pack, against the 1.5 kg assumed for a fresh one.",
    "so_what": "On paper the interceptor has about 6.5 times its weight in thrust on a fresh pack, about 3.4 times on a tired one, and hovers for nearly 8 minutes, down from 10. Two things in the photos need attention before it flies: the GPS and compass unit sits on the lid directly over the Pi, and the radio receiver hangs loose by its wires near the propellers. The mount's stiffness is still a hand check; the tap test is owed.",
@@ -1615,12 +1621,6 @@
    "text": "The USB-C connector came off the target drone's flight controller. USB was the only way to talk to that board from a computer. The builder pressed it back on and glued it; the connection now comes and goes. In one of the moments it held, a spare pair of solder pads on the board (T1/R1) was set up as a second way in, so a cheap USB-to-serial adapter can reach the board if the USB port fails for good. The drone itself still flies as configured, and its logs can be read by pulling the storage card.",
    "so_what": "The glued port is not a repair yet: it connects only some of the time, which is what pins held by pressure do. Soldering the two data pins, or wiring an adapter to T1/R1, makes it dependable. Two temporary settings are still on the board: route speed 3 m/s and fast logging.",
    "evidence": "builder report 2026-11-14 night; ADR-0138 addenda 13 and 14; board read-back SERIAL1_PROTOCOL 2"
-  },
-  {
-   "date": "2026-11-14",
-   "text": "The builder recalibrated the target drone's compass outdoors and flew a fifth time; he reports it improved again. That flight's log is empty on the card, so the three predictions written before it could not be checked against data. He now wants to fly a small pre-programmed course slowly. The board's route speed has been lowered from 10 m/s to 3 m/s for that first automatic flight.",
-   "so_what": "The 3 m/s is a temporary setting on the board only. The project's settings file still says 10 m/s, which is the speed the target exists to fly, and loading that file puts 10 back. The empty log means the storage card is suspect: wait a few seconds after disarming before unplugging the battery.",
-   "evidence": "ADR-0138 addendum 12; board read-back WP_SPD 3.0; log list (log 21, 0 bytes)"
   }
  ],
  "narrative": {
@@ -2807,7 +2807,7 @@
    "plain": "Battery current to hover, and how long a 1500 mAh 6S pack lasts doing it. Calculated, not flown.",
    "provenance": "docs/airframe_numbers.md §5 · scripts/airframe_numbers.py (momentum theory)",
    "trust": "bench",
-   "note": "930 g weighed, sea level, FM 0.5, motor+ESC 0.75, 80% of pack usable. Band 6.9-9.4 A / 7.7-10.4 min across FM 0.5-0.6, efficiency 0.75-0.85. It was ≈7.5 A / ≈10 min at the old 800 g roll-up."
+   "note": "930 g weighed, sea level, FM 0.5, motor+ESC 0.75, 80% of pack usable. Band 6.9-9.4 A / 7.7-10.4 min across FM 0.5-0.6, efficiency 0.75-0.85. Motors only: the Pi, camera and Pixhawk add about 0.4 A (Pi measured 5.2 W while recording, 2026-11-22; the rest estimated), which makes it 7.3 to 9.9 min. The power module read 0.00 A with only the avionics running."
   }
  ],
  "bom_tiers": [
@@ -3524,7 +3524,7 @@
       "name": "FC High-Endurance microSD (ULogs)",
       "status": "must-add",
       "role": "Onboard flight logs (ULogs) for scoring a flight.",
-      "notes": "NOT NEEDED as a card: the 6C Mini's microSD slot is dead. Instead PX4 streams its log to the Pi (flight-recorder service, set up 2026-11-13, bench-tested, not flown). What must be added is a short USB-C to USB-A cable from the Pixhawk to a Pi USB port; without it the log goes over the serial cable and loses about a third. Guide: docs/fc_logging_without_sd.md."
+      "notes": "NOT NEEDED as a card: the 6C Mini's microSD slot is dead. Instead PX4 streams its log to the Pi (flight-recorder service, 2026-11-13). The Pixhawk's USB is in a Pi USB port, which carries the whole log. Since 2026-11-22 the service rides out a lost cable, keeps the video through it and restarts a dead video; bench-tested, never armed or flown. Go / no-go: scripts/field/recorder_check.py. Guide: docs/fc_logging_without_sd.md."
      },
      {
       "name": "M2.5 nylon standoff/screw kit (Pi tray)",
@@ -5121,6 +5121,19 @@
    "claim_b": "Flying lens, no random errors, kills of 192: 105 at 10 deg, 165 at 15, 192 at 20, 191 at 25; from 30 deg kills collapse. At 10 deg the tag leaves the top of the picture during the catch-up in 28 to 32% of chase frames.",
    "loc_b": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md (Camera tilt)",
    "current_truth": "Not comparable yet. The ruling was earned with the target pitching and a canted placard, at the wider lens; the rerun used the flying lens with an upright tag on a target that does not pitch. One fast-sim grid with pitch, cant and the flying lens together decides. The plate adjusts 10 to 45 deg, so no part depends on it.",
+   "resolution": ""
+  },
+  {
+   "id": "nose-camera-upside-down-flight-reader-has-no-flip",
+   "verdict": "CONFIRMED",
+   "severity": "high",
+   "status": "open",
+   "topic": "The nose camera is mounted upside down and the flight program reads it as if it were upright",
+   "claim_a": "The seeker turns a pixel into a bearing assuming the picture is upright: x right, y down, z forward (flight/camera.py; flight/geometry.py derotate_bearing_lambda). PicameraSource in flight/deploy/seeker_loop.py opens the camera with no rotation.",
+   "loc_a": "flight/deploy/seeker_loop.py PicameraSource; flight/deploy/frame_feed.py; flight/camera.py",
+   "claim_b": "Measured 2026-11-22 on the assembled aircraft sitting level (roll 1 deg, pitch 4 deg from the Pixhawk's log): the picture is rotated 180 degrees. The pod's assembly step mounts the board ribbon connector up and says the software flip is not written.",
+   "loc_b": "runs/recorder_fault_test_20261122/camera_frame_unflipped_aircraft_level.jpg and camera_frame_with_flip.jpg; hardware/avionics_pod/README.md (camera plate, step 3)",
+   "current_truth": "A target to the right and above would be read as left and below, so the chase would steer away from it. The video recorder now flips its picture; the flight program's reader, the calibration capture and the lens calibration must all use the same flipped picture before any camera-guided flight. Not fixed yet.",
    "resolution": ""
   }
  ]

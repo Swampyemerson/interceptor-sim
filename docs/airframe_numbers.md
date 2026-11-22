@@ -166,6 +166,19 @@ throttle ≈ √(W / T_max) = √(1 / 7.5)       = 37 %
 - **Hover is the best case.** A full-throttle dash draws on the order of 100+ A (four motors
   at 28 to 45 A), which would use the usable pack in under a minute. The launch plan budgets
   30 to 60 s of standby hover (`launch_mechanism_plan.md`).
+- **The figures above are the motors only.** Measured 2026-11-22 on the assembled
+  aircraft: the Pi draws 2.0 W idle and about 5.2 W while recording video and the log
+  (its own power chip's readings, `vcgencmd pmic_read_adc`, five samples each). Adding
+  estimates for the AI board, camera, Pixhawk, GPS and receiver and a 90 % converter gives
+  about 9 W, or 0.4 A from the pack. At the weighed 930 g that turns 9.4 A / 7.7 min into
+  9.8 A / 7.3 min, and the best case 6.9 A / 10.4 min into 7.3 A / 9.9 min. The power
+  module itself read 0.00 A with only the avionics running, so it cannot confirm this:
+  the avionics are either below what it can see or wired ahead of it.
+- **Whole-sortie arithmetic.** The usable 1.2 Ah is 72 amp-minutes. Hover alone: 7 to 10
+  min. A dash at the 30 to 50 A estimated for 80 mph with drag: about 1.5 to 2.4 min of
+  dash. Full throttle at the 86 A the target logged (uncalibrated sensor): about 50 s.
+  A sortie of 60 s standby hover, a 20 s dash at 40 A and 60 s to return and land comes
+  to roughly 0.55 Ah, a little under half the usable pack. None of this is flown.
 - **How it gets measured:** a 60 s hover, current from the PM02 in the ULog, and the learned
   hover throttle (PX4 MPC_THR_HOVER; ArduPilot MOT_THST_HOVER on the target). The FC's
   card slot is dead, so the ULog comes from the Pi's flight recorder, which saves the log PX4

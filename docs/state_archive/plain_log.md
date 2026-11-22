@@ -652,3 +652,11 @@ The target drone flew again in the evening and the runaway climb did not come ba
 **So what:** Not yet flown with the new height gains. Next is a low hop to see whether Position mode holds height. In Position mode the stick in the middle holds height; below about 40% it descends. The measured hover point leaves the safety margin against the climb thinner than computed (the motors' ceiling is about 0.9 times the weight, not 0.7).
 
 *Evidence: runs/target_flight2_20261114/README.md + height_loop_analysis.txt + hover_thrust_fit.txt; ADR-0138 addendum 9; configs/target_kakute/target.param*
+
+## 2026-11-14 (overflowed from plain_log 2026-11-22)
+
+The builder recalibrated the target drone's compass outdoors and flew a fifth time; he reports it improved again. That flight's log is empty on the card, so the three predictions written before it could not be checked against data. He now wants to fly a small pre-programmed course slowly. The board's route speed has been lowered from 10 m/s to 3 m/s for that first automatic flight.
+
+**So what:** The 3 m/s is a temporary setting on the board only. The project's settings file still says 10 m/s, which is the speed the target exists to fly, and loading that file puts 10 back. The empty log means the storage card is suspect: wait a few seconds after disarming before unplugging the battery.
+
+*Evidence: ADR-0138 addendum 12; board read-back WP_SPD 3.0; log list (log 21, 0 bytes)*

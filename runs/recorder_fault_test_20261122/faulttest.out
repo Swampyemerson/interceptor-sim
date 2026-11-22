@@ -1,0 +1,75 @@
+===== RUN 1: armed (pretend), USB pulled, serial cable free; then the video is killed =====
+[14:08:04] before: {'state': 'recording', 'port': '/dev/pixhawk-usb', 'armed': True, 'video': 'recording', 'video_starts': 1, 'recent_kb_per_s': 40.1, 'detail': None}
+[14:08:04] USB UNPLUGGED (software)
+[14:08:16] USB out: {'state': 'recording', 'port': '/dev/ttyAMA10', 'armed': True, 'video': 'recording', 'video_starts': 1, 'recent_kb_per_s': 26.8, 'detail': None}
+[14:08:16] video process 2401 KILLED
+[14:08:25] after video kill: {'state': 'recording', 'port': '/dev/ttyAMA10', 'armed': True, 'video': 'recording', 'video_starts': 2, 'recent_kb_per_s': 26.2, 'detail': None}
+[14:08:25] USB PLUGGED BACK
+[14:08:31] USB back (still armed): {'state': 'recording', 'port': '/dev/ttyAMA10', 'armed': True, 'video': 'recording', 'video_starts': 2, 'recent_kb_per_s': 25.8, 'detail': None}
+recorder exit code 3
+ground-station bridge on UDP port 14550
+link: /dev/pixhawk-usb
+on-arm command started (pid 2401)
+ground station connected: 192.168.0.25:50480
+ground station connected: 192.168.0.25:14550
+recording to /tmp/rec_test/video/video_20261122T220750Z  (1920x1200 at 60 fps; Ctrl-C to stop)
+Pixhawk link LOST on /dev/pixhawk-usb WHILE ARMED; video keeps recording
+LINK_LOST: /tmp/rec_test/fc_20261122T220749Z_flight.ulg 0.64 MB in 15s (43.23 KB/s), gaps=1 (1 at start-up, 0 after), lost packets=1, ended: link lost: device reports readiness to read but returned no data (dev
+link: /dev/ttyAMA10
+logging over the SERIAL cable: part of the log is lost. Plug the Pixhawk USB into the Pi
+on-arm command DIED (exit -9), starting it again (start 2 of at most 12)
+on-arm command started (pid 2434)
+recording to /tmp/rec_test/video/video_20261122T220817Z  (1920x1200 at 60 fps; Ctrl-C to stop)
+  1920,
+  1200
+ ],
+on-arm command ended (exit 0)
+GAPS: /tmp/rec_test/fc_20261122T220805Z_flight.ulg 0.65 MB in 24s (27.68 KB/s), gaps=202 (0 at start-up, 202 after), lost packets=1072, ended: stop requested
+===== RUN 2: armed (pretend), USB pulled WHILE another program holds the serial cable =====
+[14:08:48] before: {'state': 'recording', 'port': '/dev/pixhawk-usb', 'armed': True, 'video': 'recording', 'video_starts': 1, 'recent_kb_per_s': 64.6, 'detail': None}
+[14:08:49] USB UNPLUGGED (software)
+[14:08:59] USB out, serial busy: {'state': 'no link to the Pixhawk', 'port': None, 'armed': None, 'video': 'recording', 'video_starts': None, 'recent_kb_per_s': None, 'detail': 'no USB cable to the Pixhawk, and the serial cable /dev/ttyAMA10 is in use by 2469 sleep: NOT LOGGING until the USB is back'}
+[14:08:59] USB PLUGGED BACK
+[14:09:11] USB back: {'state': 'recording', 'port': '/dev/pixhawk-usb', 'armed': True, 'video': 'recording', 'video_starts': 1, 'recent_kb_per_s': 40.1, 'detail': None}
+recorder exit code 2
+ground-station bridge on UDP port 14550
+link: /dev/pixhawk-usb
+on-arm command started (pid 2473)
+ground station connected: 192.168.0.25:14550
+ground station connected: 192.168.0.25:50480
+recording to /tmp/rec_test/video/video_20261122T220834Z  (1920x1200 at 60 fps; Ctrl-C to stop)
+EMPTY: None 0.00 MB in 10s (0.0 KB/s), gaps=0 (0 at start-up, 0 after), lost packets=0, ended: no log data for 10 s
+Pixhawk link LOST on /dev/pixhawk-usb WHILE ARMED; video keeps recording
+LINK_LOST: /tmp/rec_test/fc_20261122T220846Z_flight.ulg 0.16 MB in 3s (56.72 KB/s), gaps=1 (1 at start-up, 0 after), lost packets=3, ended: link lost: device reports readiness to read but returned no data (devi
+no USB cable to the Pixhawk, and the serial cable /dev/ttyAMA10 is in use by 2469 sleep: NOT LOGGING until the USB is back
+link: /dev/pixhawk-usb
+  1920,
+  1200
+ ],
+on-arm command ended (exit 0)
+CLEAN: /tmp/rec_test/fc_20261122T220900Z_flight.ulg 0.40 MB in 8s (47.5 KB/s), gaps=1 (1 at start-up, 0 after), lost packets=2, ended: stop requested
+===== files =====
+total 1952
+drwxrwxr-x  3 admin admin    280 Nov 22 14:09 .
+drwxrwxrwt 12 root  root     320 Nov 22 14:07 ..
+-rw-rw-r--  1 admin admin   1741 Nov 22 14:08 fc_20261122T220749Z_flight.stats.json
+-rw-rw-r--  1 admin admin 641405 Nov 22 14:08 fc_20261122T220749Z_flight.ulg
+-rw-rw-r--  1 admin admin   2763 Nov 22 14:08 fc_20261122T220805Z_flight.stats.json
+-rw-rw-r--  1 admin admin 654951 Nov 22 14:08 fc_20261122T220805Z_flight.ulg
+-rw-rw-r--  1 admin admin   1758 Nov 22 14:08 fc_20261122T220846Z_flight.stats.json
+-rw-rw-r--  1 admin admin 163109 Nov 22 14:08 fc_20261122T220846Z_flight.ulg
+-rw-rw-r--  1 admin admin   1880 Nov 22 14:09 fc_20261122T220900Z_flight.stats.json
+-rw-rw-r--  1 admin admin 403084 Nov 22 14:09 fc_20261122T220900Z_flight.ulg
+-rw-rw-r--  1 admin admin   4237 Nov 22 14:08 rec_1.log
+-rw-rw-r--  1 admin admin   2880 Nov 22 14:09 rec_2.log
+drwxrwxr-x  5 admin admin    100 Nov 22 14:08 video
+/tmp/rec_test/video/video_20261122T220817Z/meta.json
+{'frames': 856, 'seconds_of_video': 14.37, 'measured_fps': 59.51, 'gaps_over_1.5_frames': 0, 'stalled': None, 'flip_180': True}
+/tmp/rec_test/video/video_20261122T220834Z/meta.json
+{'frames': 2131, 'seconds_of_video': 35.79, 'measured_fps': 59.51, 'gaps_over_1.5_frames': 0, 'stalled': None, 'flip_180': True}
+fc_20261122T220749Z_flight.stats.json LINK_LOST /dev/pixhawk-usb 14.84 s link lost: device reports readiness to read but returned no data (device disconnected or multiple access on port?) | video: {'still_running_into_next_file': True, 'starts': 1}
+fc_20261122T220805Z_flight.stats.json GAPS /dev/ttyAMA10 23.66 s stop requested | video: {'cmd': '.venv-pi/bin/python scripts/field/record_video.py --flip --note bench-fault-test --out-dir /tmp/rec_test/video', 'starts': 2, 'pid': 2401, 'started_unix': 1795385269.632, 'started_s_after_arm_seen': 0.0, 'died': [{'exit_code': -9, 's_after_its_start': 26.9}], 'exit_code': 0}
+fc_20261122T220846Z_flight.stats.json LINK_LOST /dev/pixhawk-usb 2.88 s link lost: device reports readiness to read but returned no data (device disconnected or multiple access on port?) | video: {'still_running_into_next_file': True, 'starts': 1}
+fc_20261122T220900Z_flight.stats.json CLEAN /dev/pixhawk-usb 8.49 s stop requested | video: {'cmd': '.venv-pi/bin/python scripts/field/record_video.py --flip --note bench-fault-test --out-dir /tmp/rec_test/video', 'starts': 1, 'pid': 2473, 'started_unix': 1795385314.138, 'started_s_after_arm_seen': 0.0, 'exit_code': 0}
+active
+FAULTTEST_DONE

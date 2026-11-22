@@ -5,6 +5,63 @@ The interceptor's Pixhawk 6C Mini cannot mount a microSD card, so it writes no f
 over a cable to the Raspberry Pi, and the Pi writes it to its own card. The same Pi service
 starts a camera recording when the Pixhawk reports "armed".
 
+## Before a flight: one command says GO or NO-GO (added 2026-11-22)
+
+```bash
+ssh admin@192.168.0.61 'cd interceptor-sim && .venv-pi/bin/python scripts/field/recorder_check.py'
+```
+
+It prints one line per check and ends `RECORDER: GO` or `RECORDER: NO-GO`: the service is
+alive, the log is arriving over USB at full rate, no packets were lost in the last 30 s,
+the video is ready to start at arming, and the card has room. Add `--camera` to also record
+3 s of test video with the same program the service runs at arming. No answer (service
+stopped, status older than 5 s) is a NO-GO.
+
+With QGroundControl connected through the Pi (next section), the recorder also puts its
+own lines in QGroundControl's message list, each starting `Pi:`, for example
+`Pi: video recording started`, `Pi: Pixhawk cable LOST, armed. Video still on`,
+`Pi: log on SERIAL cable, lossy. Plug USB in Pi`, `Pi: NO VIDEO: card nearly full`.
+These go to the network only, never to the Pixhawk. Checked with a script standing in
+for QGroundControl; not yet looked at on QGroundControl's own screen.
+
+## What it does when something goes wrong (added 2026-11-22)
+
+| Fault | What the recorder does | Bench result, 2026-11-22 |
+|---|---|---|
+| Pixhawk USB cable pulled or loose, disarmed (the compass calibration case below) | Closes the log file as it stands (verdict `LINK_LOST`), moves to the serial cable, and moves back to USB by itself when the cable returns. The service does not restart. | Cable out 30 s, then back: 0 service restarts, on USB again 1 s after replug, check read GO 38 s after replug |
+| Pixhawk USB cable lost while armed | The same, and **the video keeps recording through it**. It stays on the serial cable until disarm. | One video ran unbroken across the loss (35.8 s, 2,131 frames, none dropped) |
+| USB lost while the flight program is using the serial cable | Does **not** take the serial cable (two readers would each get half the bytes and the guidance link matters more). No log until USB is back; video carries on. | Refused the busy cable, said so, resumed on USB when it returned |
+| Camera recording dies while armed | Started again, every 5 s, 12 times a flight at most. Each start is a new `video_*` folder. | Recording killed by hand: a new one was running within 1 s |
+| Camera stops delivering frames | `record_video.py` exits when its file has not grown for 3 s, and is then restarted as above. | Logic tested offline only; no way to stall the camera on the bench |
+| PX4 accepts "start log" and sends nothing | Asks again after 3 s (was 10 s). | Seen twice on the bench right after a cable change; recovered both times |
+| Recorder program crashes | systemd restarts it after 1 s, for ever (before, it gave up after 5 quick failures). A file cut off mid-write is kept as `_recovered.ulg`. | Restart and recovery seen 2026-11-13 and 2026-11-22 |
+| Card nearly full | Under 5 GB free: no video (the log still records). Under 2 GB: logging stops. The check warns under 10 GB. | Offline test |
+| Battery pulled | Log and video are pushed to the card every second; about the last second is lost. | 2026-11-13 |
+
+Before this change a pulled USB cable crashed the recorder; systemd restarted it within
+a few seconds, but a video running at that moment would have been stopped and begun again.
+
+**What these tests did not cover:** the cable was "pulled" in software (the Pi's USB
+driver was told to let go), not by hand, and "armed" was the recorder's own pretend
+flag. A real pull also removes USB power from the Pixhawk's port, which the software
+pull does not. Evidence: `runs/recorder_fault_test_20261122/`.
+
+### Compass calibration with the USB cable moved to the PC
+
+1. Unplug the Pixhawk's USB from the Pi and plug it into the PC. The recorder moves to
+   the serial cable within about 5 s and keeps logging (lossy there, which does not
+   matter on the ground).
+2. Calibrate in QGroundControl.
+3. Plug the USB back into the Pi. The recorder moves back within a few seconds.
+4. Run the check above and wait for `RECORDER: GO` before arming. It reads NO-GO for the
+   first 30 s after the cable returns, because the changeover costs a few packets.
+
+If the Pixhawk asks for a reboot after calibration, power-cycle the whole aircraft; the
+Pi restarts with it and the service starts by itself (about half a minute).
+
+Do not arm while the recorder is on the serial cable: about a third of the log is lost
+there, and the flight program cannot open that cable while the recorder holds it.
+
 ## What is set up (2026-11-13)
 
 A service called `flight-recorder` runs on the Pi from boot. For every flight it writes:
@@ -86,8 +143,15 @@ scp -r admin@192.168.0.61:fc_logs .           # copy the logs to the laptop
 ```
 
 Settings are in `/etc/default/flight-recorder` on the Pi. The one worth changing is the
-video command: outdoors add `--exposure-us 1000` so a fixed short exposure freezes motion
-(the default is auto exposure).
+video command's exposure. The default is auto exposure, which chose about 150 µs in full
+sun on 2026-11-15; a fixed 1000 µs clipped 56% of a sky frame in that light. So outdoors
+leave it on auto or fix it near 150 (`--exposure-us 150`), not 1000 as this page used to say.
+The video command carries `--flip` because the nose camera is mounted ribbon connector up:
+on 2026-11-22, with the aircraft level, the picture was upside down without it and upright
+with it (`runs/recorder_fault_test_20261122/camera_frame_*.jpg`). **The flip is in the
+video recorder only. The flight program's camera reader has no flip yet**, so the seeker
+would see the target on the wrong side; that has to be written before any camera-guided
+flight (`docs/next.md`).
 
 ## What has and has not been tested
 
@@ -114,10 +178,26 @@ Tested on the bench, Pixhawk disarmed:
   Pi's service on the serial cable, found by itself in 0.25 s, all 1,122 settings in 5.3 s.
   The Pixhawk's console was also read from the laptop through the Pi.
 
+- Live log read back on the assembled aircraft (2026-11-22, on battery, disarmed): a 108 s
+  file opened in `pyulog` with 93 topics; 97 packets were lost in 5 gaps, about 0.54 s of
+  data in all, every one in the first 47 s while QGroundControl was connecting.
+- Fault handling (2026-11-22): the table under "What it does when something goes wrong".
+
 Not tested yet:
 
 - **A real arming.** The trigger has only seen a pretend signal. Check: props off, arm for
-  10 s, disarm, then look for a new `sessions/video_*` folder and a `_flight.ulg`.
+  10 s, disarm, then look for a new `sessions/video_*` folder and a `_flight.ulg`. Indoors
+  the Pixhawk refuses to arm in Position mode (no GPS: "Global position estimate
+  required"), so use a manual mode for this check.
+- **A cable pulled by hand**, and a cable lost with the motors running.
+- **The battery current reading.** With everything powered and the motors stopped the
+  Pixhawk's log shows 0.00 A (2026-11-22), so the avionics either draw less than the
+  sensor can see or are wired ahead of it. Whether the sensor reads at all is not known
+  until the motors spin; the hover-time measurement depends on it.
+- **File dates away from Wi-Fi.** The Pi has no clock battery. At power-up its clock
+  resumes from the last time it was running (2026-11-22: it woke believing it was the day
+  before until the network corrected it), so in the field the file names carry an old
+  date. The true time is inside the log once the GPS has a fix.
 - **An armed, flying log.** The 40 KB/s figure is for a disarmed aircraft.
 - **Connecting QGroundControl while armed.** Its connection burst cost the log about 45 s
   on the ground (see above); nobody has measured it in flight, and the plan is not to do it.
@@ -151,10 +231,13 @@ start. Reproduced on the bench: session ended without stop, next bare start refu
 | `scripts/bench/px4_shell_readonly.py` | Status commands in the Pixhawk's console over any MAVLink cable (`logger status`, `mavlink status`, `dmesg`). Refuses anything not on its read-only list. |
 | `scripts/bench/hover_recorder.py` | Older, lighter fallback: attitude and body rates at 100 Hz over the serial cable, as CSV. Needs the flight recorder stopped if that is on the serial cable. |
 | `scripts/field/record_video.py` | The camera recorder the service starts. |
+| `scripts/field/recorder_check.py` | The go / no-go above. Reads `/dev/shm/flight_recorder_status.json`, which the service rewrites every second. |
 
 Evidence: `runs/fc_log_stream_20261113/` (stats for every capture, the Pixhawk console
-output, the bench gate log, and `gcs_bridge/` for the ground-station tests). Decision
-record: ADR-0137 and its addendum.
+output, the bench gate log, and `gcs_bridge/` for the ground-station tests);
+`runs/recorder_fault_test_20261122/` (the fault tests: scripts, outputs, stats, the
+ground-station messages received, and a camera frame with and without the flip).
+Decision record: ADR-0137 and its addenda.
 
 ## Predictions, written before the first measurement (2026-11-13)
 

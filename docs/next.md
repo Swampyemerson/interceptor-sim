@@ -44,7 +44,7 @@ Decisions: `docs/decisions.md` ADR-0139 and the 2026-11-18 addenda to ADR-0130 a
 | ⬜ | **Fly the target on one long straight leg at 9 to 12 m/s, logged.** It measures the cue's real speed error, the number the long-range dash turns on. | contract assumptions `cue-speed-error-at-long-range`, `search-declared-cue-quality` |
 | ⬜ | **Geofence against long range**: 457 m, Hold. Keep cues inside about 300 m, or widen it for those flights. | contract question `dash-envelope-on-real-fc` |
 | ⬜ | **Target after its fall (2026-11-15)**: inspect; choose low battery = land for the yard; fly on a 6 minute timer. | ADR-0138 addenda 17 and 18 |
-| ⬜ | **Interceptor recorder, props off**: arm 10 s, disarm; check the Pi for a new video and flight log (the recorder has never seen a real arming). | `docs/fc_logging_without_sd.md` |
+| ⬜ | **Interceptor recorder, props off**: arm 10 s in a manual mode (indoors it refuses to arm in Position mode), disarm; then tell me and I check the Pi for a new video and flight log. The recorder has never seen a real arming. Before any flight: `recorder_check.py` must say GO. | `docs/fc_logging_without_sd.md` |
 | ⬜ | **Radio loss in automatic flight** returns home after 0.5 s on this board, so the transmitter-off test cannot pass as set. Change only after the watchdog is bench-proven. | interface audit G5 |
 | ⬜ | **Second transmitter (about $65)**, anemometer, tripod: not confirmed bought. Each aircraft needs its own arm and kill for a deliberate mid-air (ADR-0089). | [#5](https://github.com/Swampyemerson/interceptor-sim/issues/5) |
 | ⬜ | **Stamped-age latency mode**: adopt or keep off (prediction confirmed, strict bar missed 3 of 6; recommendation: keep off until the Pi's timestamps are bench-checked). | contract question `stamped-age-adoption` |
@@ -56,6 +56,12 @@ lost-target rule (the flight preset), cue window (5 s), board speed limit (33 m/
 
 ## Next work, in order (mine)
 
+0. ⬜ **The nose camera is upside down and the flight program does not know it**
+   (measured 2026-11-22, aircraft level). The video recorder flips its picture; the
+   flight program's camera reader, the calibration capture and the lens calibration do
+   not. Until they do, the chase would steer away from the target. One switch for all
+   camera readers, then recalibrate on the mounted camera. Contract ledger
+   `nose-camera-upside-down-flight-reader-has-no-flip`.
 1. ⬜ **Props-off bench run on the real Pi and Pixhawk. HELD: props are on.** In order:
    `--bench-props-off` with a timer GO (expect the interlocks to pass on USB power), then
    with `--trigger cue` and the laptop's made-up target, then the watchdog (`kill -STOP`
@@ -75,8 +81,10 @@ lost-target rule (the flight preset), cue window (5 s), board speed limit (33 m/
 7. ⬜ **Cue loose ends**: standby height and yaw are still typed, not taken from the cue;
    the handset-USB reader has never met the real transmitter; with that source the link
    delay is assumed, not measured.
-8. ⬜ **Interface audit leftovers**: the recorder can fall back onto the guidance port if
-   USB drops (G8); `docs/kill_day_protocol.md` is ahead of any bench proof.
+8. ⬜ **Interface audit leftovers**: `docs/kill_day_protocol.md` is ahead of any bench
+   proof. (G8 closed 2026-11-22: the recorder no longer takes the serial cable while
+   another program has it open; bench-tested with a stand-in holder, not with the flight
+   program itself.)
 9. ⬜ **Real numbers the sims still assume**: drag (lean angle at a steady known speed),
    braking, full-throttle current through the power module (`docs/airframe_numbers.md`
    section 6), the decode curve outdoors.

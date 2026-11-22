@@ -1,0 +1,6 @@
+15:08:04 sev 4 'Pi: Pixhawk link LOST on /dev/pixhawk-usb WHILE AR'
+15:08:04 sev 4 'Pi: logging over the SERIAL cable: part of the log'
+15:08:16 sev 4 'Pi: on-arm command DIED (exit -9), starting it aga'
+15:08:16 sev 6 'Pi: on-arm command started (pid 2434)'
+15:08:49 sev 4 'Pi: Pixhawk link LOST on /dev/pixhawk-usb WHILE AR'
+15:08:49 sev 3 'Pi: no USB cable to the Pixhawk, and the serial ca'

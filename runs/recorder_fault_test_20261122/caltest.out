@@ -1,0 +1,56 @@
+758d74e Flight recorder: a log start that is accepted but silent is retried after 3 s; ground-station messages fit the 50 characters
+--- before:
+  ok    recording the Pixhawk's log to fc_20261122T221100Z.ulg.part
+  ok    log cable: USB
+  ok    log rate 40 KB/s (needs 30)
+  ok    no packets lost in the last 30 s
+  ok    video: ready, starts at arming
+  ok    card: 39 GB free, about 73 min of video
+RECORDER: GO
+[14:11:39] USB OUT
+--- while out:
+  ok    recording the Pixhawk's log to fc_20261122T221145Z.ulg.part
+  NO-GO log cable: /dev/ttyAMA10, the SERIAL cable, which loses about a third of the log. Plug the Pixhawk's USB into the Pi
+  NO-GO log rate 26 KB/s (needs 30)
+  NO-GO packets were lost 0 s ago (QGroundControl still loading? wait, then check again)
+  ok    video: ready, starts at arming
+  ok    card: 39 GB free, about 73 min of video
+RECORDER: NO-GO
+[14:12:09] USB BACK
+--- 8 s after plugging back:
+  ok    recording the Pixhawk's log to fc_20261122T221210Z.ulg.part
+  ok    log cable: USB
+  ok    log rate 50 KB/s (needs 30)
+  NO-GO packets were lost 3 s ago (QGroundControl still loading? wait, then check again)
+  ok    video: ready, starts at arming
+  ok    card: 39 GB free, about 73 min of video
+RECORDER: NO-GO
+--- 38 s after plugging back:
+  ok    recording the Pixhawk's log to fc_20261122T221210Z.ulg.part
+  ok    log cable: USB
+  ok    log rate 40 KB/s (needs 30)
+  ok    no packets lost in the last 30 s
+  ok    video: ready, starts at arming
+  ok    card: 39 GB free, about 73 min of video
+RECORDER: GO
+NRestarts=0
+ActiveState=active
+n[2529]: ground station connected: 192.168.0.25:50501
+md[1]: Stopping flight-recorder.service - Interceptor flight recorder (Pixhawk log stream + camera video while armed)...
+n[2529]: CLEAN: /home/admin/fc_logs/fc_20261122T220912Z_ground.ulg 4.33 MB in 106s (40.72 KB/s), gaps=1 (1 at start-up, 0 after), lost packets=2, ended: stop requested
+md[1]: flight-recorder.service: Deactivated successfully.
+md[1]: Stopped flight-recorder.service - Interceptor flight recorder (Pixhawk log stream + camera video while armed).
+md[1]: flight-recorder.service: Consumed 6.712s CPU time.
+md[1]: Started flight-recorder.service - Interceptor flight recorder (Pixhawk log stream + camera video while armed).
+n[2582]: ground-station bridge on UDP port 14550
+n[2582]: link: /dev/pixhawk-usb
+n[2582]: ground station connected: 192.168.0.25:50501
+n[2582]: ground station connected: 192.168.0.25:14550
+n[2582]: Pixhawk link LOST on /dev/pixhawk-usb
+n[2582]: LINK_LOST: /home/admin/fc_logs/fc_20261122T221100Z_ground.ulg 1.63 MB in 39s (41.89 KB/s), gaps=1 (1 at start-up, 0 after), lost packets=3, ended: link lost: device reports readiness to read 
+n[2582]: link: /dev/ttyAMA10
+n[2582]: logging over the SERIAL cable: part of the log is lost. Plug the Pixhawk USB into the Pi
+n[2582]: EMPTY: None 0.00 MB in 3s (0.0 KB/s), gaps=0 (0 at start-up, 0 after), lost packets=0, ended: no log data in the first 3 s after start
+n[2582]: GAPS: /home/admin/fc_logs/fc_20261122T221145Z_ground.ulg 0.65 MB in 24s (27.55 KB/s), gaps=201 (0 at start-up, 201 after), lost packets=1079, ended: USB link appeared; switching to it
+n[2582]: link: /dev/pixhawk-usb
+CALTEST_DONE

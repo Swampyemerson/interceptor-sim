@@ -1,0 +1,2 @@
+15:11:39 sev 4 'Pi: Pixhawk cable lost, looking for it'
+15:11:39 sev 4 'Pi: log on SERIAL cable, lossy. Plug USB in Pi'
