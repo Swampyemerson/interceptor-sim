@@ -660,3 +660,11 @@ The builder recalibrated the target drone's compass outdoors and flew a fifth ti
 **So what:** The 3 m/s is a temporary setting on the board only. The project's settings file still says 10 m/s, which is the speed the target exists to fly, and loading that file puts 10 back. The empty log means the storage card is suspect: wait a few seconds after disarming before unplugging the battery.
 
 *Evidence: ADR-0138 addendum 12; board read-back WP_SPD 3.0; log list (log 21, 0 bytes)*
+
+## 2026-11-14 (overflowed from plain_log 2026-11-22)
+
+The USB-C connector came off the target drone's flight controller. USB was the only way to talk to that board from a computer. The builder pressed it back on and glued it; the connection now comes and goes. In one of the moments it held, a spare pair of solder pads on the board (T1/R1) was set up as a second way in, so a cheap USB-to-serial adapter can reach the board if the USB port fails for good. The drone itself still flies as configured, and its logs can be read by pulling the storage card.
+
+**So what:** The glued port is not a repair yet: it connects only some of the time, which is what pins held by pressure do. Soldering the two data pins, or wiring an adapter to T1/R1, makes it dependable. Two temporary settings are still on the board: route speed 3 m/s and fast logging.
+
+*Evidence: builder report 2026-11-14 night; ADR-0138 addenda 13 and 14; board read-back SERIAL1_PROTOCOL 2*

@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->0958143<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3c37bfb<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-22",
- "updated_by": "Flight recorder hardened and bench-tested for cable loss; nose camera found upside down (2026-11-22)",
+ "updated_by": "First flight with the pod: flew well, lost GPS because the camera link jams it; hover 8.8 A measured (2026-11-22)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -913,14 +913,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-11-18",
-  "where": "The flight program now has a guarded flight mode, a props-off bench mode, a watchdog, a live cue link and the cue as the GO command. All of it is tested on the laptop only: nothing has run on the real Pi and Pixhawk, because the props are on.",
-  "finding": "Flying lens, 20 degrees of camera tilt, all errors on: searching along the track on arrival takes the 500 m dash from 117 to 190 kills of 192 against a straight target. A weaving target is still rarely caught. The target's tag is drawn side-facing, which a chase from behind cannot read.",
+  "as_of": "2026-11-22",
+  "where": "The assembled interceptor (930 g) flew by hand for 81 s and the Pi saved a clean flight log and video. The aircraft itself flew well. It lost its GPS position 3.5 s after takeoff and a false geofence alarm ended the flight.",
+  "finding": "The camera link jams the GPS: camera off, 6 to 7 satellites; camera running, 0 and the fix is lost; back within 3 s of stopping. The chase needs both at once, so as built it cannot fly. Hover measured at 8.8 A, about 8 minutes.",
   "next": [
-   "You: take the props off and say so; I then run the bench rehearsal and watchdog check",
-   "You: rule on the tag's facing and the camera plate angle (questions below)"
+   "You: shield the camera ribbon or raise the GPS on a mast; I rerun the 30 s camera test",
+   "Me: the flight program's camera reader must flip the upside-down picture"
   ],
-  "evidence": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md - isim/specs/arrival_search_prereg_2026-11-18.md - docs/interface_audit_2026-11-18.md - docs/cue_over_control_link.md - docs/decisions.md ADR-0139"
+  "evidence": "runs/interceptor_flight_20261122/README.md - runs/interceptor_arming_gps_20261122/README.md - runs/recorder_fault_test_20261122/ - docs/fc_logging_without_sd.md"
  },
  "assumptions": [
   {
@@ -1366,7 +1366,7 @@
   },
   {
    "id": "airframe-thrust-and-mass-unmeasured",
-   "statement": "The interceptor's weight is now weighed (930 g with battery, 2026-11-21). Motor thrust (1.5 kg each) is still a retailer-class figure, so T/W and hover numbers are half measured.",
+   "statement": "The interceptor's weight (930 g) and hover current (8.8 A, 2026-11-22) are measured. Motor thrust (1.5 kg each) is still a retailer-class figure, so T/W is half measured.",
    "grade": "unmeasured",
    "if_wrong": "T/W, hover throttle, hover time and the standby budget shift. At 930 g, T/W is 6.45:1 if the motors make 1.5 kg each and falls under the 5:1 rule below about 1.16 kg per motor.",
    "stages": [
@@ -1552,6 +1552,12 @@
  "plain_log": [
   {
    "date": "2026-11-22",
+   "text": "First flight of the assembled interceptor, by hand, 81 seconds, under 1.6 m. The Pi recorder saw its first real arming and saved a clean log and 88 seconds of video. The builder reported an unstable flight that ended itself. The log says the aircraft followed its commands well (1.4 and 1.6 degrees of error). What went wrong: 3.5 seconds after takeoff the GPS position was lost, so it dropped to height-hold only and drifted; the estimator's position then ran away to 470 m while the aircraft stayed within 33 m, crossed the 457 m geofence and triggered a descent. Ground tests straight after found the cause: the GPS holds 6 to 7 satellites with the camera off and loses its fix within a second of the camera starting, at either picture size, with or without recording. Loading the processor alone barely matters.",
+   "so_what": "The recorder starts the camera at arming, so every armed flight jams the GPS, and the chase needs camera and GPS together. This is hardware: shield the camera ribbon, or move the GPS away on a mast, then repeat the 30 second test. Hover is now measured: 8.8 A, about 8 minutes on a 1500 mAh pack. The board's battery gauge read 21% after using 12% of the pack, so a dash would trip the low-battery failsafe early; not changed yet.",
+   "evidence": "runs/interceptor_flight_20261122/README.md (timeline, tracking, the camera on/off tests, power); the raw log is kept out of git because it holds GPS positions"
+  },
+  {
+   "date": "2026-11-22",
    "text": "Bench check of the assembled interceptor, on battery, disarmed. The Pi was saving the Pixhawk's log over USB: a 108 second file opened with 93 data streams and about half a second missing, all while QGroundControl was connecting. The camera recorded 60 frames a second with none dropped, but the picture is upside down with the aircraft level: the nose camera is mounted connector-up. Asked to make the recorder robust, I pulled the Pixhawk cable in software: the old recorder crashed and was restarted, which in flight would also have stopped the video. Rewritten: a lost cable is handled in place, the video keeps running through it, a video that dies is restarted, and the recorder no longer takes the serial cable the flight program steers through.",
    "so_what": "For the compass calibration: unplug the USB from the Pi, calibrate, plug it back, then run the one-line check and wait for GO (38 s on the bench). Still untested: a real arming, a cable pulled by hand, and the battery current sensor, which reads zero with the motors stopped. The video recorder now flips the picture; the flight program's camera reader does not yet, and must before any camera-guided flight.",
    "evidence": "runs/recorder_fault_test_20261122/ (scripts, outputs, stats, frames); docs/fc_logging_without_sd.md; tests/test_ulog_stream_recorder.py (27 tests); commits 2b20557, 758d74e"
@@ -1615,12 +1621,6 @@
    "text": "The target drone would not arm although the ground station showed it ready. Listening while the builder tried three times showed the same refusal each time: the board could not start its flight log. Battery, satellites and radio were all good. The board opens its log file only at the moment of arming, which is why nothing looked wrong beforehand. Asking the board to start a log without arming reproduced it: no new file, and the empty log from flight five was still empty. The six logs not yet on the PC were copied off, the storage card was reformatted over USB, and the same test then wrote an 8 MB log. The pre-arm checks pass.",
    "so_what": "The drone should arm again; the builder confirms that, since no tool arms it. Why the card stopped is not known: power removed while a log was open fits, and so does a failing card, so if the message returns the card gets replaced. The route speed on the board had gone back to 10 m/s and is set to 3 again, and the course he uploaded carries its own 5 m/s setting that needs unticking before the first automatic flight.",
    "evidence": "runs/target_sdcard_20261115/README.md + arm_watch_20261115.txt; ADR-0138 addendum 15; board read-back WP_SPD 3"
-  },
-  {
-   "date": "2026-11-14",
-   "text": "The USB-C connector came off the target drone's flight controller. USB was the only way to talk to that board from a computer. The builder pressed it back on and glued it; the connection now comes and goes. In one of the moments it held, a spare pair of solder pads on the board (T1/R1) was set up as a second way in, so a cheap USB-to-serial adapter can reach the board if the USB port fails for good. The drone itself still flies as configured, and its logs can be read by pulling the storage card.",
-   "so_what": "The glued port is not a repair yet: it connects only some of the time, which is what pins held by pressure do. Soldering the two data pins, or wiring an adapter to T1/R1, makes it dependable. Two temporary settings are still on the board: route speed 3 m/s and fast logging.",
-   "evidence": "builder report 2026-11-14 night; ADR-0138 addenda 13 and 14; board read-back SERIAL1_PROTOCOL 2"
   }
  ],
  "narrative": {
@@ -2803,11 +2803,11 @@
   },
   {
    "label": "Hover current / time, interceptor (estimate)",
-   "value": "≈9.4 A / ≈7.7 min",
-   "plain": "Battery current to hover, and how long a 1500 mAh 6S pack lasts doing it. Calculated, not flown.",
-   "provenance": "docs/airframe_numbers.md §5 · scripts/airframe_numbers.py (momentum theory)",
+   "value": "8.8 A / ≈8 min",
+   "plain": "Battery current to hover, measured in one flight, and how long a 1500 mAh pack lasts at it.",
+   "provenance": "runs/interceptor_flight_20261122/README.md (flight_window.py) · docs/airframe_numbers.md §5",
    "trust": "bench",
-   "note": "930 g weighed, sea level, FM 0.5, motor+ESC 0.75, 80% of pack usable. Band 6.9-9.4 A / 7.7-10.4 min across FM 0.5-0.6, efficiency 0.75-0.85. Motors only: the Pi, camera and Pixhawk add about 0.4 A (Pi measured 5.2 W while recording, 2026-11-22; the rest estimated), which makes it 7.3 to 9.9 min. The power module read 0.00 A with only the avionics running."
+   "note": "MEASURED 2026-11-22: 8.8 A at 22.4 V (197 W) over 64 s of hover at the weighed 930 g; one flight, one pack, wind not recorded. 80% of the pack usable gives 8.2 min. The calculated band was 7.3 to 9.8 A with avionics. The sensor reads 0.00 A with only the avionics on, so their roughly 0.4 A is not in the 8.8."
   }
  ],
  "bom_tiers": [
@@ -5055,7 +5055,7 @@
    "loc_a": "project_state.json constraints/binary-kill; docs/hardware_order_list.md sec 0b/0c",
    "claim_b": "The interceptor's Pixhawk 6C Mini microSD slot is dead, so it cannot write a flight log to its own card. Every flight verdict up to 2026-11-13 has been by eye, ear and touch.",
    "loc_b": "project_state.json build_tab (FC High-Endurance microSD); docs/fc_logging_without_sd.md",
-   "current_truth": "The rule can be met another way but has not been yet. A Pi service saves the flight log PX4 streams to it, plus camera video while armed. The Pixhawk's USB is now in the Pi on the assembled aircraft and the log is complete there (2026-11-22: about half a second missing in 108 s, all while QGroundControl connected). The service rides out a lost cable and keeps the video through it (bench-tested with a software cable pull). No real arming or flight has been recorded.",
+   "current_truth": "The interceptor's log and video are now recorded by the Pi: the first real flight (2026-11-22, 81 s by hand) gave a clean 263 s log and 88 s of video, started 1.6 s after arming. The service also rides out a lost cable (bench-tested with a software cable pull). Still open: the camera it starts at arming jams the GPS (ledger camera-link-jams-gps-chase-needs-both), and no engagement has been recorded.",
    "resolution": "OPEN until a real flight produces a clean interceptor log. Path chosen in ADR-0137: fit a Pixhawk-to-Pi USB cable, do a props-off arm test, then fly with the Pi. Replacing the flight controller stays the builder's option. Found by the 2026-11-09 staleness audit."
   },
   {
@@ -5134,6 +5134,19 @@
    "claim_b": "Measured 2026-11-22 on the assembled aircraft sitting level (roll 1 deg, pitch 4 deg from the Pixhawk's log): the picture is rotated 180 degrees. The pod's assembly step mounts the board ribbon connector up and says the software flip is not written.",
    "loc_b": "runs/recorder_fault_test_20261122/camera_frame_unflipped_aircraft_level.jpg and camera_frame_with_flip.jpg; hardware/avionics_pod/README.md (camera plate, step 3)",
    "current_truth": "A target to the right and above would be read as left and below, so the chase would steer away from it. The video recorder now flips its picture; the flight program's reader, the calibration capture and the lens calibration must all use the same flipped picture before any camera-guided flight. Not fixed yet.",
+   "resolution": ""
+  },
+  {
+   "id": "camera-link-jams-gps-chase-needs-both",
+   "verdict": "CONFIRMED",
+   "severity": "high",
+   "status": "open",
+   "topic": "The interceptor's camera link jams its own GPS, and the engagement needs both at the same moment",
+   "claim_a": "What flies (ADR-0118, ADR-0139): after GO, a camera-only chase steered by the Pi through PX4 velocity commands, which need the aircraft's own position and speed from GPS throughout.",
+   "loc_a": "docs/goals.md status banner; docs/decisions.md ADR-0118 and ADR-0139; flight/deploy/real_flight.py",
+   "claim_b": "Measured on the assembled aircraft 2026-11-22: camera off, 6 to 7 satellites and a 3D fix; camera streaming at 1920x1200 or 1280x720, with or without encoding, 0 to 5 satellites and the fix lost within a second, back within 3 s of stopping. Processor load alone costs one satellite. In flight the position was lost 3.5 s after takeoff, 5 s after the recorder started the camera.",
+   "loc_b": "runs/interceptor_flight_20261122/README.md; gps_camera_test.py and gps_windows.py in that folder",
+   "current_truth": "As built, the aircraft cannot hold a GPS position while its camera runs. The source is the camera and its ribbon cable under the GPS unit on the pod lid, not the Pi's processing. Not yet tried: a shielded or foil-wrapped ribbon, a ground plate under the GPS, the GPS on a mast. Even with the camera off the GPS is weak for open sky (6 to 7 satellites, 8 on the old bench rig).",
    "resolution": ""
   }
  ]

@@ -73,5 +73,7 @@ the same moment. As built, it cannot have both.
   0.70 G in hover (the Earth's field is about 0.5 G), so it is picking up the aircraft.
 - Height reference is set to GPS (`EKF2_HGT_REF` 1) on an aircraft whose GPS is unreliable.
 
-Scripts in this folder reproduce every number above from the log. The 2026-11-22 arming
+Scripts in this folder reproduce every number above from the log. The raw `.ulg` files
+are not in git (they hold GPS positions); copies are on the laptop in this folder and on
+the Pi in `~/fc_logs`. The 2026-11-22 arming
 refusal earlier the same afternoon is in `runs/interceptor_arming_gps_20261122/`.

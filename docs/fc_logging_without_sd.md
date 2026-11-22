@@ -183,17 +183,22 @@ Tested on the bench, Pixhawk disarmed:
   data in all, every one in the first 47 s while QGroundControl was connecting.
 - Fault handling (2026-11-22): the table under "What it does when something goes wrong".
 
-Not tested yet:
+- **A real arming and a real flight (2026-11-22):** 263 s log, verdict `CLEAN` (6 packets
+  lost at start-up, none after, 43 KB/s armed), and 88 s of video that started 1.6 s after
+  arming: 5,236 frames at 59.5 per second, 4 gaps over 1.5 frames, worst 50 ms.
 
-- **A real arming.** The trigger has only seen a pretend signal. Check: props off, arm for
-  10 s, disarm, then look for a new `sessions/video_*` folder and a `_flight.ulg`. Indoors
-  the Pixhawk refuses to arm in Position mode (no GPS: "Global position estimate
-  required"), so use a manual mode for this check.
+**The video the service starts at arming jams the GPS (found 2026-11-22).** With the
+camera running the GPS loses its fix within a second; the flight above lost its position
+3.5 s after takeoff for that reason (`runs/interceptor_flight_20261122/README.md`). Until
+the camera ribbon is shielded or the GPS moved, a flight has either the video or the GPS.
+To fly with GPS and no video, set `VIDEO_CMD=` (empty) in `/etc/default/flight-recorder`
+and restart the service; the log still records.
+
+Not tested yet:
 - **A cable pulled by hand**, and a cable lost with the motors running.
-- **The battery current reading.** With everything powered and the motors stopped the
-  Pixhawk's log shows 0.00 A (2026-11-22), so the avionics either draw less than the
-  sensor can see or are wired ahead of it. Whether the sensor reads at all is not known
-  until the motors spin; the hover-time measurement depends on it.
+- **The avionics' share of the battery current.** With the motors stopped the Pixhawk's
+  log shows 0.00 A, so the avionics either draw less than the sensor can see or are wired
+  ahead of it. The sensor itself works: it read 8.8 A in hover on 2026-11-22.
 - **File dates away from Wi-Fi.** The Pi has no clock battery. At power-up its clock
   resumes from the last time it was running (2026-11-22: it woke believing it was the day
   before until the network corrected it), so in the field the file names carry an old

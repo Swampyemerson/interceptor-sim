@@ -6,7 +6,14 @@
 >
 > *Rewritten 2026-07-26: this file had grown to 883 lines of stacked superseded banners — the "too much text" problem in miniature. It is now the SHORT live queue only. **Rule: items live here or on the board, not both; superseded blocks go to the archive the same turn they are superseded, never left in place with a strikethrough.***
 
-## Where the project is (2026-11-18)
+## Where the project is (2026-11-22)
+
+**The assembled interceptor flew by hand on 2026-11-22 and its camera jams its own GPS.**
+The aircraft followed its commands well, and the Pi saved a clean log and video. But the
+GPS loses its fix within a second of the camera starting, and the chase needs both at
+once. Until the camera ribbon is shielded or the GPS moved, no automatic flight is
+possible. Evidence: `runs/interceptor_flight_20261122/README.md`. What follows is the
+state as of 2026-11-18, still true.
 
 **No automatic flight has happened yet, and the next step is a props-off rehearsal on the
 real Pi and Pixhawk.** The interceptor flies by hand (2026-11-09) and the target flies a
@@ -44,7 +51,9 @@ Decisions: `docs/decisions.md` ADR-0139 and the 2026-11-18 addenda to ADR-0130 a
 | ⬜ | **Fly the target on one long straight leg at 9 to 12 m/s, logged.** It measures the cue's real speed error, the number the long-range dash turns on. | contract assumptions `cue-speed-error-at-long-range`, `search-declared-cue-quality` |
 | ⬜ | **Geofence against long range**: 457 m, Hold. Keep cues inside about 300 m, or widen it for those flights. | contract question `dash-envelope-on-real-fc` |
 | ⬜ | **Target after its fall (2026-11-15)**: inspect; choose low battery = land for the yard; fly on a 6 minute timer. | ADR-0138 addenda 17 and 18 |
-| ⬜ | **Interceptor recorder, props off**: arm 10 s in a manual mode (indoors it refuses to arm in Position mode), disarm; then tell me and I check the Pi for a new video and flight log. The recorder has never seen a real arming. Before any flight: `recorder_check.py` must say GO. | `docs/fc_logging_without_sd.md` |
+| ⬜ | **Stop the camera jamming the GPS.** Wrap the camera ribbon (tape for insulation, then foil or copper tape touching a ground point) or fit a shielded ribbon, and raise the GPS 8 to 10 cm on a mast if you can. Then tell me and I repeat the 30 s camera-on test: the pass mark is the satellite count not falling when the camera starts. | `runs/interceptor_flight_20261122/README.md` |
+| ⬜ | **Until that is fixed, choose per flight:** video at arming (GPS lost, fly by hand in Altitude or Stabilized) or no video (GPS kept). One line in `/etc/default/flight-recorder`; say which and I set it. | `docs/fc_logging_without_sd.md` |
+| ✅ | **Interceptor recorder at a real arming** (2026-11-22): clean log and 88 s of video on the first flight. Before any flight `recorder_check.py` must say GO. | `docs/fc_logging_without_sd.md` |
 | ⬜ | **Radio loss in automatic flight** returns home after 0.5 s on this board, so the transmitter-off test cannot pass as set. Change only after the watchdog is bench-proven. | interface audit G5 |
 | ⬜ | **Second transmitter (about $65)**, anemometer, tripod: not confirmed bought. Each aircraft needs its own arm and kill for a deliberate mid-air (ADR-0089). | [#5](https://github.com/Swampyemerson/interceptor-sim/issues/5) |
 | ⬜ | **Stamped-age latency mode**: adopt or keep off (prediction confirmed, strict bar missed 3 of 6; recommendation: keep off until the Pi's timestamps are bench-checked). | contract question `stamped-age-adoption` |
@@ -85,6 +94,12 @@ lost-target rule (the flight preset), cue window (5 s), board speed limit (33 m/
    proof. (G8 closed 2026-11-22: the recorder no longer takes the serial cable while
    another program has it open; bench-tested with a stand-in holder, not with the flight
    program itself.)
+8b. ⬜ **From the first flight's log (2026-11-22), not yet acted on**: the board's battery
+   gauge works from voltage alone and read 21 % after 12 % of the pack was used, so a
+   dash would trip the low-battery failsafe early (set the pack's capacity and
+   resistance, 32 milliohms measured); with no GPS the estimator's position ran 470 m
+   away and tripped the geofence; the height reference is set to GPS; `navigator low on
+   stack` repeats every 32 s; compass 1 reads the aircraft's own field.
 9. ⬜ **Real numbers the sims still assume**: drag (lean angle at a steady known speed),
    braking, full-throttle current through the power module (`docs/airframe_numbers.md`
    section 6), the decode curve outdoors.

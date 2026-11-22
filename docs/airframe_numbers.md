@@ -179,6 +179,13 @@ throttle ≈ √(W / T_max) = √(1 / 7.5)       = 37 %
   dash. Full throttle at the 86 A the target logged (uncalibrated sensor): about 50 s.
   A sortie of 60 s standby hover, a 20 s dash at 40 A and 60 s to return and land comes
   to roughly 0.55 Ah, a little under half the usable pack. None of this is flown.
+- **MEASURED 2026-11-22, first flight at 930 g:** 8.8 A at 22.4 V, 197 W, over 64 s of
+  hover (`runs/interceptor_flight_20261122/`, `flight_window.py`). That is inside the
+  calculated 7.3 to 9.8 A. At 80 % of the pack usable it gives 8.2 min. Hover needed 24 to
+  25 % motor command, against the 39 % this page derives from 1.5 kg per motor with thrust
+  going as command squared, so either the motors make more than 1.5 kg each or thrust is
+  closer to linear in command on this ESC; the thrust rig settles which. One flight, one
+  pack, wind not recorded. The pack measured 32 milliohms (voltage against current).
 - **How it gets measured:** a 60 s hover, current from the PM02 in the ULog, and the learned
   hover throttle (PX4 MPC_THR_HOVER; ArduPilot MOT_THST_HOVER on the target). The FC's
   card slot is dead, so the ULog comes from the Pi's flight recorder, which saves the log PX4
