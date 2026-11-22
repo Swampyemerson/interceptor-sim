@@ -21,8 +21,9 @@ on the laptop and in `~/fc_logs` on the Pi. Scripts here reproduce the numbers:
   test ratio median 0.14, never above 0.82, where 1.0 is the rejection line).
 - Heading was right: tilt-implied acceleration matches GPS acceleration with a correlation
   of 0.95 once the estimated heading is turned 7 degrees.
-- Not changed: `EKF2_REQ_SACC`. Raising it to about 1.0 m/s would very likely have kept
-  position through this flight; it also loosens a guard, so it is the builder's call.
+- **Changed after the flight, on the builder's yes: `EKF2_REQ_SACC` 0.5 to 1.0 m/s**, read
+  back. It would very likely have kept position through this flight. It loosens a guard,
+  so it goes back to 0.5 once the GPS is moved or shielded properly. Not yet flown.
 
 ## Compasses
 

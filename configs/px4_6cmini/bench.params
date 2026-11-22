@@ -300,6 +300,14 @@
 #     pack measurement (FC param writes need a read-back; so do ADC dividers).
 #     Source: docs.px4.io/v1.16 parameter reference (BAT1_N_CELLS).
 1	1	BAT1_N_CELLS	6	6
+#  EKF2_REQ_SACC = 1.0 -> the GPS speed accuracy PX4 demands before it will use the
+#     GPS (default 0.5 m/s). Raised 2026-11-22 on the builder's yes, read back. With
+#     the unit over the Pi it reports about 0.51 m/s (0.22 to 0.74) even at 11
+#     satellites, so the estimator kept letting go of a GPS that agreed with its other
+#     sensors (velocity test ratio median 0.14) and Position mode dropped out. This
+#     loosens a guard: put it back to 0.5 once the GPS is moved or shielded properly.
+#     Evidence: runs/interceptor_flight2_20261122/README.md.
+1	1	EKF2_REQ_SACC	1.000000	9
 #  BAT1_CAPACITY is deliberately NOT set (board value -1). It was set to 1350 on
 #     2026-11-22 and reverted the same day: a capacity switches on PX4's
 #     remaining-flight-time check, which fired twice in flight because the position

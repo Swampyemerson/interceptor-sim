@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->919679b<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->db93aa9<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-22",
- "updated_by": "Second flight: GPS fine with foil but PX4 gate drops it; thrust 4.2:1 measured; roll trim applied (2026-11-22)",
+ "updated_by": "GPS speed-accuracy limit raised to 1.0 m/s on the builder's yes; roll trim applied; awaiting third flight (2026-11-22)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -917,8 +917,8 @@
   "where": "The assembled interceptor (930 g) has flown twice by hand, with a clean log and video each time. It follows its commands well. Position mode still drops out in flight, so every flight so far ends up flown in height-hold only.",
   "finding": "Foil on the camera ribbon fixed reception (11 satellites in flight, was 5). Position still drops because the GPS rates its own speed at 0.51 m/s and PX4's limit is 0.5. Full throttle measured 4.2 times weight; the pack sags to 3.0 V per cell. Hover 8.9 A.",
   "next": [
-   "You: say yes or no to raising the GPS speed-accuracy limit from 0.5 to 1.0 m/s",
-   "You: recalibrate the compass; note the mAh the charger puts back after a flight"
+   "You: recalibrate the compass, fit a fresh pack, fly; the GPS speed limit is now 1.0 m/s",
+   "You: note the mAh the charger puts back after the flight"
   ],
   "evidence": "runs/interceptor_flight2_20261122/README.md - runs/interceptor_flight_20261122/README.md - runs/recorder_fault_test_20261122/ - docs/fc_logging_without_sd.md"
  },
@@ -5146,7 +5146,7 @@
    "loc_a": "docs/goals.md status banner; docs/decisions.md ADR-0118 and ADR-0139; flight/deploy/real_flight.py",
    "claim_b": "Measured on the assembled aircraft 2026-11-22: camera off, 6 to 7 satellites and a 3D fix; camera streaming at 1920x1200 or 1280x720, with or without encoding, 0 to 5 satellites and the fix lost within a second, back within 3 s of stopping. Processor load alone costs one satellite. In flight the position was lost 3.5 s after takeoff, 5 s after the recorder started the camera.",
    "loc_b": "runs/interceptor_flight_20261122/README.md; gps_camera_test.py and gps_windows.py in that folder",
-   "current_truth": "Reception is cured by foil round the camera ribbon (builder, 2026-11-22): 11 satellites and a 3D fix through a 131 s flight with the camera recording, against 5 to 6 and a lost fix before. Position mode still dropped out, for a different reason: the GPS reports its own speed accuracy at about 0.51 m/s and PX4's limit is 0.5 (EKF2_REQ_SACC), so the estimator keeps letting go of a GPS that otherwise agrees with it. Open: raise that limit or clean the signal further, make the foil permanent, recalibrate the compass.",
+   "current_truth": "Reception is cured by foil round the camera ribbon (builder, 2026-11-22): 11 satellites and a 3D fix through a 131 s flight with the camera recording, against 5 to 6 and a lost fix before. Position mode still dropped out, for a different reason: the GPS reports its own speed accuracy at about 0.51 m/s and PX4's limit is 0.5 (EKF2_REQ_SACC), so the estimator keeps letting go of a GPS that otherwise agrees with it. The limit was raised to 1.0 on the builder's yes the same day (read back, not yet flown); it goes back to 0.5 once the GPS is moved or shielded properly. Open: fly it, make the foil permanent, recalibrate the compass.",
    "resolution": ""
   }
  ]
