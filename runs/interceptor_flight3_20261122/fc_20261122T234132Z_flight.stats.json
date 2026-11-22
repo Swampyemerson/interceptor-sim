@@ -1,0 +1,106 @@
+{
+ "started_utc": "20261122T234132Z",
+ "port": "/dev/pixhawk-usb",
+ "baud": 921600,
+ "link": "usb",
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 425.83,
+ "end_reason": "flight ended",
+ "ever_armed": true,
+ "bytes_written": 19469453,
+ "kb_per_s": 45.72,
+ "packets": 78193,
+ "acked_packets": 526,
+ "duplicates": 0,
+ "gaps": 1,
+ "lost_packets": 5,
+ "gaps_at_startup": 1,
+ "gap_times_s": [
+  1.76
+ ],
+ "header_seconds": 1.76,
+ "framing_errors": 0,
+ "dropout_ms_total": 7,
+ "first_data_delay_s": 0.0,
+ "stop_result": "accepted",
+ "link_rates_hz": {
+  "ALTITUDE": 10.0,
+  "ATTITUDE": 99.9,
+  "ATTITUDE_QUATERNION": 49.9,
+  "ATTITUDE_TARGET": 10.0,
+  "BATTERY_STATUS": 0.5,
+  "COMMAND_ACK": 0.0,
+  "COMMAND_LONG": 0.0,
+  "ESTIMATOR_STATUS": 1.0,
+  "EXTENDED_SYS_STATE": 5.0,
+  "GLOBAL_POSITION_INT": 8.0,
+  "GPS_GLOBAL_ORIGIN": 0.0,
+  "GPS_RAW_INT": 10.0,
+  "HIGHRES_IMU": 49.9,
+  "HOME_POSITION": 0.5,
+  "LOCAL_POSITION_NED": 30.0,
+  "MISSION_CURRENT": 1.0,
+  "ODOMETRY": 30.0,
+  "OPEN_DRONE_ID_LOCATION": 1.0,
+  "OPEN_DRONE_ID_SYSTEM": 1.0,
+  "PARAM_VALUE": 0.0,
+  "PING": 1.0,
+  "POSITION_TARGET_LOCAL_NED": 10.0,
+  "RC_CHANNELS": 20.0,
+  "SCALED_PRESSURE": 1.0,
+  "SERIAL_CONTROL": 0.1,
+  "SERVO_OUTPUT_RAW": 10.0,
+  "STATUSTEXT": 0.6,
+  "SYSTEM_TIME": 1.0,
+  "SYS_STATUS": 5.0,
+  "TIMESYNC": 10.0,
+  "UNKNOWN_380": 0.5,
+  "UNKNOWN_410": 1.7,
+  "UNKNOWN_411": 0.3,
+  "UNKNOWN_413": 0.0,
+  "UNKNOWN_436": 0.5,
+  "UNKNOWN_8": 1.0,
+  "VFR_HUD": 10.0,
+  "VIBRATION": 0.5
+ },
+ "armed_seen_s": 365.79,
+ "armed_was_pretended": false,
+ "clock_pairs_unix_vs_fc_boot_ms": [
+  [
+   1795390893.192,
+   173709
+  ],
+  [
+   1795391318.208,
+   598711
+  ]
+ ],
+ "on_arm_command": {
+  "cmd": "/home/admin/interceptor-sim/.venv-pi/bin/python scripts/field/record_video.py --note flight --flip",
+  "starts": 1,
+  "pid": 1644,
+  "started_unix": 1795391258.315,
+  "started_s_after_arm_seen": 0.0,
+  "exit_code": 0
+ },
+ "ground_station_bridge": {
+  "udp_port": 14550,
+  "ground_stations_seen": [
+   "192.168.0.25"
+  ],
+  "connected_now": 1,
+  "bytes_to_ground_station": 10146512,
+  "bytes_from_ground_station": 21513
+ },
+ "gaps_after_startup": 0,
+ "verdict": "CLEAN"
+}

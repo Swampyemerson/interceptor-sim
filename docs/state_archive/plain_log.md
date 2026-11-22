@@ -676,3 +676,11 @@ The target drone would not arm although the ground station showed it ready. List
 **So what:** The drone should arm again; the builder confirms that, since no tool arms it. Why the card stopped is not known: power removed while a log was open fits, and so does a failing card, so if the message returns the card gets replaced. The route speed on the board had gone back to 10 m/s and is set to 3 again, and the course he uploaded carries its own 5 m/s setting that needs unticking before the first automatic flight.
 
 *Evidence: runs/target_sdcard_20261115/README.md + arm_watch_20261115.txt; ADR-0138 addendum 15; board read-back WP_SPD 3*
+
+## 2026-11-15 (overflowed from plain_log 2026-11-22)
+
+The target drone flew its first automatic course: five waypoints drawn in the ground-station app, repeated 11 times, about 13 seconds a lap, with no errors in the log. It stayed within 0.26 m of where its controller wanted it and within 0.06 m in height. Top speed was only 1.75 m/s because the loop's sides are about 3 m long. Three predictions written before an earlier flight were checked: pitch wobble and height hold passed, and the level trim passed in roll and missed in pitch by a tenth of a degree. The builder also did two full-throttle climbs by hand: 18 m/s upward, 24 m high, about 5 g.
+
+**So what:** The target can fly a pre-drawn route on its own, which is its job in an intercept test. What is not shown is speed: it must fly 9 m/s, and that needs sides of 40 m or more, so the next step is a bigger course at the field, stepping 3, 5, 7, 10 m/s. Three things from the climbs to settle first: the compass is disturbed at high motor current, the drone tumbles when throttle is cut to zero in manual mode, and the current sensor reads roughly double.
+
+*Evidence: runs/target_flight6_20261115/README.md; ADR-0138 addendum 16; log copy on the PC (not in the repo)*

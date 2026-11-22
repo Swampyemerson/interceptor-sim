@@ -8,12 +8,13 @@
 
 ## Where the project is (2026-11-22)
 
-**The assembled interceptor flew by hand on 2026-11-22 and its camera jams its own GPS.**
-The aircraft followed its commands well, and the Pi saved a clean log and video. But the
-GPS loses its fix within a second of the camera starting, and the chase needs both at
-once. Until the camera ribbon is shielded or the GPS moved, no automatic flight is
-possible. Evidence: `runs/interceptor_flight_20261122/README.md`. What follows is the
-state as of 2026-11-18, still true.
+**The assembled interceptor flew by hand three times on 2026-11-22; the GPS is the wall.**
+The aircraft follows its commands well and the Pi saved a clean log and video every time.
+The camera link jams the GPS; foil on the ribbon made it marginal, not good, and every
+flight failed from the estimator dropping the GPS. **The plan is
+`docs/gps_reception_plan.md`: measure the GPS at several heights with a metal plate under
+it, then print a mount to the size that works.** No automatic flight before that. What
+follows is the state as of 2026-11-18, still true.
 
 **No automatic flight has happened yet, and the next step is a props-off rehearsal on the
 real Pi and Pixhawk.** The interceptor flies by hand (2026-11-09) and the target flies a
@@ -51,10 +52,12 @@ Decisions: `docs/decisions.md` ADR-0139 and the 2026-11-18 addenda to ADR-0130 a
 | ⬜ | **Fly the target on one long straight leg at 9 to 12 m/s, logged.** It measures the cue's real speed error, the number the long-range dash turns on. | contract assumptions `cue-speed-error-at-long-range`, `search-declared-cue-quality` |
 | ⬜ | **Geofence against long range**: 457 m, Hold. Keep cues inside about 300 m, or widen it for those flights. | contract question `dash-envelope-on-real-fc` |
 | ⬜ | **Target after its fall (2026-11-15)**: inspect; choose low battery = land for the yard; fly on a 6 minute timer. | ADR-0138 addenda 17 and 18 |
-| ⬜ | **Position mode still drops out; the GPS itself is now fine.** With the foil the second flight held 11 satellites, but PX4 keeps letting go of the GPS because the unit rates its own speed accuracy at about 0.51 m/s against a limit of 0.5. `EKF2_REQ_SACC` was raised to 1.0 on your yes (2026-11-22, read back); the next flight shows whether Position mode now holds. Make the foil permanent (insulated underneath, taped down, touching a ground point). | `runs/interceptor_flight2_20261122/README.md` |
-| ⬜ | **Recalibrate the compass** now the foil and layout are final (PX4 declared the GPS unit's compass faulty late in the second flight). | same |
-| ⬜ | **After the next flight, note the mAh the charger puts back.** It settles the pack's real capacity against the 324 mAh the sensor counted. | same |
-| ⬜ | **Roll trim of 2 degrees applied (2026-11-22).** Tell me whether the sideways drift is gone, the same, or reversed. | same |
+| ⬜ | **GPS bench session** (outdoors, props off, about 30 min): the GPS unit at several heights with a plate under it, camera running; I read the numbers and we pick the mount's size. | `docs/gps_reception_plan.md` step 1 |
+| ⬜ | **Yes or no: barometer as the height reference, and a sharper Position mode.** Height hold followed 8 m of GPS altitude wander in flight 3; Position mode answers the sticks in 0.4 to 0.6 s. | `docs/gps_reception_plan.md` step 3 |
+| ⬜ | **Recalibrate the compass outdoors, away from metal.** Today's recalibration left it reading 0.39 to 0.42 G against 0.51; I check the reading afterwards. | `runs/interceptor_flight3_20261122/README.md` |
+| ⬜ | **Check the pod's fasteners and do the tap test**: sideways vibration grew across the three flights. | same |
+| ⬜ | **Note the mAh the charger puts back** into today's packs. | `runs/interceptor_flight2_20261122/README.md` |
+| ⬜ | **Roll trim of 2 degrees applied (2026-11-22)**; flight 3 could not confirm it. Watch for sideways drift in Altitude mode next time. | same |
 | ⬜ | **For lean angle against speed** (drag, and the camera angle that follows from it): straight runs of 5 s or more at two or three steady speeds. | same |
 | ⬜ | **Charge habit:** the avionics drain the pack while it sits powered, unseen by the gauge (about a quarter of the pack an hour, estimated). Plug the flight pack in last. | `runs/interceptor_flight_20261122/README.md` |
 | ✅ | **Interceptor recorder at a real arming** (2026-11-22): clean log and 88 s of video on the first flight. Before any flight `recorder_check.py` must say GO. | `docs/fc_logging_without_sd.md` |

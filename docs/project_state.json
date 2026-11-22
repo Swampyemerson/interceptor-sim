@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-22",
-  "updated_by": "GPS speed-accuracy limit raised to 1.0 m/s on the builder's yes; roll trim applied; awaiting third flight (2026-11-22)",
+  "updated_by": "Third flight read; plan for a clean GPS and compass written: measure before printing a mount (2026-11-22)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-11-22",
-    "where": "The assembled interceptor (930 g) has flown twice by hand, with a clean log and video each time. It follows its commands well. Position mode still drops out in flight, so every flight so far ends up flown in height-hold only.",
-    "finding": "Foil on the camera ribbon fixed reception (11 satellites in flight, was 5). Position still drops because the GPS rates its own speed at 0.51 m/s and PX4's limit is 0.5. Full throttle measured 4.2 times weight; the pack sags to 3.0 V per cell. Hover 8.9 A.",
+    "where": "Three hand flights today, each with a clean log and video. The aircraft follows its commands well. Every flight went wrong the same way: the estimator dropped the GPS and picked it up again, and position, height and heading failed from there.",
+    "finding": "Foil on the camera ribbon took the GPS from unusable to marginal (9 to 11 satellites, dips to 6). Flight 3 held Position mode 24 s, then lost GPS, compass and heading in turn. Height hold follows GPS altitude, which wandered 8 m. Thrust 4.2 times weight.",
     "next": [
-      "You: recalibrate the compass, fit a fresh pack, fly; the GPS speed limit is now 1.0 m/s",
-      "You: note the mAh the charger puts back after the flight"
+      "You: one outdoor bench session, props off, GPS at several heights; I read the numbers",
+      "You: yes or no to barometer height and a sharper Position mode (docs/gps_reception_plan.md)"
     ],
-    "evidence": "runs/interceptor_flight2_20261122/README.md - runs/interceptor_flight_20261122/README.md - runs/recorder_fault_test_20261122/ - docs/fc_logging_without_sd.md"
+    "evidence": "docs/gps_reception_plan.md - runs/interceptor_flight3_20261122/README.md - runs/interceptor_flight2_20261122/README.md - runs/interceptor_flight_20261122/README.md"
   },
   "assumptions": [
     {
@@ -655,6 +655,12 @@
   "plain_log": [
     {
       "date": "2026-11-22",
+      "text": "Third flight, in Position mode, 49 seconds; the builder found it less stable and sluggish. Position mode held for 24 seconds, then the GPS fell to 6 satellites and the estimator let go of it. When it came back the estimator blamed the compass and switched it off, and twelve seconds later its heading jumped 48 degrees in one step while the aircraft had not turned. Three causes of the bad feel, all in the log: height hold follows GPS altitude, which wandered 8 m while the barometer stayed within 3; Position mode answers the sticks after 0.4 to 0.6 seconds against 0.14 in the mode flown before, by PX4's default smoothing; and the heading loss. The compass recalibration done before this flight made the compass read 0.39 to 0.42 G where the Earth's field is 0.51; before it read 0.49.",
+      "so_what": "Flying is done for the day. The plan (docs/gps_reception_plan.md): one outdoor bench session with the GPS at several heights and a metal plate under it, camera running, to find the smallest arrangement that gets a clean signal, and only then print a mount to that size. Alongside: barometer as the height reference, a sharper Position mode, and a compass recalibration away from metal. All three flights were logged and filmed by the Pi without a gap.",
+      "evidence": "runs/interceptor_flight3_20261122/README.md (flight3_read.py, flight3_followup.py); docs/gps_reception_plan.md"
+    },
+    {
+      "date": "2026-11-22",
       "text": "Second flight, with foil round the camera ribbon: 131 seconds in a box of about 8 by 6 metres, two full-throttle punches. The GPS held 11 satellites with the camera recording, against 5 on the first flight, so the foil works. Position mode still dropped out three times. The reason this time is a threshold: the GPS rates its own speed accuracy at about 0.51 m/s and PX4 refuses anything above 0.5, although the GPS agreed well with the other sensors whenever it was used. Full throttle gave 4.2 times the aircraft's weight, 0.98 kg per motor, at 77 A, with the pack sagging to 3.0 V per cell. The camera sits about 17 degrees up, read from a video frame. I set the pack capacity on the board before this flight; that switched on a time-to-empty check which misfired twice, so I took it off again.",
       "so_what": "Thrust is limited by the battery, not the motors: on a pack that held its voltage the same motors would make about 1.45 kg each. A roll trim of 2 degrees is applied from the hover data; it is right if there was no steady crosswind. Lean angle against speed could not be measured: the flight never held a steady speed above 2 m/s. The compass in the GPS unit was declared faulty late in the flight and needs recalibrating.",
       "evidence": "runs/interceptor_flight2_20261122/README.md (GPS, thrust and sag tables, trim, camera angle); board read-back SENS_BOARD_X_OFF -0.61, BAT1_CAPACITY -1"
@@ -718,12 +724,6 @@
       "text": "On its seventh flight the target drone began climbing by itself; the builder cut the motors and it fell from 5.8 m. The cause was written down as two candidates before the log was read, and the log settled it: the battery had been under 21.6 V for ten seconds, so the drone began its automatic return home. Away from home that starts with a climb toward 15 m and ignores the throttle stick. He pulled the throttle down, nothing happened, and he cut the motors three seconds in. The storage card was intact after all; the board had just not connected to it after the landing, and all three logs are copied. The flight lasted 8.3 minutes and included about 13 more automatic laps.",
       "so_what": "This was the drone doing what it was set up to do, not a control fault, but a setting nobody had explained to the pilot is a hazard of its own. Proposed, his choice: make low battery mean land in place for yard flying, put height-hold in the middle switch position so getting out of return-home does not pass through manual throttle, and fly on a 6 minute timer. The drone needs a look-over after the fall before it flies again.",
       "evidence": "runs/target_flight7_20261115/README.md (predictions and result); ADR-0138 addenda 17 and 18; log 3 copy on the PC (not in the repo)"
-    },
-    {
-      "date": "2026-11-15",
-      "text": "The target drone flew its first automatic course: five waypoints drawn in the ground-station app, repeated 11 times, about 13 seconds a lap, with no errors in the log. It stayed within 0.26 m of where its controller wanted it and within 0.06 m in height. Top speed was only 1.75 m/s because the loop's sides are about 3 m long. Three predictions written before an earlier flight were checked: pitch wobble and height hold passed, and the level trim passed in roll and missed in pitch by a tenth of a degree. The builder also did two full-throttle climbs by hand: 18 m/s upward, 24 m high, about 5 g.",
-      "so_what": "The target can fly a pre-drawn route on its own, which is its job in an intercept test. What is not shown is speed: it must fly 9 m/s, and that needs sides of 40 m or more, so the next step is a bigger course at the field, stepping 3, 5, 7, 10 m/s. Three things from the climbs to settle first: the compass is disturbed at high motor current, the drone tumbles when throttle is cut to zero in manual mode, and the current sensor reads roughly double.",
-      "evidence": "runs/target_flight6_20261115/README.md; ADR-0138 addendum 16; log copy on the PC (not in the repo)"
     }
   ],
   "narrative": {
@@ -4249,7 +4249,7 @@
       "loc_a": "docs/goals.md status banner; docs/decisions.md ADR-0118 and ADR-0139; flight/deploy/real_flight.py",
       "claim_b": "Measured on the assembled aircraft 2026-11-22: camera off, 6 to 7 satellites and a 3D fix; camera streaming at 1920x1200 or 1280x720, with or without encoding, 0 to 5 satellites and the fix lost within a second, back within 3 s of stopping. Processor load alone costs one satellite. In flight the position was lost 3.5 s after takeoff, 5 s after the recorder started the camera.",
       "loc_b": "runs/interceptor_flight_20261122/README.md; gps_camera_test.py and gps_windows.py in that folder",
-      "current_truth": "Reception is cured by foil round the camera ribbon (builder, 2026-11-22): 11 satellites and a 3D fix through a 131 s flight with the camera recording, against 5 to 6 and a lost fix before. Position mode still dropped out, for a different reason: the GPS reports its own speed accuracy at about 0.51 m/s and PX4's limit is 0.5 (EKF2_REQ_SACC), so the estimator keeps letting go of a GPS that otherwise agrees with it. The limit was raised to 1.0 on the builder's yes the same day (read back, not yet flown); it goes back to 0.5 once the GPS is moved or shielded properly. Open: fly it, make the foil permanent, recalibrate the compass.",
+      "current_truth": "Foil round the camera ribbon took the GPS from unusable to marginal: 9 to 11 satellites in flight with dips to 6, the unit rating its own speed accuracy at 0.5 to 0.9 m/s. That is not enough: in all three flights of 2026-11-22 the estimator dropped the GPS and picked it up again, and position hold, height hold and heading failed from there (flight 3: compass declared faulty, then a 48 degree heading jump). The speed-accuracy limit is at 1.0 for now. Plan: docs/gps_reception_plan.md, measure the GPS at several heights with a ground plate before printing a mount.",
       "resolution": ""
     }
   ]

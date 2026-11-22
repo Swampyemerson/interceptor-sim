@@ -1,0 +1,24 @@
+{
+ "created_utc": "20261122T234739Z",
+ "size": [
+  1920,
+  1200
+ ],
+ "asked_fps": 60,
+ "flip_180": true,
+ "note": "flight",
+ "recording_started_unix_approx": 1795391259.948,
+ "fc_log_stamp": "20261122T234132Z",
+ "requested_exposure_us": "auto",
+ "applied_exposure_us": 9996,
+ "applied_gain": 1.0399999618530273,
+ "frames": 3463,
+ "seconds_of_video": 58.17,
+ "wall_seconds": 59.0,
+ "measured_fps": 59.51,
+ "gaps_over_1.5_frames": 0,
+ "worst_gap_ms": 16.8,
+ "video_MB": 438.6,
+ "temp": "temp=25.7'C",
+ "throttled": "throttled=0x0"
+}
