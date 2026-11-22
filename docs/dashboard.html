@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->758d74e<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->d3ffbc6<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -5055,7 +5055,7 @@
    "loc_a": "project_state.json constraints/binary-kill; docs/hardware_order_list.md sec 0b/0c",
    "claim_b": "The interceptor's Pixhawk 6C Mini microSD slot is dead, so it cannot write a flight log to its own card. Every flight verdict up to 2026-11-13 has been by eye, ear and touch.",
    "loc_b": "project_state.json build_tab (FC High-Endurance microSD); docs/fc_logging_without_sd.md",
-   "current_truth": "The rule can be met another way but has not been yet. Since 2026-11-13 a Pi service saves the flight log PX4 streams to it, plus camera video while armed. On the bench the log is complete over a USB cable and loses about a third over the serial cable. No real flight has been recorded, and the USB cable is not fitted on the aircraft.",
+   "current_truth": "The rule can be met another way but has not been yet. A Pi service saves the flight log PX4 streams to it, plus camera video while armed. The Pixhawk's USB is now in the Pi on the assembled aircraft and the log is complete there (2026-11-22: about half a second missing in 108 s, all while QGroundControl connected). The service rides out a lost cable and keeps the video through it (bench-tested with a software cable pull). No real arming or flight has been recorded.",
    "resolution": "OPEN until a real flight produces a clean interceptor log. Path chosen in ADR-0137: fit a Pixhawk-to-Pi USB cable, do a props-off arm test, then fly with the Pi. Replacing the flight controller stays the builder's option. Found by the 2026-11-09 staleness audit."
   },
   {
@@ -5081,7 +5081,7 @@
    "loc_a": "docs/kill_day_protocol.md sections 4 (L0), 5.3, 5.4",
    "claim_b": "The only live path is the simulator smoke mode: default trigger fires GO by itself, default detector is synthetic, the program arms and takes off on its own, a hung program keeps the last velocity command flowing, and teardown commands a landing under a pilot who has taken over. Radio loss returns home even in automatic flight, so the transmitter-off test cannot pass as the board is set.",
    "loc_b": "docs/interface_audit_2026-11-18.md G1, G2, G5, G6, G11; runs/fc_readonly_20261118/interceptor_params.txt",
-   "current_truth": "Code now exists and is merged (2026-11-18): --fly (the only mode that arms on a serial link; RC arm permit; refuses synthetic trigger or detector), --bench-props-off (cannot arm), an out-of-process watchdog, a teardown that leaves a pilot alone, stale own-state goes SAFE, and the board's limits are read before arming. Tested on the laptop against a fake vehicle and a simulated PX4 only. STILL OPEN: no run on the real Pi and Pixhawk (held: props on), the GO and permit switches never read from the real board, radio loss still returns home in automatic flight (G5), the recorder can still fall back onto the guidance port (G8), and the field protocol's wording is ahead of any bench proof.",
+   "current_truth": "Code now exists and is merged (2026-11-18): --fly (the only mode that arms on a serial link; RC arm permit; refuses synthetic trigger or detector), --bench-props-off (cannot arm), an out-of-process watchdog, a teardown that leaves a pilot alone, stale own-state goes SAFE, and the board's limits are read before arming. Tested on the laptop against a fake vehicle and a simulated PX4 only. STILL OPEN: no run on the real Pi and Pixhawk (held: props on), the GO and permit switches never read from the real board, radio loss still returns home in automatic flight (G5), and the field protocol's wording is ahead of any bench proof. G8 closed 2026-11-22: the recorder leaves the serial cable alone while another program has it open.",
    "resolution": ""
   },
   {
