@@ -15,6 +15,10 @@ no dropped frames (runs/hailo_day1_20261113/README.md).
 Outdoors 2026-11-15, full sun, --flip --exposure-us 150: 59.5 fps, no gaps, about 7.8 MB per second of
 video (58 MB for 7.4 s), so budget about 470 MB per minute. The picture came out upside down
 as the rig sat that day (not checked whether the airframe itself was upright): check a frame, pass --flip if so.
+2026-11-22, on the assembled interceptor (nose mount, ribbon connector up, aircraft level): upside down
+without --flip, so the flight recorder service passes --flip.
+If the video file stops growing for STALL_S seconds (camera or ribbon fault) the program writes what it
+knows to meta.json and exits 2; the flight recorder then starts a fresh recording.
 """
 import argparse
 import json
@@ -22,6 +26,21 @@ import os
 import signal
 import sys
 import time
+
+
+STALL_S = 3.0
+
+
+class GrowthWatch:
+    """True from stalled() once a file's size has not grown for `stall_s` seconds."""
+
+    def __init__(self, stall_s: float, now: float):
+        self.stall_s, self.size, self.since = stall_s, -1, now
+
+    def stalled(self, size: int, now: float) -> bool:
+        if size > self.size:
+            self.size, self.since = size, now
+        return now - self.since > self.stall_s
 
 
 def main() -> int:
@@ -39,7 +58,6 @@ def main() -> int:
     from picamera2.encoders import H264Encoder
     from picamera2.outputs import FileOutput
     w, h = (int(v) for v in a.size.lower().split("x"))
-    d = os.path.join(a.out_dir, time.strftime("video_%Y%m%dT%H%M%SZ", time.gmtime())); os.makedirs(d)
     ctrl = {"FrameRate": a.fps}
     if a.exposure_us:
         ctrl.update({"AeEnable": False, "ExposureTime": a.exposure_us})
@@ -47,6 +65,8 @@ def main() -> int:
     cam = Picamera2()
     cam.configure(cam.create_video_configuration(main={"size": (w, h), "format": "YUV420"}, controls=ctrl, buffer_count=8,
                                                  transform=Transform(hflip=a.flip, vflip=a.flip)))
+    # The folder is made only once the camera has opened: a busy camera leaves no empty folder.
+    d = os.path.join(a.out_dir, time.strftime("video_%Y%m%dT%H%M%SZ", time.gmtime())); os.makedirs(d)
     stop = {"now": False}
     signal.signal(signal.SIGINT, lambda *_: stop.update(now=True)); signal.signal(signal.SIGTERM, lambda *_: stop.update(now=True))
     video, pts = os.path.join(d, "video.h264"), os.path.join(d, "frames.pts")
@@ -57,8 +77,19 @@ def main() -> int:
     # Push the video to the card every second: a flight usually ends with the battery being
     # unplugged, and Linux otherwise holds up to ~30 s of written data in memory.
     fds = [os.open(p, os.O_RDONLY) for p in (video, pts)]; last_sync = time.time()
+    watch = GrowthWatch(STALL_S, time.time())
     while not stop["now"] and (a.seconds <= 0 or time.time() - t0 < a.seconds):
         time.sleep(0.2)
+        if watch.stalled(os.path.getsize(video), time.time()):
+            # No new video for STALL_S: the camera has stopped delivering. Closing it can hang,
+            # so say what happened and leave at once; whoever started us starts a new recording.
+            print(f"FAIL: the video stopped growing for {STALL_S:g} s; exiting so it can be restarted", flush=True)
+            json.dump({"created_utc": os.path.basename(d)[6:], "note": a.note, "stalled": True, "flip_180": a.flip,
+                       "recording_started_unix_approx": round(t0, 3), "fc_log_stamp": os.environ.get("FC_LOG_STAMP"),
+                       "wall_seconds": round(time.time() - t0, 1), "video_MB": round(os.path.getsize(video) / 1e6, 1)},
+                      open(os.path.join(d, "meta.json"), "w"), indent=1)
+            for fd in fds: os.fsync(fd)
+            os._exit(2)
         if time.time() - last_sync >= 1.0:
             for fd in fds: os.fsync(fd)
             last_sync = time.time()

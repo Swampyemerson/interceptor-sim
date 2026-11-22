@@ -34,7 +34,8 @@ if [[ ! -e /etc/default/flight-recorder ]]; then
 #FALLBACK_PORT=/dev/ttyAMA10
 #
 # Command run while armed. Outdoors a fixed short exposure freezes motion:
-#VIDEO_CMD=$PY scripts/field/record_video.py --note flight --exposure-us 1000
+# (--flip because the nose camera is mounted upside down; keep it.)
+#VIDEO_CMD=$PY scripts/field/record_video.py --note flight --flip --exposure-us 150
 CONF
 fi
 if ! grep -q GCS_PORT /etc/default/flight-recorder; then

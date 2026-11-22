@@ -81,11 +81,53 @@ STARTUP_GRACE_S = 1.0
 SYNC_EVERY_S = 1.0
 HOOK_MIN_FREE_BYTES = 5 * 1024**3   # do not start a video with less card space than this
 HOOK_STOP_WAIT_S = 20.0
+HOOK_RETRY_EVERY_S = 5.0            # an on-arm command that died is started again this often,
+HOOK_MAX_STARTS = 12                # at most this many times per flight
+STATUS_FILE = "/dev/shm/flight_recorder_status.json"   # memory, not the card: rewritten every second
+STATUS_EVERY_S = 1.0
 MAV_COMP_ID_AUTOPILOT = 1
 GCS_DEFAULT_PORT = 14550            # the port QGroundControl listens on by itself
 GCS_SILENT_AFTER_S = 10.0           # a ground station sends a heartbeat every second
 GCS_MAX_CLIENTS = 4
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+NOTIFY = None        # set in main(): shows a line in the ground station's message list
+
+
+def note(text: str, severity: int = 6) -> None:
+    """Print to the journal and, when a ground station is connected, show it there too."""
+    print(text, flush=True)
+    if NOTIFY is not None:
+        try:
+            NOTIFY(text, severity)
+        except Exception:                      # telling the operator must never stop the recording
+            pass
+
+
+class StatusFile:
+    """A small JSON file saying what the recorder is doing right now.
+
+    scripts/field/recorder_check.py reads it for the go / no-go before a flight.
+    Kept in memory (/dev/shm), replaced whole each time, at most once a second.
+    """
+
+    def __init__(self, path: str | None, clock=time.monotonic):
+        self.path, self.clock, self.last = path, clock, -1e9
+
+    def write(self, force: bool = False, **fields) -> None:
+        now = self.clock()
+        if not self.path or (not force and now - self.last < STATUS_EVERY_S):
+            return
+        self.last = now
+        fields["updated_unix"] = round(time.time(), 2)
+        try:
+            tmp = self.path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(fields, f, indent=1)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
 
 
 class UlogAssembler:
@@ -199,6 +241,8 @@ def verdict(stats: dict) -> str:
         return "EMPTY"
     if stats["gaps_after_startup"] or stats["framing_errors"]:
         return "GAPS"
+    if str(stats.get("end_reason", "")).startswith("link lost"):
+        return "LINK_LOST"
     if stats.get("stop_result") != "accepted":
         return "UNCLEAN_STOP"
     return "CLEAN"
@@ -253,11 +297,42 @@ def recover_part_files(out_dir: str) -> list[str]:
     return kept
 
 
-def pick_port(usb_port: str, fallback_port: str | None, exists=os.path.exists) -> str | None:
-    """USB when the Pixhawk is plugged into this computer, else the fallback, else None."""
+def others_holding(path: str, proc_root: str = "/proc") -> list[str]:
+    """Other programs that have this device open, as "pid name" (Linux; [] where unknown)."""
+    target = os.path.realpath(path)
+    me = str(os.getpid())
+    found = []
+    try:
+        pids = [p for p in os.listdir(proc_root) if p.isdigit() and p != me]
+    except OSError:
+        return found
+    for pid in pids:
+        fd_dir = os.path.join(proc_root, pid, "fd")
+        try:
+            links = [os.readlink(os.path.join(fd_dir, fd)) for fd in os.listdir(fd_dir)]
+        except OSError:
+            continue                           # gone, or another user's program
+        if any(os.path.realpath(link) == target for link in links):
+            try:
+                with open(os.path.join(proc_root, pid, "comm")) as f:
+                    name = f.read().strip()
+            except OSError:
+                name = "?"
+            found.append(f"{pid} {name}")
+    return found
+
+
+def pick_port(usb_port: str, fallback_port: str | None, exists=os.path.exists,
+              holders=others_holding) -> str | None:
+    """USB when the Pixhawk is plugged into this computer, else the fallback, else None.
+
+    The fallback is the serial cable the flight program steers through. If another
+    program has it open, it is left alone: sharing it would give each reader half
+    the bytes, and the guidance link matters more than the log.
+    """
     if exists(usb_port):
         return usb_port
-    if fallback_port and exists(fallback_port):
+    if fallback_port and exists(fallback_port) and not holders(fallback_port):
         return fallback_port
     return None
 
@@ -265,45 +340,82 @@ def pick_port(usb_port: str, fallback_port: str | None, exists=os.path.exists) -
 class ArmHook:
     """Run a command while the vehicle is flying (the camera recorder).
 
-    start() at arm, stop() when the flight's file closes. A hook that fails to
-    start, or dies, is reported in the stats and never stops the log recording.
+    start() while armed, stop() when the flight is over. The record loop calls
+    start() on every pass while armed, so a command that died (camera glitch) is
+    started again, every HOOK_RETRY_EVERY_S, up to HOOK_MAX_STARTS times a flight.
+    A hook that fails to start, or dies, is reported in the stats and never stops
+    the log recording. It belongs to the whole service, not to one cable: losing
+    the Pixhawk link does not stop it.
     """
 
     def __init__(self, cmd: str | None, cwd: str, popen=subprocess.Popen,
-                 free_bytes=lambda path: shutil.disk_usage(path).free):
+                 free_bytes=lambda path: shutil.disk_usage(path).free, clock=time.monotonic):
         self.argv = shlex.split(cmd) if cmd else None
         self.cwd = cwd
         self._popen = popen
         self._free_bytes = free_bytes
+        self._clock = clock
         self.proc = None
         self.report: dict = {}
+        self.starts = 0
+        self.last_start = 0.0
+        self.stamp = ""
 
     def running(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
 
+    def state(self) -> str:
+        """One word for the status file: off, idle, recording, or failed."""
+        if self.argv is None:
+            return "off"
+        if self.running():
+            return "recording"
+        return "failed" if self.starts else "idle"
+
     def start(self, stamp: str, t_since_arm: float = 0.0) -> None:
-        if self.argv is None or self.proc is not None or self.report:
-            return                    # no command, already running, or already tried this flight
-        self.report = {"cmd": " ".join(self.argv)}
+        if self.argv is None or self.running() or self.report.get("skipped"):
+            return                    # no command, already running, or cannot run this flight
+        now = self._clock()
+        if self.starts and (self.starts >= HOOK_MAX_STARTS
+                            or now - self.last_start < HOOK_RETRY_EVERY_S):
+            return
+        if self.proc is not None:     # it ended by itself while the aircraft is still armed
+            self.report.setdefault("died", []).append(
+                {"exit_code": self.proc.returncode,
+                 "s_after_its_start": round(now - self.last_start, 1)})
+            note(f"on-arm command DIED (exit {self.proc.returncode}), starting it again "
+                 f"(start {self.starts + 1} of at most {HOOK_MAX_STARTS})", 4)
+            self.proc = None
+        self.starts += 1
+        self.last_start = now
+        self.stamp = stamp
+        self.report.setdefault("cmd", " ".join(self.argv))
+        self.report["starts"] = self.starts
         if self._free_bytes(self.cwd) < HOOK_MIN_FREE_BYTES:
             self.report["skipped"] = "less than 5 GB free on the card"
-            print("on-arm command SKIPPED: card nearly full", flush=True)
+            note("on-arm command SKIPPED: card nearly full, NO VIDEO this flight", 3)
             return
         try:
             self.proc = self._popen(self.argv, cwd=self.cwd,
                                     env={**os.environ, "FC_LOG_STAMP": stamp})
         except OSError as e:
             self.report["skipped"] = f"could not start: {e}"
-            print(f"on-arm command FAILED to start: {e}", flush=True)
+            note(f"on-arm command FAILED to start: {e}", 3)
             return
-        self.report.update(pid=self.proc.pid, started_unix=round(time.time(), 3),
-                           started_s_after_arm_seen=round(t_since_arm, 2))
-        print(f"on-arm command started (pid {self.proc.pid})", flush=True)
+        if self.starts == 1:
+            self.report.update(pid=self.proc.pid, started_unix=round(time.time(), 3),
+                               started_s_after_arm_seen=round(t_since_arm, 2))
+        note(f"on-arm command started (pid {self.proc.pid})")
+
+    def keep_alive(self) -> None:
+        """While the Pixhawk link is away and a flight's command was running: restart it if it died."""
+        if self.starts and not self.running():
+            self.start(self.stamp)
 
     def stop(self) -> dict:
         """Interrupt the command, wait for it to finish its files, return the report."""
         report, proc = self.report, self.proc
-        self.proc, self.report = None, {}
+        self.proc, self.report, self.starts = None, {}, 0
         if proc is None:
             return report
         if proc.poll() is None:
@@ -352,6 +464,8 @@ class GcsBridge:
             sock.setblocking(False)
         self.port, self.sock, self.clock, self.announce_to = port, sock, clock, announce_to
         self.write_to_fc = None                # set by whoever owns the Pixhawk link
+        self.vehicle_sysid = 1
+        self._mav = None
         self.clients: dict[tuple, float] = {}  # address -> when it last spoke
         self.last_pump = 0.0
         self._reset_counts()
@@ -382,6 +496,22 @@ class GcsBridge:
               and self.announce_to is not None):
             self._send(data, self.announce_to)
 
+    def say(self, text: str, severity: int = 6) -> None:
+        """Show a line in every connected ground station's message list.
+
+        It goes to the network only, never to the Pixhawk. Severity is MAVLink's:
+        3 error, 4 warning, 6 information.
+        """
+        if not self.clients:
+            return
+        from pymavlink.dialects.v20 import common as mav2
+        if self._mav is None:
+            self._mav = mav2.MAVLink(None, srcSystem=self.vehicle_sysid,
+                                     srcComponent=MAV_COMP_ID_LOG)
+        data = self._mav.statustext_encode(severity, ("Pi: " + text).encode()[:50]).pack(self._mav)
+        for addr in self.clients:
+            self._send(data, addr)
+
     def pump(self) -> None:
         """Pass whatever ground stations have sent on to the Pixhawk."""
         now = self.clock()
@@ -408,7 +538,10 @@ class GcsBridge:
             self.seen.add(addr[0])
             self.bytes_from_gcs += len(data)
             if self.write_to_fc is not None:
-                self.write_to_fc(data)
+                try:
+                    self.write_to_fc(data)
+                except OSError:
+                    pass                       # cable gone: the record loop notices and reconnects
         for addr in [a for a, t in self.clients.items() if now - t > GCS_SILENT_AFTER_S]:
             del self.clients[addr]
             print(f"ground station gone: {addr[0]}:{addr[1]}", flush=True)
@@ -425,7 +558,8 @@ class GcsBridge:
 
 
 class Recorder:
-    def __init__(self, args, bridge: GcsBridge | None = None):
+    def __init__(self, args, bridge: GcsBridge | None = None, hook: ArmHook | None = None,
+                 status: StatusFile | None = None):
         # The log packets only exist in MAVLink 2; PX4 answers in the version it hears.
         os.environ.setdefault("MAVLINK20", "1")
         from pymavlink import mavutil
@@ -442,8 +576,10 @@ class Recorder:
             bridge.write_to_fc = self.m.write
         self.armed = self.real_armed = False
         self.last_beat = 0.0
-        self.hook = ArmHook(args.on_arm, args.hook_cwd)
+        self.hook = hook if hook is not None else ArmHook(args.on_arm, args.hook_cwd)
+        self.status = status if status is not None else StatusFile(None)
         self.switch_to_usb = False
+        self.link_lost = False
 
     def _claim_port(self) -> None:
         """Make a second open() of this serial port fail (EBUSY) instead of sharing it."""
@@ -479,6 +615,10 @@ class Recorder:
         t0 = time.monotonic()
         while time.monotonic() - t0 < timeout and not self.should_stop():
             self.beat()
+            self.hook.keep_alive()
+            self.status.write(state="waiting for the Pixhawk to answer", port=self.port,
+                              video=self.hook.state(),
+                              free_gb=round(shutil.disk_usage(self.args.out_dir).free / 1e9, 1))
             msg = self.recv(0.05)
             if (msg is not None and msg.get_type() == "HEARTBEAT"
                     and msg.get_srcComponent() == MAV_COMP_ID_AUTOPILOT):
@@ -542,8 +682,12 @@ class Recorder:
         rates: dict[str, int] = {}
         was_armed = self.armed
         ever_armed = self.armed
-        disarm_t = None
         t0 = time.monotonic()
+        # A video left running across a lost link, with the aircraft now disarmed:
+        # the flight ended while we could not see it. Count the disarm from now.
+        disarm_t = t0 if (self.hook.running() and not self.armed) else None
+        self.link_lost = False
+        recent = [(t0, 0)]            # (time, bytes written) about 5 s back, for the live rate
         first_data_t = None
         last_data_t = t0
         last_print = t0
@@ -580,76 +724,106 @@ class Recorder:
                         clock_pairs[1:] = [pair]      # keep the first and the latest
 
             reason = "stop requested"
-            while True:
-                now = time.monotonic()
-                self.beat()
-                if self.should_stop():
-                    break
-                if a.seconds is not None and now - t0 >= a.seconds:
-                    reason = "--seconds reached"
-                    break
-                if now - last_data_t > a.stall_s:
-                    reason = f"no log data for {a.stall_s:.0f} s"
-                    break
-                if shutil.disk_usage(a.out_dir).free < MIN_FREE_BYTES:
-                    reason = "disk nearly full"
-                    self.stop_requested = True
-                    break
-                # --pretend-armed: bench test of everything that hangs off "armed" (file
-                # naming, the on-arm command) without arming anything.
-                pretend = (a.pretend_armed is not None
-                           and a.pretend_armed[0] <= now - t0 < sum(a.pretend_armed))
-                self.armed = self.real_armed or pretend
-                if self.armed:
-                    ever_armed = True
-                    if arm_seen_t is None:
-                        arm_seen_t = now
-                    self.hook.start(stamp, now - arm_seen_t)
-                if was_armed and not self.armed:
-                    disarm_t = now
-                if self.armed:
-                    disarm_t = None
-                was_armed = self.armed
-                if a.per_flight and disarm_t is not None and now - disarm_t > a.linger_s:
-                    reason = "flight ended"
-                    break
-                if (a.per_flight and not ever_armed
-                        and now - t0 > a.ground_rotate_min * 60.0):
-                    reason = "ground file rotated"
-                    break
-                if not self.armed and disarm_t is None and self.usb_appeared():
-                    reason = "USB link appeared; switching to it"
-                    self.switch_to_usb = True
-                    break
-                if now - last_sync >= SYNC_EVERY_S:
-                    f.flush()
-                    os.fsync(f.fileno())
-                    last_sync = now
-                # Short timeout on purpose: on Windows pymavlink SLEEPS half of it when
-                # idle, and every header packet waits for our ack (0.2 s here made the
-                # header take 22 s and cost a gap when the data began).
-                msg = self.recv(0.02)
-                if msg is not None:
-                    handle(msg)
-                if now - last_print > (5.0 if a.seconds is not None else 60.0):
-                    dt = now - t0
-                    print(f"  {dt:5.0f}s armed={self.armed} {asm.bytes_written / 1e6:.2f} MB "
-                          f"({asm.bytes_written / dt / 1000:.1f} KB/s) gaps={asm.gaps} "
-                          f"lost={asm.lost_packets}", flush=True)
-                    last_print = now
+            try:
+                while True:
+                    now = time.monotonic()
+                    self.beat()
+                    if self.should_stop():
+                        break
+                    if a.seconds is not None and now - t0 >= a.seconds:
+                        reason = "--seconds reached"
+                        break
+                    if now - last_data_t > a.stall_s:
+                        reason = f"no log data for {a.stall_s:.0f} s"
+                        break
+                    if shutil.disk_usage(a.out_dir).free < MIN_FREE_BYTES:
+                        reason = "disk nearly full"
+                        self.stop_requested = True
+                        break
+                    # --pretend-armed: bench test of everything that hangs off "armed" (file
+                    # naming, the on-arm command) without arming anything.
+                    pretend = (a.pretend_armed is not None
+                               and a.pretend_armed[0] <= now - t0 < sum(a.pretend_armed))
+                    self.armed = self.real_armed or pretend
+                    if self.armed:
+                        ever_armed = True
+                        if arm_seen_t is None:
+                            arm_seen_t = now
+                        self.hook.start(stamp, now - arm_seen_t)
+                    if was_armed and not self.armed:
+                        disarm_t = now
+                    if self.armed:
+                        disarm_t = None
+                    was_armed = self.armed
+                    if a.per_flight and disarm_t is not None and now - disarm_t > a.linger_s:
+                        reason = "flight ended"
+                        break
+                    if (a.per_flight and not ever_armed and disarm_t is None
+                            and now - t0 > a.ground_rotate_min * 60.0):
+                        reason = "ground file rotated"
+                        break
+                    if not self.armed and disarm_t is None and self.usb_appeared():
+                        reason = "USB link appeared; switching to it"
+                        self.switch_to_usb = True
+                        break
+                    if now - last_sync >= SYNC_EVERY_S:
+                        f.flush()
+                        os.fsync(f.fileno())
+                        last_sync = now
+                        recent.append((now, asm.bytes_written))
+                        del recent[:-6]
+                        self.status.write(
+                            state="recording", port=self.port, link=stats["link"],
+                            armed=self.armed, file=os.path.basename(tmp_path),
+                            seconds=round(now - t0, 1), megabytes=round(asm.bytes_written / 1e6, 2),
+                            recent_kb_per_s=round((asm.bytes_written - recent[0][1])
+                                                  / max(1e-6, now - recent[0][0]) / 1000, 1),
+                            gaps=asm.gaps, lost_packets=asm.lost_packets,
+                            last_gap_s_ago=(round(now - asm.gap_times[-1], 1)
+                                            if asm.gap_times else None),
+                            video=self.hook.state(), video_starts=self.hook.starts,
+                            free_gb=round(shutil.disk_usage(a.out_dir).free / 1e9, 1))
+                    # Short timeout on purpose: on Windows pymavlink SLEEPS half of it when
+                    # idle, and every header packet waits for our ack (0.2 s here made the
+                    # header take 22 s and cost a gap when the data began).
+                    msg = self.recv(0.02)
+                    if msg is not None:
+                        handle(msg)
+                    if now - last_print > (5.0 if a.seconds is not None else 60.0):
+                        dt = now - t0
+                        print(f"  {dt:5.0f}s armed={self.armed} {asm.bytes_written / 1e6:.2f} MB "
+                              f"({asm.bytes_written / dt / 1000:.1f} KB/s) gaps={asm.gaps} "
+                              f"lost={asm.lost_packets}", flush=True)
+                        last_print = now
+            except OSError as e:
+                # The cable went away (unplugged, Pixhawk rebooted). Close this file as it
+                # stands and let main() find a link again; a running video carries on.
+                reason = f"link lost: {e}"
+                self.link_lost = True
+                note(f"Pixhawk link LOST on {self.port}"
+                     + (" WHILE ARMED; video keeps recording" if self.armed else ""), 4)
 
             t_stream_end = time.monotonic()
             # STOP makes PX4 send a short acked tail (post-flight CPU load); keep
             # acking it until the final ack arrives.
+            stop_r = "not sent (link lost)"
             try:
                 if a.leave_running:
                     stop_r = "not sent (--leave-running)"
-                else:
-                    stop_r = self.command(MAV_CMD_LOGGING_STOP, on_msg=handle, timeout=4.0)
+                elif not self.link_lost:
+                    try:
+                        stop_r = self.command(MAV_CMD_LOGGING_STOP, on_msg=handle, timeout=4.0)
+                    except OSError:
+                        self.link_lost = True
                 f.flush()
                 os.fsync(f.fileno())
             finally:
-                hook_report = self.hook.stop()
+                # The video outlives this file whenever the aircraft is (or may still be)
+                # armed: a lost cable or a stalled stream must not cost the picture.
+                keep_video = (a.per_flight and self.armed and not self.should_stop()
+                              and self.hook.running())
+                hook_report = ({"still_running_into_next_file": True, "starts": self.hook.starts}
+                               if keep_video else self.hook.stop())
 
         dt = max(1e-6, t_stream_end - t0)
         stats.update(
@@ -722,6 +896,8 @@ def main() -> int:
     ap.add_argument("--gcs-udp-port", type=int, default=0,
                     help="also bridge the Pixhawk to a ground station (QGroundControl) on this "
                          f"UDP port; {GCS_DEFAULT_PORT} is the usual one, 0 = off (default)")
+    ap.add_argument("--status-file", default=STATUS_FILE,
+                    help="where to keep the live status for recorder_check.py ('' = none)")
     ap.add_argument("--pretend-armed", type=float, nargs=2, metavar=("AFTER_S", "FOR_S"),
                     default=None,
                     help="diagnostic only: treat the vehicle as armed for FOR_S seconds, "
@@ -745,45 +921,93 @@ def main() -> int:
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, on_signal)
 
+    global NOTIFY
     bridge = GcsBridge(args.gcs_udp_port) if args.gcs_udp_port else None
     if bridge is not None:
+        NOTIFY = bridge.say
         print(f"ground-station bridge on UDP port {args.gcs_udp_port}", flush=True)
+    hook = ArmHook(args.on_arm, args.hook_cwd)
+    status = StatusFile(args.status_file or None)
     worst = 0
-    while not stop["now"]:
-        args.active_port = args.port
-        if args.port == "auto":
-            args.active_port = pick_port(args.usb_port, args.fallback_port)
-            if args.active_port is None:
-                if not args.per_flight:
-                    print(f"FAIL: neither {args.usb_port} nor the fallback port exists", flush=True)
+    said_no_port = None
+    try:
+        while not stop["now"]:
+            args.active_port = args.port
+            if args.port == "auto":
+                args.active_port = pick_port(args.usb_port, args.fallback_port)
+                if args.active_port is None:
+                    if not args.per_flight:
+                        print(f"FAIL: neither {args.usb_port} nor the fallback port exists", flush=True)
+                        return 2
+                    busy = (others_holding(args.fallback_port)
+                            if args.fallback_port and os.path.exists(args.fallback_port) else [])
+                    why = (f"no USB cable to the Pixhawk, and the serial cable {args.fallback_port} "
+                           f"is in use by {', '.join(busy)}: NOT LOGGING until the USB is back"
+                           if busy else "no cable to the Pixhawk found: NOT LOGGING")
+                    if why != said_no_port:
+                        note(why, 3)
+                        said_no_port = why
+                    status.write(state="no link to the Pixhawk", detail=why, video=hook.state(),
+                                 free_gb=round(shutil.disk_usage(args.out_dir).free / 1e9, 1))
+                    hook.keep_alive()
+                    if bridge is not None:
+                        bridge.pump()
+                    time.sleep(0.5)
+                    continue
+            said_no_port = None
+            rec = None
+            try:
+                rec = Recorder(args, bridge, hook, status)
+                rec.should_stop = lambda: (stop["now"] or rec.stop_requested
+                                           or os.path.exists(STOP_FLAG))
+                print(f"link: {args.active_port}", flush=True)
+                if args.port == "auto" and args.active_port != args.usb_port:
+                    note("logging over the SERIAL cable: part of the log is lost. "
+                         "Plug the Pixhawk USB into the Pi", 4)
+                wait = args.wait_s if args.wait_s is not None else (1e12 if args.per_flight else 15.0)
+                if not rec.wait_vehicle(wait):
+                    if rec.should_stop():
+                        break
+                    print("FAIL: no heartbeat from the Pixhawk", flush=True)
                     return 2
+                if bridge is not None:
+                    bridge.vehicle_sysid = rec.sysid
+                while True:
+                    stats = rec.record_one()
+                    v = stats["verdict"]
+                    worst = max(worst, {"CLEAN": 0, "GAPS": 3, "UNCLEAN_STOP": 3}.get(v, 2))
+                    if rec.should_stop() or args.seconds is not None or not args.per_flight:
+                        return worst
+                    if rec.switch_to_usb or rec.link_lost:
+                        break
+                    if v in ("START_REFUSED", "EMPTY"):
+                        time.sleep(2.0)       # Pixhawk rebooting or link down: keep trying
+                        rec.wait_vehicle(1e12)
+            except OSError as e:
+                # The port vanished while opening it or between files (cable pulled, Pixhawk
+                # rebooting). In service mode that is an event to ride out, not a crash.
+                if not args.per_flight:
+                    raise
+                note(f"Pixhawk link error on {args.active_port}: {e}; reconnecting", 4)
+                time.sleep(0.5)
+            except Exception:                  # noqa: BLE001 -- a bug must not end the video
+                if not args.per_flight:
+                    raise
+                import traceback
+                traceback.print_exc()
+                note("recorder error (see the journal); carrying on", 3)
                 time.sleep(1.0)
-                continue
-        rec = Recorder(args, bridge)
-        rec.should_stop = lambda: (stop["now"] or rec.stop_requested
-                                   or os.path.exists(STOP_FLAG))
-        print(f"link: {args.active_port}", flush=True)
-        try:
-            wait = args.wait_s if args.wait_s is not None else (1e12 if args.per_flight else 15.0)
-            if not rec.wait_vehicle(wait):
-                if rec.should_stop():
-                    break
-                print("FAIL: no heartbeat from the Pixhawk", flush=True)
-                return 2
-            while True:
-                stats = rec.record_one()
-                v = stats["verdict"]
-                worst = max(worst, {"CLEAN": 0, "GAPS": 3, "UNCLEAN_STOP": 3}.get(v, 2))
-                if rec.should_stop() or args.seconds is not None or not args.per_flight:
-                    return worst
-                if rec.switch_to_usb:
-                    break
-                if v in ("START_REFUSED", "EMPTY"):
-                    time.sleep(2.0)       # Pixhawk rebooting or link down: keep trying
-                    rec.wait_vehicle(1e12)
-        finally:
-            rec.hook.stop()
-            rec.m.close()
+            finally:
+                if rec is not None:
+                    try:
+                        rec.m.close()
+                    except Exception:          # noqa: BLE001 -- a port that is already gone
+                        pass
+                    if bridge is not None:
+                        bridge.write_to_fc = None
+    finally:
+        hook.stop()
+        status.write(force=True, state="stopped", video=hook.state())
     return worst
 
 

@@ -8,6 +8,12 @@
 #     Pixhawk's USB cable can stay in the Pi. Anyone on the same network can
 #     reach the Pixhawk through it; GCS_PORT=0 turns it off.
 #
+# Built to keep recording through faults (2026-11-22): a pulled or loose Pixhawk
+# cable is ridden out in place and the video carries on through it; a camera
+# recording that dies or stalls while armed is started again; the serial cable is
+# never taken while the flight program is using it; systemd restarts the service
+# for ever if it does crash. scripts/field/recorder_check.py is the go / no-go.
+#
 # Of its own accord it sends the Pixhawk nothing except "start log stream",
 # "stop log stream" and packet acknowledgements. docs/fc_logging_without_sd.md
 # has the measurements.
@@ -24,6 +30,8 @@
 [Unit]
 Description=Interceptor flight recorder (Pixhawk log stream + camera video while armed)
 After=multi-user.target
+# Never give up restarting (the default stops after 5 quick failures).
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -31,13 +39,15 @@ User=admin
 WorkingDirectory=/home/admin/interceptor-sim
 Environment=FALLBACK_PORT=/dev/ttyAMA10
 Environment=GCS_PORT=14550
-Environment="VIDEO_CMD=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/field/record_video.py --note flight"
+# --flip: the nose camera is mounted ribbon connector up, so its picture is upside down.
+Environment="VIDEO_CMD=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/field/record_video.py --note flight --flip"
 EnvironmentFile=-/etc/default/flight-recorder
 ExecStart=/home/admin/interceptor-sim/.venv-pi/bin/python scripts/bench/ulog_stream_recorder.py --port auto --fallback-port ${FALLBACK_PORT} --per-flight --gcs-udp-port ${GCS_PORT} --out-dir /home/admin/fc_logs --on-arm "${VIDEO_CMD}"
 Restart=always
 # Exit code 3 = "stopped while the log had gaps", normal on the serial cable.
 SuccessExitStatus=3
-RestartSec=2
+RestartSec=1
+OOMScoreAdjust=-900
 KillSignal=SIGTERM
 TimeoutStopSec=30
 

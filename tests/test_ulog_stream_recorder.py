@@ -309,3 +309,262 @@ def test_bridge_drops_a_silent_ground_station_and_survives_a_dead_network():
     assert b.clients == {}
     b.to_gcs(p["fc_heartbeat"])             # back to announcing, network still down
     assert b.take_report()["bytes_to_ground_station"] == 0
+
+
+# --- failure protection (2026-11-22) ------------------------------------------
+
+def test_a_dead_on_arm_command_is_started_again_while_armed_but_not_for_ever():
+    started, now = [], [0.0]
+
+    def popen(argv, cwd=None, env=None):
+        started.append(FakeProc(argv, cwd, env))
+        return started[-1]
+
+    hook = rec.ArmHook("video", "/repo", popen=popen, free_bytes=lambda _: 40 * 1024**3,
+                       clock=lambda: now[0])
+    hook.start("flight1")
+    started[0].returncode = 2                # the camera recording dies in flight
+    hook.start("flight1")                    # same instant: too soon to retry
+    assert len(started) == 1 and hook.state() == "failed"
+    now[0] += rec.HOOK_RETRY_EVERY_S + 0.1
+    hook.start("flight1")
+    assert len(started) == 2 and hook.running() and hook.state() == "recording"
+    for _ in range(100):                     # a command that dies every time is not retried for ever
+        started[-1].returncode = 2
+        now[0] += rec.HOOK_RETRY_EVERY_S + 0.1
+        hook.start("flight1")
+    assert len(started) == rec.HOOK_MAX_STARTS
+    report = hook.stop()
+    assert report["starts"] == rec.HOOK_MAX_STARTS and len(report["died"]) == rec.HOOK_MAX_STARTS - 1
+    assert report["died"][0]["exit_code"] == 2
+
+
+def test_keep_alive_restarts_only_a_command_this_flight_already_started():
+    started, now = [], [0.0]
+
+    def popen(argv, cwd=None, env=None):
+        started.append(FakeProc(argv, cwd, env))
+        return started[-1]
+
+    hook = rec.ArmHook("video", "/repo", popen=popen, free_bytes=lambda _: 40 * 1024**3,
+                       clock=lambda: now[0])
+    hook.keep_alive()                        # never armed: nothing to keep alive
+    assert started == [] and hook.state() == "idle"
+    hook.start("flight1")
+    started[0].returncode = 2
+    now[0] += rec.HOOK_RETRY_EVERY_S + 0.1
+    hook.keep_alive()                        # link is away, armed state unknown: keep the video
+    assert len(started) == 2 and started[1].env["FC_LOG_STAMP"] == "flight1"
+
+
+def _fake_proc_tree(tmp_path, holders: dict):
+    """A /proc look-alike: {pid: (name, [paths it has open])}."""
+    for pid, (name, paths) in holders.items():
+        fd = tmp_path / str(pid) / "fd"
+        fd.mkdir(parents=True)
+        (tmp_path / str(pid) / "comm").write_text(name + "\n")
+        for i, path in enumerate(paths):
+            os.symlink(path, fd / str(i))
+    return str(tmp_path)
+
+
+def test_the_serial_cable_is_left_alone_while_another_program_has_it_open(tmp_path):
+    root = _fake_proc_tree(tmp_path, {"4100": ("mavsdk_server", ["/dev/null", "/dev/ttyAMA10"]),
+                                      "4200": ("bash", ["/dev/null"]),
+                                      str(os.getpid()): ("python", ["/dev/ttyAMA10"])})
+    assert rec.others_holding("/dev/ttyAMA10", proc_root=root) == ["4100 mavsdk_server"]
+    assert rec.others_holding("/dev/ttyAMA11", proc_root=root) == []
+    have = lambda p: p == "/dev/ttyAMA10"
+    busy = lambda path: rec.others_holding(path, proc_root=root)
+    assert rec.pick_port("/dev/pixhawk-usb", "/dev/ttyAMA10", have, holders=busy) is None
+    assert rec.pick_port("/dev/pixhawk-usb", "/dev/ttyAMA10", have, holders=lambda _: []) == "/dev/ttyAMA10"
+    usb_too = lambda p: True
+    assert rec.pick_port("/dev/pixhawk-usb", "/dev/ttyAMA10", usb_too, holders=busy) == "/dev/pixhawk-usb"
+
+
+def test_status_file_is_whole_json_and_written_at_most_once_a_second(tmp_path):
+    now = [10.0]
+    path = tmp_path / "status.json"
+    st = rec.StatusFile(str(path), clock=lambda: now[0])
+    st.write(state="recording", gaps=0)
+    st.write(state="recording", gaps=7)      # same second: skipped
+    assert json.loads(path.read_text())["gaps"] == 0
+    now[0] += 1.1
+    st.write(state="recording", gaps=7)
+    got = json.loads(path.read_text())
+    assert got["gaps"] == 7 and got["updated_unix"] > 0
+    rec.StatusFile(None).write(state="x")                       # no path: no file, no error
+    rec.StatusFile("/nonexistent-dir/s.json").write(state="x")  # unwritable: never an error
+
+
+def test_bridge_messages_reach_the_ground_station_and_never_the_pixhawk():
+    b, sock, now, to_fc = _bridge()
+    b.say("video recording")                 # nobody connected: nothing sent
+    assert sock.sent == []
+    sock.inbox.append((_packets()["gcs_heartbeat"], ("192.168.0.25", 14550)))
+    b.pump()
+    to_fc.clear()
+    b.say("Pixhawk link LOST on /dev/pixhawk-usb WHILE ARMED; video keeps recording", 4)
+    assert to_fc == [] and len(sock.sent) == 1
+    os.environ["MAVLINK20"] = "1"
+    from pymavlink.dialects.v20 import common as mav
+    msg = mav.MAVLink(None).parse_buffer(sock.sent[0][0])[0]
+    assert msg.get_type() == "STATUSTEXT" and msg.severity == 4
+    assert msg.text.startswith("Pi: Pixhawk link LOST") and len(msg.text) <= 50
+    assert (msg.get_srcSystem(), msg.get_srcComponent()) == (1, rec.MAV_COMP_ID_LOG)
+
+
+class _FakeLink:
+    """Stands in for the pymavlink connection: plays a script of messages, then the cable is pulled."""
+
+    def __init__(self, script):
+        self.script, self.sent, self.closed = list(script), [], False
+        link = self
+
+        class _Mav:
+            def heartbeat_send(self, *a):
+                pass
+
+            def command_long_send(self, sysid, comp, cmd, *a):
+                link.sent.append(cmd)
+                link.script.insert(0, link.ack(cmd))
+
+            def logging_ack_send(self, *a):
+                pass
+        self.mav = _Mav()
+
+    @staticmethod
+    def ack(cmd):
+        os.environ["MAVLINK20"] = "1"
+        from pymavlink.dialects.v20 import common as mav
+        fc = mav.MAVLink(None, srcSystem=1, srcComponent=1)
+        return mav.MAVLink(None).parse_buffer(mav.MAVLink_command_ack_message(
+            cmd, 0, target_system=1, target_component=155).pack(fc))[0]
+
+    def recv_match(self, blocking=True, timeout=None):
+        if not self.script:
+            raise OSError("device reports readiness to read but returned no data")
+        return self.script.pop(0)
+
+    def write(self, data):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+def _log_messages(capture: bytes, armed: bool, n: int = 100000):
+    os.environ["MAVLINK20"] = "1"
+    from pymavlink.dialects.v20 import common as mav
+    fc = mav.MAVLink(None, srcSystem=1, srcComponent=1)
+    parse = mav.MAVLink(None)
+    hb = parse.parse_buffer(mav.MAVLink_heartbeat_message(2, 12, 128 if armed else 0, 0, 0, 3).pack(fc))[0]
+    out = [hb]
+    for seq, length, first, payload in packetize(capture)[:n]:
+        out.append(parse.parse_buffer(mav.MAVLink_logging_data_message(
+            1, 155, seq, length, first, list(payload)).pack(fc))[0])
+    return out
+
+
+def _recorder(tmp_path, link, hook):
+    import argparse
+    r = rec.Recorder.__new__(rec.Recorder)
+    r.args = argparse.Namespace(
+        out_dir=str(tmp_path), baud=921600, usb_port="/dev/pixhawk-usb", port="auto",
+        no_stop_first=False, seconds=None, stall_s=10.0, pretend_armed=None, per_flight=True,
+        linger_s=5.0, ground_rotate_min=10.0, leave_running=False)
+    os.environ["MAVLINK20"] = "1"
+    from pymavlink import mavutil
+    r.mavutil = mavutil
+    r.m, r.port, r.bridge, r.hook = link, "/dev/pixhawk-usb", None, hook
+    r.status = rec.StatusFile(str(tmp_path / "status.json"))
+    r.stop_requested = r.switch_to_usb = r.link_lost = False
+    r.armed = r.real_armed = False
+    r.last_beat, r.sysid = 0.0, 1
+    return r
+
+
+def test_a_pulled_cable_while_armed_closes_the_log_cleanly_and_leaves_the_video_running(capture, tmp_path):
+    started = []
+
+    def popen(argv, cwd=None, env=None):
+        started.append(FakeProc(argv, cwd, env))
+        return started[-1]
+
+    hook = rec.ArmHook("video", "/repo", popen=popen, free_bytes=lambda _: 40 * 1024**3)
+    r = _recorder(tmp_path, _FakeLink(_log_messages(capture, armed=True)), hook)
+    stats = r.record_one()                   # runs until the fake cable is pulled: must not raise
+    assert r.link_lost and stats["end_reason"].startswith("link lost")
+    assert stats["verdict"] == "LINK_LOST" and stats["ever_armed"] is True
+    assert stats["stop_result"] == "not sent (link lost)"
+    assert stats["file"].endswith("_flight.ulg")
+    assert len(ULog(stats["file"]).data_list) > 0, "what was received before the pull must open"
+    assert hook.running() and started[0].signals == [], "the video must outlive the cable"
+    assert stats["on_arm_command"]["still_running_into_next_file"] is True
+    assert not [f for f in os.listdir(tmp_path) if f.endswith(".part")]
+
+    # The cable comes back with the aircraft now disarmed: the video is closed after the linger.
+    r2 = _recorder(tmp_path, _FakeLink(_log_messages(capture, armed=False, n=60)), hook)
+    r2.args.linger_s = 0.0
+    stats2 = r2.record_one()
+    assert stats2["end_reason"] == "flight ended"
+    assert not hook.running() and started[0].signals == [rec.signal.SIGINT]
+    assert len(started) == 1
+
+
+def test_a_pulled_cable_on_the_ground_is_not_a_crash_either(capture, tmp_path):
+    hook = rec.ArmHook(None, "/repo")
+    r = _recorder(tmp_path, _FakeLink(_log_messages(capture, armed=False)), hook)
+    stats = r.record_one()
+    assert r.link_lost and stats["verdict"] == "LINK_LOST" and stats["file"].endswith("_ground.ulg")
+
+
+# --- go / no-go reader ----------------------------------------------------------
+
+sys.path.insert(0, os.path.join(REPO, "scripts", "field"))
+import recorder_check  # noqa: E402
+import record_video  # noqa: E402
+
+GOOD = {"state": "recording", "link": "usb", "port": "/dev/pixhawk-usb", "file": "fc_x.ulg.part",
+        "recent_kb_per_s": 40.2, "last_gap_s_ago": None, "video": "idle", "free_gb": 37.0,
+        "armed": False, "updated_unix": 1000.0}
+
+
+def _go(st, now=1001.0):
+    return all(ok for ok, _ in recorder_check.judge(st, now))
+
+
+def test_recorder_check_passes_a_healthy_status_and_nothing_else():
+    assert _go(GOOD)
+    assert not _go(None), "no status file is a NO-GO, not a pass"
+    assert not _go(GOOD, now=1000.0 + recorder_check.STALE_S + 1), "a stale status is a NO-GO"
+    for bad in ({"state": "no link to the Pixhawk"}, {"link": "serial or other"},
+                {"recent_kb_per_s": 12.0}, {"recent_kb_per_s": None}, {"last_gap_s_ago": 4.0},
+                {"video": "failed"}, {"video": "off"}, {"free_gb": 6.0}, {"free_gb": None}):
+        assert not _go({**GOOD, **bad}), bad
+    assert _go({**GOOD, "video": "recording", "last_gap_s_ago": 300.0})
+
+
+def test_recorder_check_reads_what_the_recorder_itself_writes(capture, tmp_path):
+    """Producer to consumer: the status the record loop writes must be the one judge() accepts."""
+    r = _recorder(tmp_path, _FakeLink(_log_messages(capture, armed=False, n=2000)), rec.ArmHook("video", "/repo"))
+    clock = [0.0]
+    real = rec.time.monotonic
+    rec.time.monotonic = lambda: clock.__setitem__(0, clock[0] + 0.002) or clock[0]
+    try:
+        r.status = rec.StatusFile(str(tmp_path / "status.json"), clock=rec.time.monotonic)
+        r.record_one()
+    finally:
+        rec.time.monotonic = real
+    st = json.loads((tmp_path / "status.json").read_text())
+    assert st["state"] == "recording" and st["link"] == "usb" and st["video"] == "idle"
+    assert st["recent_kb_per_s"] >= recorder_check.MIN_KB_PER_S
+    lines = recorder_check.judge(st, st["updated_unix"] + 1.0)
+    assert [ok for ok, _ in lines] == [True] * len(lines), lines
+
+
+def test_video_watchdog_fires_only_when_the_file_stops_growing():
+    w = record_video.GrowthWatch(3.0, now=0.0)
+    assert not w.stalled(0, 1.0) and not w.stalled(1000, 2.9)
+    assert not w.stalled(2000, 5.0) and not w.stalled(2000, 7.9)
+    assert w.stalled(2000, 8.1)
