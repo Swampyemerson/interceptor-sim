@@ -19,17 +19,19 @@ def ghost(x0, x1, y0, y1, z0, z1):
     return [v[i] for i in f]
 
 NOSE = True          # --nose is accepted and ignored; it is the only layout
-LID = "pod_lid"
+LID = "pod_lid_mast"
 DOCK = "dock_cam"
 import cadquery as cq
 import tempfile
 # The STL files in this folder are in PRINT pose, so the picture is drawn from
 # flight-position copies written to a temporary folder.
 TMP = tempfile.mkdtemp()
-for _n, _wp in ((DOCK, P.dock(nose_post=True)), ("pod_base", P.pod_base()), (LID, P.pod_lid()),
+for _n, _wp in ((DOCK, P.dock(nose_post=True)), ("pod_base", P.pod_base()), (LID, P.pod_lid_mast()),
+                ("gps_deck", P.gps_deck()), ("_gps", P.gps_ghost()),
                 ("cam_plate_nose", P.cam_plate_nose()), ("_ghost", P.cam_ghost_nose())):
     cq.exporters.export(_wp, os.path.join(TMP, _n + ".stl"), tolerance=0.05)
-EXTRA = (("cam_plate_nose", (0.85, 0.35, 0.10)), ("_ghost", (0.2, 0.2, 0.25)))
+EXTRA = (("cam_plate_nose", (0.85, 0.35, 0.10)), ("_ghost", (0.2, 0.2, 0.25)),
+         ("gps_deck", (0.80, 0.80, 0.82)), ("_gps", (0.12, 0.12, 0.14)))
 fig = plt.figure(figsize=(16, 8))
 light = np.array([0.4, -0.5, 0.75]); light /= np.linalg.norm(light)
 for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
@@ -53,11 +55,11 @@ for k, (elev, azim, title) in enumerate([(22, -60, "front-right, assembled"),
          (0.1, 0.35, 0.7, 0.55)),
     ):
         ax.add_collection3d(Poly3DCollection(b, facecolors=c, edgecolors=(0, 0, 0, 0.4)))
-    ax.set_xlim(-75, 95); ax.set_ylim(-52, 52); ax.set_zlim(0, 95)
-    ax.set_box_aspect((170, 104, 95)); ax.view_init(elev=elev, azim=azim)
+    ax.set_xlim(-75, 95); ax.set_ylim(-52, 52); ax.set_zlim(0, 130)
+    ax.set_box_aspect((170, 104, 130)); ax.view_init(elev=elev, azim=azim)
     ax.set_xlabel("x  (nose +)"); ax.set_ylabel("y"); ax.set_title(title)
 fig.suptitle("Avionics pod: grey = dock (stays on frame), orange = removable pod, "
-             "ghosts = Pixhawk (black), Pi 5 (green), USB/Ethernet block (silver), AI HAT+ (blue)")
+             "silver disc = GPS deck, black puck = GPS; ghosts = Pixhawk, Pi 5 (green), USB block, AI HAT+ (blue)")
 fig.tight_layout()
 fig.savefig(os.path.join(HERE, "preview_nose_camera.png"), dpi=70)
 import shutil

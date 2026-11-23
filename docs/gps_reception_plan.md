@@ -56,7 +56,15 @@ the test moves somewhere more open before anything is concluded.
 Second number from the same session: with a pack on and a motor run, how far the compass
 field moves per amp at each height. Target: under 0.001 G per amp, which is 0.08 G at 77 A.
 
-## Step 2: the printed mount (after step 1 picks the geometry)
+## Step 2: the printed mount
+
+**Status 2026-11-22: drawn and analysed at the builder's go-ahead, not printed.** It
+replaces the pod's lid with two parts, `pod_lid_mast` and `gps_deck`
+(`hardware/avionics_pod/README.md`, section "GPS mast and deck"). As drawn: GPS antenna
+94.6 mm above the Pi board, an 88 mm foil ground plane under it, 21.7 g more than the
+plain lid, first natural frequency 130 Hz (114 Hz with soft plastic). The mast height
+is one number in the generator, so step 1's result can still change it before a print.
+The points below are what the drawing was held to.
 
 - **Stiff, not tall.** A short tripod or a wide-based column, not a thin stalk. The GPS and
   plate weigh about 25 g; the mount's first wobble should sit above 80 Hz, clear of the
@@ -68,14 +76,15 @@ field moves per amp at each height. Target: under 0.001 G per amp, which is 0.08
 - **Breakaway base** (nylon screws) so a crash takes the mount, not the pod lid.
 - **Cable strain relief**, the unit's arrow forward, and the cable kept away from the
   camera ribbon.
-- One current set of print files only; nothing is drawn until step 1 is in.
+- One current set of print files only: the plain lid's files were deleted the day the
+  mast was drawn.
 
 ## Step 3: settings, each on the builder's yes
 
 | Setting | Now | Proposed | Why |
 |---|---|---|---|
-| Height reference (`EKF2_HGT_REF`) | GPS | Barometer | The aircraft followed 8 m of GPS altitude wander in flight 3. Can be done now. |
-| Position-mode response (`MPC_ACC_HOR`, `MPC_JERK_MAX`) | 3 m/s2, 8 m/s3 | 5 m/s2, 20 m/s3 | Stick-to-tilt delay was 0.36 to 0.60 s against 0.14 s in Altitude mode. A matter of feel; sharper values are possible. |
+| Height reference (`EKF2_HGT_REF`) | GPS | Barometer | The aircraft followed 8 m of GPS altitude wander in flight 3. **Approved 2026-11-22; not yet written (aircraft was off).** |
+| Position-mode response (`MPC_ACC_HOR`, `MPC_JERK_MAX`) | 3 m/s2, 8 m/s3 | 5 m/s2, 20 m/s3 | Stick-to-tilt delay was 0.36 to 0.60 s against 0.14 s in Altitude mode. **Approved 2026-11-22; not yet written.** |
 | GPS speed-accuracy limit (`EKF2_REQ_SACC`) | 1.0 m/s | back to 0.5 | Only once the mount is fitted and the unit reports under 0.35. |
 | Pack capacity (`BAT1_CAPACITY`) | unset | 1350 | Only once position is dependable (it misfired a failsafe in flight 2). |
 

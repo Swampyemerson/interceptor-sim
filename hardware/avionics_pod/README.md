@@ -16,18 +16,23 @@ appears.
 | `dock_cam.stl` | dock with the camera post; stays bolted to the frame | 140.0 x 40.0 x 40.0 mm |
 | `cam_plate_nose.stl` | tilting camera plate | 42.0 x 39.4 x 20.2 mm |
 | `pod_base.stl` | the removable module's body | 101.0 x 56.0 x 25.9 mm |
-| `pod_lid.stl` | vented roof | 65.0 x 56.0 x 4.6 mm |
+| `pod_lid_mast.stl` | vented roof with the four-post GPS mast on it (new 2026-11-22, not printed) | 65.0 x 56.0 x 51.6 mm |
+| `gps_deck.stl` | round plate for the top of the mast: foil ground plane and the GPS unit (new 2026-11-22, not printed) | 88.0 x 88.0 x 4.4 mm |
 | `dock_cam_coupon.stl` | 0.8 mm template of the dock's footprint and six holes | 137.9 x 40.0 x 0.8 mm |
 
 - **STL files are in print pose:** each sits on the bed the way it should be printed, so
   nothing needs turning. `cam_plate_nose` rests on its four screw bosses and needs
   supports under the plate. `pod_base` needs supports in its two side cable windows
-  only. `dock_cam`, `pod_lid` and the template need none.
+  only. `dock_cam`, `pod_lid_mast`, `gps_deck` and the template need none.
 - **STEP files are in flight position,** for CAD. `avionics_pod_assembly_nose_camera.step`
   is the whole pod with stand-in blocks for the boards.
 - **Removed 2026-11-11:** the plain dock and its template (no camera post) and the
   lid-cradle camera parts. Sections below that name `dock`, `dock_coupon`, `pod_lid_cam`
   or `cam_plate` are history.
+- **Removed 2026-11-22:** the plain lid `pod_lid`, replaced by `pod_lid_mast` plus
+  `gps_deck` (section "GPS mast and deck" below). The plain lid is the part on the
+  aircraft until the new pair is printed; its files are in git history. Sections below
+  that name `pod_lid` describe it.
 
 **Status: assembled on the interceptor 2026-11-21 (builder: "pretty sturdy"; aircraft 930 g with battery against 853 g modelled). Not yet done: the tap test in `ANALYSIS.md`, and the GPS sits on the lid over the Pi, which gap-review item 12 warned about for the compass. Revision 7 (2026-11-20): heat-set insert pockets deepened after the first inserts filled with melted plastic and stripped the Pi standoffs, see the revision 7 section (it also says how to bring already-printed parts up to it with a drill). Revision 6 (2026-11-13): two front locating pins added after the PLA fit check, see the revision 6 section. Revision 5 (2026-11-11): camera post redrawn for the real top plate, see the
 revision 5 section. Calipers confirmed the dock's screw pattern; the earlier drawing had
@@ -38,13 +43,81 @@ revision 4 section. Earlier status, still true:** revision 2 (2026-11-09). The P
 CAD; the frame numbers are still unmeasured. Nothing here has touched the real frame.**
 Print in PLA first and check the fit before paying for Onyx; see `PRINT_ORDER.md`.
 
+## GPS mast and deck (new 2026-11-22; drawn and analysed, NOT printed or fitted)
+
+**Why.** With the GPS unit lying on the plain lid, a few centimetres over the Pi and the
+camera ribbon, it lost its fix whenever the camera ran, and all three flights of
+2026-11-22 failed from that (`docs/gps_reception_plan.md`). These two parts replace the
+lid. They lift the unit 9.5 cm above the Pi board and put a metal plate under it.
+
+| | |
+|---|---|
+| GPS antenna above the Pi board | 94.6 mm (it was about 28 mm on the plain lid) |
+| Deck (ground plane) | 88 mm across; half a GPS wavelength is 95 mm |
+| Top of the GPS above the frame's top plate | 123.5 mm (the plain lid's rails were at 60.7 mm) |
+| Added printed weight over the plain lid | 21.7 g (lid with mast 17.4 g, deck 10.4 g, plain lid 6.2 g) |
+| First natural frequency, GPS fitted | 130 Hz side-to-side, 170 Hz fore-aft; 114 and 145 Hz with soft plastic |
+
+- **How it is built:** four 6 mm posts stand on the lid 9 mm inboard of the lid's own
+  screws, so a screwdriver still reaches those. The post tops are tied by four arches whose
+  undersides rise at 45 degrees, so the part prints lid-down with no supports. Each post
+  top takes a brass M3 heat-set insert; the deck screws down onto the four tops.
+- **The deck:** a flat disc with a raised rim. Cover the top face inside the rim with
+  copper or aluminium foil tape, in one continuous sheet as far as you can; that foil is
+  the ground plane. The GPS unit sits on the foil, centred by three tabs, held by
+  double-sided tape and one zip tie through the two slots. A gap in the rim at the rear
+  lets the cable out. Four 6 mm holes line up with the lid screws below.
+- **Why the screws are nylon:** in a crash they shear and the deck comes away with the
+  GPS, instead of the mast tearing the lid off the pod. And nothing steel sits near the
+  compass: brass inserts, nylon screws, foil that is not steel.
+- **Vibration number, and its limits:** from `fea_modal.py --mast`, with every joint
+  glued and the pod's floor held rigid, so it is an upper bound; the soft-plastic row is
+  the working figure. The mast is not the soft part: the flex is shared by the lid (half),
+  the pod base and the two boards. Stiffening the lid alone was tried (full edge beams and
+  a gusset at each post: 138 Hz for 2.6 g more) and not adopted. A tap test on the
+  printed part gives the real number; the target is above 80 Hz.
+- **Weight:** 21.7 g takes the aircraft from the weighed 930 g to about 952 g, 2 g over
+  the 950 g the design was sized for, and thrust-to-weight from the measured 4.23 to
+  about 4.13 on the same pack.
+
+**Not known until measured:**
+
+1. **The mast height.** 50 mm is a design value, one number in `pod.py` (`MAST_H`). The
+   bench session in `docs/gps_reception_plan.md` (GPS held at several heights, camera
+   running) is what should set it; a shorter mast is lighter and stiffer.
+2. **The GPS unit's size.** Drawn from Holybro's figures for the M10 (50 mm across, 14.4 mm
+   tall, 32 g). Measure the real one before printing: the three tabs sit 0.3 mm outside a
+   50.0 mm case.
+3. **The GPS cable's length.** From the deck to the Pixhawk's GPS port is about 140 mm of
+   cable run.
+4. **Whether the plate needs wiring to ground.** Drawn as a plain foil sheet. If the bench
+   test shows it matters, a wire from the foil to the cable's ground is the change.
+
+**Extra hardware:** 4 brass M3 heat-set inserts, 4 mm long or shorter; 4 nylon M3 x 8 mm
+screws; copper or aluminium foil tape, 50 mm wide or more; double-sided tape; one zip tie.
+
+**Fitting:**
+
+1. Melt the four inserts into the post tops, flush. The pockets are 8 mm deep for a 4 mm
+   insert.
+2. Foil the deck's top face. Press the foil down round the tabs; cut it clear of the four
+   screw holes and the four access holes.
+3. Stick the GPS unit on the foil between the tabs, arrow pointing the way the deck's
+   arrow points, cable out through the gap in the rim. Zip tie over it through the slots.
+4. Swap the lid: four M2.5 screws, reached through the deck's access holes or with the
+   deck off.
+5. Screw the deck to the posts with the four nylon screws. Snug, not tight.
+6. Run the cable down a rear post, away from the camera ribbon at the nose.
+7. Recalibrate the compass. The unit has moved.
+
 ## The idea
 
 | Part | Where it lives | What it does |
 |---|---|---|
 | `dock` | bolted to the frame's top plate, stays there | wedge hook at the nose, two locating pins, one M3 threaded boss at the tail |
 | `pod_base` | the removable module | flight controller on the floor, Pi 5 on four bosses above it, HAT on the Pi's own standoffs |
-| `pod_lid` | on top of the HAT | vented roof and roll-over rails |
+| `pod_lid_mast` | on top of the HAT | vented roof, with four posts rising 50 mm to carry the GPS deck |
+| `gps_deck` | on top of the mast, four nylon screws | foil ground plane with the GPS and compass unit on it |
 
 **To remove:** undo the one rear screw, lift the tail, slide back out of the hook.
 **To refit:** toe in under the hook, hinge down onto the pins, one screw. The pins and the
@@ -160,7 +233,7 @@ are not fit-checked; the two marked "check" depend on things not yet measured.
 | Double-sided foam tape, 2 mm | 1 strip | under the Pixhawk (the Pixhawk kit's pads will do) |
 | JST-SH 1.0 mm 3-pin cable (sold as a "Raspberry Pi debug" cable) | 1 | Pi 5 serial socket to the Pixhawk TELEM2 lead; needs splicing to the existing lead |
 | Right-angle USB-C plug or adapter | 1 | Pi power, pointing aft, clear of the rear-right prop |
-| Print service (ITLL, Onyx; see `PRINT_ORDER.md`) or PETG filament | about 75 g of parts | dock_cam 26 g, pod_base 18 g, pod_lid 6 g, cam_plate_nose 5 g, plus templates and a reprint |
+| Print service (ITLL, Onyx; see `PRINT_ORDER.md`) or PETG filament | about 75 g of parts | dock_cam 26 g, pod_base 18 g, pod_lid_mast 17 g, gps_deck 10 g, cam_plate_nose 5 g, plus templates and a reprint |
 
 Not in this list because they are tracked elsewhere: the replacement Pi 5 (8 GB), the
 AI HAT+, and calipers. The camera ribbon already bought for the Pi 5 (22-pin to 15-pin)
@@ -172,10 +245,10 @@ is long enough.
 PLA. See `PRINT_ORDER.md`.** The home-printer settings below still apply to a PETG print.
 
 PETG (or ASA), 0.2 mm layers, 4 perimeters, 40 % infill. The STL files are already in
-print pose. `dock_cam` and `pod_lid` print flat side down with no supports (the hook is
+print pose. `dock_cam`, `pod_lid_mast` and `gps_deck` print flat side down with no supports (the hook is
 a 45 degree face). `pod_base` prints flat side down and needs supports in its two side
-cable windows, whose tops are a flat 48 mm span. `pod_lid` prints as modelled: flat
-underside on the bed, rails up. An earlier note here said "upside-down"; that was wrong.
+cable windows, whose tops are a flat 48 mm span. `pod_lid_mast` prints as modelled: the
+lid's flat underside on the bed, mast standing up. `gps_deck` prints flat, rim and tabs up.
 `cam_plate_nose` sits on its four screw bosses and needs supports under the plate.
 
 ## Regenerate

@@ -87,3 +87,68 @@ def test_insert_pockets_leave_room_for_melt_and_thread():
     assert c["BOSS_M3_DEPTH"] >= reach + 1.0 and reach >= 3.0
     assert 5.0 + c["DOCK_T"] - c["BOSS_M3_DEPTH"] >= 0.8
     assert c["INSERT_M3_L"] <= c["NOSE_EAR_T"]
+
+
+# --- GPS mast and deck (2026-11-22) ---------------------------------------------
+
+def _pod_constants():
+    import ast
+    c = {}
+    for node in ast.parse((ROOT / "hardware" / "avionics_pod" / "pod.py").read_text()).body:
+        if not isinstance(node, ast.Assign):
+            continue
+        tgt, val = node.targets[0], node.value
+        names = [tgt] if isinstance(tgt, ast.Name) else list(getattr(tgt, "elts", []))
+        vals = [val] if isinstance(tgt, ast.Name) else list(getattr(val, "elts", []))
+        for n, v in zip(names, vals):
+            if isinstance(n, ast.Name) and isinstance(v, ast.Constant) and isinstance(v.value, (int, float)):
+                c[n.id] = float(v.value)
+    return c
+
+
+def test_gps_mast_inserts_screws_and_no_steel_rule():
+    """Mirrors pod.py's mast_check where the suite runs without CadQuery: the deck's
+    insert pockets leave room for melt and thread, the nylon screws reach through the
+    inserts, and the post tops have wall round them."""
+    c = _pod_constants()
+    reach = c["DECK_SCREW_L"] - c["DECK_T"]
+    assert c["DECK_INSERT_DEPTH"] >= c["INSERT_M3_L"] + c["INSERT_RELIEF_MIN"]
+    assert c["DECK_INSERT_DEPTH"] >= reach + 1.0
+    assert reach >= c["INSERT_M3_L"]
+    assert c["MAST_BOSS_H"] >= c["DECK_INSERT_DEPTH"] + 1.5
+    assert (c["MAST_BOSS_D"] - c["INSERT_M3_D"]) / 2 >= 2.0
+    assert c["MAST_POST_INSET"] - c["MAST_FOOT_D"] / 2 - 2.5 >= 1.5, "no screwdriver room at the lid screws"
+    text = (ROOT / "hardware" / "avionics_pod" / "README.md").read_text()
+    section = text.split("## GPS mast and deck", 1)[1].split("\n## ", 1)[0]
+    assert "nylon M3" in section and "brass M3" in section, "the no-steel hardware must be named"
+
+
+def test_gps_mast_saved_vibration_result_clears_the_target_and_matches_the_design():
+    """The saved FEA rows belong to the mast height and deck size pod.py draws today,
+    and even the soft-plastic row is above the 80 Hz target."""
+    import json
+    c = _pod_constants()
+    d = ROOT / "hardware" / "avionics_pod" / "fea_results"
+    for name in ("gps_mast.json", "gps_mast_soft_plastic.json"):
+        r = json.loads((d / name).read_text())
+        assert r["gps_mast"] == {"mast_h_mm": c["MAST_H"], "deck_d_mm": c["DECK_D"], "gps_g": c["GPS_MASS"]}, name
+        assert r["freqs_hz"][0] > 80.0, (name, r["freqs_hz"][0])
+    soft = json.loads((d / "gps_mast_soft_plastic.json").read_text())["freqs_hz"][0]
+    stiff = json.loads((d / "gps_mast.json").read_text())["freqs_hz"][0]
+    assert soft < stiff
+
+
+def test_gps_mast_numbers_in_the_readme_match_the_reports():
+    import json, re
+    pod_dir = ROOT / "hardware" / "avionics_pod"
+    rep = json.loads((pod_dir / "mass_report.json").read_text())
+    gm, pg = rep["gps_mast"], rep["printed_g"]
+    section = (pod_dir / "README.md").read_text().split("## GPS mast and deck", 1)[1].split("\n## ", 1)[0]
+    assert f"{gm['added_printed_g_over_plain_lid']} g" in section
+    assert f"{pg['pod_lid_mast']} g" in section and f"{pg['gps_deck']} g" in section
+    assert f"{gm['gps_antenna_above_pi_board_mm']} mm" in section
+    assert f"{gm['gps_top_above_top_plate_mm']} mm" in section
+    f0 = json.loads((pod_dir / "fea_results" / "gps_mast.json").read_text())["freqs_hz"]
+    s0 = json.loads((pod_dir / "fea_results" / "gps_mast_soft_plastic.json").read_text())["freqs_hz"]
+    for v in (f0[0], f0[1], s0[0], s0[1]):
+        assert re.search(rf"\b{round(v)}\b", section), round(v)

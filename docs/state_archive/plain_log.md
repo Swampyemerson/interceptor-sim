@@ -684,3 +684,11 @@ The target drone flew its first automatic course: five waypoints drawn in the gr
 **So what:** The target can fly a pre-drawn route on its own, which is its job in an intercept test. What is not shown is speed: it must fly 9 m/s, and that needs sides of 40 m or more, so the next step is a bigger course at the field, stepping 3, 5, 7, 10 m/s. Three things from the climbs to settle first: the compass is disturbed at high motor current, the drone tumbles when throttle is cut to zero in manual mode, and the current sensor reads roughly double.
 
 *Evidence: runs/target_flight6_20261115/README.md; ADR-0138 addendum 16; log copy on the PC (not in the repo)*
+
+## 2026-11-15 (overflowed from plain_log 2026-11-22)
+
+On its seventh flight the target drone began climbing by itself; the builder cut the motors and it fell from 5.8 m. The cause was written down as two candidates before the log was read, and the log settled it: the battery had been under 21.6 V for ten seconds, so the drone began its automatic return home. Away from home that starts with a climb toward 15 m and ignores the throttle stick. He pulled the throttle down, nothing happened, and he cut the motors three seconds in. The storage card was intact after all; the board had just not connected to it after the landing, and all three logs are copied. The flight lasted 8.3 minutes and included about 13 more automatic laps.
+
+**So what:** This was the drone doing what it was set up to do, not a control fault, but a setting nobody had explained to the pilot is a hazard of its own. Proposed, his choice: make low battery mean land in place for yard flying, put height-hold in the middle switch position so getting out of return-home does not pass through manual throttle, and fly on a 6 minute timer. The drone needs a look-over after the fall before it flies again.
+
+*Evidence: runs/target_flight7_20261115/README.md (predictions and result); ADR-0138 addenda 17 and 18; log 3 copy on the PC (not in the repo)*

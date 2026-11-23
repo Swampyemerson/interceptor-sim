@@ -3,6 +3,8 @@
   "dock": 12.8,
   "pod_base": 17.8,
   "pod_lid": 6.2,
+  "pod_lid_mast": 17.4,
+  "gps_deck": 10.4,
   "pod_lid_cam": 19.0,
   "cam_plate": 5.7,
   "dock_cam": 26.4,
@@ -15,6 +17,20 @@
   29.4
  ],
  "total_height_above_top_plate_mm": 60.7,
+ "gps_mast": {
+  "mast_height_mm": 50.0,
+  "deck_diameter_mm": 88.0,
+  "module_with_mast_and_gps_g": 215.7,
+  "module_with_mast_and_gps_cg_mm": [
+   -7.8,
+   0.0,
+   49.1
+  ],
+  "gps_top_above_top_plate_mm": 123.5,
+  "deck_top_above_top_plate_mm": 109.1,
+  "gps_antenna_above_pi_board_mm": 94.6,
+  "added_printed_g_over_plain_lid": 21.7
+ },
  "footprint_mm": [
   107.2,
   56.0

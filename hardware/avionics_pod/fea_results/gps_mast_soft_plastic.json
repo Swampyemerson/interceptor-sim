@@ -1,0 +1,136 @@
+{
+ "freqs_hz": [
+  113.5,
+  145.3,
+  194.6,
+  292.1,
+  353.8,
+  437.7,
+  508.7,
+  533.6
+ ],
+ "modes": [
+  [
+   "side-to-side",
+   [
+    0.03,
+    1.0,
+    0.07
+   ],
+   {
+    "lid": 0.54,
+    "pod_base": 0.19,
+    "pi_board": 0.13,
+    "hat_board": 0.12
+   }
+  ],
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.02,
+    0.03
+   ],
+   {
+    "lid": 0.59,
+    "pod_base": 0.25,
+    "pi_board": 0.08,
+    "hat_board": 0.07
+   }
+  ],
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.93,
+    0.06
+   ],
+   {
+    "lid": 0.66,
+    "pod_base": 0.14,
+    "pi_board": 0.08,
+    "hat_board": 0.07
+   }
+  ],
+  [
+   "side-to-side",
+   [
+    0.04,
+    1.0,
+    0.26
+   ],
+   {
+    "pod_base": 0.43,
+    "lid": 0.37,
+    "pi_board": 0.12,
+    "hat_board": 0.06
+   }
+  ],
+  [
+   "fore-aft",
+   [
+    1.0,
+    0.05,
+    0.17
+   ],
+   {
+    "pod_base": 0.44,
+    "lid": 0.36,
+    "pi_board": 0.12,
+    "hat_board": 0.07
+   }
+  ],
+  [
+   "side-to-side",
+   [
+    0.96,
+    1.0,
+    0.16
+   ],
+   {
+    "pod_base": 0.52,
+    "lid": 0.29,
+    "pi_board": 0.1
+   }
+  ],
+  [
+   "up-down",
+   [
+    0.09,
+    0.03,
+    1.0
+   ],
+   {
+    "lid": 0.77,
+    "pod_base": 0.11,
+    "gps_deck": 0.05,
+    "pi_board": 0.05
+   }
+  ],
+  [
+   "up-down",
+   [
+    0.32,
+    0.03,
+    1.0
+   ],
+   {
+    "pi_board": 0.56,
+    "lid": 0.23,
+    "pod_base": 0.1,
+    "gps_deck": 0.08
+   }
+  ]
+ ],
+ "mass_g": 181.6,
+ "nodes": 88937,
+ "tets": 45639,
+ "clamped_dofs": 10071,
+ "gps_mast": {
+  "mast_h_mm": 50.0,
+  "deck_d_mm": 88.0,
+  "gps_g": 32.0
+ },
+ "camera": false,
+ "e_petg_mpa": 1300.0
+}

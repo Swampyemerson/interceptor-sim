@@ -76,6 +76,19 @@ def build(camera: bool, e_petg: float):
     return parts
 
 
+def build_mast(e_petg: float):
+    """The pod tower with the GPS mast lid, the deck and the GPS unit on top. The deck
+    is glued to the four post tops here; in the real part it is held by four nylon
+    screws, which are softer, so read the answer as an upper bound."""
+    parts = build(False, e_petg)
+    petg = parts["lid"][1]
+    parts["lid"] = (P.pod_lid_mast(), petg)
+    parts["gps_deck"] = (P.gps_deck(), petg)
+    gps = P.gps_ghost()
+    parts["gps"] = (gps, (2e3, 0.35, plate_density(P.GPS_MASS, gps.val().Volume())))
+    return parts
+
+
 def build_nose(e_petg: float):
     """The dock with its nose post, the tilting plate and the camera, on their own."""
     petg = (e_petg, 0.38, P.PETG_G_PER_MM3 * 1e-6 * P.PRINT_FILL)
@@ -263,11 +276,16 @@ def main() -> int:
                     help="with --screws: also hold the underside within this many mm of each screw")
     ap.add_argument("--full", action="store_true",
                     help="nose-post dock with the loaded pod on it, held at the six screws")
+    ap.add_argument("--mast", action="store_true",
+                    help="pod tower with the GPS mast lid, deck and GPS unit (2026-11-22)")
     ap.add_argument("--epetg", type=float, default=1900.0, help="printed PETG modulus, MPa")
     ap.add_argument("--size", type=float, default=4.0, help="max element size, mm")
     ap.add_argument("--json", default=None)
     a = ap.parse_args()
-    if a.full:
+    if a.mast:
+        r = mesh_and_solve(build_mast(a.epetg), size=a.size, n_modes=8)
+        r["gps_mast"] = {"mast_h_mm": P.MAST_H, "deck_d_mm": P.DECK_D, "gps_g": P.GPS_MASS}
+    elif a.full:
         r = mesh_and_solve(build_full(a.epetg), size=a.size, clamp=screw_clamp, n_modes=8)
         r["nose_post"] = True
         r["pod_on_dock"] = True

@@ -8,7 +8,13 @@ Three printed parts, generated from the numbers in the PARAMETERS block:
   pod_base  the removable module. Toe it under the hook, hinge it down onto the
             pins, one M3 screw at the rear. Flight controller on the floor,
             Pi 5 on four M2.5 bosses above it, HAT on the Pi's own standoffs.
-  pod_lid   vented roof over the HAT (on 4 x M2.5 standoffs).
+  pod_lid_mast   the roof over the HAT (on 4 x M2.5 standoffs) with a four-post
+            mast standing on it, and
+  gps_deck  the round plate that screws to the top of the mast: a metal-foil ground
+            plane on its top face and the GPS/compass unit on that. Added 2026-11-22
+            (docs/gps_reception_plan.md): the unit on the plain lid sat a few centimetres
+            over the Pi and the camera ribbon and could not hold a fix with the camera on.
+            The plain lid (pod_lid) is still built in memory for comparison, not exported.
   dock_cam + cam_plate_nose   the dock with a camera post off its nose, and the
             tilting plate it carries (chosen 2026-11-10; dock_cam_coupon is its template).
 
@@ -38,7 +44,8 @@ import cadquery as cq
 
 # The CURRENT design: the only part files this script writes. tests/ checks that
 # the folder holds exactly these (plus ASSEMBLY) and nothing older.
-EXPORT = ("dock_cam", "cam_plate_nose", "pod_base", "pod_lid", "dock_cam_coupon")
+EXPORT = ("dock_cam", "cam_plate_nose", "pod_base", "pod_lid_mast", "gps_deck",
+          "dock_cam_coupon")
 ASSEMBLY = "avionics_pod_assembly_nose_camera"
 
 # ============================== PARAMETERS ==================================
@@ -157,6 +164,38 @@ NOSE_TONGUE_THICK_X = 40.0   # ... from here forward (full width starts here; th
                              # pod's hook ends at 35.8)
 NOSE_LOCK_AT_DOWN = 45.0     # lock screw is straight below the axis at this tilt
 
+# --- GPS mast and deck (2026-11-22) -------------------------------------------
+# Holybro M10 GPS + IST8310 compass, round case. Vendor figures, NOT yet measured
+# on the builder's unit: 50 mm across, 14.4 mm tall, 32 g with its cable.
+GPS_D, GPS_H = 50.0, 14.4       # MEASURE
+GPS_MASS = 32.0                 # MEASURE
+MAST_H = 50.0            # lid top face to the underside of the deck. THE number the
+                         # bench session in docs/gps_reception_plan.md is meant to set;
+                         # everything below follows it.
+MAST_POST_D = 6.0        # the four posts
+MAST_POST_INSET = 9.0    # posts stand this far inboard (fore-aft) of the lid screws,
+                         # so a screwdriver still reaches them
+MAST_Y = 23.0            # posts' left-right position
+MAST_WEB_T = 1.6         # thickness of the four arch frames that tie the post tops
+MAST_CHORD_T = 3.0       # depth of an arch at its crown
+MAST_BOSS_D, MAST_BOSS_H = 8.4, 10.0    # post tops, thick enough for an M3 insert
+MAST_FOOT_D, MAST_FOOT_H = 10.0, 2.5    # flared post feet on the lid
+MAST_PAD_T = 2.0         # lid doubler between each post foot and its standoff boss.
+                         # TRIED 2026-11-22 and not adopted: full-length 3 mm edge beams
+                         # plus a gusset at each foot raised the first sway mode from
+                         # 130 to 138 Hz for 2.6 g more. The whole Pi/HAT tower flexes,
+                         # not just the lid, so stiffening the lid alone buys little.
+DECK_D = 88.0            # ground-plane plate; half a GPS wavelength is 95 mm
+DECK_T = 1.4
+DECK_RIM_H, DECK_RIM_T = 2.0, 1.6       # raised edge: stiffens the plate, guards the foil
+DECK_TAB_H, DECK_TAB_GAP = 3.0, 0.3     # three tabs that centre the GPS case
+DECK_SCREW_L = 8.0       # NYLON M3 screws, under the head: they shear in a crash so
+                         # the deck and GPS come off instead of the lid tearing out
+DECK_INSERT_DEPTH = 8.0  # brass M3 insert pocket in each post top (brass and nylon
+                         # only: steel this close would disturb the compass)
+DECK_ACCESS_D = 6.0      # holes in the deck over the four lid screws
+DECK_STRAP = (9.0, 3.0)  # two slots for one zip tie over the GPS case
+
 # --- masses for the centre-of-mass report (grams) ---------------------------
 PETG_G_PER_MM3 = 1.27e-3
 PRINT_FILL = 0.9         # walls are mostly solid at these thicknesses
@@ -181,6 +220,10 @@ PINS = [(-30.0, 13.0), (-30.0, -13.0)]
 # and the pod can still hinge down from under the hook. Between the front dock screws.
 PINS_FRONT = [(20.0, 6.0), (20.0, -6.0)]
 PIN_FRONT_SLOT = 2.5     # extra socket length fore-aft
+MAST_CX = (HOLE_XS[0] + HOLE_XS[1]) / 2       # mast centre = centre of the lid screws
+MAST_XS = (HOLE_XS[0] + MAST_POST_INSET, HOLE_XS[1] - MAST_POST_INSET)
+Z_MAST0 = Z_LID + LID_T                       # lid top face
+Z_DECK = Z_MAST0 + MAST_H                     # underside of the deck
 
 
 def box(x0, x1, y0, y1, z0, z1):
@@ -203,6 +246,18 @@ def nose_arrow(x_tip, z_top, size=7.0, depth=0.6):
 
 def cyl(x, y, z0, z1, d):
     return cq.Workplane("XY").circle(d / 2).extrude(z1 - z0).translate((x, y, z0))
+
+
+def yz_prism(pts, x0, x1):
+    """Extrude a y-z polygon along x."""
+    return (cq.Workplane("YZ").polyline(pts).close().extrude(x1 - x0)
+            .translate((x0, 0, 0)))
+
+
+def cone(x, y, z0, z1, d0, d1):
+    """Round taper from diameter d0 at z0 to d1 at z1."""
+    return cq.Workplane(obj=cq.Solid.makeCone(d0 / 2, d1 / 2, z1 - z0,
+                                              cq.Vector(x, y, z0), cq.Vector(0, 0, 1)))
 
 
 def xz_prism(pts, y0, y1):
@@ -401,7 +456,7 @@ def cam_pivot():
     return (CAM_PIVOT_X, Z_LID + LID_T + CAM_PIVOT_ABOVE_LID)
 
 
-def pod_lid(camera: bool = False):
+def pod_lid(camera: bool = False, mast: bool = False):
     x0, x1 = PI_X_SD, PI_X_SD + HAT_L
     lid_hw = (CHEEK_Y_IN + CHEEK_T) if camera else PI_W / 2
     lid = rbox(x0, x1, -lid_hw, lid_hw, Z_LID, Z_LID + LID_T)
@@ -412,6 +467,8 @@ def pod_lid(camera: bool = False):
     for i in range(n):                      # vent slots across the roof
         x = x0 + 9.0 + i * (HAT_L - 18.0) / (n - 1)
         for (yc, ln) in ((0.0, 20.0), (21.0, 7.0), (-21.0, 7.0)):
+            if mast and yc and min(abs(x - px) for px in MAST_XS) < MAST_FOOT_D / 2 + 3.0:
+                continue                    # no vent slot under a mast post's foot
             lid = lid.cut(cq.Workplane("XY").slot2D(ln, 3.6, 90).extrude(LID_T + 8)
                           .translate((x, yc, Z_LID - 1)))
     for hx in HOLE_XS:
@@ -445,6 +502,127 @@ def pod_lid(camera: bool = False):
     lid = lid.union(box(px - 17.0, px - 13.5, -CHEEK_Y_IN - 0.5, CHEEK_Y_IN + 0.5,
                         pz + 2.0, pz + 8.0))
     return lid
+
+
+def _arch(a0, a1, z_top, across: bool, at: float):
+    """One arch frame: a thin wall between two post tops whose underside rises at
+    45 degrees from each post to a crown (so it prints with no support). `across`
+    False = runs fore-aft at y = at; True = runs left-right at x = at."""
+    pw = MAST_POST_D / 2 - 0.4                  # bury the ends in the posts
+    hs = (a1 - a0) / 2 - pw
+    apex = z_top - MAST_CHORD_T
+    zk = apex - hs
+    mid = (a0 + a1) / 2
+    tri = [(a0 + pw, zk - 0.01), (a1 - pw, zk - 0.01), (mid, apex)]
+    t = MAST_WEB_T
+    if across:
+        wall = box(at - t / 2, at + t / 2, a0, a1, zk, z_top)
+        return wall.cut(yz_prism(tri, at - t, at + t))
+    wall = box(a0, a1, at - t / 2, at + t / 2, zk, z_top)
+    return wall.cut(xz_prism(tri, at - t, at + t))
+
+
+def pod_lid_mast():
+    """The lid with the GPS mast on it: four posts and four arches. One piece, printed
+    lid-down as modelled; nothing overhangs more than 45 degrees."""
+    lid = pod_lid(mast=True)
+    z0, z1 = Z_MAST0, Z_DECK
+    for sy in (-1, 1):
+        y = sy * MAST_Y
+        lid = lid.union(_arch(MAST_XS[0], MAST_XS[1], z1, False, y))
+        for px, hx in zip(MAST_XS, HOLE_XS):
+            lid = lid.union(cyl(px, y, z0, z1, MAST_POST_D))
+            lid = lid.union(cone(px, y, z0, z0 + MAST_FOOT_H, MAST_FOOT_D, MAST_POST_D))
+            zb = z1 - MAST_BOSS_H
+            taper = (MAST_BOSS_D - MAST_POST_D) / 2          # 45-degree flare under the boss
+            lid = lid.union(cone(px, y, zb - taper, zb, MAST_POST_D, MAST_BOSS_D))
+            lid = lid.union(cyl(px, y, zb, z1, MAST_BOSS_D))
+            # doubler on the lid from the post's foot toward its standoff boss, stopping
+            # short of the screw head
+            s = 1 if px > hx else -1
+            xa, xb = sorted((hx + s * 4.5, px + s * 3.0))
+            ya, yb = sorted((sy * (MAST_Y - 4.5), sy * (PI_W / 2 - 0.6)))
+            lid = lid.union(box(xa, xb, ya, yb, z0, z0 + MAST_PAD_T))
+    for px in MAST_XS:
+        lid = lid.union(_arch(-MAST_Y, MAST_Y, z1, True, px))
+    for px in MAST_XS:                       # insert pockets last, through everything
+        for sy in (-1, 1):
+            lid = lid.cut(cyl(px, sy * MAST_Y, z1 - DECK_INSERT_DEPTH, z1 + 1, INSERT_M3_D))
+    return lid
+
+
+def _deck_tab_angles():
+    """Tabs at the nose and at 120 degrees either side; the rear is left open for the
+    GPS cable."""
+    return (0.0, 120.0, 240.0)
+
+
+def gps_deck():
+    """Ground-plane plate: flat disc, raised rim, three tabs that centre the GPS case.
+    Foil (copper or aluminium tape) covers the top face inside the rim; the GPS sits
+    on the foil. Printed flat, underside down."""
+    cx, zt = MAST_CX, Z_DECK + DECK_T
+    r = DECK_D / 2
+    d = cyl(cx, 0, Z_DECK, zt, DECK_D)
+    rim = cyl(cx, 0, zt, zt + DECK_RIM_H, DECK_D).cut(
+        cyl(cx, 0, zt - 1, zt + DECK_RIM_H + 1, DECK_D - 2 * DECK_RIM_T))
+    rim = rim.cut(box(cx - r - 1, cx - r + DECK_RIM_T + 1, -6.0, 6.0, zt, zt + DECK_RIM_H + 1))
+    d = d.union(rim)                         # (the gap in the rim is the cable's way out, aft)
+    rt = GPS_D / 2 + DECK_TAB_GAP
+    for ang in _deck_tab_angles():
+        tab = box(rt, rt + 1.6, -3.0, 3.0, zt, zt + DECK_TAB_H)
+        d = d.union(tab.rotate((0, 0, 0), (0, 0, 1), ang).translate((cx, 0, 0)))
+    for px in MAST_XS:                       # nylon M3 screws into the post tops
+        for sy in (-1, 1):
+            d = d.cut(cyl(px, sy * MAST_Y, Z_DECK - 1, zt + 1, 3.4))
+    for hx in HOLE_XS:                       # screwdriver access to the four lid screws
+        for hy in HOLE_YS:
+            d = d.cut(cyl(hx, hy, Z_DECK - 1, zt + 1, DECK_ACCESS_D))
+    for sy in (-1, 1):                       # one zip tie over the GPS case
+        d = d.cut(cq.Workplane("XY").slot2D(DECK_STRAP[0], DECK_STRAP[1]).extrude(DECK_T + 2)
+                  .translate((cx, sy * (GPS_D / 2 + 1.6 + 0.6 + DECK_STRAP[1] / 2), Z_DECK - 1)))
+    d = d.cut(nose_arrow(cx + r - DECK_RIM_T - 1.5, zt, size=6.0))
+    return d
+
+
+def gps_ghost():
+    """The GPS case, for the assembly and the vibration model only."""
+    return cyl(MAST_CX, 0, Z_DECK + DECK_T, Z_DECK + DECK_T + GPS_H, GPS_D)
+
+
+def mast_check():
+    """Rules the mast and deck must meet before any file is written. Returns a list of
+    failures (empty = pass)."""
+    bad = []
+    def need(ok, msg):
+        if not ok:
+            bad.append(msg)
+    reach = DECK_SCREW_L - DECK_T
+    need(DECK_INSERT_DEPTH >= INSERT_M3_L + INSERT_RELIEF_MIN,
+         f"deck pocket {DECK_INSERT_DEPTH} < insert {INSERT_M3_L} + relief {INSERT_RELIEF_MIN}")
+    need(DECK_INSERT_DEPTH >= reach + 1.0, f"deck screw reaches {reach}, pocket {DECK_INSERT_DEPTH}")
+    need(reach >= 0.8 * INSERT_M3_L + 2.0 or reach >= INSERT_M3_L,
+         f"deck screw only {reach} mm below the deck: not through the insert")
+    need(MAST_BOSS_H >= DECK_INSERT_DEPTH + 1.5, "post boss shorter than its pocket")
+    need((MAST_BOSS_D - INSERT_M3_D) / 2 >= 2.0, "under 2 mm of wall round the deck inserts")
+    # screwdriver reach to the lid screws: clear of the post, and under a deck hole
+    gap = MAST_POST_INSET - MAST_FOOT_D / 2 - 2.5          # screw head is 5 mm across
+    need(gap >= 1.5, f"post foot only {gap} mm from a lid screw head")
+    r_deck = DECK_D / 2 - DECK_RIM_T
+    r_acc = math.hypot(HOLE_XS[1] - MAST_CX, HOLE_YS[1]) + DECK_ACCESS_D / 2
+    need(r_acc <= r_deck - 0.5, f"access hole reaches {r_acc:.1f}, rim starts at {r_deck:.1f}")
+    r_post = math.hypot(MAST_XS[1] - MAST_CX, MAST_Y)
+    need(r_post - 3.2 >= GPS_D / 2 + DECK_TAB_GAP + 1.6 + 0.3,
+         "deck screw heads would sit under the GPS case or its tabs")
+    need(r_post + MAST_BOSS_D / 2 <= r_deck, "a post top pokes outside the deck")
+    # arches: the 45-degree crown must fit above the knee, and leave headroom over the lid
+    for a0, a1 in ((MAST_XS[0], MAST_XS[1]), (-MAST_Y, MAST_Y)):
+        hs = (a1 - a0) / 2 - (MAST_POST_D / 2 - 0.4)
+        need(MAST_H - MAST_CHORD_T - hs >= MAST_BOSS_H * 0 + 8.0,
+             f"mast too short for a {a1 - a0:.0f} mm arch (needs {MAST_CHORD_T + hs + 8.0:.0f} mm)")
+    need(PI_W / 2 - MAST_Y >= MAST_FOOT_D / 2, "post foot overhangs the lid's edge")
+    need(GPS_D / 2 + DECK_TAB_GAP + 1.6 < r_deck - 6.0, "no room between the GPS case and the rim")
+    return bad
 
 
 def _cam_local_to_body(wp, tilt_deg):
@@ -595,14 +773,30 @@ def mass_report(parts):
         ("hat", MASS["hat"], (PI_X_SD + HAT_L / 2, 0.0, Z_HAT + 2.0)),
         ("hardware", MASS["hardware"], (-10.0, 0.0, Z_PI)),
     ]
+    # "removable_module" keeps its 2026-11-09 meaning (base + plain lid + boards) because
+    # analysis.py's layout comparison A to D is built on it. The module as it will fly
+    # with the GPS mast is reported beside it.
     removable = [i for i in items if i[0] in ("pod_base", "pod_lid")] + comps
     m = sum(i[1] for i in removable)
     cg = [sum(i[1] * i[2][k] for i in removable) / m for k in range(3)]
+    flown = ([i for i in items if i[0] in ("pod_base", "pod_lid_mast", "gps_deck")] + comps
+             + [("gps", GPS_MASS, (MAST_CX, 0.0, Z_DECK + DECK_T + GPS_H / 2))])
+    mf = sum(i[1] for i in flown)
+    cgf = [sum(i[1] * i[2][k] for i in flown) / mf for k in range(3)]
     return {
         "printed_g": {n: round(g, 1) for n, g, _ in items},
         "removable_module_g": round(m, 1),
         "removable_module_cg_mm": [round(v, 1) for v in cg],
         "total_height_above_top_plate_mm": round(Z_LID + LID_T + 3.0, 1),
+        "gps_mast": {"mast_height_mm": MAST_H, "deck_diameter_mm": DECK_D,
+                     "module_with_mast_and_gps_g": round(mf, 1),
+                     "module_with_mast_and_gps_cg_mm": [round(v, 1) for v in cgf],
+                     "gps_top_above_top_plate_mm": round(Z_DECK + DECK_T + GPS_H, 1),
+                     "deck_top_above_top_plate_mm": round(Z_DECK + DECK_T, 1),
+                     "gps_antenna_above_pi_board_mm": round(Z_DECK + DECK_T + GPS_H - Z_PI, 1),
+                     "added_printed_g_over_plain_lid": round(
+                         sum(g for n, g, _ in items if n in ("pod_lid_mast", "gps_deck"))
+                         - sum(g for n, g, _ in items if n == "pod_lid"), 1)},
         "footprint_mm": [round(FLOOR_X_FRONT + 6.2 - TAB_X_REAR, 1), PI_W],
         "levels_mm": {"fc_underside": Z_FC0, "pi_underside": Z_PI,
                       "hat_underside": Z_HAT, "lid_underside": Z_LID},
@@ -629,7 +823,9 @@ def assembly(parts, vendor_fc=None, camera=False, nose=False):
         asm.add(cam_ghost(), name="REF_camera_board_and_lens",
                 color=cq.Color(0.2, 0.2, 0.25))
     else:
-        asm.add(parts["pod_lid"], name="pod_lid", color=cq.Color(0.95, 0.75, 0.30))
+        asm.add(parts["pod_lid_mast"], name="pod_lid_mast", color=cq.Color(0.95, 0.75, 0.30))
+        asm.add(parts["gps_deck"], name="gps_deck", color=cq.Color(0.80, 0.80, 0.82))
+        asm.add(gps_ghost(), name="REF_gps_compass_unit", color=cq.Color(0.12, 0.12, 0.14))
     fc = None
     if vendor_fc and os.path.exists(vendor_fc):
         # Holybro's model: -x = ARROW end (six small openings), +x = PIN end (one
@@ -665,9 +861,9 @@ def print_pose(name, wp):
     """The part as it should sit on the printer bed, lowest face at z = 0. The STL
     files are written in THIS pose so nobody has to re-orient one; the STEP files
     and the assembly stay in flight position for CAD inspection."""
-    # pod_lid needs no turning: its flat underside is already down and its two rails
-    # are on top. (Earlier notes said "print it upside down"; that was wrong and would
-    # have put it on the rails.)
+    # pod_lid_mast needs no turning: the lid's flat underside is already down and the
+    # mast stands up from it. gps_deck needs none either: flat underside down, rim and
+    # tabs on top.
     if name == "cam_plate_nose":               # plate level, screw bosses down, ears up
         wp = cam_plate_nose_local().rotate((0, 0, 0), (0, 1, 0), 90)
     zmin = wp.val().BoundingBox().zmin
@@ -682,6 +878,7 @@ def main() -> int:
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     parts = {"dock": dock(), "pod_base": pod_base(), "pod_lid": pod_lid(),
+             "pod_lid_mast": pod_lid_mast(), "gps_deck": gps_deck(),
              "dock_coupon": dock(coupon=True),
              "pod_lid_cam": pod_lid(camera=True), "cam_plate": cam_plate(),
              "dock_cam": dock(nose_post=True), "cam_plate_nose": cam_plate_nose(),
@@ -689,6 +886,10 @@ def main() -> int:
     bad = insert_pocket_check()
     if bad:
         print("FAIL: insert pockets: " + "; ".join(bad))
+        return 1
+    bad = mast_check()
+    if bad:
+        print("FAIL: GPS mast: " + "; ".join(bad))
         return 1
     for name, wp in parts.items():
         solids = wp.val().Solids()

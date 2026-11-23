@@ -308,6 +308,19 @@
 #     loosens a guard: put it back to 0.5 once the GPS is moved or shielded properly.
 #     Evidence: runs/interceptor_flight2_20261122/README.md.
 1	1	EKF2_REQ_SACC	1.000000	9
+#  APPROVED 2026-11-22 BY THE BUILDER, NOT YET ON THE BOARD (the aircraft was powered
+#  down when he said yes). Write these three with read-back at the next power-up
+#  (scripts/bench/px4_param_set.py), then delete this notice.
+#  EKF2_HGT_REF = 0 -> barometer as the height reference (was 1, GPS, the PX4 default).
+#     In flight 3 the height estimate followed 8 m of GPS altitude wander while the
+#     barometer stayed within 3 m, and the aircraft climbed against the pilot.
+#     Evidence: runs/interceptor_flight3_20261122/README.md.
+1	1	EKF2_HGT_REF	0	6
+#  MPC_ACC_HOR = 5, MPC_JERK_MAX = 20 -> Position mode answers the sticks sooner (were
+#     3 m/s2 and 8 m/s3, the defaults). Measured stick-to-tilt delay in Position mode
+#     was 0.36 s in pitch and 0.60 s in roll, against 0.14 s in Altitude mode.
+1	1	MPC_ACC_HOR	5.000000	9
+1	1	MPC_JERK_MAX	20.000000	9
 #  BAT1_CAPACITY is deliberately NOT set (board value -1). It was set to 1350 on
 #     2026-11-22 and reverted the same day: a capacity switches on PX4's
 #     remaining-flight-time check, which fired twice in flight because the position

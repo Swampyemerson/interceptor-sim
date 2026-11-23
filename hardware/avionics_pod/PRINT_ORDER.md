@@ -31,7 +31,8 @@ confirmed**: the ITLL does not publish them, so the first step is a question to 
 | Dock with camera post | `dock_cam.stl` | **Onyx, solid fill** | The part every vibration number depends on. Ask for fibreglass in the tongue if offered (below) |
 | Camera plate | `cam_plate_nose.stl` | **Onyx, solid fill** | Same load path as the post |
 | Pod base | `pod_base.stl` | **Onyx, solid fill** | Carries the Pi and sits over the Pixhawk: most of the flex in the pod's sway mode is in this part, and it is the one next to the heat |
-| Pod lid | `pod_lid.stl` | Onyx if it rides along in the same order, PETG otherwise | Lightly loaded; material matters least here |
+| Pod lid with GPS mast | `pod_lid_mast.stl` | Onyx if it rides along in the same order, PETG otherwise | New 2026-11-22. Carries the GPS on four posts; the posts are loaded along the layers, which is the weak way, so ask for 4 or more wall loops |
+| GPS deck | `gps_deck.stl` | **PETG or ASA, not Onyx** | New 2026-11-22. Sits beside the antenna; Onyx has carbon in it, plain plastic does not |
 
 The plain dock and the lid-cradle camera parts are no longer in this folder (removed
 2026-11-11), so every STL here is a current part.
@@ -43,13 +44,14 @@ The plain dock and the lid-cradle camera parts are no longer in this folder (rem
 | `dock_cam.stl` | 140.0 x 40.0 x 40.0 | 5.51 x 1.57 x 1.57 |
 | `cam_plate_nose.stl` | 42.0 x 39.4 x 20.2 | 1.65 x 1.55 x 0.79 |
 | `pod_base.stl` | 101.0 x 56.0 x 25.9 | 3.98 x 2.20 x 1.02 |
-| `pod_lid.stl` | 65.0 x 56.0 x 4.6 | 2.56 x 2.20 x 0.18 |
+| `pod_lid_mast.stl` | 65.0 x 56.0 x 51.6 | 2.56 x 2.20 x 2.03 |
+| `gps_deck.stl` | 88.0 x 88.0 x 4.4 | 3.46 x 3.46 x 0.17 |
 | `dock_cam_coupon.stl` | 137.9 x 40.0 x 0.8 | 5.43 x 1.57 x 0.03 |
 
 **Settings to ask for**
 
 - **Orientation:** print each STL exactly as it sits in the file; they are saved in print
-  pose. `dock_cam` and `pod_lid` have a flat face down and need no supports.
+  pose. `dock_cam`, `pod_lid_mast` and `gps_deck` have a flat face down and need no supports.
   `cam_plate_nose` rests on its four screw bosses and **needs supports** under the plate.
   `pod_base` needs supports in two places only: the two side cable windows (a flat
   48 mm span, per `GAP_REVIEW.md` item 13) and nothing else. Say this on the request.
@@ -125,8 +127,8 @@ Forge's cost sheet. How the $0.35 is applied (whole part or fibre only) is not s
 - `dock_cam`'s base (3 mm dock, 6 mm tongue) is the spring the camera post nods on: the
   one place fibre pays. Ask for it as a sandwich: fibre layers near the bottom and near
   the top of the base, none in the upright cheeks.
-- `pod_base` flexes in its upright side panels, `pod_lid` is 1.6 mm thick and lightly
-  loaded, `cam_plate_nose` is small and stiff already: plain Onyx for all three.
+- `pod_base` flexes in its upright side panels, `pod_lid_mast` is a thin roof with four
+  posts, `cam_plate_nose` is small and stiff already: plain Onyx for all three.
 - Not modelled: how far fibre moves the post's nodding mode (187 Hz in PETG at its
   screws). The tap test on the printed part gives the number.
 
@@ -136,17 +138,18 @@ Forge's cost sheet. How the $0.35 is applied (whole part or fibre only) is not s
 |---|---|---|---|
 | `dock_cam.stl` | 5.51 x 1.57 x 1.57 | 140 x 40 x 40 | 27.7 g |
 | `pod_base.stl` | 3.98 x 2.20 x 1.02 | 101 x 56 x 26 | 18.8 g |
-| `pod_lid.stl` | 2.56 x 2.20 x 0.18 | 65 x 56 x 4.6 | 6.5 g |
+| `pod_lid_mast.stl` | 2.56 x 2.20 x 2.03 | 65 x 56 x 51.6 | 18.3 g |
+| `gps_deck.stl` (PETG, not Onyx) | 3.46 x 3.46 x 0.17 | 88 x 88 x 4.4 | 10.9 g |
 | `cam_plate_nose.stl` | 1.65 x 1.55 x 0.79 | 42 x 39 x 20 | 5.1 g |
 
-About 58 g. At the quoted rates: about $15 all plain; about $17 if the dock is charged at
+About 81 g with the GPS mast and deck (58 g before them). At the quoted rates: about $15 all plain; about $17 if the dock is charged at
 $0.35; allow $20 to $25 with support material.
 
 **Supports.** Markforged's slicer (Eiger) places supports itself and they peel away, so
 the request asks for its standard supports with the files left in their saved pose.
 Places that will get supports and must be cleared: `pod_base`'s two side cable windows
 and the blind round pocket under its tail (9.6 mm across, 5.3 mm deep, the cup that drops
-over the dock's boss); under `cam_plate_nose`'s plate. `pod_lid` needs none.
+over the dock's boss); under `cam_plate_nose`'s plate. `pod_lid_mast` and `gps_deck` need none.
 
 **Known risks accepted with this order.** The revision 6 front pins have not been
 printed in PLA. The rear cup and cable windows were not reshaped to print without
