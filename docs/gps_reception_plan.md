@@ -18,7 +18,15 @@ geofence) went wrong from there. This page is the plan to fix that at the source
 
 Not known: how much the Pi and the AI board cost with the camera fully shielded; whether
 the motors and speed controllers add noise (never tested apart); how good this GPS unit is
-at this site with nothing near it.
+at this site with nothing near it; whether noise also travels up the GPS unit's own cable,
+which runs down past the Pi (foil does nothing for that).
+
+**Layers are not the lever (added 2026-11-24).** Radio current at the GPS frequency only
+flows in the outer 2 microns of aluminium (skin depth = sqrt(resistivity / (pi x frequency
+x permeability)) = 2.06 microns at 1575 MHz), and kitchen foil is several times thicker, so
+one layer already stops what it covers. What leaks is the gaps: the open ends of the ribbon
+wrap at both connectors, any seam, and a shield that is not connected to ground and so
+carries the noise along instead of draining it. More layers only help if they close a gap.
 
 ## Why a mount helps, in three sentences
 
@@ -33,7 +41,11 @@ going from 3 cm to 10 cm cuts the compass disturbance by about 37 times.
 
 The aircraft sits in the open, camera streaming the whole time, 90 s per row. I read
 satellites used, the unit's speed accuracy and its jamming figure from the log, and the
-compass field strength from the estimator.
+compass field strength from the estimator. I also record the signal strength of each
+satellite (C/N0, in dB-Hz: how far each signal stands above the noise). It moves before the
+satellite count does, so it shows a small gain or loss that the count hides. It needs one
+diagnostic setting on the flight controller (`GPS_SAT_INFO` = 1, then a restart), on the
+builder's yes. It is recorded for information; the pass mark below is unchanged.
 
 | Row | Arrangement |
 |---|---|
@@ -42,7 +54,9 @@ compass field strength from the estimator.
 | 1 | On the lid, plus a flat plate about 9 cm across under the unit. |
 | 2 | 5 cm above the lid on a non-metal spacer, with the plate. |
 | 3 | 10 cm above the lid, with the plate. |
-| 4 | Row 3 with the ribbon shield properly made: insulated, wrapped, and connected to a ground point at the Pi end. |
+| 3g | Row 3 with the plate joined to ground by one short wire. Tells us whether the deck's foil needs a ground wire at all. |
+| 4 | Row 3 with the ribbon shield properly made: insulated, one layer wrapped with no gaps right up to both connectors, and connected to a ground point at the Pi end. |
+| 4c | Row 4 with the GPS cable routed clear of the ribbon and a clip-on ferrite on it **at the flight-controller end only**. Ferrite is magnetic and the compass is inside the GPS unit, so none goes within 3 cm of the unit. |
 | 5 | The best row so far with the motors running, props off, at about hover throttle. |
 
 **Pass mark, fixed now:** camera streaming, the row is within 2 satellites of row R and its
