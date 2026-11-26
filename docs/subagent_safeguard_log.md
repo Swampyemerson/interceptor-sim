@@ -457,3 +457,11 @@ chain (`seeker_loop.py`, `frame_feed.py`, ...) and the guidance and cue code
 was not redone on the head or reworded; the builder was told. So the fork lane
 is no longer 17 of 17: it is file-dependent, and `real_flight.py` is the file
 that trips it. That file has had no independent review since.
+
+## 2026-11-26 addendum — `opus55-worker` stopped on a Windows app-troubleshooting brief
+A fresh `opus55-worker` (served `claude-opus-5-5`) was asked to find out why
+QGroundControl would not load on the laptop during a field session. The brief
+was self-contained and did not point at the repo, but it described the
+surroundings (two powered aircraft, serial ports, limits on what to touch).
+Stopped by the safeguard (`[general_harms]`) before reporting. Not redone on
+the head, not reworded; the builder was told and given the manual steps.
