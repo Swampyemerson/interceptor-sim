@@ -154,3 +154,40 @@ UNCERTAIN, not a pass.
 - The vehicle is the Gazebo x500 fit, not the built aircraft; only its velocity
   lag has been compared with a real log.
 - Separation is centre to centre. The aircraft are about 0.3 m across.
+
+## Amendment 1 (2026-11-26, written AFTER arms S, H, G and F were read, before arms W and A ran)
+
+Post hoc, and labelled as such: these arms were chosen because of what the
+registered arms showed, so they explain, they do not confirm.
+
+What prompted it:
+
+1. The sim decoded 0.16 and 0.20 m tags at 13 m, where they are 10 to 12 px across.
+   That is the tail of the sim's size curve (a few per cent per frame at 20 frames a
+   second). The flight code runs the detector at `quad_decimate` 2, which halves the
+   pixels it works on. Prediction P1 was wrong against the sim, but the sim's
+   acquisition ranges are not believable for a tag-size choice.
+2. Contacts happened with the break-off switched on, all on the hovering target, and
+   all in runs that started more than 1.2 m above it. One traced run shows the tag
+   sliding off the bottom of the picture at 2 to 2.75 m, just outside where the
+   break-off triggers (about 2.25 m); the break-off needs a fed track, never fires,
+   and the chase flies its last estimate into the target.
+3. The flight program's `--mount-tilt-deg` defaults to 0. The camera is at about 20.
+
+Arms (24 seeds each, seeds 0 to 23):
+
+- **A strict:** hover and straight targets, cap 1.5, tags 0.10 to 0.35, with a decode
+  floor of 20 px and half-probability at 30 px.
+- **A hover height:** hover target, tags 0.16, 0.20, 0.35, caps 0.9 and 1.5, start
+  height pinned at -2, -1, 0, +1, +2 m relative to the target.
+- **A tilt told:** straight target, tag 0.20, cap 1.5, true tilt 20, flight code told
+  0, 17 and 23.
+- **W** as registered, on straight / tag 0.20 / cap 1.5 / start 0 to 2 m below the
+  target (the cell the registered criterion selects: 24 of 24 triggers, largest
+  worst-case separation among the cells that pass).
+
+No criterion is attached to arm A. Expectations, stated before running: contacts on
+the hover target concentrate at start heights of +1 and +2 m and are absent at 0 and
+below; with the strict decode the 0.10 m tag is acquired late or not at all and the
+0.35 m tag still acquires beyond 8 m; told 0 degrees, the chase climbs or descends
+the wrong way and loses the tag.
