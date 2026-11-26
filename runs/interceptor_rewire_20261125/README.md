@@ -79,3 +79,14 @@ was run twice in one power-up (`outdoor_camtest.ulg`, `outdoor_camtest2.ulg`, no
 - The GPS "jamming figure" sat at 26 to 31 throughout and no longer moves with the
   camera. On 2026-11-22 it read about 100 with the camera off. It is not used as a
   measure here.
+
+## The Pi did not start on one power-up
+
+After the aircraft was carried outside and the battery plugged back in, the Pi was
+unreachable for several minutes. The builder found its light solid red (powered, not
+running), unplugged and replugged, and it came up green. Read afterwards on the running
+Pi: supply 5.30 V, no under-voltage flag, and no record of the failed start, because the
+Pi's system log does not survive a restart. Cause not established. Candidates: a quick
+unplug and replug, or a 5 V connection disturbed by the same day's wiring tidy. With the
+Pi not running there is no flight log and no video, and nothing stops the aircraft
+arming, so the green light and the recorder check come before every flight.
