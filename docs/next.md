@@ -8,15 +8,28 @@
 
 ## Where the project is (2026-11-26)
 
-**On the ground and disarmed, the whole chain works on the real hardware.** On 2026-11-26
-the target's position reached the Pi over the control-link route (handset USB, laptop,
-Wi-Fi), GO fired by itself when the enable switch was raised, the chase commands ran for
-15 s in OFFBOARD, and the program's rehearsal report passed
-(`runs/bench_props_on_disarmed_20261126/README.md`). The first GO locked the target 101 m
-overhead (barometer height against GPS height); that is fixed and was seen fixed. Before both
-aircraft fly a slow intercept course: one program takeoff alone, a camera calibration, a
-slow speed limit, and a rule that keeps the two apart, because the chase is built to touch
-the target. What follows is older and still true where it does not conflict.
+**On the ground and disarmed, the whole chain works on the real hardware; nothing has flown
+under program control.** On 2026-11-26 the target's position reached the Pi over the
+control-link route (handset USB, laptop, Wi-Fi), GO fired when the enable switch was raised,
+and the chase commands ran in OFFBOARD (`runs/bench_props_on_disarmed_20261126/README.md`).
+The first GO locked the target 101 m overhead (barometer height against GPS height); fixed
+and seen fixed.
+
+**Next flying day: Saturday 2026-11-28, an AprilTag intercept attempt.** In order:
+
+1. **Ground check of the hand-over mode, kill switch on** (`real_flight.py --pilot-handover`,
+   written 2026-11-26, simulated vehicle only). The builder hovers in Position; the GO switch
+   is also the Pixhawk's offboard switch (`RC_MAP_OFFB_SW = 8`, written that day): up hands
+   over, down takes back. Commands are held to 2 mph with no climb or descent. Not yet seen:
+   that the Pixhawk enters and leaves OFFBOARD from the switch, and GO in this mode.
+2. **First program-flown flight on the target's GPS alone**, target on the ground or on its
+   path well clear.
+3. **Nose-camera calibration, image flipped.** None exists; the camera cannot guide without
+   it.
+4. **Tag on the target**, facing settled (contract question `target-tag-facing`), and the
+   camera wired into the hand-over mode with a rule that stops short of contact.
+
+What follows is older and still true where it does not conflict.
 
 ### State on 2026-11-22
 
@@ -61,7 +74,6 @@ Decisions: `docs/decisions.md` ADR-0139 and the 2026-11-18 addenda to ADR-0130 a
 | ⬜ | **Tag facing.** The placard is designed side-facing; the chase from behind cannot read it (0 of 16 in the sim), and a rear-facing plate is the option the mount design rejected for drag. | contract question `target-tag-facing`; `docs/placard_mount.md` section 3 |
 | ⬜ | **Camera plate angle.** Ruled +10 degrees with a canted placard (2026-09-24); the flying-lens rerun says 20, under different conditions. Do not set it yet. | contract question `camera-plate-angle` |
 | ✅ | **The target's GPS over the control link works in the field** (2026-11-26, 2 reports a second into the Pi). GO was seen the same day on the disarmed aircraft. | `runs/bench_props_on_disarmed_20261126/README.md` |
-| ⬜ | **Decide how the two aircraft are kept apart on the slow run.** Recommended: target on the ground first, then a height gap. No such switch exists in the flight program yet. | contract question `slow-run-separation` |
 | ⬜ | **Fly the target on one long straight leg at 9 to 12 m/s, logged.** It measures the cue's real speed error, the number the long-range dash turns on. | contract assumptions `cue-speed-error-at-long-range`, `search-declared-cue-quality` |
 | ⬜ | **Geofence against long range**: 457 m, Hold. Keep cues inside about 300 m, or widen it for those flights. | contract question `dash-envelope-on-real-fc` |
 | ⬜ | **Target after its fall (2026-11-15)**: inspect; choose low battery = land for the yard; fly on a 6 minute timer. | ADR-0138 addenda 17 and 18 |

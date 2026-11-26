@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->01fd729<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->3c005c7<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -901,7 +901,7 @@
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
  "updated": "2026-11-26",
- "updated_by": "GO fired on the real disarmed aircraft from the live target position; 101 m height error found and fixed",
+ "updated_by": "Pilot hand-over mode written (simulated vehicle only); offboard switch set to channel 8; flying stopped until Saturday",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
   "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -914,13 +914,13 @@
  },
  "now": {
   "as_of": "2026-11-26",
-  "where": "On the ground, disarmed, the whole chain now works on the real hardware: the target's position reaches the Pi, GO fires by itself when the enable switch is raised, and the chase commands stream to the Pixhawk. The rehearsal's own report passed.",
-  "finding": "The first GO locked the target 101 m overhead: barometer height against GPS height. Fixed and seen fixed. The chase is built to hit the target, has no slow-speed limit and holds no safe distance; the nose camera has no calibration.",
+  "where": "On the ground, disarmed, the whole chain works on the real hardware: the target's position reaches the Pi, GO fires when the enable switch is raised, and chase commands reach the Pixhawk. A pilot hand-over mode for the first program-flown flight is written and tested on a simulated vehicle only.",
+  "finding": "Not yet seen on the aircraft: the hand-over mode and the offboard switch on channel 8. Saturday's AprilTag attempt also needs a nose-camera calibration (none exists) and the camera added to the hand-over mode, which today flies on the target's GPS alone.",
   "next": [
-   "You: say how far apart the two aircraft really were (the program said 4.8 m, then 7.1 m)",
-   "You: decide how the two aircraft are kept apart on the slow run (target on the ground first)"
+   "You (Saturday, first): ground check of the GO switch with the kill switch on, before any flight",
+   "You: nose-camera calibration with the image flipped, and say which way the tag faces"
   ],
-  "evidence": "runs/bench_props_on_disarmed_20261126/README.md - runs/interceptor_redundancy_20261126/README.md - flight/deploy/real_flight.py - docs/cue_over_control_link.md"
+  "evidence": "runs/bench_props_on_disarmed_20261126/README.md - flight/tests/test_pilot_handover.py - flight/deploy/real_flight.py - configs/px4_6cmini/bench.params"
  },
  "assumptions": [
   {
@@ -1513,18 +1513,6 @@
    "rec": "Keep until after the weekend attempt is scored - then prune with the provenance-safe rules."
   },
   {
-   "id": "slow-run-separation",
-   "question": "The handset USB route for the target's position works in the field (2026-11-26). Before both aircraft fly a slow intercept course: the chase aims to touch the target, and without a camera calibration it flies on a belief that is frozen at GO. How do we keep them apart?",
-   "options": [
-    "Height gap: the interceptor flies the course at a typed height well above the target, so it rehearses the horizontal chase only",
-    "Wait for the camera calibration and use the rehearsal break-off (pulls away before contact; fast-sim only so far)",
-    "Target on a tripod or the ground first: the interceptor flies the whole sequence against a target that is not in the air"
-   ],
-   "rec": "Option 3 first, then option 1. Neither exists as a switch in the flight program today; a height offset has to be added and tested before it flies.",
-   "blocked": "Needs GO seen once on the disarmed aircraft, a first program-flown takeoff with nothing else in the air, and your say on who holds which transmitter.",
-   "doc": "runs/bench_props_on_disarmed_20261126/README.md; flight/pursuit_terminal.py; docs/cue_relay_plan.md section 14"
-  },
-  {
    "id": "target-tag-facing",
    "question": "The target's tag placard is designed side-facing, to keep drag off the target. The chase comes from behind and cannot read it: 0 kills of 16 in the sim. A rear-facing plate is the option the mount design rejected, because its drag holds the target near 6 m/s. Which way do we go?",
    "options": [
@@ -1552,9 +1540,9 @@
  "plain_log": [
   {
    "date": "2026-11-26",
-   "text": "First runs of the whole target-to-interceptor chain on the real hardware, at the flying site, interceptor disarmed with props on and the kill switch on. The target's position came down its control link, out of the handset's USB port, through the laptop and the Wi-Fi to the Pi at 2 reports a second, none malformed. In the fourth run the builder raised the enable, GO fired by itself from 5 s of reports, the chase commands ran for 15 s in OFFBOARD (the mode where the Pixhawk flies the Pi's commands), and the program's own rehearsal report passed all seven checks. The third run found a fault: the target was locked 101 m overhead, because the Pixhawk now reports barometer height (97 m low that day) and the target reports GPS height. The program now uses the GPS receiver's height; the fourth run locked the target 2.4 m above and 4.8 m away.",
-   "so_what": "The chain from the target's GPS to chase commands works on the ground. Two GPS receivers sitting still disagreed by 2 to 3 m, which is the error a flight on the estimate alone starts with. Before both fly: a first program takeoff alone, a camera calibration, a slow speed limit, and a rule that keeps the aircraft apart, because the chase is built to make contact.",
-   "evidence": "runs/bench_props_on_disarmed_20261126/README.md; flight/tests/test_cue_own_height.py; flight/tests 605 passed on the dev laptop"
+   "text": "First runs of the whole target-to-interceptor chain on the real hardware, at the flying site, interceptor disarmed with props on and the kill switch on. The target's position came down its control link, out of the handset's USB port, through the laptop and the Wi-Fi to the Pi at 2 reports a second, none malformed. In the fourth run the builder raised the enable, GO fired by itself from 5 s of reports, the chase commands ran for 15 s in OFFBOARD (the mode where the Pixhawk flies the Pi's commands), and the program's own rehearsal report passed all seven checks. The third run found a fault: the target was locked 101 m overhead, because the Pixhawk now reports barometer height (97 m low that day) and the target reports GPS height. The program now uses the GPS receiver's height; the fourth run locked the target 2.4 m above and 4.8 m away. Afterwards a pilot hand-over mode was written for the first program-flown flight: the builder hovers by hand, the GO switch (now also the Pixhawk's own offboard switch, channel 8) hands the aircraft to the program and takes it back, and every command is held to 2 mph with no climb or descent. It passes on a simulated vehicle only; flying stopped for the day before it ran on the aircraft.",
+   "so_what": "The chain from the target's GPS to chase commands works on the ground. Two GPS receivers sitting still disagreed by 2 to 3 m, which is the error a flight on the estimate alone starts with. The hand-over mode and the new switch setting have not been seen on the real aircraft. Saturday's AprilTag attempt needs them checked on the ground first, plus a nose-camera calibration and the camera wired into the hand-over mode.",
+   "evidence": "runs/bench_props_on_disarmed_20261126/README.md; flight/tests/test_cue_own_height.py; flight/tests/test_pilot_handover.py; configs/px4_6cmini/bench.params; flight/tests 616 passed on the dev laptop"
   },
   {
    "date": "2026-11-26",
