@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-26",
-  "updated_by": "Flight logs of 2026-11-26 read against the assumed numbers; flight time contradicted; hand-over mode written",
+  "updated_by": "Hand-over profile flown in the fast sim: works on a straight slow target; a close-range gap is open",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-11-26",
-    "where": "On the ground, disarmed, the whole chain works on the real hardware: the target's position reaches the Pi, GO fires when the enable switch is raised, and chase commands reach the Pixhawk. A pilot hand-over mode for the first program-flown flight is written and tested on a simulated vehicle only.",
-    "finding": "Not yet seen on the aircraft: the hand-over mode and the offboard switch on channel 8. The low-battery failsafe is ending flights at 2.5 to 4 minutes. Saturday's AprilTag attempt needs a nose-camera calibration and the camera added to the hand-over mode.",
+    "where": "On the ground, disarmed, the chain from the target's GPS to chase commands works on the real hardware. A pilot hand-over mode, with the camera and a pull-away before contact, is written and tested on a simulated vehicle; it has not run on the aircraft.",
+    "finding": "The fast sim found a gap: with the pull-away on, if the tag leaves the picture at about 2 m the chase flies on blind and can touch the target (35 contacts in 864 runs). It is not fixed: the model's safety filter stopped the edit. No nose-camera calibration yet (the Pi cannot see the camera).",
     "next": [
-      "You (Saturday, first): ground check of the GO switch with the kill switch on, before any flight",
-      "You: nose-camera calibration with the image flipped, and say which way the tag faces"
+      "You: reseat the camera ribbon with power off, then we calibrate",
+      "You: decide how the close-range gap gets closed before a tag flight (see the sim write-up)"
     ],
-    "evidence": "runs/bench_props_on_disarmed_20261126/README.md - flight/tests/test_pilot_handover.py - flight/deploy/real_flight.py - configs/px4_6cmini/bench.params"
+    "evidence": "runs/handover_profile_isim_20261126/README.md - flight/tests/test_pilot_handover.py - docs/subagent_safeguard_log.md - runs/bench_props_on_disarmed_20261126/README.md"
   },
   "assumptions": [
     {
@@ -655,6 +655,12 @@
   "plain_log": [
     {
       "date": "2026-11-26",
+      "text": "The hand-over mode was extended to take the camera (tag detector, height held until the chase is on tag decodes, a pull-away required unless contact is asked for), and then flown in the fast sim before any real flight: rear-facing tag, the measured GPS errors, three target motions, three speed limits. On a straight 2 mph target at a 1.5 m/s limit it acquired the tag and pulled away in 24 of 24 runs with at least 1.7 m to spare. At a 0.9 m/s limit it never closed. On the backyard loop it almost never pulled away. Across the grid there were 35 contacts in 864 runs with the pull-away switched on, 33 by one route: the tag slides out of the bottom of the picture at about 2 m, the pull-away needs fresh decodes, and the chase carries on blind for 2 s. Starting level with or below the target gave no contacts in 432 runs.",
+      "so_what": "The pull-away cannot be trusted alone yet. That gap in the flight code is open: the edit to close it was stopped by the model's safety filter and was not retried. For a first tag flight the sim says: target on a long straight leg flying away, 1.5 m/s limit, start 10 to 20 m behind and level or below, the 0.35 m tag. The sim ranks; it does not model the tag filling the picture or a wandering GPS.",
+      "evidence": "runs/handover_profile_isim_20261126/README.md; isim/specs/handover_profile_prereg_2026-11-26.md; flight/tests/test_pilot_handover.py; docs/subagent_safeguard_log.md"
+    },
+    {
+      "date": "2026-11-26",
       "text": "The day's flight logs from both aircraft were read against the numbers the project assumes. The interceptor never lost its position in six flights (380 s in the air); on 22 November it lost it in all three. Three of the six flew on worse GPS (13 to 15 satellites) and in those the hands-off hover wandered 1.6 m and the heading swung 11 to 29 degrees; the cause is not in the logs. The low-battery failsafe fired in three of six flights, once 142 s after take-off on a fresh pack with 306 mAh counted. The camera sits about 17 to 21 degrees up, read from video frames, not the 10 that was ruled. The target flies its backyard course at about 1 m/s round roughly 5 by 6 m, turning about 19 degrees a second, while its own GPS position wanders 1.5 to 1.9 m and its GPS height several metres.",
       "so_what": "The 8 minute flight time is contradicted: flights are ending at 2.5 to 4 minutes, and that failsafe would also take the aircraft out of a program-flown test. The backyard course is smaller than GPS error and all turn, so an estimate frozen at GO goes stale within a second or two there; a first hand-over flight wants the target still or on a long straight leg. The camera angle still needs one straight pass at 10 m/s or more before a ruling.",
       "evidence": "runs/flight_log_analysis_20261126/README.md; runs/interceptor_flight_late_20261126/README.md; runs/target_flight_20261126/README.md"
@@ -718,12 +724,6 @@
       "text": "The interceptor is assembled with the new pod and nose camera mount, and both aircraft were weighed with their batteries: interceptor 930 g, target 620 g. The builder reports the mount is sturdy. The interceptor came out 130 g over the old parts estimate and 20 g under the 950 g ceiling the design was sized for. Knowing the target's weight also turns its 15 November full-throttle climb into a thrust reading: at least 0.79 kg per motor on a sagging, half-used pack, against the 1.5 kg assumed for a fresh one.",
       "so_what": "On paper the interceptor has about 6.5 times its weight in thrust on a fresh pack, about 3.4 times on a tired one, and hovers for nearly 8 minutes, down from 10. Two things in the photos need attention before it flies: the GPS and compass unit sits on the lid directly over the Pi, and the radio receiver hangs loose by its wires near the propellers. The mount's stiffness is still a hand check; the tap test is owed.",
       "evidence": "docs/airframe_numbers.md §1; scripts/airframe_numbers.py --auw 930; runs/target_flight6_20261115/README.md; builder's photos and scale readings 2026-11-21 (not in the repo)"
-    },
-    {
-      "date": "2026-11-20",
-      "text": "First assembly of the printed avionics pod. The four brass thread inserts for the Pi were melted into the pod base, the Pi's standoffs went in only a few turns, and all four stripped. Cause: my design. The holes were only 1 mm deeper than the inserts, so the plastic each insert pushed aside rose into its threads. The two other kinds of insert hole (camera plate, rear release) had the same fault and had not been used yet. All three are corrected in the drawing and the print files (pod revision 7), with a check that stops a shallow hole being exported again.",
-      "so_what": "The printed parts are not scrap: a hand drill brings them to the corrected depths. The M3 inserts to buy are 4 mm long or shorter, not the 5.7 mm I listed, and the rear release screw is 8 mm, not 10. No insert has been set in a corrected hole yet, so the fix is drawn and measured in the files, not proven on a part.",
-      "evidence": "hardware/avionics_pod/README.md (revision 7 section); hardware/avionics_pod/pod.py insert_pocket_check; tests/test_avionics_pod_analysis.py"
     }
   ],
   "narrative": {

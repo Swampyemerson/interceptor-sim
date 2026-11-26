@@ -734,3 +734,12 @@ Second half of the day. The flight program gained a guarded flight mode with a r
 **So what:** All of this is laptop-tested only. The props are on, so nothing has run on the real Pi and Pixhawk; that rehearsal is the next step once they are off. Two things need rulings: the tag placard is designed side-facing, which a chase from behind cannot read, and the rerun's 20 degree camera tilt disagrees with the +10 degrees ruled in September under different conditions.
 
 *Evidence: isim/specs/flight_hardware_rerun_prereg_2026-11-18.md; isim/specs/arrival_search_prereg_2026-11-18.md; flight/tests/test_cue_go.py; runs/real_flight_driver_sih_20261118/README.md; docs/cue_over_control_link.md; docs/decisions.md ADR-0139*
+
+
+## 2026-11-20
+
+First assembly of the printed avionics pod. The four brass thread inserts for the Pi were melted into the pod base, the Pi's standoffs went in only a few turns, and all four stripped. Cause: my design. The holes were only 1 mm deeper than the inserts, so the plastic each insert pushed aside rose into its threads. The two other kinds of insert hole (camera plate, rear release) had the same fault and had not been used yet. All three are corrected in the drawing and the print files (pod revision 7), with a check that stops a shallow hole being exported again.
+
+**So what:** The printed parts are not scrap: a hand drill brings them to the corrected depths. The M3 inserts to buy are 4 mm long or shorter, not the 5.7 mm I listed, and the rear release screw is 8 mm, not 10. No insert has been set in a corrected hole yet, so the fix is drawn and measured in the files, not proven on a part.
+
+*Evidence: hardware/avionics_pod/README.md (revision 7 section); hardware/avionics_pod/pod.py insert_pocket_check; tests/test_avionics_pod_analysis.py*

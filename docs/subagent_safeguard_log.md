@@ -465,3 +465,21 @@ was self-contained and did not point at the repo, but it described the
 surroundings (two powered aircraft, serial ports, limits on what to touch).
 Stopped by the safeguard (`[general_harms]`) before reporting. Not redone on
 the head, not reworded; the builder was told and given the manual steps.
+
+## 2026-11-26 evening — head stopped mid-edit on `real_flight.py`; a fork's report came back marked unreviewed
+Two events in one session (Fable 5.2 head).
+1. A fork ran the fast-sim study of the pilot hand-over profile and finished
+   (`runs/handover_profile_isim_20261126/`). Its report arrived with a harness
+   warning that the automatic review of it could not be done because a safety
+   filter refused the review request. The head read the report and its files;
+   it is an ordinary study report.
+2. That report names a gap in the flight code: with the pull-away switched on,
+   losing the tag at close range leads to no pull-away. The head reproduced it
+   with the fork's trace script and began an edit to `flight/deploy/real_flight.py`
+   to close it. The head's reply was stopped by the safety classifier while
+   that edit command was being written. The command was incomplete and never
+   ran: the working tree was unchanged afterwards (checked with `git status`).
+   Per the standing rule the edit was not retried or reworded. The gap is
+   therefore OPEN in the code, and the builder was told.
+Pattern, unchanged: `real_flight.py` is the file that trips the filter, now on
+the head as well as on forks.

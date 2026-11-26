@@ -26,8 +26,12 @@ and seen fixed.
    path well clear.
 3. **Nose-camera calibration, image flipped.** None exists; the camera cannot guide without
    it.
-4. **Tag on the target**, facing settled (contract question `target-tag-facing`), and the
-   camera wired into the hand-over mode with a rule that stops short of contact.
+4. **Tag on the target, facing rearward** (builder, 2026-11-26). The camera is now in the
+   hand-over mode with the pull-away required. **Open gap, not fixed:** in the fast sim, a
+   tag that leaves the picture at about 2 m gets no pull-away and the chase can touch the
+   target (`runs/handover_profile_isim_20261126/README.md`). First tag flight per the sim:
+   target on a long straight leg flying away, 1.5 m/s limit, start 10 to 20 m behind and
+   level or below, the 0.35 m tag, `--mount-tilt-deg 20`.
 
 What follows is older and still true where it does not conflict.
 
