@@ -54,7 +54,7 @@ Decisions: `docs/decisions.md` ADR-0139 and the 2026-11-18 addenda to ADR-0130 a
 | ⬜ | **Target after its fall (2026-11-15)**: inspect; choose low battery = land for the yard; fly on a 6 minute timer. | ADR-0138 addenda 17 and 18 |
 | ⬜ | **GPS bench session** (outdoors, props off, about 30 min): the GPS unit at several heights with a plate under it, camera running; I read the numbers and we pick the mount's size. | `docs/gps_reception_plan.md` step 1 |
 | ⬜ | **GPS mast and deck are drawn (2026-11-22), not printed.** Before printing: measure the GPS unit's diameter and its cable length, and ideally run the bench session above, which can still change the mast's height. Buy 4 brass M3 inserts (4 mm or shorter), 4 nylon M3 x 8 screws and foil tape. | `hardware/avionics_pod/README.md`, "GPS mast and deck" |
-| ⬜ | **Power the aircraft up on the bench and tell me**: I write the three settings you approved (barometer height reference, sharper Position mode) and read them back. They are not on the board yet. | `configs/px4_6cmini/bench.params` |
+| ✅ | **The three approved settings are on the board** (barometer height reference, sharper Position mode): written and read back 2026-11-25. Still to do: re-read after a restart, then fly them. | `configs/px4_6cmini/bench.params` |
 | ⬜ | **Recalibrate the compass outdoors, away from metal.** Today's recalibration left it reading 0.39 to 0.42 G against 0.51; I check the reading afterwards. | `runs/interceptor_flight3_20261122/README.md` |
 | ⬜ | **Check the pod's fasteners and do the tap test**: sideways vibration grew across the three flights. | same |
 | ⬜ | **Note the mAh the charger puts back** into today's packs. | `runs/interceptor_flight2_20261122/README.md` |

@@ -1,0 +1,4 @@
+START 103.2 fc_20261126T030813Z.ulg.part /dev/pixhawk-usb armed=False
+CAM_ON 128.2 fc_20261126T030813Z.ulg.part /dev/pixhawk-usb armed=False
+CAM_OFF 159.3 fc_20261126T030813Z.ulg.part /dev/pixhawk-usb armed=False exit 0
+END 185.3 fc_20261126T030813Z.ulg.part /dev/pixhawk-usb armed=False

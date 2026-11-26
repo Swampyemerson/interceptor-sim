@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Camera on/off against the GPS and compass after the 2026-11-25 wiring tidy.
+# Ground, disarmed, props on: read-only on the Pixhawk side, nothing here arms or drives a motor.
+cd ~/interceptor-sim; PY=.venv-pi/bin/python
+sec() { $PY -c "import json;s=json.load(open('/dev/shm/flight_recorder_status.json'));print(s['seconds'], s['file'], s['port'], 'armed=%s' % s['armed'])"; }
+echo "START $(sec)"; sleep 25
+echo "CAM_ON $(sec)"
+$PY scripts/field/record_video.py --flip --seconds 30 --note "$1" --out-dir /tmp/gps_cam_test > /tmp/gps_cam_test.log 2>&1
+echo "CAM_OFF $(sec) exit $?"; sleep 25
+echo "END $(sec)"

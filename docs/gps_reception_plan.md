@@ -123,8 +123,8 @@ The points below are what the drawing was held to.
 
 | Setting | Now | Proposed | Why |
 |---|---|---|---|
-| Height reference (`EKF2_HGT_REF`) | GPS | Barometer | The aircraft followed 8 m of GPS altitude wander in flight 3. **Approved 2026-11-22; not yet written (aircraft was off).** |
-| Position-mode response (`MPC_ACC_HOR`, `MPC_JERK_MAX`) | 3 m/s2, 8 m/s3 | 5 m/s2, 20 m/s3 | Stick-to-tilt delay was 0.36 to 0.60 s against 0.14 s in Altitude mode. **Approved 2026-11-22; not yet written.** |
+| Height reference (`EKF2_HGT_REF`) | GPS | Barometer | The aircraft followed 8 m of GPS altitude wander in flight 3. **Approved 2026-11-22; written and read back 2026-11-25; not yet flown.** |
+| Position-mode response (`MPC_ACC_HOR`, `MPC_JERK_MAX`) | 3 m/s2, 8 m/s3 | 5 m/s2, 20 m/s3 | Stick-to-tilt delay was 0.36 to 0.60 s against 0.14 s in Altitude mode. **Approved 2026-11-22; written and read back 2026-11-25; not yet flown.** |
 | GPS speed-accuracy limit (`EKF2_REQ_SACC`) | 1.0 m/s | back to 0.5 | Only once the mount is fitted and the unit reports under 0.35. |
 | Pack capacity (`BAT1_CAPACITY`) | unset | 1350 | Only once position is dependable (it misfired a failsafe in flight 2). |
 
