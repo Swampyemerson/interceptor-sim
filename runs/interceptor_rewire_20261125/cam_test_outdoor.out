@@ -1,0 +1,4 @@
+START 63.1 fc_20261126T041954Z.ulg.part /dev/pixhawk-usb armed=False
+CAM_ON 88.2 fc_20261126T041954Z.ulg.part /dev/pixhawk-usb armed=False
+CAM_OFF 120.3 fc_20261126T041954Z.ulg.part /dev/pixhawk-usb armed=False exit 0
+END 145.3 fc_20261126T041954Z.ulg.part /dev/pixhawk-usb armed=False

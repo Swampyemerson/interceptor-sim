@@ -1,0 +1,3 @@
+camera off, before   n=24  sats 14..17 (median 16)  jam median  27 (25..68)  noise  94  speed acc 0.16 m/s  hdop 0.9  fix [3]
+camera RECORDING     n=29  sats 13..16 (median 14)  jam median  30 (26..34)  noise 101  speed acc 0.18 m/s  hdop 1.0  fix [3]
+camera off, after    n=22  sats 15..18 (median 17)  jam median  27 (26..65)  noise  97  speed acc 0.13 m/s  hdop 0.8  fix [3]

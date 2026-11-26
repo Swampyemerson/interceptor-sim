@@ -1,0 +1,10 @@
+topics: [('sensor_gps', 0), ('sensor_mag', 0), ('sensor_mag', 1), ('vehicle_magnetometer', 0)]  log span 156 s
+gps  camera off, before   n= 23  sats 16..19  jam median  26 (22..61)  noise 105  fix [3]
+gps  camera RECORDING     n= 28  sats 13..16  jam median  31 (27..37)  noise 103  fix [3]
+gps  camera off, after    n= 21  sats 13..17  jam median  28 (26..64)  noise  98  fix [3]
+mag 0 dev 396809  camera off, before   n=  23  mean -0.1001 +0.1030 +0.3877 G  |B| 0.4135  sd 0.0030  shift from before 0.0000 G
+mag 0 dev 396809  camera RECORDING     n=  28  mean -0.0994 +0.1051 +0.3948 G  |B| 0.4205  sd 0.0031  shift from before 0.0074 G
+mag 0 dev 396809  camera off, after    n=  21  mean -0.0997 +0.1031 +0.3872 G  |B| 0.4129  sd 0.0033  shift from before 0.0007 G
+mag 1 dev 396321  camera off, before   n=  23  mean -0.1835 +0.2411 +0.5203 G  |B| 0.6021  sd 0.0051  shift from before 0.0000 G
+mag 1 dev 396321  camera RECORDING     n=  28  mean -0.1794 +0.2454 +0.5201 G  |B| 0.6025  sd 0.0079  shift from before 0.0059 G
+mag 1 dev 396321  camera off, after    n=  21  mean -0.1840 +0.2407 +0.5216 G  |B| 0.6032  sd 0.0049  shift from before 0.0014 G

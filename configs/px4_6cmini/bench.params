@@ -309,8 +309,8 @@
 #     Evidence: runs/interceptor_flight2_20261122/README.md.
 1	1	EKF2_REQ_SACC	1.000000	9
 #  Approved by the builder 2026-11-22; written to the board and read back 2026-11-25
-#  (scripts/bench/px4_param_set.py, then a fresh `param show`). Not yet re-read after
-#  a restart, and not yet flown.
+#  (scripts/bench/px4_param_set.py, then a fresh `param show`), and again after a
+#  restart. Not yet flown.
 #  EKF2_HGT_REF = 0 -> barometer as the height reference (was 1, GPS, the PX4 default).
 #     In flight 3 the height estimate followed 8 m of GPS altitude wander while the
 #     barometer stayed within 3 m, and the aircraft climbed against the pilot.

@@ -700,3 +700,11 @@ First real pictures of our own target through our own camera. The Pi's camera sa
 **So what:** No current detector is usable in a real place: the one that sees our drone also sees things that are not drones. Footage from the site is needed for both halves, and this session supplies the first of it. It cannot also be the exam: all of it is one flight on one morning at close range, with the drone always bigger than the hard case. The next step is a second filmed session on another day with the loop further away, kept aside as the test.
 
 *Evidence: runs/own_target_20261115/README.md + existing_detectors.json + summary.json; scripts/nn/ground_video_labels.py; tests/test_ground_video_labels.py*
+
+## 2026-11-18 (overflowed from plain_log 2026-11-25)
+
+The builder asked whether the pod material choice and the power wiring had been checked against the 80 mph approach dash. They had not: the pod's vibration and heat sums were built around hover. Redone by hand: wind on the pod at 80 mph is about 4.7 N, less than the 16 N already checked, so wind does not drive the material; heat is still the solid reason for a carbon-filled nylon. On the wiring: all battery current passes through the power module (PM02), rated 60 A and 120 A for under a minute. The simulator's 80 mph take never asked for more than 1.4 times the aircraft's weight in thrust, so it is not a full-throttle dash; with air drag added (the simulator has none) my rough estimate is 30 to 50 A. A true full-throttle dash is the heavier case: the target drone, same motors and battery, logged about 86 A (uncalibrated sensor) while the battery sagged to 3.05 V per cell.
+
+**So what:** Keep the power module and buy nothing. The 80 mph dash as simulated should sit inside its rating; a saturated full-throttle dash sits inside its one-minute limit with little margin, and there the battery sagging is the larger problem (below the land-by voltage, and a threat to the Pi's supply). A 2 to 3 second full-throttle punch with a fresh battery settles it. I first answered that the planned dash was 36 mph, from an older config; the builder corrected me.
+
+*Evidence: docs/airframe_numbers.md section 6; hardware/avionics_pod/ANALYSIS.md section 5; runs/cinema_longrange_20261021/ (take hr5); runs/target_flight6_20261115/README.md; ADR-0132 addendum 2026-11-18*

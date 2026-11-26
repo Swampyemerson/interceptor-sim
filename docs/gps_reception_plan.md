@@ -12,7 +12,8 @@ geofence) went wrong from there. This page is the plan to fix that at the source
 |---|---|
 | The camera and its ribbon cable are the main jammer | Camera off: 6 to 7 satellites. Camera streaming, bare ribbon: 0, fix lost within a second. Processor load alone: one satellite. |
 | Foil round the ribbon removes most of it | Ground: fix held at 7. In flight: 11 satellites (flight 2), 9 with dips to 6 (flight 3). |
-| What is left is still too weak | The unit rates its own speed accuracy at 0.5 to 0.9 m/s; a healthy one says 0.2 to 0.3. It had 8 to 10 satellites indoors on the old bench rig, away from the Pi. |
+| After the builder's wiring tidy of 2026-11-25 (ribbon fold moved from under the lid, 5 V runs lower) it is much better on the ground | Two runs: 16 to 18 satellites camera off, 14 to 15 recording, fix held, speed accuracy 0.13 to 0.18 m/s. The camera still costs 2 to 3 satellites. The estimator still dropped position twice in 5 minutes on its ground drift checks. Different spot and time of day from 2026-11-22. `runs/interceptor_rewire_20261125/README.md` |
+| What was left on 2026-11-22 was too weak | The unit rates its own speed accuracy at 0.5 to 0.9 m/s; a healthy one says 0.2 to 0.3. It had 8 to 10 satellites indoors on the old bench rig, away from the Pi. |
 | The compass in the GPS unit hears the battery leads | 0.0036 G per amp: 0.28 G at a 77 A punch, half the Earth's field. |
 | The height estimate follows GPS altitude | 8 m of wander against the barometer in flight 3. |
 
@@ -62,6 +63,16 @@ on a 20 mm gap that does not exist. The builder is tidying the wiring (leads, 5 
 moved lower, the ribbon's fold moved from under the lid); the compass pickup and the GPS
 are remeasured after that. The ribbon, as flown on 2026-11-22, folded back on itself
 directly under the lid, 2 to 9 mm beneath the GPS.
+
+## Where this stands after the wiring tidy (2026-11-25)
+
+On the ground the GPS now meets the speed-accuracy half of the pass mark below without
+any mount (0.16 to 0.18 m/s with the camera recording). The camera still costs 2 to 3
+satellites against the one allowed, and the reference row has not been measured. **So
+the mount is no longer clearly needed for reception.** The honest order now is: one
+short proving flight as it is, then decide on the mast from that log. The mast would
+still help the compass (2.8 to 4.8 times less battery-current pickup) and would still
+take the unit away from whatever costs the 2 to 3 satellites.
 
 ## Step 1: measure before printing (one bench session outdoors, props off, about 30 min)
 
