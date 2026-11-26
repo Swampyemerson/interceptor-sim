@@ -369,8 +369,10 @@ def jobs_for(arm, a):
                   dh_lo=a.dh_lo, dh_hi=a.dh_hi)
         if a.dist is not None:
             kw["dist"] = a.dist
+        if a.strict:
+            kw["decode_strict"] = True
         base = f"tag{a.tag_m:.2f} cap{a.cap} dh[{a.dh_lo:+.0f},{a.dh_hi:+.0f}]" + (
-            "" if a.dist is None else f" dist{a.dist:.0f}")
+            "" if a.dist is None else f" dist{a.dist:.0f}") + (" strict" if a.strict else "")
         J += cell(f"W expected {base}", SEEDS, **kw)
         J += cell(f"W worst {base}", SEEDS, worst=True, tilt_true=17.0,
                   cue_h_err=(3.0, 5.0), **kw)
@@ -442,6 +444,8 @@ def main():
     ap.add_argument("--dh-hi", type=float, default=2.0)
     ap.add_argument("--dist", type=float, default=None)
     ap.add_argument("--suffix", default="")
+    ap.add_argument("--strict", action="store_true",
+                    help="arm W: also apply amendment 1's strict decode floor")
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     if a.report:

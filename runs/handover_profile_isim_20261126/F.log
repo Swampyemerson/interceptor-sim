@@ -1,0 +1,6 @@
+96 rows -> /home/emerson/interceptor-sim/runs/handover_profile_isim_20261126/F.json
+                                        cell   n  acq  t_acq  r_acq trig r_trig late hit minsep min@trig worst@trig   top   bot  side
+                          F v5 tag0.20 cap16  24   24    0.4   15.8   24   6.88    0   0   2.67     2.67       1.26  0.00  0.00  0.00
+                          F v5 tag0.35 cap16  24   24    0.0   13.9   24   6.95    0   0   2.63     2.63       1.84  0.00  0.00  0.00
+                          F v9 tag0.20 cap16  24   24    0.1   16.3   24   2.11    0   0   1.60     1.60       1.55  0.00  0.00  0.00
+                          F v9 tag0.35 cap16  24   24    0.0   14.0   24   2.10    0   0   1.63     1.63       1.51  0.00  0.00  0.00

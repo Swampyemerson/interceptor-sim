@@ -1,0 +1,4 @@
+48 rows -> /home/emerson/interceptor-sim/runs/handover_profile_isim_20261126/W_tag035_strict.json
+                                        cell   n  acq  t_acq  r_acq trig r_trig late hit minsep min@trig worst@trig   top   bot  side
+  W expected tag0.35 cap1.5 dh[-2,+0] strict  24   24    0.4   13.7   24   2.13    0   0   1.82     1.82       1.74  0.00  0.00  0.00
+     W worst tag0.35 cap1.5 dh[-2,+0] strict  24   24    0.2   13.7   19   2.12    0   0   1.81     1.82       1.69  0.00  0.00  0.00
