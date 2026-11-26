@@ -445,3 +445,15 @@ thread is now dropped: no further retries or analysis of the FC log-streaming
 lane this session. The stream-catcher script is parked on the Pi (~/stream_logger.py
 + repo copy) for a fresh session to pick up. Session total: six head stops,
 all on hardware-failure diagnosis prose; zero on code, docs, or sim work.
+
+## 2026-11-26 — forks on Fable 5.2: 2 of 4 stopped, both on `real_flight.py`
+Four read-only review forks, launched together from a Fable 5.2 head with the
+same kind of brief (review named flight files, report findings, edit nothing).
+The two assigned `flight/deploy/real_flight.py` (lines 1 to 2000, and 2000 to
+the end with `loop_supervisor.py`) were stopped by the safeguard
+(`[general_harms]`, model `claude-fable-5-2`). The two assigned the camera
+chain (`seeker_loop.py`, `frame_feed.py`, ...) and the guidance and cue code
+(`pursuit_terminal.py`, `cue_link.py`, ...) finished clean. The stopped work
+was not redone on the head or reworded; the builder was told. So the fork lane
+is no longer 17 of 17: it is file-dependent, and `real_flight.py` is the file
+that trips it. That file has had no independent review since.
