@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->5d57818<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->99329de<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -900,7 +900,7 @@
  "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
  "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
  "project": "interceptor-sim — coded-dash counter-UAS interceptor",
- "updated": "2026-11-22",
+ "updated": "2026-11-25",
  "updated_by": "GPS mast and deck drawn and analysed (replaces the pod lid); three settings approved, not yet on the board (2026-11-22)",
  "goal": {
   "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -913,14 +913,14 @@
   "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
  },
  "now": {
-  "as_of": "2026-11-22",
-  "where": "Three hand flights today, each with a clean log and video. The aircraft follows its commands well. Every flight went wrong the same way: the estimator dropped the GPS and picked it up again, and position, height and heading failed from there.",
-  "finding": "Foil on the camera ribbon took the GPS from unusable to marginal (9 to 11 satellites, dips to 6). Flight 3 held Position mode 24 s, then lost GPS, compass and heading in turn. Height hold follows GPS altitude, which wandered 8 m. Thrust 4.2 times weight.",
+  "as_of": "2026-11-25",
+  "where": "Three hand flights on 22 November, each with a clean log and video. The aircraft follows its commands well. Every flight went wrong the same way: the estimator dropped the GPS and picked it up again, and position, height and heading failed from there.",
+  "finding": "A GPS mast and deck are drawn to lift the unit clear of the Pi and camera noise; not printed. How much the mast helps the compass depends on where the battery leads run, which is not measured: 2 to 6 times better, and the target needs 3.6.",
   "next": [
-   "You: measure the GPS unit and its cable, then print the mast and deck (pod README)",
+   "You: measure the GPS unit, its cable, and where the battery leads run, before printing",
    "You: power up on the bench; I write the three approved settings and read them back"
   ],
-  "evidence": "docs/gps_reception_plan.md - runs/interceptor_flight3_20261122/README.md - runs/interceptor_flight2_20261122/README.md - runs/interceptor_flight_20261122/README.md"
+  "evidence": "hardware/avionics_pod/FIELD_STUDY_BRIEF.md - docs/gps_reception_plan.md - runs/interceptor_flight3_20261122/README.md - runs/interceptor_flight2_20261122/README.md - runs/interceptor_flight_20261122/README.md"
  },
  "assumptions": [
   {
@@ -1551,6 +1551,12 @@
  ],
  "plain_log": [
   {
+   "date": "2026-11-25",
+   "text": "The builder asked for the mast files for SOLIDWORKS and a field study of it. SOLIDWORKS has no electromagnetic solver; that needs paid add-ins. A self-contained brief was written with the sources, check values and expected results. Working the compass case by hand showed an error of mine: the plan said distance would cut the compass disturbance 37 times. That figure is for a magnet 3 cm away. The measured disturbance is the battery leads, further off, and the mast adds 51 mm. The real gain is 2 to 6 times, depending on where the leads run, which nobody has measured. The target needs 3.6 times. A height comparison that mixed two reference points was also corrected (43.2 mm before, 94.6 mm with the mast).",
+   "so_what": "The mast may not fix the compass by itself. Before printing, the builder measures where the battery leads run and the gap between them; taping the two leads tightly together is a free gain. The GPS reception case for the mast is unchanged.",
+   "evidence": "hardware/avionics_pod/FIELD_STUDY_BRIEF.md; docs/gps_reception_plan.md"
+  },
+  {
    "date": "2026-11-22",
    "text": "The builder approved a barometer height reference and a sharper Position mode, and asked for the GPS mount to be designed as a replacement for the pod's lid. The aircraft was powered down, so the three settings are recorded as approved and not yet written. The mount is drawn as two parts: the lid with four posts and four arches on it, and a round plate that screws to the post tops with nylon screws, carrying a foil ground plane and the GPS unit. It lifts the GPS antenna from about 28 mm to 95 mm above the Pi board. The vibration model puts its first natural frequency at 130 Hz, 114 Hz with soft plastic, against an 80 Hz target. It adds 21.7 g, which takes the aircraft to about 952 g. The plain lid's print files were deleted the same day.",
    "so_what": "Nothing is printed. Three things are still guesses and should be checked first: the mast height (50 mm is a design value the bench session was meant to set), the GPS unit's real diameter (drawn from the maker's figure, 50 mm), and whether its cable reaches. The vibration figure is an upper bound from a model with glued joints; a tap test on the printed part gives the real one. The weight is 2 g over the 950 g the design was sized for.",
@@ -1615,12 +1621,6 @@
    "text": "The builder asked whether the pod material choice and the power wiring had been checked against the 80 mph approach dash. They had not: the pod's vibration and heat sums were built around hover. Redone by hand: wind on the pod at 80 mph is about 4.7 N, less than the 16 N already checked, so wind does not drive the material; heat is still the solid reason for a carbon-filled nylon. On the wiring: all battery current passes through the power module (PM02), rated 60 A and 120 A for under a minute. The simulator's 80 mph take never asked for more than 1.4 times the aircraft's weight in thrust, so it is not a full-throttle dash; with air drag added (the simulator has none) my rough estimate is 30 to 50 A. A true full-throttle dash is the heavier case: the target drone, same motors and battery, logged about 86 A (uncalibrated sensor) while the battery sagged to 3.05 V per cell.",
    "so_what": "Keep the power module and buy nothing. The 80 mph dash as simulated should sit inside its rating; a saturated full-throttle dash sits inside its one-minute limit with little margin, and there the battery sagging is the larger problem (below the land-by voltage, and a threat to the Pi's supply). A 2 to 3 second full-throttle punch with a fresh battery settles it. I first answered that the planned dash was 36 mph, from an older config; the builder corrected me.",
    "evidence": "docs/airframe_numbers.md section 6; hardware/avionics_pod/ANALYSIS.md section 5; runs/cinema_longrange_20261021/ (take hr5); runs/target_flight6_20261115/README.md; ADR-0132 addendum 2026-11-18"
-  },
-  {
-   "date": "2026-11-15",
-   "text": "First real pictures of our own target through our own camera. The Pi's camera sat on the ground and filmed the target's flight, and a new tool picked the drone out of the video by what moved against the empty-sky footage from before take-off: 484 frames with the drone boxed and 106 empty ones. I looked at 144 of the boxed frames and all 144 are the drone. The existing detectors, which have never seen this drone, were then scored on them with the prediction written first. The newer one found the drone in 69% of frames, as predicted, but also fired on 63% of the empty frames, nearly all on one paper lantern in the trees. Its larger-input version fired on every empty frame. The older ones are quiet and find the drone under half the time.",
-   "so_what": "No current detector is usable in a real place: the one that sees our drone also sees things that are not drones. Footage from the site is needed for both halves, and this session supplies the first of it. It cannot also be the exam: all of it is one flight on one morning at close range, with the drone always bigger than the hard case. The next step is a second filmed session on another day with the loop further away, kept aside as the test.",
-   "evidence": "runs/own_target_20261115/README.md + existing_detectors.json + summary.json; scripts/nn/ground_video_labels.py; tests/test_ground_video_labels.py"
   }
  ],
  "narrative": {

@@ -33,9 +33,20 @@ carries the noise along instead of draining it. More layers only help if they cl
 GPS signals arrive from above and are extremely weak; the noise comes from below. A flat
 metal plate under the unit, wider than the unit, improves what it hears from above and
 blocks what comes from below; about 8 to 10 cm across is the useful size (half the 19 cm
-wavelength). Distance does the rest: the stray fields close to a cable fall off very
-fast, and a magnetic field from a wire or magnet falls with the cube of distance, so
-going from 3 cm to 10 cm cuts the compass disturbance by about 37 times.
+wavelength). Distance does the rest for the radio noise: the stray fields close to a cable fall off
+very fast.
+
+**Corrected 2026-11-25: the compass gain is smaller than this page first said, and not
+yet known.** The first version said 3 cm to 10 cm cuts the compass disturbance 37 times.
+That is true 3 cm from a small magnet, and it is the wrong case here. The disturbance
+measured is the battery leads, which are further away, and the mast adds 51 mm to
+whatever that distance is today. A pair of leads falls with the square of distance, a
+small loop with the cube. Worked from the measured 0.0036 G per amp
+(`hardware/avionics_pod/FIELD_STUDY_BRIEF.md`, study A): 3.5 to 6 times better if the
+leads are 60 mm below the compass today, 2.2 to 3.2 times if they are 110 mm below. The
+0.001 G per amp target needs 3.6 times. Where the leads run has not been measured, so
+whether the mast alone meets the target is open. Taping the two leads tightly together
+cuts the field in proportion to their spacing and costs nothing.
 
 ## Step 1: measure before printing (one bench session outdoors, props off, about 30 min)
 

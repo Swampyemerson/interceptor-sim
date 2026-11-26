@@ -692,3 +692,11 @@ On its seventh flight the target drone began climbing by itself; the builder cut
 **So what:** This was the drone doing what it was set up to do, not a control fault, but a setting nobody had explained to the pilot is a hazard of its own. Proposed, his choice: make low battery mean land in place for yard flying, put height-hold in the middle switch position so getting out of return-home does not pass through manual throttle, and fly on a 6 minute timer. The drone needs a look-over after the fall before it flies again.
 
 *Evidence: runs/target_flight7_20261115/README.md (predictions and result); ADR-0138 addenda 17 and 18; log 3 copy on the PC (not in the repo)*
+
+## 2026-11-15 (overflowed from plain_log 2026-11-25)
+
+First real pictures of our own target through our own camera. The Pi's camera sat on the ground and filmed the target's flight, and a new tool picked the drone out of the video by what moved against the empty-sky footage from before take-off: 484 frames with the drone boxed and 106 empty ones. I looked at 144 of the boxed frames and all 144 are the drone. The existing detectors, which have never seen this drone, were then scored on them with the prediction written first. The newer one found the drone in 69% of frames, as predicted, but also fired on 63% of the empty frames, nearly all on one paper lantern in the trees. Its larger-input version fired on every empty frame. The older ones are quiet and find the drone under half the time.
+
+**So what:** No current detector is usable in a real place: the one that sees our drone also sees things that are not drones. Footage from the site is needed for both halves, and this session supplies the first of it. It cannot also be the exam: all of it is one flight on one morning at close range, with the drone always bigger than the hard case. The next step is a second filmed session on another day with the loop further away, kept aside as the test.
+
+*Evidence: runs/own_target_20261115/README.md + existing_detectors.json + summary.json; scripts/nn/ground_video_labels.py; tests/test_ground_video_labels.py*

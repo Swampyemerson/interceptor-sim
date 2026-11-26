@@ -48,15 +48,22 @@ Print in PLA first and check the fit before paying for Onyx; see `PRINT_ORDER.md
 **Why.** With the GPS unit lying on the plain lid, a few centimetres over the Pi and the
 camera ribbon, it lost its fix whenever the camera ran, and all three flights of
 2026-11-22 failed from that (`docs/gps_reception_plan.md`). These two parts replace the
-lid. They lift the unit 9.5 cm above the Pi board and put a metal plate under it.
+lid. They lift the unit 51 mm higher than the plain lid did and put a metal plate under it.
 
 | | |
 |---|---|
-| GPS antenna above the Pi board | 94.6 mm (it was about 28 mm on the plain lid) |
-| Deck (ground plane) | 88 mm across; half a GPS wavelength is 95 mm |
+| GPS antenna above the Pi board | 94.6 mm, against 43.2 mm on the plain lid (both: top of the GPS unit above the underside of the Pi board) |
+| Underside of the GPS above the AI board, the nearest noise source | 61.0 mm, against 9.6 mm on the plain lid |
+| Deck (ground plane) | 88 mm across, foil face inside the rim 84.8 mm; half a GPS wavelength is 95 mm |
 | Top of the GPS above the frame's top plate | 123.5 mm (the plain lid's rails were at 60.7 mm) |
 | Added printed weight over the plain lid | 21.7 g (lid with mast 17.4 g, deck 10.4 g, plain lid 6.2 g) |
 | First natural frequency, GPS fitted | 130 Hz side-to-side, 170 Hz fore-aft; 114 and 145 Hz with soft plastic |
+
+**Not yet shown (2026-11-25): that the mast fixes the compass.** The compass hears the
+battery leads, and the gain from 51 mm more height depends on where those leads run,
+which has not been measured: 2 to 6 times, against the 3.6 times the target needs.
+`FIELD_STUDY_BRIEF.md` has the working, and the setup for checking it and the radio
+noise in SOLIDWORKS (which needs a paid field add-in) or by calculation.
 
 - **How it is built:** four 6 mm posts stand on the lid 9 mm inboard of the lid's own
   screws, so a screwdriver still reaches those. The post tops are tied by four arches whose
