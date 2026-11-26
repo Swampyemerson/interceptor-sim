@@ -53,3 +53,15 @@ I have an upcoming interview. It would be cool to have an intercept before it, b
 
 ![The completed target drone on the bench: carbon-fiber frame on a LiPo bag, four motors (props off), Kakute H7 flight controller, GPS module, receiver, and XT60 battery lead](images/target_complete_2026-10.jpg)
 *The completed target drone, October 2026.*
+
+## A modular payload pod, a GPS interference hunt, and a finished target
+
+Significant hardware work has been accomplished over the past month. An interviewer at Anduril gave me the idea for a more modular, removable payload system that houses components on the interceptor and allows for a more organized, effective layout. Parts designed, integrated with the camera mount (allowing adjustable camera tilt): housing for the Pixhawk, then the Pi, then the accelerator, then a lid that protects and allows GPS mounting.
+
+Ran FEA in SolidWorks with Claude to determine material (went PETG for thermal (Pi and accelerator heat) and stiffness properties, plus cheap), printed a test fit in PLA, and after a small revision to mount a bit stronger, printed in PETG. Assembled the new mount system, mounted parts: hugely improved stability, and the camera mount works as intended.
+
+I ran into a pretty significant issue with GPS and compass interference, and spent several days working through causes by isolating systems on and off while comparing GPS values, along with starting with a cheaper fix of tin foil on the lid to block interference. I ended up moving the camera ribbon cable, tightening up the power-providing cables and moving them lower from the unit, and a larger tin foil base, which finally yielded acceptable results: from 3-7 GPS sats initially to 15-18 depending on camera activity.
+
+Finalizing flight code, adding redundancy, and fleshing out the mechanism for initiating the intercept; then I will mount the AprilTag and give it a shot.
+
+The target drone also was finished, with minimal issues past ripping off the FC USB port (resoldered with minimal difficulty), and managed to fly GPS waypoints in the backyard well. The battery is a bit more limiting than first thought, yielding just under the 5:1 T/W ratio that I was aiming for, but I don't anticipate needing an upgrade.
