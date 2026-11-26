@@ -58,12 +58,13 @@ To get the as-flown case, copy the GPS body down by 51.45 mm and suppress the ma
 |---|---|---|
 | Battery current | 8.8 A in hover, 77 A at full throttle | Measured, flights of 2026-11-22 |
 | Compass pickup of battery current, GPS on the lid | 0.0036 G per amp (0.36 microtesla per amp) | Measured, flight 3 |
-| Battery lead route, spacing and length | **not known** | The builder measures it: three points along the leads in the frame above, and the gap between red and black |
+| Battery lead route and spacing | Inside the airframe body and below it, so 63 mm or more under the compass as flown. Red and black up to 20 mm apart | Builder's description 2026-11-25, by eye. Not measured |
 | Pi supply current | up to 5 A | Vendor rating of the Pi 5 supply. The real draw has not been measured |
+| Pi supply route | Into the Pi, then straight down into the carbon body. The 5 V converter is inside the body | Builder's description 2026-11-25 |
 | Earth's field at the site | 0.513 G total | Model figure used elsewhere in the repo |
 | Radio noise from the camera ribbon | **strength not known.** Camera streaming on a bare ribbon took the GPS from 6 or 7 satellites to none | Measured effect, unmeasured level |
 | Radio noise from the Pi and AI board | **strength not known.** Processor load alone cost one satellite | Measured effect, unmeasured level |
-| Ribbon route and width | **not known** | The builder measures it: three points along it, and its width |
+| Ribbon route and width | About 15 mm wide. From the Pi's camera connector it runs aft about 40 mm under the lid, folds back, and runs forward to the top of the camera | Builder's description 2026-11-25, by eye |
 
 No datasheet gives the radio noise level of a Pi or a camera link. So study B cannot
 predict satellites or a fix. It can only rank arrangements against each other.
@@ -71,7 +72,7 @@ predict satellites or a fix. It can only rank arrangements against each other.
 ## 4. Study A: battery leads and the compass (EMS, "Magnetostatic")
 
 1. Open the assembly. Add two round copper bodies for the red and black battery leads
-   along the measured route, with the measured gap between them.
+   inside the body (below z = 0), 20 mm apart, running fore-aft. Repeat at 5 mm apart.
 2. Add an air box at least 400 mm on a side around everything.
 3. Material: copper for the leads; air for every printed part and board (plastic and
    circuit board do not change a steady magnetic field).
@@ -98,6 +99,13 @@ predict satellites or a fix. It can only rank arrangements against each other.
 | 60 mm | 0.0010 (3.5 times) | 0.0006 (6.4 times) |
 | 80 mm | 0.0013 (2.7 times) | 0.0008 (4.4 times) |
 | 110 mm | 0.0017 (2.2 times) | 0.0011 (3.2 times) |
+
+**With the builder's description (leads in the body or below, up to 20 mm apart):** a
+20 mm gap gives the measured figure at 105 mm and a 10 mm gap at 75 mm, and the body is
+63 mm or more under the compass, so the description and the measurement agree. At 85 to
+115 mm the mast alone gives 2.1 to 2.6 times on the square law (0.0014 to 0.0017 G per
+amp), which misses the target. Closing the gap from 20 mm to 5 mm gives 4 times with no
+mast (0.0009), and about 0.0004 with the mast.
 
 **Target:** under 0.001 G per amp on the mast (0.08 G at 77 A, against Earth's 0.513 G).
 **If the model misses it,** try the leads taped tightly together (the field falls in
@@ -130,7 +138,7 @@ source lying along x and again along y.
 |---|---|
 | S1, AI board | centre of the AI board, 2 mm above it |
 | S2, Pi board | centre of the Pi board, 2 mm above it |
-| S3, camera ribbon | midway along the measured ribbon route, lying along the ribbon |
+| S3, camera ribbon | on the folded part of the ribbon under the lid, lying along the ribbon. Draw the ribbon as a 15 mm wide conductor strip between the AI board (top at z 48.05) and the lid (underside at z 56.05): from the Pi's camera connector aft 40 mm, folded back, then forward to the camera at x 65, z 36. Take the connector's position from the Pi 5 drawing |
 
 **What to read:** the electric field strength averaged over a 25 mm square at the antenna
 point (z = 69.05 on the lid, z = 120.5 on the mast).
@@ -155,7 +163,9 @@ in the case / field in B0). More negative is better.
 with the cube of distance inside about 30 mm (wavelength divided by 2 pi) and in
 proportion to distance far outside it. The mast takes the underside of the GPS from
 9.6 mm to 61.0 mm above the AI board and from 27.2 mm to 78.6 mm above the Pi board. That
-brackets B2 at 16 to 48 dB better for S1 and 9 to 28 dB better for S2. A result outside
+brackets B2 at 16 to 48 dB better for S1 and 9 to 28 dB better for S2. The ribbon's
+fold lies 2 to 9 mm under the GPS as flown and 54 to 60 mm under it on the mast: 17 dB
+or more better for S3. A result outside
 those brackets means the setup is wrong or the plate and boards are doing something
 worth understanding.
 

@@ -44,9 +44,15 @@ whatever that distance is today. A pair of leads falls with the square of distan
 small loop with the cube. Worked from the measured 0.0036 G per amp
 (`hardware/avionics_pod/FIELD_STUDY_BRIEF.md`, study A): 3.5 to 6 times better if the
 leads are 60 mm below the compass today, 2.2 to 3.2 times if they are 110 mm below. The
-0.001 G per amp target needs 3.6 times. Where the leads run has not been measured, so
-whether the mast alone meets the target is open. Taping the two leads tightly together
-cuts the field in proportion to their spacing and costs nothing.
+0.001 G per amp target needs 3.6 times.
+
+**The builder's description (2026-11-25, by eye):** the leads are inside the body and
+below it, red and black up to 20 mm apart. That fits the measurement: a 20 mm gap gives
+0.0036 G per amp at 105 mm. At that distance the mast alone gives about 2.3 times, which
+misses the target. **So the compass fix is the leads, not the mast:** taping red and
+black tightly together (20 mm down to 5 mm) gives 4 times with no mast, and about 9 times
+with it. The ribbon, as described, folds back on itself directly under the lid, 2 to 9 mm
+beneath the GPS as flown; the mast puts it 54 to 60 mm away, which is the mast's real job.
 
 ## Step 1: measure before printing (one bench session outdoors, props off, about 30 min)
 

@@ -60,8 +60,9 @@ lid. They lift the unit 51 mm higher than the plain lid did and put a metal plat
 | First natural frequency, GPS fitted | 130 Hz side-to-side, 170 Hz fore-aft; 114 and 145 Hz with soft plastic |
 
 **Not yet shown (2026-11-25): that the mast fixes the compass.** The compass hears the
-battery leads, and the gain from 51 mm more height depends on where those leads run,
-which has not been measured: 2 to 6 times, against the 3.6 times the target needs.
+battery leads. By the builder's description they are in the body and below, up to 20 mm
+apart; at that distance the mast alone gives about 2.3 times, against the 3.6 times the
+target needs. Taping the leads tightly together gives 4 times with no mast.
 `FIELD_STUDY_BRIEF.md` has the working, and the setup for checking it and the radio
 noise in SOLIDWORKS (which needs a paid field add-in) or by calculation.
 

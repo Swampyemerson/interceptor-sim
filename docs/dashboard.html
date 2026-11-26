@@ -540,7 +540,7 @@
   <div id="titleblock">
     <div class="cell"><span class="lbl">Project</span><span class="v">INTERCEPTOR-SIM</span></div>
     <div class="cell"><span class="lbl">Doc</span><span class="v">STATUS BOARD</span></div>
-    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->eb1742e<!-- REV:END --></span></div>
+    <div class="cell"><span class="lbl">Rev</span><span class="v"><!-- REV:BEGIN -->4b96377<!-- REV:END --></span></div>
     <div class="cell"><span class="lbl">State date</span><span class="v" id="tb-date">&mdash;</span></div>
     <div class="cell"><span class="lbl">Sheet</span><span class="v">1 / 4</span></div>
     <div class="cell"><span class="lbl">Status count</span><span class="v" id="tb-counts">&mdash;</span></div>
@@ -915,9 +915,9 @@
  "now": {
   "as_of": "2026-11-25",
   "where": "Three hand flights on 22 November, each with a clean log and video. The aircraft follows its commands well. Every flight went wrong the same way: the estimator dropped the GPS and picked it up again, and position, height and heading failed from there.",
-  "finding": "A GPS mast and deck are drawn to lift the unit clear of the Pi and camera noise; not printed. How much the mast helps the compass depends on where the battery leads run, which is not measured: 2 to 6 times better, and the target needs 3.6.",
+  "finding": "A GPS mast and deck are drawn to lift the unit clear of the camera ribbon, which folds back right under it; not printed. The mast alone does not meet the compass target (about 2.3 times, needs 3.6). Taping the battery leads together does (4 times).",
   "next": [
-   "You: measure the GPS unit, its cable, and where the battery leads run, before printing",
+   "You: tape the battery leads tightly together; measure the GPS unit and cable; then print",
    "You: power up on the bench; I write the three approved settings and read them back"
   ],
   "evidence": "hardware/avionics_pod/FIELD_STUDY_BRIEF.md - docs/gps_reception_plan.md - runs/interceptor_flight3_20261122/README.md - runs/interceptor_flight2_20261122/README.md - runs/interceptor_flight_20261122/README.md"
@@ -1552,8 +1552,8 @@
  "plain_log": [
   {
    "date": "2026-11-25",
-   "text": "The builder asked for the mast files for SOLIDWORKS and a field study of it. SOLIDWORKS has no electromagnetic solver; that needs paid add-ins. A self-contained brief was written with the sources, check values and expected results. Working the compass case by hand showed an error of mine: the plan said distance would cut the compass disturbance 37 times. That figure is for a magnet 3 cm away. The measured disturbance is the battery leads, further off, and the mast adds 51 mm. The real gain is 2 to 6 times, depending on where the leads run, which nobody has measured. The target needs 3.6 times. A height comparison that mixed two reference points was also corrected (43.2 mm before, 94.6 mm with the mast).",
-   "so_what": "The mast may not fix the compass by itself. Before printing, the builder measures where the battery leads run and the gap between them; taping the two leads tightly together is a free gain. The GPS reception case for the mast is unchanged.",
+   "text": "The builder asked for the mast files for SOLIDWORKS and a field study of it. SOLIDWORKS has no electromagnetic solver; that needs paid add-ins. A self-contained brief was written with the sources, check values and expected results. Working the compass case by hand showed an error of mine: the plan said distance would cut the compass disturbance 37 times. That figure is for a magnet 3 cm away. The measured disturbance tracks battery current. The builder says the leads are in the body and below, red and black up to 20 mm apart; a 20 mm gap at 105 mm gives exactly the measured figure. At that distance the mast gives about 2.3 times and the target needs 3.6. The camera ribbon, as described, folds back directly under the lid, 2 to 9 mm beneath the GPS as flown.",
+   "so_what": "The mast is for GPS reception, where it moves the unit from millimetres to 54 mm or more from the ribbon. The compass fix is the battery leads: taping red and black tightly together gives 4 times with no mast.",
    "evidence": "hardware/avionics_pod/FIELD_STUDY_BRIEF.md; docs/gps_reception_plan.md"
   },
   {
