@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-26",
-  "updated_by": "Hand-over profile flown in the fast sim: works on a straight slow target; a close-range gap is open",
+  "updated_by": "Builder rulings: tag on the back, letter-size print; close-range stop rule wanted, not built; battery gauge is the fault",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -571,15 +571,27 @@
   ],
   "builder_queue": [
     {
-      "id": "battery-ends-flights-early",
-      "question": "The low-battery failsafe ended three of six flights on 2026-11-26, once 142 seconds after take-off on a freshly charged pack. Either the packs deliver about 600 to 700 mAh, or the current sensor reads less than half the true current. Which is it?",
+      "id": "close-range-rule",
+      "question": "You ruled (2026-11-26) how a tag flight should behave when the tag is lost and contact is not intended: about 5 m away or more, keep flying on the best estimate; inside about 3 m, stop outright as if the break-away had fired. The model's safety filter stopped my edit that would have built this, and I may not retry it in that session. How do you want it built?",
       "options": [
-        "Check the pack: read the label, and after a flight note how much the charger puts back",
-        "Check the sensor: compare the Pixhawk's current reading with a meter or the charger's figure",
-        "Fly on a timer meanwhile and leave the failsafe as it is"
+        "Start a fresh session and ask for it there (it may or may not go through)",
+        "Send /feedback about the stop, and fly the first tag run against a target that is not in the air",
+        "Fly on procedure alone: start level or below, 1.5 m/s limit, hand on GO"
       ],
-      "rec": "Option 1 first; it takes one charge. Until it is settled, expect 2.5 to 4 minutes per pack, and expect this failsafe to take the aircraft out of a program-flown test.",
-      "blocked": "Needs the pack label and one charger reading; the logs cannot tell the two causes apart.",
+      "rec": "Option 1 and option 2 together. Without the rule the hand-over mode relies on the break-away alone, and the fast sim showed that failing close in.",
+      "blocked": "Not built. The gap is described in runs/handover_profile_isim_20261126/README.md.",
+      "doc": "runs/handover_profile_isim_20261126/README.md; docs/subagent_safeguard_log.md; flight/deploy/real_flight.py"
+    },
+    {
+      "id": "battery-ends-flights-early",
+      "question": "You confirmed the packs are 1500 mAh and still above storage voltage after a flight, so the low-battery failsafe is firing on a full-enough pack: the Pixhawk's gauge reads the voltage dip under load as empty (it called 3.72 V per cell at 9.7 A 'critical' with 306 mAh used). Shall I correct the gauge?",
+      "options": [
+        "Yes: read the board's battery settings, set load compensation from the logged sag (about 0.11 ohm for the pack), read back, and check on the next flight",
+        "Fly on a timer and leave the gauge as it is",
+        "Leave everything; accept 2.5 to 4 minute flights"
+      ],
+      "rec": "Option 1. It is a settings change on the disarmed board, undone by writing the old values back. Until then the failsafe can take the aircraft out of a program-flown test.",
+      "blocked": "Needs the interceptor powered so the current settings can be read first.",
       "doc": "runs/flight_log_analysis_20261126/README.md (battery.txt)"
     },
     {
@@ -636,7 +648,7 @@
         "Leave the tag for calibration and put the effort into the markerless seeker, which does not need it"
       ],
       "rec": "Do not build either placard yet. I run the side-arrival geometry with the search first; that costs an hour and tells us whether option 1 is real.",
-      "blocked": "The placard has not been built. Every pursuit result in the contract assumes a rear-facing tag.",
+      "blocked": "The placard has not been built. Every pursuit result in the contract assumes a rear-facing tag. RULED 2026-11-26 for the slow field test: the tag goes on the back of the target, printed on letter paper (160 mm black square, hardware/tag_letter/).",
       "doc": "docs/placard_mount.md section 3; isim/specs/flight_hardware_rerun_prereg_2026-11-18.md (Brackets)"
     },
     {
