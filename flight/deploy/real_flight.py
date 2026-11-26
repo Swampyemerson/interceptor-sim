@@ -4211,7 +4211,8 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
                         acquire_after_s: float, bench: bool = False,
                         bench_max_batt_v: Optional[float] = None,
                         out: Optional[dict] = None,
-                        tick_log: Optional["TickLog"] = None) -> dict:  # pragma: no cover -- driven by the fake in tests
+                        tick_log: Optional["TickLog"] = None,
+                        handover: Optional["HandoverLimits"] = None) -> dict:  # pragma: no cover -- driven by the fake in tests
     """THE control loop: observe, step the state machine, send one setpoint,
     feed the watchdog. Shared by the flight driver and the props-off bench
     rehearsal ON PURPOSE -- a rehearsal that ran different loop code would
@@ -4364,7 +4365,8 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
                          offboard_active=state["offboard"],
                          offboard_sample_age_s=_offb_age,
                          mode=state["mode"],
-                         alt_m=(cfg.standby_alt_m if bench else state["alt"]),
+                         alt_m=(cfg.standby_alt_m if (bench or handover is not None)
+                                else state["alt"]),
                          yaw_deg=state["psi"],
                          quat=state["quat"],
                          ground_speed_ms=state["gs"],
@@ -4404,6 +4406,13 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
                 supervisor.beat()
             await asyncio.sleep(1.0 / args.fps)
             continue
+        if handover is not None:
+            # PILOT HAND-OVER: what leaves this loop is the LIMITED command, and
+            # the limited command is what the tick log records.
+            dec.setpoint = handover.limit(dec.setpoint, dec.state, state["psi"])
+            out["handover_max_h_ms"] = max(
+                out.get("handover_max_h_ms", 0.0),
+                math.hypot(dec.setpoint.v_north, dec.setpoint.v_east))
         n_off_true += 1 if state["offboard"] is True else 0
         if state["offboard"] is not True and sm.dash_heading.is_set:
             if not offboard_lost_after_go:
@@ -4472,6 +4481,35 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
         if dec.terminated:
             print(f"[mavsdk] state machine TERMINATED in SAFE "
                   f"(reason={dec.safe_reason})")
+            if handover is not None and not args.dry_run:
+                # The program is finished but the aircraft may still be in
+                # OFFBOARD with the pilot's switch on. Hold still (zero
+                # velocity, the yaw it has now) until the pilot takes it back
+                # or the run bound is reached; never end the stream under an
+                # aircraft that is still flying it.
+                hold = VelocityNedYaw(0.0, 0.0, 0.0,
+                                      float(state["psi"] or dec.setpoint.yaw_deg))
+                print("[handover] finished: holding still until the GO switch "
+                      "is lowered (you then have it in the mode-switch mode)")
+                while state["offboard"] is True \
+                        and time.monotonic() - t0 <= outer_bound_s:
+                    try:
+                        await drone.offboard.set_velocity_ned(hold)
+                    except Exception:  # noqa: BLE001 -- keep trying to hold
+                        pass
+                    n_sp += 1
+                    out["n_hold"] = out.get("n_hold", 0) + 1
+                    if supervisor is not None:
+                        supervisor.beat()
+                    await asyncio.sleep(1.0 / args.fps)
+            break
+        if handover is not None and dec.state == State.SAFE \
+                and state["offboard"] is not True:
+            # Finished, and the pilot has the aircraft (or never gave it up):
+            # nothing is flying these commands, so stop sending them.
+            print(f"[handover] finished in SAFE (reason={dec.safe_reason}) and "
+                  f"the vehicle is in {state['mode']}, not OFFBOARD: ending "
+                  f"the command stream")
             break
         await asyncio.sleep(1.0 / args.fps)
     out.update(n_tick=n_tick, n_sp=n_sp, n_off_true=n_off_true,
@@ -5296,6 +5334,171 @@ async def run_bench_props_off(args, cfg: MissionConfig, sm: RealFlightSM,
     return rc_exit
 
 
+# ---------------------------------------------------------------- pilot hand-over
+
+HANDOVER_DEFAULT_MAX_SPEED_MS = 0.9      # 2 mph
+
+
+@dataclass(frozen=True)
+class HandoverLimits:
+    """What `--pilot-handover` lets out of the control loop, whatever the
+    guidance asked for:
+
+      * horizontal speed at most `max_speed_ms` (direction kept);
+      * NO vertical command, ever: the aircraft holds the height the pilot left
+        it at. The belief's height is the difference of two GPS heights, which
+        disagreed by 2.4 m with both aircraft on the ground (2026-11-26);
+      * in STANDBY and SAFE: zero velocity and the yaw the aircraft has now, so
+        taking over or finishing never swings the nose.
+
+    A non-finite command becomes a hold."""
+    max_speed_ms: float = HANDOVER_DEFAULT_MAX_SPEED_MS
+
+    def limit(self, sp: Setpoint, state_name: str,
+              yaw_now_deg: Optional[float]) -> Setpoint:
+        yaw_now = (float(yaw_now_deg) if yaw_now_deg is not None
+                   and math.isfinite(float(yaw_now_deg)) else None)
+        vals = (sp.v_north, sp.v_east, sp.yaw_deg)
+        if state_name in (State.STANDBY, State.SAFE) \
+                or not all(math.isfinite(float(x)) for x in vals):
+            return Setpoint(0.0, 0.0, 0.0,
+                            yaw_now if yaw_now is not None else
+                            (float(sp.yaw_deg) if math.isfinite(float(sp.yaw_deg))
+                             else 0.0))
+        vn, ve = float(sp.v_north), float(sp.v_east)
+        h = math.hypot(vn, ve)
+        cap = max(0.0, float(self.max_speed_ms))
+        if h > cap:
+            k = cap / h if h > 0 else 0.0
+            vn, ve = vn * k, ve * k
+        return Setpoint(vn, ve, 0.0, float(sp.yaw_deg))
+
+
+def handover_config(cfg: MissionConfig) -> MissionConfig:
+    """The mission config for a pilot hand-over: the pilot chose the height and
+    the heading, so the height gate is fed the standby height (as on the bench)
+    and the yaw gate is open. Armed and OFFBOARD are still required for GO."""
+    return replace(cfg, yaw_tol_deg=180.0)
+
+
+def validate_handover_args(args) -> List[str]:
+    """Reasons `--pilot-handover` must refuse to start. Empty list = allowed."""
+    why: List[str] = []
+    if not getattr(args, "mavsdk_url", None):
+        why.append("--pilot-handover needs --mavsdk-url")
+    if getattr(args, "trigger", None) != "cue":
+        why.append("--pilot-handover needs --trigger cue (the target's live "
+                   "position is what it flies toward)")
+    if getattr(args, "terminal", "stock") != "pursuit":
+        why.append("--pilot-handover needs --terminal pursuit")
+    if getattr(args, "cue_no_enable", False):
+        why.append("--pilot-handover needs the enable switch (drop "
+                   "--cue-no-enable): the same switch is the Pixhawk's "
+                   "offboard switch and your take-back")
+    if getattr(args, "source", None):
+        why.append("--pilot-handover flies on the cue alone: drop --source "
+                   "(no camera calibration exists for the nose camera)")
+    v = getattr(args, "handover_max_speed_ms", HANDOVER_DEFAULT_MAX_SPEED_MS)
+    if not (0.0 < float(v) <= 3.0):
+        why.append(f"--handover-max-speed-ms {v} is outside 0 to 3 m/s: this "
+                   f"mode is for slow first flights")
+    return why
+
+
+async def run_pilot_handover(args, cfg: MissionConfig, sm: RealFlightSM,
+                             trigger):  # pragma: no cover -- needs the board; driven by the fake in tests
+    """PILOT HAND-OVER (`--pilot-handover`, 2026-11-26, builder's design). The
+    pilot arms, takes off and hovers by hand. This program never arms, never
+    takes off, never lands and never commands a flight mode: it only streams
+    velocity setpoints. The Pixhawk's own offboard switch (RC_MAP_OFFB_SW, the
+    same channel as the cue's enable switch) puts the aircraft in OFFBOARD when
+    the pilot raises it and gives it back to the mode switch when he lowers it,
+    with no help from this program.
+
+    Raised: the Pixhawk enters OFFBOARD, the cue's estimate is latched (GO),
+    and the chase flies toward the believed target under `HandoverLimits`.
+    Lowered: the state machine sees OFFBOARD gone and ends. No camera."""
+    import asyncio
+
+    drone = await _open_vehicle(args)
+    if drone is None:
+        return 1
+    limits_out = HandoverLimits(float(args.handover_max_speed_ms))
+    state = _new_link_state()
+    rc_sinks = _rc_readers(trigger)
+    cue_height = _wire_cue_trigger(trigger, state)
+    tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=True,
+                             utc_sink=getattr(trigger, "vehicle_utc", None),
+                             want_gps_height=cue_height)
+    supervisor, sup_ok = _start_supervisor(drone, args, required=True)
+    rc_exit = 0
+    loop_out = {"n_tick": 0, "n_sp": 0, "n_off_true": 0, "csv_rows": [],
+                "abort": None, "max_tick_gap_s": 0.0}
+    tick_log = TickLog(getattr(args, "log_csv", None))
+    try:
+        if not sup_ok:
+            print("[handover] REFUSED: the setpoint-stream watchdog could not "
+                  "be started")
+            return 1
+        deadline = time.monotonic() + _BENCH_STREAM_WAIT_S
+        while time.monotonic() < deadline and (state["armed"] is None
+                                               or state["mode"] is None):
+            await asyncio.sleep(0.1)
+        if state["armed"] is None or state["mode"] is None:
+            print("[handover] REFUSED: no armed / flight-mode telemetry from "
+                  "the vehicle")
+            return 1
+        if state["offboard"] is True:
+            print("[handover] REFUSED: the vehicle is ALREADY in OFFBOARD. "
+                  "Lower the GO switch and start again.")
+            return 1
+        print(f"[handover] PILOT HAND-OVER. This program cannot arm, take off, "
+              f"land or change the flight mode. Vehicle is "
+              f"{'ARMED' if state['armed'] else 'disarmed'}, mode "
+              f"{state['mode']}.")
+        print(f"[handover] limits on every command: horizontal speed <= "
+              f"{limits_out.max_speed_ms:.2f} m/s, NO climb or descent, no "
+              f"camera. GO switch raised = the Pixhawk's offboard switch hands "
+              f"over; lowered = you have it back.")
+        limits, unread = await read_platform_limits(drone)
+        for line in format_platform_table(limits, commanded_caps(args, cfg, sm.guidance)):
+            print(line)
+        for line in what_ends_an_unbounded_engagement():
+            print(f"[handover] also ends it: {line}")
+        loop_out = await _control_loop(
+            drone, args, cfg, sm, trigger, None, state, None, supervisor,
+            outer_bound_s=args.smoke_duration, acquire_after_s=0.0,
+            out=loop_out, tick_log=tick_log, handover=limits_out)
+        # The loop's "bound reached" is a normal end here, not a failure.
+        rc_exit = 0 if loop_out.get("abort") is None else 1
+    finally:
+        if supervisor is not None:
+            supervisor.unwatch()
+        # NO mode command. End the stream; if the aircraft were still in
+        # OFFBOARD the Pixhawk's own offboard-loss rule takes it (Position).
+        _end_setpoint_stream(drone)
+        if supervisor is not None:
+            supervisor.close()
+        for tk in tasks:
+            tk.cancel()
+        try:
+            _write_mission_logs(args, loop_out.get("csv_rows", []), None)
+            tick_log.close(remove=True)
+        except Exception as e:  # noqa: BLE001 -- keep the live copy
+            tick_log.close(remove=False)
+            print(f"[log] the final tick log could not be written "
+                  f"({type(e).__name__}: {e}); the live copy is {tick_log.path}")
+    print(f"[mission] states visited: {' -> '.join(sm.visited)}")
+    for tr in sm.transitions:
+        print(f"    {tr.t:7.2f}s  {tr.frm} -> {tr.to}  ({tr.reason})")
+    print(f"[handover] largest horizontal command sent: "
+          f"{loop_out.get('handover_max_h_ms', 0.0):.2f} m/s (limit "
+          f"{limits_out.max_speed_ms:.2f}); ticks {loop_out.get('n_tick', 0)}, "
+          f"of them in OFFBOARD {loop_out.get('n_off_true', 0)}; worst tick gap "
+          f"{loop_out.get('max_tick_gap_s', 0.0):.2f} s")
+    return rc_exit
+
+
 # ---------------------------------------------------------------- self-test
 
 
@@ -5617,7 +5820,8 @@ def build_config(args) -> MissionConfig:
               "ceiling will never fire. This is by design (ADR-0101 Portability), "
               "not a bug -- pass a solved heading if the passage window matters.")
     is_pursuit = getattr(args, "terminal", "stock") == "pursuit"
-    fly_pursuit = bool(getattr(args, "fly", False)) and is_pursuit
+    fly_pursuit = (bool(getattr(args, "fly", False))
+                   or bool(getattr(args, "pilot_handover", False))) and is_pursuit
     explicit = set(getattr(args, "explicit_flags", None) or ())
 
     def _preset(name, typed):
@@ -5839,7 +6043,8 @@ def build_terminal(args, cfg: MissionConfig, gcfg, cam):
               "lead 0.45 s, horizontal-only cap + vertical arrival-sync)")
     # THE FLYING PRESET (FLY_PRESET): --fly takes the search, the guard and the
     # approach-dash brake from it unless the operator typed the matching flag.
-    fly_preset = bool(getattr(args, "fly", False))
+    fly_preset = (bool(getattr(args, "fly", False))
+                  or bool(getattr(args, "pilot_handover", False)))
     if getattr(args, "pursuit_approach_dash", False):
         pcfg = replace(pcfg, approach_dash=True,
                        dash_v_max_ms=float(args.pursuit_dash_vmax),
@@ -5971,6 +6176,19 @@ def build_arg_parser() -> argparse.ArgumentParser:
                            "Needs --mavsdk-url and --trigger rc|timer. "
                            "Without --source the detector is synthetic. "
                            "Exits 0/1.")
+    mode.add_argument("--pilot-handover", action="store_true",
+                      help="PILOT HAND-OVER: you arm, take off and hover; the "
+                           "program only streams velocity commands. The "
+                           "Pixhawk's offboard switch (RC_MAP_OFFB_SW = the "
+                           "--rc-channel switch) hands the aircraft over when "
+                           "raised and back when lowered. Cue only, no camera, "
+                           "speed limited, height held. Never arms, takes off, "
+                           "lands or changes mode. Needs --mavsdk-url and "
+                           "--trigger cue.")
+    mode.add_argument("--handover-max-speed-ms", type=float,
+                      default=HANDOVER_DEFAULT_MAX_SPEED_MS,
+                      help="--pilot-handover: horizontal speed limit on every "
+                           "command, m/s (default 0.9 = 2 mph; at most 3)")
     mode.add_argument("--mavsdk-url", default=None,
                       help="MAVSDK connect URL (e.g. udpin://0.0.0.0:14540)")
 
@@ -6516,9 +6734,12 @@ def main(argv=None) -> int:
         return self_test()
 
     if not (args.dry_run or args.sitl_smoke or args.desk or args.fly
-            or args.bench_props_off):
+            or args.bench_props_off or args.pilot_handover):
         ap.error("pick a mode: --self-test | --audit | --dry-run | --sitl-smoke "
-                 "| --desk | --fly | --bench-props-off")
+                 "| --desk | --fly | --bench-props-off | --pilot-handover")
+    if args.pilot_handover and (args.dry_run or args.sitl_smoke or args.desk
+                                or args.fly or args.bench_props_off):
+        ap.error("--pilot-handover is its own mode: drop the other mode flag")
     # The two modes that touch a REAL board are each their own mode.
     for flag, name in ((args.fly, "--fly"), (args.bench_props_off, "--bench-props-off")):
         if flag and (args.dry_run or args.sitl_smoke or args.desk
@@ -6541,7 +6762,8 @@ def main(argv=None) -> int:
             ap.error("--trigger cue needs a live mode (--sitl-smoke, "
                      "--bench-props-off or --fly): the cue is placed against "
                      "the vehicle's own GPS position")
-        if args.terminal != "pursuit" and not (args.fly or args.bench_props_off):
+        if args.terminal != "pursuit" and not (args.fly or args.bench_props_off
+                                               or args.pilot_handover):
             ap.error("--trigger cue needs --terminal pursuit (the only terminal "
                      "that can take a belief latched at GO)")
     # A serial link is a real flight controller. The SITL smoke path arms and
@@ -6561,9 +6783,18 @@ def main(argv=None) -> int:
                 print(f"[{tag}] REFUSED: {w}")
             return 2
 
+    if args.pilot_handover:
+        why = validate_handover_args(args)
+        if why:
+            for w in why:
+                print(f"[handover] REFUSED: {w}")
+            return 2
+
     cfg = build_config(args)
     if args.bench_props_off:
         cfg = bench_config(cfg)
+    if args.pilot_handover:
+        cfg = handover_config(cfg)
     print(f"[config] standby alt {cfg.standby_alt_m:.1f} m, aim yaw "
           f"{cfg.aim_yaw_deg:.1f} deg, dash {cfg.dash_speed_ms:.1f} m/s "
           f"(cap {cfg.dash_accel_cap_ms2}), loft {cfg.dash_loft_m:.1f} m, "
@@ -6655,7 +6886,9 @@ def main(argv=None) -> int:
         trigger = ScriptedTrigger(go_at_s=args.go_after_s)
     else:
         trigger = GateReadyTrigger()
-    if src_detector is not None:
+    if args.pilot_handover:
+        detector = None             # cue only: no camera, no synthetic target
+    elif src_detector is not None:
         detector = src_detector
     else:
         # Unreachable under --fly: validate_fly_args refused a missing --source.
@@ -6672,6 +6905,8 @@ def main(argv=None) -> int:
               f"jpeg_quality={frame_recorder.jpeg_quality})")
     import asyncio
     try:
+        if args.pilot_handover:
+            return asyncio.run(run_pilot_handover(args, cfg, sm, trigger))
         if args.bench_props_off:
             return asyncio.run(run_bench_props_off(args, cfg, sm, trigger, detector,
                                                    frame_recorder=frame_recorder))
