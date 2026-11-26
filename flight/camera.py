@@ -28,7 +28,7 @@ class CameraModel:
     all-zero (default) is an ideal pinhole (the Gazebo sim case)."""
 
     def __init__(self, fx, fy, cx, cy, dist=(0.0, 0.0, 0.0, 0.0, 0.0),
-                 width=None, height=None, source=None):
+                 width=None, height=None, source=None, image_flip_deg=None):
         self.fx = float(fx)
         self.fy = float(fy)
         self.cx = float(cx)
@@ -48,6 +48,18 @@ class CameraModel:
         # Provenance stamp written by scripts/calibrate_camera.py ("checkerboard").
         # Absent => not a measured calibration (e.g. the Gazebo camera_info dump).
         self.source = source
+        # THE IMAGE ROTATION IS PART OF THE CALIBRATION TOO (2026-11-26). The
+        # nose camera is mounted upside down; the reader rotates the image
+        # 180 degrees so "up" is up. cx, cy and the tangential terms only
+        # describe the grid they were fitted on, so a calibration captured
+        # WITHOUT the rotation, used WITH it (or the reverse), negates every
+        # bearing: the aircraft steers away from the target, and the bench
+        # cannot see it (a tag still decodes, its range is still right).
+        # `image_flip_deg` is what the calibration was captured with: 0 or 180.
+        # None = the file does not say (older files), which a caller asking for
+        # a rotated image must treat as "not this camera".
+        self.image_flip_deg = (None if image_flip_deg is None
+                               else int(image_flip_deg))
 
     @property
     def has_distortion(self):
@@ -110,7 +122,8 @@ class CameraModel:
         res = d.get("resolution") or {}
         return cls(d["fx"], d["fy"], d["cx"], d["cy"], tuple(dist),
                    width=res.get("width"), height=res.get("height"),
-                   source=d.get("source"))
+                   source=d.get("source"),
+                   image_flip_deg=d.get("image_flip_deg"))
 
     @classmethod
     def from_json(cls, path):

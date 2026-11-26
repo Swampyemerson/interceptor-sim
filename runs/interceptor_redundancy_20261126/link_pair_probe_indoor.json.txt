@@ -1,0 +1,124 @@
+connecting primary: serial:///dev/ttyAMA10:921600 ...
+connecting backup: udpout://127.0.0.1:14550 ...
+{
+ "primary": {
+  "attitude_quaternion": {
+   "hz": 50.0,
+   "longest_gap_s": 0.026
+  },
+  "attitude_euler": {
+   "hz": 100.0,
+   "longest_gap_s": 0.014
+  },
+  "position": {
+   "hz": 0.0,
+   "longest_gap_s": 0.0
+  },
+  "velocity_ned": {
+   "hz": 0.0,
+   "longest_gap_s": 0.0
+  },
+  "flight_mode": {
+   "hz": 1.0,
+   "longest_gap_s": 1.002
+  },
+  "armed": {
+   "hz": 1.0,
+   "longest_gap_s": 1.002
+  },
+  "landed_state": {
+   "hz": 5.0,
+   "longest_gap_s": 0.203
+  },
+  "battery": {
+   "hz": 0.9,
+   "longest_gap_s": 2.001
+  },
+  "gps_info": {
+   "hz": 10.0,
+   "longest_gap_s": 0.128
+  },
+  "raw_gps": {
+   "hz": 10.0,
+   "longest_gap_s": 0.128
+  },
+  "RC_CHANNELS": {
+   "hz": 0.0,
+   "longest_gap_s": 0.0
+  },
+  "SYSTEM_TIME": {
+   "hz": 1.0,
+   "longest_gap_s": 1.003
+  },
+  "_battery": {
+   "voltage_v": 0.0,
+   "remaining_percent_as_mavsdk_gives_it": -1.0
+  },
+  "_gps": {
+   "satellites": 4,
+   "fix_type": "FIX_3D",
+   "horizontal_uncertainty_m": 5.92,
+   "velocity_uncertainty_m_s": 1.25
+  }
+ },
+ "backup": {
+  "attitude_quaternion": {
+   "hz": 50.0,
+   "longest_gap_s": 0.028
+  },
+  "attitude_euler": {
+   "hz": 100.0,
+   "longest_gap_s": 0.02
+  },
+  "position": {
+   "hz": 0.0,
+   "longest_gap_s": 0.0
+  },
+  "velocity_ned": {
+   "hz": 0.0,
+   "longest_gap_s": 0.0
+  },
+  "flight_mode": {
+   "hz": 1.0,
+   "longest_gap_s": 1.002
+  },
+  "armed": {
+   "hz": 1.0,
+   "longest_gap_s": 1.002
+  },
+  "landed_state": {
+   "hz": 5.0,
+   "longest_gap_s": 0.204
+  },
+  "battery": {
+   "hz": 0.8,
+   "longest_gap_s": 2.003
+  },
+  "gps_info": {
+   "hz": 10.0,
+   "longest_gap_s": 0.129
+  },
+  "raw_gps": {
+   "hz": 10.0,
+   "longest_gap_s": 0.129
+  },
+  "RC_CHANNELS": {
+   "hz": 0.0,
+   "longest_gap_s": 0.0
+  },
+  "SYSTEM_TIME": {
+   "hz": 1.0,
+   "longest_gap_s": 1.002
+  },
+  "_battery": {
+   "voltage_v": 0.0,
+   "remaining_percent_as_mavsdk_gives_it": -1.0
+  },
+  "_gps": {
+   "satellites": 4,
+   "fix_type": "FIX_3D",
+   "horizontal_uncertainty_m": 5.92,
+   "velocity_uncertainty_m_s": 1.25
+  }
+ }
+}

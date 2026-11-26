@@ -141,6 +141,7 @@ def smoke_cam():
 FLY = ["--fly", "--mavsdk-url", SERIAL, "--trigger", "rc",
        "--rc-channel", str(GO_CH), "--arm-permit-channel", str(PERMIT_CH),
        "--source", "picamera", "--target-span-m", "0.30",
+       "--camera-mount", "upright",
        "--target-start", "0,16.7", "--target-vel", "9,0", "--manual-belief",
        "--miss-safe-behavior", "land", "--engage-max-s", "8"]
 

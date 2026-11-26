@@ -1,0 +1,51 @@
+Board settings read 2026-11-26, read-only, through the recorder's bridge
+(scripts/bench/px4_shell_readonly.py ... "param show <group>"). PX4 v1.16.
+Aircraft indoors, disarmed, no flight battery on the power module.
+
+battery
+  COM_LOW_BAT_ACT   3      (0 warning, 2 land, 3 return at critical / land at emergency)
+  COM_FLTT_LOW_ACT  3      (0 none, 1 warning, 3 return)
+  BAT_LOW_THR       0.15   BAT_CRIT_THR 0.07   BAT_EMERGEN_THR 0.05
+  BAT1_CAPACITY     -1     BAT1_N_CELLS 6   BAT1_V_EMPTY 3.6   BAT1_V_CHARGED 4.05
+  BAT1_R_INTERNAL   -1
+GPS use by the estimator
+  EKF2_GPS_CHECK    1023   EKF2_GPS_CTRL 7
+  EKF2_REQ_NSATS    6      EKF2_REQ_EPH 3.0   EKF2_REQ_EPV 5.0   EKF2_REQ_PDOP 2.5
+  EKF2_REQ_SACC     1.0    EKF2_REQ_HDRIFT 0.1   EKF2_REQ_VDRIFT 0.2
+  EKF2_NOAID_TOUT   5000000 (us)
+  COM_POS_FS_EPH    5.0    COM_VEL_FS_EVH 1.0   COM_POSCTL_NAVL 0
+radio, links
+  COM_RC_LOSS_T     0.5    NAV_RCL_ACT 2   COM_RCL_EXCEPT 0   COM_RC_OVERRIDE 1
+  COM_OF_LOSS_T     1.0    COM_OBL_RC_ACT 0   COM_OBC_LOSS_T 5.0
+  COM_DL_LOSS_T     10     NAV_DLL_ACT 0
+geofence
+  GF_ACTION 2   GF_MAX_HOR_DIST 457.2   GF_MAX_VER_DIST 30.48   GF_PREDICT 0
+failure detector, breakers
+  FD_FAIL_P 60   FD_FAIL_R 60   FD_FAIL_P_TTRI 0.3   FD_FAIL_R_TTRI 0.3
+  FD_ACT_EN 1    FD_ESCS_EN 1   COM_LKDOWN_TKO 3.0
+  CBRK_FLIGHTTERM 121212   CBRK_IO_SAFETY 22027   CBRK_USB_CHK 197848
+other
+  COM_WIND_MAX -1   COM_FLT_TIME_MAX -1   USB_MAV_MODE 2
+  COM_FLTMODE1 8   COM_FLTMODE4 1   COM_FLTMODE6 2
+
+MAVLink ports ("mavlink status")
+  instance 0  TELEM2  /dev/ttyS3 @921600   Onboard   tx 13.2 KB/s of 46 allowed
+  instance 1  USB     /dev/ttyACM0         Onboard   tx 63.2 KB/s of 100 allowed
+              (includes the log stream, 44 % of its 70 % share)
+  instance 2  TELEM1  /dev/ttyS5 @57600    Normal
+
+Firmware source read for the table in README.md (PX4-Autopilot tag v1.16.0):
+  src/modules/commander/HealthAndArmingChecks/checks/offboardCheck.cpp
+      velocity setpoints + local_velocity_invalid -> offboard_control_signal_lost
+  src/modules/commander/HealthAndArmingChecks/checks/estimatorCheck.cpp
+      checkPosVelValidity: once valid, invalid above 2.5 x the threshold
+  src/modules/ekf2/EKF/aid_sources/gnss/gps_checks.cpp
+      "fix" (below 3D) fails whatever the mask; the drift and speed checks
+      run only on the ground
+  src/modules/ekf2/EKF/aid_sources/gnss/gps_control.cpp
+      a sample is used only if the checks pass and none failed in the last
+      second; failing for reset_timeout_max (EKF2_NOAID_TOUT) stops GNSS use
+      ("GNSS quality poor - stopping use")
+  src/modules/ekf2/params_gnss.yaml       EKF2_GPS_CHECK default 1023, no restart needed
+  src/modules/commander/commander_params.c COM_LOW_BAT_ACT, COM_FLTT_LOW_ACT values
+  src/modules/commander/ModeUtil/mode_requirements.cpp   what OFFBOARD requires

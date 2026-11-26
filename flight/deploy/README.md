@@ -61,7 +61,24 @@ now has explicit modes:
 - **Before arming** it reads the board's limits (speed, lean, geofence, radio-loss and
   offboard-loss settings) and refuses on a mismatch unless overridden.
 
-None of this has run on the real Pi and Pixhawk yet (`docs/next.md`).
+- **Two links (2026-11-26):** `--mavsdk-backup-url udpout://127.0.0.1:14550` adds the
+  Pixhawk's USB port (through the flight recorder's bridge) beside the serial cable.
+  Commands go out on both; telemetry falls back to USB when the cable is quiet
+  (`link_redundancy.py`). The watchdog ends both servers.
+- **Battery and GPS (2026-11-26):** under `--fly` the program switches the Pixhawk's
+  low-battery action and GPS quality checks off on the disarmed aircraft, applies both
+  checks itself before takeoff, and restores the board after landing
+  (`board_overrides.py`; `--board-failsafes keep` leaves the board alone). A low pack
+  lands before GO and after the intercept and is ignored in between.
+- **Camera:** `--fly` needs `--camera-mount upright|upside-down`; upside-down rotates the
+  image and requires a calibration stamped `image_flip_deg: 180`. A camera that delivers
+  no frame for 3 s in ENGAGE goes SAFE.
+- **Faults that no longer end a flight:** a detector error (a missed detection), a
+  state-machine exception or a failed send (six in a row do), non-finite telemetry. The
+  tick log is written while flying (`<log>.live`).
+
+None of this has run on the real Pi and Pixhawk yet (`docs/next.md`), apart from a
+read-only probe of both links (`runs/interceptor_redundancy_20261126/`).
 
 **What is NOT ready:** every constant tagged `TODO-BUILDER` in `MissionConfig`
 (RC channel map + PWM endpoints, link timeout, altitude/yaw tolerances, dash

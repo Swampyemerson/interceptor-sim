@@ -708,3 +708,11 @@ The builder asked whether the pod material choice and the power wiring had been 
 **So what:** Keep the power module and buy nothing. The 80 mph dash as simulated should sit inside its rating; a saturated full-throttle dash sits inside its one-minute limit with little margin, and there the battery sagging is the larger problem (below the land-by voltage, and a threat to the Pi's supply). A 2 to 3 second full-throttle punch with a fresh battery settles it. I first answered that the planned dash was 36 mph, from an older config; the builder corrected me.
 
 *Evidence: docs/airframe_numbers.md section 6; hardware/avionics_pod/ANALYSIS.md section 5; runs/cinema_longrange_20261021/ (take hr5); runs/target_flight6_20261115/README.md; ADR-0132 addendum 2026-11-18*
+
+## 2026-11-18 (overflowed from plain_log 2026-11-26)
+
+Audit of how the flight program talks to the Pi and Pixhawk in automatic flight, read from the code and checked on the bench. The state machine and failsafes are solid in tests. But the program has never run on the real Pixhawk, its only live mode is the simulator's (it fires GO by itself, uses a fake target and arms on its own), a hung program would keep the last speed command flowing, and the target cue is read once at start so it is hundreds of metres stale by GO. On the bench, read-only: the Pi reaches the Pixhawk over its serial cable while the recorder uses USB; the board is limited to 12 m/s, returns home on radio loss even in automatic flight, and has a 457 m geofence. A new live cue link was built and tested over Wi-Fi: after 30 s of a made-up moving target the Pi's belief at the latch was 0.3 m from the truth, and a stale stream was refused.
+
+**So what:** Nothing automatic should fly on the real aircraft until the guarded flight mode, the watchdog and a props-off rehearsal exist; they are being built now. The cue link's Pi half works; getting the target's GPS off the target still needs a radio path and your hands.
+
+*Evidence: docs/interface_audit_2026-11-18.md; runs/fc_readonly_20261118/README.md; flight/cue_link.py; flight/tests/test_cue_link.py*

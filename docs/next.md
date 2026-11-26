@@ -62,7 +62,7 @@ Decisions: `docs/decisions.md` ADR-0139 and the 2026-11-18 addenda to ADR-0130 a
 | ⬜ | **For lean angle against speed** (drag, and the camera angle that follows from it): straight runs of 5 s or more at two or three steady speeds. | same |
 | ⬜ | **Charge habit:** the avionics drain the pack while it sits powered, unseen by the gauge (about a quarter of the pack an hour, estimated). Plug the flight pack in last. | `runs/interceptor_flight_20261122/README.md` |
 | ✅ | **Interceptor recorder at a real arming** (2026-11-22): clean log and 88 s of video on the first flight. Before any flight `recorder_check.py` must say GO. | `docs/fc_logging_without_sd.md` |
-| ⬜ | **Radio loss in automatic flight** returns home after 0.5 s on this board, so the transmitter-off test cannot pass as set. Change only after the watchdog is bench-proven. | interface audit G5 |
+| ⬜ | **Radio loss in automatic flight** returns home after 0.5 s on this board, so the transmitter-off test cannot pass as set, and a 0.5 s dropout ends an intercept. Left as it is on 2026-11-26 (the battery and GPS triggers were removed for program flights; this one keeps the aircraft from chasing with nobody able to stop it). Your call. | interface audit G5; `runs/interceptor_redundancy_20261126/README.md` |
 | ⬜ | **Second transmitter (about $65)**, anemometer, tripod: not confirmed bought. Each aircraft needs its own arm and kill for a deliberate mid-air (ADR-0089). | [#5](https://github.com/Swampyemerson/interceptor-sim/issues/5) |
 | ⬜ | **Stamped-age latency mode**: adopt or keep off (prediction confirmed, strict bar missed 3 of 6; recommendation: keep off until the Pi's timestamps are bench-checked). | contract question `stamped-age-adoption` |
 | ⬜ | **Publication leftovers** (the repo is already public): rotate the VM password, re-point the launcher. | `docs/publish_cleanup_work_order.md` |
@@ -73,12 +73,19 @@ lost-target rule (the flight preset), cue window (5 s), board speed limit (33 m/
 
 ## Next work, in order (mine)
 
-0. ⬜ **The nose camera is upside down and the flight program does not know it**
-   (measured 2026-11-22, aircraft level). The video recorder flips its picture; the
-   flight program's camera reader, the calibration capture and the lens calibration do
-   not. Until they do, the chase would steer away from the target. One switch for all
-   camera readers, then recalibrate on the mounted camera. Contract ledger
+0. ⬜ **Calibrate the nose camera with its image rotated.** The flight program's reader
+   can now rotate the upside-down camera's image (`--camera-mount upside-down`, 2026-11-26)
+   and refuses a calibration captured any other way. But no calibration of the AR0234
+   exists at all, and the capture tools have no rotation option yet. Until it exists, a
+   camera intercept cannot fly. Contract ledger
    `nose-camera-upside-down-flight-reader-has-no-flip`.
+0a. ⬜ **Rehearse the two links on the bench, props off** (built 2026-11-26, not yet run
+   with commands): `--bench-props-off --mavsdk-backup-url udpout://127.0.0.1:14550`, then
+   pull the serial cable mid-run and confirm the rehearsal carries on over USB; then
+   `python -m flight.deploy.board_overrides --apply` and `--restore`. Also still open
+   from the review: the chase stops on a 0.25 s telemetry gap, the cue's speed is never
+   checked against its positions, and the two aircraft's clocks are assumed to agree.
+   `runs/interceptor_redundancy_20261126/README.md`.
 1. ⬜ **Props-off bench run on the real Pi and Pixhawk. HELD: props are on.** In order:
    `--bench-props-off` with a timer GO (expect the interlocks to pass on USB power), then
    with `--trigger cue` and the laptop's made-up target, then the watchdog (`kill -STOP`

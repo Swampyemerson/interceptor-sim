@@ -739,6 +739,7 @@ def test_limit_check_copes_with_no_time_limit():
 FLY_CUE = ["--fly", "--mavsdk-url", SERIAL, "--trigger", "cue", "--terminal", "pursuit",
            "--rc-channel", str(GO_CH), "--arm-permit-channel", str(PERMIT_CH),
            "--source", "picamera", "--target-span-m", "0.30",
+           "--camera-mount", "upright",
            "--standby-alt-m", "7", "--standby-yaw-deg", "40",
            "--cue-udp-port", "0", "--miss-safe-behavior", "land"]
 

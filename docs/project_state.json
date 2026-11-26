@@ -3,7 +3,7 @@
   "artifact_url": "https://claude.ai/code/artifact/eb5e40d1-c12a-4b87-bca0-589ad5af96fc",
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
-  "updated": "2026-11-25",
+  "updated": "2026-11-26",
   "updated_by": "GPS mast and deck drawn and analysed (replaces the pod lid); three settings approved, not yet on the board (2026-11-22)",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
@@ -16,14 +16,14 @@
     "direction_ruling": "BUILDER RULING 2026-08-29: keep building toward a REAL FIELD INTERCEPT. The 'package it and ship' argument was put to him explicitly and he rejected it -- a field intercept is the stronger portfolio piece and that is the goal. Do NOT re-raise 'should we stop and write it up' as a periodic prompt; it has been asked and answered. Surface schedule or cost risk if it appears, not the premise."
   },
   "now": {
-    "as_of": "2026-11-25",
-    "where": "After a wiring tidy the GPS is far better on the ground: 14 to 15 satellites with the camera recording and speed accuracy near 0.17 m/s, against 7 and 0.85 on 22 November. Not yet flown. The three approved settings are on the board.",
-    "finding": "The camera still costs 2 to 3 satellites and the estimator still dropped position twice in five minutes on the ground. The GPS mast is drawn, not printed, and may no longer be needed for reception; it would still cut the compass's pickup of battery current.",
+    "as_of": "2026-11-26",
+    "where": "The flight program now has a second link to the Pixhawk (USB beside the serial cable), ignores the battery between GO and the end of the engagement, and no longer aborts on a GPS that has only got worse. Built and tested offline; not yet run on the aircraft.",
+    "finding": "No calibration of the nose camera exists, so a camera intercept cannot fly yet. Two of four code reviewers were stopped by the model's safety filter, so the main flight program had no independent review. A 0.5 s radio dropout still ends an intercept: your call.",
     "next": [
-      "You: recalibrate the compass outdoors, then one short proving flight as it is",
-      "Me: read that log, then we decide whether the mast is still worth printing"
+      "You: take the props off and say so; I run the two-link rehearsal on the bench",
+      "You: compass recalibration outdoors and the short proving hover are still owed"
     ],
-    "evidence": "runs/interceptor_rewire_20261125/README.md - docs/gps_reception_plan.md - hardware/avionics_pod/FIELD_STUDY_BRIEF.md - runs/interceptor_flight3_20261122/README.md"
+    "evidence": "runs/interceptor_redundancy_20261126/README.md - flight/deploy/link_redundancy.py - flight/deploy/board_overrides.py - flight/tests/test_flight_redundancy.py - runs/interceptor_rewire_20261125/README.md"
   },
   "assumptions": [
     {
@@ -654,6 +654,12 @@
   ],
   "plain_log": [
     {
+      "date": "2026-11-26",
+      "text": "Flight code hardened at the builder's request. A second MAVLink link (the Pixhawk's USB port, through the recorder) now carries every velocity command alongside the serial cable, and telemetry falls back to it when the cable goes quiet. For a program-flown flight the Pixhawk's low-battery action and GPS quality checks are switched off on the disarmed aircraft and restored after landing; the program applies both checks itself before takeoff, and acts on a low pack only before GO and after the intercept. A detector error, a state-machine error or one failed send no longer ends a flight, the tick log is written while flying, a camera that delivers no frames for 3 s ends the engagement, and the reader can rotate the upside-down camera's image. Read-only on the aircraft: both links carried attitude at 50 and 100 Hz with gaps under 0.03 s. Not flown, and commands have not yet been sent on both links at once.",
+      "so_what": "A broken serial cable, a sagging battery or a GPS dip no longer ends an intercept by itself. What still blocks a camera intercept is the missing nose-camera calibration, and the main flight program has had no independent review today.",
+      "evidence": "runs/interceptor_redundancy_20261126/README.md; flight/tests/test_flight_redundancy.py (43 tests); flight/tests 601 passed on the dev laptop"
+    },
+    {
       "date": "2026-11-25",
       "text": "The builder tidied the wiring (camera ribbon's fold moved from under the lid, 5 V runs lower, leads tightened) and set the aircraft outdoors, disarmed. Two camera on/off runs: 16 to 18 satellites with the camera off, 14 to 15 with it recording, fix held throughout, speed accuracy 0.13 to 0.18 m/s. On 22 November the same test gave 7 satellites and 0.57 to 0.85 m/s. The spot and time of day differ, so not all of the gain can be credited to the tidy. The camera still costs 2 to 3 satellites, and the estimator still dropped position twice in five minutes on its ground drift checks. The three approved settings are on the board and held through a restart.",
       "so_what": "Reception may now be good enough without the mast. The plan changes to one short proving flight first, then decide on printing from that log. The compass needs recalibrating because the wiring moved.",
@@ -718,12 +724,6 @@
       "text": "Asked whether the sim needs air drag, I put drag into the fast sim and ran the 500 m dash about 6,000 times. Expected drag barely matters for hitting the target, but the aircraft never reaches 80 mph with it (about 67 mph), so that figure is a no-drag number. The sim's own vehicle model was climbing thousands of metres when held on its lean limit; that is repaired. The real finding was not drag: with a 10% error in the target's believed speed, the long dash arrives about 22 m off along the track, parks behind where it thinks the target is, and never sees it in 61% of runs. October's long-range runs had no speed error in the cue. An independent check of my geometry corrected two of my numbers and confirmed the cause.",
       "so_what": "The long-range dash is only as good as the cue's speed estimate, and the aircraft has no way yet to search for a target that is not where it believes. Three things follow: measure the real cue's speed error on one straight fast leg, build a search on arrival (prototype under test), and stop reading the 80 mph video as a demonstrated capability.",
       "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md; docs/arrival_geometry_2026-11-18.md; docs/guidance_review_2026-11-18.md; runs/approach_dash_drag_20261118/"
-    },
-    {
-      "date": "2026-11-18",
-      "text": "Audit of how the flight program talks to the Pi and Pixhawk in automatic flight, read from the code and checked on the bench. The state machine and failsafes are solid in tests. But the program has never run on the real Pixhawk, its only live mode is the simulator's (it fires GO by itself, uses a fake target and arms on its own), a hung program would keep the last speed command flowing, and the target cue is read once at start so it is hundreds of metres stale by GO. On the bench, read-only: the Pi reaches the Pixhawk over its serial cable while the recorder uses USB; the board is limited to 12 m/s, returns home on radio loss even in automatic flight, and has a 457 m geofence. A new live cue link was built and tested over Wi-Fi: after 30 s of a made-up moving target the Pi's belief at the latch was 0.3 m from the truth, and a stale stream was refused.",
-      "so_what": "Nothing automatic should fly on the real aircraft until the guarded flight mode, the watchdog and a props-off rehearsal exist; they are being built now. The cue link's Pi half works; getting the target's GPS off the target still needs a radio path and your hands.",
-      "evidence": "docs/interface_audit_2026-11-18.md; runs/fc_readonly_20261118/README.md; flight/cue_link.py; flight/tests/test_cue_link.py"
     }
   ],
   "narrative": {
@@ -4236,7 +4236,7 @@
       "loc_a": "flight/deploy/seeker_loop.py PicameraSource; flight/deploy/frame_feed.py; flight/camera.py",
       "claim_b": "Measured 2026-11-22 on the assembled aircraft sitting level (roll 1 deg, pitch 4 deg from the Pixhawk's log): the picture is rotated 180 degrees. The pod's assembly step mounts the board ribbon connector up and says the software flip is not written.",
       "loc_b": "runs/recorder_fault_test_20261122/ (two camera frames, kept on the laptop and out of git); hardware/avionics_pod/README.md (camera plate, step 3)",
-      "current_truth": "A target to the right and above would be read as left and below, so the chase would steer away from it. The video recorder now flips its picture; the flight program's reader, the calibration capture and the lens calibration must all use the same flipped picture before any camera-guided flight. Not fixed yet.",
+      "current_truth": "The flight program's camera reader can now rotate the image 180 degrees at the sensor (--camera-mount upside-down), --fly refuses to start until the mount is stated, and a calibration not captured with the same rotation is refused (2026-11-26, offline tests only). Still open: no calibration of the AR0234 nose camera exists at all, the capture tools have no rotation option, and the rotated reader has not run on the aircraft. Until a rotated calibration exists a camera intercept cannot fly.",
       "resolution": ""
     },
     {

@@ -13,7 +13,9 @@ WHAT THIS DOES: it is a separate, tiny, stdlib-only process. The flight program
 writes one byte to its stdin on every control tick. If the bytes stop for
 longer than `--bound-s`, or the pipe closes without a clean goodbye (the flight
 program died: SIGKILL, out-of-memory kill, crash, dropped SSH session), it
-kills `mavsdk_server`. The setpoint stream then ends for real and PX4's own
+kills `mavsdk_server` -- every one it was given (`--server-pid` once per
+server: a flight with a backup link runs two, and one survivor would keep
+re-sending the last command). The setpoint stream then ends for real and PX4's own
 failsafe takes the aircraft (on this board: Position mode after 1.0 s,
 runs/fc_readonly_20261118/).
 
@@ -79,7 +81,11 @@ def kill_server(pid: int, match: str) -> str:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--server-pid", type=int, required=True)
+    ap.add_argument("--server-pid", type=int, required=True, action="append",
+                    help="a setpoint-sending server to kill; give it once per "
+                         "server (a flight with a backup link runs two, and "
+                         "BOTH must end or the survivor keeps re-sending the "
+                         "last command)")
     ap.add_argument("--bound-s", type=float, required=True,
                     help="largest allowed gap between heartbeats while armed")
     ap.add_argument("--match", default="mavsdk_server",
@@ -110,7 +116,13 @@ def main(argv=None) -> int:
     last = time.monotonic()
     n_beats = 0
     worst_gap = 0.0
-    log(f"watching server pid {args.server_pid}, bound {args.bound_s:.2f} s")
+    pids = list(dict.fromkeys(args.server_pid))
+
+    def kill_all() -> str:
+        return "; ".join(kill_server(p, args.match) for p in pids)
+
+    log(f"watching server pid(s) {', '.join(map(str, pids))}, bound "
+        f"{args.bound_s:.2f} s")
     while True:
         timeout = None
         if armed:
@@ -119,7 +131,7 @@ def main(argv=None) -> int:
         now = time.monotonic()
         if not ready:
             gap = now - last
-            what = kill_server(args.server_pid, args.match)
+            what = kill_all()
             log(f"TRIPPED: no control tick for {gap:.2f} s (bound "
                 f"{args.bound_s:.2f} s, {n_beats} beats seen) -- {what}; the "
                 f"setpoint stream is now ended and PX4's offboard-loss failsafe acts")
@@ -129,7 +141,7 @@ def main(argv=None) -> int:
             if clean:
                 log(f"clean exit ({n_beats} beats, worst gap {worst_gap:.3f} s)")
                 return 0
-            what = kill_server(args.server_pid, args.match)
+            what = kill_all()
             log(f"TRIPPED: the flight program is gone without a goodbye "
                 f"({n_beats} beats seen) -- {what}")
             return 4

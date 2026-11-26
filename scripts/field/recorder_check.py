@@ -81,9 +81,25 @@ def camera_test(repo: str) -> tuple[bool, str]:
     return False, f"camera test FAILED (exit {r.returncode}): {tail[0][:160]}"
 
 
+# flight/deploy/board_overrides.py saves the Pixhawk's own settings here while a
+# program-flown flight has its low-battery action and GPS quality checks
+# switched off. The file is removed when they are restored. If it is still
+# there, the last run did not put them back.
+BOARD_STATE_FILE = os.path.expanduser("~/.interceptor/board_overrides.json")
+
+
+def board_settings_line(path: str) -> tuple[bool, str]:
+    if not os.path.exists(path):
+        return True, "board settings: the Pixhawk holds its own values"
+    return False, ("board settings: the last program flight did NOT restore the "
+                   "Pixhawk's low-battery action and GPS checks. Run: "
+                   ".venv-pi/bin/python -m flight.deploy.board_overrides --restore")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--status-file", default=STATUS_FILE)
+    ap.add_argument("--board-state-file", default=BOARD_STATE_FILE)
     ap.add_argument("--camera", action="store_true",
                     help="also record 3 s of test video (only while disarmed and not recording)")
     a = ap.parse_args()
@@ -93,6 +109,7 @@ def main() -> int:
     except (OSError, ValueError):
         st = None
     lines = judge(st, time.time())
+    lines.append(board_settings_line(a.board_state_file))
     if a.camera:
         if st is not None and (st.get("armed") or st.get("video") == "recording"):
             lines.append((False, "camera test skipped: armed, or the video is already recording"))

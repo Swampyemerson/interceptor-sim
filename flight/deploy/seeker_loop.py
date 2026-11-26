@@ -816,7 +816,13 @@ class PicameraSource:
     the same class of claim the instrument refuses to make."""
 
     def __init__(self, size=(1280, 800), exposure_us=EXPOSURE_SPEC_US, gain=1.0,
-                 target_fps=CAMERA_FPS_DEFAULT):
+                 target_fps=CAMERA_FPS_DEFAULT, flip180=False):
+        # flip180: rotate the image 180 degrees AT THE SENSOR (a camera mounted
+        # upside down). Done here so the detector, the frame recorder and the
+        # calibration all see the same upright image. flight/camera.py's
+        # `image_flip_deg` is the matching stamp in the calibration file;
+        # frame_feed.open_source refuses a mismatch.
+        self.flip180 = bool(flip180)
         try:
             from picamera2 import Picamera2  # type: ignore
         except ImportError as exc:  # pragma: no cover -- hardware only
@@ -855,8 +861,13 @@ class PicameraSource:
                     f"exposure. Exposure is a hard floor on frame duration.")
             self.controls["FrameDurationLimits"] = (dur, dur)
 
+        cfg_kwargs = {}
+        if self.flip180:
+            from libcamera import Transform  # type: ignore
+            cfg_kwargs["transform"] = Transform(hflip=1, vflip=1)
         config = self.cam.create_video_configuration(
-            main={"size": size, "format": "RGB888"}, controls=self.controls)
+            main={"size": size, "format": "RGB888"}, controls=self.controls,
+            **cfg_kwargs)
         self.cam.configure(config)
         self.cam.start()
         self.cam.set_controls(self.controls)
@@ -865,6 +876,7 @@ class PicameraSource:
         # mutation test that deleted the FrameDurationLimits assignment still saw
         # it claim success. A log that cannot distinguish the fix from its absence
         # is worse than no log: it is the confident-wrong-output failure mode.
+        print(f"[picam] image rotation: {'180 deg (camera mounted upside down)' if self.flip180 else 'none'}")
         pinned = self.controls.get("FrameDurationLimits")
         if pinned:
             print(f"[picam] frame rate pinned to {1e6 / pinned[0]:.1f} fps "

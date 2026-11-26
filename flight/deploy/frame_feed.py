@@ -46,9 +46,26 @@ def parse_source_spec(spec: str) -> Tuple[str, Optional[str]]:
     raise ValueError(f"--source must be 'picamera' or 'dir:PATH', got {spec!r}")
 
 
+def flip_refusal(cam, flip180: bool) -> Optional[str]:
+    """Why this calibration may not be used with this image rotation, or None.
+    A calibration with no stamp is taken as captured UNROTATED (every file
+    made before 2026-11-26 was), so it passes only an unrotated image. Pure."""
+    want = 180 if flip180 else 0
+    have = getattr(cam, "image_flip_deg", None)
+    have_eff = 0 if have is None else int(have)
+    if have_eff == want:
+        return None
+    said = ("carries no image_flip_deg stamp, so it was captured unrotated"
+            if have is None else f"was captured with image_flip_deg={have}")
+    return (f"the camera image is being rotated {want} deg but the calibration "
+            f"{said}. The optical centre and the bearings would be mirrored: "
+            f"the aircraft would steer AWAY from the target. Calibrate with the "
+            f"same rotation the flight uses.")
+
+
 def open_source(spec: str, cam, camera_fps: float,
                 exposure_us: Optional[float] = None,
-                gain: Optional[float] = None):
+                gain: Optional[float] = None, flip180: bool = False):
     """Construct the seeker_loop source. Returns (kind, source).
 
     picamera: the calibrated resolution AND a calibration provenance stamp are
@@ -73,7 +90,10 @@ def open_source(spec: str, cam, camera_fps: float,
                 "stamp, i.e. they are not a measured calibration of this lens "
                 "(the default configs/camera_intrinsics.json is the Gazebo "
                 "camera_info dump). Pass --intrinsics <checkerboard calibration>")
-        kwargs = {}
+        why = flip_refusal(cam, flip180)
+        if why is not None:
+            raise RefusedSource("--source picamera refused: " + why)
+        kwargs = {"flip180": True} if flip180 else {}
         if exposure_us is not None:
             kwargs["exposure_us"] = exposure_us
         if gain is not None:
@@ -164,6 +184,20 @@ class FrameFeed:
                 return None
             time.sleep(0.01)
         return None
+
+    def frame_age_s(self) -> Optional[float]:
+        """Seconds since the newest frame was captured, on this feed's clock.
+        None before the first frame, and for an unthreaded (replay) feed,
+        where frames are pulled on demand and "age" means nothing. The flight
+        program's dead-camera rule reads this: a capture thread that has died
+        or a sensor that has stalled both show as an age that only grows."""
+        if not self.threaded:
+            return None
+        with self._lock:
+            item = self._slot
+        if item is None:
+            return None
+        return max(0.0, self.clock() - item[1])
 
     def poll(self):
         """(frame, t_capture_clock) newer than the last poll, else None."""

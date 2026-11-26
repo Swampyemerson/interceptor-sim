@@ -54,6 +54,7 @@ belief".
 from __future__ import annotations
 
 import json
+import math
 import socket
 import threading
 import time
@@ -253,7 +254,17 @@ class CueReceiver:
                 t_utc = float(d["t_utc"]) if "t_utc" in d else None
                 if not (-90.0 <= rec.lat <= 90.0 and -180.0 <= rec.lon <= 180.0):
                     raise ValueError("latitude/longitude out of range")
-            except (ValueError, KeyError, TypeError):
+                # Every number must be finite (review 2026-11-26). json.loads
+                # accepts NaN and Infinity: a NaN height made every fit fail
+                # until the record aged out, and an infinite velocity reached
+                # the belief latch and raised at the GO edge.
+                nums = [rec.lat, rec.lon, rec.alt_m_msl, rec.vn, rec.ve, rec.vd,
+                        t_src, t_utc]
+                if not all(math.isfinite(x) for x in nums if x is not None):
+                    raise ValueError("non-finite number in a cue record")
+            # OverflowError: float() of a huge integer. It was not caught and
+            # killed the receive thread, after which GO could never fire.
+            except (ValueError, KeyError, TypeError, OverflowError):
                 with self._lock:
                     self._n_bad += 1
                 continue
@@ -298,7 +309,11 @@ class CueReceiver:
                 continue
             except OSError:
                 break
-            self.feed(payload, self._clock(), addr)
+            try:
+                self.feed(payload, self._clock(), addr)
+            except Exception:  # noqa: BLE001 -- one bad datagram must not end the link
+                with self._lock:
+                    self._n_bad += 1
 
     def close(self) -> None:
         self._stop.set()

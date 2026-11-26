@@ -93,6 +93,10 @@ DEFAULT_PARAMS = {
     "MPC_XY_VEL_MAX": 12.0, "MPC_TILTMAX_AIR": 45.0, "MPC_ACC_HOR_MAX": 5.0,
     "GF_ACTION": 2, "GF_MAX_HOR_DIST": 457.2, "GF_MAX_VER_DIST": 30.48,
     "COM_RCL_EXCEPT": 0, "COM_OF_LOSS_T": 1.0, "COM_OBL_RC_ACT": 0,
+    # read 2026-11-26 (runs/interceptor_redundancy_20261126/)
+    "BAT_LOW_THR": 0.15, "BAT_CRIT_THR": 0.07,
+    "EKF2_REQ_NSATS": 6, "EKF2_REQ_EPH": 3.0, "EKF2_REQ_SACC": 1.0,
+    "COM_LOW_BAT_ACT": 3, "COM_FLTT_LOW_ACT": 3, "EKF2_GPS_CHECK": 1023,
 }
 
 
@@ -110,6 +114,14 @@ class FakeDrone:
         self.vel = (0.0, 0.0, 0.0)
         self.landed = LandedState.ON_GROUND
         self.battery_v: Optional[float] = 0.0
+        self.battery_pct: Optional[float] = 80.0    # MAVSDK's 0..100 scale
+        # GPS quality as MAVSDK reports it (gps_info + raw_gps)
+        self.gps_sats = 14
+        self.gps_fix = 3
+        self.gps_hacc = 0.8
+        self.gps_sacc = 0.2
+        self.param_set_fails: set = set()           # names whose write raises
+        self.param_set_ignored: set = set()         # names whose write is lost
         self.params: Dict[str, float] = dict(DEFAULT_PARAMS)
         self.health_ok = True
         self.takeoff_alt = 2.5
@@ -146,6 +158,11 @@ class FakeDrone:
             landed_state=lambda: self._stream("landed", 0.2, lambda: self.landed),
             flight_mode=lambda: self._stream("mode", 0.1, lambda: _Mode(self.mode)),
             battery=lambda: self._stream("battery", 0.5, self._battery),
+            gps_info=lambda: self._stream("gps_info", 0.2, lambda: types.SimpleNamespace(
+                num_satellites=self.gps_sats, fix_type=self.gps_fix)),
+            raw_gps=lambda: self._stream("raw_gps", 0.2, lambda: types.SimpleNamespace(
+                horizontal_uncertainty_m=self.gps_hacc,
+                velocity_uncertainty_m_s=self.gps_sacc)),
             health=self._health)
         self.action = types.SimpleNamespace(
             set_takeoff_altitude=self._set_takeoff_altitude, arm=self._arm,
@@ -155,7 +172,8 @@ class FakeDrone:
             set_velocity_ned=self._set_velocity_ned, start=self._offb_start,
             stop=self._offb_stop)
         self.param = types.SimpleNamespace(
-            get_param_float=self._get_param, get_param_int=self._get_param)
+            get_param_float=self._get_param, get_param_int=self._get_param,
+            set_param_int=self._set_param)
         self.mavlink_direct = types.SimpleNamespace(message=self._mav_message)
 
     # ---- helpers ---------------------------------------------------------
@@ -256,7 +274,10 @@ class FakeDrone:
     def _battery(self):
         if self.battery_v is None:
             return None
-        return types.SimpleNamespace(voltage_v=self.battery_v, remaining_percent=-1.0)
+        return types.SimpleNamespace(
+            voltage_v=self.battery_v,
+            remaining_percent=(-1.0 if self.battery_pct is None
+                               else self.battery_pct))
 
     async def _health(self):
         while True:
@@ -328,6 +349,23 @@ class FakeDrone:
         if name not in self.params:
             raise ParamError(f"no such parameter {name}")
         return self.params[name]
+
+
+    async def _set_param_placeholder(self):  # pragma: no cover
+        raise NotImplementedError
+
+
+def _attach_set_param():
+    async def _set_param(self, name, value):
+        self._rec("param.set", name, value)
+        if name in self.param_set_fails:
+            raise ParamError(f"write of {name} refused")
+        if name not in self.param_set_ignored:
+            self.params[name] = value
+    FakeDrone._set_param = _set_param
+
+
+_attach_set_param()
 
 
 def install(monkeypatch, drone: FakeDrone):
