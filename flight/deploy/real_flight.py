@@ -4389,7 +4389,9 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
                          offboard_active=state["offboard"],
                          offboard_sample_age_s=_offb_age,
                          mode=state["mode"],
-                         alt_m=(cfg.standby_alt_m if (bench or handover is not None)
+                         alt_m=(cfg.standby_alt_m
+                                if (bench or (handover is not None
+                                              and handover.vertical != "camera"))
                                 else state["alt"]),
                          yaw_deg=state["psi"],
                          quat=state["quat"],
@@ -4433,7 +4435,12 @@ async def _control_loop(drone, args, cfg: MissionConfig, sm: RealFlightSM,
         if handover is not None:
             # PILOT HAND-OVER: what leaves this loop is the LIMITED command, and
             # the limited command is what the tick log records.
-            dec.setpoint = handover.limit(dec.setpoint, dec.state, state["psi"])
+            _cam = (getattr(dec.telemetry, "phase", None) == "B"
+                    or getattr(sm.guidance, "rehearsal_trigger_t", None) is not None)
+            dec.setpoint = handover.limit(dec.setpoint, dec.state, state["psi"],
+                                          camera_guided=_cam)
+            out["handover_max_v_ms"] = max(out.get("handover_max_v_ms", 0.0),
+                                           abs(dec.setpoint.v_down))
             out["handover_max_h_ms"] = max(
                 out.get("handover_max_h_ms", 0.0),
                 math.hypot(dec.setpoint.v_north, dec.setpoint.v_east))
@@ -5369,20 +5376,27 @@ class HandoverLimits:
     guidance asked for:
 
       * horizontal speed at most `max_speed_ms` (direction kept);
-      * NO vertical command, ever: the aircraft holds the height the pilot left
-        it at. The belief's height is the difference of two GPS heights, which
-        disagreed by 2.4 m with both aircraft on the ground (2026-11-26);
+      * NO vertical command while flying on the cue: the aircraft holds the
+        height the pilot left it at. The belief's height is the difference of
+        two GPS heights, which disagreed by 2.4 to 4.8 m with both aircraft on
+        the ground (2026-11-26);
+      * with a camera (`vertical="camera"`): a vertical command is let through,
+        at most `max_vert_ms`, ONLY while the chase is steering on camera
+        decodes or evading (`camera_guided`), and in BREAKOFF;
       * in STANDBY and SAFE: zero velocity and the yaw the aircraft has now, so
         taking over or finishing never swings the nose.
 
     A non-finite command becomes a hold."""
     max_speed_ms: float = HANDOVER_DEFAULT_MAX_SPEED_MS
+    vertical: str = "hold"                   # "hold" | "camera"
+    max_vert_ms: float = 1.0
 
     def limit(self, sp: Setpoint, state_name: str,
-              yaw_now_deg: Optional[float]) -> Setpoint:
+              yaw_now_deg: Optional[float],
+              camera_guided: bool = False) -> Setpoint:
         yaw_now = (float(yaw_now_deg) if yaw_now_deg is not None
                    and math.isfinite(float(yaw_now_deg)) else None)
-        vals = (sp.v_north, sp.v_east, sp.yaw_deg)
+        vals = (sp.v_north, sp.v_east, sp.v_down, sp.yaw_deg)
         if state_name in (State.STANDBY, State.SAFE) \
                 or not all(math.isfinite(float(x)) for x in vals):
             return Setpoint(0.0, 0.0, 0.0,
@@ -5395,14 +5409,21 @@ class HandoverLimits:
         if h > cap:
             k = cap / h if h > 0 else 0.0
             vn, ve = vn * k, ve * k
-        return Setpoint(vn, ve, 0.0, float(sp.yaw_deg))
+        vd = 0.0
+        if self.vertical == "camera" and (camera_guided
+                                          or state_name == State.BREAKOFF):
+            vcap = max(0.0, float(self.max_vert_ms))
+            vd = max(-vcap, min(vcap, float(sp.v_down)))
+        return Setpoint(vn, ve, vd, float(sp.yaw_deg))
 
 
 def handover_config(cfg: MissionConfig) -> MissionConfig:
     """The mission config for a pilot hand-over: the pilot chose the height and
     the heading, so the height gate is fed the standby height (as on the bench)
-    and the yaw gate is open. Armed and OFFBOARD are still required for GO."""
-    return replace(cfg, yaw_tol_deg=180.0)
+    and the yaw gate is open. Armed and OFFBOARD are still required for GO.
+    With a camera the state machine is fed the real height (its minimum-height
+    floor needs it), so the height gate is opened instead of fed."""
+    return replace(cfg, yaw_tol_deg=180.0, alt_tol_m=1.0e9)
 
 
 def validate_handover_args(args) -> List[str]:
@@ -5419,18 +5440,40 @@ def validate_handover_args(args) -> List[str]:
         why.append("--pilot-handover needs the enable switch (drop "
                    "--cue-no-enable): the same switch is the Pixhawk's "
                    "offboard switch and your take-back")
-    if getattr(args, "source", None):
-        why.append("--pilot-handover flies on the cue alone: drop --source "
-                   "(no camera calibration exists for the nose camera)")
-    v = getattr(args, "handover_max_speed_ms", HANDOVER_DEFAULT_MAX_SPEED_MS)
-    if not (0.0 < float(v) <= 3.0):
-        why.append(f"--handover-max-speed-ms {v} is outside 0 to 3 m/s: this "
-                   f"mode is for slow first flights")
+    src = getattr(args, "source", None)
+    if src:
+        # WITH THE CAMERA: the chase closes on tag decodes, so it needs a real
+        # camera, a stated mount, a height floor, and (unless contact is asked
+        # for in so many words) the break-off that pulls away before contact.
+        if src != "picamera":
+            why.append(f"--pilot-handover refuses --source {src}: a flight "
+                       f"needs the real camera (--source picamera)")
+        if getattr(args, "detector", None) != "tag":
+            why.append("--pilot-handover with a camera needs --detector tag")
+        if getattr(args, "camera_mount", None) not in ("upright", "upside-down"):
+            why.append("--pilot-handover with a camera needs --camera-mount "
+                       "upright|upside-down (read unrotated, an upside-down "
+                       "camera steers AWAY from the target)")
+        if getattr(args, "min_agl_m", None) is None:
+            why.append("--pilot-handover with a camera needs --min-agl-m: the "
+                       "camera phase may descend, and this is its floor")
+        if not getattr(args, "pursuit_rehearsal", False) \
+                and not getattr(args, "handover_allow_contact", False):
+            why.append("--pilot-handover with a camera needs --pursuit-rehearsal "
+                       "(pull away before contact) or --handover-allow-contact "
+                       "(you mean to hit the target)")
+    v = float(getattr(args, "handover_max_speed_ms", HANDOVER_DEFAULT_MAX_SPEED_MS))
+    top = 16.0 if getattr(args, "handover_allow_fast", False) else 3.0
+    if not (0.0 < v <= top):
+        why.append(f"--handover-max-speed-ms {v} is outside 0 to {top:.0f} m/s"
+                   + ("" if top > 3.0 else
+                      ": add --handover-allow-fast to go above 3 m/s"))
     return why
 
 
 async def run_pilot_handover(args, cfg: MissionConfig, sm: RealFlightSM,
-                             trigger):  # pragma: no cover -- needs the board; driven by the fake in tests
+                             trigger, detector=None,
+                             frame_recorder=None):  # pragma: no cover -- needs the board; driven by the fake in tests
     """PILOT HAND-OVER (`--pilot-handover`, 2026-11-26, builder's design). The
     pilot arms, takes off and hovers by hand. This program never arms, never
     takes off, never lands and never commands a flight mode: it only streams
@@ -5447,7 +5490,10 @@ async def run_pilot_handover(args, cfg: MissionConfig, sm: RealFlightSM,
     drone = await _open_vehicle(args)
     if drone is None:
         return 1
-    limits_out = HandoverLimits(float(args.handover_max_speed_ms))
+    limits_out = HandoverLimits(
+        float(args.handover_max_speed_ms),
+        vertical=("camera" if detector is not None else "hold"),
+        max_vert_ms=float(getattr(args, "handover_max_vert_ms", 1.0)))
     state = _new_link_state()
     rc_sinks = _rc_readers(trigger)
     cue_height = _wire_cue_trigger(trigger, state)
@@ -5480,18 +5526,29 @@ async def run_pilot_handover(args, cfg: MissionConfig, sm: RealFlightSM,
               f"land or change the flight mode. Vehicle is "
               f"{'ARMED' if state['armed'] else 'disarmed'}, mode "
               f"{state['mode']}.")
-        print(f"[handover] limits on every command: horizontal speed <= "
-              f"{limits_out.max_speed_ms:.2f} m/s, NO climb or descent, no "
-              f"camera. GO switch raised = the Pixhawk's offboard switch hands "
-              f"over; lowered = you have it back.")
+        if detector is None:
+            print(f"[handover] limits on every command: horizontal speed <= "
+                  f"{limits_out.max_speed_ms:.2f} m/s, NO climb or descent, no "
+                  f"camera.")
+        else:
+            print(f"[handover] limits on every command: horizontal speed <= "
+                  f"{limits_out.max_speed_ms:.2f} m/s; height held until the "
+                  f"camera has the tag, then climb or descent <= "
+                  f"{limits_out.max_vert_ms:.2f} m/s, never below "
+                  f"{cfg.min_agl_m} m. Before contact it "
+                  + ("PULLS AWAY (rehearsal break-off)."
+                     if getattr(args, "pursuit_rehearsal", False)
+                     else "DOES NOT pull away: CONTACT IS INTENDED."))
+        print("[handover] GO switch raised = the Pixhawk's offboard switch "
+              "hands over; lowered = you have it back.")
         limits, unread = await read_platform_limits(drone)
         for line in format_platform_table(limits, commanded_caps(args, cfg, sm.guidance)):
             print(line)
         for line in what_ends_an_unbounded_engagement():
             print(f"[handover] also ends it: {line}")
         loop_out = await _control_loop(
-            drone, args, cfg, sm, trigger, None, state, None, supervisor,
-            outer_bound_s=args.smoke_duration, acquire_after_s=0.0,
+            drone, args, cfg, sm, trigger, detector, state, frame_recorder,
+            supervisor, outer_bound_s=args.smoke_duration, acquire_after_s=0.0,
             out=loop_out, tick_log=tick_log, handover=limits_out)
         # The loop's "bound reached" is a normal end here, not a failure.
         rc_exit = 0 if loop_out.get("abort") is None else 1
@@ -5506,7 +5563,7 @@ async def run_pilot_handover(args, cfg: MissionConfig, sm: RealFlightSM,
         for tk in tasks:
             tk.cancel()
         try:
-            _write_mission_logs(args, loop_out.get("csv_rows", []), None)
+            _write_mission_logs(args, loop_out.get("csv_rows", []), frame_recorder)
             tick_log.close(remove=True)
         except Exception as e:  # noqa: BLE001 -- keep the live copy
             tick_log.close(remove=False)
@@ -5517,7 +5574,9 @@ async def run_pilot_handover(args, cfg: MissionConfig, sm: RealFlightSM,
         print(f"    {tr.t:7.2f}s  {tr.frm} -> {tr.to}  ({tr.reason})")
     print(f"[handover] largest horizontal command sent: "
           f"{loop_out.get('handover_max_h_ms', 0.0):.2f} m/s (limit "
-          f"{limits_out.max_speed_ms:.2f}); ticks {loop_out.get('n_tick', 0)}, "
+          f"{limits_out.max_speed_ms:.2f}), vertical "
+          f"{loop_out.get('handover_max_v_ms', 0.0):.2f} m/s; ticks "
+          f"{loop_out.get('n_tick', 0)}, "
           f"of them in OFFBOARD {loop_out.get('n_off_true', 0)}; worst tick gap "
           f"{loop_out.get('max_tick_gap_s', 0.0):.2f} s")
     return rc_exit
@@ -6212,7 +6271,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
     mode.add_argument("--handover-max-speed-ms", type=float,
                       default=HANDOVER_DEFAULT_MAX_SPEED_MS,
                       help="--pilot-handover: horizontal speed limit on every "
-                           "command, m/s (default 0.9 = 2 mph; at most 3)")
+                           "command, m/s (default 0.9 = 2 mph; at most 3, or "
+                           "16 with --handover-allow-fast)")
+    mode.add_argument("--handover-allow-fast", action="store_true",
+                      help="--pilot-handover: allow a speed limit above 3 m/s")
+    mode.add_argument("--handover-max-vert-ms", type=float, default=1.0,
+                      help="--pilot-handover with a camera: largest climb or "
+                           "descent rate let through, m/s (default 1.0)")
+    mode.add_argument("--handover-allow-contact", action="store_true",
+                      help="--pilot-handover with a camera: fly WITHOUT the "
+                           "rehearsal break-off, i.e. contact is intended")
     mode.add_argument("--mavsdk-url", default=None,
                       help="MAVSDK connect URL (e.g. udpin://0.0.0.0:14540)")
 
@@ -6911,7 +6979,9 @@ def main(argv=None) -> int:
     else:
         trigger = GateReadyTrigger()
     if args.pilot_handover:
-        detector = None             # cue only: no camera, no synthetic target
+        # the real camera when --source was given, else cue only; never the
+        # synthetic target
+        detector = src_detector
     elif src_detector is not None:
         detector = src_detector
     else:
@@ -6930,7 +7000,8 @@ def main(argv=None) -> int:
     import asyncio
     try:
         if args.pilot_handover:
-            return asyncio.run(run_pilot_handover(args, cfg, sm, trigger))
+            return asyncio.run(run_pilot_handover(args, cfg, sm, trigger, detector,
+                                                  frame_recorder=frame_recorder))
         if args.bench_props_off:
             return asyncio.run(run_bench_props_off(args, cfg, sm, trigger, detector,
                                                    frame_recorder=frame_recorder))

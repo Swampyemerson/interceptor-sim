@@ -14,7 +14,7 @@ from flight.cue_link import encode_record  # noqa: E402
 from flight.cue_relay import CueRecord  # noqa: E402
 from test_cue_go import capture_trigger, lla  # noqa: E402
 from test_real_flight_driver import (_ACTUATION, _closure_attrs, GO_CH, SERIAL,  # noqa: E402,F401
-                                     drive, dummy_server, rc)
+                                     drive, dummy_server, rc, smoke_cam)
 
 HANDOVER = ["--pilot-handover", "--mavsdk-url", SERIAL, "--terminal", "pursuit",
             "--trigger", "cue", "--rc-channel", str(GO_CH), "--cue-udp-port", "0",
@@ -65,11 +65,17 @@ def sent(d):
             for t, name, a in d.calls if name == "offboard.set_velocity_ned"]
 
 
-def run(monkeypatch, capsys, tmp_path, d, extra=()):
+def run(monkeypatch, capsys, tmp_path, d, extra=(), detector=None):
     box = capture_trigger(monkeypatch)
     d.tick_hook = slow_feeder(d, box)
-    r = drive(monkeypatch, capsys, tmp_path, HANDOVER + list(extra), drone=d)
+    r = drive(monkeypatch, capsys, tmp_path, HANDOVER + list(extra), drone=d,
+              detector=detector)
     return r, box["trig"]
+
+
+CAMERA = ["--source", "picamera", "--detector", "tag", "--target-span-m", "0.30",
+          "--camera-mount", "upside-down", "--min-agl-m", "2.0",
+          "--pursuit-rehearsal"]
 
 
 def test_handover_flies_toward_the_target_slowly_level_and_gives_back(monkeypatch, capsys,
@@ -141,8 +147,13 @@ def test_already_in_offboard_at_start_is_refused(monkeypatch, capsys, tmp_path, 
 @pytest.mark.parametrize("extra,needle", [
     (["--trigger", "rc"], "needs --trigger cue"),
     (["--cue-no-enable"], "needs the enable switch"),
-    (["--source", "picamera"], "drop --source"),
-    (["--handover-max-speed-ms", "5"], "outside 0 to 3"),
+    (["--source", "picamera"], "needs --camera-mount"),
+    (["--source", "picamera"], "needs --min-agl-m"),
+    (["--source", "picamera"], "needs --pursuit-rehearsal"),
+    (["--source", "picamera", "--detector", "onnx"], "needs --detector tag"),
+    (["--source", "dir:/tmp/x"], "needs the real camera"),
+    (["--handover-max-speed-ms", "5"], "add --handover-allow-fast"),
+    (["--handover-max-speed-ms", "20", "--handover-allow-fast"], "outside 0 to 16"),
     (["--fly"], "its own mode"),
 ])
 def test_argument_refusals(monkeypatch, capsys, tmp_path, extra, needle):
@@ -179,3 +190,49 @@ def test_handover_cannot_reach_arm_takeoff_or_a_mode_command_structurally():
     src = inspect.getsource(rf.run_pilot_handover)
     calls = {n.attr for n in ast.walk(ast.parse(src.lstrip())) if isinstance(n, ast.Attribute)}
     assert "start" not in calls and "stop" not in calls
+
+
+def test_camera_handover_is_slow_keeps_height_until_decodes_and_never_arms(monkeypatch, capsys,
+                                                                          tmp_path, dummy_server):
+    """With the camera handed in (the synthetic box generator standing in for
+    it): same hand-over, the speed cap holds, no vertical command goes out
+    before the chase is on camera decodes, and what does go out is capped."""
+    d = hovering_drone(dummy_server, go_down=45.0)
+    r, trig = run(monkeypatch, capsys, tmp_path, d, CAMERA, detector=smoke_cam())
+    assert r.rc == 0, r.out[-3000:]
+    assert r.actions == [] and trig.fired
+    assert "then climb or descent <= 1.00 m/s, never below 2.0 m" in r.out
+    assert "PULLS AWAY (rehearsal break-off)" in r.out
+    sps = sent(d)
+    assert all(math.hypot(sp.north_m_s, sp.east_m_s) <= 0.9 + 1e-6 for _, sp in sps)
+    assert all(abs(sp.down_m_s) <= 1.0 + 1e-6 for _, sp in sps)
+    t_go = next(float(l.split("]")[0].strip("[ s")) for l in r.out.splitlines()
+                if "STANDBY -> ENGAGE" in l)
+    assert all(sp.down_m_s == 0.0 for t, sp in sps if t < t_go)
+    assert d.alt >= 2.0
+
+
+def test_contact_must_be_asked_for_in_words(monkeypatch, capsys, tmp_path, dummy_server):
+    args = [a for a in CAMERA if a != "--pursuit-rehearsal"]
+    r = drive(monkeypatch, capsys, tmp_path, HANDOVER + args, drone=fm.FakeDrone())
+    assert r.rc == 2 and "--handover-allow-contact" in r.out
+    d = hovering_drone(dummy_server, go_down=20.0)
+    r, _ = run(monkeypatch, capsys, tmp_path, d, args + ["--handover-allow-contact"],
+               detector=smoke_cam())
+    assert r.rc == 0 and "CONTACT IS INTENDED" in r.out
+
+
+def test_vertical_limit_unit():
+    S = rf.Setpoint
+    cam = rf.HandoverLimits(0.9, vertical="camera", max_vert_ms=1.0)
+    # on the cue (not camera-guided): height held even in camera mode
+    assert cam.limit(S(1.0, 0.0, -3.0, 0.0), rf.State.ENGAGE, 0.0).v_down == 0.0
+    # camera-guided: let through, capped both ways
+    assert cam.limit(S(1.0, 0.0, -3.0, 0.0), rf.State.ENGAGE, 0.0, camera_guided=True).v_down == -1.0
+    assert cam.limit(S(1.0, 0.0, 0.4, 0.0), rf.State.ENGAGE, 0.0, camera_guided=True).v_down == 0.4
+    assert cam.limit(S(0.0, 0.0, -4.0, 0.0), rf.State.BREAKOFF, 0.0).v_down == -1.0
+    # cue-only mode never lets vertical out, whatever it is told
+    hold = rf.HandoverLimits(0.9)
+    assert hold.limit(S(1.0, 0.0, -3.0, 0.0), rf.State.ENGAGE, 0.0, camera_guided=True).v_down == 0.0
+    assert cam.limit(S(1.0, 0.0, float("nan"), 0.0), rf.State.ENGAGE, 7.0,
+                     camera_guided=True).as_tuple() == (0.0, 0.0, 0.0, 7.0)
