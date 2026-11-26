@@ -1,0 +1,1397 @@
+[aim] pre-flight collision lead (accel-aware, ADR-0080, a=10.0 m/s^2, v=16.0 m/s) -> C1 = 54.42 deg, t_lead=2.59 s, plan distance=28.70 m (ADR-0101 passage window)
+[config] standby alt 7.0 m, aim yaw 54.4 deg, dash 16.0 m/s (cap None), loft 0.0 m, streak 5, dash bound 8.0 s
+[config] *** SKELETON -- every failsafe constant above is TODO-BUILDER (unmeasured on the airframe) ***
+[terminal] target span 1.000 m (config default -- NOT range-calibrated; synthetic-detector modes only)
+[terminal] pursuit (ADR-0103 chase only): belief seed rel NED (+16.7, +0.0, +0.0) m at +0.0/+9.0 m/s -- receding-range breakoff SUPPRESSED (contact floor / lost-target / engage-max-s active, engage_max_s=15s)
+[terminal] --trigger cue: the belief above is a PLACEHOLDER. The real one is latched from the live cue at the GO edge.
+[terminal] lost-target rule: 2.0 s without a decode ends the engagement.
+[terminal] WARNING: the lost-target clock (2.0 s) is not longer than the terminal's own fallback time (3.0 s), so a target lost while still ahead ends the engagement before the terminal can return to its belief chase (--engage-far-lost-target-s).
+[cue] THE CUE IS THE GO COMMAND. Listening on UDP 47810; UTC source 'vehicle' (delay is measured per record and removed); unsynced records ALLOWED (delay then not measured); enable switch on RC channel 8 (LOW = your veto)
+[bench] no --source: the detector is SYNTHETIC (a fake target). Add --source picamera to rehearse with the camera.
+[mavsdk] connecting serial:///dev/ttyAMA10:921600 ...
+[mavsdk] connected
+[mavsdk] connecting udpout://127.0.0.1:14550 ...
+[mavsdk] connected
+[link] TWO LINKS: primary serial:///dev/ttyAMA10:921600, backup udpout://127.0.0.1:14550. Setpoints go out on both; telemetry is read from the primary and from the backup only when the primary is silent.
+[watchdog] loop supervisor watching server pid(s) 1764, 1773: no control tick for 0.50 s, or this program dying, ends the setpoint stream
+[link] telemetry.attitude_quaternion: primary never spoke -- using the BACKUP link
+[link] mavlink.RC_CHANNELS: primary never spoke -- using the BACKUP link
+[link] telemetry.position: primary never spoke -- using the BACKUP link
+[link] telemetry.velocity_ned: primary never spoke -- using the BACKUP link
+2026-11-26T12:02:39 [loop-supervisor] watching server pid(s) 1764, 1773, bound 0.50 s
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: primary never spoke -- using the BACKUP link
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] mavlink.SYSTEM_TIME: primary never spoke -- using the BACKUP link
+[link] telemetry.armed: primary never spoke -- using the BACKUP link
+[link] telemetry.flight_mode: primary never spoke -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.battery: primary never spoke -- using the BACKUP link
+[bench] interlocks OK: disarmed, battery 24.27 V (<= 30.0 V). PROPS MUST BE OFF. This mode cannot arm.
+[bench] stubs: armed gate off, height gate fed the standby height, yaw tolerance 180 deg. Everything else runs as it flies.
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('MPC_XY_VEL_MAX',))
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.armed: primary silent 2.48 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.48 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('MPC_TILTMAX_AIR',))
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP linkReceived ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('MPC_ACC_HOR_MAX',))
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('GF_MAX_VER_DIST',))
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] param.get_param_int failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_int(); params: ('COM_RCL_EXCEPT',))
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('COM_OF_LOSS_T',))
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] param.get_param_int failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_int(); params: ('COM_OBL_RC_ACT',))
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: primary silent 2.43 s -- using the BACKUP link
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('BAT_LOW_THR',))
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('BAT_CRIT_THR',))
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] mavlink.RC_CHANNELS: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] mavlink.RC_CHANNELS: primary silent 0.54 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: primary silent 2.42 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('EKF2_REQ_EPH',))
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] param.get_param_float failed on the primary link (ParamError: TIMEOUT: 'Timeout'; origin: get_param_float(); params: ('EKF2_REQ_SACC',))
+[limits] guidance: terminal pursuit, commands up to 16 m/s, slews at up to 8 m/s^2
+[limits] board:    MPC_XY_VEL_MAX   = 33.0   (horizontal speed limit, m/s)
+[limits] board:    MPC_TILTMAX_AIR  = 45.0   (lean limit, deg)
+[limits] board:    MPC_ACC_HOR_MAX  = 5.0   (horizontal acceleration limit, m/s^2)
+[limits] board:    GF_ACTION        = 2   (geofence action (0 none, 1 warn, 2 hold, 3 return, 4 terminate, 5 land))
+[limits] board:    GF_MAX_HOR_DIST  = 457.20001220703125   (geofence radius, m (0 = off))
+[limits] board:    GF_MAX_VER_DIST  = 30.479999542236328   (geofence height, m (0 = off))
+[limits] board:    COM_RCL_EXCEPT   = 0   (modes exempt from RC-loss failsafe (bit 2 = offboard))
+[limits] board:    COM_OF_LOSS_T    = 1.0   (offboard stream loss timeout, s)
+[limits] board:    COM_OBL_RC_ACT   = 0   (action on offboard loss (0 position, 1 altitude, 2 manual, 3 return, 4 land, 5 hold))
+[limits] board:    BAT_LOW_THR      = 0.15000000596046448   (battery 'low' level, fraction of charge)
+[limits] board:    BAT_CRIT_THR     = 0.07000000029802322   (battery 'critical' level, fraction of charge)
+[limits] board:    EKF2_REQ_NSATS   = 6   (fewest satellites the estimator accepts)
+[limits] board:    EKF2_REQ_EPH     = 3.0   (worst horizontal GPS accuracy accepted, m)
+[limits] board:    EKF2_REQ_SACC    = 1.0   (worst GPS speed accuracy accepted, m/s)
+[limits] note: the guidance slews its command at up to 8 m/s^2; the board accelerates at most 5 (MPC_ACC_HOR_MAX)
+[limits] note: RC loss in OFFBOARD triggers PX4's RC-loss failsafe (COM_RCL_EXCEPT has no offboard bit): switching the transmitter off after GO ends the intercept
+[limits] note: if the setpoint stream stops, PX4 waits 1.0 s (COM_OF_LOSS_T) and then takes action 0 (COM_OBL_RC_ACT; 0 = Position mode)
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins
+[mavsdk] flight mode = HOLD (offboard_active=False) from TELEMETRY
+[cue] REFUSED so far: the enable switch was already HIGH at start -- lower it, then raise it
+[   0.00s] START in STANDBY (aim yaw 54.4 deg, standby alt 7.0 m)
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=  1.0s STANDBY    streak=0 alt=0.09 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=  2.0s STANDBY    streak=0 alt=0.13 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] mavlink.RC_CHANNELS: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] mavlink.RC_CHANNELS: primary silent 0.54 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.armed: primary silent 2.47 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.47 s -- using the BACKUP link
+[mavsdk] t=  3.1s STANDBY    streak=0 alt=0.16 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.battery: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=  4.1s STANDBY    streak=0 alt=0.20 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.battery: primary silent 1.53 s -- using the BACKUP link
+[mavsdk] t=  5.1s STANDBY    streak=0 alt=0.25 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=  6.2s STANDBY    streak=0 alt=0.28 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  7.2s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=  8.3s STANDBY    streak=0 alt=0.32 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=  9.3s STANDBY    streak=0 alt=0.33 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 10.3s STANDBY    streak=0 alt=0.33 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 11.4s STANDBY    streak=0 alt=0.31 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 12.4s STANDBY    streak=0 alt=0.31 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t= 13.4s STANDBY    streak=0 alt=0.32 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 14.5s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t= 15.5s STANDBY    streak=0 alt=0.28 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 16.6s STANDBY    streak=0 alt=0.26 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 17.6s STANDBY    streak=0 alt=0.26 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 18.6s STANDBY    streak=0 alt=0.27 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 19.7s STANDBY    streak=0 alt=0.27 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 20.7s STANDBY    streak=0 alt=0.27 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 21.8s STANDBY    streak=0 alt=0.29 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 22.8s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 23.8s STANDBY    streak=0 alt=0.31 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t= 24.9s STANDBY    streak=0 alt=0.31 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 25.9s STANDBY    streak=0 alt=0.34 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 27.0s STANDBY    streak=0 alt=0.36 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t= 28.0s STANDBY    streak=0 alt=0.39 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 29.0s STANDBY    streak=0 alt=0.42 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 30.1s STANDBY    streak=0 alt=0.46 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 31.1s STANDBY    streak=0 alt=0.47 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 32.1s STANDBY    streak=0 alt=0.48 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 33.2s STANDBY    streak=0 alt=0.45 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 34.2s STANDBY    streak=0 alt=0.42 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 35.3s STANDBY    streak=0 alt=0.39 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: primary silent 2.42 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 36.3s STANDBY    streak=0 alt=0.34 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 37.3s STANDBY    streak=0 alt=0.31 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 38.4s STANDBY    streak=0 alt=0.29 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[mavsdk] t= 39.4s STANDBY    streak=0 alt=0.27 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 40.5s STANDBY    streak=0 alt=0.26 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t= 41.5s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: primary silent 2.43 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 42.5s STANDBY    streak=0 alt=0.32 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[mavsdk] t= 43.6s STANDBY    streak=0 alt=0.36 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 44.6s STANDBY    streak=0 alt=0.41 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 45.6s STANDBY    streak=0 alt=0.45 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.armed: primary silent 2.48 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.48 s -- using the BACKUP link
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t= 46.7s STANDBY    streak=0 alt=0.47 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t= 47.7s STANDBY    streak=0 alt=0.47 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 48.8s STANDBY    streak=0 alt=0.50 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t= 49.8s STANDBY    streak=0 alt=0.52 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 50.8s STANDBY    streak=0 alt=0.53 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 51.9s STANDBY    streak=0 alt=0.56 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 52.9s STANDBY    streak=0 alt=0.59 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t= 54.0s STANDBY    streak=0 alt=0.62 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t= 55.0s STANDBY    streak=0 alt=0.65 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 56.0s STANDBY    streak=0 alt=0.66 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 57.1s STANDBY    streak=0 alt=0.67 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 58.1s STANDBY    streak=0 alt=0.67 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 59.1s STANDBY    streak=0 alt=0.66 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.14 s -- using the BACKUP link
+[mavsdk] t= 60.2s STANDBY    streak=0 alt=0.64 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[mavsdk] t= 61.2s STANDBY    streak=0 alt=0.63 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 62.3s STANDBY    streak=0 alt=0.65 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t= 63.3s STANDBY    streak=0 alt=0.62 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 64.3s STANDBY    streak=0 alt=0.58 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 65.4s STANDBY    streak=0 alt=0.53 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: primary silent 2.42 s -- using the BACKUP link
+[mavsdk] t= 66.4s STANDBY    streak=0 alt=0.47 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 67.5s STANDBY    streak=0 alt=-0.02 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 68.5s STANDBY    streak=0 alt=-0.02 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 69.5s STANDBY    streak=0 alt=0.00 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 70.6s STANDBY    streak=0 alt=0.05 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t= 71.6s STANDBY    streak=0 alt=0.09 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 72.7s STANDBY    streak=0 alt=0.11 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 73.7s STANDBY    streak=0 alt=0.08 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t= 74.7s STANDBY    streak=0 alt=0.08 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 75.8s STANDBY    streak=0 alt=0.09 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 76.8s STANDBY    streak=0 alt=0.10 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 77.9s STANDBY    streak=0 alt=0.13 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 78.9s STANDBY    streak=0 alt=0.16 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 79.9s STANDBY    streak=0 alt=0.18 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 81.0s STANDBY    streak=0 alt=0.22 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.RC_CHANNELS: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 82.0s STANDBY    streak=0 alt=0.25 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.RC_CHANNELS: primary silent 0.54 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 83.0s STANDBY    streak=0 alt=0.26 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t= 84.1s STANDBY    streak=0 alt=0.25 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 85.1s STANDBY    streak=0 alt=0.24 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+[mavsdk] t= 86.2s STANDBY    streak=0 alt=0.22 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t= 87.2s STANDBY    streak=0 alt=0.24 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.armed: primary silent 2.47 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.47 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 88.2s STANDBY    streak=0 alt=0.24 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 89.3s STANDBY    streak=0 alt=0.24 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[mavsdk] t= 90.3s STANDBY    streak=0 alt=0.29 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 91.4s STANDBY    streak=0 alt=0.33 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 92.4s STANDBY    streak=0 alt=0.37 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t= 93.4s STANDBY    streak=0 alt=0.35 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t= 94.5s STANDBY    streak=0 alt=0.33 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t= 95.5s STANDBY    streak=0 alt=0.31 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t= 96.5s STANDBY    streak=0 alt=0.22 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+[mavsdk] t= 97.6s STANDBY    streak=0 alt=0.18 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 98.6s STANDBY    streak=0 alt=0.16 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t= 99.7s STANDBY    streak=0 alt=0.13 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.armed: primary silent 2.48 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.48 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=100.7s STANDBY    streak=0 alt=0.10 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=101.7s STANDBY    streak=0 alt=0.10 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=102.8s STANDBY    streak=0 alt=0.09 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=103.8s STANDBY    streak=0 alt=0.08 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=104.9s STANDBY    streak=0 alt=0.09 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=105.9s STANDBY    streak=0 alt=0.11 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+Received ack for not-existing command: 520! Ignoring... (mavlink_command_sender.cpp:304)
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=106.9s STANDBY    streak=0 alt=0.14 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.RC_CHANNELS: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] mavlink.RC_CHANNELS: primary silent 0.54 s -- using the BACKUP link
+[mavsdk] t=108.0s STANDBY    streak=0 alt=0.18 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=109.0s STANDBY    streak=0 alt=0.20 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=110.1s STANDBY    streak=0 alt=0.21 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=111.1s STANDBY    streak=0 alt=0.22 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=112.1s STANDBY    streak=0 alt=0.25 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=113.2s STANDBY    streak=0 alt=0.27 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[mavsdk] t=114.2s STANDBY    streak=0 alt=0.29 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[mavsdk] t=115.2s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: primary silent 2.44 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=116.3s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=117.3s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+Received ack for not-existing command: 520! Ignoring... (mavlink_command_sender.cpp:304)
+[mavsdk] t=118.4s STANDBY    streak=0 alt=0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=119.4s STANDBY    streak=0 alt=-0.01 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=120.4s STANDBY    streak=0 alt=-0.05 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=121.5s STANDBY    streak=0 alt=-0.06 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=122.5s STANDBY    streak=0 alt=-0.07 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=123.6s STANDBY    streak=0 alt=-0.06 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[mavsdk] t=124.6s STANDBY    streak=0 alt=-0.08 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=125.6s STANDBY    streak=0 alt=-0.10 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=126.7s STANDBY    streak=0 alt=-0.13 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=127.7s STANDBY    streak=0 alt=-0.15 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=128.7s STANDBY    streak=0 alt=-0.19 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=129.8s STANDBY    streak=0 alt=-0.21 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=130.8s STANDBY    streak=0 alt=-0.23 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=131.9s STANDBY    streak=0 alt=-0.25 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=132.9s STANDBY    streak=0 alt=-0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=133.9s STANDBY    streak=0 alt=-0.35 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=135.0s STANDBY    streak=0 alt=-0.38 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[mavsdk] t=136.0s STANDBY    streak=0 alt=-0.40 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=137.1s STANDBY    streak=0 alt=-0.42 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=138.1s STANDBY    streak=0 alt=-0.43 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=139.1s STANDBY    streak=0 alt=-0.43 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=140.2s STANDBY    streak=0 alt=-0.44 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=141.2s STANDBY    streak=0 alt=-0.43 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=142.2s STANDBY    streak=0 alt=-0.42 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=143.3s STANDBY    streak=0 alt=-0.41 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=144.3s STANDBY    streak=0 alt=-0.41 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=145.4s STANDBY    streak=0 alt=-0.40 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=146.4s STANDBY    streak=0 alt=-0.41 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=147.4s STANDBY    streak=0 alt=-0.41 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=148.5s STANDBY    streak=0 alt=-0.42 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=149.5s STANDBY    streak=0 alt=-0.44 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: primary silent 2.42 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=150.6s STANDBY    streak=0 alt=-0.47 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=151.6s STANDBY    streak=0 alt=-0.50 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=152.6s STANDBY    streak=0 alt=-0.52 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=153.7s STANDBY    streak=0 alt=-0.54 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=154.7s STANDBY    streak=0 alt=-0.58 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=155.7s STANDBY    streak=0 alt=-0.62 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[mavsdk] t=156.8s STANDBY    streak=0 alt=-0.66 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=157.8s STANDBY    streak=0 alt=-0.71 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=158.9s STANDBY    streak=0 alt=-0.73 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=159.9s STANDBY    streak=0 alt=-0.76 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=160.9s STANDBY    streak=0 alt=-0.80 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=162.0s STANDBY    streak=0 alt=-0.84 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=163.0s STANDBY    streak=0 alt=-0.86 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=164.1s STANDBY    streak=0 alt=-0.88 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=165.1s STANDBY    streak=0 alt=-0.91 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=166.1s STANDBY    streak=0 alt=-0.94 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=167.2s STANDBY    streak=0 alt=-0.95 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=168.2s STANDBY    streak=0 alt=-0.93 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=169.3s STANDBY    streak=0 alt=-0.90 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.14 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=170.3s STANDBY    streak=0 alt=-0.89 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=171.3s STANDBY    streak=0 alt=-0.87 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=172.4s STANDBY    streak=0 alt=-0.82 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=173.4s STANDBY    streak=0 alt=-0.79 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=174.5s STANDBY    streak=0 alt=-0.79 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: primary silent 2.44 s -- using the BACKUP link
+[mavsdk] t=175.5s STANDBY    streak=0 alt=-0.77 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=176.5s STANDBY    streak=0 alt=-0.77 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=177.6s STANDBY    streak=0 alt=-0.77 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=178.6s STANDBY    streak=0 alt=-0.76 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=179.6s STANDBY    streak=0 alt=-0.76 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=180.7s STANDBY    streak=0 alt=-0.76 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=181.7s STANDBY    streak=0 alt=-0.74 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.RC_CHANNELS: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=182.8s STANDBY    streak=0 alt=-0.72 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.RC_CHANNELS: primary silent 0.54 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=183.8s STANDBY    streak=0 alt=-0.69 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+[mavsdk] t=184.8s STANDBY    streak=0 alt=-0.67 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=185.9s STANDBY    streak=0 alt=-0.69 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=186.9s STANDBY    streak=0 alt=-0.71 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.armed: primary silent 2.48 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.48 s -- using the BACKUP link
+[mavsdk] t=188.0s STANDBY    streak=0 alt=-0.77 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=189.0s STANDBY    streak=0 alt=-0.80 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[cue] holding: the enable switch is LOW (your veto); raise it to let the cue fire GO
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=190.0s STANDBY    streak=0 alt=-0.84 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=191.1s STANDBY    streak=0 alt=-0.85 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=192.1s STANDBY    streak=0 alt=-0.83 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=193.2s STANDBY    streak=0 alt=-0.81 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=194.2s STANDBY    streak=0 alt=-0.82 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=195.2s STANDBY    streak=0 alt=-0.82 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=196.3s STANDBY    streak=0 alt=-0.80 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=197.3s STANDBY    streak=0 alt=-0.76 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=198.3s STANDBY    streak=0 alt=-0.72 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=199.4s STANDBY    streak=0 alt=-0.69 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=200.4s STANDBY    streak=0 alt=-0.69 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=201.5s STANDBY    streak=0 alt=-0.69 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=202.5s STANDBY    streak=0 alt=-0.68 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=203.5s STANDBY    streak=0 alt=-0.68 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] mavlink.RC_CHANNELS: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] mavlink.RC_CHANNELS: primary silent 0.54 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=204.6s STANDBY    streak=0 alt=-0.69 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=205.6s STANDBY    streak=0 alt=-0.70 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=206.7s STANDBY    streak=0 alt=-0.71 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: primary silent 2.44 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=207.7s STANDBY    streak=0 alt=-0.69 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[mavsdk] t=208.7s STANDBY    streak=0 alt=-0.66 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=209.8s STANDBY    streak=0 alt=-0.68 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+[mavsdk] t=210.8s STANDBY    streak=0 alt=-0.69 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[mavsdk] t=211.8s STANDBY    streak=0 alt=-0.72 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=212.9s STANDBY    streak=0 alt=-0.74 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.armed: primary silent 2.47 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.47 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[link] mavlink.SYSTEM_TIME: primary silent 2.43 s -- using the BACKUP link
+[mavsdk] t=213.9s STANDBY    streak=0 alt=-0.77 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[mavsdk] t=215.0s STANDBY    streak=0 alt=-0.79 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.63 s -- using the BACKUP link
+[mavsdk] t=216.0s STANDBY    streak=0 alt=-0.80 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=217.0s STANDBY    streak=0 alt=-0.78 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[mavsdk] t=218.1s STANDBY    streak=0 alt=-0.78 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=219.1s STANDBY    streak=0 alt=-0.77 yaw=+56.6 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.landed_state: the primary link is back
+[mavsdk] t=220.1s STANDBY    streak=0 alt=-0.76 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=221.2s STANDBY    streak=0 alt=-0.75 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+Received ack for not-existing command: 512! Ignoring... (mavlink_command_sender.cpp:304)
+[mavsdk] t=222.2s STANDBY    streak=0 alt=-0.74 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=223.3s STANDBY    streak=0 alt=-0.72 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=224.3s STANDBY    streak=0 alt=-0.72 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.13 s -- using the BACKUP link
+[mavsdk] t=225.3s STANDBY    streak=0 alt=-0.69 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.battery: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=226.4s STANDBY    streak=0 alt=-0.64 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.battery: primary silent 1.53 s -- using the BACKUP link
+[mavsdk] t=227.4s STANDBY    streak=0 alt=-0.58 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=228.5s STANDBY    streak=0 alt=-0.50 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] mavlink.SYSTEM_TIME: the primary link is back
+[mavsdk] t=229.5s STANDBY    streak=0 alt=-0.40 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[mavsdk] t=230.5s STANDBY    streak=0 alt=-0.30 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.position: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=231.6s STANDBY    streak=0 alt=-0.20 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] mavlink.SYSTEM_TIME: primary silent 2.42 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.armed: the primary link is back
+[link] telemetry.flight_mode: the primary link is back
+[mavsdk] t=232.6s STANDBY    streak=0 alt=-0.12 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.landed_state: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[mavsdk] t=233.7s STANDBY    streak=0 alt=0.02 yaw=+56.5 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+[link] telemetry.position: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.velocity_ned: primary silent 0.13 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[mavsdk] t=234.7s STANDBY    streak=0 alt=0.07 yaw=+56.4 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[link] telemetry.attitude_euler: primary silent 0.12 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.landed_state: primary silent 1.64 s -- using the BACKUP link
+[link] telemetry.armed: primary silent 2.47 s -- using the BACKUP link
+[link] telemetry.flight_mode: primary silent 2.47 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: primary silent 0.12 s -- using the BACKUP link
+[bench] ABORT: vehicle reports armed=True during a props-off rehearsal -- stopping the setpoint stream NOW
+[bench] setpoint stream ended; no mode command sent
+2026-11-26T12:07:15 [loop-supervisor] clean exit (4524 beats, worst gap 0.060 s)
+[log] 4524 ticks -> /home/admin/interceptor-sim/logs/real_flight_20261126T200239Z.csv
+[mission] states visited: STANDBY
+[mission] transitions:
+[bench] ---- props-off rehearsal ----
+[bench] FAIL the vehicle stayed disarmed and no battery appeared
+[bench] ok   OFFBOARD was entered while disarmed (flight mode from telemetry)
+[bench] ok   setpoints streamed (4524)
+[bench] FAIL the GO edge was accepted and ENGAGE ran
+[bench] FAIL every ENGAGE tick was in OFFBOARD (0/0)
+[bench] ok   every platform limit was read from the board
+[bench] ok   the loop watchdog ran and exited clean (exit 0)
+[bench] measured: oldest own-state sample 0.13 s (FAILSAFE 9 bound 1.0 s); worst control-tick gap 0.06 s (watchdog bound 0.5 s); oldest flight-mode sample 0.00 s (FAILSAFE 7 bound 3.0 s)
+[bench] FAIL
+[cue] link closed: 543 records received, 0 malformed, 0 dropped after the latch; GO never fired (last status: holding: the enable switch is LOW (your veto); raise it to let the cue fire GO)

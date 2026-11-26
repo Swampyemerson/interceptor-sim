@@ -1,0 +1,2 @@
+2026-11-26T12:02:39 [loop-supervisor] watching server pid(s) 1764, 1773, bound 0.50 s
+2026-11-26T12:07:15 [loop-supervisor] clean exit (4524 beats, worst gap 0.060 s)

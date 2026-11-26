@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-26",
-  "updated_by": "GPS mast and deck drawn and analysed (replaces the pod lid); three settings approved, not yet on the board (2026-11-22)",
+  "updated_by": "Target position reaches the Pi in the field; flight program run on the disarmed aircraft; GO not yet seen on hardware",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,13 +17,13 @@
   },
   "now": {
     "as_of": "2026-11-26",
-    "where": "The flight program now has a second link to the Pixhawk (USB beside the serial cable), ignores the battery between GO and the end of the engagement, and no longer aborts on a GPS that has only got worse. Built and tested offline; not yet run on the aircraft.",
-    "finding": "No calibration of the nose camera exists, so a camera intercept cannot fly yet. Two of four code reviewers were stopped by the model's safety filter, so the main flight program had no independent review. A 0.5 s radio dropout still ends an intercept: your call.",
+    "where": "The target's position now reaches the interceptor's Pi in the field (control link, handset USB, laptop, Wi-Fi), and the flight program has run on the real disarmed aircraft. GO has not fired on the hardware yet: the enable switch was never raised.",
+    "finding": "The chase is built to hit the target, and nothing in it holds a safe distance without the camera. The nose camera has no calibration, so a slow two-aircraft run today would be blind after GO. The main flight program is still unreviewed.",
     "next": [
-      "You: take the props off and say so; I run the two-link rehearsal on the bench",
-      "You: compass recalibration outdoors and the short proving hover are still owed"
+      "You: one more disarmed run and raise the enable switch, so GO and the commands after it are seen",
+      "You: decide how the two aircraft are kept apart on the slow run (height gap recommended)"
     ],
-    "evidence": "runs/interceptor_redundancy_20261126/README.md - flight/deploy/link_redundancy.py - flight/deploy/board_overrides.py - flight/tests/test_flight_redundancy.py - runs/interceptor_rewire_20261125/README.md"
+    "evidence": "runs/bench_props_on_disarmed_20261126/README.md - runs/interceptor_redundancy_20261126/README.md - flight/deploy/real_flight.py - docs/cue_over_control_link.md"
   },
   "assumptions": [
     {
@@ -616,16 +616,16 @@
       "rec": "Keep until after the weekend attempt is scored - then prune with the provenance-safe rules."
     },
     {
-      "id": "cue-radio-leg",
-      "question": "The Pi side of the cue works on the bench, but nothing yet gets the target's GPS off the target. The route you asked about (down the control link, out of the transmitter's USB, laptop, Wi-Fi to the Pi) is researched and its laptop program written. Try it?",
+      "id": "slow-run-separation",
+      "question": "The handset USB route for the target's position works in the field (2026-11-26). Before both aircraft fly a slow intercept course: the chase aims to touch the target, and without a camera calibration it flies on a belief that is frozen at GO. How do we keep them apart?",
       "options": [
-        "Yes: the handset USB route first (three menu settings, target disarmed; then check sticks and kill switch with the cable in)",
-        "Skip to a small telemetry radio on the target (leaves the control link alone; new part)",
-        "Typed belief for now: the target waits at the start of a straight leg and is released on the GO call"
+        "Height gap: the interceptor flies the course at a typed height well above the target, so it rehearses the horizontal chase only",
+        "Wait for the camera calibration and use the rehearsal break-off (pulls away before contact; fast-sim only so far)",
+        "Target on a tripod or the ground first: the interceptor flies the whole sequence against a target that is not in the air"
       ],
-      "rec": "Option 1. It cannot disturb the kill-switch path. Its limit is 2 position reports a second with no timestamps, so the Pi assumes the link delay instead of measuring it; if that proves too coarse, option 2.",
-      "blocked": "Needs your hands at the transmitter. Unverified until tried: the bytes this handset really sends, and that it keeps controlling normally with USB in Serial mode.",
-      "doc": "docs/cue_over_control_link.md; scripts/field/crsf_cue_source.py; flight/cue_link.py"
+      "rec": "Option 3 first, then option 1. Neither exists as a switch in the flight program today; a height offset has to be added and tested before it flies.",
+      "blocked": "Needs GO seen once on the disarmed aircraft, a first program-flown takeoff with nothing else in the air, and your say on who holds which transmitter.",
+      "doc": "runs/bench_props_on_disarmed_20261126/README.md; flight/pursuit_terminal.py; docs/cue_relay_plan.md section 14"
     },
     {
       "id": "target-tag-facing",
@@ -653,6 +653,12 @@
     }
   ],
   "plain_log": [
+    {
+      "date": "2026-11-26",
+      "text": "First runs of the whole target-to-interceptor chain on the real hardware, at the flying site, interceptor disarmed with props on. The target's position came down its control link, out of the handset's USB port, through the laptop and the Wi-Fi to the Pi: 789 reports in two runs, 2 a second, none malformed. The flight program entered OFFBOARD (the mode where the Pixhawk flies the Pi's commands) on the disarmed aircraft, streamed commands 19 times a second with no gap over 0.06 s, and read every board limit. GO never fired: the enable switch stayed low. The second run ended when the aircraft was armed from the transmitter and the program stopped its commands at once. The session running it was stopped by the model's safety filter; this was written afterwards from the Pi's logs.",
+      "so_what": "The radio leg for the target's position, the last unbuilt link, works. Still never run on the hardware: GO, the estimate it locks, and every command after it. A two-aircraft flight also needs a camera calibration, a first program-flown takeoff, and a rule that keeps the aircraft apart, because the chase is built to make contact.",
+      "evidence": "runs/bench_props_on_disarmed_20261126/README.md; runs/two_aircraft_link_test_20261126/wifi_ping_laptop_to_pi.txt"
+    },
     {
       "date": "2026-11-26",
       "text": "Flight code hardened at the builder's request. A second MAVLink link (the Pixhawk's USB port, through the recorder) now carries every velocity command alongside the serial cable, and telemetry falls back to it when the cable goes quiet. For a program-flown flight the Pixhawk's low-battery action and GPS quality checks are switched off on the disarmed aircraft and restored after landing; the program applies both checks itself before takeoff, and acts on a low pack only before GO and after the intercept. A detector error, a state-machine error or one failed send no longer ends a flight, the tick log is written while flying, a camera that delivers no frames for 3 s ends the engagement, and the reader can rotate the upside-down camera's image. Read-only on the aircraft: both links carried attitude at 50 and 100 Hz with gaps under 0.03 s. Not flown, and commands have not yet been sent on both links at once.",
@@ -718,12 +724,6 @@
       "text": "Second half of the day. The flight program gained a guarded flight mode with a radio arm permit, a props-off rehearsal mode that cannot arm, a watchdog that ends the command stream if the Pi program hangs, and a check of the board's limits before arming. The cue became the GO command: the target's GPS arrives live, the freshest five seconds are fitted, and the belief is locked at the instant of GO with the link delay taken out. A search along the believed track on arrival was built and tested in the fast sim, then everything was rerun with the flying camera, tag size and the board's real limits: at 20 degrees of camera tilt the search takes a straight target from 117 to 190 kills of 192. A weaving target is still rarely caught. A reader for the target's GPS over the control link and the transmitter's USB port was written from the published formats; it has not met the real transmitter.",
       "so_what": "All of this is laptop-tested only. The props are on, so nothing has run on the real Pi and Pixhawk; that rehearsal is the next step once they are off. Two things need rulings: the tag placard is designed side-facing, which a chase from behind cannot read, and the rerun's 20 degree camera tilt disagrees with the +10 degrees ruled in September under different conditions.",
       "evidence": "isim/specs/flight_hardware_rerun_prereg_2026-11-18.md; isim/specs/arrival_search_prereg_2026-11-18.md; flight/tests/test_cue_go.py; runs/real_flight_driver_sih_20261118/README.md; docs/cue_over_control_link.md; docs/decisions.md ADR-0139"
-    },
-    {
-      "date": "2026-11-18",
-      "text": "Asked whether the sim needs air drag, I put drag into the fast sim and ran the 500 m dash about 6,000 times. Expected drag barely matters for hitting the target, but the aircraft never reaches 80 mph with it (about 67 mph), so that figure is a no-drag number. The sim's own vehicle model was climbing thousands of metres when held on its lean limit; that is repaired. The real finding was not drag: with a 10% error in the target's believed speed, the long dash arrives about 22 m off along the track, parks behind where it thinks the target is, and never sees it in 61% of runs. October's long-range runs had no speed error in the cue. An independent check of my geometry corrected two of my numbers and confirmed the cause.",
-      "so_what": "The long-range dash is only as good as the cue's speed estimate, and the aircraft has no way yet to search for a target that is not where it believes. Three things follow: measure the real cue's speed error on one straight fast leg, build a search on arrival (prototype under test), and stop reading the 80 mph video as a demonstrated capability.",
-      "evidence": "isim/specs/approach_dash_drag_prereg_2026-11-18.md; docs/arrival_geometry_2026-11-18.md; docs/guidance_review_2026-11-18.md; runs/approach_dash_drag_20261118/"
     }
   ],
   "narrative": {

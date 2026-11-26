@@ -716,3 +716,12 @@ Audit of how the flight program talks to the Pi and Pixhawk in automatic flight,
 **So what:** Nothing automatic should fly on the real aircraft until the guarded flight mode, the watchdog and a props-off rehearsal exist; they are being built now. The cue link's Pi half works; getting the target's GPS off the target still needs a radio path and your hands.
 
 *Evidence: docs/interface_audit_2026-11-18.md; runs/fc_readonly_20261118/README.md; flight/cue_link.py; flight/tests/test_cue_link.py*
+
+
+## 2026-11-18
+
+Asked whether the sim needs air drag, I put drag into the fast sim and ran the 500 m dash about 6,000 times. Expected drag barely matters for hitting the target, but the aircraft never reaches 80 mph with it (about 67 mph), so that figure is a no-drag number. The sim's own vehicle model was climbing thousands of metres when held on its lean limit; that is repaired. The real finding was not drag: with a 10% error in the target's believed speed, the long dash arrives about 22 m off along the track, parks behind where it thinks the target is, and never sees it in 61% of runs. October's long-range runs had no speed error in the cue. An independent check of my geometry corrected two of my numbers and confirmed the cause.
+
+**So what:** The long-range dash is only as good as the cue's speed estimate, and the aircraft has no way yet to search for a target that is not where it believes. Three things follow: measure the real cue's speed error on one straight fast leg, build a search on arrival (prototype under test), and stop reading the 80 mph video as a demonstrated capability.
+
+*Evidence: isim/specs/approach_dash_drag_prereg_2026-11-18.md; docs/arrival_geometry_2026-11-18.md; docs/guidance_review_2026-11-18.md; runs/approach_dash_drag_20261118/*
