@@ -59,6 +59,8 @@ To get the as-flown case, copy the GPS body down by 51.45 mm and suppress the ma
 | Battery current | 8.8 A in hover, 77 A at full throttle | Measured, flights of 2026-11-22 |
 | Compass pickup of battery current, GPS on the lid | 0.0036 G per amp (0.36 microtesla per amp) | Measured, flight 3 |
 | Battery lead route and spacing | Inside the airframe body and below it, so 63 mm or more under the compass as flown. Red and black within 5 mm of each other everywhere except the last 20 mm, where they split round the capacitor onto the speed controller. Spare length is looped at the back of the frame with the pair kept together | Builder's second description 2026-11-25, after looking again (the first said up to 20 mm apart). Not measured |
+| Capacitor split | Where the leads part round the capacitor: 20 mm long, about 70 mm below the surface the GPS sat on (so about z -12, inside the body). Its width is not known | Builder's description 2026-11-25, by eye |
+| Foil as flown | One sheet the width of the lid (56 mm), under the GPS and running forward to the camera, over the ribbon. Not connected to ground as far as is known | Builder's description 2026-11-25 |
 | Pi supply current | up to 5 A | Vendor rating of the Pi 5 supply. The real draw has not been measured |
 | Pi supply route | Into the Pi, then straight down into the carbon body. The 5 V converter is inside the body | Builder's description 2026-11-25 |
 | Earth's field at the site | 0.513 G total | Model figure used elsewhere in the repo |
@@ -102,14 +104,23 @@ predict satellites or a fix. It can only rank arrangements against each other.
 | 80 mm | 0.0013 (2.7 times) | 0.0008 (4.4 times) |
 | 110 mm | 0.0017 (2.2 times) | 0.0011 (3.2 times) |
 
-**With the builder's description (leads in the body or below, 5 mm apart):** a 5 mm
-pair gives 0.0025 G per amp at 63 mm, the closest the body can be, and 0.0010 at 100 mm.
-The measurement is 0.0036. **So the tight leads explain between a quarter and two thirds
-of it, and the rest is not identified.** Candidates, none tested: the split round the
-capacitor, the speed controller board, the current path inside the battery pack, the
-power module. Those are small loops, whose field falls with the cube of distance. The
-mast's gain is therefore between 2 times (leads, 110 mm away) and 6 times (a small loop,
-63 mm away), and only a measurement after the rewire settles it.
+**With the builder's description** (leads 5 mm apart, the split 20 mm long, both about
+75 mm under the compass sensor):
+
+| Source | On the lid, G per amp | On the mast | Mast gain |
+|---|---|---|---|
+| Leads, 5 mm pair (square law) | 0.0018 | 0.0006 | 2.8 times |
+| Split, 20 x 10 mm loop, compass straight above it (cube law) | 0.0009 | 0.0002 | 4.8 times |
+| Split, 20 x 15 mm loop | 0.0014 | 0.0003 | 4.8 times |
+| Both together | 0.0020 to 0.0032 | 0.0007 to 0.0009 | |
+| Measured in flight 3 | 0.0036 | 0.0008 to 0.0013 if scaled by those gains | |
+
+So the leads and the split together are the right size to explain most of the
+measurement; any remainder would be the speed controller board, the battery pack's
+internal path or the power module, none tested. The mast lands on either side of the
+target depending on the mix. The split's field is in proportion to its area, so making
+it narrower or shorter is a direct gain. Aluminium foil does nothing to a steady
+magnetic field, so the foil sheet plays no part in study A.
 
 **Target:** under 0.001 G per amp on the mast (0.08 G at 77 A, against Earth's 0.513 G).
 **If the model misses it,** try the leads taped tightly together (the field falls in
@@ -151,7 +162,8 @@ point (z = 69.05 on the lid, z = 120.5 on the mast).
 
 | Case | GPS position | Plate |
 |---|---|---|
-| B0 | on the lid, as flown | none |
+| B0 | on the lid, as flown | the foil sheet as flown: 56 mm wide, from under the GPS forward to the camera, not grounded |
+| B0n | on the lid | none |
 | B1 | on the lid | 84.8 mm plate under it |
 | B2 | on the mast as drawn (51.45 mm up) | none |
 | B3 | on the mast as drawn | 84.8 mm plate (the design) |
@@ -160,7 +172,7 @@ point (z = 69.05 on the lid, z = 120.5 on the mast).
 | B6 | as B3 | plate joined to the Pi board by one thin wire down a post |
 | B7 | as B3 | 60 mm plate |
 
-**Report** each case in decibels against B0, per source and direction: 20 x log10 (field
+**Report** each case in decibels against B0 (as flown), per source and direction: 20 x log10 (field
 in the case / field in B0). More negative is better.
 
 **Expected, from distance alone** (no plate): the noise close to a small source falls

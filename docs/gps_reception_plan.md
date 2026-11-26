@@ -52,7 +52,11 @@ except the last 20 mm at the speed controller. A pair that tight gives 0.0010 to
 0.0025 G per amp at 100 to 63 mm, so the leads explain a quarter to two thirds of the
 measured 0.0036 and **the rest of the source is not identified** (candidates: the split
 at the capacitor, the speed controller board, the battery pack's internal path, the
-power module). The mast's compass gain is therefore still 2 to 6 times and unproven. An
+power module). The builder then placed the capacitor split about 70 mm below the GPS:
+a 20 mm split 10 to 15 mm wide adds 0.0009 to 0.0014 G per amp, so leads and split
+together explain most of the measurement, and the mast would bring it to 0.0008 to
+0.0013 against the 0.001 target (working: `hardware/avionics_pod/FIELD_STUDY_BRIEF.md`,
+study A). The mast's compass gain is therefore 2.8 to 4.8 times and unproven. An
 earlier version of this paragraph said taping the leads would give 4 times; that rested
 on a 20 mm gap that does not exist. The builder is tidying the wiring (leads, 5 V runs
 moved lower, the ribbon's fold moved from under the lid); the compass pickup and the GPS
