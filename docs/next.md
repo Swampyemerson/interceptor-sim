@@ -8,15 +8,15 @@
 
 ## Where the project is (2026-11-26)
 
-**The target's position reaches the interceptor's Pi in the field, and the flight program
-has run on the real disarmed aircraft. GO has not fired on the hardware.** The control-link
-route (handset USB, laptop, Wi-Fi) delivered 789 reports at 2 a second on 2026-11-26, and
-the program held OFFBOARD and streamed commands for two runs; the enable switch was never
-raised, so nothing after GO has run (`runs/bench_props_on_disarmed_20261126/README.md`).
-Before both aircraft fly a slow intercept course: see GO once on the disarmed aircraft, fly
-one program takeoff alone, and settle how the two are kept apart, because the chase is built
-to touch the target and the nose camera has no calibration. What follows is older and still
-true where it does not conflict.
+**On the ground and disarmed, the whole chain works on the real hardware.** On 2026-11-26
+the target's position reached the Pi over the control-link route (handset USB, laptop,
+Wi-Fi), GO fired by itself when the enable switch was raised, the chase commands ran for
+15 s in OFFBOARD, and the program's rehearsal report passed
+(`runs/bench_props_on_disarmed_20261126/README.md`). The first GO locked the target 101 m
+overhead (barometer height against GPS height); that is fixed and was seen fixed. Before both
+aircraft fly a slow intercept course: one program takeoff alone, a camera calibration, a
+slow speed limit, and a rule that keeps the two apart, because the chase is built to touch
+the target. What follows is older and still true where it does not conflict.
 
 ### State on 2026-11-22
 
@@ -60,7 +60,7 @@ Decisions: `docs/decisions.md` ADR-0139 and the 2026-11-18 addenda to ADR-0130 a
 | ⬜ | **Take the props off and say so.** Then I run the bench rehearsal (`--bench-props-off`), the watchdog check and the reboot check of the 33 m/s limit on the real board. **HELD until then: nothing live runs on the vehicle link.** | `docs/interface_audit_2026-11-18.md` (bench steps), `runs/real_flight_driver_sih_20261118/README.md` |
 | ⬜ | **Tag facing.** The placard is designed side-facing; the chase from behind cannot read it (0 of 16 in the sim), and a rear-facing plate is the option the mount design rejected for drag. | contract question `target-tag-facing`; `docs/placard_mount.md` section 3 |
 | ⬜ | **Camera plate angle.** Ruled +10 degrees with a canted placard (2026-09-24); the flying-lens rerun says 20, under different conditions. Do not set it yet. | contract question `camera-plate-angle` |
-| ✅ | **The target's GPS over the control link works in the field** (2026-11-26, 2 reports a second into the Pi). Still to do with it: raise the enable switch on a disarmed run so GO is seen; check sticks and kill switch with the USB cable in if not already done. | `runs/bench_props_on_disarmed_20261126/README.md` |
+| ✅ | **The target's GPS over the control link works in the field** (2026-11-26, 2 reports a second into the Pi). GO was seen the same day on the disarmed aircraft. | `runs/bench_props_on_disarmed_20261126/README.md` |
 | ⬜ | **Decide how the two aircraft are kept apart on the slow run.** Recommended: target on the ground first, then a height gap. No such switch exists in the flight program yet. | contract question `slow-run-separation` |
 | ⬜ | **Fly the target on one long straight leg at 9 to 12 m/s, logged.** It measures the cue's real speed error, the number the long-range dash turns on. | contract assumptions `cue-speed-error-at-long-range`, `search-declared-cue-quality` |
 | ⬜ | **Geofence against long range**: 457 m, Hold. Keep cues inside about 300 m, or widen it for those flights. | contract question `dash-envelope-on-real-fc` |

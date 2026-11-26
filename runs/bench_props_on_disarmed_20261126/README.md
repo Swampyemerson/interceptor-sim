@@ -7,7 +7,8 @@ position. The interceptor had its flight battery in and its props ON, disarmed
 the runs was stopped by the model's safety filter before it reported. This note
 was written afterwards from the files in this folder, pulled from the Pi.
 
-Nothing here flew under program control. GO never fired.
+Nothing here flew under program control. GO never fired in runs 1 and 2. Runs 3 and 4,
+made afterwards with the builder at the switches (kill switch on), are at the end.
 
 ## What was running
 
@@ -81,3 +82,44 @@ ASSUMED position error (0.3 m, slowly wandering) and timing jitter. The receiver
 accepted every one: fitted velocity error 0.13 m/s median, 0.21 m/s at the 90th
 percentile; a hovering target is also accepted (fitted speed 0.02 m/s). The
 noise is a guess, not a measurement of this GPS.
+
+## Runs 3 and 4: GO seen, and a 101 m height error found and fixed
+
+Same command, the builder at the transmitter, kill switch on, Stabilized mode.
+On his handset the GO switch reads LOW (no-go) in its raised position.
+
+| | Run 3 (`run3.log`, 20:15:39 UTC) | Run 4 (`run4.log`, 20:22:53 UTC, with the fix) |
+|---|---|---|
+| GO | fired at 24.6 s, from 12 reports over 5.5 s | fired at 63.4 s, from 11 reports over 5.0 s |
+| Target latched at | 7.1 m away (north +6.8, east +2.0), **100.9 m above**, 0.03 m/s | 4.8 m away (north +4.5, east +1.7), 2.4 m above, 0.05 m/s |
+| ENGAGE | 15 s, then break-off, then SAFE | 15 s (283 ticks, every one in OFFBOARD), break-off, SAFE |
+| Commands in ENGAGE | first seconds a 9 m/s climb | climb or descent within 2.2 m/s; horizontal up to the 16 m/s cap |
+| Program's own report | not printed: stopped by hand while holding SAFE | **PASS**, all seven checks |
+
+**The height error.** Read from the aircraft between the runs (read-only): the GPS
+receiver gave 1641.0 m above sea level, the Pixhawk's position estimate 1543.9 m,
+the target's reports 1640 to 1643 m. The board's height reference has been the
+barometer since 25 November, so the Pixhawk reports pressure height, 97 m low
+that day. The program subtracted that from the target's GPS height. In flight it
+would have climbed until the 30 m geofence held it.
+
+**The fix** (`flight/deploy/real_flight.py`, `cue_own_lla`): the target is placed
+against the GPS receiver's height; with none under 2 s old, GO waits.
+`flight/tests/test_cue_own_height.py`, 4 tests; `flight/tests` 605 passed on the
+dev laptop. Run 4 is the fix seen on the hardware.
+
+**What runs 3 and 4 also show**
+
+- Both aircraft sat still, yet the latched horizontal position moved 2.6 m
+  between the runs and the height difference read 2.4 m. That is the size of the
+  disagreement between two GPS receivers, and it is the error a flight on the
+  belief alone starts with. The true separation was not measured.
+- With the aircraft unable to move, the chase command grew to its 16 m/s cap
+  against a target 5 m away. In flight the gap would close first, but nothing
+  limits the chase to a slow speed for a slow course; there is no such option.
+- The control loop paused 0.23 s at the GO tick (the fit), against 0.06 s
+  otherwise and a 0.5 s watchdog limit.
+- The program again did not exit after its report (as run 1) and was stopped by
+  hand. Cause still not looked into.
+- Not exercised: the camera (synthetic detector), a measured link delay (this
+  route has no timestamps), arming and takeoff.

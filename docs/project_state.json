@@ -4,7 +4,7 @@
   "mbse_artifact_url": "https://claude.ai/code/artifact/c9a7a726-04ce-46d1-8102-9f61cb8f6e78",
   "project": "interceptor-sim — coded-dash counter-UAS interceptor",
   "updated": "2026-11-26",
-  "updated_by": "Target position reaches the Pi in the field; flight program run on the disarmed aircraft; GO not yet seen on hardware",
+  "updated_by": "GO fired on the real disarmed aircraft from the live target position; 101 m height error found and fixed",
   "goal": {
     "mission": "An imprecise cued interceptor hits a moving target flying >=9 m/s (20 mph), outdoors, camera-only terminal, no datalink after launch. Ruled engagement: chase-only pursuit IS the flying default (ADR-0103/0105/0118 - the Gazebo cross-check passed, median 0.343 m); the coded dash + stock pro-nav remain selectable as-flown legacy paths. AprilTag flies the first kills (also sanctioned for calibration/training-labels); the markerless seeker is the end-state and never reads the tag.",
     "success": "BINARY KILL (contact), confirmed by seeker video + phone slow-mo + both aircraft ULogs. NOT a measured <1 m CPA (RTK cut, 2026-07-15). Sim proxy metric: Pk@2.5 m proximity kill (ADR-0025).",
@@ -17,11 +17,11 @@
   },
   "now": {
     "as_of": "2026-11-26",
-    "where": "The target's position now reaches the interceptor's Pi in the field (control link, handset USB, laptop, Wi-Fi), and the flight program has run on the real disarmed aircraft. GO has not fired on the hardware yet: the enable switch was never raised.",
-    "finding": "The chase is built to hit the target, and nothing in it holds a safe distance without the camera. The nose camera has no calibration, so a slow two-aircraft run today would be blind after GO. The main flight program is still unreviewed.",
+    "where": "On the ground, disarmed, the whole chain now works on the real hardware: the target's position reaches the Pi, GO fires by itself when the enable switch is raised, and the chase commands stream to the Pixhawk. The rehearsal's own report passed.",
+    "finding": "The first GO locked the target 101 m overhead: barometer height against GPS height. Fixed and seen fixed. The chase is built to hit the target, has no slow-speed limit and holds no safe distance; the nose camera has no calibration.",
     "next": [
-      "You: one more disarmed run and raise the enable switch, so GO and the commands after it are seen",
-      "You: decide how the two aircraft are kept apart on the slow run (height gap recommended)"
+      "You: say how far apart the two aircraft really were (the program said 4.8 m, then 7.1 m)",
+      "You: decide how the two aircraft are kept apart on the slow run (target on the ground first, then a height gap)"
     ],
     "evidence": "runs/bench_props_on_disarmed_20261126/README.md - runs/interceptor_redundancy_20261126/README.md - flight/deploy/real_flight.py - docs/cue_over_control_link.md"
   },
@@ -655,9 +655,9 @@
   "plain_log": [
     {
       "date": "2026-11-26",
-      "text": "First runs of the whole target-to-interceptor chain on the real hardware, at the flying site, interceptor disarmed with props on. The target's position came down its control link, out of the handset's USB port, through the laptop and the Wi-Fi to the Pi: 789 reports in two runs, 2 a second, none malformed. The flight program entered OFFBOARD (the mode where the Pixhawk flies the Pi's commands) on the disarmed aircraft, streamed commands 19 times a second with no gap over 0.06 s, and read every board limit. GO never fired: the enable switch stayed low. The second run ended when the aircraft was armed from the transmitter and the program stopped its commands at once. The session running it was stopped by the model's safety filter; this was written afterwards from the Pi's logs.",
-      "so_what": "The radio leg for the target's position, the last unbuilt link, works. Still never run on the hardware: GO, the estimate it locks, and every command after it. A two-aircraft flight also needs a camera calibration, a first program-flown takeoff, and a rule that keeps the aircraft apart, because the chase is built to make contact.",
-      "evidence": "runs/bench_props_on_disarmed_20261126/README.md; runs/two_aircraft_link_test_20261126/wifi_ping_laptop_to_pi.txt"
+      "text": "First runs of the whole target-to-interceptor chain on the real hardware, at the flying site, interceptor disarmed with props on and the kill switch on. The target's position came down its control link, out of the handset's USB port, through the laptop and the Wi-Fi to the Pi at 2 reports a second, none malformed. In the fourth run the builder raised the enable, GO fired by itself from 5 s of reports, the chase commands ran for 15 s in OFFBOARD (the mode where the Pixhawk flies the Pi's commands), and the program's own rehearsal report passed all seven checks. The third run found a fault: the target was locked 101 m overhead, because the Pixhawk now reports barometer height (97 m low that day) and the target reports GPS height. The program now uses the GPS receiver's height; the fourth run locked the target 2.4 m above and 4.8 m away.",
+      "so_what": "The chain from the target's GPS to chase commands works on the ground. Two GPS receivers sitting still disagreed by 2 to 3 m, which is the error a flight on the estimate alone starts with. Before both fly: a first program takeoff alone, a camera calibration, a slow speed limit, and a rule that keeps the aircraft apart, because the chase is built to make contact.",
+      "evidence": "runs/bench_props_on_disarmed_20261126/README.md; flight/tests/test_cue_own_height.py; flight/tests 605 passed on the dev laptop"
     },
     {
       "date": "2026-11-26",

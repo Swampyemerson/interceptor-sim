@@ -1,0 +1,2 @@
+2026-11-26T12:15:48 [loop-supervisor] watching server pid(s) 2355, 2383, bound 0.50 s
+2026-11-26T12:22:19 [loop-supervisor] TRIPPED: the flight program is gone without a goodbye (7534 beats seen) -- pid 2355 killed; pid 2383 killed

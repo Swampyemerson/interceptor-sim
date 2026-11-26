@@ -1,0 +1,271 @@
+[aim] pre-flight collision lead (accel-aware, ADR-0080, a=10.0 m/s^2, v=16.0 m/s) -> C1 = 54.42 deg, t_lead=2.59 s, plan distance=28.70 m (ADR-0101 passage window)
+[config] standby alt 7.0 m, aim yaw 54.4 deg, dash 16.0 m/s (cap None), loft 0.0 m, streak 5, dash bound 8.0 s
+[config] *** SKELETON -- every failsafe constant above is TODO-BUILDER (unmeasured on the airframe) ***
+[terminal] target span 1.000 m (config default -- NOT range-calibrated; synthetic-detector modes only)
+[terminal] pursuit (ADR-0103 chase only): belief seed rel NED (+16.7, +0.0, +0.0) m at +0.0/+9.0 m/s -- receding-range breakoff SUPPRESSED (contact floor / lost-target / engage-max-s active, engage_max_s=15s)
+[terminal] --trigger cue: the belief above is a PLACEHOLDER. The real one is latched from the live cue at the GO edge.
+[terminal] lost-target rule: 2.0 s without a decode ends the engagement.
+[terminal] WARNING: the lost-target clock (2.0 s) is not longer than the terminal's own fallback time (3.0 s), so a target lost while still ahead ends the engagement before the terminal can return to its belief chase (--engage-far-lost-target-s).
+[cue] THE CUE IS THE GO COMMAND. Listening on UDP 47810; UTC source 'vehicle' (delay is measured per record and removed); unsynced records ALLOWED (delay then not measured); enable switch on RC channel 8 (LOW = your veto)
+[bench] no --source: the detector is SYNTHETIC (a fake target). Add --source picamera to rehearse with the camera.
+[mavsdk] connecting serial:///dev/ttyAMA10:921600 ...
+[mavsdk] connected
+[mavsdk] connecting udpout://127.0.0.1:14550 ...
+[mavsdk] connected
+[link] TWO LINKS: primary serial:///dev/ttyAMA10:921600, backup udpout://127.0.0.1:14550. Setpoints go out on both; telemetry is read from the primary and from the backup only when the primary is silent.
+[watchdog] loop supervisor watching server pid(s) 3422, 3452: no control tick for 0.50 s, or this program dying, ends the setpoint stream
+[link] telemetry.attitude_euler: primary never spoke -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.raw_gps: primary never spoke -- using the BACKUP link
+[link] telemetry.raw_gps: the primary link is back
+[link] telemetry.attitude_quaternion: primary never spoke -- using the BACKUP link
+[link] telemetry.position: primary never spoke -- using the BACKUP link
+[link] telemetry.velocity_ned: primary never spoke -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: the primary link is back
+2026-11-26T12:22:55 [loop-supervisor] watching server pid(s) 3422, 3452, bound 0.50 s
+[bench] interlocks OK: disarmed, battery 22.66 V (<= 30.0 V). PROPS MUST BE OFF. This mode cannot arm.
+[bench] stubs: armed gate off, height gate fed the standby height, yaw tolerance 180 deg. Everything else runs as it flies.
+[limits] guidance: terminal pursuit, commands up to 16 m/s, slews at up to 8 m/s^2
+[limits] board:    MPC_XY_VEL_MAX   = 33.0   (horizontal speed limit, m/s)
+[limits] board:    MPC_TILTMAX_AIR  = 45.0   (lean limit, deg)
+[limits] board:    MPC_ACC_HOR_MAX  = 5.0   (horizontal acceleration limit, m/s^2)
+[limits] board:    GF_ACTION        = 2   (geofence action (0 none, 1 warn, 2 hold, 3 return, 4 terminate, 5 land))
+[limits] board:    GF_MAX_HOR_DIST  = 457.20001220703125   (geofence radius, m (0 = off))
+[limits] board:    GF_MAX_VER_DIST  = 30.479999542236328   (geofence height, m (0 = off))
+[limits] board:    COM_RCL_EXCEPT   = 0   (modes exempt from RC-loss failsafe (bit 2 = offboard))
+[limits] board:    COM_OF_LOSS_T    = 1.0   (offboard stream loss timeout, s)
+[limits] board:    COM_OBL_RC_ACT   = 0   (action on offboard loss (0 position, 1 altitude, 2 manual, 3 return, 4 land, 5 hold))
+[limits] board:    BAT_LOW_THR      = 0.15000000596046448   (battery 'low' level, fraction of charge)
+[limits] board:    BAT_CRIT_THR     = 0.07000000029802322   (battery 'critical' level, fraction of charge)
+[limits] board:    EKF2_REQ_NSATS   = 6   (fewest satellites the estimator accepts)
+[limits] board:    EKF2_REQ_EPH     = 3.0   (worst horizontal GPS accuracy accepted, m)
+[limits] board:    EKF2_REQ_SACC    = 1.0   (worst GPS speed accuracy accepted, m/s)
+[limits] note: the guidance slews its command at up to 8 m/s^2; the board accelerates at most 5 (MPC_ACC_HOR_MAX)
+[limits] note: RC loss in OFFBOARD triggers PX4's RC-loss failsafe (COM_RCL_EXCEPT has no offboard bit): switching the transmitter off after GO ends the intercept
+[limits] note: if the setpoint stream stops, PX4 waits 1.0 s (COM_OF_LOSS_T) and then takes action 0 (COM_OBL_RC_ACT; 0 = Position mode)
+[mavsdk] OFFBOARD start accepted; STANDBY hold stream begins
+[mavsdk] flight mode = OFFBOARD (offboard_active=True) from TELEMETRY
+[cue] holding: the enable switch is LOW (your veto); raise it to let the cue fire GO
+[   0.00s] START in STANDBY (aim yaw 54.4 deg, standby alt 7.0 m)
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+[mavsdk] t=  1.0s STANDBY    streak=0 alt=-0.27 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  2.0s STANDBY    streak=0 alt=-0.30 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  3.0s STANDBY    streak=0 alt=-0.31 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  4.1s STANDBY    streak=0 alt=-0.32 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  5.1s STANDBY    streak=0 alt=-0.35 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  6.2s STANDBY    streak=0 alt=-0.36 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  7.2s STANDBY    streak=0 alt=-0.39 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  8.2s STANDBY    streak=0 alt=-0.40 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t=  9.3s STANDBY    streak=0 alt=-0.41 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 10.3s STANDBY    streak=0 alt=-0.42 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 11.3s STANDBY    streak=0 alt=-0.45 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 12.4s STANDBY    streak=0 alt=-0.47 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 13.4s STANDBY    streak=0 alt=-0.50 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 14.4s STANDBY    streak=0 alt=-0.54 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 15.5s STANDBY    streak=0 alt=-0.57 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 16.5s STANDBY    streak=0 alt=-0.56 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 17.5s STANDBY    streak=0 alt=-0.57 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 18.6s STANDBY    streak=0 alt=-0.59 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 19.6s STANDBY    streak=0 alt=-0.59 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 20.7s STANDBY    streak=0 alt=-0.60 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 21.7s STANDBY    streak=0 alt=-0.64 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 22.7s STANDBY    streak=0 alt=-0.65 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 23.8s STANDBY    streak=0 alt=-0.66 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 24.8s STANDBY    streak=0 alt=-0.67 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 25.8s STANDBY    streak=0 alt=-0.66 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 26.9s STANDBY    streak=0 alt=-0.64 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 27.9s STANDBY    streak=0 alt=-0.65 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 28.9s STANDBY    streak=0 alt=-0.63 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 30.0s STANDBY    streak=0 alt=-0.60 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 31.0s STANDBY    streak=0 alt=-0.57 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 32.1s STANDBY    streak=0 alt=-0.53 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 33.1s STANDBY    streak=0 alt=-0.49 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 34.1s STANDBY    streak=0 alt=-0.47 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 35.2s STANDBY    streak=0 alt=-0.45 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 36.2s STANDBY    streak=0 alt=-0.44 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 37.2s STANDBY    streak=0 alt=-0.45 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 38.3s STANDBY    streak=0 alt=-0.45 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 39.3s STANDBY    streak=0 alt=-0.45 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 40.3s STANDBY    streak=0 alt=-0.44 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 41.4s STANDBY    streak=0 alt=-0.43 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 42.4s STANDBY    streak=0 alt=-0.40 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 43.4s STANDBY    streak=0 alt=-0.36 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 44.5s STANDBY    streak=0 alt=-0.34 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 45.5s STANDBY    streak=0 alt=-0.32 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 46.6s STANDBY    streak=0 alt=0.01 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 47.6s STANDBY    streak=0 alt=0.03 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 48.6s STANDBY    streak=0 alt=0.07 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 49.7s STANDBY    streak=0 alt=0.10 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 50.7s STANDBY    streak=0 alt=0.13 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 51.7s STANDBY    streak=0 alt=0.14 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 52.8s STANDBY    streak=0 alt=0.16 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 53.8s STANDBY    streak=0 alt=0.18 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 54.8s STANDBY    streak=0 alt=0.20 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 55.9s STANDBY    streak=0 alt=0.21 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 56.9s STANDBY    streak=0 alt=0.23 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 57.9s STANDBY    streak=0 alt=0.26 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 59.0s STANDBY    streak=0 alt=0.29 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 60.0s STANDBY    streak=0 alt=0.33 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 61.1s STANDBY    streak=0 alt=0.35 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 62.1s STANDBY    streak=0 alt=0.37 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[mavsdk] t= 63.1s STANDBY    streak=0 alt=0.39 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+54.4
+[cue] GO: fit of 11 records over 5.0 s (cv, velocity reported, residual 0.02 m), advanced 226 ms to now on the 'min_delay' time base, link delay NOT measured (no shared clock): the belief lags by the link's minimum delay
+[  63.44s] GO edge: cue belief LATCHED -- target 4.8 m away (north +4.5, east +1.7, down -2.4) moving 0.05 m/s -- immutable for the rest of the flight; the link is now closed
+[  63.44s] GO edge: dash heading LATCHED +54.42 deg (preflight lead solve) -- this value is now immutable for the rest of the flight
+[  63.44s] STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+[link] telemetry.attitude_euler: primary silent 0.18 s -- using the BACKUP link
+[link] telemetry.attitude_euler: the primary link is back
+[link] telemetry.attitude_quaternion: primary silent 0.18 s -- using the BACKUP link
+[link] telemetry.attitude_quaternion: the primary link is back
+[link] telemetry.position: primary silent 0.18 s -- using the BACKUP link
+[link] telemetry.position: the primary link is back
+[link] telemetry.velocity_ned: primary silent 0.18 s -- using the BACKUP link
+[link] telemetry.velocity_ned: the primary link is back
+[mavsdk] t= 64.3s ENGAGE     streak=0 alt=0.44 yaw=+31.9 | SP vN=-0.25 vE=-3.65 vD=-1.90 yaw=+20.5
+[mavsdk] t= 65.4s ENGAGE     streak=0 alt=0.48 yaw=+31.9 | SP vN=-0.23 vE=-3.61 vD=-1.87 yaw=+20.9
+[mavsdk] t= 66.4s ENGAGE     streak=0 alt=0.47 yaw=+31.9 | SP vN=+5.58 vE=+1.85 vD=+0.76 yaw=+35.1
+[mavsdk] t= 67.5s ENGAGE     streak=0 alt=0.49 yaw=+31.9 | SP vN=+11.35 vE=+7.96 vD=+0.80 yaw=+38.5
+[mavsdk] t= 68.5s ENGAGE     streak=0 alt=0.53 yaw=+31.9 | SP vN=+13.82 vE=+8.04 vD=+0.59 yaw=+34.8
+[mavsdk] t= 69.6s ENGAGE     streak=0 alt=0.55 yaw=+31.9 | SP vN=+14.15 vE=+7.45 vD=+0.50 yaw=+28.0
+[mavsdk] t= 70.6s ENGAGE     streak=0 alt=0.57 yaw=+31.9 | SP vN=+14.31 vE=+7.15 vD=+0.44 yaw=+25.5
+[mavsdk] t= 71.7s ENGAGE     streak=0 alt=0.56 yaw=+31.9 | SP vN=+13.23 vE=+8.96 vD=+0.70 yaw=+30.1
+[mavsdk] t= 72.8s ENGAGE     streak=0 alt=0.57 yaw=+31.9 | SP vN=+12.87 vE=+9.47 vD=+0.79 yaw=+36.8
+[mavsdk] t= 73.8s ENGAGE     streak=0 alt=0.58 yaw=+31.9 | SP vN=+11.88 vE=+10.23 vD=+0.58 yaw=+38.1
+[mavsdk] t= 74.9s ENGAGE     streak=0 alt=0.60 yaw=+31.9 | SP vN=+13.92 vE=+7.87 vD=+0.54 yaw=+32.8
+[mavsdk] t= 75.9s ENGAGE     streak=0 alt=0.57 yaw=+31.9 | SP vN=+14.24 vE=+7.29 vD=+0.48 yaw=+26.5
+[mavsdk] t= 77.0s ENGAGE     streak=0 alt=0.59 yaw=+31.9 | SP vN=+13.85 vE=+7.28 vD=+0.82 yaw=+26.3
+[mavsdk] t= 78.0s ENGAGE     streak=0 alt=0.61 yaw=+31.9 | SP vN=+13.09 vE=+9.17 vD=+0.75 yaw=+32.2
+[  78.48s] ENGAGE -> BREAKOFF  (engage_timeout(15.0s))
+[mavsdk] t= 79.1s BREAKOFF   streak=0 alt=0.64 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=-1.00 yaw=+35.3
+[  79.99s] BREAKOFF -> SAFE  (breakoff_complete)
+[mavsdk] t= 80.1s SAFE       streak=0 alt=0.65 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 81.1s SAFE       streak=0 alt=0.65 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 82.2s SAFE       streak=0 alt=0.66 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 83.2s SAFE       streak=0 alt=0.67 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 84.2s SAFE       streak=0 alt=0.70 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 85.3s SAFE       streak=0 alt=0.68 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 86.3s SAFE       streak=0 alt=0.65 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 87.3s SAFE       streak=0 alt=0.62 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 88.4s SAFE       streak=0 alt=0.61 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 89.4s SAFE       streak=0 alt=0.59 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 90.4s SAFE       streak=0 alt=0.58 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 91.5s SAFE       streak=0 alt=0.57 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 92.5s SAFE       streak=0 alt=0.59 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 93.5s SAFE       streak=0 alt=0.63 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 94.6s SAFE       streak=0 alt=0.68 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 95.6s SAFE       streak=0 alt=0.74 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 96.7s SAFE       streak=0 alt=0.78 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 97.7s SAFE       streak=0 alt=0.83 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 98.7s SAFE       streak=0 alt=0.85 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t= 99.8s SAFE       streak=0 alt=0.87 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=100.8s SAFE       streak=0 alt=0.89 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=101.8s SAFE       streak=0 alt=0.90 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=102.9s SAFE       streak=0 alt=0.91 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=103.9s SAFE       streak=0 alt=0.91 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=104.9s SAFE       streak=0 alt=0.93 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=106.0s SAFE       streak=0 alt=0.93 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=107.0s SAFE       streak=0 alt=0.93 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=108.0s SAFE       streak=0 alt=0.91 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=109.1s SAFE       streak=0 alt=0.93 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=110.1s SAFE       streak=0 alt=0.93 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=111.2s SAFE       streak=0 alt=0.94 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=112.2s SAFE       streak=0 alt=0.94 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=113.2s SAFE       streak=0 alt=0.93 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=114.3s SAFE       streak=0 alt=0.88 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=115.3s SAFE       streak=0 alt=0.83 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=116.3s SAFE       streak=0 alt=0.83 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=117.4s SAFE       streak=0 alt=0.83 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=118.4s SAFE       streak=0 alt=0.81 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=119.4s SAFE       streak=0 alt=0.81 yaw=+31.9 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=120.5s SAFE       streak=0 alt=0.78 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=121.5s SAFE       streak=0 alt=0.75 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=122.5s SAFE       streak=0 alt=0.72 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=123.6s SAFE       streak=0 alt=0.69 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=124.6s SAFE       streak=0 alt=0.67 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=125.7s SAFE       streak=0 alt=0.68 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=126.7s SAFE       streak=0 alt=0.70 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=127.7s SAFE       streak=0 alt=0.71 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=128.8s SAFE       streak=0 alt=0.72 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=129.8s SAFE       streak=0 alt=0.66 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=130.8s SAFE       streak=0 alt=0.63 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=131.9s SAFE       streak=0 alt=0.62 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=132.9s SAFE       streak=0 alt=0.54 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=133.9s SAFE       streak=0 alt=0.45 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=135.0s SAFE       streak=0 alt=0.41 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=136.0s SAFE       streak=0 alt=0.38 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=137.1s SAFE       streak=0 alt=0.33 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=138.1s SAFE       streak=0 alt=0.29 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=139.1s SAFE       streak=0 alt=0.32 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=140.2s SAFE       streak=0 alt=0.30 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=141.2s SAFE       streak=0 alt=0.27 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=142.2s SAFE       streak=0 alt=0.25 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=143.3s SAFE       streak=0 alt=0.24 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=144.3s SAFE       streak=0 alt=0.25 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=145.3s SAFE       streak=0 alt=0.25 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=146.4s SAFE       streak=0 alt=0.29 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=147.4s SAFE       streak=0 alt=0.34 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=148.4s SAFE       streak=0 alt=0.41 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=149.5s SAFE       streak=0 alt=0.45 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=150.5s SAFE       streak=0 alt=0.47 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=151.6s SAFE       streak=0 alt=0.53 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=152.6s SAFE       streak=0 alt=0.55 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=153.6s SAFE       streak=0 alt=0.56 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=154.7s SAFE       streak=0 alt=0.58 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=155.7s SAFE       streak=0 alt=0.64 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=156.7s SAFE       streak=0 alt=0.68 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=157.8s SAFE       streak=0 alt=0.70 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=158.8s SAFE       streak=0 alt=0.71 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=159.8s SAFE       streak=0 alt=0.75 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=160.9s SAFE       streak=0 alt=0.78 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=161.9s SAFE       streak=0 alt=0.79 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=163.0s SAFE       streak=0 alt=0.82 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=164.0s SAFE       streak=0 alt=0.85 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=165.0s SAFE       streak=0 alt=0.85 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=166.1s SAFE       streak=0 alt=0.85 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=167.1s SAFE       streak=0 alt=0.85 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=168.1s SAFE       streak=0 alt=0.88 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=169.2s SAFE       streak=0 alt=0.94 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=170.2s SAFE       streak=0 alt=0.94 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=171.2s SAFE       streak=0 alt=0.93 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=172.3s SAFE       streak=0 alt=0.92 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=173.3s SAFE       streak=0 alt=0.92 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=174.4s SAFE       streak=0 alt=0.93 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=175.4s SAFE       streak=0 alt=0.93 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=176.4s SAFE       streak=0 alt=0.93 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=177.5s SAFE       streak=0 alt=0.91 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=178.5s SAFE       streak=0 alt=0.90 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=179.5s SAFE       streak=0 alt=0.91 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=180.6s SAFE       streak=0 alt=0.95 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=181.6s SAFE       streak=0 alt=0.97 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=182.6s SAFE       streak=0 alt=0.98 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=183.7s SAFE       streak=0 alt=0.99 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=184.7s SAFE       streak=0 alt=1.00 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=185.8s SAFE       streak=0 alt=0.99 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=186.8s SAFE       streak=0 alt=1.00 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=187.8s SAFE       streak=0 alt=1.01 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=188.9s SAFE       streak=0 alt=0.98 yaw=+32.1 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] t=189.9s SAFE       streak=0 alt=0.95 yaw=+32.0 | SP vN=+0.00 vE=+0.00 vD=+0.00 yaw=+35.3
+[mavsdk] state machine TERMINATED in SAFE (reason=breakoff_complete)
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+[bench] offboard stopped (no land, no disarm: nothing was ever armed)
+2026-11-26T12:26:05 [loop-supervisor] clean exit (3663 beats, worst gap 0.232 s)
+Received ack for not-existing command: 176! Ignoring... (mavlink_command_sender.cpp:304)
+[log] 3663 ticks -> /home/admin/interceptor-sim/logs/real_flight_20261126T202253Z.csv
+[mission] states visited: STANDBY -> ENGAGE -> BREAKOFF -> SAFE
+[mission] transitions:
+      63.44s  STANDBY -> ENGAGE  (go_edge_pursuit(chase_only))
+      78.48s  ENGAGE -> BREAKOFF  (engage_timeout(15.0s))
+      79.99s  BREAKOFF -> SAFE  (breakoff_complete)
+[bench] ---- props-off rehearsal ----
+[bench] ok   the vehicle stayed disarmed and no battery appeared
+[bench] ok   OFFBOARD was entered while disarmed (flight mode from telemetry)
+[bench] ok   setpoints streamed (3663)
+[bench] ok   the GO edge was accepted and ENGAGE ran
+[bench] ok   every ENGAGE tick was in OFFBOARD (283/283)
+[bench] ok   every platform limit was read from the board
+[bench] ok   the loop watchdog ran and exited clean (exit 0)
+[bench] measured: oldest own-state sample 0.18 s (FAILSAFE 9 bound 1.0 s); worst control-tick gap 0.23 s (watchdog bound 0.5 s); oldest flight-mode sample 1.00 s (FAILSAFE 7 bound 3.0 s)
+[bench] PASS
+[cue] link closed: 131 records received, 0 malformed, 0 dropped after the latch; GO fired (last status: holding: the enable switch is LOW (your veto); raise it to let the cue fire GO)
