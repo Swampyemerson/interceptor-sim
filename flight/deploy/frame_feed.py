@@ -235,6 +235,25 @@ def _miss(**kw):
                                  **kw)
 
 
+def _no_destroy(detector_cls):
+    """The AprilTag binding's `Detector`, without its destructor.
+
+    The binding's `__del__` (pupil_apriltags 1.0.4, bindings.py: it destroys
+    the tag families and then the detector) crashes the whole interpreter with
+    a segmentation fault, intermittently, whenever the garbage collector
+    happens to run it: seen 2026-11-26 as 4 of 6 runs of the flight test suite
+    dying inside `apriltag_detector_destroy`. On the aircraft the same call
+    would run at program exit, after the flight, and could turn a clean run's
+    exit code into a crash. The flight program makes ONE detector per run, so
+    skipping the destructor leaks one small C structure until the process
+    ends, which the operating system reclaims."""
+    class _Detector(detector_cls):
+        def __del__(self):          # deliberately empty: see _no_destroy
+            pass
+    _Detector.__name__ = detector_cls.__name__
+    return _Detector
+
+
 class TagFrameDetector:
     """AprilTag tag36h11 on a real frame -> the driver's detection object.
     Box/range convention mirrors scripts/gazebo_pursuit_crosscheck.tag_to_detection
@@ -248,8 +267,8 @@ class TagFrameDetector:
             from pupil_apriltags import Detector
         except ImportError:  # the Pi (aarch64) ships pyapriltags, ADR-0012
             from pyapriltags import Detector
-        self.det = Detector(families=TAG_FAMILY, nthreads=nthreads,
-                            quad_decimate=quad_decimate)
+        self.det = _no_destroy(Detector)(families=TAG_FAMILY, nthreads=nthreads,
+                                         quad_decimate=quad_decimate)
         self.cam = cam
         self.span = float(span_m)
         self.tag_id = int(tag_id)

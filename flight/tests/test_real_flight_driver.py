@@ -409,7 +409,11 @@ def test_fly_arms_only_after_the_rc_permit(monkeypatch, capsys, tmp_path, dummy_
     assert r.actions == ["action.set_takeoff_altitude", "action.arm",
                          "action.takeoff", "offboard.start", "offboard.stop",
                          "action.land"]
-    assert dummy_server.poll() is None   # a clean flight leaves the server alone
+    # The watchdog left the server alone through a clean flight; the program
+    # itself ends it last, when the run is over (see end_opened_servers).
+    assert "loop supervisor" in r.out and "watchdog] FAULT" not in r.out
+    assert "server process(es) ended; the vehicle link is free" in r.out
+    assert dummy_server.wait(timeout=5) is not None
 
 
 def test_fly_without_a_permit_never_arms(monkeypatch, capsys, tmp_path, dummy_server):
@@ -946,3 +950,21 @@ def test_a_hung_control_loop_loses_its_setpoint_stream_end_to_end(
 def test_loop_supervisor_script_is_in_the_honesty_audit():
     assert any(p.endswith(os.path.join("flight", "deploy", "loop_supervisor.py"))
                for p in rf.audited_module_paths())
+
+
+def test_a_finished_run_ends_its_own_server_so_the_process_can_exit(monkeypatch, capsys,
+                                                                   tmp_path, dummy_server):
+    """Bench runs 1 and 4 on the real Pi (2026-11-26) printed their report and
+    never exited: MAVSDK reads the server's output on a non-daemon thread and
+    kills the server only at interpreter exit, which waits for that thread. The
+    program must end the server itself, last. (Mutant: drop the
+    end_opened_servers() call in main -> the server survives.)"""
+    d = fm.FakeDrone()
+    d._server_process = dummy_server
+    d.rc_script = lambda t: rc(go=2000 if t >= 6.0 else 1000)
+    r = drive(monkeypatch, capsys, tmp_path,
+              BENCH + ["--trigger", "rc", "--rc-channel", str(GO_CH)], drone=d)
+    assert r.rc == 0, r.out[-2500:]
+    assert r.out.rstrip().endswith("server process(es) ended; the vehicle link is free")
+    assert dummy_server.wait(timeout=5) is not None
+    assert rf._OPENED_SYSTEMS == []

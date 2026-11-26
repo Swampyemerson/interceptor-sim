@@ -145,6 +145,7 @@ import argparse
 import ast
 import json
 import math
+import weakref
 import os
 import sys
 import time
@@ -4012,6 +4013,26 @@ async def _sample_gps(state: dict, window_s: float) -> List[dict]:  # pragma: no
     return recent()
 
 
+# Every MAVSDK `System` this process opened. The library reads each server's
+# output on a NON-daemon thread and kills the server only from an atexit hook,
+# and Python joins non-daemon threads BEFORE it runs atexit hooks: a run that
+# ended with a server still alive never exited (bench runs 1 and 4, 2026-11-26:
+# the report printed, the process stayed, and it kept the serial port). So the
+# program ends its own servers when it is done (`end_opened_servers`).
+_OPENED_SYSTEMS: list = []
+
+
+def end_opened_servers() -> int:
+    """End every MAVSDK server this process started. Called once, last, when
+    the run is over and its teardown has been done. Returns how many it ended."""
+    n = 0
+    while _OPENED_SYSTEMS:
+        drone = _OPENED_SYSTEMS.pop()()      # weak: holds no vehicle object alive
+        if drone is not None and _end_setpoint_stream(drone):
+            n += 1
+    return n
+
+
 async def _open_vehicle(args):  # pragma: no cover -- driven by the fake in tests
     """Connect the MAVLink link(s) and return the object the driver talks to,
     or None (after ending any server it started) when a link will not connect.
@@ -4025,12 +4046,15 @@ async def _open_vehicle(args):  # pragma: no cover -- driven by the fake in test
     backup_url = getattr(args, "mavsdk_backup_url", None)
     if not backup_url:
         drone = System()
+        _OPENED_SYSTEMS.append(weakref.ref(drone))
         return drone if await _connect_vehicle(drone, args.mavsdk_url) else None
     from flight.deploy.link_redundancy import RedundantSystem
     primary = System(port=_GRPC_PORT_PRIMARY)
+    _OPENED_SYSTEMS.append(weakref.ref(primary))
     if not await _connect_vehicle(primary, args.mavsdk_url):
         return None
     backup = System(port=_GRPC_PORT_BACKUP, compid=_BACKUP_COMPID)
+    _OPENED_SYSTEMS.append(weakref.ref(backup))
     if not await _connect_vehicle(backup, backup_url):
         print(f"[link] REFUSED: the backup link {backup_url} did not connect. "
               f"Fix it (is the flight recorder running?) or drop "
@@ -6932,6 +6956,10 @@ def main(argv=None) -> int:
                   f"malformed, {st.n_after_latch} dropped after the latch; GO "
                   f"{'fired' if trigger.fired else 'never fired'} "
                   f"(last status: {trigger.status})")
+        # LAST: the run and its teardown are over. Without this the process
+        # never exits while a server is alive (see _OPENED_SYSTEMS).
+        if end_opened_servers():
+            print("[mavsdk] server process(es) ended; the vehicle link is free")
 
 
 if __name__ == "__main__":

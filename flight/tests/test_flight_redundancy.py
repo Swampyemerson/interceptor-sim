@@ -662,7 +662,10 @@ def test_a_primary_that_refuses_setpoints_is_ended_and_the_backup_flies(
     assert r.rc == 0, r.out[-3500:]
     assert "the primary link is ENDED" in r.out
     assert two_servers[0].poll() is not None        # its server was killed
-    assert two_servers[1].poll() is None
+    # The backup's server carried the flight to its end (rc 0 above); the
+    # program ends it last, when the run is over.
+    assert r.out.index("the primary link is ENDED") < r.out.index(
+        "server process(es) ended; the vehicle link is free")
     assert "states visited: STANDBY -> ENGAGE -> BREAKOFF -> SAFE" in r.out
     assert b.names().count("action.land") == 1      # the landing went out on the backup
 
