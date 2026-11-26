@@ -120,6 +120,9 @@ class FakeDrone:
         self.gps_fix = 3
         self.gps_hacc = 0.8
         self.gps_sacc = 0.2
+        # the Pixhawk's reported height minus the GPS receiver's (a barometer
+        # height reference made this -97 m on the real board, 2026-11-26)
+        self.pixhawk_height_error_m = 0.0
         self.param_set_fails: set = set()           # names whose write raises
         self.param_set_ignored: set = set()         # names whose write is lost
         self.params: Dict[str, float] = dict(DEFAULT_PARAMS)
@@ -162,7 +165,9 @@ class FakeDrone:
                 num_satellites=self.gps_sats, fix_type=self.gps_fix)),
             raw_gps=lambda: self._stream("raw_gps", 0.2, lambda: types.SimpleNamespace(
                 horizontal_uncertainty_m=self.gps_hacc,
-                velocity_uncertainty_m_s=self.gps_sacc)),
+                velocity_uncertainty_m_s=self.gps_sacc,
+                absolute_altitude_m=(self.lla[2] + self.alt
+                                     if getattr(self, "lla", None) else float("nan")))),
             health=self._health)
         self.action = types.SimpleNamespace(
             set_takeoff_altitude=self._set_takeoff_altitude, arm=self._arm,
@@ -265,7 +270,8 @@ class FakeDrone:
             self.pos_ne[1] / (r * math.cos(math.radians(self.lla[0]))))
         return types.SimpleNamespace(relative_altitude_m=self.alt,
                                      latitude_deg=lat, longitude_deg=lon,
-                                     absolute_altitude_m=self.lla[2] + self.alt)
+                                     absolute_altitude_m=self.lla[2] + self.alt
+                                     + self.pixhawk_height_error_m)
 
     def _vel(self):
         return types.SimpleNamespace(north_m_s=self.vel[0], east_m_s=self.vel[1],

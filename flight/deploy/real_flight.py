@@ -2400,8 +2400,8 @@ class CueTrigger:
             return idle
         own = self.own_lla()
         if own is None:
-            self._say("own", "waiting: no own GPS position to place the target "
-                             "against")
+            self._say("own", "waiting: no own GPS position (with a fresh height from the "
+                             "GPS receiver) to place the target against")
             return idle
         from flight.cue_link import CueLinkError
         from flight.cue_relay import CueQualityError
@@ -3720,6 +3720,12 @@ def _new_link_state() -> dict:
             # own GPS position (lat deg, lon deg, alt m AMSL): what the cue's
             # target position is placed against at the GO edge (--trigger cue)
             "lla": None, "systime_n": 0,
+            # the GPS RECEIVER's own height above sea level and when it came.
+            # The Pixhawk's reported height is the barometer's when the board's
+            # height reference is the barometer (measured 2026-11-26: 97 m
+            # below the receiver's), so it must not be differenced with the
+            # target's GPS height.
+            "gps_amsl": None, "t_gps_amsl": None,
             # own-state samples dropped for carrying a non-finite number
             "n_nonfinite": 0,
             # battery charge left, 0..1 as PX4 reports it (None = no reading)
@@ -3741,7 +3747,8 @@ _BATTERY_PERCENT_SCALE = 100.0
 
 
 def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False,
-                     utc_sink=None, want_gps: bool = False):  # pragma: no cover -- driven by the fake in tests
+                     utc_sink=None, want_gps: bool = False,
+                     want_gps_height: bool = False):  # pragma: no cover -- driven by the fake in tests
     """Subscribe to every stream the driver reads and return the tasks. Each
     own-state stream STAMPS its arrival (`t_quat`, `t_euler`, `t_pos`, `t_vel`):
     a generator that dies leaves its slice of `state` frozen at the last value,
@@ -3841,6 +3848,10 @@ def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False
         async for r in drone.telemetry.raw_gps():
             state["gps_hacc"] = float(r.horizontal_uncertainty_m)
             state["gps_sacc"] = float(r.velocity_uncertainty_m_s)
+            amsl = getattr(r, "absolute_altitude_m", None)
+            if amsl is not None and math.isfinite(float(amsl)):
+                state["gps_amsl"] = float(amsl)
+                state["t_gps_amsl"] = time.monotonic()
 
     # THE OFFBOARD INPUT. Without this subscriber `state["offboard"]` was a
     # latched constant and the arm gate's OFFBOARD check was structurally
@@ -3889,6 +3900,8 @@ def _start_telemetry(drone, state: dict, rc_sinks=(), want_battery: bool = False
         coros.append(_batt)
     if want_gps:
         coros += [_gps_info, _raw_gps]
+    elif want_gps_height:
+        coros.append(_raw_gps)
     if rc_sinks:
         coros.append(_rc)
     if utc_sink is not None:
@@ -4128,10 +4141,36 @@ def _rc_readers(*triggers) -> list:
     return out
 
 
-def _wire_cue_trigger(trigger, state: dict) -> None:
-    """Give a cue trigger the driver's own GPS position (own-state)."""
+# The GPS receiver's height must be this fresh to place the target against.
+CUE_OWN_GPS_HEIGHT_MAX_AGE_S = 2.0
+
+
+def cue_own_lla(state: dict, now: Optional[float] = None
+                ) -> Optional[Tuple[float, float, float]]:
+    """Own position for placing the cued target: the Pixhawk's latitude and
+    longitude with the GPS RECEIVER's height above sea level. The target
+    reports GPS height; the Pixhawk's own reported height is the barometer's
+    when the board's height reference is the barometer, and the two differed
+    by 97 m on the ground on 2026-11-26, which latched the target 101 m
+    overhead. No fresh receiver height means no answer (GO waits): the
+    Pixhawk's height is never substituted."""
+    lla = state.get("lla")
+    amsl, t = state.get("gps_amsl"), state.get("t_gps_amsl")
+    if lla is None or amsl is None or t is None:
+        return None
+    now = time.monotonic() if now is None else now
+    if now - t > CUE_OWN_GPS_HEIGHT_MAX_AGE_S:
+        return None
+    return (lla[0], lla[1], float(amsl))
+
+
+def _wire_cue_trigger(trigger, state: dict) -> bool:
+    """Give a cue trigger the driver's own GPS position (own-state). Returns
+    whether the telemetry must carry the GPS receiver's height."""
     if isinstance(trigger, CueTrigger):
-        trigger.own_lla = lambda: state["lla"]
+        trigger.own_lla = lambda: cue_own_lla(state)
+        return True
+    return False
 
 
 def make_cue_go_check(limits: dict, caps: dict, max_range_m: Optional[float]):
@@ -4832,10 +4871,10 @@ async def run_mavsdk_mission(args, cfg: MissionConfig, sm: RealFlightSM,
     # OWN-STATE EKF + own status. The ONLY non-camera, non-constant inputs.
     state = _new_link_state()
     rc_sinks = _rc_readers(trigger, permit_trigger)
-    _wire_cue_trigger(trigger, state)
+    cue_height = _wire_cue_trigger(trigger, state)
     tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=fly,
                              utc_sink=getattr(trigger, "vehicle_utc", None),
-                             want_gps=suspend)
+                             want_gps=suspend, want_gps_height=cue_height)
     tick_log = TickLog(getattr(args, "log_csv", None))
     if tick_log.error:
         print(f"[log] WARNING: the live tick log could not be opened "
@@ -5126,9 +5165,10 @@ async def run_bench_props_off(args, cfg: MissionConfig, sm: RealFlightSM,
         return 1
     state = _new_link_state()
     rc_sinks = _rc_readers(trigger)
-    _wire_cue_trigger(trigger, state)
+    cue_height = _wire_cue_trigger(trigger, state)
     tasks = _start_telemetry(drone, state, rc_sinks=rc_sinks, want_battery=True,
-                             utc_sink=getattr(trigger, "vehicle_utc", None))
+                             utc_sink=getattr(trigger, "vehicle_utc", None),
+                             want_gps_height=cue_height)
     supervisor, _sup_ok = _start_supervisor(drone, args, required=False)
 
     max_batt = float(args.bench_max_batt_v)
