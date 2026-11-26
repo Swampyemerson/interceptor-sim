@@ -206,6 +206,16 @@
 #     Source: docs.px4.io/v1.16 parameter reference (RC_MAP_KILL_SW,
 #     RC_KILLSWITCH_TH) + Arm/Disarm/Prearm; bench capture 2026-10-02.
 1	1	RC_MAP_KILL_SW	5	6
+#
+#  RC_MAP_OFFB_SW = 8 -> OFFBOARD SWITCH = CHANNEL 8, the GO switch (builder
+#     approved 2026-11-26; written disarmed and read back the same day, was 0).
+#     While the switch is on (above RC_OFFB_TH 0.75) the Pixhawk flies the Pi's
+#     velocity commands, whatever the mode switch says; when it is lowered the
+#     aircraft returns to the mode switch's mode. This is the pilot's take-back
+#     for `real_flight.py --pilot-handover` and it does not depend on the Pi.
+#     NOT YET SEEN WORKING on this board: the first ground test decides.
+#     Undo: set it to 0.
+1	1	RC_MAP_OFFB_SW	8	6
 #  COM_KILL_DISARM = 5.0 s -> auto-DISARM 5 s after a kill, so a killed vehicle
 #     cannot be silently re-activated by releasing the switch. CORRECTED
 #     2026-07-26: this file used to say the default was 0 ("never auto-disarm").
