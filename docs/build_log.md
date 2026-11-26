@@ -60,8 +60,11 @@ Significant hardware work has been accomplished over the past month. An intervie
 
 Ran FEA in SolidWorks with Claude to determine material (went PETG for thermal (Pi and accelerator heat) and stiffness properties, plus cheap), printed a test fit in PLA, and after a small revision to mount a bit stronger, printed in PETG. Assembled the new mount system, mounted parts: hugely improved stability, and the camera mount works as intended.
 
-I ran into a pretty significant issue with GPS and compass interference, and spent several days working through causes by isolating systems on and off while comparing GPS values, along with starting with a cheaper fix of tin foil on the lid to block interference. I ended up moving the camera ribbon cable, tightening up the power-providing cables and moving them lower from the unit, and a larger tin foil base, which finally yielded acceptable results: from 3-7 GPS sats initially to 15-18 depending on camera activity.
+I ran into a pretty significant issue with GPS and compass interference, and spent several days working through causes by isolating systems on and off while comparing GPS values, along with starting with a cheaper fix of tin foil on the lid to block interference. I ended up moving the camera ribbon cable, tightening up the power-providing cables and moving them lower from the unit, and a larger tin foil base, which finally yielded acceptable results: from 3-7 GPS sats initially to 14-18 depending on camera activity.
 
 Finalizing flight code, adding redundancy, and fleshing out the mechanism for initiating the intercept; then I will mount the AprilTag and give it a shot.
 
 The target drone also was finished, with minimal issues past ripping off the FC USB port (resoldered with minimal difficulty), and managed to fly GPS waypoints in the backyard well. The battery is a bit more limiting than first thought, yielding just under the 5:1 T/W ratio that I was aiming for, but I don't anticipate needing an upgrade.
+
+![The interceptor on the bench with the new payload pod: carbon-fiber frame with purple props, the black printed pod holding the Pixhawk, the Raspberry Pi and the accelerator board, the nose camera on its tilt mount at the front, and the GPS unit on a foil-covered lid](images/interceptor_pod_2026-11.jpg)
+*The interceptor with the modular payload pod, November 2026.*
