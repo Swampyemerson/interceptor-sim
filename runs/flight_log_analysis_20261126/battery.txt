@@ -1,0 +1,23 @@
+== fc_20261126T190151Z_flight.ulg start 24.31 V, used 1 mAh, 'remaining' 100 % -> 97 %
+== fc_20261126T190331Z_flight.ulg start 24.30 V, used 47 mAh, 'remaining' 99 % -> 84 %
+== fc_20261126T191603Z_flight.ulg start 23.89 V, used 86 mAh, 'remaining' 84 % -> 57 %
+== fc_20261126T191934Z_flight.ulg start 23.27 V, used 218 mAh, 'remaining' 60 % -> 32 %
+== fc_20261126T192138Z_flight.ulg start 22.53 V, used 135 mAh, 'remaining' 34 % -> 18 %
+    588.9 s  Low battery                                        20.82 V (3.47 per cell) 8.5 A, gauge 15 %, used 87 mAh
+    588.9 s  Failsafe activated                                 20.82 V (3.47 per cell) 8.5 A, gauge 15 %, used 87 mAh
+    608.3 s  Low battery                                        21.68 V (3.61 per cell) 0.1 A, gauge 11 %, used 135 mAh
+    611.1 s  Low battery                                        21.99 V (3.66 per cell) 0.0 A, gauge 13 %, used 135 mAh
+== fc_20261126T193157Z_flight.ulg start 22.14 V, used 57 mAh, 'remaining' 21 % -> 14 %
+     95.3 s  Low battery                                        21.90 V (3.65 per cell) 8.9 A, gauge 15 %, used 14 mAh
+     95.3 s  Failsafe activated                                 21.90 V (3.65 per cell) 8.9 A, gauge 15 %, used 14 mAh
+    111.9 s  Critical battery                                   21.49 V (3.58 per cell) 9.3 A, gauge 6 %, used 57 mAh
+    111.9 s  Failsafe activated: entering Hold for 5 seconds    21.49 V (3.58 per cell) 9.3 A, gauge 6 %, used 57 mAh
+    114.0 s  Critical battery                                   21.72 V (3.62 per cell) 0.0 A, gauge 7 %, used 57 mAh
+    116.9 s  Failsafe activated                                 21.86 V (3.64 per cell) 0.0 A, gauge 11 %, used 57 mAh
+    117.3 s  Low battery                                        21.90 V (3.65 per cell) 0.0 A, gauge 11 %, used 57 mAh
+    121.0 s  Low battery                                        22.05 V (3.67 per cell) 0.0 A, gauge 13 %, used 57 mAh
+== fc_20261126T200229Z_flight.ulg start 24.34 V, used 353 mAh, 'remaining' 100 % -> 36 %
+    382.8 s  Low battery                                        21.73 V (3.62 per cell) 14.0 A, gauge 14 %, used 244 mAh
+    382.8 s  Failsafe activated                                 22.43 V (3.74 per cell) 7.8 A, gauge 15 %, used 244 mAh
+    407.2 s  Critical battery                                   22.33 V (3.72 per cell) 9.7 A, gauge 9 %, used 306 mAh
+    407.2 s  Failsafe activated: entering Hold for 5 seconds    22.33 V (3.72 per cell) 9.7 A, gauge 9 %, used 306 mAh

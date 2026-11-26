@@ -1,0 +1,1031 @@
+[
+ {
+  "log": "fc_20261126T190151Z_flight.ulg",
+  "log_s": 98.0,
+  "airborne_s": 0.0,
+  "note": "never airborne: numbers are for the whole log on the ground",
+  "mode_seconds_airborne": {
+   "Position": 98.0
+  },
+  "gps": {
+   "sats_min_med_max": [
+    15,
+    19.0,
+    22
+   ],
+   "speed_acc_ms_med_p95_max": [
+    0.15,
+    0.22,
+    0.27
+   ],
+   "horiz_acc_m_med_max": [
+    0.46,
+    0.54
+   ],
+   "vert_acc_m_med_max": [
+    0.66,
+    0.8
+   ],
+   "fix_min": 3,
+   "jam_indicator_med_max": [
+    28.0,
+    85
+   ],
+   "noise_med": 107.0
+  },
+  "estimator": {
+   "position_invalid_s_airborne": 0.0,
+   "position_invalid_episodes": 0,
+   "dead_reckoning_s_airborne": 0.0,
+   "xy_resets": 0,
+   "vxy_resets": 0,
+   "z_resets": 0,
+   "heading_resets": 1,
+   "gps_vel_test_ratio_med_max": [
+    0.05,
+    0.23
+   ],
+   "gps_pos_test_ratio_med_max": [
+    0.03,
+    0.08
+   ],
+   "mag_strength_G_med": 0.42,
+   "mag_strength_ref_G": 0.51,
+   "mag_fault_seen": false,
+   "gnss_pos_fused_frac": 1.0,
+   "baro_hgt_frac": 1.0,
+   "gps_hgt_frac": 1.0
+  },
+  "height_gps_minus_pixhawk_m_med_min_max": [
+   103.4,
+   101.9,
+   104.4
+  ],
+  "motion": {
+   "ground_speed_ms_max_p95": [
+    1.79,
+    0.25
+   ],
+   "climb_ms_max": 1.45,
+   "descent_ms_max": 1.14,
+   "height_above_takeoff_m_max": 0.2,
+   "tilt_deg_max_p95": [
+    29.6,
+    8.5
+   ],
+   "horiz_accel_ms2_max_p95": [
+    18.23,
+    1.18
+   ]
+  },
+  "pitch_vs_forward_speed": [
+   {
+    "forward_speed_ms": [
+     -0.5,
+     0.5
+    ],
+    "seconds": 94.6,
+    "pitch_deg_med": 3.5,
+    "pitch_deg_p10": 0.8,
+    "pitch_deg_p90": 3.9
+   }
+  ],
+  "pitch_deg_most_nose_down": -16.4,
+  "power": {
+   "motor_cmd_mean4_max_p95_med": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "hover_thrust_estimate_med": null,
+   "specific_force_g_max_smoothed": 1.14,
+   "battery_v_rest_before": 24.36,
+   "battery_v_min_airborne": 23.75,
+   "battery_a_max_med": [
+    0.8,
+    0.0
+   ],
+   "mah_used": 1.0
+  },
+  "position_hold_sticks_centred": [
+   {
+    "t_s": [
+     10.1,
+     80.1
+    ],
+    "seconds": 70.0,
+    "horiz_wander_rms_m": 2.01,
+    "horiz_span_m": 4.48,
+    "height_span_m": null,
+    "speed_rms_ms": 0.28
+   },
+   {
+    "t_s": [
+     92.1,
+     98.0
+    ],
+    "seconds": 5.9,
+    "horiz_wander_rms_m": 0.09,
+    "horiz_span_m": 0.3,
+    "height_span_m": null,
+    "speed_rms_ms": 0.07
+   }
+  ],
+  "velocity_follows_setpoint_position_mode": null,
+  "board_messages": {
+   "[cal] detected rest position, hold still...": 6,
+   "[cal] calibration failed: mag": 1,
+   "Armed by Stick gesture\t": 1
+  }
+ },
+ {
+  "log": "fc_20261126T190331Z_flight.ulg",
+  "log_s": 149.2,
+  "airborne_s": 21.7,
+  "mode_seconds_airborne": {
+   "Position": 21.7
+  },
+  "gps": {
+   "sats_min_med_max": [
+    17,
+    19.0,
+    20
+   ],
+   "speed_acc_ms_med_p95_max": [
+    0.21,
+    0.27,
+    0.28
+   ],
+   "horiz_acc_m_med_max": [
+    0.51,
+    0.54
+   ],
+   "vert_acc_m_med_max": [
+    0.69,
+    0.73
+   ],
+   "fix_min": 3,
+   "jam_indicator_med_max": [
+    27.0,
+    33
+   ],
+   "noise_med": 104.0
+  },
+  "estimator": {
+   "position_invalid_s_airborne": 0.0,
+   "position_invalid_episodes": 0,
+   "dead_reckoning_s_airborne": 0.0,
+   "xy_resets": 6,
+   "vxy_resets": 6,
+   "z_resets": 1,
+   "heading_resets": 2,
+   "gps_vel_test_ratio_med_max": [
+    0.06,
+    0.12
+   ],
+   "gps_pos_test_ratio_med_max": [
+    0.06,
+    0.09
+   ],
+   "mag_strength_G_med": 0.46,
+   "mag_strength_ref_G": 0.51,
+   "mag_fault_seen": false,
+   "gnss_pos_fused_frac": 1.0,
+   "baro_hgt_frac": 1.0,
+   "gps_hgt_frac": 1.0
+  },
+  "height_gps_minus_pixhawk_m_med_min_max": [
+   107.2,
+   100.9,
+   114.4
+  ],
+  "motion": {
+   "ground_speed_ms_max_p95": [
+    0.2,
+    0.16
+   ],
+   "climb_ms_max": 0.72,
+   "descent_ms_max": 0.55,
+   "height_above_takeoff_m_max": 1.5,
+   "tilt_deg_max_p95": [
+    8.8,
+    4.5
+   ],
+   "horiz_accel_ms2_max_p95": [
+    8.07,
+    3.13
+   ]
+  },
+  "pitch_vs_forward_speed": [
+   {
+    "forward_speed_ms": [
+     -0.5,
+     0.5
+    ],
+    "seconds": 21.8,
+    "pitch_deg_med": -1.0,
+    "pitch_deg_p10": -1.8,
+    "pitch_deg_p90": -0.2
+   }
+  ],
+  "pitch_deg_most_nose_down": -2.7,
+  "power": {
+   "motor_cmd_mean4_max_p95_med": [
+    0.27,
+    0.25,
+    0.24
+   ],
+   "hover_thrust_estimate_med": null,
+   "specific_force_g_max_smoothed": 1.12,
+   "battery_v_rest_before": 24.27,
+   "battery_v_min_airborne": 21.92,
+   "battery_a_max_med": [
+    20.0,
+    8.5
+   ],
+   "mah_used": 47.0,
+   "pack_resistance_mohm_fit": 38.0
+  },
+  "position_hold_sticks_centred": [
+   {
+    "t_s": [
+     121.7,
+     137.3
+    ],
+    "seconds": 15.6,
+    "horiz_wander_rms_m": 0.1,
+    "horiz_span_m": 0.32,
+    "height_span_m": null,
+    "speed_rms_ms": 0.11
+   }
+  ],
+  "velocity_follows_setpoint_position_mode": null,
+  "board_messages": {
+   "Preflight Fail: GPS Horizontal Pos Drift too high": 4,
+   "Preflight Fail: Global position estimate required": 9,
+   "Preflight Fail: GPS Vertical Pos Drift too high": 2,
+   "Armed by Stick gesture\t": 1,
+   "Takeoff detected\t": 1,
+   "Landing detected\t": 1,
+   "Disarmed by landing\t": 1
+  }
+ },
+ {
+  "log": "fc_20261126T191603Z_flight.ulg",
+  "log_s": 207.8,
+  "airborne_s": 40.8,
+  "mode_seconds_airborne": {
+   "Position": 40.8
+  },
+  "gps": {
+   "sats_min_med_max": [
+    17,
+    23.0,
+    24
+   ],
+   "speed_acc_ms_med_p95_max": [
+    0.19,
+    0.6,
+    0.67
+   ],
+   "horiz_acc_m_med_max": [
+    0.45,
+    1.07
+   ],
+   "vert_acc_m_med_max": [
+    0.71,
+    1.48
+   ],
+   "fix_min": 3,
+   "jam_indicator_med_max": [
+    26.0,
+    34
+   ],
+   "noise_med": 104.0
+  },
+  "estimator": {
+   "position_invalid_s_airborne": 0.0,
+   "position_invalid_episodes": 0,
+   "dead_reckoning_s_airborne": 0.0,
+   "xy_resets": 0,
+   "vxy_resets": 0,
+   "z_resets": 0,
+   "heading_resets": 1,
+   "gps_vel_test_ratio_med_max": [
+    0.07,
+    0.61
+   ],
+   "gps_pos_test_ratio_med_max": [
+    0.02,
+    0.09
+   ],
+   "mag_strength_G_med": 0.61,
+   "mag_strength_ref_G": 0.51,
+   "mag_fault_seen": false,
+   "gnss_pos_fused_frac": 1.0,
+   "baro_hgt_frac": 1.0,
+   "gps_hgt_frac": 1.0
+  },
+  "height_gps_minus_pixhawk_m_med_min_max": [
+   104.5,
+   102.4,
+   106.7
+  ],
+  "motion": {
+   "ground_speed_ms_max_p95": [
+    1.68,
+    1.08
+   ],
+   "climb_ms_max": 1.04,
+   "descent_ms_max": 3.81,
+   "height_above_takeoff_m_max": 3.4,
+   "tilt_deg_max_p95": [
+    36.7,
+    10.0
+   ],
+   "horiz_accel_ms2_max_p95": [
+    7.32,
+    3.03
+   ]
+  },
+  "pitch_vs_forward_speed": [
+   {
+    "forward_speed_ms": [
+     -0.5,
+     0.5
+    ],
+    "seconds": 33.4,
+    "pitch_deg_med": -1.0,
+    "pitch_deg_p10": -3.4,
+    "pitch_deg_p90": 3.7
+   },
+   {
+    "forward_speed_ms": [
+     0.5,
+     2
+    ],
+    "seconds": 7.2,
+    "pitch_deg_med": -1.8,
+    "pitch_deg_p10": -7.3,
+    "pitch_deg_p90": 2.8
+   }
+  ],
+  "pitch_deg_most_nose_down": -11.8,
+  "power": {
+   "motor_cmd_mean4_max_p95_med": [
+    0.59,
+    0.49,
+    0.25
+   ],
+   "hover_thrust_estimate_med": NaN,
+   "specific_force_g_max_smoothed": 1.06,
+   "battery_v_rest_before": 23.9,
+   "battery_v_min_airborne": 21.44,
+   "battery_a_max_med": [
+    14.9,
+    8.5
+   ],
+   "mah_used": 86.0,
+   "pack_resistance_mohm_fit": 30.0
+  },
+  "position_hold_sticks_centred": [],
+  "velocity_follows_setpoint_position_mode": {
+   "vx": {
+    "lag_s": 0.16,
+    "corr": 0.95,
+    "gain": 0.85,
+    "setpoint_rms_ms": 0.45
+   },
+   "vy": {
+    "lag_s": 0.14,
+    "corr": 0.95,
+    "gain": 0.84,
+    "setpoint_rms_ms": 0.33
+   }
+  },
+  "board_messages": {
+   "Armed by Stick gesture\t": 1,
+   "Takeoff detected\t": 1,
+   "Disarmed by kill-switch\t": 1
+  }
+ },
+ {
+  "log": "fc_20261126T191934Z_flight.ulg",
+  "log_s": 121.3,
+  "airborne_s": 91.5,
+  "mode_seconds_airborne": {
+   "Position": 91.5
+  },
+  "gps": {
+   "sats_min_med_max": [
+    12,
+    14.0,
+    18
+   ],
+   "speed_acc_ms_med_p95_max": [
+    0.64,
+    0.73,
+    0.76
+   ],
+   "horiz_acc_m_med_max": [
+    2.07,
+    2.26
+   ],
+   "vert_acc_m_med_max": [
+    3.34,
+    4.02
+   ],
+   "fix_min": 3,
+   "jam_indicator_med_max": [
+    25.0,
+    32
+   ],
+   "noise_med": 109.0
+  },
+  "estimator": {
+   "position_invalid_s_airborne": 0.0,
+   "position_invalid_episodes": 0,
+   "dead_reckoning_s_airborne": 0.0,
+   "xy_resets": 6,
+   "vxy_resets": 6,
+   "z_resets": 2,
+   "heading_resets": 4,
+   "gps_vel_test_ratio_med_max": [
+    0.17,
+    0.62
+   ],
+   "gps_pos_test_ratio_med_max": [
+    0.04,
+    0.11
+   ],
+   "mag_strength_G_med": 0.61,
+   "mag_strength_ref_G": 0.51,
+   "mag_fault_seen": false,
+   "gnss_pos_fused_frac": 1.0,
+   "baro_hgt_frac": 1.0,
+   "gps_hgt_frac": 1.0
+  },
+  "height_gps_minus_pixhawk_m_med_min_max": [
+   101.6,
+   93.2,
+   110.4
+  ],
+  "motion": {
+   "ground_speed_ms_max_p95": [
+    2.67,
+    0.97
+   ],
+   "climb_ms_max": 1.66,
+   "descent_ms_max": 0.97,
+   "height_above_takeoff_m_max": 5.5,
+   "tilt_deg_max_p95": [
+    35.6,
+    10.1
+   ],
+   "horiz_accel_ms2_max_p95": [
+    8.7,
+    2.15
+   ]
+  },
+  "pitch_vs_forward_speed": [
+   {
+    "forward_speed_ms": [
+     -0.5,
+     0.5
+    ],
+    "seconds": 75.1,
+    "pitch_deg_med": -0.1,
+    "pitch_deg_p10": -4.1,
+    "pitch_deg_p90": 4.2
+   },
+   {
+    "forward_speed_ms": [
+     0.5,
+     2
+    ],
+    "seconds": 11.0,
+    "pitch_deg_med": -1.4,
+    "pitch_deg_p10": -9.2,
+    "pitch_deg_p90": 3.8
+   }
+  ],
+  "pitch_deg_most_nose_down": -32.6,
+  "power": {
+   "motor_cmd_mean4_max_p95_med": [
+    0.36,
+    0.28,
+    0.25
+   ],
+   "hover_thrust_estimate_med": NaN,
+   "specific_force_g_max_smoothed": 1.12,
+   "battery_v_rest_before": 23.29,
+   "battery_v_min_airborne": 20.67,
+   "battery_a_max_med": [
+    17.4,
+    8.7
+   ],
+   "mah_used": 218.0,
+   "pack_resistance_mohm_fit": 31.0
+  },
+  "position_hold_sticks_centred": [],
+  "velocity_follows_setpoint_position_mode": {
+   "vx": {
+    "lag_s": 0.14,
+    "corr": 0.92,
+    "gain": 0.7,
+    "setpoint_rms_ms": 0.51
+   },
+   "vy": {
+    "lag_s": 0.14,
+    "corr": 0.9,
+    "gain": 0.73,
+    "setpoint_rms_ms": 0.43
+   }
+  },
+  "board_messages": {
+   "Preflight Fail: GPS Horizontal Pos Drift too high": 5,
+   "Preflight Fail: Global position estimate required": 6,
+   "Armed by Stick gesture\t": 1,
+   "Takeoff detected\t": 1,
+   "Landing detected\t": 1,
+   "Disarmed by landing\t": 1
+  }
+ },
+ {
+  "log": "fc_20261126T192138Z_flight.ulg",
+  "log_s": 616.5,
+  "airborne_s": 55.3,
+  "mode_seconds_airborne": {
+   "Altitude": 5.1,
+   "Position": 50.2
+  },
+  "gps": {
+   "sats_min_med_max": [
+    13,
+    15.0,
+    20
+   ],
+   "speed_acc_ms_med_p95_max": [
+    0.62,
+    0.74,
+    0.8
+   ],
+   "horiz_acc_m_med_max": [
+    1.93,
+    2.08
+   ],
+   "vert_acc_m_med_max": [
+    3.08,
+    3.56
+   ],
+   "fix_min": 3,
+   "jam_indicator_med_max": [
+    24.0,
+    29
+   ],
+   "noise_med": 110.0
+  },
+  "estimator": {
+   "position_invalid_s_airborne": 0.0,
+   "position_invalid_episodes": 0,
+   "dead_reckoning_s_airborne": 1.2,
+   "xy_resets": 15,
+   "vxy_resets": 15,
+   "z_resets": 4,
+   "heading_resets": 5,
+   "gps_vel_test_ratio_med_max": [
+    0.14,
+    0.3
+   ],
+   "gps_pos_test_ratio_med_max": [
+    0.04,
+    0.14
+   ],
+   "mag_strength_G_med": 0.63,
+   "mag_strength_ref_G": 0.51,
+   "mag_fault_seen": false,
+   "gnss_pos_fused_frac": 1.0,
+   "baro_hgt_frac": 1.0,
+   "gps_hgt_frac": 1.0
+  },
+  "height_gps_minus_pixhawk_m_med_min_max": [
+   102.1,
+   98.9,
+   106.1
+  ],
+  "motion": {
+   "ground_speed_ms_max_p95": [
+    0.81,
+    0.66
+   ],
+   "climb_ms_max": 0.89,
+   "descent_ms_max": 0.87,
+   "height_above_takeoff_m_max": 6.7,
+   "tilt_deg_max_p95": [
+    13.7,
+    6.9
+   ],
+   "horiz_accel_ms2_max_p95": [
+    4.27,
+    2.43
+   ]
+  },
+  "pitch_vs_forward_speed": [
+   {
+    "forward_speed_ms": [
+     -0.5,
+     0.5
+    ],
+    "seconds": 50.7,
+    "pitch_deg_med": -1.5,
+    "pitch_deg_p10": -4.3,
+    "pitch_deg_p90": 1.9
+   }
+  ],
+  "pitch_deg_most_nose_down": -7.5,
+  "power": {
+   "motor_cmd_mean4_max_p95_med": [
+    0.36,
+    0.28,
+    0.27
+   ],
+   "hover_thrust_estimate_med": NaN,
+   "specific_force_g_max_smoothed": 1.18,
+   "battery_v_rest_before": 22.59,
+   "battery_v_min_airborne": 20.49,
+   "battery_a_max_med": [
+    17.7,
+    8.9
+   ],
+   "mah_used": 135.0,
+   "pack_resistance_mohm_fit": 24.0
+  },
+  "position_hold_sticks_centred": [
+   {
+    "t_s": [
+     566.6,
+     581.1
+    ],
+    "seconds": 14.5,
+    "horiz_wander_rms_m": 0.43,
+    "horiz_span_m": 1.59,
+    "height_span_m": null,
+    "speed_rms_ms": 0.34
+   }
+  ],
+  "velocity_follows_setpoint_position_mode": {
+   "vx": {
+    "lag_s": 0.4,
+    "corr": 0.88,
+    "gain": 0.66,
+    "setpoint_rms_ms": 0.33
+   },
+   "vy": {
+    "lag_s": 0.56,
+    "corr": 0.81,
+    "gain": 0.61,
+    "setpoint_rms_ms": 0.31
+   }
+  },
+  "board_messages": {
+   "Preflight Fail: Global position estimate required": 19,
+   "Preflight Fail: GPS Horizontal Pos Drift too high": 29,
+   "Preflight Fail: GPS Vert Speed Drift too high": 3,
+   "Preflight Fail: GPS Vertical Pos Drift too high": 2,
+   "Preflight Fail: GPS Hor Speed Drift too high": 2,
+   "Armed by Stick gesture\t": 1,
+   "Takeoff detected\t": 1,
+   "Low battery\t": 3,
+   "Failsafe activated\t": 1,
+   "Landing detected\t": 1
+  }
+ },
+ {
+  "log": "fc_20261126T193157Z_flight.ulg",
+  "log_s": 122.3,
+  "airborne_s": 28.6,
+  "mode_seconds_airborne": {
+   "Position": 23.1,
+   "Hold": 5.0,
+   "Return": 0.5
+  },
+  "gps": {
+   "sats_min_med_max": [
+    12,
+    13.0,
+    18
+   ],
+   "speed_acc_ms_med_p95_max": [
+    0.63,
+    0.77,
+    0.78
+   ],
+   "horiz_acc_m_med_max": [
+    1.98,
+    2.27
+   ],
+   "vert_acc_m_med_max": [
+    3.64,
+    3.94
+   ],
+   "fix_min": 3,
+   "jam_indicator_med_max": [
+    24.0,
+    27
+   ],
+   "noise_med": 110.0
+  },
+  "estimator": {
+   "position_invalid_s_airborne": 0.0,
+   "position_invalid_episodes": 0,
+   "dead_reckoning_s_airborne": 0.0,
+   "xy_resets": 2,
+   "vxy_resets": 2,
+   "z_resets": 0,
+   "heading_resets": 1,
+   "gps_vel_test_ratio_med_max": [
+    0.13,
+    0.4
+   ],
+   "gps_pos_test_ratio_med_max": [
+    0.07,
+    0.13
+   ],
+   "mag_strength_G_med": 0.63,
+   "mag_strength_ref_G": 0.51,
+   "mag_fault_seen": false,
+   "gnss_pos_fused_frac": 1.0,
+   "baro_hgt_frac": 1.0,
+   "gps_hgt_frac": 1.0
+  },
+  "height_gps_minus_pixhawk_m_med_min_max": [
+   101.9,
+   98.0,
+   103.7
+  ],
+  "motion": {
+   "ground_speed_ms_max_p95": [
+    2.44,
+    1.15
+   ],
+   "climb_ms_max": 0.52,
+   "descent_ms_max": 0.87,
+   "height_above_takeoff_m_max": 4.0,
+   "tilt_deg_max_p95": [
+    35.0,
+    12.7
+   ],
+   "horiz_accel_ms2_max_p95": [
+    7.9,
+    2.88
+   ]
+  },
+  "pitch_vs_forward_speed": [
+   {
+    "forward_speed_ms": [
+     -0.5,
+     0.5
+    ],
+    "seconds": 26.0,
+    "pitch_deg_med": 0.1,
+    "pitch_deg_p10": -3.8,
+    "pitch_deg_p90": 4.4
+   }
+  ],
+  "pitch_deg_most_nose_down": -8.1,
+  "power": {
+   "motor_cmd_mean4_max_p95_med": [
+    0.5,
+    0.45,
+    0.27
+   ],
+   "hover_thrust_estimate_med": NaN,
+   "specific_force_g_max_smoothed": 1.32,
+   "battery_v_rest_before": 22.16,
+   "battery_v_min_airborne": 19.9,
+   "battery_a_max_med": [
+    12.0,
+    8.5
+   ],
+   "mah_used": 57.0,
+   "pack_resistance_mohm_fit": 48.0
+  },
+  "position_hold_sticks_centred": [
+   {
+    "t_s": [
+     91.2,
+     100.9
+    ],
+    "seconds": 9.7,
+    "horiz_wander_rms_m": 0.53,
+    "horiz_span_m": 1.61,
+    "height_span_m": null,
+    "speed_rms_ms": 0.39
+   }
+  ],
+  "velocity_follows_setpoint_position_mode": null,
+  "board_messages": {
+   "Preflight Fail: GPS Vertical Pos Drift too high": 1,
+   "Preflight Fail: Global position estimate required": 5,
+   "Armed by Stick gesture\t": 1,
+   "Takeoff detected\t": 1,
+   "Low battery\t": 3,
+   "Failsafe activated\t": 2,
+   "Critical battery\t": 2,
+   "Failsafe activated: entering Hold for 5 seconds\t": 1,
+   "Disarmed by kill-switch\t": 1
+  }
+ },
+ {
+  "log": "fc_20261126T200229Z_flight.ulg",
+  "log_s": 435.0,
+  "airborne_s": 142.0,
+  "mode_seconds_airborne": {
+   "Altitude": 6.1,
+   "Position": 133.8,
+   "Hold": 0.7,
+   "Stabilized": 1.4
+  },
+  "gps": {
+   "sats_min_med_max": [
+    15,
+    18.0,
+    20
+   ],
+   "speed_acc_ms_med_p95_max": [
+    0.22,
+    0.3,
+    0.37
+   ],
+   "horiz_acc_m_med_max": [
+    0.55,
+    0.7
+   ],
+   "vert_acc_m_med_max": [
+    0.99,
+    1.35
+   ],
+   "fix_min": 3,
+   "jam_indicator_med_max": [
+    29.0,
+    34
+   ],
+   "noise_med": 106.0
+  },
+  "estimator": {
+   "position_invalid_s_airborne": 0.0,
+   "position_invalid_episodes": 0,
+   "dead_reckoning_s_airborne": 0.0,
+   "xy_resets": 0,
+   "vxy_resets": 0,
+   "z_resets": 0,
+   "heading_resets": 2,
+   "gps_vel_test_ratio_med_max": [
+    0.06,
+    0.48
+   ],
+   "gps_pos_test_ratio_med_max": [
+    0.03,
+    0.09
+   ],
+   "mag_strength_G_med": 0.48,
+   "mag_strength_ref_G": 0.51,
+   "mag_fault_seen": false,
+   "gnss_pos_fused_frac": 1.0,
+   "baro_hgt_frac": 1.0,
+   "gps_hgt_frac": 1.0
+  },
+  "height_gps_minus_pixhawk_m_med_min_max": [
+   97.2,
+   92.5,
+   99.6
+  ],
+  "motion": {
+   "ground_speed_ms_max_p95": [
+    5.27,
+    2.45
+   ],
+   "climb_ms_max": 2.62,
+   "descent_ms_max": 0.97,
+   "height_above_takeoff_m_max": 6.0,
+   "tilt_deg_max_p95": [
+    44.5,
+    30.6
+   ],
+   "horiz_accel_ms2_max_p95": [
+    12.34,
+    5.24
+   ]
+  },
+  "pitch_vs_forward_speed": [
+   {
+    "forward_speed_ms": [
+     -0.5,
+     0.5
+    ],
+    "seconds": 123.5,
+    "pitch_deg_med": -1.8,
+    "pitch_deg_p10": -2.8,
+    "pitch_deg_p90": -0.7
+   },
+   {
+    "forward_speed_ms": [
+     0.5,
+     2
+    ],
+    "seconds": 7.7,
+    "pitch_deg_med": -3.2,
+    "pitch_deg_p10": -30.8,
+    "pitch_deg_p90": 23.7
+   }
+  ],
+  "pitch_deg_most_nose_down": -44.5,
+  "power": {
+   "motor_cmd_mean4_max_p95_med": [
+    0.45,
+    0.29,
+    0.25
+   ],
+   "hover_thrust_estimate_med": NaN,
+   "specific_force_g_max_smoothed": 1.25,
+   "battery_v_rest_before": 24.33,
+   "battery_v_min_airborne": 20.98,
+   "battery_a_max_med": [
+    20.9,
+    8.9
+   ],
+   "mah_used": 353.0,
+   "pack_resistance_mohm_fit": 60.0
+  },
+  "position_hold_sticks_centred": [
+   {
+    "t_s": [
+     292.6,
+     306.9
+    ],
+    "seconds": 14.3,
+    "horiz_wander_rms_m": 0.1,
+    "horiz_span_m": 0.28,
+    "height_span_m": null,
+    "speed_rms_ms": 0.08
+   },
+   {
+    "t_s": [
+     316.0,
+     321.3
+    ],
+    "seconds": 5.3,
+    "horiz_wander_rms_m": 0.06,
+    "horiz_span_m": 0.14,
+    "height_span_m": 0.11,
+    "speed_rms_ms": 0.06
+   },
+   {
+    "t_s": [
+     323.8,
+     374.3
+    ],
+    "seconds": 50.5,
+    "horiz_wander_rms_m": 0.07,
+    "horiz_span_m": 0.23,
+    "height_span_m": null,
+    "speed_rms_ms": 0.06
+   },
+   {
+    "t_s": [
+     416.1,
+     427.5
+    ],
+    "seconds": 11.4,
+    "horiz_wander_rms_m": 0.12,
+    "horiz_span_m": 0.32,
+    "height_span_m": null,
+    "speed_rms_ms": 0.07
+   }
+  ],
+  "velocity_follows_setpoint_position_mode": {
+   "vx": {
+    "lag_s": 0.12,
+    "corr": 0.99,
+    "gain": 0.87,
+    "setpoint_rms_ms": 0.68
+   },
+   "vy": {
+    "lag_s": 0.12,
+    "corr": 1.0,
+    "gain": 0.88,
+    "setpoint_rms_ms": 0.82
+   }
+  },
+  "board_messages": {
+   "Armed by Stick gesture\t": 1,
+   "Takeoff detected\t": 1,
+   "Low battery\t": 1,
+   "Failsafe activated\t": 1,
+   "Critical battery\t": 1,
+   "Failsafe activated: entering Hold for 5 seconds\t": 1,
+   "Landing detected\t": 1,
+   "Disarmed by landing\t": 1
+  }
+ }
+]

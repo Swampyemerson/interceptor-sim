@@ -1,0 +1,12 @@
+== fc_20261126T200946Z_ground.ulg 336 s, sats 19, speed acc 0.14 m/s
+   GPS receiver position: RMS 0.88 m, span N 2.99 m, E 1.94 m
+   GPS receiver height: median 1641.9 m, span 8.4 m, RMS 1.62 m
+   worst movement of the receiver's position inside any one minute: 2.29 m
+   reported GPS speed while still: median 0.09, 95th pct 0.32 m/s
+   GPS height minus the Pixhawk's reported height: median 100.2 m, range 93.7 to 101.1 m
+== fc_20261126T201555Z_ground.ulg 597 s, sats 19, speed acc 0.14 m/s
+   GPS receiver position: RMS 0.80 m, span N 2.89 m, E 1.70 m
+   GPS receiver height: median 1639.2 m, span 4.1 m, RMS 1.07 m
+   worst movement of the receiver's position inside any one minute: 2.71 m
+   reported GPS speed while still: median 0.07, 95th pct 0.16 m/s
+   GPS height minus the Pixhawk's reported height: median 94.6 m, range 92.4 to 97.3 m

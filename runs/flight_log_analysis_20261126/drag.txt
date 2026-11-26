@@ -1,0 +1,15 @@
+fc_20261126T190151Z_flight.ulg: 0.0 s above 1 m/s, top speed none (never airborne)
+fc_20261126T190331Z_flight.ulg: 0.0 s above 1 m/s, top speed 0.17 m/s
+fc_20261126T191603Z_flight.ulg: 2.1 s above 1 m/s, top speed 1.47 m/s
+fc_20261126T191934Z_flight.ulg: 3.9 s above 1 m/s, top speed 1.72 m/s
+fc_20261126T192138Z_flight.ulg: 0.0 s above 1 m/s, top speed 0.78 m/s
+fc_20261126T193157Z_flight.ulg: 2.4 s above 1 m/s, top speed 1.52 m/s
+fc_20261126T200229Z_flight.ulg: 14.7 s above 1 m/s, top speed 4.20 m/s
+linear drag k = 0.293 1/s (halves 0.473, 0.218; correlation 0.68; 4 s of samples, speeds to 4.0 m/s)
+steady pitch this k implies, nose down, if drag stays linear (EXTRAPOLATED above the speeds flown):
+    2 m/s:  3.4 deg   (fast sim's 0.25:  2.9 deg)
+    5 m/s:  8.5 deg   (fast sim's 0.25:  7.3 deg)
+    9 m/s: 15.1 deg   (fast sim's 0.25: 12.9 deg)
+   12 m/s: 19.7 deg   (fast sim's 0.25: 17.0 deg)
+   16 m/s: 25.6 deg   (fast sim's 0.25: 22.2 deg)
+   26 m/s: 37.9 deg   (fast sim's 0.25: 33.5 deg)

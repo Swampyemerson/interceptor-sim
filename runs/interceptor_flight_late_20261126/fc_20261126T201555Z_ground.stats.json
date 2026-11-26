@@ -1,0 +1,96 @@
+{
+ "started_utc": "20261126T201555Z",
+ "port": "/dev/pixhawk-usb",
+ "baud": 921600,
+ "link": "usb",
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 600.01,
+ "end_reason": "ground file rotated",
+ "ever_armed": false,
+ "bytes_written": 24265526,
+ "kb_per_s": 40.44,
+ "packets": 97454,
+ "acked_packets": 523,
+ "duplicates": 0,
+ "gaps": 1,
+ "lost_packets": 7,
+ "gaps_at_startup": 1,
+ "gap_times_s": [
+  1.76
+ ],
+ "header_seconds": 1.76,
+ "framing_errors": 0,
+ "dropout_ms_total": 8,
+ "first_data_delay_s": 0.0,
+ "stop_result": "accepted",
+ "link_rates_hz": {
+  "ALTITUDE": 10.0,
+  "ATTITUDE": 100.0,
+  "ATTITUDE_QUATERNION": 50.0,
+  "ATTITUDE_TARGET": 10.0,
+  "AUTOPILOT_VERSION": 0.0,
+  "BATTERY_STATUS": 0.5,
+  "COMMAND_ACK": 0.0,
+  "ESTIMATOR_STATUS": 1.0,
+  "EXTENDED_SYS_STATE": 5.0,
+  "GLOBAL_POSITION_INT": 50.0,
+  "GPS_RAW_INT": 10.0,
+  "HEARTBEAT": 0.9,
+  "HIGHRES_IMU": 50.0,
+  "HOME_POSITION": 0.5,
+  "LOCAL_POSITION_NED": 30.0,
+  "MISSION_CURRENT": 1.0,
+  "ODOMETRY": 30.0,
+  "OPEN_DRONE_ID_LOCATION": 1.0,
+  "OPEN_DRONE_ID_SYSTEM": 1.0,
+  "PING": 2.1,
+  "POSITION_TARGET_LOCAL_NED": 10.0,
+  "RC_CHANNELS": 20.0,
+  "SCALED_PRESSURE": 1.0,
+  "SERVO_OUTPUT_RAW": 10.0,
+  "STATUSTEXT": 0.0,
+  "SYSTEM_TIME": 1.0,
+  "SYS_STATUS": 5.0,
+  "TIMESYNC": 10.0,
+  "UNKNOWN_380": 0.5,
+  "UNKNOWN_410": 0.1,
+  "UNKNOWN_411": 0.3,
+  "UNKNOWN_436": 0.5,
+  "UNKNOWN_8": 1.0,
+  "VFR_HUD": 10.0,
+  "VIBRATION": 0.5
+ },
+ "armed_seen_s": null,
+ "armed_was_pretended": false,
+ "clock_pairs_unix_vs_fc_boot_ms": [
+  [
+   1795724158.269,
+   1433665
+  ],
+  [
+   1795724757.292,
+   2032667
+  ]
+ ],
+ "ground_station_bridge": {
+  "udp_port": 14550,
+  "ground_stations_seen": [
+   "127.0.0.1",
+   "192.168.1.163"
+  ],
+  "connected_now": 1,
+  "bytes_to_ground_station": 14797541,
+  "bytes_from_ground_station": 987444
+ },
+ "gaps_after_startup": 0,
+ "verdict": "CLEAN"
+}

@@ -1,0 +1,102 @@
+{
+ "started_utc": "20261126T200946Z",
+ "port": "/dev/pixhawk-usb",
+ "baud": 921600,
+ "link": "usb",
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 330.15,
+ "end_reason": "no log data for 10 s",
+ "ever_armed": false,
+ "bytes_written": 12726016,
+ "kb_per_s": 38.55,
+ "packets": 51111,
+ "acked_packets": 466,
+ "duplicates": 0,
+ "gaps": 2,
+ "lost_packets": 3448,
+ "gaps_at_startup": 1,
+ "gap_times_s": [
+  1.76,
+  335.21
+ ],
+ "header_seconds": 1.76,
+ "framing_errors": 0,
+ "dropout_ms_total": 8,
+ "first_data_delay_s": 0.0,
+ "stop_result": "no ack",
+ "link_rates_hz": {
+  "ALTITUDE": 9.6,
+  "ATTITUDE": 95.8,
+  "ATTITUDE_QUATERNION": 47.9,
+  "ATTITUDE_TARGET": 9.6,
+  "AUTOPILOT_VERSION": 0.0,
+  "BATTERY_STATUS": 0.5,
+  "COMMAND_ACK": 0.1,
+  "ESTIMATOR_STATUS": 1.0,
+  "EXTENDED_SYS_STATE": 4.8,
+  "GLOBAL_POSITION_INT": 47.9,
+  "GPS_RAW_INT": 9.6,
+  "HEARTBEAT": 0.9,
+  "HIGHRES_IMU": 47.9,
+  "HOME_POSITION": 0.5,
+  "LOCAL_POSITION_NED": 28.7,
+  "MISSION_COUNT": 0.0,
+  "MISSION_CURRENT": 0.9,
+  "ODOMETRY": 28.7,
+  "OPEN_DRONE_ID_LOCATION": 1.0,
+  "OPEN_DRONE_ID_SYSTEM": 1.0,
+  "PARAM_VALUE": 0.2,
+  "PING": 2.0,
+  "POSITION_TARGET_LOCAL_NED": 7.8,
+  "RC_CHANNELS": 19.2,
+  "SCALED_PRESSURE": 1.0,
+  "SERVO_OUTPUT_RAW": 9.6,
+  "STATUSTEXT": 0.1,
+  "SYSTEM_TIME": 1.0,
+  "SYS_STATUS": 4.8,
+  "TIMESYNC": 9.6,
+  "UNKNOWN_300": 0.0,
+  "UNKNOWN_380": 0.5,
+  "UNKNOWN_397": 0.0,
+  "UNKNOWN_410": 0.2,
+  "UNKNOWN_411": 0.3,
+  "UNKNOWN_435": 0.1,
+  "UNKNOWN_436": 0.5,
+  "UNKNOWN_8": 1.0,
+  "VFR_HUD": 9.6,
+  "VIBRATION": 0.5
+ },
+ "armed_seen_s": null,
+ "armed_was_pretended": false,
+ "clock_pairs_unix_vs_fc_boot_ms": [
+  [
+   1795723787.98,
+   1063390
+  ],
+  [
+   1795724125.242,
+   1400640
+  ]
+ ],
+ "ground_station_bridge": {
+  "udp_port": 14550,
+  "ground_stations_seen": [
+   "127.0.0.1",
+   "192.168.1.163"
+  ],
+  "connected_now": 0,
+  "bytes_to_ground_station": 7838760,
+  "bytes_from_ground_station": 27680
+ },
+ "gaps_after_startup": 1,
+ "verdict": "GAPS"
+}

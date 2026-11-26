@@ -1,0 +1,25 @@
+== fc_20261126T190151Z_flight.ulg
+== fc_20261126T190331Z_flight.ulg
+   Position     21.9 s  lean max   8.5 deg  speed max  0.20 m/s
+   hands-off hover  15.6 s: heading RMS 0.36 deg, span 1.59 deg, drift -0.50 deg
+== fc_20261126T191603Z_flight.ulg
+   Position     41.1 s  lean max  36.7 deg  speed max  1.68 m/s
+== fc_20261126T191934Z_flight.ulg
+   Position     92.3 s  lean max  35.0 deg  speed max  2.67 m/s
+== fc_20261126T192138Z_flight.ulg
+   Altitude      5.1 s  lean max   7.2 deg  speed max  0.40 m/s
+   Position     50.6 s  lean max  13.5 deg  speed max  0.81 m/s
+   hands-off hover  14.5 s: heading RMS 3.97 deg, span 11.36 deg, drift -10.73 deg
+== fc_20261126T193157Z_flight.ulg
+   Position     23.3 s  lean max  33.5 deg  speed max  2.44 m/s
+   Hold          5.0 s  lean max  33.6 deg  speed max  0.51 m/s
+   Return        0.5 s  lean max   4.8 deg  speed max  0.24 m/s
+   hands-off hover   9.7 s: heading RMS 7.11 deg, span 29.39 deg, drift -9.40 deg
+== fc_20261126T200229Z_flight.ulg
+   Altitude      6.2 s  lean max  29.0 deg  speed max  1.09 m/s
+   Position    136.4 s  lean max  44.5 deg  speed max  5.27 m/s
+   Hold          0.7 s  lean max   2.0 deg  speed max  0.17 m/s
+   Stabilized    1.4 s  lean max   3.2 deg  speed max  0.31 m/s
+   hands-off hover  14.3 s: heading RMS 1.59 deg, span 4.66 deg, drift +3.62 deg
+   hands-off hover  50.5 s: heading RMS 0.40 deg, span 2.73 deg, drift +0.47 deg
+   hands-off hover  11.4 s: heading RMS 0.75 deg, span 3.07 deg, drift -0.14 deg
