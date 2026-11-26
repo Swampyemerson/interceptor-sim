@@ -725,3 +725,12 @@ Asked whether the sim needs air drag, I put drag into the fast sim and ran the 5
 **So what:** The long-range dash is only as good as the cue's speed estimate, and the aircraft has no way yet to search for a target that is not where it believes. Three things follow: measure the real cue's speed error on one straight fast leg, build a search on arrival (prototype under test), and stop reading the 80 mph video as a demonstrated capability.
 
 *Evidence: isim/specs/approach_dash_drag_prereg_2026-11-18.md; docs/arrival_geometry_2026-11-18.md; docs/guidance_review_2026-11-18.md; runs/approach_dash_drag_20261118/*
+
+
+## 2026-11-18
+
+Second half of the day. The flight program gained a guarded flight mode with a radio arm permit, a props-off rehearsal mode that cannot arm, a watchdog that ends the command stream if the Pi program hangs, and a check of the board's limits before arming. The cue became the GO command: the target's GPS arrives live, the freshest five seconds are fitted, and the belief is locked at the instant of GO with the link delay taken out. A search along the believed track on arrival was built and tested in the fast sim, then everything was rerun with the flying camera, tag size and the board's real limits: at 20 degrees of camera tilt the search takes a straight target from 117 to 190 kills of 192. A weaving target is still rarely caught. A reader for the target's GPS over the control link and the transmitter's USB port was written from the published formats; it has not met the real transmitter.
+
+**So what:** All of this is laptop-tested only. The props are on, so nothing has run on the real Pi and Pixhawk; that rehearsal is the next step once they are off. Two things need rulings: the tag placard is designed side-facing, which a chase from behind cannot read, and the rerun's 20 degree camera tilt disagrees with the +10 degrees ruled in September under different conditions.
+
+*Evidence: isim/specs/flight_hardware_rerun_prereg_2026-11-18.md; isim/specs/arrival_search_prereg_2026-11-18.md; flight/tests/test_cue_go.py; runs/real_flight_driver_sih_20261118/README.md; docs/cue_over_control_link.md; docs/decisions.md ADR-0139*
