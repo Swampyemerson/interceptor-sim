@@ -1,0 +1,14 @@
+12:09:35 listening only; this script never arms
+12:09:35 health: unhealthy bits 0x11000000 | pre-arm ok False | battery V 24.42
+12:09:35 radio: arm-switch ch5 1000 | mode ch6 2000 | throttle 1100 | yaw 1500 | roll 1500 | pitch 1500 | rssi 254
+12:09:35 gps: fix 4 sats 21
+12:09:36 state: disarmed Loiter
+12:09:36 BOARD SAYS: Failed to create log directory /APM/LOGS : ENOSPC
+12:09:41 BOARD SAYS: Failed to create log directory /APM/LOGS : ENOSPC
+12:09:46 BOARD SAYS: Failed to create log directory /APM/LOGS : ENOSPC
+12:09:48 health: unhealthy bits 0x10000000 | pre-arm ok False | battery V 24.416
+12:09:50 BOARD SAYS: PreArm: Logging failed
+12:09:52 health: unhealthy bits 0x0 | pre-arm ok True | battery V 24.417
+12:10:17 health: unhealthy bits 0x10000000 | pre-arm ok False | battery V 24.415
+12:10:18 BOARD SAYS: PreArm: Check mag field (xy diff:107>100)
+12:10:18 BOARD SAYS: PreArm: Battery 1 low voltage failsafe

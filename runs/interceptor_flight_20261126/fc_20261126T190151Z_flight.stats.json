@@ -1,0 +1,103 @@
+{
+ "started_utc": "20261126T190151Z",
+ "port": "/dev/pixhawk-usb",
+ "baud": 921600,
+ "link": "usb",
+ "start_history": [
+  [
+   "stop",
+   0
+  ],
+  [
+   "start",
+   0
+  ]
+ ],
+ "seconds": 99.76,
+ "end_reason": "flight ended",
+ "ever_armed": true,
+ "bytes_written": 4061412,
+ "kb_per_s": 40.71,
+ "packets": 16313,
+ "acked_packets": 522,
+ "duplicates": 0,
+ "gaps": 1,
+ "lost_packets": 14,
+ "gaps_at_startup": 0,
+ "gap_times_s": [
+  16.37
+ ],
+ "header_seconds": 1.75,
+ "framing_errors": 0,
+ "dropout_ms_total": 5,
+ "first_data_delay_s": 0.0,
+ "stop_result": "accepted",
+ "link_rates_hz": {
+  "ALTITUDE": 10.0,
+  "ATTITUDE": 99.4,
+  "ATTITUDE_QUATERNION": 49.7,
+  "ATTITUDE_TARGET": 10.0,
+  "BATTERY_STATUS": 0.5,
+  "COMMAND_ACK": 0.1,
+  "COMMAND_LONG": 0.0,
+  "ESTIMATOR_STATUS": 1.0,
+  "EXTENDED_SYS_STATE": 5.0,
+  "GLOBAL_POSITION_INT": 49.7,
+  "GPS_RAW_INT": 10.0,
+  "HIGHRES_IMU": 49.7,
+  "HOME_POSITION": 0.5,
+  "LOCAL_POSITION_NED": 29.8,
+  "MISSION_CURRENT": 1.0,
+  "ODOMETRY": 29.8,
+  "OPEN_DRONE_ID_LOCATION": 1.0,
+  "OPEN_DRONE_ID_SYSTEM": 1.0,
+  "PARAM_VALUE": 0.4,
+  "PING": 1.0,
+  "POSITION_TARGET_LOCAL_NED": 10.0,
+  "RC_CHANNELS": 19.9,
+  "SCALED_PRESSURE": 1.0,
+  "SERVO_OUTPUT_RAW": 10.0,
+  "STATUSTEXT": 0.6,
+  "SYSTEM_TIME": 1.0,
+  "SYS_STATUS": 5.0,
+  "TIMESYNC": 10.0,
+  "UNKNOWN_380": 0.5,
+  "UNKNOWN_410": 0.7,
+  "UNKNOWN_411": 0.3,
+  "UNKNOWN_436": 0.5,
+  "UNKNOWN_8": 1.0,
+  "VFR_HUD": 10.0,
+  "VIBRATION": 0.5
+ },
+ "armed_seen_s": 83.76,
+ "armed_was_pretended": false,
+ "clock_pairs_unix_vs_fc_boot_ms": [
+  [
+   1795719711.338,
+   86551
+  ],
+  [
+   1795719810.336,
+   185551
+  ]
+ ],
+ "on_arm_command": {
+  "cmd": "/home/admin/interceptor-sim/.venv-pi/bin/python scripts/field/record_video.py --note flight --flip",
+  "starts": 1,
+  "pid": 1708,
+  "started_unix": 1795719795.002,
+  "started_s_after_arm_seen": 0.0,
+  "exit_code": 0
+ },
+ "ground_station_bridge": {
+  "udp_port": 14550,
+  "ground_stations_seen": [
+   "192.168.1.163"
+  ],
+  "connected_now": 1,
+  "bytes_to_ground_station": 2498000,
+  "bytes_from_ground_station": 5319
+ },
+ "gaps_after_startup": 1,
+ "verdict": "GAPS"
+}
