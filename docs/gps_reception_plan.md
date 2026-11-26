@@ -46,13 +46,18 @@ small loop with the cube. Worked from the measured 0.0036 G per amp
 leads are 60 mm below the compass today, 2.2 to 3.2 times if they are 110 mm below. The
 0.001 G per amp target needs 3.6 times.
 
-**The builder's description (2026-11-25, by eye):** the leads are inside the body and
-below it, red and black up to 20 mm apart. That fits the measurement: a 20 mm gap gives
-0.0036 G per amp at 105 mm. At that distance the mast alone gives about 2.3 times, which
-misses the target. **So the compass fix is the leads, not the mast:** taping red and
-black tightly together (20 mm down to 5 mm) gives 4 times with no mast, and about 9 times
-with it. The ribbon, as described, folds back on itself directly under the lid, 2 to 9 mm
-beneath the GPS as flown; the mast puts it 54 to 60 mm away, which is the mast's real job.
+**The builder's description (2026-11-25, corrected the same day after looking again):**
+the leads are inside the body and below it, red and black within 5 mm of each other
+except the last 20 mm at the speed controller. A pair that tight gives 0.0010 to
+0.0025 G per amp at 100 to 63 mm, so the leads explain a quarter to two thirds of the
+measured 0.0036 and **the rest of the source is not identified** (candidates: the split
+at the capacitor, the speed controller board, the battery pack's internal path, the
+power module). The mast's compass gain is therefore still 2 to 6 times and unproven. An
+earlier version of this paragraph said taping the leads would give 4 times; that rested
+on a 20 mm gap that does not exist. The builder is tidying the wiring (leads, 5 V runs
+moved lower, the ribbon's fold moved from under the lid); the compass pickup and the GPS
+are remeasured after that. The ribbon, as flown on 2026-11-22, folded back on itself
+directly under the lid, 2 to 9 mm beneath the GPS.
 
 ## Step 1: measure before printing (one bench session outdoors, props off, about 30 min)
 

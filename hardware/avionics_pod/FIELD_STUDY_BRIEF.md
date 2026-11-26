@@ -58,13 +58,13 @@ To get the as-flown case, copy the GPS body down by 51.45 mm and suppress the ma
 |---|---|---|
 | Battery current | 8.8 A in hover, 77 A at full throttle | Measured, flights of 2026-11-22 |
 | Compass pickup of battery current, GPS on the lid | 0.0036 G per amp (0.36 microtesla per amp) | Measured, flight 3 |
-| Battery lead route and spacing | Inside the airframe body and below it, so 63 mm or more under the compass as flown. Red and black up to 20 mm apart | Builder's description 2026-11-25, by eye. Not measured |
+| Battery lead route and spacing | Inside the airframe body and below it, so 63 mm or more under the compass as flown. Red and black within 5 mm of each other everywhere except the last 20 mm, where they split round the capacitor onto the speed controller. Spare length is looped at the back of the frame with the pair kept together | Builder's second description 2026-11-25, after looking again (the first said up to 20 mm apart). Not measured |
 | Pi supply current | up to 5 A | Vendor rating of the Pi 5 supply. The real draw has not been measured |
 | Pi supply route | Into the Pi, then straight down into the carbon body. The 5 V converter is inside the body | Builder's description 2026-11-25 |
 | Earth's field at the site | 0.513 G total | Model figure used elsewhere in the repo |
 | Radio noise from the camera ribbon | **strength not known.** Camera streaming on a bare ribbon took the GPS from 6 or 7 satellites to none | Measured effect, unmeasured level |
 | Radio noise from the Pi and AI board | **strength not known.** Processor load alone cost one satellite | Measured effect, unmeasured level |
-| Ribbon route and width | About 15 mm wide. From the Pi's camera connector it runs aft about 40 mm under the lid, folds back, and runs forward to the top of the camera | Builder's description 2026-11-25, by eye |
+| Ribbon route and width | About 15 mm wide. From the Pi's camera connector it runs aft about 40 mm under the lid, folds back, and runs forward to the top of the camera | Builder's description 2026-11-25, by eye. This is as flown on 2026-11-22; the builder is moving the fold away from under the lid |
 
 No datasheet gives the radio noise level of a Pi or a camera link. So study B cannot
 predict satellites or a fix. It can only rank arrangements against each other.
@@ -72,7 +72,9 @@ predict satellites or a fix. It can only rank arrangements against each other.
 ## 4. Study A: battery leads and the compass (EMS, "Magnetostatic")
 
 1. Open the assembly. Add two round copper bodies for the red and black battery leads
-   inside the body (below z = 0), 20 mm apart, running fore-aft. Repeat at 5 mm apart.
+   inside the body (below z = 0), 5 mm apart, with a 20 mm long split at the speed
+   controller end. If their layout is known, add the speed controller board and the
+   battery pack as current paths: the leads alone do not explain the measurement.
 2. Add an air box at least 400 mm on a side around everything.
 3. Material: copper for the leads; air for every printed part and board (plastic and
    circuit board do not change a steady magnetic field).
@@ -100,12 +102,14 @@ predict satellites or a fix. It can only rank arrangements against each other.
 | 80 mm | 0.0013 (2.7 times) | 0.0008 (4.4 times) |
 | 110 mm | 0.0017 (2.2 times) | 0.0011 (3.2 times) |
 
-**With the builder's description (leads in the body or below, up to 20 mm apart):** a
-20 mm gap gives the measured figure at 105 mm and a 10 mm gap at 75 mm, and the body is
-63 mm or more under the compass, so the description and the measurement agree. At 85 to
-115 mm the mast alone gives 2.1 to 2.6 times on the square law (0.0014 to 0.0017 G per
-amp), which misses the target. Closing the gap from 20 mm to 5 mm gives 4 times with no
-mast (0.0009), and about 0.0004 with the mast.
+**With the builder's description (leads in the body or below, 5 mm apart):** a 5 mm
+pair gives 0.0025 G per amp at 63 mm, the closest the body can be, and 0.0010 at 100 mm.
+The measurement is 0.0036. **So the tight leads explain between a quarter and two thirds
+of it, and the rest is not identified.** Candidates, none tested: the split round the
+capacitor, the speed controller board, the current path inside the battery pack, the
+power module. Those are small loops, whose field falls with the cube of distance. The
+mast's gain is therefore between 2 times (leads, 110 mm away) and 6 times (a small loop,
+63 mm away), and only a measurement after the rewire settles it.
 
 **Target:** under 0.001 G per amp on the mast (0.08 G at 77 A, against Earth's 0.513 G).
 **If the model misses it,** try the leads taped tightly together (the field falls in
