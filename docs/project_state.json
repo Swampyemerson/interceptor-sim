@@ -21,7 +21,7 @@
     "finding": "The first GO locked the target 101 m overhead: barometer height against GPS height. Fixed and seen fixed. The chase is built to hit the target, has no slow-speed limit and holds no safe distance; the nose camera has no calibration.",
     "next": [
       "You: say how far apart the two aircraft really were (the program said 4.8 m, then 7.1 m)",
-      "You: decide how the two aircraft are kept apart on the slow run (target on the ground first, then a height gap)"
+      "You: decide how the two aircraft are kept apart on the slow run (target on the ground first)"
     ],
     "evidence": "runs/bench_props_on_disarmed_20261126/README.md - runs/interceptor_redundancy_20261126/README.md - flight/deploy/real_flight.py - docs/cue_over_control_link.md"
   },
