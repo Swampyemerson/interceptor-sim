@@ -461,7 +461,7 @@ def iter_v4l2(cv2, device, w, h, exposure_us, gain, n_frames, duration,
         cap.release()
 
 
-def iter_picamera2(cv2, w, h, exposure_us, gain, n_frames, duration):
+def iter_picamera2(cv2, w, h, exposure_us, gain, n_frames, duration, flip180=False):
     """Real Pi + OV9281 via libcamera/picamera2 (imported LAZILY — a clear
     failure off-Pi). AE off + a requested short exposure; the ACTUAL applied
     ExposureTime / AnalogueGain are read from each request's metadata and
@@ -484,8 +484,15 @@ def iter_picamera2(cv2, w, h, exposure_us, gain, n_frames, duration):
     # Request a mono/greyscale main stream at native size; keep it robust to
     # driver format quirks (OV9281 may present raw mono or an ISP-upsampled
     # frame) — whatever comes back is normalized to grey by _to_gray().
+    cfg_kwargs = {}
+    if flip180:  # pragma: no cover
+        # A camera mounted upside down: rotate 180 degrees AT THE SENSOR, the
+        # same transform flight/deploy/seeker_loop.PicameraSource applies, so a
+        # calibration captured here matches the image the flight code reads.
+        from libcamera import Transform  # type: ignore
+        cfg_kwargs["transform"] = Transform(hflip=1, vflip=1)
     cfg = picam2.create_video_configuration(  # pragma: no cover
-        main={"size": (w, h)}, controls=controls)
+        main={"size": (w, h)}, controls=controls, **cfg_kwargs)
     picam2.configure(cfg)  # pragma: no cover
     picam2.start()  # pragma: no cover
     picam2.set_controls(controls)  # pragma: no cover

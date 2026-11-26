@@ -567,7 +567,8 @@ def solve_fisheye(obj_list, img_list, image_size, full_n_points):
     return rms, K, D, len(idx)
 
 
-def write_intrinsics_json(path, K, dist, image_size, n_views, rms, source):
+def write_intrinsics_json(path, K, dist, image_size, n_views, rms, source,
+                          image_flip_deg=None):
     """Same schema as scripts/calibrate_camera.py's _write_json (kept as a
     separate writer here, not a shared function, so this file never has to
     edit that one -- tests/test_calib_live.py's schema-drift check compares
@@ -582,6 +583,12 @@ def write_intrinsics_json(path, K, dist, image_size, n_views, rms, source):
         "rms_reproj_error_px": float(rms),
         "n_views": int(n_views),
         "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # The rotation the frames were captured with: 180 for a camera mounted
+        # upside down (--flip180), 0 for a live upright capture, None when the
+        # frames came from somewhere that cannot say (a directory replay). The
+        # flight reader refuses a calibration whose stamp does not match its
+        # own --camera-mount (flight/deploy/frame_feed.flip_refusal).
+        "image_flip_deg": (None if image_flip_deg is None else int(image_flip_deg)),
     }
     with open(path, "w") as f:
         json.dump(out, f, indent=2)
@@ -746,7 +753,8 @@ def _open_source(args):
                          args.gain, 0, None)
     if src == "picamera2":
         return iter_picamera2(cv2, args.width, args.height, args.exposure_us,
-                              args.gain, 0, None)
+                              args.gain, 0, None,
+                              flip180=bool(getattr(args, "flip180", False)))
     raise SystemExit(f"{LOG} unknown --source {src!r} "
                      f"(use picamera2, dir=PATH, or v4l2[=DEVICE])")
 
@@ -872,8 +880,11 @@ def run(args):
             }, f, indent=2)
         print(f"{LOG} wrote {fpath} (diagnostic, not consumed by flight code)")
 
+    _flip = (180 if getattr(args, "flip180", False)
+             else (0 if args.source == "picamera2" else None))
     out = write_intrinsics_json(args.out, K_p, dist_p, image_size, n_used_p,
-                                rms_p, source=f"{adapter.kind}_tv")
+                                rms_p, source=f"{adapter.kind}_tv",
+                                image_flip_deg=_flip)
     print(f"{LOG} wrote {args.out}")
     if out["rms_reproj_error_px"] > 1.0:
         print(f"{LOG} WARNING: pinhole RMS > 1.0px -- marginal; recapture "
@@ -1030,6 +1041,12 @@ def main(argv=None):
                     help="square size in mm, read off scripts/bench/calib_pattern.html")
     ap.add_argument("--source", default="picamera2",
                     help="picamera2 (default) | dir=PATH | v4l2[=DEVICE]")
+    ap.add_argument("--flip180", action="store_true",
+                    help="the camera is mounted UPSIDE DOWN (the interceptor's "
+                         "nose camera): rotate the image 180 degrees at the "
+                         "sensor, exactly as the flight code does with "
+                         "--camera-mount upside-down, and stamp the output "
+                         "image_flip_deg=180. picamera2 source only.")
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=800)
     ap.add_argument("--exposure-us", type=int, default=CALIB_EXPOSURE_US_DEFAULT,

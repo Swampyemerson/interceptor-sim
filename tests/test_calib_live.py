@@ -552,3 +552,21 @@ def test_end_to_end_dir_replay_not_ready_reports_exit_1(tmp_path, board_img, boa
     ])
     assert rc == 1
     assert not out_path.exists()
+
+
+@pytest.mark.parametrize("flip,stamp", [(180, 180), (0, 0), (None, None)])
+def test_flip_stamp_reaches_the_flight_reader(tmp_path, flip, stamp):
+    """Producer to consumer: the file this tool writes, read by the flight
+    code's own loader and judged by its own rotation check. A calibration
+    captured upside down passes ONLY an upside-down flight image."""
+    from flight.camera import CameraModel
+    from flight.deploy.frame_feed import flip_refusal
+    K = np.array([[900.0, 0, 640.0], [0, 900.0, 400.0], [0, 0, 1.0]])
+    p = tmp_path / "nose.json"
+    cl.write_intrinsics_json(str(p), K, np.zeros(5), (1280, 800), 25, 0.4,
+                             source="charuco_tv", image_flip_deg=flip)
+    cam = CameraModel.from_json(str(p))
+    assert cam.image_flip_deg == stamp
+    upside_down = (flip == 180)
+    assert (flip_refusal(cam, True) is None) is upside_down
+    assert (flip_refusal(cam, False) is None) is (not upside_down)

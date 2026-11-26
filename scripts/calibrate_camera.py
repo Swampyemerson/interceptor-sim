@@ -130,7 +130,7 @@ def self_test():
     return ok
 
 
-def _write_json(path, K, dist, image_size, n_views, rms):
+def _write_json(path, K, dist, image_size, n_views, rms, image_flip_deg=None):
     w, h = image_size
     out = {
         # POSITIVE provenance stamp (2026-07-26): consumers on a live camera must
@@ -146,6 +146,8 @@ def _write_json(path, K, dist, image_size, n_views, rms):
         "rms_reproj_error_px": float(rms),
         "n_views": int(n_views),
         "recorded_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        # the rotation the views were captured with (None = not stated)
+        "image_flip_deg": (None if image_flip_deg is None else int(image_flip_deg)),
     }
     with open(path, "w") as f:
         json.dump(out, f, indent=2)
